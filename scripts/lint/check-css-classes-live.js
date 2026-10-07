@@ -149,7 +149,7 @@ const RENDERED = /semiont-[a-zA-Z0-9_-]+/g;
  */
 function classNamesIn(rawSource) {
   const names = new Set();
-  // Data attributes wear the same prefix — `data-testid="semiont-assist-bar"`
+  // Data attributes wear the same prefix — `data-testid="semiont-delegate-bar"`
   // is a TEST HOOK, never a class, and no stylesheet should define it. They sit
   // inches from a `className`, so the window below would otherwise accuse
   // every one of them. (CSS does select `[data-visible="true"]`, but that is an

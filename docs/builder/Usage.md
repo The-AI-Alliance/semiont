@@ -6,7 +6,7 @@
 - [Setup](#setup)
 - Writing
   - [Yield — Resource Creation and Generation](#yield)
-  - [Mark — Annotation CRUD and AI Assist](#mark)
+  - [Mark — Annotation CRUD and Delegation](#mark)
   - [Bind — Reference Linking](#bind)
   - [Frame — Schema Vocabulary](#frame)
 - Reading

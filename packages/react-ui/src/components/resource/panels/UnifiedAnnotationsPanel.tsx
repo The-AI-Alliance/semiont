@@ -57,8 +57,8 @@ interface UnifiedAnnotationsPanelProps {
   // Mode
   annotateMode?: boolean;
 
-  // Annotation assistance state (per motivation)
-  assistingMotivation?: Motivation | null;
+  // Delegated annotation state (per motivation)
+  delegatingMotivation?: Motivation | null;
   progress?: JobProgress | null;
 
   // Unified pending annotation (for creating new annotations)
@@ -273,10 +273,10 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
           if (!annotator) return null;
 
           const annotations = grouped[activeTab] || [];
-          const isAssisting = props.assistingMotivation === annotator.motivation;
-          // Only pass progress to the panel whose motivation matches assistingMotivation
+          const isDelegating = props.delegatingMotivation === annotator.motivation;
+          // Only pass progress to the panel whose motivation matches delegatingMotivation
           // This prevents progress from appearing in wrong tabs
-          const progress = isAssisting ? (props.progress ?? null) : null;
+          const progress = isDelegating ? (props.progress ?? null) : null;
 
           // Common props for all annotation panels
           const commonProps = {
@@ -284,7 +284,7 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
             resourceId: props.resourceId,
             annotations,
             pendingAnnotation: props.pendingAnnotation,
-            isAssisting,
+            isDelegating,
             progress,
             annotateMode: props.annotateMode,
             locale: props.locale,
@@ -311,7 +311,7 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
                 resourceId={commonProps.resourceId}
                 annotations={commonProps.annotations}
                 pendingAnnotation={commonProps.pendingAnnotation}
-                isAssisting={commonProps.isAssisting}
+                isDelegating={commonProps.isDelegating}
                 progress={commonProps.progress}
                 annotateMode={commonProps.annotateMode}
                 scrollToAnnotationId={commonProps.scrollToAnnotationId}

@@ -52,8 +52,8 @@ export const TOOLS: Tool[] = [
     },
   },
   {
-    name: 'mark_assist',
-    description: 'AI-assisted annotation: detect entity references in a resource',
+    name: 'mark_delegate',
+    description: 'Delegated annotation: have the worker detect entity references in a resource',
     inputSchema: {
       type: 'object',
       properties: {

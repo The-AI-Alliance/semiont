@@ -11,7 +11,7 @@ set -euo pipefail
 #    `.bus.frames(`, `.bus.scope(` — which goes through the bridged
 #    `client.bus` (`EventBus`) directly.
 #
-# The typed namespace methods (session.client.mark.assist etc.) are the
+# The typed namespace methods (session.client.mark.delegate etc.) are the
 # only public API surface. Direct bus access is reserved for the SDK
 # implementation (`@semiont/sdk`) and HTTP adapters (`@semiont/http-transport`).
 #

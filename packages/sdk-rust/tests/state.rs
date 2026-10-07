@@ -18,7 +18,7 @@ use semiont::testing::axioms::{AxiomSubject, Fresh, Surface, assert_state_unit_a
 use semiont::testing::{
     FaultAction, FaultyTransport, RequestLogEntry, TestClientOptions, create_test_client,
 };
-use semiont::timing::{ASSIST_SILENCE, BUS_REQUEST_TIMEOUT, HOVER_DELAY, SEARCH_DEBOUNCE};
+use semiont::timing::{BUS_REQUEST_TIMEOUT, DELEGATE_SILENCE, HOVER_DELAY, SEARCH_DEBOUNCE};
 use semiont::transport::{Envelope, Frame};
 use semiont::types::{
     AnnotationSelector, CommentingJobParams, CommentingJobParamsTone, GatherResourceRequestOptions,
@@ -1193,7 +1193,7 @@ async fn mark_holds_the_annotation_a_selection_asks_for_until_it_is_cancelled() 
     let (client, _transport) = world();
     let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
     assert_eq!(*unit.pending().borrow(), None);
-    assert_eq!(*unit.assisting().borrow(), None);
+    assert_eq!(*unit.delegating().borrow(), None);
     assert_eq!(*unit.progress().borrow(), None);
 
     client.mark.request(
@@ -1363,14 +1363,15 @@ async fn mark_says_a_creation_that_failed_and_keeps_the_annotation_pending() {
     assert!(unit.pending().borrow().is_some());
 }
 
-fn ask_for_an_assist(client: &SemiontClient) {
-    client.mark.request_assist(HighlightingJobParams::new());
+fn ask_to_delegate(client: &SemiontClient) {
+    client.mark.request_delegate(HighlightingJobParams::new());
 }
 
-/// The motivation a mark unit assists with, and the percentage it shows.
-fn assisting(unit: &MarkStateUnit) -> (Option<Motivation>, Option<f64>) {
+/// The motivation of the job a mark unit has delegated, and the percentage
+/// it shows.
+fn delegating(unit: &MarkStateUnit) -> (Option<Motivation>, Option<f64>) {
     (
-        *unit.assisting().borrow(),
+        *unit.delegating().borrow(),
         unit.progress().borrow().as_ref().map(|p| p.percentage),
     )
 }
@@ -1378,11 +1379,11 @@ fn assisting(unit: &MarkStateUnit) -> (Option<Motivation>, Option<f64>) {
 const MARK: &str = "mark";
 
 #[tokio::test(start_paused = true)]
-async fn mark_runs_the_assist_it_is_asked_for_and_shows_its_progress() {
+async fn mark_delegates_the_job_it_is_asked_for_and_shows_its_progress() {
     let (client, transport) = jobs();
     let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
 
-    client.mark.request_assist(CommentingJobParams {
+    client.mark.request_delegate(CommentingJobParams {
         instructions: Some("the dates".to_owned()),
         tone: Some(CommentingJobParamsTone::Scholarly),
         density: Some(3.0),
@@ -1390,7 +1391,7 @@ async fn mark_runs_the_assist_it_is_asked_for_and_shows_its_progress() {
         ..CommentingJobParams::new()
     });
     settle().await;
-    assert_eq!(assisting(&unit), (Some(Motivation::Commenting), None));
+    assert_eq!(delegating(&unit), (Some(Motivation::Commenting), None));
     let created = requests(&transport, "job:create");
     assert_eq!(created.len(), 1);
     // The job is a mark job on the unit's resource, with the parameters the request carried.
@@ -1408,40 +1409,43 @@ async fn mark_runs_the_assist_it_is_asked_for_and_shows_its_progress() {
 
     say(&client, "job:report-progress", progress(MARK, 40.0));
     settle().await;
-    assert_eq!(assisting(&unit), (Some(Motivation::Commenting), Some(40.0)));
+    assert_eq!(
+        delegating(&unit),
+        (Some(Motivation::Commenting), Some(40.0))
+    );
 
     // The finished run stays on show: only its motivation is let go.
     say(&client, "job:complete", job_frame(MARK, json!({})));
     settle().await;
-    assert_eq!(assisting(&unit), (None, Some(40.0)));
+    assert_eq!(delegating(&unit), (None, Some(40.0)));
 
     client.mark.dismiss_progress();
     settle().await;
-    assert_eq!(assisting(&unit), (None, None));
+    assert_eq!(delegating(&unit), (None, None));
 }
 
 #[tokio::test(start_paused = true)]
-async fn mark_begins_each_assist_without_the_last_ones_progress() {
+async fn mark_begins_each_delegated_job_without_the_last_ones_progress() {
     let (client, _transport) = jobs();
     let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
-    ask_for_an_assist(&client);
+    ask_to_delegate(&client);
     settle().await;
     say(&client, "job:report-progress", progress(MARK, 40.0));
     say(&client, "job:complete", job_frame(MARK, json!({})));
     settle().await;
-    assert_eq!(assisting(&unit), (None, Some(40.0)));
+    assert_eq!(delegating(&unit), (None, Some(40.0)));
 
-    ask_for_an_assist(&client);
+    ask_to_delegate(&client);
     settle().await;
-    assert_eq!(assisting(&unit), (Some(Motivation::Highlighting), None));
+    assert_eq!(delegating(&unit), (Some(Motivation::Highlighting), None));
 }
 
 #[tokio::test(start_paused = true)]
-async fn mark_clears_an_assist_that_fails_and_says_no_silence_of_it() {
+async fn mark_clears_a_delegated_job_that_fails_and_says_no_silence_of_it() {
     let (client, _transport) = jobs();
     let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
-    let mut silences = client.bus().frames("mark:assist-timeout");
-    ask_for_an_assist(&client);
+    let mut silences = client.bus().frames("mark:delegate-timeout");
+    ask_to_delegate(&client);
     settle().await;
     say(&client, "job:report-progress", progress(MARK, 40.0));
     settle().await;
@@ -1452,9 +1456,9 @@ async fn mark_clears_an_assist_that_fails_and_says_no_silence_of_it() {
         job_frame(MARK, json!({ "error": "the model refused" })),
     );
     settle().await;
-    assert_eq!(assisting(&unit), (None, None));
+    assert_eq!(delegating(&unit), (None, None));
 
-    tokio::time::sleep(ASSIST_SILENCE * 2).await;
+    tokio::time::sleep(DELEGATE_SILENCE * 2).await;
     assert!(heard(&mut silences).await.is_empty());
 }
 
@@ -1494,21 +1498,21 @@ async fn mark_holds_the_motivation_its_jobs_parameters_state_whichever_job_it_is
     for params in asked {
         let (client, transport) = jobs();
         let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
-        let mut silences = client.bus().frames("mark:assist-timeout");
+        let mut silences = client.bus().frames("mark:delegate-timeout");
         let stated: Motivation =
             serde_json::from_value(params["motivation"].clone()).expect("a motivation");
         let job: MarkJobParams =
             serde_json::from_value(params.clone()).expect("a job's parameters");
 
-        client.mark.request_assist(job);
+        client.mark.request_delegate(job);
         settle().await;
-        assert_eq!(assisting(&unit), (Some(stated), None), "{params}");
+        assert_eq!(delegating(&unit), (Some(stated), None), "{params}");
         assert_eq!(
             requests(&transport, "job:create")[0].payload["params"],
             params
         );
         // And it is the motivation the unit says has gone quiet.
-        tokio::time::sleep(ASSIST_SILENCE + Duration::from_secs(1)).await;
+        tokio::time::sleep(DELEGATE_SILENCE + Duration::from_secs(1)).await;
         assert_eq!(
             payloads(heard(&mut silences).await),
             [json!({ "resourceId": RES, "motivation": params["motivation"] })]
@@ -1517,58 +1521,58 @@ async fn mark_holds_the_motivation_its_jobs_parameters_state_whichever_job_it_is
 }
 
 #[tokio::test(start_paused = true)]
-async fn mark_clears_an_assist_that_could_not_be_started() {
+async fn mark_clears_a_delegated_job_that_could_not_be_started() {
     // Nothing answers `job:create`.
     let (client, _transport) = world();
     let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
 
-    ask_for_an_assist(&client);
+    ask_to_delegate(&client);
     settle().await;
 
-    assert_eq!(assisting(&unit), (None, None));
+    assert_eq!(delegating(&unit), (None, None));
 }
 
 #[tokio::test(start_paused = true)]
-async fn mark_says_once_that_an_assist_has_gone_quiet_and_keeps_following_it() {
+async fn mark_says_once_that_a_delegated_job_has_gone_quiet_and_keeps_following_it() {
     let (client, _transport) = jobs();
     let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
-    let mut silences = client.bus().frames("mark:assist-timeout");
-    ask_for_an_assist(&client);
+    let mut silences = client.bus().frames("mark:delegate-timeout");
+    ask_to_delegate(&client);
 
-    tokio::time::sleep(ASSIST_SILENCE - Duration::from_secs(1)).await;
+    tokio::time::sleep(DELEGATE_SILENCE - Duration::from_secs(1)).await;
     assert!(heard(&mut silences).await.is_empty());
-    assert_eq!(assisting(&unit), (Some(Motivation::Highlighting), None));
+    assert_eq!(delegating(&unit), (Some(Motivation::Highlighting), None));
 
     tokio::time::sleep(Duration::from_secs(2)).await;
     assert_eq!(
         payloads(heard(&mut silences).await),
         [json!({ "resourceId": RES, "motivation": "highlighting" })]
     );
-    // Still assisting, as far as anyone here knows, and with something to show.
+    // Still running, as far as anyone here knows, and with something to show.
     assert_eq!(
-        assisting(&unit),
+        delegating(&unit),
         (Some(Motivation::Highlighting), Some(0.0))
     );
 
     // Said once, however long the silence lasts.
-    tokio::time::sleep(ASSIST_SILENCE * 3).await;
+    tokio::time::sleep(DELEGATE_SILENCE * 3).await;
     assert!(heard(&mut silences).await.is_empty());
 
     // A completion that arrives after all that still ends it.
     say(&client, "job:complete", job_frame(MARK, json!({})));
     settle().await;
-    assert_eq!(assisting(&unit), (None, Some(0.0)));
+    assert_eq!(delegating(&unit), (None, Some(0.0)));
 }
 
 #[tokio::test(start_paused = true)]
-async fn mark_counts_an_assists_silence_from_the_last_thing_it_said() {
+async fn mark_counts_a_delegated_jobs_silence_from_the_last_thing_it_said() {
     let (client, _transport) = jobs();
     let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
-    let mut silences = client.bus().frames("mark:assist-timeout");
-    ask_for_an_assist(&client);
+    let mut silences = client.bus().frames("mark:delegate-timeout");
+    ask_to_delegate(&client);
 
     for step in 1..=3 {
-        tokio::time::sleep(ASSIST_SILENCE - Duration::from_secs(10)).await;
+        tokio::time::sleep(DELEGATE_SILENCE - Duration::from_secs(10)).await;
         say(
             &client,
             "job:report-progress",
@@ -1579,21 +1583,21 @@ async fn mark_counts_an_assists_silence_from_the_last_thing_it_said() {
     // Three windows' worth of time, and never one of silence.
     assert!(heard(&mut silences).await.is_empty());
     assert_eq!(
-        assisting(&unit),
+        delegating(&unit),
         (Some(Motivation::Highlighting), Some(30.0))
     );
 
     // What it showed is left as it was when the silence does come.
-    tokio::time::sleep(ASSIST_SILENCE + Duration::from_secs(1)).await;
+    tokio::time::sleep(DELEGATE_SILENCE + Duration::from_secs(1)).await;
     assert_eq!(heard(&mut silences).await.len(), 1);
     assert_eq!(
-        assisting(&unit),
+        delegating(&unit),
         (Some(Motivation::Highlighting), Some(30.0))
     );
 
     // And the next thing the job says starts the count again.
     say(&client, "job:report-progress", progress(MARK, 50.0));
-    tokio::time::sleep(ASSIST_SILENCE + Duration::from_secs(1)).await;
+    tokio::time::sleep(DELEGATE_SILENCE + Duration::from_secs(1)).await;
     assert_eq!(heard(&mut silences).await.len(), 1);
 }
 
@@ -1662,14 +1666,14 @@ async fn mark_acts_on_what_it_hears_in_the_order_it_was_said() {
 async fn mark_disposed_is_inert() {
     let (client, transport) = jobs();
     let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
-    ask_for_an_assist(&client);
+    ask_to_delegate(&client);
     settle().await;
     let mut pending = unit.pending();
-    let mut motivation = unit.assisting();
+    let mut motivation = unit.delegating();
     let mut shown = unit.progress();
     let mut said = client
         .bus()
-        .frames_among(&["mark:assist-timeout", "mark:create-error"]);
+        .frames_among(&["mark:delegate-timeout", "mark:create-error"]);
 
     unit.dispose();
     client.mark.request(
@@ -1679,8 +1683,8 @@ async fn mark_disposed_is_inert() {
     );
     submit(&client, RES, "hello");
     say(&client, "job:report-progress", progress(MARK, 40.0));
-    ask_for_an_assist(&client);
-    tokio::time::sleep(ASSIST_SILENCE * 2).await;
+    ask_to_delegate(&client);
+    tokio::time::sleep(DELEGATE_SILENCE * 2).await;
 
     assert!(pending.ended() && motivation.ended() && shown.ended());
     assert_eq!(*pending.borrow(), None);
@@ -1704,7 +1708,7 @@ impl AxiomSubject for Marks {
     fn surfaces(&self, unit: &MarkStateUnit) -> Vec<Box<dyn Surface>> {
         vec![
             Box::new(unit.pending()),
-            Box::new(unit.assisting()),
+            Box::new(unit.delegating()),
             Box::new(unit.progress()),
         ]
     }

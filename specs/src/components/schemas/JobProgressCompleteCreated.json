@@ -12,21 +12,14 @@
       "type": "integer",
       "description": "How many annotations were created"
     },
-    "kind": {
-      "type": "string",
-      "enum": [
-        "highlight",
-        "comment",
-        "assessment",
-        "reference",
-        "tag"
-      ],
-      "description": "What kind of annotation was created; clients pluralize/translate"
+    "motivation": {
+      "$ref": "./Motivation.json",
+      "description": "The motivation of the job, and so of what it created. A client words it in its own language."
     }
   },
   "required": [
     "code",
     "count",
-    "kind"
+    "motivation"
   ]
 }

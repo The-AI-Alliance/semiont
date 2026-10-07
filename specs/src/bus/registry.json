@@ -64,9 +64,9 @@
       "mark:requested",
       "mark:cancel-pending",
       "mark:submit",
-      "mark:assist-request",
+      "mark:delegate-request",
       "mark:progress-dismiss",
-      "mark:assist-timeout",
+      "mark:delegate-timeout",
       "mark:create-error",
       "mark:delete-error",
       "bind:body-error",
@@ -279,9 +279,9 @@
       "mark:requested",
       "mark:cancel-pending",
       "mark:submit",
-      "mark:assist-request",
+      "mark:delegate-request",
       "mark:progress-dismiss",
-      "mark:assist-timeout",
+      "mark:delegate-timeout",
       "mark:create-error",
       "mark:delete-error",
       "bind:body-error",
@@ -828,7 +828,7 @@
         "lead": [
           "",
           "  // ========================================================================",
-          "  // MARK FLOW — annotation CRUD, AI assist, resource lifecycle",
+          "  // MARK FLOW — annotation CRUD, delegated annotation, resource lifecycle",
           "  // ========================================================================",
           "",
           "  // Domain events (branded — system of record)"
@@ -1357,10 +1357,10 @@
       }
     },
     {
-      "channel": "mark:assist-request",
+      "channel": "mark:delegate-request",
       "shape": "schema",
-      "schema": "MarkAssistRequestEvent",
-      "validate": "MarkAssistRequestEvent",
+      "schema": "MarkDelegateRequestEvent",
+      "validate": "MarkDelegateRequestEvent",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1384,13 +1384,13 @@
       }
     },
     {
-      "channel": "mark:assist-timeout",
+      "channel": "mark:delegate-timeout",
       "shape": "schema",
-      "schema": "MarkAssistTimeoutEvent",
+      "schema": "MarkDelegateTimeoutEvent",
       "validate": null,
       "docs": {
         "lead": [
-          "  // Client-local: the assist Observable went silent past its deadline (no",
+          "  // Client-local: a delegated job went silent past its deadline (no",
           "  // progress, no completion, no job:fail). Emitted by mark-state-unit so the",
           "  // outcome-notification layer can tell the user; a real job failure arrives",
           "  // as job:fail instead and never produces this."
@@ -4048,9 +4048,9 @@
       "mark:requested",
       "mark:cancel-pending",
       "mark:submit",
-      "mark:assist-request",
+      "mark:delegate-request",
       "mark:progress-dismiss",
-      "mark:assist-timeout",
+      "mark:delegate-timeout",
       "mark:create-error",
       "mark:delete-error",
       "bind:body-error",

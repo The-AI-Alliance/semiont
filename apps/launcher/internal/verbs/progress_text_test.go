@@ -7,7 +7,7 @@ package verbs
 // code lands in `JobProgressMessage` without copy. The list below is
 // deliberately frozen: adding a variant to the schema means adding copy to
 // `progressText` AND a row here — the same acknowledgment-gate idiom as the
-// TS side's exhaustive `never` switch in assist-progress-copy.
+// exhaustive `never` switch react-ui words the same codes with.
 
 import (
 	"encoding/json"
@@ -28,7 +28,7 @@ func TestProgressTextCoversEveryCode(t *testing.T) {
 		`{"code":"detecting-entities","entityType":"Person"}`,
 		`{"code":"creating-annotations","count":3}`,
 		`{"code":"creating-tag-annotations","count":2}`,
-		`{"code":"complete-created","count":4,"kind":"reference"}`,
+		`{"code":"complete-created","count":4,"motivation":"linking"}`,
 	}
 	for _, raw := range payloads {
 		var m semiont.JobProgressMessage
@@ -38,5 +38,18 @@ func TestProgressTextCoversEveryCode(t *testing.T) {
 		if got := progressText(&m); got == "" {
 			t.Errorf("progressText has no copy for %s — the silent default fired", raw)
 		}
+	}
+}
+
+// What a mark job created is worded from its motivation. One this launcher has
+// no noun for, as a newer stack's may be, prints nothing, as a code it does
+// not know does: a count with no noun says nothing.
+func TestProgressTextSaysNothingOfAMotivationWithNoNoun(t *testing.T) {
+	var m semiont.JobProgressMessage
+	if err := json.Unmarshal([]byte(`{"code":"complete-created","count":2,"motivation":"bookmarking"}`), &m); err != nil {
+		t.Fatal(err)
+	}
+	if got := progressText(&m); got != "" {
+		t.Errorf("a motivation with no noun is worded %q", got)
 	}
 }

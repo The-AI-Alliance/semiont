@@ -9,11 +9,11 @@ import { useTranslations } from '../contexts/TranslationContext';
  *
  *   mark:create-error / mark:delete-error / bind:body-error          → error
  *   job:fail                                                         → error
- *   mark:assist-timeout                                              → info
- *     (the assist went SILENT, not wrong: no job:fail ever fires and the
+ *   mark:delegate-timeout                                            → info
+ *     (the delegated job went SILENT, not wrong: no job:fail ever fires and the
  *     worker keeps going, so this is an advisory — the only notification
  *     the user gets that the client has stopped hearing. An error toast
- *     here would say the assist had failed while its annotations are
+ *     here would say the job had failed while its annotations are
  *     still on their way.)
  *   job:complete                                                     → success,
  *     except a clean decline (e.g. a scanned/image-only PDF with no text
@@ -62,12 +62,12 @@ export function useOutcomeToasts(resourceId: string): void {
       if (event.resourceId !== resourceId) return;
       showError(t('referenceUpdateFailed', { detail: event.message || t('unknownError') }));
     },
-    'mark:assist-timeout': (event) => {
+    'mark:delegate-timeout': (event) => {
       if (event.resourceId !== resourceId) return;
       // NOT a failure: the job is still running and its annotations will
       // still land. The client has merely stopped hearing from it, so this
       // is an advisory, not an error.
-      showInfo(t('assistQuiet'));
+      showInfo(t('delegateQuiet'));
     },
     'job:complete': (event) => {
       if (event.resourceId !== resourceId) return;

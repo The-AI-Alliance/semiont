@@ -475,7 +475,7 @@ async function handleJobInner(
   // These are GLOBAL broadcasts carrying no correlationId — the identity a
   // consumer routes on is domain data in the payload, not the envelope. Two
   // consumers, two different keys:
-  //   - a DISPATCHING caller filters by `jobId` (sdk `mark.assist`,
+  //   - a DISPATCHING caller filters by `jobId` (sdk `mark.delegate`,
   //     `yield.fromContext`) — it awaited one specific job;
   //   - a RESOURCE VIEWER filters by `resourceId` (react-ui
   //     `useOutcomeToasts`) — it wants anything happening to what it shows.

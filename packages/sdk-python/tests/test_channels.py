@@ -38,7 +38,7 @@ BY_NAME = channels.CHANNELS
 
 
 def constant(name: str) -> str:
-    """`mark:assist-timeout` → `MARK_ASSIST_TIMEOUT`."""
+    """`mark:delegate-timeout` → `MARK_DELEGATE_TIMEOUT`."""
     return re.sub(r"[^A-Za-z0-9]+", "_", name).upper()
 
 

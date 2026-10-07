@@ -1,6 +1,6 @@
 ---
 name: semiont-highlight
-description: Add highlighting annotations to a Semiont resource — mark key passages, important claims, or noteworthy content using AI-assisted or manual highlighting
+description: Add highlighting annotations to a Semiont resource — mark key passages, important claims, or noteworthy content, by delegating the pass to the knowledge base's worker or by hand
 disable-model-invocation: false
 user-invocable: true
 allowed-tools: Bash, Read, Write, Glob, Grep

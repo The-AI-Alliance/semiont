@@ -43,19 +43,22 @@ func TestJobResultIsReadAsItsVerbs(t *testing.T) {
 		gotMark, errMark := jobResult(&asMark, markJobResults)
 		gotYield, errYield := jobResult(&asYield, yieldJobResults)
 		for _, read := range []struct {
-			verb string
-			got  any
-			err  error
-			want any
+			verb  string
+			got   any
+			err   error
+			want  any
+			words string // what a refusal says the result is not
 		}{
-			{"mark", gotMark, errMark, c.mark},
-			{"yield", gotYield, errYield, c.yield},
+			{"mark", gotMark, errMark, c.mark, "a result that is neither a mark job's counts nor a decline"},
+			{"yield", gotYield, errYield, c.yield, "a result that is neither the resource a yield job made nor a decline"},
 		} {
 			switch {
 			case read.want == nil && read.err == nil:
 				t.Errorf("%s: a %s job's result %s is read as %#v, want an error", c.name, read.verb, c.result, read.got)
 			case read.want != nil && (read.err != nil || !reflect.DeepEqual(read.got, read.want)):
 				t.Errorf("%s: a %s job's result %s is read as %#v (%v), want %#v", c.name, read.verb, c.result, read.got, read.err, read.want)
+			case read.err != nil && !strings.Contains(read.err.Error(), read.words+": "+c.result):
+				t.Errorf("%s: a %s job's result %s is refused with %q, want it to say %q and the result", c.name, read.verb, c.result, read.err, read.words)
 			}
 		}
 	}
@@ -72,7 +75,11 @@ func heldToItsUnion[R json.Marshaler](t *testing.T, members resultMembers[R]) {
 	union := reflect.TypeFor[R]().Name()
 	var read, stated []string
 	for _, member := range members {
-		read = append(read, reflect.TypeOf(member).Name())
+		read = append(read, reflect.TypeOf(member.generated).Name())
+		// What the terminal calls a member is plain words, and no type's name.
+		if member.called == "" || strings.Contains(member.called, "Job") {
+			t.Errorf("%s is called %q in the terminal", read[len(read)-1], member.called)
+		}
 	}
 	for _, member := range readSpecSchema(t, union+".json").OneOf {
 		stated = append(stated, strings.TrimSuffix(filepath.Base(member.Ref), ".json"))
@@ -153,21 +160,54 @@ func TestACompletionIsReadAsItsVerbs(t *testing.T) {
 	}
 }
 
-// What the terminal says a completed mark job did, for each motivation.
+// The nouns are the launcher's; the motivations are the spec's. Every
+// motivation has a noun and no noun is for a motivation that is none.
+func TestEveryMotivationHasItsNoun(t *testing.T) {
+	motivations := readSpecSchema(t, "Motivation.json").Enum
+	if len(motivations) == 0 {
+		t.Fatal("the spec's motivations could not be read")
+	}
+	stated := map[semiont.Motivation]bool{}
+	for _, motivation := range motivations {
+		stated[semiont.Motivation(motivation)] = true
+		if markNouns[semiont.Motivation(motivation)] == "" {
+			t.Errorf("the motivation %q has no noun", motivation)
+		}
+	}
+	for motivation, noun := range markNouns {
+		if !stated[motivation] {
+			t.Errorf("the noun %q is for %q, which is no motivation", noun, motivation)
+		}
+	}
+}
+
+// What the terminal says a completed mark job did, for each motivation: the
+// words its last progress line says, each with its singular.
 func TestMarkedTextSaysWhatAMarkJobDid(t *testing.T) {
 	one, issue := 1, map[string]int{"rule": 4, "issue": 2}
 	for _, c := range []struct {
-		motivation string
+		motivation semiont.Motivation
 		result     semiont.JobDetectionResult
 		want       string
 	}{
-		{"highlighting", semiont.JobDetectionResult{Found: 4, Persisted: 3}, "3 highlighting annotations created (4 found)"},
-		{"assessing", semiont.JobDetectionResult{Found: 1, Persisted: 1}, "1 assessing annotation created (1 found)"},
-		{"linking", semiont.JobDetectionResult{Found: 5, Persisted: 4, Errors: &one}, "4 linking annotations created (5 found, 1 error)"},
-		{"tagging", semiont.JobDetectionResult{Found: 6, Persisted: 6, ByCategory: &issue}, "6 tagging annotations created (6 found): issue 2, rule 4"},
+		{"highlighting", semiont.JobDetectionResult{Found: 4, Persisted: 3}, "created 3 highlights (4 found)"},
+		{"commenting", semiont.JobDetectionResult{Found: 2, Persisted: 2}, "created 2 comments (2 found)"},
+		{"assessing", semiont.JobDetectionResult{Found: 1, Persisted: 1}, "created 1 assessment (1 found)"},
+		{"linking", semiont.JobDetectionResult{Found: 5, Persisted: 4, Errors: &one}, "created 4 references (5 found, 1 error)"},
+		{"tagging", semiont.JobDetectionResult{Found: 6, Persisted: 6, ByCategory: &issue}, "created 6 tags (6 found): issue 2, rule 4"},
 	} {
 		if got := markedText(c.motivation, c.result); got != c.want {
 			t.Errorf("%s: %q, want %q", c.motivation, got, c.want)
+		}
+		// The last line counts what the job's last progress message counted,
+		// in the words that message is given.
+		var created semiont.JobProgressMessage
+		if err := created.FromJobProgressCompleteCreated(semiont.JobProgressCompleteCreated{Count: c.result.Persisted, Motivation: c.motivation}); err != nil {
+			t.Fatalf("%s: not a progress message: %v", c.motivation, err)
+		}
+		progress := progressText(&created)
+		if lower := strings.ToLower(progress[:1]) + progress[1:]; !strings.HasPrefix(c.want, lower+" (") {
+			t.Errorf("%s: the progress line says %q and the last line %q", c.motivation, progress, c.want)
 		}
 	}
 }

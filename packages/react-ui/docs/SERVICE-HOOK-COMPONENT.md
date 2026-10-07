@@ -73,13 +73,13 @@ channel in the local EventBus. Application code never calls
 - ❌ NO JSX rendering
 - ❌ NO manual event forwarding
 
-**Example**: reading the `mark` state unit's assist observables
+**Example**: reading the `mark` state unit's delegation observables
 
 The page state unit (`resource-viewer-page-state-unit`) owns a session-scoped
-`MarkStateUnit` (`createMarkStateUnit`, in `@semiont/sdk`). When the user triggers
-AI assist, the SDK runs the job and the mark state unit drives three observables:
+`MarkStateUnit` (`createMarkStateUnit`, in `@semiont/sdk`). When the user delegates
+an annotation job, the SDK runs it and the mark state unit drives three observables:
 
-- `mark.assistingMotivation$` — the in-progress motivation (or `null` when idle)
+- `mark.delegatingMotivation$` — the in-progress motivation (or `null` when idle)
 - `mark.progress$` — the latest `JobProgress`
 - `mark.pendingAnnotation$` — a pending manual annotation awaiting a body
 
@@ -89,15 +89,15 @@ the unified job channels (`job:report-progress` / `job:complete` / `job:fail`)
 internally; the hook is pure read-through.
 
 ```typescript
-// A thin hook that exposes the mark state unit's assist observables.
+// A thin hook that exposes the mark state unit's delegation observables.
 // (In ResourceViewerPage these are read inline via useObservable; the same
-// values can be packaged into a hook.) Called as useMarkAssist(stateUnit?.mark).
-export function useMarkAssist(mark: MarkStateUnit | undefined) {
-  const assistingMotivation = useObservable(mark?.assistingMotivation$) ?? null;
+// values can be packaged into a hook.) Called as useMarkDelegate(stateUnit?.mark).
+export function useMarkDelegate(mark: MarkStateUnit | undefined) {
+  const delegatingMotivation = useObservable(mark?.delegatingMotivation$) ?? null;
   const progress = useObservable(mark?.progress$) ?? null;
 
   // Return data only (no JSX)
-  return { assistingMotivation, progress };
+  return { delegatingMotivation, progress };
 }
 ```
 
@@ -106,7 +106,7 @@ it subscribes to the bridged job channels with `useEventSubscriptions` instead
 of touching SSE directly:
 
 ```typescript
-export function useAssistToasts(resourceId: ResourceId) {
+export function useDelegateToasts(resourceId: ResourceId) {
   const { showSuccess, showError } = useToast();
 
   useEventSubscriptions({
@@ -134,13 +134,13 @@ export function useAssistToasts(resourceId: ResourceId) {
 
 **Rules**:
 - ✅ Reads state from hooks / state-unit observables
-- ✅ Triggers operations via `session.client.*` (e.g. `mark.requestAssist(...)`)
+- ✅ Triggers operations via `session.client.*` (e.g. `mark.requestDelegate(...)`)
 - ✅ Renders JSX
 - ❌ NO direct `eventBus.on(...).subscribe()` (use hooks)
 - ❌ NO SSE stream creation (use the SDK)
 - ❌ NO SSE parsing
 
-**Example**: the page reads the mark state unit; the panel it renders triggers assist
+**Example**: the page reads the mark state unit; the panel it renders delegates the job
 
 ```tsx
 // packages/react-ui/src/features/resource-viewer/components/ResourceViewerPage.tsx, condensed
@@ -158,12 +158,12 @@ export function ResourceViewerPage({ rUri, locale, Link, routes }: ResourceViewe
   // Layer 2: read state-unit observables with useObservable
   const annotations = useObservable(stateUnit?.annotations.value$) ?? [];
   const pendingAnnotation = useObservable(stateUnit?.mark.pendingAnnotation$) ?? null;
-  const assistingMotivation = useObservable(stateUnit?.mark.assistingMotivation$) ?? null;
+  const delegatingMotivation = useObservable(stateUnit?.mark.delegatingMotivation$) ?? null;
   const progress = useObservable(stateUnit?.mark.progress$) ?? null;
   const activePanel = useObservable(stateUnit?.browse.activePanel$) ?? null;
 
-  // Layer 3: render JSX. The panels trigger assist through the session they
-  // are handed — session.client.mark.requestAssist(...) — which the mark
+  // Layer 3: render JSX. The panels delegate through the session they
+  // are handed — session.client.mark.requestDelegate(...) — which the mark
   // state unit picks up and runs as client.mark.delegate(...).
   return (
     <div className="semiont-document-viewer">
@@ -173,7 +173,7 @@ export function ResourceViewerPage({ rUri, locale, Link, routes }: ResourceViewe
           resourceId={rUri}
           annotations={annotations}
           annotators={ANNOTATORS}
-          assistingMotivation={assistingMotivation}
+          delegatingMotivation={delegatingMotivation}
           progress={progress}
           pendingAnnotation={pendingAnnotation}
           Link={Link}
@@ -194,7 +194,7 @@ export function ResourceViewerPage({ rUri, locale, Link, routes }: ResourceViewe
 │ Layer 3: Components (ResourceViewerPage + panels)           │
 │                                                              │
 │  - Reads state-unit observables via useObservable           │
-│  - Triggers operations (session.client.mark.requestAssist)  │
+│  - Triggers operations (client.mark.requestDelegate)        │
 │  - Renders JSX                                              │
 └──────────────────┬──────────────────────────────────────────┘
                    │
@@ -203,7 +203,7 @@ export function ResourceViewerPage({ rUri, locale, Link, routes }: ResourceViewe
 ┌─────────────────────────────────────────────────────────────┐
 │ Layer 2: State units + hooks (mark, browse/ShellStateUnit)  │
 │                                                              │
-│  - useObservable(mark.assistingMotivation$ / progress$)     │
+│  - useObservable(mark.delegatingMotivation$ / progress$)    │
 │  - useEventSubscriptions() → bus side effects               │
 │  - Returns data objects                                     │
 └──────────────────┬──────────────────────────────────────────┘
@@ -241,9 +241,9 @@ Components trigger operations via the SDK on `session.client`, not callback prop
 // Condensed from ReferencesPanel.tsx: the panel is handed the session as a prop.
 function ReferencesPanel({ session }: { session: SemiontSession | null }) {
   const handleDetect = () => {
-    // Trigger assist via the SDK. mark.requestAssist emits the local
-    // 'mark:assist-request' event; the mark state unit runs the job.
-    session?.client.mark.requestAssist({
+    // Delegate via the SDK. mark.requestDelegate emits the local
+    // 'mark:delegate-request' event; the mark state unit runs the job.
+    session?.client.mark.requestDelegate({
       motivation: 'linking',
       entityTypes: ['Person', 'Organization'],
     });
@@ -259,25 +259,25 @@ State lives in the state unit; hooks/components read it with `useObservable`:
 
 ```typescript
 // ✅ CORRECT: read the mark state unit's observables
-export function useMarkAssist(mark: MarkStateUnit | undefined) {
-  const assistingMotivation = useObservable(mark?.assistingMotivation$) ?? null;
+export function useMarkDelegate(mark: MarkStateUnit | undefined) {
+  const delegatingMotivation = useObservable(mark?.delegatingMotivation$) ?? null;
   const progress = useObservable(mark?.progress$) ?? null;
-  return { assistingMotivation, progress };
+  return { delegatingMotivation, progress };
 }
 
 // ❌ WRONG: re-deriving state from raw bus events with useState
-export function useMarkAssistFromBus() {
+export function useMarkDelegateFromBus() {
   const session = useObservable(useSemiont().activeSession$);
-  const [assisting, setAssisting] = useState(null);
+  const [delegating, setDelegating] = useState(null);
 
   useEffect(() => {
     // Don't do this — the mark state unit already tracks this off the
-    // unified job channels; just read assistingMotivation$.
+    // unified job channels; just read delegatingMotivation$.
     const sub = session?.client.bus.on('job:report-progress').subscribe(/* ... */);
     return () => sub?.unsubscribe();
   }, [session]);
 
-  return { assisting };
+  return { delegating };
 }
 ```
 
@@ -287,7 +287,7 @@ Use `useEventSubscriptions` to react to job lifecycle for UI side effects
 (toasts, scroll), without re-implementing state the mark state unit already owns:
 
 ```typescript
-export function useAssistToasts(resourceId: ResourceId) {
+export function useDelegateToasts(resourceId: ResourceId) {
   const { showSuccess, showError } = useToast();
 
   useEventSubscriptions({
@@ -360,14 +360,14 @@ Test the mark state unit's observables directly, over the SDK's test client
 ```typescript
 import { createTestClient } from '@semiont/sdk/testing';
 
-it('sets assistingMotivation$ on an assist request', () => {
+it('sets delegatingMotivation$ on a delegate request', () => {
   const { client } = createTestClient();
   const mark = createMarkStateUnit(client, resourceId);
   const motivations: (Motivation | null)[] = [];
-  mark.assistingMotivation$.subscribe((m) => motivations.push(m));
+  mark.delegatingMotivation$.subscribe((m) => motivations.push(m));
 
   // The local request the mark state unit answers by running client.mark.delegate
-  client.mark.requestAssist({ motivation: 'linking', entityTypes: ['Person'] });
+  client.mark.requestDelegate({ motivation: 'linking', entityTypes: ['Person'] });
 
   expect(motivations.at(-1)).toBe('linking');
   mark.dispose();
@@ -384,11 +384,11 @@ import { createTestClient } from '@semiont/sdk/testing';
 it('reflects the mark state unit in React state', () => {
   const { client } = createTestClient();
   const mark = createMarkStateUnit(client, resourceId);
-  const { result } = renderHook(() => useObservable(mark.assistingMotivation$));
+  const { result } = renderHook(() => useObservable(mark.delegatingMotivation$));
 
   // Drive the state unit's observable
   act(() => {
-    client.mark.requestAssist({ motivation: 'linking', entityTypes: ['Person'] });
+    client.mark.requestDelegate({ motivation: 'linking', entityTypes: ['Person'] });
   });
 
   // Verify the hook reflects it
@@ -407,16 +407,16 @@ import { createTestSession } from '@semiont/sdk/testing';
 import { screen } from '@testing-library/react';
 import { renderInEnglish } from '@semiont/react-ui/test-utils';
 
-it('calls mark.requestAssist when Annotate is clicked', () => {
+it('calls mark.requestDelegate when Annotate is clicked', () => {
   const { session } = createTestSession();
-  const requestAssist = vi.spyOn(session.client.mark, 'requestAssist');
+  const requestDelegate = vi.spyOn(session.client.mark, 'requestDelegate');
 
   renderInEnglish(
     <ReferencesPanel
       session={session}
       resourceId={resourceId}
       annotations={[]}
-      isAssisting={false}
+      isDelegating={false}
       progress={null}
       pendingAnnotation={null}
       allEntityTypes={['Person', 'Organization']}
@@ -425,13 +425,13 @@ it('calls mark.requestAssist when Annotate is clicked', () => {
     />,
   );
 
-  // Pick the entity types, then start the assist
+  // Pick the entity types, then start the delegated job
   fireEvent.click(screen.getByRole('button', { name: 'Select Person' }));
   fireEvent.click(screen.getByRole('button', { name: 'Select Organization' }));
   fireEvent.click(screen.getByTitle('Annotate'));
 
   // Verify the SDK was invoked
-  expect(requestAssist).toHaveBeenCalledWith(expect.objectContaining({
+  expect(requestDelegate).toHaveBeenCalledWith(expect.objectContaining({
     motivation: 'linking',
     entityTypes: ['Person', 'Organization'],
   }));
@@ -482,7 +482,7 @@ event library.
 - `useObservable()` - Read a state-unit observable into React state
 - `useEventSubscriptions()` - Subscribe to bus events (for side effects)
 - `client.browse.*(resourceId)` - Resource-scoped live queries; subscribing acquires the resource's bus scope (freshness follows observation), the last unsubscribe releases it
-- `createMarkStateUnit()` - Mark/assist state (`assistingMotivation$`, `progress$`, `pendingAnnotation$`); driven off the unified job channels (in `@semiont/sdk`)
-- `client.mark.requestAssist(params)` / `client.mark.delegate(resourceId, params)` - Trigger AI assist with a `mark` job's params; the job streams on `job:report-progress` / `job:complete` / `job:fail`
+- `createMarkStateUnit()` - Mark/delegation state (`delegatingMotivation$`, `progress$`, `pendingAnnotation$`); driven off the unified job channels (in `@semiont/sdk`)
+- `client.mark.requestDelegate(params)` / `client.mark.delegate(resourceId, params)` - Delegate a `mark` job with its params; the job streams on `job:report-progress` / `job:complete` / `job:fail`
 - `createGatherStateUnit()` - Context correlation for generation (in `@semiont/sdk`)
 - `useShellStateUnit()` - App-scoped panel state (`activePanel$`, `openPanel`/`closePanel`/`togglePanel`)

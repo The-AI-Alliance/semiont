@@ -42,7 +42,6 @@ function clientWithNamespaces(overrides: {
     mark: {
       annotation: vi.fn().mockResolvedValue({ annotationId: 'ann-new' }),
       delete: vi.fn().mockResolvedValue(undefined),
-      assist: vi.fn(() => new Observable(() => {})),
     },
     gather: {
       annotation: vi.fn(() => new Observable(() => {})),
@@ -282,7 +281,7 @@ describe('createResourceViewerPageStateUnit — list failure states', () => {
         entityTypes: () => new BehaviorSubject<unknown>({ status: 'ready', value: [] }).asObservable(),
         events: () => new BehaviorSubject<unknown>({ status: 'ready', value: [] }).asObservable(),
       },
-      mark: { annotation: vi.fn(), delete: vi.fn(), assist: vi.fn(() => new Observable(() => {})) },
+      mark: { annotation: vi.fn(), delete: vi.fn() },
       gather: {
         annotation: vi.fn(() => new Observable(() => {})),
         referencedBy: () => {

@@ -155,23 +155,23 @@ describe('useOutcomeToasts', () => {
     expect(showError).toHaveBeenCalledTimes(1);
   });
 
-  it('assist silence surfaces as INFO, not error — the job is still running', () => {
-    // The client stopping hearing is not the assist failing: silence from a
+  it('a delegated job gone silent surfaces as INFO, not error — the job is still running', () => {
+    // The client stopping hearing is not the job failing: silence from a
     // running job is an advisory. A run the UI gives up on can go on to
     // persist its annotations, so an error toast would tell the user
     // something untrue.
     const { eventBus } = setup();
     act(() => {
-      eventBus.emit('mark:assist-timeout', { resourceId: resourceId(RID), motivation: 'highlighting' });
+      eventBus.emit('mark:delegate-timeout', { resourceId: resourceId(RID), motivation: 'highlighting' });
     });
-    expect(showInfo).toHaveBeenCalledWith('assistQuiet');
+    expect(showInfo).toHaveBeenCalledWith('delegateQuiet');
     expect(showError).not.toHaveBeenCalled();
   });
 
-  it('assist silence for a different resource is ignored (resourceId filter)', () => {
+  it('a delegated job gone silent on a different resource is ignored (resourceId filter)', () => {
     const { eventBus } = setup();
     act(() => {
-      eventBus.emit('mark:assist-timeout', { resourceId: resourceId('other-res'), motivation: 'highlighting' });
+      eventBus.emit('mark:delegate-timeout', { resourceId: resourceId('other-res'), motivation: 'highlighting' });
     });
     expect(showInfo).not.toHaveBeenCalled();
     expect(showError).not.toHaveBeenCalled();

@@ -294,9 +294,9 @@
           ]
         },
         {
-          "method": "requestAssist",
+          "method": "requestDelegate",
           "shape": "signal",
-          "via": { "local": "mark:assist-request" },
+          "via": { "local": "mark:delegate-request" },
           "cases": [
             {
               "why": "the request carries the job's parameters as `delegate` takes them",

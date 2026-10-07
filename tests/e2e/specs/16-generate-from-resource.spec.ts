@@ -41,7 +41,7 @@ test.describe('generate from resource', () => {
     await page.locator('button[data-panel="info"]').click();
     const infoPanel = page.locator('.semiont-resource-info-panel');
     await expect(infoPanel).toBeVisible({ timeout: 10_000 });
-    // The AssistShell adds a collapsible "Generate ›" section header, so match
+    // The DelegateShell adds a collapsible "Generate ›" section header, so match
     // the ✨ prefix — literal in ResourceInfoPanel, unlike the translated word.
     const generateBtn = infoPanel.getByRole('button', { name: /✨.*generate/i });
     const cloneBtn = infoPanel.getByRole('button', { name: /clone/i });

@@ -168,7 +168,8 @@ a tag schema, plus `'highlighting'`/`'assessing'`/`'commenting'`. Each motivatio
 params and no others — [the Mark flow](../protocol/flows/MARK.md#delegation) has the table. It's a long-running job —
 `.run()` for progress. Each snapshot carries a `message` CODE with typed params rather than
 a sentence — the client owns the wording, so a browser localizes it and a CLI renders English
-from the same value. `detecting-entities` names the entity type being worked on.
+from the same value. `detecting-entities` names the entity type being worked on, and the last,
+`complete-created`, states the count and the job's motivation.
 
 ```typescript
 const done = await session.client.mark.delegate(resourceId, { motivation: 'linking', entityTypes: ['Person', 'Organization'] })

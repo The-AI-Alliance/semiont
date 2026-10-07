@@ -167,7 +167,7 @@ A job description is the spec's, so the job starts there:
 - `DescribingJobParams.json` states what the job takes, beside the other five: closed, with `motivation` its one value. It joins `MarkJobParams`' members and its mapping, and `specs/src/openapi.json`'s registry.
 - `ArchivistRoster.workers.mark` gains the key, so the directory can say who serves it.
 
-`lint:spec-jobs` and the Archivist's gate hold each of those lists to `Motivation`, so a step left out fails. There is no result schema to add: every `mark` job reports a `MarkJobResult`, its counts (`JobDetectionResult`) or a decline. There is no progress type either: every job reports `JobProgress`. A new progress message, or a new `kind` on `complete-created`, is a spec change plus client copy.
+`lint:spec-jobs` and the Archivist's gate hold each of those lists to `Motivation`, so a step left out fails. There is no result schema to add: every `mark` job reports a `MarkJobResult`, its counts (`JobDetectionResult`) or a decline. There is no progress type either: every job reports `JobProgress`. `complete-created` states the job's motivation, so each client needs a noun for the new one in its copy. A new progress message is a spec change plus client copy.
 
 Regenerating gives the worker everything else: the params type, and `MARK_MOTIVATIONS` in `@semiont/core`.
 
@@ -228,7 +228,7 @@ export async function processDescribeJob(
     },
   );
 
-  onProgress(100, { code: 'complete-created', count: persisted, kind: 'description' });
+  onProgress(100, { code: 'complete-created', count: persisted, motivation: params.motivation });
 
   // `errors` is stated only when something could not be anchored.
   return { result: { found, persisted, ...(errors > 0 ? { errors } : {}) } };
@@ -310,7 +310,7 @@ Call it at meaningful stages — the worker process forwards each call as a `job
 ```typescript
 onProgress(10, { code: 'loading' });
 onProgress(60, { code: 'creating-annotations', count });
-onProgress(100, { code: 'complete-created', count, kind: 'highlight' });
+onProgress(100, { code: 'complete-created', count, motivation: params.motivation });
 ```
 
 The message vocabulary is the spec's `JobProgressMessage`; each client renders the codes in its own language. The third argument carries the other `JobProgress` fields the progress UI renders — `processReferenceJob` passes `current` / `processed` / `total`, `entitiesFound`, `completedItems`, and `requestParams`. Anything describing the run rather than the moment must be passed on every call, because each report replaces the last. Stower ignores progress; the dispatcher stores the latest as the running job's `progress`.
@@ -366,7 +366,7 @@ describe('processDescribeJob', () => {
       target: expect.objectContaining({ source: RID }),
     });
     expect(result).toEqual({ found: 2, persisted: 1, errors: 1 });
-    expect(progress).toHaveBeenLastCalledWith(100, { code: 'complete-created', count: 1, kind: 'description' });
+    expect(progress).toHaveBeenLastCalledWith(100, { code: 'complete-created', count: 1, motivation: 'describing' });
   });
 });
 ```

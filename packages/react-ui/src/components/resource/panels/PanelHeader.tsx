@@ -1,7 +1,6 @@
 'use client';
 
 interface PanelHeaderProps {
-  annotationType: 'highlight' | 'reference' | 'assessment' | 'comment' | 'tag';
   count: number;
   title: string;
 }
@@ -9,7 +8,7 @@ interface PanelHeaderProps {
 /**
  * Shared header for annotation panels
  *
- * Displays the annotation icon, translated title, and count in a consistent format
+ * Displays the translated title and the count in a consistent format
  */
 export function PanelHeader({ count, title }: PanelHeaderProps) {
   return (

@@ -7,7 +7,7 @@ import { useSessionEventSubscriptions } from '../../../hooks/useSessionEventSubs
 import type { components, ResourceId, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
 import { CommentEntry } from './CommentEntry';
-import { AssistSection } from './AssistSection';
+import { DelegateSection } from './DelegateSection';
 import { PanelHeader } from './PanelHeader';
 
 import type { Annotation } from '@semiont/core';
@@ -45,10 +45,10 @@ interface CommentsPanelProps {
   annotations: Annotation[];
   pendingAnnotation: PendingAnnotation | null;
   annotateMode?: boolean;
-  isAssisting?: boolean;
+  isDelegating?: boolean;
   progress?: JobProgress | null;
   locale?: string;
-  /** BCP-47 tag of the resource being analyzed — forwarded to the assist call. */
+  /** BCP-47 tag of the resource being analyzed — forwarded to the delegated job. */
   sourceLanguage?: string;
   scrollToAnnotationId?: string | null;
   onScrollCompleted?: () => void;
@@ -68,7 +68,7 @@ export function CommentsPanel({
   annotations,
   pendingAnnotation,
   annotateMode = true,
-  isAssisting = false,
+  isDelegating = false,
   progress,
   locale,
   sourceLanguage,
@@ -200,7 +200,7 @@ export function CommentsPanel({
 
   return (
     <div className="semiont-panel">
-      <PanelHeader annotationType="comment" count={annotations.length} title={t('title')} />
+      <PanelHeader count={annotations.length} title={t('title')} />
 
       {/* New comment input - shown when there's a pending annotation with commenting motivation */}
       {pendingAnnotation && pendingAnnotation.motivation === 'commenting' && (
@@ -254,12 +254,12 @@ export function CommentsPanel({
 
       {/* Scrollable content area */}
       <div ref={containerRef} className="semiont-panel__content">
-        {/* Assist Section - only in Annotate mode; shown for any media type (AI detection is media-agnostic — text is resolved via the media-type registry, incl. PDF text layers) */}
+        {/* Delegate section - only in Annotate mode; shown for any media type (AI detection is media-agnostic — text is resolved via the media-type registry, incl. PDF text layers) */}
         {annotateMode && (
-          <AssistSection
+          <DelegateSection
             session={session}
             annotationType="comment"
-            isAssisting={isAssisting}
+            isDelegating={isDelegating}
             locale={locale}
             sourceLanguage={sourceLanguage}
             progress={progress}

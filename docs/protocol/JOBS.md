@@ -297,8 +297,10 @@ each carries the result its verb reports:
 The gateway refuses, with `400`, a completion whose result is the other verb's: it is not the
 schema. A completion that is well formed for one verb and names a running job of the other has no
 effect: the dispatcher logs `job:complete of another verb than the job's`, and the job stays
-`running`. A `yield` completion may name `annotationId`, the annotation its context was focused
-on; a `mark` completion names none.
+`running`. The Archivist records no `job:completed` for it, and logs the same words, when the
+resource's stream holds the job's `job:assigned` or `job:started`
+([ARCHIVIST.md](ARCHIVIST.md#vocabulary-people-and-jobs)). A `yield` completion may name
+`annotationId`, the annotation its context was focused on; a `mark` completion names none.
 
 **What is stored is any verb's.** The job moves to `complete`, and its record holds the result as a
 [`JobResult`](../../specs/src/components/schemas/JobResult.json): one of the three, with no field

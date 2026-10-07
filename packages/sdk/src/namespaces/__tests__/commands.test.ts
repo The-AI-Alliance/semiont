@@ -1036,7 +1036,7 @@ describe('YieldNamespace', () => {
 //                `subscriber.closed`
 //   match.ts   — `transport.emit('match:search-requested', …).catch(...)`
 //                checks `subscriber.closed`
-//   mark.ts    — `dispatchAssist(...).catch(...)` checks the local `done`
+//   delegation.ts — the `job:create` request's `.catch(...)` checks the local `done`
 //                flag set by cleanup()
 //   yield.ts   — `busRequest('job:create', …).catch(...)` checks the local
 //                `done` flag set by cleanup()
@@ -1118,7 +1118,7 @@ describe('late-rejection guards', () => {
   });
 
   it('mark.delegate does NOT propagate a late job:create rejection after the consumer unsubscribes', async () => {
-    // dispatchAssist round-trips on 'job:create' / 'job:created'. Make
+    // The delegation round-trips on 'job:create' / 'job:created'. Make
     // the underlying emit() pend indefinitely, then reject after the
     // consumer has torn down — exercises the `done` guard set by
     // cleanup() in the delegation's teardown.

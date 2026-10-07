@@ -131,8 +131,8 @@ function buildLargeDocument(targetBytes: number = TARGET_BYTES): string {
   return paragraphs.join('');
 }
 
-test.describe('large-document assisted linking', () => {
-  test('a 170 KB document enriches — assisted linking persists annotations', { tag: ['@slow'] }, async () => {
+test.describe('large-document delegated linking', () => {
+  test('a 170 KB document enriches — delegated linking persists annotations', { tag: ['@slow'] }, async () => {
     // Wall-clock is provider-shaped: the document is walked in chunks, each its
     // own inference call at the model's own pace. The budget is for the slowest
     // provider the suite runs against; the progress events below are the
@@ -188,7 +188,7 @@ test.describe('large-document assisted linking', () => {
         'a freshly created resource starts with no annotations',
       ).toBe(0);
 
-      // Run the assist, consuming progress as the liveness signal. `.run()`
+      // Run the delegated job, consuming progress as the liveness signal. `.run()`
       // (not subscribe-and-await) — the stream is cold, so doing both would
       // fire the job twice.
       const t0 = Date.now();
@@ -207,7 +207,7 @@ test.describe('large-document assisted linking', () => {
 
       expect(done.result !== undefined && 'found' in done.result, 'the linking job reports its counts on a document this size').toBe(true);
       // eslint-disable-next-line no-console
-      console.log(`LARGE_DOC: assist completed in ${Date.now() - t0}ms`);
+      console.log(`LARGE_DOC: delegated job completed in ${Date.now() - t0}ms`);
 
       // The outcome, and the only thing this spec asserts about detection:
       // annotations actually persisted. Never chunk counts — see the header.
@@ -222,7 +222,7 @@ test.describe('large-document assisted linking', () => {
       console.log(`LARGE_DOC: ${persisted.length} annotations persisted`);
       expect(
         persisted.some((a) => a.motivation === 'linking'),
-        'the persisted annotations include the linking references the assist created',
+        'the persisted annotations include the linking references the delegated job created',
       ).toBe(true);
     } finally {
       await session.dispose();

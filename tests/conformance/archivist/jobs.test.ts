@@ -65,6 +65,56 @@ withArchivist('a job, in the record', (world) => {
     expect(world().view(id)).toMatchObject({ lastSequence: 5, annotations: { version: 5, annotations: [] }, resource: { archived: false } });
   });
 
+  const COUNTS = { found: 2, persisted: 2 };
+  const MADE = { resourceId: 'res-made', resourceName: 'Made', truncated: false };
+
+  // Frames of one channel are recorded in the order they arrive, so once the
+  // job's own completion is stored, the one sent before it has been handled.
+  it.each([
+    ['a mark job, and a yield job\'s completion', 'mark', COUNTS, 'yield', MADE],
+    ['a yield job, and a mark job\'s completion', 'yield', MADE, 'mark', COUNTS],
+  ] as const)('records no completion of another verb than the job\'s: %s, each well formed for its own verb', async (_what, verb, own, otherVerb, others) => {
+    const worker = await world().worker('other-verb');
+    const requester = await world().person('requester');
+    const { id, jobId } = await assigned(world(), worker, requester, verb);
+    await worker.emit('job:start', { resourceId: id, jobId, jobType: verb });
+    await eventually('the start', 10_000, () => world().stored(id).find((e) => e.type === 'job:started'));
+
+    await worker.emit('job:complete', { resourceId: id, jobId, jobType: otherVerb, result: others });
+    await worker.emit('job:complete', { resourceId: id, jobId, jobType: verb, result: own });
+    await eventually('the job\'s own completion', 10_000, () => world().stored(id).find((e) => e.type === 'job:completed' && e.payload['jobType'] === verb));
+
+    expect(world().stored(id).filter((e) => e.type === 'job:completed').map((e) => e.payload)).toEqual([{ jobId, jobType: verb, result: own }]);
+    // It says so, in the words the dispatcher says it in.
+    expect(world().archivist.output.filter((line) => line.includes('job:complete of another verb than the job\'s') && line.includes(jobId))).toHaveLength(1);
+  });
+
+  it('learns a job\'s verb from its start when it recorded no assignment of it', async () => {
+    const worker = await world().worker('unassigned');
+    const requester = await world().person('requester');
+    const id = await world().created(requester.did, { name: 'Worked on', storageUri: `file://jobs/${randomUUID()}.md`, content: TEXT });
+    const jobId = `job-${randomUUID()}`;
+    await worker.emit('job:start', { resourceId: id, jobId, jobType: 'mark' });
+    await eventually('the start', 10_000, () => world().stored(id).find((e) => e.type === 'job:started'));
+
+    await worker.emit('job:complete', { resourceId: id, jobId, jobType: 'yield', result: MADE });
+    await worker.emit('job:complete', { resourceId: id, jobId, jobType: 'mark', result: COUNTS });
+    await eventually('the job\'s own completion', 10_000, () => world().stored(id).find((e) => e.type === 'job:completed' && e.payload['jobType'] === 'mark'));
+    expect(world().stored(id).filter((e) => e.type === 'job:completed').map((e) => e.payload['jobType'])).toEqual(['mark']);
+  });
+
+  it('records a completion of a job it has recorded nothing of, whichever verb\'s it is: it refuses only what its own record shows is another verb\'s', async () => {
+    const worker = await world().worker('unheard-of');
+    const requester = await world().person('requester');
+    // Another job of the other verb is recorded on the same resource: it says nothing of this one.
+    const { id } = await assigned(world(), worker, requester, 'mark');
+    const jobId = `job-${randomUUID()}`;
+
+    await worker.emit('job:complete', { resourceId: id, jobId, jobType: 'yield', result: MADE });
+    await eventually('the completion', 10_000, () => world().stored(id).find((e) => e.type === 'job:completed'));
+    expect(world().stored(id).filter((e) => e.type === 'job:completed').map((e) => e.payload)).toEqual([{ jobId, jobType: 'yield', result: MADE }]);
+  });
+
   it('attributes a worker\'s annotations to whoever the job was assigned for, with the worker as generator', async () => {
     const worker = await world().worker('annotator');
     const requester = await world().person('requester');

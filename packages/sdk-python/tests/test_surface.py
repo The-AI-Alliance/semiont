@@ -279,7 +279,7 @@ CALLS: Final[dict[tuple[str, str], Callable[[Client, Args], Awaitable[object] | 
     ("mark", "request"): lambda client, args: client.mark.request(
         rid(args, "source"), _SELECTOR.validate_python(args["selector"]), _MOTIVATION.validate_python(args["motivation"])
     ),
-    ("mark", "requestAssist"): lambda client, args: client.mark.request_assist(_MARK_PARAMS.validate_python(args["params"])),
+    ("mark", "requestDelegate"): lambda client, args: client.mark.request_delegate(_MARK_PARAMS.validate_python(args["params"])),
     ("mark", "submit"): lambda client, args: client.mark.submit(MarkSubmitEvent.model_validate(args["input"])),
     ("mark", "cancelPending"): lambda client, _: client.mark.cancel_pending(),
     ("mark", "dismissProgress"): lambda client, _: client.mark.dismiss_progress(),

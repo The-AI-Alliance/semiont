@@ -17,9 +17,9 @@ export interface ItemFoundLogProps {
  *
  * One markup for one concept. This was two class families a single panel
  * apart: the live progress display used `semiont-annotation-log*` while
- * ReferencesPanel's post-run form log used `semiont-assist-widget__log*`, with
+ * ReferencesPanel's post-run form log used `semiont-delegate-widget__log*`, with
  * the same rows rendered by hand in both. Presentational and provider-free,
- * like AssistProgress — the caller brings the formatter.
+ * like DelegateProgress — the caller brings the formatter.
  *
  * Item-shaped rather than entity-type-shaped: the tag flow counts categories
  * the same way the reference flow counts entity types, and a shared component

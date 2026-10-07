@@ -99,7 +99,7 @@
 /* ============================================
    Button Styling
    ============================================ */
-.semiont-button[data-variant="assist"][data-type="reference"] {
+.semiont-button[data-variant="delegate"][data-type="reference"] {
   background: linear-gradient(to right, var(--semiont-color-cyan-600), var(--semiont-color-blue-500)) !important;
   color: var(--semiont-color-white) !important;
   border: 1px solid var(--semiont-motivation-reference-border);
@@ -107,25 +107,25 @@
   transition: all 0.3s ease;
 }
 
-.semiont-button[data-variant="assist"][data-type="reference"]:hover {
+.semiont-button[data-variant="delegate"][data-type="reference"]:hover {
   background: var(--semiont-motivation-reference-button-bg-hover);
   border-color: var(--semiont-motivation-reference-primary);
 }
 
-[data-theme="dark"] .semiont-button[data-variant="assist"][data-type="reference"] {
+[data-theme="dark"] .semiont-button[data-variant="delegate"][data-type="reference"] {
   border-color: var(--semiont-motivation-reference-dark-outline);
 }
 
-[data-theme="dark"] .semiont-button[data-variant="assist"][data-type="reference"]:hover {
+[data-theme="dark"] .semiont-button[data-variant="delegate"][data-type="reference"]:hover {
   border-color: var(--semiont-motivation-reference-dark-primary);
 }
 
-.semiont-button[data-variant="assist"][data-type="reference"]:focus-visible {
+.semiont-button[data-variant="delegate"][data-type="reference"]:focus-visible {
   outline: 2px solid var(--semiont-motivation-reference-primary);
   outline-offset: 2px;
 }
 
-[data-theme="dark"] .semiont-button[data-variant="assist"][data-type="reference"]:focus-visible {
+[data-theme="dark"] .semiont-button[data-variant="delegate"][data-type="reference"]:focus-visible {
   outline: 2px solid var(--semiont-motivation-reference-dark-primary);
   outline-offset: 2px;
 }

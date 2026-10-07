@@ -136,7 +136,8 @@ pub struct SemiontClient {
     pub frame: FrameNamespace,
     /// Reads, and this viewer's own signals.
     pub browse: BrowseNamespace,
-    /// Annotations, a resource's own metadata, and AI assistance.
+    /// Annotations, a resource's own metadata, and the annotating of a
+    /// resource delegated as a job.
     pub mark: MarkNamespace,
     /// Linking a reference to what it refers to.
     pub bind: BindNamespace,

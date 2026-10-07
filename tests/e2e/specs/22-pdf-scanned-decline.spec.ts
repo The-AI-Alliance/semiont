@@ -70,7 +70,7 @@ async function selectSubTab(page: Page, emoji: string) {
   await expect(tab).toHaveAttribute('aria-pressed', 'true');
 }
 
-test.describe('assisted detection on an unreadable scanned PDF', () => {
+test.describe('delegated detection on an unreadable scanned PDF', () => {
   test('completes with a decline notice and creates no annotations', async ({ signedInPage: page, bus }) => {
     test.setTimeout(120_000);
 
@@ -85,11 +85,11 @@ test.describe('assisted detection on an unreadable scanned PDF', () => {
     if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
 
     bus.clear();
-    const submit = page.locator('button[data-variant="assist"][data-type="comment"]');
+    const submit = page.locator('button[data-variant="delegate"][data-type="comment"]');
     await expect(submit).toBeEnabled({ timeout: 5_000 });
     await submit.click();
 
-    // Dispatch — the assist crosses the wire like any other detection job. The
+    // Dispatch — the delegated job crosses the wire like any other detection job. The
     // decline happens in the worker, after it tries to read the page.
     const { request } = await bus.expectRequestResponse('job:create', 'job:created', 30_000);
     expect(request.channel).toBe('job:create');

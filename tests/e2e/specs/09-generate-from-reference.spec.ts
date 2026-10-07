@@ -69,7 +69,7 @@ test.describe('generate from unresolved reference', () => {
     //
     // These two seeds are where the unresolved references actually come from:
     // spec 05 leaves a manual one on 'Quantum Computing Primer', spec 06 leaves
-    // assisted ones on 'Photosynthesis Overview'. Both run before this file
+    // delegated ones on 'Photosynthesis Overview'. Both run before this file
     // under the suite's single worker. Searching by name reaches them however
     // large the KB grows.
     const CANDIDATES = ['Quantum Computing Primer', 'Photosynthesis Overview'];
@@ -128,7 +128,7 @@ test.describe('generate from unresolved reference', () => {
     expect(
       unresolvedFound,
       `no unresolved reference found on any of: ${CANDIDATES.join(', ')}. ` +
-      'These seeds get their ❓ from specs 05 (manual) and 06 (assisted), which run ' +
+      'These seeds get their ❓ from specs 05 (manual) and 06 (delegated), which run ' +
       'earlier in the suite — if those failed or were filtered out, this will fail too.',
     ).toBe(true);
 

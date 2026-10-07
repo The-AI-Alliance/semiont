@@ -14,9 +14,9 @@ from typing import Final
 from semiont.retry import RetryPolicy
 
 __all__ = [
-    "ASSIST_SILENCE_MS",
     "BUS_REQUEST_TIMEOUT_MS",
     "DEGRADED_THRESHOLD_MS",
+    "DELEGATE_SILENCE_MS",
     "EMIT_RETRY",
     "EMIT_TIMEOUT_MS",
     "GENERATION_STALL_ASSUMED_TOKENS_COUNT",
@@ -145,11 +145,11 @@ GENERATION_STALL_PER_TOKEN_MS: Final = 75
 # ceiling for one. At this length the floor decides the wait.
 GENERATION_STALL_ASSUMED_TOKENS_COUNT: Final = 500
 
-# How long an assist a client's state is following may say nothing before that state says the
-# assist has gone quiet (`mark:assist-timeout`). Not a deadline on the job: the job goes on, the
-# state keeps following it, and a completion that arrives later still ends it. Above the
+# How long a delegated job a client's state is following may say nothing before that state says
+# the job has gone quiet (`mark:delegate-timeout`). Not a deadline on the job: the job goes on,
+# the state keeps following it, and a completion that arrives later still ends it. Above the
 # worker's heartbeat, so reaching it means silence and not a long call.
-ASSIST_SILENCE_MS: Final = 180000
+DELEGATE_SILENCE_MS: Final = 180000
 
 # How long a pointer rests on an annotation before the viewer says it is hovered. Shorter, and a
 # pointer crossing the page hovers everything on its way.
@@ -181,7 +181,7 @@ TIMING_NAMES: Final[tuple[str, ...]] = (
     "generationStallFloorMs",
     "generationStallPerTokenMs",
     "generationStallAssumedTokensCount",
-    "assistSilenceMs",
+    "delegateSilenceMs",
     "hoverDelayMs",
     "searchDebounceMs",
 )

@@ -63,7 +63,7 @@ describe('HighlightPanel — arrival order is invisible; list order is document 
           highlightAt('h-chunk2', 500, 'beta'),
         ]}
         pendingAnnotation={null}
-        isAssisting={false}
+        isDelegating={false}
         progress={null}
         annotateMode={true}
       />,
@@ -77,7 +77,7 @@ describe('HighlightPanel — arrival order is invisible; list order is document 
       <HighlightPanel session={session} resourceId={resourceId('res-1')}
         annotations={[highlightAt('h-late-chunk', 700, 'omega')]}
         pendingAnnotation={null}
-        isAssisting={false}
+        isDelegating={false}
         progress={null}
         annotateMode={true}
       />,
@@ -89,7 +89,7 @@ describe('HighlightPanel — arrival order is invisible; list order is document 
       <HighlightPanel session={session} resourceId={resourceId('res-1')}
         annotations={[highlightAt('h-late-chunk', 700, 'omega'), highlightAt('h-early-chunk', 50, 'alpha')]}
         pendingAnnotation={null}
-        isAssisting={false}
+        isDelegating={false}
         progress={null}
         annotateMode={true}
       />,

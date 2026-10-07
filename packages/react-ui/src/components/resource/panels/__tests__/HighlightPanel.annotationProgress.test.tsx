@@ -1,11 +1,11 @@
 /**
- * Layer 2 Integration Test: HighlightPanel + AssistSection
+ * Layer 2 Integration Test: HighlightPanel + DelegateSection
  *
- * Tests the integration between HighlightPanel and AssistSection components.
+ * Tests the integration between HighlightPanel and DelegateSection components.
  * Verifies that progress prop is correctly passed down the component tree.
  *
  * This is a Layer 2 test because it:
- * - Tests multiple real React components together (HighlightPanel + AssistSection)
+ * - Tests multiple real React components together (HighlightPanel + DelegateSection)
  * - Uses real EventBus for browse:click events
  * - Mocks API and external dependencies
  * - Tests the data flow between parent and child components
@@ -44,14 +44,14 @@ const mockT = vi.fn((key: string, params?: Record<string, unknown>) => {
     codeLoading: 'Loading…',
     codeAnalyzing: 'Marking…',
     codeDetectingEntities: 'Marking…',
-    codeCompleteCreated: 'Created {{count}} {{kind}}',
-    kindHighlight: 'highlights',
+    codeCompleteCreated: 'Created {{count}} {{noun}}',
+    nounHighlighting: 'highlights',
     subject: '{{kind}}: {{label}}',
     subjectWithPosition: '{{kind}}: {{label}} ({{done}} of {{total}})',
     subjectKindEntityType: 'Entity type',
     subjectKindCategory: 'Category',
     // The widget's own strings come from the
-    // AssistProgress namespace, not from each panel's.
+    // DelegateProgress namespace, not from each panel's.
     cancel: 'Cancel',
     inProgress: 'Annotating...',
   });
@@ -71,7 +71,7 @@ vi.mock('../../../../contexts/useEventSubscription', () => ({
   useEventSubscriptions: vi.fn(),
 }));
 
-describe('HighlightPanel + AssistSection Integration', () => {
+describe('HighlightPanel + DelegateSection Integration', () => {
   let mockAnnotations: Annotation[];
   // Created per-test: test-utils disposes every created client in a
   // module-scope afterEach, so a module-scope session would be dead
@@ -102,12 +102,12 @@ describe('HighlightPanel + AssistSection Integration', () => {
   });
 
   describe('Detection Progress Prop Passing', () => {
-    it('should pass progress to AssistSection when provided', () => {
+    it('should pass progress to DelegateSection when provided', () => {
       renderWithProviders(
         <HighlightPanel session={session} resourceId={resourceId('res-1')}
           annotations={mockAnnotations}
           pendingAnnotation={null}
-          isAssisting={true}
+          isDelegating={true}
           progress={{
             percentage: 30,
           }}
@@ -115,16 +115,16 @@ describe('HighlightPanel + AssistSection Integration', () => {
         />
       );
 
-      // Verify AssistSection received and rendered the progress
+      // Verify DelegateSection received and rendered the progress
       expect(screen.getByText('Annotating...')).toBeInTheDocument();
     });
 
-    it('should pass null progress to AssistSection', () => {
+    it('should pass null progress to DelegateSection', () => {
       renderWithProviders(
         <HighlightPanel session={session} resourceId={resourceId('res-1')}
           annotations={mockAnnotations}
           pendingAnnotation={null}
-          isAssisting={false}
+          isDelegating={false}
           progress={null}
           annotateMode={true}
         />
@@ -135,12 +135,12 @@ describe('HighlightPanel + AssistSection Integration', () => {
       expect(screen.getByRole('button', { name: /✨\s*Annotate/ })).toBeInTheDocument();
     });
 
-    it('should pass undefined progress to AssistSection', () => {
+    it('should pass undefined progress to DelegateSection', () => {
       renderWithProviders(
         <HighlightPanel session={session} resourceId={resourceId('res-1')}
           annotations={mockAnnotations}
           pendingAnnotation={null}
-          isAssisting={false}
+          isDelegating={false}
           progress={undefined}
           annotateMode={true}
         />
@@ -151,14 +151,14 @@ describe('HighlightPanel + AssistSection Integration', () => {
       expect(screen.getByRole('button', { name: /✨\s*Annotate/ })).toBeInTheDocument();
     });
 
-    it('should keep progress visible after detection completes (isAssisting=false)', () => {
+    it('should keep progress visible after detection completes (isDelegating=false)', () => {
       renderWithProviders(
         <HighlightPanel session={session} resourceId={resourceId('res-1')}
           annotations={mockAnnotations}
           pendingAnnotation={null}
-          isAssisting={false}
+          isDelegating={false}
           progress={{
-            message: { code: 'complete-created', count: 3, kind: 'highlight' },
+            message: { code: 'complete-created', count: 3, motivation: 'highlighting' },
             percentage: 100,
           }}
           annotateMode={true}
@@ -171,12 +171,12 @@ describe('HighlightPanel + AssistSection Integration', () => {
       expect(screen.queryByPlaceholderText('Enter custom instructions...')).not.toBeInTheDocument();
     });
 
-    it('should pass progress with request parameters to AssistSection', () => {
+    it('should pass progress with request parameters to DelegateSection', () => {
       renderWithProviders(
         <HighlightPanel session={session} resourceId={resourceId('res-1')}
           annotations={mockAnnotations}
           pendingAnnotation={null}
-          isAssisting={true}
+          isDelegating={true}
           progress={{
             percentage: 0,
             requestParams: [
@@ -188,19 +188,19 @@ describe('HighlightPanel + AssistSection Integration', () => {
         />
       );
 
-      expect(screen.getByTestId('semiont-assist-params')).toBeInTheDocument();
+      expect(screen.getByTestId('semiont-delegate-params')).toBeInTheDocument();
       expect(screen.getByText('Find important points')).toBeInTheDocument();
       expect(screen.getByText('5')).toBeInTheDocument();
     });
   });
 
   describe('Annotate Mode Toggling', () => {
-    it('should render AssistSection when annotateMode is true', () => {
+    it('should render DelegateSection when annotateMode is true', () => {
       renderWithProviders(
         <HighlightPanel session={session} resourceId={resourceId('res-1')}
           annotations={mockAnnotations}
           pendingAnnotation={null}
-          isAssisting={false}
+          isDelegating={false}
           progress={null}
           annotateMode={true}
         />
@@ -209,12 +209,12 @@ describe('HighlightPanel + AssistSection Integration', () => {
       expect(screen.getByText('Annotate Highlights')).toBeInTheDocument();
     });
 
-    it('should NOT render AssistSection when annotateMode is false', () => {
+    it('should NOT render DelegateSection when annotateMode is false', () => {
       renderWithProviders(
         <HighlightPanel session={session} resourceId={resourceId('res-1')}
           annotations={mockAnnotations}
           pendingAnnotation={null}
-          isAssisting={false}
+          isDelegating={false}
           progress={null}
           annotateMode={false}
         />
@@ -228,7 +228,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
         <HighlightPanel session={session} resourceId={resourceId('res-1')}
           annotations={mockAnnotations}
           pendingAnnotation={null}
-          isAssisting={true}
+          isDelegating={true}
           progress={{
             percentage: 0,
           }}
@@ -243,7 +243,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
         <HighlightPanel session={session} resourceId={resourceId('res-1')}
           annotations={mockAnnotations}
           pendingAnnotation={null}
-          isAssisting={true}
+          isDelegating={true}
           progress={{
             percentage: 0,
           }}
@@ -257,12 +257,12 @@ describe('HighlightPanel + AssistSection Integration', () => {
   });
 
   describe('State Combinations', () => {
-    it('should handle isAssisting=true with no progress (starting state)', () => {
+    it('should handle isDelegating=true with no progress (starting state)', () => {
       renderWithProviders(
         <HighlightPanel session={session} resourceId={resourceId('res-1')}
           annotations={mockAnnotations}
           pendingAnnotation={null}
-          isAssisting={true}
+          isDelegating={true}
           progress={null}
           annotateMode={true}
         />
@@ -272,14 +272,14 @@ describe('HighlightPanel + AssistSection Integration', () => {
       expect(screen.getByPlaceholderText('Enter custom instructions...')).toBeInTheDocument();
     });
 
-    it('should handle isAssisting=false with progress (final state)', () => {
+    it('should handle isDelegating=false with progress (final state)', () => {
       renderWithProviders(
         <HighlightPanel session={session} resourceId={resourceId('res-1')}
           annotations={mockAnnotations}
           pendingAnnotation={null}
-          isAssisting={false}
+          isDelegating={false}
           progress={{
-            message: { code: 'complete-created', count: 3, kind: 'highlight' },
+            message: { code: 'complete-created', count: 3, motivation: 'highlighting' },
             percentage: 100,
           }}
           annotateMode={true}
@@ -297,7 +297,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
         <HighlightPanel session={session} resourceId={resourceId('res-1')}
           annotations={mockAnnotations}
           pendingAnnotation={null}
-          isAssisting={true}
+          isDelegating={true}
           progress={{
             percentage: 0,
           }}
@@ -307,14 +307,14 @@ describe('HighlightPanel + AssistSection Integration', () => {
 
       // Stage is the observable across non-terminal updates: the status text
       // is a single translated string (the wire carries codes).
-      expect(document.querySelector('.semiont-assist-progress')).toHaveAttribute('data-ended', 'false');
+      expect(document.querySelector('.semiont-delegate-progress')).toHaveAttribute('data-ended', 'false');
 
       // Update to analyzing
       rerender(
         <HighlightPanel session={session} resourceId={resourceId('res-1')}
           annotations={mockAnnotations}
           pendingAnnotation={null}
-          isAssisting={true}
+          isDelegating={true}
           progress={{
             percentage: 50,
           }}
@@ -322,7 +322,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
         />
       );
 
-      expect(document.querySelector('.semiont-assist-progress')).toHaveAttribute('data-ended', 'false');
+      expect(document.querySelector('.semiont-delegate-progress')).toHaveAttribute('data-ended', 'false');
       expect(screen.getByText('Annotating...')).toBeInTheDocument();
 
       // Update to complete
@@ -330,9 +330,9 @@ describe('HighlightPanel + AssistSection Integration', () => {
         <HighlightPanel session={session} resourceId={resourceId('res-1')}
           annotations={mockAnnotations}
           pendingAnnotation={null}
-          isAssisting={false}
+          isDelegating={false}
           progress={{
-            message: { code: 'complete-created', count: 3, kind: 'highlight' },
+            message: { code: 'complete-created', count: 3, motivation: 'highlighting' },
             percentage: 100,
           }}
           annotateMode={true}
@@ -350,7 +350,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
         <HighlightPanel session={session} resourceId={resourceId('res-1')}
           annotations={mockAnnotations}
           pendingAnnotation={null}
-          isAssisting={true}
+          isDelegating={true}
           progress={{
             percentage: 0,
           }}
@@ -368,7 +368,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
         <HighlightPanel session={session} resourceId={resourceId('res-1')}
           annotations={[]}
           pendingAnnotation={null}
-          isAssisting={false}
+          isDelegating={false}
           progress={null}
           annotateMode={true}
         />

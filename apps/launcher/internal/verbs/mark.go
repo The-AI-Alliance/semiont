@@ -261,7 +261,8 @@ func Mark(args []string) int {
 			fmt.Fprintln(os.Stderr, "  semiont mark --delegate --help")
 			return 1
 		}
-		command, err := markJob(resourceID, semiont.Motivation(motivation), given)
+		chosen := semiont.Motivation(motivation)
+		command, err := markJob(resourceID, chosen, given)
 		if err != nil {
 			u.Fail("%v", err)
 			fmt.Fprintln(os.Stderr, "  semiont mark --delegate --help")
@@ -271,7 +272,7 @@ func Mark(args []string) int {
 		if !ok {
 			return 1
 		}
-		return runMarkDelegate(u, t, command, resourceID, motivation, asJSON)
+		return runMarkDelegate(u, t, command, resourceID, chosen, asJSON)
 	}
 	if len(delegateOnly) > 0 {
 		u.Fail("%s belongs to --delegate, where the stack does the annotating.", delegateOnly[0])
@@ -445,14 +446,27 @@ func Mark(args []string) int {
 
 // markJobResults: what a `mark` job reports.
 var markJobResults = resultMembers[semiont.MarkJobResult]{
-	semiont.JobDetectionResult{},
-	semiont.JobDeclinedResult{},
+	{semiont.JobDetectionResult{}, "a mark job's counts"},
+	declinedResult,
+}
+
+// markNouns: what the terminal calls an annotation of each motivation, in the
+// singular. A mark job's last progress line ("Created 3 highlights") and the
+// line it ends with ("created 3 highlights (4 found)") both word the job's
+// motivation from here. TestEveryMotivationHasItsNoun holds the table to the
+// spec's motivations.
+var markNouns = map[semiont.Motivation]string{
+	semiont.MotivationHighlighting: "highlight",
+	semiont.MotivationCommenting:   "comment",
+	semiont.MotivationAssessing:    "assessment",
+	semiont.MotivationLinking:      "reference",
+	semiont.MotivationTagging:      "tag",
 }
 
 // runMarkDelegate creates the annotation job and follows it to its end.
-func runMarkDelegate(u *launcher.UI, t launcher.VerbTarget, command semiont.JobCreateCommand, resourceID, motivation string, asJSON bool) int {
+func runMarkDelegate(u *launcher.UI, t launcher.VerbTarget, command semiont.JobCreateCommand, resourceID string, motivation semiont.Motivation, asJSON bool) int {
 	job := delegatedJob[semiont.MarkJobCompleteCommand]{
-		verb: "mark --delegate", doing: "Annotating " + resourceID, note: motivation, failed: "Annotation",
+		verb: "mark --delegate", doing: "Annotating " + resourceID, note: string(motivation), failed: "Annotation",
 		check:  "semiont browse " + resourceID + " --annotations",
 		create: command,
 		jobOf:  func(done semiont.MarkJobCompleteCommand) semiont.JobId { return done.JobId },
@@ -487,17 +501,17 @@ func runMarkDelegate(u *launcher.UI, t launcher.VerbTarget, command semiont.JobC
 		u.Ok("Marked %s: %s", resourceID, markedText(motivation, detected))
 		return 0
 	}
-	u.Ok("Marked %s %s", resourceID, u.Dim("("+motivation+")"))
+	u.Ok("Marked %s %s", resourceID, u.Dim("("+string(motivation)+")"))
 	return 0
 }
 
-// markedText: what a completed mark job did, in the terminal's words: "4
-// linking annotations created (5 found, 1 error)". A tagging job's count per
-// category follows: ": issue 2, rule 4".
-func markedText(motivation string, result semiont.JobDetectionResult) string {
-	text := fmt.Sprintf("%s created (%d found", counted(result.Persisted, motivation+" annotation"), result.Found)
+// markedText: what a completed mark job did, in the words of its last
+// progress line: "created 4 references (5 found, 1 error)". A tagging job's
+// count per category follows: ": issue 2, rule 4".
+func markedText(motivation semiont.Motivation, result semiont.JobDetectionResult) string {
+	text := fmt.Sprintf("created %s (%d found", plural(result.Persisted, markNouns[motivation]), result.Found)
 	if result.Errors != nil {
-		text += ", " + counted(*result.Errors, "error")
+		text += ", " + plural(*result.Errors, "error")
 	}
 	text += ")"
 	if result.ByCategory == nil {
@@ -511,14 +525,6 @@ func markedText(motivation string, result semiont.JobDetectionResult) string {
 		text += ": " + strings.Join(categories, ", ")
 	}
 	return text
-}
-
-// counted: "1 error", "3 errors".
-func counted(n int, what string) string {
-	if n == 1 {
-		return "1 " + what
-	}
-	return fmt.Sprintf("%d %ss", n, what)
 }
 
 // markBuildFail: a union constructor only fails on a programming error here

@@ -1134,33 +1134,6 @@ func (e JobProgressCompleteCreatedCode) Valid() bool {
 	}
 }
 
-// Defines values for JobProgressCompleteCreatedKind.
-const (
-	Assessment JobProgressCompleteCreatedKind = "assessment"
-	Comment    JobProgressCompleteCreatedKind = "comment"
-	Highlight  JobProgressCompleteCreatedKind = "highlight"
-	Reference  JobProgressCompleteCreatedKind = "reference"
-	Tag        JobProgressCompleteCreatedKind = "tag"
-)
-
-// Valid indicates whether the value is a known member of the JobProgressCompleteCreatedKind enum.
-func (e JobProgressCompleteCreatedKind) Valid() bool {
-	switch e {
-	case Assessment:
-		return true
-	case Comment:
-		return true
-	case Highlight:
-		return true
-	case Reference:
-		return true
-	case Tag:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for JobProgressCompleteGeneratedCode.
 const (
 	CompleteGenerated JobProgressCompleteGeneratedCode = "complete-generated"
@@ -4443,15 +4416,12 @@ type JobProgressCompleteCreated struct {
 	// Count How many annotations were created
 	Count int `json:"count"`
 
-	// Kind What kind of annotation was created; clients pluralize/translate
-	Kind JobProgressCompleteCreatedKind `json:"kind"`
+	// Motivation Semiont-supported W3C Web Annotation motivations - https://www.w3.org/TR/annotation-vocab/#motivation
+	Motivation Motivation `json:"motivation"`
 }
 
 // JobProgressCompleteCreatedCode defines model for JobProgressCompleteCreated.Code.
 type JobProgressCompleteCreatedCode string
-
-// JobProgressCompleteCreatedKind What kind of annotation was created; clients pluralize/translate
-type JobProgressCompleteCreatedKind string
 
 // JobProgressCompleteGenerated Generation's terminal success. Deliberately generic — the client already holds the title it typed, and the outcome (name + resource link) travels on job:complete, not on progress. `truncated` qualifies the completion: the same bit `JobGenerationResult.truncated` carries, so the two surfaces cannot drift.
 type JobProgressCompleteGenerated struct {
@@ -4774,21 +4744,6 @@ type MarkArchiveCommand struct {
 	StorageUri *string `json:"storageUri,omitempty"`
 }
 
-// MarkAssistRequestEvent A request, on the client's own bus, that annotating the open resource be delegated: the parameters of the `mark` job to create, its motivation among them. The resource is the one the listening state unit is for.
-type MarkAssistRequestEvent struct {
-	// Params The parameters of a `mark` job, told apart by `motivation`. Each motivation takes its own parameters and no others: a parameter a job does not take is refused where the job is created.
-	Params MarkJobParams `json:"params"`
-}
-
-// MarkAssistTimeoutEvent The payload of `mark:assist-timeout`, a client-local signal: an assist went silent past its deadline, with no progress, no completion and no `job:fail`. A real job failure arrives as `job:fail` and never produces this.
-type MarkAssistTimeoutEvent struct {
-	// Motivation Semiont-supported W3C Web Annotation motivations - https://www.w3.org/TR/annotation-vocab/#motivation
-	Motivation Motivation `json:"motivation"`
-
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
-	ResourceId ResourceId `json:"resourceId"`
-}
-
 // MarkCommitCommand Bus command to persist a detection unit's annotations as one acknowledged batch. Unlike mark:create, which is fire-and-forget and resolves when the bus accepts it, this command is answered only after every annotation is in the event log — so a worker can gate unit completion on durability rather than on emission. The batch is the unit: a partial commit is reported as a failure, and the worker retries the whole unit, which is safe because annotation ids are deterministic: content-addressed, so re-emitting one is a no-op.
 type MarkCommitCommand struct {
 	// UnderscoreRoles The emitter's capabilities (the token's `roles`), injected by the /bus/emit gateway. Clients do not set this. An emitter carrying the worker role must cite the job this batch fulfils in `jobId`; the Stower refuses the batch otherwise.
@@ -4841,6 +4796,21 @@ type MarkCreateOk struct {
 // MarkCreateRequest Raw annotation creation intent — bus handler assembles the W3C annotation
 type MarkCreateRequest struct {
 	Request CreateAnnotationRequest `json:"request"`
+
+	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	ResourceId ResourceId `json:"resourceId"`
+}
+
+// MarkDelegateRequestEvent A request, on the client's own bus, that annotating the open resource be delegated: the parameters of the `mark` job to create, its motivation among them. The resource is the one the listening state unit is for.
+type MarkDelegateRequestEvent struct {
+	// Params The parameters of a `mark` job, told apart by `motivation`. Each motivation takes its own parameters and no others: a parameter a job does not take is refused where the job is created.
+	Params MarkJobParams `json:"params"`
+}
+
+// MarkDelegateTimeoutEvent The payload of `mark:delegate-timeout`, a client-local signal: a delegated job went silent past its deadline, with no progress, no completion and no `job:fail`. A real job failure arrives as `job:fail` and never produces this.
+type MarkDelegateTimeoutEvent struct {
+	// Motivation Semiont-supported W3C Web Annotation motivations - https://www.w3.org/TR/annotation-vocab/#motivation
+	Motivation Motivation `json:"motivation"`
 
 	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
 	ResourceId ResourceId `json:"resourceId"`

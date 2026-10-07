@@ -630,7 +630,7 @@ The resource page (`apps/browser/src/app/[locale]/know/resource/[id]/page.tsx`, 
 - **BrowseView**: Read-only mode for document viewing
 
 **Right Panel** (conditionally visible based on the shell state unit's `activePanel$`):
-- **Annotations** (`UnifiedAnnotationsPanel`): the resource's annotations, grouped by motivation, with AI assist in Annotate mode
+- **Annotations** (`UnifiedAnnotationsPanel`): the resource's annotations, grouped by motivation, with delegated annotation in Annotate mode
 - **History** (`AnnotationHistory`): the resource's append-only event log
 - **Info** (`ResourceInfoPanel`): metadata and provenance
 - **Collaboration** (`CollaborationPanel`): bus connection state and the KB's collaborators

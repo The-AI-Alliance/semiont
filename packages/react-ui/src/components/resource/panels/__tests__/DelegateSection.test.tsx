@@ -1,7 +1,7 @@
 /**
- * Layer 1 Unit Test: AssistSection Component
+ * Layer 1 Unit Test: DelegateSection Component
  *
- * Tests the AssistSection component in isolation with mocked dependencies.
+ * Tests the DelegateSection component in isolation with mocked dependencies.
  *
  * This test verifies:
  * - Detection progress rendering when progress prop is provided
@@ -18,7 +18,7 @@ import { renderWithProviders, createTestSemiontWrapper } from '../../../../test-
 import userEvent from '@testing-library/user-event';
 import type { EventBus } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
-import { AssistSection } from '../AssistSection';
+import { DelegateSection } from '../DelegateSection';
 
 // Mock translations
 const mockT = vi.fn((key: string, params?: Record<string, unknown>) => {
@@ -52,14 +52,14 @@ const mockT = vi.fn((key: string, params?: Record<string, unknown>) => {
     codeLoading: 'Loading…',
     codeAnalyzing: 'Marking…',
     codeDetectingEntities: 'Marking…',
-    codeCompleteCreated: 'Created {{count}} {{kind}}',
-    kindHighlight: 'highlights',
+    codeCompleteCreated: 'Created {{count}} {{noun}}',
+    nounHighlighting: 'highlights',
     subject: '{{kind}}: {{label}}',
     subjectWithPosition: '{{kind}}: {{label}} ({{done}} of {{total}})',
     subjectKindEntityType: 'Entity type',
     subjectKindCategory: 'Category',
     // The widget's own strings come from the
-    // AssistProgress namespace, not from each panel's.
+    // DelegateProgress namespace, not from each panel's.
     cancel: 'Cancel',
     inProgress: 'Annotating...',
   });
@@ -75,7 +75,7 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
   TranslationProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-describe('AssistSection', () => {
+describe('DelegateSection', () => {
   // Per-test session/bus — created in beforeEach (a module-scope factory
   // call would hand tests a client that test-utils disposes after the
   // first test). The `session` prop and the `eventBus` the emission
@@ -95,10 +95,10 @@ describe('AssistSection', () => {
   describe('Progress Display', () => {
     it('should render the translated status line when progress prop provided', () => {
       renderWithProviders(
-        <AssistSection
+        <DelegateSection
           session={session}
           annotationType="highlight"
-          isAssisting={true}
+          isDelegating={true}
           progress={{
             percentage: 30,
           }}
@@ -110,10 +110,10 @@ describe('AssistSection', () => {
 
     it('should render the status line with sparkle icon', () => {
       renderWithProviders(
-        <AssistSection
+        <DelegateSection
           session={session}
           annotationType="highlight"
-          isAssisting={true}
+          isDelegating={true}
           progress={{
             percentage: 0,
           }}
@@ -121,17 +121,17 @@ describe('AssistSection', () => {
       );
 
       // Check for icon and status text
-      const progressDiv = screen.getByText('Annotating...').closest('.semiont-assist-progress__status');
+      const progressDiv = screen.getByText('Annotating...').closest('.semiont-delegate-progress__status');
       expect(progressDiv).toBeInTheDocument();
-      expect(progressDiv?.querySelector('.semiont-assist-progress__icon')).toBeInTheDocument();
+      expect(progressDiv?.querySelector('.semiont-delegate-progress__icon')).toBeInTheDocument();
     });
 
     it('should render request parameters when provided', () => {
       renderWithProviders(
-        <AssistSection
+        <DelegateSection
           session={session}
           annotationType="highlight"
-          isAssisting={true}
+          isDelegating={true}
           progress={{
             percentage: 0,
             requestParams: [
@@ -142,7 +142,7 @@ describe('AssistSection', () => {
         />
       );
 
-      expect(screen.getByTestId('semiont-assist-params')).toBeInTheDocument();
+      expect(screen.getByTestId('semiont-delegate-params')).toBeInTheDocument();
       expect(screen.getByText('Find important points')).toBeInTheDocument();
       expect(screen.getByText('5')).toBeInTheDocument();
       // The wire carries a CODE; the label the user reads is LOOKED UP. Under
@@ -156,10 +156,10 @@ describe('AssistSection', () => {
 
     it('should hide form when progress is present', () => {
       renderWithProviders(
-        <AssistSection
+        <DelegateSection
           session={session}
           annotationType="highlight"
-          isAssisting={true}
+          isDelegating={true}
           progress={{
             percentage: 0,
           }}
@@ -173,10 +173,10 @@ describe('AssistSection', () => {
 
     it('should show form when progress is null', () => {
       renderWithProviders(
-        <AssistSection
+        <DelegateSection
           session={session}
           annotationType="highlight"
-          isAssisting={false}
+          isDelegating={false}
           progress={null}
         />
       );
@@ -188,10 +188,10 @@ describe('AssistSection', () => {
 
     it('should show form when progress is undefined', () => {
       renderWithProviders(
-        <AssistSection
+        <DelegateSection
           session={session}
           annotationType="highlight"
-          isAssisting={false}
+          isDelegating={false}
           progress={undefined}
         />
       );
@@ -201,14 +201,14 @@ describe('AssistSection', () => {
       expect(screen.getByRole('button', { name: /✨\s*Annotate/ })).toBeInTheDocument();
     });
 
-    it('should keep progress visible after detection completes (isAssisting=false but progress exists)', () => {
+    it('should keep progress visible after detection completes (isDelegating=false but progress exists)', () => {
       renderWithProviders(
-        <AssistSection
+        <DelegateSection
           session={session}
           annotationType="highlight"
-          isAssisting={false}
+          isDelegating={false}
           progress={{
-            message: { code: 'complete-created', count: 3, kind: 'highlight' },
+            message: { code: 'complete-created', count: 3, motivation: 'highlighting' },
             percentage: 100,
           }}
         />
@@ -224,10 +224,10 @@ describe('AssistSection', () => {
   describe('Annotation Type Variations', () => {
     it('should render for highlight type', () => {
       renderWithProviders(
-        <AssistSection
+        <DelegateSection
           session={session}
           annotationType="highlight"
-          isAssisting={false}
+          isDelegating={false}
           progress={null}
         />
       );
@@ -237,10 +237,10 @@ describe('AssistSection', () => {
 
     it('should render for assessment type', () => {
       renderWithProviders(
-        <AssistSection
+        <DelegateSection
           session={session}
           annotationType="assessment"
-          isAssisting={false}
+          isDelegating={false}
           progress={null}
         />
       );
@@ -250,10 +250,10 @@ describe('AssistSection', () => {
 
     it('should render for comment type', () => {
       renderWithProviders(
-        <AssistSection
+        <DelegateSection
           session={session}
           annotationType="comment"
-          isAssisting={false}
+          isDelegating={false}
           progress={null}
         />
       );
@@ -263,10 +263,10 @@ describe('AssistSection', () => {
 
     it('should show tone selector for comments', () => {
       renderWithProviders(
-        <AssistSection
+        <DelegateSection
           session={session}
           annotationType="comment"
-          isAssisting={false}
+          isDelegating={false}
           progress={null}
         />
       );
@@ -277,10 +277,10 @@ describe('AssistSection', () => {
 
     it('should show tone selector for assessments', () => {
       renderWithProviders(
-        <AssistSection
+        <DelegateSection
           session={session}
           annotationType="assessment"
-          isAssisting={false}
+          isDelegating={false}
           progress={null}
         />
       );
@@ -291,10 +291,10 @@ describe('AssistSection', () => {
 
     it('should not show tone selector for highlights', () => {
       renderWithProviders(
-        <AssistSection
+        <DelegateSection
           session={session}
           annotationType="highlight"
-          isAssisting={false}
+          isDelegating={false}
           progress={null}
         />
       );
@@ -310,15 +310,15 @@ describe('AssistSection', () => {
       const detectionHandler = vi.fn();
 
       renderWithProviders(
-        <AssistSection
+        <DelegateSection
           session={session}
           annotationType="highlight"
-          isAssisting={false}
+          isDelegating={false}
           progress={null}
         />
       );
 
-      const subscription = eventBus.on('mark:assist-request').subscribe(detectionHandler);
+      const subscription = eventBus.on('mark:delegate-request').subscribe(detectionHandler);
 
       const annotateButton = screen.getByRole('button', { name: /✨\s*Annotate/ });
       await user.click(annotateButton);
@@ -335,15 +335,15 @@ describe('AssistSection', () => {
       const detectionHandler = vi.fn();
 
       renderWithProviders(
-        <AssistSection
+        <DelegateSection
           session={session}
           annotationType="assessment"
-          isAssisting={false}
+          isDelegating={false}
           progress={null}
         />
       );
 
-      const subscription = eventBus.on('mark:assist-request').subscribe(detectionHandler);
+      const subscription = eventBus.on('mark:delegate-request').subscribe(detectionHandler);
 
       const annotateButton = screen.getByRole('button', { name: /✨\s*Annotate/ });
       await user.click(annotateButton);
@@ -360,15 +360,15 @@ describe('AssistSection', () => {
       const detectionHandler = vi.fn();
 
       renderWithProviders(
-        <AssistSection
+        <DelegateSection
           session={session}
           annotationType="comment"
-          isAssisting={false}
+          isDelegating={false}
           progress={null}
         />
       );
 
-      const subscription = eventBus.on('mark:assist-request').subscribe(detectionHandler);
+      const subscription = eventBus.on('mark:delegate-request').subscribe(detectionHandler);
 
       const annotateButton = screen.getByRole('button', { name: /✨\s*Annotate/ });
       await user.click(annotateButton);
@@ -385,15 +385,15 @@ describe('AssistSection', () => {
       const detectionHandler = vi.fn();
 
       renderWithProviders(
-        <AssistSection
+        <DelegateSection
           session={session}
           annotationType="highlight"
-          isAssisting={false}
+          isDelegating={false}
           progress={null}
         />
       );
 
-      const subscription = eventBus.on('mark:assist-request').subscribe(detectionHandler);
+      const subscription = eventBus.on('mark:delegate-request').subscribe(detectionHandler);
 
       const textarea = screen.getByPlaceholderText('Enter custom instructions...');
       await user.type(textarea, 'Find key concepts');
@@ -416,10 +416,10 @@ describe('AssistSection', () => {
   describe('Collapsible Behavior', () => {
     it('should be expanded by default', () => {
       renderWithProviders(
-        <AssistSection
+        <DelegateSection
           session={session}
           annotationType="highlight"
-          isAssisting={false}
+          isDelegating={false}
           progress={null}
         />
       );
@@ -433,10 +433,10 @@ describe('AssistSection', () => {
       const user = userEvent.setup();
 
       renderWithProviders(
-        <AssistSection
+        <DelegateSection
           session={session}
           annotationType="highlight"
-          isAssisting={false}
+          isDelegating={false}
           progress={null}
         />
       );
@@ -452,10 +452,10 @@ describe('AssistSection', () => {
       const user = userEvent.setup();
 
       renderWithProviders(
-        <AssistSection
+        <DelegateSection
           session={session}
           annotationType="highlight"
-          isAssisting={false}
+          isDelegating={false}
           progress={null}
         />
       );
@@ -472,10 +472,10 @@ describe('AssistSection', () => {
   describe('Edge Cases', () => {
     it('should handle progress without a message', () => {
       renderWithProviders(
-        <AssistSection
+        <DelegateSection
           session={session}
           annotationType="highlight"
-          isAssisting={true}
+          isDelegating={true}
           progress={{
             percentage: 0,
           }}
@@ -484,16 +484,16 @@ describe('AssistSection', () => {
 
       // Renders the progress section with the translated status line — the
       // wire carries a code (or nothing), never a sentence to fall back on.
-      const progressDiv = document.querySelector('.semiont-assist-progress');
+      const progressDiv = document.querySelector('.semiont-delegate-progress');
       expect(progressDiv).toBeInTheDocument();
     });
 
     it('should handle progress with empty requestParams array', () => {
       renderWithProviders(
-        <AssistSection
+        <DelegateSection
           session={session}
           annotationType="highlight"
-          isAssisting={true}
+          isDelegating={true}
           progress={{
             percentage: 0,
             requestParams: [],
@@ -501,7 +501,7 @@ describe('AssistSection', () => {
         />
       );
 
-      expect(screen.queryByTestId('semiont-assist-params')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('semiont-delegate-params')).not.toBeInTheDocument();
     });
   });
 });

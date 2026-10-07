@@ -523,11 +523,51 @@ pub async fn person_profile(archivist: &Archivist, command: &Object) -> Answered
     Ok(json!({}))
 }
 
+/// The verb a resource's stream records for a job: the `jobType` of the
+/// first `job:assigned` or `job:started` that names it. None for a job the
+/// stream records neither of.
+fn recorded_verb(
+    archivist: &Archivist,
+    resource_id: &str,
+    job_id: &Value,
+) -> Result<Option<Value>, Refusal> {
+    Ok(archivist
+        .events(resource_id)?
+        .into_iter()
+        .find(|event| {
+            matches!(
+                event.get("type").and_then(Value::as_str),
+                Some("job:assigned" | "job:started")
+            ) && event["payload"].get("jobId") == Some(job_id)
+        })
+        .and_then(|event| event["payload"].get("jobType").cloned()))
+}
+
 /// `job:start`, `job:assign`, `job:complete`, `job:fail`: the lifecycle of a
-/// job, recorded in the stream of the resource it runs on.
+/// job, recorded in the stream of the resource it runs on. A completion is
+/// its verb's: one that states another verb than the stream records for the
+/// job is not that job's completion, and is not recorded. A completion of a
+/// job the stream records nothing of is recorded, since nothing here says
+/// which verb's it is.
 pub async fn job(archivist: &Archivist, channel: &str, command: &Object) -> Answered {
     let user = sender(channel, command)?;
     let resource_id = required(channel, command, "resourceId")?;
+    if channel == "job:complete"
+        && let Some(job_id) = command.get("jobId")
+        && let Some(recorded) = recorded_verb(archivist, resource_id, job_id)?
+        && command.get("jobType") != Some(&recorded)
+    {
+        semiont_observability::logging::warn(
+            "job:complete of another verb than the job's",
+            json!({
+                "component": "stower",
+                "jobId": job_id,
+                "jobType": recorded,
+                "completedAs": command.get("jobType"),
+            }),
+        );
+        return Ok(json!({}));
+    }
     let (kind, fields): (&str, &[&str]) = match channel {
         "job:start" => ("job:started", &["jobId", "jobType", "annotationId"]),
         "job:assign" => (

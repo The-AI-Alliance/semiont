@@ -68,8 +68,8 @@ export * from './contexts/TranslationContext';
 
 // Components - Top level
 export * from './components/CodeMirrorRenderer';
-export * from './components/AssistProgress';
-export * from './components/resource/panels/AssistShell';
+export * from './components/DelegateProgress';
+export * from './components/resource/panels/DelegateShell';
 export * from './components/ErrorBoundary';
 export * from './components/ProtectedErrorBoundary';
 export * from './components/LiveRegion';
@@ -114,7 +114,7 @@ export * from './components/resource/panels/AssessmentPanel';
 export * from './components/resource/panels/CollaborationPanel';
 export * from './components/resource/panels/CommentEntry';
 export * from './components/resource/panels/CommentsPanel';
-export * from './components/resource/panels/AssistSection';
+export * from './components/resource/panels/DelegateSection';
 export * from './components/resource/panels/HighlightEntry';
 export * from './components/resource/panels/HighlightPanel';
 export * from './components/resource/panels/JsonLdPanel';

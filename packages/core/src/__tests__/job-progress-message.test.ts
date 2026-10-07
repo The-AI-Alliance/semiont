@@ -20,7 +20,7 @@ describe('JobProgress message shape (A6, type half)', () => {
     const bare: Message = { code: 'loading' };
     const detecting: Message = { code: 'detecting-entities', entityType: 'Person' };
     const creating: Message = { code: 'creating-annotations', count: 3 };
-    const done: Message = { code: 'complete-created', count: 3, kind: 'highlight' };
+    const done: Message = { code: 'complete-created', count: 3, motivation: 'highlighting' };
     // Generation's terminal success — generic (no name field: the client holds
     // the title it typed) plus the truncation bit.
     const generated: Message = { code: 'complete-generated', truncated: false };
@@ -31,8 +31,8 @@ describe('JobProgress message shape (A6, type half)', () => {
     // @ts-expect-error — creating-annotations without count is not a message
     const missingCount: JobProgressMessage = { code: 'creating-annotations' };
     void missingCount;
-    // @ts-expect-error — complete-created without kind is not a message
-    const missingKind: JobProgressMessage = { code: 'complete-created', count: 3 };
-    void missingKind;
+    // @ts-expect-error — complete-created without its motivation is not a message
+    const missingMotivation: JobProgressMessage = { code: 'complete-created', count: 3 };
+    void missingMotivation;
   });
 });

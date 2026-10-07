@@ -176,7 +176,7 @@ const CALLS: Calls = {
         a['selector'] as components['schemas']['MarkRequestedEvent']['selector'],
         a['motivation'] as Motivation,
       ),
-    requestAssist: (c, a) => c.mark.requestAssist(a['params'] as MarkJobParams),
+    requestDelegate: (c, a) => c.mark.requestDelegate(a['params'] as MarkJobParams),
     submit: (c, a) => c.mark.submit(a['input'] as components['schemas']['MarkSubmitEvent']),
     cancelPending: (c) => c.mark.cancelPending(),
     dismissProgress: (c) => c.mark.dismissProgress(),

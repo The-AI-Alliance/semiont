@@ -574,12 +574,13 @@ progress:
 
 Each creates a job described by its verb (`jobType` is `mark` or `yield`) and
 its parameters, a `mark` job's motivation among them. Both end with what the
-job did: the resource generated, or how many annotations of that motivation
-were created of how many were found (`3 highlighting annotations created (4
-found)`). A job the queue runs again after a failed attempt is followed
-through the retry. A decline (a resource with no text the worker could read)
-and a failure both exit non-zero, and `--json` prints the job's completion as
-the stack sent it. A completion is read as its verb's: one that names the
+job did: the resource generated, or how many annotations were created of how
+many were found, in the words of the job's last progress line (`created 3
+highlights (4 found)`; comments, assessments, references and tags likewise). A
+job the queue runs again after a failed attempt is followed through the retry.
+A decline (a resource with no text the worker could read) and a failure both
+exit non-zero, and `--json` prints the job's completion as the stack sent it.
+A completion is read as its verb's: one that names the
 other verb, or reports what the other verb's job reports, is said and exits
 non-zero. What `mark --delegate` sends for each motivation is the
 `mark.delegate` row of `specs/src/client/surface.json`, which the TypeScript,

@@ -1,5 +1,5 @@
 //! Marking, as one resource's state: the annotation being composed, and the
-//! assist that is running.
+//! delegated job that is running.
 //!
 //! **The pending annotation.** A selection (`client.mark.request`, or one of
 //! the quick `mark:select-*` signals) becomes the annotation pending.
@@ -12,20 +12,20 @@
 //! acts only on its own: several units over one client, one per open
 //! resource, do not answer for each other.
 //!
-//! **The assist.** `client.mark.request_assist` starts one: the `mark` job
-//! whose parameters the request carries, delegated for this unit's resource.
-//! The motivation those parameters state is held while it runs, and its
-//! progress as it comes. A finished assist's progress stays until it is
+//! **The delegated job.** `client.mark.request_delegate` starts one: the
+//! `mark` job whose parameters the request carries, delegated for this unit's
+//! resource. The motivation those parameters state is held while it runs,
+//! and its progress as it comes. A finished job's progress stays until it is
 //! dismissed (`client.mark.dismiss_progress`) or the next one begins. One
 //! that fails clears both.
 //!
-//! An assist that says nothing for `ASSIST_SILENCE` has gone quiet, which is
-//! not over: the unit says so once (`mark:assist-timeout`) and keeps
-//! following, so a completion that arrives later still ends it.
+//! A delegated job that says nothing for `DELEGATE_SILENCE` has gone quiet,
+//! which is not over: the unit says so once (`mark:delegate-timeout`) and
+//! keeps following, so a completion that arrives later still ends it.
 
 use super::{Held, Tasks, said, signal};
 use crate::channels::{
-    Channel, MarkAssistRequest, MarkAssistTimeout, MarkCancelPending, MarkCreateError,
+    Channel, MarkCancelPending, MarkCreateError, MarkDelegateRequest, MarkDelegateTimeout,
     MarkProgressDismiss, MarkRequested, MarkSelectAssessment, MarkSelectComment,
     MarkSelectReference, MarkSelectTag, MarkSubmit,
 };
@@ -34,12 +34,12 @@ use crate::errors::SemiontError;
 use crate::event_bus::BusFrames;
 use crate::namespaces::JobEvent;
 use crate::state_unit::StateUnit;
-use crate::timing::ASSIST_SILENCE;
+use crate::timing::DELEGATE_SILENCE;
 use crate::transport::Envelope;
 use crate::types::ResourceId;
 use crate::types::{
     AnnotationSelector, AnnotationTarget, CreateAnnotationRequest, FragmentSelector,
-    FragmentSelectorType, JobProgress, MarkAssistTimeoutEvent, MarkJobParams, MarkSubmitEvent,
+    FragmentSelectorType, JobProgress, MarkDelegateTimeoutEvent, MarkJobParams, MarkSubmitEvent,
     Motivation, ResourceErrorEvent, SelectionData, Selector, SvgSelector, SvgSelectorType,
     TextQuoteSelector, TextQuoteSelectorType,
 };
@@ -99,7 +99,7 @@ struct Shared {
     client: Arc<SemiontClient>,
     resource_id: ResourceId,
     pending: Held<Option<PendingAnnotation>>,
-    assisting: Held<Option<Motivation>>,
+    delegating: Held<Option<Motivation>>,
     progress: Held<Option<JobProgress>>,
     tasks: Tasks,
 }
@@ -133,14 +133,14 @@ impl MarkStateUnit {
             MarkSelectReference::NAME,
             MarkCancelPending::NAME,
             MarkSubmit::NAME,
-            MarkAssistRequest::NAME,
+            MarkDelegateRequest::NAME,
             MarkProgressDismiss::NAME,
         ]);
         let shared = Arc::new(Shared {
             client,
             resource_id: resource_id.clone(),
             pending: Held::new(None),
-            assisting: Held::new(None),
+            delegating: Held::new(None),
             progress: Held::new(None),
             tasks: Tasks::new(),
         });
@@ -153,12 +153,12 @@ impl MarkStateUnit {
         self.shared.pending.read()
     }
 
-    /// The motivation of the assist that is running, or none.
-    pub fn assisting(&self) -> watch::Receiver<Option<Motivation>> {
-        self.shared.assisting.read()
+    /// The motivation of the delegated job that is running, or none.
+    pub fn delegating(&self) -> watch::Receiver<Option<Motivation>> {
+        self.shared.delegating.read()
     }
 
-    /// The progress of the assist that is running, or of the last one until
+    /// The progress of the delegated job that is running, or of the last one until
     /// it is dismissed.
     pub fn progress(&self) -> watch::Receiver<Option<JobProgress>> {
         self.shared.progress.read()
@@ -193,17 +193,17 @@ async fn listen(shared: Arc<Shared>, mut heard: BusFrames) {
             if submission.source == shared.resource_id {
                 shared.tasks.spawn(create(shared.clone(), submission));
             }
-        } else if let Some(request) = said::<MarkAssistRequest>(&frame) {
+        } else if let Some(request) = said::<MarkDelegateRequest>(&frame) {
             // Parameters that state no motivation are no request, as a frame
             // that is not its channel's is none.
             let Some(motivation) = motivation_of(&request.params) else {
                 continue;
             };
-            shared.assisting.set(Some(motivation));
+            shared.delegating.set(Some(motivation));
             shared.progress.set(None);
             shared
                 .tasks
-                .spawn(assist(shared.clone(), request.params, motivation));
+                .spawn(delegate(shared.clone(), request.params, motivation));
         } else if said::<MarkProgressDismiss>(&frame).is_some() {
             shared.progress.set(None);
         }
@@ -232,14 +232,14 @@ async fn create(shared: Arc<Shared>, submission: MarkSubmitEvent) {
     }
 }
 
-async fn assist(shared: Arc<Shared>, params: MarkJobParams, motivation: Motivation) {
+async fn delegate(shared: Arc<Shared>, params: MarkJobParams, motivation: Motivation) {
     let mut run = shared.client.mark.delegate(&shared.resource_id, params);
     // Whether the next silence is still to be said. It is said once, and
     // again only after the job has said something.
     let mut listening_for_silence = true;
     loop {
         let event = if listening_for_silence {
-            match tokio::time::timeout(ASSIST_SILENCE, run.next()).await {
+            match tokio::time::timeout(DELEGATE_SILENCE, run.next()).await {
                 Ok(event) => event,
                 Err(_) => {
                     listening_for_silence = false;
@@ -257,19 +257,19 @@ async fn assist(shared: Arc<Shared>, params: MarkJobParams, motivation: Motivati
             // the stream's end follows.
             Some(Ok(JobEvent::Failed(_) | JobEvent::Complete(_))) => {}
             Some(Err(_)) => {
-                shared.assisting.set(None);
+                shared.delegating.set(None);
                 shared.progress.set(None);
                 return;
             }
             None => {
-                shared.assisting.set(None);
+                shared.delegating.set(None);
                 return;
             }
         }
     }
 }
 
-/// The assist is still running as far as anyone here knows, so its
+/// The delegated job is still running as far as anyone here knows, so its
 /// motivation stays. A display that had no progress to show is given one,
 /// and the silence is said once.
 fn gone_quiet(shared: &Shared, motivation: Motivation) {
@@ -288,9 +288,9 @@ fn gone_quiet(shared: &Shared, motivation: Motivation) {
             request_params: None,
         }));
     }
-    signal::<MarkAssistTimeout>(
+    signal::<MarkDelegateTimeout>(
         &shared.client,
-        &MarkAssistTimeoutEvent {
+        &MarkDelegateTimeoutEvent {
             resource_id: shared.resource_id.clone(),
             motivation,
         },
@@ -302,7 +302,7 @@ impl StateUnit for MarkStateUnit {
     fn dispose(&self) {
         self.shared.tasks.stop();
         self.shared.pending.end();
-        self.shared.assisting.end();
+        self.shared.delegating.end();
         self.shared.progress.end();
     }
 }

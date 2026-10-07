@@ -33,7 +33,7 @@ import { signInSession } from '../fixtures/sdk-session';
  *    `lastActivityAt` as ISO timestamps or honest nulls, `activeJob`,
  *    `jobsCompleted`). No secret material (the vitals are built beside
  *    the resolved inference config, which holds API keys).
- * 3. **The lifecycle.** One real assist advances the
+ * 3. **The lifecycle.** One real delegated job advances the
  *    serving agent's vitals: `jobsCompleted` increments, `lastClaimAt`/
  *    `lastFinishedAt` populate with claim ≤ finish, and `activeJob`
  *    returns to null. Timestamp comparisons stay *within* the worker's
@@ -46,7 +46,7 @@ import { signInSession } from '../fixtures/sdk-session';
  * (spec 18 owns the routing function), and the stall watchdog / restart
  * chain (killing a worker mid-job is not a smoke test).
  *
- * Self-seeding: creates its own resource for the assist pass. Slow: the
+ * Self-seeding: creates its own resource for the delegated job. Slow: the
  * lifecycle leg waits on a real LLM highlight pass (spec-06/11 class).
  */
 
@@ -105,7 +105,7 @@ function epochOrNull(value: string | null, label: string): number | null {
 }
 
 test.describe('worker vitals (/health)', () => {
-  test('payload is the vitals contract and one real assist advances the lifecycle', async () => {
+  test('payload is the vitals contract and one real delegated job advances the lifecycle', async () => {
     test.setTimeout(120_000);
 
     // ── 1. Freshness gate: the enriched payload must exist on this stack ──
@@ -165,7 +165,7 @@ test.describe('worker vitals (/health)', () => {
     const baseFinished = epochOrNull(owner!.lastFinishedAt, 'baseline lastFinishedAt');
     const baseByDid = new Map(baseline.workers.map((w) => [w.did, w.jobsCompleted]));
 
-    // ── 4. One real assist (self-seeded, spec-18 pattern) ──
+    // ── 4. One real delegated job (self-seeded, spec-18 pattern) ──
     const session = await signInSession();
     const client = session.client;
     try {
@@ -211,13 +211,13 @@ test.describe('worker vitals (/health)', () => {
     const after = await fetchHealth();
     const w = after.workers!.find((x) => x.did === ownerDid)!;
 
-    const claimed = epochOrNull(w.lastClaimAt, 'post-assist lastClaimAt');
-    const finished = epochOrNull(w.lastFinishedAt, 'post-assist lastFinishedAt');
+    const claimed = epochOrNull(w.lastClaimAt, 'post-job lastClaimAt');
+    const finished = epochOrNull(w.lastFinishedAt, 'post-job lastFinishedAt');
     expect(claimed, 'the serving agent claimed the job (lastClaimAt set)').not.toBeNull();
     expect(finished, 'the serving agent finished the job (lastFinishedAt set)').not.toBeNull();
     expect(finished!, 'claim precedes finish on the worker’s own clock').toBeGreaterThanOrEqual(claimed!);
     if (baseFinished !== null) {
-      expect(finished!, 'lastFinishedAt advanced past the pre-assist value').toBeGreaterThan(baseFinished);
+      expect(finished!, 'lastFinishedAt advanced past the pre-job value').toBeGreaterThan(baseFinished);
     }
     expect(w.lastActivityAt, 'activity freshness populated by the pass').not.toBeNull();
     expect(

@@ -9023,10 +9023,28 @@ func TestYieldDelegateRefusesAResultThatIsNotAYieldJobs(t *testing.T) {
 		if code == 0 {
 			t.Fatalf("%v: a yield job that reported a mark job's counts must fail the command\nstdout:\n%s", format, stdout)
 		}
-		mustContain(t, "refusal", stderr, "Job fake-job-1 completed with a result that is not a yield job's", `"found":2`, "semiont browse res-src")
+		mustContain(t, "refusal", stderr, `Job fake-job-1 completed with a result that is neither the resource a yield job made nor a decline: {"found":2,"persisted":2}`, "What the job did:  semiont browse res-src")
+		mustNotContain(t, "a type's name in what a user reads", stderr, "JobGenerationResult", "JobDeclinedResult")
 		if strings.Contains(stdout, "Yielded") {
 			t.Errorf("%v: claimed a yield that never happened:\n%s", format, stdout)
 		}
+	}
+}
+
+// A completion is its verb's by its jobType. A yield job whose completion
+// names the other verb made nothing this command can read: it says what the
+// job completed as and what it created, and fails.
+func TestYieldDelegateRefusesACompletionOfAnotherVerb(t *testing.T) {
+	s := busScenario(t,
+		`FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{},"graph":{}}`,
+		"FAKERT_JOB_COMPLETES_AS=mark", `FAKERT_JOB_RESULT={"found":2,"persisted":2}`)
+	stdout, stderr, code := s.run(t, "yield", "--delegate", "res-src", "--storage-uri", "file://generated/out.md", "--title", "Derived")
+	if code == 0 {
+		t.Fatalf("a yield job that completed as a mark job must fail the command\nstdout:\n%s", stdout)
+	}
+	mustContain(t, "refusal", stderr, `Job fake-job-1 completed as a "mark" job, and yield --delegate created a "yield" job.`, "What the job did:  semiont browse res-src")
+	if strings.Contains(stdout, "Yielded") {
+		t.Errorf("claimed a yield that never happened:\n%s", stdout)
 	}
 }
 
@@ -9109,7 +9127,7 @@ func TestMarkDelegateFollowsJobToCompletion(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("mark --delegate: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "stdout", stdout, "Annotating res-1", "highlighting", "fake-job-1", "Analyzing text", "3 highlighting annotations created (4 found)")
+	mustContain(t, "stdout", stdout, "Annotating res-1", "highlighting", "fake-job-1", "Analyzing text", "Created 3 highlights", "Marked res-1: created 3 highlights (4 found)")
 	jobType, resourceID, params := jobCreate(t, lastEmit(t, s))
 	if jobType != "mark" || resourceID != "res-1" {
 		t.Errorf("job:create asks for a %q job on %q, want a mark job on res-1", jobType, resourceID)
@@ -9129,7 +9147,7 @@ func TestMarkDelegateFollowsJobToCompletion(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("mark --delegate linking: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "stdout", stdout, "4 linking annotations created (5 found, 1 error)")
+	mustContain(t, "stdout", stdout, "Created 4 references", "Marked res-1: created 4 references (5 found, 1 error)")
 	jobType, _, params = jobCreate(t, lastEmit(t, s))
 	if jobType != "mark" || params["motivation"] != "linking" {
 		t.Errorf("linking asks for a %q job of the motivation %v, want a mark job of linking", jobType, params["motivation"])
@@ -9144,7 +9162,7 @@ func TestMarkDelegateFollowsJobToCompletion(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("mark --delegate tagging: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "stdout", stdout, "6 tagging annotations created (6 found): issue 2, rule 4")
+	mustContain(t, "stdout", stdout, "Created 6 tags", "Marked res-1: created 6 tags (6 found): issue 2, rule 4")
 	jobType, _, params = jobCreate(t, lastEmit(t, s))
 	if jobType != "mark" || params["motivation"] != "tagging" || params["schemaId"] != "legal-irac" || fmt.Sprint(params["categories"]) != "[issue rule]" || params["language"] != "de" {
 		t.Errorf("tagging asks for a %q job with params %v", jobType, params)
@@ -9183,7 +9201,7 @@ func TestMarkDelegateGoesOnThroughARetriedAttempt(t *testing.T) {
 		t.Fatalf("a job that recovered on its second attempt failed the command: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "the retried attempt", stdout+stderr, "provider overloaded", "again")
-	mustContain(t, "stdout", stdout, "3 highlighting annotations")
+	mustContain(t, "stdout", stdout, "created 3 highlights")
 	if strings.Contains(stdout+stderr, "Annotation failed") {
 		t.Errorf("a retried attempt was reported as the job's failure:\n%s", stdout+stderr)
 	}
@@ -9219,10 +9237,26 @@ func TestMarkDelegateRefusesAResultThatIsNotAMarkJobs(t *testing.T) {
 		if code == 0 {
 			t.Fatalf("%v: a mark job that reported a yield job's resource must fail the command\nstdout:\n%s", format, stdout)
 		}
-		mustContain(t, "refusal", stderr, "Job fake-job-1 completed with a result that is not a mark job's", `"resourceId":"res-new"`, "semiont browse res-1 --annotations")
+		mustContain(t, "refusal", stderr, `Job fake-job-1 completed with a result that is neither a mark job's counts nor a decline: {"resourceId":"res-new","resourceName":"Generated","truncated":false}`, "What the job did:  semiont browse res-1 --annotations")
+		mustNotContain(t, "a type's name in what a user reads", stderr, "JobDetectionResult", "JobDeclinedResult")
 		if strings.Contains(stdout, "Marked") {
 			t.Errorf("%v: claimed a mark that never happened:\n%s", format, stdout)
 		}
+	}
+}
+
+// A completion is its verb's by its jobType. A mark job whose completion names
+// the other verb annotated nothing this command can count: it says what the
+// job completed as and what it created, and fails.
+func TestMarkDelegateRefusesACompletionOfAnotherVerb(t *testing.T) {
+	s := busScenario(t, "FAKERT_JOB_COMPLETES_AS=yield")
+	stdout, stderr, code := s.run(t, "mark", "--delegate", "res-1", "--motivation", "highlighting")
+	if code == 0 {
+		t.Fatalf("a mark job that completed as a yield job must fail the command\nstdout:\n%s", stdout)
+	}
+	mustContain(t, "refusal", stderr, `Job fake-job-1 completed as a "yield" job, and mark --delegate created a "mark" job.`, "What the job did:  semiont browse res-1 --annotations")
+	if strings.Contains(stdout, "Marked") {
+		t.Errorf("claimed a mark that never happened:\n%s", stdout)
 	}
 }
 

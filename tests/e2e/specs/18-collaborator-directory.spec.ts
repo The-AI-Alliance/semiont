@@ -29,7 +29,7 @@ import { signInSession } from '../fixtures/sdk-session';
  *    the roster dedups by that pair), each named as a claim names it.
  *    Entries without `serves` (actors-only agents) are legal.
  * 4. **No secret material.** The reply carries no `apiKey`/endpoint config.
- * 5. **The attribution loop.** After a real assist pass, the `generator` DID
+ * 5. **The attribution loop.** After a real delegated job, the `generator` DID
  *    stamped on the created annotations is an element of the directory —
  *    declared roster ⊇ actual workers. A generator absent from the directory
  *    is the declared-vs-actual discrepancy this check exists to surface.
@@ -41,7 +41,7 @@ import { signInSession } from '../fixtures/sdk-session';
  * session becomes worth wiring when the directory adds Persons (whose
  * assertion is "minimal subset, no admin-only fields").
  *
- * Self-seeding: creates its own resource for the assist pass. Slow: the
+ * Self-seeding: creates its own resource for the delegated job. Slow: the
  * attribution leg waits on a real LLM highlight pass (spec-06/11 class).
  */
 
@@ -158,7 +158,7 @@ test.describe('collaborator directory (browse.agents)', () => {
         .toBe(true);
 
       const generated = (await client.browse.annotations(rid).fresh()).filter((a) => a.generator !== undefined);
-      expect(generated.length, 'assist pass produced ≥1 generator-stamped annotation').toBeGreaterThan(0);
+      expect(generated.length, 'the delegated job produced ≥1 generator-stamped annotation').toBeGreaterThan(0);
 
       for (const ann of generated) {
         const generators = Array.isArray(ann.generator) ? ann.generator : [ann.generator!];

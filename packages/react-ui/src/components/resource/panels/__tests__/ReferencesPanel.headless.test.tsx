@@ -22,7 +22,7 @@ function fakeSession() {
   const client = {
     browse: { click: vi.fn(), tagSchemas: () => ({ subscribe: () => ({ unsubscribe: () => {} }) }) },
     beckon: { hover: vi.fn(), sparkle: vi.fn() },
-    mark: { requestAssist: vi.fn(), delete: vi.fn() },
+    mark: { requestDelegate: vi.fn(), delete: vi.fn() },
   };
   const session = {
     client,
@@ -65,7 +65,7 @@ describe('ReferencesPanel — headless (session prop, no session provider)', () 
         session={session}
         resourceId={resourceId('res-1')}
         annotations={[referenceAnnotation()]}
-        isAssisting={false}
+        isDelegating={false}
         progress={null}
         pendingAnnotation={null}
         allEntityTypes={[]}
@@ -92,7 +92,7 @@ describe('ReferencesPanel — headless (session prop, no session provider)', () 
         session,
         resourceId: resourceId('res-1' as const),
         annotations: [],
-        isAssisting: false,
+        isDelegating: false,
         progress: null,
         pendingAnnotation: null,
         allEntityTypes: [],
@@ -155,7 +155,7 @@ describe('ReferencesPanel — headless (session prop, no session provider)', () 
           session={session}
           resourceId={resourceId('res-1')}
           annotations={[]}
-          isAssisting={false}
+          isDelegating={false}
           progress={null}
           pendingAnnotation={null}
           allEntityTypes={[]}

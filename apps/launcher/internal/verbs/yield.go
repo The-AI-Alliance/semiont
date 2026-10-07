@@ -362,8 +362,8 @@ var yieldJobFlags = jobFlags{
 
 // yieldJobResults: what a `yield` job reports.
 var yieldJobResults = resultMembers[semiont.YieldJobResult]{
-	semiont.JobGenerationResult{},
-	semiont.JobDeclinedResult{},
+	{semiont.JobGenerationResult{}, "the resource a yield job made"},
+	declinedResult,
 }
 
 func runYieldDelegate(u *launcher.UI, t launcher.VerbTarget, positional []string, request semiont.GenerationJobRequest, asJSON bool) int {

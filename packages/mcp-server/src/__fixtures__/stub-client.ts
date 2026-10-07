@@ -91,7 +91,7 @@ export const GATHER_COMPLETE: GatherAnnotationComplete = {
   response: CONTEXT,
 };
 
-export const ASSIST_COMPLETE: JobEvent<MarkJobCompletion> = {
+export const MARK_COMPLETE: JobEvent<MarkJobCompletion> = {
   kind: 'complete',
   data: {
     resourceId: resourceId('res-iliad'),
@@ -122,7 +122,7 @@ export function createStub() {
       async () => ({ annotationId: annotationId('anno-new') }),
     ),
     delegate: vi.fn<(id: ResourceId, params: MarkJobParams) => Observable<JobEvent<MarkJobCompletion>>>(
-      () => of(ASSIST_COMPLETE),
+      () => of(MARK_COMPLETE),
     ),
   };
   const bind = {

@@ -594,8 +594,8 @@
       "MarkArchiveCommand": {
         "$ref": "components/schemas/MarkArchiveCommand.json"
       },
-      "MarkAssistRequestEvent": {
-        "$ref": "components/schemas/MarkAssistRequestEvent.json"
+      "MarkDelegateRequestEvent": {
+        "$ref": "components/schemas/MarkDelegateRequestEvent.json"
       },
       "MarkCreateCommand": {
         "$ref": "components/schemas/MarkCreateCommand.json"
@@ -999,8 +999,8 @@
       "BrowseDirectoryFailed": {
         "$ref": "components/schemas/BrowseDirectoryFailed.json"
       },
-      "MarkAssistTimeoutEvent": {
-        "$ref": "components/schemas/MarkAssistTimeoutEvent.json"
+      "MarkDelegateTimeoutEvent": {
+        "$ref": "components/schemas/MarkDelegateTimeoutEvent.json"
       },
       "ResourceErrorEvent": {
         "$ref": "components/schemas/ResourceErrorEvent.json"

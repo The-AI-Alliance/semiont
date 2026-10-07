@@ -55,7 +55,8 @@ what its schema says; and a case fails otherwise, whatever it was about.
   stamp its writer states, and the roster.
 - **Clone tokens** (`clone.test.ts`): issued, looked up, spent on a copy over
   the bus and by an upload, and refused.
-- **Jobs** (`jobs.test.ts`): the lifecycle recorded in a resource's stream, a
+- **Jobs** (`jobs.test.ts`): the lifecycle recorded in a resource's stream, no
+  completion recorded of another verb than the stream records for its job, a
   worker's writes attributed to whoever the job was assigned for, and every
   refusal of a write that cites no job, the wrong job, or the wrong generator.
 - **The record across restarts** (`record.test.ts`): sequence numbers after a

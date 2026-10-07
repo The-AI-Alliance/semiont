@@ -84,12 +84,12 @@ vi.mock('../AssessmentEntry', () => ({
   ),
 }));
 
-// Mock AssistSection component — just render a simplified version.
-vi.mock('../AssistSection', () => ({
-  AssistSection: ({ isAssisting }: any) => (
+// Mock DelegateSection component — just render a simplified version.
+vi.mock('../DelegateSection', () => ({
+  DelegateSection: ({ isDelegating }: any) => (
     <div data-testid="detect-section">
       <button>Start Detection</button>
-      {isAssisting && <div>Detecting...</div>}
+      {isDelegating && <div>Detecting...</div>}
     </div>
   ),
 }));
@@ -448,7 +448,7 @@ describe('AssessmentPanel Component', () => {
   });
 
   describe('Detection Section', () => {
-    it('should render AssistSection when annotateMode is true', () => {
+    it('should render DelegateSection when annotateMode is true', () => {
       renderWithEventBus(
         <AssessmentPanel
           {...defaultProps} session={session}
@@ -459,7 +459,7 @@ describe('AssessmentPanel Component', () => {
       expect(screen.getByTestId('detect-section')).toBeInTheDocument();
     });
 
-    it('should not render AssistSection when annotateMode is false', () => {
+    it('should not render DelegateSection when annotateMode is false', () => {
       renderWithEventBus(
         <AssessmentPanel
           {...defaultProps} session={session}
@@ -470,7 +470,7 @@ describe('AssessmentPanel Component', () => {
       expect(screen.queryByTestId('detect-section')).not.toBeInTheDocument();
     });
 
-    it('should render AssistSection with correct annotationType', () => {
+    it('should render DelegateSection with correct annotationType', () => {
       renderWithEventBus(
         <AssessmentPanel
           {...defaultProps} session={session}
@@ -478,7 +478,7 @@ describe('AssessmentPanel Component', () => {
         />
       );
 
-      // AssistSection is rendered (mocked component renders the button)
+      // DelegateSection is rendered (mocked component renders the button)
       expect(screen.getByText('Start Detection')).toBeInTheDocument();
     });
   });

@@ -108,7 +108,7 @@ class SemiontClient[T: Transport]:
         self.browse: Final = BrowseNamespace(self._links, content, self._live)
         """Reads, and this viewer's own signals."""
         self.mark: Final = MarkNamespace(self._links)
-        """Annotations, a resource's own metadata, and AI assistance."""
+        """Annotations, a resource's own metadata, and the annotating of a resource delegated as a job."""
         self.bind: Final = BindNamespace(self._links)
         """Linking a reference to what it refers to."""
         self.gather: Final = GatherNamespace(self._links, self._live)

@@ -142,7 +142,7 @@ export interface ResourceViewerPageProps {
  * @subscribes browse:entity-type-clicked - Navigate filtered by entity type
  *
  * Outcome-notification channels (mark:create-error, mark:delete-error,
- * bind:body-error, job:complete, job:fail, mark:assist-timeout) are
+ * bind:body-error, job:complete, job:fail, mark:delegate-timeout) are
  * subscribed by useOutcomeToasts.
  */
 export function ResourceViewerPage({
@@ -261,7 +261,7 @@ export function ResourceViewerPage({
   const eventsError = useObservable(stateUnit?.events.error$) ?? null;
   const hoveredAnnotationId = useObservable(stateUnit?.beckon.hoveredAnnotationId$) ?? null;
   const pendingAnnotation = useObservable(stateUnit?.mark.pendingAnnotation$) ?? null;
-  const assistingMotivation = useObservable(stateUnit?.mark.assistingMotivation$) ?? null;
+  const delegatingMotivation = useObservable(stateUnit?.mark.delegatingMotivation$) ?? null;
   const progress = useObservable(stateUnit?.mark.progress$) ?? null;
   const activePanel = useObservable(stateUnit?.browse.activePanel$) ?? null;
   const scrollToAnnotationId = useObservable(stateUnit?.browse.scrollToAnnotationId$) ?? null;
@@ -311,7 +311,7 @@ export function ResourceViewerPage({
   }, [stateUnit, clearSparkle, resource]);
 
   // Resource-generate flow, from the Generate button: drive the SAME yield
-  // progress$ the annotation path uses so the full `AssistProgress` widget
+  // progress$ the annotation path uses so the full `DelegateProgress` widget
   // shows — NOT a toast. Both paths are one `generate(params)`: the focus of
   // the params' context (resource here, annotation above) decides the shape.
   const handleResourceGenerateSubmit = useCallback((_resourceId: string, config: GenerationConfig) => {
@@ -465,7 +465,7 @@ export function ResourceViewerPage({
   }, [routes.knowledge, browser]);
 
   // Outcome notifications (annotation CRUD failures, job success/decline/fail,
-  // assist timed-out) live in useOutcomeToasts — they need only the resource id
+  // a delegated job gone quiet) live in useOutcomeToasts — they need only the resource id
   // and the toast surface. The registration below keeps the handlers that need
   // page-local dependencies (SDK actions, sparkles, settings, navigation).
   useOutcomeToasts(rUri);
@@ -629,7 +629,7 @@ export function ResourceViewerPage({
                 annotations={annotations}
                 annotators={ANNOTATORS}
                 annotateMode={annotateMode}
-                assistingMotivation={assistingMotivation}
+                delegatingMotivation={delegatingMotivation}
                 progress={progress}
                 pendingAnnotation={pendingAnnotation}
                 allEntityTypes={allEntityTypes}

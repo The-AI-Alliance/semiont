@@ -1,6 +1,6 @@
 ---
 name: semiont-comment
-description: Add commenting annotations to a Semiont resource — suggest edits, ask questions of the author, or point things out to readers using AI-assisted or manual commenting
+description: Add commenting annotations to a Semiont resource — suggest edits, ask questions of the author, or point things out to readers, by delegating the pass to the knowledge base's worker or by hand
 disable-model-invocation: false
 user-invocable: true
 allowed-tools: Bash, Read, Write, Glob, Grep

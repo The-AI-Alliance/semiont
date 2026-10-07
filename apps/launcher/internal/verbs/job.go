@@ -317,14 +317,24 @@ func jobParams(given map[string]any, flags jobFlags, params any, job string) err
 	return nil
 }
 
-// resultMembers: the members of the result union R, as their generated types.
+// resultMember: one member of a verb's result union: its generated type, and
+// what the terminal calls it.
+type resultMember struct {
+	generated any
+	called    string
+}
+
+// resultMembers: the members of the result union R.
 // TestJobResultReadsEveryMemberOfItsVerbsUnion holds each list to its union's
 // schema.
-type resultMembers[R json.Marshaler] []any
+type resultMembers[R json.Marshaler] []resultMember
+
+// declinedResult: the member each verb's result union has.
+var declinedResult = resultMember{semiont.JobDeclinedResult{}, "a decline"}
 
 // jobResult: what a completed job reported, as the member of its verb's
 // result union it is; nil when it reported nothing. An error: what it reported
-// is not exactly one of the union's members.
+// is not exactly one of the union's members, said in the terminal's words.
 //
 // A verb's result union has no discriminant. Its members share no required
 // member, so a result is the one member whose required members it carries all
@@ -344,10 +354,10 @@ func jobResult[R json.Marshaler](reported *R, members resultMembers[R]) (any, er
 		return nil, err
 	}
 	var is []any
-	var names []string
+	var called []string
 	for _, member := range members {
-		generated := reflect.TypeOf(member)
-		names = append(names, generated.Name())
+		generated := reflect.TypeOf(member.generated)
+		called = append(called, member.called)
 		if !carriesRequired(carried, wireMembers(generated)) {
 			continue
 		}
@@ -358,7 +368,7 @@ func jobResult[R json.Marshaler](reported *R, members resultMembers[R]) (any, er
 		is = append(is, read.Elem().Interface())
 	}
 	if len(is) != 1 {
-		return nil, fmt.Errorf("%s is not exactly one of %s", raw, strings.Join(names, ", "))
+		return nil, fmt.Errorf("a result that is neither %s: %s", strings.Join(called, " nor "), raw)
 	}
 	return is[0], nil
 }
@@ -366,7 +376,7 @@ func jobResult[R json.Marshaler](reported *R, members resultMembers[R]) (any, er
 // resultFail says that a job completed with a result that is not its verb's,
 // and fails the command: a completion nobody can read is not a success.
 func (j delegatedJob[C]) resultFail(u *launcher.UI, jobID semiont.JobId, err error) int {
-	u.Fail("Job %s completed with a result that is not a %s job's: %v", jobID, j.jobType(), err)
+	u.Fail("Job %s completed with %v", jobID, err)
 	fmt.Fprintln(os.Stderr, "  What the job did:  "+j.check)
 	return 1
 }
@@ -413,7 +423,8 @@ func declineText(reason semiont.JobDeclinedResultReason) string {
 // rather than the generated As*() accessors, which unmarshal with no
 // discriminant check (jobResult above has that lesson). An unknown or absent
 // code renders "", and the caller prints nothing for it: a new code degrades
-// legibly instead of breaking an old launcher.
+// legibly instead of breaking an old launcher. So does what a mark job
+// created, of a motivation markNouns has no noun for.
 func progressText(m *semiont.JobProgressMessage) string {
 	if m == nil {
 		return ""
@@ -423,10 +434,10 @@ func progressText(m *semiont.JobProgressMessage) string {
 		return ""
 	}
 	var flat struct {
-		Code       string `json:"code"`
-		EntityType string `json:"entityType"`
-		Count      int    `json:"count"`
-		Kind       string `json:"kind"`
+		Code       string             `json:"code"`
+		EntityType string             `json:"entityType"`
+		Count      int                `json:"count"`
+		Motivation semiont.Motivation `json:"motivation"`
 	}
 	if json.Unmarshal(raw, &flat) != nil {
 		return ""
@@ -451,7 +462,11 @@ func progressText(m *semiont.JobProgressMessage) string {
 	case "creating-tag-annotations":
 		return fmt.Sprintf("Creating %d tag annotations", flat.Count)
 	case "complete-created":
-		return fmt.Sprintf("Created %d %ss", flat.Count, flat.Kind)
+		noun, named := markNouns[flat.Motivation]
+		if !named {
+			return ""
+		}
+		return "Created " + plural(flat.Count, noun)
 	default:
 		return ""
 	}

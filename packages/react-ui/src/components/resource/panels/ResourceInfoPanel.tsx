@@ -9,8 +9,8 @@ import { type components } from '@semiont/core';
 import { useEventSubscription } from '../../../contexts/useEventSubscription';
 import { useObservable } from '../../../hooks/useObservable';
 import { renderAgentLabel } from './agent-label';
-import { AssistShell } from './AssistShell';
-import { assistProgressTranslations } from '../../../lib/assist-progress-copy';
+import { DelegateShell } from './DelegateShell';
+import { delegateProgressTranslations } from '../../../lib/delegate-progress-copy';
 import './ResourceInfoPanel.css';
 
 type Agent = components['schemas']['Agent'];
@@ -78,7 +78,7 @@ export function ResourceInfoPanel({
   onDismissProgress,
 }: Props) {
   const t = useTranslations('ResourceInfoPanel');
-  const ta = useTranslations('AssistProgress');
+  const ta = useTranslations('DelegateProgress');
 
   // The text layer's standing — the user-facing face of `smelt:settled`. The
   // row renders the wire's own vocabulary, translated; `unknown` and
@@ -234,14 +234,14 @@ export function ResourceInfoPanel({
         </div>
       )}
 
-      {/* Generate — the run reports where it was started: the same AssistShell
-          every assist uses, its form the Generate control, the progress frame
+      {/* Generate — the run reports where it was started: the same DelegateShell
+          every delegated job uses, its form the Generate control, the progress frame
           in its place while a generation runs. */}
       {onGenerate && (
-        <AssistShell
-          assistType="generation"
+        <DelegateShell
+          delegateType="generation"
           title={t('generate')}
-          isAssisting={isGenerating}
+          isDelegating={isGenerating}
           progress={generationProgress}
           progressProps={{
             onCancel: () => session?.client.job.cancelRequest('yield'),
@@ -258,7 +258,7 @@ export function ResourceInfoPanel({
                 ? ta('codeCompleteGeneratedTruncated')
                 : ta('codeCompleteGenerated'),
             } : {}),
-            translations: assistProgressTranslations(ta),
+            translations: delegateProgressTranslations(ta),
           }}
           form={
             <>

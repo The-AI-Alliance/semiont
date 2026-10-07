@@ -383,6 +383,11 @@ annotationId?}`; `job:assigned` `{jobId, jobType, resourceId, holder, requester}
 `{jobId, jobType, annotationId?, result, attempt?, durability?}`; `job:failed` `{jobId, jobType,
 annotationId?, error, attempt?, failureClass?, willRetry?, durability?}`.
 
+A completion is its verb's. A `job:complete` whose `jobType` is not the one the stream records for
+that job, in the first `job:assigned` or `job:started` that names it, is not recorded: the
+Archivist logs `job:complete of another verb than the job's`, the words the dispatcher logs for the
+same completion. A completion of a job the stream records neither of is recorded.
+
 ### Clone tokens
 
 A clone token lets its holder copy one resource for fifteen minutes. It is `clone_` followed by 32

@@ -196,7 +196,7 @@ const METHODS: &[(&str, &[&str])] = &[
             "updateEntityTypes",
             "delegate",
             "request",
-            "requestAssist",
+            "requestDelegate",
             "submit",
             "cancelPending",
             "dismissProgress",
@@ -379,9 +379,9 @@ fn call(world: &World, namespace: &str, method: &str, args: Args) {
             args.typed("selector"),
             args.typed("motivation"),
         ),
-        ("mark", "requestAssist") => {
+        ("mark", "requestDelegate") => {
             let params: semiont::types::MarkJobParams = args.typed("params");
-            client.mark.request_assist(params)
+            client.mark.request_delegate(params)
         }
         ("mark", "submit") => client.mark.submit(args.typed("input")),
         ("mark", "cancelPending") => client.mark.cancel_pending(),

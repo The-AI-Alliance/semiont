@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { assistProgressTranslations } from '../../../lib/assist-progress-copy';
+import { delegateProgressTranslations } from '../../../lib/delegate-progress-copy';
 import { isReady } from '@semiont/sdk';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { useObservable } from '../../../hooks/useObservable';
 import type { SemiontSession } from '@semiont/sdk';
-import { AssistShell } from './AssistShell';
+import { DelegateShell } from './DelegateShell';
 import { useSessionEventSubscriptions } from '../../../hooks/useSessionEventSubscriptions';
 import type { components, ResourceId, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
@@ -47,7 +47,7 @@ interface TaggingPanelProps {
   resourceId: ResourceId;
   annotations: Annotation[];
   annotateMode?: boolean;
-  isAssisting?: boolean;
+  isDelegating?: boolean;
   progress?: JobProgress | null;
   pendingAnnotation: PendingAnnotation | null;
   scrollToAnnotationId?: string | null;
@@ -72,7 +72,7 @@ export function TaggingPanel({
   resourceId,
   annotations,
   annotateMode = true,
-  isAssisting = false,
+  isDelegating = false,
   progress,
   pendingAnnotation,
   scrollToAnnotationId,
@@ -82,9 +82,9 @@ export function TaggingPanel({
   sourceLanguage,
 }: TaggingPanelProps) {
   const t = useTranslations('TaggingPanel');
-  const ta = useTranslations('AssistProgress');
+  const ta = useTranslations('DelegateProgress');
 
-  // Dismiss, wired as on every other assist surface: without it a finished
+  // Dismiss, wired as on every other delegate section: without it a finished
   // progress display cannot be cleared.
   const handleDismissProgress = useCallback(() => {
     session?.client.mark.dismissProgress();
@@ -222,9 +222,9 @@ export function TaggingPanel({
     setSelectedCategories(new Set());
   };
 
-  const handleAssist = () => {
+  const handleDelegate = () => {
     if (selectedCategories.size > 0) {
-      session?.client.mark.requestAssist({
+      session?.client.mark.requestDelegate({
         motivation: 'tagging',
         schemaId: selectedSchemaId,
         categories: Array.from(selectedCategories),
@@ -253,7 +253,7 @@ export function TaggingPanel({
 
   return (
     <div className="semiont-panel">
-      <PanelHeader annotationType="tag" count={annotations.length} title={t('title')} />
+      <PanelHeader count={annotations.length} title={t('title')} />
 
       {/* Scrollable content area */}
       <div ref={containerRef} className="semiont-panel__content">
@@ -354,16 +354,16 @@ export function TaggingPanel({
           </div>
         )}
 
-        {/* Assist Section - only in Annotate mode */}
+        {/* Delegate section - only in Annotate mode */}
         {annotateMode && (
-          <AssistShell
-            assistType="tag"
+          <DelegateShell
+            delegateType="tag"
             title={t('annotateTags')}
-            isAssisting={isAssisting}
+            isDelegating={isDelegating}
             progress={progress}
             progressProps={{
               onDismiss: handleDismissProgress,
-              translations: assistProgressTranslations(ta),
+              translations: delegateProgressTranslations(ta),
             }}
             form={
               <>
@@ -455,12 +455,12 @@ export function TaggingPanel({
                       </p>
                     </div>
                   )}
-                {/* Assist Button */}
+                {/* Delegate button */}
                 <button
-                  onClick={handleAssist}
-                  disabled={selectedCategories.size === 0 || isAssisting}
+                  onClick={handleDelegate}
+                  disabled={selectedCategories.size === 0 || isDelegating}
                   className="semiont-button"
-                  data-variant="assist"
+                  data-variant="delegate"
                   data-type="tag"
                 >
                   <span className="semiont-button-icon">✨</span>

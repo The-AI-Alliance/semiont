@@ -168,7 +168,7 @@ export async function browseReferences(semiont: McpClient, args: any): Promise<M
  * member of `MarkJobResult` fails to compile at the last line instead of
  * silently counting zero.
  */
-function assistOutcome(result: MarkJobResult | undefined): string {
+function markOutcome(result: MarkJobResult | undefined): string {
   const found = (n: number) => `Detection complete. Found ${n} entities.`;
   if (!result) return found(0);
   // A declined job read nothing and says why; "found 0" would hide that.
@@ -200,7 +200,7 @@ export async function markAnnotation(semiont: McpClient, args: any): Promise<Mcp
   return { content: [{ type: 'text', text: `Annotation created: ${data.annotationId}` }] };
 }
 
-export async function markAssist(semiont: McpClient, args: any): Promise<McpResult> {
+export async function markDelegate(semiont: McpClient, args: any): Promise<McpResult> {
   const rId = resourceId(args?.resourceId);
   const progressMessages: string[] = [];
 
@@ -222,7 +222,7 @@ export async function markAssist(semiont: McpClient, args: any): Promise<McpResu
       ),
     );
     const result = final.kind === 'complete' ? final.data.result : undefined;
-    const outcome = assistOutcome(result);
+    const outcome = markOutcome(result);
     return { content: [{ type: 'text', text: `${outcome}\n${progressMessages.join('\n')}` }] };
   } catch (err) {
     return { content: [{ type: 'text', text: `Detection failed: ${(err as Error).message}` }], isError: true };
@@ -319,7 +319,7 @@ export async function callTool(semiont: McpClient, name: string, args: any): Pro
       case 'browse_highlights':     return await browseHighlights(semiont, args);
       case 'browse_references':     return await browseReferences(semiont, args);
       case 'mark_annotation':       return await markAnnotation(semiont, args);
-      case 'mark_assist':           return await markAssist(semiont, args);
+      case 'mark_delegate':           return await markDelegate(semiont, args);
       case 'bind_body':             return await bindBody(semiont, args);
       case 'match_resources':       return await matchResources(semiont, args);
       case 'gather_annotation':     return await gatherAnnotation(semiont, args);

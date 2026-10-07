@@ -180,7 +180,7 @@ describe('processHighlightJob', () => {
     const echo = { requestParams: [{ label: 'density', value: '5' }] };
     expect(progress).toHaveBeenCalledWith(10, { code: 'loading' }, echo);
     expect(progress).toHaveBeenLastCalledWith(
-      100, { code: 'complete-created', count: 2, kind: 'highlight' }, echo,
+      100, { code: 'complete-created', count: 2, motivation: 'highlighting' }, echo,
     );
   });
 
@@ -1689,7 +1689,7 @@ describe('progress messages are codes, not prose', () => {
     expect(messages).toContainEqual({ code: 'analyzing' });
     expect(messages).toContainEqual({ code: 'creating-annotations', count: 1 });
     expect(messages[messages.length - 1]).toEqual({
-      code: 'complete-created', count: 1, kind: 'highlight',
+      code: 'complete-created', count: 1, motivation: 'highlighting',
     });
   });
 
@@ -1708,7 +1708,7 @@ describe('progress messages are codes, not prose', () => {
     const messages = messagesFrom(progress);
     expect(messages).toContainEqual({ code: 'detecting-entities', entityType: 'Location' });
     expect(messages[messages.length - 1]).toEqual({
-      code: 'complete-created', count: 1, kind: 'reference',
+      code: 'complete-created', count: 1, motivation: 'linking',
     });
   });
 
@@ -1728,7 +1728,7 @@ describe('progress messages are codes, not prose', () => {
     expect(messages).toContainEqual({ code: 'analyzing-tags' });
     expect(messages).toContainEqual({ code: 'creating-tag-annotations', count: 1 });
     expect(messages[messages.length - 1]).toEqual({
-      code: 'complete-created', count: 1, kind: 'tag',
+      code: 'complete-created', count: 1, motivation: 'tagging',
     });
   });
 

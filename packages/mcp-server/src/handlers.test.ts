@@ -13,14 +13,14 @@ import {
   callTool,
   gatherAnnotation,
   markAnnotation,
-  markAssist,
+  markDelegate,
   yieldFromAnnotation,
   yieldResource,
   type McpResult,
 } from './handlers.js';
 import { TOOLS } from './tools.js';
 import {
-  ASSIST_COMPLETE,
+  MARK_COMPLETE,
   BOUND_REFERENCE,
   CONTEXT,
   GENERATION_COMPLETE,
@@ -173,11 +173,11 @@ describe('markAnnotation', () => {
   });
 });
 
-describe('markAssist', () => {
+describe('markDelegate', () => {
   it('requests linking detection with the caller\'s entity types and locales', async () => {
     const { client, mark } = createStub();
 
-    await markAssist(client, {
+    await markDelegate(client, {
       resourceId: 'res-iliad',
       entityTypes: ['Person', 'Place'],
       language: 'en',
@@ -200,11 +200,11 @@ describe('markAssist', () => {
       // A pure percentage heartbeat carries no message.
       { kind: 'progress', data: { percentage: 60 } },
       { kind: 'progress', data: { percentage: 90, message: { code: 'analyzing' } } },
-      ASSIST_COMPLETE,
+      MARK_COMPLETE,
     ];
     mark.delegate.mockReturnValue(of(...events));
 
-    const result = await markAssist(client, { resourceId: 'res-iliad' });
+    const result = await markDelegate(client, { resourceId: 'res-iliad' });
 
     expect(text(result)).toBe('Detection complete. Found 7 entities.\nanalyzing: 40%\nworking: 60%\nanalyzing: 90%');
   });
@@ -222,7 +222,7 @@ describe('markAssist', () => {
     };
     mark.delegate.mockReturnValue(of(complete));
 
-    expect(text(await markAssist(client, { resourceId: 'res-iliad' })))
+    expect(text(await markDelegate(client, { resourceId: 'res-iliad' })))
       .toContain('Found 5 entities.');
   });
 
@@ -239,7 +239,7 @@ describe('markAssist', () => {
     };
     mark.delegate.mockReturnValue(of(complete));
 
-    const result = await markAssist(client, { resourceId: 'res-iliad' });
+    const result = await markDelegate(client, { resourceId: 'res-iliad' });
 
     expect(text(result)).toContain('Detection declined (no-text-layer).');
     expect(text(result)).not.toContain('Found 0 entities');
@@ -253,7 +253,7 @@ describe('markAssist', () => {
     };
     mark.delegate.mockReturnValue(of(complete));
 
-    expect(text(await markAssist(client, { resourceId: 'res-iliad' })))
+    expect(text(await markDelegate(client, { resourceId: 'res-iliad' })))
       .toContain('Found 0 entities.');
   });
 
@@ -265,7 +265,7 @@ describe('markAssist', () => {
     };
     mark.delegate.mockReturnValue(of(progress));
 
-    expect(text(await markAssist(client, { resourceId: 'res-iliad' })))
+    expect(text(await markDelegate(client, { resourceId: 'res-iliad' })))
       .toBe('Detection complete. Found 0 entities.\nanalyzing: 40%');
   });
 
@@ -273,7 +273,7 @@ describe('markAssist', () => {
     const { client, mark } = createStub();
     mark.delegate.mockReturnValue(throwError(() => new Error('worker unavailable')));
 
-    const result = await markAssist(client, { resourceId: 'res-iliad' });
+    const result = await markDelegate(client, { resourceId: 'res-iliad' });
 
     expect(result.isError).toBe(true);
     expect(text(result)).toBe('Detection failed: worker unavailable');
@@ -486,7 +486,7 @@ describe('callTool', () => {
     browse_references: { resourceId: 'res-iliad' },
     match_resources: { search: 'ontology' },
     mark_annotation: { resourceId: 'res-iliad', selectionData: { offset: 0, length: 1, text: 'S' } },
-    mark_assist: { resourceId: 'res-iliad' },
+    mark_delegate: { resourceId: 'res-iliad' },
     bind_body: { sourceResourceId: 'res-iliad', annotationId: 'anno-reference', targetResourceId: 'res-achilles' },
     gather_annotation: { resourceId: 'res-iliad', annotationId: 'anno-reference' },
     yield_resource: { name: 'Notes', content: 'hi', storageUri: 'file://docs/notes.md' },

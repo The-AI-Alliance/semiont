@@ -114,8 +114,8 @@ export class MarkNamespace implements IMarkNamespace {
     this.bus.emit('mark:requested', { source, selector, motivation });
   }
 
-  requestAssist(params: MarkJobParams): void {
-    this.bus.emit('mark:assist-request', { params });
+  requestDelegate(params: MarkJobParams): void {
+    this.bus.emit('mark:delegate-request', { params });
   }
 
   submit(input: components['schemas']['MarkSubmitEvent']): void {

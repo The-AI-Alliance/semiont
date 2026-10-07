@@ -1,16 +1,16 @@
 /**
- * AssistSection Component Styles
+ * DelegateSection Component Styles
  *
- * Shared styles for AI-powered assist sections across all motivation panels.
+ * Shared styles for the delegate sections across all motivation panels.
  * Each panel (highlight, comment, assessment, tag, reference) uses data-type
  * attribute for motivation-specific theming.
  */
 
 /* ============================================
-   Base Assist Widget Container
+   Base Delegate Widget Container
    ============================================ */
 
-.semiont-assist-widget {
+.semiont-delegate-widget {
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -20,7 +20,7 @@
   border: 1px solid var(--semiont-color-gray-200);
 }
 
-[data-theme="dark"] .semiont-assist-widget {
+[data-theme="dark"] .semiont-delegate-widget {
   background-color: var(--semiont-color-gray-800);
   border-color: var(--semiont-color-gray-700);
 }
@@ -29,35 +29,35 @@
    Labels and Descriptive Text
    ============================================ */
 
-.semiont-assist-widget__label {
+.semiont-delegate-widget__label {
   font-size: 0.875rem;
   font-weight: 500;
   color: var(--semiont-color-gray-700);
   margin-bottom: 0.5rem;
 }
 
-[data-theme="dark"] .semiont-assist-widget__label {
+[data-theme="dark"] .semiont-delegate-widget__label {
   color: var(--semiont-color-gray-300);
 }
 
-.semiont-assist-widget__count {
+.semiont-delegate-widget__count {
   font-size: 0.75rem;
   color: var(--semiont-color-gray-500);
   text-align: center;
   margin-bottom: 1rem;
 }
 
-[data-theme="dark"] .semiont-assist-widget__count {
+[data-theme="dark"] .semiont-delegate-widget__count {
   color: var(--semiont-color-gray-400);
 }
 
-.semiont-assist-widget__no-types {
+.semiont-delegate-widget__no-types {
   font-size: 0.875rem;
   color: var(--semiont-color-gray-500);
   font-style: italic;
 }
 
-[data-theme="dark"] .semiont-assist-widget__no-types {
+[data-theme="dark"] .semiont-delegate-widget__no-types {
   color: var(--semiont-color-gray-400);
 }
 
@@ -65,11 +65,11 @@
    Entity Types / Chips Section (References)
    ============================================ */
 
-.semiont-assist-widget__entity-types {
+.semiont-delegate-widget__entity-types {
   margin-bottom: 1rem;
 }
 
-.semiont-assist-widget__chips {
+.semiont-delegate-widget__chips {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
@@ -79,11 +79,11 @@
    Checkbox Group (References)
    ============================================ */
 
-.semiont-assist-widget__checkbox-group {
+.semiont-delegate-widget__checkbox-group {
   margin-bottom: 1rem;
 }
 
-.semiont-assist-widget__checkbox-label {
+.semiont-delegate-widget__checkbox-label {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -92,52 +92,52 @@
   cursor: pointer;
 }
 
-[data-theme="dark"] .semiont-assist-widget__checkbox-label {
+[data-theme="dark"] .semiont-delegate-widget__checkbox-label {
   color: var(--semiont-color-gray-300);
 }
 
-.semiont-assist-widget__checkbox {
+.semiont-delegate-widget__checkbox {
   border-radius: 0.25rem;
   border: 1px solid var(--semiont-color-gray-300);
   color: var(--semiont-color-blue-600);
 }
 
-[data-theme="dark"] .semiont-assist-widget__checkbox {
+[data-theme="dark"] .semiont-delegate-widget__checkbox {
   border-color: var(--semiont-color-gray-600);
 }
 
-.semiont-assist-widget__checkbox:focus {
+.semiont-delegate-widget__checkbox:focus {
   outline: 2px solid var(--semiont-color-blue-500);
   outline-offset: 2px;
 }
 
-.semiont-assist-widget__checkbox-hint {
+.semiont-delegate-widget__checkbox-hint {
   font-size: 0.75rem;
   color: var(--semiont-color-gray-500);
   margin-top: 0.25rem;
   margin-left: 1.5rem;
 }
 
-[data-theme="dark"] .semiont-assist-widget__checkbox-hint {
+[data-theme="dark"] .semiont-delegate-widget__checkbox-hint {
   color: var(--semiont-color-gray-400);
 }
 
 /* ============================================
-   Assist Progress Display
+   Delegate Progress Display
    ============================================ */
 
-/* ── Assist progress: TWO containers ────────────────────────────────────────
-   The outer `.semiont-assist-widget` (above) provides the card; this provides
+/* ── Delegate progress: TWO containers ──────────────────────────────────────
+   The outer `.semiont-delegate-widget` (above) provides the card; this provides
    the status region inside it. A border, padding and tint on each nested
    element would put a stack of boxes around one sentence of status. */
-.semiont-assist-progress {
+.semiont-delegate-progress {
   display: flex;
   flex-direction: column;
   gap: 0.375rem;
   position: relative;
 }
 
-.semiont-assist-progress__status {
+.semiont-delegate-progress__status {
   display: flex;
   align-items: baseline;
   gap: 0.5rem;
@@ -147,26 +147,26 @@
   color: var(--semiont-text-primary);
 }
 
-.semiont-assist-progress__icon {
+.semiont-delegate-progress__icon {
   flex: none;
 }
 
 /* The subject and the parameters are context for the status, not peers of it. */
-.semiont-assist-progress__subject,
-.semiont-assist-progress__tally,
-.semiont-assist-progress__params {
+.semiont-delegate-progress__subject,
+.semiont-delegate-progress__tally,
+.semiont-delegate-progress__params {
   font-size: var(--semiont-text-xs);
   color: var(--semiont-text-secondary);
 }
 
-[data-theme="dark"] .semiont-assist-progress__subject,
-[data-theme="dark"] .semiont-assist-progress__tally,
-[data-theme="dark"] .semiont-assist-progress__params {
+[data-theme="dark"] .semiont-delegate-progress__subject,
+[data-theme="dark"] .semiont-delegate-progress__tally,
+[data-theme="dark"] .semiont-delegate-progress__params {
   color: var(--semiont-text-secondary);
 }
 
-.semiont-assist-progress__subject,
-.semiont-assist-progress__tally {
+.semiont-delegate-progress__subject,
+.semiont-delegate-progress__tally {
   font-variant-numeric: tabular-nums;
 }
 
@@ -174,7 +174,7 @@
    affordance. Completion reveals the new reference rather than navigating to
    the new resource, so this is the way there: a button-shaped invitation to
    open what was made, not an underlined footnote beside the bar. */
-.semiont-assist-progress__outcome {
+.semiont-delegate-progress__outcome {
   align-self: stretch;
   padding: 0.5rem 0.75rem;
   border: 1px solid var(--semiont-color-primary-300);
@@ -187,36 +187,36 @@
   text-align: left;
 }
 
-.semiont-assist-progress__outcome:hover {
+.semiont-delegate-progress__outcome:hover {
   border-color: var(--semiont-color-primary-400);
   background: var(--semiont-color-primary-100);
   color: var(--semiont-color-primary-800);
 }
 
-[data-theme="dark"] .semiont-assist-progress__outcome {
+[data-theme="dark"] .semiont-delegate-progress__outcome {
   border-color: var(--semiont-color-primary-700);
   background: var(--semiont-color-primary-900);
   color: var(--semiont-color-primary-300);
 }
 
-[data-theme="dark"] .semiont-assist-progress__outcome:hover {
+[data-theme="dark"] .semiont-delegate-progress__outcome:hover {
   border-color: var(--semiont-color-primary-600);
   background: var(--semiont-color-primary-800);
   color: var(--semiont-color-primary-200);
 }
 
-.semiont-assist-progress__params {
+.semiont-delegate-progress__params {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
 }
 
-.semiont-assist-progress__param-label {
+.semiont-delegate-progress__param-label {
   font-weight: var(--semiont-font-medium);
 }
 
 /* One control, top-right, quiet until hovered. */
-.semiont-assist-progress__control {
+.semiont-delegate-progress__control {
   position: absolute;
   top: 0;
   right: 0;
@@ -228,65 +228,65 @@
   color: var(--semiont-text-secondary);
 }
 
-.semiont-assist-progress__control:hover {
+.semiont-delegate-progress__control:hover {
   color: var(--semiont-text-primary);
 }
 
-[data-theme="dark"] .semiont-assist-progress__control {
+[data-theme="dark"] .semiont-delegate-progress__control {
   color: var(--semiont-text-secondary);
 }
 
-.semiont-assist-widget[data-type="highlight"] {
+.semiont-delegate-widget[data-type="highlight"] {
   border-color: var(--semiont-color-yellow-300);
 }
 
-[data-theme="dark"] .semiont-assist-widget[data-type="highlight"] {
+[data-theme="dark"] .semiont-delegate-widget[data-type="highlight"] {
   border-color: var(--semiont-color-yellow-600);
 }
 
 /* Comment */
-.semiont-assist-widget[data-type="comment"] {
+.semiont-delegate-widget[data-type="comment"] {
   border-color: var(--semiont-color-gray-300);
 }
 
-[data-theme="dark"] .semiont-assist-widget[data-type="comment"] {
+[data-theme="dark"] .semiont-delegate-widget[data-type="comment"] {
   border-color: var(--semiont-color-gray-600);
 }
 
 /* Assessment */
-.semiont-assist-widget[data-type="assessment"] {
+.semiont-delegate-widget[data-type="assessment"] {
   border-color: var(--semiont-color-purple-300);
 }
 
-[data-theme="dark"] .semiont-assist-widget[data-type="assessment"] {
+[data-theme="dark"] .semiont-delegate-widget[data-type="assessment"] {
   border-color: var(--semiont-color-purple-600);
 }
 
 /* Tag */
-.semiont-assist-widget[data-type="tag"] {
+.semiont-delegate-widget[data-type="tag"] {
   border-color: var(--semiont-color-orange-300);
 }
 
-[data-theme="dark"] .semiont-assist-widget[data-type="tag"] {
+[data-theme="dark"] .semiont-delegate-widget[data-type="tag"] {
   border-color: var(--semiont-color-orange-600);
 }
 
 /* Reference */
-.semiont-assist-widget[data-type="reference"] {
+.semiont-delegate-widget[data-type="reference"] {
   border-color: var(--semiont-color-blue-300);
 }
 
-[data-theme="dark"] .semiont-assist-widget[data-type="reference"] {
+[data-theme="dark"] .semiont-delegate-widget[data-type="reference"] {
   border-color: var(--semiont-color-blue-600);
 }
 
 /*
- * The progress bar. `AssistProgress` is its only consumer in the whole
+ * The progress bar. `DelegateProgress` is its only consumer in the whole
  * package, so it lives here rather than in `styles/core/`. If a second
  * consumer ever appears, promoting these rules to core is a move, not a copy.
  *
  * The track is NOT `--semiont-bg-secondary`: that is exactly
- * `.semiont-assist-widget`'s own background, so the track would go invisible
+ * `.semiont-delegate-widget`'s own background, so the track would go invisible
  * inside the card and the fill would float with nothing to measure it against.
  */
 .semiont-progress-bar {
@@ -312,13 +312,13 @@
 }
 
 /* One parameter row inside the params list. */
-.semiont-assist-progress__param {
+.semiont-delegate-progress__param {
   display: flex;
   gap: 0.375rem;
   align-items: baseline;
 }
 
-.semiont-assist-widget__log {
+.semiont-delegate-widget__log {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;

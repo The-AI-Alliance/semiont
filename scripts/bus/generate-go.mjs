@@ -39,7 +39,7 @@ validateRegistry(reg);
 // to say, not this list's.
 const wireChannels = reg.channels;
 
-/** `mark:assist-timeout` → `MarkAssistTimeout` */
+/** `mark:delegate-timeout` → `MarkDelegateTimeout` */
 const goName = (channel) =>
   channel
     .split(/[:\-]/)

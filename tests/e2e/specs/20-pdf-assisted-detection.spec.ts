@@ -3,7 +3,7 @@ import type { Page, Locator } from '@playwright/test';
 
 import { openResourceByName } from '../fixtures/discover';
 /**
- * Smoke test: AI-assisted (AI-directed) detection on a **text-layer PDF**
+ * Smoke test: delegated (AI-directed) detection on a **text-layer PDF**
  * (#736, #737).
  *
  * User-directed PDF annotation already round-trips (14-pdf-render.spec.ts).
@@ -44,7 +44,7 @@ async function openPdfInAnnotateMode(page: Page) {
   await expect(page.locator(IMG)).toBeVisible({ timeout: 30_000 });
   await expect(page.locator(SVG)).toBeVisible({ timeout: 15_000 });
 
-  // Open the right-sidebar Annotations panel so the per-motivation assist
+  // Open the right-sidebar Annotations panel so the per-motivation delegate
   // sections are in the DOM.
   await page.getByRole('button', { name: /^annotations$/i }).click();
 }
@@ -58,7 +58,7 @@ async function selectSubTab(page: Page, emoji: string) {
   await expect(tab).toHaveAttribute('aria-pressed', 'true');
 }
 
-// After a live assist + SSE delivery, the detected annotations anchor to PDF
+// After a live delegated job + SSE delivery, the detected annotations anchor to PDF
 // viewrects and render as <rect>s on the canvas — reload and confirm they
 // persist. Mirrors 14's persistence tail.
 async function expectRectsPersist(page: Page, rects: Locator, before: number) {
@@ -72,8 +72,8 @@ async function expectRectsPersist(page: Page, rects: Locator, before: number) {
   await expect.poll(async () => rects.count(), { timeout: 30_000 }).toBeGreaterThan(before);
 }
 
-test.describe('assisted detection on a text-layer PDF', () => {
-  test('assisted commenting on a PDF dispatches, renders rect-anchored annotations, and persists', async ({ signedInPage: page, bus }) => {
+test.describe('delegated detection on a text-layer PDF', () => {
+  test('delegated commenting on a PDF dispatches, renders rect-anchored annotations, and persists', async ({ signedInPage: page, bus }) => {
     test.setTimeout(150_000); // includes a real LLM comment round-trip
 
     await openPdfInAnnotateMode(page);
@@ -94,11 +94,11 @@ test.describe('assisted detection on a text-layer PDF', () => {
     if (await densityToggle.isChecked()) await densityToggle.uncheck();
 
     bus.clear();
-    const submit = page.locator('button[data-variant="assist"][data-type="comment"]');
+    const submit = page.locator('button[data-variant="delegate"][data-type="comment"]');
     await expect(submit).toBeEnabled({ timeout: 5_000 });
     await submit.click();
 
-    // Dispatch — the assist crossed the wire as a `mark` job of the commenting motivation.
+    // Dispatch — the delegated job crossed the wire as a `mark` job of the commenting motivation.
     const { request } = await bus.expectRequestResponse('job:create', 'job:created', 30_000);
     expect(request.channel).toBe('job:create');
 
@@ -109,7 +109,7 @@ test.describe('assisted detection on a text-layer PDF', () => {
     await expectRectsPersist(page, rects, rectsBefore);
   });
 
-  test('assisted linking on a PDF dispatches, renders rect-anchored references, and persists', async ({ signedInPage: page, bus }) => {
+  test('delegated linking on a PDF dispatches, renders rect-anchored references, and persists', async ({ signedInPage: page, bus }) => {
     test.setTimeout(150_000); // includes a real LLM entity-extraction round-trip
 
     await openPdfInAnnotateMode(page);
@@ -127,18 +127,18 @@ test.describe('assisted detection on a text-layer PDF', () => {
     // Concept-dense (glucose, ATP, mitochondria, …), so extraction reliably
     // yields references. Mirrors 06-assisted-reference's chip flow.
     const conceptChip = page
-      .locator('.semiont-assist-widget__chips .semiont-chip--selectable')
+      .locator('.semiont-delegate-widget__chips .semiont-chip--selectable')
       .filter({ hasText: /concept/i });
     await expect(conceptChip).toBeVisible({ timeout: 10_000 });
     await conceptChip.click();
     await expect(conceptChip).toHaveAttribute('data-selected', 'true');
 
     bus.clear();
-    const submit = page.locator('button[data-variant="assist"][data-type="reference"]');
+    const submit = page.locator('button[data-variant="delegate"][data-type="reference"]');
     await expect(submit).toBeEnabled({ timeout: 5_000 });
     await submit.click();
 
-    // Dispatch — the assist crossed the wire as a `mark` job of the linking
+    // Dispatch — the delegated job crossed the wire as a `mark` job of the linking
     // motivation.
     const { request } = await bus.expectRequestResponse('job:create', 'job:created', 30_000);
     expect(request.channel).toBe('job:create');

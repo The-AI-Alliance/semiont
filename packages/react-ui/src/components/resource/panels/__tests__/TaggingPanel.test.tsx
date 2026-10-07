@@ -24,7 +24,7 @@ function createEventTracker() {
     events,
     clear: () => { events.length = 0; },
     _attach(eventBus: EventBus) {
-      const panelEvents = ['mark:submit', 'mark:assist-request'] as const;
+      const panelEvents = ['mark:submit', 'mark:delegate-request'] as const;
       panelEvents.forEach((eventName) => {
         eventBus.on(eventName).subscribe((payload: any) => {
           events.push({ event: eventName, payload });
@@ -585,7 +585,7 @@ describe('TaggingPanel Component', () => {
 
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'mark:assist-request' &&
+          e.event === 'mark:delegate-request' &&
           e.payload?.params?.motivation === 'tagging' &&
           e.payload?.params?.schemaId === 'legal-irac' &&
           e.payload?.params?.categories?.includes('Issue') &&
@@ -638,7 +638,7 @@ describe('TaggingPanel Component', () => {
     // both contexts where the schema picker would otherwise render —
     // not just leave the dropdown empty.
 
-    it('shows the noSchemas message in the assist section instead of the picker', async () => {
+    it('shows the noSchemas message in the delegate section instead of the picker', async () => {
       renderWithEmptyRegistry(
         <TaggingPanel {...defaultProps} annotateMode={true} />
       );
@@ -664,11 +664,11 @@ describe('TaggingPanel Component', () => {
         />
       );
 
-      // The pending form opens. With annotateMode={false} the assist
+      // The pending form opens. With annotateMode={false} the delegate
       // section is skipped so we get exactly one empty-state message —
       // the one inside the pending form. (Default annotateMode=true
       // renders the message in both places, which is the right product
-      // behavior; a separate test covers the assist-section path.)
+      // behavior; a separate test covers the delegate-section path.)
       expect(screen.getByText(/Create tag for selection/)).toBeInTheDocument();
       expect(
         await screen.findByText(/No tag schemas registered for this knowledge base/i),

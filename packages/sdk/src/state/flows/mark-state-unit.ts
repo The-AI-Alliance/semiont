@@ -1,5 +1,5 @@
 import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
-import { ASSIST_SILENCE_MS } from '@semiont/core';
+import { DELEGATE_SILENCE_MS } from '@semiont/core';
 import type { ResourceId, Motivation, Selector, EventMap, components } from '@semiont/core';
 import type { SemiontClient } from '../../client';
 import type { StateUnit } from '@semiont/core';
@@ -13,7 +13,7 @@ export interface PendingAnnotation {
 
 export interface MarkStateUnit extends StateUnit {
   pendingAnnotation$: Observable<PendingAnnotation | null>;
-  assistingMotivation$: Observable<Motivation | null>;
+  delegatingMotivation$: Observable<Motivation | null>;
   progress$: Observable<JobProgress | null>;
 }
 
@@ -35,7 +35,7 @@ export function createMarkStateUnit(
 ): MarkStateUnit {
   const subs: Subscription[] = [];
   const pendingAnnotation$ = new BehaviorSubject<PendingAnnotation | null>(null);
-  const assistingMotivation$ = new BehaviorSubject<Motivation | null>(null);
+  const delegatingMotivation$ = new BehaviorSubject<Motivation | null>(null);
   const progress$ = new BehaviorSubject<JobProgress | null>(null);
 
   // A finished run STAYS on screen. There is no dismissal
@@ -43,7 +43,7 @@ export function createMarkStateUnit(
   // whole run worth reading, and a timer that eats it makes the run seem to
   // vanish mid-sentence. The ended display carries an
   // explicit Close control; it clears on that, on `mark:progress-dismiss`, or
-  // when the next assist replaces it below.
+  // when the next delegated job replaces it below.
 
   // The view layer is responsible for opening the annotations panel in
   // response to `pendingAnnotation$` becoming non-null. The state unit stays pure:
@@ -102,13 +102,13 @@ export function createMarkStateUnit(
     }
   }));
 
-  // AI assist. `mark.delegate` creates the job and follows it: it gives the
+  // A delegated job. `mark.delegate` creates the job and follows it: it gives the
   // job's progress on `next`, completes on `job:complete`, errors on a
   // `job:fail` that is final. mark-state-unit's only job is to drive the
   // three UI observables from that stream.
-  subs.push(client.bus.on('mark:assist-request').subscribe((event) => {
+  subs.push(client.bus.on('mark:delegate-request').subscribe((event) => {
     const { motivation } = event.params;
-    assistingMotivation$.next(motivation);
+    delegatingMotivation$.next(motivation);
     progress$.next(null);
 
     // Silence detector, NOT a timeout. The job
@@ -116,11 +116,11 @@ export function createMarkStateUnit(
     // to persist its annotations (221, in one measured run). So going quiet
     // must degrade the display — never tear the subscription down, which
     // would leave the real completion with nothing to resolve, and never
-    // claim the assist ended while the worker is still working.
+    // claim the job ended while the worker is still working.
     //
     // Workers emit a heartbeat every ~15 s while a call is in flight, so
     // reaching this window means the worker really has gone quiet.
-    // `mark:assist-timeout` reports that silence; despite its name it ends
+    // `mark:delegate-timeout` reports that silence; despite its name it ends
     // nothing.
     let staleTimer: ReturnType<typeof setTimeout> | null = null;
     const clearStale = () => {
@@ -133,19 +133,19 @@ export function createMarkStateUnit(
         const last = progress$.getValue();
         // No prose here: the wire (and this state unit's output) carries
         // codes, not sentences, and the stale notice is the UI's copy to
-        // own — it hears about the silence via `mark:assist-timeout` below.
+        // own — it hears about the silence via `mark:delegate-timeout` below.
         progress$.next({
           ...(last ?? {}),
           percentage: last?.percentage ?? 0,
         });
-        // The one notification the user gets. `assistingMotivation$` stays
+        // The one notification the user gets. `delegatingMotivation$` stays
         // set: the job is still running as far as anyone here knows.
-        client.bus.emit('mark:assist-timeout', { resourceId, motivation });
-      }, ASSIST_SILENCE_MS);
+        client.bus.emit('mark:delegate-timeout', { resourceId, motivation });
+      }, DELEGATE_SILENCE_MS);
     };
     armStale();
 
-    const assistSub = client.mark.delegate(resourceId, event.params).subscribe({
+    const delegationSub = client.mark.delegate(resourceId, event.params).subscribe({
       next: (e) => {
         armStale();
         // Surface only the live progress events to the UI; the final
@@ -159,20 +159,20 @@ export function createMarkStateUnit(
       complete: () => {
         // Resolves the UI whenever it arrives — including long after the
         // silence marker, which is the whole point of not tearing down.
-        // `assistingMotivation$` going null is what flips the display to its
+        // `delegatingMotivation$` going null is what flips the display to its
         // ended form; the payload is left in place for the user to read.
         clearStale();
-        assistingMotivation$.next(null);
+        delegatingMotivation$.next(null);
       },
       error: () => {
         // A real failure: `job:fail` already toasts it through the outcome
-        // channel, so clear the assist state and stay quiet here.
+        // channel, so clear the delegated job's state and stay quiet here.
         clearStale();
-        assistingMotivation$.next(null);
+        delegatingMotivation$.next(null);
         progress$.next(null);
       },
     });
-    subs.push(assistSub);
+    subs.push(delegationSub);
   }));
 
   subs.push(client.bus.on('mark:progress-dismiss').subscribe(() => {
@@ -181,12 +181,12 @@ export function createMarkStateUnit(
 
   return {
     pendingAnnotation$: pendingAnnotation$.asObservable(),
-    assistingMotivation$: assistingMotivation$.asObservable(),
+    delegatingMotivation$: delegatingMotivation$.asObservable(),
     progress$: progress$.asObservable(),
     dispose() {
       subs.forEach(s => s.unsubscribe());
       pendingAnnotation$.complete();
-      assistingMotivation$.complete();
+      delegatingMotivation$.complete();
       progress$.complete();
     },
   };

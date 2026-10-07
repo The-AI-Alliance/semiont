@@ -224,7 +224,7 @@ The authority for this list is [`specs/src/client/surface.json`](../../specs/src
 
 **Signals** (return `void`; fire-and-forget, published on the client's own bus):
 
-- `mark.request`, `mark.requestAssist`, `mark.submit`, `mark.cancelPending`, `mark.dismissProgress`, `mark.reportDeleteError`
+- `mark.request`, `mark.requestDelegate`, `mark.submit`, `mark.cancelPending`, `mark.dismissProgress`, `mark.reportDeleteError`
 - `bind.initiate`, `bind.reportBodyError`
 - `browse.click`, `browse.openResource`
 - `match.requestSearch`

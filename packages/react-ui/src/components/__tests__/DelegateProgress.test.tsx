@@ -1,5 +1,5 @@
 /**
- * AssistProgress — the ONE job-progress renderer, for every assist panel and
+ * DelegateProgress — the ONE job-progress renderer, for every delegate section and
  * the resource-generate flow.
  *
  * Contract: presentational and provider-free — no SemiontProvider, no session;
@@ -18,25 +18,25 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import type { components } from '@semiont/core';
-import { AssistProgress, type AssistProgressTranslations } from '../AssistProgress';
+import { DelegateProgress, type DelegateProgressTranslations } from '../DelegateProgress';
 
 type JobProgress = components['schemas']['JobProgress'];
 type JobProgressMessage = components['schemas']['JobProgressMessage'];
 
-describe('AssistProgress', () => {
+describe('DelegateProgress', () => {
   it('renders provider-free — no session, no context, no providers', () => {
     // The embeddable contract: this must render standalone. If it ever reaches
     // for a provider, this throws rather than silently degrading.
     const { container } = render(
-      <AssistProgress ended={false} progress={detecting()} dataType="reference" translations={T3()} />,
+      <DelegateProgress ended={false} progress={detecting()} dataType="reference" translations={T3()} />,
     );
-    expect(container.querySelector('.semiont-assist-progress')).toBeInTheDocument();
+    expect(container.querySelector('.semiont-delegate-progress')).toBeInTheDocument();
     expect(container.querySelector('[data-type="reference"]')).toBeInTheDocument();
   });
 
   it('renders the completed entity-type log when data + formatter are present', () => {
     render(
-      <AssistProgress ended={false}
+      <DelegateProgress ended={false}
         progress={detecting({
           completedItems: [{ value: 'Person', foundCount: 3 }],
         })}
@@ -50,9 +50,9 @@ describe('AssistProgress', () => {
 
   it('omits the entity-type log when the formatter is absent (non-reference flows)', () => {
     const tr = T3();
-    delete (tr as Partial<AssistProgressTranslations>).found;
+    delete (tr as Partial<DelegateProgressTranslations>).found;
     render(
-      <AssistProgress
+      <DelegateProgress
         progress={detecting({ completedItems: [{ value: 'Person', foundCount: 3 }] })}
         dataType="comment"
         ended={false}
@@ -64,7 +64,7 @@ describe('AssistProgress', () => {
 
   it('the control takes its accessible name from translations, per lifecycle', () => {
     const { rerender } = render(
-      <AssistProgress ended={false}
+      <DelegateProgress ended={false}
         progress={detecting()} dataType="reference"
         onCancel={vi.fn()} onDismiss={vi.fn()} translations={T3()}
       />,
@@ -72,7 +72,7 @@ describe('AssistProgress', () => {
     expect(screen.getByLabelText('tr.cancel')).toBeInTheDocument();
 
     rerender(
-      <AssistProgress
+      <DelegateProgress
         progress={detecting()} dataType="reference" ended
         onCancel={vi.fn()} onDismiss={vi.fn()} translations={T3()}
       />,
@@ -81,15 +81,15 @@ describe('AssistProgress', () => {
   });
 
   it('offers no control at all when the caller wires neither callback', () => {
-    render(<AssistProgress ended={false} progress={detecting()} dataType="reference" translations={T3()} />);
-    expect(screen.queryByTestId('semiont-assist-control')).toBeNull();
+    render(<DelegateProgress ended={false} progress={detecting()} dataType="reference" translations={T3()} />);
+    expect(screen.queryByTestId('semiont-delegate-control')).toBeNull();
   });
 
   it('falls back to the generic in-progress copy when no code has arrived', () => {
     // `JobProgress.message` is optional: a pure liveness heartbeat carries none.
     const noCode = { percentage: 5 } as JobProgress;
-    render(<AssistProgress ended={false} progress={noCode} dataType="comment" translations={T3()} />);
-    expect(screen.getByTestId('semiont-assist-status').textContent).toBe('tr.inProgress');
+    render(<DelegateProgress ended={false} progress={noCode} dataType="comment" translations={T3()} />);
+    expect(screen.getByTestId('semiont-delegate-status').textContent).toBe('tr.inProgress');
   });
 });
 
@@ -101,14 +101,14 @@ describe('AssistProgress', () => {
 // beneath) was chosen by hand and it will be revised from use. A test pinned to
 // a sentence rots on the first edit and teaches the next reader to weaken it.
 // ─────────────────────────────────────────────────────────────────────────────
-const STATUS = 'semiont-assist-status';
-const SUBJECT = 'semiont-assist-subject';
-const CONTROL = 'semiont-assist-control';
-const BAR = 'semiont-assist-bar';
-const PARAMS = 'semiont-assist-params';
+const STATUS = 'semiont-delegate-status';
+const SUBJECT = 'semiont-delegate-subject';
+const CONTROL = 'semiont-delegate-control';
+const BAR = 'semiont-delegate-bar';
+const PARAMS = 'semiont-delegate-params';
 
 /** The widget's translations: one function for the coded copy, plus structure keys. */
-const T3 = (over: Partial<AssistProgressTranslations> = {}): AssistProgressTranslations =>
+const T3 = (over: Partial<DelegateProgressTranslations> = {}): DelegateProgressTranslations =>
   ({
     cancel: 'tr.cancel',
     close: 'tr.close',
@@ -121,7 +121,7 @@ const T3 = (over: Partial<AssistProgressTranslations> = {}): AssistProgressTrans
     paramLabel: (code: string) => `tr.param(${code})`,
     found: (n: number) => `tr.found(${n})`,
     ...over,
-  }) as AssistProgressTranslations;
+  }) as DelegateProgressTranslations;
 
 const detecting = (over: Partial<JobProgress> = {}): JobProgress =>
   ({
@@ -133,13 +133,13 @@ const detecting = (over: Partial<JobProgress> = {}): JobProgress =>
     ...over,
   }) as JobProgress;
 
-describe('AssistProgress — the consolidated widget', () => {
+describe('DelegateProgress — the consolidated widget', () => {
   it('A1: renders the subject exactly once for one progress event', () => {
     // A status line and a detail line that both call
     // `currentLabel(currentEntityType)` produce the IDENTICAL string, because
     // the wire carries a code and not prose. Singular `getByText` throws on
     // multiple matches — that IS the assertion.
-    render(<AssistProgress progress={detecting()} dataType="reference" ended={false} translations={T3()} />);
+    render(<DelegateProgress progress={detecting()} dataType="reference" ended={false} translations={T3()} />);
 
     expect(screen.getByText(/tr\.subject\(entity-type:Person/)).toBeInTheDocument();
     // And the status line is the CODE's copy, not a second copy of the subject.
@@ -149,7 +149,7 @@ describe('AssistProgress — the consolidated widget', () => {
 
   it('A2: renders no heading of its own — the section header is the title', () => {
     const { container } = render(
-      <AssistProgress ended={false} progress={detecting()} dataType="reference" translations={T3()} />,
+      <DelegateProgress ended={false} progress={detecting()} dataType="reference" translations={T3()} />,
     );
     expect(container.querySelector('h1,h2,h3,h4,h5,h6')).toBeNull();
   });
@@ -158,7 +158,7 @@ describe('AssistProgress — the consolidated widget', () => {
     const onCancel = vi.fn();
     const onDismiss = vi.fn();
     render(
-      <AssistProgress ended={false}
+      <DelegateProgress ended={false}
         progress={detecting()} dataType="reference"
         onCancel={onCancel} onDismiss={onDismiss} translations={T3()}
       />,
@@ -177,8 +177,8 @@ describe('AssistProgress — the consolidated widget', () => {
     const onCancel = vi.fn();
     const onDismiss = vi.fn();
     render(
-      <AssistProgress
-        progress={detecting({ message: { code: 'complete-created', count: 7, kind: 'reference' } })}
+      <DelegateProgress
+        progress={detecting({ message: { code: 'complete-created', count: 7, motivation: 'linking' } })}
         dataType="reference" ended
         onCancel={onCancel} onDismiss={onDismiss} translations={T3()}
       />,
@@ -192,7 +192,7 @@ describe('AssistProgress — the consolidated widget', () => {
   });
 
   it('A4: the REFERENCE flow renders a fraction and a bar — data it already receives', () => {
-    render(<AssistProgress ended={false} progress={detecting()} dataType="reference" translations={T3()} />);
+    render(<DelegateProgress ended={false} progress={detecting()} dataType="reference" translations={T3()} />);
 
     expect(screen.getByTestId(SUBJECT).textContent).toBe('tr.subject(entity-type:Person|1/3)');
     expect(screen.getByTestId(BAR)).toBeInTheDocument();
@@ -204,7 +204,7 @@ describe('AssistProgress — the consolidated widget', () => {
     // A bar gated on the fraction would drop the tag flow's bar on this
     // frame, so the fixture carries only what the producer sends.
     render(
-      <AssistProgress ended={false}
+      <DelegateProgress ended={false}
         progress={{
           percentage: 60,
           message: { code: 'creating-tag-annotations', count: 4 },
@@ -222,7 +222,7 @@ describe('AssistProgress — the consolidated widget', () => {
     // REQUIRED field on JobProgress, so there is always something to fill a
     // bar with.
     render(
-      <AssistProgress ended={false}
+      <DelegateProgress ended={false}
         progress={{ percentage: 10, message: { code: 'loading' } } as JobProgress}
         dataType="comment" translations={T3()}
       />,
@@ -232,7 +232,7 @@ describe('AssistProgress — the consolidated widget', () => {
 
   it('A5: every rendered string is traceable to translations', () => {
     const { container } = render(
-      <AssistProgress ended={false} progress={detecting()} dataType="reference" translations={T3()} />,
+      <DelegateProgress ended={false} progress={detecting()} dataType="reference" translations={T3()} />,
     );
     // Key-echo strings mean any text NOT starting `tr.` came from the component.
     const stray = Array.from(container.querySelectorAll('*'))
@@ -249,13 +249,13 @@ describe('AssistProgress — the consolidated widget', () => {
     const onOpen = vi.fn();
     const outcome = { label: 'Summary of PB', onOpen };
     const { rerender } = render(
-      <AssistProgress ended={false} progress={detecting()} dataType="generation"
+      <DelegateProgress ended={false} progress={detecting()} dataType="generation"
         outcome={outcome} translations={T3()} />,
     );
     expect(screen.queryByText('Summary of PB')).toBeNull();
 
     rerender(
-      <AssistProgress ended progress={detecting()} dataType="generation"
+      <DelegateProgress ended progress={detecting()} dataType="generation"
         outcome={outcome} translations={T3()} />,
     );
     await userEvent.click(screen.getByRole('button', { name: 'Summary of PB' }));
@@ -270,7 +270,7 @@ describe('AssistProgress — the consolidated widget', () => {
       total: 1,
     });
     const { unmount } = render(
-      <AssistProgress ended={false} progress={oneType} dataType="reference" translations={T3()} />,
+      <DelegateProgress ended={false} progress={oneType} dataType="reference" translations={T3()} />,
     );
     expect(screen.queryByTestId(PARAMS)).toBeNull();
     unmount();
@@ -279,7 +279,7 @@ describe('AssistProgress — the consolidated widget', () => {
       requestParams: [{ label: 'entity-types', value: 'Person, Organization, Location' }],
       total: 3,
     });
-    render(<AssistProgress ended={false} progress={many} dataType="reference" translations={T3()} />);
+    render(<DelegateProgress ended={false} progress={many} dataType="reference" translations={T3()} />);
     expect(screen.getByTestId(PARAMS)).toBeInTheDocument();
   });
 });
@@ -291,10 +291,10 @@ describe('AssistProgress — the consolidated widget', () => {
 // last payload: full bar, and the owner's terminal sentence when it supplies
 // one.
 // ─────────────────────────────────────────────────────────────────────────────
-describe('AssistProgress — the honest ended frame', () => {
+describe('DelegateProgress — the honest ended frame', () => {
   it('an ended frame renders a FULL bar whatever the last payload said', () => {
     const { container } = render(
-      <AssistProgress ended progress={detecting({ percentage: 95 })} dataType="generation" translations={T3()} />,
+      <DelegateProgress ended progress={detecting({ percentage: 95 })} dataType="generation" translations={T3()} />,
     );
     const fill = container.querySelector('.semiont-progress-bar__fill') as HTMLElement;
     expect(fill.style.width).toBe('100%');
@@ -302,7 +302,7 @@ describe('AssistProgress — the honest ended frame', () => {
 
   it('a live frame keeps the payload percentage', () => {
     const { container } = render(
-      <AssistProgress ended={false} progress={detecting({ percentage: 95 })} dataType="generation" translations={T3()} />,
+      <DelegateProgress ended={false} progress={detecting({ percentage: 95 })} dataType="generation" translations={T3()} />,
     );
     const fill = container.querySelector('.semiont-progress-bar__fill') as HTMLElement;
     expect(fill.style.width).toBe('95%');
@@ -310,14 +310,14 @@ describe('AssistProgress — the honest ended frame', () => {
 
   it('endedMessage replaces the stale payload copy once ended', () => {
     render(
-      <AssistProgress ended endedMessage="tr.ended" progress={detecting({ percentage: 95 })} dataType="generation" translations={T3()} />,
+      <DelegateProgress ended endedMessage="tr.ended" progress={detecting({ percentage: 95 })} dataType="generation" translations={T3()} />,
     );
     expect(screen.getByTestId(STATUS).textContent).toBe('tr.ended');
   });
 
   it('endedMessage is inert while the run is live', () => {
     render(
-      <AssistProgress ended={false} endedMessage="tr.ended" progress={detecting()} dataType="generation" translations={T3()} />,
+      <DelegateProgress ended={false} endedMessage="tr.ended" progress={detecting()} dataType="generation" translations={T3()} />,
     );
     expect(screen.getByTestId(STATUS).textContent).toBe('tr.code(detecting-entities)');
   });

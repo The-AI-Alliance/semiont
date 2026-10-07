@@ -243,7 +243,6 @@ __all__ = [
     "JobProgressAnalyzing",
     "JobProgressAnalyzingTags",
     "JobProgressCompleteCreated",
-    "JobProgressCompleteCreatedKind",
     "JobProgressCompleteGenerated",
     "JobProgressCompletedItemsItem",
     "JobProgressCompletedItemsItemUnderReported",
@@ -285,8 +284,6 @@ __all__ = [
     "LogFormat",
     "LogLevel",
     "MarkArchiveCommand",
-    "MarkAssistRequestEvent",
-    "MarkAssistTimeoutEvent",
     "MarkCommitCommand",
     "MarkCommitOk",
     "MarkCommitOkResponse",
@@ -294,6 +291,8 @@ __all__ = [
     "MarkCreateOk",
     "MarkCreateOkResponse",
     "MarkCreateRequest",
+    "MarkDelegateRequestEvent",
+    "MarkDelegateTimeoutEvent",
     "MarkDeleteCommand",
     "MarkDeleteOk",
     "MarkDeleteOkResponse",
@@ -2626,14 +2625,14 @@ class StorageUriEntry(WireModel, frozen=True, extra="forbid"):
     resource_id: Annotated[ResourceId, Field(alias="resourceId")]
 
 
-class MarkAssistTimeoutEvent(WireModel, frozen=True):
+class MarkDelegateTimeoutEvent(WireModel, frozen=True):
     """
-    The payload of `mark:assist-timeout`, a client-local signal: an assist went silent past its deadline, with no progress, no completion and no `job:fail`. A real job failure arrives as `job:fail` and never produces this.
+    The payload of `mark:delegate-timeout`, a client-local signal: a delegated job went silent past its deadline, with no progress, no completion and no `job:fail`. A real job failure arrives as `job:fail` and never produces this.
     """
 
     resource_id: Annotated[
         ResourceId,
-        Field(alias="resourceId", description="The resource the assist was run on."),
+        Field(alias="resourceId", description="The resource the job was delegated for."),
     ]
     motivation: Motivation
 
@@ -2917,12 +2916,6 @@ class JobProgressCompletedItemsItemUnderReported(WireModel, frozen=True):
 type JobProgressRequestParamsItemLabel = Annotated[
     Literal["entity-types", "instructions", "tone", "density"],
     Field(description="Which parameter this is. The client renders a localized name for it."),
-]
-
-
-type JobProgressCompleteCreatedKind = Annotated[
-    Literal["highlight", "comment", "assessment", "reference", "tag"],
-    Field(description="What kind of annotation was created; clients pluralize/translate"),
 ]
 
 
@@ -3941,7 +3934,10 @@ class JobProgressCompleteCreated(WireModel, frozen=True):
 
     code: Literal["complete-created"]
     count: Annotated[int, Field(description="How many annotations were created")]
-    kind: JobProgressCompleteCreatedKind
+    motivation: Annotated[
+        Motivation,
+        Field(description="The motivation of the job, and so of what it created. A client words it in its own language."),
+    ]
 
 
 type JobResult = Annotated[
@@ -5684,7 +5680,7 @@ class JobReportProgressCommand(WireModel, frozen=True):
     progress: JobProgress | None = None
 
 
-class MarkAssistRequestEvent(WireModel, frozen=True, extra="forbid"):
+class MarkDelegateRequestEvent(WireModel, frozen=True, extra="forbid"):
     """
     A request, on the client's own bus, that annotating the open resource be delegated: the parameters of the `mark` job to create, its motivation among them. The resource is the one the listening state unit is for.
     """

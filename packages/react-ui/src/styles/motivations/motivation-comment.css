@@ -101,7 +101,7 @@
 /* ============================================
    Button Styling
    ============================================ */
-.semiont-button[data-variant="assist"][data-type="comment"] {
+.semiont-button[data-variant="delegate"][data-type="comment"] {
   background: linear-gradient(to right, var(--semiont-color-gray-800), var(--semiont-color-gray-700)) !important;
   color: var(--semiont-color-white) !important;
   border: 1px solid var(--semiont-motivation-comment-border);
@@ -109,28 +109,28 @@
   transition: all 0.3s ease;
 }
 
-.semiont-button[data-variant="assist"][data-type="comment"]:hover:not(:disabled) {
+.semiont-button[data-variant="delegate"][data-type="comment"]:hover:not(:disabled) {
   background: linear-gradient(to right, var(--semiont-color-gray-900), var(--semiont-color-gray-800)) !important;
   border-color: var(--semiont-color-gray-600);
 }
 
-[data-theme="dark"] .semiont-button[data-variant="assist"][data-type="comment"] {
+[data-theme="dark"] .semiont-button[data-variant="delegate"][data-type="comment"] {
   background: linear-gradient(to right, var(--semiont-color-gray-600), var(--semiont-color-gray-500)) !important;
   color: var(--semiont-color-white) !important;
   border-color: var(--semiont-motivation-comment-dark-primary);
 }
 
-[data-theme="dark"] .semiont-button[data-variant="assist"][data-type="comment"]:hover:not(:disabled) {
+[data-theme="dark"] .semiont-button[data-variant="delegate"][data-type="comment"]:hover:not(:disabled) {
   background: linear-gradient(to right, var(--semiont-color-gray-500), var(--semiont-color-gray-400)) !important;
   border-color: var(--semiont-color-gray-400);
 }
 
-.semiont-button[data-variant="assist"][data-type="comment"]:focus-visible {
+.semiont-button[data-variant="delegate"][data-type="comment"]:focus-visible {
   outline: 2px solid var(--semiont-motivation-comment-primary);
   outline-offset: 2px;
 }
 
-[data-theme="dark"] .semiont-button[data-variant="assist"][data-type="comment"]:focus-visible {
+[data-theme="dark"] .semiont-button[data-variant="delegate"][data-type="comment"]:focus-visible {
   outline: 2px solid var(--semiont-color-purple-400);
   outline-offset: 2px;
 }

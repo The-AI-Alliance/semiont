@@ -47,8 +47,8 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
   },
 }));
 
-vi.mock('../AssistSection', () => ({
-  AssistSection: () => null,
+vi.mock('../DelegateSection', () => ({
+  DelegateSection: () => null,
 }));
 
 const NINE_TYPES = [
@@ -70,7 +70,7 @@ function ObservableHarness({ source$, session }: { source$: BehaviorSubject<stri
     <ReferencesPanel session={session}
       resourceId={resourceId('res-1')}
       annotations={[]}
-      isAssisting={false}
+      isDelegating={false}
       progress={null}
       annotateMode={true}
       Link={MockLink}
@@ -148,7 +148,7 @@ describe('Layer 5-6 — state-unit observable → useObservable → ReferencesPa
     const source$ = new BehaviorSubject<string[]>([]);
     renderWithBus((session) => <ObservableHarness source$={source$} session={session} />);
 
-    // There are two such text nodes in the panel (pending prompt + assist
+    // There are two such text nodes in the panel (pending prompt + delegate
     // section), but both correspond to the same allEntityTypes=[] state.
     const msg = screen.queryAllByText(/no entity types available/i);
     expect(msg.length).toBeGreaterThan(0);

@@ -249,7 +249,7 @@ export interface FrameNamespace {
    * Most-recent registration of a given `schema.id` wins; identical
    * re-registrations are silent, differing content overwrites the
    * existing entry and logs a warning. KBs typically call this at
-   * session/skill startup so the schema is available for `mark.assist`
+   * session/skill startup so the schema is available for `mark.delegate`
    * with motivation `tagging` and surfaces in `browse.tagSchemas()`.
    */
   addTagSchema(schema: TagSchema): Promise<void>;
@@ -304,7 +304,7 @@ export interface MarkNamespace {
   ): void;
 
   /** Fire-and-forget variant of `delegate` — mark-state-unit creates the job for its resource and follows it. */
-  requestAssist(params: MarkJobParams): void;
+  requestDelegate(params: MarkJobParams): void;
 
   /** Submit the pending annotation with its selector and optional body. */
   submit(input: components['schemas']['MarkSubmitEvent']): void;
@@ -312,7 +312,7 @@ export interface MarkNamespace {
   /** Cancel the pending annotation (if any). */
   cancelPending(): void;
 
-  /** Dismiss the in-progress AI-assist widget. */
+  /** Dismiss the display of a delegated job's progress. */
   dismissProgress(): void;
 
   /**

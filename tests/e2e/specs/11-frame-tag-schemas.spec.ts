@@ -6,7 +6,7 @@ import { signInSession } from '../fixtures/sdk-session';
  * Smoke test: the Frame flow's tag-schema runtime registry surface
  * end-to-end. The architecture it exercises: schemas are per-KB
  * runtime-registered (no build-time `TAG_SCHEMAS` constant); the
- * `mark.assist` dispatcher resolves `schemaId` against the projection at
+ * Dispatcher resolves a tagging job's `schemaId` against the projection at
  * job-creation time and embeds the full `TagSchema` in the worker's params.
  *
  * Four things are exercised end-to-end:
@@ -23,7 +23,7 @@ import { signInSession } from '../fixtures/sdk-session';
  *    Archivist wrote `tagschemas.json` and the projection
  *    reader serves it back.
  *
- * 3. **Dispatcher rejects unregistered schema.** `mark.assist` with a
+ * 3. **Dispatcher rejects unregistered schema.** `mark.delegate` with a
  *    `schemaId` not in the projection must reject synchronously with
  *    `Tag schema not registered: <id>`. The dispatcher does the schema
  *    lookup and the worker has no build-time fallback, so an
@@ -49,7 +49,7 @@ import { signInSession } from '../fixtures/sdk-session';
  * - **Materialization** — the projection file isn't being
  *   written, so `browse.tagSchemas()` doesn't surface the registration.
  *   The Archivist's system projections would be the culprit.
- * - **Dispatcher fallback** — `mark.assist` against an
+ * - **Dispatcher fallback** — `mark.delegate` against an
  *   unknown schemaId silently succeeds. Means the dispatcher is
  *   either consulting a stale build-time registry or the projection
  *   lookup is hiding errors.
@@ -98,7 +98,7 @@ const E2E_TAG_SCHEMA: TagSchema = {
 };
 
 test.describe('frame tag-schema registry + tagging round-trip', () => {
-  test('register schema, observe bridged broadcast, reject unknown schemaId, apply via mark.assist, verify annotation body shape', async ({
+  test('register schema, observe bridged broadcast, reject unknown schemaId, apply via mark.delegate, verify annotation body shape', async ({
     signedInPage: page,
     bus,
   }) => {
@@ -151,7 +151,7 @@ test.describe('frame tag-schema registry + tagging round-trip', () => {
 
       // ── Phase 3: dispatcher rejects unknown schemaId ──────────────
       //
-      // mark.assist against a schemaId that isn't in the projection
+      // mark.delegate against a schemaId that isn't in the projection
       // must reject synchronously. The contract: the dispatcher
       // resolves schemaId → TagSchema at job-creation time, so an
       // unknown id surfaces as a synchronous BusRequestError

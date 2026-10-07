@@ -1,12 +1,12 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { assistProgressTranslations } from '../../../lib/assist-progress-copy';
+import { delegateProgressTranslations } from '../../../lib/delegate-progress-copy';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { SemiontSession } from '@semiont/sdk';
 import { useSessionEventSubscriptions } from '../../../hooks/useSessionEventSubscriptions';
 import type { RouteBuilder, LinkComponentProps } from '../../../contexts/RoutingContext';
-import { AssistShell } from './AssistShell';
+import { DelegateShell } from './DelegateShell';
 import { ItemFoundLog } from '../../ItemFoundLog';
 import { ReferenceEntry } from './ReferenceEntry';
 import type { components, ResourceId, Selector } from '@semiont/core';
@@ -52,7 +52,7 @@ interface Props {
   resourceId: ResourceId;
   // Generic panel props
   annotations?: Annotation[];
-  isAssisting: boolean;
+  isDelegating: boolean;
   progress: JobProgress | null;
   annotateMode?: boolean;
   Link: React.ComponentType<LinkComponentProps>;
@@ -103,7 +103,7 @@ export function ReferencesPanel({
   onOpenResource,
   resourceId,
   annotations = [],
-  isAssisting,
+  isDelegating,
   progress,
   annotateMode = true,
   Link,
@@ -124,9 +124,9 @@ export function ReferencesPanel({
   sourceLanguage,
 }: Props) {
   const t = useTranslations('ReferencesPanel');
-  // Chrome shared by every assist surface (heading, current-work line, dismiss)
+  // Chrome shared by every delegate section (heading, current-work line, dismiss)
   // lives in one namespace so the same words aren't re-translated per panel.
-  const ta = useTranslations('AssistProgress');
+  const ta = useTranslations('DelegateProgress');
   const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([]);
   const [lastAnnotationLog, setLastDetectionLog] = useState<Array<{ value: string; foundCount: number }> | null>(null);
   const [pendingEntityTypes, setPendingEntityTypes] = useState<string[]>([]);
@@ -227,9 +227,9 @@ export function ReferencesPanel({
   });
 
   // Clear log when starting new annotation
-  const handleAssist = () => {
+  const handleDelegate = () => {
     setLastDetectionLog(null);
-    session?.client.mark.requestAssist({
+    session?.client.mark.requestDelegate({
       motivation: 'linking',
       entityTypes: selectedEntityTypes,
       includeDescriptiveReferences,
@@ -245,12 +245,12 @@ export function ReferencesPanel({
   const hasSavedLogRef = useRef(false);
 
   // Save detection log when detection completes
-  // Only depends on isAssisting boolean to avoid infinite loops from array reference changes
-  // Trade-off: If completedItems changes while isAssisting stays false, we won't update
+  // Only depends on isDelegating boolean to avoid infinite loops from array reference changes
+  // Trade-off: If completedItems changes while isDelegating stays false, we won't update
   // This is acceptable because in practice, completedItems only changes when annotation finishes
   useEffect(() => {
     // When annotation starts, reset the flag
-    if (isAssisting) {
+    if (isDelegating) {
       hasSavedLogRef.current = false;
       return;
     }
@@ -261,7 +261,7 @@ export function ReferencesPanel({
       setLastDetectionLog(progress.completedItems);
       setSelectedEntityTypes([]);
     }
-  }, [isAssisting, progress?.completedItems]); // Both dependencies needed to annotation completion
+  }, [isDelegating, progress?.completedItems]); // Both dependencies needed to annotation completion
 
   const togglePendingEntityType = (type: string) => {
     setPendingEntityTypes(prev =>
@@ -305,7 +305,7 @@ export function ReferencesPanel({
 
   return (
     <div className="semiont-panel">
-      <PanelHeader annotationType="reference" count={annotations.length} title={t('title')} />
+      <PanelHeader count={annotations.length} title={t('title')} />
 
       {/* New reference creation - shown when there's a pending annotation with linking motivation */}
       {pendingAnnotation && pendingAnnotation.motivation === 'linking' && (
@@ -368,17 +368,17 @@ export function ReferencesPanel({
 
       {/* Scrollable content area */}
       <div ref={containerRef} className="semiont-panel__content">
-        {/* Assist Section - only in Annotate mode; shown for any media type (AI detection is media-agnostic — text is resolved via the media-type registry, incl. PDF text layers) */}
+        {/* Delegate section - only in Annotate mode; shown for any media type (AI detection is media-agnostic — text is resolved via the media-type registry, incl. PDF text layers) */}
         {annotateMode && (
-          <AssistShell
-            assistType="reference"
+          <DelegateShell
+            delegateType="reference"
             title={t('annotateReferences')}
-            isAssisting={isAssisting}
+            isDelegating={isDelegating}
             progress={progress}
             progressProps={{
               onCancel: () => session?.client.job.cancelRequest('mark'),
               onDismiss: () => session?.client.mark.dismissProgress(),
-              translations: assistProgressTranslations(ta, {
+              translations: delegateProgressTranslations(ta, {
                 found: (count: number) => t('found', { count }),
                 // Rendered only when the wire prices a denominator.
                 tally: (found: number, expected: number) => t('tally', { found, expected }),
@@ -395,11 +395,11 @@ export function ReferencesPanel({
                 )}
 
                 {/* Entity Types Selection */}
-                <div className="semiont-assist-widget__entity-types">
-                  <p className="semiont-assist-widget__label">
+                <div className="semiont-delegate-widget__entity-types">
+                  <p className="semiont-delegate-widget__label">
                     {t('selectEntityTypes')}
                   </p>
-                  <div className="semiont-assist-widget__chips">
+                  <div className="semiont-delegate-widget__chips">
                     {allEntityTypes.length > 0 ? (
                       allEntityTypes.map((type: string) => (
                         <button
@@ -420,7 +420,7 @@ export function ReferencesPanel({
                         </button>
                       ))
                     ) : (
-                      <p className="semiont-assist-widget__no-types">
+                      <p className="semiont-delegate-widget__no-types">
                         {entityTypesError ? t('entityTypesFailed') : t('noEntityTypes')}
                       </p>
                     )}
@@ -429,34 +429,34 @@ export function ReferencesPanel({
 
                 {/* Selected Count */}
                 {selectedEntityTypes.length > 0 && (
-                  <p className="semiont-assist-widget__count">
+                  <p className="semiont-delegate-widget__count">
                     {t('typesSelected', { count: selectedEntityTypes.length })}
                   </p>
                 )}
 
                 {/* Include Descriptive References Checkbox */}
-                <div className="semiont-assist-widget__checkbox-group">
-                  <label className="semiont-assist-widget__checkbox-label">
+                <div className="semiont-delegate-widget__checkbox-group">
+                  <label className="semiont-delegate-widget__checkbox-label">
                     <input
                       type="checkbox"
                       checked={includeDescriptiveReferences}
                       onChange={(e) => setIncludeDescriptiveReferences(e.target.checked)}
-                      className="semiont-assist-widget__checkbox"
+                      className="semiont-delegate-widget__checkbox"
                     />
                     <span>{t('includeDescriptiveReferences')}</span>
                   </label>
-                  <p className="semiont-assist-widget__checkbox-hint">
+                  <p className="semiont-delegate-widget__checkbox-hint">
                     {t('descriptiveReferencesTooltip')}
                   </p>
                 </div>
 
-                {/* Start Assist Button */}
+                {/* Delegate button */}
                 <button
-                  onClick={handleAssist}
+                  onClick={handleDelegate}
                   disabled={selectedEntityTypes.length === 0}
                   title={t('annotate')}
                   className="semiont-button"
-                  data-variant="assist"
+                  data-variant="delegate"
                   data-type="reference"
                 >
                   <span className="semiont-button-icon">✨</span>

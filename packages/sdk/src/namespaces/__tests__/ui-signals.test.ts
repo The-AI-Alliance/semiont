@@ -365,15 +365,15 @@ describe('UI signal wrappers', () => {
     });
   });
 
-  describe('mark.requestAssist', () => {
-    it("emits mark:assist-request with the job's params (local bus)", () => {
+  describe('mark.requestDelegate', () => {
+    it("emits mark:delegate-request with the job's params (local bus)", () => {
       const bus = new EventBus();
-      const spy = busSpy(bus, 'mark:assist-request');
+      const spy = busSpy(bus, 'mark:delegate-request');
       const mark = new MarkNamespace(makeMockTransport(), bus);
 
-      mark.requestAssist({ motivation: 'linking', entityTypes: ['Person'] });
+      mark.requestDelegate({ motivation: 'linking', entityTypes: ['Person'] });
 
-      expect(spy).toHaveBeenCalledExactlyOnceWith('mark:assist-request', {
+      expect(spy).toHaveBeenCalledExactlyOnceWith('mark:delegate-request', {
         params: { motivation: 'linking', entityTypes: ['Person'] },
       });
     });

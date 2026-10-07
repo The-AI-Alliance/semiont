@@ -425,7 +425,7 @@ export async function processHighlightJob(
     },
   );
 
-  onProgress(100, { code: 'complete-created', count: created, kind: 'highlight' }, echo);
+  onProgress(100, { code: 'complete-created', count: created, motivation: params.motivation }, echo);
 
   return {
     result: detected(found, created, errors),
@@ -508,7 +508,7 @@ export async function processCommentJob(
     },
   );
 
-  onProgress(100, { code: 'complete-created', count: created, kind: 'comment' }, echo);
+  onProgress(100, { code: 'complete-created', count: created, motivation: params.motivation }, echo);
 
   return {
     result: detected(found, created, errors),
@@ -567,7 +567,7 @@ export async function processAssessmentJob(
     },
   );
 
-  onProgress(100, { code: 'complete-created', count: created, kind: 'assessment' }, echo);
+  onProgress(100, { code: 'complete-created', count: created, motivation: params.motivation }, echo);
 
   return {
     result: detected(found, created, errors),
@@ -774,7 +774,7 @@ export async function processReferenceJob(
 
   // The terminal frame carries the completed set — each unit's found and
   // persisted counts, the run's yield.
-  onProgress(100, { code: 'complete-created', count: totalEmitted, kind: 'reference' }, {
+  onProgress(100, { code: 'complete-created', count: totalEmitted, motivation: params.motivation }, {
     ...(totalExpected > 0 ? { entitiesExpected: totalExpected } : {}),
     completedItems: [...completedItems],
     requestParams,
@@ -892,7 +892,7 @@ export async function processTagJob(
     completedItems.push({ value: category, foundCount: categoryFound });
   }
 
-  onProgress(100, { code: 'complete-created', count: created, kind: 'tag' });
+  onProgress(100, { code: 'complete-created', count: created, motivation: params.motivation });
 
   return {
     result: { ...detected(found, created, errors), byCategory },
