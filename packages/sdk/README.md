@@ -6,54 +6,129 @@
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/sdk.svg)](https://www.npmjs.com/package/@semiont/sdk)
 [![License](https://img.shields.io/npm/l/@semiont/sdk.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-The TypeScript SDK for [Semiont](https://github.com/The-AI-Alliance/semiont) — a programmable
-surface for **collaborative knowledge work**. A browser app where humans annotate and link, an
-AI agent that gathers context and generates grounded answers, a daemon that ingests sources, a
-one-shot query script: all reach the same verb namespaces, the same collaboration primitives,
-the same lifecycle observables. Humans and AI agents are peers — the SDK does not distinguish.
+The TypeScript SDK for [Semiont](https://github.com/The-AI-Alliance/semiont), an open platform for building
+trusted AI knowledge bases: a shared workspace where humans and AI agents
+annotate, connect and govern a corpus of documents.
 
-The [Rust SDK](https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk-rust) ([`semiont`](https://crates.io/crates/semiont)
-on crates.io) is its full peer: the same namespaces, methods and behaviour, held to the same
-[conformance suite](https://github.com/The-AI-Alliance/semiont/tree/main/tests/conformance/sdk).
-The [Python SDK](https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk-python)
-([`semiont`](https://pypi.org/project/semiont/) on PyPI) has the same namespaces, methods and
-live queries, and is held to the same suite.
+This package is the client. With it a program reads and writes one knowledge
+base: it adds resources, annotates and links them, searches them, gathers
+context for a model, and hears what the other participants do as they do it.
+A person's application and an AI agent use the same client. The SDK does not
+tell them apart.
 
-> ## 📖 New here? Start with the [Introduction](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/INTRODUCTION.md)
->
-> The orientation chapter: what Semiont is, the domain vocabulary, and the three ideas the
-> API falls out of — written for people who build web apps, assuming nothing about AI apps.
-> Then the [Developer Guide](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/DEVELOPER-GUIDE.md)
-> is the road: task-ordered recipes — connect → ingest → enrich → gather → generate
-> (grounded Q&A with inline citations) → annotate → react live → tear down — each a short
-> explanation plus the exact SDK lines. **This README is the map.** For protocol-level
-> framing (the eight flows, the core tenets), see
-> [`docs/protocol/README.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/README.md);
-> daemon authors also want the [skill packs](https://github.com/The-AI-Alliance/semiont/tree/main/docs/builder/skills).
+It has the same namespaces, methods and behaviour as the
+[Rust SDK](https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk-rust) ([`semiont`](https://crates.io/crates/semiont) on crates.io)
+and the [Python SDK](https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk-python) ([`semiont`](https://pypi.org/project/semiont/) on PyPI),
+and the three are held to the same [conformance suite](https://github.com/The-AI-Alliance/semiont/tree/main/tests/conformance/sdk).
+New to Semiont? The [Introduction](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/INTRODUCTION.md)
+explains the domain and the ideas the API falls out of.
 
-## Four ideas that hold the surface together
+## Install
 
-### 1. Eight verbs
+```bash
+npm install @semiont/sdk
+```
 
-Every operation belongs to one of eight *flows* — verbs describing what a participant does
-with a shared corpus. Four write (yield, mark, bind, frame), three read (browse, match,
-gather), and one directs attention (beckon). Learn them once and the surface stays small.
+It runs in a browser and in Node. A client speaks to a running knowledge base.
+The [Quick Start](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/QUICK-START.md) sets one up on
+your own machine.
 
-| Verb | What it does | Example methods |
-|---|---|---|
-| **yield** | Introduce new resources — uploaded or generated from gathered context | `yield.resource`, `yield.fromContext` |
-| **mark** | Annotate resources | `mark.annotation`, `mark.assist`, `mark.updateEntityTypes`, `mark.archive` |
-| **bind** | Resolve ambiguous references to specific resources | `bind.body`, `bind.initiate` |
-| **frame** | Define and evolve the schema vocabulary (entity types, tag schemas) | `frame.addEntityTypes`, `frame.addTagSchema` |
-| **browse** | Navigate, read, observe — including who's here to collaborate | `browse.resource`, `browse.annotations`, `browse.agents`, `browse.click` |
-| **match** | Search the corpus — resources by text, and candidates for a reference | `match.resources`, `match.search` |
-| **gather** | Assemble grounding context around a resource or an annotation, and list what refers to a resource | `gather.resource`, `gather.annotation`, `gather.referencedBy` |
-| **beckon** | Direct attention across participants | `beckon.hover`, `beckon.sparkle`, `beckon.openResource` |
+## Connect
 
-Each flow is a namespace on `SemiontClient` (`client.mark.X(...)`); the verb is the unit of
-mental model. Per-flow contracts: [`docs/protocol/flows`](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol/flows).
+Sign-in happens at the knowledge base's identity provider, never at the gateway. A script uses
+the device grant: it prints a URL, the person approves in any browser, and the session comes
+back live. `SemiontSession` owns the token lifecycle (proactive refresh at the issuer, storage,
+disposal); `kb.id` is the storage key, so distinct scripts use distinct ids. There is no
+client-level signIn: the issuer decides how long an access token lives and it is short — minutes,
+not hours — so anything that outlives one token needs a session to renew it.
 
-### 2. One call, two ways to consume
+```ts
+import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';
+
+const session = await SemiontSession.signInDevice({
+  kb: httpKb({ id: 'my-watcher', label: 'My Watcher',
+               host: 'localhost', port: 4000, protocol: 'http' }),
+  storage: new InMemorySessionStorage(),
+  onCode: ({ verificationUri, userCode }) => console.log(`Open ${verificationUri} and enter ${userCode}`),
+});
+const { resources } = await session.client.browse.resources({ limit: 10 }).fresh();
+```
+
+Already hold tokens? `SemiontSession.fromIssuedSession(...)` takes the access and refresh pair.
+`SemiontSession.fromHttp(...)` takes a bare access token and the `refresh` that renews it.
+`SemiontClient.fromHttp({ baseUrl, token })` takes a bare token and never renews it, which suits
+a one-shot script that finishes inside one token's life.
+
+## Eight verbs
+
+Every operation belongs to one of eight flows: verbs for what a participant
+does with a shared corpus. Four write, three read, and one directs
+attention. Each is a namespace of the client.
+
+| | Verb | What it does | Among its methods |
+|---|---|---|---|
+| Writing | `yield` | Introduce a resource, uploaded or generated from gathered context | `yield.resource`, `yield.fromContext` |
+| | `mark` | Annotate a resource | `mark.annotation`, `mark.assist`, `mark.updateEntityTypes`, `mark.archive` |
+| | `bind` | Resolve an ambiguous reference to a specific resource | `bind.body`, `bind.initiate` |
+| | `frame` | Define and grow the schema vocabulary | `frame.addEntityTypes`, `frame.addTagSchema` |
+| Reading | `browse` | Navigate, read and observe, including who is here | `browse.resource`, `browse.annotations`, `browse.agents`, `browse.click` |
+| | `match` | Search the corpus: resources by text, and candidates for a reference | `match.resources`, `match.search` |
+| | `gather` | Assemble grounding context around a resource or an annotation, and list what refers to a resource | `gather.resource`, `gather.annotation`, `gather.referencedBy` |
+| Attention | `beckon` | Direct attention across participants | `beckon.hover`, `beckon.sparkle`, `beckon.openResource` |
+
+Beside the eight are `job`, and `auth` and `system` when the client has a
+gateway. What each flow means is in
+[docs/protocol/flows](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol/flows).
+
+## A first program
+
+From a signed-in session, this ingests a paper, has a model mark the concepts
+it mentions, gathers the context around it, and generates a summary grounded
+in that context. Those are the [Quick Start](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/QUICK-START.md)'s
+last two steps, from code, and the two that come next. [Connect](#connect) is
+how a session comes to be signed in.
+
+```ts
+// Ingest: the paper's bytes become a resource.
+const { resourceId } = await session.client.yield.resource({
+  name: 'Attention Is All You Need',
+  file,                                   // a browser File or a Node Buffer
+  format: 'application/pdf',
+  storageUri: 'file://papers/attention-is-all-you-need.pdf',
+});
+
+// Annotate: a model reads it and marks each mention of a concept.
+await session.client.mark.assist(resourceId, 'linking', { entityTypes: ['Concept'] });
+
+// Gather: the paper, its annotations, and what the knowledge base holds around it.
+const context = await session.client.gather.resource(resourceId);
+
+// Generate: a new resource, grounded in that context and linked to its source.
+const done = await session.client.yield.fromContext(context, {
+  title: 'Attention Is All You Need: a summary',
+  storageUri: 'file://generated/attention-summary.md',
+  task: 'summary',
+});
+if (done.kind === 'complete' && done.data.result?.kind === 'generation') {
+  console.log('The summary is', done.data.result.resourceId);
+}
+
+await session.dispose();
+```
+
+Both resources, and every annotation the model made, are in the knowledge base
+for the next participant, person or agent, to read and build on.
+
+Where to go from here:
+
+- The [Developer Guide](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/DEVELOPER-GUIDE.md) has
+  each of these steps as a recipe, and the ones after them: reading, searching,
+  annotating by hand, reacting to what others do, and testing.
+- The [agent skills](https://github.com/The-AI-Alliance/semiont/tree/main/docs/builder/skills) are whole scripts on
+  this SDK, one per task, for an AI coding assistant to load: ingesting a
+  corpus, annotating it, linking it, and the layers built on those.
+
+## One call, two ways to consume
 
 Every long-lived value is an `Observable` with an explicit one-shot path — from the same
 call, take the value once or keep it live:
@@ -74,7 +149,7 @@ never silently become a round trip), a count (wire drives — below), or `void` 
 per-method table and the `.run()` rule for progress-plus-result live in
 [`docs/builder/REACTIVE-MODEL.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/REACTIVE-MODEL.md).
 
-### 3. Collaboration primitives
+## Directing attention
 
 Directing attention is protocol-level coordination, not browser-app fluff. An agent calls
 `beckon.attention(resourceId, annotationId)` and every connected person's viewer scrolls to
@@ -84,12 +159,12 @@ their screens. Each of these wire drives resolves with how many clients it reach
 The `void` signals (`beckon.hover`, `bind.initiate`, `mark.request`) are different: they stay
 on one client's own bus, where its interface coordinates itself.
 
-### 4. Transport agnosticism
+## Any transport
 
 `SemiontClient` is built against the `ITransport` / `IContentTransport` contracts from
 `@semiont/core`, not any particular wire. The HTTP adapter is re-exported here for convenience.
 
-## What's in the box
+## What is in the package
 
 - **`SemiontClient`** — the verb-oriented coordinator: the eight flow namespaces, plus `job`
   (always present) and `auth`/`system` (present when constructed with gateway operations).
@@ -115,44 +190,10 @@ This is everything a non-web consumer (TUI, mobile, daemon, agent) needs — not
 page-shaped. Page-level state machines and components, including the **embeddable
 `ResourceViewer`**, live in [`@semiont/react-ui`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/react-ui).
 
-## Install & connect
-
-```bash
-npm install @semiont/sdk
-```
-
-Sign-in happens at the knowledge base's identity provider, never at the gateway. A script uses
-the device grant: it prints a URL, the person approves in any browser, and the session comes
-back live. `SemiontSession` owns the token lifecycle (proactive refresh at the issuer, storage,
-disposal); `kb.id` is the storage key, so distinct scripts use distinct ids. There is no
-client-level signIn: the issuer decides how long an access token lives and it is short — minutes,
-not hours — so anything that outlives one token needs a session to renew it.
-
-```ts
-import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';
-
-const session = await SemiontSession.signInDevice({
-  kb: httpKb({ id: 'my-watcher', label: 'My Watcher',
-               host: 'localhost', port: 4000, protocol: 'http' }),
-  storage: new InMemorySessionStorage(),
-  onCode: ({ verificationUri, userCode }) => console.log(`Open ${verificationUri} and enter ${userCode}`),
-});
-const { resources } = await session.client.browse.resources({ limit: 10 }).fresh();
-await session.dispose();
-```
-
-Already hold tokens? `SemiontSession.fromIssuedSession(...)` takes the access and refresh pair.
-`SemiontSession.fromHttp(...)` takes a bare access token and the `refresh` that renews it.
-`SemiontClient.fromHttp({ baseUrl, token })` takes a bare token and never renews it, which suits
-a one-shot script that finishes inside one token's life.
-
-From here, the [Developer Guide](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/DEVELOPER-GUIDE.md)
-takes over — every recipe assumes exactly this setup.
-
 ## Documentation
 
-The full map — every doc's role, and a reading order by audience — is
-[`docs/builder/README.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/README.md).
+The builder docs start at [`docs/builder/README.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/README.md):
+who the SDK is for, where it goes, and the docs in reading order.
 
 - **[`docs/builder/DEVELOPER-GUIDE.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/DEVELOPER-GUIDE.md) — start here to build.** Task-ordered recipes, connect through teardown.
 - [`docs/builder/Usage.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/Usage.md) — per-namespace API tour with concrete examples, plus SSE and error handling.
@@ -160,10 +201,6 @@ The full map — every doc's role, and a reading order by audience — is
 - [`docs/builder/STATE-UNITS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/STATE-UNITS.md) — the state-unit pattern and its enforced axioms.
 - [`docs/protocol/CACHE-SEMANTICS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/CACHE-SEMANTICS.md) — the cache primitive's numbered behavioral contract.
 - [`docs/protocol/TRANSPORT-CONTRACT.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/TRANSPORT-CONTRACT.md) — what every `ITransport` must honor; HTTP specifics in [TRANSPORT-HTTP.md](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/TRANSPORT-HTTP.md). New transports implement the `@semiont/core` interfaces directly — no inheritance from `HttpTransport`.
-
-## License
-
-Apache-2.0 — see [LICENSE](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE).
 
 ## Related packages
 
@@ -174,3 +211,7 @@ Apache-2.0 — see [LICENSE](https://github.com/The-AI-Alliance/semiont/blob/mai
 - [`@semiont/make-meaning`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/make-meaning) — the knowledge-base actors and the entry points of the four services that run them
 - [`@semiont/observability`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/observability) — OpenTelemetry tracing the SDK propagates across the bus
 - [`@semiont/react-ui`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/react-ui) — the embeddable `ResourceViewer` (bring-your-own-session) plus React hooks (`useResourceLoader`, `useMediaToken`, `useObservable`) and the web `SessionStorage`; its docs cross-link the [Developer Guide](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/DEVELOPER-GUIDE.md)
+
+## License
+
+Apache-2.0 — see [LICENSE](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE).

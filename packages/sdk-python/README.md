@@ -34,86 +34,6 @@ built on. Its dependencies are `httpx`, `pydantic` and `opentelemetry-api`.
 A client speaks to a running knowledge base. The [Quick Start][quick-start]
 sets one up on your own machine.
 
-## The client
-
-A client is the eleven namespaces over one transport: `frame`, `browse`,
-`mark`, `bind`, `gather`, `match`, `yield_` and `beckon`, one per
-[flow of the protocol][protocol], and `job`, `auth` and `system` beside them.
-`yield` is Python's own word, so its namespace is `yield_`. Each method is a
-row of [`specs/src/client/surface.json`][surface], the table every Semiont SDK
-is held to. `HttpTransport` is the transport this package ships: it reaches a
-knowledge base's gateway, and sends the token it is given.
-
-```python
-from semiont.client import SemiontClient
-from semiont.http import HttpTransport
-from semiont.identifiers import AnnotationId, ResourceId
-from semiont.namespaces.follow import JobAttemptFailed, JobCompleted, JobProgressed
-from semiont.namespaces.mark import MarkAssistOptions
-from semiont.transport import Transport
-from semiont.watched import Variable
-
-
-async def annotate(client: SemiontClient[Transport], resource: ResourceId, annotation: AnnotationId) -> None:
-    described = await client.browse.resource(resource).fresh()  # a query, read once
-    text = await client.browse.resource_content(resource)  # asked once, answered once
-    print(described.name, len(text))
-
-    async for event in client.mark.assist(resource, "highlighting", MarkAssistOptions()):  # a job, followed
-        match event:
-            case JobProgressed(data=progress):
-                print(progress.percentage)
-            case JobAttemptFailed(data=setback):
-                print("trying again after:", setback.error)
-            case JobCompleted(data=done):
-                print(done.result)
-
-    reached = await client.beckon.attention(resource, annotation)  # a drive: how many the gateway reached
-    client.browse.click(annotation)  # a signal: this viewer's own, never sent
-    print(reached)
-
-
-async def over_http(origin: str, token: str, resource: ResourceId, annotation: AnnotationId) -> None:
-    async with (
-        HttpTransport(origin, token=Variable[str | None](token)) as transport,
-        SemiontClient(transport, transport.content, transport) as client,
-    ):
-        await annotate(client, resource, annotation)
-```
-
-Every method returns one of seven shapes, and the table says which:
-
-| Shape | In Python | |
-|---|---|---|
-| asked once, answered once | `async def` | a failure is raised |
-| a long-running operation | `Running[T]` | awaited for its final value, or read with `async for` for every report and then the final value; one or the other, once |
-| an upload | `Upload` | awaited for the resource it created, read for its progress |
-| a query | `Cached[T]` | building it sends nothing; `await query.fresh()` reads it once, and held with `async with` it is watched |
-| a signal | `def`, returning nothing | published on the client's own bus, or sent and not awaited |
-| a drive | `async def` giving `int \| None` | how many participants the gateway reached, or nothing when it kept no count |
-| a channel's events | `Typed[P]` | `async for`, each event's payload decoded |
-
-- **A followed job** (`mark.assist`, `yield_.from_context`) reports its
-  progress and ends with its completion. A job that says nothing is asked for
-  its status, so a completion the stream did not carry is still heard. It ends
-  as a `JobError` when the job failed for good, was cancelled, or (a
-  generation) said nothing for longer than its length allows.
-- **`client.bus`** is the client's own bus: every frame its transport
-  delivered, and every signal its own parts gave each other.
-  **`client.wire`** is the bus over the transport, typed by channel.
-- **A client is held with `async with`**: inside, it listens for what keeps
-  its queries true, and it ends what it started on the way out. It does not
-  close its transport: whoever opened that closes it, after the client. A
-  session (`session_from_kept`) holds one as `session.client`.
-- **A client is generic in its transport.** Code that takes a
-  `SemiontClient[Transport]` runs over HTTP and over a test's doubles alike.
-- **What it sends unasked is the table's**: a list's first hundred, a
-  search's ten candidates, a context's two thousand characters. An option
-  given as `None` is an option not given, and is not sent.
-
-Why the shapes are these seven, in every SDK, is
-[the reactive model][reactive-model].
-
 ## Signing in
 
 A transport sends the token it is given. Where the token comes from is one of
@@ -188,6 +108,168 @@ async def as_me(gateway: str, home: str) -> None:
   `sign_out` revokes one at its issuer and forgets it.
 - **Nothing here reads the environment.** An application reads its own
   (`HOME`, a secret, an address) and says what it found.
+
+## Eight verbs
+
+Every operation belongs to one of eight flows: verbs for what a participant
+does with a shared corpus. Four write, three read, and one directs
+attention. Each is a namespace of the client.
+
+| | Verb | What it does | Among its methods |
+|---|---|---|---|
+| Writing | `yield_` | Introduce a resource, uploaded or generated from gathered context | `yield_.resource`, `yield_.from_context` |
+| | `mark` | Annotate a resource | `mark.annotation`, `mark.assist`, `mark.update_entity_types`, `mark.archive` |
+| | `bind` | Resolve an ambiguous reference to a specific resource | `bind.body`, `bind.initiate` |
+| | `frame` | Define and grow the schema vocabulary | `frame.add_entity_types`, `frame.add_tag_schema` |
+| Reading | `browse` | Navigate, read and observe, including who is here | `browse.resource`, `browse.annotations`, `browse.agents`, `browse.click` |
+| | `match` | Search the corpus: resources by text, and candidates for a reference | `match.resources`, `match.search` |
+| | `gather` | Assemble grounding context around a resource or an annotation, and list what refers to a resource | `gather.resource`, `gather.annotation`, `gather.referenced_by` |
+| Attention | `beckon` | Direct attention across participants | `beckon.hover`, `beckon.sparkle`, `beckon.open_resource` |
+
+`yield` is Python's own word, so its namespace is `yield_`. Beside the eight
+are `job`, `auth` and `system`. What each flow means is in
+[docs/protocol/flows][flows].
+
+## A first program
+
+From a signed-in client, this ingests a paper, has a model mark the concepts
+it mentions, gathers the context around it, and generates a summary grounded
+in that context. Those are the [Quick Start][quick-start]'s last two steps,
+from code, and the two that come next. [Signing in](#signing-in) is how a
+client comes to be signed in.
+
+```python
+from semiont.client import SemiontClient
+from semiont.identifiers import ResourceId
+from semiont.namespaces.follow import JobCompleted
+from semiont.namespaces.mark import MarkAssistOptions
+from semiont.transport import PutBinaryRequest, Transport
+from semiont.types import GenerationJobParams, JobGenerationResult
+
+
+async def summarize(client: SemiontClient[Transport], paper: bytes) -> ResourceId | None:
+    # Ingest: the paper's bytes become a resource.
+    created = await client.yield_.resource(
+        PutBinaryRequest(
+            name="Attention Is All You Need",
+            file=paper,
+            format="application/pdf",
+            storage_uri="file://papers/attention-is-all-you-need.pdf",
+        )
+    )
+    paper_id = created.resource_id
+
+    # Annotate: a model reads it and marks each mention of a concept.
+    await client.mark.assist(paper_id, "linking", MarkAssistOptions(entity_types=["Concept"]))
+
+    # Gather: the paper, its annotations, and what the knowledge base holds around it.
+    context = await client.gather.resource(paper_id)
+
+    # Generate: a new resource, grounded in that context and linked to its source.
+    done = await client.yield_.from_context(
+        GenerationJobParams(
+            title="Attention Is All You Need: a summary",
+            storage_uri="file://generated/attention-summary.md",
+            context=context,
+            task="summary",
+        )
+    )
+    if isinstance(done, JobCompleted) and isinstance(done.data.result, JobGenerationResult):
+        return done.data.result.resource_id
+    return None
+```
+
+Both resources, and every annotation the model made, are in the knowledge base
+for the next participant, person or agent, to read and build on.
+
+Where to go from here:
+
+- The [Developer Guide][developer-guide] has each of these steps as a recipe,
+  and the ones after them: reading, searching, annotating by hand, reacting to
+  what others do, and testing. Its code is TypeScript, and the calls are this
+  package's too.
+- The [agent skills][skills] are whole scripts, one per task, for an AI coding
+  assistant to load: ingesting a corpus, annotating it, linking it, and the
+  layers built on those. They are TypeScript as well.
+
+## The client
+
+A client is eleven namespaces over one transport: the
+[eight verbs](#eight-verbs), one per [flow of the protocol][protocol], and
+`job`, `auth` and `system` beside them. Each method is a
+row of [`specs/src/client/surface.json`][surface], the table every Semiont SDK
+is held to. `HttpTransport` is the transport this package ships: it reaches a
+knowledge base's gateway, and sends the token it is given.
+
+```python
+from semiont.client import SemiontClient
+from semiont.http import HttpTransport
+from semiont.identifiers import AnnotationId, ResourceId
+from semiont.namespaces.follow import JobAttemptFailed, JobCompleted, JobProgressed
+from semiont.namespaces.mark import MarkAssistOptions
+from semiont.transport import Transport
+from semiont.watched import Variable
+
+
+async def annotate(client: SemiontClient[Transport], resource: ResourceId, annotation: AnnotationId) -> None:
+    described = await client.browse.resource(resource).fresh()  # a query, read once
+    text = await client.browse.resource_content(resource)  # asked once, answered once
+    print(described.name, len(text))
+
+    async for event in client.mark.assist(resource, "highlighting", MarkAssistOptions()):  # a job, followed
+        match event:
+            case JobProgressed(data=progress):
+                print(progress.percentage)
+            case JobAttemptFailed(data=setback):
+                print("trying again after:", setback.error)
+            case JobCompleted(data=done):
+                print(done.result)
+
+    reached = await client.beckon.attention(resource, annotation)  # a drive: how many the gateway reached
+    client.browse.click(annotation)  # a signal: this viewer's own, never sent
+    print(reached)
+
+
+async def over_http(origin: str, token: str, resource: ResourceId, annotation: AnnotationId) -> None:
+    async with (
+        HttpTransport(origin, token=Variable[str | None](token)) as transport,
+        SemiontClient(transport, transport.content, transport) as client,
+    ):
+        await annotate(client, resource, annotation)
+```
+
+Every method returns one of seven shapes, and the table says which:
+
+| Shape | In Python | |
+|---|---|---|
+| asked once, answered once | `async def` | a failure is raised |
+| a long-running operation | `Running[T]` | awaited for its final value, or read with `async for` for every report and then the final value; one or the other, once |
+| an upload | `Upload` | awaited for the resource it created, read for its progress |
+| a query | `Cached[T]` | building it sends nothing; `await query.fresh()` reads it once, and held with `async with` it is watched |
+| a signal | `def`, returning nothing | published on the client's own bus, or sent and not awaited |
+| a drive | `async def` giving `int \| None` | how many participants the gateway reached, or nothing when it kept no count |
+| a channel's events | `Typed[P]` | `async for`, each event's payload decoded |
+
+- **A followed job** (`mark.assist`, `yield_.from_context`) reports its
+  progress and ends with its completion. A job that says nothing is asked for
+  its status, so a completion the stream did not carry is still heard. It ends
+  as a `JobError` when the job failed for good, was cancelled, or (a
+  generation) said nothing for longer than its length allows.
+- **`client.bus`** is the client's own bus: every frame its transport
+  delivered, and every signal its own parts gave each other.
+  **`client.wire`** is the bus over the transport, typed by channel.
+- **A client is held with `async with`**: inside, it listens for what keeps
+  its queries true, and it ends what it started on the way out. It does not
+  close its transport: whoever opened that closes it, after the client. A
+  session (`session_from_kept`) holds one as `session.client`.
+- **A client is generic in its transport.** Code that takes a
+  `SemiontClient[Transport]` runs over HTTP and over a test's doubles alike.
+- **What it sends unasked is the table's**: a list's first hundred, a
+  search's ten candidates, a context's two thousand characters. An option
+  given as `None` is an option not given, and is not sent.
+
+Why the shapes are these seven, in every SDK, is
+[the reactive model][reactive-model].
 
 ## Live queries
 
@@ -297,7 +379,9 @@ async def a_title_is_its_resources_name_in_title_case() -> None:
 
 - **`FaultyTransport`** is a transport with no wire. `queue_reply` says what
   the gateway answers the next requests of an operation with, and
-  `refuse_when` has it answer with a failure. A schedule of `Deliver`,
+  `refuse_when` has it answer with a failure. A reply that names what it
+  answers for, as a gathered context names its resource, takes that from the
+  request, so a test queues the response alone. A schedule of `Deliver`,
   `DropReply`, `Delay`, `DuplicateReply` and `RejectEmit` says what the wire
   does to each request in turn, so a lost reply and the retry after it can be
   scripted. `request_log` and `emitted` are what was sent; `deliver` carries a
@@ -488,6 +572,9 @@ Apache-2.0. See [LICENSE][license].
 [semiont]: https://github.com/The-AI-Alliance/semiont
 [introduction]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/INTRODUCTION.md
 [quick-start]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/QUICK-START.md
+[developer-guide]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/DEVELOPER-GUIDE.md
+[skills]: https://github.com/The-AI-Alliance/semiont/tree/main/docs/builder/skills
+[flows]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/flows/README.md
 [reactive-model]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/REACTIVE-MODEL.md
 [protocol]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/README.md
 [transport-contract]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/TRANSPORT-CONTRACT.md

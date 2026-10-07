@@ -126,23 +126,18 @@ impl YieldNamespace {
     ) -> Result<CreateResourceResponse, SemiontError> {
         let source = self.from_token(&options.token).await?;
         let format = clone_format(primary_media_type(&source));
+        let storage_uri = derive_storage_uri(&options.name, format);
         let created = self
             .content
             .put_binary(PutBinaryRequest {
-                storage_uri: derive_storage_uri(&options.name, format),
-                name: options.name,
-                bytes: Bytes::from(options.content),
-                format: format.media_type.to_owned(),
-                entity_types: Vec::new(),
-                language: None,
-                source_annotation_id: None,
-                source_resource_id: None,
-                generation_prompt: None,
-                generator: None,
-                job_id: None,
-                is_draft: None,
                 clone_token: Some(options.token),
                 archive_original: options.archive_original,
+                ..PutBinaryRequest::new(
+                    options.name,
+                    Bytes::from(options.content),
+                    format.media_type,
+                    storage_uri,
+                )
             })
             .await?;
         Ok(created)

@@ -497,6 +497,35 @@ pub struct PutBinaryRequest {
     pub archive_original: Option<bool>,
 }
 
+impl PutBinaryRequest {
+    /// An upload of `bytes`, of the media type `format`, as the resource
+    /// `name` kept at `storage_uri`: what every upload states, and nothing
+    /// else.
+    pub fn new(
+        name: impl Into<String>,
+        bytes: Bytes,
+        format: impl Into<String>,
+        storage_uri: impl Into<String>,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            bytes,
+            format: format.into(),
+            storage_uri: storage_uri.into(),
+            entity_types: Vec::new(),
+            language: None,
+            source_annotation_id: None,
+            source_resource_id: None,
+            generation_prompt: None,
+            generator: None,
+            job_id: None,
+            is_draft: None,
+            clone_token: None,
+            archive_original: None,
+        }
+    }
+}
+
 /// How much of an upload has been sent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UploadProgress {

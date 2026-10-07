@@ -70,6 +70,9 @@ class AnyOperation(Protocol):
     @property
     def failure(self) -> AnyChannel: ...
 
+    @property
+    def reply_names(self) -> tuple[str, ...]: ...
+
 
 @final
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -79,3 +82,13 @@ class Operation[Request: WireModel, Result: WireModel, Failure: WireModel]:
     request: Channel[Request]
     result: Channel[Result]
     failure: Channel[Failure]
+
+    @property
+    def reply_names(self) -> tuple[str, ...]:
+        """What the reply states beside its `response`, by the names the wire gives them.
+
+        Each is a property of the request, which a gateway states again in its
+        reply: the id it answers for. Nothing, for most operations.
+        """
+        stated = self.result.payload.model_fields.items()
+        return tuple(wire for name, field in stated if field.is_required() and (wire := field.alias or name) != "response")

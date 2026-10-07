@@ -284,6 +284,7 @@ See [TESTING.md](../../docs/builder/react-ui/TESTING.md) for details.
 - [INTERNATIONALIZATION.md](../../docs/builder/react-ui/INTERNATIONALIZATION.md) - Translation approach
 - [TESTING.md](../../docs/builder/react-ui/TESTING.md) - Testing utilities and patterns
 - [API-INTEGRATION.md](../../docs/builder/react-ui/API-INTEGRATION.md) - Working with the Semiont API
+- [EVENTS.md](../../docs/builder/react-ui/EVENTS.md) - Subscribing and emitting from React, and reading the wire log
 - [COMPONENTS.md](../../docs/builder/react-ui/COMPONENTS.md) - Component library reference
 - [navigation-components.md](../../docs/builder/react-ui/navigation-components.md) - Navigation components (CollapsibleResourceNavigation, SimpleNavigation, NavigationMenu, ObservableLink)
 - [modal-components.md](../../docs/builder/react-ui/modal-components.md) - Modal components (SearchModal)

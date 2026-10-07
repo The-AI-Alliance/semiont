@@ -43,7 +43,7 @@ The [Introduction](./INTRODUCTION.md) explains these ideas. [Architecture](../ar
 
 The SDK is a library, not a service. It runs no process of its own: you give a client a transport and somewhere to keep its session, and it lives inside whatever you are building.
 
-- **A web app.** The TypeScript SDK in the page, with the session in the browser's storage. [`@semiont/react-ui`](#react-embedding-semiontreact-ui) adds the resource viewer and the annotation components. The Semiont Browser is built this way.
+- **A web app.** The TypeScript SDK in the page, with the session in the browser's storage. [`@semiont/react-ui`](../../packages/react-ui/README.md) adds the resource viewer and the annotation components. The Semiont Browser is built this way.
 - **A desktop app.** The TypeScript SDK in a webview, as Semiont's own desktop app has it, or the Rust SDK in a native one. A person signs in in their own browser and is sent back to the app.
 - **A mobile app.** The same shape as a desktop app. Nothing in the SDK assumes a browser or a server around it, and where a session is kept is an interface, so the app keeps it in the platform's own secure store.
 - **An ingestion or enrichment pipeline.** A script or a scheduled job, in any of the three languages. It signs in once, yields documents, and annotates them itself or has a model do it with `mark.assist` and follows the job.
@@ -73,32 +73,6 @@ The guides' examples are TypeScript. The namespaces, methods and behaviour are t
 - **[TypeScript](../../packages/sdk/README.md)**, `@semiont/sdk`: what the guides are written in.
 - **[Rust](../../packages/sdk-rust/README.md)**, the `semiont` crate: maps each TypeScript shape in these docs to its Rust form. [`semiont-http-transport`](../../packages/http-transport-rust/README.md) has the sessions and signing in.
 - **[Python](../../packages/sdk-python/README.md)**, the `semiont` package: runs on asyncio, and is checked by `mypy` and `pyright`, both strict. It has the client, live queries and sessions, and no state units and no registry of several knowledge bases.
-
-## React: embedding `@semiont/react-ui`
-
-[`react-ui/`](./react-ui/) is for a React application that embeds Semiont's
-components. Install and setup are in the package's
-[README](../../packages/react-ui/README.md).
-
-| Doc | Scope |
-|---|---|
-| [COMPONENTS.md](./react-ui/COMPONENTS.md) | The component library, by function. |
-| [ANNOTATIONS.md](./react-ui/ANNOTATIONS.md) | The annotation components, views and registry. |
-| [modal-components.md](./react-ui/modal-components.md) | The search and resource-selection modals. |
-| [navigation-components.md](./react-ui/navigation-components.md) | The sidebar and menu navigation. |
-| [API-INTEGRATION.md](./react-ui/API-INTEGRATION.md) | Getting the client, reading and writing data, events and errors from React. |
-| [ROUTING.md](./react-ui/ROUTING.md) | The `Link` and `routes` the host application supplies. |
-| [INTERNATIONALIZATION.md](./react-ui/INTERNATIONALIZATION.md) | `TranslationProvider`, with the built-in locales or your own. |
-| [ACCESSIBILITY.md](./react-ui/ACCESSIBILITY.md) | What the components provide for WCAG 2.1 AA, and the hooks. |
-| [FAVICON.md](./react-ui/FAVICON.md) | The branded favicon set. |
-| [STYLES.md](./react-ui/STYLES.md) | Importing the styles, debugging them, the design tokens, and the classes the components use. |
-| [SESSION.md](./react-ui/SESSION.md) | The session classes, the two buses, and the provider and hooks. |
-| [EVENTS.md](./react-ui/EVENTS.md) | Subscribing and emitting from React, and reading the wire log. |
-| [TESTING.md](./react-ui/TESTING.md) | The test utilities and how to test with them. |
-
-How react-ui is built inside is in
-[`packages/react-ui/docs`](../../packages/react-ui/docs/), including the
-internals behind the last four.
 
 ## Agent skills
 

@@ -15,10 +15,10 @@ context for a model, and hears what the other participants do as they do it.
 A person's application and an AI agent use the same client. The SDK does not
 tell them apart.
 
-It is a full peer of the [TypeScript SDK](../sdk/README.md): the same
-namespaces, methods and behaviour, held to the same
-[conformance suite](../../tests/conformance/sdk/README.md). The
-[Python SDK](../sdk-python/README.md) is held to it too. New to Semiont?
+It has the same namespaces, methods and behaviour as the
+[TypeScript SDK](../sdk/README.md) and the
+[Python SDK](../sdk-python/README.md), and the three are held to the same
+[conformance suite](../../tests/conformance/sdk/README.md). New to Semiont?
 The [Introduction](../../docs/builder/INTRODUCTION.md) explains the domain
 and the ideas the API falls out of. Its code is TypeScript, and the ideas
 are this crate's too.
@@ -38,7 +38,10 @@ Two crates, because the client does no networking of its own:
   it to a knowledge base's gateway and signs people and services in. Its
   README covers TLS and each way to sign in.
 
-A client is built and used inside a [Tokio](https://tokio.rs) runtime.
+A client is built and used inside a [Tokio](https://tokio.rs) runtime, and
+speaks to a running knowledge base. The
+[Quick Start](../../docs/builder/QUICK-START.md) sets one up on your own
+machine.
 
 | Feature | What it adds |
 |---|---|
@@ -88,6 +91,93 @@ attention. Each is a namespace of the client.
 trailing underscore. Beside the eight are `job`, and `auth` and `system`
 when the client has a gateway. What each flow means is in
 [docs/protocol/flows](../../docs/protocol/flows/README.md).
+
+## A first program
+
+From a signed-in client, this ingests a paper, has a model mark the concepts
+it mentions, gathers the context around it, and generates a summary grounded
+in that context. Those are the
+[Quick Start](../../docs/builder/QUICK-START.md)'s last two steps, from code,
+and the two that come next. [Connect](#connect) is how a client comes to be
+signed in.
+
+```rust
+// Ingest: the paper's bytes become a resource.
+let created = client
+    .yield_
+    .resource(PutBinaryRequest::new(
+        "Attention Is All You Need",
+        paper,
+        "application/pdf",
+        "file://papers/attention-is-all-you-need.pdf",
+    ))
+    .await?;
+let paper_id = created.resource_id;
+
+// Annotate: a model reads it and marks each mention of a concept.
+client
+    .mark
+    .assist(
+        &paper_id,
+        Motivation::Linking,
+        MarkAssistOptions {
+            entity_types: Some(vec!["Concept".to_owned()]),
+            ..MarkAssistOptions::default()
+        },
+    )
+    .await?;
+
+// Gather: the paper, its annotations, and what the knowledge base holds
+// around it.
+let context = client
+    .gather
+    .resource(&paper_id, GatherResourceRequestOptions::default())
+    .await?;
+
+// Generate: a new resource, grounded in that context and linked to its
+// source.
+let done = client
+    .yield_
+    .from_context(
+        GenerationJobParams {
+            task: Some("summary".to_owned()),
+            ..GenerationJobParams::new(
+                "Attention Is All You Need: a summary",
+                "file://generated/attention-summary.md",
+                context,
+            )
+        },
+        None,
+    )
+    .await?;
+let summary = match done {
+    JobEvent::Complete(JobCompleteCommand {
+        result: Some(JobResult::GenerationResult(generated)),
+        ..
+    }) => Some(generated.resource_id),
+    _ => None,
+};
+```
+
+A request that must state some things and may leave others out is made with
+`new`, from what it must state: `PutBinaryRequest::new` here, and
+`GenerationJobParams::new` with its `task` said beside it. Every such type of
+the protocol has one.
+
+Both resources, and every annotation the model made, are in the knowledge
+base for the next participant, person or agent, to read and build on.
+
+Where to go from here:
+
+- The [Developer Guide](../../docs/builder/DEVELOPER-GUIDE.md) has each of
+  these steps as a recipe, and the ones after them: reading, searching,
+  annotating by hand, reacting to what others do, and testing. Its code is
+  TypeScript, and [the table below](#from-the-typescript-sdk) maps each shape
+  to this crate's.
+- The [agent skills](../../docs/builder/skills/README.md) are whole scripts,
+  one per task, for an AI coding assistant to load: ingesting a corpus,
+  annotating it, linking it, and the layers built on those. They are
+  TypeScript as well.
 
 ## Three ways to use it
 
@@ -300,7 +390,9 @@ assert!(refused.is_err());
   and an `InMemoryContent`. `create_test_session` gives a real
   `SemiontSession` over one, ready at once.
 - `FaultyTransport` fails as a test scripts it: what the wire does to each
-  request, and what the gateway answers. `InMemoryContent` keeps what is
+  request, and what the gateway answers. A reply that names what it
+  answers for, as a gathered context names its resource, takes that from the
+  request, so a test queues the response alone. `InMemoryContent` keeps what is
   uploaded and fails a read of what nobody stored. `StubGateway` answers
   only what it was told to.
 - `ScriptedSessions` is a `SessionFactory` for a `SemiontBrowser`: each

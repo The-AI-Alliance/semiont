@@ -82,22 +82,12 @@ async fn an_upload_sent_again_with_a_renewed_token_never_reports_less_than_it_la
         bookmarks: None,
     });
     let bytes: Bytes = (0..300 * 1024).map(|i| (i % 251) as u8).collect();
-    let mut sending = HttpContentTransport::new(&transport).put_binary(PutBinaryRequest {
-        name: "Every byte".to_owned(),
+    let mut sending = HttpContentTransport::new(&transport).put_binary(PutBinaryRequest::new(
+        "Every byte",
         bytes,
-        format: "image/png".to_owned(),
-        storage_uri: "file://uploads/every-byte.png".to_owned(),
-        entity_types: Vec::new(),
-        language: None,
-        source_annotation_id: None,
-        source_resource_id: None,
-        generation_prompt: None,
-        generator: None,
-        job_id: None,
-        is_draft: None,
-        clone_token: None,
-        archive_original: None,
-    });
+        "image/png",
+        "file://uploads/every-byte.png",
+    ));
 
     let mut reports: Vec<UploadProgress> = Vec::new();
     while let Some(report) = sending.next().await {

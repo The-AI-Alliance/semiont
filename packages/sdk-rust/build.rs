@@ -172,6 +172,49 @@ fn main() {
         );
     }
     operations.push_str("];\n");
+    // What a reply states beside its response is its request's: the id it
+    // answers for. Read from the reply's schema, and refused here when the
+    // request does not state it too, since nothing could then say what it is.
+    operations.push_str(
+        "/// What an operation's reply states beside its `response`, by the request's channel: each a\n/// property of the request, which the reply states again. An operation that is not here states\n/// nothing beside it.\npub const REPLY_NAMES: &[(&str, &[&str])] = &[\n",
+    );
+    let schema_of = |channel: &str| {
+        let entry = channels
+            .iter()
+            .find(|c| c["channel"] == channel)
+            .unwrap_or_else(|| panic!("an operation names {channel}, which is no channel"));
+        (entry["shape"] == "schema")
+            .then(|| &definitions["definitions"][text(entry, "schema", channel)])
+    };
+    for op in list(&registry["operations"], "operations") {
+        let request = text(op, "request", "an operation");
+        let result = text(op, "result", "an operation");
+        let named: Vec<&str> = schema_of(result)
+            .and_then(|reply| reply["required"].as_array())
+            .map(|required| {
+                required
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .filter(|property| *property != "response")
+                    .collect()
+            })
+            .unwrap_or_default();
+        if named.is_empty() {
+            continue;
+        }
+        let asked = schema_of(request).unwrap_or_else(|| {
+            panic!("{result} names {named:?} beside its response, and {request} has no schema to state them")
+        });
+        for property in &named {
+            if asked["properties"].get(*property).is_none() {
+                panic!(
+                    "{result} names {property} beside its response, which {request} does not state"
+                );
+            }
+        }
+        let _ = writeln!(operations, "    ({request:?}, &{named:?}),");
+    }
+    operations.push_str("];\n");
     // One operation per service that holds inference credentials, each named
     // `<flow>:limits-requested`: a new key holder's joins by being registered.
     operations.push_str(
