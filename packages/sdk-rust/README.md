@@ -15,10 +15,10 @@ context for a model, and hears what the other participants do as they do it.
 A person's application and an AI agent use the same client. The SDK does not
 tell them apart.
 
-It is a full peer of the [TypeScript SDK](../sdk/README.md): the same
-namespaces, methods and behaviour, held to the same
-[conformance suite](../../tests/conformance/sdk/README.md). The
-[Python SDK](../sdk-python/README.md) is held to it too. New to Semiont?
+It has the same namespaces, methods and behaviour as the
+[TypeScript SDK](../sdk/README.md) and the
+[Python SDK](../sdk-python/README.md), and the three are held to the same
+[conformance suite](../../tests/conformance/sdk/README.md). New to Semiont?
 The [Introduction](../../docs/builder/INTRODUCTION.md) explains the domain
 and the ideas the API falls out of. Its code is TypeScript, and the ideas
 are this crate's too.
@@ -38,7 +38,10 @@ Two crates, because the client does no networking of its own:
   it to a knowledge base's gateway and signs people and services in. Its
   README covers TLS and each way to sign in.
 
-A client is built and used inside a [Tokio](https://tokio.rs) runtime.
+A client is built and used inside a [Tokio](https://tokio.rs) runtime, and
+speaks to a running knowledge base. The
+[Quick Start](../../docs/builder/QUICK-START.md) sets one up on your own
+machine.
 
 | Feature | What it adds |
 |---|---|
@@ -88,6 +91,105 @@ attention. Each is a namespace of the client.
 trailing underscore. Beside the eight are `job`, and `auth` and `system`
 when the client has a gateway. What each flow means is in
 [docs/protocol/flows](../../docs/protocol/flows/README.md).
+
+## A first program
+
+From a signed-in client, this ingests a paper, has a model mark the concepts
+it mentions, gathers the context around it, and generates a summary grounded
+in that context. Those are the
+[Quick Start](../../docs/builder/QUICK-START.md)'s last two steps, from code,
+and the two that come next. [Connect](#connect) is how a client comes to be
+signed in.
+
+```rust
+// Ingest: the paper's bytes become a resource.
+let created = client
+    .yield_
+    .resource(PutBinaryRequest {
+        name: "Attention Is All You Need".to_owned(),
+        bytes: paper,
+        format: "application/pdf".to_owned(),
+        storage_uri: "file://papers/attention-is-all-you-need.pdf".to_owned(),
+        entity_types: Vec::new(),
+        language: None,
+        source_annotation_id: None,
+        source_resource_id: None,
+        generation_prompt: None,
+        generator: None,
+        job_id: None,
+        is_draft: None,
+        clone_token: None,
+        archive_original: None,
+    })
+    .await?;
+let paper_id = created.resource_id;
+
+// Annotate: a model reads it and marks each mention of a concept.
+client
+    .mark
+    .assist(
+        &paper_id,
+        Motivation::Linking,
+        MarkAssistOptions {
+            entity_types: Some(vec!["Concept".to_owned()]),
+            ..MarkAssistOptions::default()
+        },
+    )
+    .await?;
+
+// Gather: the paper, its annotations, and what the knowledge base holds
+// around it.
+let context = client
+    .gather
+    .resource(&paper_id, GatherResourceRequestOptions::default())
+    .await?;
+
+// Generate: a new resource, grounded in that context and linked to its
+// source.
+let done = client
+    .yield_
+    .from_context(
+        GenerationJobParams {
+            title: "Attention Is All You Need: a summary".to_owned(),
+            storage_uri: "file://generated/attention-summary.md".to_owned(),
+            context,
+            task: Some("summary".to_owned()),
+            prompt: None,
+            entity_types: None,
+            language: None,
+            source_language: None,
+            temperature: None,
+            max_tokens: None,
+            output_media_type: None,
+            structure: None,
+            cite: None,
+        },
+        None,
+    )
+    .await?;
+let summary = match done {
+    JobEvent::Complete(JobCompleteCommand {
+        result: Some(JobResult::GenerationResult(generated)),
+        ..
+    }) => Some(generated.resource_id),
+    _ => None,
+};
+```
+
+Both resources, and every annotation the model made, are in the knowledge
+base for the next participant, person or agent, to read and build on.
+
+Where to go from here:
+
+- The [Developer Guide](../../docs/builder/DEVELOPER-GUIDE.md) has each of
+  these steps as a recipe, and the ones after them: reading, searching,
+  annotating by hand, reacting to what others do, and testing. Its code is
+  TypeScript, and [the table below](#from-the-typescript-sdk) maps each shape
+  to this crate's.
+- The [agent skills](../../docs/builder/skills/README.md) are whole scripts,
+  one per task, for an AI coding assistant to load: ingesting a corpus,
+  annotating it, linking it, and the layers built on those. They are
+  TypeScript as well.
 
 ## Three ways to use it
 

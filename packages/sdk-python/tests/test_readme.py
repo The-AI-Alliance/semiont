@@ -15,8 +15,8 @@ import pytest
 from aio import hurried, run, settle, soon
 from gateway_server import GatewayServer
 from issuer import AGENT, ALICE, ME, PENDING, SECRET, TOKEN, agent_token, issuer_of, minted, says, trusting
-from kb import knowing, recorded, refusing
-from readme import a_person, an_agent, content, live_queries, testing, the_bus, the_client
+from kb import answer, asked_for, knowing, recorded, refusing, silent
+from readme import a_first_program, a_person, an_agent, content, live_queries, testing, the_bus, the_client
 from spec import PACKAGE, JsonObject
 from tokens import token
 
@@ -25,7 +25,7 @@ from semiont.http import HttpTransport
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.operations import JOB_CLAIM
 from semiont.sign_in_store import FILE_NAME, SignInStore, state_dir, this_system
-from semiont.testing import FaultyTransport, create_test_client
+from semiont.testing import FaultyTransport, PutBinary, create_test_client
 from semiont.transport import Content, Frame
 from semiont.watched import Variable
 
@@ -63,7 +63,7 @@ async def until(what: str, seen: Callable[[], bool]) -> None:
 
 def test_every_python_block_of_the_readme_is_a_program_here_word_for_word_and_every_program_is_shown() -> None:
     shown = python_blocks(README)
-    assert len(PROGRAMS) >= 8
+    assert len(PROGRAMS) >= 9
     for block in shown:
         assert block in PROGRAMS.values(), f"a Python block of the README is not a program that is checked and run:\n{block}"
     for name, program in PROGRAMS.items():
@@ -150,6 +150,74 @@ def test_content_stores_a_page_reads_it_back_and_asks_the_gateway_who_it_is(caps
     sent, _, total = progress[-1].partition(" of ")
     assert sent == total
     assert (piece, me) == (str(len(page)), "did:web:example.org:users:alice ok")
+
+
+def test_a_first_program_ingests_a_paper_has_it_annotated_gathers_its_context_and_generates_a_summary() -> None:
+    paper = b"%PDF-1.7 the paper"
+    gathered: JsonObject = {
+        "focus": {
+            "kind": "resource",
+            "resource": {
+                "@context": "https://schema.org",
+                "@id": "test-content-1",
+                "name": "Attention Is All You Need",
+                "representations": [{"mediaType": "application/pdf"}],
+            },
+        },
+        "graph": {"nodes": [], "edges": []},
+        "metadata": {},
+    }
+
+    def completion(job: str, job_type: str, result: JsonObject) -> Frame:
+        return Frame(channel="job:complete", payload={"resourceId": "test-content-1", "jobId": job, "jobType": job_type, "result": result})
+
+    async def scenario() -> None:
+        # The test answers each request itself, so it says when each step is allowed to end.
+        made = create_test_client(transport=silent())
+
+        async def asked(operation: str, count: int) -> Frame:
+            await until(f"request {count} of {operation}", lambda: len(asked_for(made.transport, operation)) == count)
+            return asked_for(made.transport, operation)[-1]
+
+        async with made.client as client:
+            summarizing = asyncio.ensure_future(a_first_program.summarize(client, paper))
+
+            assist = await asked("job:create", 1)
+            answer(made.transport, assist, {"jobId": "job-1"})
+            # Nothing is gathered until the model has finished marking.
+            await settle()
+            assert asked_for(made.transport, "gather:resource-requested") == []
+            linked: JsonObject = {"kind": "reference-annotation", "totalFound": 3, "totalEmitted": 3, "errors": 0}
+            made.transport.deliver(completion("job-1", "reference-annotation", linked))
+
+            gather = await asked("gather:resource-requested", 1)
+            # This reply names its resource beside the response.
+            reply: JsonObject = {"resourceId": "test-content-1", "response": gathered}
+            made.transport.deliver(Frame(channel="gather:resource-complete", payload=reply, correlation_id=gather.correlation_id))
+
+            generation = await asked("job:create", 2)
+            answer(made.transport, generation, {"jobId": "job-2"})
+            generated: JsonObject = {"kind": "generation", "resourceId": "res-summary", "resourceName": "A summary", "truncated": False}
+            made.transport.deliver(completion("job-2", "generation", generated))
+            assert await soon(summarizing) == ResourceId("res-summary")
+
+        # The paper was uploaded as it was given, under the name and the place the program states.
+        [uploaded] = [call for call in made.content.calls if isinstance(call, PutBinary)]
+        assert (uploaded.request.file, uploaded.request.format) == (paper, "application/pdf")
+        assert uploaded.request.storage_uri == "file://papers/attention-is-all-you-need.pdf"
+        # It asked for concepts to be linked in that paper, gathered around it, and asked for a summary of what it gathered.
+        assert (assist.payload["jobType"], assist.payload["resourceId"]) == ("reference-annotation", "test-content-1")
+        assert assist.payload["params"] == {"entityTypes": ["Concept"]}
+        assert gather.payload["resourceId"] == "test-content-1"
+        assert generation.payload["jobType"] == "generation"
+        params = generation.payload["params"]
+        assert isinstance(params, dict)
+        assert (params["title"], params["task"]) == ("Attention Is All You Need: a summary", "summary")
+        assert params["storageUri"] == "file://generated/attention-summary.md"
+        assert params["context"] == gathered
+        await made.transport.close()
+
+    run(scenario())
 
 
 def test_the_client_annotates_over_the_doubles_and_over_http(capsys: pytest.CaptureFixture[str]) -> None:

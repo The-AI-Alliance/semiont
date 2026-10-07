@@ -2,6 +2,7 @@
 //! fenced Rust block of README.md is one of the regions marked here, word
 //! for word (`semiont::testing::examples`).
 
+use bytes::Bytes;
 use semiont::client::SemiontClient;
 use semiont::errors::SemiontError;
 use semiont::namespaces::{JobEvent, MarkAssistOptions};
@@ -14,10 +15,14 @@ use semiont::storage::SessionStorage;
 use semiont::testing::as_id;
 use semiont::testing::examples::assert_readme_shows;
 use semiont::testing::{
-    FaultyTransport, ScriptedSessions, SharedStorage, TestClientOptions, create_test_client,
+    ContentCall, FaultAction, FaultyTransport, RequestLogEntry, ScriptedSessions, SharedStorage,
+    TestClientOptions, create_test_client,
 };
-use semiont::transport::{BoxFuture, Envelope};
-use semiont::types::{InvalidIdentifier, JobCompleteCommand, Motivation, ResourceId};
+use semiont::transport::{BoxFuture, Envelope, Frame, PutBinaryRequest};
+use semiont::types::{
+    GatherResourceRequestOptions, GenerationJobParams, InvalidIdentifier, JobCompleteCommand,
+    JobResult, Motivation, ResourceId,
+};
 use serde_json::{Map, Value, json};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -35,6 +40,87 @@ fn ids() -> Result<ResourceId, InvalidIdentifier> {
     println!("{resource_id}, {} characters", resource_id.len());
     // </readme:ids>
     Ok(resource_id)
+}
+
+async fn a_first_program(
+    client: &SemiontClient,
+    paper: Bytes,
+) -> Result<Option<ResourceId>, SemiontError> {
+    // <readme:story>
+    // Ingest: the paper's bytes become a resource.
+    let created = client
+        .yield_
+        .resource(PutBinaryRequest {
+            name: "Attention Is All You Need".to_owned(),
+            bytes: paper,
+            format: "application/pdf".to_owned(),
+            storage_uri: "file://papers/attention-is-all-you-need.pdf".to_owned(),
+            entity_types: Vec::new(),
+            language: None,
+            source_annotation_id: None,
+            source_resource_id: None,
+            generation_prompt: None,
+            generator: None,
+            job_id: None,
+            is_draft: None,
+            clone_token: None,
+            archive_original: None,
+        })
+        .await?;
+    let paper_id = created.resource_id;
+
+    // Annotate: a model reads it and marks each mention of a concept.
+    client
+        .mark
+        .assist(
+            &paper_id,
+            Motivation::Linking,
+            MarkAssistOptions {
+                entity_types: Some(vec!["Concept".to_owned()]),
+                ..MarkAssistOptions::default()
+            },
+        )
+        .await?;
+
+    // Gather: the paper, its annotations, and what the knowledge base holds
+    // around it.
+    let context = client
+        .gather
+        .resource(&paper_id, GatherResourceRequestOptions::default())
+        .await?;
+
+    // Generate: a new resource, grounded in that context and linked to its
+    // source.
+    let done = client
+        .yield_
+        .from_context(
+            GenerationJobParams {
+                title: "Attention Is All You Need: a summary".to_owned(),
+                storage_uri: "file://generated/attention-summary.md".to_owned(),
+                context,
+                task: Some("summary".to_owned()),
+                prompt: None,
+                entity_types: None,
+                language: None,
+                source_language: None,
+                temperature: None,
+                max_tokens: None,
+                output_media_type: None,
+                structure: None,
+                cite: None,
+            },
+            None,
+        )
+        .await?;
+    let summary = match done {
+        JobEvent::Complete(JobCompleteCommand {
+            result: Some(JobResult::GenerationResult(generated)),
+            ..
+        }) => Some(generated.resource_id),
+        _ => None,
+    };
+    // </readme:story>
+    Ok(summary)
 }
 
 async fn a_script(
@@ -198,6 +284,158 @@ async fn the_script_asks_reads_and_awaits_a_job_to_its_completion() {
             "job:create"
         ]
     );
+}
+
+fn requests(transport: &FaultyTransport, channel: &str) -> Vec<RequestLogEntry> {
+    transport
+        .request_log()
+        .into_iter()
+        .filter(|entry| entry.channel == channel)
+        .collect()
+}
+
+/// Answer the `nth` request sent on `request` with a frame on `reply`.
+fn answer(transport: &FaultyTransport, request: &str, nth: usize, reply: &str, payload: Value) {
+    let asked = requests(transport, request)
+        .into_iter()
+        .nth(nth)
+        .unwrap_or_else(|| panic!("request #{nth} on {request} was not sent"));
+    transport.deliver(Frame {
+        channel: reply.to_owned(),
+        payload: object(payload),
+        correlation_id: asked.correlation_id,
+        scope: None,
+        trace: None,
+    });
+}
+
+#[tokio::test(start_paused = true)]
+async fn the_first_program_ingests_a_paper_has_it_annotated_gathers_its_context_and_generates_a_summary()
+ {
+    // Every request is heard and none is answered until the test answers it,
+    // so the test says when each step may end.
+    let test = create_test_client(TestClientOptions {
+        transport: Some(FaultyTransport::answering(
+            vec![FaultAction::DropReply],
+            |_, _| Ok(None),
+        )),
+        ..TestClientOptions::default()
+    });
+    let (client, program) = (test.client.clone(), test.client.clone());
+    let paper = Bytes::from_static(b"%PDF-1.7 the paper");
+    let sent = paper.clone();
+    let running = tokio::spawn(async move { a_first_program(&program, sent).await });
+    settle().await;
+
+    answer(
+        &test.transport,
+        "job:create",
+        0,
+        "job:created",
+        json!({ "response": { "jobId": "job-1" } }),
+    );
+    settle().await;
+    // Nothing is gathered until the model has finished marking.
+    assert!(requests(&test.transport, "gather:resource-requested").is_empty());
+    client.bus().emit(
+        "job:complete",
+        object(json!({
+            "resourceId": "test-content-1", "jobId": "job-1", "jobType": "reference-annotation",
+            "result": {
+                "kind": "reference-annotation", "totalFound": 3, "totalEmitted": 3, "errors": 0,
+            },
+        })),
+        Envelope::default(),
+    );
+    settle().await;
+
+    let gathered = json!({
+        "focus": { "kind": "resource", "resource": {
+            "@context": "https://schema.org", "@id": "test-content-1",
+            "name": "Attention Is All You Need",
+            "representations": [{ "mediaType": "application/pdf" }]
+        } },
+        "graph": { "nodes": [], "edges": [] },
+        "metadata": {}
+    });
+    // This reply names its resource beside the response.
+    answer(
+        &test.transport,
+        "gather:resource-requested",
+        0,
+        "gather:resource-complete",
+        json!({ "resourceId": "test-content-1", "response": gathered }),
+    );
+    settle().await;
+    answer(
+        &test.transport,
+        "job:create",
+        1,
+        "job:created",
+        json!({ "response": { "jobId": "job-2" } }),
+    );
+    settle().await;
+    client.bus().emit(
+        "job:complete",
+        object(json!({
+            "resourceId": "test-content-1", "jobId": "job-2", "jobType": "generation",
+            "result": {
+                "kind": "generation", "resourceId": "res-summary",
+                "resourceName": "A summary", "truncated": false,
+            },
+        })),
+        Envelope::default(),
+    );
+
+    let summary = tokio::time::timeout(Duration::from_secs(60), running)
+        .await
+        .expect("the program ends")
+        .expect("the program ran")
+        .expect("nothing failed");
+    assert_eq!(summary, Some(as_id("res-summary")));
+
+    // The paper was uploaded as it was given, under the name and the place
+    // the program states.
+    let uploads = test.content.calls();
+    let [ContentCall::PutBinary(uploaded)] = uploads.as_slice() else {
+        panic!("one upload, and nothing else asked of the content: {uploads:?}");
+    };
+    assert_eq!(
+        (&uploaded.bytes, uploaded.format.as_str()),
+        (&paper, "application/pdf")
+    );
+    assert_eq!(
+        uploaded.storage_uri,
+        "file://papers/attention-is-all-you-need.pdf"
+    );
+    // It asked for concepts to be linked in that paper, gathered around it,
+    // and asked for a summary of what it gathered.
+    let asked: Vec<String> = test
+        .transport
+        .request_log()
+        .into_iter()
+        .map(|entry| entry.channel)
+        .collect();
+    assert_eq!(
+        asked,
+        ["job:create", "gather:resource-requested", "job:create"]
+    );
+    let jobs = requests(&test.transport, "job:create");
+    assert_eq!(jobs[0].payload["jobType"], "reference-annotation");
+    assert_eq!(jobs[0].payload["resourceId"], "test-content-1");
+    assert_eq!(
+        jobs[0].payload["params"],
+        json!({ "entityTypes": ["Concept"] })
+    );
+    assert_eq!(jobs[1].payload["jobType"], "generation");
+    let params = &jobs[1].payload["params"];
+    assert_eq!(params["title"], "Attention Is All You Need: a summary");
+    assert_eq!(params["task"], "summary");
+    assert_eq!(
+        params["storageUri"],
+        "file://generated/attention-summary.md"
+    );
+    assert_eq!(params["context"], gathered);
 }
 
 #[tokio::test(start_paused = true)]
