@@ -8,8 +8,8 @@ package launcher
 // where each daemon listens is the launcher's to place at every start
 // (topology.go), so the file is the same on every machine. Bindings are
 // exactly the three-name roster (actors.gatherer, actors.matcher,
-// workers.default; resolveWorkerInference falls back to default); per-worker
-// refinement is the user's edit.
+// workers.default, which serves every job no other worker section does);
+// per-job refinement is the user's edit.
 //
 // Every generated config passes through the SAME vet as a template copy:
 // loadConfig + derivePlan on a temp file before the real name exists. A
@@ -110,9 +110,11 @@ func generateSemiontconfig(p genParams) string {
 		w(``)
 	}
 	if p.ModelLight != "" {
-		w(`# Per-worker refinement is yours to make. For example, a lighter`)
-		w(`# model for the high-volume annotation workers:`)
-		w(`# [environments.local.workers.tag-annotation.inference]`)
+		w(`# Per-job refinement is yours to make: workers.mark serves every`)
+		w(`# annotation job, workers.mark.<motivation> one motivation's, and`)
+		w(`# workers.yield the generation jobs. For example, a lighter model`)
+		w(`# for the high-volume annotation jobs:`)
+		w(`# [environments.local.workers.mark.inference]`)
 		w(`# type = %q`, p.Inference)
 		w(`# model = %q`, p.ModelLight)
 		w(``)

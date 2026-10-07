@@ -1,12 +1,14 @@
 {
   "type": "object",
-  "description": "Claim the NEXT pending job matching one of the requested types (atomic: pending → running). Claim-by-type replaced claim-by-jobId: a job:queued announcement is a WAKE-UP, not a reservation — the claimed job may differ from the announced one, and two workers claiming after one announcement both succeed on different jobs instead of racing for one. An empty `types` accepts any type. The reply channels are unchanged: job:claimed carries the claimed job; job:claim-failed reports nothing-available exactly as it reported already-claimed.",
+  "description": "Claim the NEXT pending job that matches one of `accepts` (atomic: pending → running). A job:queued announcement is a WAKE-UP, not a reservation: the claimed job may differ from the announced one, and two claims after one announcement both succeed on different jobs instead of racing for one. job:claimed carries the claimed job; job:claim-failed reports that nothing matching is pending.",
   "properties": {
-    "types": {
+    "accepts": {
       "type": "array",
       "items": {
-        "type": "string"
-      }
+        "$ref": "./JobFilter.json"
+      },
+      "minItems": 1,
+      "description": "The jobs this claim takes. A job is handed over when it matches any one of them."
     },
     "_userId": {
       "$ref": "./UserId.json",
@@ -21,6 +23,6 @@
     }
   },
   "required": [
-    "types"
+    "accepts"
   ]
 }

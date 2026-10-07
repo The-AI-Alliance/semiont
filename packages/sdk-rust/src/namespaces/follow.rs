@@ -46,9 +46,20 @@ pub enum JobEvent {
     Progress(JobProgress),
     /// An attempt failed and the queue will try again. The job is not over.
     Failed(JobFailCommand),
-    /// The job completed. A follower's last value.
+    /// The job completed. A follower's last event.
     Complete(JobCompleteCommand),
 }
+
+impl From<JobCompleteCommand> for JobEvent {
+    fn from(completion: JobCompleteCommand) -> JobEvent {
+        JobEvent::Complete(completion)
+    }
+}
+
+/// A job another party does (`mark.delegate`, `yield_.delegate`). Read as a
+/// stream it gives the job's events, the completion last; awaited it gives
+/// the completion.
+pub type Delegation = Running<JobEvent, JobCompleteCommand>;
 
 /// A job to create and follow.
 pub(crate) struct Following {
@@ -60,7 +71,7 @@ pub(crate) struct Following {
     pub stall: Option<Duration>,
 }
 
-pub(crate) fn follow(links: Links, following: Following) -> Running<JobEvent> {
+pub(crate) fn follow(links: Links, following: Following) -> Delegation {
     Running::new(move |reporter| followed(links, following, reporter))
 }
 
@@ -132,7 +143,7 @@ async fn followed(
     links: Links,
     following: Following,
     reporter: Reporter<JobEvent>,
-) -> Result<JobEvent, SemiontError> {
+) -> Result<JobCompleteCommand, SemiontError> {
     let Following {
         create,
         resource_id,
@@ -208,20 +219,14 @@ async fn followed(
                 if let Ok(status) = status {
                     match status.status {
                         JobStatusResponseStatus::Complete => {
-                            return Ok(JobEvent::Complete(JobCompleteCommand {
-                                _user_id: None,
-                                resource_id,
-                                job_id: status.job_id,
-                                job_type: status.r#type,
-                                attempt: None,
-                                annotation_id: None,
+                            return Ok(JobCompleteCommand {
                                 // A job completed without a result is stored with an empty one.
                                 result: match status.result {
                                     Some(JobStoredResult::JobResult(result)) => Some(result),
                                     Some(JobStoredResult::Empty(_)) | None => None,
                                 },
-                                durability: None,
-                            }));
+                                ..JobCompleteCommand::new(resource_id, status.job_id, status.r#type)
+                            });
                         }
                         JobStatusResponseStatus::Failed => {
                             return Err(failed(
@@ -245,8 +250,8 @@ async fn followed(
             }
             Step::Stalled => {
                 let Some(within) = stall else { continue };
-                // That job and no other: a cancellation by category would
-                // end every pending job of it, whoever asked for them. One
+                // That job and no other: a cancellation by type would end
+                // every pending job of it, whoever asked for them. One
                 // whose creation was never answered has no id, and there is
                 // nothing to cancel. Asked for on its own task: the follower
                 // ends here, and the request must outlive it.
@@ -288,7 +293,7 @@ async fn followed(
                     ask_at = Some(Instant::now() + links.timing.job_silence);
                     stall_at = stall.map(|within| Instant::now() + within);
                 }
-                Heard::Complete(frame) => return Ok(JobEvent::Complete(frame)),
+                Heard::Complete(frame) => return Ok(frame),
                 // The queue re-queues the job and another attempt continues
                 // it. The dead attempt's status is not asked for: the next
                 // attempt's first frame starts the silence again. The

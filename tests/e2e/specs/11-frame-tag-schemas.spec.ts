@@ -30,8 +30,8 @@ import { signInSession } from '../fixtures/sdk-session';
  *    unknown schemaId is a synchronous-at-job-creation error rather
  *    than a worker-time "Invalid tag schema".
  *
- * 4. **Tagging applies.** `mark.assist(rid, 'tagging', { schemaId,
- *    categories })` against a registered schema runs the LLM tagging
+ * 4. **Tagging applies.** `mark.delegate(rid, { motivation: 'tagging',
+ *    schemaId, categories })` against a registered schema runs the LLM tagging
  *    pass; the resulting annotations carry the canonical two-body
  *    shape — a `purpose: 'classifying'` `TextualBody` identifying the
  *    schema id, plus a `purpose: 'tagging'` `TextualBody` carrying
@@ -166,7 +166,8 @@ test.describe('frame tag-schema registry + tagging round-trip', () => {
       const targetId = ridBrand(target['@id']);
 
       await expect(
-        client.mark.assist(targetId, 'tagging', {
+        client.mark.delegate(targetId, {
+          motivation: 'tagging',
           schemaId: 'definitely-not-registered-schema-id',
           categories: ['Concept'],
         }),
@@ -175,17 +176,14 @@ test.describe('frame tag-schema registry + tagging round-trip', () => {
       // ── Phase 4: real tagging round-trip ──────────────────────────
       //
       // Run the LLM tagging pass against the registered schema.
-      // Awaiting the StreamObservable yields the last emit — a
-      // 'complete' event carrying the JobCompleteCommand. If the worker
-      // failed, the observable errors and the await rejects.
-      const finalEvent = await client.mark.assist(targetId, 'tagging', {
+      // Awaiting the delegation gives the job's completion (its
+      // JobCompleteCommand). If the worker failed, the await rejects.
+      const done = await client.mark.delegate(targetId, {
+        motivation: 'tagging',
         schemaId: E2E_TAG_SCHEMA.id,
         categories: E2E_TAG_SCHEMA.tags.map((t) => t.name),
       });
-      expect(
-        finalEvent.kind,
-        'mark.assist should complete with a `complete` event (not progress, not an error)',
-      ).toBe('complete');
+      expect(done.jobType, 'the tagging job is a `mark` job, and it completed').toBe('mark');
 
       // Walk the resource's annotations and pick out the ones this
       // run created — `motivation: 'tagging'` with a classifying body

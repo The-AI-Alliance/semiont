@@ -222,6 +222,45 @@ func (e ArchivistRosterRoleProvider) Valid() bool {
 	}
 }
 
+// Defines values for AssessingJobParamsMotivation.
+const (
+	AssessingJobParamsMotivationAssessing AssessingJobParamsMotivation = "assessing"
+)
+
+// Valid indicates whether the value is a known member of the AssessingJobParamsMotivation enum.
+func (e AssessingJobParamsMotivation) Valid() bool {
+	switch e {
+	case AssessingJobParamsMotivationAssessing:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AssessingJobParamsTone.
+const (
+	Analytical   AssessingJobParamsTone = "analytical"
+	Balanced     AssessingJobParamsTone = "balanced"
+	Constructive AssessingJobParamsTone = "constructive"
+	Critical     AssessingJobParamsTone = "critical"
+)
+
+// Valid indicates whether the value is a known member of the AssessingJobParamsTone enum.
+func (e AssessingJobParamsTone) Valid() bool {
+	switch e {
+	case Analytical:
+		return true
+	case Balanced:
+		return true
+	case Constructive:
+		return true
+	case Critical:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for BindBodyOperationOp.
 const (
 	BindBodyOperationOpAdd     BindBodyOperationOp = "add"
@@ -462,6 +501,45 @@ func (e CommandErrorCode) Valid() bool {
 	}
 }
 
+// Defines values for CommentingJobParamsMotivation.
+const (
+	CommentingJobParamsMotivationCommenting CommentingJobParamsMotivation = "commenting"
+)
+
+// Valid indicates whether the value is a known member of the CommentingJobParamsMotivation enum.
+func (e CommentingJobParamsMotivation) Valid() bool {
+	switch e {
+	case CommentingJobParamsMotivationCommenting:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CommentingJobParamsTone.
+const (
+	Conversational CommentingJobParamsTone = "conversational"
+	Explanatory    CommentingJobParamsTone = "explanatory"
+	Scholarly      CommentingJobParamsTone = "scholarly"
+	Technical      CommentingJobParamsTone = "technical"
+)
+
+// Valid indicates whether the value is a known member of the CommentingJobParamsTone enum.
+func (e CommentingJobParamsTone) Valid() bool {
+	switch e {
+	case Conversational:
+		return true
+	case Explanatory:
+		return true
+	case Scholarly:
+		return true
+	case Technical:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for DirEntryType.
 const (
 	Dir DirEntryType = "dir"
@@ -665,13 +743,13 @@ func (e ExtractionDeclinedDeclined) Valid() bool {
 
 // Defines values for ExtractionDeclinedKind.
 const (
-	ExtractionDeclinedKindDeclined ExtractionDeclinedKind = "declined"
+	Declined ExtractionDeclinedKind = "declined"
 )
 
 // Valid indicates whether the value is a known member of the ExtractionDeclinedKind enum.
 func (e ExtractionDeclinedKind) Valid() bool {
 	switch e {
-	case ExtractionDeclinedKindDeclined:
+	case Declined:
 		return true
 	default:
 		return false
@@ -852,33 +930,15 @@ func (e GraphResourceNodeType) Valid() bool {
 	}
 }
 
-// Defines values for JobAssessmentAnnotationResultKind.
+// Defines values for HighlightingJobParamsMotivation.
 const (
-	JobAssessmentAnnotationResultKindAssessmentAnnotation JobAssessmentAnnotationResultKind = "assessment-annotation"
+	Highlighting HighlightingJobParamsMotivation = "highlighting"
 )
 
-// Valid indicates whether the value is a known member of the JobAssessmentAnnotationResultKind enum.
-func (e JobAssessmentAnnotationResultKind) Valid() bool {
+// Valid indicates whether the value is a known member of the HighlightingJobParamsMotivation enum.
+func (e HighlightingJobParamsMotivation) Valid() bool {
 	switch e {
-	case JobAssessmentAnnotationResultKindAssessmentAnnotation:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for JobCancelRequestJobType.
-const (
-	JobCancelRequestJobTypeAnnotation JobCancelRequestJobType = "annotation"
-	JobCancelRequestJobTypeGeneration JobCancelRequestJobType = "generation"
-)
-
-// Valid indicates whether the value is a known member of the JobCancelRequestJobType enum.
-func (e JobCancelRequestJobType) Valid() bool {
-	switch e {
-	case JobCancelRequestJobTypeAnnotation:
-		return true
-	case JobCancelRequestJobTypeGeneration:
+	case Highlighting:
 		return true
 	default:
 		return false
@@ -894,21 +954,6 @@ const (
 func (e JobCancelledStatus) Valid() bool {
 	switch e {
 	case JobCancelledStatusCancelled:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for JobCommentAnnotationResultKind.
-const (
-	CommentAnnotation JobCommentAnnotationResultKind = "comment-annotation"
-)
-
-// Valid indicates whether the value is a known member of the JobCommentAnnotationResultKind enum.
-func (e JobCommentAnnotationResultKind) Valid() bool {
-	switch e {
-	case CommentAnnotation:
 		return true
 	default:
 		return false
@@ -939,21 +984,6 @@ const (
 func (e JobDeclinedResultDeclined) Valid() bool {
 	switch e {
 	case True:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for JobDeclinedResultKind.
-const (
-	JobDeclinedResultKindDeclined JobDeclinedResultKind = "declined"
-)
-
-// Valid indicates whether the value is a known member of the JobDeclinedResultKind enum.
-func (e JobDeclinedResultKind) Valid() bool {
-	switch e {
-	case JobDeclinedResultKindDeclined:
 		return true
 	default:
 		return false
@@ -996,36 +1026,6 @@ const (
 func (e JobFailedStatus) Valid() bool {
 	switch e {
 	case Failed:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for JobGenerationResultKind.
-const (
-	Generation JobGenerationResultKind = "generation"
-)
-
-// Valid indicates whether the value is a known member of the JobGenerationResultKind enum.
-func (e JobGenerationResultKind) Valid() bool {
-	switch e {
-	case Generation:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for JobHighlightAnnotationResultKind.
-const (
-	HighlightAnnotation JobHighlightAnnotationResultKind = "highlight-annotation"
-)
-
-// Valid indicates whether the value is a known member of the JobHighlightAnnotationResultKind enum.
-func (e JobHighlightAnnotationResultKind) Valid() bool {
-	switch e {
-	case HighlightAnnotation:
 		return true
 	default:
 		return false
@@ -1266,21 +1266,6 @@ func (e JobProgressLoadingCode) Valid() bool {
 	}
 }
 
-// Defines values for JobReferenceAnnotationResultKind.
-const (
-	ReferenceAnnotation JobReferenceAnnotationResultKind = "reference-annotation"
-)
-
-// Valid indicates whether the value is a known member of the JobReferenceAnnotationResultKind enum.
-func (e JobReferenceAnnotationResultKind) Valid() bool {
-	switch e {
-	case ReferenceAnnotation:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for JobRunningStatus.
 const (
 	Running JobRunningStatus = "running"
@@ -1323,45 +1308,18 @@ func (e JobStatusResponseStatus) Valid() bool {
 	}
 }
 
-// Defines values for JobTagAnnotationResultKind.
-const (
-	TagAnnotation JobTagAnnotationResultKind = "tag-annotation"
-)
-
-// Valid indicates whether the value is a known member of the JobTagAnnotationResultKind enum.
-func (e JobTagAnnotationResultKind) Valid() bool {
-	switch e {
-	case TagAnnotation:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for JobType.
 const (
-	JobTypeAssessmentAnnotation JobType = "assessment-annotation"
-	JobTypeCommentAnnotation    JobType = "comment-annotation"
-	JobTypeGeneration           JobType = "generation"
-	JobTypeHighlightAnnotation  JobType = "highlight-annotation"
-	JobTypeReferenceAnnotation  JobType = "reference-annotation"
-	JobTypeTagAnnotation        JobType = "tag-annotation"
+	JobTypeMark  JobType = "mark"
+	JobTypeYield JobType = "yield"
 )
 
 // Valid indicates whether the value is a known member of the JobType enum.
 func (e JobType) Valid() bool {
 	switch e {
-	case JobTypeAssessmentAnnotation:
+	case JobTypeMark:
 		return true
-	case JobTypeCommentAnnotation:
-		return true
-	case JobTypeGeneration:
-		return true
-	case JobTypeHighlightAnnotation:
-		return true
-	case JobTypeReferenceAnnotation:
-		return true
-	case JobTypeTagAnnotation:
+	case JobTypeYield:
 		return true
 	default:
 		return false
@@ -1386,6 +1344,21 @@ func (e LimitRefusalCode) Valid() bool {
 	case Streams:
 		return true
 	case UnansweredRequests:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LinkingJobParamsMotivation.
+const (
+	Linking LinkingJobParamsMotivation = "linking"
+)
+
+// Valid indicates whether the value is a known member of the LinkingJobParamsMotivation enum.
+func (e LinkingJobParamsMotivation) Valid() bool {
+	switch e {
+	case Linking:
 		return true
 	default:
 		return false
@@ -1437,36 +1410,45 @@ func (e LogLevel) Valid() bool {
 	}
 }
 
-// Defines values for MarkAssistRequestEventOptionsTone.
+// Defines values for MarkJobCreateCommandJobType.
 const (
-	Analytical     MarkAssistRequestEventOptionsTone = "analytical"
-	Balanced       MarkAssistRequestEventOptionsTone = "balanced"
-	Constructive   MarkAssistRequestEventOptionsTone = "constructive"
-	Conversational MarkAssistRequestEventOptionsTone = "conversational"
-	Critical       MarkAssistRequestEventOptionsTone = "critical"
-	Explanatory    MarkAssistRequestEventOptionsTone = "explanatory"
-	Scholarly      MarkAssistRequestEventOptionsTone = "scholarly"
-	Technical      MarkAssistRequestEventOptionsTone = "technical"
+	MarkJobCreateCommandJobTypeMark MarkJobCreateCommandJobType = "mark"
 )
 
-// Valid indicates whether the value is a known member of the MarkAssistRequestEventOptionsTone enum.
-func (e MarkAssistRequestEventOptionsTone) Valid() bool {
+// Valid indicates whether the value is a known member of the MarkJobCreateCommandJobType enum.
+func (e MarkJobCreateCommandJobType) Valid() bool {
 	switch e {
-	case Analytical:
+	case MarkJobCreateCommandJobTypeMark:
 		return true
-	case Balanced:
+	default:
+		return false
+	}
+}
+
+// Defines values for MarkJobFilterJobType.
+const (
+	MarkJobFilterJobTypeMark MarkJobFilterJobType = "mark"
+)
+
+// Valid indicates whether the value is a known member of the MarkJobFilterJobType enum.
+func (e MarkJobFilterJobType) Valid() bool {
+	switch e {
+	case MarkJobFilterJobTypeMark:
 		return true
-	case Constructive:
-		return true
-	case Conversational:
-		return true
-	case Critical:
-		return true
-	case Explanatory:
-		return true
-	case Scholarly:
-		return true
-	case Technical:
+	default:
+		return false
+	}
+}
+
+// Defines values for MarkJobQueuedEventJobType.
+const (
+	MarkJobQueuedEventJobTypeMark MarkJobQueuedEventJobType = "mark"
+)
+
+// Valid indicates whether the value is a known member of the MarkJobQueuedEventJobType enum.
+func (e MarkJobQueuedEventJobType) Valid() bool {
+	switch e {
+	case MarkJobQueuedEventJobTypeMark:
 		return true
 	default:
 		return false
@@ -1881,6 +1863,21 @@ func (e SvgSelectorType) Valid() bool {
 	}
 }
 
+// Defines values for TaggingJobParamsMotivation.
+const (
+	Tagging TaggingJobParamsMotivation = "tagging"
+)
+
+// Valid indicates whether the value is a known member of the TaggingJobParamsMotivation enum.
+func (e TaggingJobParamsMotivation) Valid() bool {
+	switch e {
+	case Tagging:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for TextPositionSelectorType.
 const (
 	TextPositionSelectorTypeTextPositionSelector TextPositionSelectorType = "TextPositionSelector"
@@ -1920,6 +1917,51 @@ const (
 func (e TextualBodyType) Valid() bool {
 	switch e {
 	case TextualBodyTypeTextualBody:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for YieldJobCreateCommandJobType.
+const (
+	YieldJobCreateCommandJobTypeYield YieldJobCreateCommandJobType = "yield"
+)
+
+// Valid indicates whether the value is a known member of the YieldJobCreateCommandJobType enum.
+func (e YieldJobCreateCommandJobType) Valid() bool {
+	switch e {
+	case YieldJobCreateCommandJobTypeYield:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for YieldJobFilterJobType.
+const (
+	YieldJobFilterJobTypeYield YieldJobFilterJobType = "yield"
+)
+
+// Valid indicates whether the value is a known member of the YieldJobFilterJobType enum.
+func (e YieldJobFilterJobType) Valid() bool {
+	switch e {
+	case YieldJobFilterJobTypeYield:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for YieldJobQueuedEventJobType.
+const (
+	Yield YieldJobQueuedEventJobType = "yield"
+)
+
+// Valid indicates whether the value is a known member of the YieldJobQueuedEventJobType enum.
+func (e YieldJobQueuedEventJobType) Valid() bool {
+	switch e {
+	case Yield:
 		return true
 	default:
 		return false
@@ -2340,25 +2382,28 @@ type ArchivistRoster struct {
 		Matcher *ArchivistRosterRole `json:"matcher,omitempty"`
 	} `json:"actors"`
 
-	// Workers The agent serving each job type.
+	// Workers The agent serving each job, keyed as a job description is: by `jobType`, and for `mark` by motivation.
 	Workers struct {
-		// AssessmentAnnotation The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
-		AssessmentAnnotation *ArchivistRosterRole `json:"assessment-annotation,omitempty"`
+		// Mark The agent serving `mark` jobs of each motivation.
+		Mark *struct {
+			// Assessing The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+			Assessing *ArchivistRosterRole `json:"assessing,omitempty"`
 
-		// CommentAnnotation The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
-		CommentAnnotation *ArchivistRosterRole `json:"comment-annotation,omitempty"`
+			// Commenting The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+			Commenting *ArchivistRosterRole `json:"commenting,omitempty"`
 
-		// Generation The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
-		Generation *ArchivistRosterRole `json:"generation,omitempty"`
+			// Highlighting The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+			Highlighting *ArchivistRosterRole `json:"highlighting,omitempty"`
 
-		// HighlightAnnotation The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
-		HighlightAnnotation *ArchivistRosterRole `json:"highlight-annotation,omitempty"`
+			// Linking The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+			Linking *ArchivistRosterRole `json:"linking,omitempty"`
 
-		// ReferenceAnnotation The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
-		ReferenceAnnotation *ArchivistRosterRole `json:"reference-annotation,omitempty"`
+			// Tagging The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+			Tagging *ArchivistRosterRole `json:"tagging,omitempty"`
+		} `json:"mark,omitempty"`
 
-		// TagAnnotation The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
-		TagAnnotation *ArchivistRosterRole `json:"tag-annotation,omitempty"`
+		// Yield The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+		Yield *ArchivistRosterRole `json:"yield,omitempty"`
 	} `json:"workers"`
 }
 
@@ -2373,6 +2418,31 @@ type ArchivistRosterRole struct {
 
 // ArchivistRosterRoleProvider The inference provider.
 type ArchivistRosterRoleProvider string
+
+// AssessingJobParams What an assessing job takes: passages of the resource are marked, each with an assessment the model writes.
+type AssessingJobParams struct {
+	// Density How many annotations to aim for per 2000 words of the resource.
+	Density *float32 `json:"density,omitempty"`
+
+	// Instructions What to look for, in the caller's words. Added to the prompt.
+	Instructions *string `json:"instructions,omitempty"`
+
+	// Language The language the annotations' own text is written in. BCP 47.
+	Language   *string                      `json:"language,omitempty"`
+	Motivation AssessingJobParamsMotivation `json:"motivation"`
+
+	// SourceLanguage The language of the resource being read. BCP 47.
+	SourceLanguage *string `json:"sourceLanguage,omitempty"`
+
+	// Tone The stance the assessments are written from.
+	Tone *AssessingJobParamsTone `json:"tone,omitempty"`
+}
+
+// AssessingJobParamsMotivation defines model for AssessingJobParams.Motivation.
+type AssessingJobParamsMotivation string
+
+// AssessingJobParamsTone The stance the assessments are written from.
+type AssessingJobParamsTone string
 
 // AttributedEvent defines model for AttributedEvent.
 type AttributedEvent struct {
@@ -2900,13 +2970,13 @@ type CloneResourceWithTokenResponse struct {
 	Token string `json:"token"`
 }
 
-// CollaboratorEntry One collaborator in the KB's directory: a W3C Agent plus, for software agents declared in the KB's worker inference config, the job types it serves. Actor-role-only agents (gatherer/matcher) and Persons omit servesJobTypes. The directory carries no inference limits: the services that hold the inference credentials report those (InferenceLimitsResult).
+// CollaboratorEntry One collaborator in the KB's directory: a W3C Agent plus, for software agents declared in the KB's worker inference config, the jobs it serves. Actor-role-only agents (gatherer/matcher) and Persons omit `serves`. The directory carries no inference limits: the services that hold the inference credentials report those (InferenceLimitsResult).
 type CollaboratorEntry struct {
 	// Agent Web Annotation / W3C PROV Agent. Discriminated by @type — Person, Organization, or Software (named member schemas: AgentPerson, AgentOrganization, AgentSoftware). Software peers are first-class participants, not a sub-class of Person.
 	Agent Agent `json:"agent"`
 
-	// ServesJobTypes Job types this agent is declared to serve (from the KB's workers.* config sections). Absent for Persons and for agents declared only under actor roles.
-	ServesJobTypes *[]JobType `json:"servesJobTypes,omitempty"`
+	// Serves The jobs this agent is declared to serve (from the KB's workers.* config sections), as a claim would name them. Absent for Persons and for agents declared only under actor roles.
+	Serves *[]JobFilter `json:"serves,omitempty"`
 }
 
 // CommandError Error response for failed bus commands. Replaces native Error objects on the EventBus so payloads are serializable and OpenAPI-typed.
@@ -2923,6 +2993,31 @@ type CommandError struct {
 
 // CommandErrorCode Machine-readable failure class, for consumers that must BRANCH on why a command failed rather than log it. Optional and deliberately sparse: absent means 'no class declared', and every existing failure stays that way. An enum rather than a free string so the vocabulary has an owner — an unconstrained code is a mirror with no gate, and adding one should be a deliberate spec change. `message` remains the human-readable text and is unaffected. Members: `peer-unavailable` — the channel this command was sent on has no subscriber, i.e. the service that answers it has not connected yet. Transient by nature (a peer still starting), which is what distinguishes it from a refusal: retrying is the correct response. `not-found` — the resource this command addressed does not exist in this knowledge base. A verdict, not a symptom: it is emitted only where the answer comes from the event store, which is the system of record, and never from a projection that may merely be lagging. Deterministic, so unlike `peer-unavailable` retrying is pointless — and consumers may act destructively on it (the SDK deletes a restored tab). Absence is not denial: a future 'exists, but not for you' must travel as its own code, never as this one. `unauthorized` — that code: the caller is authenticated but not permitted to do what it asked. A verdict about the CALLER, not the resource, so retrying under the same credential cannot succeed and a consumer must never spin on it; emitted by `job:claim` for a caller whose token carries no worker role. `none-pending` — a declined claim, not an error: the queue holds no pending job of the requested types. Nothing went wrong; the one code a consumer PARKS on, meaning 'nothing to do until a wake-up'. Emitted by `job:claim` only. A `job:claim` refusal carrying neither is unclassified — a malformed record or a missing injection — and a consumer treats it as 'log it, assume nothing'.
 type CommandErrorCode string
+
+// CommentingJobParams What a commenting job takes: passages of the resource are marked, each with a comment the model writes.
+type CommentingJobParams struct {
+	// Density How many annotations to aim for per 2000 words of the resource.
+	Density *float32 `json:"density,omitempty"`
+
+	// Instructions What to look for, in the caller's words. Added to the prompt.
+	Instructions *string `json:"instructions,omitempty"`
+
+	// Language The language the annotations' own text is written in. BCP 47.
+	Language   *string                       `json:"language,omitempty"`
+	Motivation CommentingJobParamsMotivation `json:"motivation"`
+
+	// SourceLanguage The language of the resource being read. BCP 47.
+	SourceLanguage *string `json:"sourceLanguage,omitempty"`
+
+	// Tone The voice the comments are written in.
+	Tone *CommentingJobParamsTone `json:"tone,omitempty"`
+}
+
+// CommentingJobParamsMotivation defines model for CommentingJobParams.Motivation.
+type CommentingJobParamsMotivation string
+
+// CommentingJobParamsTone The voice the comments are written in.
+type CommentingJobParamsTone string
 
 // ContentFormat Content format as a MIME type, optionally with parameters. The base type (everything before the first ';') MUST be a SupportedMediaType; parameters such as charset are preserved as metadata. Semantic validation happens in code at the create/yield boundary — there is deliberately no pattern here, the vocabulary lives in SupportedMediaType. Examples: text/plain, text/plain; charset=iso-8859-1, text/markdown; charset=windows-1252, image/png, application/pdf
 type ContentFormat = string
@@ -3565,7 +3660,7 @@ type GatheredContext_Focus struct {
 	union json.RawMessage
 }
 
-// GenerationJobParams Params bag for `job:create` with `jobType: 'generation'` — exactly the shape yield.fromContext(context, options) takes: options + the gathered context. The job's ids are DERIVED from context.focus at the dispatcher (resource focus → focus.resource; annotation focus → focus.sourceResource, with the worker auto-binding to focus.annotation); a caller-supplied referenceId is rejected. Carried inside JobCreateCommand.params; this schema is the generation shape's contract, including its requiredness.
+// GenerationJobParams defines model for GenerationJobParams.
 type GenerationJobParams struct {
 	// Cite Ask the model to cite: emit [[<id>]] transport tokens after each claim, using the ids the context embedding provides. The worker validates each id against the embedded context (unknown ids are dropped loudly), strips the tokens from the stored content, and mints W3C linking annotations on the derived resource.
 	Cite *bool `json:"cite,omitempty"`
@@ -3591,7 +3686,7 @@ type GenerationJobParams struct {
 	// SourceLanguage Source-resource locale — language of the resource being referenced, used in the prompt so the LLM understands embedded source-context snippets when source ≠ target language. BCP-47.
 	SourceLanguage *string `json:"sourceLanguage,omitempty"`
 
-	// StorageUri Storage URI for the generated resource's content — AUTHORITATIVE: the worker writes exactly here and never derives a location from the title. Non-empty, and there is no fallback; the dispatcher and worker both reject an empty value via isGenerationJobParams. NOTE minLength is documentation here — JobCreateCommand.params is additionalProperties:true, so /bus/emit's generated validator never sees this field.
+	// StorageUri Storage URI for the generated resource's content — AUTHORITATIVE: the worker writes exactly here and never derives a location from the title. Not empty, and there is no fallback: the gateway refuses a `job:create` whose storageUri is.
 	StorageUri string `json:"storageUri"`
 
 	// Structure How the output is internally segmented — shape for text-bearing media, subordinate to `outputMediaType` (never its peer). Canonical values: 'prose' (flowing paragraphs), 'sections' (titled sections + title), 'chat' (speaker-labeled turns); any other string becomes a freeform "organize as: …" directive (loud degrade). Unset ⇒ NO structure directive at all — the task framing and the model determine shape.
@@ -3603,7 +3698,46 @@ type GenerationJobParams struct {
 	// Temperature Sampling temperature forwarded to the model.
 	Temperature *float32 `json:"temperature,omitempty"`
 
-	// Title Title of the generated resource. Non-empty: the dispatcher and worker both reject an empty title via isGenerationJobParams. NOTE minLength is documentation here — JobCreateCommand.params is additionalProperties:true, so /bus/emit's generated validator never sees this field.
+	// Title Title of the generated resource. Not empty: the gateway refuses a `job:create` whose title is.
+	Title string `json:"title"`
+}
+
+// GenerationJobRequest What a `yield` job is asked to make: every parameter of GenerationJobParams but its `context`, the input the resource is made from. It is what an announcement of the job carries.
+type GenerationJobRequest struct {
+	// Cite Ask the model to cite: emit [[<id>]] transport tokens after each claim, using the ids the context embedding provides. The worker validates each id against the embedded context (unknown ids are dropped loudly), strips the tokens from the stored content, and mints W3C linking annotations on the derived resource.
+	Cite *bool `json:"cite,omitempty"`
+
+	// EntityTypes Entity-type tags to stamp on the synthesized resource. Used both as a prompt bias for the generation worker and as the `entityTypes` set on the resulting resource.
+	EntityTypes *[]string `json:"entityTypes,omitempty"`
+
+	// Language Annotation/resource body locale — language the generated resource is written in (typically the user's UI locale). BCP-47.
+	Language *string `json:"language,omitempty"`
+
+	// MaxTokens Output token budget forwarded to the model. Length never determines structure.
+	MaxTokens *float32 `json:"maxTokens,omitempty"`
+
+	// OutputMediaType Base MIME types (no parameters) admitted by Semiont. Membership is the create/yield gate — every member is storable, nameable, and uploadable. What more the system can do with a type (render, annotate, extract text, author) is curated per type in @semiont/core's media-type registry, which is keyed by this enum.
+	OutputMediaType *SupportedMediaType `json:"outputMediaType,omitempty"`
+
+	// Prompt Refining instruction, composed with `task` (task = what, prompt = how).
+	Prompt *string `json:"prompt,omitempty"`
+
+	// SourceLanguage Source-resource locale — language of the resource being referenced, used in the prompt so the LLM understands embedded source-context snippets when source ≠ target language. BCP-47.
+	SourceLanguage *string `json:"sourceLanguage,omitempty"`
+
+	// StorageUri Storage URI for the generated resource's content — AUTHORITATIVE: the worker writes exactly here and never derives a location from the title. Not empty, and there is no fallback: the gateway refuses a `job:create` whose storageUri is.
+	StorageUri string `json:"storageUri"`
+
+	// Structure How the output is internally segmented — shape for text-bearing media, subordinate to `outputMediaType` (never its peer). Canonical values: 'prose' (flowing paragraphs), 'sections' (titled sections + title), 'chat' (speaker-labeled turns); any other string becomes a freeform "organize as: …" directive (loud degrade). Unset ⇒ NO structure directive at all — the task framing and the model determine shape.
+	Structure *string `json:"structure,omitempty"`
+
+	// Task What the model is asked to produce — the prompt's framing verb. Canonical values ('resource', 'answer', 'summary') map to the worker's tested framings; any other string is used VERBATIM as the framing instruction (loud degrade: the worker warns, never silently falls back). Unset ⇒ 'resource' (article framing).
+	Task *string `json:"task,omitempty"`
+
+	// Temperature Sampling temperature forwarded to the model.
+	Temperature *float32 `json:"temperature,omitempty"`
+
+	// Title Title of the generated resource. Not empty: the gateway refuses a `job:create` whose title is.
 	Title string `json:"title"`
 }
 
@@ -3740,6 +3874,22 @@ type HealthResponse struct {
 	Version   string `json:"version"`
 }
 
+// HighlightingJobParams What a highlighting job takes: passages of the resource worth a reader's attention are marked, with no text of the job's own.
+type HighlightingJobParams struct {
+	// Density How many annotations to aim for per 2000 words of the resource.
+	Density *float32 `json:"density,omitempty"`
+
+	// Instructions What to look for, in the caller's words. Added to the prompt.
+	Instructions *string                         `json:"instructions,omitempty"`
+	Motivation   HighlightingJobParamsMotivation `json:"motivation"`
+
+	// SourceLanguage The language of the resource being read. BCP 47.
+	SourceLanguage *string `json:"sourceLanguage,omitempty"`
+}
+
+// HighlightingJobParamsMotivation defines model for HighlightingJobParams.Motivation.
+type HighlightingJobParamsMotivation string
+
 // InferenceLimits A provider's actual ceilings for a model, discovered from the provider itself (Anthropic Models API; Ollama /api/show) — never hand-maintained constants. Semantics differ by provider shape: Anthropic reports maximum input tokens in contextTokens with a separate output ceiling in maxOutputTokens; Ollama reports the shared input+output window and mirrors it into both fields (there is no separate output ceiling), so maxOutputTokens === contextTokens signals a shared window.
 type InferenceLimits struct {
 	// AcceptsTemperature Whether this agent's model accepts a caller-supplied sampling temperature, measured against the provider (Anthropic: an active probe at discovery, because some models reject the parameter outright and the Models API does not say; Ollama: always true). Consumers treat only an explicit false as 'hide temperature controls' — absence means no claim.
@@ -3779,18 +3929,6 @@ type Job struct {
 	union json.RawMessage
 }
 
-// JobAssessmentAnnotationResult Result of a completed assessment-annotation job.
-type JobAssessmentAnnotationResult struct {
-	AssessmentsCreated int `json:"assessmentsCreated"`
-	AssessmentsFound   int `json:"assessmentsFound"`
-
-	// Kind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is.
-	Kind JobAssessmentAnnotationResultKind `json:"kind"`
-}
-
-// JobAssessmentAnnotationResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is.
-type JobAssessmentAnnotationResultKind string
-
 // JobAssignCommand Bus command the dispatcher emits, under its own service identity, immediately after it accepts a job:claim — the correlated job:claimed reply is unchanged. The Stower persists it as job:assigned. It is the one fact only the dispatcher can vouch for: which holder took which job, and who requested it. A later write citing `jobId` is checked against the holder and its `creator` derived from the requester by reading the resource's own log, with nothing outside the record.
 type JobAssignCommand struct {
 	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
@@ -3802,7 +3940,7 @@ type JobAssignCommand struct {
 	// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
 	JobId JobId `json:"jobId"`
 
-	// JobType Type of background job
+	// JobType What a job does, as the verb that asks for it: `mark` annotates a resource, `yield` makes one. A job description is its `jobType` and the parameters that verb takes; a `mark` job's parameters state its motivation.
 	JobType JobType `json:"jobType"`
 
 	// Requester The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
@@ -3820,7 +3958,7 @@ type JobAssignedPayload struct {
 	// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
 	JobId JobId `json:"jobId"`
 
-	// JobType Type of background job
+	// JobType What a job does, as the verb that asks for it: `mark` annotates a resource, `yield` makes one. A job description is its `jobType` and the parameters that verb takes; a `mark` job's parameters state its motivation.
 	JobType JobType `json:"jobType"`
 
 	// Requester The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
@@ -3844,7 +3982,7 @@ type JobCancelCommand struct {
 	// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
 	JobId JobId `json:"jobId"`
 
-	// JobType Type of background job
+	// JobType What a job does, as the verb that asks for it: `mark` annotates a resource, `yield` makes one. A job description is its `jobType` and the parameters that verb takes; a `mark` job's parameters state its motivation.
 	JobType JobType `json:"jobType"`
 
 	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
@@ -3854,17 +3992,14 @@ type JobCancelCommand struct {
 	UnitCursors *map[string]UnitCursor `json:"unitCursors,omitempty"`
 }
 
-// JobCancelRequest Request to cancel a job. Target one running or pending job by `jobId`, or a whole category of pending jobs by `jobType`. A `jobId`-targeted request that names a RUNNING job is honoured cooperatively by the owning worker, which stops at its next unit boundary and emits JobCancelCommand — the queue is never made to yank a running job out from under a live worker.
+// JobCancelRequest Request to cancel a job. Target one running or pending job by `jobId`, or every pending job of one `jobType`. A `jobId`-targeted request that names a RUNNING job is honoured cooperatively by the owning worker, which stops at its next unit boundary and emits JobCancelCommand — the queue is never made to yank a running job out from under a live worker.
 type JobCancelRequest struct {
 	// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
 	JobId *JobId `json:"jobId,omitempty"`
 
-	// JobType Cancel all PENDING jobs in this category — the bulk UI signal. Ignored when jobId is present.
-	JobType *JobCancelRequestJobType `json:"jobType,omitempty"`
+	// JobType What a job does, as the verb that asks for it: `mark` annotates a resource, `yield` makes one. A job description is its `jobType` and the parameters that verb takes; a `mark` job's parameters state its motivation.
+	JobType *JobType `json:"jobType,omitempty"`
 }
-
-// JobCancelRequestJobType Cancel all PENDING jobs in this category — the bulk UI signal. Ignored when jobId is present.
-type JobCancelRequestJobType string
 
 // JobCancelResult What a cancel did, in the `response` of `job:cancel-ok`: how many jobs it cancelled. A pending job is cancelled outright; a running one is left to its worker, so for it the count means accepted, not stopped.
 type JobCancelResult struct {
@@ -3880,7 +4015,7 @@ type JobCancelled struct {
 	// Metadata What the dispatcher records about a job beside its parameters. `completedUnits` and `unitCursors` appear once a worker has checkpointed. `retryCount` counts the times the queue has put the job back to pending after a failure it classes as transient.
 	Metadata JobMetadata `json:"metadata"`
 
-	// Params The parameters a job was created with: the `params` of its `job:create`, with the resource the job is about under `resourceId`. For generation the dispatcher derives that resource from the context's focus; for every other type it is the request's `resourceId`. The other fields depend on the job type and are carried as the caller sent them.
+	// Params A job's parameters as the Dispatcher holds them: the `params` of its `job:create`, and what the Dispatcher adds. It adds `resourceId`, the resource the job is about: a `mark` job's own, and for a `yield` job the one its context focuses on. For a tagging job it adds `schema`, the tag schema its `schemaId` names, so that whoever holds the job needs no registry. Nothing the caller sent is changed or removed.
 	Params JobParams `json:"params"`
 
 	// StartedAt When its claim was made; absent when it was cancelled while pending.
@@ -3906,14 +4041,16 @@ type JobCheckpointCommand struct {
 	UnitCursors *map[string]UnitCursor `json:"unitCursors,omitempty"`
 }
 
-// JobClaimCommand Claim the NEXT pending job matching one of the requested types (atomic: pending → running). Claim-by-type replaced claim-by-jobId: a job:queued announcement is a WAKE-UP, not a reservation — the claimed job may differ from the announced one, and two workers claiming after one announcement both succeed on different jobs instead of racing for one. An empty `types` accepts any type. The reply channels are unchanged: job:claimed carries the claimed job; job:claim-failed reports nothing-available exactly as it reported already-claimed.
+// JobClaimCommand Claim the NEXT pending job that matches one of `accepts` (atomic: pending → running). A job:queued announcement is a WAKE-UP, not a reservation: the claimed job may differ from the announced one, and two claims after one announcement both succeed on different jobs instead of racing for one. job:claimed carries the claimed job; job:claim-failed reports that nothing matching is pending.
 type JobClaimCommand struct {
 	// UnderscoreRoles The claimant's capabilities (the token's `roles`), injected by the /bus/emit gateway. Clients do not set this. The dispatcher authorizes the claim by capability — it admits the claim only when this carries the worker role — so a claimant that is not a worker for this knowledge base is refused before the queue is consulted.
 	UnderscoreRoles *[]string `json:"_roles,omitempty"`
 
 	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
-	UnderscoreUserId *UserId  `json:"_userId,omitempty"`
-	Types            []string `json:"types"`
+	UnderscoreUserId *UserId `json:"_userId,omitempty"`
+
+	// Accepts The jobs this claim takes. A job is handed over when it matches any one of them.
+	Accepts []JobFilter `json:"accepts"`
 }
 
 // JobClaimedResult The reply to a successful `job:claim`: the claimed job, now running under the claimant.
@@ -3921,18 +4058,6 @@ type JobClaimedResult struct {
 	// Response A job a worker has claimed and not yet concluded.
 	Response JobRunning `json:"response"`
 }
-
-// JobCommentAnnotationResult Result of a completed comment-annotation job.
-type JobCommentAnnotationResult struct {
-	CommentsCreated int `json:"commentsCreated"`
-	CommentsFound   int `json:"commentsFound"`
-
-	// Kind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is.
-	Kind JobCommentAnnotationResultKind `json:"kind"`
-}
-
-// JobCommentAnnotationResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is.
-type JobCommentAnnotationResultKind string
 
 // JobComplete A job its worker completed.
 type JobComplete struct {
@@ -3942,7 +4067,7 @@ type JobComplete struct {
 	// Metadata What the dispatcher records about a job beside its parameters. `completedUnits` and `unitCursors` appear once a worker has checkpointed. `retryCount` counts the times the queue has put the job back to pending after a failure it classes as transient.
 	Metadata JobMetadata `json:"metadata"`
 
-	// Params The parameters a job was created with: the `params` of its `job:create`, with the resource the job is about under `resourceId`. For generation the dispatcher derives that resource from the context's focus; for every other type it is the request's `resourceId`. The other fields depend on the job type and are carried as the caller sent them.
+	// Params A job's parameters as the Dispatcher holds them: the `params` of its `job:create`, and what the Dispatcher adds. It adds `resourceId`, the resource the job is about: a `mark` job's own, and for a `yield` job the one its context focuses on. For a tagging job it adds `schema`, the tag schema its `schemaId` names, so that whoever holds the job needs no registry. Nothing the caller sent is changed or removed.
 	Params JobParams `json:"params"`
 
 	// Result A completed job's result as the dispatcher stores it: the result its worker reported with `job:complete`, or an empty object when it reported none.
@@ -3973,13 +4098,13 @@ type JobCompleteCommand struct {
 	// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
 	JobId JobId `json:"jobId"`
 
-	// JobType Type of background job
+	// JobType What a job does, as the verb that asks for it: `mark` annotates a resource, `yield` makes one. A job description is its `jobType` and the parameters that verb takes; a `mark` job's parameters state its motivation.
 	JobType JobType `json:"jobType"`
 
 	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
 	ResourceId ResourceId `json:"resourceId"`
 
-	// Result Discriminated union of all job result types — every member carries a single-valued `kind`. Consumers switch on `kind`; generated clients get typed variants.
+	// Result What a job reports when it concludes without failing: a `mark` job's counts, the resource a `yield` job made, or a decline from either. A result has no discriminant of its own: the job description beside it says which job it answers, and the three share no member, so each is told from the others by what it alone carries.
 	Result *JobResult `json:"result,omitempty"`
 }
 
@@ -4003,7 +4128,7 @@ type JobCompletedPayload struct {
 	// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
 	JobId JobId `json:"jobId"`
 
-	// JobType Type of background job
+	// JobType What a job does, as the verb that asks for it: `mark` annotates a resource, `yield` makes one. A job description is its `jobType` and the parameters that verb takes; a `mark` job's parameters state its motivation.
 	JobType JobType `json:"jobType"`
 
 	// Result Full result object for extensibility
@@ -4014,17 +4139,9 @@ type JobCompletedPayload struct {
 	TotalSteps       *int        `json:"totalSteps,omitempty"`
 }
 
-// JobCreateCommand Command to create a new job via the event bus
+// JobCreateCommand Create a job. A job description is its `jobType` and enough parameters to be well formed: a `mark` job names its resource and, in its parameters, its motivation; a `yield` job names its context.
 type JobCreateCommand struct {
-	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
-	UnderscoreUserId *UserId `json:"_userId,omitempty"`
-
-	// JobType Type of background job
-	JobType JobType                `json:"jobType"`
-	Params  map[string]interface{} `json:"params"`
-
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
-	ResourceId *ResourceId `json:"resourceId,omitempty"`
+	union json.RawMessage
 }
 
 // JobCreatedResult Result of a job:create command
@@ -4037,24 +4154,36 @@ type JobCreatedResult struct {
 
 // JobDeclinedResult Result of a job that completed without doing its work because the resource could not be read. Distinct from a failure: nothing went wrong, there was simply no text to work with — an encrypted or damaged PDF, a scan whose text could not be recognized, or a document that yielded nothing. The reasons are the extraction vocabulary the Smelter reports on `smelt:settled`, MINUS `no-extractor`: a media type that can never yield text (a zip, an image) is a bad request rather than a decline, so a worker asked to detect over one throws and the job reports `job:fail`. Everything here is a resource-specific outcome — the same media type would have succeeded on a different document.
 type JobDeclinedResult struct {
-	// Declined Discriminant. Always true — a job that did its work reports one of the other result shapes.
+	// Declined Always true. It is what tells a decline from the result of a job that did its work, which never carries it.
 	Declined JobDeclinedResultDeclined `json:"declined"`
-
-	// Kind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is.
-	Kind JobDeclinedResultKind `json:"kind"`
 
 	// Reason Why the resource could not be read. A CODE, not a sentence: the client owns the wording, so a browser renders it in the user's language and the CLI renders English terminal copy from the same value. A prose `message` composed server-side would be English everywhere.
 	Reason JobDeclinedResultReason `json:"reason"`
 }
 
-// JobDeclinedResultDeclined Discriminant. Always true — a job that did its work reports one of the other result shapes.
+// JobDeclinedResultDeclined Always true. It is what tells a decline from the result of a job that did its work, which never carries it.
 type JobDeclinedResultDeclined bool
-
-// JobDeclinedResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is.
-type JobDeclinedResultKind string
 
 // JobDeclinedResultReason Why the resource could not be read. A CODE, not a sentence: the client owns the wording, so a browser renders it in the user's language and the CLI renders English terminal copy from the same value. A prose `message` composed server-side would be English everywhere.
 type JobDeclinedResultReason string
+
+// JobDetectionResult What a `mark` job reports when it has done its work, whatever its motivation.
+type JobDetectionResult struct {
+	// ByCategory The annotations persisted per category. A tagging job's; absent from every other.
+	ByCategory *map[string]int `json:"byCategory,omitempty"`
+
+	// Errors How many of the proposed could not be anchored in the text. Absent means none.
+	Errors *int `json:"errors,omitempty"`
+
+	// Found What the model proposed, before anything was checked against the text.
+	Found int `json:"found"`
+
+	// Persisted What the log holds: the annotations committed, after the ones that could not be anchored were dropped and repeats were collapsed.
+	Persisted int `json:"persisted"`
+
+	// UnderReportedPieces Total floor-accepted under-reported pieces across the job's units. Absent means none — the per-unit evidence rides the terminal progress frame's completedItems; this keeps the result self-describing without the progress stream.
+	UnderReportedPieces *int `json:"underReportedPieces,omitempty"`
+}
 
 // JobFailCommand Command to mark a job as failed
 type JobFailCommand struct {
@@ -4080,7 +4209,7 @@ type JobFailCommand struct {
 	// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
 	JobId JobId `json:"jobId"`
 
-	// JobType Type of background job
+	// JobType What a job does, as the verb that asks for it: `mark` annotates a resource, `yield` makes one. A job description is its `jobType` and the parameters that verb takes; a `mark` job's parameters state its motivation.
 	JobType JobType `json:"jobType"`
 
 	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
@@ -4104,7 +4233,7 @@ type JobFailed struct {
 	// Metadata What the dispatcher records about a job beside its parameters. `completedUnits` and `unitCursors` appear once a worker has checkpointed. `retryCount` counts the times the queue has put the job back to pending after a failure it classes as transient.
 	Metadata JobMetadata `json:"metadata"`
 
-	// Params The parameters a job was created with: the `params` of its `job:create`, with the resource the job is about under `resourceId`. For generation the dispatcher derives that resource from the context's focus; for every other type it is the request's `resourceId`. The other fields depend on the job type and are carried as the caller sent them.
+	// Params A job's parameters as the Dispatcher holds them: the `params` of its `job:create`, and what the Dispatcher adds. It adds `resourceId`, the resource the job is about: a `mark` job's own, and for a `yield` job the one its context focuses on. For a tagging job it adds `schema`, the tag schema its `schemaId` names, so that whoever holds the job needs no registry. Nothing the caller sent is changed or removed.
 	Params JobParams `json:"params"`
 
 	// StartedAt When the last claim was made; absent when it failed without one.
@@ -4133,18 +4262,20 @@ type JobFailedPayload struct {
 	// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
 	JobId JobId `json:"jobId"`
 
-	// JobType Type of background job
+	// JobType What a job does, as the verb that asks for it: `mark` annotates a resource, `yield` makes one. A job description is its `jobType` and the parameters that verb takes; a `mark` job's parameters state its motivation.
 	JobType JobType `json:"jobType"`
 
 	// WillRetry Whether the worker computed that the queue would re-queue this job (same predicate the queue applies, `willRetryAfter`). Absent means the worker stated nothing. Without it a reader of the log cannot tell a run recovering across several job:failed events from that many dead jobs.
 	WillRetry *bool `json:"willRetry,omitempty"`
 }
 
-// JobGenerationResult Result of a completed generation job. The worker creates the resource first (the yield:create round-trip returns the id), then emits job:complete carrying it — so resourceId is always present on the wire.
-type JobGenerationResult struct {
-	// Kind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is.
-	Kind JobGenerationResultKind `json:"kind"`
+// JobFilter Some jobs, named by fields of the job description: a partial description, at the description's own paths. A job matches when every field stated here equals the job's. A `mark` filter always states its motivation.
+type JobFilter struct {
+	union json.RawMessage
+}
 
+// JobGenerationResult What a `yield` job reports when it has made its resource. The worker creates the resource first (the create round trip returns its id), then emits job:complete carrying it, so resourceId is always present on the wire.
+type JobGenerationResult struct {
 	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
 	ResourceId ResourceId `json:"resourceId"`
 
@@ -4154,21 +4285,6 @@ type JobGenerationResult struct {
 	// Truncated True when the model stopped at the maxTokens ceiling — the artifact is cut off, not complete. Derived at the producer from the provider's stopReason ('max_tokens' → true); required because the worker always knows.
 	Truncated bool `json:"truncated"`
 }
-
-// JobGenerationResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is.
-type JobGenerationResultKind string
-
-// JobHighlightAnnotationResult Result of a completed highlight-annotation job.
-type JobHighlightAnnotationResult struct {
-	HighlightsCreated int `json:"highlightsCreated"`
-	HighlightsFound   int `json:"highlightsFound"`
-
-	// Kind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is.
-	Kind JobHighlightAnnotationResultKind `json:"kind"`
-}
-
-// JobHighlightAnnotationResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is.
-type JobHighlightAnnotationResultKind string
 
 // JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
 type JobId = string
@@ -4188,7 +4304,7 @@ type JobMetadata struct {
 	MaxRetries int `json:"maxRetries"`
 	RetryCount int `json:"retryCount"`
 
-	// Type Type of background job
+	// Type What a job does, as the verb that asks for it: `mark` annotates a resource, `yield` makes one. A job description is its `jobType` and the parameters that verb takes; a `mark` job's parameters state its motivation.
 	Type JobType `json:"type"`
 
 	// UnitCursors How far each unfinished unit got, keyed by unit.
@@ -4198,10 +4314,13 @@ type JobMetadata struct {
 	UserId UserId `json:"userId"`
 }
 
-// JobParams The parameters a job was created with: the `params` of its `job:create`, with the resource the job is about under `resourceId`. For generation the dispatcher derives that resource from the context's focus; for every other type it is the request's `resourceId`. The other fields depend on the job type and are carried as the caller sent them.
+// JobParams A job's parameters as the Dispatcher holds them: the `params` of its `job:create`, and what the Dispatcher adds. It adds `resourceId`, the resource the job is about: a `mark` job's own, and for a `yield` job the one its context focuses on. For a tagging job it adds `schema`, the tag schema its `schemaId` names, so that whoever holds the job needs no registry. Nothing the caller sent is changed or removed.
 type JobParams struct {
 	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
-	ResourceId           ResourceId             `json:"resourceId"`
+	ResourceId ResourceId `json:"resourceId"`
+
+	// Schema A structural-analysis schema (e.g. legal-irac, scientific-imrad, argument-toulmin). Defines a methodology framework as an id, name, description, domain hint, and an ordered list of categories. KBs and their skills register schemas with the runtime registry via `frame.addTagSchema(...)` at session start.
+	Schema               *TagSchema             `json:"schema,omitempty"`
 	AdditionalProperties map[string]interface{} `json:"-"`
 }
 
@@ -4210,7 +4329,7 @@ type JobPending struct {
 	// Metadata What the dispatcher records about a job beside its parameters. `completedUnits` and `unitCursors` appear once a worker has checkpointed. `retryCount` counts the times the queue has put the job back to pending after a failure it classes as transient.
 	Metadata JobMetadata `json:"metadata"`
 
-	// Params The parameters a job was created with: the `params` of its `job:create`, with the resource the job is about under `resourceId`. For generation the dispatcher derives that resource from the context's focus; for every other type it is the request's `resourceId`. The other fields depend on the job type and are carried as the caller sent them.
+	// Params A job's parameters as the Dispatcher holds them: the `params` of its `job:create`, and what the Dispatcher adds. It adds `resourceId`, the resource the job is about: a `mark` job's own, and for a `yield` job the one its context focuses on. For a tagging job it adds `schema`, the tag schema its `schemaId` names, so that whoever holds the job needs no registry. Nothing the caller sent is changed or removed.
 	Params JobParams        `json:"params"`
 	Status JobPendingStatus `json:"status"`
 }
@@ -4228,7 +4347,7 @@ type JobProgress struct {
 		// FoundCount Annotations found for it.
 		FoundCount int `json:"foundCount"`
 
-		// PersistedCount Annotations actually persisted for it — post-dedupe and post-durability-acknowledgement, so it counts what the event log holds, not what the model proposed. Beside foundCount this is the per-unit yield the sizing work is judged by. Present on flows whose units persist as they complete (reference-annotation); the tagging flow reports the same fact as byCategory on its result, because its annotations are built after the per-category loop.
+		// PersistedCount Annotations actually persisted for it — post-dedupe and post-durability-acknowledgement, so it counts what the event log holds, not what the model proposed. Beside foundCount this is the per-unit yield the sizing work is judged by. Present on flows whose units persist as they complete (a linking job); the tagging flow reports the same fact as byCategory on its result, because its annotations are built after the per-category loop.
 		PersistedCount *int `json:"persistedCount,omitempty"`
 
 		// UnderReported Present only when pieces of this unit were accepted at the subdivision floor while a count call said more was present. The unit completed, but incompletely — this carries the EVIDENCE (found vs counted, over how many pieces), never a judgment against any expected yield. Absent means complete: genuinely absent, not defaulted.
@@ -4256,13 +4375,13 @@ type JobProgress struct {
 		Value string `json:"value"`
 	} `json:"current,omitempty"`
 
-	// EntitiesEmitted Annotations emitted so far (reference-annotation)
+	// EntitiesEmitted Annotations emitted so far (a linking job)
 	EntitiesEmitted *int `json:"entitiesEmitted,omitempty"`
 
 	// EntitiesExpected Cumulative mentions the count-verifier priced across the pieces accepted so far — the denominator for a real progress bar (found of ~expected). Approximate by nature (the count saturates on very large pieces) and monotonically growing within a run. ABSENT when the provider does not verify detection yield, or before any piece has been priced: no claim, never zero.
 	EntitiesExpected *int `json:"entitiesExpected,omitempty"`
 
-	// EntitiesFound Entities found so far (reference-annotation)
+	// EntitiesFound Entities found so far (a linking job)
 	EntitiesFound *int `json:"entitiesFound,omitempty"`
 
 	// Message What a running job is doing right now, as a code plus typed params — never a prose sentence. The producer reports what happened; each client renders it in the user's language (react-ui from its translations, the Go launcher from its English map). One named schema per code, discriminated on `code`, so generated clients get typed variants and copy-map completeness is statically checkable. The vocabulary is the census of every onProgress call site in @semiont/jobs; extending it means adding a named variant here and copy in every client, gated by the locale-completeness check.
@@ -4399,17 +4518,9 @@ type JobProgressMessage struct {
 	union json.RawMessage
 }
 
-// JobQueuedEvent Event indicating a job has been queued
+// JobQueuedEvent A pending job, announced when it is created and again at each tick while it waits. It carries the job description less the job's input, so that a party deciding whether to claim reads here what its claim would be matched against. It is a wake-up and not an offer of this job: a claim is answered with the next pending job it matches.
 type JobQueuedEvent struct {
-	// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
-	JobId   JobId  `json:"jobId"`
-	JobType string `json:"jobType"`
-
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
-	ResourceId ResourceId `json:"resourceId"`
-
-	// UserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
-	UserId UserId `json:"userId"`
+	union json.RawMessage
 }
 
 // JobRecord One job as the queue stores it: the job, and when it last showed life. The dead-worker sweep reads `lastProgressAt`: a running job whose worker has reported nothing for the configured interval is presumed dead. Where the queue keeps these records is the job storage layout, specs/src/jobs/storage.json.
@@ -4420,27 +4531,6 @@ type JobRecord struct {
 	// LastProgressAt When the job was created, claimed, checkpointed or last reported progress, as an ISO 8601 timestamp.
 	LastProgressAt string `json:"lastProgressAt"`
 }
-
-// JobReferenceAnnotationResult Result of a completed reference-annotation job.
-type JobReferenceAnnotationResult struct {
-	// Errors Number of errors encountered
-	Errors int `json:"errors"`
-
-	// Kind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is.
-	Kind JobReferenceAnnotationResultKind `json:"kind"`
-
-	// TotalEmitted Total annotations emitted
-	TotalEmitted int `json:"totalEmitted"`
-
-	// TotalFound Total entities found
-	TotalFound int `json:"totalFound"`
-
-	// UnderReportedPieces Total floor-accepted under-reported pieces across the job's units. Absent means none — the per-unit evidence rides the terminal progress frame's completedItems; this keeps the result self-describing without the progress stream.
-	UnderReportedPieces *int `json:"underReportedPieces,omitempty"`
-}
-
-// JobReferenceAnnotationResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is.
-type JobReferenceAnnotationResultKind string
 
 // JobReportProgressCommand Command to report progress on a job
 type JobReportProgressCommand struct {
@@ -4456,7 +4546,7 @@ type JobReportProgressCommand struct {
 	// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
 	JobId JobId `json:"jobId"`
 
-	// JobType Type of background job
+	// JobType What a job does, as the verb that asks for it: `mark` annotates a resource, `yield` makes one. A job description is its `jobType` and the parameters that verb takes; a `mark` job's parameters state its motivation.
 	JobType    JobType `json:"jobType"`
 	Percentage float32 `json:"percentage"`
 
@@ -4467,7 +4557,7 @@ type JobReportProgressCommand struct {
 	ResourceId ResourceId `json:"resourceId"`
 }
 
-// JobResult Discriminated union of all job result types — every member carries a single-valued `kind`. Consumers switch on `kind`; generated clients get typed variants.
+// JobResult What a job reports when it concludes without failing: a `mark` job's counts, the resource a `yield` job made, or a decline from either. A result has no discriminant of its own: the job description beside it says which job it answers, and the three share no member, so each is told from the others by what it alone carries.
 type JobResult struct {
 	union json.RawMessage
 }
@@ -4477,7 +4567,7 @@ type JobRunning struct {
 	// Metadata What the dispatcher records about a job beside its parameters. `completedUnits` and `unitCursors` appear once a worker has checkpointed. `retryCount` counts the times the queue has put the job back to pending after a failure it classes as transient.
 	Metadata JobMetadata `json:"metadata"`
 
-	// Params The parameters a job was created with: the `params` of its `job:create`, with the resource the job is about under `resourceId`. For generation the dispatcher derives that resource from the context's focus; for every other type it is the request's `resourceId`. The other fields depend on the job type and are carried as the caller sent them.
+	// Params A job's parameters as the Dispatcher holds them: the `params` of its `job:create`, and what the Dispatcher adds. It adds `resourceId`, the resource the job is about: a `mark` job's own, and for a `yield` job the one its context focuses on. For a tagging job it adds `schema`, the tag schema its `schemaId` names, so that whoever holds the job needs no registry. Nothing the caller sent is changed or removed.
 	Params JobParams `json:"params"`
 
 	// Progress A running job's progress as the dispatcher stores it: the last JobProgress its worker reported with `job:report-progress`, or an empty object before the first report.
@@ -4505,7 +4595,7 @@ type JobStartCommand struct {
 	// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
 	JobId JobId `json:"jobId"`
 
-	// JobType Type of background job
+	// JobType What a job does, as the verb that asks for it: `mark` annotates a resource, `yield` makes one. A job description is its `jobType` and the parameters that verb takes; a `mark` job's parameters state its motivation.
 	JobType JobType `json:"jobType"`
 
 	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
@@ -4520,7 +4610,7 @@ type JobStartedPayload struct {
 	// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
 	JobId JobId `json:"jobId"`
 
-	// JobType Type of background job
+	// JobType What a job does, as the verb that asks for it: `mark` annotates a resource, `yield` makes one. A job description is its `jobType` and the parameters that verb takes; a `mark` job's parameters state its motivation.
 	JobType    JobType `json:"jobType"`
 	TotalSteps *int    `json:"totalSteps,omitempty"`
 }
@@ -4548,7 +4638,7 @@ type JobStatusResponse struct {
 	StartedAt *string                 `json:"startedAt,omitempty"`
 	Status    JobStatusResponseStatus `json:"status"`
 
-	// Type Type of background job
+	// Type What a job does, as the verb that asks for it: `mark` annotates a resource, `yield` makes one. A job description is its `jobType` and the parameters that verb takes; a `mark` job's parameters state its motivation.
 	Type JobType `json:"type"`
 
 	// UserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
@@ -4579,21 +4669,7 @@ type JobStoredResult struct {
 // JobStoredResult1 defines model for .
 type JobStoredResult1 = map[string]interface{}
 
-// JobTagAnnotationResult Result of a completed tag-annotation job.
-type JobTagAnnotationResult struct {
-	// ByCategory Count of tags created per category
-	ByCategory map[string]int `json:"byCategory"`
-
-	// Kind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is.
-	Kind        JobTagAnnotationResultKind `json:"kind"`
-	TagsCreated int                        `json:"tagsCreated"`
-	TagsFound   int                        `json:"tagsFound"`
-}
-
-// JobTagAnnotationResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is.
-type JobTagAnnotationResultKind string
-
-// JobType Type of background job
+// JobType What a job does, as the verb that asks for it: `mark` annotates a resource, `yield` makes one. A job description is its `jobType` and the parameters that verb takes; a `mark` job's parameters state its motivation.
 type JobType string
 
 // KbDescription What a knowledge base says about itself, answered by the Archivist from the committed .semiont/config and the working tree it holds. The only source clients use for a knowledge base's name and domain.
@@ -4644,6 +4720,25 @@ type LimitRefusal struct {
 // LimitRefusalCode `streams`: the principal already holds as many streams as its coefficient of `x-semiont-limits.streamsPerPrincipal` allows. `emit-rate`: the principal's emits have used its bucket, whose rate and burst are its coefficient of `x-semiont-limits.emitsPerPrincipal`, per gateway process. `unanswered-requests`: the client already awaits as many replies as `BusSubscribeRequest.pendingReplies` may name. `capacity`: the gateway holds as many queued bytes as it can.
 type LimitRefusalCode string
 
+// LinkingJobParams What a linking job takes: mentions of the named entity types are marked as references, each unresolved until it is bound to a resource.
+type LinkingJobParams struct {
+	// EntityTypes The entity types to find mentions of. Each is one the knowledge base registers.
+	EntityTypes []string `json:"entityTypes"`
+
+	// IncludeDescriptiveReferences Whether a description that stands for an entity ("the wily hero") counts as a mention of it, beside its name.
+	IncludeDescriptiveReferences *bool `json:"includeDescriptiveReferences,omitempty"`
+
+	// Language The language the annotations' own text is written in. BCP 47.
+	Language   *string                    `json:"language,omitempty"`
+	Motivation LinkingJobParamsMotivation `json:"motivation"`
+
+	// SourceLanguage The language of the resource being read. BCP 47.
+	SourceLanguage *string `json:"sourceLanguage,omitempty"`
+}
+
+// LinkingJobParamsMotivation defines model for LinkingJobParams.Motivation.
+type LinkingJobParamsMotivation string
+
 // ListResourcesResponse defines model for ListResourcesResponse.
 type ListResourcesResponse struct {
 	Limit     float32              `json:"limit"`
@@ -4671,24 +4766,11 @@ type MarkArchiveCommand struct {
 	StorageUri *string `json:"storageUri,omitempty"`
 }
 
-// MarkAssistRequestEvent Emitted when the user requests AI assistance for a mark
+// MarkAssistRequestEvent A request, on the client's own bus, that annotating the open resource be delegated: the parameters of the `mark` job to create, its motivation among them. The resource is the one the listening state unit is for.
 type MarkAssistRequestEvent struct {
-	// Motivation Semiont-supported W3C Web Annotation motivations - https://www.w3.org/TR/annotation-vocab/#motivation
-	Motivation Motivation `json:"motivation"`
-	Options    struct {
-		Categories                   *[]string                          `json:"categories,omitempty"`
-		Density                      *float32                           `json:"density,omitempty"`
-		EntityTypes                  *[]string                          `json:"entityTypes,omitempty"`
-		IncludeDescriptiveReferences *bool                              `json:"includeDescriptiveReferences,omitempty"`
-		Instructions                 *string                            `json:"instructions,omitempty"`
-		Language                     *string                            `json:"language,omitempty"`
-		SchemaId                     *string                            `json:"schemaId,omitempty"`
-		Tone                         *MarkAssistRequestEventOptionsTone `json:"tone,omitempty"`
-	} `json:"options"`
+	// Params The parameters of a `mark` job, told apart by `motivation`. Each motivation takes its own parameters and no others: a parameter a job does not take is refused where the job is created.
+	Params MarkJobParams `json:"params"`
 }
-
-// MarkAssistRequestEventOptionsTone defines model for MarkAssistRequestEvent.Options.Tone.
-type MarkAssistRequestEventOptionsTone string
 
 // MarkAssistTimeoutEvent The payload of `mark:assist-timeout`, a client-local signal: an assist went silent past its deadline, with no progress, no completion and no `job:fail`. A real job failure arrives as `job:fail` and never produces this.
 type MarkAssistTimeoutEvent struct {
@@ -4776,6 +4858,61 @@ type MarkDeleteOk struct {
 		AnnotationId AnnotationId `json:"annotationId"`
 	} `json:"response"`
 }
+
+// MarkJobCreateCommand Create a `mark` job: annotate one resource for one motivation.
+type MarkJobCreateCommand struct {
+	// UnderscoreRoles The emitter's roles, injected by the gateway when it has any. Clients do not set this.
+	UnderscoreRoles *[]string `json:"_roles,omitempty"`
+
+	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	UnderscoreUserId *UserId                     `json:"_userId,omitempty"`
+	JobType          MarkJobCreateCommandJobType `json:"jobType"`
+
+	// Params The parameters of a `mark` job, told apart by `motivation`. Each motivation takes its own parameters and no others: a parameter a job does not take is refused where the job is created.
+	Params MarkJobParams `json:"params"`
+
+	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	ResourceId ResourceId `json:"resourceId"`
+}
+
+// MarkJobCreateCommandJobType defines model for MarkJobCreateCommand.JobType.
+type MarkJobCreateCommandJobType string
+
+// MarkJobFilter `mark` jobs of one motivation.
+type MarkJobFilter struct {
+	JobType MarkJobFilterJobType `json:"jobType"`
+	Params  struct {
+		// Motivation Semiont-supported W3C Web Annotation motivations - https://www.w3.org/TR/annotation-vocab/#motivation
+		Motivation Motivation `json:"motivation"`
+	} `json:"params"`
+}
+
+// MarkJobFilterJobType defines model for MarkJobFilter.JobType.
+type MarkJobFilterJobType string
+
+// MarkJobParams The parameters of a `mark` job, told apart by `motivation`. Each motivation takes its own parameters and no others: a parameter a job does not take is refused where the job is created.
+type MarkJobParams struct {
+	union json.RawMessage
+}
+
+// MarkJobQueuedEvent A pending `mark` job, announced with its parameters as it was created.
+type MarkJobQueuedEvent struct {
+	// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
+	JobId   JobId                     `json:"jobId"`
+	JobType MarkJobQueuedEventJobType `json:"jobType"`
+
+	// Params The parameters of a `mark` job, told apart by `motivation`. Each motivation takes its own parameters and no others: a parameter a job does not take is refused where the job is created.
+	Params MarkJobParams `json:"params"`
+
+	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	ResourceId ResourceId `json:"resourceId"`
+
+	// UserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	UserId UserId `json:"userId"`
+}
+
+// MarkJobQueuedEventJobType defines model for MarkJobQueuedEvent.JobType.
+type MarkJobQueuedEventJobType string
 
 // MarkRequestedEvent Emitted when the user requests a new mark (annotation) on a resource
 type MarkRequestedEvent struct {
@@ -5863,6 +6000,25 @@ type TagSchemasProjection struct {
 	TagSchemas []TagSchema `json:"tagSchemas"`
 }
 
+// TaggingJobParams What a tagging job takes: passages of the resource are marked with categories of one tag schema.
+type TaggingJobParams struct {
+	// Categories The categories of that schema to tag with.
+	Categories []string `json:"categories"`
+
+	// Language The language the annotations' own text is written in. BCP 47.
+	Language   *string                    `json:"language,omitempty"`
+	Motivation TaggingJobParamsMotivation `json:"motivation"`
+
+	// SchemaId The tag schema to tag by. It is one the knowledge base registers.
+	SchemaId string `json:"schemaId"`
+
+	// SourceLanguage The language of the resource being read. BCP 47.
+	SourceLanguage *string `json:"sourceLanguage,omitempty"`
+}
+
+// TaggingJobParamsMotivation defines model for TaggingJobParams.Motivation.
+type TaggingJobParamsMotivation string
+
 // TextPositionSelector defines model for TextPositionSelector.
 type TextPositionSelector struct {
 	// End Character offset from resource start
@@ -5906,14 +6062,17 @@ type TextualBody struct {
 // TextualBodyType defines model for TextualBody.Type.
 type TextualBodyType string
 
-// UnitCursor How far a single unit got, for a resume that starts mid-unit rather than redoing it. A unit is an entity type for reference-annotation, and the job's own motivation for the other annotation types — which is why a unit-grain checkpoint alone was too coarse: those jobs have exactly one unit, so nothing could be recorded until the whole document was done.
+// UnitCursor How far a single unit got, for a resume that starts mid-unit rather than redoing it. A unit is an entity type for a linking job, a category for a tagging job, and the job's own motivation for every other — which is why a unit-grain checkpoint alone is too coarse: those three have exactly one unit, so nothing could be recorded until the whole document was done.
 //
 // MERGE IS MONOTONE PER UNIT, not a union. `completedUnits` is a set and converges under concurrent snapshots because a set only grows; a cursor converges only if a stale snapshot can never move it backward.
 //
-// IT CARRIES THE UNIT'S RUNNING TALLIES TOO, and they are required. A resumed unit counts only the chunks it actually runs, so without them a retry's terminal record reports the remainder of the document as if it were the whole — measured at totalFound 19 where the document yielded 25. The position and the tallies are ONE observation of the same committed chunk; splitting them would let a resume take the saving and still report a number nobody can trust.
+// IT CARRIES THE UNIT'S RUNNING TALLIES TOO, and they are required. A resumed unit counts only the chunks it actually runs, so without them a retry's terminal record reports the remainder of the document as if it were the whole — measured at a `found` of 19 where the document yielded 25. The position and the tallies are ONE observation of the same committed chunk; splitting them would let a resume take the saving and still report a number nobody can trust.
 type UnitCursor struct {
-	// Emitted Annotations actually committed for this unit through the last committed chunk, after dedupe. The pair (found, emitted) is what the job's terminal result reports, so a resumed unit seeds both and its record describes the whole document rather than one attempt's share.
+	// Emitted Annotations actually committed for this unit through the last committed chunk, after dedupe. With `found` and `errors` it is what the job's terminal result reports, so a resumed unit seeds all three and its record describes the whole document rather than one attempt's share.
 	Emitted int `json:"emitted"`
+
+	// Errors Items detection returned for this unit through the last committed chunk that could not be anchored in the text. Carried with the other two tallies so that a resumed job reports the whole document's, and not only its last attempt's.
+	Errors int `json:"errors"`
 
 	// Found Items detection has returned for this unit through the last committed chunk — the numerator a resumed attempt continues from rather than restarting at zero. Counts what the model reported, before dedupe.
 	Found int `json:"found"`
@@ -6100,6 +6259,49 @@ type YieldCreateOk struct {
 		ResourceId ResourceId `json:"resourceId"`
 	} `json:"response"`
 }
+
+// YieldJobCreateCommand Create a `yield` job: make a resource from a gathered context. It names no resource of its own: the job is about the resource its context focuses on, which the Dispatcher reads from `params.context.focus`.
+type YieldJobCreateCommand struct {
+	// UnderscoreRoles The emitter's roles, injected by the gateway when it has any. Clients do not set this.
+	UnderscoreRoles *[]string `json:"_roles,omitempty"`
+
+	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	UnderscoreUserId *UserId                      `json:"_userId,omitempty"`
+	JobType          YieldJobCreateCommandJobType `json:"jobType"`
+
+	// Params The parameters of a `yield` job: what it is asked to make (GenerationJobRequest) and the gathered context it is made from. The job's resource is derived from `context.focus` by the dispatcher (resource focus → focus.resource; annotation focus → focus.sourceResource, with the worker binding to focus.annotation), and the dispatcher refuses a parameter this schema does not name.
+	Params GenerationJobParams `json:"params"`
+}
+
+// YieldJobCreateCommandJobType defines model for YieldJobCreateCommand.JobType.
+type YieldJobCreateCommandJobType string
+
+// YieldJobFilter `yield` jobs.
+type YieldJobFilter struct {
+	JobType YieldJobFilterJobType `json:"jobType"`
+}
+
+// YieldJobFilterJobType defines model for YieldJobFilter.JobType.
+type YieldJobFilterJobType string
+
+// YieldJobQueuedEvent A pending `yield` job, announced with what it is asked to make and without its `context`.
+type YieldJobQueuedEvent struct {
+	// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
+	JobId   JobId                      `json:"jobId"`
+	JobType YieldJobQueuedEventJobType `json:"jobType"`
+
+	// Params What a `yield` job is asked to make: every parameter of GenerationJobParams but its `context`, the input the resource is made from. It is what an announcement of the job carries.
+	Params GenerationJobRequest `json:"params"`
+
+	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	ResourceId ResourceId `json:"resourceId"`
+
+	// UserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	UserId UserId `json:"userId"`
+}
+
+// YieldJobQueuedEventJobType defines model for YieldJobQueuedEvent.JobType.
+type YieldJobQueuedEventJobType string
 
 // YieldMoveFailed defines model for YieldMoveFailed.
 type YieldMoveFailed struct {
@@ -6620,6 +6822,14 @@ func (a *JobParams) UnmarshalJSON(b []byte) error {
 		delete(object, "resourceId")
 	}
 
+	if raw, found := object["schema"]; found {
+		err = json.Unmarshal(raw, &a.Schema)
+		if err != nil {
+			return fmt.Errorf("error reading 'schema': %w", err)
+		}
+		delete(object, "schema")
+	}
+
 	if len(object) != 0 {
 		a.AdditionalProperties = make(map[string]interface{})
 		for fieldName, fieldBuf := range object {
@@ -6642,6 +6852,13 @@ func (a JobParams) MarshalJSON() ([]byte, error) {
 	object["resourceId"], err = json.Marshal(a.ResourceId)
 	if err != nil {
 		return nil, fmt.Errorf("error marshaling 'resourceId': %w", err)
+	}
+
+	if a.Schema != nil {
+		object["schema"], err = json.Marshal(a.Schema)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'schema': %w", err)
+		}
 	}
 
 	for fieldName, field := range a.AdditionalProperties {
@@ -9657,6 +9874,184 @@ func (t *Job) UnmarshalJSON(b []byte) error {
 	return err
 }
 
+// AsMarkJobCreateCommand returns the union data inside the JobCreateCommand as a MarkJobCreateCommand
+func (t JobCreateCommand) AsMarkJobCreateCommand() (MarkJobCreateCommand, error) {
+	var body MarkJobCreateCommand
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromMarkJobCreateCommand overwrites any union data inside the JobCreateCommand as the provided MarkJobCreateCommand
+func (t *JobCreateCommand) FromMarkJobCreateCommand(v MarkJobCreateCommand) error {
+	v.JobType = "mark"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeMarkJobCreateCommand performs a merge with any union data inside the JobCreateCommand, using the provided MarkJobCreateCommand
+func (t *JobCreateCommand) MergeMarkJobCreateCommand(v MarkJobCreateCommand) error {
+	v.JobType = "mark"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsYieldJobCreateCommand returns the union data inside the JobCreateCommand as a YieldJobCreateCommand
+func (t JobCreateCommand) AsYieldJobCreateCommand() (YieldJobCreateCommand, error) {
+	var body YieldJobCreateCommand
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromYieldJobCreateCommand overwrites any union data inside the JobCreateCommand as the provided YieldJobCreateCommand
+func (t *JobCreateCommand) FromYieldJobCreateCommand(v YieldJobCreateCommand) error {
+	v.JobType = "yield"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeYieldJobCreateCommand performs a merge with any union data inside the JobCreateCommand, using the provided YieldJobCreateCommand
+func (t *JobCreateCommand) MergeYieldJobCreateCommand(v YieldJobCreateCommand) error {
+	v.JobType = "yield"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t JobCreateCommand) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"jobType"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t JobCreateCommand) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "mark":
+		return t.AsMarkJobCreateCommand()
+	case "yield":
+		return t.AsYieldJobCreateCommand()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t JobCreateCommand) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *JobCreateCommand) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsMarkJobFilter returns the union data inside the JobFilter as a MarkJobFilter
+func (t JobFilter) AsMarkJobFilter() (MarkJobFilter, error) {
+	var body MarkJobFilter
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromMarkJobFilter overwrites any union data inside the JobFilter as the provided MarkJobFilter
+func (t *JobFilter) FromMarkJobFilter(v MarkJobFilter) error {
+	v.JobType = "mark"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeMarkJobFilter performs a merge with any union data inside the JobFilter, using the provided MarkJobFilter
+func (t *JobFilter) MergeMarkJobFilter(v MarkJobFilter) error {
+	v.JobType = "mark"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsYieldJobFilter returns the union data inside the JobFilter as a YieldJobFilter
+func (t JobFilter) AsYieldJobFilter() (YieldJobFilter, error) {
+	var body YieldJobFilter
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromYieldJobFilter overwrites any union data inside the JobFilter as the provided YieldJobFilter
+func (t *JobFilter) FromYieldJobFilter(v YieldJobFilter) error {
+	v.JobType = "yield"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeYieldJobFilter performs a merge with any union data inside the JobFilter, using the provided YieldJobFilter
+func (t *JobFilter) MergeYieldJobFilter(v YieldJobFilter) error {
+	v.JobType = "yield"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t JobFilter) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"jobType"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t JobFilter) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "mark":
+		return t.AsMarkJobFilter()
+	case "yield":
+		return t.AsYieldJobFilter()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t JobFilter) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *JobFilter) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // AsJobProgressLoading returns the union data inside the JobProgressMessage as a JobProgressLoading
 func (t JobProgressMessage) AsJobProgressLoading() (JobProgressLoading, error) {
 	var body JobProgressLoading
@@ -9986,6 +10381,121 @@ func (t *JobProgressMessage) UnmarshalJSON(b []byte) error {
 	return err
 }
 
+// AsMarkJobQueuedEvent returns the union data inside the JobQueuedEvent as a MarkJobQueuedEvent
+func (t JobQueuedEvent) AsMarkJobQueuedEvent() (MarkJobQueuedEvent, error) {
+	var body MarkJobQueuedEvent
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromMarkJobQueuedEvent overwrites any union data inside the JobQueuedEvent as the provided MarkJobQueuedEvent
+func (t *JobQueuedEvent) FromMarkJobQueuedEvent(v MarkJobQueuedEvent) error {
+	v.JobType = "mark"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeMarkJobQueuedEvent performs a merge with any union data inside the JobQueuedEvent, using the provided MarkJobQueuedEvent
+func (t *JobQueuedEvent) MergeMarkJobQueuedEvent(v MarkJobQueuedEvent) error {
+	v.JobType = "mark"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsYieldJobQueuedEvent returns the union data inside the JobQueuedEvent as a YieldJobQueuedEvent
+func (t JobQueuedEvent) AsYieldJobQueuedEvent() (YieldJobQueuedEvent, error) {
+	var body YieldJobQueuedEvent
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromYieldJobQueuedEvent overwrites any union data inside the JobQueuedEvent as the provided YieldJobQueuedEvent
+func (t *JobQueuedEvent) FromYieldJobQueuedEvent(v YieldJobQueuedEvent) error {
+	v.JobType = "yield"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeYieldJobQueuedEvent performs a merge with any union data inside the JobQueuedEvent, using the provided YieldJobQueuedEvent
+func (t *JobQueuedEvent) MergeYieldJobQueuedEvent(v YieldJobQueuedEvent) error {
+	v.JobType = "yield"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t JobQueuedEvent) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"jobType"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t JobQueuedEvent) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "mark":
+		return t.AsMarkJobQueuedEvent()
+	case "yield":
+		return t.AsYieldJobQueuedEvent()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t JobQueuedEvent) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *JobQueuedEvent) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsJobDetectionResult returns the union data inside the JobResult as a JobDetectionResult
+func (t JobResult) AsJobDetectionResult() (JobDetectionResult, error) {
+	var body JobDetectionResult
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromJobDetectionResult overwrites any union data inside the JobResult as the provided JobDetectionResult
+func (t *JobResult) FromJobDetectionResult(v JobDetectionResult) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeJobDetectionResult performs a merge with any union data inside the JobResult, using the provided JobDetectionResult
+func (t *JobResult) MergeJobDetectionResult(v JobDetectionResult) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
 // AsJobGenerationResult returns the union data inside the JobResult as a JobGenerationResult
 func (t JobResult) AsJobGenerationResult() (JobGenerationResult, error) {
 	var body JobGenerationResult
@@ -9995,7 +10505,6 @@ func (t JobResult) AsJobGenerationResult() (JobGenerationResult, error) {
 
 // FromJobGenerationResult overwrites any union data inside the JobResult as the provided JobGenerationResult
 func (t *JobResult) FromJobGenerationResult(v JobGenerationResult) error {
-	v.Kind = "generation"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
@@ -10003,147 +10512,6 @@ func (t *JobResult) FromJobGenerationResult(v JobGenerationResult) error {
 
 // MergeJobGenerationResult performs a merge with any union data inside the JobResult, using the provided JobGenerationResult
 func (t *JobResult) MergeJobGenerationResult(v JobGenerationResult) error {
-	v.Kind = "generation"
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsJobReferenceAnnotationResult returns the union data inside the JobResult as a JobReferenceAnnotationResult
-func (t JobResult) AsJobReferenceAnnotationResult() (JobReferenceAnnotationResult, error) {
-	var body JobReferenceAnnotationResult
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromJobReferenceAnnotationResult overwrites any union data inside the JobResult as the provided JobReferenceAnnotationResult
-func (t *JobResult) FromJobReferenceAnnotationResult(v JobReferenceAnnotationResult) error {
-	v.Kind = "reference-annotation"
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeJobReferenceAnnotationResult performs a merge with any union data inside the JobResult, using the provided JobReferenceAnnotationResult
-func (t *JobResult) MergeJobReferenceAnnotationResult(v JobReferenceAnnotationResult) error {
-	v.Kind = "reference-annotation"
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsJobHighlightAnnotationResult returns the union data inside the JobResult as a JobHighlightAnnotationResult
-func (t JobResult) AsJobHighlightAnnotationResult() (JobHighlightAnnotationResult, error) {
-	var body JobHighlightAnnotationResult
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromJobHighlightAnnotationResult overwrites any union data inside the JobResult as the provided JobHighlightAnnotationResult
-func (t *JobResult) FromJobHighlightAnnotationResult(v JobHighlightAnnotationResult) error {
-	v.Kind = "highlight-annotation"
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeJobHighlightAnnotationResult performs a merge with any union data inside the JobResult, using the provided JobHighlightAnnotationResult
-func (t *JobResult) MergeJobHighlightAnnotationResult(v JobHighlightAnnotationResult) error {
-	v.Kind = "highlight-annotation"
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsJobAssessmentAnnotationResult returns the union data inside the JobResult as a JobAssessmentAnnotationResult
-func (t JobResult) AsJobAssessmentAnnotationResult() (JobAssessmentAnnotationResult, error) {
-	var body JobAssessmentAnnotationResult
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromJobAssessmentAnnotationResult overwrites any union data inside the JobResult as the provided JobAssessmentAnnotationResult
-func (t *JobResult) FromJobAssessmentAnnotationResult(v JobAssessmentAnnotationResult) error {
-	v.Kind = "assessment-annotation"
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeJobAssessmentAnnotationResult performs a merge with any union data inside the JobResult, using the provided JobAssessmentAnnotationResult
-func (t *JobResult) MergeJobAssessmentAnnotationResult(v JobAssessmentAnnotationResult) error {
-	v.Kind = "assessment-annotation"
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsJobCommentAnnotationResult returns the union data inside the JobResult as a JobCommentAnnotationResult
-func (t JobResult) AsJobCommentAnnotationResult() (JobCommentAnnotationResult, error) {
-	var body JobCommentAnnotationResult
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromJobCommentAnnotationResult overwrites any union data inside the JobResult as the provided JobCommentAnnotationResult
-func (t *JobResult) FromJobCommentAnnotationResult(v JobCommentAnnotationResult) error {
-	v.Kind = "comment-annotation"
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeJobCommentAnnotationResult performs a merge with any union data inside the JobResult, using the provided JobCommentAnnotationResult
-func (t *JobResult) MergeJobCommentAnnotationResult(v JobCommentAnnotationResult) error {
-	v.Kind = "comment-annotation"
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsJobTagAnnotationResult returns the union data inside the JobResult as a JobTagAnnotationResult
-func (t JobResult) AsJobTagAnnotationResult() (JobTagAnnotationResult, error) {
-	var body JobTagAnnotationResult
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromJobTagAnnotationResult overwrites any union data inside the JobResult as the provided JobTagAnnotationResult
-func (t *JobResult) FromJobTagAnnotationResult(v JobTagAnnotationResult) error {
-	v.Kind = "tag-annotation"
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeJobTagAnnotationResult performs a merge with any union data inside the JobResult, using the provided JobTagAnnotationResult
-func (t *JobResult) MergeJobTagAnnotationResult(v JobTagAnnotationResult) error {
-	v.Kind = "tag-annotation"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -10163,7 +10531,6 @@ func (t JobResult) AsJobDeclinedResult() (JobDeclinedResult, error) {
 
 // FromJobDeclinedResult overwrites any union data inside the JobResult as the provided JobDeclinedResult
 func (t *JobResult) FromJobDeclinedResult(v JobDeclinedResult) error {
-	v.Kind = "declined"
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
@@ -10171,7 +10538,6 @@ func (t *JobResult) FromJobDeclinedResult(v JobDeclinedResult) error {
 
 // MergeJobDeclinedResult performs a merge with any union data inside the JobResult, using the provided JobDeclinedResult
 func (t *JobResult) MergeJobDeclinedResult(v JobDeclinedResult) error {
-	v.Kind = "declined"
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -10180,39 +10546,6 @@ func (t *JobResult) MergeJobDeclinedResult(v JobDeclinedResult) error {
 	merged, err := runtime.JSONMerge(t.union, b)
 	t.union = merged
 	return err
-}
-
-func (t JobResult) Discriminator() (string, error) {
-	var discriminator struct {
-		Discriminator string `json:"kind"`
-	}
-	err := json.Unmarshal(t.union, &discriminator)
-	return discriminator.Discriminator, err
-}
-
-func (t JobResult) ValueByDiscriminator() (interface{}, error) {
-	discriminator, err := t.Discriminator()
-	if err != nil {
-		return nil, err
-	}
-	switch discriminator {
-	case "assessment-annotation":
-		return t.AsJobAssessmentAnnotationResult()
-	case "comment-annotation":
-		return t.AsJobCommentAnnotationResult()
-	case "declined":
-		return t.AsJobDeclinedResult()
-	case "generation":
-		return t.AsJobGenerationResult()
-	case "highlight-annotation":
-		return t.AsJobHighlightAnnotationResult()
-	case "reference-annotation":
-		return t.AsJobReferenceAnnotationResult()
-	case "tag-annotation":
-		return t.AsJobTagAnnotationResult()
-	default:
-		return nil, errors.New("unknown discriminator value: " + discriminator)
-	}
 }
 
 func (t JobResult) MarshalJSON() ([]byte, error) {
@@ -10434,6 +10767,185 @@ func (t KnowledgeGraph_Nodes_Item) MarshalJSON() ([]byte, error) {
 }
 
 func (t *KnowledgeGraph_Nodes_Item) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsHighlightingJobParams returns the union data inside the MarkJobParams as a HighlightingJobParams
+func (t MarkJobParams) AsHighlightingJobParams() (HighlightingJobParams, error) {
+	var body HighlightingJobParams
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromHighlightingJobParams overwrites any union data inside the MarkJobParams as the provided HighlightingJobParams
+func (t *MarkJobParams) FromHighlightingJobParams(v HighlightingJobParams) error {
+	v.Motivation = "highlighting"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeHighlightingJobParams performs a merge with any union data inside the MarkJobParams, using the provided HighlightingJobParams
+func (t *MarkJobParams) MergeHighlightingJobParams(v HighlightingJobParams) error {
+	v.Motivation = "highlighting"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsCommentingJobParams returns the union data inside the MarkJobParams as a CommentingJobParams
+func (t MarkJobParams) AsCommentingJobParams() (CommentingJobParams, error) {
+	var body CommentingJobParams
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCommentingJobParams overwrites any union data inside the MarkJobParams as the provided CommentingJobParams
+func (t *MarkJobParams) FromCommentingJobParams(v CommentingJobParams) error {
+	v.Motivation = "commenting"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCommentingJobParams performs a merge with any union data inside the MarkJobParams, using the provided CommentingJobParams
+func (t *MarkJobParams) MergeCommentingJobParams(v CommentingJobParams) error {
+	v.Motivation = "commenting"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsAssessingJobParams returns the union data inside the MarkJobParams as a AssessingJobParams
+func (t MarkJobParams) AsAssessingJobParams() (AssessingJobParams, error) {
+	var body AssessingJobParams
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAssessingJobParams overwrites any union data inside the MarkJobParams as the provided AssessingJobParams
+func (t *MarkJobParams) FromAssessingJobParams(v AssessingJobParams) error {
+	v.Motivation = "assessing"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAssessingJobParams performs a merge with any union data inside the MarkJobParams, using the provided AssessingJobParams
+func (t *MarkJobParams) MergeAssessingJobParams(v AssessingJobParams) error {
+	v.Motivation = "assessing"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsLinkingJobParams returns the union data inside the MarkJobParams as a LinkingJobParams
+func (t MarkJobParams) AsLinkingJobParams() (LinkingJobParams, error) {
+	var body LinkingJobParams
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromLinkingJobParams overwrites any union data inside the MarkJobParams as the provided LinkingJobParams
+func (t *MarkJobParams) FromLinkingJobParams(v LinkingJobParams) error {
+	v.Motivation = "linking"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeLinkingJobParams performs a merge with any union data inside the MarkJobParams, using the provided LinkingJobParams
+func (t *MarkJobParams) MergeLinkingJobParams(v LinkingJobParams) error {
+	v.Motivation = "linking"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsTaggingJobParams returns the union data inside the MarkJobParams as a TaggingJobParams
+func (t MarkJobParams) AsTaggingJobParams() (TaggingJobParams, error) {
+	var body TaggingJobParams
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTaggingJobParams overwrites any union data inside the MarkJobParams as the provided TaggingJobParams
+func (t *MarkJobParams) FromTaggingJobParams(v TaggingJobParams) error {
+	v.Motivation = "tagging"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTaggingJobParams performs a merge with any union data inside the MarkJobParams, using the provided TaggingJobParams
+func (t *MarkJobParams) MergeTaggingJobParams(v TaggingJobParams) error {
+	v.Motivation = "tagging"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t MarkJobParams) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"motivation"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t MarkJobParams) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "assessing":
+		return t.AsAssessingJobParams()
+	case "commenting":
+		return t.AsCommentingJobParams()
+	case "highlighting":
+		return t.AsHighlightingJobParams()
+	case "linking":
+		return t.AsLinkingJobParams()
+	case "tagging":
+		return t.AsTaggingJobParams()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t MarkJobParams) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *MarkJobParams) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }

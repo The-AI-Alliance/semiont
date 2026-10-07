@@ -4,7 +4,7 @@ from semiont import channels, operations
 from semiont.channel import Channel, Operation
 from semiont.identifiers import AnnotationId
 from semiont.model import WireModel
-from semiont.types import MarkDeleteCommand, MarkSubmitEvent
+from semiont.types import MarkDeleteCommand, MarkJobCreateCommand, MarkSubmitEvent
 
 
 def emit[P: WireModel](channel: Channel[P], payload: P) -> None:
@@ -23,6 +23,14 @@ def emitted() -> None:
 
 def requested(payload: MarkSubmitEvent) -> None:
     request(operations.MARK_DELETE, payload)  # type: ignore[misc]  # pyright: ignore[reportArgumentType]
+
+
+def emitted_on_a_channel_of_several_shapes_and_none_of_them(payload: MarkDeleteCommand) -> None:
+    emit(channels.JOB_CREATE, payload)  # type: ignore[misc]  # pyright: ignore[reportArgumentType]
+
+
+def a_channel_of_several_shapes_taken_for_a_channel_of_one() -> Channel[MarkJobCreateCommand]:
+    return channels.JOB_CREATE  # type: ignore[return-value]  # pyright: ignore[reportReturnType]
 
 
 def a_reply_taken_for_another() -> MarkSubmitEvent:

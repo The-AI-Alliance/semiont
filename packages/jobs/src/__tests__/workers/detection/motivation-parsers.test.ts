@@ -24,12 +24,13 @@ describe('MotivationParsers', () => {
 
   describe('parseComments', () => {
     it('should parse valid comment elements', () => {
-      const result = MotivationParsers.parseComments(
+      const { matches: result, dropped } = MotivationParsers.parseComments(
         [{ exact: 'Alice', start: 0, end: 5, comment: 'This is a test comment' }],
         testContent,
       );
 
       expect(result).toHaveLength(1);
+      expect(dropped).toBe(0);
       expect(result[0]).toMatchObject({
         exact: 'Alice',
         start: 0,
@@ -42,7 +43,7 @@ describe('MotivationParsers', () => {
       // testContent = 'Alice went to Paris. Bob stayed home.'
       // The second item's exact has no plausible anchor — too dissimilar
       // for fuzzy match — so reconcileSelector returns null.
-      const result = MotivationParsers.parseComments(
+      const { matches: result, dropped } = MotivationParsers.parseComments(
         [
           { exact: 'Alice', comment: 'Valid comment' },
           { exact: 'XYZNOTPRESENTANYWHEREZYX', comment: 'This will be filtered' },
@@ -51,20 +52,23 @@ describe('MotivationParsers', () => {
       );
 
       expect(result).toHaveLength(1);
+      // The one that was proposed and could not be anchored is counted, not lost.
+      expect(dropped).toBe(1);
       expect(result[0]!.exact).toBe('Alice');
     });
 
     it('should filter out comments with empty comment text', () => {
-      const result = MotivationParsers.parseComments(
+      const { matches: result, dropped } = MotivationParsers.parseComments(
         [{ exact: 'Alice', start: 0, end: 5, comment: '' }],
         testContent,
       );
 
       expect(result).toHaveLength(0);
+      expect(dropped).toBe(0);
     });
 
     it('drops structurally-invalid elements — the schema/type drift guard', () => {
-      const result = MotivationParsers.parseComments(
+      const { matches: result, dropped } = MotivationParsers.parseComments(
         [
           null,
           'not an object',
@@ -75,48 +79,53 @@ describe('MotivationParsers', () => {
       );
 
       expect(result).toHaveLength(1);
+      expect(dropped).toBe(0);
       expect(result[0]!.comment).toBe('the only valid element');
     });
 
     it('passes an empty element list through as a success with no matches', () => {
-      expect(MotivationParsers.parseComments([], testContent)).toEqual([]);
+      expect(MotivationParsers.parseComments([], testContent)).toEqual({ matches: [], dropped: 0 });
     });
   });
 
   describe('parseHighlights', () => {
     it('should parse valid highlight elements', () => {
-      const result = MotivationParsers.parseHighlights(
+      const { matches: result, dropped } = MotivationParsers.parseHighlights(
         [{ exact: 'Bob', start: 21, end: 24 }],
         testContent,
       );
 
       expect(result).toHaveLength(1);
+      expect(dropped).toBe(0);
       expect(result[0]).toMatchObject({ exact: 'Bob', start: 21, end: 24 });
     });
 
     it('should filter out invalid highlights', () => {
-      const result = MotivationParsers.parseHighlights(
+      const { matches: result, dropped } = MotivationParsers.parseHighlights(
         [{ exact: 'Alice' }, { exact: 'XYZNOTPRESENTANYWHEREZYX' }],
         testContent,
       );
 
       expect(result).toHaveLength(1);
+      // The one that was proposed and could not be anchored is counted, not lost.
+      expect(dropped).toBe(1);
       expect(result[0]!.exact).toBe('Alice');
     });
 
     it('passes an empty element list through as a success with no matches', () => {
-      expect(MotivationParsers.parseHighlights([], testContent)).toEqual([]);
+      expect(MotivationParsers.parseHighlights([], testContent)).toEqual({ matches: [], dropped: 0 });
     });
   });
 
   describe('parseAssessments', () => {
     it('should parse valid assessment elements', () => {
-      const result = MotivationParsers.parseAssessments(
+      const { matches: result, dropped } = MotivationParsers.parseAssessments(
         [{ exact: 'Alice', start: 0, end: 5, assessment: 'This is an assessment' }],
         testContent,
       );
 
       expect(result).toHaveLength(1);
+      expect(dropped).toBe(0);
       expect(result[0]).toMatchObject({
         exact: 'Alice',
         start: 0,
@@ -126,7 +135,7 @@ describe('MotivationParsers', () => {
     });
 
     it('drops assessments whose exact does not appear in the source', () => {
-      const result = MotivationParsers.parseAssessments(
+      const { matches: result, dropped } = MotivationParsers.parseAssessments(
         [
           { exact: 'Bob', assessment: 'Valid' },
           { exact: 'XYZNOTPRESENTANYWHEREZYX', assessment: 'Will be filtered' },
@@ -135,6 +144,8 @@ describe('MotivationParsers', () => {
       );
 
       expect(result).toHaveLength(1);
+      // The one that was proposed and could not be anchored is counted, not lost.
+      expect(dropped).toBe(1);
       expect(result[0]!.exact).toBe('Bob');
     });
   });
@@ -170,9 +181,10 @@ describe('MotivationParsers', () => {
         }
       ];
 
-      const result = MotivationParsers.validateTagOffsets(tags, testContent, 'Issue');
+      const { matches: result, dropped } = MotivationParsers.validateTagOffsets(tags, testContent, 'Issue');
 
       expect(result).toHaveLength(1);
+      expect(dropped).toBe(0);
       expect(result[0]).toMatchObject({
         exact: 'Alice',
         start: 0,
@@ -192,17 +204,20 @@ describe('MotivationParsers', () => {
         { exact: 'XYZNOTPRESENTANYWHEREZYX' },
       ];
 
-      const result = MotivationParsers.validateTagOffsets(tags, testContent, 'Rule');
+      const { matches: result, dropped } = MotivationParsers.validateTagOffsets(tags, testContent, 'Rule');
 
       expect(result).toHaveLength(1);
+      // The one that was proposed and could not be anchored is counted, not lost.
+      expect(dropped).toBe(1);
       expect(result[0]!.exact).toBe('Alice');
       expect(result[0]!.category).toBe('Rule');
     });
 
     it('should handle empty tag array', () => {
-      const result = MotivationParsers.validateTagOffsets([], testContent, 'Application');
+      const { matches: result, dropped } = MotivationParsers.validateTagOffsets([], testContent, 'Application');
 
       expect(result).toEqual([]);
+      expect(dropped).toBe(0);
     });
   });
 });

@@ -229,7 +229,8 @@ export function ReferencesPanel({
   // Clear log when starting new annotation
   const handleAssist = () => {
     setLastDetectionLog(null);
-    session?.client.mark.requestAssist('linking', {
+    session?.client.mark.requestAssist({
+      motivation: 'linking',
       entityTypes: selectedEntityTypes,
       includeDescriptiveReferences,
       // Body locale stamps the unresolved-reference body's `language`;
@@ -375,7 +376,7 @@ export function ReferencesPanel({
             isAssisting={isAssisting}
             progress={progress}
             progressProps={{
-              onCancel: () => session?.client.job.cancelRequest('annotation'),
+              onCancel: () => session?.client.job.cancelRequest('mark'),
               onDismiss: () => session?.client.mark.dismissProgress(),
               translations: assistProgressTranslations(ta, {
                 found: (count: number) => t('found', { count }),

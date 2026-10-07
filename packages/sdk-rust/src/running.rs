@@ -11,6 +11,10 @@
 //!
 //! Nothing is sent until it is first polled, and dropping it abandons the
 //! operation: what was sent stays sent, and nothing more is.
+//!
+//! An operation may end in something it never reports (`Running<T, F>`):
+//! awaited it gives that, and as a stream its last item is that value as a
+//! report.
 
 use crate::errors::{BusRequestError, BusRequestErrorCode, SemiontError};
 use crate::transport::BoxFuture;
@@ -33,24 +37,25 @@ impl<T> Reporter<T> {
     }
 }
 
-/// See the module's documentation.
-pub struct Running<T> {
+/// See the module's documentation. `T` is what it reports, and `F` its final
+/// value: the same, unless the operation ends in something it never reports.
+pub struct Running<T, F = T> {
     reports: mpsc::UnboundedReceiver<T>,
-    work: Option<BoxFuture<'static, Result<T, SemiontError>>>,
-    outcome: Option<Result<T, SemiontError>>,
+    work: Option<BoxFuture<'static, Result<F, SemiontError>>>,
+    outcome: Option<Result<F, SemiontError>>,
 }
 
 // Nothing in it is pinned in place: the work is boxed, and a value is only
 // ever moved out.
-impl<T> Unpin for Running<T> {}
+impl<T, F> Unpin for Running<T, F> {}
 
-impl<T: Send + 'static> Running<T> {
+impl<T: Send + 'static, F: Send + 'static> Running<T, F> {
     /// An operation `work` performs: it reports through the `Reporter` it is
     /// given and resolves with the final value.
-    pub fn new<W, Fut>(work: W) -> Running<T>
+    pub fn new<W, Fut>(work: W) -> Running<T, F>
     where
         W: FnOnce(Reporter<T>) -> Fut,
-        Fut: Future<Output = Result<T, SemiontError>> + Send + 'static,
+        Fut: Future<Output = Result<F, SemiontError>> + Send + 'static,
     {
         let (reports, receiver) = mpsc::unbounded_channel();
         Running {
@@ -68,13 +73,17 @@ impl<T: Send + 'static> Running<T> {
             self.work = None;
         }
     }
+}
 
+impl<T: Send + 'static, F: Into<T> + Send + 'static> Running<T, F> {
     /// The next report, the final value after the last of them, or the
     /// failure; `None` once one of the last two has been given.
     pub async fn next(&mut self) -> Option<Result<T, SemiontError>> {
         std::future::poll_fn(|cx| Pin::new(&mut *self).poll_next(cx)).await
     }
+}
 
+impl<T: Send + 'static> Running<T> {
     /// Give every report and the final value to `on_each`, in order, then
     /// return the final value.
     pub async fn run(mut self, mut on_each: impl FnMut(&T)) -> Result<T, SemiontError> {
@@ -98,7 +107,7 @@ fn ended_without_a_value() -> SemiontError {
     .into()
 }
 
-impl<T: Send + 'static> Stream for Running<T> {
+impl<T: Send + 'static, F: Into<T> + Send + 'static> Stream for Running<T, F> {
     type Item = Result<T, SemiontError>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -108,7 +117,7 @@ impl<T: Send + 'static> Stream for Running<T> {
             // Every report has been given and the work is done: its outcome
             // is the last item, and after it the stream has ended.
             Poll::Ready(None) | Poll::Pending if self.work.is_none() => {
-                Poll::Ready(self.outcome.take())
+                Poll::Ready(self.outcome.take().map(|outcome| outcome.map(Into::into)))
             }
             // The work goes on, whether or not it still holds its `Reporter`.
             Poll::Ready(None) | Poll::Pending => Poll::Pending,
@@ -116,8 +125,8 @@ impl<T: Send + 'static> Stream for Running<T> {
     }
 }
 
-impl<T: Send + 'static> IntoFuture for Running<T> {
-    type Output = Result<T, SemiontError>;
+impl<T: Send + 'static, F: Send + 'static> IntoFuture for Running<T, F> {
+    type Output = Result<F, SemiontError>;
     type IntoFuture = BoxFuture<'static, Self::Output>;
 
     fn into_future(mut self) -> Self::IntoFuture {
@@ -174,6 +183,21 @@ mod tests {
         let last = counting_to(3).run(|n| seen.push(*n)).await;
         assert_eq!(last, Ok(3));
         assert_eq!(seen, [1, 2, 3]);
+    }
+
+    #[tokio::test]
+    async fn one_that_ends_in_another_type_gives_it_awaited_and_as_its_last_report() {
+        let ending = || -> Running<u64, u32> {
+            Running::new(|reporter| async move {
+                reporter.report(1_u64);
+                Ok(2_u32)
+            })
+        };
+        assert_eq!(ending().await, Ok(2_u32));
+        let mut running = ending();
+        assert_eq!(running.next().await, Some(Ok(1_u64)));
+        assert_eq!(running.next().await, Some(Ok(2_u64)));
+        assert_eq!(running.next().await, None);
     }
 
     #[tokio::test]

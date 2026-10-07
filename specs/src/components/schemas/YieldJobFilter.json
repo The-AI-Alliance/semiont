@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "description": "`yield` jobs.",
+  "properties": {
+    "jobType": {
+      "type": "string",
+      "enum": [
+        "yield"
+      ]
+    }
+  },
+  "required": [
+    "jobType"
+  ],
+  "additionalProperties": false
+}

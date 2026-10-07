@@ -132,7 +132,7 @@ import {
 
 recordBusSent('mark:create', resourceId);  // channel, and the scope it was sent in
 recordHandlerDuration('stower', 'mark:create', durationMs);
-recordJobOutcome('reference-annotation', 'completed', durationMs);
+recordJobOutcome({ jobType: 'mark', motivation: 'linking' }, 'completed', durationMs);
 recordInferenceUsage({ provider: 'ollama', model: 'gemma3:27b', durationMs, outcome: 'success', inputTokens: 412, outputTokens: 87 });
 ```
 

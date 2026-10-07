@@ -83,7 +83,7 @@ impl YieldStateUnit {
     }
 
     /// Generate a resource from a gathered context, as
-    /// `client.yield_.from_context` does, in this unit's locale when the
+    /// `client.yield_.delegate` does, in this unit's locale when the
     /// request states no language.
     pub fn generate(&self, mut params: GenerationJobParams, stall_deadline: Option<Duration>) {
         self.shared.outcome.set(None);
@@ -93,7 +93,7 @@ impl YieldStateUnit {
         }
         let shared = self.shared.clone();
         self.shared.tasks.spawn(async move {
-            let mut run = shared.client.yield_.from_context(params, stall_deadline);
+            let mut run = shared.client.yield_.delegate(params, stall_deadline);
             while let Some(event) = run.next().await {
                 match event {
                     Ok(JobEvent::Progress(progress)) => {

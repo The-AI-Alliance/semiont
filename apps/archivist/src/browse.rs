@@ -5,6 +5,7 @@ use crate::anchored::anchored_text;
 use crate::archivist::{Archivist, Refusal, primary_representation, text};
 use semiont::identity::{agent_did, agent_name};
 use semiont::media_types::{TextSource, base_media_type, capabilities_of};
+use semiont::types::{JobFilter, MarkJobFilter, MarkJobFilterParams, YieldJobFilter};
 use semiont_archivist_record::agents::did_to_agent;
 use semiont_archivist_record::{Object, dictionary_order, kb};
 use serde_json::{Value, json};
@@ -284,31 +285,39 @@ pub async fn tag_schemas(archivist: &Archivist, _: &Object) -> Answered {
 }
 
 /// The roster: each agent once, in the order its first role appears, with
-/// the job types it serves.
+/// the jobs it serves, each named as a claim would name it. The roles are the
+/// roster's own, in its order: a `mark` job of each motivation it names, a
+/// `yield` job, then the actors.
 pub async fn agents(archivist: &Archivist, _: &Object) -> Answered {
-    const JOB_TYPES: [&str; 6] = [
-        "reference-annotation",
-        "highlight-annotation",
-        "assessment-annotation",
-        "comment-annotation",
-        "tag-annotation",
-        "generation",
-    ];
     const ACTORS: [&str; 2] = ["gatherer", "matcher"];
     let Some(domain) = kb::committed(&archivist.root).domain else {
         return Err("The knowledge base's committed .semiont/config declares no [site] domain, and agent DIDs are minted under it — the same domain /api/tokens/agent mints worker DIDs from (no topology fallback)".into());
     };
-    let roster =
-        serde_json::to_value(&archivist.config.roster).map_err(|e| Refusal::from(e.to_string()))?;
-    let mut entries: Vec<(String, Value, Vec<&str>)> = Vec::new();
-    let roles = JOB_TYPES
-        .iter()
-        .map(|role| ("workers", *role, true))
-        .chain(ACTORS.iter().map(|role| ("actors", *role, false)));
-    for (group, role, is_job_type) in roles {
-        let Some(serving) = roster[group].get(role).filter(|s| s.is_object()) else {
-            continue;
-        };
+    let unreadable = |error: serde_json::Error| Refusal::from(error.to_string());
+    let roster = &archivist.config.roster;
+    let mut roles: Vec<(Value, Option<JobFilter>)> = Vec::new();
+    let marking = serde_json::to_value(&roster.workers.mark).map_err(unreadable)?;
+    for (motivation, serving) in marking.as_object().into_iter().flatten() {
+        let motivation =
+            serde_json::from_value(Value::String(motivation.clone())).map_err(unreadable)?;
+        let filter = MarkJobFilter::new(MarkJobFilterParams { motivation });
+        roles.push((serving.clone(), Some(filter.into())));
+    }
+    if let Some(serving) = &roster.workers.r#yield {
+        roles.push((
+            serde_json::to_value(serving).map_err(unreadable)?,
+            Some(YieldJobFilter::new().into()),
+        ));
+    }
+    let actors = serde_json::to_value(&roster.actors).map_err(unreadable)?;
+    for actor in ACTORS {
+        if let Some(serving) = actors.get(actor) {
+            roles.push((serving.clone(), None));
+        }
+    }
+
+    let mut entries: Vec<(String, Value, Vec<JobFilter>)> = Vec::new();
+    for (serving, job) in roles {
         let (provider, model) = (
             serving["provider"].as_str().unwrap_or_default(),
             serving["model"].as_str().unwrap_or_default(),
@@ -331,9 +340,7 @@ pub async fn agents(archivist: &Archivist, _: &Object) -> Answered {
                 entries.len() - 1
             }
         };
-        if is_job_type {
-            entries[at].2.push(role);
-        }
+        entries[at].2.extend(job);
     }
     let agents: Vec<Value> = entries
         .into_iter()
@@ -341,7 +348,7 @@ pub async fn agents(archivist: &Archivist, _: &Object) -> Answered {
             if serves.is_empty() {
                 json!({ "agent": agent })
             } else {
-                json!({ "agent": agent, "servesJobTypes": serves })
+                json!({ "agent": agent, "serves": serves })
             }
         })
         .collect();

@@ -58,11 +58,11 @@ export const TOOLS: Tool[] = [
       type: 'object',
       properties: {
         resourceId: { type: 'string', description: 'Resource ID' },
-        entityTypes: { type: 'array', items: { type: 'string' }, description: 'Entity types to detect' },
+        entityTypes: { type: 'array', items: { type: 'string' }, minItems: 1, description: 'Entity types to detect: at least one, each registered in the knowledge base' },
         language: { type: 'string', description: 'BCP-47 tag for the annotation body language (what the LLM writes). Stamped on TextualBody.language.' },
         sourceLanguage: { type: 'string', description: 'BCP-47 tag for the source-resource language. Fed into the prompt for source-aware analysis.' },
       },
-      required: ['resourceId'],
+      required: ['resourceId', 'entityTypes'],
     },
   },
   // ── Bind ──────────────────────────────────────────────────────────

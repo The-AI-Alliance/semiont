@@ -12,7 +12,7 @@
     },
     "annotationId": {
       "$ref": "./AnnotationId.json",
-      "description": "Annotation this job is attached to, when applicable. Echoed inside JobProgress (in addition to the outer command envelope) so consumers that only see the inner progress object (e.g. client.yield.fromContext's Observable) can still route visual feedback to a specific annotation."
+      "description": "Annotation this job is attached to, when applicable. Echoed inside JobProgress (in addition to the outer command envelope) so consumers that only see the inner progress object (e.g. what `yield.delegate` returns) can still route visual feedback to a specific annotation."
     },
     "current": {
       "type": "object",
@@ -46,7 +46,7 @@
     },
     "entitiesFound": {
       "type": "integer",
-      "description": "Entities found so far (reference-annotation)"
+      "description": "Entities found so far (a linking job)"
     },
     "entitiesExpected": {
       "type": "integer",
@@ -54,7 +54,7 @@
     },
     "entitiesEmitted": {
       "type": "integer",
-      "description": "Annotations emitted so far (reference-annotation)"
+      "description": "Annotations emitted so far (a linking job)"
     },
     "completedItems": {
       "type": "array",
@@ -72,7 +72,7 @@
           },
           "persistedCount": {
             "type": "integer",
-            "description": "Annotations actually persisted for it \u2014 post-dedupe and post-durability-acknowledgement, so it counts what the event log holds, not what the model proposed. Beside foundCount this is the per-unit yield the sizing work is judged by. Present on flows whose units persist as they complete (reference-annotation); the tagging flow reports the same fact as byCategory on its result, because its annotations are built after the per-category loop."
+            "description": "Annotations actually persisted for it \u2014 post-dedupe and post-durability-acknowledgement, so it counts what the event log holds, not what the model proposed. Beside foundCount this is the per-unit yield the sizing work is judged by. Present on flows whose units persist as they complete (a linking job); the tagging flow reports the same fact as byCategory on its result, because its annotations are built after the per-category loop."
           },
           "underReported": {
             "type": "object",

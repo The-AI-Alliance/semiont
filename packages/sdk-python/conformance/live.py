@@ -22,19 +22,17 @@ from semiont.http import HttpTransport, Timing
 from semiont.identifiers import AnnotationId, InvalidIdentifier, ResourceId
 from semiont.model import WireModel
 from semiont.namespaces.browse import Collaborator
-from semiont.namespaces.follow import JobEvent
-from semiont.namespaces.mark import MarkAssistOptions
+from semiont.namespaces.follow import Delegation
 from semiont.refresh import CACHE_QUERIES, CacheQuery
-from semiont.running import Running
 from semiont.storage import MemoryStorage
 from semiont.transport import ConnectionState
-from semiont.types import GenerationJobParams, Motivation
+from semiont.types import GenerationJobParams, MarkJobParams
 from semiont.watched import Variable
 
 type _Shown = WireModel | Collaborator | str | Sequence[_Shown]
 """What a live query's value is made of."""
 
-_MOTIVATION: Final = TypeAdapter[Motivation](Motivation)
+_MARK_PARAMS: Final = TypeAdapter[MarkJobParams](MarkJobParams)
 
 
 def _resource(args: Arguments, name: str) -> ResourceId:
@@ -282,8 +280,8 @@ class Live:
         _query(self._opened(), object_of(args, "query")).invalidate()
         return None
 
-    async def _following(self, name: str, job: Running[JobEvent]) -> None:
-        """A job followed to its end, observed as a live query is.
+    async def _following(self, name: str, job: Delegation) -> None:
+        """A delegated job followed to its end, observed as a live query is.
 
         Each event it reports is a `ready` state, its failure a `failed` one,
         its end a completion.
@@ -296,27 +294,27 @@ class Live:
             say({"emission": {"observer": name, "state": {"status": "failed", "error": failure(error)}}})
         say({"completed": name})
 
-    async def assist(self, _: int, args: Arguments) -> JsonValue:
+    async def mark_delegate(self, _: int, args: Arguments) -> JsonValue:
+        """A `mark` job on `resource`, of the `params` it is created with."""
         client = self._opened()
         observer = self._free(args)
         try:
-            motivation = _MOTIVATION.validate_python(args.get("motivation"))
-            options = MarkAssistOptions.model_validate(object_of(args, "options"))
+            params = _MARK_PARAMS.validate_python(object_of(args, "params"))
         except ValidationError as error:
-            raise Misuse(f"an assist that cannot be asked for: {error}") from error
-        job = client.mark.assist(_resource(args, "resource"), motivation, options)
+            raise Misuse(f"params: {error}") from error
+        job = client.mark.delegate(_resource(args, "resource"), params)
         self._observers[observer] = self._reporters.create_task(self._following(observer, job))
         return None
 
-    async def generate(self, _: int, args: Arguments) -> JsonValue:
-        """A generation, whose follower gives up on it after `stallDeadlineMs` of silence."""
+    async def yield_delegate(self, _: int, args: Arguments) -> JsonValue:
+        """A `yield` job of the `params` it is created with, whose follower gives up on it after `stallDeadlineMs` of silence."""
         client = self._opened()
         observer = self._free(args)
         try:
             params = GenerationJobParams.model_validate(object_of(args, "params"))
         except ValidationError as error:
             raise Misuse(f"params: {error}") from error
-        job = client.yield_.from_context(params, stall_deadline_ms=count(args, "stallDeadlineMs"))
+        job = client.yield_.delegate(params, stall_deadline_ms=count(args, "stallDeadlineMs"))
         self._observers[observer] = self._reporters.create_task(self._following(observer, job))
         return None
 
@@ -343,8 +341,8 @@ class Live:
             "unobserve": Operation(self.unobserve, in_turn=True),
             "fresh": Operation(self.fresh),
             "invalidate": Operation(self.invalidate, in_turn=True),
-            "assist": Operation(self.assist, in_turn=True),
-            "generate": Operation(self.generate, in_turn=True),
+            "markDelegate": Operation(self.mark_delegate, in_turn=True),
+            "yieldDelegate": Operation(self.yield_delegate, in_turn=True),
             "delete": Operation(self.delete),
             "sync": Operation(self.sync, in_turn=True),
         }

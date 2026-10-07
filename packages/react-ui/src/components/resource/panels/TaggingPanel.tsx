@@ -224,7 +224,8 @@ export function TaggingPanel({
 
   const handleAssist = () => {
     if (selectedCategories.size > 0) {
-      session?.client.mark.requestAssist('tagging', {
+      session?.client.mark.requestAssist({
+        motivation: 'tagging',
         schemaId: selectedSchemaId,
         categories: Array.from(selectedCategories),
         // Body locale stamps the tagging body's `language`; sourceLanguage

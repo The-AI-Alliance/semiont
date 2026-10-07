@@ -41,6 +41,9 @@ func envFrom(t *testing.T, text string) *envConfig {
 	if err := resolveGatewaySection(&env, "fixture", cfg.Defaults.Environment); err != nil {
 		t.Fatal(err)
 	}
+	if err := resolveWorkersSection(&env, "fixture", cfg.Defaults.Environment); err != nil {
+		t.Fatal(err)
+	}
 	return &env
 }
 

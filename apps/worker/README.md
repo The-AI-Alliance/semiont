@@ -14,7 +14,7 @@ long-running work that a request cannot wait on.
 ## One host, N processes, N identities
 
 A worker host runs **one process per distinct `(inferenceProvider, model)`** configured in the
-KB's TOML. Job types that share an inference engine share a process; different engines mean
+KB's TOML. Jobs that share an inference engine share a process; different engines mean
 different processes.
 
 Each process authenticates for **its own agent identity** via `/api/tokens/agent`, and that
@@ -24,8 +24,9 @@ consequence of the identity, not a field someone remembered to set.
 
 ## What it runs
 
-Job processors from `@semiont/jobs`, dispatched by `jobType`: reference/highlight/assessment/
-comment/tag detection, and generation. Processors are transport-agnostic — the worker process
+Job processors from `@semiont/jobs`, dispatched by `jobType` and, for a `mark` job, by its
+motivation: a highlighting, commenting, assessing, linking or tagging pass for a `mark` job, and
+generation for a `yield` job. Processors are transport-agnostic — the worker process
 claims the job, fetches content, and handles lifecycle events; the processor just runs the
 inference and returns annotations or content.
 
@@ -37,7 +38,7 @@ rather than recovered coordinates.
 The bus (SSE in for `job:queued`, `POST /bus/emit` out for claims and lifecycle), an inference
 provider, and the Archivist's HTTP surface for bytes. It **pulls**: at every moment it becomes
 idle — start, settle, a matching `job:queued` while parked, reconnect — it asks the dispatcher
-for its next job of the types it runs, and parks when told nothing is pending. `job:queued` is a
+for the next job among those it serves, and parks when told nothing is pending. `job:queued` is a
 wake-up with no memory, not a reservation. Claims are atomic, so several workers can run against
 one queue without coordination. A claim refused with `unauthorized` — this credential is not a
 worker's — exits the process for restart rather than parking forever; the launcher's preflight
@@ -86,7 +87,7 @@ and where the metrics flow.
 ## Configuration
 
 `~/.semiontconfig` (TOML), of which it reads the `gateway`, `identity`, `archivist`, `workers`
-and `inference` sections. `workers` binds each job type to a provider and a model, and that
+and `inference` sections. `workers` binds each job to a provider and a model, and that
 binding decides how many processes and identities the host runs. Its environment is
 `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`, its own service account at the
 knowledge base's issuer, and whatever its sections reference as `${VAR}`, such as
@@ -98,5 +99,5 @@ services.
 
 - [`@semiont/jobs`](../../packages/jobs/) — the processors and this entry point
 - [JOBS.md](../../docs/protocol/JOBS.md) — the job protocol, and the dispatcher's side of it
-- [Job Types](../../packages/jobs/docs/JobTypes.md) — params, progress and result per type
+- [Job Types](../../packages/jobs/docs/JobTypes.md) — a job's description, and its params, progress and result
 - [`semiont-worker` skill](../../docs/builder/skills/semiont-worker/SKILL.md) — building your own job-claim daemon

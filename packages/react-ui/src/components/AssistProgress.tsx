@@ -91,7 +91,7 @@ export interface AssistProgressProps {
    * `false` is a wrong answer, not a safe one.
    */
   ended: boolean;
-  /** Cancel the underlying job. Caller wires `client.job.cancelRequest(...)`. */
+  /** Cancel the underlying job. Caller wires `client.job.cancelRequest(jobType)`. */
   onCancel?: () => void;
   /** Dismiss the display. Caller wires `client.mark.dismissProgress()`. */
   onDismiss?: () => void;

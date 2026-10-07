@@ -1,0 +1,42 @@
+{
+  "type": "object",
+  "description": "What a commenting job takes: passages of the resource are marked, each with a comment the model writes.",
+  "properties": {
+    "motivation": {
+      "type": "string",
+      "enum": [
+        "commenting"
+      ]
+    },
+    "instructions": {
+      "type": "string",
+      "description": "What to look for, in the caller's words. Added to the prompt."
+    },
+    "tone": {
+      "type": "string",
+      "enum": [
+        "scholarly",
+        "explanatory",
+        "conversational",
+        "technical"
+      ],
+      "description": "The voice the comments are written in."
+    },
+    "density": {
+      "type": "number",
+      "description": "How many annotations to aim for per 2000 words of the resource."
+    },
+    "language": {
+      "type": "string",
+      "description": "The language the annotations' own text is written in. BCP 47."
+    },
+    "sourceLanguage": {
+      "type": "string",
+      "description": "The language of the resource being read. BCP 47."
+    }
+  },
+  "required": [
+    "motivation"
+  ],
+  "additionalProperties": false
+}

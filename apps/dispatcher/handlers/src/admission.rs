@@ -1,11 +1,22 @@
 //! Admitting a job (JOBS.md § `job:create`): the checks, in order, the first
 //! that fails being the refusal; the resource the job is recorded under; the
-//! two vocabulary reads; and the record admitted.
+//! two vocabulary reads; the record admitted; and what an announcement of it
+//! carries.
+//!
+//! A job description is its `jobType` and its parameters. What the dispatcher
+//! holds (`JobParams`) is those parameters as they came, and beside them what
+//! it adds, each a property of its own: the resource the job is about, and
+//! for a tagging job the schema its `schemaId` names, so that whoever holds
+//! the job needs no registry. An announcement carries the description alone,
+//! without the job's input.
 
 use semiont::types::{
-    CommandErrorCode, JobCreateCommand, JobId, JobMetadata, JobParams, JobPending,
-    JobPendingStatus, JobType, ResourceId, TagSchema,
+    CommandErrorCode, GatheredContextFocus, GenerationJobParams, JobCreateCommand, JobId,
+    JobMetadata, JobParams, JobPending, JobPendingStatus, JobQueuedEvent, JobType, MarkJobParams,
+    MarkJobQueuedEvent, TagSchema, YieldJobQueuedEvent,
 };
+use serde::Deserialize;
+use serde::de::value::MapDeserializer;
 use serde_json::{Map, Value};
 use std::future::Future;
 
@@ -33,14 +44,6 @@ pub trait Vocabulary: Send + Sync + 'static {
     fn tag_schemas(&self) -> impl Future<Output = Result<Vec<TagSchema>, Refusal>> + Send;
 }
 
-/// A job type as the wire names it.
-pub fn wire_name(job_type: JobType) -> String {
-    serde_json::to_value(job_type)
-        .ok()
-        .and_then(|v| v.as_str().map(str::to_owned))
-        .expect("a JobType names itself")
-}
-
 /// Now, as the record writes times: ISO 8601, milliseconds, UTC.
 pub fn now() -> String {
     chrono::Utc::now()
@@ -48,127 +51,107 @@ pub fn now() -> String {
         .to_string()
 }
 
-fn text(value: Option<&Value>) -> Option<&str> {
-    value.and_then(Value::as_str).filter(|s| !s.is_empty())
+/// Refuses entity types the knowledge base does not register, naming each.
+async fn registered(requested: &[String], reads: &impl Vocabulary) -> Result<(), Refusal> {
+    let registered = reads.entity_types().await?;
+    let unknown: Vec<&str> = requested
+        .iter()
+        .filter(|name| !registered.contains(name))
+        .map(String::as_str)
+        .collect();
+    if unknown.is_empty() {
+        Ok(())
+    } else {
+        Err(Refusal::new(format!(
+            "Entity type not registered: {}",
+            unknown.join(", ")
+        )))
+    }
 }
 
-/// The focus rule: the resource a generation's gathered context is about.
-fn focused_resource(params: &Map<String, Value>) -> Option<ResourceId> {
-    let focus = &params.get("context")?["focus"];
-    let id = match focus["kind"].as_str()? {
-        "resource" => &focus["resource"]["@id"],
-        "annotation" => &focus["sourceResource"]["@id"],
-        _ => return None,
+/// Refuses the parameters a `yield` job was given that it does not take: the
+/// ones its type does not name. Its schema is open, so the gateway admits
+/// them; a `mark` job's is closed, and one of those never arrives.
+fn taken(given: &Map<String, Value>, params: &GenerationJobParams) -> Result<(), Refusal> {
+    let named = serde_json::to_value(params).expect("a yield job's parameters serialize");
+    let unknown: Vec<&str> = given
+        .keys()
+        .filter(|name| named.get(name.as_str()).is_none())
+        .map(String::as_str)
+        .collect();
+    if unknown.is_empty() {
+        Ok(())
+    } else {
+        Err(Refusal::new(format!(
+            "a yield job takes no parameter {}",
+            unknown.join(", ")
+        )))
+    }
+}
+
+/// The job a `job:create` asks for, or why it is refused.
+pub async fn admit(mut payload: Value, reads: &impl Vocabulary) -> Result<JobPending, Refusal> {
+    let unreadable = |why: &dyn std::fmt::Display| {
+        Refusal::new(format!(
+            "a job:create that is not a JobCreateCommand: {why}"
+        ))
     };
-    id.as_str().and_then(|id| ResourceId::new(id).ok())
-}
-
-/// The job `command` asks for, or why it is refused.
-pub async fn admit(
-    command: JobCreateCommand,
-    reads: &impl Vocabulary,
-) -> Result<JobPending, Refusal> {
-    let JobCreateCommand {
-        _user_id: user_id,
-        job_type,
-        resource_id,
-        params,
-    } = command;
-    let Some(user_id) = user_id else {
+    let command = JobCreateCommand::deserialize(&payload).map_err(|error| unreadable(&error))?;
+    // Held as they came: what a claim hands over is what was asked for, whole.
+    let Some(Value::Object(params)) = payload.get_mut("params").map(Value::take) else {
+        return Err(unreadable(&"its params are not an object"));
+    };
+    let (user_id, job_type, resource_id) = match &command {
+        JobCreateCommand::MarkJobCreateCommand(mark) => {
+            (&mark._user_id, JobType::Mark, &mark.resource_id)
+        }
+        // The focus rule: the resource a gathered context is about.
+        JobCreateCommand::YieldJobCreateCommand(yielding) => (
+            &yielding._user_id,
+            JobType::Yield,
+            match &yielding.params.context.focus {
+                GatheredContextFocus::Resource(focus) => &focus.resource.id,
+                GatheredContextFocus::Annotation(focus) => &focus.source_resource.id,
+            },
+        ),
+    };
+    let (Some(user_id), resource_id) = (user_id.clone(), resource_id.clone()) else {
         return Err(Refusal::new(
             "_userId is required (injected by bus gateway)",
         ));
     };
-    if params.contains_key("resourceId") {
-        return Err(Refusal::new(
-            "job:create must omit params.resourceId — the job's resource is its resourceId, or a generation's context focus",
-        ));
-    }
 
-    let resource = if job_type == JobType::Generation {
-        if resource_id.is_some() {
-            return Err(Refusal::new(
-                "generation job:create must omit resourceId — the context's focus is authoritative",
-            ));
+    // The schema a tagging job's `schemaId` names; no other job has one.
+    let schema = match &command {
+        JobCreateCommand::MarkJobCreateCommand(mark) => match &mark.params {
+            MarkJobParams::LinkingJobParams(linking) => {
+                registered(&linking.entity_types, reads).await?;
+                None
+            }
+            MarkJobParams::TaggingJobParams(tagging) => {
+                let schemas = reads.tag_schemas().await?;
+                let Some(schema) = schemas.into_iter().find(|s| s.id == tagging.schema_id) else {
+                    return Err(Refusal::new(format!(
+                        "Tag schema not registered: {}",
+                        tagging.schema_id
+                    )));
+                };
+                Some(schema)
+            }
+            MarkJobParams::HighlightingJobParams(_)
+            | MarkJobParams::CommentingJobParams(_)
+            | MarkJobParams::AssessingJobParams(_) => None,
+        },
+        JobCreateCommand::YieldJobCreateCommand(yielding) => {
+            taken(&params, &yielding.params)?;
+            if let Some(requested) = yielding.params.entity_types.as_deref()
+                && !requested.is_empty()
+            {
+                registered(requested, reads).await?;
+            }
+            None
         }
-        if params.contains_key("referenceId") {
-            return Err(Refusal::new(
-                "generation job:create must omit params.referenceId — the context's focus is authoritative",
-            ));
-        }
-        let context_is_object = params.get("context").is_some_and(Value::is_object);
-        if text(params.get("title")).is_none()
-            || text(params.get("storageUri")).is_none()
-            || !context_is_object
-        {
-            return Err(Refusal::new(
-                "generation params do not satisfy GenerationJobParams (title, storageUri, and context are required)",
-            ));
-        }
-        focused_resource(&params).ok_or_else(|| {
-            Refusal::new(
-                "generation context has no usable focus — pass a GatheredContext produced by gather.resource(...) or gather.annotation(...)",
-            )
-        })?
-    } else {
-        resource_id.ok_or_else(|| {
-            Refusal::new(format!(
-                "{} job:create requires resourceId",
-                wire_name(job_type)
-            ))
-        })?
     };
-
-    let mut params = params;
-    if matches!(job_type, JobType::ReferenceAnnotation | JobType::Generation)
-        && let Some(Value::Array(requested)) = params.get("entityTypes")
-        && !requested.is_empty()
-    {
-        let registered = reads.entity_types().await?;
-        let unknown: Vec<String> = requested
-            .iter()
-            .filter(|t| {
-                !t.as_str()
-                    .is_some_and(|name| registered.iter().any(|r| r == name))
-            })
-            .map(|t| {
-                t.as_str()
-                    .map(str::to_owned)
-                    .unwrap_or_else(|| t.to_string())
-            })
-            .collect();
-        if !unknown.is_empty() {
-            return Err(Refusal::new(format!(
-                "Entity type not registered: {}",
-                unknown.join(", ")
-            )));
-        }
-    }
-    if job_type == JobType::ReferenceAnnotation
-        && params
-            .get("entityTypes")
-            .is_some_and(|t| !t.is_array() && !t.is_null())
-    {
-        return Err(Refusal::new(
-            "reference-annotation params.entityTypes is not an array",
-        ));
-    }
-    if job_type == JobType::TagAnnotation {
-        let schemas = reads.tag_schemas().await?;
-        let Some(schema_id) = text(params.get("schemaId")).map(str::to_owned) else {
-            return Err(Refusal::new("tag-annotation requires schemaId"));
-        };
-        let Some(schema) = schemas.into_iter().find(|s| s.id == schema_id) else {
-            return Err(Refusal::new(format!(
-                "Tag schema not registered: {schema_id}"
-            )));
-        };
-        params.insert(
-            "schema".to_owned(),
-            serde_json::to_value(schema).expect("a TagSchema serializes"),
-        );
-        params.remove("schemaId");
-    }
 
     Ok(JobPending {
         status: JobPendingStatus::Pending,
@@ -179,17 +162,51 @@ pub async fn admit(
             user_id,
             created: now(),
             retry_count: 0,
-            max_retries: if job_type == JobType::Generation {
-                0
-            } else {
-                1
+            max_retries: match job_type {
+                JobType::Mark => 1,
+                JobType::Yield => 0,
             },
             completed_units: None,
             unit_cursors: None,
         },
         params: JobParams {
-            resource_id: resource,
+            resource_id,
+            schema,
             rest: params,
         },
+    })
+}
+
+/// The parameters a job was created with, as `T` reads them: what the
+/// caller sent, without whatever `T` does not name.
+fn stated<'a, T: Deserialize<'a>>(params: &'a JobParams) -> Result<T, serde_json::Error> {
+    T::deserialize(MapDeserializer::new(
+        params
+            .rest
+            .iter()
+            .map(|(name, value)| (name.as_str(), value)),
+    ))
+}
+
+/// What an announcement of a job carries (JOBS.md § `job:queued`): its
+/// description less its input. A `mark` job's parameters are announced whole;
+/// a `yield` job's are the ones its request names, which its context is not.
+/// It is also what a claim's filters are matched against.
+pub fn announcement(
+    metadata: &JobMetadata,
+    params: &JobParams,
+) -> Result<JobQueuedEvent, serde_json::Error> {
+    let (job_id, resource_id, user_id) = (
+        metadata.id.clone(),
+        params.resource_id.clone(),
+        metadata.user_id.clone(),
+    );
+    Ok(match metadata.r#type {
+        JobType::Mark => {
+            MarkJobQueuedEvent::new(job_id, resource_id, user_id, stated(params)?).into()
+        }
+        JobType::Yield => {
+            YieldJobQueuedEvent::new(job_id, resource_id, user_id, stated(params)?).into()
+        }
     })
 }

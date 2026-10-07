@@ -78,8 +78,8 @@ func TestArchivistDocumentIsResolved(t *testing.T) {
 	if doc.LogLevel != "debug" || doc.LogFormat != semiont.Json {
 		t.Errorf("log = %q %q", doc.LogLevel, doc.LogFormat)
 	}
-	if doc.Roster.Workers.Generation == nil || doc.Roster.Workers.Generation.Model != "claude-haiku-4-5" {
-		t.Errorf("roster = %+v, want workers.default serving generation", doc.Roster)
+	if doc.Roster.Workers.Yield == nil || doc.Roster.Workers.Yield.Model != "claude-haiku-4-5" {
+		t.Errorf("roster = %+v, want workers.default serving yield jobs", doc.Roster)
 	}
 }
 
@@ -99,7 +99,9 @@ func TestArchivistDocumentRefusesAMissingGatewayOrIssuer(t *testing.T) {
 // for, is refused by its place in the config.
 func TestArchivistRosterRefusesAMalformedBinding(t *testing.T) {
 	for field, binding := range map[string]string{
-		"workers.generation":           "[environments.local.workers.generation.inference]\ntype = \"anthropic\"\n",
+		"workers.yield":                "[environments.local.workers.yield.inference]\ntype = \"anthropic\"\n",
+		"workers.mark":                 "[environments.local.workers.mark.inference]\nmodel = \"m\"\n",
+		"workers.mark.tagging":         "[environments.local.workers.mark.tagging.inference]\ntype = \"openai\"\nmodel = \"m\"\n",
 		"actors.matcher":               "[environments.local.actors.matcher.inference]\nmodel = \"m\"\n",
 		"make-meaning.default":         "[environments.local.make-meaning.default.inference]\ntype = \"openai\"\nmodel = \"m\"\n",
 		"make-meaning.actors.gatherer": "[environments.local.make-meaning.actors.gatherer.inference]\ntype = \"ollama\"\n",
@@ -111,30 +113,43 @@ func TestArchivistRosterRefusesAMalformedBinding(t *testing.T) {
 	}
 }
 
-// TestRosterAgreesWithTheSharedTable runs every case in
-// specs/src/service-config/roster-cases.json through the launcher's
-// resolution. The TypeScript loader, which the worker and the Librarian route
-// work by, runs the same table (packages/core toml-loader.test.ts); together
-// they gate a mirror that spans languages and cannot be generated.
-func TestRosterAgreesWithTheSharedTable(t *testing.T) {
+// sharedRosterTable: specs/src/service-config/roster-cases.json. The
+// TypeScript loader, which the worker and the Librarian route work by, runs
+// the same table (packages/core toml-loader.test.ts); together they gate a
+// mirror that spans languages and cannot be generated.
+type sharedRosterTable struct {
+	Cases []struct {
+		Why    string          `json:"why"`
+		Config string          `json:"config"`
+		Roster json.RawMessage `json:"roster"`
+	} `json:"cases"`
+	Refusals []struct {
+		Why    string `json:"why"`
+		Config string `json:"config"`
+		Names  string `json:"names"`
+	} `json:"refusals"`
+}
+
+func readSharedRosterTable(t *testing.T) sharedRosterTable {
+	t.Helper()
 	b, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "specs", "src", "service-config", "roster-cases.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	var table struct {
-		Cases []struct {
-			Why    string          `json:"why"`
-			Config string          `json:"config"`
-			Roster json.RawMessage `json:"roster"`
-		} `json:"cases"`
-	}
+	var table sharedRosterTable
 	if err := json.Unmarshal(b, &table); err != nil {
 		t.Fatal(err)
 	}
-	if len(table.Cases) == 0 {
-		t.Fatal("the shared table has no cases: a gate that runs nothing passes on silence")
+	if len(table.Cases) == 0 || len(table.Refusals) == 0 {
+		t.Fatalf("the shared table has %d cases and %d refusals: a gate that runs nothing passes on silence", len(table.Cases), len(table.Refusals))
 	}
-	for _, c := range table.Cases {
+	return table
+}
+
+// TestRosterAgreesWithTheSharedTable runs every case of the shared table
+// through the launcher's resolution.
+func TestRosterAgreesWithTheSharedTable(t *testing.T) {
+	for _, c := range readSharedRosterTable(t).Cases {
 		t.Run(c.Why, func(t *testing.T) {
 			got, err := archivistRoster(envFrom(t, c.Config))
 			if err != nil {
@@ -151,6 +166,52 @@ func TestRosterAgreesWithTheSharedTable(t *testing.T) {
 				t.Errorf("roster = %s\nwant     %s", gotJSON, c.Roster)
 			}
 		})
+	}
+}
+
+// TestLoadRefusesWhatTheSharedTableRefuses loads every config the shared
+// table says is refused, as `semiont start` loads one, before anything is
+// started: a worker section that names no job is refused by name.
+func TestLoadRefusesWhatTheSharedTableRefuses(t *testing.T) {
+	for _, c := range readSharedRosterTable(t).Refusals {
+		t.Run(c.Why, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "refused.toml")
+			if err := os.WriteFile(path, []byte(c.Config), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			_, _, _, err := loadConfig(path)
+			if want := "." + c.Names + "] names no job"; err == nil || !strings.Contains(err.Error(), want) {
+				t.Errorf("want a refusal saying %q, got %v", want, err)
+			}
+		})
+	}
+}
+
+// A worker section is read as every binding is: a value of the wrong type is
+// an error naming the section, and not a section that binds nothing.
+func TestAWorkerSectionOfTheWrongShapeIsAnError(t *testing.T) {
+	for section, written := range map[string]string{
+		"workers.yield":        "[environments.local.workers.yield.inference]\nmodel = 5\n",
+		"workers.mark.tagging": "[environments.local.workers.mark.tagging]\ninference = \"anthropic\"\n",
+		"workers.mark":         "[environments.local.workers]\nmark = \"anthropic\"\n",
+	} {
+		path := filepath.Join(t.TempDir(), "wrong.toml")
+		if err := os.WriteFile(path, []byte(archivistDocFixture+"\n"+written), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		_, _, _, err := loadConfig(path)
+		if err == nil || !strings.Contains(err.Error(), "[environments.local."+section+"]") {
+			t.Errorf("%s: want an error naming the section, got %v", section, err)
+		}
+	}
+}
+
+// What a section that binds an agent holds beside its binding is not the
+// launcher's to refuse: only a section's name says which jobs it serves.
+func TestAWorkerSectionMayHoldMoreThanItsBinding(t *testing.T) {
+	env := envFrom(t, archivistDocFixture+"\n[environments.local.workers.yield]\nnote = \"kept\"\n")
+	if _, bound := env.Workers["yield"]; !bound {
+		t.Errorf("workers = %v, want the yield section read", env.Workers)
 	}
 }
 

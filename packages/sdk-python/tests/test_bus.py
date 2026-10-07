@@ -10,10 +10,10 @@ from pydantic import JsonValue, ValidationError
 
 from semiont.bus import Bus, decoded, reply_channels_for
 from semiont.channel import Empty
-from semiont.channels import BECKON_FOCUS, BECKON_HOVER, MARK_ADDED, MARK_CANCEL_PENDING, MARK_DELETE
+from semiont.channels import BECKON_FOCUS, BECKON_HOVER, JOB_CREATE, JOB_QUEUED, MARK_ADDED, MARK_CANCEL_PENDING, MARK_DELETE
 from semiont.errors import BusRequestError, TransportError
 from semiont.identifiers import AnnotationId, JobId, ResourceId
-from semiont.model import written
+from semiont.model import stated, written
 from semiont.operations import BROWSE_KB_REQUESTED, FRAME_ADD_ENTITY_TYPE, JOB_STATUS_REQUESTED, MARK_CREATE_REQUEST
 from semiont.testing import FaultyTransport
 from semiont.transport import Frame
@@ -24,10 +24,15 @@ from semiont.types import (
     CreateAnnotationRequest,
     FrameAddEntityTypeCommand,
     GatheredContext,
+    GenerationJobParams,
+    JobParams,
     JobStatusRequest,
     MarkCreateRequest,
     MarkDeleteCommand,
+    MarkJobCreateCommand,
+    MarkJobQueuedEvent,
     MatchSearchRequest,
+    TaggingJobParams,
 )
 
 RESOURCE, ANNOTATION = ResourceId("res-1"), AnnotationId("ann-1")
@@ -50,6 +55,31 @@ def test_an_option_given_as_nothing_is_not_sent_and_what_a_shape_holds_deeper_is
     # Deeper, what was read is written back as it was read: a null that came is a null that goes.
     request = MatchSearchRequest(resource_id=RESOURCE, reference_id=ANNOTATION, context=GatheredContext.model_validate(CONTEXT), limit=None)
     assert written(request) == {"resourceId": "res-1", "referenceId": "ann-1", "context": CONTEXT}
+
+
+def test_a_shape_its_caller_made_says_only_what_it_holds_and_holds_what_it_held() -> None:
+    context = GatheredContext.model_validate(CONTEXT)
+    given = GenerationJobParams(title="A summary", storage_uri="file://a-summary.md", context=context, prompt=None, max_tokens=200)
+    said = stated(given)
+    assert type(said) is GenerationJobParams
+    assert said.model_fields_set == {"title", "storage_uri", "context", "max_tokens"}
+    assert (said.title, said.prompt, said.max_tokens) == ("A summary", None, 200)
+    # What it holds is not read again, and is written as it came.
+    assert said.context is context
+    assert said.model_dump(mode="json", exclude_unset=True) == {
+        "title": "A summary",
+        "storageUri": "file://a-summary.md",
+        "context": CONTEXT,
+        "maxTokens": 200,
+    }
+    # One that must be there says so when it holds nothing; one of several shapes stays the one it is.
+    assert stated(BeckonHoverEvent(annotation_id=None)).model_fields_set == {"annotation_id"}
+    tagging = TaggingJobParams(motivation="tagging", schema_id="s1", categories=["claim"], language=None)
+    assert stated(tagging) == TaggingJobParams(motivation="tagging", schema_id="s1", categories=["claim"])
+    assert stated(tagging).model_fields_set == {"motivation", "schema_id", "categories"}
+    # What a shape that admits more was given beyond what it declares, it still holds.
+    held = stated(JobParams.model_validate({"resourceId": "res-1", "motivation": "tagging", "more": None}))
+    assert written(held) == {"resourceId": "res-1", "motivation": "tagging", "more": None}
 
 
 def test_an_emit_by_type_sends_its_channels_name_and_its_payload_as_the_wire_carries_it() -> None:
@@ -81,6 +111,36 @@ def test_a_payload_is_read_without_the_stamps_its_channel_does_not_declare() -> 
         decoded(MARK_CANCEL_PENDING, {"more": 1})
     with pytest.raises(ValidationError):
         decoded(BECKON_HOVER, {"annotationId": 7})
+
+
+def test_a_payload_that_is_one_of_several_shapes_is_read_without_the_stamps_none_of_them_declares() -> None:
+    tagging: dict[str, JsonValue] = {"motivation": "tagging", "schemaId": "s1", "categories": ["claim"]}
+    stamps: dict[str, JsonValue] = {"_userId": "did:web:example.org:users:alice", "_roles": ["worker"], "_trace": {"traceparent": "00-…"}}
+    # A command declares who sent it and their roles, and admits nothing else: the stamp it does not declare is the bus's.
+    create = decoded(JOB_CREATE, {"jobType": "mark", "resourceId": "res-1", "params": tagging, **stamps})
+    assert type(create) is MarkJobCreateCommand
+    assert (create.user_id, create.roles) == ("did:web:example.org:users:alice", ["worker"])
+    # An announcement declares none of them.
+    queued = decoded(
+        JOB_QUEUED,
+        {
+            "jobId": "job-1",
+            "jobType": "mark",
+            "resourceId": "res-1",
+            "userId": "did:web:example.org:users:bob",
+            "params": tagging,
+            **stamps,
+        },
+    )
+    assert type(queued) is MarkJobQueuedEvent
+    assert queued.user_id == "did:web:example.org:users:bob"
+    assert written(queued) == {
+        "jobId": "job-1",
+        "jobType": "mark",
+        "resourceId": "res-1",
+        "userId": "did:web:example.org:users:bob",
+        "params": tagging,
+    }
 
 
 def test_frames_by_type_carry_their_payload_decoded_and_who_emitted_them(caplog: pytest.LogCaptureFixture) -> None:

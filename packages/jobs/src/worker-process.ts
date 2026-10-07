@@ -17,17 +17,10 @@
 
 import { createJobClaimAdapter, type JobClaimAdapter, type ActiveJob } from './job-claim-adapter';
 import { willRetryAfter } from './will-retry';
-import {
-  asJobParams,
-  type AssessmentDetectionParams,
-  type CommentDetectionParams,
-  type DetectionParams,
-  type HighlightDetectionParams,
-  type TagDetectionParams,
-} from './types';
+import { isHeldMark, type MarkMotivation } from './types';
 import type { SemiontSession } from '@semiont/sdk';
 import { type HttpTransport } from '@semiont/http-transport';
-import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, findClaimSpan, capabilitiesOf, isObject, isString, type AnnotationId, type EventMap, type JobId, type ResourceId, busRequest, BusRequestError } from '@semiont/core';
+import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, findClaimSpan, capabilitiesOf, isObject, isString, jobMatchesFilter, MARK_MOTIVATIONS, type AnnotationId, type EventMap, type JobFilter, type JobId, type ResourceId, busRequest, BusRequestError } from '@semiont/core';
 
 import type { InferenceClient } from '@semiont/inference';
 import type { Logger, components, AssembledAnnotation, Annotation, UnitCursor } from '@semiont/core';
@@ -49,24 +42,28 @@ import {
 } from './processors';
 
 /**
- * The ONE derivation for a job's associated reference/annotation id.
- * Generation params carry no `referenceId` on the wire — the context's
- * focus is authoritative — so for generation jobs the id comes from
- * `focus.annotation.id` (annotation focus) or is undefined (resource focus).
- * Non-generation jobTypes (detection echoes) pass their own
- * `params.referenceId` through.
+ * A held `mark` job's motivation, for what names the job to an operator: a
+ * message, a span, a metric's label. Undefined for a `yield` job, and for a
+ * `mark` job whose params name none of the five.
+ */
+function motivationOf(job: { type: string; params: Record<string, unknown> }): MarkMotivation | undefined {
+  if (job.type !== 'mark') return undefined;
+  return MARK_MOTIVATIONS.find((motivation) => motivation === job.params.motivation);
+}
+
+/**
+ * The ONE derivation of the annotation a job is attached to: the annotation a
+ * `yield` job's context is focused on. A `yield` job focused on a resource
+ * has none, and neither has a `mark` job.
  */
 export function referenceIdOf(job: { type: string; params: Record<string, unknown> }): AnnotationId | undefined {
-  if (job.type === 'generation') {
-    const context = job.params.context as { focus?: { kind?: unknown; annotation?: { id?: AnnotationId } } } | undefined;
-    const focus = context?.focus;
-    if (focus?.kind === 'annotation' && typeof focus.annotation?.id === 'string') {
-      return focus.annotation.id;
-    }
-    return undefined;
+  if (job.type !== 'yield') return undefined;
+  const context = job.params.context as { focus?: { kind?: unknown; annotation?: { id?: AnnotationId } } } | undefined;
+  const focus = context?.focus;
+  if (focus?.kind === 'annotation' && typeof focus.annotation?.id === 'string') {
+    return focus.annotation.id;
   }
-  const ref = (job.params as { referenceId?: AnnotationId }).referenceId;
-  return typeof ref === 'string' ? ref : undefined;
+  return undefined;
 }
 
 type Agent = components['schemas']['Agent'];
@@ -80,12 +77,11 @@ export interface WorkerProcessConfig {
    */
   session: SemiontSession;
   /**
-   * The job types this agent serves. Every job type a worker
-   * subscribes to runs through the same inference engine — different
-   * inference engines mean different agents and therefore different
-   * worker processes.
+   * The jobs this agent takes. Every job a worker claims runs through the
+   * same inference engine — different inference engines mean different
+   * agents and therefore different worker processes.
    */
-  jobTypes: string[];
+  accepts: JobFilter[];
   inferenceClient: InferenceClient;
   /**
    * Test seam; defaults to `process.exit`. A claim the dispatcher refuses
@@ -279,7 +275,7 @@ export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter
   const httpTransport = session.client.transport as HttpTransport;
   const adapter = createJobClaimAdapter({
     bus: httpTransport.actor,
-    jobTypes: config.jobTypes,
+    accepts: config.accepts,
   });
 
   // What a refused claim means to this process. `bus.none-pending` never
@@ -292,7 +288,7 @@ export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter
   adapter.refused$.subscribe(({ code, message }) => {
     if (code === 'bus.unauthorized') {
       logger.error('Claim refused: this worker is not authorized to claim jobs — exiting for restart', {
-        code, message, jobTypes: config.jobTypes,
+        code, message, accepts: config.accepts,
       });
       exit(1);
       return;
@@ -408,6 +404,7 @@ export async function handleJob(
   unitCursorsByJob: Map<string, Record<string, UnitCursor>> = new Map(),
 ): Promise<void> {
   const start = performance.now();
+  const motivation = motivationOf(job);
   let outcome: 'completed' | 'failed' = 'completed';
   try {
     return await withSpan(
@@ -417,6 +414,7 @@ export async function handleJob(
         kind: SpanKind.CONSUMER,
         attrs: {
           'job.type': job.type,
+          ...(motivation ? { 'job.motivation': motivation } : {}),
           'job.id': job.jobId,
           'resource.id': job.resourceId,
         },
@@ -426,7 +424,7 @@ export async function handleJob(
     outcome = 'failed';
     throw err;
   } finally {
-    recordJobOutcome(job.type, outcome, performance.now() - start);
+    recordJobOutcome({ jobType: job.type, ...(motivation ? { motivation } : {}) }, outcome, performance.now() - start);
   }
 }
 
@@ -442,7 +440,9 @@ async function handleJobInner(
   // Who asked for the job is not among what the worker holds: it cites the
   // job, and the Stower derives the requester from the dispatcher's record of
   // it — provenance is derived, never asserted.
-  const { jobId, type: jobType, resourceId } = job;
+  const { jobId, type: jobType, resourceId, params } = job;
+  // What this job is, as a claim or a config section names it, for a message.
+  const what = jobType === 'mark' ? `mark (${motivationOf(job) ?? 'no motivation'})` : jobType;
 
   // Annotation-scoped jobs (generation, triggered from a
   // reference) carry the source annotation through every lifecycle
@@ -499,8 +499,8 @@ async function handleJobInner(
 
   await emitEvent(session, 'job:start', lifecycleBase);
 
-  if (!config.jobTypes.includes(jobType)) {
-    adapter.failJob(jobId, `Worker not configured for job type: ${jobType}`);
+  if (!config.accepts.some((filter) => jobMatchesFilter(filter, { jobType, params }))) {
+    adapter.failJob(jobId, `Worker not configured for job: ${what}`);
     return;
   }
 
@@ -516,7 +516,7 @@ async function handleJobInner(
   // declines cleanly and completes the job saying which. Generation reads the
   // annotation in its params, not the source bytes, so it is not prepared here.
   let ready: { text: string; buildAnnotation: BuildAnnotation } | null = null;
-  if (jobType !== 'generation') {
+  if (jobType === 'mark') {
     const descriptor = await session.client.browse.resource(resourceId).fresh();
     const mediaType = getPrimaryMediaType(descriptor);
     // Its own span: extraction (fetch + decode, or a multi-second OCR pass on
@@ -540,7 +540,7 @@ async function handleJobInner(
       if (source.declined === 'no-extractor') {
         // A media type with nothing to extract is a user error, not weather —
         // retrying cannot change it, so it skips the retry budget.
-        throw new DeterministicJobError(`Cannot run ${jobType} on resource ${resourceId}: media type '${mediaType ?? 'unknown'}' has no extractable text to analyze`);
+        throw new DeterministicJobError(`Cannot run ${what} on resource ${resourceId}: media type '${mediaType ?? 'unknown'}' has no extractable text to analyze`);
       }
       if (source.declined === 'no-map' || source.declined === 'unknown') {
         // Terminal, and loud: no-map is drift between `yieldsGeometryOf` and the
@@ -548,7 +548,7 @@ async function handleJobInner(
         // is a resource with no content identity. Neither is retryable, and
         // both mean something upstream is wrong — surface it, do not complete
         // as if the resource simply had nothing to detect.
-        throw new DeterministicJobError(`Cannot run ${jobType} on resource ${resourceId}: anchored-text consult returned '${source.declined}'`);
+        throw new DeterministicJobError(`Cannot run ${what} on resource ${resourceId}: anchored-text consult returned '${source.declined}'`);
       }
       // A genuine content decline (encrypted, corrupt, scanned-without-OCR,
       // empty) — the resource legitimately has nothing to detect over. A clean
@@ -556,7 +556,6 @@ async function handleJobInner(
       await emitEvent(session, 'job:complete', {
         ...terminalBase(),
         result: {
-          kind: 'declined',
           declined: true,
           reason: source.declined,
         },
@@ -617,9 +616,9 @@ async function handleJobInner(
     });
   };
 
-  if (jobType === 'highlight-annotation') {
+  if (jobType === 'mark' && isHeldMark(params, 'highlighting')) {
     const { result } = await processHighlightJob(
-      ready!.text, inferenceClient, asJobParams<HighlightDetectionParams>(job.params), ready!.buildAnnotation, onProgress,
+      ready!.text, inferenceClient, params, ready!.buildAnnotation, onProgress,
       // The durability write, per chunk, awaited; folds into the terminal
       // durability evidence like every commit, and carries the unit's cursor.
       commitChunk,
@@ -634,9 +633,9 @@ async function handleJobInner(
     });
     adapter.completeJob();
 
-  } else if (jobType === 'comment-annotation') {
+  } else if (jobType === 'mark' && isHeldMark(params, 'commenting')) {
     const { result } = await processCommentJob(
-      ready!.text, inferenceClient, asJobParams<CommentDetectionParams>(job.params), ready!.buildAnnotation, onProgress,
+      ready!.text, inferenceClient, params, ready!.buildAnnotation, onProgress,
       // The durability write, per chunk, awaited; folds into the terminal
       // durability evidence like every commit, and carries the unit's cursor.
       commitChunk,
@@ -650,9 +649,9 @@ async function handleJobInner(
     });
     adapter.completeJob();
 
-  } else if (jobType === 'assessment-annotation') {
+  } else if (jobType === 'mark' && isHeldMark(params, 'assessing')) {
     const { result } = await processAssessmentJob(
-      ready!.text, inferenceClient, asJobParams<AssessmentDetectionParams>(job.params), ready!.buildAnnotation, onProgress,
+      ready!.text, inferenceClient, params, ready!.buildAnnotation, onProgress,
       // The durability write, per chunk, awaited; folds into the terminal
       // durability evidence like every commit, and carries the unit's cursor.
       commitChunk,
@@ -666,14 +665,13 @@ async function handleJobInner(
     });
     adapter.completeJob();
 
-  } else if (jobType === 'reference-annotation') {
+  } else if (jobType === 'mark' && isHeldMark(params, 'linking')) {
     // Checkpointed resume. A retried claim skips the units earlier attempts
     // completed; every remaining unit commits chunk by chunk through
     // `commitChunk`, and the unit callback checkpoints it once its last chunk
     // has committed — the awaited commits ARE the acceptance that lets the
     // unit count as complete, and the accumulator feeds the job:fail payload
     // if a later unit dies.
-    const params = asJobParams<DetectionParams>(job.params);
     const skip = new Set(job.completedUnits);
     const remaining = {
       ...params,
@@ -732,9 +730,9 @@ async function handleJobInner(
     });
     adapter.completeJob();
 
-  } else if (jobType === 'tag-annotation') {
+  } else if (jobType === 'mark' && isHeldMark(params, 'tagging')) {
     const { result } = await processTagJob(
-      ready!.text, inferenceClient, asJobParams<TagDetectionParams>(job.params), ready!.buildAnnotation, onProgress,
+      ready!.text, inferenceClient, params, ready!.buildAnnotation, onProgress,
       // The durability write, per chunk, awaited; folds into the terminal
       // durability evidence like every commit, and carries the unit's cursor.
       commitChunk,
@@ -748,7 +746,7 @@ async function handleJobInner(
     });
     adapter.completeJob();
 
-  } else if (jobType === 'generation') {
+  } else if (jobType === 'yield') {
     // Trust-boundary narrowing: params crossed the wire as untyped JSON. The
     // guard checks the schema's required trio; a malformed bag fails the job
     // loudly here instead of surfacing as a mid-generation TypeError.
@@ -897,11 +895,13 @@ async function handleJobInner(
 
     await emitEvent(session, 'job:complete', {
       ...terminalBase(),
-      result: { kind: 'generation', resourceId: newResourceId, resourceName: genResult.title, truncated: genResult.truncated },
+      result: { resourceId: newResourceId, resourceName: genResult.title, truncated: genResult.truncated },
     });
     adapter.completeJob();
 
   } else {
-    adapter.failJob(jobId, `Unknown job type: ${jobType}`);
+    // A job this worker claims and cannot run: a tagging job handed over
+    // without the schema the Dispatcher resolves, say.
+    adapter.failJob(jobId, `No processor for job: ${what}`);
   }
 }

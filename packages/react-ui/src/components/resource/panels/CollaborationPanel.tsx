@@ -196,9 +196,9 @@ export function CollaborationPanel({
                     {agent.model ?? agent.name}
                   </span>
                 </div>
-                {entry.servesJobTypes && entry.servesJobTypes.length > 0 && (
+                {entry.serves && entry.serves.length > 0 && (
                   <div className="semiont-collaboration-panel__collaborator-jobs">
-                    {entry.servesJobTypes.join(', ')}
+                    {entry.serves.map((filter) => (filter.jobType === 'mark' ? filter.params.motivation : filter.jobType)).join(', ')}
                   </div>
                 )}
                 {ceiling && (

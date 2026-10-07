@@ -1540,6 +1540,27 @@ func TestStartRefusesAnEnvironmentSite(t *testing.T) {
 	}
 }
 
+// A worker section names the jobs it serves, as a job description does. One
+// that names none would bind nothing, and the worker handed that config would
+// refuse it: start refuses it first, by name, saying what a worker section may
+// be, and launches nothing.
+func TestStartRefusesAWorkerSectionThatNamesNoJob(t *testing.T) {
+	s := newScenario(t, "container")
+	writeKBConfig(t, s, "unserved",
+		stdGraph+stdVectors+stdEmbedding+stdDatabase+
+			"[environments.local.inference.ollama]\nplatform = \"posix\"\n\n"+
+			"[environments.local.workers.default.inference]\ntype = \"ollama\"\nmodel = \"gemma4:26b\"\n\n"+
+			"[environments.local.workers.generation.inference]\ntype = \"ollama\"\nmodel = \"gemma4:26b\"\n")
+	_, stderr, code := s.run(t, "start", "--config", "unserved")
+	if code != 1 {
+		t.Fatalf("a worker section that names no job must refuse: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "refusal", stderr, "unserved.toml", "[environments.local.workers.generation] names no job", "workers.yield")
+	if argv := s.argv(t); strings.Contains(argv, "container ") {
+		t.Errorf("a refused config still reached the runtime:\n%s", argv)
+	}
+}
+
 func TestStartRefusesKBWithoutDid(t *testing.T) {
 	// A did:web is REQUIRED. The launcher publishes a discovery document in
 	// which `did` is a required field, so a KB with no [site] domain cannot be
@@ -2948,7 +2969,7 @@ func TestStartForwardsAnOptionalReferenceOnlyWhenSet(t *testing.T) {
 	}
 	// In a section the worker reads: a service is handed only its own
 	// sections' variables.
-	if _, err := f.WriteString("\n[environments.local.workers.probe]\nnote = \"${SD_OPTIONAL:-fallback}\"\n"); err != nil {
+	if _, err := f.WriteString("\n[environments.local.workers.default]\nnote = \"${SD_OPTIONAL:-fallback}\"\n"); err != nil {
 		t.Fatal(err)
 	}
 	f.Close()
@@ -7136,7 +7157,7 @@ func TestRemoteModelMetadataAndAvailability(t *testing.T) {
 		stdGraph+stdVectors+stdDatabase+stdEmbedding+
 			fmt.Sprintf("[environments.local.inference.anthropic]\nplatform = \"external\"\nendpoint = \"http://localhost:%d\"\napiKey = \"${ANTHROPIC_API_KEY}\"\n\n", anthPort)+
 			"[environments.local.workers.default.inference]\ntype = \"anthropic\"\nmodel = \"claude-sonnet-4-5-20250929\"\n\n"+
-			"[environments.local.workers.tag.inference]\ntype = \"anthropic\"\nmodel = \"claude-haiku-4-5-20251001\"\n\n")
+			"[environments.local.workers.mark.tagging.inference]\ntype = \"anthropic\"\nmodel = \"claude-haiku-4-5-20251001\"\n\n")
 	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key")
 	stdout, stderr, code := s.run(t, "start", "--config", "anthropic-meta")
 	if code != 0 {
@@ -7357,7 +7378,7 @@ func TestStatusNeverShowsACrossProviderCeiling(t *testing.T) {
 }
 
 func TestStatusShowsARemoteCeilingInAnOllamaDrivenRow(t *testing.T) {
-	// Workers default to Anthropic while one job type runs on Ollama, so the
+	// Workers default to Anthropic while one motivation's jobs run on Ollama, so the
 	// inference row's driver is ollama and lists Claude beside gemma. Each
 	// binding names its provider, so each model's ceiling is keyed by its own
 	// provider, not by the row's: keyed by the row's, Claude's row would be
@@ -7368,7 +7389,7 @@ func TestStatusShowsARemoteCeilingInAnOllamaDrivenRow(t *testing.T) {
 		stdGraph+stdVectors+stdDatabase+stdEmbedding+
 			fmt.Sprintf("[environments.local.inference.anthropic]\nplatform = \"external\"\nendpoint = \"http://localhost:%d\"\napiKey = \"${ANTHROPIC_API_KEY}\"\n\n", anthPort)+
 			"[environments.local.workers.default.inference]\ntype = \"anthropic\"\nmodel = \"claude-sonnet-4-5-20250929\"\n\n"+
-			"[environments.local.workers.highlight-annotation.inference]\ntype = \"ollama\"\nmodel = \"gemma4:26b\"\n\n")
+			"[environments.local.workers.mark.highlighting.inference]\ntype = \"ollama\"\nmodel = \"gemma4:26b\"\n\n")
 	s.extraEnv = append(s.extraEnv,
 		"ANTHROPIC_API_KEY=test-key",
 		"FAKERT_OLLAMA_TAGS=gemma4:26b,nomic-embed-text:latest",
@@ -8030,7 +8051,7 @@ func TestInitGeneratesStartableConfig(t *testing.T) {
 	// The generative config builder. The strongest possible assertion is the
 	// round trip — the generated config must pass the REAL deriver: `start
 	// --dry-run --config <name>` succeeds from the newborn KB. Bindings are
-	// exactly the three-name roster; per-worker refinement is the user's
+	// exactly the three-name roster; per-job refinement is the user's
 	// edit, not ours.
 	s := newScenario(t, "container")
 	s.cwd = t.TempDir()
@@ -8056,8 +8077,10 @@ func TestInitGeneratesStartableConfig(t *testing.T) {
 		`model = "claude-sonnet-4-5-20250929"`,
 		`model = "nomic-embed-text"`,
 		"${ANTHROPIC_API_KEY}")
-	if strings.Contains(string(cfg), "reference-annotation") {
-		t.Errorf("generator emitted per-worker refinements — those are the user's edits:\n%s", cfg)
+	for _, refinement := range []string{"workers.mark", "workers.yield"} {
+		if strings.Contains(string(cfg), refinement) {
+			t.Errorf("generator emitted a per-job refinement (%s) — those are the user's edits:\n%s", refinement, cfg)
+		}
 	}
 	stdout, stderr, code := s.run(t, "start", "--config", "anthropic", "--dry-run")
 	if code != 0 {
@@ -8930,15 +8953,16 @@ func TestYieldDelegateFollowsJobToCompletion(t *testing.T) {
 	mustContain(t, "gather emit", gather, `"resourceId":"res-src"`, `"depth":2`, `"maxResources":10`,
 		`"includeContent":true`, `"includeSummary":true`)
 	b := lastEmit(t, s)
-	// The job carries the gathered context and the generation params.
+	// The job is a yield job: what it is asked to make, and the gathered
+	// context it is made from.
 	mustContain(t, "job:create emit", b,
-		`"channel":"job:create"`, `"jobType":"generation"`,
+		`"channel":"job:create"`, `"jobType":"yield"`,
 		`"storageUri":"file://generated/out.md"`, `"title":"Derived"`, `"task":"summary"`, `"context"`)
-	// For jobType generation the dispatcher derives resourceId from
-	// params.context.focus and REJECTS a caller-supplied one; the params
-	// schema has no referenceId property. Sending either is an error, so
-	// assert their ABSENCE — a payload that carries them would be refused by
-	// a real gateway while this fake accepts it.
+	// The dispatcher derives a yield job's resource from
+	// params.context.focus, and neither the command nor its params has a
+	// member for one. Sending either is an error, so assert their ABSENCE — a
+	// payload that carries them would be refused by a real gateway while this
+	// fake accepts it.
 	for _, gone := range []string{`"resourceId"`, `"referenceId"`} {
 		if strings.Contains(b, gone) {
 			t.Errorf("job:create carries %s; the context's focus is authoritative:\n%s", gone, b)
@@ -8962,16 +8986,15 @@ func TestYieldDelegateReportsJobFailure(t *testing.T) {
 // exists at the storage URI afterwards, so a ✓ here is the worst of the three
 // outcomes to get wrong: the caller's next step runs against nothing.
 //
-// The trap this guards is specific. Every generated As*() accessor is a bare
-// json.Unmarshal with no discriminant check, so a declined result decodes
-// CLEANLY into JobGenerationResult with a zero-value resource id. A real
-// generation always carries the id (the schema requires it), so an empty id
-// here means "this is not a generation result" — which is why the decline
-// must be read first, by its own discriminant.
+// The trap this guards is specific. A result has no discriminant, and every
+// generated As*() accessor is a bare json.Unmarshal, so a declined result
+// decodes CLEANLY into JobGenerationResult with a zero-value resource id. A
+// result is read by the members it carries: a decline carries `declined` and
+// `reason`, and none of what a generation requires.
 func TestYieldDelegateReportsADecline(t *testing.T) {
 	s := busScenario(t,
 		`FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{},"graph":{}}`,
-		`FAKERT_JOB_RESULT={"kind":"declined","declined":true,"reason":"encrypted","message":"this PDF is password-protected"}`)
+		`FAKERT_JOB_RESULT={"declined":true,"reason":"encrypted"}`)
 	stdout, stderr, code := s.run(t, "yield", "--delegate", "res-src", "--storage-uri", "file://generated/out.md", "--title", "Derived")
 	if code == 0 {
 		t.Fatalf("a declined job produced nothing; exit 0 tells a script to carry on\nstdout:\n%s", stdout)
@@ -8992,7 +9015,7 @@ func TestYieldDelegateReportsADecline(t *testing.T) {
 func TestYieldDelegateDeclineFailsUnderJSON(t *testing.T) {
 	s := busScenario(t,
 		`FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{},"graph":{}}`,
-		`FAKERT_JOB_RESULT={"kind":"declined","declined":true,"reason":"no-text-layer","message":"scanned pages, no recognizable text"}`)
+		`FAKERT_JOB_RESULT={"declined":true,"reason":"no-text-layer"}`)
 	stdout, _, code := s.run(t, "yield", "--delegate", "res-src", "--storage-uri", "file://generated/out.md", "--title", "Derived", "--json")
 	if code == 0 {
 		t.Fatalf("--json must not turn a decline into a success\nstdout:\n%s", stdout)
@@ -9055,9 +9078,9 @@ func jobCreate(t *testing.T, emit string) (jobType, resourceID string, params ma
 	return e.Payload.JobType, e.Payload.ResourceID, e.Payload.Params
 }
 
-// The delegated form of mark is yield --delegate's sibling: it creates a job
-// of the type its motivation names, and follows it to its end. The stack's
-// worker reads the resource and writes the annotations.
+// The delegated form of mark is yield --delegate's sibling: it creates a mark
+// job whose parameters state its motivation, and follows it to its end. The
+// stack's worker reads the resource and writes the annotations.
 func TestMarkDelegateFollowsJobToCompletion(t *testing.T) {
 	s := busScenario(t)
 
@@ -9066,18 +9089,18 @@ func TestMarkDelegateFollowsJobToCompletion(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("mark --delegate: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "stdout", stdout, "Annotating res-1", "highlighting", "fake-job-1", "Analyzing text", "3 highlights", "4 found")
+	mustContain(t, "stdout", stdout, "Annotating res-1", "highlighting", "fake-job-1", "Analyzing text", "3 highlighting annotations created (4 found)")
 	jobType, resourceID, params := jobCreate(t, lastEmit(t, s))
-	if jobType != "highlight-annotation" || resourceID != "res-1" {
-		t.Errorf("job:create asks for a %q job on %q, want highlight-annotation on res-1", jobType, resourceID)
+	if jobType != "mark" || resourceID != "res-1" {
+		t.Errorf("job:create asks for a %q job on %q, want a mark job on res-1", jobType, resourceID)
 	}
-	if params["instructions"] != "key claims" || params["density"] != float64(5) {
-		t.Errorf("the job's params are %v, want the instructions and a density of 5", params)
+	if params["motivation"] != "highlighting" || params["instructions"] != "key claims" || params["density"] != float64(5) {
+		t.Errorf("the job's params are %v, want the motivation, the instructions and a density of 5", params)
 	}
-	// The dispatcher refuses a job:create whose params name the resource: the
-	// resource is the command's.
+	// A mark job's parameters are closed, and none of them names the resource:
+	// the resource is the command's.
 	if _, named := params["resourceId"]; named {
-		t.Errorf("params names the resource, which the dispatcher refuses: %v", params)
+		t.Errorf("params names the resource, which the gateway refuses: %v", params)
 	}
 
 	// Linking: the entity types to detect, and descriptive references.
@@ -9086,10 +9109,10 @@ func TestMarkDelegateFollowsJobToCompletion(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("mark --delegate linking: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "stdout", stdout, "4 references", "5 found", "1 error")
+	mustContain(t, "stdout", stdout, "4 linking annotations created (5 found, 1 error)")
 	jobType, _, params = jobCreate(t, lastEmit(t, s))
-	if jobType != "reference-annotation" {
-		t.Errorf("linking asks for a %q job, want reference-annotation", jobType)
+	if jobType != "mark" || params["motivation"] != "linking" {
+		t.Errorf("linking asks for a %q job of the motivation %v, want a mark job of linking", jobType, params["motivation"])
 	}
 	if got := fmt.Sprint(params["entityTypes"]); got != "[Person Place]" || params["includeDescriptiveReferences"] != true || params["sourceLanguage"] != "fr" {
 		t.Errorf("the linking job's params are %v", params)
@@ -9101,9 +9124,9 @@ func TestMarkDelegateFollowsJobToCompletion(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("mark --delegate tagging: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "stdout", stdout, "6 tags", "issue 2", "rule 4")
+	mustContain(t, "stdout", stdout, "6 tagging annotations created (6 found): issue 2, rule 4")
 	jobType, _, params = jobCreate(t, lastEmit(t, s))
-	if jobType != "tag-annotation" || params["schemaId"] != "legal-irac" || fmt.Sprint(params["categories"]) != "[issue rule]" || params["language"] != "de" {
+	if jobType != "mark" || params["motivation"] != "tagging" || params["schemaId"] != "legal-irac" || fmt.Sprint(params["categories"]) != "[issue rule]" || params["language"] != "de" {
 		t.Errorf("tagging asks for a %q job with params %v", jobType, params)
 	}
 
@@ -9112,9 +9135,9 @@ func TestMarkDelegateFollowsJobToCompletion(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("mark --delegate --json: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "raw completion", stdout, `"kind":"comment-annotation"`, `"commentsCreated":2`)
-	if _, _, params = jobCreate(t, lastEmit(t, s)); params["tone"] != "scholarly" {
-		t.Errorf("the commenting job's params are %v, want the tone", params)
+	mustContain(t, "raw completion", stdout, `"jobType":"mark"`, `"found":2`, `"persisted":2`)
+	if _, _, params = jobCreate(t, lastEmit(t, s)); params["motivation"] != "commenting" || params["tone"] != "scholarly" {
+		t.Errorf("the commenting job's params are %v, want the motivation and the tone", params)
 	}
 }
 
@@ -9140,7 +9163,7 @@ func TestMarkDelegateGoesOnThroughARetriedAttempt(t *testing.T) {
 		t.Fatalf("a job that recovered on its second attempt failed the command: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "the retried attempt", stdout+stderr, "provider overloaded", "again")
-	mustContain(t, "stdout", stdout, "3 highlights")
+	mustContain(t, "stdout", stdout, "3 highlighting annotations")
 	if strings.Contains(stdout+stderr, "Annotation failed") {
 		t.Errorf("a retried attempt was reported as the job's failure:\n%s", stdout+stderr)
 	}
@@ -9150,7 +9173,7 @@ func TestMarkDelegateGoesOnThroughARetriedAttempt(t *testing.T) {
 // annotated, so the command fails, in either output format, and does not call
 // it a crash.
 func TestMarkDelegateReportsADecline(t *testing.T) {
-	s := busScenario(t, `FAKERT_JOB_RESULT={"kind":"declined","declined":true,"reason":"no-text-layer"}`)
+	s := busScenario(t, `FAKERT_JOB_RESULT={"declined":true,"reason":"no-text-layer"}`)
 	stdout, stderr, code := s.run(t, "mark", "--delegate", "res-1", "--motivation", "highlighting")
 	if code == 0 {
 		t.Fatalf("a declined job annotated nothing; exit 0 tells a script to carry on\nstdout:\n%s", stdout)

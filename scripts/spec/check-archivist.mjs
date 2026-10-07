@@ -9,12 +9,15 @@
 //     of the spec;
 //   - ArchivistConfig defaults anything, or leaves optional anything but a
 //     role of the roster, which is absent when no one serves it;
-//   - the roster's job types are not exactly JobType;
+//   - the roster's job types are not exactly JobType, or its mark motivations
+//     not exactly Motivation;
 //   - the anchored-text entry's provenance is not ExtractedText's, or its
 //     decline classes are not ExtractionDeclined's;
 //   - the shard table is empty, or a case's shard is not two pairs of
 //     lowercase hex digits;
 //   - the roster table is empty, or a case's roster is not an ArchivistRoster;
+//   - the roster table states no refusal, or one that lacks its reason, its
+//     config or the section it must name;
 //   - the protocol's account of the Archivist is missing, or does not name a
 //     schema, a table, a persisted event or a route of its HTTP surface.
 //
@@ -69,7 +72,7 @@ if (has('ArchivistConfig') && has('ArchivistRoster')) {
       const at = path ? `${path}.${name}` : name;
       if (!node.required?.includes(name) && !optionalAllowed) fail(`ArchivistConfig leaves ${at} optional`);
       const resolved = property.$ref === './ArchivistRoster.json' ? schema('ArchivistRoster') : property;
-      everythingStated(resolved, at, at === 'roster.workers' || at === 'roster.actors');
+      everythingStated(resolved, at, at === 'roster.workers' || at === 'roster.workers.mark' || at === 'roster.actors');
     }
   };
   everythingStated(schema('ArchivistConfig'), '', false);
@@ -78,6 +81,11 @@ if (has('ArchivistConfig') && has('ArchivistRoster')) {
   const jobTypes = schema('JobType').enum;
   if ([...rosterJobTypes].sort().join() !== [...jobTypes].sort().join()) {
     fail(`the roster's job types are [${rosterJobTypes}], JobType is [${jobTypes}]`);
+  }
+  const rosterMotivations = Object.keys(schema('ArchivistRoster').properties.workers.properties.mark.properties);
+  const motivations = schema('Motivation').enum;
+  if ([...rosterMotivations].sort().join() !== [...motivations].sort().join()) {
+    fail(`the roster's mark motivations are [${rosterMotivations}], Motivation is [${motivations}]`);
   }
 }
 
@@ -111,6 +119,18 @@ if (has('ArchivistRoster')) {
       for (const role of Object.keys(stated[group])) {
         if (!(role in roster.properties[group].properties)) fail(`roster case "${why}" names ${group}.${role}, which the roster does not have`);
       }
+      for (const motivation of Object.keys((group === 'workers' && stated.workers.mark) || {})) {
+        if (!(motivation in roster.properties.workers.properties.mark.properties)) fail(`roster case "${why}" names workers.mark.${motivation}, which the roster does not have`);
+      }
+    }
+  }
+}
+if (existsSync(resolve(REPO, TABLES[1]))) {
+  const refusals = read(resolve(REPO, TABLES[1])).refusals ?? [];
+  if (refusals.length === 0) fail(`${TABLES[1]} states no refusal`);
+  for (const [index, refusal] of refusals.entries()) {
+    for (const member of ['why', 'config', 'names']) {
+      if (typeof refusal[member] !== 'string' || refusal[member] === '') fail(`roster refusal ${refusal.why ? `"${refusal.why}"` : `#${index + 1}`} has no ${member}`);
     }
   }
 }

@@ -119,7 +119,7 @@ There is no password endpoint, no provider endpoint and no refresh endpoint. Peo
 
 `POST /api/tokens/agent` is **not** public. A sidecar authenticates at the issuer as its own service account, presents that token here as a bearer, and receives a software-agent token naming a (provider, model) identity. The gateway verifies the bearer against the issuer's keys and requires a flat `roles` claim containing `semiont-service`; every refusal is a 401, checked *before* the body is parsed.
 
-Two identities, deliberately: the service account is the **process**, the agent DID is the **work**. One worker holds several agent identities at once when a deployment configures different models for different job types, so the caller's credential cannot be the agent's identity.
+Two identities, deliberately: the service account is the **process**, the agent DID is the **work**. One worker holds several agent identities at once when a deployment configures different models for different jobs, so the caller's credential cannot be the agent's identity.
 
 ### Protected endpoints
 

@@ -1,17 +1,17 @@
 /**
- * `mark.assist` must not churn the SSE connection.
+ * `mark.delegate` must not churn the SSE connection.
  *
  * The worker emits `job:report-progress`, `job:complete` and `job:fail` to
  * every client, so the dispatching caller receives them via the always-on
  * global bridge and follows its job by `jobId`. A resource's scope carries
  * none of the three.
  *
- * A headless `mark.assist` that called `transport.subscribeToResource(rId)`
+ * A headless `mark.delegate` that called `transport.subscribeToResource(rId)`
  * anyway would change the SSE channel set, which the HTTP transport applies
  * by handing the stream over to a second connection opened beside the live
- * one — so every assist would cost two handoffs, one when the scope is
+ * one — so every delegated job would cost two handoffs, one when the scope is
  * joined and one when it is left, and gain nothing.
- * `mark.assist` therefore must NOT call `subscribeToResource`, and must
+ * `mark.delegate` therefore must NOT call `subscribeToResource`, and must
  * complete on a globally-delivered `job:complete`.
  *
  * No gateway: a fake transport stands in for the bus.
@@ -22,7 +22,7 @@ import { EventBus, resourceId as makeResourceId, jobId } from '@semiont/core';
 import type { ResourceId } from '@semiont/core';
 import { MarkNamespace } from '../mark';
 import { JobNamespace } from '../job';
-import type { MarkAssistEvent } from '../types';
+import type { JobEvent } from '../../awaitable';
 import { inMemoryTransport } from '../../__tests__/helpers/in-memory-transport';
 
 const flush = () => new Promise<void>((r) => setTimeout(r, 0));
@@ -37,7 +37,7 @@ function makeFakeTransport() {
     bus: transportBus,
     subscribeToResource,
     onEmit: (channel, _payload, envelope) => {
-      // Resolve the job:create round-trip so dispatchAssist gets a jobId.
+      // Resolve the job:create round-trip so the follower gets a jobId.
       if (channel === 'job:create') {
         transportBus.emit('job:created', {
           response: { jobId: jobId('job-1') },
@@ -49,7 +49,7 @@ function makeFakeTransport() {
   return { transport, subscribeToResource };
 }
 
-describe('mark.assist — no SSE churn', () => {
+describe('mark.delegate — no SSE churn', () => {
   let bus: EventBus;
   const rId = makeResourceId('res-1');
 
@@ -66,7 +66,7 @@ describe('mark.assist — no SSE churn', () => {
     const mark = new MarkNamespace(transport, bus);
 
     const sub = mark
-      .assist(rId, 'linking', { entityTypes: ['Person'] })
+      .delegate(rId, { motivation: 'linking', entityTypes: ['Person'] })
       .subscribe({ next: () => {}, error: () => {} });
 
     expect(subscribeToResource).not.toHaveBeenCalled();
@@ -77,9 +77,9 @@ describe('mark.assist — no SSE churn', () => {
     const { transport } = makeFakeTransport();
     const mark = new MarkNamespace(transport, bus);
 
-    const events: MarkAssistEvent[] = [];
+    const events: JobEvent[] = [];
     let completed = false;
-    mark.assist(rId, 'linking', { entityTypes: ['Person'] }).subscribe({
+    mark.delegate(rId, { motivation: 'linking', entityTypes: ['Person'] }).subscribe({
       next: (e) => events.push(e),
       complete: () => {
         completed = true;
@@ -87,18 +87,18 @@ describe('mark.assist — no SSE churn', () => {
       error: () => {},
     });
 
-    // Let dispatchAssist resolve (job:create → job:created) and set activeJobId.
+    // Let the creation resolve (job:create → job:created) and set activeJobId.
     await flush();
 
     // Completion arrives on the global bus (as it would via the global bridge).
-    bus.emit('job:complete', { resourceId: rId, jobId: jobId('job-1'), jobType: 'reference-annotation' });
+    bus.emit('job:complete', { resourceId: rId, jobId: jobId('job-1'), jobType: 'mark' });
 
     expect(events.some((e) => e.kind === 'complete')).toBe(true);
     expect(completed).toBe(true);
   });
 });
 
-describe('mark.assist — frames that arrive before the job has its id', () => {
+describe('mark.delegate — frames that arrive before the job has its id', () => {
   let bus: EventBus;
   const rId = makeResourceId('res-1');
 
@@ -116,7 +116,7 @@ describe('mark.assist — frames that arrive before the job has its id', () => {
 
     const kinds: string[] = [];
     let completed = false;
-    mark.assist(rId, 'linking', { entityTypes: ['Person'] }).subscribe({
+    mark.delegate(rId, { motivation: 'linking', entityTypes: ['Person'] }).subscribe({
       next: (e) => kinds.push(e.kind),
       complete: () => {
         completed = true;
@@ -126,9 +126,9 @@ describe('mark.assist — frames that arrive before the job has its id', () => {
 
     // The job's first frames are read from the stream alongside the reply
     // that names it: the follower does not know the id yet.
-    bus.emit('job:report-progress', { resourceId: rId, jobId: jobId('job-1'), jobType: 'reference-annotation', percentage: 10, progress: { percentage: 10 } });
-    bus.emit('job:complete', { resourceId: rId, jobId: jobId('job-2'), jobType: 'reference-annotation' });
-    bus.emit('job:complete', { resourceId: rId, jobId: jobId('job-1'), jobType: 'reference-annotation' });
+    bus.emit('job:report-progress', { resourceId: rId, jobId: jobId('job-1'), jobType: 'mark', percentage: 10, progress: { percentage: 10 } });
+    bus.emit('job:complete', { resourceId: rId, jobId: jobId('job-2'), jobType: 'mark' });
+    bus.emit('job:complete', { resourceId: rId, jobId: jobId('job-1'), jobType: 'mark' });
     expect(kinds).toEqual([]);
 
     await flush();
@@ -142,7 +142,7 @@ describe('mark.assist — frames that arrive before the job has its id', () => {
 describe('job:complete delivered twice', () => {
   let bus: EventBus;
   const rId = makeResourceId('res-1');
-  const completePayload = { resourceId: rId, jobId: jobId('job-1'), jobType: 'reference-annotation' as const };
+  const completePayload = { resourceId: rId, jobId: jobId('job-1'), jobType: 'mark' as const };
 
   beforeEach(() => {
     bus = new EventBus();
@@ -152,13 +152,13 @@ describe('job:complete delivered twice', () => {
     bus.destroy();
   });
 
-  it('mark.assist collapses a doubled job:complete into a single completion', async () => {
+  it('mark.delegate collapses a doubled job:complete into a single completion', async () => {
     const { transport } = makeFakeTransport();
     const mark = new MarkNamespace(transport, bus);
 
-    const completes: MarkAssistEvent[] = [];
+    const completes: JobEvent[] = [];
     let completeCount = 0;
-    mark.assist(rId, 'linking', { entityTypes: ['Person'] }).subscribe({
+    mark.delegate(rId, { motivation: 'linking', entityTypes: ['Person'] }).subscribe({
       next: (e) => {
         if (e.kind === 'complete') completes.push(e);
       },

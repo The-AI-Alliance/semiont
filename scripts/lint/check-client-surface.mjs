@@ -159,6 +159,7 @@ function typescriptShape(returns, isProperty) {
   if (returns === 'Promise<number | undefined>') return 'count';
   if (returns.startsWith('Promise<')) return 'promise';
   if (returns.startsWith('StreamObservable<')) return 'stream';
+  if (returns === 'DelegationObservable') return 'delegation';
   if (returns === 'UploadObservable') return 'upload';
   if (returns.startsWith('CacheObservable<')) return 'cache';
   return undefined;
@@ -201,6 +202,7 @@ function rustShape(isAsync, returns) {
   if (returns === undefined) return isAsync ? undefined : 'signal';
   if (returns.startsWith('Cached<')) return 'cache';
   if (returns.startsWith('Running<')) return 'stream';
+  if (returns === 'Delegation') return 'delegation';
   if (returns === 'Upload') return 'upload';
   if (returns.startsWith('Typed<')) return 'events';
   if (isAsync && returns === 'Result<Option<u64>, SemiontError>') return 'count';
@@ -273,6 +275,7 @@ function pythonShape(isAsync, returns) {
   if (returns === 'None') return 'signal';
   if (returns.startsWith('Cached[')) return 'cache';
   if (returns.startsWith('Running[')) return 'stream';
+  if (returns === 'Delegation') return 'delegation';
   if (returns === 'Upload') return 'upload';
   if (returns.startsWith('Typed[')) return 'events';
   return undefined;

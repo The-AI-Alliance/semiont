@@ -1,0 +1,37 @@
+{
+  "type": "object",
+  "description": "What a linking job takes: mentions of the named entity types are marked as references, each unresolved until it is bound to a resource.",
+  "properties": {
+    "motivation": {
+      "type": "string",
+      "enum": [
+        "linking"
+      ]
+    },
+    "entityTypes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "description": "The entity types to find mentions of. Each is one the knowledge base registers."
+    },
+    "includeDescriptiveReferences": {
+      "type": "boolean",
+      "description": "Whether a description that stands for an entity (\"the wily hero\") counts as a mention of it, beside its name."
+    },
+    "language": {
+      "type": "string",
+      "description": "The language the annotations' own text is written in. BCP 47."
+    },
+    "sourceLanguage": {
+      "type": "string",
+      "description": "The language of the resource being read. BCP 47."
+    }
+  },
+  "required": [
+    "motivation",
+    "entityTypes"
+  ],
+  "additionalProperties": false
+}

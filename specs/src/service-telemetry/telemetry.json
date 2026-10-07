@@ -1,5 +1,5 @@
 {
-  "$comment": "The telemetry each Semiont service exports over OTLP, in any language: every span and metric, the services that export it, its kind, and the attributes it carries. A service exports the rows that list it and no others. Each service's conformance suite holds it to this table from outside, in both directions: every span and metric its observability cases receive must be a row listing the service, of the listed kind, carrying only listed attribute keys (and, where a row lists values, only those values); and every row listing it whose `when` is `export` or `traffic` must arrive, with every attribute not marked `only`. `when`: `export` — whenever export is on; `traffic` — once the service's observability cases' traffic has run; `supervised` — only under the supervisor (SUPERVISE_EVENTS and SUPERVISE_NAME set), checked by the environment cases; `fatal` — only on a fatal error, which no case causes. `planes`, where given, names the only signal planes a gateway row arrives on. `sdk` names the services that reach the bus through an SDK, and for each the SDK transports it uses: such a service also exports the rows specs/src/sdk-telemetry/telemetry.json lists for those transports, and its suite holds it to both tables as one. In a span name, `{channel}` is the bus channel. Span kinds are OTLP's; a metric's `instrument` is `counter` (a monotonic sum), `up-down counter` (a non-monotonic sum), `gauge` or `histogram`.",
+  "$comment": "The telemetry each Semiont service exports over OTLP, in any language: every span and metric, the services that export it, its kind, and the attributes it carries. A service exports the rows that list it and no others. Each service's conformance suite holds it to this table from outside, in both directions: every span and metric its observability cases receive must be a row listing the service, of the listed kind, carrying only listed attribute keys (and, where a row lists values, only those values); and every row listing it whose `when` is `export` or `traffic` must arrive, with every attribute not marked `only`. `when`: `export` — whenever export is on; `traffic` — once the service's observability cases' traffic has run; `supervised` — only under the supervisor (SUPERVISE_EVENTS and SUPERVISE_NAME set), checked by the environment cases; `fatal` — only on a fatal error, which no case causes. `planes`, where given, names the only signal planes a gateway row arrives on. `sdk` names the services that reach the bus through an SDK, and for each the SDK transports it uses: such a service also exports the rows specs/src/sdk-telemetry/telemetry.json lists for those transports, and its suite holds it to both tables as one. In a span name, `{channel}` is the bus channel. `{jobType}` is the job's type. Span kinds are OTLP's; a metric's `instrument` is `counter` (a monotonic sum), `up-down counter` (a non-monotonic sum), `gauge` or `histogram`. The worker's rows are stated ahead of its suite: no conformance suite holds a worker to them yet.",
   "sdk": {
     "dispatcher": [
       "bus"
@@ -133,6 +133,41 @@
           "values": [
             "archivist"
           ]
+        }
+      ]
+    },
+    {
+      "name": "job:{jobType}",
+      "services": [
+        "worker"
+      ],
+      "kind": "consumer",
+      "when": "traffic",
+      "meaning": "A job a worker held, from the claim that handed it over to its conclusion.",
+      "attributes": [
+        {
+          "key": "job.type",
+          "values": [
+            "mark",
+            "yield"
+          ]
+        },
+        {
+          "key": "job.motivation",
+          "values": [
+            "highlighting",
+            "commenting",
+            "assessing",
+            "linking",
+            "tagging"
+          ],
+          "only": "on a mark job"
+        },
+        {
+          "key": "job.id"
+        },
+        {
+          "key": "resource.id"
         }
       ]
     }
@@ -420,6 +455,78 @@
           "values": [
             "index-lock",
             "other"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "semiont.job.outcome",
+      "services": [
+        "worker"
+      ],
+      "instrument": "counter",
+      "when": "traffic",
+      "meaning": "The jobs a worker concluded, by how.",
+      "attributes": [
+        {
+          "key": "job.type",
+          "values": [
+            "mark",
+            "yield"
+          ]
+        },
+        {
+          "key": "job.motivation",
+          "values": [
+            "highlighting",
+            "commenting",
+            "assessing",
+            "linking",
+            "tagging"
+          ],
+          "only": "on a mark job"
+        },
+        {
+          "key": "job.outcome",
+          "values": [
+            "completed",
+            "failed"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "semiont.job.duration",
+      "services": [
+        "worker"
+      ],
+      "instrument": "histogram",
+      "when": "traffic",
+      "meaning": "How long a worker held a job, in milliseconds.",
+      "attributes": [
+        {
+          "key": "job.type",
+          "values": [
+            "mark",
+            "yield"
+          ]
+        },
+        {
+          "key": "job.motivation",
+          "values": [
+            "highlighting",
+            "commenting",
+            "assessing",
+            "linking",
+            "tagging"
+          ],
+          "only": "on a mark job"
+        },
+        {
+          "key": "job.outcome",
+          "values": [
+            "completed",
+            "failed"
           ]
         }
       ]

@@ -7,12 +7,16 @@ import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { anchoredEntry, sha256, withArchivist, type Roster } from '../harness/archivist-world';
 
+// Written out of the order the roster's schema states its roles in: the
+// answer is in the schema's.
 const ROSTER: Roster = {
   workers: {
-    'reference-annotation': { provider: 'anthropic', model: 'claude-haiku-4-5' },
-    'highlight-annotation': { provider: 'anthropic', model: 'claude-haiku-4-5' },
-    'tag-annotation': { provider: 'ollama', model: 'gemma2:27b' },
-    generation: { provider: 'anthropic', model: 'claude-sonnet-4-5' },
+    yield: { provider: 'anthropic', model: 'claude-sonnet-4-5' },
+    mark: {
+      tagging: { provider: 'ollama', model: 'gemma2:27b' },
+      linking: { provider: 'anthropic', model: 'claude-haiku-4-5' },
+      highlighting: { provider: 'anthropic', model: 'claude-haiku-4-5' },
+    },
   },
   actors: { gatherer: { provider: 'ollama', model: 'llama3' }, matcher: { provider: 'anthropic', model: 'claude-haiku-4-5' } },
 };
@@ -209,7 +213,7 @@ withArchivist('browsing', (world) => {
 });
 
 withArchivist('the roster', (world) => {
-  it('lists each agent once, in the order of its first role, with the job types it serves', async () => {
+  it('lists each agent once, in the order of its first role, with the jobs it serves as a claim would name them', async () => {
     const reader = await world().person('reader');
     const domain = world().world.kb.domain;
     const agent = (provider: string, model: string) => ({
@@ -221,9 +225,9 @@ withArchivist('the roster', (world) => {
     });
     expect(await reader.ask('browse:agents-requested', {})).toEqual({
       agents: [
-        { agent: agent('anthropic', 'claude-haiku-4-5'), servesJobTypes: ['reference-annotation', 'highlight-annotation'] },
-        { agent: agent('ollama', 'gemma2:27b'), servesJobTypes: ['tag-annotation'] },
-        { agent: agent('anthropic', 'claude-sonnet-4-5'), servesJobTypes: ['generation'] },
+        { agent: agent('anthropic', 'claude-haiku-4-5'), serves: [{ jobType: 'mark', params: { motivation: 'highlighting' } }, { jobType: 'mark', params: { motivation: 'linking' } }] },
+        { agent: agent('ollama', 'gemma2:27b'), serves: [{ jobType: 'mark', params: { motivation: 'tagging' } }] },
+        { agent: agent('anthropic', 'claude-sonnet-4-5'), serves: [{ jobType: 'yield' }] },
         { agent: agent('ollama', 'llama3') },
       ],
     });

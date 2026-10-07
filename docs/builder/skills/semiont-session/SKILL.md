@@ -51,7 +51,7 @@ console.error(`Signed in as ${me?.email}`);
 
 `onAuthFailed` is called once, when the session ends: `expired` when the issuer would not renew it, `refused` when the gateway would not accept a token the issuer had just issued. Neither is a prompt to retry, because the session already did. Signing in again is what is left.
 
-Every verb is on `session.client`: `session.client.mark.assist(...)`, `session.client.gather.annotation(...)` and so on.
+Every verb is on `session.client`: `session.client.mark.delegate(...)`, `session.client.gather.annotation(...)` and so on.
 
 A script that gets its token some other way, such as a service account's client-credentials grant, builds the session with `SemiontSession.fromHttp({ kb, storage, baseUrl, token, refresh })` and supplies `refresh` itself.
 
@@ -173,10 +173,9 @@ async function main(): Promise<void> {
   });
 
   async function detect(rId: ResourceId): Promise<void> {
-    const done = await session.client.mark.assist(rId, 'linking', { entityTypes: ENTITY_TYPES });
-    const result = done.kind === 'complete' ? done.data.result : undefined;
-    if (result?.kind === 'reference-annotation') {
-      console.log(`${rId}: ${result.totalEmitted} references`);
+    const done = await session.client.mark.delegate(rId, { motivation: 'linking', entityTypes: ENTITY_TYPES });
+    if (done.result && 'found' in done.result) {
+      console.log(`${rId}: ${done.result.persisted} references`);
     }
   }
 
@@ -212,6 +211,6 @@ main().catch((e) => {
 - **Nothing awaits a handler.** Start the work, attach a `.catch`, and return. A rejection from an `async` handler goes unhandled.
 - **`signInDevice` handles renewal.** Write a `refresh` callback only when the token comes from somewhere other than the device grant, and then build the session with `fromHttp`.
 - **Choose storage by what a restart should do.** In memory, the script signs in again at every start. On disk, it resumes.
-- **Prefer a namespace method to a channel.** `mark.assist`, `yield.fromContext` and the others follow their own jobs and replies. Subscribe to a channel only for what no method covers.
+- **Prefer a namespace method to a channel.** `mark.delegate`, `yield.delegate` and the others follow their own jobs and replies. Subscribe to a channel only for what no method covers.
 - **Two kinds of error.** A call rejects with a `SemiontError`: catch it and route on its `code`, narrowing to `BusRequestError` or `JobFailedError` where that helps. A failure of the session itself (`session.refresh-exhausted`, `session.credential-refused`) arrives at `onError` as a `SemiontSessionError`, and the session's end at `onAuthFailed`. See [Error Handling](../../Usage.md#error-handling).
 - **From the command line.** `semiont listen --channel <name>` prints a channel's events, and `--scope <resourceId>` joins a resource's scope. Use it to see what a channel carries before writing the handler.

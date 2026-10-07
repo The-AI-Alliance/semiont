@@ -5,15 +5,15 @@
 //! Frames are not serialized: each is handled as it comes, and the queue's
 //! atomic transitions settle any race between two.
 
-use crate::admission::{Refusal, Vocabulary, admit, wire_name};
+use crate::admission::{Refusal, Vocabulary, admit};
 use crate::queue::{Checkpoint, Claim, FailOutcome, JobQueue};
 use semiont::roles::WORKER_ROLE;
 use semiont::types::{
     BusFrame, CommandError, CommandErrorCode, Job, JobAssignCommand, JobCancelCommand,
     JobCancelRequest, JobCheckpointCommand, JobClaimCommand, JobClaimedResult, JobCompleteCommand,
-    JobCreateCommand, JobCreatedResult, JobCreatedResultResponse, JobFailCommand, JobId,
-    JobProgress, JobReportProgressCommand, JobStatusRequest, JobStatusResponse,
-    JobStatusResponseStatus, JobStatusResult, JobStoredProgress, JobStoredResult,
+    JobCreatedResult, JobCreatedResultResponse, JobFailCommand, JobId, JobProgress,
+    JobReportProgressCommand, JobStatusRequest, JobStatusResponse, JobStatusResponseStatus,
+    JobStatusResult, JobStoredProgress, JobStoredResult,
 };
 use semiont_observability::logging;
 use serde::Serialize;
@@ -142,15 +142,7 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
                 correlation_id: correlation_id.clone(),
             }]
         };
-        let command: JobCreateCommand = match serde_json::from_value(payload) {
-            Ok(command) => command,
-            Err(error) => {
-                return refused(Refusal::new(format!(
-                    "a job:create that is not a JobCreateCommand: {error}"
-                )));
-            }
-        };
-        let job = match admit(command, self.reads.as_ref()).await {
+        let job = match admit(payload, self.reads.as_ref()).await {
             Ok(job) => job,
             Err(refusal) => return refused(refusal),
         };
@@ -162,7 +154,7 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
         logging::info(
             "Job created via bus",
             fields(
-                json!({ "jobId": id, "jobType": wire_name(job_type), "correlationId": correlation_id }),
+                json!({ "jobId": id, "jobType": job_type.as_str(), "correlationId": correlation_id }),
             ),
         );
         vec![Reply {
@@ -201,11 +193,11 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
                 Some(CommandErrorCode::Unauthorized),
             );
         }
-        let job = match self.queue.claim_next_job(&command.types).await {
+        let job = match self.queue.claim_next_job(&command.accepts).await {
             Ok(Claim::Claimed(job)) => job,
             Ok(Claim::Declined) => {
                 return refused(
-                    "No pending job of the requested types".to_owned(),
+                    "No pending job matches the claim".to_owned(),
                     Some(CommandErrorCode::NonePending),
                 );
             }
@@ -373,16 +365,16 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
         };
         let cancelled = match (request.job_id, request.job_type) {
             (Some(id), _) => self.cancel_one(&id).await,
-            (None, Some(category)) => {
+            (None, Some(job_type)) => {
                 let cancelled = self
                     .queue
-                    .cancel_pending_jobs(category)
+                    .cancel_pending_jobs(job_type)
                     .await
                     .map_err(|e| e.0);
                 if let Ok(count) = cancelled {
                     logging::info(
                         "Cancel requested",
-                        fields(json!({ "jobType": category, "cancelled": count })),
+                        fields(json!({ "jobType": job_type.as_str(), "cancelled": count })),
                     );
                 }
                 cancelled

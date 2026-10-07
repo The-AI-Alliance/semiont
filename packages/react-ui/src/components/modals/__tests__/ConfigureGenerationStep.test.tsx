@@ -50,7 +50,7 @@ const agentWithCeiling = (maxOutputTokens: number): Collaborator =>
       provider: 'anthropic',
       model: 'claude-sonnet-5',
     },
-    servesJobTypes: ['generation'],
+    serves: [{ jobType: 'yield' }],
     limits: { contextTokens: 200_000, maxOutputTokens },
   }) as unknown as Collaborator;
 
@@ -469,7 +469,7 @@ describe('temperature gating — the Creativity slider follows the model', () =>
         provider: 'anthropic',
         model: 'claude-sonnet-5',
       },
-      servesJobTypes: ['generation'],
+      serves: [{ jobType: 'yield' }],
       limits: { contextTokens: 200_000, maxOutputTokens: 64_000, acceptsTemperature: false },
     }) as unknown as Collaborator;
 

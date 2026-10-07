@@ -42,7 +42,7 @@ event flows through one of these.
 | `PUT`  | `HttpContentTransport.putBinary()`                           |
 | `GET`  | `HttpContentTransport.getBinary()` / `getBinaryStream()` + matching gateway route |
 
-`ActorStateUnit` and namespace methods (`client.mark.assist`, etc.) are
+`ActorStateUnit` and namespace methods (`client.mark.delegate`, etc.) are
 **not** choke points. Namespace methods ride on top of the transport;
 their traffic shows up as the transport calls they make.
 

@@ -368,10 +368,10 @@ describe('ReferencesPanel Component', () => {
       await waitFor(() => {
         expect(tracker.events.some(e =>
           e.event === 'mark:assist-request' &&
-          e.payload?.motivation === 'linking' &&
-          e.payload?.options?.entityTypes?.includes('Person') &&
-          e.payload?.options?.entityTypes?.includes('Organization') &&
-          e.payload?.options?.includeDescriptiveReferences === false
+          e.payload?.params?.motivation === 'linking' &&
+          e.payload?.params?.entityTypes?.includes('Person') &&
+          e.payload?.params?.entityTypes?.includes('Organization') &&
+          e.payload?.params?.includeDescriptiveReferences === false
         )).toBe(true);
       });
     });
@@ -393,9 +393,9 @@ describe('ReferencesPanel Component', () => {
       await waitFor(() => {
         expect(tracker.events.some(e =>
           e.event === 'mark:assist-request' &&
-          e.payload?.motivation === 'linking' &&
-          e.payload?.options?.entityTypes?.includes('Person') &&
-          e.payload?.options?.includeDescriptiveReferences === true
+          e.payload?.params?.motivation === 'linking' &&
+          e.payload?.params?.entityTypes?.includes('Person') &&
+          e.payload?.params?.includeDescriptiveReferences === true
         )).toBe(true);
       });
     });

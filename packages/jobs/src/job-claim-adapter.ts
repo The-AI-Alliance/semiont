@@ -9,9 +9,9 @@
  * state.
  *
  * THE MODEL — a worker asks the queue at every moment it becomes idle,
- * and never otherwise. `job:claim` carries this worker's types; the
- * dispatcher answers with the next pending job of those types, atomically
- * claimed, or declines. Queue state is the truth; no message carries
+ * and never otherwise. `job:claim` carries the jobs this worker takes; the
+ * dispatcher answers with the next pending job that matches one of them,
+ * atomically claimed, or declines. Queue state is the truth; no message carries
  * correctness. The idle moments:
  *
  *   - start, once the transport is open;
@@ -25,10 +25,11 @@
  * while a job is held it is ignored, because the settle pulls. One claim
  * in flight at a time — under one-job-at-a-time processing "drain" is one
  * claim per idle moment and one at settle, never a loop of claims while a
- * job is held. The type filter on the wake-up is a PRE-FILTER on
- * information the announcement already carries, so a worker that cannot
- * run the announced type does not spend a round trip to be declined; the
- * claim's `types` argument is the rule.
+ * job is held. The check of a wake-up is a PRE-FILTER: an announcement
+ * carries the job description less its input, so the worker asks its own
+ * claim's question of it — `jobMatchesFilter`, the comparison the dispatcher
+ * makes — and does not spend a round trip to be declined. The claim's
+ * `accepts` is the rule.
  *
  * What the dispatcher's decline codes mean here (`BusRequestError.code`,
  * promoted from the reply's `CommandError.code`): `bus.none-pending` is
@@ -49,8 +50,8 @@
  */
 
 import { BehaviorSubject, Observable, Subject, type Subscription } from 'rxjs';
-import { BusRequestError, busRequest } from '@semiont/core';
-import type { BusRequestErrorCode, EventMap, JobId, JobType, ResourceId, UnitCursor } from '@semiont/core';
+import { BusRequestError, busRequest, jobMatchesFilter } from '@semiont/core';
+import type { BusRequestErrorCode, EventMap, JobFilter, JobId, JobType, ResourceId, UnitCursor } from '@semiont/core';
 import type { BusRequestPrimitive } from '@semiont/core';
 
 /**
@@ -103,10 +104,10 @@ export interface JobClaimAdapterOptions {
   /** Shared bus (typically the session's HTTP actor or an in-process bus shim). */
   bus: BusRequestPrimitive;
   /**
-   * Job types this worker can process — the claim's `types` argument, and
-   * the pre-filter on `job:queued` wake-ups. Empty array = accept any.
+   * The jobs this worker takes — the claim's `accepts`, and what a
+   * `job:queued` wake-up is checked against. At least one.
    */
-  jobTypes: string[];
+  accepts: JobFilter[];
 }
 
 /**
@@ -141,7 +142,7 @@ export interface WorkerVitals {
   /** Last completion or failure — a failing-but-moving worker is alive. */
   lastFinishedAt: string | null;
   lastActivityAt: string | null;
-  activeJob: { jobId: string; type: string; since: string } | null;
+  activeJob: { jobId: JobId; type: JobType; since: string } | null;
   jobsCompleted: number;
 }
 
@@ -198,7 +199,7 @@ type ClaimOutcome = { job: ActiveJob } | { declined: true } | { refused: ClaimRe
  * Attach job-claim behaviour to a shared bus.
  */
 export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaimAdapter {
-  const { bus, jobTypes } = options;
+  const { bus, accepts } = options;
 
   const activeJob$ = new BehaviorSubject<ActiveJob | null>(null);
   const isProcessing$ = new BehaviorSubject<boolean>(false);
@@ -222,8 +223,8 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
   const iso = (t: number | null): string | null => (t === null ? null : new Date(t).toISOString());
 
   const claimNext = async (): Promise<ClaimOutcome> => {
-    // Ask for the next pending job of this worker's types: a claim names job
-    // types, never a job id. Same request/reply path as the SDK: busRequest
+    // Ask for the next pending job this worker takes: a claim names fields of
+    // the job description, never a job id. Same request/reply path as the SDK: busRequest
     // mints the correlationId, matches the job:claimed / job:claim-failed reply
     // by it, and returns the reply's `response` — the claimed job, as the spec
     // types it. A reply is not checked on receipt: the dispatcher states it,
@@ -231,7 +232,7 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
     // schema.
     let claimed: ClaimedJob;
     try {
-      claimed = await busRequest(bus, 'job:claim' satisfies JobClaimAwaits, { types: jobTypes }, 10_000);
+      claimed = await busRequest(bus, 'job:claim' satisfies JobClaimAwaits, { accepts }, 10_000);
     } catch (error) {
       // The reply's verdict, promoted to the client vocabulary by core. A
       // decline is the expected quiet outcome; everything else is the
@@ -315,9 +316,9 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
           // Every announcement received — matching or not — is stamped before
           // any filtering.
           lastQueuedEventAt = Date.now();
-          // The pre-filter: the claim's `types` is the rule; this saves the
-          // round trip when the announced type is one this worker cannot run.
-          if (jobTypes.length > 0 && !jobTypes.includes(event.jobType)) return;
+          // The pre-filter: the claim's `accepts` is the rule; this saves the
+          // round trip when the announced job is one this worker does not take.
+          if (!accepts.some((filter) => jobMatchesFilter(filter, event))) return;
           pull();
         }),
       );

@@ -9,7 +9,7 @@ The pattern is the same in every language. What differs is what a language reads
 A state unit packages **state that changes over time** behind a **typed surface a consumer reads but cannot write**, with **deterministic teardown**. You construct one, read its state as it changes, call its methods, and dispose it when you're done. That's the whole shape.
 
 A state unit might wrap:
-- a long-running flow (mark assist with progress + final result)
+- a long-running flow (a delegated mark with progress + final result)
 - a worker's claim / process loop
 - a search input's debounce-and-fetch behavior
 - a page's coordinated state (open resource + annotations + selected tool)
@@ -92,7 +92,7 @@ export function createFooStateUnit(session: SemiontSession): FooStateUnit {
     loading$.next(true);
     error$.next(null);
     subs.push(
-      client.mark.assist(input.resourceId, 'linking', {}).subscribe({
+      client.mark.delegate(input.resourceId, { motivation: 'linking', entityTypes }).subscribe({
         next: (r) => result$.next(r),
         error: (e) => { error$.next(e); loading$.next(false); },
         complete: () => loading$.next(false),
@@ -227,7 +227,7 @@ A consumer that needs the current value without subscribing can read `.value` on
 
 A few specific shapes are wrong and worth calling out:
 
-**No `Promise<T>` on long-running operations.** If the operation has progress events plus a final value plus a "loading" state, return a `StreamObservable<T>`, `CacheObservable<T>`, or `UploadObservable` — not `Promise<T>`. Promise plus Observable on the same conceptual operation breaks the four-shape return-type discipline. (See [REACTIVE-MODEL.md](./REACTIVE-MODEL.md).)
+**No `Promise<T>` on long-running operations.** If the operation has progress events plus a final value plus a "loading" state, return a `StreamObservable<T>`, `DelegationObservable`, `CacheObservable<T>`, or `UploadObservable` — not `Promise<T>`. Promise plus Observable on the same conceptual operation breaks the return-shape discipline. (See [REACTIVE-MODEL.md](./REACTIVE-MODEL.md).)
 
 **No `Promise<void>` for fire-and-forget signals.** When a method's only purpose is to emit on the bus and return — `beckon.hover`, `mark.request`, `bind.initiate` — the return type is `void`, not `Promise<void>`. `Promise<void>` implies an ack ("the operation completed"); collaboration signals don't have one; they fan out and the caller doesn't wait. The honest type documents the semantics.
 

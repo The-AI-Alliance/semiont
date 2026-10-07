@@ -19,7 +19,7 @@ Every operation belongs to one of eight verbs. They fall into three groups, by w
 - **[Bind](flows/BIND.md)** says what a reference refers to: the act of making a mention of "Paris" point at the right Paris.
 - **[Frame](flows/FRAME.md)** defines the vocabulary the other three are expressed in: entity types and tag schemas. Neither is fixed by Semiont; the participants in a knowledge base grow them.
 
-Yield and Mark are where delegation enters. Each has a form done by hand and a delegated form, and the two produce the same events: `yield.resource` uploads a document while `yield.fromContext` generates one, and `mark.annotation` records a highlight you made while `mark.assist` has an agent find them across a resource. Same verb, same result, different author.
+Yield and Mark are where delegation enters. Each has a form done by hand and a delegated form, and the two produce the same events: `yield.resource` uploads a document while `yield.delegate` generates one, and `mark.annotation` records a highlight you made while `mark.delegate` has an agent find them across a resource. Same verb, same result, different author.
 
 **Three verbs read.** They add no knowledge. They find and assemble what is already there, drawing on everything the knowledge base has accumulated: the record, the graph and the vector index.
 
@@ -78,7 +78,7 @@ const session = await SemiontSession.signInDevice({
 });
 const semiont = session.client;
 
-await semiont.mark.assist(resourceId, 'linking', { entityTypes: ['Person'] });           // write
+await semiont.mark.delegate(resourceId, { motivation: 'linking', entityTypes: ['Person'] });  // write
 const { response: context } = await semiont.gather.annotation(resourceId, annotationId);   // read
 const results = await semiont.match.search(resourceId, annotationId, context);              // read
 await semiont.bind.body(resourceId, annotationId, [                                          // write

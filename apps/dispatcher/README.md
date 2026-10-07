@@ -59,8 +59,8 @@ Three things, and nothing else:
   registered entity types (`browse:entity-types-requested`) and tag schemas
   (`browse:tag-schemas-requested`). It asks the service that owns those projections rather than
   mounting them. The one piece of KB vocabulary that travels the control plane is the resolved
-  tag schema, embedded into a tag-annotation job's params so the worker stays independent of
-  the registry.
+  tag schema, embedded into a tagging job's params beside its `schemaId` so the worker stays
+  independent of the registry.
 
 ## A claim is authorized, not just authenticated
 

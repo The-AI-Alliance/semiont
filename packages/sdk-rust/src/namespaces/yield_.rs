@@ -1,12 +1,11 @@
-//! Yield: creating resources, by upload, by generation, and by cloning.
+//! Yield: creating resources, by upload, by a generation delegated as a
+//! job, and by cloning.
 
-use super::follow::{Following, JobEvent, follow};
-use crate::bus::payload_of;
+use super::follow::{Delegation, Following, follow};
 use crate::channels::{Empty, YieldClone, YieldCloneResourceRequested, YieldCloneTokenRequested};
 use crate::client::Links;
 use crate::errors::SemiontError;
 use crate::media_types::{clone_format, derive_storage_uri, primary_media_type};
-use crate::running::Running;
 use crate::timing::{
     GENERATION_STALL_ASSUMED_TOKENS_COUNT, GENERATION_STALL_FLOOR, GENERATION_STALL_PER_TOKEN,
 };
@@ -14,8 +13,8 @@ use crate::transport::{ContentTransport, Envelope, PutBinaryRequest, Upload};
 use crate::types::ResourceId;
 use crate::types::{
     CloneResourceWithTokenResponse, CreateResourceResponse, GatheredContextFocus,
-    GenerationJobParams, JobCreateCommand, JobType, ResourceDescriptor, YieldCloneResourceRequest,
-    YieldCloneTokenRequest,
+    GenerationJobParams, ResourceDescriptor, YieldCloneResourceRequest, YieldCloneTokenRequest,
+    YieldJobCreateCommand,
 };
 use bytes::Bytes;
 use std::sync::Arc;
@@ -57,38 +56,30 @@ impl YieldNamespace {
         self.content.put_binary(data)
     }
 
-    /// Generate a resource from a gathered context: the job's progress and
-    /// its completion. The context's focus says what the job is about, so
-    /// the job names no resource. A follower that hears nothing for
-    /// `stall_deadline`, or for `stall_deadline(params.max_tokens)` when
-    /// none is stated, asks for that job to be cancelled and ends as
-    /// stalled.
-    pub fn from_context(
+    /// Delegate the making of a resource from a gathered context as a `yield`
+    /// job: its progress and its completion. The context's focus says what
+    /// the job is about, so the job names no resource. A follower that hears
+    /// nothing for `stall_deadline`, or for
+    /// `stall_deadline(params.max_tokens)` when none is stated, asks for that
+    /// job to be cancelled and ends as stalled.
+    pub fn delegate(
         &self,
         params: GenerationJobParams,
         stall_deadline: Option<Duration>,
-    ) -> Running<JobEvent> {
+    ) -> Delegation {
         let within = stall_deadline.unwrap_or_else(|| self::stall_deadline(params.max_tokens));
         let resource_id = match &params.context.focus {
             GatheredContextFocus::Resource(focus) => focus.resource.id.clone(),
             GatheredContextFocus::Annotation(focus) => focus.source_resource.id.clone(),
         };
-        match payload_of(&params) {
-            Ok(params) => follow(
-                self.links.clone(),
-                Following {
-                    create: JobCreateCommand {
-                        _user_id: None,
-                        job_type: JobType::Generation,
-                        resource_id: None,
-                        params,
-                    },
-                    resource_id,
-                    stall: Some(within),
-                },
-            ),
-            Err(unsendable) => Running::new(|_| async move { Err(unsendable.into()) }),
-        }
+        follow(
+            self.links.clone(),
+            Following {
+                create: YieldJobCreateCommand::new(params).into(),
+                resource_id,
+                stall: Some(within),
+            },
+        )
     }
 
     /// A token another resource can be created from: a clone of this one.

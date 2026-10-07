@@ -70,7 +70,7 @@ describe('CollaborationPanel Component', () => {
         provider: 'anthropic',
         model: 'claude-sonnet-5',
       },
-      servesJobTypes: ['generation'],
+      serves: [{ jobType: 'yield' }],
       limits: { contextTokens: 200_000, maxOutputTokens: 64_000 },
       ...over,
     });
@@ -82,7 +82,7 @@ describe('CollaborationPanel Component', () => {
       const row = screen.getByTestId('semiont-collaborator-row');
       expect(row.textContent).toContain('anthropic');
       expect(row.textContent).toContain('claude-sonnet-5');
-      expect(row.textContent).toContain('generation');
+      expect(row.textContent).toContain('yield');
       // Distinct in/out ceilings render as a pair.
       expect(row.textContent).toContain('200K in / 64K out');
     });

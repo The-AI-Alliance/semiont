@@ -5,39 +5,8 @@
  * worker process that claims jobs from the dispatcher over the bus.
  */
 
-// Types
-export type {
-  JobType,
-  JobStatus,
-  JobMetadata,
-  DetectionJob,
-  GenerationJob,
-  HighlightDetectionJob,
-  AssessmentDetectionJob,
-  CommentDetectionJob,
-  TagDetectionJob,
-  AnyJob,
-  RunningAnyJob,
-  StoredProgress,
-  PendingJob,
-  RunningJob,
-  CompleteJob,
-  FailedJob,
-  CancelledJob,
-  DetectionParams,
-  HighlightDetectionParams,
-  AssessmentDetectionParams,
-  CommentDetectionParams,
-  TagDetectionParams,
-} from './types';
-
-export {
-  isPendingJob,
-  isRunningJob,
-  isCompleteJob,
-  isFailedJob,
-  isCancelledJob,
-} from './types';
+// What a worker is handed, typed from the spec
+export { isHeldMark, type MarkMotivation, type HeldMarkParams } from './types';
 
 // Job processors (transport-agnostic)
 export {

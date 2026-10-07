@@ -92,7 +92,7 @@ Three handlers in `src/lib/codemirror-handlers.ts` manage widget interactions; `
 text segments, the id of the reference being generated, and the renderer's
 `getTargetResourceName` lookup into a `DecorationSet`:
 
-- `computeWidgetDecorations` filters to reference-annotation segments and sorts them by end position
+- `computeWidgetDecorations` filters to the segments of reference annotations and sorts them by end position
 - Creates `ReferenceResolutionWidget` for each reference annotation
 - Places widget at segment end with `side: 1` (appears after annotation text)
 - Uses separate `StateField` (`widgetDecorationsField`) from annotation decorations, mounted only when the renderer's `enableWidgets` is set

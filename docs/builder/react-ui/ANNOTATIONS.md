@@ -222,8 +222,10 @@ function ReferencesAssist({ stateUnit }: { stateUnit: ResourceViewerPageStateUni
 
   const handleDetect = () => {
     // requestAssist emits the local 'mark:assist-request' event; the mark
-    // state unit picks it up and runs client.mark.assist(...) for the job.
-    session?.client.mark.requestAssist('linking', {
+    // state unit picks it up and runs client.mark.delegate(...) for the job.
+    // The request carries the job's params, its motivation among them.
+    session?.client.mark.requestAssist({
+      motivation: 'linking',
       entityTypes: ['Person', 'Organization'],
     });
   };
@@ -238,7 +240,7 @@ function ReferencesAssist({ stateUnit }: { stateUnit: ResourceViewerPageStateUni
 
 ### Job Lifecycle (the unified job channels)
 
-`mark.assist(resourceId, motivation, options)` dispatches a `job:create` request
+`mark.delegate(resourceId, params)` dispatches a `job:create` request
 and streams progress on the **unified job channels**:
 
 - `job:report-progress` - progress updates while the job runs
@@ -508,7 +510,7 @@ See [EVENTS.md](EVENTS.md) for complete real-time collaboration architecture.
 
 - `ANNOTATORS` - The registry: one `Annotator` per annotation type
 - `annotatorKeyForMotivation(motivation)` - The registry key for a W3C motivation
-- `client.mark.requestAssist(motivation, options)` - Trigger AI assist (mark state unit runs the job)
+- `client.mark.requestAssist(params)` - Trigger AI assist with a `mark` job's params (mark state unit runs the job)
 - `useObservable(stateUnit.mark.assistingMotivation$)` - Read live assist state
 
 ### Types

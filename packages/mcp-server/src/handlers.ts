@@ -15,7 +15,8 @@ import type {
   BodyOperation,
   components,
   GatheredContext,
-  Motivation,
+  GenerationJobParams,
+  MarkJobParams,
   ResourceDescriptor,
   ResourceId,
 } from '@semiont/core';
@@ -25,12 +26,9 @@ import type {
   CreateAnnotationInput,
   CreateResourceInput,
   GatherAnnotationComplete,
-  GenerationOptions,
-  MarkAssistEvent,
-  MarkAssistOptions,
+  JobEvent,
   MatchedResources,
   ResourceList,
-  YieldGenerationEvent,
 } from '@semiont/sdk';
 
 export type McpResult = { content: Array<{ type: 'text'; text: string }>; isError?: boolean };
@@ -54,7 +52,7 @@ export interface McpClient {
   };
   mark: {
     annotation(input: CreateAnnotationInput): Promise<{ annotationId: AnnotationId }>;
-    assist(resourceId: ResourceId, motivation: Motivation, options: MarkAssistOptions): Observable<MarkAssistEvent>;
+    delegate(resourceId: ResourceId, params: MarkJobParams): Observable<JobEvent>;
   };
   bind: {
     body(resourceId: ResourceId, annotationId: AnnotationId, operations: BodyOperation[]): Promise<void>;
@@ -71,10 +69,7 @@ export interface McpClient {
   };
   yield: {
     resource(data: CreateResourceInput): PromiseLike<{ resourceId: ResourceId }>;
-    fromContext(
-      context: GatheredContext,
-      options: GenerationOptions,
-    ): Observable<YieldGenerationEvent>;
+    delegate(params: GenerationJobParams): Observable<JobEvent>;
   };
 }
 
@@ -165,31 +160,23 @@ export async function browseReferences(semiont: McpClient, args: any): Promise<M
 // ── Mark ────────────────────────────────────────────────────────────────────
 
 /**
- * What an assist job reported, as one sentence.
+ * What a `mark` job reported, as one sentence.
  *
- * Switches on `kind` rather than probing for whichever count field happens to be
- * present: every `JobResult` member carries that single-valued discriminant, so
- * narrowing takes no cast. Exhaustiveness is the point: an eighth `JobResult`
- * member fails to compile here (TS2366 — no ending return statement) instead of
- * silently counting zero, which is what a cast-and-probe does. That is also
- * why there is no `default`: it would answer for the new member and take the
- * compile error with it.
+ * A result has no tag: each of the three is told apart by a member only it
+ * has, so narrowing takes no cast. Exhaustiveness is the point: a fourth
+ * `JobResult` member fails to compile at the last line instead of silently
+ * counting zero.
  */
 function assistOutcome(result: JobResult | undefined): string {
   const found = (n: number) => `Detection complete. Found ${n} entities.`;
   if (!result) return found(0);
-  switch (result.kind) {
-    case 'reference-annotation':  return found(result.totalFound);
-    case 'highlight-annotation':  return found(result.highlightsFound);
-    case 'comment-annotation':    return found(result.commentsFound);
-    case 'assessment-annotation': return found(result.assessmentsFound);
-    case 'tag-annotation':        return found(result.tagsFound);
-    // A declined job read nothing and says why; "found 0" would hide that.
-    case 'declined':              return `Detection declined (${result.reason}).`;
-    // Not reachable through mark.assist — a generation job is a different type —
-    // but the union admits it, so it answers rather than counting nothing.
-    case 'generation':            return found(0);
-  }
+  // A declined job read nothing and says why; "found 0" would hide that.
+  if ('declined' in result) return `Detection declined (${result.reason}).`;
+  if ('found' in result) return found(result.found);
+  // Not what a `mark` job reports — it is a `yield` job's — but the type
+  // admits it, so it answers rather than going unhandled.
+  if ('resourceId' in result) return found(0);
+  return result satisfies never;
 }
 
 export async function markAnnotation(semiont: McpClient, args: any): Promise<McpResult> {
@@ -221,8 +208,9 @@ export async function markAssist(semiont: McpClient, args: any): Promise<McpResu
 
   try {
     const final = await lastValueFrom(
-      semiont.mark.assist(rId, 'linking', {
-        entityTypes: args?.entityTypes || [],
+      semiont.mark.delegate(rId, {
+        motivation: 'linking',
+        entityTypes: args?.entityTypes,
         includeDescriptiveReferences: false,
         // Annotation body locale (stamped on the unresolved-reference
         // body's `language` field) and source-resource locale (fed into
@@ -288,9 +276,9 @@ export async function yieldFromAnnotation(semiont: McpClient, args: any): Promis
   // Step 1: gather context
   const ctx = gatheredContext(await semiont.gather.annotation(rId, aId, { contextWindow: 2000 }));
 
-  // Step 2: generate. yield.fromContext streams progress, then ends with
-  // a `complete` event carrying the JobCompleteCommand (with `result`). The
-  // job's ids are derived from the gathered context's annotation focus.
+  // Step 2: generate. yield.delegate streams progress, then ends with a
+  // `complete` event carrying the JobCompleteCommand (with `result`). The
+  // job's resource is derived from the gathered context's annotation focus.
   const progressMessages: string[] = [];
   try {
     // Default sourceLanguage from the gathered context's metadata, which the
@@ -299,12 +287,13 @@ export async function yieldFromAnnotation(semiont: McpClient, args: any): Promis
     const ctxSourceLanguage = ctx.metadata?.language;
 
     await lastValueFrom(
-      semiont.yield.fromContext(ctx, {
+      semiont.yield.delegate({
         title: args?.title ?? 'Generated',
         storageUri: args?.storageUri,
         prompt: args?.prompt,
         language: args?.language,
         sourceLanguage: args?.sourceLanguage ?? ctxSourceLanguage,
+        context: ctx,
       }).pipe(
         tap((e) => {
           if (e.kind === 'progress') progressMessages.push(`${e.data.message?.code ?? 'working'}: ${e.data.percentage}%`);

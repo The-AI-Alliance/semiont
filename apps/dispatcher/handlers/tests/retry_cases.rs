@@ -17,7 +17,7 @@ fn retry_cases() {
     for case in cases {
         let metadata = JobMetadata {
             id: as_id("job-0"),
-            r#type: JobType::HighlightAnnotation,
+            r#type: JobType::Mark,
             user_id: as_id("did:web:example.org:users:alice"),
             created: "2026-09-30T00:00:00.000Z".to_owned(),
             retry_count: case["retryCount"].as_u64().expect("retryCount"),

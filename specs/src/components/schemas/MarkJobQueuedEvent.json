@@ -1,0 +1,33 @@
+{
+  "type": "object",
+  "description": "A pending `mark` job, announced with its parameters as it was created.",
+  "properties": {
+    "jobId": {
+      "$ref": "./JobId.json"
+    },
+    "jobType": {
+      "type": "string",
+      "enum": [
+        "mark"
+      ]
+    },
+    "resourceId": {
+      "$ref": "./ResourceId.json",
+      "description": "The resource the job is about."
+    },
+    "userId": {
+      "$ref": "./UserId.json",
+      "description": "The DID of the principal whose `job:create` created the job."
+    },
+    "params": {
+      "$ref": "./MarkJobParams.json"
+    }
+  },
+  "required": [
+    "jobId",
+    "jobType",
+    "resourceId",
+    "userId",
+    "params"
+  ]
+}

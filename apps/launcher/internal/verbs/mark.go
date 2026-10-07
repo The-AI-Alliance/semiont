@@ -10,11 +10,9 @@ package verbs
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"math"
 	"os"
-	"sort"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -63,12 +61,14 @@ Motivation (required):
   linking               Mark references to entities (needs --entity-type)
   tagging               Tag passages by a schema's categories (needs --schema, --category)
 
-Options:
+Options (each motivation's job takes its own, and refuses another's, saying
+which it takes):
   --instructions <text>    What the pass should attend to
   --density <n>            Aim for about n annotations per 2000 words
-  --tone <t>               The voice of what is written: scholarly | explanatory |
-                           conversational | technical | analytical | critical |
-                           balanced | constructive
+  --tone <t>               commenting, the voice of the comments: scholarly |
+                           explanatory | conversational | technical
+                           assessing, the stance of the assessments: analytical |
+                           critical | balanced | constructive
   --language <tag>         BCP-47 language the annotations are written in
   --source-language <tag>  BCP-47 language of the resource
   --entity-type <name>     linking: an entity type to look for (repeatable;
@@ -85,85 +85,76 @@ Options:
 Requires a session:  semiont login
 `
 
-// assistOptions: what a delegated mark says of the pass it asks for. Each is
-// a parameter of the job, under its own name.
-type assistOptions struct {
-	EntityTypes                  []string `json:"entityTypes,omitempty"`
-	IncludeDescriptiveReferences *bool    `json:"includeDescriptiveReferences,omitempty"`
-	Instructions                 string   `json:"instructions,omitempty"`
-	Density                      *float64 `json:"density,omitempty"`
-	Tone                         string   `json:"tone,omitempty"`
-	Language                     string   `json:"language,omitempty"`
-	SourceLanguage               string   `json:"sourceLanguage,omitempty"`
-	SchemaId                     string   `json:"schemaId,omitempty"`
-	Categories                   []string `json:"categories,omitempty"`
+// entityTypeFlag: the one flag both forms of mark take. By hand each names a
+// tag's body; delegated, they are the entity types a linking job looks for.
+const entityTypeFlag = "--entity-type"
+
+// markJobFlags: the flag that gives each parameter of a delegated mark's job.
+// Which of them a motivation's job takes is its generated type's to say
+// (markJob), and TestEveryMarkJobParameterHasItsFlag holds this table to the
+// five of them.
+var markJobFlags = jobFlags{
+	"--instructions":    {"instructions", flagText},
+	"--density":         {"density", flagPositive},
+	"--tone":            {"tone", flagText},
+	"--language":        {"language", flagText},
+	"--source-language": {"sourceLanguage", flagText},
+	entityTypeFlag:      {"entityTypes", flagList},
+	"--descriptive":     {"includeDescriptiveReferences", flagSet},
+	"--schema":          {"schemaId", flagText},
+	"--category":        {"categories", flagList},
 }
 
-// assistJobTypes: the job a motivation names. The `mark.assist` row of
-// specs/src/client/surface.json states it, and
-// TestMarkDelegateSendsWhatTheClientSurfaceSays runs every case of that row.
-var assistJobTypes = map[semiont.Motivation]semiont.JobType{
-	semiont.MotivationHighlighting: semiont.JobTypeHighlightAnnotation,
-	semiont.MotivationCommenting:   semiont.JobTypeCommentAnnotation,
-	semiont.MotivationAssessing:    semiont.JobTypeAssessmentAnnotation,
-	semiont.MotivationLinking:      semiont.JobTypeReferenceAnnotation,
-	semiont.MotivationTagging:      semiont.JobTypeTagAnnotation,
-}
-
-// assistMotivations: the motivations a delegated mark takes, for a refusal.
-func assistMotivations() string {
-	names := make([]string, 0, len(assistJobTypes))
-	for m := range assistJobTypes {
-		names = append(names, string(m))
+// markJob: the job:create a delegated mark sends: a `mark` job on the
+// resource, its parameters the chosen motivation's generated type holding what
+// the flags gave.
+func markJob(resourceID string, motivation semiont.Motivation, given map[string]any) (semiont.JobCreateCommand, error) {
+	var create semiont.JobCreateCommand
+	if !motivation.Valid() {
+		return create, fmt.Errorf("--motivation wants a motivation a mark can be delegated for, got %q", motivation)
 	}
-	sort.Strings(names)
-	return strings.Join(names, ", ")
-}
-
-// assistJob: the job:create a delegated mark sends. It refuses what every SDK
-// refuses before asking: a job the dispatcher would turn away, or one with
-// nothing to look for.
-func assistJob(resourceID string, motivation semiont.Motivation, options assistOptions) (semiont.JobCreateCommand, error) {
-	jobType, ok := assistJobTypes[motivation]
-	if !ok {
-		return semiont.JobCreateCommand{}, fmt.Errorf("--motivation wants one of %s; got %q", assistMotivations(), motivation)
+	described := map[string]any{"motivation": motivation}
+	for param, value := range given {
+		described[param] = value
 	}
-	switch motivation {
-	case semiont.MotivationLinking:
-		if len(options.EntityTypes) == 0 {
-			return semiont.JobCreateCommand{}, errors.New("linking needs at least one --entity-type to look for (semiont browse --entity-types lists them)")
-		}
-	case semiont.MotivationTagging:
-		if options.SchemaId == "" {
-			return semiont.JobCreateCommand{}, errors.New("tagging needs --schema <id> (semiont browse --tag-schemas lists them)")
-		}
-		if len(options.Categories) == 0 {
-			return semiont.JobCreateCommand{}, errors.New("tagging needs at least one --category of that schema")
-		}
+	// The union says which generated type holds this motivation's parameters.
+	var params semiont.MarkJobParams
+	written, err := json.Marshal(described)
+	if err == nil {
+		err = params.UnmarshalJSON(written)
 	}
-	// The options ARE the job's parameters. The resource is the command's:
-	// the dispatcher refuses params that name it.
-	b, err := json.Marshal(options)
 	if err != nil {
-		return semiont.JobCreateCommand{}, err
+		return create, err
 	}
-	params := map[string]any{}
-	if err := json.Unmarshal(b, &params); err != nil {
-		return semiont.JobCreateCommand{}, err
+	generated, err := params.ValueByDiscriminator()
+	if err != nil {
+		return create, err
 	}
-	return semiont.JobCreateCommand{JobType: jobType, ResourceId: &resourceID, Params: params}, nil
+	held := reflect.New(reflect.TypeOf(generated))
+	if err := jobParams(described, markJobFlags, held.Interface(), string(motivation)); err != nil {
+		return create, err
+	}
+	// What is sent is what that type writes.
+	if written, err = json.Marshal(held.Interface()); err == nil {
+		err = params.UnmarshalJSON(written)
+	}
+	if err != nil {
+		return create, err
+	}
+	err = create.FromMarkJobCreateCommand(semiont.MarkJobCreateCommand{ResourceId: resourceID, Params: params})
+	return create, err
 }
 
 func Mark(args []string) int {
 	u := launcher.NewUI(false)
 	var resourceID, quote, prefix, suffix, bodyText, link, motivation, deleteID, resourceFlag, repo string
-	var entityTypes []string
 	start, end := -1, -1
 	asJSON, wantLocal := false, false
 	delegate := false
-	var assist assistOptions
-	// given: the flags that belong to one form of mark only, as they were
-	// typed, so the other form can refuse them by name.
+	// given: what the job flags gave, by the name of the parameter each gives.
+	given := map[string]any{}
+	// The flags that belong to one form of mark only, as they were typed, so
+	// the other form can refuse them by name.
 	var handOnly, delegateOnly []string
 
 	for i := 0; i < len(args); i++ {
@@ -188,47 +179,23 @@ func Mark(args []string) int {
 			}
 			return n, true
 		}
+		if taken, ok := markJobFlags.take(u, a, val, given); taken {
+			if !ok {
+				return 1
+			}
+			if a != entityTypeFlag {
+				delegateOnly = append(delegateOnly, a)
+			}
+			continue
+		}
 		var ok bool
 		switch a {
 		case "--quote", "--prefix", "--suffix", "--body-text", "--link", "--delete", "--resource", "--start", "--end":
 			handOnly = append(handOnly, a)
-		case "--instructions", "--density", "--tone", "--language", "--source-language", "--descriptive", "--schema", "--category":
-			delegateOnly = append(delegateOnly, a)
 		}
 		switch a {
 		case "--delegate":
 			delegate, ok = true, true
-		case "--instructions":
-			assist.Instructions, ok = val()
-		case "--density":
-			var v string
-			if v, ok = val(); ok {
-				n, err := strconv.ParseFloat(v, 64)
-				if err != nil || n <= 0 || math.IsInf(n, 0) || math.IsNaN(n) {
-					u.Fail("--density wants a number above 0 (about that many annotations per 2000 words), got %q", v)
-					return 1
-				}
-				assist.Density = &n
-			}
-		case "--tone":
-			if assist.Tone, ok = val(); ok && !semiont.MarkAssistRequestEventOptionsTone(assist.Tone).Valid() {
-				u.Fail("--tone wants a tone the help lists, got %q:  semiont mark --delegate --help", assist.Tone)
-				return 1
-			}
-		case "--language":
-			assist.Language, ok = val()
-		case "--source-language":
-			assist.SourceLanguage, ok = val()
-		case "--descriptive":
-			yes := true
-			assist.IncludeDescriptiveReferences, ok = &yes, true
-		case "--schema":
-			assist.SchemaId, ok = val()
-		case "--category":
-			var v string
-			if v, ok = val(); ok {
-				assist.Categories = append(assist.Categories, v)
-			}
 		case "--quote":
 			quote, ok = val()
 		case "--prefix":
@@ -247,12 +214,6 @@ func Mark(args []string) int {
 			resourceFlag, ok = val()
 		case "--repo":
 			repo, ok = val()
-		case "--entity-type":
-			var v string
-			v, ok = val()
-			if ok {
-				entityTypes = append(entityTypes, v)
-			}
 		case "--start":
 			start, ok = num()
 		case "--end":
@@ -296,13 +257,14 @@ func Mark(args []string) int {
 			return 1
 		}
 		if motivation == "" {
-			u.Fail("--delegate needs --motivation: one of %s.", assistMotivations())
+			u.Fail("--delegate needs --motivation.")
+			fmt.Fprintln(os.Stderr, "  semiont mark --delegate --help")
 			return 1
 		}
-		assist.EntityTypes = entityTypes
-		command, err := assistJob(resourceID, semiont.Motivation(motivation), assist)
+		command, err := markJob(resourceID, semiont.Motivation(motivation), given)
 		if err != nil {
 			u.Fail("%v", err)
+			fmt.Fprintln(os.Stderr, "  semiont mark --delegate --help")
 			return 1
 		}
 		t, ok := launcher.VerbSession(u, "mark", repo, wantLocal)
@@ -326,6 +288,7 @@ func Mark(args []string) int {
 		fmt.Print(markUsage)
 		return 1
 	}
+	entityTypes, _ := given[markJobFlags[entityTypeFlag].param].([]string)
 	if (start >= 0) != (end >= 0) {
 		u.Fail("--start and --end go together.")
 		return 1
@@ -509,52 +472,37 @@ func runMarkDelegate(u *launcher.UI, t launcher.VerbTarget, command semiont.JobC
 		fmt.Fprintln(os.Stderr, "  Nothing was annotated.")
 		return 1
 	}
-	if text := markedText(result); text != "" {
-		u.Ok("Marked %s: %s", resourceID, text)
+	if detected, ok := result.(semiont.JobDetectionResult); ok {
+		u.Ok("Marked %s: %s", resourceID, markedText(motivation, detected))
 		return 0
 	}
 	u.Ok("Marked %s %s", resourceID, u.Dim("("+motivation+")"))
 	return 0
 }
 
-// markedText: what a completed annotation job did, in the terminal's words.
-// "" for a result that is not an annotation job's.
-func markedText(result any) string {
-	created := func(n int, what string, found int) string {
-		return fmt.Sprintf("%s created (%d found)", counted(n, what), found)
+// markedText: what a completed mark job did, in the terminal's words: "4
+// linking annotations created (5 found, 1 error)". A tagging job's count per
+// category follows: ": issue 2, rule 4".
+func markedText(motivation string, result semiont.JobDetectionResult) string {
+	text := fmt.Sprintf("%s created (%d found", counted(result.Persisted, motivation+" annotation"), result.Found)
+	if result.Errors != nil {
+		text += ", " + counted(*result.Errors, "error")
 	}
-	switch r := result.(type) {
-	case semiont.JobHighlightAnnotationResult:
-		return created(r.HighlightsCreated, "highlight", r.HighlightsFound)
-	case semiont.JobCommentAnnotationResult:
-		return created(r.CommentsCreated, "comment", r.CommentsFound)
-	case semiont.JobAssessmentAnnotationResult:
-		return created(r.AssessmentsCreated, "assessment", r.AssessmentsFound)
-	case semiont.JobReferenceAnnotationResult:
-		text := fmt.Sprintf("%s created (%d found", counted(r.TotalEmitted, "reference"), r.TotalFound)
-		if r.Errors > 0 {
-			text += ", " + counted(r.Errors, "error")
-		}
-		return text + ")"
-	case semiont.JobTagAnnotationResult:
-		text := created(r.TagsCreated, "tag", r.TagsFound)
-		categories := make([]string, 0, len(r.ByCategory))
-		for name := range r.ByCategory {
-			categories = append(categories, name)
-		}
-		sort.Strings(categories)
-		for i, name := range categories {
-			categories[i] = fmt.Sprintf("%s %d", name, r.ByCategory[name])
-		}
-		if len(categories) > 0 {
-			text += ": " + strings.Join(categories, ", ")
-		}
+	text += ")"
+	if result.ByCategory == nil {
 		return text
 	}
-	return ""
+	var categories []string
+	for _, name := range sortedNames(*result.ByCategory) {
+		categories = append(categories, fmt.Sprintf("%s %d", name, (*result.ByCategory)[name]))
+	}
+	if len(categories) > 0 {
+		text += ": " + strings.Join(categories, ", ")
+	}
+	return text
 }
 
-// counted: "1 highlight", "3 highlights".
+// counted: "1 error", "3 errors".
 func counted(n int, what string) string {
 	if n == 1 {
 		return "1 " + what

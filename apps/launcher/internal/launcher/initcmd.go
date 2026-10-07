@@ -35,7 +35,7 @@ With --yes and neither source, init refuses rather than guessing.
   --site-name <s>     Human-readable site name (default: the project name)
   --inference <p>     Build a config: anthropic or ollama
   --model <id>        The heavy model (gatherer, matcher, workers.default)
-  --model-light <id>  Emitted as a commented per-worker example, not a binding
+  --model-light <id>  Emitted as a commented per-job example, not a binding
   --embedding <e>     ollama:<model> (voyage: not yet — no established key var)
   --config-name <n>   Config file name (default: the provider name)
   --from-template [s] Copy semiontconfig from the template instead of building

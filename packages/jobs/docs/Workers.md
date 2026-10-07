@@ -1,8 +1,8 @@
 # Workers Guide
 
-A worker serves a single software-agent identity and turns queued jobs into Knowledge Base events; the worker host process runs one for each inference engine it is configured with. It opens an authenticated session, serves a set of job types, and — whenever it is idle — claims the next pending job of those types, reads the resource, runs a **processor**, and emits the results.
+A worker serves a single software-agent identity and turns queued jobs into Knowledge Base events; the worker host process runs one for each inference engine it is configured with. It opens an authenticated session, takes a set of jobs, and — whenever it is idle — claims the next pending job among them, reads the resource, runs a **processor**, and emits the results.
 
-Workers are **not** actors. They don't subscribe to a reducer; they claim jobs over the bus and dispatch by job type. But they emit the same EventBus commands as any other caller in the system. The Archivist's **Stower** handles all persistence to the Knowledge Base — a worker never writes to storage directly.
+Workers are **not** actors. They don't subscribe to a reducer; they claim jobs over the bus and dispatch by what the job is: its type and, for a `mark` job, its motivation. But they emit the same EventBus commands as any other caller in the system. The Archivist's **Stower** handles all persistence to the Knowledge Base — a worker never writes to storage directly.
 
 **See also**: [Job types](./JobTypes.md) for what each job carries, [Failure discipline](./FailureDiscipline.md) for how one fails, and the [worker service](../../../apps/worker/README.md) for running it: its port, its health endpoint, its configuration and its stall watchdog.
 
@@ -14,9 +14,9 @@ The moving parts:
 
 | File | Role |
 |------|------|
-| `src/worker-main.ts` | Standalone entry point. Reads `~/.semiontconfig`, groups job types by `(provider, model)`, and starts one agent worker per group, all in its own process. |
+| `src/worker-main.ts` | Standalone entry point. Reads `~/.semiontconfig`, groups the jobs it serves by `(provider, model)`, and starts one agent worker per group, all in its own process. |
 | `src/worker-runtime.ts` | `startAgentWorker(options)` — authenticates one agent, opens its session, and calls `startWorkerProcess`. |
-| `src/worker-process.ts` | `startWorkerProcess(config)` — claims jobs via the `JobClaimAdapter`, then `handleJobInner` dispatches by `jobType` to the right processor, commits annotations in acknowledged batches (`mark:commit`), and emits the lifecycle events. |
+| `src/worker-process.ts` | `startWorkerProcess(config)` — claims jobs via the `JobClaimAdapter`, then `handleJobInner` dispatches by `jobType` and motivation to the right processor, commits annotations in acknowledged batches (`mark:commit`), and emits the lifecycle events. |
 | `src/processors.ts` | The `process*Job` functions. Content + inference + params in, `{ result }` out; annotations go out through the `onChunkComplete` callback as they are produced. No bus, no queue, no I/O except calling inference. |
 | `src/workers/annotation-detection.ts` | `AnnotationDetection` — the LLM detection logic the annotation processors call (`detectHighlights`, `detectComments`, `detectAssessments`, `detectTags`). |
 | `src/job-claim-adapter.ts` | `JobClaimAdapter` — asks the dispatcher for work over the bus and holds the claimed job. The worker never touches the queue itself. |
@@ -33,7 +33,7 @@ The moving parts:
 ```typescript
 const adapter = startWorkerProcess({
   session,                 // SemiontSession, authenticated as this agent
-  jobTypes: group.jobTypes,// the job types this agent's engine serves
+  accepts: group.serves,   // the jobs this agent's engine serves, as a claim names them
   inferenceClient: group.client, // the (provider, model) inference client
   generator,               // the Software agent record
   contentReads,            // resource bytes for detection, read from the Archivist
@@ -41,9 +41,11 @@ const adapter = startWorkerProcess({
 });
 ```
 
-`startWorkerProcess` creates a `JobClaimAdapter` over the session's transport actor. The adapter **pulls**: it asks the dispatcher for the next job of `jobTypes` at every moment it becomes idle — at start, after each job settles, on a matching `job:queued` while parked, and on reconnect — and parks when told nothing is pending. It surfaces each claimed job on `activeJob$`, and for every one `startWorkerProcess` calls `handleJob → handleJobInner`, which does the actual fetch / process / emit.
+`startWorkerProcess` creates a `JobClaimAdapter` over the session's transport actor. The adapter **pulls**: it asks the dispatcher for the next job that matches `accepts` at every moment it becomes idle — at start, after each job settles, on a matching `job:queued` while parked, and on reconnect — and parks when told nothing is pending. It surfaces each claimed job on `activeJob$`, and for every one `startWorkerProcess` calls `handleJob → handleJobInner`, which does the actual fetch / process / emit.
 
-A job queued while a worker is busy is claimed at that worker's next settle. The dispatcher also announces pending jobs again at each tick, which covers a wake-up lost on its way to an idle worker. A repeated announcement is harmless: a claim is by type, so a worker that finds nothing pending is declined and parks.
+A job queued while a worker is busy is claimed at that worker's next settle. The dispatcher also announces pending jobs again at each tick, which covers a wake-up lost on its way to an idle worker. A repeated announcement is harmless: a claim names what it takes and no job, so a worker that finds nothing pending is declined and parks.
+
+An announcement carries the job description less its input: a `mark` job's params whole, and a `yield` job's without its `context`. The adapter checks it against its own claim with `jobMatchesFilter` (`@semiont/core`), the comparison the dispatcher makes, and asks only when it would be handed something.
 
 A claim the dispatcher refuses for any reason other than an empty queue arrives on `refused$`. `bus.unauthorized` means this credential can never claim — the shipped worker exits on it so the operator sees why, rather than parking forever.
 
@@ -51,14 +53,14 @@ On `SIGTERM` or `SIGINT` the host disposes each agent's adapter and session, the
 
 ## A Worker Written Outside This Package
 
-The claim runtime is exported from the package root, with its types (`JobClaimAdapter`, `JobClaimAdapterOptions`, `ActiveJob`, `ClaimRefusal`, `WorkerVitals`), for a worker that is not this one. It takes a `BusRequestPrimitive` (`@semiont/core`) and the job types to claim:
+The claim runtime is exported from the package root, with its types (`JobClaimAdapter`, `JobClaimAdapterOptions`, `ActiveJob`, `ClaimRefusal`, `WorkerVitals`), for a worker that is not this one. It takes a `BusRequestPrimitive` (`@semiont/core`) and the jobs to claim, each a `JobFilter`: a partial job description, matched by the fields it states.
 
 ```typescript
 import { createJobClaimAdapter } from '@semiont/jobs';
 
 const adapter = createJobClaimAdapter({
   bus: httpTransport.actor,             // HttpTransport's ActorStateUnit
-  jobTypes: ['highlight-annotation'],
+  accepts: [{ jobType: 'mark', params: { motivation: 'highlighting' } }],
 });
 adapter.activeJob$.subscribe((job) => { /* null between jobs */ });
 adapter.refused$.subscribe((refusal) => { /* a claim refused for a reason other than an empty queue */ });
@@ -67,31 +69,31 @@ adapter.start();
 
 The caller emits the lifecycle events itself and reports each outcome with `adapter.completeJob()` or `adapter.failJob(jobId, message)`, either of which pulls the next job. The [`semiont-worker` skill](../../../docs/builder/skills/semiont-worker/SKILL.md) walks through a complete worker, and [Jobs](../../../docs/protocol/JOBS.md) is the protocol it speaks.
 
-## Built-in Job Types
+## Built-in Jobs
 
-`JobType` (in `src/types.ts`) enumerates the six types, each dispatched to one processor in `handleJobInner`:
+`handleJobInner` dispatches each job to one processor: a `mark` job by its motivation (`isHeldMark`), a `yield` job by its type.
 
-| `jobType` | Processor | Returns |
-|-----------|-----------|---------|
-| `highlight-annotation` | `processHighlightJob` | `{ result }` (annotations committed per chunk) |
-| `comment-annotation` | `processCommentJob` | `{ result }` (annotations committed per chunk) |
-| `assessment-annotation` | `processAssessmentJob` | `{ result }` (annotations committed per chunk) |
-| `reference-annotation` | `processReferenceJob` | `{ result }` (annotations committed per chunk) |
-| `tag-annotation` | `processTagJob` | `{ result }` (annotations committed per chunk) |
-| `generation` | `processGenerationJob` | `{ content, title, format, citations, truncated }` |
+| `jobType` | Motivation | Processor | Returns |
+|-----------|------------|-----------|---------|
+| `mark` | `highlighting` | `processHighlightJob` | `{ result }` (annotations committed per chunk) |
+| `mark` | `commenting` | `processCommentJob` | `{ result }` (annotations committed per chunk) |
+| `mark` | `assessing` | `processAssessmentJob` | `{ result }` (annotations committed per chunk) |
+| `mark` | `linking` | `processReferenceJob` | `{ result }` (annotations committed per chunk) |
+| `mark` | `tagging` | `processTagJob` | `{ result }` (annotations committed per chunk) |
+| `yield` | | `processGenerationJob` | `{ content, title, format, citations, truncated }` |
 
-The highlight, comment, assessment, and tag processors share one signature shape:
+The highlighting, commenting, assessing and tagging processors share one signature shape:
 
 ```typescript sketch
 process<X>Job(
   content: string,            // prepared by the worker process, not the processor
   inferenceClient: InferenceClient,
-  params: <X>DetectionParams,
+  params: HeldMarkParams<M>,         // that motivation's params, with what the dispatcher adds
   buildAnnotation: BuildAnnotation,  // (motivation, match, body?) => Annotation; carries the generator
   onProgress: OnProgress,
   onChunkComplete: (annotations: Annotation[], checkpoint: UnitCheckpoint) => Promise<void>,
   resumeCursors?: Record<string, UnitCursor>,   // where an earlier attempt left each unit
-): Promise<ProcessorResult<Job<X>AnnotationResult>>  // `{ result }` only
+): Promise<ProcessorResult<JobDetectionResult>>  // `{ result }` only: found, persisted, errors
 ```
 
 `processReferenceJob` runs several units (entity types) concurrently, so after `onProgress` it takes `logger`, an `onUnitComplete(entityType)` checkpoint callback, and an abort `signal`, then the optional `onChunkComplete` and `resumeCursors`.
@@ -153,33 +155,33 @@ Workers emit lifecycle and annotation commands directly on the session's transpo
 
 The processor itself emits nothing. It calls `onProgress(percentage, message, extra?)`; the worker process turns each call into a `job:report-progress` event.
 
-## Adding a Custom Job Type
+## Adding a Job
 
-Suppose you want a `summary-annotation` job. Three edits, no new classes:
+Suppose you want a `mark` job for another motivation, `describing`. Three edits, no new classes:
 
-### 1. Add the `JobType`
+### 1. State the job in the spec
 
-In `src/types.ts`, add the params type alongside the existing ones. The spec owns the rest: add the type to `specs/src/components/schemas/JobType.json` (`JobType` and `JOB_TYPES` in `@semiont/core` are generated from it), place it in a category in `specs/src/jobs/storage.json`, and add its result schema (with a single-valued `kind`) to the `JobResult` union; the result type is then generated into `@semiont/core`. There is no progress type to add — every job reports `JobProgress`. A new progress message, or a new `kind` on `complete-created`, is a spec change plus client copy.
+A job description is the spec's, so the job starts there:
+
+- `Motivation.json` lists `describing`.
+- `DescribingJobParams.json` states what the job takes, beside the other five: closed, with `motivation` its one value. It joins `MarkJobParams`' members and its mapping, and `specs/src/openapi.json`'s registry.
+- `ArchivistRoster.workers.mark` gains the key, so the directory can say who serves it.
+
+`lint:spec-jobs` and the Archivist's gate hold each of those lists to `Motivation`, so a step left out fails. There is no result schema to add: every `mark` job reports `JobDetectionResult`. There is no progress type either: every job reports `JobProgress`. A new progress message, or a new `kind` on `complete-created`, is a spec change plus client copy.
+
+Regenerating gives the worker everything else: the params type, and `MARK_MOTIVATIONS` in `@semiont/core`.
 
 ```typescript
-// src/types.ts:
-export interface SummaryDetectionParams {
-  resourceId: ResourceId;
+// Generated from the spec into @semiont/core:
+interface DescribingJobParams {
+  motivation: 'describing';
   instructions?: string;
   language?: string;
+  sourceLanguage?: string;
 }
 
-// Generated from the spec into @semiont/core:
-type JobType =
-  | 'reference-annotation' | 'generation' | 'highlight-annotation'
-  | 'assessment-annotation' | 'comment-annotation' | 'tag-annotation'
-  | 'summary-annotation';
-
-interface JobSummaryAnnotationResult {
-  kind: 'summary-annotation';
-  summariesFound: number;
-  summariesCreated: number;
-}
+// What a worker is handed (src/types.ts): those, and what the dispatcher adds.
+type Held = HeldMarkParams<'describing'>;   // DescribingJobParams & { resourceId: ResourceId }
 ```
 
 ### 2. Write the processor
@@ -187,41 +189,49 @@ interface JobSummaryAnnotationResult {
 In `src/processors.ts`, add a function that takes content + inference + params, commits what it produces through `onChunkComplete`, and returns `{ result }`. Shape each annotation with the `buildAnnotation` closure it is handed (never `buildTextAnnotation` directly — the closure is what carries this worker's `generator` and the media-appropriate selector), dedupe with `makeSpanDeduper()`, and put detection logic in `AnnotationDetection`:
 
 ```typescript
-export async function processSummaryJob(
+export async function processDescribeJob(
   content: string,
   inferenceClient: InferenceClient,
-  params: SummaryDetectionParams,
+  params: HeldMarkParams<'describing'>,
   buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
   onChunkComplete: (annotations: Annotation[], checkpoint: UnitCheckpoint) => Promise<void>,
   resumeCursors?: Record<string, UnitCursor>,
-): Promise<ProcessorResult<JobSummaryAnnotationResult>> {
+): Promise<ProcessorResult<JobDetectionResult>> {
   onProgress(10, { code: 'loading' });
   onProgress(30, { code: 'analyzing' });
 
-  const summaries = await AnnotationDetection.detectSummaries(
-    content, inferenceClient, params.instructions, params.language,
-  );
-
-  onProgress(60, { code: 'creating-annotations', count: summaries.length });
-
   const bodyLanguage = params.language ?? 'en';
   const dedupe = makeSpanDeduper();
-  const annotations = dedupe(summaries.map((s) =>
-    buildAnnotation('commenting', s, [
-      { type: 'TextualBody', value: s.summary, purpose: 'commenting', format: 'text/plain', language: bodyLanguage },
-    ]),
-  ));
+  // Seeded from the cursor, so a resumed job reports the whole document's.
+  const prior = resumeCursors?.['describing'];
+  let found = prior?.found ?? 0;
+  let persisted = prior?.emitted ?? 0;
+  let errors = prior?.errors ?? 0;
 
-  // The durability write: awaited, so the cursor never leads the log. A
-  // chunking processor calls this once per chunk; a whole-document one, once.
-  await onChunkComplete(annotations, { unit: 'whole', cursor: /* where this unit ended */ });
+  await AnnotationDetection.detectDescriptions(
+    content, inferenceClient, params.instructions, params.language, params.sourceLanguage, undefined, prior,
+    // Each chunk: the spans anchored in the text, and how many proposed ones were not.
+    async (matches, cursor, dropped) => {
+      found += matches.length + dropped;
+      errors += dropped;
+      const fresh = dedupe(matches.map((d) =>
+        buildAnnotation('describing', d, [
+          { type: 'TextualBody', value: d.description, purpose: 'describing', format: 'text/plain', language: bodyLanguage },
+        ]),
+      ));
+      persisted += fresh.length;
+      onProgress(60, { code: 'creating-annotations', count: persisted });
+      // The durability write: awaited, so the cursor never leads the log. The
+      // cursor carries the unit's three tallies with its position.
+      await onChunkComplete(fresh, { unit: 'describing', cursor: { ...cursor, found, emitted: persisted, errors } });
+    },
+  );
 
-  onProgress(100, { code: 'complete-created', count: annotations.length, kind: 'summary' });
+  onProgress(100, { code: 'complete-created', count: persisted, kind: 'description' });
 
-  return {
-    result: { kind: 'summary-annotation', summariesFound: summaries.length, summariesCreated: annotations.length },
-  };
+  // `errors` is stated only when something could not be anchored.
+  return { result: { found, persisted, ...(errors > 0 ? { errors } : {}) } };
 }
 ```
 
@@ -229,12 +239,12 @@ Then export it from `src/index.ts` next to the other `process*Job` functions.
 
 ### 3. Add a dispatch branch
 
-In `src/worker-process.ts`, add a branch to `handleJobInner`. The branch hands the processor the prepared text, the `buildAnnotation` closure and `commitChunk` — the shared durability write, which commits a chunk and then records its cursor, in that order — and reports completion only after it returns:
+In `src/worker-process.ts`, add a branch to `handleJobInner`. `isHeldMark` says the job is this one and narrows its params. The branch hands the processor the prepared text, the `buildAnnotation` closure and `commitChunk` — the shared durability write, which commits a chunk and then records its cursor, in that order — and reports completion only after it returns:
 
 ```typescript
-} else if (jobType === 'summary-annotation') {
-  const { result } = await processSummaryJob(
-    ready!.text, inferenceClient, asJobParams<SummaryDetectionParams>(job.params),
+} else if (jobType === 'mark' && isHeldMark(params, 'describing')) {
+  const { result } = await processDescribeJob(
+    ready!.text, inferenceClient, params,
     ready!.buildAnnotation, onProgress,
     // The durability write, per chunk, awaited. `commitChunk` calls
     // `commitAnnotations(session, resourceId, annotations, jobId)` — the batch
@@ -252,16 +262,16 @@ In `src/worker-process.ts`, add a branch to `handleJobInner`. The branch hands t
 }
 ```
 
-The host needs no edit: `src/worker-main.ts` groups every member of `JOB_TYPES`, so it serves the type once the spec lists it. Finally, take a position in the persistence census (`worker-process.test.ts`, `JOB_TYPE_COVERAGE` — typed total over `JobType`, so forgetting is a compile error): either an `exercise` entry proving your type commits before completing, or a `coveredBy` pointer to where that is pinned instead. That's the whole extension path — no base class, no lifecycle methods to override.
+The host needs no edit: `src/worker-main.ts` walks `MARK_MOTIVATIONS`, so it claims the job once the spec lists the motivation and the config says who serves it (`workers.mark.describing`, else `workers.mark`, else `workers.default`). Finally, take a position in the persistence census (`worker-process.test.ts`, `JOB_TYPE_COVERAGE` — typed total over the jobs a worker runs, so forgetting is a compile error): either an `exercise` entry proving your job commits before completing, or a `coveredBy` pointer to where that is pinned instead. That's the whole extension path — no base class, no lifecycle methods to override.
 
-> Generation jobs follow a different tail: alongside its committed annotations (provenance on the source resource, citations on the derived one — two commits, keyed by resource), the branch uploads the generated content via `session.client.yield.resource(...)` and reports the new `resourceId` on `job:complete`. Mirror an annotation branch unless you're producing a new resource.
+> A `yield` job follows a different tail: alongside its committed annotations (provenance on the source resource, citations on the derived one — two commits, keyed by resource), the branch uploads the generated content via `session.client.yield.resource(...)` and reports the new `resourceId` on `job:complete`. Mirror a `mark` branch unless you're producing a new resource.
 
 ## Lifecycle and Failure Handling
 
 You write no claim loop. `startWorkerProcess` owns it:
 
 ```
-idle (start · settle · wake-up · reconnect)  →  JobClaimAdapter claims by type
+idle (start · settle · wake-up · reconnect)  →  JobClaimAdapter claims the jobs it serves
   ↓
 activeJob$ emits  →  handleJob → handleJobInner
   ↓
@@ -316,11 +326,11 @@ import type { InferenceClient } from '@semiont/inference';
 type Agent = components['schemas']['Agent'];
 
 vi.mock('../workers/annotation-detection', () => ({
-  AnnotationDetection: { detectSummaries: vi.fn() },
+  AnnotationDetection: { detectDescriptions: vi.fn() },
 }));
 
 import { AnnotationDetection } from '../workers/annotation-detection';
-import { processSummaryJob, buildTextAnnotation } from '../processors';
+import { processDescribeJob, buildTextAnnotation } from '../processors';
 
 const RID = resourceId('res-test');
 const GENERATOR: Agent = {
@@ -330,17 +340,20 @@ const GENERATOR: Agent = {
 };
 const inferenceClient = { generateText: vi.fn() } as unknown as InferenceClient;
 
-describe('processSummaryJob', () => {
-  it('produces commenting annotations and reports progress', async () => {
-    const content = 'an important passage worth summarizing.';
-    vi.mocked(AnnotationDetection.detectSummaries).mockResolvedValue([
-      { exact: 'important passage', start: 3, end: 20, summary: 'a key point' },
-    ]);
+describe('processDescribeJob', () => {
+  it('produces describing annotations, counts what was proposed, and reports progress', async () => {
+    const content = 'an important passage worth describing.';
+    // One chunk: one span anchored in the text, and one proposed that was not.
+    vi.mocked(AnnotationDetection.detectDescriptions).mockImplementation(async (...args) => {
+      const onChunk = args[args.length - 1] as (m: unknown[], cursor: { next: number; size: number }, dropped: number) => Promise<void>;
+      await onChunk([{ exact: 'important passage', start: 3, end: 20, description: 'a key point' }], { next: content.length, size: 500 }, 1);
+      return [];
+    });
 
     const progress = vi.fn();
     const committed: Annotation[] = [];
-    const { result } = await processSummaryJob(
-      content, inferenceClient, { resourceId: RID },
+    const { result } = await processDescribeJob(
+      content, inferenceClient, { motivation: 'describing', resourceId: RID },
       (motivation, match, body) => buildTextAnnotation(content, RID, GENERATOR, motivation, match, body),
       progress,
       async (annotations) => { committed.push(...annotations); },
@@ -348,11 +361,11 @@ describe('processSummaryJob', () => {
 
     expect(committed).toHaveLength(1);
     expect(committed[0]).toMatchObject({
-      motivation: 'commenting',
+      motivation: 'describing',
       target: expect.objectContaining({ source: RID }),
     });
-    expect(result).toEqual({ kind: 'summary-annotation', summariesFound: 1, summariesCreated: 1 });
-    expect(progress).toHaveBeenLastCalledWith(100, { code: 'complete-created', count: 1, kind: 'summary' });
+    expect(result).toEqual({ found: 2, persisted: 1, errors: 1 });
+    expect(progress).toHaveBeenLastCalledWith(100, { code: 'complete-created', count: 1, kind: 'description' });
   });
 });
 ```

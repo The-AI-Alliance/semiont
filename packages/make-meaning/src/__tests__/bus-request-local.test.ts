@@ -75,8 +75,15 @@ describe('asBusRequestPrimitive', () => {
     const seen: unknown[] = [];
     expect(() => bus.stream('job:queued').subscribe((e) => seen.push(e))).not.toThrow();
 
-    eventBus.emit('job:queued', { jobId: jobId('j1'), jobType: 'generate', resourceId: resourceId('r1'), userId: userId('did:u1') });
+    const queued = {
+      jobId: jobId('j1'),
+      jobType: 'yield' as const,
+      resourceId: resourceId('r1'),
+      userId: userId('did:u1'),
+      params: { title: 'T', storageUri: 'file://t.md' },
+    };
+    eventBus.emit('job:queued', queued);
 
-    expect(seen).toEqual([{ jobId: 'j1', jobType: 'generate', resourceId: 'r1', userId: 'did:u1' }]);
+    expect(seen).toEqual([queued]);
   });
 });

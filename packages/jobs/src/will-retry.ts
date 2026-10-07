@@ -1,4 +1,4 @@
-import type { JobMetadata } from './types';
+import type { components } from '@semiont/core';
 
 /**
  * Will this failure be re-queued for another attempt?
@@ -24,7 +24,7 @@ import type { JobMetadata } from './types';
  * price. Unclassified failures are treated as transient.
  */
 export function willRetryAfter(
-  metadata: Pick<JobMetadata, 'retryCount' | 'maxRetries'>,
+  metadata: Pick<components['schemas']['JobMetadata'], 'retryCount' | 'maxRetries'>,
   failureClass?: 'transient' | 'deterministic',
 ): boolean {
   return failureClass !== 'deterministic' && metadata.retryCount < metadata.maxRetries;

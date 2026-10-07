@@ -5,13 +5,13 @@
  * away and coming back.
  */
 import { expect, it } from 'vitest';
-import { settle, resourceIdOf, withDispatcher, type BusClient } from '../harness/dispatcher-world';
+import { marks, resourceIdOf, settle, withDispatcher, type BusClient, type MarkParams } from '../harness/dispatcher-world';
 import { eventually } from '../harness/net';
 
 /** Admit a job once the queue is reachable again; a request made while it reconnects may be refused. */
-async function admittedAgain(creator: BusClient, jobType: 'tag-annotation' | 'comment-annotation', params: Record<string, unknown>): Promise<string> {
+async function admittedAgain(creator: BusClient, params: MarkParams): Promise<string> {
   return eventually('the queue to admit jobs again', 30_000, async () => {
-    const answer = await creator.create(jobType, params, resourceIdOf());
+    const answer = await creator.create('mark', params, resourceIdOf());
     return answer.ok ? (answer.payload['response'] as { jobId: string }).jobId : undefined;
   });
 }
@@ -22,7 +22,7 @@ async function admittedAgain(creator: BusClient, jobType: 'tag-annotation' | 'co
 withDispatcher('a restarted dispatcher', (world) => {
   it('announces the pending jobs it receives at once, not at its first tick', async () => {
     const creator = await world().person('creator');
-    const jobId = await creator.created('comment-annotation', {}, resourceIdOf());
+    const jobId = await creator.created('mark', { motivation: 'commenting' }, resourceIdOf());
     await world().announced(jobId);
 
     await world().dispatcher.stop();
@@ -34,22 +34,22 @@ withDispatcher('a restarted dispatcher', (world) => {
   });
 
   it('keeps every job: a pending job is claimable, and a finished one still reads back', async () => {
-    const { worker, job, ref } = await world().running('highlight-annotation');
-    await worker.complete(ref, { kind: 'highlight-annotation', highlightsFound: 0, highlightsCreated: 0 });
+    const { worker, job, ref } = await world().running();
+    await worker.complete(ref, { found: 0, persisted: 0 });
     const creator = await world().person('creator');
     await creator.until(job.metadata.id, 'the job to complete', (s) => s.status === 'complete');
-    const pendingId = await creator.created('assessment-annotation', {}, resourceIdOf());
+    const pendingId = await creator.created('mark', { motivation: 'assessing' }, resourceIdOf());
 
     await world().restartDispatcher();
     expect((await creator.statusOf(job.metadata.id)).status).toBe('complete');
-    expect((await (await world().worker('after-restart')).claimed(['assessment-annotation'])).metadata.id).toBe(pendingId);
+    expect((await (await world().worker('after-restart')).claimed([marks('assessing')])).metadata.id).toBe(pendingId);
   });
 
   it('recovers a job whose dispatcher died while it ran, through the dead-worker sweep of the next', async () => {
-    const { creator, job } = await world().running('highlight-annotation');
+    const { creator, job } = await world().running();
     await world().crashAndRestart((s) => ({ ...s, timing: { ...s.timing, tickMs: 300, staleRunningMs: 1_000 } }));
     await creator.until(job.metadata.id, 'the sweep to re-queue the job', (s) => s.status === 'pending', 15_000);
-    const retried = await (await world().worker('recovery')).claimed(['highlight-annotation']);
+    const retried = await (await world().worker('recovery')).claimed([marks('highlighting')]);
     expect(retried.metadata).toMatchObject({ id: job.metadata.id, retryCount: 1 });
     await world().restartDispatcher((s) => ({ ...s, timing: { ...s.timing, tickMs: 60_000, staleRunningMs: 30 * 60_000 } }));
   });
@@ -60,8 +60,8 @@ withDispatcher('the queue\'s broker restarting', (world) => {
     await world().broker.restart();
     const creator = await world().person('creator');
     const worker = await world().worker('after-broker');
-    const jobId = await admittedAgain(creator, 'tag-annotation', { schemaId: 'irac', categories: ['Rule'] });
-    expect((await worker.claimed(['tag-annotation'])).metadata.id).toBe(jobId);
+    const jobId = await admittedAgain(creator, { motivation: 'tagging', schemaId: 'irac', categories: ['Rule'] });
+    expect((await worker.claimed([marks('tagging')])).metadata.id).toBe(jobId);
   });
 
   it('is ridden out even when the broker stays away longer than the client\'s own reconnect budget', async () => {
@@ -69,23 +69,23 @@ withDispatcher('the queue\'s broker restarting', (world) => {
     await settle(30_000);
     await world().broker.start();
     const creator = await world().person('creator');
-    const jobId = await admittedAgain(creator, 'comment-annotation', {});
-    expect((await (await world().worker('after-outage')).claimed(['comment-annotation'])).metadata.id).toBe(jobId);
+    const jobId = await admittedAgain(creator, { motivation: 'commenting' });
+    expect((await (await world().worker('after-outage')).claimed([marks('commenting')])).metadata.id).toBe(jobId);
   }, 120_000);
 });
 
 withDispatcher('the queue\'s broker returning with other credentials', (world) => {
   it('is not recovered from: jobs are refused rather than accepted and lost', async () => {
     const creator = await world().person('creator');
-    await creator.created('highlight-annotation', {}, resourceIdOf());
+    await creator.created('mark', { motivation: 'highlighting' }, resourceIdOf());
     await world().broker.restart({ user: 'dispatcher', password: 'rotated' });
-    expect((await creator.create('highlight-annotation', {}, resourceIdOf())).channel).toBe('job:create-failed');
+    expect((await creator.create('mark', { motivation: 'highlighting' }, resourceIdOf())).channel).toBe('job:create-failed');
     await settle(2_000);
-    expect((await creator.create('highlight-annotation', {}, resourceIdOf())).channel).toBe('job:create-failed');
+    expect((await creator.create('mark', { motivation: 'highlighting' }, resourceIdOf())).channel).toBe('job:create-failed');
 
     // A dispatcher started with the broker's credentials serves again.
     await world().broker.restart({ user: 'dispatcher', password: 'original' });
     await world().restartDispatcher();
-    await creator.created('highlight-annotation', {}, resourceIdOf());
+    await creator.created('mark', { motivation: 'highlighting' }, resourceIdOf());
   });
 }, { broker: { user: 'dispatcher', password: 'original' } });

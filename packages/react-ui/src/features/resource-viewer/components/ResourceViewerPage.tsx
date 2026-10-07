@@ -49,7 +49,7 @@ import { ReferenceWizardModal } from '../../../components/modals/ReferenceWizard
 import { ResourceGenerateModal } from '../../../components/modals/ResourceGenerateModal';
 import type { GenerationConfig } from '../../../components/modals/ConfigureGenerationStep';
 import type { LinkComponentProps, RouteBuilder } from '../../../contexts/RoutingContext';
-import { toGenerationOptions } from '../generation-options';
+import { toGenerationParams } from '../generation-params';
 
 type SemiontResource = ResourceDescriptor;
 
@@ -173,10 +173,10 @@ export function ResourceViewerPage({
   // singleton, so this costs one shared subscription, not one per panel open.
   const { collaborators } = useCollaborators(semiont ?? null);
 
-  // At most one entry serves `generation` — the KB's workers.* config yields one
-  // inference config per job type — so `find` is exact, not a first-wins guess.
+  // At most one entry serves `yield` jobs — the KB's workers.* config resolves
+  // to one inference config for them — so `find` is exact, not a first-wins guess.
   const generationAgent = collaborators.find((entry) =>
-    entry.servesJobTypes?.includes('generation'),
+    entry.serves?.some((filter) => filter.jobType === 'yield'),
   );
 
   // ResourceViewer is bring-your-own-session: feed it the active session plus
@@ -307,16 +307,15 @@ export function ResourceViewerPage({
     // Forwarded by spread in ONE place, so a knob added to the form is
     // never dropped on the way to the wire. `sourceLanguage` is the viewed
     // resource's language — a page fact the form cannot know.
-    stateUnit?.yield.generate(config.context, toGenerationOptions(config, getLanguage(resource)));
+    stateUnit?.yield.generate(toGenerationParams(config, getLanguage(resource)));
   }, [stateUnit, clearSparkle, resource]);
 
   // Resource-generate flow, from the Generate button: drive the SAME yield
   // progress$ the annotation path uses so the full `AssistProgress` widget
-  // shows — NOT a toast. Both paths are one `generate(context, options)`:
-  // the context's focus.kind (resource here, annotation above) decides the
-  // shape.
+  // shows — NOT a toast. Both paths are one `generate(params)`: the focus of
+  // the params' context (resource here, annotation above) decides the shape.
   const handleResourceGenerateSubmit = useCallback((_resourceId: string, config: GenerationConfig) => {
-    stateUnit?.yield.generate(config.context, toGenerationOptions(config, getLanguage(resource)));
+    stateUnit?.yield.generate(toGenerationParams(config, getLanguage(resource)));
   }, [stateUnit, resource]);
 
   const handleWizardLinkResource = useCallback(async (referenceId: AnnotationId, targetResourceId: ResourceId) => {

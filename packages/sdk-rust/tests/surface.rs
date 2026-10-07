@@ -10,7 +10,7 @@
 
 use bytes::Bytes;
 use semiont::client::SemiontClient;
-use semiont::namespaces::{CreateFromTokenOptions, MarkAssistOptions, ResourceFilters};
+use semiont::namespaces::{CreateFromTokenOptions, ResourceFilters};
 use semiont::testing::as_id;
 use semiont::testing::{
     ContentCall, FaultyTransport, InMemoryContent, StubGateway, TestClientOptions,
@@ -194,7 +194,7 @@ const METHODS: &[(&str, &[&str])] = &[
             "archive",
             "unarchive",
             "updateEntityTypes",
-            "assist",
+            "delegate",
             "request",
             "requestAssist",
             "submit",
@@ -210,7 +210,7 @@ const METHODS: &[(&str, &[&str])] = &[
         "yield",
         &[
             "resource",
-            "fromContext",
+            "delegate",
             "cloneToken",
             "fromToken",
             "createFromToken",
@@ -367,15 +367,11 @@ fn call(world: &World, namespace: &str, method: &str, args: Args) {
                 args.typed("updated")
             ))
         }
-        ("mark", "assist") => {
-            let options: MarkAssistOptions = args.typed("options");
+        ("mark", "delegate") => {
+            let params: semiont::types::MarkJobParams = args.typed("params");
             go!(client
                 .mark
-                .assist(
-                    &as_id(&args.text("resourceId")),
-                    args.typed("motivation"),
-                    options
-                )
+                .delegate(&as_id(&args.text("resourceId")), params)
                 .into_future())
         }
         ("mark", "request") => client.mark.request(
@@ -383,9 +379,10 @@ fn call(world: &World, namespace: &str, method: &str, args: Args) {
             args.typed("selector"),
             args.typed("motivation"),
         ),
-        ("mark", "requestAssist") => client
-            .mark
-            .request_assist(args.typed("motivation"), args.typed("options")),
+        ("mark", "requestAssist") => {
+            let params: semiont::types::MarkJobParams = args.typed("params");
+            client.mark.request_assist(params)
+        }
         ("mark", "submit") => client.mark.submit(args.typed("input")),
         ("mark", "cancelPending") => client.mark.cancel_pending(),
         ("mark", "dismissProgress") => client.mark.dismiss_progress(),
@@ -475,17 +472,18 @@ fn call(world: &World, namespace: &str, method: &str, args: Args) {
             });
             go!(upload.into_future())
         }
-        ("yield", "fromContext") => {
-            // The stall deadline is the caller's own and has an argument of
-            // its own; the rest are the job's parameters.
-            let mut params = args.options();
-            let stall = params
-                .remove("stallDeadlineMs")
-                .and_then(|ms| ms.as_u64())
+        ("yield", "delegate") => {
+            // The stall deadline is the caller's own, given beside the job's
+            // parameters.
+            let stall = args
+                .0
+                .get("stallDeadlineMs")
+                .and_then(Value::as_u64)
                 .map(Duration::from_millis);
-            params.insert("context".to_owned(), args.0["context"].clone());
-            let params = serde_json::from_value(Value::Object(params)).expect("generation params");
-            go!(client.yield_.from_context(params, stall).into_future())
+            go!(client
+                .yield_
+                .delegate(args.typed("params"), stall)
+                .into_future())
         }
         ("yield", "cloneToken") => {
             let resource_id = args.text("resourceId");

@@ -33,7 +33,15 @@ export * from './client';
 // The Observable subclasses namespace methods return. The stream and the
 // upload are thenable, so scripts `await` them without `lastValueFrom`;
 // the cache one is not, and its one-shot read is `.fresh()`.
-export { StreamObservable, CacheObservable, UploadObservable, type UploadProgress } from './awaitable';
+export {
+  StreamObservable,
+  CacheObservable,
+  DelegationObservable,
+  UploadObservable,
+  type JobCompletion,
+  type JobEvent,
+  type UploadProgress,
+} from './awaitable';
 
 // The SWR cache primitive behind every `browse.*` live query. Exported so
 // consumers of its observables (react-ui's `trackList`) can be tested against
@@ -183,7 +191,7 @@ export * from './state';
 
 // RxJS bridges — re-exported so consumers can unwrap our Observables to
 // Promises without a separate `import { firstValueFrom } from 'rxjs'`.
-// `mark.assist`, `gather.annotation`, `match.search`, `yield.fromContext`
+// `mark.delegate`, `gather.annotation`, `match.search`, `yield.delegate`
 // are awaitable as returned; the bridges are for what `.pipe(...)` gives
 // back, which is a plain Observable.
 export { firstValueFrom, lastValueFrom } from 'rxjs';

@@ -24,14 +24,14 @@ export type GatheredContext = components['schemas']['GatheredContext'];
  */
 export type CommandErrorCode = NonNullable<components['schemas']['CommandError']['code']>;
 
-// Detection job results, under the spec's own names — the wire owns these
-// shapes, and a differently-named local alias is a rename layer, not a
-// derivation.
-export type JobReferenceAnnotationResult = components['schemas']['JobReferenceAnnotationResult'];
-export type JobHighlightAnnotationResult = components['schemas']['JobHighlightAnnotationResult'];
-export type JobCommentAnnotationResult = components['schemas']['JobCommentAnnotationResult'];
-export type JobAssessmentAnnotationResult = components['schemas']['JobAssessmentAnnotationResult'];
-export type JobTagAnnotationResult = components['schemas']['JobTagAnnotationResult'];
+// What a job is asked with and what it reports, under the spec's own names —
+// the wire owns these shapes, and a differently-named local alias is a rename
+// layer, not a derivation.
+export type MarkJobParams = components['schemas']['MarkJobParams'];
+export type JobFilter = components['schemas']['JobFilter'];
+export type JobResult = components['schemas']['JobResult'];
+export type JobDetectionResult = components['schemas']['JobDetectionResult'];
+export type JobGenerationResult = components['schemas']['JobGenerationResult'];
 
 /**
  * How far one unit of a job got, for a resume that starts mid-unit.
@@ -41,10 +41,9 @@ export type JobTagAnnotationResult = components['schemas']['JobTagAnnotationResu
  */
 export type UnitCursor = components['schemas']['UnitCursor'];
 /**
- * The `job:create` params shape for `jobType: 'generation'` — one type shared
- * by the write side (sdk `yield.fromContext` → `runGeneration`) and the read
- * side (the generation worker's `isGenerationJobParams` narrowing), so the two
- * ends of the wire cannot drift a field apart silently.
+ * A `yield` job's parameters — one type shared by the write side (the SDK's
+ * `yield.delegate`) and the read side (the worker's `isGenerationJobParams`
+ * narrowing), so the two ends of the wire cannot drift a field apart silently.
  */
 export type GenerationJobParams = components['schemas']['GenerationJobParams'];
 export type SelectionData = components['schemas']['SelectionData'];
@@ -53,8 +52,8 @@ export type JobType = components['schemas']['JobType'];
 /**
  * One entry of the collaborator directory (`browse:agents-result`): a typed
  * `Agent` plus, for software agents drawn from the KB's worker config, the
- * job types it serves. Persons and actor-role-only agents omit
- * `servesJobTypes`.
+ * jobs it serves, each named as a claim names it. Persons and actor-role-only
+ * agents omit `serves`.
  */
 export type CollaboratorEntry = components['schemas']['CollaboratorEntry'];
 

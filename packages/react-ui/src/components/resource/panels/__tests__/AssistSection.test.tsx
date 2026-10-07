@@ -324,8 +324,7 @@ describe('AssistSection', () => {
       await user.click(annotateButton);
 
       expect(detectionHandler).toHaveBeenCalledWith({
-        motivation: 'highlighting',
-        options: expect.any(Object),
+        params: expect.objectContaining({ motivation: 'highlighting' }),
       });
 
       subscription.unsubscribe();
@@ -350,8 +349,7 @@ describe('AssistSection', () => {
       await user.click(annotateButton);
 
       expect(detectionHandler).toHaveBeenCalledWith({
-        motivation: 'assessing',
-        options: expect.any(Object),
+        params: expect.objectContaining({ motivation: 'assessing' }),
       });
 
       subscription.unsubscribe();
@@ -376,8 +374,7 @@ describe('AssistSection', () => {
       await user.click(annotateButton);
 
       expect(detectionHandler).toHaveBeenCalledWith({
-        motivation: 'commenting',
-        options: expect.any(Object),
+        params: expect.objectContaining({ motivation: 'commenting' }),
       });
 
       subscription.unsubscribe();
@@ -405,8 +402,8 @@ describe('AssistSection', () => {
       await user.click(annotateButton);
 
       expect(detectionHandler).toHaveBeenCalledWith({
-        motivation: 'highlighting',
-        options: {
+        params: {
+          motivation: 'highlighting',
           instructions: 'Find key concepts',
           density: expect.any(Number),
         },

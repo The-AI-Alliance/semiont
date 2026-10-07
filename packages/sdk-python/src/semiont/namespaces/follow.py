@@ -15,10 +15,13 @@ A failure the queue will retry is reported and followed past: the job is not
 over. A failure it will not retry ends the follower with `job.failed`. A
 follower given a stall deadline that hears nothing for that long asks for the
 cancellation and ends with `job.stalled`.
+
+What the caller holds is a `Delegation`: the job's events as it goes, and its
+completion.
 """
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable, Generator
 from dataclasses import dataclass, field
 from typing import Final, Literal, final
 
@@ -44,7 +47,7 @@ from semiont.types import (
     JobStatusResponse,
 )
 
-__all__ = ["JobAttemptFailed", "JobCompleted", "JobEvent", "JobProgressed", "follow"]
+__all__ = ["Delegation", "JobAttemptFailed", "JobCompleted", "JobEvent", "JobProgressed", "follow"]
 
 
 @final
@@ -78,6 +81,40 @@ type JobEvent = JobProgressed | JobAttemptFailed | JobCompleted
 """What a followed job reports, and how it ends. As JSON it is
 `{"kind": "progress", "data": …}`, the same event in every SDK."""
 
+
+@final
+class Delegation:
+    """A job another party does (`mark.delegate`, `yield_.delegate`), consumed one of two ways, once.
+
+    - Awaited, it gives the job's completion: its `job:complete`, whose
+      `result` is what the job reported.
+    - Iterated (`async for`), it gives every event of the job, the
+      completion's the last of them, and ends.
+
+    A job that does not complete is a failure, raised where the completion
+    would have been given. Nothing is sent until it is first awaited or
+    iterated, and its caller abandons it by cancelling the task that awaits it
+    or reads it: the job goes on, and is followed no more.
+    """
+
+    def __init__(self, following: Running[JobEvent]) -> None:
+        self._following: Final = following
+
+    async def _completion(self) -> JobCompleteCommand:
+        last = await self._following
+        match last:
+            case JobCompleted(data=completion):
+                return completion
+            case JobProgressed() | JobAttemptFailed():
+                raise RuntimeError(f"a delegated job ended on a {last.kind} event, not on its completion")
+
+    def __await__(self) -> Generator[object, None, JobCompleteCommand]:
+        return self._completion().__await__()
+
+    def __aiter__(self) -> AsyncIterator[JobEvent]:
+        return aiter(self._following)
+
+
 type _Heard = JobReportProgressCommand | JobCompleteCommand | JobFailCommand
 
 _LIFECYCLE: Final = (JOB_REPORT_PROGRESS, JOB_COMPLETE, JOB_FAIL)
@@ -106,14 +143,14 @@ def _completion(status: JobStatusResponse, resource_id: ResourceId) -> JobComple
     return JobCompleteCommand(resource_id=resource_id, job_id=status.job_id, job_type=status.type, result=result)
 
 
-def follow(links: Links, create: JobCreateCommand, *, resource_id: ResourceId, stall_ms: int | None) -> Running[JobEvent]:
+def follow(links: Links, create: JobCreateCommand, *, resource_id: ResourceId, stall_ms: int | None) -> Delegation:
     """Create a job and follow it.
 
     `resource_id` is the resource the job is about, for a completion learned
     from the job's status. `stall_ms` is how long the job may say nothing
     before its follower gives up on it, when it gives up at all.
     """
-    return Running(lambda report: links.run(_followed(links, create, resource_id, stall_ms, report)))
+    return Delegation(Running(lambda report: links.run(_followed(links, create, resource_id, stall_ms, report))))
 
 
 async def _status(links: Links, job_id: JobId) -> JobStatusResponse:
@@ -129,7 +166,7 @@ async def _cancelled(links: Links, job_id: JobId) -> None:
 
 async def _followed(
     links: Links, create: JobCreateCommand, resource_id: ResourceId, stall_ms: int | None, report: Callable[[JobEvent], None]
-) -> JobEvent:
+) -> JobCompleted:
     loop = asyncio.get_running_loop()
     silence, poll = links.job_silence_ms / 1000, links.job_status_poll_ms / 1000
     stall = None if stall_ms is None else stall_ms / 1000
@@ -147,7 +184,7 @@ async def _followed(
         while True:
             now = loop.time()
             if stall is not None and stall_at is not None and now >= stall_at:
-                # That job and no other: a cancellation by category would end
+                # That job and no other: a cancellation by type would end
                 # every pending job of it, whoever asked for them. One whose
                 # creation was never answered has no id, and there is nothing
                 # to cancel. Asked for on a task of the client's: the follower

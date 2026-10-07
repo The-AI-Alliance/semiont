@@ -134,7 +134,7 @@ const MOCK_COLLABORATORS = [
       provider: 'anthropic',
       model: 'claude-haiku-4-5',
     },
-    servesJobTypes: ['reference-annotation', 'generation'],
+    serves: [{ jobType: 'mark', params: { motivation: 'linking' } }, { jobType: 'yield' }],
   },
   {
     agent: {
@@ -1086,7 +1086,7 @@ describe('Cache semantics — behaviors B1–B16, B19 and B20 against BrowseName
         ['claude-sonnet-4-5', SONNET_LIMITS],
       ]);
       // The entry is otherwise the directory's, unreshaped.
-      expect(entries[0]!.servesJobTypes).toEqual(['reference-annotation', 'generation']);
+      expect(entries[0]!.serves).toEqual([{ jobType: 'mark', params: { motivation: 'linking' } }, { jobType: 'yield' }]);
     });
 
     it('a silent key holder does not hold the directory, and leaves only its models without limits', async () => {

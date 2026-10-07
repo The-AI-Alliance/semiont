@@ -10,6 +10,9 @@ package launcher
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
+	"sort"
+	"strings"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 )
@@ -70,22 +73,117 @@ func firstBound(candidates ...func() (*semiont.ArchivistRosterRole, error)) (*se
 	return nil, nil
 }
 
+// rosterRoleType: one role, as the generated roster holds it.
+var rosterRoleType = reflect.TypeOf((*semiont.ArchivistRosterRole)(nil))
+
+// jsonName: the name a generated field is written under.
+func jsonName(field reflect.StructField) string {
+	name, _, _ := strings.Cut(field.Tag.Get("json"), ",")
+	return name
+}
+
+// workerJob: a job the generated roster has a worker role for.
+type workerJob struct {
+	// name: the job as a job description keys it, which is its place in the
+	// roster: "mark.tagging", "yield".
+	name string
+	// at: the field holding its role, from the roster's `workers` down.
+	at []int
+}
+
+// workerJobs: every job the generated roster has a worker role for.
+func workerJobs() []workerJob {
+	var jobs []workerJob
+	var walk func(roles reflect.Type, above string, at []int)
+	walk = func(roles reflect.Type, above string, at []int) {
+		for i := 0; i < roles.NumField(); i++ {
+			field, here := roles.Field(i), append(at[:len(at):len(at)], i)
+			if field.Type == rosterRoleType {
+				jobs = append(jobs, workerJob{name: above + jsonName(field), at: here})
+				continue
+			}
+			walk(field.Type.Elem(), above+jsonName(field)+".", here)
+		}
+	}
+	walk(reflect.TypeOf(semiont.ArchivistRoster{}.Workers), "", nil)
+	return jobs
+}
+
+// slot: where a roster's `workers` holds the role serving this job. The
+// structs above the slot are made as it is reached, so a group of jobs no one
+// serves stays absent from the roster.
+func (job workerJob) slot(workers reflect.Value) reflect.Value {
+	for _, i := range job.at[:len(job.at)-1] {
+		group := workers.Field(i)
+		if group.IsNil() {
+			group.Set(reflect.New(group.Type().Elem()))
+		}
+		workers = group.Elem()
+	}
+	return workers.Field(job.at[len(job.at)-1])
+}
+
+// servingSections: the sections of `workers` that can serve a job, nearest
+// first: its own, each one above it, and `default`. For "mark.tagging":
+// mark.tagging, mark, default.
+func servingSections(job string) []string {
+	sections := []string{job}
+	for at := job; strings.Contains(at, "."); {
+		at = at[:strings.LastIndex(at, ".")]
+		sections = append(sections, at)
+	}
+	return append(sections, "default")
+}
+
+// workerSections: every section of `workers` that serves a job, sorted.
+func workerSections() []string {
+	var sections []string
+	for _, job := range workerJobs() {
+		for _, section := range servingSections(job.name) {
+			if !contains(sections, section) {
+				sections = append(sections, section)
+			}
+		}
+	}
+	sort.Strings(sections)
+	return sections
+}
+
+// servesUnder: whether a section of `workers` has sections under it, as
+// `mark` has one per motivation.
+func servesUnder(sections []string, section string) bool {
+	for _, other := range sections {
+		if strings.HasPrefix(other, section+".") {
+			return true
+		}
+	}
+	return false
+}
+
 // archivistRoster: who serves each role, with every fallback the KB's config
-// allows applied — a job type by `workers.<type>`, else `workers.default`; an
-// actor by `make-meaning.actors.<actor>`, else `actors.<actor>`, else
+// allows applied. A job is served by its own section of `workers`, else each
+// section above it, else `workers.default`: a `mark` job of a motivation by
+// `workers.mark.<motivation>`, `workers.mark`, `workers.default`, and a
+// `yield` job by `workers.yield`, `workers.default`. An actor is served by
+// `make-meaning.actors.<actor>`, else `actors.<actor>`, else
 // `make-meaning.default`. The TypeScript loader decides the same thing for
 // the services that call the models, and
 // specs/src/service-config/roster-cases.json holds the two to one answer.
 func archivistRoster(env *envConfig) (roster semiont.ArchivistRoster, err error) {
-	worker := func(jobType string) (*semiont.ArchivistRosterRole, error) {
-		return firstBound(
-			func() (*semiont.ArchivistRosterRole, error) {
-				return rosterRole("workers."+jobType, binding(env.Workers, jobType))
-			},
-			func() (*semiont.ArchivistRosterRole, error) {
-				return rosterRole("workers.default", binding(env.Workers, "default"))
-			},
-		)
+	for _, job := range workerJobs() {
+		var candidates []func() (*semiont.ArchivistRosterRole, error)
+		for _, section := range servingSections(job.name) {
+			candidates = append(candidates, func() (*semiont.ArchivistRosterRole, error) {
+				return rosterRole("workers."+section, binding(env.Workers, section))
+			})
+		}
+		role, err := firstBound(candidates...)
+		if err != nil {
+			return roster, err
+		}
+		if role != nil {
+			job.slot(reflect.ValueOf(&roster.Workers).Elem()).Set(reflect.ValueOf(role))
+		}
 	}
 	actor := func(name string) (*semiont.ArchivistRosterRole, error) {
 		var own, fallback *bindingCfg
@@ -106,19 +204,12 @@ func archivistRoster(env *envConfig) (roster semiont.ArchivistRoster, err error)
 	}
 	for _, slot := range []struct {
 		role **semiont.ArchivistRosterRole
-		find func(string) (*semiont.ArchivistRosterRole, error)
 		name string
 	}{
-		{&roster.Workers.ReferenceAnnotation, worker, "reference-annotation"},
-		{&roster.Workers.HighlightAnnotation, worker, "highlight-annotation"},
-		{&roster.Workers.AssessmentAnnotation, worker, "assessment-annotation"},
-		{&roster.Workers.CommentAnnotation, worker, "comment-annotation"},
-		{&roster.Workers.TagAnnotation, worker, "tag-annotation"},
-		{&roster.Workers.Generation, worker, "generation"},
-		{&roster.Actors.Gatherer, actor, "gatherer"},
-		{&roster.Actors.Matcher, actor, "matcher"},
+		{&roster.Actors.Gatherer, "gatherer"},
+		{&roster.Actors.Matcher, "matcher"},
 	} {
-		if *slot.role, err = slot.find(slot.name); err != nil {
+		if *slot.role, err = actor(slot.name); err != nil {
 			return roster, err
 		}
 	}

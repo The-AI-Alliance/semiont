@@ -7,7 +7,7 @@
  * `BRIDGED_CHANNELS`), and `BusReply` must infer the reply-shape-standard
  * payload `{ agents: CollaboratorEntry[] }` from the result channel. Entries
  * cover both halves of the directory — a Software agent with structured
- * `provider`/`model` and capabilities, and a Person without `servesJobTypes`.
+ * `provider`/`model` and capabilities, and a Person without `serves`.
  *
  * Enforced by `tsc --noEmit` (core `typecheck`), not vitest runtime.
  */
@@ -39,7 +39,7 @@ describe('browse:agents — operation + reply-shape guard', () => {
         provider: 'anthropic',
         model: 'claude-haiku-4-5',
       },
-      servesJobTypes: ['highlight-annotation', 'generation'],
+      serves: [{ jobType: 'mark', params: { motivation: 'highlighting' } }, { jobType: 'yield' }],
     };
     expect(entry.agent['@type']).toBe('Software');
   });
@@ -59,7 +59,7 @@ describe('browse:agents — operation + reply-shape guard', () => {
     expect(person['@type']).toBe('Person');
   });
 
-  it('an entry admits a Person WITHOUT servesJobTypes (Persons compose into the same shape)', () => {
+  it('an entry admits a Person WITHOUT serves (Persons compose into the same shape)', () => {
     const entry: CollaboratorEntry = {
       agent: {
         '@type': 'Person',
@@ -67,6 +67,6 @@ describe('browse:agents — operation + reply-shape guard', () => {
         name: 'Ada',
       },
     };
-    expect(entry.servesJobTypes).toBeUndefined();
+    expect(entry.serves).toBeUndefined();
   });
 });

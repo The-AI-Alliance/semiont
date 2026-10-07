@@ -64,6 +64,7 @@ import (
 	"time"
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/images"
+	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
@@ -1632,15 +1633,34 @@ func busSubscriberCount(channel string) int {
 	return n
 }
 
-// fakeJobResults: what a job of each type completes with when a test scripts
-// no result — the member of the JobResult union that type reports.
-var fakeJobResults = map[string]map[string]any{
-	"generation":            {"kind": "generation", "resourceId": "res-new", "resourceName": "Generated", "truncated": false},
-	"highlight-annotation":  {"kind": "highlight-annotation", "highlightsFound": 4, "highlightsCreated": 3},
-	"comment-annotation":    {"kind": "comment-annotation", "commentsFound": 2, "commentsCreated": 2},
-	"assessment-annotation": {"kind": "assessment-annotation", "assessmentsFound": 1, "assessmentsCreated": 1},
-	"reference-annotation":  {"kind": "reference-annotation", "totalFound": 5, "totalEmitted": 4, "errors": 1},
-	"tag-annotation":        {"kind": "tag-annotation", "tagsFound": 6, "tagsCreated": 6, "byCategory": map[string]any{"rule": 4, "issue": 2}},
+// fakeMarkResults: what a `mark` job of each motivation completes with when a
+// test scripts no result. The counts differ, so a test can tell which job ran.
+var fakeMarkResults = map[semiont.Motivation]semiont.JobDetectionResult{
+	semiont.MotivationHighlighting: {Found: 4, Persisted: 3},
+	semiont.MotivationCommenting:   {Found: 2, Persisted: 2},
+	semiont.MotivationAssessing:    {Found: 1, Persisted: 1},
+	semiont.MotivationLinking:      {Found: 5, Persisted: 4, Errors: fakeCount(1)},
+	semiont.MotivationTagging:      {Found: 6, Persisted: 6, ByCategory: &map[string]int{"rule": 4, "issue": 2}},
+}
+
+func fakeCount(n int) *int { return &n }
+
+// fakeJobResult: the member of the JobResult union the job a job:create
+// describes completes with when a test scripts none: a `yield` job's resource,
+// or a `mark` job's counts for its motivation. ok=false: the description is of
+// no job this fake runs.
+func fakeJobResult(description map[string]any) (result any, ok bool) {
+	jobType, _ := description["jobType"].(string)
+	switch semiont.JobType(jobType) {
+	case semiont.JobTypeYield:
+		return semiont.JobGenerationResult{ResourceId: "res-new", ResourceName: "Generated"}, true
+	case semiont.JobTypeMark:
+		params, _ := description["params"].(map[string]any)
+		motivation, _ := params["motivation"].(string)
+		result, ok := fakeMarkResults[semiont.Motivation(motivation)]
+		return result, ok
+	}
+	return nil, false
 }
 
 // busPublish fans one frame out to every subscriber listening on its channel.
@@ -2292,7 +2312,7 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 						if body.Channel == "job:create" {
 							jobID := "fake-job-1"
 							// The job is the one that was asked for: its type and
-							// its resource are the request's. A generation names no
+							// its resource are the request's. A yield job names no
 							// resource (its context's focus does), so the fake's
 							// stands in.
 							jobType, _ := body.Payload["jobType"].(string)
@@ -2308,7 +2328,7 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 								return frame
 							}
 							code := "analyzing"
-							if jobType == "generation" {
+							if semiont.JobType(jobType) == semiont.JobTypeYield {
 								code = "generating-resource"
 							}
 							busPublish("job:report-progress", "", job(map[string]any{
@@ -2321,22 +2341,25 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 								busPublish("job:report-progress", "", job(map[string]any{
 									"attempt": 2, "progress": map[string]any{"message": map[string]any{"code": code}}}))
 							}
-							if msg := os.Getenv("FAKERT_JOB_FAIL"); msg != "" {
-								busPublish("job:fail", "", job(map[string]any{"error": msg}))
-							} else {
-								// FAKERT_JOB_RESULT=<json>: which member of the
-								// JobResult union this job completes with. A
-								// DECLINE is one of them — a job that ran fine
-								// and deliberately produced nothing. Left unset,
-								// the job completes as its type does.
-								var result any = fakeJobResults[jobType]
-								if raw := os.Getenv("FAKERT_JOB_RESULT"); raw != "" {
-									var custom any
-									if json.Unmarshal([]byte(raw), &custom) != nil {
-										custom = map[string]any{}
-									}
-									result = custom
+							// FAKERT_JOB_RESULT=<json>: which member of the
+							// JobResult union this job completes with. A DECLINE
+							// is one of them — a job that ran fine and
+							// deliberately produced nothing. Left unset, the job
+							// completes as the job it describes does.
+							result, described := fakeJobResult(body.Payload)
+							if raw := os.Getenv("FAKERT_JOB_RESULT"); raw != "" {
+								var custom any
+								if json.Unmarshal([]byte(raw), &custom) != nil {
+									custom = map[string]any{}
 								}
+								result, described = custom, true
+							}
+							switch msg := os.Getenv("FAKERT_JOB_FAIL"); {
+							case msg != "":
+								busPublish("job:fail", "", job(map[string]any{"error": msg}))
+							case !described:
+								busPublish("job:fail", "", job(map[string]any{"error": "fakert runs no job of this description"}))
+							default:
 								busPublish("job:complete", "", job(map[string]any{"result": result}))
 							}
 						}

@@ -73,11 +73,11 @@ func TestBindingModelsAreSortedAndDeduped(t *testing.T) {
 	}
 	env.Actors["gatherer"] = mk("ollama", "gemma4:26b")
 	env.Actors["matcher"] = mk("ollama", "gemma4:26b") // dupe
-	env.Workers["tag"] = mk("ollama", "gemma4:e2b")
+	env.Workers["mark.tagging"] = mk("ollama", "gemma4:e2b")
 	// A mixed config lists remote models too — these ARE the models this
 	// stack performs inference with, whoever serves them — each under the
 	// provider its binding names.
-	env.Workers["gen"] = mk("anthropic", "claude-sonnet-4-5")
+	env.Workers["yield"] = mk("anthropic", "claude-sonnet-4-5")
 	got := bindingModels(env)
 	want := []servedModel{
 		{Model: "claude-sonnet-4-5", Provider: "anthropic"},

@@ -351,8 +351,8 @@ describe('recordHandlerDuration', () => {
 
 describe('recordJobOutcome', () => {
   it('writes to both the outcome counter and duration histogram', async () => {
-    recordJobOutcome('mark.detect', 'completed', 1500);
-    recordJobOutcome('mark.detect', 'failed', 800);
+    recordJobOutcome({ jobType: 'mark', motivation: 'tagging' }, 'completed', 1500);
+    recordJobOutcome({ jobType: 'yield' }, 'failed', 800);
     await flushMetrics();
 
     const metricsByName = collectMetrics();
@@ -364,6 +364,10 @@ describe('recordJobOutcome', () => {
     const failed = outcomes!.find((d) => d.attributes['job.outcome'] === 'failed');
     expect(completed?.value).toBe(1);
     expect(failed?.value).toBe(1);
+    // A mark job says its motivation in a label of its own; a yield job has none to say.
+    expect(completed?.attributes).toMatchObject({ 'job.type': 'mark', 'job.motivation': 'tagging' });
+    expect(failed?.attributes).toMatchObject({ 'job.type': 'yield' });
+    expect(failed?.attributes).not.toHaveProperty('job.motivation');
 
     const durations = metricsByName.get('semiont.job.duration');
     expect(durations).toBeDefined();

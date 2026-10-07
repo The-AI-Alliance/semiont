@@ -9,12 +9,12 @@ const RID = makeResourceId('res-1');
 
 function withMark(overrides: Partial<{
   annotation: ReturnType<typeof vi.fn>;
-  assist: ReturnType<typeof vi.fn>;
+  delegate: ReturnType<typeof vi.fn>;
 }> = {}): TestClient {
   return makeTestClient({
     mark: {
       annotation: overrides.annotation ?? vi.fn().mockResolvedValue({ annotationId: 'ann-new' }),
-      assist: overrides.assist ?? vi.fn(() => new Observable(() => {})),
+      delegate: overrides.delegate ?? vi.fn(() => new Observable(() => {})),
     },
   });
 }
@@ -189,26 +189,38 @@ describe('createMarkStateUnit', () => {
 
   // ── AI assist ──────────────────────────────────────────────
 
+  it("delegates a mark job for its own resource, with the request's params", () => {
+    const delegateFn = vi.fn(() => new Observable(() => {}));
+    tc = withMark({ delegate: delegateFn });
+    const stateUnit = createMarkStateUnit(tc.client, RID);
+    const params = { motivation: 'linking' as const, entityTypes: ['Person'] };
+
+    tc.bus.emit('mark:assist-request', { params });
+
+    expect(delegateFn).toHaveBeenCalledWith(RID, params);
+    stateUnit.dispose();
+  });
+
   it('sets assistingMotivation on mark:assist-request', () => {
     tc = withMark();
     const stateUnit = createMarkStateUnit(tc.client, RID);
     const motiv: unknown[] = [];
     stateUnit.assistingMotivation$.subscribe(v => motiv.push(v));
 
-    tc.bus.emit('mark:assist-request', { motivation: 'highlighting', options: {} } as any);
+    tc.bus.emit('mark:assist-request', { params: { motivation: 'highlighting' } });
     expect(motiv[motiv.length - 1]).toBe('highlighting');
     stateUnit.dispose();
   });
 
   it('pipes Observable next into progress$', () => {
     const progressSubject = new Subject();
-    const assistFn = vi.fn(() => progressSubject.asObservable());
-    tc = withMark({ assist: assistFn });
+    const delegateFn = vi.fn(() => progressSubject.asObservable());
+    tc = withMark({ delegate: delegateFn });
     const stateUnit = createMarkStateUnit(tc.client, RID);
     const prog: unknown[] = [];
     stateUnit.progress$.subscribe(v => prog.push(v));
 
-    tc.bus.emit('mark:assist-request', { motivation: 'highlighting', options: {} } as any);
+    tc.bus.emit('mark:assist-request', { params: { motivation: 'highlighting' } });
     progressSubject.next({ kind: 'progress', data: { percentage: 42, message: 'working' } });
     expect(prog[prog.length - 1]).toEqual({ percentage: 42, message: 'working' });
     stateUnit.dispose();
@@ -216,13 +228,13 @@ describe('createMarkStateUnit', () => {
 
   it('clears assistingMotivation on Observable complete', () => {
     const progressSubject = new Subject();
-    const assistFn = vi.fn(() => progressSubject.asObservable());
-    tc = withMark({ assist: assistFn });
+    const delegateFn = vi.fn(() => progressSubject.asObservable());
+    tc = withMark({ delegate: delegateFn });
     const stateUnit = createMarkStateUnit(tc.client, RID);
     const motiv: unknown[] = [];
     stateUnit.assistingMotivation$.subscribe(v => motiv.push(v));
 
-    tc.bus.emit('mark:assist-request', { motivation: 'highlighting', options: {} } as any);
+    tc.bus.emit('mark:assist-request', { params: { motivation: 'highlighting' } });
     expect(motiv[motiv.length - 1]).toBe('highlighting');
     progressSubject.complete();
     expect(motiv[motiv.length - 1]).toBeNull();
@@ -231,15 +243,15 @@ describe('createMarkStateUnit', () => {
 
   it('clears all assist state on Observable error', () => {
     const progressSubject = new Subject();
-    const assistFn = vi.fn(() => progressSubject.asObservable());
-    tc = withMark({ assist: assistFn });
+    const delegateFn = vi.fn(() => progressSubject.asObservable());
+    tc = withMark({ delegate: delegateFn });
     const stateUnit = createMarkStateUnit(tc.client, RID);
     const motiv: unknown[] = [];
     const prog: unknown[] = [];
     stateUnit.assistingMotivation$.subscribe(v => motiv.push(v));
     stateUnit.progress$.subscribe(v => prog.push(v));
 
-    tc.bus.emit('mark:assist-request', { motivation: 'highlighting', options: {} } as any);
+    tc.bus.emit('mark:assist-request', { params: { motivation: 'highlighting' } });
     progressSubject.next({ kind: 'progress', data: { stage: 'x', percentage: 50, message: 'm' } });
     progressSubject.error(new Error('LLM error'));
 
@@ -250,13 +262,13 @@ describe('createMarkStateUnit', () => {
 
   it('clears progress on mark:progress-dismiss', () => {
     const progressSubject = new Subject();
-    const assistFn = vi.fn(() => progressSubject.asObservable());
-    tc = withMark({ assist: assistFn });
+    const delegateFn = vi.fn(() => progressSubject.asObservable());
+    tc = withMark({ delegate: delegateFn });
     const stateUnit = createMarkStateUnit(tc.client, RID);
     const prog: unknown[] = [];
     stateUnit.progress$.subscribe(v => prog.push(v));
 
-    tc.bus.emit('mark:assist-request', { motivation: 'highlighting', options: {} } as any);
+    tc.bus.emit('mark:assist-request', { params: { motivation: 'highlighting' } });
     progressSubject.next({ kind: 'progress', data: { stage: 'x', percentage: 50, message: 'm' } });
     tc.bus.emit('mark:progress-dismiss', undefined);
     expect(prog[prog.length - 1]).toBeNull();
@@ -269,15 +281,15 @@ describe('createMarkStateUnit', () => {
     // dismisses it.
     vi.useFakeTimers();
     const progressSubject = new Subject();
-    const assistFn = vi.fn(() => progressSubject.asObservable());
-    tc = withMark({ assist: assistFn });
+    const delegateFn = vi.fn(() => progressSubject.asObservable());
+    tc = withMark({ delegate: delegateFn });
     const stateUnit = createMarkStateUnit(tc.client, RID);
     const prog: unknown[] = [];
     const assisting: unknown[] = [];
     stateUnit.progress$.subscribe(v => prog.push(v));
     stateUnit.assistingMotivation$.subscribe(v => assisting.push(v));
 
-    tc.bus.emit('mark:assist-request', { motivation: 'highlighting', options: {} } as any);
+    tc.bus.emit('mark:assist-request', { params: { motivation: 'highlighting' } });
     progressSubject.next({ kind: 'progress', data: { percentage: 100, message: { code: 'analyzing' } } });
     progressSubject.complete();
 
@@ -296,15 +308,15 @@ describe('createMarkStateUnit', () => {
   });
 
   it('clears state when assist Observable errors immediately', () => {
-    const assistFn = vi.fn(() => new Observable((sub) => {
+    const delegateFn = vi.fn(() => new Observable((sub) => {
       sub.error(new Error('LLM down'));
     }));
-    tc = withMark({ assist: assistFn });
+    tc = withMark({ delegate: delegateFn });
     const stateUnit = createMarkStateUnit(tc.client, RID);
     const motiv: unknown[] = [];
     stateUnit.assistingMotivation$.subscribe(v => motiv.push(v));
 
-    tc.bus.emit('mark:assist-request', { motivation: 'highlighting', options: {} } as any);
+    tc.bus.emit('mark:assist-request', { params: { motivation: 'highlighting' } });
     expect(motiv[motiv.length - 1]).toBeNull();
     stateUnit.dispose();
   });
@@ -316,15 +328,15 @@ describe('createMarkStateUnit', () => {
     // assistingMotivation$ would tell the user the assist is over while it
     // is running, and leave nothing to resolve when it finishes.
     vi.useFakeTimers();
-    const assistFn = vi.fn(() => new Observable(() => {}));
-    tc = withMark({ assist: assistFn });
+    const delegateFn = vi.fn(() => new Observable(() => {}));
+    tc = withMark({ delegate: delegateFn });
     const stateUnit = createMarkStateUnit(tc.client, RID);
     const motiv: unknown[] = [];
     const prog: unknown[] = [];
     stateUnit.assistingMotivation$.subscribe(v => motiv.push(v));
     stateUnit.progress$.subscribe(v => prog.push(v));
 
-    tc.bus.emit('mark:assist-request', { motivation: 'highlighting', options: {} } as any);
+    tc.bus.emit('mark:assist-request', { params: { motivation: 'highlighting' } });
     expect(motiv[motiv.length - 1]).toBe('highlighting');
 
     vi.advanceTimersByTime(ASSIST_SILENCE_MS);
@@ -347,12 +359,12 @@ describe('createMarkStateUnit', () => {
     // and the spinner is stuck forever.
     vi.useFakeTimers();
     let emit!: { complete: () => void };
-    tc = withMark({ assist: vi.fn(() => new Observable((sub) => { emit = sub; })) });
+    tc = withMark({ delegate: vi.fn(() => new Observable((sub) => { emit = sub; })) });
     const stateUnit = createMarkStateUnit(tc.client, RID);
     const motiv: unknown[] = [];
     stateUnit.assistingMotivation$.subscribe(v => motiv.push(v));
 
-    tc.bus.emit('mark:assist-request', { motivation: 'highlighting', options: {} } as any);
+    tc.bus.emit('mark:assist-request', { params: { motivation: 'highlighting' } });
     vi.advanceTimersByTime(ASSIST_SILENCE_MS);
     expect(motiv[motiv.length - 1]).toBe('highlighting'); // held
 
@@ -370,12 +382,12 @@ describe('createMarkStateUnit', () => {
     // A client-side timeout means no job:fail ever fired — without this
     // emission the spinner just vanishes and the stall is invisible.
     vi.useFakeTimers();
-    tc = withMark({ assist: vi.fn(() => new Observable(() => {})) });
+    tc = withMark({ delegate: vi.fn(() => new Observable(() => {})) });
     const stateUnit = createMarkStateUnit(tc.client, RID);
     const timeouts: unknown[] = [];
     tc.bus.on('mark:assist-timeout').subscribe(e => timeouts.push(e));
 
-    tc.bus.emit('mark:assist-request', { motivation: 'highlighting', options: {} } as any);
+    tc.bus.emit('mark:assist-request', { params: { motivation: 'highlighting' } });
     vi.advanceTimersByTime(ASSIST_SILENCE_MS);
 
     expect(timeouts).toEqual([{ resourceId: 'res-1', motivation: 'highlighting' }]);
@@ -385,15 +397,15 @@ describe('createMarkStateUnit', () => {
   });
 
   it('does not emit mark:assist-timeout for a real assist error (the job:fail path owns those)', () => {
-    // mark.assist errors its Observable when job:fail arrives; that failure
+    // mark.delegate errors its Observable when job:fail arrives; that failure
     // already toasts via the job:fail outcome channel — a timeout emission
     // here would double-notify.
-    tc = withMark({ assist: vi.fn(() => new Observable((sub) => { sub.error(new Error('LLM down')); })) });
+    tc = withMark({ delegate: vi.fn(() => new Observable((sub) => { sub.error(new Error('LLM down')); })) });
     const stateUnit = createMarkStateUnit(tc.client, RID);
     const timeouts: unknown[] = [];
     tc.bus.on('mark:assist-timeout').subscribe(e => timeouts.push(e));
 
-    tc.bus.emit('mark:assist-request', { motivation: 'highlighting', options: {} } as any);
+    tc.bus.emit('mark:assist-request', { params: { motivation: 'highlighting' } });
 
     expect(timeouts).toEqual([]);
     stateUnit.dispose();
@@ -404,15 +416,15 @@ describe('createMarkStateUnit', () => {
     // window from ever being reached on a healthy long-running job.
     vi.useFakeTimers();
     const progressSubject = new Subject();
-    const assistFn = vi.fn(() => progressSubject.asObservable());
-    tc = withMark({ assist: assistFn });
+    const delegateFn = vi.fn(() => progressSubject.asObservable());
+    tc = withMark({ delegate: delegateFn });
     const stateUnit = createMarkStateUnit(tc.client, RID);
     const timeouts: unknown[] = [];
     tc.bus.on('mark:assist-timeout').subscribe(e => timeouts.push(e));
     const motiv: unknown[] = [];
     stateUnit.assistingMotivation$.subscribe(v => motiv.push(v));
 
-    tc.bus.emit('mark:assist-request', { motivation: 'highlighting', options: {} } as any);
+    tc.bus.emit('mark:assist-request', { params: { motivation: 'highlighting' } });
     expect(motiv[motiv.length - 1]).toBe('highlighting');
 
     vi.advanceTimersByTime(ASSIST_SILENCE_MS - 10_000);

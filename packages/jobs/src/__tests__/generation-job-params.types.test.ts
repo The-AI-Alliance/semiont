@@ -46,8 +46,7 @@ describe('GenerationJobParams contract', () => {
 
   it('task and structure accept canonical values AND arbitrary strings', () => {
     // The wire type is `string` — the canonical values live in the schema
-    // description and the worker's loud-degrade handling; the sdk's
-    // GenerationOptions keeps the autocomplete-friendly literal union.
+    // description and the worker's loud-degrade handling.
     const canonical: GenerationJobParams = { ...REQUIRED, task: 'answer', structure: 'prose' };
     const custom: GenerationJobParams = {
       ...REQUIRED,

@@ -164,7 +164,7 @@ export function ResourceViewerPage({ rUri, locale, Link, routes }: ResourceViewe
 
   // Layer 3: render JSX. The panels trigger assist through the session they
   // are handed — session.client.mark.requestAssist(...) — which the mark
-  // state unit picks up and runs as client.mark.assist(...).
+  // state unit picks up and runs as client.mark.delegate(...).
   return (
     <div className="semiont-document-viewer">
       {activePanel === 'annotations' && (
@@ -223,7 +223,7 @@ export function ResourceViewerPage({ rUri, locale, Link, routes }: ResourceViewe
 ┌─────────────────────────────────────────────────────────────┐
 │ Layer 1: SDK state units (MarkStateUnit) + browse queries   │
 │                                                              │
-│  - mark.assist() runs the job on the unified job channels   │
+│  - mark.delegate() runs the job on the unified job channels │
 │  - Subscribing to browse.*(rId) acquires the resource scope │
 │  - Scoped bus events auto-bridge to the EventBus            │
 └─────────────────────────────────────────────────────────────┘
@@ -243,7 +243,8 @@ function ReferencesPanel({ session }: { session: SemiontSession | null }) {
   const handleDetect = () => {
     // Trigger assist via the SDK. mark.requestAssist emits the local
     // 'mark:assist-request' event; the mark state unit runs the job.
-    session?.client.mark.requestAssist('linking', {
+    session?.client.mark.requestAssist({
+      motivation: 'linking',
       entityTypes: ['Person', 'Organization'],
     });
   };
@@ -365,8 +366,8 @@ it('sets assistingMotivation$ on an assist request', () => {
   const motivations: (Motivation | null)[] = [];
   mark.assistingMotivation$.subscribe((m) => motivations.push(m));
 
-  // The local request the mark state unit answers by running client.mark.assist
-  client.mark.requestAssist('linking', { entityTypes: ['Person'] });
+  // The local request the mark state unit answers by running client.mark.delegate
+  client.mark.requestAssist({ motivation: 'linking', entityTypes: ['Person'] });
 
   expect(motivations.at(-1)).toBe('linking');
   mark.dispose();
@@ -387,7 +388,7 @@ it('reflects the mark state unit in React state', () => {
 
   // Drive the state unit's observable
   act(() => {
-    client.mark.requestAssist('linking', { entityTypes: ['Person'] });
+    client.mark.requestAssist({ motivation: 'linking', entityTypes: ['Person'] });
   });
 
   // Verify the hook reflects it
@@ -430,7 +431,8 @@ it('calls mark.requestAssist when Annotate is clicked', () => {
   fireEvent.click(screen.getByTitle('Annotate'));
 
   // Verify the SDK was invoked
-  expect(requestAssist).toHaveBeenCalledWith('linking', expect.objectContaining({
+  expect(requestAssist).toHaveBeenCalledWith(expect.objectContaining({
+    motivation: 'linking',
     entityTypes: ['Person', 'Organization'],
   }));
 });
@@ -481,6 +483,6 @@ event library.
 - `useEventSubscriptions()` - Subscribe to bus events (for side effects)
 - `client.browse.*(resourceId)` - Resource-scoped live queries; subscribing acquires the resource's bus scope (freshness follows observation), the last unsubscribe releases it
 - `createMarkStateUnit()` - Mark/assist state (`assistingMotivation$`, `progress$`, `pendingAnnotation$`); driven off the unified job channels (in `@semiont/sdk`)
-- `client.mark.requestAssist(motivation, options)` / `client.mark.assist(...)` - Trigger AI assist; the job streams on `job:report-progress` / `job:complete` / `job:fail`
+- `client.mark.requestAssist(params)` / `client.mark.delegate(resourceId, params)` - Trigger AI assist with a `mark` job's params; the job streams on `job:report-progress` / `job:complete` / `job:fail`
 - `createGatherStateUnit()` - Context correlation for generation (in `@semiont/sdk`)
 - `useShellStateUnit()` - App-scoped panel state (`activePanel$`, `openPanel`/`closePanel`/`togglePanel`)

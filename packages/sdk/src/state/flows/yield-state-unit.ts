@@ -1,9 +1,8 @@
 import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
-import type { GatheredContext, ResourceId, components } from '@semiont/core';
+import type { GenerationJobParams, ResourceId, components } from '@semiont/core';
 import type { SemiontClient } from '../../client';
 import type { StateUnit } from '@semiont/core';
-import type { StreamObservable } from '../../awaitable';
-import type { GenerationOptions, YieldGenerationEvent } from '../../namespaces/types';
+import type { DelegationObservable } from '../../awaitable';
 
 type JobProgress = components['schemas']['JobProgress'];
 
@@ -43,17 +42,17 @@ export interface YieldStateUnit extends StateUnit {
    */
   failure$: Observable<Error | null>;
   /**
-   * Grounded generation — the context's `focus.kind` decides the shape
-   * (annotation focus auto-binds; resource focus mints provenance). Ids are
-   * derived from the focus; see `client.yield.fromContext`.
+   * Grounded generation — the focus of `params.context` decides the shape
+   * (annotation focus auto-binds; resource focus mints provenance) and names
+   * the job's resource; see `client.yield.delegate`.
    *
-   * Options are the namespace's own `GenerationOptions`, not a restatement:
-   * every knob the wire carries (format, entity types, task, structure,
-   * citations, the stall deadline) reaches `fromContext` untouched. The one
-   * behavior this adds is the locale fallback — `language` unset means the
-   * unit's UI locale, never the model's guess.
+   * The arguments are `yield.delegate`'s own, not a restatement: every
+   * parameter the job takes (format, entity types, task, structure,
+   * citations) and the stall deadline reach it untouched. The one behavior
+   * this adds is the locale fallback — `language` unset means the unit's UI
+   * locale, never the model's guess.
    */
-  generate(context: GatheredContext, options: GenerationOptions): void;
+  generate(params: GenerationJobParams, stallDeadlineMs?: number): void;
   /** Clear a finished (or abandoned) progress display. Wired to the widget's Close. */
   dismissProgress(): void;
 }
@@ -68,9 +67,9 @@ export function createYieldStateUnit(
   const outcome$ = new BehaviorSubject<YieldOutcome | null>(null);
   const failure$ = new BehaviorSubject<Error | null>(null);
 
-  // Generation progress/complete/fail is driven entirely by the StreamObservable
-  // returned from `client.yield.fromContext` — it is filtered to this job's
-  // jobId internally, so no direct bus subscription is needed here.
+  // Generation progress/complete/fail is driven entirely by the delegation
+  // `client.yield.delegate` returns — it gives this job's events only, so no
+  // direct bus subscription is needed here.
   //
   // `drive` is the subscribe + progress-wiring for generation. It `.subscribe()`s
   // the cold stream ONCE — the state unit owns that single subscription (pushed
@@ -78,10 +77,10 @@ export function createYieldStateUnit(
   // they never get the stream back (a second subscription would re-fire the job —
   // the cold-stream double-fire), which is why the public methods return `void`.
   // No timer of its own: the stall guard lives in the stream's producer
-  // (`runGeneration`), shared with every other consumption — there is
-  // exactly one. A stall arrives here as a plain stream error
+  // (`delegated`), shared with every other consumption — there is exactly
+  // one. A stall arrives here as a plain stream error
   // (GenerationStallError), handled below like any other.
-  const drive = (gen$: StreamObservable<YieldGenerationEvent>): void => {
+  const drive = (gen$: DelegationObservable): void => {
     const genSub = gen$.subscribe({
       next: (e) => {
         // Surface live progress to the UI.
@@ -89,10 +88,10 @@ export function createYieldStateUnit(
           progress$.next(e.data);
           isGenerating$.next(true);
         }
-        // The `complete` event is `job:complete` — the union discriminates,
-        // so the result names its own kind and narrows without a cast. Held
-        // for the terminal frame's link.
-        if (e.kind === 'complete' && e.data.result?.kind === 'generation') {
+        // The `complete` event is `job:complete`. A generation's result is
+        // the one that names the resource made, so it narrows by that member
+        // without a cast. Held for the terminal frame's link.
+        if (e.kind === 'complete' && e.data.result && 'resourceId' in e.data.result) {
           outcome$.next({
             resourceId: e.data.result.resourceId,
             resourceName: e.data.result.resourceName,
@@ -114,14 +113,14 @@ export function createYieldStateUnit(
     subs.push(genSub);
   };
 
-  const generate = (context: GatheredContext, options: GenerationOptions): void => {
+  const generate = (params: GenerationJobParams, stallDeadlineMs?: number): void => {
     // A new run's frame must not carry the previous run's link, or its
     // failure.
     outcome$.next(null);
     failure$.next(null);
-    drive(client.yield.fromContext(
-      context,
-      { ...options, language: options.language || locale },
+    drive(client.yield.delegate(
+      { ...params, language: params.language || locale },
+      stallDeadlineMs,
     ));
   };
 

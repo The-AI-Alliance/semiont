@@ -1,5 +1,5 @@
 //! Job: a job's lifecycle as it is announced, its status, and its
-//! cancellation. Creating a job is `mark.assist` and `yield_.from_context`.
+//! cancellation. Creating a job is `mark.delegate` and `yield_.delegate`.
 
 use crate::bus::Typed;
 use crate::channels::{
@@ -11,8 +11,7 @@ use crate::event_bus::BusFrames;
 use crate::transport::Envelope;
 use crate::types::JobId;
 use crate::types::{
-    JobCancelRequest, JobCancelRequestJobType, JobStatusRequest, JobStatusResponse,
-    JobStatusResponseStatus,
+    JobCancelRequest, JobStatusRequest, JobStatusResponse, JobStatusResponseStatus, JobType,
 };
 use std::time::Duration;
 use tokio::time::Instant;
@@ -26,7 +25,9 @@ impl JobNamespace {
         JobNamespace { links }
     }
 
-    /// Every `job:queued` from now on.
+    /// Every `job:queued` from now on: each pending job, announced with its
+    /// description less its input. Whether one is a job a claim would take is
+    /// `job_filter::job_matches_filter`'s to say.
     pub fn queued(&self) -> Typed<JobQueued, BusFrames> {
         self.links.own.stream::<JobQueued>()
     }
@@ -87,12 +88,9 @@ impl JobNamespace {
         }
     }
 
-    /// Cancel every pending job of a category: how many were cancelled.
-    /// Running jobs are their workers' to stop.
-    pub async fn cancel_by_type(
-        &self,
-        job_type: JobCancelRequestJobType,
-    ) -> Result<i64, SemiontError> {
+    /// Cancel every pending job of a type: how many were cancelled. Running
+    /// jobs are their workers' to stop.
+    pub async fn cancel_by_type(&self, job_type: JobType) -> Result<i64, SemiontError> {
         self.cancelled(JobCancelRequest {
             job_id: None,
             job_type: Some(job_type),
@@ -111,8 +109,8 @@ impl JobNamespace {
         .await
     }
 
-    /// Signal: the cancellation of a category is wanted.
-    pub fn cancel_request(&self, job_type: JobCancelRequestJobType) {
+    /// Signal: the cancellation of every pending job of a type is wanted.
+    pub fn cancel_request(&self, job_type: JobType) {
         self.links.signal::<JobCancelRequested>(
             &JobCancelRequest {
                 job_id: None,

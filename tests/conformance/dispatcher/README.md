@@ -27,17 +27,22 @@ Cases play people, workers and sidecars. They emit through the gateway and
 read the replies off their own streams. Every frame those streams carry must
 be what the registry says its channel carries, and a case fails otherwise,
 whatever it was about. After every case the world cancels whatever is still
-pending, because a claim is by type and would otherwise hand one case's job to
-the next.
+pending, because a claim names jobs by what they are, not by id, and would
+otherwise hand one case's job to the next.
 
 ## What it checks
 
 - **A job's life** (`lifecycle.test.ts`): admitted, announced, claimed and
   recorded, completed, and read back, end to end.
-- **Admission** (`create.test.ts`): every check `job:create` makes and its
+- **Admission** (`create.test.ts`): what the gateway refuses at its door
+  because it is not a job description (a parameter a job does not take, a
+  value a job needs left out or empty), every check `job:create` makes and its
   refusal, the resource a job is recorded under, the two reads, and a refusal
   that carries `peer-unavailable` when the Archivist is gone.
-- **Claims** (`claim.test.ts`): only a worker may claim; a claim is by type and
+- **Announcements** (`announce.test.ts`): a pending job is announced with its
+  description less its input, and with nothing the dispatcher added to it.
+- **Claims** (`claim.test.ts`): only a worker may claim; a claim takes a job
+  that matches one of its filters, each a partial job description, and is
   atomic under simultaneous claims; the record a claim hands out; `job:assign`.
 - **Concluding an attempt** (`conclude.test.ts`), **progress and checkpoints**
   (`progress.test.ts`), **cancellation** (`cancel.test.ts`) and **status**

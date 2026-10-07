@@ -6,10 +6,15 @@
 //! schema that grows a new shape fails the build rather than generating
 //! something wrong.
 //!
-//! A union is untagged, and the first member that decodes is the one meant.
-//! Its members are told apart by what they are — text, a list, an object — or,
-//! between objects, by a single-valued discriminant each carries (`status`,
-//! `kind`, `code`) or by one being the empty object. What the schema says that a type cannot — a pattern, a length, a
+//! A union is written untagged. One whose schema names the property its
+//! members are told apart by (`status`, `jobType`, `motivation`), each member
+//! stating its own one value of it, is decoded as the member that value
+//! names, and a value that is wrong is refused for what is wrong with it. Any
+//! other is decoded as the first member that fits: its members are told apart
+//! by what they are — text, a list, an object — or, between objects, by one
+//! being the empty object or by being closed with no required property in
+//! common. A member's one value of such a property is its own to state:
+//! `new` sets it and takes the rest. What the schema says that a type cannot — a pattern, a length, a
 //! bound — is the validators' to hold at the boundary, before a value is
 //! decoded. A kind of id is the exception: its pattern is written as the
 //! check its only constructor makes, and decoding goes through that
@@ -205,7 +210,10 @@ impl Types<'_> {
         let mut code = String::new();
         doc(&mut code, "", schema);
         if let Some(members) = union(schema) {
-            return self.union_declaration(name, members, code);
+            let told_apart = schema["discriminator"]["propertyName"]
+                .as_str()
+                .and_then(|property| Some((property, self.tags(property, members)?)));
+            return self.union_declaration(name, members, told_apart, code);
         }
         let merged;
         let schema = match schema["allOf"].as_array() {
@@ -228,9 +236,7 @@ impl Types<'_> {
                 let value = value
                     .as_str()
                     .unwrap_or_else(|| panic!("{name}: an enum value is not a string"));
-                // A `+` is part of what a value says (`text/x-c++` is not
-                // `text/x-c`), so it is spelled rather than dropped.
-                let variant = pascal(&value.replace('+', " plus "));
+                let variant = variant_of(value);
                 if taken.contains(&variant) {
                     panic!("{name}: two enum values would both be the variant {variant}");
                 }
@@ -287,6 +293,7 @@ impl Types<'_> {
         let mut parameters: Vec<String> = Vec::new();
         let mut set: Vec<String> = Vec::new();
         let mut optional = 0;
+        let mut single_valued = 0;
         for (property, property_schema) in properties {
             let rust_type = self.type_of(name, property, property_schema);
             doc(&mut code, "    ", property_schema);
@@ -299,6 +306,14 @@ impl Types<'_> {
                 let _ = writeln!(code, "    pub {field}: Option<{rust_type}>,");
                 parameters.push(format!("{field}: Option<{rust_type}>"));
                 set.push(format!("{field},"));
+            } else if required.contains(&property.as_str())
+                && let Some(only) = only_value(property_schema)
+            {
+                // A property that admits one value says which member of a
+                // union this is. It is the type's to state, not its maker's.
+                single_valued += 1;
+                let _ = writeln!(code, "    pub {field}: {rust_type},");
+                set.push(format!("{field}: {rust_type}::{},", variant_of(only)));
             } else if required.contains(&property.as_str()) && rust_type == "String" {
                 let _ = writeln!(code, "    pub {field}: {rust_type},");
                 parameters.push(format!("{field}: impl Into<String>"));
@@ -333,16 +348,29 @@ impl Types<'_> {
         }
         code.push_str("}\n\n");
         // A struct that must state some properties and may leave others out
-        // is made from the ones it must state. One that is all required says
-        // everything by name when it is written out, and one that is all
-        // optional has nothing to be made from: neither has a constructor.
-        if !parameters.is_empty() && optional > 0 {
+        // is made from the ones it must state, and so is one with a property
+        // that admits a single value, which `new` states for it. One whose
+        // every property is the caller's to give says everything by name when
+        // it is written out, and one that is all optional has nothing to be
+        // made from: neither has a constructor.
+        if (!parameters.is_empty() && optional > 0) || single_valued > 0 {
             if open {
                 set.push("rest: serde_json::Map::new(),".to_owned());
             }
+            if parameters.is_empty() {
+                let _ = writeln!(
+                    code,
+                    "impl Default for {name} {{\n    fn default() -> Self {{\n        Self::new()\n    }}\n}}\n"
+                );
+            }
             let _ = writeln!(
                 code,
-                "impl {name} {{\n    /// The `{name}` that states these and nothing else."
+                "impl {name} {{\n    /// The `{name}` that states {} and nothing else.",
+                if parameters.is_empty() {
+                    "what it must"
+                } else {
+                    "these"
+                }
             );
             if parameters.len() > 7 {
                 code.push_str("    #[allow(clippy::too_many_arguments)]\n");
@@ -431,7 +459,35 @@ impl Types<'_> {
         object
     }
 
-    fn union_declaration(&mut self, name: &str, members: &[Value], mut code: String) -> String {
+    /// The value of `property` each member of a union states, when every
+    /// member is an object that must state it, each admits one value, and no
+    /// two admit the same: the property then says which member a value is.
+    fn tags(&self, property: &str, members: &[Value]) -> Option<Vec<String>> {
+        let mut tags: Vec<String> = Vec::new();
+        for member in members {
+            let member = match reference(member) {
+                Some(target) => self.schema(target),
+                None => member,
+            };
+            let required = member["required"]
+                .as_array()
+                .is_some_and(|required| required.iter().any(|r| r == property));
+            let tag = only_value(&member["properties"][property]).filter(|_| required)?;
+            if tags.iter().any(|taken| taken == tag) {
+                return None;
+            }
+            tags.push(tag.to_owned());
+        }
+        Some(tags)
+    }
+
+    fn union_declaration(
+        &mut self,
+        name: &str,
+        members: &[Value],
+        told_apart: Option<(&str, Vec<String>)>,
+        mut code: String,
+    ) -> String {
         let referenced: Vec<Option<&str>> = members.iter().map(reference).collect();
         let prefix = common_prefix(referenced.iter().flatten().copied());
         let mut variants = Vec::new();
@@ -464,12 +520,58 @@ impl Types<'_> {
             }
             variants.push((variant, rust_type));
         }
-        code.push_str("#[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]\n#[serde(untagged)]\n");
+        let _ = writeln!(
+            code,
+            "#[derive(Debug, Clone, PartialEq, {}serde::Serialize)]\n#[serde(untagged)]",
+            if told_apart.is_some() {
+                ""
+            } else {
+                "serde::Deserialize, "
+            }
+        );
         let _ = writeln!(code, "pub enum {name} {{");
-        for (variant, rust_type) in variants {
+        for (variant, rust_type) in &variants {
             let _ = writeln!(code, "    {variant}({rust_type}),");
         }
         code.push_str("}\n\n");
+        // Told apart by a property, a value is decoded as the one member its
+        // property names, and what is wrong with it is said of that member.
+        // Decoded as the first member that fits, it could only be said to
+        // fit none.
+        if let Some((property, tags)) = &told_apart {
+            let _ = writeln!(
+                code,
+                "impl<'de> serde::Deserialize<'de> for {name} {{\n    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {{\n        let value = <serde_json::Value as serde::Deserialize>::deserialize(deserializer)?;\n        let member = match value.get({property:?}).and_then(serde_json::Value::as_str) {{"
+            );
+            for (tag, (variant, _)) in tags.iter().zip(&variants) {
+                let _ = writeln!(
+                    code,
+                    "            Some({tag:?}) => serde_json::from_value(value).map({name}::{variant}),"
+                );
+            }
+            let _ = writeln!(
+                code,
+                "            _ => {{\n                return Err(serde::de::Error::custom({:?}));\n            }}\n        }};\n        member.map_err(serde::de::Error::custom)\n    }}\n}}\n",
+                format!(
+                    "a {name} states a `{property}` that is one of {}",
+                    tags.iter()
+                        .map(|tag| format!("`{tag}`"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            );
+        }
+        // A member that is a schema of its own is the union it belongs to,
+        // wherever the union is wanted. A member that is text or a list is
+        // not: nothing says which union a `String` was meant for.
+        for (member, (variant, rust_type)) in members.iter().zip(&variants) {
+            if reference(member).is_some() && !self.is_string(member) {
+                let _ = writeln!(
+                    code,
+                    "impl From<{rust_type}> for {name} {{\n    fn from(member: {rust_type}) -> Self {{\n        {name}::{variant}(member)\n    }}\n}}\n"
+                );
+            }
+        }
         code
     }
 }
@@ -601,16 +703,25 @@ fn discriminant(object: &Value) -> Option<&str> {
     object["properties"]
         .as_object()?
         .values()
-        .find_map(|property| {
-            match (
-                property["enum"].as_array().map(Vec::as_slice),
-                &property["const"],
-            ) {
-                (Some([only]), _) => only.as_str(),
-                (None, Value::String(only)) => Some(only.as_str()),
-                _ => None,
-            }
-        })
+        .find_map(only_value)
+}
+
+/// The one string a schema admits, when it admits exactly one.
+fn only_value(schema: &Value) -> Option<&str> {
+    match (
+        schema["enum"].as_array().map(Vec::as_slice),
+        &schema["const"],
+    ) {
+        (Some([only]), _) => only.as_str(),
+        (None, Value::String(only)) => Some(only.as_str()),
+        _ => None,
+    }
+}
+
+/// The variant an enum value is. A `+` is part of what a value says
+/// (`text/x-c++` is not `text/x-c`), so it is spelled rather than dropped.
+fn variant_of(value: &str) -> String {
+    pascal(&value.replace('+', " plus "))
 }
 
 fn reference(schema: &Value) -> Option<&str> {
@@ -708,6 +819,7 @@ pub fn snake(word: &str) -> String {
             | "struct"
             | "enum"
             | "fn"
+            | "yield"
     ) {
         format!("r#{out}")
     } else {
@@ -1026,6 +1138,153 @@ mod tests {
         assert!(code.contains("pub struct Whole {"), "{code}");
         assert!(code.contains("pub struct Options {"), "{code}");
         assert!(!code.contains("pub fn new("), "{code}");
+    }
+
+    #[test]
+    fn a_property_that_admits_one_value_is_stated_by_the_constructor_and_not_asked_for() {
+        let code = generated(
+            json!({
+                "Tagging": { "type": "object", "required": ["motivation", "schemaId"], "additionalProperties": false, "properties": {
+                    "motivation": { "type": "string", "enum": ["tagging"] },
+                    "schemaId": { "type": "string" },
+                    "language": { "type": "string" }
+                } }
+            }),
+            "Tagging",
+        );
+        assert!(
+            code.contains(concat!(
+                "    pub fn new(schema_id: impl Into<String>) -> Self {\n",
+                "        Self {\n",
+                "            motivation: TaggingMotivation::Tagging,\n",
+                "            schema_id: schema_id.into(),\n",
+                "            language: None,\n",
+                "        }\n",
+                "    }\n",
+            )),
+            "{code}"
+        );
+        assert!(!code.contains("impl Default for Tagging"), "{code}");
+    }
+
+    #[test]
+    fn a_struct_whose_one_required_property_admits_one_value_is_made_from_nothing() {
+        let code = generated(
+            json!({ "Yielding": { "type": "object", "required": ["jobType"], "additionalProperties": false, "properties": {
+                "jobType": { "const": "yield", "type": "string" }
+            } } }),
+            "Yielding",
+        );
+        assert!(
+            code.contains(concat!(
+                "impl Default for Yielding {\n",
+                "    fn default() -> Self {\n",
+                "        Self::new()\n",
+                "    }\n",
+                "}\n",
+                "\n",
+                "impl Yielding {\n",
+                "    /// The `Yielding` that states what it must and nothing else.\n",
+                "    pub fn new() -> Self {\n",
+                "        Self {\n",
+                "            job_type: YieldingJobType::Yield,\n",
+                "        }\n",
+                "    }\n",
+                "}\n",
+            )),
+            "{code}"
+        );
+    }
+
+    #[test]
+    fn a_member_that_is_a_schema_of_its_own_is_its_union_wherever_the_union_is_wanted() {
+        let code = generated(
+            json!({
+                "Named": { "type": "string" },
+                "Target": { "type": "object", "properties": { "source": { "type": "string" } }, "required": ["source"] },
+                "Holder": { "oneOf": [
+                    { "$ref": "#/definitions/Target" },
+                    { "$ref": "#/definitions/Named" },
+                    { "type": "array", "items": { "$ref": "#/definitions/Target" } }
+                ] }
+            }),
+            "Holder",
+        );
+        assert!(
+            code.contains("impl From<Target> for Holder {\n    fn from(member: Target) -> Self {\n        Holder::Target(member)\n    }\n}"),
+            "{code}"
+        );
+        assert_eq!(code.matches("impl From<").count(), 1, "{code}");
+    }
+
+    #[test]
+    fn a_union_told_apart_by_a_property_is_decoded_as_the_member_the_property_names() {
+        let member = |tag: &str| json!({ "type": "object", "required": ["jobType"], "additionalProperties": false, "properties": { "jobType": { "type": "string", "enum": [tag] } } });
+        let code = generated(
+            json!({
+                "MarkCreate": member("mark"),
+                "YieldCreate": member("yield"),
+                "Create": {
+                    "oneOf": [{ "$ref": "#/definitions/MarkCreate" }, { "$ref": "#/definitions/YieldCreate" }],
+                    "discriminator": { "propertyName": "jobType" }
+                }
+            }),
+            "Create",
+        );
+        assert!(
+            code.contains("#[derive(Debug, Clone, PartialEq, serde::Serialize)]\n#[serde(untagged)]\npub enum Create {\n    MarkCreate(MarkCreate),\n    YieldCreate(YieldCreate),\n}"),
+            "{code}"
+        );
+        assert!(
+            code.contains(concat!(
+                "        let member = match value.get(\"jobType\").and_then(serde_json::Value::as_str) {\n",
+                "            Some(\"mark\") => serde_json::from_value(value).map(Create::MarkCreate),\n",
+                "            Some(\"yield\") => serde_json::from_value(value).map(Create::YieldCreate),\n",
+                "            _ => {\n",
+                "                return Err(serde::de::Error::custom(\"a Create states a `jobType` that is one of `mark`, `yield`\"));\n",
+            )),
+            "{code}"
+        );
+    }
+
+    #[test]
+    fn a_union_whose_members_do_not_each_state_one_value_of_the_property_is_decoded_as_the_first_that_fits()
+     {
+        // The second member may leave the property out, so the property does
+        // not say which member a value is.
+        let code = generated(
+            json!({
+                "Extracted": { "type": "object", "required": ["kind"], "properties": { "kind": { "type": "string", "enum": ["extracted"] } } },
+                "Absent": { "type": "object", "properties": { "kind": { "type": "string", "enum": ["absent"] } } },
+                "Answer": {
+                    "oneOf": [{ "$ref": "#/definitions/Extracted" }, { "$ref": "#/definitions/Absent" }],
+                    "discriminator": { "propertyName": "kind" }
+                }
+            }),
+            "Answer",
+        );
+        assert!(
+            code.contains("#[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]\n#[serde(untagged)]\npub enum Answer {"),
+            "{code}"
+        );
+        assert!(
+            !code.contains("impl<'de> serde::Deserialize<'de> for Answer"),
+            "{code}"
+        );
+    }
+
+    #[test]
+    fn a_property_named_by_a_keyword_is_a_raw_field() {
+        let code = generated(
+            json!({ "Workers": { "type": "object", "properties": {
+                "yield": { "type": "string" },
+                "type": { "type": "string" }
+            } } }),
+            "Workers",
+        );
+        assert!(code.contains("    pub r#yield: Option<String>,"), "{code}");
+        assert!(code.contains("    pub r#type: Option<String>,"), "{code}");
+        assert!(!code.contains("rename"), "{code}");
     }
 
     #[test]

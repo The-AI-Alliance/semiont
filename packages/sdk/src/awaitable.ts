@@ -1,17 +1,17 @@
 /**
  * The Observable subclasses namespace methods return.
  *
- * `StreamObservable` (job lifecycle, generation progress) and
- * `UploadObservable` also implement `PromiseLike`, so a script can `await`
- * the call directly without a `lastValueFrom` wrapper; reactive consumers
- * keep using `.subscribe(...)` and `.pipe(...)`. `CacheObservable` (Browse
- * live queries) is deliberately NOT thenable: its one-shot read is the
- * explicit `.fresh()`.
+ * `StreamObservable` (gather, match), `DelegationObservable` (a delegated
+ * job) and `UploadObservable` also implement `PromiseLike`, so a script can
+ * `await` the call directly without a `lastValueFrom` wrapper; reactive
+ * consumers keep using `.subscribe(...)` and `.pipe(...)`. `CacheObservable`
+ * (Browse live queries) is deliberately NOT thenable: its one-shot read is
+ * the explicit `.fresh()`.
  *
- * ⚠️ Pick ONE consumption per stream or upload instance. Both are **cold**
- * Observables, so `await` and `.subscribe(...)` each re-run the producer —
- * doing both on the same `StreamObservable`/`UploadObservable` fires the
- * underlying job/upload *twice* (`.then` calls `lastValueFrom`, which
+ * ⚠️ Pick ONE consumption per stream, delegation or upload instance. All
+ * three are **cold** Observables, so `await` and `.subscribe(...)` each re-run
+ * the producer — doing both on the same instance fires the underlying
+ * request, job or upload *twice* (`.then` calls `lastValueFrom`, which
  * subscribes again). To get progress *and* the terminal result from a single
  * execution, use `.run(onNext)`.
  *
@@ -22,13 +22,13 @@
 
 import { Observable, EmptyError, firstValueFrom, lastValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
-import type { ResourceId } from '@semiont/core';
+import type { ResourceId, components } from '@semiont/core';
 import type { CacheState } from './cache';
 
 /**
  * Bounded Observable stream — emits zero-or-more progress values, then a
- * final value on completion. Used by job-lifecycle methods like
- * `mark.assist`, `gather.annotation`, `match.search`, `yield.fromContext`.
+ * final value on completion. Used by `gather.annotation`, `gather.resource`
+ * and `match.search`.
  *
  * Awaiting resolves to the **last** emitted value (via `lastValueFrom`).
  * Subscribing yields every emission, ending in `complete`. **Do not do both on
@@ -207,6 +207,73 @@ export class UploadObservable extends Observable<UploadProgress> implements Prom
         complete: () => {
           if (last?.phase === 'finished') resolve({ resourceId: last.resourceId });
           else reject(new Error(`UploadObservable completed on a non-finished event: ${last?.phase ?? '<none>'}`));
+        },
+      });
+    });
+  }
+}
+
+/**
+ * One event of a delegated job. `progress` events come while the worker
+ * runs, and the last event is `complete`, carrying the job's completion.
+ *
+ * `failed` is a failure the queue will try again: the job is not over, a
+ * fresh attempt follows, and the stream stays open. Render it as a setback,
+ * not an ending. A failure that is final is not an event: it errors the
+ * stream.
+ */
+export type JobEvent =
+  | { kind: 'progress'; data: components['schemas']['JobProgress'] }
+  | { kind: 'failed'; data: components['schemas']['JobFailCommand'] }
+  | { kind: 'complete'; data: JobCompletion };
+
+/** How a delegated job ended when it did its work: its `job:complete`. */
+export type JobCompletion = components['schemas']['JobCompleteCommand'];
+
+/** The completion a delegated job's last event carries. */
+function completionOf(last: JobEvent | undefined): JobCompletion {
+  if (last?.kind !== 'complete') {
+    throw new Error(`A delegated job ended on ${last ? `a ${last.kind} event` : 'no event'}, not on its completion`);
+  }
+  return last.data;
+}
+
+/**
+ * A delegated job, from `mark.delegate` and `yield.delegate`. Subscribers see
+ * the job's events as it goes (`JobEvent`), its completion the last of them.
+ * Awaiting resolves to the completion itself, so `(await ...).result` is read
+ * without narrowing an event.
+ */
+export class DelegationObservable extends Observable<JobEvent> implements PromiseLike<JobCompletion> {
+  then<R1 = JobCompletion, R2 = never>(
+    onfulfilled?: ((v: JobCompletion) => R1 | PromiseLike<R1>) | null,
+    onrejected?: ((e: unknown) => R2 | PromiseLike<R2>) | null,
+  ): PromiseLike<R1 | R2> {
+    return lastValueFrom(this).then(completionOf).then(onfulfilled, onrejected);
+  }
+
+  /**
+   * Subscribe **once**, delivering every `JobEvent` to `onNext`, and resolve
+   * to the job's completion (rejects on error). The single-subscription way
+   * to follow a job's progress *and* get how it ended — unlike
+   * `.subscribe(...)` + `await`, which re-runs this cold Observable and
+   * creates the job twice.
+   */
+  run(onNext: (event: JobEvent) => void): Promise<JobCompletion> {
+    return new Promise<JobCompletion>((resolve, reject) => {
+      let last: JobEvent | undefined;
+      this.subscribe({
+        next: (event) => {
+          last = event;
+          onNext(event);
+        },
+        error: reject,
+        complete: () => {
+          try {
+            resolve(completionOf(last));
+          } catch (error) {
+            reject(error);
+          }
         },
       });
     });

@@ -12,10 +12,12 @@
 //! acts only on its own: several units over one client, one per open
 //! resource, do not answer for each other.
 //!
-//! **The assist.** `client.mark.request_assist` starts one. Its motivation
-//! is held while it runs, and its progress as it comes. A finished assist's
-//! progress stays until it is dismissed (`client.mark.dismiss_progress`) or
-//! the next one begins. One that fails clears both.
+//! **The assist.** `client.mark.request_assist` starts one: the `mark` job
+//! whose parameters the request carries, delegated for this unit's resource.
+//! The motivation those parameters state is held while it runs, and its
+//! progress as it comes. A finished assist's progress stays until it is
+//! dismissed (`client.mark.dismiss_progress`) or the next one begins. One
+//! that fails clears both.
 //!
 //! An assist that says nothing for `ASSIST_SILENCE` has gone quiet, which is
 //! not over: the unit says so once (`mark:assist-timeout`) and keeps
@@ -30,16 +32,16 @@ use crate::channels::{
 use crate::client::SemiontClient;
 use crate::errors::SemiontError;
 use crate::event_bus::BusFrames;
-use crate::namespaces::{JobEvent, MarkAssistOptions};
+use crate::namespaces::JobEvent;
 use crate::state_unit::StateUnit;
 use crate::timing::ASSIST_SILENCE;
 use crate::transport::Envelope;
 use crate::types::ResourceId;
 use crate::types::{
     AnnotationSelector, AnnotationTarget, CreateAnnotationRequest, FragmentSelector,
-    FragmentSelectorType, JobProgress, MarkAssistRequestEvent, MarkAssistRequestEventOptions,
-    MarkAssistTimeoutEvent, MarkSubmitEvent, Motivation, ResourceErrorEvent, SelectionData,
-    Selector, SvgSelector, SvgSelectorType, TextQuoteSelector, TextQuoteSelectorType,
+    FragmentSelectorType, JobProgress, MarkAssistTimeoutEvent, MarkJobParams, MarkSubmitEvent,
+    Motivation, ResourceErrorEvent, SelectionData, Selector, SvgSelector, SvgSelectorType,
+    TextQuoteSelector, TextQuoteSelectorType,
 };
 use std::sync::Arc;
 use tokio::sync::watch;
@@ -85,19 +87,12 @@ fn selected(selection: SelectionData) -> AnnotationSelector {
     AnnotationSelector::Selector(Selector::TextQuoteSelector(quote))
 }
 
-/// What a signal asks of an assist, as the job is asked it.
-fn assist_options(asked: MarkAssistRequestEventOptions) -> MarkAssistOptions {
-    MarkAssistOptions {
-        entity_types: asked.entity_types,
-        include_descriptive_references: asked.include_descriptive_references,
-        instructions: asked.instructions,
-        density: asked.density,
-        tone: asked.tone.map(|tone| tone.as_str().to_owned()),
-        language: asked.language,
-        source_language: None,
-        schema_id: asked.schema_id,
-        categories: asked.categories,
-    }
+/// The motivation a `mark` job's parameters state, read from them as the
+/// wire writes them: every member of `MarkJobParams` states one, and which
+/// members there are is the spec's to say.
+fn motivation_of(params: &MarkJobParams) -> Option<Motivation> {
+    let stated = serde_json::to_value(params).ok()?;
+    serde_json::from_value(stated.get("motivation")?.clone()).ok()
 }
 
 struct Shared {
@@ -199,9 +194,16 @@ async fn listen(shared: Arc<Shared>, mut heard: BusFrames) {
                 shared.tasks.spawn(create(shared.clone(), submission));
             }
         } else if let Some(request) = said::<MarkAssistRequest>(&frame) {
-            shared.assisting.set(Some(request.motivation));
+            // Parameters that state no motivation are no request, as a frame
+            // that is not its channel's is none.
+            let Some(motivation) = motivation_of(&request.params) else {
+                continue;
+            };
+            shared.assisting.set(Some(motivation));
             shared.progress.set(None);
-            shared.tasks.spawn(assist(shared.clone(), request));
+            shared
+                .tasks
+                .spawn(assist(shared.clone(), request.params, motivation));
         } else if said::<MarkProgressDismiss>(&frame).is_some() {
             shared.progress.set(None);
         }
@@ -230,12 +232,8 @@ async fn create(shared: Arc<Shared>, submission: MarkSubmitEvent) {
     }
 }
 
-async fn assist(shared: Arc<Shared>, request: MarkAssistRequestEvent) {
-    let mut run = shared.client.mark.assist(
-        &shared.resource_id,
-        request.motivation,
-        assist_options(request.options),
-    );
+async fn assist(shared: Arc<Shared>, params: MarkJobParams, motivation: Motivation) {
+    let mut run = shared.client.mark.delegate(&shared.resource_id, params);
     // Whether the next silence is still to be said. It is said once, and
     // again only after the job has said something.
     let mut listening_for_silence = true;
@@ -245,7 +243,7 @@ async fn assist(shared: Arc<Shared>, request: MarkAssistRequestEvent) {
                 Ok(event) => event,
                 Err(_) => {
                     listening_for_silence = false;
-                    gone_quiet(&shared, request.motivation);
+                    gone_quiet(&shared, motivation);
                     continue;
                 }
             }

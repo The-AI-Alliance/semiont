@@ -1,0 +1,30 @@
+{
+  "description": "The parameters of a `mark` job, told apart by `motivation`. Each motivation takes its own parameters and no others: a parameter a job does not take is refused where the job is created.",
+  "oneOf": [
+    {
+      "$ref": "./HighlightingJobParams.json"
+    },
+    {
+      "$ref": "./CommentingJobParams.json"
+    },
+    {
+      "$ref": "./AssessingJobParams.json"
+    },
+    {
+      "$ref": "./LinkingJobParams.json"
+    },
+    {
+      "$ref": "./TaggingJobParams.json"
+    }
+  ],
+  "discriminator": {
+    "propertyName": "motivation",
+    "mapping": {
+      "highlighting": "./HighlightingJobParams.json",
+      "commenting": "./CommentingJobParams.json",
+      "assessing": "./AssessingJobParams.json",
+      "linking": "./LinkingJobParams.json",
+      "tagging": "./TaggingJobParams.json"
+    }
+  }
+}

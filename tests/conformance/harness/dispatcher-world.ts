@@ -30,6 +30,10 @@ export const JOB_OPERATIONS = ['job:create', 'job:claim', 'job:status-requested'
 export type JobOperation = (typeof JOB_OPERATIONS)[number];
 
 export type JobType = components['schemas']['JobType'];
+export type JobFilter = components['schemas']['JobFilter'];
+export type Motivation = components['schemas']['MarkJobParams']['motivation'];
+/** A `mark` job's parameters as a case states them: its motivation, and whatever else the case gives it. */
+export type MarkParams = { motivation: Motivation } & Record<string, unknown>;
 type TagSchema = components['schemas']['TagSchema'];
 type UnitCursor = components['schemas']['UnitCursor'];
 export type RunningJob = components['schemas']['JobRunning'];
@@ -66,6 +70,34 @@ export interface DispatcherWorldOptions {
   broker?: BrokerOptions;
   /** More of the dispatcher's environment, over its service account and the broker's credentials. */
   env?: DispatcherEnvironment;
+}
+
+/** A claim's filter for `mark` jobs of one motivation. */
+export const marks = (motivation: Motivation): JobFilter => ({ jobType: 'mark', params: { motivation } });
+
+/** A claim's filter for `yield` jobs. */
+export const YIELDS: JobFilter = { jobType: 'yield' };
+
+/** The motivations a `mark` job has: the ones the spec tells MarkJobParams apart by. */
+function markMotivations(): Motivation[] {
+  const params = spec().doc['components'] as { schemas: { MarkJobParams: { discriminator: { mapping: Record<string, string> } } } };
+  return Object.keys(params.schemas.MarkJobParams.discriminator.mapping) as Motivation[];
+}
+
+/** The types a job has. */
+function jobTypes(): JobType[] {
+  const schemas = spec().doc['components'] as { schemas: { JobType: { enum: JobType[] } } };
+  return schemas.schemas.JobType.enum;
+}
+
+/** Filters that between them take every job: one per motivation, and `yield`. */
+export function everyJob(): JobFilter[] {
+  return [...markMotivations().map(marks), YIELDS];
+}
+
+/** The filter that takes jobs like `job`: its type, and for a `mark` job its motivation. */
+export function filterOf(job: RunningJob): JobFilter {
+  return job.metadata.type === 'mark' ? marks((job.params as unknown as { motivation: Motivation }).motivation) : YIELDS;
 }
 
 /** A reply to a correlated request. */
@@ -142,6 +174,17 @@ export class BusClient {
     if (reply.status !== 202) throw new Error(`the gateway refused ${channel}: ${reply.status} ${reply.text}`);
   }
 
+  /**
+   * Emit a frame and answer what the gateway said of it at its door: `202`
+   * when it took the frame, and its refusal when the payload is not what the
+   * channel's schema states.
+   */
+  async offered(channel: string, payload: Record<string, unknown>): Promise<{ status: number; text: string }> {
+    const reply = await this.world.world.emit(this.token, { channel, payload });
+    return { status: reply.status, text: reply.text };
+  }
+
+  /** Create a job: a `mark` job names its resource and, in `params`, its motivation; a `yield` job names its context. */
   create(jobType: JobType, params: Record<string, unknown>, resourceId?: string): Promise<Answer> {
     return this.request('job:create', { jobType, params, ...(resourceId === undefined ? {} : { resourceId }) });
   }
@@ -153,13 +196,13 @@ export class BusClient {
     return (answer.payload['response'] as { jobId: string }).jobId;
   }
 
-  claim(types: string[]): Promise<Answer> {
-    return this.request('job:claim', { types });
+  claim(accepts: JobFilter[]): Promise<Answer> {
+    return this.request('job:claim', { accepts });
   }
 
   /** Claim a job the dispatcher must hand over, and answer it. */
-  async claimed(types: string[]): Promise<RunningJob> {
-    const answer = await this.claim(types);
+  async claimed(accepts: JobFilter[]): Promise<RunningJob> {
+    const answer = await this.claim(accepts);
     if (!answer.ok) throw new Error(`job:claim was refused: ${JSON.stringify(answer.payload)}`);
     return answer.payload['response'] as RunningJob;
   }
@@ -316,18 +359,18 @@ export class DispatcherWorld {
 
   /**
    * A job created by a person and claimed by a worker: the worker holds it,
-   * `running`. Detection types are created on a fresh resource; generation on a
-   * context focusing one.
+   * `running`. A `mark` job, given as its parameters, is created on a fresh
+   * resource; a `yield` job on a context focusing one.
    */
-  async running(jobType: JobType = 'highlight-annotation', params: Record<string, unknown> = {}): Promise<{ creator: BusClient; worker: BusClient; job: RunningJob; ref: JobRef }> {
+  async running(job: MarkParams | 'yield' = { motivation: 'highlighting' }): Promise<{ creator: BusClient; worker: BusClient; job: RunningJob; ref: JobRef }> {
     const creator = await this.person('creator');
-    const worker = await this.worker(`worker-${jobType}`);
-    const jobId = jobType === 'generation'
-      ? await creator.created(jobType, generation(resourceIdOf(), params))
-      : await creator.created(jobType, params, resourceIdOf());
-    const job = await worker.claimed([jobType]);
-    if (job.metadata.id !== jobId) throw new Error(`the claim handed out ${job.metadata.id}, not the job just created, ${jobId}`);
-    return { creator, worker, job, ref: refOf(job) };
+    const worker = await this.worker(`worker-${job === 'yield' ? job : job.motivation}`);
+    const jobId = job === 'yield'
+      ? await creator.created('yield', generation(resourceIdOf()))
+      : await creator.created('mark', job, resourceIdOf());
+    const claimed = await worker.claimed([job === 'yield' ? YIELDS : marks(job.motivation)]);
+    if (claimed.metadata.id !== jobId) throw new Error(`the claim handed out ${claimed.metadata.id}, not the job just created, ${jobId}`);
+    return { creator, worker, job: claimed, ref: refOf(claimed) };
   }
 
   /** The `job:queued` announcements of `jobId` so far. */
@@ -363,12 +406,12 @@ export class DispatcherWorld {
   }
 
   /**
-   * Cancel every pending job, by both categories, so that no case's jobs are
-   * claimable by the next: a claim is by type, not by id.
+   * Cancel every pending job, type by type, so that no case's jobs are
+   * claimable by the next: a claim names jobs by what they are, not by id.
    */
   async clearPending(): Promise<void> {
     const sweeper = await this.sidecar('sweeper');
-    for (const jobType of ['annotation', 'generation']) {
+    for (const jobType of jobTypes()) {
       const answer = await sweeper.cancelRequest({ jobType });
       if (!answer.ok) throw new Error(`clearing the ${jobType} jobs was refused: ${JSON.stringify(answer.payload)}`);
     }
@@ -416,12 +459,22 @@ export function settle(ms = 500): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** Generation params whose context focuses `resourceId`, as `gather.resource` produces. */
+/** A resource as a gathered context describes one. */
+export function descriptorOf(resourceId: string): Record<string, unknown> {
+  return { '@context': 'https://schema.org', '@id': resourceId, name: 'The source', representations: [{ mediaType: 'text/plain' }] };
+}
+
+/** A gathered context with `focus`, and nothing gathered around it. */
+export function contextOf(focus: Record<string, unknown>): Record<string, unknown> {
+  return { focus, graph: { nodes: [], edges: [] }, metadata: {} };
+}
+
+/** A `yield` job's params whose context focuses `resourceId`, as `gather.resource` produces. */
 export function generation(resourceId: string, extra: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     title: 'A generated resource',
     storageUri: `file://generated/${randomUUID()}.md`,
-    context: { focus: { kind: 'resource', resource: { '@id': resourceId, name: 'The source' } } },
+    context: contextOf({ kind: 'resource', resource: descriptorOf(resourceId) }),
     ...extra,
   };
 }

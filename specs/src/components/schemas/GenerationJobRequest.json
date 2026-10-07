@@ -1,0 +1,63 @@
+{
+  "type": "object",
+  "description": "What a `yield` job is asked to make: every parameter of GenerationJobParams but its `context`, the input the resource is made from. It is what an announcement of the job carries.",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Title of the generated resource. Not empty: the gateway refuses a `job:create` whose title is.",
+      "minLength": 1
+    },
+    "storageUri": {
+      "type": "string",
+      "description": "Storage URI for the generated resource's content — AUTHORITATIVE: the worker writes exactly here and never derives a location from the title. Not empty, and there is no fallback: the gateway refuses a `job:create` whose storageUri is.",
+      "minLength": 1
+    },
+    "prompt": {
+      "type": "string",
+      "description": "Refining instruction, composed with `task` (task = what, prompt = how)."
+    },
+    "entityTypes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Entity-type tags to stamp on the synthesized resource. Used both as a prompt bias for the generation worker and as the `entityTypes` set on the resulting resource."
+    },
+    "language": {
+      "type": "string",
+      "description": "Annotation/resource body locale — language the generated resource is written in (typically the user's UI locale). BCP-47."
+    },
+    "sourceLanguage": {
+      "type": "string",
+      "description": "Source-resource locale — language of the resource being referenced, used in the prompt so the LLM understands embedded source-context snippets when source ≠ target language. BCP-47."
+    },
+    "temperature": {
+      "type": "number",
+      "description": "Sampling temperature forwarded to the model."
+    },
+    "maxTokens": {
+      "type": "number",
+      "description": "Output token budget forwarded to the model. Length never determines structure."
+    },
+    "outputMediaType": {
+      "$ref": "./SupportedMediaType.json",
+      "description": "Requested media type of the generated resource's content. Default `text/markdown` at the worker, which validates it against its supported output set and FAILS the job for anything it can't write — not a silent fallback."
+    },
+    "task": {
+      "type": "string",
+      "description": "What the model is asked to produce — the prompt's framing verb. Canonical values ('resource', 'answer', 'summary') map to the worker's tested framings; any other string is used VERBATIM as the framing instruction (loud degrade: the worker warns, never silently falls back). Unset ⇒ 'resource' (article framing)."
+    },
+    "structure": {
+      "type": "string",
+      "description": "How the output is internally segmented — shape for text-bearing media, subordinate to `outputMediaType` (never its peer). Canonical values: 'prose' (flowing paragraphs), 'sections' (titled sections + title), 'chat' (speaker-labeled turns); any other string becomes a freeform \"organize as: …\" directive (loud degrade). Unset ⇒ NO structure directive at all — the task framing and the model determine shape."
+    },
+    "cite": {
+      "type": "boolean",
+      "description": "Ask the model to cite: emit [[<id>]] transport tokens after each claim, using the ids the context embedding provides. The worker validates each id against the embedded context (unknown ids are dropped loudly), strips the tokens from the stored content, and mints W3C linking annotations on the derived resource."
+    }
+  },
+  "required": [
+    "title",
+    "storageUri"
+  ]
+}

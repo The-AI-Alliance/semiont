@@ -55,7 +55,7 @@
       "state": "open"
     },
     {
-      "driver": "generate",
+      "driver": "yieldDelegate",
       "with": {
         "observer": "job",
         "params": {
@@ -67,7 +67,7 @@
     {
       "fetch": "job:create",
       "payload": {
-        "jobType": "generation",
+        "jobType": "yield",
         "params": {
           "$var": "params"
         }
@@ -98,7 +98,7 @@
         "payload": {
           "resourceId": "res-one",
           "jobId": "job-1",
-          "jobType": "generation",
+          "jobType": "yield",
           "percentage": 10,
           "progress": {
             "percentage": 10

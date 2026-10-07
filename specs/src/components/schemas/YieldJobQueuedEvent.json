@@ -1,0 +1,33 @@
+{
+  "type": "object",
+  "description": "A pending `yield` job, announced with what it is asked to make and without its `context`.",
+  "properties": {
+    "jobId": {
+      "$ref": "./JobId.json"
+    },
+    "jobType": {
+      "type": "string",
+      "enum": [
+        "yield"
+      ]
+    },
+    "resourceId": {
+      "$ref": "./ResourceId.json",
+      "description": "The resource the job is about."
+    },
+    "userId": {
+      "$ref": "./UserId.json",
+      "description": "The DID of the principal whose `job:create` created the job."
+    },
+    "params": {
+      "$ref": "./GenerationJobRequest.json"
+    }
+  },
+  "required": [
+    "jobId",
+    "jobType",
+    "resourceId",
+    "userId",
+    "params"
+  ]
+}

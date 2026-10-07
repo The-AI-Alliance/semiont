@@ -25,7 +25,7 @@ type CacheState<T> =
 const entry = (model: string): Collaborator =>
   ({
     agent: { '@type': 'Software', name: model, provider: 'anthropic', model },
-    servesJobTypes: ['generation'],
+    serves: [{ jobType: 'yield' }],
     limits: { contextTokens: 200_000, maxOutputTokens: 64_000 },
   }) as unknown as Collaborator;
 

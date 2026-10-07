@@ -1,12 +1,14 @@
 /**
  * Tests for the Observable subclasses (`StreamObservable<T>`,
- * `CacheObservable<T>`).
+ * `CacheObservable<T>`, `DelegationObservable`, `UploadObservable`).
  *
  * The contract:
  *   - `StreamObservable.then` resolves to the LAST emitted value on completion
  *     (mirrors `lastValueFrom`); errors reject the await.
  *   - `CacheObservable.fresh()` resolves to the FIRST `ready` value
  *     (skips `pending`); errors reject it.
+ *   - `DelegationObservable.then` resolves to the job's COMPLETION, which
+ *     its last event carries, and not to that event.
  *   - `.subscribe(...)` continues to deliver every emission as a plain
  *     Observable would.
  *   - `.pipe(...)` returns a plain `Observable<T>` — thenability is by design
@@ -17,9 +19,9 @@
 import { describe, expect, it } from 'vitest';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
-import { resourceId as toResourceId } from '@semiont/core';
+import { jobId as toJobId, resourceId as toResourceId } from '@semiont/core';
 import type { CacheState } from '../cache';
-import { CacheObservable, StreamObservable, UploadObservable } from '../awaitable';
+import { CacheObservable, DelegationObservable, StreamObservable, UploadObservable } from '../awaitable';
 
 describe('StreamObservable', () => {
   it('await resolves to the last emitted value', async () => {
@@ -219,5 +221,53 @@ describe('UploadObservable.run', () => {
       subscriber.complete();
     });
     await expect(upload.run(() => {})).rejects.toThrow();
+  });
+});
+
+describe('DelegationObservable', () => {
+  const completion = { jobId: toJobId('job-1'), jobType: 'mark' as const, resourceId: toResourceId('res-1'), result: { found: 3, persisted: 2 } };
+  const followed = (count: { subscribed: number }) =>
+    new DelegationObservable((subscriber) => {
+      count.subscribed += 1;
+      subscriber.next({ kind: 'progress', data: { percentage: 40 } });
+      subscriber.next({ kind: 'complete', data: completion });
+      subscriber.complete();
+    });
+
+  it('await resolves to the completion its last event carries, not to the event', async () => {
+    const done = await followed({ subscribed: 0 });
+    expect(done).toEqual(completion);
+    expect(done.result).toEqual({ found: 3, persisted: 2 });
+  });
+
+  it('subscribe yields every event, the completion the last of them', () => {
+    const kinds: string[] = [];
+    followed({ subscribed: 0 }).subscribe((event) => kinds.push(event.kind));
+    expect(kinds).toEqual(['progress', 'complete']);
+  });
+
+  it('run() forwards each event and resolves the completion from ONE subscription', async () => {
+    const count = { subscribed: 0 };
+    const kinds: string[] = [];
+    const done = await followed(count).run((event) => kinds.push(event.kind));
+    expect(count.subscribed).toBe(1);
+    expect(kinds).toEqual(['progress', 'complete']);
+    expect(done).toEqual(completion);
+  });
+
+  it('await and run() reject when the job fails', async () => {
+    const failing = () => new DelegationObservable((subscriber) => subscriber.error(new Error('worker gave up')));
+    await expect(failing()).rejects.toThrow('worker gave up');
+    await expect(failing().run(() => {})).rejects.toThrow('worker gave up');
+  });
+
+  it('await and run() reject when the stream ends on an event that is not its completion', async () => {
+    const cut = () =>
+      new DelegationObservable((subscriber) => {
+        subscriber.next({ kind: 'progress', data: { percentage: 40 } });
+        subscriber.complete();
+      });
+    await expect(cut()).rejects.toThrow(/not on its completion/);
+    await expect(cut().run(() => {})).rejects.toThrow(/not on its completion/);
   });
 });

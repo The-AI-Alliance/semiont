@@ -3,16 +3,15 @@ import { test, expect } from '../fixtures/auth';
 import { openResourceByName } from '../fixtures/discover';
 /**
  * Smoke test: the AI-assisted "Annotate References" flow dispatches a
- * reference-annotation job **and the resulting reference annotations are
- * actually persisted.**
+ * `mark` job of the linking motivation **and the resulting reference
+ * annotations are actually persisted.**
  *
  * The production chain is:
  *
  *   ReferencesPanel assist widget → click "Annotate" (✨)
  *     → eventBus `mark:assist-request` (local)
- *     → mark-state-unit → `client.mark.assist(...)`
- *     → namespaces/mark.ts `dispatchAssist`
- *     → bus `job:create` (jobType="reference-annotation" + params.entityTypes)
+ *     → mark-state-unit → `client.mark.delegate(...)`
+ *     → bus `job:create` (jobType="mark", params.motivation="linking" + params.entityTypes)
  *     → bus `job:created` (jobId)
  *     → worker entity-extraction → `mark:added` per entity
  *     → SSE → BrowseNamespace cache invalidation → references render.
@@ -92,9 +91,8 @@ test.describe('assisted reference detection', () => {
     await expect(submitBtn).toBeEnabled();
     await submitBtn.click();
 
-    // (1) Dispatch — the assist crossed the wire as a reference-annotation
-    // job and the gateway acked. (jobType for `linking` is
-    // `reference-annotation`; see namespaces/mark.ts jobTypeMap.)
+    // (1) Dispatch — the assist crossed the wire as a `mark` job of the
+    // linking motivation and the gateway acked.
     const { request } = await bus.expectRequestResponse('job:create', 'job:created', 30_000);
     expect(request.channel).toBe('job:create');
 

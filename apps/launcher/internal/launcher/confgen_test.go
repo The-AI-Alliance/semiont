@@ -48,6 +48,42 @@ func TestGeneratedConfigSelectsAJobsDriverTheDispatcherCanRun(t *testing.T) {
 	}
 }
 
+// `--model-light` writes a per-job refinement as a commented example. The
+// edit it invites is uncommenting it, so uncommented it must be a section
+// that names a job and binds the lighter model: one the launcher refuses is an
+// example that breaks the config of whoever follows it.
+func TestGeneratedRefinementExampleNamesAJob(t *testing.T) {
+	cfg := generateSemiontconfig(genParams{
+		Inference: "anthropic", Model: "a-model", ModelLight: "a-light-model", EmbeddingModel: "an-embedding",
+	})
+	var lines []string
+	uncommented := 0
+	for _, line := range strings.Split(cfg, "\n") {
+		if written, isComment := strings.CutPrefix(line, "# "); isComment && (strings.HasPrefix(written, "[") || strings.Contains(written, " = ")) {
+			line = written
+			uncommented++
+		}
+		lines = append(lines, line)
+	}
+	if uncommented == 0 {
+		t.Fatalf("the generated config holds no commented example:\n%s", cfg)
+	}
+	path := filepath.Join(t.TempDir(), "refined.toml")
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	env, _, _, err := loadConfig(path)
+	if err != nil {
+		t.Fatalf("the example, uncommented, is refused: %v", err)
+	}
+	for _, binding := range env.Workers {
+		if binding.Inference.Model == "a-light-model" {
+			return
+		}
+	}
+	t.Errorf("the example, uncommented, binds the lighter model to no worker section: %v", env.Workers)
+}
+
 // A born KB must be startable by the command `init` itself prints next.
 //
 // `init` writes <provider>.toml — anthropic.toml, ollama.toml — and `start`

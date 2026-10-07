@@ -6,10 +6,17 @@
 // document — and each restates a fact another owns. The check fails when they
 // disagree:
 //
-//   - the layout's categories do not partition JobType: a type in no category
-//     has no subject to be published on, and a type in two has two;
-//   - JobCancelRequest's `jobType` names something other than the categories,
-//     the only unit a bulk cancel selects by;
+//   - JobCancelRequest's `jobType` is not JobType, the only unit a bulk cancel
+//     selects by;
+//   - a job description, an announcement or a filter is not told apart by
+//     exactly JobType, or a mark job's parameters by exactly Motivation, or a
+//     motivation's parameters are open;
+//   - an announcement carries anything but the description less the job's
+//     input;
+//   - a filter names a field the job description does not have, or a mark
+//     filter may leave out its motivation;
+//   - JobResult has a discriminant, or two of its members could be mistaken
+//     for each other;
 //   - the layout's record is not a schema;
 //   - Job's discriminator disagrees with its members, or a member's `status`
 //     is not exactly the value that selects it;
@@ -32,26 +39,87 @@ const failures = [];
 const fail = (message) => failures.push(message);
 
 const storage = read(resolve(REPO, 'specs/src/jobs/storage.json'));
-const categories = Object.keys(storage.categories);
+const jobTypes = schema('JobType').enum;
+const motivations = schema('Motivation').enum;
+const same = (a, b) => [...a].sort().join() === [...b].sort().join();
+const refName = (ref) => ref.replace(/^\.\//, '').replace(/\.json$/, '');
 
-const placed = new Map();
-for (const [category, types] of Object.entries(storage.categories)) {
-  for (const type of types) {
-    if (placed.has(type)) fail(`job type ${type} is in two categories: ${placed.get(type)} and ${category}`);
-    placed.set(type, category);
+if (schema('JobCancelRequest').properties.jobType.$ref !== './JobType.json') {
+  fail(`JobCancelRequest.jobType is not JobType, the only unit a bulk cancel selects by`);
+}
+
+// A union told apart by a property: its mapping is its members, the property
+// of each member is exactly the value that selects it, and the values are
+// exactly `domain`.
+function partitions(name, property, domain, domainName) {
+  const union = schema(name);
+  const mapping = union.discriminator?.mapping ?? {};
+  if (union.discriminator?.propertyName !== property) fail(`${name} is not told apart by ${property}`);
+  if (!same(union.oneOf.map((member) => member.$ref), Object.values(mapping))) {
+    fail(`${name}'s discriminator maps [${Object.values(mapping)}], its members are [${union.oneOf.map((member) => member.$ref)}]`);
+  }
+  if (!same(Object.keys(mapping), domain)) fail(`${name} is told apart by [${Object.keys(mapping)}], ${domainName} is [${domain}]`);
+  for (const [value, ref] of Object.entries(mapping)) {
+    const selects = read(resolve(SCHEMAS, ref)).properties?.[property]?.enum;
+    if (selects?.length !== 1 || selects[0] !== value) fail(`${name} selects ${ref} by ${property} ${value}, whose ${property} is [${selects}]`);
+  }
+  return Object.fromEntries(Object.entries(mapping).map(([value, ref]) => [value, read(resolve(SCHEMAS, ref))]));
+}
+
+const created = partitions('JobCreateCommand', 'jobType', jobTypes, 'JobType');
+const queued = partitions('JobQueuedEvent', 'jobType', jobTypes, 'JobType');
+const filters = partitions('JobFilter', 'jobType', jobTypes, 'JobType');
+const marks = partitions('MarkJobParams', 'motivation', motivations, 'Motivation');
+for (const [motivation, params] of Object.entries(marks)) {
+  if (params.additionalProperties !== false) fail(`a ${motivation} job's parameters are open: a parameter it does not take would be accepted`);
+}
+
+// An announcement carries the description less the job's input: a mark job's
+// parameters whole, and a yield job's without the one member that is its input.
+if (queued.mark?.properties.params.$ref !== created.mark?.properties.params.$ref) {
+  fail(`a mark job is announced with ${queued.mark?.properties.params.$ref}, and created with ${created.mark?.properties.params.$ref}`);
+}
+const yieldParams = schema(refName(created.yield.properties.params.$ref));
+const [asked, input] = yieldParams.allOf ?? [];
+if (asked?.$ref === undefined || input === undefined || yieldParams.allOf.length !== 2) {
+  fail(`a yield job's parameters are not stated as what is asked for and its input`);
+} else {
+  if (queued.yield?.properties.params.$ref !== asked.$ref) {
+    fail(`a yield job is announced with ${queued.yield?.properties.params.$ref}, and what it is asked for is ${asked.$ref}`);
+  }
+  if (!same(Object.keys(input.properties), ['context']) || !same(input.required ?? [], ['context'])) {
+    fail(`a yield job's input is [${Object.keys(input.properties)}], and an announcement leaves out exactly its context`);
+  }
+  if ('context' in schema(refName(asked.$ref)).properties) fail(`${asked.$ref} carries the context it is defined without`);
+}
+
+// A filter names fields of the job description, at the description's paths.
+for (const [jobType, filter] of Object.entries(filters)) {
+  if (filter.additionalProperties !== false) fail(`a ${jobType} filter is open`);
+  for (const name of Object.keys(filter.properties)) {
+    if (!(name in created[jobType].properties)) fail(`a ${jobType} filter names ${name}, which a ${jobType} job description does not have`);
   }
 }
-const jobTypes = schema('JobType').enum;
-for (const type of jobTypes) {
-  if (!placed.has(type)) fail(`job type ${type} is in no category of specs/src/jobs/storage.json`);
+for (const name of Object.keys(filters.mark?.properties.params?.properties ?? {})) {
+  for (const [motivation, params] of Object.entries(marks)) {
+    if (!(name in params.properties)) fail(`a mark filter names params.${name}, which a ${motivation} job does not have`);
+  }
 }
-for (const type of placed.keys()) {
-  if (!jobTypes.includes(type)) fail(`specs/src/jobs/storage.json places ${type}, which is not a JobType`);
-}
+if (!same(filters.mark?.properties.params?.required ?? [], ['motivation'])) fail(`a mark filter does not always state its motivation`);
 
-const cancelSelects = schema('JobCancelRequest').properties.jobType.enum;
-if ([...cancelSelects].sort().join() !== [...categories].sort().join()) {
-  fail(`JobCancelRequest.jobType is [${cancelSelects}], the storage layout's categories are [${categories}]`);
+// A result has no discriminant, so its members are told apart by what each
+// alone carries: closed, with no required member in common.
+const results = schema('JobResult');
+if (results.discriminator !== undefined) fail(`JobResult has a discriminant of its own`);
+const required = new Map();
+for (const member of results.oneOf) {
+  const result = read(resolve(SCHEMAS, member.$ref));
+  if (result.additionalProperties !== false) fail(`${member.$ref} is open: another result would decode as it`);
+  if ('kind' in result.properties) fail(`${member.$ref} states a kind`);
+  for (const name of result.required ?? []) {
+    if (required.has(name)) fail(`${member.$ref} and ${required.get(name)} both require ${name}`);
+    required.set(name, member.$ref);
+  }
 }
 
 if (!existsSync(resolve(SCHEMAS, `${storage.bucket.record}.json`))) {
@@ -86,4 +154,4 @@ if (failures.length > 0) {
   for (const message of failures) console.error(`✗ ${message}`);
   process.exit(1);
 }
-console.log(`✓ the job protocol agrees with itself (${jobTypes.length} job types in ${categories.length} categories)`);
+console.log(`✓ the job protocol agrees with itself (${jobTypes.length} job types, ${motivations.length} motivations)`);

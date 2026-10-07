@@ -1,6 +1,6 @@
 ---
 name: semiont-tag
-description: Apply structural-analysis tag schemas to a Semiont resource — classify passages by their structural role using IRAC, IMRAD, Toulmin, or any KB-registered schema via mark.assist with motivation tagging
+description: Apply structural-analysis tag schemas to a Semiont resource — classify passages by their structural role using IRAC, IMRAD, Toulmin, or any KB-registered schema via mark.delegate with motivation tagging
 disable-model-invocation: false
 user-invocable: true
 allowed-tools: Bash, Read, Write, Glob, Grep
@@ -66,18 +66,21 @@ await semiont.frame.addTagSchema(LEGAL_IRAC_SCHEMA);
 
 const rId = resourceId('opinion-citizens-united');
 
-const done = await semiont.mark.assist(rId, 'tagging', {
+const done = await semiont.mark.delegate(rId, {
+  motivation: 'tagging',
   schemaId: LEGAL_IRAC_SCHEMA.id,
   categories: LEGAL_IRAC_SCHEMA.tags.map((t) => t.name),
 });
 
-const result = done.kind === 'complete' ? done.data.result : undefined;
-if (result?.kind === 'tag-annotation') {
-  console.log(`Created ${result.tagsCreated} of ${result.tagsFound} tags`, result.byCategory);
+const { result } = done;
+if (result && 'found' in result) {
+  console.log(`Created ${result.persisted} of ${result.found} tags`, result.byCategory);
 }
 
 await session.dispose();
 ```
+
+Awaiting `mark.delegate` resolves to the job's completion, the `job:complete` the job ended with. Its `result` holds the counts every `mark` job reports: `found` is what the model proposed, `persisted` is what was written, and `errors`, present only when there were some, is how many of the proposed could not be anchored in the text. A tagging job adds `byCategory`, the tags written for each category.
 
 The worker reads the document once for each category, with that category's `description` and `examples` in its prompt, so the schema is the instruction. A category the schema does not have fails the job.
 
@@ -96,13 +99,14 @@ import { entityType } from '@semiont/sdk';
 const ROLES = ['Plaintiff', 'Defendant', 'Counsel'];
 await semiont.frame.addEntityTypes(ROLES);
 
-const done = await semiont.mark.assist(rId, 'linking', {
+const done = await semiont.mark.delegate(rId, {
+  motivation: 'linking',
   entityTypes: ROLES.map(entityType),
 });
 
-const result = done.kind === 'complete' ? done.data.result : undefined;
-if (result?.kind === 'reference-annotation') {
-  console.log(`Created ${result.totalEmitted} of ${result.totalFound} references`);
+const { result } = done;
+if (result && 'found' in result) {
+  console.log(`Created ${result.persisted} of ${result.found} references`);
 }
 ```
 
@@ -183,15 +187,16 @@ async function tagIRAC(resourceIdStr: string): Promise<void> {
   try {
     await semiont.frame.addTagSchema(LEGAL_IRAC_SCHEMA);
 
-    const done = await semiont.mark.assist(resourceId(resourceIdStr), 'tagging', {
+    const done = await semiont.mark.delegate(resourceId(resourceIdStr), {
+      motivation: 'tagging',
       schemaId: LEGAL_IRAC_SCHEMA.id,
       categories: LEGAL_IRAC_SCHEMA.tags.map((t) => t.name),
     });
 
-    const result = done.kind === 'complete' ? done.data.result : undefined;
-    if (result?.kind === 'tag-annotation') {
-      console.log(`Created ${result.tagsCreated} of ${result.tagsFound} tags`, result.byCategory);
-    } else if (result?.kind === 'declined') {
+    const { result } = done;
+    if (result && 'found' in result) {
+      console.log(`Created ${result.persisted} of ${result.found} tags`, result.byCategory);
+    } else if (result && 'declined' in result) {
       console.log(`The resource's text could not be read: ${result.reason}`);
     }
   } finally {
@@ -214,11 +219,11 @@ tagIRAC(target).catch((e) => {
 
 - **Decide which shape applies first.** A schema with categories from a method of analysis is `tagging` with `schemaId` and `categories`. A flat list the corpus defines is `linking` with `entityTypes`.
 - **A schema lives with the knowledge base that uses it.** Write the `TagSchema` in the knowledge base's own source. Neither the SDK nor `@semiont/ontology` ships schemas.
-- **Register before you tag.** `await semiont.frame.addTagSchema(schema)` before any `mark.assist(..., 'tagging', ...)`. `await semiont.browse.tagSchemas().fresh()` lists what a knowledge base has registered.
+- **Register before you tag.** `await semiont.frame.addTagSchema(schema)` before any `mark.delegate` with motivation `tagging`. `await semiont.browse.tagSchemas().fresh()` lists what a knowledge base has registered.
 - **Themes the model discovers are entity types, not tags.** A `tagging` job needs its categories before it runs. When the values are only known afterwards, declare them with `frame.addEntityTypes` and classify with `linking`.
-- **Neither job takes `instructions`.** A `tagging` job is instructed by the schema's descriptions and examples, and a `linking` job by the entity types it is given. To steer a tagging pass, edit the schema.
+- **Neither job takes `instructions`.** A `tagging` job is instructed by the schema's descriptions and examples, and a `linking` job by the entity types it is given. A job given a param its motivation does not take is refused. To steer a tagging pass, edit the schema.
 - **Tags feed aggregates.** [`semiont-aggregate`](../semiont-aggregate/SKILL.md) rolls tags up into a deliverable: a report of how later cases treated a precedent, a document's IRAC outline, a resource for each theme.
-- **What `mark.assist` can read.** A resource with text: Markdown, plain text, HTML, JSON, or a PDF. A resource with no text at all, such as an image, fails the job. A document whose text could not be read completes with a `declined` result and a reason code.
+- **What `mark.delegate` can read.** A resource with text: Markdown, plain text, HTML, JSON, or a PDF. A resource with no text at all, such as an image, fails the job. A document whose text could not be read completes with a `declined` result and a reason code.
 - **Check results** with `await semiont.browse.annotations(rId).fresh()`. A tag has `motivation === 'tagging'` and a `classifying` body naming its schema. An entity-type classification has `motivation === 'linking'` and a `tagging` body naming its type.
 - **From the command line.** `semiont mark --delegate <resourceId> --motivation tagging --schema <id> --category <name>` runs the same job from the [launcher](../../../../apps/launcher/README.md#delegating-to-the-stack), and `semiont browse --tag-schemas` lists the schemas.
 - **Errors.** Every SDK throw extends `SemiontError`: catch it and route on its `code`. `BusRequestError` (a bus request, with a code such as `bus.timeout`) and `JobFailedError` narrow it. See [Error Handling](../../Usage.md#error-handling).

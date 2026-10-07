@@ -33,9 +33,9 @@ withDispatcher(
     it("each frame it receives is a bus.recv consumer span, and each it sends a bus.emit producer span, under the dispatcher's name", async () => {
       const { creator, worker, job } = await world().running();
       await worker.reportProgress(refOf(job), 50);
-      await worker.complete(refOf(job), { kind: 'highlight-annotation', highlightsFound: 0, highlightsCreated: 0 });
+      await worker.complete(refOf(job), { found: 0, persisted: 0 });
       await creator.until(job.metadata.id, 'the job to complete', (s) => s.status === 'complete');
-      const cancelled = await creator.created('highlight-annotation', {}, resourceIdOf());
+      const cancelled = await creator.created('mark', { motivation: 'highlighting' }, resourceIdOf());
       expect((await creator.cancelRequest({ jobId: cancelled })).ok).toBe(true);
 
       for (const [template, channel, kind] of [

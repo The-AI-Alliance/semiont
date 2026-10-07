@@ -586,10 +586,10 @@ describe('TaggingPanel Component', () => {
       await waitFor(() => {
         expect(tracker.events.some(e =>
           e.event === 'mark:assist-request' &&
-          e.payload?.motivation === 'tagging' &&
-          e.payload?.options?.schemaId === 'legal-irac' &&
-          e.payload?.options?.categories?.includes('Issue') &&
-          e.payload?.options?.categories?.includes('Rule')
+          e.payload?.params?.motivation === 'tagging' &&
+          e.payload?.params?.schemaId === 'legal-irac' &&
+          e.payload?.params?.categories?.includes('Issue') &&
+          e.payload?.params?.categories?.includes('Rule')
         )).toBe(true);
       });
     });

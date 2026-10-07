@@ -301,7 +301,7 @@ function handlerDurationHistogram(): Histogram {
 function jobOutcomeCounter(): Counter {
   if (!_jobOutcomeCounter) {
     _jobOutcomeCounter = meter().createCounter('semiont.job.outcome', {
-      description: 'Worker job completions by type and outcome',
+      description: 'Worker job completions by type, motivation and outcome',
     });
   }
   return _jobOutcomeCounter;
@@ -310,7 +310,7 @@ function jobOutcomeCounter(): Counter {
 function jobDurationHistogram(): Histogram {
   if (!_jobDurationHistogram) {
     _jobDurationHistogram = meter().createHistogram('semiont.job.duration', {
-      description: 'Worker job duration by type',
+      description: 'Worker job duration by type and motivation',
       unit: 'ms',
     });
   }
@@ -366,10 +366,25 @@ export function recordHandlerDuration(actor: string, channel: string, durationMs
   });
 }
 
-/** Record a worker job's outcome and duration. */
-export function recordJobOutcome(jobType: string, outcome: 'completed' | 'failed', durationMs: number): void {
-  jobOutcomeCounter().add(1, { 'job.type': jobType, 'job.outcome': outcome });
-  jobDurationHistogram().record(durationMs, { 'job.type': jobType, 'job.outcome': outcome });
+/**
+ * Record a worker job's outcome and duration.
+ *
+ * A job is labelled as its description names it: by its type and, for a
+ * `mark` job, its motivation, which a `yield` job does not have. Those two are
+ * small closed sets; no other parameter of a job is a label.
+ */
+export function recordJobOutcome(
+  job: { jobType: string; motivation?: string },
+  outcome: 'completed' | 'failed',
+  durationMs: number,
+): void {
+  const labels = {
+    'job.type': job.jobType,
+    ...(job.motivation !== undefined ? { 'job.motivation': job.motivation } : {}),
+    'job.outcome': outcome,
+  };
+  jobOutcomeCounter().add(1, labels);
+  jobDurationHistogram().record(durationMs, labels);
 }
 
 function gatherDegradeCounter(): Counter {

@@ -180,16 +180,18 @@ async fn serve(
         while let Some(event) = announcements.recv().await {
             let sent = match payload_of(&event) {
                 Ok(payload) => {
+                    let job_id = payload.get("jobId").cloned();
                     announcer
                         .emit_on("job:queued", payload, Envelope::default())
                         .await
+                        .map_err(|error| (job_id, error))
                 }
-                Err(error) => Err(error),
+                Err(error) => Err((None, error)),
             };
-            if let Err(error) = sent {
+            if let Err((job_id, error)) = sent {
                 logging::warn(
                     "job:queued not sent",
-                    json!({ "component": "dispatcher", "jobId": event.job_id, "error": error.to_string() }),
+                    json!({ "component": "dispatcher", "jobId": job_id, "error": error.to_string() }),
                 );
             }
         }

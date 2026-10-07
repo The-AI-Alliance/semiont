@@ -12,7 +12,7 @@
  * one logical agent two DIDs.
  */
 
-import type { EventMap } from '@semiont/core';
+import type { EventMap, JobFilter } from '@semiont/core';
 import { startWorkerProcess } from './worker-process';
 import type { MarkCommitAwaits, DescriptorReadAwaits, DurabilityProbeAwaits } from './worker-process';
 import type { WorkerVitals, JobClaimAwaits } from './job-claim-adapter';
@@ -58,10 +58,10 @@ export type ResolvedInference = {
   baseURL?: string;
 };
 
-/** One agent identity: an inference engine and the job types it serves. */
+/** One agent identity: an inference engine and the jobs it serves. */
 export interface AgentGroup {
   inference: ResolvedInference;
-  jobTypes: string[];
+  serves: JobFilter[];
   client: InferenceClient;
 }
 
@@ -92,7 +92,7 @@ export interface AgentVitals extends WorkerVitals {
   provider: string;
   model: string;
   did: string;
-  jobTypes: string[];
+  serves: JobFilter[];
 }
 
 export interface AgentWorkerHandle {
@@ -452,7 +452,7 @@ export async function startAgentWorker(
 
   const adapter = startWorkerProcess({
     session,
-    jobTypes: group.jobTypes,
+    accepts: group.serves,
     inferenceClient: group.client,
     generator,
     // Byte reads for decode-path media only. A geometry-bearing type's text
@@ -472,7 +472,7 @@ export async function startAgentWorker(
     did,
     provider: inference.type,
     model: inference.model,
-    jobTypes: group.jobTypes,
+    serves: group.serves,
   });
 
   return {
@@ -481,7 +481,7 @@ export async function startAgentWorker(
       provider: inference.type,
       model: inference.model,
       did,
-      jobTypes: group.jobTypes,
+      serves: group.serves,
       ...adapter.vitals(),
     }),
     dispose: async () => {

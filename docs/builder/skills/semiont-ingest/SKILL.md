@@ -83,7 +83,7 @@ console.log(`+ ${file.path} is ${resourceId}`);
 
 `storageUri` is `file://` followed by the file's path in the knowledge base's working tree. The upload puts the bytes there, so a corpus that is already in the repository keeps its paths. The event an upload appends under `.semiont/events/` is the record of the resource: commit it with the file.
 
-`format` decides what later skills can do with the resource. `mark.assist` reads Markdown, plain text, HTML, JSON and PDF, and an image can be annotated by hand. [Media Types](../../../architecture/MEDIA-TYPES.md) has the whole table.
+`format` decides what later skills can do with the resource. `mark.delegate` reads Markdown, plain text, HTML, JSON and PDF, and an image can be annotated by hand. [Media Types](../../../architecture/MEDIA-TYPES.md) has the whole table.
 
 `entityTypes` say what kind of document a resource is. `browse.resources({ entityType })` filters on them, and so does every skill that works on one kind of document.
 
@@ -174,6 +174,6 @@ ingest().catch((e) => {
 - **Skip what is already a resource.** An upload does not check. `browse.files(dir)` says which files are tracked.
 - **Classify precisely.** A contract is `['Contract']`, not `['Document']`. A judicial opinion is `['Case', 'JudicialOpinion', 'StateCourt']`, not `['Case']`. Later skills select documents by these types, and a vague type at ingest is a vague query later.
 - **Keep the corpus in the knowledge base's repository.** `storageUri` is a path in its working tree, and the resource's content is the file at that path.
-- **PDFs are first-class.** A PDF's text is extracted when it is ingested, and `mark.assist` reads it. An encrypted or damaged PDF is still a resource, and a job over it completes with a `declined` result.
+- **PDFs are first-class.** A PDF's text is extracted when it is ingested, and `mark.delegate` reads it. An encrypted or damaged PDF is still a resource, and a job over it completes with a `declined` result.
 - **From the command line.** `semiont yield --upload <file>` makes one file under the knowledge base's root a resource, and `semiont frame --entity-type <name>` declares a type. Use them for a handful of files; write the script for a corpus.
 - **Errors.** Every SDK throw extends `SemiontError`: catch it and route on its `code`. See [Error Handling](../../Usage.md#error-handling).

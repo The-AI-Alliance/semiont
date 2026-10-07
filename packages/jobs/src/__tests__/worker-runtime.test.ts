@@ -9,7 +9,7 @@
  * `startAgentWorker` hands it as `generator`.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { Logger } from '@semiont/core';
+import { jobId, type Logger } from '@semiont/core';
 import { startAgentWorker, authenticateAgent, parseGatewayUrl, buildHealthPayload, startStallWatchdog, STALL_THRESHOLD_MS, STALL_CHECK_INTERVAL_MS, WORKER_CHANNELS, WORKER_CONSUMED_BROADCASTS, WORKER_AWAITED_OPERATIONS, WORKER_ANSWERED_OPERATIONS, type AgentGroup, type AgentVitals } from '../worker-runtime';
 import { startWorkerProcess } from '../worker-process';
 import type { InferenceClient } from '@semiont/inference';
@@ -60,7 +60,7 @@ const noopLogger = {
 function makeGroup(): AgentGroup {
   return {
     inference: { type: 'anthropic', model: 'claude-haiku-4-5' },
-    jobTypes: ['reference-annotation', 'generation'],
+    serves: [{ jobType: 'mark', params: { motivation: 'linking' } }, { jobType: 'yield' }],
     client: {} as InferenceClient, // never invoked — worker-process is mocked
   };
 }
@@ -320,7 +320,7 @@ describe('worker-runtime — health vitals', () => {
       provider: 'anthropic',
       model: 'claude-haiku-4-5',
       did: CANONICAL_DID,
-      jobTypes: ['reference-annotation', 'generation'],
+      serves: [{ jobType: 'mark', params: { motivation: 'linking' } }, { jobType: 'yield' }],
       ...FAKE_ADAPTER_VITALS,
     });
 
@@ -334,7 +334,7 @@ describe('worker-runtime — health vitals', () => {
         provider: 'ollama',
         model: 'm',
         did: 'did:web:kb.example:agents:ollama:m',
-        jobTypes: ['generation'],
+        serves: [{ jobType: 'yield' }],
         lastQueuedEventAt: stamp,
         lastClaimAt: null,
         lastFinishedAt: null,
@@ -364,7 +364,7 @@ describe('worker-runtime — stall watchdog', () => {
     provider: 'ollama',
     model: 'm',
     did: 'did:web:kb.example:agents:ollama:m',
-    jobTypes: ['generation'],
+    serves: [{ jobType: 'yield' }],
     lastQueuedEventAt: null,
     lastClaimAt: null,
     lastFinishedAt: null,
@@ -382,7 +382,7 @@ describe('worker-runtime — stall watchdog', () => {
     const stale = new Date(Date.now() - STALL_THRESHOLD_MS - 60_000).toISOString();
     const worker = {
       vitals: () => vitalsWith({
-        activeJob: { jobId: 'j-wedged', type: 'generation', since: stale },
+        activeJob: { jobId: jobId('j-wedged'), type: 'yield', since: stale },
         lastActivityAt: stale,
       }),
     };
@@ -393,7 +393,7 @@ describe('worker-runtime — stall watchdog', () => {
     expect(exit).toHaveBeenCalledWith(1);
     expect(error).toHaveBeenCalledWith(
       'Worker stalled — exiting for restart',
-      expect.objectContaining({ jobId: 'j-wedged', jobType: 'generation' }),
+      expect.objectContaining({ jobId: 'j-wedged', jobType: 'yield' }),
     );
     watchdog.dispose();
   });
@@ -422,8 +422,8 @@ describe('worker-runtime — stall watchdog', () => {
     const worker = {
       vitals: () => vitalsWith({
         activeJob: {
-          jobId: 'j-long',
-          type: 'reference-annotation',
+          jobId: jobId('j-long'),
+          type: 'mark',
           since: new Date(Date.now() - 60 * 60_000).toISOString(),
         },
         lastActivityAt: new Date(Date.now() - 60_000).toISOString(),
@@ -452,7 +452,7 @@ describe('worker-runtime — stall watchdog', () => {
     // freeze while the clock advances past the threshold.
     const claimedAt = new Date(Date.now()).toISOString();
     vital = vitalsWith({
-      activeJob: { jobId: 'j-frozen', type: 'generation', since: claimedAt },
+      activeJob: { jobId: jobId('j-frozen'), type: 'yield', since: claimedAt },
       lastActivityAt: claimedAt,
     });
     vi.advanceTimersByTime(STALL_THRESHOLD_MS + STALL_CHECK_INTERVAL_MS);

@@ -117,8 +117,8 @@ attention. Each is a namespace of the client.
 
 | | Verb | What it does | Among its methods |
 |---|---|---|---|
-| Writing | `yield_` | Introduce a resource, uploaded or generated from gathered context | `yield_.resource`, `yield_.from_context` |
-| | `mark` | Annotate a resource | `mark.annotation`, `mark.assist`, `mark.update_entity_types`, `mark.archive` |
+| Writing | `yield_` | Introduce a resource, uploaded or generated from gathered context | `yield_.resource`, `yield_.delegate` |
+| | `mark` | Annotate a resource | `mark.annotation`, `mark.delegate`, `mark.update_entity_types`, `mark.archive` |
 | | `bind` | Resolve an ambiguous reference to a specific resource | `bind.body`, `bind.initiate` |
 | | `frame` | Define and grow the schema vocabulary | `frame.add_entity_types`, `frame.add_tag_schema` |
 | Reading | `browse` | Navigate, read and observe, including who is here | `browse.resource`, `browse.annotations`, `browse.agents`, `browse.click` |
@@ -141,10 +141,8 @@ client comes to be signed in.
 ```python
 from semiont.client import SemiontClient
 from semiont.identifiers import ResourceId
-from semiont.namespaces.follow import JobCompleted
-from semiont.namespaces.mark import MarkAssistOptions
 from semiont.transport import PutBinaryRequest, Transport
-from semiont.types import GenerationJobParams, JobGenerationResult
+from semiont.types import GenerationJobParams, JobGenerationResult, LinkingJobParams
 
 
 async def summarize(client: SemiontClient[Transport], paper: bytes) -> ResourceId | None:
@@ -160,13 +158,13 @@ async def summarize(client: SemiontClient[Transport], paper: bytes) -> ResourceI
     paper_id = created.resource_id
 
     # Annotate: a model reads it and marks each mention of a concept.
-    await client.mark.assist(paper_id, "linking", MarkAssistOptions(entity_types=["Concept"]))
+    await client.mark.delegate(paper_id, LinkingJobParams(motivation="linking", entity_types=["Concept"]))
 
     # Gather: the paper, its annotations, and what the knowledge base holds around it.
     context = await client.gather.resource(paper_id)
 
     # Generate: a new resource, grounded in that context and linked to its source.
-    done = await client.yield_.from_context(
+    done = await client.yield_.delegate(
         GenerationJobParams(
             title="Attention Is All You Need: a summary",
             storage_uri="file://generated/attention-summary.md",
@@ -174,9 +172,8 @@ async def summarize(client: SemiontClient[Transport], paper: bytes) -> ResourceI
             task="summary",
         )
     )
-    if isinstance(done, JobCompleted) and isinstance(done.data.result, JobGenerationResult):
-        return done.data.result.resource_id
-    return None
+    # A job that could not read what it was given declines, and makes nothing.
+    return done.result.resource_id if isinstance(done.result, JobGenerationResult) else None
 ```
 
 Both resources, and every annotation the model made, are in the knowledge base
@@ -206,8 +203,8 @@ from semiont.client import SemiontClient
 from semiont.http import HttpTransport
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.namespaces.follow import JobAttemptFailed, JobCompleted, JobProgressed
-from semiont.namespaces.mark import MarkAssistOptions
 from semiont.transport import Transport
+from semiont.types import HighlightingJobParams
 from semiont.watched import Variable
 
 
@@ -216,7 +213,7 @@ async def annotate(client: SemiontClient[Transport], resource: ResourceId, annot
     text = await client.browse.resource_content(resource)  # asked once, answered once
     print(described.name, len(text))
 
-    async for event in client.mark.assist(resource, "highlighting", MarkAssistOptions()):  # a job, followed
+    async for event in client.mark.delegate(resource, HighlightingJobParams(motivation="highlighting")):  # a job, followed
         match event:
             case JobProgressed(data=progress):
                 print(progress.percentage)
@@ -238,23 +235,32 @@ async def over_http(origin: str, token: str, resource: ResourceId, annotation: A
         await annotate(client, resource, annotation)
 ```
 
-Every method returns one of seven shapes, and the table says which:
+Every method returns one of eight shapes, and the table says which:
 
 | Shape | In Python | |
 |---|---|---|
 | asked once, answered once | `async def` | a failure is raised |
 | a long-running operation | `Running[T]` | awaited for its final value, or read with `async for` for every report and then the final value; one or the other, once |
+| a job another party does | `Delegation` | awaited for the job's completion, or read with `async for` for every event of the job, its completion's the last; one or the other, once |
 | an upload | `Upload` | awaited for the resource it created, read for its progress |
 | a query | `Cached[T]` | building it sends nothing; `await query.fresh()` reads it once, and held with `async with` it is watched |
 | a signal | `def`, returning nothing | published on the client's own bus, or sent and not awaited |
 | a drive | `async def` giving `int \| None` | how many participants the gateway reached, or nothing when it kept no count |
 | a channel's events | `Typed[P]` | `async for`, each event's payload decoded |
 
-- **A followed job** (`mark.assist`, `yield_.from_context`) reports its
-  progress and ends with its completion. A job that says nothing is asked for
-  its status, so a completion the stream did not carry is still heard. It ends
-  as a `JobError` when the job failed for good, was cancelled, or (a
-  generation) said nothing for longer than its length allows.
+- **A delegated job** (`mark.delegate`, `yield_.delegate`) is described by
+  its parameters, which are the protocol's own shapes: one for each motivation
+  of a `mark` job (`HighlightingJobParams`, `CommentingJobParams`,
+  `AssessingJobParams`, `LinkingJobParams`, `TaggingJobParams`), and
+  `GenerationJobParams` for a `yield` job. Each takes what its job takes and
+  nothing else. Awaited, the job gives its completion, a `JobCompleteCommand`,
+  whose `result` is what the job reported: the counts of a `mark` job
+  (`JobDetectionResult`), the resource a `yield` job made
+  (`JobGenerationResult`), or a decline from either (`JobDeclinedResult`).
+  Read, it reports its progress and ends with its completion. A job that says
+  nothing is asked for its status, so a completion the stream did not carry is
+  still heard. It ends as a `JobError` when the job failed for good, was
+  cancelled, or (a generation) said nothing for longer than its length allows.
 - **`client.bus`** is the client's own bus: every frame its transport
   delivered, and every signal its own parts gave each other.
   **`client.wire`** is the bus over the transport, typed by channel.
@@ -268,7 +274,7 @@ Every method returns one of seven shapes, and the table says which:
   search's ten candidates, a context's two thousand characters. An option
   given as `None` is an option not given, and is not sent.
 
-Why the shapes are these seven, in every SDK, is
+Why the shapes are these eight, in every SDK, is
 [the reactive model][reactive-model].
 
 ## Live queries
@@ -534,7 +540,7 @@ is made in, and a frame continues the trace it was sent under (`frame.trace`).
 | Module | What it holds |
 |---|---|
 | `semiont.client` | `SemiontClient`, and the timing it keeps to |
-| `semiont.namespaces` | The methods of each namespace, and the options they take |
+| `semiont.namespaces` | The methods of each namespace; and in `semiont.namespaces.follow`, `Delegation`, what a delegated job returns, with the events of a job |
 | `semiont.running`, `semiont.cached` | `Running[T]` and `Cached[T]`: what long-running operations and queries return |
 | `semiont.cache`, `semiont.refresh`, `semiont.resume` | The cache queries answer from and its three states, which queries each event asks again, and where a stream resumes after a restart |
 | `semiont.storage` | Where a client keeps what must outlive it: `SessionStorage`, and `MemoryStorage` |

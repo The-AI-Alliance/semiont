@@ -25,6 +25,7 @@ import {
   type HighlightMatch,
   type AssessmentMatch,
   type TagMatch,
+  type Anchored,
 } from './detection/motivation-parsers';
 import type { TagSchema } from '@semiont/core';
 
@@ -50,7 +51,7 @@ async function detectInChunks<T>(
   buildPrompt: (chunk: string) => string,
   motivation: string,
   elementSchema: ElementSchema,
-  parse: (items: unknown[]) => T[],
+  parse: (items: unknown[]) => Anchored<T>,
   onActivity?: (consumedChars: number, totalChars: number) => void,
   /** Where an earlier attempt left this unit: a partway unit resumes at its
    * recorded offset instead of the top. Before the callback below, which
@@ -66,7 +67,7 @@ async function detectInChunks<T>(
    * WITH the results so a caller cannot record a position it has not made
    * durable.
    */
-  onChunkResults?: (parsed: T[], cursor: ChunkCursor) => Promise<void>,
+  onChunkResults?: (kept: T[], cursor: ChunkCursor, dropped: number) => Promise<void>,
 ): Promise<T[]> {
   const limits = await client.limits();
   const scaffoldTokens = estimateTokens(buildPrompt(''));
@@ -95,9 +96,9 @@ async function detectInChunks<T>(
         return { items: response.items, ...(response.usage ? { usage: response.usage } : {}) };
       },
     );
-    const fromChunk = parse(items);
+    const { matches: fromChunk, dropped } = parse(items);
     collected.push(...fromChunk);
-    await onChunkResults?.(fromChunk, { next, size });
+    await onChunkResults?.(fromChunk, { next, size }, dropped);
     // Chunk boundary: the cursor advances (real progress). Only when text
     // remains — the final cut has no boundary after it, and the caller reports
     // the unit's completion itself.
@@ -129,7 +130,7 @@ export class AnnotationDetection {
     /** Where an earlier attempt left this unit. */
     resume?: UnitCursor,
     /** This chunk's matches, as the chunk completes. Kept LAST. */
-    onChunkResults?: (matches: CommentMatch[], cursor: ChunkCursor) => Promise<void>,
+    onChunkResults?: (matches: CommentMatch[], cursor: ChunkCursor, dropped: number) => Promise<void>,
   ): Promise<CommentMatch[]> {
     return detectInChunks(
       client, content,
@@ -159,7 +160,7 @@ export class AnnotationDetection {
     /** Where an earlier attempt left this unit. */
     resume?: UnitCursor,
     /** This chunk's matches, as the chunk completes. Kept LAST. */
-    onChunkResults?: (matches: HighlightMatch[], cursor: ChunkCursor) => Promise<void>,
+    onChunkResults?: (matches: HighlightMatch[], cursor: ChunkCursor, dropped: number) => Promise<void>,
   ): Promise<HighlightMatch[]> {
     return detectInChunks(
       client, content,
@@ -191,7 +192,7 @@ export class AnnotationDetection {
     /** Where an earlier attempt left this unit. */
     resume?: UnitCursor,
     /** This chunk's matches, as the chunk completes. Kept LAST. */
-    onChunkResults?: (matches: AssessmentMatch[], cursor: ChunkCursor) => Promise<void>,
+    onChunkResults?: (matches: AssessmentMatch[], cursor: ChunkCursor, dropped: number) => Promise<void>,
   ): Promise<AssessmentMatch[]> {
     return detectInChunks(
       client, content,
@@ -231,7 +232,7 @@ export class AnnotationDetection {
      * `validateTagOffsets` per chunk — a per-item anchor against the full
      * document, so partitioning changes nothing. Kept LAST.
      */
-    onChunkResults?: (matches: TagMatch[], cursor: ChunkCursor) => Promise<void>,
+    onChunkResults?: (matches: TagMatch[], cursor: ChunkCursor, dropped: number) => Promise<void>,
   ): Promise<TagMatch[]> {
     const categoryInfo = schema.tags.find((t) => t.name === category);
     if (!categoryInfo) {
@@ -252,13 +253,17 @@ export class AnnotationDetection {
         sourceLanguage
       ),
       'tag', TAG_ELEMENT_SCHEMA,
-      (items) => MotivationParsers.parseTags(items),
+      // A tag is anchored against the whole document, below: nothing is dropped here.
+      (items) => ({ matches: MotivationParsers.parseTags(items), dropped: 0 }),
       onActivity,
       resume,
       onChunkResults
-        ? async (raw, cursor) => onChunkResults(MotivationParsers.validateTagOffsets(raw, content, category), cursor)
+        ? async (raw, cursor) => {
+            const { matches, dropped } = MotivationParsers.validateTagOffsets(raw, content, category);
+            await onChunkResults(matches, cursor, dropped);
+          }
         : undefined,
     );
-    return MotivationParsers.validateTagOffsets(parsedTags, content, category);
+    return MotivationParsers.validateTagOffsets(parsedTags, content, category).matches;
   }
 }

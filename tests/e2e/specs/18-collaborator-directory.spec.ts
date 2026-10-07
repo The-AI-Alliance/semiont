@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import type { CollaboratorEntry } from '@semiont/core';
+import { MARK_MOTIVATIONS, type CollaboratorEntry, type JobFilter } from '@semiont/core';
 import { signInSession } from '../fixtures/sdk-session';
 
 /**
@@ -23,12 +23,11 @@ import { signInSession } from '../fixtures/sdk-session';
  *    `did:web:<host>:agents:<provider>:<model>` (URI-encoded components,
  *    `did-utils.ts`) — self-consistent per entry, one host across the roster
  *    (one KB, one domain).
- * 3. **Capabilities are the routing function.** Each of the six concrete
- *    JobTypes appears in EXACTLY one entry's `servesJobTypes`
- *    (`resolveWorkerInference` maps each job type to one `(provider, model)`;
- *    the roster dedups by that pair) — and the literal `'default'` never
- *    appears (it expands to the job types it covers). Entries without
- *    `servesJobTypes` (actors-only agents) are legal.
+ * 3. **Capabilities are the routing function.** Each job a claim can name
+ *    (a `mark` job of each motivation, and a `yield` job) appears in EXACTLY
+ *    one entry's `serves` (the config maps each to one `(provider, model)`;
+ *    the roster dedups by that pair), each named as a claim names it.
+ *    Entries without `serves` (actors-only agents) are legal.
  * 4. **No secret material.** The reply carries no `apiKey`/endpoint config.
  * 5. **The attribution loop.** After a real assist pass, the `generator` DID
  *    stamped on the created annotations is an element of the directory —
@@ -46,15 +45,12 @@ import { signInSession } from '../fixtures/sdk-session';
  * attribution leg waits on a real LLM highlight pass (spec-06/11 class).
  */
 
-/** The six concrete job types (JobType enum, specs/src/components/schemas/JobType.json). */
-const JOB_TYPES = [
-  'reference-annotation',
-  'generation',
-  'highlight-annotation',
-  'assessment-annotation',
-  'comment-annotation',
-  'tag-annotation',
-] as const;
+/** A job as a claim names it, in words: `mark.<motivation>`, or `yield`. */
+const named = (filter: JobFilter): string =>
+  filter.jobType === 'mark' ? `mark.${filter.params.motivation}` : filter.jobType;
+
+/** Every job a claim can name: a `mark` job of each motivation, and a `yield` job. */
+const JOBS = [...MARK_MOTIVATIONS.map((motivation) => `mark.${motivation}`), 'yield'];
 
 // Host may be `host` or `host:port` (the KB's domain is embedded raw; the
 // read-side `didToAgent` deliberately scans from the RIGHT so host:port
@@ -111,18 +107,18 @@ test.describe('collaborator directory (browse.agents)', () => {
       expect(didSet.size, 'roster is deduplicated by (provider, model) → DIDs unique').toBe(entries.length);
 
       // ── 3. Capabilities = the routing function ──
-      const jobTypeOwners = new Map<string, number>();
+      const jobOwners = new Map<string, number>();
       for (const entry of entries) {
-        for (const jt of entry.servesJobTypes ?? []) {
-          expect(jt, `'default' expands via resolveWorkerInference — never a literal capability`).not.toBe('default');
-          expect(JOB_TYPES as readonly string[], `"${jt}" is a concrete JobType`).toContain(jt);
-          jobTypeOwners.set(jt, (jobTypeOwners.get(jt) ?? 0) + 1);
+        for (const filter of entry.serves ?? []) {
+          const job = named(filter);
+          expect(JOBS, `"${job}" is a job a claim can name`).toContain(job);
+          jobOwners.set(job, (jobOwners.get(job) ?? 0) + 1);
         }
       }
-      for (const jt of JOB_TYPES) {
+      for (const job of JOBS) {
         expect(
-          jobTypeOwners.get(jt) ?? 0,
-          `job type "${jt}" routes to exactly one agent (resolver is a function; roster dedups)`,
+          jobOwners.get(job) ?? 0,
+          `"${job}" routes to exactly one agent (the config's resolution is a function; roster dedups)`,
         ).toBe(1);
       }
 
@@ -146,11 +142,8 @@ test.describe('collaborator directory (browse.agents)', () => {
         })
       ).resourceId;
 
-      const finalEvent = await client.mark.assist(rid, 'highlighting', { language: 'en' });
-      expect(
-        finalEvent.kind,
-        'highlight assist completes (highlight-annotation job → job:complete)',
-      ).toBe('complete');
+      const done = await client.mark.delegate(rid, { motivation: 'highlighting', sourceLanguage: 'en' });
+      expect(done.jobType, 'the highlighting job is a `mark` job, and it completed').toBe('mark');
 
       // The worker stamps `generator` (single or pipeline array) on what it
       // created. Poll for projection delivery, then assert membership.

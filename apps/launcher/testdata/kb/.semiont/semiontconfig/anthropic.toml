@@ -49,27 +49,27 @@ model = "claude-sonnet-4-5-20250929"
 type = "anthropic"
 model = "claude-sonnet-4-5-20250929"
 
-[environments.local.workers.reference-annotation.inference]
+[environments.local.workers.mark.linking.inference]
 type = "anthropic"
 model = "claude-sonnet-4-5-20250929"
 
-[environments.local.workers.highlight-annotation.inference]
+[environments.local.workers.mark.highlighting.inference]
 type = "anthropic"
 model = "claude-haiku-4-5-20251001"
 
-[environments.local.workers.assessment-annotation.inference]
+[environments.local.workers.mark.assessing.inference]
 type = "anthropic"
 model = "claude-sonnet-4-5-20250929"
 
-[environments.local.workers.comment-annotation.inference]
+[environments.local.workers.mark.commenting.inference]
 type = "anthropic"
 model = "claude-haiku-4-5-20251001"
 
-[environments.local.workers.tag-annotation.inference]
+[environments.local.workers.mark.tagging.inference]
 type = "anthropic"
 model = "claude-haiku-4-5-20251001"
 
-[environments.local.workers.generation.inference]
+[environments.local.workers.yield.inference]
 type = "anthropic"
 model = "claude-sonnet-4-5-20250929"
 

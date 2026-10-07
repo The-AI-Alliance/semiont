@@ -244,7 +244,7 @@ export function ResourceInfoPanel({
           isAssisting={isGenerating}
           progress={generationProgress}
           progressProps={{
-            onCancel: () => session?.client.job.cancelRequest('generation'),
+            onCancel: () => session?.client.job.cancelRequest('yield'),
             ...(onDismissProgress ? { onDismiss: onDismissProgress } : {}),
             ...(generationOutcome ? {
               outcome: {

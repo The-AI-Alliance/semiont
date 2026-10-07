@@ -30,24 +30,27 @@
       "state": "open"
     },
     {
-      "driver": "assist",
+      "driver": "markDelegate",
       "with": {
         "observer": "job",
         "resource": {
           "$var": "r1"
         },
-        "motivation": "highlighting",
-        "options": {}
+        "params": {
+          "motivation": "highlighting"
+        }
       }
     },
     {
       "fetch": "job:create",
       "payload": {
-        "jobType": "highlight-annotation",
+        "jobType": "mark",
         "resourceId": {
           "$var": "r1"
         },
-        "params": {}
+        "params": {
+          "motivation": "highlighting"
+        }
       },
       "as": "c1"
     },
@@ -74,7 +77,7 @@
             "$var": "r1"
           },
           "jobId": "job-1",
-          "jobType": "highlight-annotation",
+          "jobType": "mark",
           "attempt": 1,
           "error": "the model did not answer",
           "willRetry": true
@@ -95,7 +98,7 @@
               "$var": "r1"
             },
             "jobId": "job-1",
-            "jobType": "highlight-annotation",
+            "jobType": "mark",
             "attempt": 1,
             "error": "the model did not answer",
             "willRetry": true
@@ -115,7 +118,7 @@
             "$var": "r1"
           },
           "jobId": "job-1",
-          "jobType": "highlight-annotation",
+          "jobType": "mark",
           "attempt": 2,
           "error": "the model did not answer",
           "willRetry": false

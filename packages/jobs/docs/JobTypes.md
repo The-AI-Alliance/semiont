@@ -1,92 +1,83 @@
 # Job Types
 
-What a job is in the worker: its state, the six types, and what each one's params, result and progress mean.
+What a job is in the worker: what it is asked with, what a worker is handed, and what each job's params, result and progress mean.
 
-The types themselves are in [`src/types.ts`](../src/types.ts). The job-type list, each result, the generation params and the progress shape are the spec's, generated into `@semiont/core`. This page says what the types cannot.
+The shapes are the spec's, generated into `@semiont/core`: a job's description, its result, a running job's record and its progress. [`src/types.ts`](../src/types.ts) holds only what a worker adds, the type of the params it is handed. This page says what the types cannot.
 
-## A job is its state
+## A job description
 
-A job is a union discriminated by `status`, so what it carries follows from the state it is in. Every state has `metadata` and `params`.
+A job is asked for with its `jobType` and the parameters that type takes. `jobType` is the verb that asks: `mark` annotates a resource, `yield` makes one.
 
-| `status` | Also carries |
-|---|---|
-| `pending` | Nothing more |
-| `running` | `startedAt`, `progress` |
-| `complete` | `startedAt`, `completedAt`, `result` |
-| `failed` | `completedAt`, `error`, and `startedAt` when it had started |
-| `cancelled` | `completedAt`, and `startedAt` when it had started |
+| `jobType` | Motivation | Does | Units |
+|---|---|---|---|
+| `mark` | `highlighting` | Highlights key passages | One |
+| `mark` | `commenting` | Writes comments that explain | One |
+| `mark` | `assessing` | Writes assessments that evaluate | One |
+| `mark` | `linking` | Finds mentions of entities | One per entity type |
+| `mark` | `tagging` | Tags passages by their role in a schema | One per category |
+| `yield` | | Writes a new resource | None |
 
-`Job<P, R>` is that union for one type's params `P` and result `R`. Each job type is an alias of it, `AnyJob` is the union of the six, and `RunningAnyJob` is what a claim returns: a worker only ever holds a job that is running.
-
-Progress is not a type parameter. It has one shape for every job type, and a job that has just been claimed has reported none:
-
-```typescript
-import { type AnyJob } from '@semiont/jobs';
-
-function describe(job: AnyJob): string {
-  switch (job.status) {
-    case 'pending':   return 'waiting';
-    case 'running':   return 'percentage' in job.progress ? `${job.progress.percentage}%` : 'started';
-    case 'complete':  return 'done';
-    case 'failed':    return job.error;
-    case 'cancelled': return 'cancelled';
-  }
-}
-```
-
-`isPendingJob`, `isRunningJob`, `isCompleteJob`, `isFailedJob` and `isCancelledJob` narrow the same way.
-
-## Metadata
-
-| Field | |
-|---|---|
-| `id`, `type`, `created` | The job, its type, and when it was created |
-| `userId` | Who asked for it: the DID the gateway verified on `job:create`. It is the only identity a job carries |
-| `retryCount`, `maxRetries` | The dispatcher sets `maxRetries` when it admits the job: 1 for the five annotation types, 0 for generation |
-| `completedUnits` | The units whose annotations are all committed. A retry skips them |
-| `unitCursors` | How far each unfinished unit got. A retry resumes each from there |
-
-A worker never states who asked. The dispatcher records `userId` as the requester when it accepts a claim, and the knowledge base attributes a write that cites the job from that record.
-
-Generation gets no retry because a second run is a different document, not a replay. An annotation pass reads the same content again, and resumes from its checkpoint.
-
-## The six types
-
-| `type` | Does | Params | Result | Units |
-|---|---|---|---|---|
-| `reference-annotation` | Finds mentions of entities | `DetectionParams` | `JobReferenceAnnotationResult` | One per entity type |
-| `highlight-annotation` | Highlights key passages | `HighlightDetectionParams` | `JobHighlightAnnotationResult` | One |
-| `comment-annotation` | Writes comments that explain | `CommentDetectionParams` | `JobCommentAnnotationResult` | One |
-| `assessment-annotation` | Writes assessments that evaluate | `AssessmentDetectionParams` | `JobAssessmentAnnotationResult` | One |
-| `tag-annotation` | Tags passages by their role in a schema | `TagDetectionParams` | `JobTagAnnotationResult` | One per category |
-| `generation` | Writes a new resource | `GenerationJobParams & { resourceId }` | `JobGenerationResult` | None |
+A `mark` job's params state its motivation, and each motivation takes its own params and no others (`MarkJobParams`): the gateway refuses a `job:create` that gives a job a parameter it does not take. A `yield` job's are `GenerationJobParams`.
 
 A unit is the grain a job checkpoints at. Its name is the key of `unitCursors`, and a finished one is listed in `completedUnits`.
 
-Every result carries a `kind` equal to its job type. The annotation results count what was found and what was created; the two differ by what the deduper dropped. The reference result also counts errors, and the pieces whose extraction was accepted although it was flagged as under-reporting.
+## What a worker is handed
+
+A worker only ever holds a job that is running: the spec's `JobRunning`, in the reply to its claim. Its `metadata`:
+
+| Field | |
+|---|---|
+| `id`, `type`, `created` | The job, its `jobType`, and when it was created |
+| `userId` | Who asked for it: the DID the gateway verified on `job:create`. It is the only identity a job carries |
+| `retryCount`, `maxRetries` | The dispatcher sets `maxRetries` when it admits the job: 1 for a `mark` job, 0 for a `yield` job |
+| `completedUnits` | The units whose annotations are all committed. A retry skips them |
+| `unitCursors` | How far each unfinished unit got, with the unit's tallies. A retry resumes each from there |
+
+A worker never states who asked. The dispatcher records `userId` as the requester when it accepts a claim, and the knowledge base attributes a write that cites the job from that record.
+
+A `yield` job gets no retry because a second run is a different document, not a replay. A `mark` job reads the same content again, and resumes from its checkpoint.
+
+Its `params` are the description's, and what the dispatcher adds:
+
+- **`resourceId`**, the resource the job is about. A `mark` job's own; for a `yield` job, the one its context focuses on.
+- **`schema`**, for a tagging job: the whole tag schema its `schemaId` names. A caller names a schema by id, and the dispatcher resolves it against the knowledge base's tag schemas when it creates the job, so a worker never reads the registry.
+
+The spec leaves that held shape open, so a worker asks which job it holds. `isHeldMark(params, motivation)` answers, and narrows the params to `HeldMarkParams<motivation>`: that motivation's params from the spec, with `resourceId` and, for tagging, `schema`. It is no for a tagging job handed over without its schema, which a worker cannot run.
 
 ## Annotation params
 
-Every annotation job names its `resourceId`. The rest:
-
 | Param | On | |
 |---|---|---|
-| `entityTypes` | reference | The entity types to look for |
-| `includeDescriptiveReferences` | reference | Also find mentions that are not names: "the senator", "she" |
-| `instructions` | highlight, comment, assessment | What the person asked for, in their words |
-| `density` | highlight, comment, assessment | A target count per 2000 words. With none, the instructions decide |
-| `tone` | comment, assessment | The voice of the text written. Each of the two has its own set |
-| `schema`, `categories` | tag | The whole tag schema, and the categories of it to tag |
-| `language` | all but highlight | The language annotation text is written in. BCP-47 |
+| `entityTypes` | linking | The entity types to look for. At least one |
+| `includeDescriptiveReferences` | linking | Also find mentions that are not names: "the senator", "she" |
+| `instructions` | highlighting, commenting, assessing | What the person asked for, in their words |
+| `density` | highlighting, commenting, assessing | A target count per 2000 words. With none, the instructions decide |
+| `tone` | commenting, assessing | The voice of the text written. Each of the two has its own set |
+| `schemaId`, `categories` | tagging | The tag schema, and the categories of it to tag. At least one category |
+| `language` | all but highlighting | The language annotation text is written in. BCP-47 |
 | `sourceLanguage` | all | The language of the resource being read. BCP-47 |
 
 **Two languages.** A German reader annotating an English document sends `language: 'de'` and `sourceLanguage: 'en'`. The first is stamped on each `TextualBody`; the second goes in the prompt so that the model reads the source correctly.
 
-**A tag job carries its schema.** A caller names a schema by id. The dispatcher resolves it against the knowledge base's tag schemas when it creates the job and puts the whole schema in the params, so a worker never reads the registry.
+## What a `mark` job reports
 
-## Generation
+One result for every motivation, `JobDetectionResult`:
 
-`GenerationJobParams` is one type, shared with the SDK's `yield.fromContext(context, options)`: the params are the options plus the gathered context. `title`, `storageUri` and `context` are required.
+| Field | |
+|---|---|
+| `found` | What the model proposed, before anything was checked against the text |
+| `persisted` | What the log holds: the annotations committed, after the ones that could not be anchored were dropped and repeats were collapsed |
+| `errors` | How many of the proposed could not be anchored in the text. Absent means none |
+| `byCategory` | The annotations persisted per category. A tagging job's |
+| `underReportedPieces` | The pieces whose extraction was accepted although it was flagged as under-reporting. A linking job's, and absent when there were none |
+
+A result has no field that says which job it answers. `job:complete` carries the `jobType` beside it, and the three results (these counts, a `yield` job's resource, a decline) share no member.
+
+The three tallies ride each unit's cursor, so a job that resumes reports the whole document's and not its last attempt's.
+
+## A `yield` job
+
+`GenerationJobParams` is one type, shared with the SDK's `yield.delegate(params)`: what is asked for (`GenerationJobRequest`), and the gathered context it is made from. `title`, `storageUri` and `context` are required.
 
 | Param | |
 |---|---|
@@ -101,7 +92,7 @@ Every annotation job names its `resourceId`. The rest:
 | `maxTokens` | Length only. It never implies structure |
 | `entityTypes`, `language`, `sourceLanguage`, `temperature` | The new resource's entity types, the two languages, and the sampling temperature |
 
-**Ids come from the focus.** Generation params carry no `referenceId`, and `job:create` carries no `resourceId`. The context already names its anchor, and a second copy could disagree with it. The dispatcher derives the job's `resourceId` from `context.focus` and refuses one a caller supplies. In the worker, `referenceIdOf(job)` is the one derivation:
+**Ids come from the focus.** A `yield` job's params carry no `referenceId`, and its `job:create` carries no `resourceId`. The context already names its anchor, and a second copy could disagree with it. The dispatcher derives the job's `resourceId` from `context.focus`, and a `job:create` that supplies one is refused. In the worker, `referenceIdOf(job)` is the one derivation:
 
 | `context.focus.kind` | `referenceIdOf(job)` | What the worker does |
 |---|---|---|
@@ -120,12 +111,12 @@ The other fields are reported by the flows they apply to:
 
 | Field | Reported by |
 |---|---|
-| `current`, `processed`, `total` | `reference-annotation` (entity types), `tag-annotation` (categories) |
-| `completedItems` | `reference-annotation`, `tag-annotation` |
-| `entitiesFound`, `entitiesEmitted`, `entitiesExpected` | `reference-annotation` |
-| `requestParams` | `reference-annotation`, and the highlight, comment and assessment flows |
-| `annotationId` | Any job attached to an annotation, such as a generation from a reference |
+| `current`, `processed`, `total` | linking (entity types), tagging (categories) |
+| `completedItems` | linking, tagging |
+| `entitiesFound`, `entitiesEmitted`, `entitiesExpected` | linking |
+| `requestParams` | linking, highlighting, commenting and assessing |
+| `annotationId` | Any job attached to an annotation, such as a `yield` job from a reference |
 
-Generation reports three times: 5% `generating-resource`, 95% `creating-resource`, and 100% `complete-generated` with `truncated`.
+A `yield` job reports three times: 5% `generating-resource`, 95% `creating-resource`, and 100% `complete-generated` with `truncated`.
 
 Each report replaces the last, so anything that describes the run rather than the moment is sent every time.

@@ -127,11 +127,17 @@ def test_a_client_is_its_namespaces_over_one_transport_and_a_bus_of_its_own() ->
         transport.deliver(
             Frame(
                 channel="job:queued",
-                payload={"jobId": "job-1", "jobType": "generation", "resourceId": "res-1", "userId": "did:web:example.org:users:alice"},
+                payload={
+                    "jobId": "job-1",
+                    "jobType": "yield",
+                    "resourceId": "res-1",
+                    "userId": "did:web:example.org:users:alice",
+                    "params": {"title": "A summary", "storageUri": "file://a-summary.md"},
+                },
             )
         )
         assert (await soon(anext(queued))).payload.job_id == "job-1"
-        assert (await soon(anext(heard))).payload.job_type == "generation"
+        assert (await soon(anext(heard))).payload.job_type == "yield"
 
         async with client:
             pass
@@ -320,7 +326,7 @@ def test_a_request_waits_as_long_as_its_client_was_told_and_a_closed_client_ends
 def status(of: str) -> JsonObject:
     return {
         "jobId": "job-1",
-        "type": "generation",
+        "type": "yield",
         "status": of,
         "userId": "did:web:example.org:users:alice",
         "created": "2026-10-01T00:00:00.000Z",
@@ -343,7 +349,7 @@ def test_a_jobs_status_is_asked_for_until_it_has_ended_and_each_answer_is_given_
         assert late.value.code == "bus.timeout"
 
         transport.queue_reply("job:cancel-requested", [{"cancelled": 3}, {"cancelled": 1}])
-        assert await soon(client.job.cancel_by_type("annotation")) == 3
+        assert await soon(client.job.cancel_by_type("mark")) == 3
         assert await soon(client.job.cancel(JobId("job-1"))) == 1
         await client.close()
 

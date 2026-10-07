@@ -38,9 +38,9 @@ Both belong to the knowledge base as a whole and to no resource. They are record
 
 **There is no batch add on the wire.** `frame.addEntityTypes` sends one request per type. If one is refused, the ones before it have been recorded, and sending the list again is safe.
 
-**A tag schema must be registered before it is used.** A [`mark.assist`](MARK.md#assistance) for `tagging` names a schema by id. The dispatcher resolves the id when it admits the job, and refuses a job that names a schema the knowledge base does not have.
+**A tag schema must be registered before it is used.** A [`mark.delegate`](MARK.md#delegation) for `tagging` names a schema by id. The dispatcher resolves the id when it admits the job, and refuses a job that names a schema the knowledge base does not have.
 
-**An entity type must be declared before a job names it.** A `mark.assist` for `linking` names the entity types to look for, and a [`yield.fromContext`](YIELD.md) may name the ones to stamp on what it generates. The dispatcher refuses a job that names a type the knowledge base has not declared. See [`job:create`](../JOBS.md#jobcreate).
+**An entity type must be declared before a job names it.** A `mark.delegate` for `linking` names the entity types to look for, and a [`yield.delegate`](YIELD.md) may name the ones to stamp on what it generates. The dispatcher refuses a job that names a type the knowledge base has not declared. See [`job:create`](../JOBS.md#jobcreate).
 
 ### Tag schemas
 

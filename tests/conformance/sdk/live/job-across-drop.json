@@ -7,20 +7,20 @@
     {"driver": "open", "with": {"timing": {"busRequestTimeoutMs": 5000, "invalidationWindowMs": 100, "reconnectMs": 50, "lazyRemoveMs": 50, "lingerMs": 50, "jobSilenceMs": 1500, "jobStatusPollMs": 60000}}},
     {"state": "open"},
 
-    {"driver": "assist", "with": {"observer": "job", "resource": {"$var": "r1"}, "motivation": "highlighting", "options": {}}},
-    {"fetch": "job:create", "payload": {"jobType": "highlight-annotation", "resourceId": {"$var": "r1"}, "params": {}}, "as": "c1"},
+    {"driver": "markDelegate", "with": {"observer": "job", "resource": {"$var": "r1"}, "params": {"motivation": "highlighting"}}},
+    {"fetch": "job:create", "payload": {"jobType": "mark", "resourceId": {"$var": "r1"}, "params": {"motivation": "highlighting"}}, "as": "c1"},
     {"backend": "emit", "with": {"channel": "job:created", "correlationId": {"$var": "c1"}, "payload": {"response": {"jobId": "job-1"}}}},
-    {"backend": "emit", "with": {"channel": "job:report-progress", "payload": {"resourceId": {"$var": "r1"}, "jobId": "job-1", "jobType": "highlight-annotation", "percentage": 10, "progress": {"percentage": 10}}}},
+    {"backend": "emit", "with": {"channel": "job:report-progress", "payload": {"resourceId": {"$var": "r1"}, "jobId": "job-1", "jobType": "mark", "percentage": 10, "progress": {"percentage": 10}}}},
     {"reaches": "job", "state": {"status": "ready", "value": {"kind": "progress", "data": {"percentage": 10}}}},
 
     {"backend": "down"},
     {"state": "reconnecting"},
-    {"backend": "emit", "with": {"channel": "job:complete", "payload": {"resourceId": {"$var": "r1"}, "jobId": "job-1", "jobType": "highlight-annotation"}}},
+    {"backend": "emit", "with": {"channel": "job:complete", "payload": {"resourceId": {"$var": "r1"}, "jobId": "job-1", "jobType": "mark"}}},
     {"backend": "up"},
     {"state": "open"},
     {"fetch": "job:status-requested", "payload": {"jobId": "job-1"}, "as": "s1"},
-    {"backend": "emit", "with": {"channel": "job:status-result", "correlationId": {"$var": "s1"}, "payload": {"response": {"jobId": "job-1", "type": "highlight-annotation", "status": "complete", "userId": {"$var": "client"}, "created": "2026-01-01T00:00:00.000Z", "result": {}}}}},
-    {"reaches": "job", "state": {"status": "ready", "value": {"kind": "complete", "data": {"resourceId": {"$var": "r1"}, "jobId": "job-1", "jobType": "highlight-annotation"}}}},
+    {"backend": "emit", "with": {"channel": "job:status-result", "correlationId": {"$var": "s1"}, "payload": {"response": {"jobId": "job-1", "type": "mark", "status": "complete", "userId": {"$var": "client"}, "created": "2026-01-01T00:00:00.000Z", "result": {}}}}},
+    {"reaches": "job", "state": {"status": "ready", "value": {"kind": "complete", "data": {"resourceId": {"$var": "r1"}, "jobId": "job-1", "jobType": "mark"}}}},
     {"completes": "job"},
     {"quiet": 300}
   ]

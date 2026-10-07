@@ -2,8 +2,7 @@
 
 import React, { useEffect } from 'react';
 import { WizardFooter } from './WizardFooter';
-import type { Collaborator, GatheredContext, SupportedMediaType } from '@semiont/core';
-import type { GenerationOptions } from '@semiont/sdk';
+import type { Collaborator, GatheredContext, GenerationJobParams, SupportedMediaType } from '@semiont/core';
 import { LOCALES, GENERATABLE_MEDIA_TYPES, capabilitiesOf, proposeStoragePath } from '@semiont/core';
 
 /**
@@ -35,8 +34,8 @@ export interface GenerationDraft {
  *
  * `storageUri` is on this list rather than a local `storagePath: string`
  * because a second name for the same thing is tied to nothing and diverges.
- * Under the SDK's name, the page forwards the submitted config by spread, so
- * no field-by-field copy can drop one.
+ * Under the job's own name, the page forwards the submitted config by spread,
+ * so no field-by-field copy can drop one.
  */
 type FormFilled =
   | 'title'
@@ -46,32 +45,30 @@ type FormFilled =
   | 'outputMediaType';
 
 /**
- * The submitted payload: the SDK's own generation options, DERIVED rather
- * than restated, plus the grounding context.
+ * The submitted payload: a `yield` job's own params (`GenerationJobParams`),
+ * DERIVED rather than restated, the grounding context among them.
  *
  * A hand-written interface listing the same fields with independent types
- * would be a second copy of a shape the SDK owns, and such a copy drifts:
+ * would be a second copy of a shape the spec owns, and such a copy drifts:
  * every consumer re-maps it by hand and silently drops whatever the mapping
- * forgets. Deriving means a rename or retype in `GenerationOptions` is a
+ * forgets. Deriving means a rename or retype in `GenerationJobParams` is a
  * compile error here instead of a quiet gap at the wire.
  *
- * NARROWED on purpose: the SDK also carries `task`, `structure`, `cite` and
- * `stallDeadlineMs`, which this form does not collect, and a payload type
- * that advertised them would promise more than the UI delivers. Surfacing one
- * later is a one-word edit to `FormFilled` plus its control — the door is
- * unlocked, not open.
+ * NARROWED on purpose: the job also takes `task`, `structure` and `cite`,
+ * which this form does not collect, and a payload type that advertised them
+ * would promise more than the UI delivers. Surfacing one later is a one-word
+ * edit to `FormFilled` plus its control — the door is unlocked, not open.
  *
- * `Required` because the form always fills these, even where the SDK lets
+ * `Required` because the form always fills these, even where the job lets
  * them be absent; `prompt` stays optional, because a blank instruction field
  * is omitted rather than sent empty.
  */
 export type GenerationConfig =
-  & Required<Pick<GenerationOptions, FormFilled>>
+  & Required<Pick<GenerationJobParams, FormFilled>>
   // `temperature` is deliberately not Required: a model that rejects the
   // parameter gets neither the slider nor the field, so the submission
   // carries it only when the serving model accepts it.
-  & Pick<GenerationOptions, 'prompt' | 'temperature'>
-  & { context: GatheredContext };
+  & Pick<GenerationJobParams, 'prompt' | 'temperature' | 'context'>;
 
 /** The one place a format's required extension is read. */
 const extensionFor = (format: SupportedMediaType): string =>

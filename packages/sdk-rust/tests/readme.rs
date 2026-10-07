@@ -6,7 +6,6 @@ use bytes::Bytes;
 use semiont::bus::{operation, reply_names};
 use semiont::client::SemiontClient;
 use semiont::errors::SemiontError;
-use semiont::namespaces::{JobEvent, MarkAssistOptions};
 use semiont::session::{
     HttpEndpoint, KbEndpoint, KnowledgeBase, Protocol, SemiontBrowser, SemiontBrowserConfig,
     SemiontSession, SessionFactory, SessionFactoryOptions, StoredSession, save_knowledge_bases,
@@ -21,8 +20,8 @@ use semiont::testing::{
 };
 use semiont::transport::{BoxFuture, Envelope, Frame, PutBinaryRequest};
 use semiont::types::{
-    GatherResourceRequestOptions, GenerationJobParams, InvalidIdentifier, JobCompleteCommand,
-    JobResult, Motivation, ResourceId,
+    GatherResourceRequestOptions, GenerationJobParams, HighlightingJobParams, InvalidIdentifier,
+    JobCompleteCommand, JobResult, LinkingJobParams, Motivation, ResourceId,
 };
 use serde_json::{Map, Value, json};
 use std::sync::{Arc, Mutex};
@@ -63,14 +62,7 @@ async fn a_first_program(
     // Annotate: a model reads it and marks each mention of a concept.
     client
         .mark
-        .assist(
-            &paper_id,
-            Motivation::Linking,
-            MarkAssistOptions {
-                entity_types: Some(vec!["Concept".to_owned()]),
-                ..MarkAssistOptions::default()
-            },
-        )
+        .delegate(&paper_id, LinkingJobParams::new(vec!["Concept".to_owned()]))
         .await?;
 
     // Gather: the paper, its annotations, and what the knowledge base holds
@@ -84,7 +76,7 @@ async fn a_first_program(
     // source.
     let done = client
         .yield_
-        .from_context(
+        .delegate(
             GenerationJobParams {
                 task: Some("summary".to_owned()),
                 ..GenerationJobParams::new(
@@ -96,11 +88,8 @@ async fn a_first_program(
             None,
         )
         .await?;
-    let summary = match done {
-        JobEvent::Complete(JobCompleteCommand {
-            result: Some(JobResult::GenerationResult(generated)),
-            ..
-        }) => Some(generated.resource_id),
+    let summary = match done.result {
+        Some(JobResult::GenerationResult(generated)) => Some(generated.resource_id),
         _ => None,
     };
     // </readme:story>
@@ -110,7 +99,7 @@ async fn a_first_program(
 async fn a_script(
     client: &SemiontClient,
     resource_id: ResourceId,
-) -> Result<JobEvent, SemiontError> {
+) -> Result<JobCompleteCommand, SemiontError> {
     // <readme:script>
     // Asked once, answered once.
     let about = client.browse.kb().await?;
@@ -120,14 +109,10 @@ async fn a_script(
     let resource = client.browse.resource(&resource_id).fresh().await?;
     println!("{}", resource.name);
 
-    // A long-running operation, awaited for its final value.
+    // A job another party does, awaited for its completion.
     let done = client
         .mark
-        .assist(
-            &resource_id,
-            Motivation::Highlighting,
-            MarkAssistOptions::default(),
-        )
+        .delegate(&resource_id, HighlightingJobParams::new())
         .await?;
     // </readme:script>
     Ok(done)
@@ -230,7 +215,7 @@ fn a_knowledge_base(
 
 fn completion(job_id: &str) -> Map<String, Value> {
     object(json!({
-        "resourceId": "res-1", "jobId": job_id, "jobType": "highlight-annotation",
+        "resourceId": "res-1", "jobId": job_id, "jobType": "mark",
     }))
 }
 
@@ -253,7 +238,7 @@ async fn the_script_asks_reads_and_awaits_a_job_to_its_completion() {
         .expect("the script ends")
         .expect("the script ran")
         .expect("nothing failed");
-    assert!(matches!(done, JobEvent::Complete(complete) if complete.job_id == "job-1"));
+    assert_eq!(done.job_id, "job-1");
     let asked: Vec<String> = test
         .transport
         .request_log()
@@ -333,10 +318,8 @@ async fn the_first_program_ingests_a_paper_has_it_annotated_gathers_its_context_
     client.bus().emit(
         "job:complete",
         object(json!({
-            "resourceId": "test-content-1", "jobId": "job-1", "jobType": "reference-annotation",
-            "result": {
-                "kind": "reference-annotation", "totalFound": 3, "totalEmitted": 3, "errors": 0,
-            },
+            "resourceId": "test-content-1", "jobId": "job-1", "jobType": "mark",
+            "result": { "found": 3, "persisted": 3 },
         })),
         Envelope::default(),
     );
@@ -368,10 +351,9 @@ async fn the_first_program_ingests_a_paper_has_it_annotated_gathers_its_context_
     client.bus().emit(
         "job:complete",
         object(json!({
-            "resourceId": "test-content-1", "jobId": "job-2", "jobType": "generation",
+            "resourceId": "test-content-1", "jobId": "job-2", "jobType": "yield",
             "result": {
-                "kind": "generation", "resourceId": "res-summary",
-                "resourceName": "A summary", "truncated": false,
+                "resourceId": "res-summary", "resourceName": "A summary", "truncated": false,
             },
         })),
         Envelope::default(),
@@ -411,13 +393,13 @@ async fn the_first_program_ingests_a_paper_has_it_annotated_gathers_its_context_
         ["job:create", "gather:resource-requested", "job:create"]
     );
     let jobs = requests(&test.transport, "job:create");
-    assert_eq!(jobs[0].payload["jobType"], "reference-annotation");
+    assert_eq!(jobs[0].payload["jobType"], "mark");
     assert_eq!(jobs[0].payload["resourceId"], "test-content-1");
     assert_eq!(
         jobs[0].payload["params"],
-        json!({ "entityTypes": ["Concept"] })
+        json!({ "motivation": "linking", "entityTypes": ["Concept"] })
     );
-    assert_eq!(jobs[1].payload["jobType"], "generation");
+    assert_eq!(jobs[1].payload["jobType"], "yield");
     let params = &jobs[1].payload["params"];
     assert_eq!(params["title"], "Attention Is All You Need: a summary");
     assert_eq!(params["task"], "summary");

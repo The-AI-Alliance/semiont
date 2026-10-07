@@ -81,7 +81,7 @@ export interface ResourceGenerateModalProps {
   entityTypeOptions?: string[];
   /**
    * Emit the chosen generation config. The parent runs the job
-   * (`client.yield.fromContext(config.context, …)`) — mirrors how the
+   * (`client.yield.delegate(…)`) — mirrors how the
    * annotation wizard delegates generation to its parent.
    */
   onGenerateSubmit: (resourceId: string, config: GenerationConfig) => void;

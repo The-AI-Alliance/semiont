@@ -102,13 +102,13 @@ export function createMarkStateUnit(
     }
   }));
 
-  // AI assist. The assist() Observable encapsulates the full job
-  // lifecycle — it subscribes to job:report-progress/complete/fail
-  // filtered by its own jobId, emits JobProgress on `next`, completes
-  // on `job:complete`, errors on `job:fail`. mark-state-unit's only job is to
-  // drive the three UI observables from that stream.
+  // AI assist. `mark.delegate` creates the job and follows it: it gives the
+  // job's progress on `next`, completes on `job:complete`, errors on a
+  // `job:fail` that is final. mark-state-unit's only job is to drive the
+  // three UI observables from that stream.
   subs.push(client.bus.on('mark:assist-request').subscribe((event) => {
-    assistingMotivation$.next(event.motivation);
+    const { motivation } = event.params;
+    assistingMotivation$.next(motivation);
     progress$.next(null);
 
     // Silence detector, NOT a timeout. The job
@@ -140,20 +140,17 @@ export function createMarkStateUnit(
         });
         // The one notification the user gets. `assistingMotivation$` stays
         // set: the job is still running as far as anyone here knows.
-        client.bus.emit('mark:assist-timeout', {
-          resourceId,
-          motivation: event.motivation,
-        });
+        client.bus.emit('mark:assist-timeout', { resourceId, motivation });
       }, ASSIST_SILENCE_MS);
     };
     armStale();
 
-    const assistSub = client.mark.assist(resourceId, event.motivation, event.options).subscribe({
+    const assistSub = client.mark.delegate(resourceId, event.params).subscribe({
       next: (e) => {
         armStale();
         // Surface only the live progress events to the UI; the final
         // `complete` event carries `result` for callers awaiting the
-        // Observable, but the panel just dismisses on `complete`. Terminal
+        // delegation, but the panel just dismisses on `complete`. Terminal
         // outcomes (success / clean decline / failure) are surfaced as toasts
         // by useOutcomeToasts (react-ui), which subscribes job:complete /
         // job:fail directly — not through this Observable.

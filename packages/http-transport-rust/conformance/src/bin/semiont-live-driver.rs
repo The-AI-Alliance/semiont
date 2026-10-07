@@ -9,11 +9,11 @@
 use semiont::cache::CacheState;
 use semiont::cached::Observed;
 use semiont::client::{CachePersistence, ClientOptions, ClientTiming, SemiontClient};
-use semiont::namespaces::{JobEvent, MarkAssistOptions, ResourceFilters};
+use semiont::namespaces::{Delegation, ResourceFilters};
 use semiont::refresh::CacheQuery;
 use semiont::storage::InMemorySessionStorage;
 use semiont::transport::ConnectionState;
-use semiont::types::{AnnotationId, GenerationJobParams, ResourceId};
+use semiont::types::{AnnotationId, GenerationJobParams, MarkJobParams, ResourceId};
 use semiont_conformance_drivers::{
     Arguments, Driver, Ended, Running, count, failed, failure, identifier, locked, object, say,
     serve, text,
@@ -317,7 +317,7 @@ impl Live {
     fn follow(
         &self,
         args: &Arguments,
-        job: impl FnOnce() -> Result<semiont::running::Running<JobEvent>, Ended>,
+        job: impl FnOnce() -> Result<Delegation, Ended>,
     ) -> Result<Value, Ended> {
         let observer = text(args, "observer")?.to_owned();
         let mut observers = locked(&self.observers);
@@ -340,34 +340,31 @@ impl Live {
         Ok(Value::Null)
     }
 
-    fn assist(&self, args: &Arguments) -> Result<Value, Ended> {
+    /// A `mark` job delegated for a resource. `params` is what the job is
+    /// created with, its motivation among them.
+    fn mark_delegate(&self, args: &Arguments) -> Result<Value, Ended> {
         let client = self.client()?;
         self.follow(args, || {
-            let motivation =
-                serde_json::from_value(args.get("motivation").cloned().unwrap_or(Value::Null))
-                    .map_err(|e| Ended::Misuse(format!("motivation: {e}")))?;
-            let options: MarkAssistOptions =
-                serde_json::from_value(Value::Object(object(args, "options")?.clone()))
-                    .map_err(|e| Ended::Misuse(format!("options: {e}")))?;
-            Ok(client.mark.assist(
-                &identifier::<ResourceId>(args, "resource")?,
-                motivation,
-                options,
-            ))
+            let params: MarkJobParams =
+                serde_json::from_value(Value::Object(object(args, "params")?.clone()))
+                    .map_err(|e| Ended::Misuse(format!("params: {e}")))?;
+            Ok(client
+                .mark
+                .delegate(&identifier::<ResourceId>(args, "resource")?, params))
         })
     }
 
-    /// A generation, whose follower gives up on it after `stallDeadlineMs`
-    /// of silence. `params` is what the job is created with, its context
-    /// among them.
-    fn generate(&self, args: &Arguments) -> Result<Value, Ended> {
+    /// A `yield` job delegated, whose follower gives up on it after
+    /// `stallDeadlineMs` of silence. `params` is what the job is created
+    /// with, its context among them.
+    fn yield_delegate(&self, args: &Arguments) -> Result<Value, Ended> {
         let client = self.client()?;
         self.follow(args, || {
             let params: GenerationJobParams =
                 serde_json::from_value(Value::Object(object(args, "params")?.clone()))
                     .map_err(|e| Ended::Misuse(format!("params: {e}")))?;
             let stall = Duration::from_millis(count(args, "stallDeadlineMs")?);
-            Ok(client.yield_.from_context(params, Some(stall)))
+            Ok(client.yield_.delegate(params, Some(stall)))
         })
     }
 
@@ -379,8 +376,8 @@ impl Live {
             "unobserve" => self.unobserve(&args),
             "fresh" => self.fresh(object(&args, "query")?).await,
             "invalidate" => self.invalidate(object(&args, "query")?),
-            "assist" => self.assist(&args),
-            "generate" => self.generate(&args),
+            "markDelegate" => self.mark_delegate(&args),
+            "yieldDelegate" => self.yield_delegate(&args),
             "delete" => {
                 let client = self.client()?;
                 client
@@ -410,8 +407,8 @@ impl Driver for Live {
         "unobserve",
         "fresh",
         "invalidate",
-        "assist",
-        "generate",
+        "markDelegate",
+        "yieldDelegate",
         "delete",
         "sync",
     ];

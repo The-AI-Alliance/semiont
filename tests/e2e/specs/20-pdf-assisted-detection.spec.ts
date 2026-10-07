@@ -98,7 +98,7 @@ test.describe('assisted detection on a text-layer PDF', () => {
     await expect(submit).toBeEnabled({ timeout: 5_000 });
     await submit.click();
 
-    // Dispatch — the assist crossed the wire as a comment-annotation job.
+    // Dispatch — the assist crossed the wire as a `mark` job of the commenting motivation.
     const { request } = await bus.expectRequestResponse('job:create', 'job:created', 30_000);
     expect(request.channel).toBe('job:create');
 
@@ -138,8 +138,8 @@ test.describe('assisted detection on a text-layer PDF', () => {
     await expect(submit).toBeEnabled({ timeout: 5_000 });
     await submit.click();
 
-    // Dispatch — the assist crossed the wire as a reference-annotation job
-    // (jobType for `linking`; see namespaces/mark.ts jobTypeMap).
+    // Dispatch — the assist crossed the wire as a `mark` job of the linking
+    // motivation.
     const { request } = await bus.expectRequestResponse('job:create', 'job:created', 30_000);
     expect(request.channel).toBe('job:create');
 

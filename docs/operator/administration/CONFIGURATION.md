@@ -173,13 +173,20 @@ model = "claude-sonnet-4-5-20250929"
 type = "anthropic"
 model = "claude-sonnet-4-5-20250929"
 
-# One worker on a local model
-[environments.local.workers.highlight-annotation.inference]
+# One job on a local model
+[environments.local.workers.mark.highlighting.inference]
 type = "ollama"
 model = "gemma3:4b"
 ```
 
-The two actors that call a model are the `gatherer` and the `matcher`. The workers are `reference-annotation`, `highlight-annotation`, `assessment-annotation`, `comment-annotation`, `tag-annotation` and `generation`. A worker with no binding of its own uses `workers.default`, and a worker with neither does not start. A binding may also set `maxTokens`.
+The two actors that call a model are the `gatherer` and the `matcher`. A worker binding names the job it serves the way a job is described: by its type, `mark` or `yield`, and for a `mark` job by its motivation.
+
+| Job | Served by the first of these that is bound |
+|---|---|
+| A `mark` job of one motivation: `highlighting`, `commenting`, `assessing`, `linking` or `tagging` | `workers.mark.<motivation>`, `workers.mark`, `workers.default` |
+| A `yield` job | `workers.yield`, `workers.default` |
+
+A job that none of its bindings covers is served by no one. A section under `workers` that names no job is refused when the config is read, and the refusal names the section: `workers.tagging`, written where `workers.mark.tagging` is meant, gives `[environments.local.workers.tagging] names no job`. A binding may also set `maxTokens`.
 
 Providers can be mixed: a stronger model for the workers that reason, a lighter or local one for the high-volume ones. Every provider a binding names needs its provider section.
 
@@ -315,7 +322,7 @@ The launcher walks up from the current directory looking for `.semiont/`, as `gi
 | A section says `platform = "external"` and states no address | Add the address |
 | A section names a password for a daemon the launcher runs | Delete it. The launcher generates and keeps that password |
 | `[defaults] environment` is missing, or names an environment the file lacks | Set it to an environment the file defines |
-| A service finds no inference config for a worker or an actor | Add the binding; `[environments.<env>.workers.default.inference]` covers every worker |
+| A service finds no inference config for a worker or an actor | Add the binding; `[environments.<env>.workers.default.inference]` covers every job |
 | A `${NAME}` is not set | Export it, or register its source with `semiont settings secret set NAME` |
 
 ## Related

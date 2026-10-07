@@ -12,7 +12,7 @@ This skill works in the annotation layer of [the layered data model](../README.m
 
 ## Two modes
 
-**Delegate.** `mark.assist` with motivation `assessing` has the worker read the whole resource and assess it. Use it for a systematic review.
+**Delegate.** `mark.delegate` with motivation `assessing` has the worker read the whole resource and assess it. Use it for a systematic review.
 
 **Manual.** `mark.annotation` writes one assessment on a passage you name. Use it for a known issue.
 
@@ -43,44 +43,45 @@ const semiont = session.client;
 
 ## Delegate
 
-`semiont.mark.assist(...)` creates a job for the stack's worker and follows it to its end. It returns a `StreamObservable<MarkAssistEvent>`, and each event has a `kind`:
+`semiont.mark.delegate(rId, params)` creates a job for the stack's worker and follows it to its end. The params state the job's `motivation` and what that motivation takes: an assessing job takes `instructions`, `density`, `tone`, `language` and `sourceLanguage`. It returns a `DelegationObservable`. Read, it gives the job's events, and each has a `kind`:
 
 - `progress`: the worker's report, with a `percentage`.
 - `failed`: one attempt failed and the queue is running the job again.
-- `complete`: the job's end, with its `result`.
+- `complete`: the job's end, with its completion as `data`.
 
-Awaiting the call resolves to the last event, which is the `complete` one.
+Awaiting the call resolves to the completion itself, the `job:complete` the job ended with. Its `result` holds the counts: `found` is what the model proposed, `persisted` is what was written, and `errors`, present only when there were some, is how many of the proposed could not be anchored in the text. A resource whose text could not be read gives `{ declined: true, reason }` instead.
 
 ```typescript
 import { resourceId } from '@semiont/sdk';
 
 const rId = resourceId('doc-123');
 
-const done = await semiont.mark.assist(rId, 'assessing', {
+const done = await semiont.mark.delegate(rId, {
+  motivation: 'assessing',
   tone: 'critical',
   instructions: 'Flag scheduling risks, resource conflicts, and unverified safety assumptions',
   density: 4,
 });
 
-const result = done.kind === 'complete' ? done.data.result : undefined;
-if (result?.kind === 'assessment-annotation') {
-  console.log(`Created ${result.assessmentsCreated} of ${result.assessmentsFound} assessments`);
-} else if (result?.kind === 'declined') {
+const { result } = done;
+if (result && 'found' in result) {
+  console.log(`Created ${result.persisted} of ${result.found} assessments`);
+} else if (result && 'declined' in result) {
   console.log(`The resource's text could not be read: ${result.reason}`);
 }
 
 await session.dispose();
 ```
 
-To watch progress as well, call `.run(onEvent)`. It subscribes once and resolves to the same last event:
+To watch progress as well, call `.run(onEvent)`. It subscribes once and resolves to the same completion:
 
 ```typescript
-const done = await semiont.mark.assist(rId, 'assessing', { density: 4, tone: 'critical' }).run((event) => {
+const done = await semiont.mark.delegate(rId, { motivation: 'assessing', density: 4, tone: 'critical' }).run((event) => {
   if (event.kind === 'progress') console.log(`${event.data.percentage}%`);
 });
 ```
 
-Consume one call one way. The stream is cold, so awaiting a call and also subscribing to it creates the job twice.
+Consume one call one way. The delegation is cold, so awaiting a call and also subscribing to it creates the job twice.
 
 The call has no deadline of its own. If the job says nothing for ten seconds, the SDK asks for the job's status and keeps asking until the job ends, so a dropped connection does not lose the result. A job that fails for good rejects with `JobFailedError`, and a cancelled one with `JobCancelledError`.
 
@@ -113,6 +114,16 @@ await semiont.mark.annotation({
 ```typescript
 import { SemiontSession, InMemorySessionStorage, httpKb, resourceId } from '@semiont/sdk';
 
+const TONES = ['analytical', 'critical', 'balanced', 'constructive'] as const;
+
+/** The tone to write in. An assessing job takes one of its four and refuses any other. */
+function assessTone(): (typeof TONES)[number] {
+  const wanted = process.env.ASSESS_TONE ?? 'balanced';
+  const tone = TONES.find((t) => t === wanted);
+  if (!tone) throw new Error(`ASSESS_TONE must be one of: ${TONES.join(', ')}`);
+  return tone;
+}
+
 async function assess(resourceIdStr: string): Promise<void> {
   const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
   const session = await SemiontSession.signInDevice({
@@ -130,16 +141,17 @@ async function assess(resourceIdStr: string): Promise<void> {
   const semiont = session.client;
 
   try {
-    const done = await semiont.mark.assist(resourceId(resourceIdStr), 'assessing', {
-      tone: process.env.ASSESS_TONE ?? 'balanced',
+    const done = await semiont.mark.delegate(resourceId(resourceIdStr), {
+      motivation: 'assessing',
+      tone: assessTone(),
       instructions: process.env.ASSESS_INSTRUCTIONS ?? 'Flag risks, gaps, and unverified assumptions in this document',
       density: Number(process.env.ASSESS_DENSITY ?? 4),
     });
 
-    const result = done.kind === 'complete' ? done.data.result : undefined;
-    if (result?.kind === 'assessment-annotation') {
-      console.log(`Created ${result.assessmentsCreated} of ${result.assessmentsFound} assessments`);
-    } else if (result?.kind === 'declined') {
+    const { result } = done;
+    if (result && 'found' in result) {
+      console.log(`Created ${result.persisted} of ${result.found} assessments`);
+    } else if (result && 'declined' in result) {
       console.log(`The resource's text could not be read: ${result.reason}`);
     }
   } finally {
@@ -169,7 +181,7 @@ assess(target).catch((e) => {
 - **Density** is the number of assessments to aim for in each 2,000 words; the Browser offers 1 to 10. Start at 3 to 5 for a focused review, and go higher only for dense technical or legal text where nearly every claim deserves scrutiny.
 - **Assessment, comment or tag.** An assessment flags a problem. A comment helps the author revise or a reader understand. A tag classifies against a controlled vocabulary.
 - **Assessments feed aggregates.** To roll every flagged risk in a matter into one checklist or report, assess first and then run [`semiont-aggregate`](../semiont-aggregate/SKILL.md).
-- **What `mark.assist` can read.** A resource with text: Markdown, plain text, HTML, JSON, or a PDF. A resource with no text at all, such as an image, fails the job. A document whose text could not be read (an encrypted or damaged PDF, or one that yields no text) completes with a `declined` result and a reason code.
+- **What `mark.delegate` can read.** A resource with text: Markdown, plain text, HTML, JSON, or a PDF. A resource with no text at all, such as an image, fails the job. A document whose text could not be read (an encrypted or damaged PDF, or one that yields no text) completes with a `declined` result and a reason code.
 - **Check results** with `await semiont.browse.annotations(rId).fresh()`, filtered for `motivation === 'assessing'`.
 - **Manual mode is for known issues.** Delegate discovers; manual records what the user already found.
 - **From the command line.** `semiont mark --delegate <resourceId> --motivation assessing` runs the same job from the [launcher](../../../../apps/launcher/README.md#delegating-to-the-stack), with `--instructions`, `--density` and `--tone`. Use it for a one-off; write a script when the work repeats.

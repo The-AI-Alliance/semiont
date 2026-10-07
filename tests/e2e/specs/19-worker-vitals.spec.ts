@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { MARK_MOTIVATIONS, type JobFilter } from '@semiont/core';
 import { GATEWAY_URL } from '../playwright.config';
 import { signInSession } from '../fixtures/sdk-session';
 
@@ -27,7 +28,7 @@ import { signInSession } from '../fixtures/sdk-session';
  *    a feature verdict, and the distinctive error below says so.
  * 2. **Payload contract.** `status: 'ok'`, `agents` counts `workers[]`,
  *    and every entry carries identity (`provider`/`model`/`did`/
- *    `jobTypes`, concrete job types only — never the literal `'default'`)
+ *    `serves`: the jobs it serves, each named as a claim names it)
  *    plus vitals (`lastQueuedEventAt`/`lastClaimAt`/`lastFinishedAt`/
  *    `lastActivityAt` as ISO timestamps or honest nulls, `activeJob`,
  *    `jobsCompleted`). No secret material (the vitals are built beside
@@ -58,15 +59,12 @@ const WORKER_HEALTH_URL = (() => {
   return `${u.protocol}//${u.hostname}:24100/health`;
 })();
 
-/** The six concrete job types (JobType enum, specs/src/components/schemas/JobType.json). */
-const JOB_TYPES = [
-  'reference-annotation',
-  'generation',
-  'highlight-annotation',
-  'assessment-annotation',
-  'comment-annotation',
-  'tag-annotation',
-] as const;
+/** A job as a claim names it, in words: `mark.<motivation>`, or `yield`. */
+const named = (filter: JobFilter): string =>
+  filter.jobType === 'mark' ? `mark.${filter.params.motivation}` : filter.jobType;
+
+/** Every job a claim can name: a `mark` job of each motivation, and a `yield` job. */
+const JOBS = [...MARK_MOTIVATIONS.map((motivation) => `mark.${motivation}`), 'yield'];
 
 /**
  * Consumer-side re-declaration of the `/health` contract
@@ -78,7 +76,7 @@ interface AgentVitalsEntry {
   provider: string;
   model: string;
   did: string;
-  jobTypes: string[];
+  serves: JobFilter[];
   lastQueuedEventAt: string | null;
   lastClaimAt: string | null;
   lastFinishedAt: string | null;
@@ -132,10 +130,9 @@ test.describe('worker vitals (/health)', () => {
       expect(w.provider, `${id}: structured provider`).toBeTruthy();
       expect(w.model, `${id}: structured model`).toBeTruthy();
       expect(w.did, `${id}: carries its minted DID`).toMatch(/^did:web:.+:agents:[^:]+:[^:]+$/);
-      expect(Array.isArray(w.jobTypes) && w.jobTypes.length > 0, `${id}: serves ≥1 job type`).toBe(true);
-      for (const jt of w.jobTypes) {
-        expect(jt, `${id}: 'default' expands at resolution — never a served capability`).not.toBe('default');
-        expect(JOB_TYPES as readonly string[], `${id}: "${jt}" is a concrete JobType`).toContain(jt);
+      expect(Array.isArray(w.serves) && w.serves.length > 0, `${id}: serves ≥1 job`).toBe(true);
+      for (const filter of w.serves) {
+        expect(JOBS, `${id}: "${named(filter)}" is a job a claim can name`).toContain(named(filter));
       }
 
       epochOrNull(w.lastQueuedEventAt, `${id}: lastQueuedEventAt`);
@@ -161,8 +158,8 @@ test.describe('worker vitals (/health)', () => {
     ).toBe(false);
 
     // ── 3. Baseline for the lifecycle leg ──
-    const owner = baseline.workers.find((w) => w.jobTypes.includes('highlight-annotation'));
-    expect(owner, 'some agent serves highlight-annotation (routing itself is spec 18)').toBeTruthy();
+    const owner = baseline.workers.find((w) => w.serves.some((filter) => named(filter) === 'mark.highlighting'));
+    expect(owner, 'some agent serves highlighting (routing itself is spec 18)').toBeTruthy();
     const ownerDid = owner!.did;
     const baseCompleted = owner!.jobsCompleted;
     const baseFinished = epochOrNull(owner!.lastFinishedAt, 'baseline lastFinishedAt');
@@ -187,11 +184,8 @@ test.describe('worker vitals (/health)', () => {
         })
       ).resourceId;
 
-      const finalEvent = await client.mark.assist(rid, 'highlighting', { language: 'en' });
-      expect(
-        finalEvent.kind,
-        'highlight assist completes (highlight-annotation job → job:complete)',
-      ).toBe('complete');
+      const done = await client.mark.delegate(rid, { motivation: 'highlighting', sourceLanguage: 'en' });
+      expect(done.jobType, 'the highlighting job is a `mark` job, and it completed').toBe('mark');
     } finally {
       await session.dispose();
     }

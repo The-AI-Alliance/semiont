@@ -46,7 +46,7 @@ The SDK is a library, not a service. It runs no process of its own: you give a c
 - **A web app.** The TypeScript SDK in the page, with the session in the browser's storage. [`@semiont/react-ui`](../../packages/react-ui/README.md) adds the resource viewer and the annotation components. The Semiont Browser is built this way.
 - **A desktop app.** The TypeScript SDK in a webview, as Semiont's own desktop app has it, or the Rust SDK in a native one. A person signs in in their own browser and is sent back to the app.
 - **A mobile app.** The same shape as a desktop app. Nothing in the SDK assumes a browser or a server around it, and where a session is kept is an interface, so the app keeps it in the platform's own secure store.
-- **An ingestion or enrichment pipeline.** A script or a scheduled job, in any of the three languages. It signs in once, yields documents, and annotates them itself or has a model do it with `mark.assist` and follows the job.
+- **An ingestion or enrichment pipeline.** A script or a scheduled job, in any of the three languages. It signs in once, yields documents, and annotates them itself or has a model do it with `mark.delegate` and follows the job.
 - **A service.** A long-running process that hears what happens in the knowledge base as it happens, and acts on it. It signs in with an account of its own.
 - **An agent.** The same client a person's application uses. The [agent skills](./skills/README.md) are ready-made definitions for AI coding assistants, one per task.
 
@@ -64,7 +64,7 @@ Read in this order. Most people need only the first three.
 | [Introduction](./INTRODUCTION.md) | The ideas, once: one wire, annotations as data, AI work as jobs, live data, and where your code sits |
 | **[Developer Guide](./DEVELOPER-GUIDE.md)** | **How to build: the recipes, with the exact lines** |
 | [Usage](./Usage.md) | The reference: every method of every namespace, its options, what it returns, and the errors |
-| [Reactive model](./REACTIVE-MODEL.md) | Why a method returns what it does: the seven shapes every SDK shares, in TypeScript, Rust and Python |
+| [Reactive model](./REACTIVE-MODEL.md) | Why a method returns what it does: the eight shapes every SDK shares, in TypeScript, Rust and Python |
 | [State units](./STATE-UNITS.md) | The pattern for coordinated page and flow state in an application, in TypeScript and Rust |
 | [Cache semantics](../protocol/CACHE-SEMANTICS.md) | The numbered contract every SDK's live queries are held to |
 

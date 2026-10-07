@@ -4,24 +4,31 @@
   "properties": {
     "workers": {
       "type": "object",
-      "description": "The agent serving each job type.",
+      "description": "The agent serving each job, keyed as a job description is: by `jobType`, and for `mark` by motivation.",
       "properties": {
-        "reference-annotation": {
-          "$ref": "./ArchivistRosterRole.json"
+        "mark": {
+          "type": "object",
+          "description": "The agent serving `mark` jobs of each motivation.",
+          "properties": {
+            "highlighting": {
+              "$ref": "./ArchivistRosterRole.json"
+            },
+            "commenting": {
+              "$ref": "./ArchivistRosterRole.json"
+            },
+            "assessing": {
+              "$ref": "./ArchivistRosterRole.json"
+            },
+            "linking": {
+              "$ref": "./ArchivistRosterRole.json"
+            },
+            "tagging": {
+              "$ref": "./ArchivistRosterRole.json"
+            }
+          },
+          "additionalProperties": false
         },
-        "highlight-annotation": {
-          "$ref": "./ArchivistRosterRole.json"
-        },
-        "assessment-annotation": {
-          "$ref": "./ArchivistRosterRole.json"
-        },
-        "comment-annotation": {
-          "$ref": "./ArchivistRosterRole.json"
-        },
-        "tag-annotation": {
-          "$ref": "./ArchivistRosterRole.json"
-        },
-        "generation": {
+        "yield": {
           "$ref": "./ArchivistRosterRole.json"
         }
       },

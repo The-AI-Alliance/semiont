@@ -18,8 +18,8 @@ import { expectGeneratedAt } from '../fixtures/generated';
  *     → wizard transitions to `configure-generation`
  *     → user submits
  *     → ResourceViewerPage `handleWizardGenerateSubmit`
- *     → `client.yield.fromContext(context, options)` (ids derived from the focus)
- *     → bus `job:create` (with jobType="generation")
+ *     → `client.yield.delegate(params)` (the job's resource derived from the context's focus)
+ *     → bus `job:create` (with jobType="yield")
  *     → bus `job:created` (jobId)
  *     → worker claims job, calls inference, uploads result via
  *       `client.yield.resource(...)` (multipart POST /resources)
@@ -49,8 +49,7 @@ import { expectGeneratedAt } from '../fixtures/generated';
  *     annotation (motivation `linking`, body lacking a SpecificResource).
  *     The default seed has these on the Leland Stanford / Charles Crocker
  *     fixtures.
- *   - A working inference provider configured for the `generation`
- *     job type.
+ *   - A working inference provider configured for `yield` jobs.
  */
 test.describe('generate from unresolved reference', () => {
   test('clicking generate on an unresolved reference produces a job:complete with a new resourceId', async ({ signedInPage: page, bus }) => {

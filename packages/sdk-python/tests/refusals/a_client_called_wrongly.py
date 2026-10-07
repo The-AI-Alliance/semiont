@@ -7,9 +7,17 @@ from semiont.client import SemiontClient
 from semiont.http import HttpTransport
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.namespaces.follow import JobCompleted, JobEvent, JobProgressed
-from semiont.namespaces.mark import MarkAssistOptions
 from semiont.operations import MARK_DELETE
-from semiont.types import Annotation, BeckonHoverEvent, MarkDeleteCommand, MarkSubmitEvent, ResourceDescriptor
+from semiont.types import (
+    Annotation,
+    BeckonHoverEvent,
+    GenerationJobParams,
+    HighlightingJobParams,
+    MarkDeleteCommand,
+    MarkSubmitEvent,
+    ResourceDescriptor,
+    TaggingJobParams,
+)
 
 type Client = SemiontClient[HttpTransport]
 
@@ -19,7 +27,31 @@ async def ids_the_wrong_way_round(client: Client, resource: ResourceId, annotati
 
 
 def a_motivation_the_vocabulary_lacks(client: Client, resource: ResourceId) -> None:
-    client.mark.assist(resource, "highlightning", MarkAssistOptions())  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]
+    client.mark.delegate(resource, HighlightingJobParams(motivation="highlightning"))  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]
+
+
+def a_parameter_its_motivation_does_not_take(client: Client, resource: ResourceId) -> None:
+    client.mark.delegate(resource, HighlightingJobParams(motivation="highlighting", tone="scholarly"))  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]
+
+
+def a_tagging_job_with_no_schema(client: Client, resource: ResourceId) -> None:
+    client.mark.delegate(resource, TaggingJobParams(motivation="tagging", categories=["claim"]))  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]
+
+
+def a_job_of_another_verb(client: Client, resource: ResourceId, params: GenerationJobParams) -> None:
+    client.mark.delegate(resource, params)  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]
+
+
+def a_generation_of_a_mark_job_s_parameters(client: Client, params: HighlightingJobParams) -> None:
+    client.yield_.delegate(params)  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]
+
+
+async def a_completion_read_as_an_event(client: Client, resource: ResourceId, params: HighlightingJobParams) -> JobEvent:
+    return await client.mark.delegate(resource, params)  # type: ignore[return-value]  # pyright: ignore[reportReturnType]
+
+
+async def a_type_of_job_the_vocabulary_lacks(client: Client) -> None:
+    await client.job.cancel_by_type("annotation")  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]
 
 
 async def an_order_no_directory_is_listed_in(client: Client) -> None:

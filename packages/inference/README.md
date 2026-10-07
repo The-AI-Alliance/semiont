@@ -12,10 +12,10 @@ The model providers Semiont's services call, behind one interface. An `Inference
 
 Two of Semiont's services hold a model credential, and only they create clients:
 
-- the [Worker](../../apps/worker/README.md), through [`@semiont/jobs`](../jobs/README.md): one client for each model its job types are configured with;
+- the [Worker](../../apps/worker/README.md), through [`@semiont/jobs`](../jobs/README.md): one client for each model its jobs are configured with;
 - the [Librarian](../../apps/librarian/README.md), through [`@semiont/make-meaning`](../make-meaning/README.md): one for the Matcher and one for the Gatherer.
 
-**Building an application?** You do not need this package. An application asks a knowledge base to do the inference, through [`@semiont/sdk`](../sdk/README.md): `mark.assist`, `yield.fromContext`, `gather` and `match`.
+**Building an application?** You do not need this package. An application asks a knowledge base to do the inference, through [`@semiont/sdk`](../sdk/README.md): `mark.delegate`, `yield.delegate`, `gather` and `match`.
 
 ## What is in it
 

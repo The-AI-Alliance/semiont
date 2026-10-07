@@ -42,7 +42,7 @@ function setup(): { eventBus: EventBus } {
 const jobComplete = (over: { resourceId?: string; jobType?: string; result?: unknown } = {}) => ({
   resourceId: over.resourceId ?? RID,
   jobId: 'job-1',
-  jobType: (over.jobType ?? 'highlight-annotation') as never,
+  jobType: (over.jobType ?? 'mark') as never,
   result: over.result as never,
 });
 
@@ -67,7 +67,7 @@ describe('useOutcomeToasts', () => {
     const { eventBus } = setup();
     act(() => {
       eventBus.emit('job:complete', jobComplete({
-        result: { highlightsFound: 3, highlightsCreated: 3 },
+        result: { found: 3, persisted: 3 },
       }) as never);
     });
     expect(showSuccess).toHaveBeenCalledWith('annotationComplete');
@@ -78,8 +78,8 @@ describe('useOutcomeToasts', () => {
     const { eventBus } = setup();
     act(() => {
       eventBus.emit('job:complete', jobComplete({
-        jobType: 'generation',
-        result: { kind: 'generation', resourceId: 'res-gen', resourceName: 'Cell Biology Notes' },
+        jobType: 'yield',
+        result: { resourceId: 'res-gen', resourceName: 'Cell Biology Notes' },
       }) as never);
     });
     expect(showSuccess).toHaveBeenCalledWith('resourceCreatedNamed(name=Cell Biology Notes)');
@@ -89,7 +89,7 @@ describe('useOutcomeToasts', () => {
     const { eventBus } = setup();
     act(() => {
       eventBus.emit('job:complete', jobComplete({ resourceId: 'other-res' }) as never);
-      eventBus.emit('job:fail', { resourceId: 'other-res', jobId: 'job-1', jobType: 'highlight-annotation', error: 'boom' } as never);
+      eventBus.emit('job:fail', { resourceId: 'other-res', jobId: 'job-1', jobType: 'mark', error: 'boom' } as never);
     });
     expect(showSuccess).not.toHaveBeenCalled();
     expect(showInfo).not.toHaveBeenCalled();
@@ -99,7 +99,7 @@ describe('useOutcomeToasts', () => {
   it('a job failure surfaces as error with the worker message', () => {
     const { eventBus } = setup();
     act(() => {
-      eventBus.emit('job:fail', { resourceId: RID, jobId: 'job-1', jobType: 'highlight-annotation', error: 'inference timed out' } as never);
+      eventBus.emit('job:fail', { resourceId: RID, jobId: 'job-1', jobType: 'mark', error: 'inference timed out' } as never);
     });
     expect(showError).toHaveBeenCalledWith('inference timed out');
   });
@@ -198,7 +198,7 @@ describe('useOutcomeToasts — partiality on the ephemeral surface', () => {
     const { eventBus } = setup();
     act(() => {
       eventBus.emit('job:complete', jobComplete({
-        result: { kind: 'reference-annotation', totalFound: 9, totalEmitted: 6, errors: 0, underReportedPieces: 3 },
+        result: { found: 9, persisted: 6, underReportedPieces: 3 },
       }) as never);
     });
     expect(showInfo).toHaveBeenCalledWith('annotationCompletePartial(pieces=3)');
@@ -209,7 +209,7 @@ describe('useOutcomeToasts — partiality on the ephemeral surface', () => {
     const { eventBus } = setup();
     act(() => {
       eventBus.emit('job:complete', jobComplete({
-        result: { kind: 'reference-annotation', totalFound: 6, totalEmitted: 6, errors: 0 },
+        result: { found: 6, persisted: 6 },
       }) as never);
     });
     expect(showSuccess).toHaveBeenCalledWith('annotationComplete');
@@ -220,7 +220,7 @@ describe('useOutcomeToasts — partiality on the ephemeral surface', () => {
     const { eventBus } = setup();
     act(() => {
       eventBus.emit('job:fail', {
-        resourceId: RID, jobId: 'job-1', jobType: 'highlight-annotation',
+        resourceId: RID, jobId: 'job-1', jobType: 'mark',
         error: 'transient', willRetry: true,
       } as never);
     });
@@ -232,7 +232,7 @@ describe('useOutcomeToasts — partiality on the ephemeral surface', () => {
     const { eventBus } = setup();
     act(() => {
       eventBus.emit('job:fail', {
-        resourceId: RID, jobId: 'job-1', jobType: 'reference-annotation',
+        resourceId: RID, jobId: 'job-1', jobType: 'mark',
         error: 'boom', willRetry: false, completedUnits: ['Person', 'Place'],
       } as never);
     });
@@ -243,7 +243,7 @@ describe('useOutcomeToasts — partiality on the ephemeral surface', () => {
     const { eventBus } = setup();
     act(() => {
       eventBus.emit('job:fail', {
-        resourceId: RID, jobId: 'job-1', jobType: 'highlight-annotation',
+        resourceId: RID, jobId: 'job-1', jobType: 'mark',
         error: 'boom', willRetry: false,
       } as never);
     });

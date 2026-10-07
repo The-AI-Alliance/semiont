@@ -57,7 +57,8 @@ What init does:
 - **A config built, not copied**: `--inference anthropic|ollama --model <id>
   --embedding ollama:<model>` synthesizes a full semiontconfig from the
   launcher's own knowledge — the three-name binding roster
-  (gatherer/matcher/workers.default; per-worker refinement is your edit).
+  (gatherer/matcher/workers.default; per-job refinement is your edit:
+  `workers.mark`, `workers.mark.<motivation>`, `workers.yield`).
   NOTHING is mastered anywhere.
 - **Choices validated live**: with a key, Anthropic models validate against
   `/v1/models` (an unlisted id is a refusal printing what exists; no
@@ -567,15 +568,20 @@ progress:
   `assessing`, `linking` (references to the entity types `--entity-type`
   names) or `tagging` (a tag schema's categories, `--schema` and
   `--category`). `semiont browse --entity-types` and `semiont browse
-  --tag-schemas` list what a KB offers for those.
+  --tag-schemas` list what a KB offers for those. Each motivation's job takes
+  its own options: one it does not take is refused before anything is asked,
+  with the options it does take.
 
-Both end with what the job did: the resource generated, or how many
-annotations were created of how many were found. A job the queue runs again
-after a failed attempt is followed through the retry. A decline (a resource
-with no text the worker could read) and a failure both exit non-zero, and
-`--json` prints the job's completion as the stack sent it. What `mark
---delegate` sends for each motivation is the `mark.assist` row of
-`specs/src/client/surface.json`, which the TypeScript and Rust SDKs run too.
+Each creates a job described by its verb (`jobType` is `mark` or `yield`) and
+its parameters, a `mark` job's motivation among them. Both end with what the
+job did: the resource generated, or how many annotations of that motivation
+were created of how many were found (`3 highlighting annotations created (4
+found)`). A job the queue runs again after a failed attempt is followed
+through the retry. A decline (a resource with no text the worker could read)
+and a failure both exit non-zero, and `--json` prints the job's completion as
+the stack sent it. What `mark --delegate` sends for each motivation is the
+`mark.delegate` row of `specs/src/client/surface.json`, which the TypeScript,
+Rust and Python SDKs run too.
 
 ### Searching a KB
 

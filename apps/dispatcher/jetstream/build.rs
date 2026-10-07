@@ -31,7 +31,7 @@ fn main() {
     );
     let _ = writeln!(
         out,
-        "/// The root of every job subject: `<root>.<category>.<type>`.\npub const JOBS_SUBJECT_ROOT: &str = {:?};",
+        "/// The root of every job subject: a job is published on `<root>.<jobType>`.\npub const JOBS_SUBJECT_ROOT: &str = {:?};",
         text("/stream/subjectRoot")
     );
     let _ = writeln!(
@@ -44,20 +44,6 @@ fn main() {
         "/// The key-value bucket holding one record per job, keyed by its id.\npub const JOBS_BUCKET: &str = {:?};",
         text("/bucket/name")
     );
-    out.push_str("/// Every job type, by category; each type is in exactly one.\npub const JOB_CATEGORIES: &[(&str, &[&str])] = &[\n");
-    for (category, types) in layout["categories"]
-        .as_object()
-        .expect("storage.json has categories")
-    {
-        let types: Vec<String> = types
-            .as_array()
-            .expect("a category lists types")
-            .iter()
-            .map(|t| format!("{:?}", t.as_str().expect("a type is a string")))
-            .collect();
-        let _ = writeln!(out, "    ({category:?}, &[{}]),", types.join(", "));
-    }
-    out.push_str("];\n");
     let out_dir = PathBuf::from(std::env::var("OUT_DIR").expect("cargo sets OUT_DIR"));
     std::fs::write(out_dir.join("storage.rs"), out).expect("cannot write storage.rs");
 }

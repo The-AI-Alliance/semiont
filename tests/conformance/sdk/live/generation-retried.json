@@ -1,5 +1,5 @@
 {
-  "about": "a generation's setback is not its end: a job:fail the queue will try again is reported and followed past, as an assisted job's is; the follower does not ask for the status of the attempt that died, the setback starts its stall deadline again, and the next attempt's frames are the job's to their completion",
+  "about": "a generation's setback is not its end: a job:fail the queue will try again is reported and followed past, as a mark job's is; the follower does not ask for the status of the attempt that died, the setback starts its stall deadline again, and the next attempt's frames are the job's to their completion",
   "source": "docs/protocol/JOBS.md § Following a job; specs/src/client/timing.json jobSilenceMs",
   "tier": "parity",
   "steps": [
@@ -55,7 +55,7 @@
       "state": "open"
     },
     {
-      "driver": "generate",
+      "driver": "yieldDelegate",
       "with": {
         "observer": "job",
         "params": {
@@ -67,7 +67,7 @@
     {
       "fetch": "job:create",
       "payload": {
-        "jobType": "generation",
+        "jobType": "yield",
         "params": {
           "$var": "params"
         }
@@ -98,7 +98,7 @@
         "payload": {
           "resourceId": "res-one",
           "jobId": "job-1",
-          "jobType": "generation",
+          "jobType": "yield",
           "attempt": 1,
           "error": "the model did not answer",
           "willRetry": true
@@ -117,7 +117,7 @@
             },
             "resourceId": "res-one",
             "jobId": "job-1",
-            "jobType": "generation",
+            "jobType": "yield",
             "attempt": 1,
             "error": "the model did not answer",
             "willRetry": true
@@ -135,7 +135,7 @@
         "payload": {
           "resourceId": "res-one",
           "jobId": "job-1",
-          "jobType": "generation",
+          "jobType": "yield",
           "percentage": 40,
           "progress": {
             "percentage": 40
@@ -162,7 +162,7 @@
         "payload": {
           "resourceId": "res-one",
           "jobId": "job-1",
-          "jobType": "generation",
+          "jobType": "yield",
           "attempt": 2
         }
       }
@@ -179,7 +179,7 @@
             },
             "resourceId": "res-one",
             "jobId": "job-1",
-            "jobType": "generation",
+            "jobType": "yield",
             "attempt": 2
           }
         }

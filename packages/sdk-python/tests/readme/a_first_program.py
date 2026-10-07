@@ -1,9 +1,7 @@
 from semiont.client import SemiontClient
 from semiont.identifiers import ResourceId
-from semiont.namespaces.follow import JobCompleted
-from semiont.namespaces.mark import MarkAssistOptions
 from semiont.transport import PutBinaryRequest, Transport
-from semiont.types import GenerationJobParams, JobGenerationResult
+from semiont.types import GenerationJobParams, JobGenerationResult, LinkingJobParams
 
 
 async def summarize(client: SemiontClient[Transport], paper: bytes) -> ResourceId | None:
@@ -19,13 +17,13 @@ async def summarize(client: SemiontClient[Transport], paper: bytes) -> ResourceI
     paper_id = created.resource_id
 
     # Annotate: a model reads it and marks each mention of a concept.
-    await client.mark.assist(paper_id, "linking", MarkAssistOptions(entity_types=["Concept"]))
+    await client.mark.delegate(paper_id, LinkingJobParams(motivation="linking", entity_types=["Concept"]))
 
     # Gather: the paper, its annotations, and what the knowledge base holds around it.
     context = await client.gather.resource(paper_id)
 
     # Generate: a new resource, grounded in that context and linked to its source.
-    done = await client.yield_.from_context(
+    done = await client.yield_.delegate(
         GenerationJobParams(
             title="Attention Is All You Need: a summary",
             storage_uri="file://generated/attention-summary.md",
@@ -33,6 +31,5 @@ async def summarize(client: SemiontClient[Transport], paper: bytes) -> ResourceI
             task="summary",
         )
     )
-    if isinstance(done, JobCompleted) and isinstance(done.data.result, JobGenerationResult):
-        return done.data.result.resource_id
-    return None
+    # A job that could not read what it was given declines, and makes nothing.
+    return done.result.resource_id if isinstance(done.result, JobGenerationResult) else None

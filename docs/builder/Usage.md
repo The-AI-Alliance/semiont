@@ -30,19 +30,20 @@ Three framings hold the SDK's surface together. Skim them once and the per-names
 
 **Eight verbs.** Every operation belongs to one of eight flows that describe what a participant *does* with a shared corpus: four that write (*yield, mark, bind, frame*), three that read (*browse, match, gather*), and one that directs attention (*beckon*). Frame writes the vocabulary the other writing verbs draw on. Each flow is a namespace on `SemiontClient`. The verb is the unit of mental model; methods belong to flows, not to nouns. The protocol-level definitions live in [`docs/protocol/flows`](../protocol/flows); the per-namespace examples in this guide track the same vocabulary.
 
-**Five return shapes.** Method return types follow a predictable convention:
+**Six return shapes.** Method return types follow a predictable convention:
 
 | Shape | Naming | When to reach for it |
 |---|---|---|
 | `Promise<T>` | past-tense or short noun (`mark.annotation`, `auth.me`) | atomic gateway ops — one round-trip, one value |
-| `StreamObservable<T>` | plain verb (`mark.assist`, `gather.annotation`) | long-running progress streams — `await` for the final value, `.subscribe(...)` for every emit |
+| `StreamObservable<T>` | plain verb (`gather.annotation`, `match.search`) | long-running progress streams — `await` for the final value, `.subscribe(...)` for every emit |
+| `DelegationObservable` | `delegate` (`mark.delegate`, `yield.delegate`) | a job another party does — `await` for the job's completion, `.subscribe(...)` for each of its events |
 | `CacheObservable<T>` | plain noun (`browse.resource`, `browse.annotations`) | live queries — `.subscribe(...)` for `CacheState` emissions (`pending`/`ready`/`failed`, kept live), `.fresh()` for an explicit one-shot fetch |
 | `void` | imperative verb (`beckon.hover`, `mark.request`) | local signals — fire-and-forget onto the client's own bus, coordinating one viewer's interface |
 | `Promise<number \| undefined>` | imperative verb aimed at other participants (`beckon.openResource`, `beckon.sparkleAll`) | wire drives — beckon every other participant's viewer; resolves with the `/bus/emit` subscriber count, or `undefined` when the gateway cannot count, so a driver can tell an empty room from a full one |
 
-Streams and uploads are thenable, so `await` works without learning RxJS. Live queries are deliberately NOT thenable — the one-shot network read is always spelled `.fresh()`, and subscribing yields typed states rather than `T | undefined`. Full design in [REACTIVE-MODEL.md](./REACTIVE-MODEL.md).
+Streams, delegations and uploads are thenable, so `await` works without learning RxJS. Live queries are deliberately NOT thenable — the one-shot network read is always spelled `.fresh()`, and subscribing yields typed states rather than `T | undefined`. Full design in [REACTIVE-MODEL.md](./REACTIVE-MODEL.md).
 
-**Collaboration primitives.** The last row above, the wire drives (`beckon.attention`, `beckon.click`, `beckon.openResource`, `beckon.sparkleAll`), is the SDK's contribution to multi-participant coordination: each reaches every other participant's viewer. The `void` signals in the fourth row (`beckon.hover`, `bind.initiate`, `browse.click`) stay on the client's own bus. A human hovers; an AI agent reacts. An agent emits a sparkle; a human's UI lights up. This is *protocol-level* coordination on the same typed namespace surface as data operations. Observers reach the same signals via `session.subscribe(channel, handler)` or `client.bus.on(channel)` — see [`REACTIVE-MODEL.md` § Three paths to the bus](./REACTIVE-MODEL.md#three-paths-to-the-bus).
+**Collaboration primitives.** The last row above, the wire drives (`beckon.attention`, `beckon.click`, `beckon.openResource`, `beckon.sparkleAll`), is the SDK's contribution to multi-participant coordination: each reaches every other participant's viewer. The `void` signals in the fifth row (`beckon.hover`, `bind.initiate`, `browse.click`) stay on the client's own bus. A human hovers; an AI agent reacts. An agent emits a sparkle; a human's UI lights up. This is *protocol-level* coordination on the same typed namespace surface as data operations. Observers reach the same signals via `session.subscribe(channel, handler)` or `client.bus.on(channel)` — see [`REACTIVE-MODEL.md` § Three paths to the bus](./REACTIVE-MODEL.md#three-paths-to-the-bus).
 
 ## Setup
 
@@ -163,16 +164,18 @@ const { resourceId } = await semiont.yield.resource({
   storageUri: 'file://docs/doc.md',
 });
 
-// AI generation from annotation — StreamObservable<YieldGenerationEvent>:
-// subscribe for progress, await for the final event. A `failed` event is a
-// setback the queue will try again, on a stream that stays open; a failure
-// that is final rejects, as `job.failed`. The optional
+// AI generation from a gathered context — DelegationObservable: subscribe
+// for the job's events, await for its completion. The params are one
+// `yield` job's: `title`, `storageUri` and `context` are required. A
+// `failed` event is a setback the queue will try again, on a stream that
+// stays open; a failure that is final rejects, as `job.failed`. The optional
 // `entityTypes` are stamped on the synthesized resource (so
 // `browse.resources({ entityType: 'Character' })` finds it) and also
 // fed into the LLM prompt as a topical bias.
-semiont.yield.fromContext(gatheredContext, {
+semiont.yield.delegate({
   title: 'Generated Summary',
   storageUri: 'file://generated/summary.md',
+  context: gatheredContext,
   entityTypes: ['Character', 'Hero'],
 }).subscribe({
   next: (event) => console.log(event.kind, event),
@@ -203,12 +206,13 @@ semiont.yield.fromContext(gatheredContext, {
 // linking annotation on the generated resource (claim-span target, body →
 // the cited source). Citations arrive as ordinary references — navigable in
 // the Browser — NOT inline links; ids absent from the context are dropped
-// with a warn (hallucination guard). Composes with task/structure; the
-// post-hoc mark.assist('linking') pass still works alongside it.
+// with a warn (hallucination guard). Composes with task/structure; a
+// delegated 'linking' pass afterwards still works alongside it.
 // The Q&A recipe: ask the question via `title`, then
-semiont.yield.fromContext(resourceContext, {
+semiont.yield.delegate({
   title: 'What does the appendix say about retry budgets?',
   storageUri: 'file://generated/answer.md',
+  context: resourceContext,
   task: 'answer',
   structure: 'prose',
   cite: true,
@@ -219,15 +223,17 @@ semiont.yield.fromContext(resourceContext, {
   complete: () => console.log('Resource generated'),
 });
 
-// The OUTCOME. `job:complete.result` is a discriminated union on `kind`
-// (the six job types + 'declined'), so it narrows without a cast — and an
-// unhandled member is a compile error, never a runtime surprise.
-const done = await semiont.yield.fromContext(gatheredContext, {
+// The OUTCOME. Awaiting gives the job's completion, the `job:complete` it
+// ended with. Its `result` is one of three shapes that share no member — a
+// generation's resource, a mark job's counts, a decline — so it narrows
+// without a cast, by a member only one of them has.
+const done = await semiont.yield.delegate({
   title: 'Generated Summary',
   storageUri: 'file://generated/summary.md',
+  context: gatheredContext,
 });
-if (done.kind === 'complete' && done.data.result?.kind === 'generation') {
-  const { resourceId, resourceName, truncated } = done.data.result;
+if (done.result && 'resourceId' in done.result) {
+  const { resourceId, resourceName, truncated } = done.result;
   // resourceId is SAFE TO LINK: the worker emits job:complete only after
   // every cite-minted citation annotation has attached — the ordering
   // guarantee documented in the Yield flow. (yield:create-ok fires earlier,
@@ -280,9 +286,11 @@ await semiont.mark.unarchive(resourceId);
 // itself is frame.addEntityTypes.)
 await semiont.mark.updateEntityTypes(resourceId, ['Draft'], ['Draft', 'Question']);
 
-// AI-assisted annotation — StreamObservable<MarkAssistEvent>: subscribe
-// for progress, await for the final event.
-semiont.mark.assist(resourceId, 'linking', {
+// A delegated annotation pass — DelegationObservable: subscribe for the
+// job's events, await for its completion. The params state the motivation
+// and what that motivation takes.
+semiont.mark.delegate(resourceId, {
+  motivation: 'linking',
   entityTypes: ['Person', 'Organization'],
 }).subscribe({
   next: (event) => console.log(event.kind, event),
@@ -290,6 +298,8 @@ semiont.mark.assist(resourceId, 'linking', {
   complete: () => console.log('Done'),
 });
 ```
+
+Each motivation takes its own params and no others; [the Mark flow](../protocol/flows/MARK.md#delegation) lists them. Whatever the motivation, the completion's `result` is the same counts ([`JobDetectionResult`](../../specs/src/components/schemas/JobDetectionResult.json)): `found`, what the model proposed; `persisted`, what was written; and `errors`, how many of the proposed could not be anchored in the text, absent when none. A resource whose text could not be read completes with `{ declined: true, reason }` instead.
 
 ## Bind
 
@@ -348,8 +358,9 @@ const LEGAL_IRAC_SCHEMA: TagSchema = {
 // and logs a warning.
 await semiont.frame.addTagSchema(LEGAL_IRAC_SCHEMA);
 
-// Now mark.assist with motivation 'tagging' can use it.
-await semiont.mark.assist(rId, 'tagging', {
+// Now a delegated tagging pass can use it.
+await semiont.mark.delegate(rId, {
+  motivation: 'tagging',
   schemaId: LEGAL_IRAC_SCHEMA.id,
   categories: LEGAL_IRAC_SCHEMA.tags.map((t) => t.name),
 });
@@ -370,7 +381,7 @@ Browse methods read from materialized views. Live queries return `CacheObservabl
 
 ### Streams vs live queries
 
-Streaming methods (`mark.assist`, `gather.annotation`, `match.search`, `yield.fromContext`) return `StreamObservable<T>` — thenable, so `await` resolves the final value. Live-query methods (`browse.resource`, `browse.resources`, `browse.annotations`, `browse.annotation`, `browse.events`, `browse.entityTypes`, `browse.tagSchemas`, `browse.agents`, `match.resources`, `gather.referencedBy`) return `CacheObservable<T>` — NOT thenable; subscribe for the live view or call `.fresh()` for a fresh value. `.pipe(...)` composes with RxJS operators on either (and loses the stream thenable). See [REACTIVE-MODEL.md](./REACTIVE-MODEL.md) for the design rationale and method-by-method assignment.
+Streaming methods (`gather.annotation`, `match.search`) return `StreamObservable<T>` — thenable, so `await` resolves the final value. Delegated jobs (`mark.delegate`, `yield.delegate`) return `DelegationObservable` — thenable too: `await` resolves the job's completion. Live-query methods (`browse.resource`, `browse.resources`, `browse.annotations`, `browse.annotation`, `browse.events`, `browse.entityTypes`, `browse.tagSchemas`, `browse.agents`, `match.resources`, `gather.referencedBy`) return `CacheObservable<T>` — NOT thenable; subscribe for the live view or call `.fresh()` for a fresh value. `.pipe(...)` composes with RxJS operators on either (and loses the stream thenable). See [REACTIVE-MODEL.md](./REACTIVE-MODEL.md) for the design rationale and method-by-method assignment.
 
 ### Live Queries (subscribe)
 
@@ -621,7 +632,7 @@ import { createJobClaimAdapter } from '@semiont/jobs';
 const httpTransport = session.client.transport as HttpTransport;
 const adapter = createJobClaimAdapter({
   bus: httpTransport.actor,
-  jobTypes: ['generation', 'reference-annotation'],
+  accepts: [{ jobType: 'yield' }, { jobType: 'mark', params: { motivation: 'linking' } }],
 });
 adapter.start();
 ```
@@ -690,8 +701,8 @@ Bus-layer and session-layer errors keep their own code namespaces:
 |---|---|---|
 | `APIError` (extends `SemiontError`) | `TransportErrorCode` (above) — plus `APIError.status` for the original HTTP status | HTTP transport (`@semiont/http-transport`) |
 | `BusRequestError` | `bus.timeout`, `bus.rejected`, `bus.closed`, `bus.unauthorized`, `bus.not-found`, `bus.unsubscribed`, `bus.peer-unavailable`, `bus.none-pending` | bus-mediated commands inside namespaces. (`bus.timeout` should be rare: the emit is gated on an open connection, and a reply published during a disconnect replays from the server's retention buffer on reconnect — a timeout that does fire usually means the gateway is genuinely down or slow.) |
-| `JobFailedError` | `job.failed` — the job a call was following failed and will not be tried again; `jobId` names it | `mark.assist`, `yield.fromContext` |
-| `GenerationStallError` | `job.stalled` — a generation said nothing for its stall deadline, and its cancellation was requested | `yield.fromContext` |
+| `JobFailedError` | `job.failed` — the job a call was following failed and will not be tried again; `jobId` names it | `mark.delegate`, `yield.delegate` |
+| `GenerationStallError` | `job.stalled` — a generation said nothing for its stall deadline, and its cancellation was requested | `yield.delegate` |
 | `SemiontSessionError` | `session.auth-failed`, `session.refresh-exhausted`, `session.credential-refused`, `session.construct-failed` | the session layer — surfaced on `SemiontBrowser.error$`, not as a per-call rejection |
 
 **What ends a session.** Two things, each with its own code.

@@ -80,9 +80,10 @@ func promGaugeInt(readout, name string, want map[string]string) (int, bool) {
 
 // promSumInt adds every matching sample rather than taking the first.
 // Counters arrive split across the labels they are recorded with — job
-// outcomes by `job_type`, and one series per process reporting them — so a
-// total is a sum over all of them, and a reader that took the first would
-// silently report one job type's work as the whole.
+// outcomes by `job_type` and, for a mark job, `job_motivation`, and one series
+// per process reporting them — so a total is a sum over all of them, and a
+// reader that took the first would silently report one motivation's work as
+// the whole.
 func promSumInt(readout, name string, want map[string]string) (int, bool) {
 	total, found := 0.0, false
 	forEachSample(readout, name, want, func(v float64) bool {

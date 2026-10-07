@@ -47,8 +47,9 @@ func Yield(args []string) int {
 	u := launcher.NewUI(false)
 	var uploads, positional []string
 	name, repo, wantLocal := "", "", false
-	delegate := false
-	var dopts delegateOptions
+	delegate, asJSON := false, false
+	// given: what the job flags gave, by the name of the parameter each gives.
+	given := map[string]any{}
 	for i := 0; i < len(args); i++ {
 		// --delegate takes its own option set; everything below stays the
 		// upload path's.
@@ -62,27 +63,21 @@ func Yield(args []string) int {
 				i++
 				return args[i], true
 			}
+			if taken, ok := yieldJobFlags.take(u, a, val, given); taken {
+				if !ok {
+					return 1
+				}
+				continue
+			}
 			var ok bool
 			switch a {
-			case "--storage-uri":
-				dopts.storageURI, ok = val()
-			case "--title":
-				dopts.title, ok = val()
-			case "--prompt":
-				dopts.prompt, ok = val()
-			case "--language":
-				dopts.language, ok = val()
-			case "--task":
-				dopts.task, ok = val()
-			case "--structure":
-				dopts.structure, ok = val()
 			case "--repo":
 				repo, ok = val()
 			case "--runtime":
 				_, ok = val()
 				wantLocal = true
 			case "--json":
-				dopts.asJSON, ok = true, true
+				asJSON, ok = true, true
 			case "--help", "-h":
 				fmt.Print(delegateUsage)
 				return 0
@@ -143,19 +138,20 @@ func Yield(args []string) int {
 			fmt.Print(delegateUsage)
 			return 1
 		}
-		if dopts.storageURI == "" {
-			u.Fail("--delegate needs --storage-uri (the generated resource must be given a home).")
-			return 1
-		}
-		if dopts.title == "" {
-			u.Fail("--delegate needs --title: GenerationJobParams requires it, so the gateway rejects a job without one.")
+		// What the job is asked to make is read before anything is gathered:
+		// a job the gateway would refuse is refused here, before the caller
+		// has paid for a gather.
+		var request semiont.GenerationJobRequest
+		if err := jobParams(given, yieldJobFlags, &request, "--delegate"); err != nil {
+			u.Fail("%v", err)
+			fmt.Fprintln(os.Stderr, "  semiont yield --delegate --help")
 			return 1
 		}
 		t, ok := launcher.VerbSession(u, "yield", repo, wantLocal)
 		if !ok {
 			return 1
 		}
-		return runYieldDelegate(u, t, positional, dopts)
+		return runYieldDelegate(u, t, positional, request, asJSON)
 	}
 	if len(uploads) == 0 {
 		fmt.Print(yieldUsage)
@@ -351,14 +347,27 @@ Options:
 Requires a session:  semiont login
 `
 
-func runYieldDelegate(u *launcher.UI, t launcher.VerbTarget, positional []string, opts delegateOptions) int {
+// yieldJobFlags: the flag that gives each parameter of a delegated yield's
+// job that a caller gives. Its context is gathered. Which of them the job
+// requires is the generated GenerationJobRequest's to say (jobParams), and
+// TestEveryYieldJobFlagGivesAParameter holds this table to it.
+var yieldJobFlags = jobFlags{
+	"--storage-uri": {"storageUri", flagText},
+	"--title":       {"title", flagText},
+	"--prompt":      {"prompt", flagText},
+	"--language":    {"language", flagText},
+	"--task":        {"task", flagText},
+	"--structure":   {"structure", flagText},
+}
+
+func runYieldDelegate(u *launcher.UI, t launcher.VerbTarget, positional []string, request semiont.GenerationJobRequest, asJSON bool) int {
 	cli := t.Transport()
 	ctx := context.Background()
 	resourceID := positional[0]
 
 	// Gather the grounding context first: a generation job requires it, and
 	// its focus names the resource or annotation the generation is about.
-	var gathered any
+	var gathered semiont.GatheredContext
 	if len(positional) == 2 {
 		reply, err := cli.Request(ctx, "gather:requested", semiont.GatherAnnotationRequest{
 			ResourceId: resourceID, AnnotationId: positional[1],
@@ -393,32 +402,29 @@ func runYieldDelegate(u *launcher.UI, t launcher.VerbTarget, positional []string
 		gathered = gc.Response
 	}
 
-	// GenerationJobParams requires title, storageUri and context; the rest are
-	// optional and omitted when empty.
-	params := map[string]any{"title": opts.title, "storageUri": opts.storageURI, "context": gathered}
-	for k, v := range map[string]string{
-		"prompt": opts.prompt, "language": opts.language,
-		"task": opts.task, "structure": opts.structure,
-	} {
-		if v != "" {
-			params[k] = v
-		}
+	// A yield job's parameters are what it is asked to make and the context it
+	// is made from. The context carries the ids: the dispatcher derives the
+	// job's resource from its focus, so the command names none. The gather
+	// above is what puts the right focus there: an annotation's with two
+	// positionals, a resource's with one.
+	var params semiont.GenerationJobParams
+	asked, err := json.Marshal(request)
+	if err == nil {
+		err = json.Unmarshal(asked, &params)
 	}
-
-	// The CONTEXT carries the ids. For jobType generation the dispatcher
-	// derives resourceId from params.context.focus and rejects a caller-supplied
-	// one; the params schema has no referenceId, and the worker derives it the
-	// same way. So the envelope's ResourceId stays nil here — sending what we
-	// know would be rejected, and the focus is authoritative anyway. The gather
-	// above is what puts the right focus in the context: annotation-focused with
-	// two positionals, resource-focused with one.
+	var create semiont.JobCreateCommand
+	if err == nil {
+		params.Context = gathered
+		err = create.FromYieldJobCreateCommand(semiont.YieldJobCreateCommand{Params: params})
+	}
+	if err != nil {
+		u.Fail("yield --delegate: the job could not be described: %v", err)
+		return 1
+	}
 	done, raw, ok := delegatedJob{
 		verb: "yield --delegate", doing: "Generating", failed: "Generation",
-		check: "semiont browse " + resourceID,
-		create: semiont.JobCreateCommand{
-			JobType: semiont.JobTypeGeneration,
-			Params:  params,
-		},
+		check:  "semiont browse " + resourceID,
+		create: create,
 	}.run(u, cli)
 	if !ok {
 		return 1
@@ -427,7 +433,7 @@ func runYieldDelegate(u *launcher.UI, t launcher.VerbTarget, positional []string
 	// no resource to name.
 	result := jobResult(done)
 	declined, isDecline := result.(semiont.JobDeclinedResult)
-	if opts.asJSON {
+	if asJSON {
 		fmt.Println(string(raw))
 		// The exit code is a property of the outcome, not of the output
 		// format.
@@ -442,19 +448,14 @@ func runYieldDelegate(u *launcher.UI, t launcher.VerbTarget, positional []string
 		// all the same: the caller asked for a resource and has none, and
 		// nothing downstream of a `yield --delegate && ...` should run.
 		u.Fail("Declined (%s): %s", declined.Reason, declineText(declined.Reason))
-		fmt.Fprintf(os.Stderr, "  Nothing was written to %s.\n", opts.storageURI)
+		fmt.Fprintf(os.Stderr, "  Nothing was written to %s.\n", request.StorageUri)
 		return 1
 	}
 	// A generation names the resource it produced.
-	if gen, ok := result.(semiont.JobGenerationResult); ok && gen.ResourceId != "" {
-		u.Ok("Yielded %s → %s %s", opts.storageURI, gen.ResourceId, u.Dim(gen.ResourceName))
+	if generated, ok := result.(semiont.JobGenerationResult); ok {
+		u.Ok("Yielded %s → %s %s", request.StorageUri, generated.ResourceId, u.Dim(generated.ResourceName))
 		return 0
 	}
-	u.Ok("Yielded %s", opts.storageURI)
+	u.Ok("Yielded %s", request.StorageUri)
 	return 0
-}
-
-type delegateOptions struct {
-	storageURI, title, prompt, language, task, structure string
-	asJSON                                               bool
 }

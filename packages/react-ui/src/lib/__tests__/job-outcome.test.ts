@@ -10,7 +10,7 @@ describe('declineReason', () => {
   });
 
   it('is null for an ordinary result', () => {
-    expect(declineReason({ highlightsFound: 3 })).toBeNull();
+    expect(declineReason({ found: 3, persisted: 3 })).toBeNull();
     expect(declineReason(undefined)).toBeNull();
     expect(declineReason({ declined: false, reason: 'empty' })).toBeNull();
   });

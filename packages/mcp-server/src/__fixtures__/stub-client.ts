@@ -14,7 +14,8 @@ import type {
   AnnotationId,
   BodyOperation,
   GatheredContext,
-  Motivation,
+  GenerationJobParams,
+  MarkJobParams,
   ResourceDescriptor,
   ResourceId,
 } from '@semiont/core';
@@ -22,12 +23,9 @@ import type {
   CreateAnnotationInput,
   CreateResourceInput,
   GatherAnnotationComplete,
-  GenerationOptions,
-  MarkAssistEvent,
-  MarkAssistOptions,
+  JobEvent,
   MatchedResources,
   ResourceList,
-  YieldGenerationEvent,
 } from '@semiont/sdk';
 
 import type { McpClient } from '../handlers.js';
@@ -91,19 +89,19 @@ export const GATHER_COMPLETE: GatherAnnotationComplete = {
   response: CONTEXT,
 };
 
-export const ASSIST_COMPLETE: MarkAssistEvent = {
+export const ASSIST_COMPLETE: JobEvent = {
   kind: 'complete',
   data: {
     resourceId: resourceId('res-iliad'),
     jobId: jobId('job-1'),
-    jobType: 'reference-annotation',
-    result: { kind: 'reference-annotation', totalFound: 7, totalEmitted: 7, errors: 0 },
+    jobType: 'mark',
+    result: { found: 7, persisted: 7 },
   },
 };
 
-export const GENERATION_COMPLETE: YieldGenerationEvent = {
+export const GENERATION_COMPLETE: JobEvent = {
   kind: 'complete',
-  data: { resourceId: resourceId('res-iliad'), jobId: jobId('job-2'), jobType: 'generation' },
+  data: { resourceId: resourceId('res-iliad'), jobId: jobId('job-2'), jobType: 'yield' },
 };
 
 /**
@@ -121,7 +119,7 @@ export function createStub() {
     annotation: vi.fn<(input: CreateAnnotationInput) => Promise<{ annotationId: AnnotationId }>>(
       async () => ({ annotationId: annotationId('anno-new') }),
     ),
-    assist: vi.fn<(id: ResourceId, motivation: Motivation, options: MarkAssistOptions) => Observable<MarkAssistEvent>>(
+    delegate: vi.fn<(id: ResourceId, params: MarkJobParams) => Observable<JobEvent>>(
       () => of(ASSIST_COMPLETE),
     ),
   };
@@ -142,7 +140,7 @@ export function createStub() {
     resource: vi.fn<(data: CreateResourceInput) => Promise<{ resourceId: ResourceId }>>(
       async () => ({ resourceId: resourceId('res-new') }),
     ),
-    fromContext: vi.fn<(context: GatheredContext, options: GenerationOptions) => Observable<YieldGenerationEvent>>(
+    delegate: vi.fn<(params: GenerationJobParams) => Observable<JobEvent>>(
       () => of(GENERATION_COMPLETE),
     ),
   };
