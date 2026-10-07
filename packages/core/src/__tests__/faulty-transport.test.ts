@@ -16,6 +16,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { busRequest } from '../bus-request';
+import { BUS_OPERATIONS, type BusOperationKey } from '../bus-operations';
 import { FaultyTransport } from '../faulty-transport';
 
 const OP = 'browse:resources-requested';
@@ -92,6 +93,89 @@ describe('FaultyTransport.queueReply', () => {
     const result = await promise;
     expect(result.total).toBe(7);
     expect(transport.requestLog).toHaveLength(1);
+
+    transport.dispose();
+  });
+});
+
+// ── A reply that names what it answers for ───────────────────────────────
+//
+// Three replies state an id beside their `response`: the annotation or the
+// resource a context was gathered for, the reference a search was for. A
+// gateway takes it from the request, and so does the double: a test queues the
+// response alone and the reply is whole.
+
+describe('a reply that names what it answers for', () => {
+  /** The payload of each reply frame `request` is answered with. */
+  async function repliesTo(
+    transport: FaultyTransport,
+    op: BusOperationKey,
+    request: Record<string, unknown>,
+  ): Promise<unknown[]> {
+    const replies: unknown[] = [];
+    const heard = transport.frames(BUS_OPERATIONS[op].result).subscribe((frame) => replies.push(frame.payload));
+    await busRequest(transport, op, request, 1_000);
+    heard.unsubscribe();
+    return replies;
+  }
+
+  it.each<[BusOperationKey, Record<string, unknown>, Record<string, unknown>]>([
+    [
+      'gather:requested',
+      { annotationId: 'ann-1', resourceId: 'res-1' },
+      { annotationId: 'ann-1', response: 'scripted' },
+    ],
+    [
+      'gather:resource-requested',
+      { resourceId: 'res-1', options: {} },
+      { resourceId: 'res-1', response: 'scripted' },
+    ],
+    [
+      'match:search-requested',
+      { resourceId: 'res-1', referenceId: 'ann-1', context: {} },
+      { referenceId: 'ann-1', response: 'scripted' },
+    ],
+  ])('the reply to %s states the id its request stated, beside the queued response', async (op, request, reply) => {
+    const transport = new FaultyTransport();
+    transport.queueReply(op, 'scripted');
+
+    expect(await repliesTo(transport, op, request)).toStrictEqual([reply]);
+
+    transport.dispose();
+  });
+
+  it('so does a reply makeResponse answers, and each copy of a duplicated one', async () => {
+    const transport = new FaultyTransport({
+      schedule: [{ kind: 'duplicate-reply' }],
+      makeResponse: (op) => ({ for: op }),
+    });
+
+    const whole = { resourceId: 'res-1', response: { for: 'gather:resource-requested' } };
+    expect(await repliesTo(transport, 'gather:resource-requested', { resourceId: 'res-1', options: {} })).toStrictEqual([
+      whole,
+      whole,
+    ]);
+
+    transport.dispose();
+  });
+
+  it('a reply that names nothing is its response and no more', async () => {
+    const transport = new FaultyTransport();
+    const page = { resources: [], total: 1, offset: 0 };
+    transport.queueReply(OP, page);
+
+    expect(await repliesTo(transport, OP, { limit: 10 })).toStrictEqual([{ response: page }]);
+
+    transport.dispose();
+  });
+
+  it('a request that does not state what its reply names cannot be answered, and that is said', async () => {
+    const transport = new FaultyTransport();
+    transport.queueReply('gather:resource-requested', 'scripted');
+
+    await expect(busRequest(transport, 'gather:resource-requested', { options: {} }, 1_000)).rejects.toThrow(
+      'FaultyTransport: the reply to gather:resource-requested names "resourceId", which this request does not state',
+    );
 
     transport.dispose();
   });

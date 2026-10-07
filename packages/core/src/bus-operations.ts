@@ -8,7 +8,7 @@
 // names which one each channel carries, and every payload type here is
 // derived from that. Add or change a channel THERE.
 
-import type { EventName, EmittableChannel } from './bus-protocol';
+import type { EventMap, EventName, EmittableChannel } from './bus-protocol';
 
 /**
  * BUS_OPERATIONS — the request/reply operations registry.
@@ -109,3 +109,65 @@ export const BUS_OPERATIONS = {
 
 /** The request-channel key of a registered operation — what `busRequest` takes. */
 export type BusOperationKey = keyof typeof BUS_OPERATIONS;
+
+/**
+ * REPLY_NAMES — what each operation's reply states beside its `response`.
+ *
+ * A reply names what it answers for by stating a property of its request
+ * again: the annotation or the resource a context was gathered for, the
+ * reference a search was for. Whoever answers takes each from the request.
+ * Most replies name nothing.
+ *
+ * Each list is what the reply's component schema requires, without
+ * `response`. The generator refuses a name the request's schema does not
+ * state, and the `satisfies` below holds each to the TypeScript types of both
+ * payloads.
+ */
+export const REPLY_NAMES = {
+  'bind:update-body':                    [],
+  'browse:resource-requested':           [],
+  'browse:anchored-text-requested':      [],
+  'browse:resources-requested':          [],
+  'browse:annotation-requested':         [],
+  'browse:annotations-requested':        [],
+  'browse:annotation-history-requested': [],
+  'browse:events-requested':             [],
+  'browse:entity-types-requested':       [],
+  'browse:tag-schemas-requested':        [],
+  'browse:agents-requested':             [],
+  'browse:kb-requested':                 [],
+  'browse:directory-requested':          [],
+  'browse:annotation-context-requested': [],
+  'frame:add-entity-type':               [],
+  'frame:add-tag-schema':                [],
+  'gather:requested':                    ['annotationId'],
+  'gather:resource-requested':           ['resourceId'],
+  'gather:summary-requested':            [],
+  'gather:referenced-by-requested':      [],
+  'gather:limits-requested':             [],
+  'job:create':                          [],
+  'job:status-requested':                [],
+  'job:limits-requested':                [],
+  'job:cancel-requested':                [],
+  'job:claim':                           [],
+  'mark:create-request':                 [],
+  'mark:commit':                         [],
+  'mark:delete':                         [],
+  'mark:archive':                        [],
+  'mark:unarchive':                      [],
+  'mark:update-entity-types':            [],
+  'match:search-requested':              ['referenceId'],
+  'match:resources-requested':           [],
+  'match:limits-requested':              [],
+  'weave:rebuild':                       [],
+  'smelt:rebuild-anchors':               [],
+  'yield:create':                        [],
+  'yield:clone-persist':                 [],
+  'yield:update':                        [],
+  'yield:clone-create':                  [],
+  'yield:clone-resource-requested':      [],
+  'yield:clone-token-requested':         [],
+} as const satisfies {
+  readonly [Op in BusOperationKey]: readonly (keyof EventMap[Op] &
+    keyof EventMap[(typeof BUS_OPERATIONS)[Op]['result'] & EventName])[];
+};

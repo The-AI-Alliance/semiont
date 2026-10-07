@@ -36,7 +36,7 @@ import { dirname, join, relative } from 'path';
 import { fileURLToPath } from 'url';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '../../../..');
-const SKIP = new Set(['node_modules', 'dist', '.git', 'coverage', '.next', 'build']);
+const SKIP = new Set(['node_modules', '.venv', 'dist', '.git', 'coverage', '.next', 'build']);
 
 function* sources(dir: string): Generator<string> {
   for (const entry of readdirSync(dir)) {
