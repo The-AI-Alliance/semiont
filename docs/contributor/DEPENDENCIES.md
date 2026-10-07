@@ -29,6 +29,8 @@ Packages that must move together are grouped, so they arrive in one pull request
 
 The crates the Rust services link are also checked against the RustSec advisory database by [Gateway Crate Advisories](../../.github/workflows/gateway-advisories.yml) (`cargo deny`): on every pull request that changes a `Cargo.toml` or `Cargo.lock`, and daily, because the database changes without a commit. An advisory judged not to reach the services is ignored in [`deny.toml`](../../deny.toml) with its reason, and an ignore that stops matching fails the run.
 
+The npm packages the repository ships are checked against GitHub's advisory database by [npm Advisories](../../.github/workflows/npm-advisories.yml) (`npm audit --omit=dev` over every tracked lockfile): on every pull request that changes a `package.json` or a `package-lock.json`, daily, and first in a [release](../../.github/workflows/release.yml), which creates no tag until it passes. A high or critical advisory fails it. One judged not to reach what ships is ignored in [`.github/npm-advisories.json`](../../.github/npm-advisories.json) with its reason, and an ignore that stops matching fails the run. Development dependencies are outside it; Dependabot's alerts report advisories against those.
+
 ## Reviewing a dependency pull request
 
 **Do not merge part of a group.** The `bundler-binaries` group keeps a bundler and its per-platform native binaries (`@rolldown/binding-*`, `lightningcss-*`) on one version. Moving one without the others fails CI with `cannot find module *.linux-x64-gnu.node`.

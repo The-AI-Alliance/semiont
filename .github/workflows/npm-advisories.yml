@@ -1,0 +1,51 @@
+name: npm Advisories
+
+# The npm packages the repository ships — what each lockfile resolves outside
+# its development dependencies — held to GitHub's advisory database at high and
+# critical severity: check-npm-advisories.mjs, less the advisories
+# .github/npm-advisories.json records as read and judged not to reach what
+# ships.
+#
+# It runs when what a lockfile resolves changes, and daily: the database changes
+# without a commit here, so an advisory published today fails tomorrow's run,
+# on the default branch, where a scheduled run reports to whoever last changed
+# the schedule. A release calls it first (release.yml): a release is when an
+# advisory published since the last run reaches whoever installs the packages,
+# so the tag waits for this.
+
+on:
+  pull_request:
+    paths:
+      - '**/package.json'
+      - '**/package-lock.json'
+      - .node-version
+      - .github/npm-advisories.json
+      - .github/scripts/check-npm-advisories.mjs
+      - scripts/lint/repository-files.mjs
+      - .github/workflows/npm-advisories.yml
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: npm Advisories
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      # The audit is npm's, the one the pinned Node ships. It reads the
+      # lockfiles and asks the registry, so nothing is installed.
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+
+      - name: Check advisories
+        run: node .github/scripts/check-npm-advisories.mjs

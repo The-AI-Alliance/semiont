@@ -34,6 +34,13 @@ listed in [Testing](../docs/contributor/TESTING.md#continuous-integration).
 - Crates must come from crates.io, named by a version; a yanked crate fails
 - Licences are not checked here: the Gateway Tests job's crate licence gate owns them
 
+### npm Advisories (`npm-advisories.yml`)
+**The npm packages the repository ships against GitHub's advisory database**:
+- `npm audit --omit=dev` over every tracked lockfile (`.github/scripts/check-npm-advisories.mjs`); a high or critical advisory fails
+- An advisory ignored in `.github/npm-advisories.json` carries its reason; an ignore that stops matching fails the run
+- A release runs it first: `release.yml` creates no tag until it passes
+- Development dependencies are not held here: Dependabot's alerts report those
+
 ### CodeQL Analysis (`codeql-analysis.yml`)
 **Automated security code scanning**:
 - Runs on push, PR, and weekly schedule
@@ -94,6 +101,15 @@ session code.
 - pull_request: # changes to apps/gateway's Cargo.toml, Cargo.lock or deny.toml, or the workflow
 - schedule: "0 6 * * *" # Daily 6 AM UTC: the advisory database changes without a commit
 - workflow_dispatch: # Manual trigger
+```
+
+### npm Advisories
+```yaml
+# Runs on:
+- pull_request: # changes to a package.json, a package-lock.json, .node-version, the ignore list, the check and the file listing it imports, or the workflow
+- schedule: "0 6 * * *" # Daily 6 AM UTC: the advisory database changes without a commit
+- workflow_dispatch: # Manual trigger
+- workflow_call: # release.yml, before the tag
 ```
 
 ### CodeQL Analysis
