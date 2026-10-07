@@ -178,7 +178,10 @@ class FaultyTransport(Transport):
     def queue_reply(self, operation: str, responses: Iterable[JsonValue | None]) -> None:
         """Queue what the gateway answers the next requests of `operation` with, one each, before `make_response` is asked.
 
-        Each is a `response`, or `None` for a reply that carries none.
+        Each is a `response`, or `None` for a reply that carries none. A reply
+        that names what it answers for beside its response (the resource a
+        context was gathered for, the reference a search was for) names what
+        its request did, as a gateway's does: a test queues the response alone.
         """
         self._replies.setdefault(operation, deque()).extend(responses)
 
@@ -268,9 +271,17 @@ class FaultyTransport(Transport):
         else:
             queued = self._replies.get(channel)
             response = queued.popleft() if queued else self._make_response(channel, sent)
-            reply = Frame(
-                channel=operation.result.name, payload={} if response is None else {"response": response}, correlation_id=correlation_id
-            )
+            answered: dict[str, JsonValue] = {}
+            # A reply that names what it answers for names what its request did, as a gateway's does.
+            for named in operation.reply_names:
+                if named not in sent:
+                    raise TransportError(
+                        "error", f'FaultyTransport: the reply to {channel} names "{named}", which this request does not state'
+                    )
+                answered[named] = sent[named]
+            if response is not None:
+                answered["response"] = response
+            reply = Frame(channel=operation.result.name, payload=answered, correlation_id=correlation_id)
         self.deliver(request)
 
         # The reply comes after the emit has been accepted, as a wire's does. One on its way when the transport closes is dropped.

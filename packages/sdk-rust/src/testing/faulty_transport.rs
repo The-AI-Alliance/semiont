@@ -18,7 +18,7 @@
 //! All of its variation comes in through the schedule, so a test that fixes
 //! the schedule fixes the run.
 
-use crate::bus::operation;
+use crate::bus::{operation, reply_names};
 use crate::channels::BRIDGED_CHANNELS;
 use crate::errors::{BusRequestError, TransportError, TransportErrorCode};
 use crate::event_bus::EventBus;
@@ -178,7 +178,10 @@ impl FaultyTransport {
 
     /// Queue what the gateway answers the next requests of `operation` with,
     /// one each, before `make_response` is asked: a `response`, or `None` for
-    /// a reply that carries none.
+    /// a reply that carries none. A reply that names what it answers for
+    /// beside its response (the resource a context was gathered for, the
+    /// reference a search was for) names what its request did, as a gateway's
+    /// does: a test queues the response alone.
     pub fn queue_reply(&self, operation: &str, responses: impl IntoIterator<Item = Option<Value>>) {
         locked(&self.inner.replies)
             .entry(operation.to_owned())
@@ -322,6 +325,19 @@ impl Transport for FaultyTransport {
                         })?,
                     };
                     let mut reply_payload = Map::new();
+                    // A reply that names what it answers for names what its
+                    // request did, as a gateway's does.
+                    for named in reply_names(channel) {
+                        let stated = payload.get(*named).ok_or_else(|| {
+                            TransportError::without_response(
+                                format!(
+                                    "FaultyTransport: the reply to {channel} names \"{named}\", which this request does not state"
+                                ),
+                                TransportErrorCode::Error,
+                            )
+                        })?;
+                        reply_payload.insert((*named).to_owned(), stated.clone());
+                    }
                     if let Some(response) = response {
                         reply_payload.insert("response".to_owned(), response);
                     }

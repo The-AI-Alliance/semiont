@@ -191,9 +191,7 @@ def test_a_first_program_ingests_a_paper_has_it_annotated_gathers_its_context_an
             made.transport.deliver(completion("job-1", "reference-annotation", linked))
 
             gather = await asked("gather:resource-requested", 1)
-            # This reply names its resource beside the response.
-            reply: JsonObject = {"resourceId": "test-content-1", "response": gathered}
-            made.transport.deliver(Frame(channel="gather:resource-complete", payload=reply, correlation_id=gather.correlation_id))
+            answer(made.transport, gather, gathered)
 
             generation = await asked("job:create", 2)
             answer(made.transport, generation, {"jobId": "job-2"})

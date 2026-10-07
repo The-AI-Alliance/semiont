@@ -5,6 +5,7 @@
 
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use semiont::bus::{Bus, operation};
 use semiont::client::{ClientOptions, ClientTiming};
 use semiont::errors::{SemiontError, SessionError, SessionErrorCode};
 use semiont::session::{
@@ -18,8 +19,8 @@ use semiont::testing::{
     TestSessionOptions, create_test_client, create_test_session,
 };
 use semiont::transport::{ConnectionState, Content, Transport};
-use semiont::types::UserResponse;
-use serde_json::json;
+use semiont::types::{GatherResourceRequestOptions, UserResponse};
+use serde_json::{Value, json};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -404,4 +405,108 @@ async fn scripted_sessions_can_refuse_to_build_and_keep_what_was_revoked() {
     };
     sessions.revoke(stored.clone()).await;
     assert_eq!(sessions.revoked(), [stored]);
+}
+
+// ── A reply that names what it answers for ──────────────────────────────
+
+/// Three replies carry an id beside their response: the one their request
+/// stated, as a gateway's do. So a test queues the response, and the reply is
+/// whole.
+#[tokio::test(start_paused = true)]
+async fn a_reply_that_names_what_it_answers_for_names_what_its_request_named() {
+    let test = create_test_client(TestClientOptions::default());
+    let gathered = json!({
+        "focus": { "kind": "resource", "resource": {
+            "@context": "https://schema.org", "@id": "res-1",
+            "name": "A resource", "representations": []
+        } },
+        "graph": { "nodes": [], "edges": [] },
+        "metadata": {}
+    });
+
+    // A client's own call is answered by what the test queued, with nothing
+    // delivered by hand.
+    test.transport
+        .queue_reply("gather:resource-requested", [Some(gathered.clone())]);
+    let context = test
+        .client
+        .gather
+        .resource(&as_id("res-1"), GatherResourceRequestOptions::default())
+        .await
+        .expect("the queued reply answers it");
+    assert_eq!(
+        context,
+        serde_json::from_value(gathered).expect("a gathered context")
+    );
+
+    let bus = Bus::new(Arc::new(test.transport.clone()));
+    let within = Duration::from_secs(5);
+    let object = |value: Value| value.as_object().cloned().expect("an object");
+    for (request, named, asked) in [
+        (
+            "gather:resource-requested",
+            "resourceId",
+            json!({ "resourceId": "res-1", "options": {} }),
+        ),
+        (
+            "gather:requested",
+            "annotationId",
+            json!({ "annotationId": "ann-1", "resourceId": "res-1" }),
+        ),
+        (
+            "match:search-requested",
+            "referenceId",
+            json!({ "resourceId": "res-1", "referenceId": "ann-1", "context": {} }),
+        ),
+    ] {
+        let op = operation(request).expect("a registry operation");
+        let mut replies = test.client.bus().frames(op.result);
+        test.transport
+            .queue_reply(request, [Some(json!("scripted"))]);
+        bus.request_of(op, object(asked.clone()), within)
+            .await
+            .expect("it was scripted");
+        let reply = tokio::time::timeout(Duration::from_millis(1), replies.next())
+            .await
+            .expect("the reply reached the client's bus")
+            .expect("the bus is open")
+            .expect("no frame was missed");
+        assert_eq!(
+            Value::Object(reply.payload),
+            json!({ named: asked[named], "response": "scripted" }),
+            "the reply to {request}"
+        );
+    }
+
+    // A reply that names nothing is its response and no more.
+    let read = operation("browse:resource-requested").expect("a registry operation");
+    let mut replies = test.client.bus().frames(read.result);
+    test.transport
+        .queue_reply(read.request, [Some(json!("scripted"))]);
+    bus.request_of(read, object(json!({ "resourceId": "res-1" })), within)
+        .await
+        .expect("it was scripted");
+    let reply = tokio::time::timeout(Duration::from_millis(1), replies.next())
+        .await
+        .expect("the reply reached the client's bus")
+        .expect("the bus is open")
+        .expect("no frame was missed");
+    assert_eq!(
+        Value::Object(reply.payload),
+        json!({ "response": "scripted" })
+    );
+
+    // A request that does not state what its reply names cannot be answered,
+    // and that is said.
+    let gather = operation("gather:resource-requested").expect("a registry operation");
+    test.transport
+        .queue_reply(gather.request, [Some(json!("scripted"))]);
+    let unanswerable = bus
+        .request_of(gather, object(json!({ "options": {} })), within)
+        .await
+        .expect_err("the request states no resourceId");
+    assert!(
+        message(unanswerable)
+            .contains("the reply to gather:resource-requested names \"resourceId\""),
+    );
 }

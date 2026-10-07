@@ -3,6 +3,7 @@
 //! for word (`semiont::testing::examples`).
 
 use bytes::Bytes;
+use semiont::bus::{operation, reply_names};
 use semiont::client::SemiontClient;
 use semiont::errors::SemiontError;
 use semiont::namespaces::{JobEvent, MarkAssistOptions};
@@ -50,22 +51,12 @@ async fn a_first_program(
     // Ingest: the paper's bytes become a resource.
     let created = client
         .yield_
-        .resource(PutBinaryRequest {
-            name: "Attention Is All You Need".to_owned(),
-            bytes: paper,
-            format: "application/pdf".to_owned(),
-            storage_uri: "file://papers/attention-is-all-you-need.pdf".to_owned(),
-            entity_types: Vec::new(),
-            language: None,
-            source_annotation_id: None,
-            source_resource_id: None,
-            generation_prompt: None,
-            generator: None,
-            job_id: None,
-            is_draft: None,
-            clone_token: None,
-            archive_original: None,
-        })
+        .resource(PutBinaryRequest::new(
+            "Attention Is All You Need",
+            paper,
+            "application/pdf",
+            "file://papers/attention-is-all-you-need.pdf",
+        ))
         .await?;
     let paper_id = created.resource_id;
 
@@ -95,19 +86,12 @@ async fn a_first_program(
         .yield_
         .from_context(
             GenerationJobParams {
-                title: "Attention Is All You Need: a summary".to_owned(),
-                storage_uri: "file://generated/attention-summary.md".to_owned(),
-                context,
                 task: Some("summary".to_owned()),
-                prompt: None,
-                entity_types: None,
-                language: None,
-                source_language: None,
-                temperature: None,
-                max_tokens: None,
-                output_media_type: None,
-                structure: None,
-                cite: None,
+                ..GenerationJobParams::new(
+                    "Attention Is All You Need: a summary",
+                    "file://generated/attention-summary.md",
+                    context,
+                )
             },
             None,
         )
@@ -294,15 +278,25 @@ fn requests(transport: &FaultyTransport, channel: &str) -> Vec<RequestLogEntry> 
         .collect()
 }
 
-/// Answer the `nth` request sent on `request` with a frame on `reply`.
-fn answer(transport: &FaultyTransport, request: &str, nth: usize, reply: &str, payload: Value) {
+/// Answer the `nth` request sent on `request` with `response`, as the service
+/// that answers its operation would: on its result channel, under the
+/// request's own id, and naming what the request named.
+fn answer(transport: &FaultyTransport, request: &str, nth: usize, response: Value) {
     let asked = requests(transport, request)
         .into_iter()
         .nth(nth)
         .unwrap_or_else(|| panic!("request #{nth} on {request} was not sent"));
+    let mut payload = Map::new();
+    for named in reply_names(request) {
+        payload.insert((*named).to_owned(), asked.payload[*named].clone());
+    }
+    payload.insert("response".to_owned(), response);
     transport.deliver(Frame {
-        channel: reply.to_owned(),
-        payload: object(payload),
+        channel: operation(request)
+            .expect("a registry operation")
+            .result
+            .to_owned(),
+        payload,
         correlation_id: asked.correlation_id,
         scope: None,
         trace: None,
@@ -331,8 +325,7 @@ async fn the_first_program_ingests_a_paper_has_it_annotated_gathers_its_context_
         &test.transport,
         "job:create",
         0,
-        "job:created",
-        json!({ "response": { "jobId": "job-1" } }),
+        json!({ "jobId": "job-1" }),
     );
     settle().await;
     // Nothing is gathered until the model has finished marking.
@@ -358,21 +351,18 @@ async fn the_first_program_ingests_a_paper_has_it_annotated_gathers_its_context_
         "graph": { "nodes": [], "edges": [] },
         "metadata": {}
     });
-    // This reply names its resource beside the response.
     answer(
         &test.transport,
         "gather:resource-requested",
         0,
-        "gather:resource-complete",
-        json!({ "resourceId": "test-content-1", "response": gathered }),
+        gathered.clone(),
     );
     settle().await;
     answer(
         &test.transport,
         "job:create",
         1,
-        "job:created",
-        json!({ "response": { "jobId": "job-2" } }),
+        json!({ "jobId": "job-2" }),
     );
     settle().await;
     client.bus().emit(

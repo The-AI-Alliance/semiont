@@ -282,6 +282,11 @@ impl Types<'_> {
             code.push_str("#[serde(deny_unknown_fields)]\n");
         }
         let _ = writeln!(code, "pub struct {name} {{");
+        // What `new` is given, and what it sets: each required field from its
+        // parameter, each optional one to nothing.
+        let mut parameters: Vec<String> = Vec::new();
+        let mut set: Vec<String> = Vec::new();
+        let mut optional = 0;
         for (property, property_schema) in properties {
             let rust_type = self.type_of(name, property, property_schema);
             doc(&mut code, "    ", property_schema);
@@ -292,9 +297,19 @@ impl Types<'_> {
             let nullable = without_null(property_schema).is_some();
             if required.contains(&property.as_str()) && nullable {
                 let _ = writeln!(code, "    pub {field}: Option<{rust_type}>,");
+                parameters.push(format!("{field}: Option<{rust_type}>"));
+                set.push(format!("{field},"));
+            } else if required.contains(&property.as_str()) && rust_type == "String" {
+                let _ = writeln!(code, "    pub {field}: {rust_type},");
+                parameters.push(format!("{field}: impl Into<String>"));
+                set.push(format!("{field}: {field}.into(),"));
             } else if required.contains(&property.as_str()) {
                 let _ = writeln!(code, "    pub {field}: {rust_type},");
+                parameters.push(format!("{field}: {rust_type}"));
+                set.push(format!("{field},"));
             } else if nullable {
+                optional += 1;
+                set.push(format!("{field}: None,"));
                 // Absent, null and a value are three things: the outer option
                 // is whether it was stated, the inner whether it was null.
                 let _ = writeln!(
@@ -305,6 +320,8 @@ impl Types<'_> {
                     "/// A property that was stated, whatever it stated: null is `Some(None)`.\nfn stated<'de, T: serde::Deserialize<'de>, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Option<Option<T>>, D::Error> {\n    serde::Deserialize::deserialize(deserializer).map(Some)\n}\n\n".to_owned()
                 });
             } else {
+                optional += 1;
+                set.push(format!("{field}: None,"));
                 let _ = writeln!(
                     code,
                     "    #[serde(default, skip_serializing_if = \"Option::is_none\")]\n    pub {field}: Option<{rust_type}>,"
@@ -315,6 +332,31 @@ impl Types<'_> {
             code.push_str("    /// Every property the schema does not name, as it came.\n    #[serde(flatten)]\n    pub rest: serde_json::Map<String, serde_json::Value>,\n");
         }
         code.push_str("}\n\n");
+        // A struct that must state some properties and may leave others out
+        // is made from the ones it must state. One that is all required says
+        // everything by name when it is written out, and one that is all
+        // optional has nothing to be made from: neither has a constructor.
+        if !parameters.is_empty() && optional > 0 {
+            if open {
+                set.push("rest: serde_json::Map::new(),".to_owned());
+            }
+            let _ = writeln!(
+                code,
+                "impl {name} {{\n    /// The `{name}` that states these and nothing else."
+            );
+            if parameters.len() > 7 {
+                code.push_str("    #[allow(clippy::too_many_arguments)]\n");
+            }
+            let _ = writeln!(
+                code,
+                "    pub fn new({}) -> Self {{\n        Self {{",
+                parameters.join(", ")
+            );
+            for field in &set {
+                let _ = writeln!(code, "            {field}");
+            }
+            code.push_str("        }\n    }\n}\n\n");
+        }
         code
     }
 
@@ -934,5 +976,75 @@ mod tests {
             "{code}"
         );
         assert!(code.contains("pub body: Option<NoteBodyValue>,"), "{code}");
+    }
+
+    #[test]
+    fn a_struct_with_required_and_optional_properties_is_made_from_the_required_ones() {
+        let code = generated(
+            json!({ "Ask": { "type": "object", "required": ["title", "cursor"], "additionalProperties": true, "properties": {
+                "title": { "type": "string" },
+                "note": { "type": "string" },
+                "cursor": { "type": ["string", "null"] },
+                "page": { "type": ["string", "null"] }
+            } } }),
+            "Ask",
+        );
+        assert!(
+            code.contains(concat!(
+                "impl Ask {\n",
+                "    /// The `Ask` that states these and nothing else.\n",
+                "    pub fn new(title: impl Into<String>, cursor: Option<String>) -> Self {\n",
+                "        Self {\n",
+                "            title: title.into(),\n",
+                "            note: None,\n",
+                "            cursor,\n",
+                "            page: None,\n",
+                "            rest: serde_json::Map::new(),\n",
+                "        }\n",
+                "    }\n",
+                "}\n",
+            )),
+            "{code}"
+        );
+    }
+
+    #[test]
+    fn a_struct_that_is_all_required_or_all_optional_has_no_constructor() {
+        // Written out, the first says everything it holds by name. The second
+        // has no required part to take, and what it is with nothing stated is
+        // for whoever knows what nothing means there to say.
+        let code = generated(
+            json!({
+                "Whole": { "type": "object", "required": ["title"], "properties": { "title": { "type": "string" } } },
+                "Options": { "type": "object", "properties": { "note": { "type": "string" } } }
+            }),
+            "Whole",
+        ) + &generated(
+            json!({ "Options": { "type": "object", "properties": { "note": { "type": "string" } } } }),
+            "Options",
+        );
+        assert!(code.contains("pub struct Whole {"), "{code}");
+        assert!(code.contains("pub struct Options {"), "{code}");
+        assert!(!code.contains("pub fn new("), "{code}");
+    }
+
+    #[test]
+    fn a_constructor_of_more_than_seven_says_so_to_the_linter() {
+        let names = ["a", "b", "c", "d", "e", "f", "g", "h"];
+        let mut properties = serde_json::Map::new();
+        for name in names {
+            properties.insert(name.to_owned(), json!({ "type": "string" }));
+        }
+        properties.insert("note".to_owned(), json!({ "type": "string" }));
+        let code = generated(
+            json!({ "Many": { "type": "object", "required": names, "properties": properties } }),
+            "Many",
+        );
+        assert!(
+            code.contains(
+                "    #[allow(clippy::too_many_arguments)]\n    pub fn new(a: impl Into<String>,"
+            ),
+            "{code}"
+        );
     }
 }

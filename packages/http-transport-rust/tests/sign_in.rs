@@ -2079,22 +2079,12 @@ async fn a_resources_bytes_that_never_begin_fail_at_the_deadline_and_an_upload_t
     let created = ends(async {
         client
             .yield_
-            .resource(PutBinaryRequest {
-                name: "A note".to_owned(),
-                bytes: Bytes::from_static(b"hello"),
-                format: "text/plain".to_owned(),
-                storage_uri: "file://a-note.txt".to_owned(),
-                entity_types: Vec::new(),
-                language: None,
-                source_annotation_id: None,
-                source_resource_id: None,
-                generation_prompt: None,
-                generator: None,
-                job_id: None,
-                is_draft: None,
-                clone_token: None,
-                archive_original: None,
-            })
+            .resource(PutBinaryRequest::new(
+                "A note",
+                Bytes::from_static(b"hello"),
+                "text/plain",
+                "file://a-note.txt",
+            ))
             .await
     })
     .await

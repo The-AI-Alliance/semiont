@@ -71,6 +71,15 @@ pub fn operation(request: &str) -> Option<&'static Operation> {
     OPERATIONS.iter().find(|op| op.request == request)
 }
 
+/// What the reply to `request` states beside its `response`: properties of the
+/// request, which a gateway states again in its reply. Nothing, for most.
+pub fn reply_names(request: &str) -> &'static [&'static str] {
+    REPLY_NAMES
+        .iter()
+        .find(|(asked, _)| *asked == request)
+        .map_or(&[][..], |(_, named)| *named)
+}
+
 /// The result and failure channels of every operation among `channels`, each
 /// once: what a client that awaits only those operations names as its global
 /// channels. A channel that is no operation's request contributes nothing.

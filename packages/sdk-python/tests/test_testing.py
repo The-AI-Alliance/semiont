@@ -19,7 +19,7 @@ from semiont.channels import BECKON_FOCUS
 from semiont.client import CachePersistence, ClientTiming, SemiontClient
 from semiont.errors import BusRequestError, SemiontError, TransportError
 from semiont.identifiers import AnnotationId, ResourceId
-from semiont.operations import BROWSE_RESOURCE_REQUESTED, MARK_DELETE
+from semiont.operations import BROWSE_RESOURCE_REQUESTED, GATHER_REQUESTED, GATHER_RESOURCE_REQUESTED, MARK_DELETE, MATCH_SEARCH_REQUESTED
 from semiont.storage import MemoryStorage
 from semiont.testing import (
     Delay,
@@ -40,12 +40,13 @@ from semiont.testing import (
     retry_key_of,
 )
 from semiont.transport import Content, ContentTransport, Frame, FrameSink, GatewayOperations, PutBinaryRequest, Transport
-from semiont.types import GetResourceResponse, HealthResponse, MediaTokenResponse, StatusResponse, UserResponse
+from semiont.types import GatheredContext, GetResourceResponse, HealthResponse, MediaTokenResponse, StatusResponse, UserResponse
 
 RESOURCE, OTHER = ResourceId("res-1"), ResourceId("res-2")
 ASKED: JsonObject = {"resourceId": "res-1"}
 ASK = "browse:resource-requested"
 DESCRIBED: JsonObject = {"@context": "https://schema.org", "@id": "res-1", "name": "A resource", "representations": []}
+GATHERED: JsonObject = {"focus": {"kind": "resource", "resource": DESCRIBED}, "graph": {"nodes": [], "edges": []}, "metadata": {}}
 
 
 @final
@@ -131,6 +132,36 @@ def test_what_no_queued_response_answers_the_transports_own_gateway_does() -> No
         # Asked only for what nothing was queued for.
         assert said == [(ASK, ASKED), ("mark:delete", {"annotationId": "ann-1"})]
         await transport.close()
+
+    run(scenario())
+
+
+def test_a_reply_that_names_what_it_answers_for_names_what_its_request_named() -> None:
+    """Three replies carry an id beside their response: the one their request stated, as a gateway's do."""
+
+    async def scenario() -> None:
+        transport = FaultyTransport(make_response=lambda operation, _: {"for": operation})
+        transport.queue_reply("gather:resource-requested", [{"queued": True}])
+        gathered = await soon(request(transport, GATHER_RESOURCE_REQUESTED, {"resourceId": "res-1", "options": {}}))
+        assert gathered == {"resourceId": "res-1", "response": {"queued": True}}
+        # So does a reply the transport's own gateway makes, and each of the other two that names what it answers for.
+        around = await soon(request(transport, GATHER_REQUESTED, {"annotationId": "ann-1", "resourceId": "res-1"}))
+        assert around == {"annotationId": "ann-1", "response": {"for": "gather:requested"}}
+        found = await soon(request(transport, MATCH_SEARCH_REQUESTED, {"resourceId": "res-1", "referenceId": "ann-1", "context": {}}))
+        assert found == {"referenceId": "ann-1", "response": {"for": "match:search-requested"}}
+        # A reply that names nothing is its response and no more.
+        assert await soon(request(transport, BROWSE_RESOURCE_REQUESTED, ASKED)) == {"response": {"for": ASK}}
+        # A request that does not state what its reply names cannot be answered, and that is said.
+        with pytest.raises(TransportError, match='the reply to gather:resource-requested names "resourceId"'):
+            await soon(request(transport, GATHER_RESOURCE_REQUESTED, {"options": {}}))
+        await transport.close()
+
+        # So a client's own call is answered by what a test queued, with nothing delivered by hand.
+        made = create_test_client()
+        made.transport.queue_reply("gather:resource-requested", [GATHERED])
+        async with made.client as client:
+            assert await soon(client.gather.resource(RESOURCE)) == GatheredContext.model_validate(GATHERED)
+        await made.transport.close()
 
     run(scenario())
 

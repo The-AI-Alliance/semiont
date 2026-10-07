@@ -98,9 +98,10 @@ def asked_for(transport: FaultyTransport, operation: str) -> list[Frame]:
 
 
 def answer(transport: FaultyTransport, request: Frame, response: JsonValue) -> None:
-    """Answer a request with `response`, as the service that answers its operation would."""
-    result = OPERATIONS[request.channel].result.name
-    transport.deliver(Frame(channel=result, payload={"response": response}, correlation_id=request.correlation_id))
+    """Answer a request with `response`, as the service that answers its operation would: naming what the request named."""
+    operation = OPERATIONS[request.channel]
+    reply: dict[str, JsonValue] = {named: request.payload[named] for named in operation.reply_names}
+    transport.deliver(Frame(channel=operation.result.name, payload={**reply, "response": response}, correlation_id=request.correlation_id))
 
 
 def refuse(transport: FaultyTransport, request: Frame, message: str = "the service refused") -> None:

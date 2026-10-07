@@ -105,22 +105,12 @@ signed in.
 // Ingest: the paper's bytes become a resource.
 let created = client
     .yield_
-    .resource(PutBinaryRequest {
-        name: "Attention Is All You Need".to_owned(),
-        bytes: paper,
-        format: "application/pdf".to_owned(),
-        storage_uri: "file://papers/attention-is-all-you-need.pdf".to_owned(),
-        entity_types: Vec::new(),
-        language: None,
-        source_annotation_id: None,
-        source_resource_id: None,
-        generation_prompt: None,
-        generator: None,
-        job_id: None,
-        is_draft: None,
-        clone_token: None,
-        archive_original: None,
-    })
+    .resource(PutBinaryRequest::new(
+        "Attention Is All You Need",
+        paper,
+        "application/pdf",
+        "file://papers/attention-is-all-you-need.pdf",
+    ))
     .await?;
 let paper_id = created.resource_id;
 
@@ -150,19 +140,12 @@ let done = client
     .yield_
     .from_context(
         GenerationJobParams {
-            title: "Attention Is All You Need: a summary".to_owned(),
-            storage_uri: "file://generated/attention-summary.md".to_owned(),
-            context,
             task: Some("summary".to_owned()),
-            prompt: None,
-            entity_types: None,
-            language: None,
-            source_language: None,
-            temperature: None,
-            max_tokens: None,
-            output_media_type: None,
-            structure: None,
-            cite: None,
+            ..GenerationJobParams::new(
+                "Attention Is All You Need: a summary",
+                "file://generated/attention-summary.md",
+                context,
+            )
         },
         None,
     )
@@ -175,6 +158,11 @@ let summary = match done {
     _ => None,
 };
 ```
+
+A request that must state some things and may leave others out is made with
+`new`, from what it must state: `PutBinaryRequest::new` here, and
+`GenerationJobParams::new` with its `task` said beside it. Every such type of
+the protocol has one.
 
 Both resources, and every annotation the model made, are in the knowledge
 base for the next participant, person or agent, to read and build on.
@@ -402,7 +390,9 @@ assert!(refused.is_err());
   and an `InMemoryContent`. `create_test_session` gives a real
   `SemiontSession` over one, ready at once.
 - `FaultyTransport` fails as a test scripts it: what the wire does to each
-  request, and what the gateway answers. `InMemoryContent` keeps what is
+  request, and what the gateway answers. A reply that names what it
+  answers for, as a gathered context names its resource, takes that from the
+  request, so a test queues the response alone. `InMemoryContent` keeps what is
   uploaded and fails a read of what nobody stored. `StubGateway` answers
   only what it was told to.
 - `ScriptedSessions` is a `SessionFactory` for a `SemiontBrowser`: each

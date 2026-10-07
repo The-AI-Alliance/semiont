@@ -379,7 +379,9 @@ async def a_title_is_its_resources_name_in_title_case() -> None:
 
 - **`FaultyTransport`** is a transport with no wire. `queue_reply` says what
   the gateway answers the next requests of an operation with, and
-  `refuse_when` has it answer with a failure. A schedule of `Deliver`,
+  `refuse_when` has it answer with a failure. A reply that names what it
+  answers for, as a gathered context names its resource, takes that from the
+  request, so a test queues the response alone. A schedule of `Deliver`,
   `DropReply`, `Delay`, `DuplicateReply` and `RejectEmit` says what the wire
   does to each request in turn, so a lost reply and the retry after it can be
   scripted. `request_log` and `emitted` are what was sent; `deliver` carries a
