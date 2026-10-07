@@ -579,7 +579,9 @@ were created of how many were found (`3 highlighting annotations created (4
 found)`). A job the queue runs again after a failed attempt is followed
 through the retry. A decline (a resource with no text the worker could read)
 and a failure both exit non-zero, and `--json` prints the job's completion as
-the stack sent it. What `mark --delegate` sends for each motivation is the
+the stack sent it. A completion is read as its verb's: one that names the
+other verb, or reports what the other verb's job reports, is said and exits
+non-zero. What `mark --delegate` sends for each motivation is the
 `mark.delegate` row of `specs/src/client/surface.json`, which the TypeScript,
 Rust and Python SDKs run too.
 

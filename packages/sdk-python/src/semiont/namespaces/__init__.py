@@ -10,7 +10,7 @@ every SDK is held to:
 
 - an `async def`: asked once, answered once;
 - a `Running`: a long-running operation, its reports and its final value;
-- a `Delegation`: a job another party does, its events and its completion;
+- a `Delegation`: a job another party does, its events and the completion its verb's jobs give;
 - an `Upload`: an upload's progress and the resource it created;
 - a `Cached`: a query, sent when its `fresh` is called;
 - a plain `def` that returns nothing: a signal, fire-and-forget;

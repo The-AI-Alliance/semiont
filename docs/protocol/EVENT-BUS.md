@@ -89,7 +89,7 @@ per-schema accident:
 
 | union | discriminant |
 |---|---|
-| `JobCreateCommand`, `JobFilter`, `JobQueuedEvent` | `jobType` — `mark` / `yield` |
+| `JobCreateCommand`, `JobCompleteCommand`, `JobFilter`, `JobQueuedEvent` | `jobType` — `mark` / `yield` |
 | `MarkJobParams` | `motivation` — one named schema for each of the five |
 | `JobProgressMessage` | `code` — one named schema per code |
 | `Agent` | `@type` — `Person` / `Organization` / `Software` |
@@ -111,11 +111,13 @@ feeds it every wire code and requires non-empty text for each. A new code fails 
 pin, not a user's terminal. When adding a member to any union above, that is the
 pattern: TS gets it free from the `never` default; Go needs its census extended.
 
-**`JobResult` has no discriminant, by design.** It is one of three: a `mark` job's counts,
-the resource a `yield` job made, or a decline. The `jobType` beside it, on `job:complete`,
-says which job it answers, and the three share no member, so each is told from the
+**`JobResult` has no discriminant, by design.** It is what a job's record holds, one of
+three: a `mark` job's counts, the resource a `yield` job made, or a decline. The record's
+type says which job it answers, and the three share no member, so each is told from the
 others by what it alone carries: `found`, `resourceId` or `declined`. In TypeScript that
-is `'found' in result`.
+is `'found' in result`. A completion is narrower. `job:complete` is told apart by
+`jobType` and carries its verb's result, a `MarkJobResult` or a `YieldJobResult`: its
+verb's own result or a decline, and the decline is the one with `declined`.
 
 ## Identity: `_userId` and `_roles` are gateway-stamped
 

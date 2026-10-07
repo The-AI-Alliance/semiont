@@ -443,17 +443,28 @@ func Mark(args []string) int {
 	return 0
 }
 
+// markJobResults: what a `mark` job reports.
+var markJobResults = resultMembers[semiont.MarkJobResult]{
+	semiont.JobDetectionResult{},
+	semiont.JobDeclinedResult{},
+}
+
 // runMarkDelegate creates the annotation job and follows it to its end.
 func runMarkDelegate(u *launcher.UI, t launcher.VerbTarget, command semiont.JobCreateCommand, resourceID, motivation string, asJSON bool) int {
-	done, raw, ok := delegatedJob{
+	job := delegatedJob[semiont.MarkJobCompleteCommand]{
 		verb: "mark --delegate", doing: "Annotating " + resourceID, note: motivation, failed: "Annotation",
 		check:  "semiont browse " + resourceID + " --annotations",
 		create: command,
-	}.run(u, t.Transport())
+		jobOf:  func(done semiont.MarkJobCompleteCommand) semiont.JobId { return done.JobId },
+	}
+	done, raw, ok := job.run(u, t.Transport())
 	if !ok {
 		return 1
 	}
-	result := jobResult(done)
+	result, err := jobResult(done.Result, markJobResults)
+	if err != nil {
+		return job.resultFail(u, done.JobId, err)
+	}
 	declined, isDecline := result.(semiont.JobDeclinedResult)
 	if asJSON {
 		fmt.Println(string(raw))

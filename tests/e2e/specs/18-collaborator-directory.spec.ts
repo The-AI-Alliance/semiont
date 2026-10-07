@@ -143,7 +143,9 @@ test.describe('collaborator directory (browse.agents)', () => {
       ).resourceId;
 
       const done = await client.mark.delegate(rid, { motivation: 'highlighting', sourceLanguage: 'en' });
-      expect(done.jobType, 'the highlighting job is a `mark` job, and it completed').toBe('mark');
+      // Awaited, a delegation resolves on the job's completion. A mark job's
+      // result is its counts or a decline; the counts say it did its work.
+      expect(done.result !== undefined && 'found' in done.result, 'the highlighting job reports its counts').toBe(true);
 
       // The worker stamps `generator` (single or pipeline array) on what it
       // created. Poll for projection delivery, then assert membership.

@@ -1,7 +1,8 @@
 package verbs
 
 // What a delegated job is asked with and what it reports, read from the spec:
-// the members of the JobResult union, and the parameters a yield job takes.
+// the members of each verb's result union, and the parameters a yield job
+// takes.
 
 import (
 	"encoding/json"
@@ -16,54 +17,139 @@ import (
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 )
 
-func completedWith(t *testing.T, result string) semiont.JobCompleteCommand {
-	t.Helper()
-	var done semiont.JobCompleteCommand
-	if err := json.Unmarshal([]byte(`{"jobId":"job-1","jobType":"mark","resourceId":"res-1","result":`+result+`}`), &done); err != nil {
-		t.Fatalf("not a job:complete: %v", err)
-	}
-	return done
-}
-
-// A result has no discriminant: it is told from the others by the members it
-// alone carries. Each is read as its own type and as no other, and an object
-// that is none of them is read as none.
-func TestJobResultIsReadByItsMembers(t *testing.T) {
+// A verb's result has no discriminant: each of its two members is told from
+// the other by the members it alone carries. Each is read as its own type, and
+// a result that is not exactly one of the verb's is an error: the other verb's
+// result among them.
+func TestJobResultIsReadAsItsVerbs(t *testing.T) {
+	const counts, resource, decline = `{"found":4,"persisted":3}`, `{"resourceId":"res-new","resourceName":"Generated","truncated":false}`, `{"declined":true,"reason":"encrypted"}`
+	declined := semiont.JobDeclinedResult{Declined: true, Reason: "encrypted"}
 	for _, c := range []struct {
 		name, result string
-		want         any
+		mark, yield  any // nil: an error
 	}{
-		{"a mark job's counts", `{"found":4,"persisted":3}`, semiont.JobDetectionResult{Found: 4, Persisted: 3}},
-		{"a resource a yield job made", `{"resourceId":"res-new","resourceName":"Generated","truncated":false}`,
-			semiont.JobGenerationResult{ResourceId: "res-new", ResourceName: "Generated"}},
-		{"a decline", `{"declined":true,"reason":"encrypted"}`, semiont.JobDeclinedResult{Declined: true, Reason: "encrypted"}},
-		{"no member's required members", `{}`, nil},
-		{"half of a member's required members", `{"found":4}`, nil},
-		{"two members' required members", `{"found":4,"persisted":3,"declined":true,"reason":"empty"}`, nil},
+		{"a mark job's counts", counts, semiont.JobDetectionResult{Found: 4, Persisted: 3}, nil},
+		{"the resource a yield job made", resource, nil, semiont.JobGenerationResult{ResourceId: "res-new", ResourceName: "Generated"}},
+		{"a decline", decline, declined, declined},
+		{"no member's required members", `{}`, nil, nil},
+		{"half of a member's required members", `{"found":4,"resourceId":"res-new"}`, nil, nil},
+		{"both members' required members", `{"found":4,"persisted":3,"resourceId":"res-new","resourceName":"Generated","truncated":false,"declined":true,"reason":"empty"}`, nil, nil},
 	} {
-		if got := jobResult(completedWith(t, c.result)); !reflect.DeepEqual(got, c.want) {
-			t.Errorf("%s: %s is read as %#v, want %#v", c.name, c.result, got, c.want)
+		var asMark semiont.MarkJobResult
+		var asYield semiont.YieldJobResult
+		if asMark.UnmarshalJSON([]byte(c.result)) != nil || asYield.UnmarshalJSON([]byte(c.result)) != nil {
+			t.Fatalf("%s: not JSON: %s", c.name, c.result)
+		}
+		gotMark, errMark := jobResult(&asMark, markJobResults)
+		gotYield, errYield := jobResult(&asYield, yieldJobResults)
+		for _, read := range []struct {
+			verb string
+			got  any
+			err  error
+			want any
+		}{
+			{"mark", gotMark, errMark, c.mark},
+			{"yield", gotYield, errYield, c.yield},
+		} {
+			switch {
+			case read.want == nil && read.err == nil:
+				t.Errorf("%s: a %s job's result %s is read as %#v, want an error", c.name, read.verb, c.result, read.got)
+			case read.want != nil && (read.err != nil || !reflect.DeepEqual(read.got, read.want)):
+				t.Errorf("%s: a %s job's result %s is read as %#v (%v), want %#v", c.name, read.verb, c.result, read.got, read.err, read.want)
+			}
 		}
 	}
-	if got := jobResult(semiont.JobCompleteCommand{}); got != nil {
-		t.Errorf("a completion with no result is read as %#v", got)
+	// A completion may report nothing: its schema does not require a result.
+	if got, err := jobResult[semiont.MarkJobResult](nil, markJobResults); got != nil || err != nil {
+		t.Errorf("a completion with no result is read as %#v (%v)", got, err)
 	}
 }
 
-// jobResult reads the members it lists, and the union is the spec's: a member
-// the spec gains fails here until the launcher reads it.
-func TestJobResultReadsEveryMemberOfTheUnion(t *testing.T) {
+// heldToItsUnion: a verb's list of result members is the spec's union of that
+// name, R's own.
+func heldToItsUnion[R json.Marshaler](t *testing.T, members resultMembers[R]) {
+	t.Helper()
+	union := reflect.TypeFor[R]().Name()
 	var read, stated []string
-	for _, member := range jobResultMembers {
+	for _, member := range members {
 		read = append(read, reflect.TypeOf(member).Name())
 	}
-	for _, member := range readSpecSchema(t, "JobResult.json").OneOf {
+	for _, member := range readSpecSchema(t, union+".json").OneOf {
 		stated = append(stated, strings.TrimSuffix(filepath.Base(member.Ref), ".json"))
 	}
 	sort.Strings(read)
 	sort.Strings(stated)
 	if len(stated) == 0 || !reflect.DeepEqual(read, stated) {
-		t.Errorf("jobResult reads %v; the spec's JobResult is one of %v", read, stated)
+		t.Errorf("the launcher reads %v; the spec's %s is one of %v", read, union, stated)
+	}
+}
+
+// Each verb reads the members it lists, and the unions are the spec's: a
+// member the spec gains fails here until the launcher reads it.
+func TestJobResultReadsEveryMemberOfItsVerbsUnion(t *testing.T) {
+	heldToItsUnion(t, markJobResults)
+	heldToItsUnion(t, yieldJobResults)
+}
+
+// A job:complete is a broadcast: every job's reaches every follower. One of
+// another job is not this follower's. One of this job is read as its verb's,
+// by the union's own discriminator, and one the union reads as another verb's
+// (or as none) is an error that names both.
+func TestACompletionIsReadAsItsVerbs(t *testing.T) {
+	var create semiont.JobCreateCommand
+	if err := create.FromMarkJobCreateCommand(semiont.MarkJobCreateCommand{ResourceId: "res-1"}); err != nil {
+		t.Fatal(err)
+	}
+	job := delegatedJob[semiont.MarkJobCompleteCommand]{
+		verb: "mark --delegate", create: create,
+		jobOf: func(done semiont.MarkJobCompleteCommand) semiont.JobId { return done.JobId },
+	}
+	// Written by the generated types, so that what each verb's completion
+	// names its job by is the generator's to say.
+	written := func(from func(*semiont.JobCompleteCommand) error) json.RawMessage {
+		var completion semiont.JobCompleteCommand
+		if err := from(&completion); err != nil {
+			t.Fatal(err)
+		}
+		payload, err := json.Marshal(completion)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return payload
+	}
+	marks := func(jobID string) json.RawMessage {
+		return written(func(c *semiont.JobCompleteCommand) error {
+			return c.FromMarkJobCompleteCommand(semiont.MarkJobCompleteCommand{JobId: jobID, ResourceId: "res-1"})
+		})
+	}
+	yields := func(jobID string) json.RawMessage {
+		return written(func(c *semiont.JobCompleteCommand) error {
+			return c.FromYieldJobCompleteCommand(semiont.YieldJobCompleteCommand{JobId: jobID, ResourceId: "res-1"})
+		})
+	}
+
+	if done, mine, err := job.completion("job-1", marks("job-1")); !mine || err != nil || done.JobId != "job-1" || done.JobType != semiont.MarkJobCompleteCommandJobTypeMark {
+		t.Errorf("this job's completion is read as %+v (mine %v, %v)", done, mine, err)
+	}
+	for name, payload := range map[string]json.RawMessage{
+		"another mark job's":  marks("job-2"),
+		"another yield job's": yields("job-2"),
+		"not an object":       json.RawMessage(`"job-1"`),
+	} {
+		if _, mine, err := job.completion("job-1", payload); mine || err != nil {
+			t.Errorf("%s completion %s is taken as this job's (mine %v, %v)", name, payload, mine, err)
+		}
+	}
+	for as, payload := range map[string]json.RawMessage{
+		`a "yield" job`:            yields("job-1"),
+		`a "frame" job`:            json.RawMessage(strings.Replace(string(marks("job-1")), `"jobType":"mark"`, `"jobType":"frame"`, 1)),
+		`a job that names no type`: json.RawMessage(strings.Replace(string(marks("job-1")), `"jobType":"mark",`, ``, 1)),
+	} {
+		_, mine, err := job.completion("job-1", payload)
+		want := `completed as ` + as + `, and mark --delegate created a "mark" job`
+		if !mine || err == nil || err.Error() != want {
+			t.Errorf("this job's completion %s: mine %v, error %v; want the error %q", payload, mine, err, want)
+		}
 	}
 }
 

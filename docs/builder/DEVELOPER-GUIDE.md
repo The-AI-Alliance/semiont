@@ -178,7 +178,8 @@ const done = await session.client.mark.delegate(resourceId, { motivation: 'linki
     if (m && 'entityType' in m) log(m.entityType);
   });
 
-// Every motivation reports the same counts: what the model proposed, what was written.
+// The result is a mark job's: a decline, or the counts every motivation reports
+// (what the model proposed, what was written).
 if (done.result && 'found' in done.result) log(done.result.found, done.result.persisted);
 
 // structured tagging:
@@ -284,10 +285,10 @@ const done = await session.client.yield.delegate({
   outputMediaType: 'text/markdown',
 }).run((ev) => { if (ev.kind === 'progress') showProgress(ev.data); });
 
-// `done` is the job's completion. A JobResult is one of three shapes that share
-// no member — a generation's resource, a mark job's counts, a decline — so narrow
-// by a member only one of them has. (`truncated` on the same shape says whether
-// the model hit the maxTokens ceiling; a cut-off artifact should be reported as such.)
+// `done` is the job's completion, and its result is a yield job's: the resource
+// it made, or a decline. The two share no member, so one check tells them apart.
+// (`truncated` beside `resourceId` says whether the model hit the maxTokens
+// ceiling; a cut-off artifact should be reported as such.)
 const newId =
   done.result && 'resourceId' in done.result ? done.result.resourceId : undefined;
 ```

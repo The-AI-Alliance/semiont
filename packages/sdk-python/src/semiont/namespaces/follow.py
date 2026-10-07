@@ -16,6 +16,13 @@ over. A failure it will not retry ends the follower with `job.failed`. A
 follower given a stall deadline that hears nothing for that long asks for the
 cancellation and ends with `job.stalled`.
 
+A job completes as its verb's jobs do: a `mark` job with a
+`MarkJobCompleteCommand`, a `yield` job with a `YieldJobCompleteCommand`. The
+follower of a job is told which, and reads the completion as that one, whether
+it heard it or learned it from the job's status. A completion that is another
+verb's is not the job's failure: it is an answer that is not the protocol's,
+and ends the follower with a `TransportError`.
+
 What the caller holds is a `Delegation`: the job's events as it goes, and its
 completion.
 """
@@ -25,11 +32,11 @@ from collections.abc import AsyncIterator, Callable, Generator
 from dataclasses import dataclass, field
 from typing import Final, Literal, final
 
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 
 from semiont.bus import decoded
 from semiont.channels import JOB_COMPLETE, JOB_FAIL, JOB_REPORT_PROGRESS
-from semiont.errors import BusRequestError, JobError, SemiontError
+from semiont.errors import BusRequestError, JobError, SemiontError, TransportError
 from semiont.identifiers import JobId, ResourceId
 from semiont.namespaces.links import Links
 from semiont.operations import JOB_CANCEL_REQUESTED, JOB_CREATE, JOB_STATUS_REQUESTED
@@ -45,6 +52,7 @@ from semiont.types import (
     JobReportProgressCommand,
     JobStatusRequest,
     JobStatusResponse,
+    JobType,
 )
 
 __all__ = ["Delegation", "JobAttemptFailed", "JobCompleted", "JobEvent", "JobProgressed", "follow"]
@@ -70,24 +78,29 @@ class JobAttemptFailed:
 
 @final
 @dataclass(frozen=True, slots=True)
-class JobCompleted:
-    """The job completed. A follower's last value."""
+class JobCompleted[C: JobCompleteCommand]:
+    """The job completed, with the completion its verb's jobs give. A follower's last value."""
 
-    data: JobCompleteCommand
+    data: C
     kind: Literal["complete"] = field(default="complete", init=False)
 
 
-type JobEvent = JobProgressed | JobAttemptFailed | JobCompleted
-"""What a followed job reports, and how it ends. As JSON it is
-`{"kind": "progress", "data": …}`, the same event in every SDK."""
+type JobEvent[C: JobCompleteCommand] = JobProgressed | JobAttemptFailed | JobCompleted[C]
+"""What a followed job reports, and how it ends, `C` being the completion its
+verb's jobs give. As JSON it is `{"kind": "progress", "data": …}`, the same
+event in every SDK."""
 
 
 @final
-class Delegation:
+class Delegation[C: JobCompleteCommand]:
     """A job another party does (`mark.delegate`, `yield_.delegate`), consumed one of two ways, once.
 
-    - Awaited, it gives the job's completion: its `job:complete`, whose
-      `result` is what the job reported.
+    `C` is the completion its verb's jobs give: `MarkJobCompleteCommand`,
+    whose `result` is a `mark` job's counts or a decline, or
+    `YieldJobCompleteCommand`, whose `result` is the resource a `yield` job
+    made or a decline.
+
+    - Awaited, it gives the job's completion.
     - Iterated (`async for`), it gives every event of the job, the
       completion's the last of them, and ends.
 
@@ -97,10 +110,10 @@ class Delegation:
     or reads it: the job goes on, and is followed no more.
     """
 
-    def __init__(self, following: Running[JobEvent]) -> None:
+    def __init__(self, following: Running[JobEvent[C]]) -> None:
         self._following: Final = following
 
-    async def _completion(self) -> JobCompleteCommand:
+    async def _completion(self) -> C:
         last = await self._following
         match last:
             case JobCompleted(data=completion):
@@ -108,10 +121,10 @@ class Delegation:
             case JobProgressed() | JobAttemptFailed():
                 raise RuntimeError(f"a delegated job ended on a {last.kind} event, not on its completion")
 
-    def __await__(self) -> Generator[object, None, JobCompleteCommand]:
+    def __await__(self) -> Generator[object, None, C]:
         return self._completion().__await__()
 
-    def __aiter__(self) -> AsyncIterator[JobEvent]:
+    def __aiter__(self) -> AsyncIterator[JobEvent[C]]:
         return aiter(self._following)
 
 
@@ -134,23 +147,37 @@ def _heard(frame: Frame) -> _Heard | None:
     return None
 
 
-def _completion(status: JobStatusResponse, resource_id: ResourceId) -> JobCompleteCommand:
-    """A completion learned from the job's status, which does not state the resource the job is about."""
-    result = status.result
-    # A job completed without a result is stored with an empty one: an object that holds nothing.
-    if result is None or isinstance(result, dict):
-        return JobCompleteCommand(resource_id=resource_id, job_id=status.job_id, job_type=status.type)
-    return JobCompleteCommand(resource_id=resource_id, job_id=status.job_id, job_type=status.type, result=result)
+def _learned[C: JobCompleteCommand](
+    completion: TypeAdapter[C], delegated: JobType, status: JobStatusResponse, resource_id: ResourceId
+) -> C:
+    """The completion a complete status stands for, read as the delegated verb's.
 
-
-def follow(links: Links, create: JobCreateCommand, *, resource_id: ResourceId, stall_ms: int | None) -> Delegation:
-    """Create a job and follow it.
-
-    `resource_id` is the resource the job is about, for a completion learned
-    from the job's status. `stall_ms` is how long the job may say nothing
-    before its follower gives up on it, when it gives up at all.
+    A status states its job's type and a result of any verb's, and does not
+    state the resource the job is about. What it states is given to the
+    verb's own shape to read: nothing here says which result is which verb's.
     """
-    return Delegation(Running(lambda report: links.run(_followed(links, create, resource_id, stall_ms, report))))
+    stated: dict[str, object] = {"resourceId": resource_id, "jobId": status.job_id, "jobType": status.type}
+    # A job completed without a result is stored with an empty one: an object that holds nothing.
+    if not (status.result is None or isinstance(status.result, dict)):
+        stated["result"] = status.result
+    try:
+        return completion.validate_python(stated)
+    except ValidationError as error:
+        raise TransportError("error", f"The status of job {status.job_id} is not a completed {delegated} job's: {error}") from error
+
+
+def follow[C: JobCompleteCommand](
+    links: Links, create: JobCreateCommand, completion: type[C], *, resource_id: ResourceId, stall_ms: int | None
+) -> Delegation[C]:
+    """Create a job and follow it to the completion its verb's jobs give.
+
+    `completion` is that completion's shape. `resource_id` is the resource
+    the job is about, for a completion learned from the job's status.
+    `stall_ms` is how long the job may say nothing before its follower gives
+    up on it, when it gives up at all.
+    """
+    reads = TypeAdapter(completion)
+    return Delegation(Running(lambda report: links.run(_followed(links, create, reads, resource_id, stall_ms, report))))
 
 
 async def _status(links: Links, job_id: JobId) -> JobStatusResponse:
@@ -164,9 +191,14 @@ async def _cancelled(links: Links, job_id: JobId) -> None:
         return
 
 
-async def _followed(
-    links: Links, create: JobCreateCommand, resource_id: ResourceId, stall_ms: int | None, report: Callable[[JobEvent], None]
-) -> JobCompleted:
+async def _followed[C: JobCompleteCommand](
+    links: Links,
+    create: JobCreateCommand,
+    completion: TypeAdapter[C],
+    resource_id: ResourceId,
+    stall_ms: int | None,
+    report: Callable[[JobEvent[C]], None],
+) -> JobCompleted[C]:
     loop = asyncio.get_running_loop()
     silence, poll = links.job_silence_ms / 1000, links.job_status_poll_ms / 1000
     stall = None if stall_ms is None else stall_ms / 1000
@@ -229,7 +261,7 @@ async def _followed(
                     status = answered.result()
                     match status.status:
                         case "complete":
-                            return JobCompleted(_completion(status, resource_id))
+                            return JobCompleted(_learned(completion, create.job_type, status, resource_id))
                         case "failed":
                             raise JobError("job.failed", status.error or "Job failed", job_id=status.job_id)
                         case "cancelled":
@@ -252,8 +284,6 @@ async def _followed(
                             report(JobProgressed(said.progress))
                         ask_at = now + silence
                         stall_at = None if stall is None else now + stall
-                    case JobCompleteCommand():
-                        return JobCompleted(said)
                     case JobFailCommand():
                         # Absent reads as final: a follower that ends early is seen, one that never ends is not.
                         if said.will_retry is not True:
@@ -267,6 +297,16 @@ async def _followed(
                         ask_at = None
                         stall_at = None if stall is None else now + stall
                         report(JobAttemptFailed(said))
+                    case _:
+                        # The third thing a job says: that it completed, read as the delegated verb's completion.
+                        try:
+                            return JobCompleted(completion.validate_python(said))
+                        except ValidationError:
+                            completed, delegated = said.job_type, create.job_type
+                            raise TransportError(
+                                "error",
+                                f"The job:complete of job {said.job_id} is a {completed} job's, and the job delegated is a {delegated} job",
+                            ) from None
     finally:
         left: list[asyncio.Task[object]] = [task for task in (creating, hearing, asking) if task is not None]
         for task in left:

@@ -16,8 +16,8 @@ use crate::transport::Envelope;
 use crate::types::{AnnotationId, ResourceId};
 use crate::types::{
     AnnotationSelector, CreateAnnotationRequest, MarkArchiveCommand, MarkAssistRequestEvent,
-    MarkCreateOkResponse, MarkCreateRequest, MarkDeleteCommand, MarkJobCreateCommand,
-    MarkJobParams, MarkRequestedEvent, MarkSubmitEvent, MarkUnarchiveCommand,
+    MarkCreateOkResponse, MarkCreateRequest, MarkDeleteCommand, MarkJobCompleteCommand,
+    MarkJobCreateCommand, MarkJobParams, MarkRequestedEvent, MarkSubmitEvent, MarkUnarchiveCommand,
     MarkUpdateEntityTypesCommand, Motivation, ResourceErrorEvent,
 };
 
@@ -103,7 +103,8 @@ impl MarkNamespace {
     }
 
     /// Delegate the annotating of a resource as a `mark` job: its progress,
-    /// any attempt that failed and will be tried again, and its completion.
+    /// any attempt that failed and will be tried again, and its completion,
+    /// whose result is a `mark` job's: its counts, or a decline.
     /// `params` is the job's parameters, one of five by its motivation
     /// (`HighlightingJobParams`, `CommentingJobParams`, `AssessingJobParams`,
     /// `LinkingJobParams`, `TaggingJobParams`), and each takes its own and no
@@ -144,7 +145,7 @@ impl MarkNamespace {
         &self,
         resource_id: &ResourceId,
         params: impl Into<MarkJobParams>,
-    ) -> Delegation {
+    ) -> Delegation<MarkJobCompleteCommand> {
         follow(
             self.links.clone(),
             Following {

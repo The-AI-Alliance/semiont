@@ -37,7 +37,14 @@
  */
 
 import type { Observable } from 'rxjs';
-import type { StreamObservable, CacheObservable, DelegationObservable, UploadObservable } from '../awaitable';
+import type {
+  StreamObservable,
+  CacheObservable,
+  DelegationObservable,
+  MarkJobCompletion,
+  UploadObservable,
+  YieldJobCompletion,
+} from '../awaitable';
 import type { components, EventMap, paths } from '@semiont/core';
 import type {
   ResourceId,
@@ -286,7 +293,7 @@ export interface MarkNamespace {
    * ⚠️ Cold: do NOT both `.subscribe(...)` and `await` the same instance —
    * that creates the job twice. Use `.run(onNext)` for progress + completion.
    */
-  delegate(resourceId: ResourceId, params: MarkJobParams): DelegationObservable;
+  delegate(resourceId: ResourceId, params: MarkJobParams): DelegationObservable<MarkJobCompletion>;
 
   // UI signals (fire-and-forget bus emits, local-bus fan-out)
   /** Request a new mark on `source` — the id routes the event to the state unit bound to that resource. */
@@ -417,7 +424,7 @@ export interface YieldNamespace {
   // new resource to the reference; resource focus mints a source→derived
   // provenance annotation. A context without a usable focus throws
   // synchronously. `stallDeadlineMs` is the follower's own and is not sent.
-  delegate(params: GenerationJobParams, stallDeadlineMs?: number): DelegationObservable;
+  delegate(params: GenerationJobParams, stallDeadlineMs?: number): DelegationObservable<YieldJobCompletion>;
 
   // Clone
   cloneToken(resourceId: ResourceId): Promise<CloneResourceWithTokenResponse>;

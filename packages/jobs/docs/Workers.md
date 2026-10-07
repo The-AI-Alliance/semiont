@@ -167,7 +167,7 @@ A job description is the spec's, so the job starts there:
 - `DescribingJobParams.json` states what the job takes, beside the other five: closed, with `motivation` its one value. It joins `MarkJobParams`' members and its mapping, and `specs/src/openapi.json`'s registry.
 - `ArchivistRoster.workers.mark` gains the key, so the directory can say who serves it.
 
-`lint:spec-jobs` and the Archivist's gate hold each of those lists to `Motivation`, so a step left out fails. There is no result schema to add: every `mark` job reports `JobDetectionResult`. There is no progress type either: every job reports `JobProgress`. A new progress message, or a new `kind` on `complete-created`, is a spec change plus client copy.
+`lint:spec-jobs` and the Archivist's gate hold each of those lists to `Motivation`, so a step left out fails. There is no result schema to add: every `mark` job reports a `MarkJobResult`, its counts (`JobDetectionResult`) or a decline. There is no progress type either: every job reports `JobProgress`. A new progress message, or a new `kind` on `complete-created`, is a spec change plus client copy.
 
 Regenerating gives the worker everything else: the params type, and `MARK_MOTIVATIONS` in `@semiont/core`.
 
@@ -256,6 +256,7 @@ In `src/worker-process.ts`, add a branch to `handleJobInner`. `isHeldMark` says 
   );
   await emitEvent(session, 'job:complete', {
     ...terminalBase(),
+    jobType,       // narrowed by the branch: a completion is its verb's
     result,
   });
   adapter.completeJob();

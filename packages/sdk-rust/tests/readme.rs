@@ -21,7 +21,8 @@ use semiont::testing::{
 use semiont::transport::{BoxFuture, Envelope, Frame, PutBinaryRequest};
 use semiont::types::{
     GatherResourceRequestOptions, GenerationJobParams, HighlightingJobParams, InvalidIdentifier,
-    JobCompleteCommand, JobResult, LinkingJobParams, Motivation, ResourceId,
+    JobCompleteCommand, LinkingJobParams, MarkJobCompleteCommand, Motivation, ResourceId,
+    YieldJobResult,
 };
 use serde_json::{Map, Value, json};
 use std::sync::{Arc, Mutex};
@@ -88,9 +89,10 @@ async fn a_first_program(
             None,
         )
         .await?;
+    // The completion is a yield job's: the resource it made, or a decline.
     let summary = match done.result {
-        Some(JobResult::GenerationResult(generated)) => Some(generated.resource_id),
-        _ => None,
+        Some(YieldJobResult::GenerationResult(generated)) => Some(generated.resource_id),
+        Some(YieldJobResult::DeclinedResult(_)) | None => None,
     };
     // </readme:story>
     Ok(summary)
@@ -99,7 +101,7 @@ async fn a_first_program(
 async fn a_script(
     client: &SemiontClient,
     resource_id: ResourceId,
-) -> Result<JobCompleteCommand, SemiontError> {
+) -> Result<MarkJobCompleteCommand, SemiontError> {
     // <readme:script>
     // Asked once, answered once.
     let about = client.browse.kb().await?;
@@ -418,6 +420,9 @@ async fn the_daemon_is_given_each_completion_until_the_client_closes() {
     let recording = seen.clone();
     let running = tokio::spawn(async move {
         a_daemon(&daemon, |job| {
+            let JobCompleteCommand::MarkJobCompleteCommand(job) = job else {
+                panic!("a mark job's completion was said, not {job:?}");
+            };
             recording.lock().expect("seen").push(job.job_id.to_string());
         })
         .await;

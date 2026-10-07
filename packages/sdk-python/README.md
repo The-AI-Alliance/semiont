@@ -142,7 +142,7 @@ client comes to be signed in.
 from semiont.client import SemiontClient
 from semiont.identifiers import ResourceId
 from semiont.transport import PutBinaryRequest, Transport
-from semiont.types import GenerationJobParams, JobGenerationResult, LinkingJobParams
+from semiont.types import GenerationJobParams, JobDeclinedResult, LinkingJobParams
 
 
 async def summarize(client: SemiontClient[Transport], paper: bytes) -> ResourceId | None:
@@ -172,8 +172,9 @@ async def summarize(client: SemiontClient[Transport], paper: bytes) -> ResourceI
             task="summary",
         )
     )
-    # A job that could not read what it was given declines, and makes nothing.
-    return done.result.resource_id if isinstance(done.result, JobGenerationResult) else None
+    # What a `yield` job reports is the resource it made. One that could not read what it was given declines, and makes nothing.
+    made = done.result
+    return None if made is None or isinstance(made, JobDeclinedResult) else made.resource_id
 ```
 
 Both resources, and every annotation the model made, are in the knowledge base
@@ -241,7 +242,7 @@ Every method returns one of eight shapes, and the table says which:
 |---|---|---|
 | asked once, answered once | `async def` | a failure is raised |
 | a long-running operation | `Running[T]` | awaited for its final value, or read with `async for` for every report and then the final value; one or the other, once |
-| a job another party does | `Delegation` | awaited for the job's completion, or read with `async for` for every event of the job, its completion's the last; one or the other, once |
+| a job another party does | `Delegation[C]` | awaited for the job's completion, or read with `async for` for every event of the job, its completion's the last; one or the other, once |
 | an upload | `Upload` | awaited for the resource it created, read for its progress |
 | a query | `Cached[T]` | building it sends nothing; `await query.fresh()` reads it once, and held with `async with` it is watched |
 | a signal | `def`, returning nothing | published on the client's own bus, or sent and not awaited |
@@ -253,14 +254,18 @@ Every method returns one of eight shapes, and the table says which:
   of a `mark` job (`HighlightingJobParams`, `CommentingJobParams`,
   `AssessingJobParams`, `LinkingJobParams`, `TaggingJobParams`), and
   `GenerationJobParams` for a `yield` job. Each takes what its job takes and
-  nothing else. Awaited, the job gives its completion, a `JobCompleteCommand`,
-  whose `result` is what the job reported: the counts of a `mark` job
-  (`JobDetectionResult`), the resource a `yield` job made
-  (`JobGenerationResult`), or a decline from either (`JobDeclinedResult`).
-  Read, it reports its progress and ends with its completion. A job that says
-  nothing is asked for its status, so a completion the stream did not carry is
-  still heard. It ends as a `JobError` when the job failed for good, was
-  cancelled, or (a generation) said nothing for longer than its length allows.
+  nothing else. Awaited, the job gives its completion, which is its verb's:
+  a `MarkJobCompleteCommand`, whose `result` is the job's counts
+  (`JobDetectionResult`) or a decline (`JobDeclinedResult`), or a
+  `YieldJobCompleteCommand`, whose `result` is the resource the job made
+  (`JobGenerationResult`) or a decline. A type checker holds what reads a
+  `mark` job's result to those two, and never offers it a generation's. Read,
+  the job reports its progress and ends with that same completion. A job that
+  says nothing is asked for its status, so a completion the stream did not
+  carry is still heard. It ends as a `JobError` when the job failed for good,
+  was cancelled, or (a generation) said nothing for longer than its length
+  allows; and as a `TransportError` when what completed is not a job of the
+  verb that was delegated.
 - **`client.bus`** is the client's own bus: every frame its transport
   delivered, and every signal its own parts gave each other.
   **`client.wire`** is the bus over the transport, typed by channel.
@@ -540,7 +545,7 @@ is made in, and a frame continues the trace it was sent under (`frame.trace`).
 | Module | What it holds |
 |---|---|
 | `semiont.client` | `SemiontClient`, and the timing it keeps to |
-| `semiont.namespaces` | The methods of each namespace; and in `semiont.namespaces.follow`, `Delegation`, what a delegated job returns, with the events of a job |
+| `semiont.namespaces` | The methods of each namespace; and in `semiont.namespaces.follow`, `Delegation[C]`, what a delegated job returns, with the events of a job |
 | `semiont.running`, `semiont.cached` | `Running[T]` and `Cached[T]`: what long-running operations and queries return |
 | `semiont.cache`, `semiont.refresh`, `semiont.resume` | The cache queries answer from and its three states, which queries each event asks again, and where a stream resumes after a restart |
 | `semiont.storage` | Where a client keeps what must outlive it: `SessionStorage`, and `MemoryStorage` |

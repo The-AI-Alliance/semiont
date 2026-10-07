@@ -1410,6 +1410,21 @@ func (e LogLevel) Valid() bool {
 	}
 }
 
+// Defines values for MarkJobCompleteCommandJobType.
+const (
+	MarkJobCompleteCommandJobTypeMark MarkJobCompleteCommandJobType = "mark"
+)
+
+// Valid indicates whether the value is a known member of the MarkJobCompleteCommandJobType enum.
+func (e MarkJobCompleteCommandJobType) Valid() bool {
+	switch e {
+	case MarkJobCompleteCommandJobTypeMark:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for MarkJobCreateCommandJobType.
 const (
 	MarkJobCreateCommandJobTypeMark MarkJobCreateCommandJobType = "mark"
@@ -1442,13 +1457,13 @@ func (e MarkJobFilterJobType) Valid() bool {
 
 // Defines values for MarkJobQueuedEventJobType.
 const (
-	MarkJobQueuedEventJobTypeMark MarkJobQueuedEventJobType = "mark"
+	Mark MarkJobQueuedEventJobType = "mark"
 )
 
 // Valid indicates whether the value is a known member of the MarkJobQueuedEventJobType enum.
 func (e MarkJobQueuedEventJobType) Valid() bool {
 	switch e {
-	case MarkJobQueuedEventJobTypeMark:
+	case Mark:
 		return true
 	default:
 		return false
@@ -1923,6 +1938,21 @@ func (e TextualBodyType) Valid() bool {
 	}
 }
 
+// Defines values for YieldJobCompleteCommandJobType.
+const (
+	YieldJobCompleteCommandJobTypeYield YieldJobCompleteCommandJobType = "yield"
+)
+
+// Valid indicates whether the value is a known member of the YieldJobCompleteCommandJobType enum.
+func (e YieldJobCompleteCommandJobType) Valid() bool {
+	switch e {
+	case YieldJobCompleteCommandJobTypeYield:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for YieldJobCreateCommandJobType.
 const (
 	YieldJobCreateCommandJobTypeYield YieldJobCreateCommandJobType = "yield"
@@ -1955,13 +1985,13 @@ func (e YieldJobFilterJobType) Valid() bool {
 
 // Defines values for YieldJobQueuedEventJobType.
 const (
-	Yield YieldJobQueuedEventJobType = "yield"
+	YieldJobQueuedEventJobTypeYield YieldJobQueuedEventJobType = "yield"
 )
 
 // Valid indicates whether the value is a known member of the YieldJobQueuedEventJobType enum.
 func (e YieldJobQueuedEventJobType) Valid() bool {
 	switch e {
-	case Yield:
+	case YieldJobQueuedEventJobTypeYield:
 		return true
 	default:
 		return false
@@ -4081,31 +4111,9 @@ type JobComplete struct {
 // JobCompleteStatus defines model for JobComplete.Status.
 type JobCompleteStatus string
 
-// JobCompleteCommand Command to mark a job as complete
+// JobCompleteCommand A job's worker says the job is complete. The result it carries is its verb's: a `mark` job's counts or the resource a `yield` job made, or a decline from either. A completion whose result is the other verb's is refused where the command is admitted.
 type JobCompleteCommand struct {
-	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
-	UnderscoreUserId *UserId `json:"_userId,omitempty"`
-
-	// AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
-	AnnotationId *AnnotationId `json:"annotationId,omitempty"`
-
-	// Attempt Which attempt produced this event, 1-based (a first run is 1). ALWAYS present: the queue re-runs a failed job silently, so an operator reading progress or a terminal record has no other way to tell a re-run from a first run — and provider spend, already counted in semiont_inference_tokens_total, cannot be attributed to a repeated document without it. Stated rather than inferred from absence, because 'attempt 1' is a fact the emitter always knows.
-	Attempt *int `json:"attempt,omitempty"`
-
-	// Durability How a job's annotations were established as durable — the OBSERVATION, never a conclusion drawn from it. 'acknowledged': the event log confirmed the batch (mark:commit-ok). 'probe-confirmed': the acknowledgement was lost and a later read found the batch's last annotation present — true, but a weaker claim than an ack, since it rests on the log appending a batch in order and stopping at the first failure. 'probe-refused': the read returned a failure reply; note this does NOT assert the annotations are absent, because a read that failed for its own reasons answers on the same channel. 'probe-unreachable': no answer came at all, so nothing was established either way. ABSENT means the question never arose — a job that committed no annotations. Never defaulted: a manufactured value here is a claim nobody made, in a log nobody can rewrite.
-	Durability *DurabilityEvidence `json:"durability,omitempty"`
-
-	// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
-	JobId JobId `json:"jobId"`
-
-	// JobType What a job does, as the verb that asks for it: `mark` annotates a resource, `yield` makes one. A job description is its `jobType` and the parameters that verb takes; a `mark` job's parameters state its motivation.
-	JobType JobType `json:"jobType"`
-
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
-	ResourceId ResourceId `json:"resourceId"`
-
-	// Result What a job reports when it concludes without failing: a `mark` job's counts, the resource a `yield` job made, or a decline from either. A result has no discriminant of its own: the job description beside it says which job it answers, and the three share no member, so each is told from the others by what it alone carries.
-	Result *JobResult `json:"result,omitempty"`
+	union json.RawMessage
 }
 
 // JobCompletedPayload Payload for job:completed domain event
@@ -4859,6 +4867,31 @@ type MarkDeleteOk struct {
 	} `json:"response"`
 }
 
+// MarkJobCompleteCommand A `mark` job's worker says the job is complete, with what a `mark` job reports.
+type MarkJobCompleteCommand struct {
+	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	UnderscoreUserId *UserId `json:"_userId,omitempty"`
+
+	// Attempt Which attempt produced this event, 1-based (a first run is 1). ALWAYS present: the queue re-runs a failed job silently, so an operator reading progress or a terminal record has no other way to tell a re-run from a first run — and provider spend, already counted in semiont_inference_tokens_total, cannot be attributed to a repeated document without it. Stated rather than inferred from absence, because 'attempt 1' is a fact the emitter always knows.
+	Attempt *int `json:"attempt,omitempty"`
+
+	// Durability How a job's annotations were established as durable — the OBSERVATION, never a conclusion drawn from it. 'acknowledged': the event log confirmed the batch (mark:commit-ok). 'probe-confirmed': the acknowledgement was lost and a later read found the batch's last annotation present — true, but a weaker claim than an ack, since it rests on the log appending a batch in order and stopping at the first failure. 'probe-refused': the read returned a failure reply; note this does NOT assert the annotations are absent, because a read that failed for its own reasons answers on the same channel. 'probe-unreachable': no answer came at all, so nothing was established either way. ABSENT means the question never arose — a job that committed no annotations. Never defaulted: a manufactured value here is a claim nobody made, in a log nobody can rewrite.
+	Durability *DurabilityEvidence `json:"durability,omitempty"`
+
+	// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
+	JobId   JobId                         `json:"jobId"`
+	JobType MarkJobCompleteCommandJobType `json:"jobType"`
+
+	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	ResourceId ResourceId `json:"resourceId"`
+
+	// Result What a `mark` job reports when it concludes without failing: its counts, or a decline. Neither names its kind: a decline is the one with `declined`.
+	Result *MarkJobResult `json:"result,omitempty"`
+}
+
+// MarkJobCompleteCommandJobType defines model for MarkJobCompleteCommand.JobType.
+type MarkJobCompleteCommandJobType string
+
 // MarkJobCreateCommand Create a `mark` job: annotate one resource for one motivation.
 type MarkJobCreateCommand struct {
 	// UnderscoreRoles The emitter's roles, injected by the gateway when it has any. Clients do not set this.
@@ -4913,6 +4946,11 @@ type MarkJobQueuedEvent struct {
 
 // MarkJobQueuedEventJobType defines model for MarkJobQueuedEvent.JobType.
 type MarkJobQueuedEventJobType string
+
+// MarkJobResult What a `mark` job reports when it concludes without failing: its counts, or a decline. Neither names its kind: a decline is the one with `declined`.
+type MarkJobResult struct {
+	union json.RawMessage
+}
 
 // MarkRequestedEvent Emitted when the user requests a new mark (annotation) on a resource
 type MarkRequestedEvent struct {
@@ -6260,6 +6298,34 @@ type YieldCreateOk struct {
 	} `json:"response"`
 }
 
+// YieldJobCompleteCommand A `yield` job's worker says the job is complete, with what a `yield` job reports.
+type YieldJobCompleteCommand struct {
+	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	UnderscoreUserId *UserId `json:"_userId,omitempty"`
+
+	// AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
+	AnnotationId *AnnotationId `json:"annotationId,omitempty"`
+
+	// Attempt Which attempt produced this event, 1-based (a first run is 1). ALWAYS present: the queue re-runs a failed job silently, so an operator reading progress or a terminal record has no other way to tell a re-run from a first run — and provider spend, already counted in semiont_inference_tokens_total, cannot be attributed to a repeated document without it. Stated rather than inferred from absence, because 'attempt 1' is a fact the emitter always knows.
+	Attempt *int `json:"attempt,omitempty"`
+
+	// Durability How a job's annotations were established as durable — the OBSERVATION, never a conclusion drawn from it. 'acknowledged': the event log confirmed the batch (mark:commit-ok). 'probe-confirmed': the acknowledgement was lost and a later read found the batch's last annotation present — true, but a weaker claim than an ack, since it rests on the log appending a batch in order and stopping at the first failure. 'probe-refused': the read returned a failure reply; note this does NOT assert the annotations are absent, because a read that failed for its own reasons answers on the same channel. 'probe-unreachable': no answer came at all, so nothing was established either way. ABSENT means the question never arose — a job that committed no annotations. Never defaulted: a manufactured value here is a claim nobody made, in a log nobody can rewrite.
+	Durability *DurabilityEvidence `json:"durability,omitempty"`
+
+	// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
+	JobId   JobId                          `json:"jobId"`
+	JobType YieldJobCompleteCommandJobType `json:"jobType"`
+
+	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	ResourceId ResourceId `json:"resourceId"`
+
+	// Result What a `yield` job reports when it concludes without failing: the resource it made, or a decline. Neither names its kind: a decline is the one with `declined`.
+	Result *YieldJobResult `json:"result,omitempty"`
+}
+
+// YieldJobCompleteCommandJobType defines model for YieldJobCompleteCommand.JobType.
+type YieldJobCompleteCommandJobType string
+
 // YieldJobCreateCommand Create a `yield` job: make a resource from a gathered context. It names no resource of its own: the job is about the resource its context focuses on, which the Dispatcher reads from `params.context.focus`.
 type YieldJobCreateCommand struct {
 	// UnderscoreRoles The emitter's roles, injected by the gateway when it has any. Clients do not set this.
@@ -6302,6 +6368,11 @@ type YieldJobQueuedEvent struct {
 
 // YieldJobQueuedEventJobType defines model for YieldJobQueuedEvent.JobType.
 type YieldJobQueuedEventJobType string
+
+// YieldJobResult What a `yield` job reports when it concludes without failing: the resource it made, or a decline. Neither names its kind: a decline is the one with `declined`.
+type YieldJobResult struct {
+	union json.RawMessage
+}
 
 // YieldMoveFailed defines model for YieldMoveFailed.
 type YieldMoveFailed struct {
@@ -9874,6 +9945,95 @@ func (t *Job) UnmarshalJSON(b []byte) error {
 	return err
 }
 
+// AsMarkJobCompleteCommand returns the union data inside the JobCompleteCommand as a MarkJobCompleteCommand
+func (t JobCompleteCommand) AsMarkJobCompleteCommand() (MarkJobCompleteCommand, error) {
+	var body MarkJobCompleteCommand
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromMarkJobCompleteCommand overwrites any union data inside the JobCompleteCommand as the provided MarkJobCompleteCommand
+func (t *JobCompleteCommand) FromMarkJobCompleteCommand(v MarkJobCompleteCommand) error {
+	v.JobType = "mark"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeMarkJobCompleteCommand performs a merge with any union data inside the JobCompleteCommand, using the provided MarkJobCompleteCommand
+func (t *JobCompleteCommand) MergeMarkJobCompleteCommand(v MarkJobCompleteCommand) error {
+	v.JobType = "mark"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsYieldJobCompleteCommand returns the union data inside the JobCompleteCommand as a YieldJobCompleteCommand
+func (t JobCompleteCommand) AsYieldJobCompleteCommand() (YieldJobCompleteCommand, error) {
+	var body YieldJobCompleteCommand
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromYieldJobCompleteCommand overwrites any union data inside the JobCompleteCommand as the provided YieldJobCompleteCommand
+func (t *JobCompleteCommand) FromYieldJobCompleteCommand(v YieldJobCompleteCommand) error {
+	v.JobType = "yield"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeYieldJobCompleteCommand performs a merge with any union data inside the JobCompleteCommand, using the provided YieldJobCompleteCommand
+func (t *JobCompleteCommand) MergeYieldJobCompleteCommand(v YieldJobCompleteCommand) error {
+	v.JobType = "yield"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t JobCompleteCommand) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"jobType"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t JobCompleteCommand) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "mark":
+		return t.AsMarkJobCompleteCommand()
+	case "yield":
+		return t.AsYieldJobCompleteCommand()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t JobCompleteCommand) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *JobCompleteCommand) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // AsMarkJobCreateCommand returns the union data inside the JobCreateCommand as a MarkJobCreateCommand
 func (t JobCreateCommand) AsMarkJobCreateCommand() (MarkJobCreateCommand, error) {
 	var body MarkJobCreateCommand
@@ -10946,6 +11106,68 @@ func (t MarkJobParams) MarshalJSON() ([]byte, error) {
 }
 
 func (t *MarkJobParams) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsJobDetectionResult returns the union data inside the MarkJobResult as a JobDetectionResult
+func (t MarkJobResult) AsJobDetectionResult() (JobDetectionResult, error) {
+	var body JobDetectionResult
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromJobDetectionResult overwrites any union data inside the MarkJobResult as the provided JobDetectionResult
+func (t *MarkJobResult) FromJobDetectionResult(v JobDetectionResult) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeJobDetectionResult performs a merge with any union data inside the MarkJobResult, using the provided JobDetectionResult
+func (t *MarkJobResult) MergeJobDetectionResult(v JobDetectionResult) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsJobDeclinedResult returns the union data inside the MarkJobResult as a JobDeclinedResult
+func (t MarkJobResult) AsJobDeclinedResult() (JobDeclinedResult, error) {
+	var body JobDeclinedResult
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromJobDeclinedResult overwrites any union data inside the MarkJobResult as the provided JobDeclinedResult
+func (t *MarkJobResult) FromJobDeclinedResult(v JobDeclinedResult) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeJobDeclinedResult performs a merge with any union data inside the MarkJobResult, using the provided JobDeclinedResult
+func (t *MarkJobResult) MergeJobDeclinedResult(v JobDeclinedResult) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t MarkJobResult) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *MarkJobResult) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
@@ -12987,6 +13209,68 @@ func (t YieldCreateCommand_Generator) MarshalJSON() ([]byte, error) {
 }
 
 func (t *YieldCreateCommand_Generator) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsJobGenerationResult returns the union data inside the YieldJobResult as a JobGenerationResult
+func (t YieldJobResult) AsJobGenerationResult() (JobGenerationResult, error) {
+	var body JobGenerationResult
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromJobGenerationResult overwrites any union data inside the YieldJobResult as the provided JobGenerationResult
+func (t *YieldJobResult) FromJobGenerationResult(v JobGenerationResult) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeJobGenerationResult performs a merge with any union data inside the YieldJobResult, using the provided JobGenerationResult
+func (t *YieldJobResult) MergeJobGenerationResult(v JobGenerationResult) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsJobDeclinedResult returns the union data inside the YieldJobResult as a JobDeclinedResult
+func (t YieldJobResult) AsJobDeclinedResult() (JobDeclinedResult, error) {
+	var body JobDeclinedResult
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromJobDeclinedResult overwrites any union data inside the YieldJobResult as the provided JobDeclinedResult
+func (t *YieldJobResult) FromJobDeclinedResult(v JobDeclinedResult) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeJobDeclinedResult performs a merge with any union data inside the YieldJobResult, using the provided JobDeclinedResult
+func (t *YieldJobResult) MergeJobDeclinedResult(v JobDeclinedResult) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t YieldJobResult) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *YieldJobResult) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }

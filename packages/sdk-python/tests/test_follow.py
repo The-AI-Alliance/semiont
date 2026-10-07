@@ -13,7 +13,7 @@ from pydantic import JsonValue, TypeAdapter, ValidationError
 from spec import JsonObject
 
 from semiont.client import ClientTiming, SemiontClient
-from semiont.errors import BusRequestError, JobError, SemiontError
+from semiont.errors import BusRequestError, JobError, SemiontError, TransportError
 from semiont.identifiers import ResourceId
 from semiont.namespaces.follow import Delegation, JobAttemptFailed, JobCompleted, JobEvent, JobProgressed
 from semiont.namespaces.yield_ import generation_stall_deadline_ms
@@ -27,11 +27,14 @@ from semiont.types import (
     GenerationJobParams,
     HighlightingJobParams,
     JobCompleteCommand,
+    JobDeclinedResult,
     JobDetectionResult,
     JobGenerationResult,
     JobProgress,
     JobType,
+    MarkJobCompleteCommand,
     MarkJobParams,
+    YieldJobCompleteCommand,
 )
 
 SILENCE, POLL = JOB_SILENCE_MS / 1000, JOB_STATUS_POLL_MS / 1000
@@ -56,11 +59,11 @@ def world(*, answered: bool = True) -> tuple[Client, FaultyTransport]:
     return SemiontClient(transport, InMemoryContent(), StubGateway()), transport
 
 
-def highlighting(client: Client) -> Delegation:
+def highlighting(client: Client) -> Delegation[MarkJobCompleteCommand]:
     return client.mark.delegate(RESOURCE, HighlightingJobParams(motivation="highlighting"))
 
 
-def generation(client: Client, *, stall_deadline_ms: int | None, max_tokens: int | None = None) -> Delegation:
+def generation(client: Client, *, stall_deadline_ms: int | None, max_tokens: int | None = None) -> Delegation[YieldJobCompleteCommand]:
     stated: JsonObject = {"title": "A summary", "storageUri": "file://a-summary.md", "context": CONTEXT}
     if max_tokens is not None:
         stated["maxTokens"] = max_tokens
@@ -91,7 +94,7 @@ def asked(transport: FaultyTransport, channel: str) -> list[Frame]:
     return [frame for frame in transport.emitted if frame.channel == channel]
 
 
-def kind(event: JobEvent) -> str:
+def kind[C: JobCompleteCommand](event: JobEvent[C]) -> str:
     match event:
         case JobProgressed(data=data):
             return f"progress {data.percentage:g}"
@@ -103,7 +106,7 @@ def kind(event: JobEvent) -> str:
             assert_never(event)
 
 
-async def collected(delegation: Delegation, seen: list[JobEvent]) -> list[str]:
+async def collected[C: JobCompleteCommand](delegation: Delegation[C], seen: list[JobEvent[C]]) -> list[str]:
     """Everything a follower gives, as words: each event's kind, and the code of the failure that ended it."""
     kinds: list[str] = []
     try:
@@ -115,8 +118,8 @@ async def collected(delegation: Delegation, seen: list[JobEvent]) -> list[str]:
     return kinds
 
 
-def following(delegation: Delegation) -> tuple[asyncio.Task[list[str]], list[JobEvent]]:
-    seen: list[JobEvent] = []
+def following[C: JobCompleteCommand](delegation: Delegation[C]) -> tuple[asyncio.Task[list[str]], list[JobEvent[C]]]:
+    seen: list[JobEvent[C]] = []
     return asyncio.ensure_future(collected(delegation, seen)), seen
 
 
@@ -156,8 +159,8 @@ def test_awaited_a_job_gives_its_completion() -> None:
         say(client, "job:report-progress", "job-1", **progress(10))
         say(client, "job:complete", "job-1", result={"found": 2, "persisted": 2})
         done = await soon(awaiting)
-        # The completion itself, and no event to take it out of.
-        assert type(done) is JobCompleteCommand
+        # The completion itself, and no event to take it out of: a `mark` job's, whose result is what a `mark` job reports.
+        assert type(done) is MarkJobCompleteCommand
         assert (done.job_id, done.job_type, done.resource_id) == ("job-1", "mark", "res-1")
         assert done.result == JobDetectionResult(found=2, persisted=2)
         await client.close()
@@ -165,8 +168,35 @@ def test_awaited_a_job_gives_its_completion() -> None:
     run(scenario())
 
 
-async def _awaited(delegation: Delegation) -> JobCompleteCommand:
+async def _awaited[C: JobCompleteCommand](delegation: Delegation[C]) -> C:
     return await delegation
+
+
+def counted(done: MarkJobCompleteCommand) -> int | None:
+    """What a `mark` job found. What it reports is its counts, a decline, or nothing: a type checker holds this to naming all three."""
+    match done.result:
+        case JobDetectionResult(found=found):
+            return found
+        case JobDeclinedResult() | None:
+            return None
+        case _ as other:
+            assert_never(other)
+
+
+def test_what_a_mark_job_reports_is_its_counts_or_a_decline() -> None:
+    async def scenario(result: JsonObject) -> MarkJobCompleteCommand:
+        client, _ = world()
+        awaiting = asyncio.ensure_future(_awaited(highlighting(client)))
+        await turns()
+        say(client, "job:complete", "job-1", result=result)
+        done = await soon(awaiting)
+        await client.close()
+        return done
+
+    assert counted(run(scenario({"found": 4, "persisted": 3}))) == 4
+    declined = run(scenario({"declined": True, "reason": "encrypted"}))
+    assert isinstance(declined.result, JobDeclinedResult)
+    assert counted(declined) is None
 
 
 def test_awaited_a_generation_gives_the_resource_it_made() -> None:
@@ -177,6 +207,7 @@ def test_awaited_a_generation_gives_the_resource_it_made() -> None:
         made: JsonObject = {"resourceId": "res-summary", "resourceName": "A summary", "truncated": False}
         say(client, "job:complete", "job-1", "yield", result=made)
         done = await soon(awaiting)
+        assert type(done) is YieldJobCompleteCommand
         assert done.job_type == "yield"
         assert done.result == JobGenerationResult(resource_id=ResourceId("res-summary"), resource_name="A summary", truncated=False)
         await client.close()
@@ -214,7 +245,7 @@ def test_a_delegation_is_awaited_or_read_and_once() -> None:
 
 def test_a_follower_that_ends_on_anything_but_a_completion_is_no_completion() -> None:
     async def scenario() -> None:
-        async def ended_early() -> JobEvent:
+        async def ended_early() -> JobEvent[MarkJobCompleteCommand]:
             return JobProgressed(JobProgress(percentage=50))
 
         with pytest.raises(RuntimeError, match="ended on a progress event, not on its completion"):
@@ -281,7 +312,7 @@ def test_a_silent_job_is_asked_for_its_status_until_its_status_is_an_end() -> No
 
 
 def test_a_status_carries_the_result_its_job_was_stored_with_and_an_empty_one_is_none() -> None:
-    async def scenario(result: JsonValue) -> JobEvent:
+    async def scenario(result: JsonValue) -> JobEvent[MarkJobCompleteCommand]:
         client, transport = world()
         transport.queue_reply("job:status-requested", [status("complete", result=result)])
         task, seen = following(highlighting(client))
@@ -297,6 +328,73 @@ def test_a_status_carries_the_result_its_job_was_stored_with_and_an_empty_one_is
     empty = run(scenario({}))
     assert isinstance(empty, JobCompleted)
     assert empty.data.result is None
+
+
+GENERATED: JsonObject = {"resourceId": "res-summary", "resourceName": "A summary", "truncated": False}
+
+
+def test_a_completion_heard_that_is_another_verb_s_ends_the_follower_and_is_no_failure_of_the_job() -> None:
+    async def scenario() -> None:
+        client, transport = world()
+        awaiting = asyncio.ensure_future(_awaited(highlighting(client)))
+        await turns()
+        # The job that was delegated is a `mark` job, and this says a `yield` job completed.
+        say(client, "job:complete", "job-1", "yield", result=GENERATED)
+        with pytest.raises(TransportError, match="is a yield job's, and the job delegated is a mark job") as ended:
+            await soon(awaiting)
+        assert ended.value.code == "error"
+        assert asked(transport, "job:cancel-requested") == []
+        await client.close()
+
+    run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("delegated", "said"),
+    [
+        ("mark", {"type": "yield"}),
+        ("mark", {"type": "yield", "result": GENERATED}),
+        ("mark", {"result": GENERATED}),
+        ("yield", {"type": "mark"}),
+        ("yield", {"type": "yield", "result": {"found": 3, "persisted": 2}}),
+    ],
+    ids=[
+        "a mark job, and the status is a yield job's",
+        "a mark job, and the status is a yield job's with its result",
+        "a mark job, and the result is a generation's",
+        "a yield job, and the status is a mark job's",
+        "a yield job, and the result is a mark job's counts",
+    ],
+)
+def test_a_status_whose_completion_is_not_the_verb_s_ends_the_follower_and_is_no_failure_of_the_job(
+    delegated: JobType, said: JsonObject
+) -> None:
+    async def scenario() -> None:
+        client, transport = world()
+        transport.queue_reply("job:status-requested", [status("complete", **said)])
+        task = following(highlighting(client))[0] if delegated == "mark" else following(generation(client, stall_deadline_ms=None))[0]
+        await turns()
+        await pass_time(SILENCE + 0.1, step=0.5)
+        # What the knowledge base answered is not the protocol's: no completion is made of it, and the job is not said to have failed.
+        assert await soon(task) == ["error error"]
+        await client.close()
+
+    run(scenario())
+
+
+def test_a_status_whose_completion_is_not_the_verb_s_is_told_as_what_it_is() -> None:
+    async def scenario() -> None:
+        client, transport = world()
+        transport.queue_reply("job:status-requested", [status("complete", result=GENERATED)])
+        awaiting = asyncio.ensure_future(_awaited(highlighting(client)))
+        await turns()
+        await pass_time(SILENCE + 0.1, step=0.5)
+        with pytest.raises(TransportError, match="The status of job job-1 is not a completed mark job's") as ended:
+            await soon(awaiting)
+        assert ended.value.code == "error"
+        await client.close()
+
+    run(scenario())
 
 
 def test_every_frame_of_the_job_starts_the_silence_again() -> None:

@@ -42,7 +42,7 @@ Its `params` are the description's, and what the dispatcher adds:
 - **`resourceId`**, the resource the job is about. A `mark` job's own; for a `yield` job, the one its context focuses on.
 - **`schema`**, for a tagging job: the whole tag schema its `schemaId` names. A caller names a schema by id, and the dispatcher resolves it against the knowledge base's tag schemas when it creates the job, so a worker never reads the registry.
 
-The spec leaves that held shape open, so a worker asks which job it holds. `isHeldMark(params, motivation)` answers, and narrows the params to `HeldMarkParams<motivation>`: that motivation's params from the spec, with `resourceId` and, for tagging, `schema`. It is no for a tagging job handed over without its schema, which a worker cannot run.
+The spec names those two additions (`JobParams`) and leaves the rest of the held shape open, so a worker asks which job it holds. `isHeldMark(params, motivation)` answers, and narrows the params to `HeldMarkParams<motivation>`: that motivation's params from the spec, with `resourceId` and, for tagging, `schema`. It is no for a tagging job handed over without its schema, which a worker cannot run.
 
 ## Annotation params
 
@@ -71,7 +71,7 @@ One result for every motivation, `JobDetectionResult`:
 | `byCategory` | The annotations persisted per category. A tagging job's |
 | `underReportedPieces` | The pieces whose extraction was accepted although it was flagged as under-reporting. A linking job's, and absent when there were none |
 
-A result has no field that says which job it answers. `job:complete` carries the `jobType` beside it, and the three results (these counts, a `yield` job's resource, a decline) share no member.
+A result has no field that says which job it answers. `job:complete` carries the `jobType` beside it, and that says which results it may carry: a `mark` job's is these counts or a decline (`MarkJobResult`), a `yield` job's the resource it made or a decline (`YieldJobResult`). The gateway refuses a completion that carries the other verb's. The three results share no member, so a decline is told from the other by `declined`.
 
 The three tallies ride each unit's cursor, so a job that resumes reports the whole document's and not its last attempt's.
 

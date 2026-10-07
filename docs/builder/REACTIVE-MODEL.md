@@ -20,7 +20,7 @@ Every namespace method returns exactly one of these. Which one is the method's r
 |---|---|---|---|---|
 | `promise` | Asked once, answered once: the value, or a failure with a code. | `Promise<T>` | `async fn … -> Result<T, SemiontError>` | `async def … -> T`, raising a `SemiontError` |
 | `stream` | A long-running operation: what it reports as it goes, then its final value. | `StreamObservable<T>` | `Running<T>` | `Running[T]` |
-| `delegation` | A job another party does: the job's events as it goes, its completion the last of them. | `DelegationObservable` | `Delegation` | `Delegation` |
+| `delegation` | A job another party does: the job's events as it goes, its completion the last of them. The completion is its verb's. | `DelegationObservable<C>` | `Delegation<C>` | `Delegation[C]` |
 | `upload` | An upload in flight: its progress, then the id of the resource created. | `UploadObservable` | `Upload` | `Upload` |
 | `cache` | A live query. Building it touches nothing; its one-shot read asks the service now. | `CacheObservable<T>` | `Cached<T>` | `Cached[T]` |
 | `signal` | Fire-and-forget. Nothing is returned and nothing is awaited. | a method returning `void` | a plain `fn` | a plain `def` returning `None` |
@@ -30,7 +30,7 @@ Every namespace method returns exactly one of these. Which one is the method's r
 Three rules hold in every SDK:
 
 1. **A live query is never read by accident.** Building one touches nothing. Watching it gives its state: pending, ready or failed. A one-shot read is asked for by name, with `.fresh()`, so a cache read never silently becomes a round trip.
-2. **A long-running operation runs once.** Awaiting it gives the final value, reading it gives each report, and `.run()` gives both from one run. A delegated job is held to the same rule: awaiting it gives its completion, and reading it gives each of its events. Rust enforces this, since the operation is consumed by value. Python refuses a second consumer when it runs, and has no `.run()`: reading gives each report and then the final value. TypeScript does not enforce it: awaiting and subscribing to the same instance starts it twice.
+2. **A long-running operation runs once.** Awaiting it gives the final value, reading it gives each report, and `.run()` gives both from one run. A delegated job is held to the same rule: awaiting it gives its completion, and reading it gives each of its events. The completion is typed by the verb that delegated the job, so a `mark` job's result is its counts or a decline, and a `yield` job's is the resource it made or a decline. Rust enforces this, since the operation is consumed by value. Python refuses a second consumer when it runs, and has no `.run()`: reading gives each report and then the final value. TypeScript does not enforce it: awaiting and subscribing to the same instance starts it twice.
 3. **A signal is not a request, and a drive is not a signal.** A signal returns nothing. A drive says how many participants it reached, which is information and not an acknowledgement.
 
 ## In TypeScript
@@ -99,7 +99,7 @@ The subclass name documents which semantics apply. `.subscribe(...)` works on bo
 
 A third subclass — `UploadObservable` — is shaped specifically for `yield.resource`. Subscribers see the full upload-progress lifecycle (`started` → optional `progress` → `finished`); awaiting resolves to `{ resourceId }` extracted from the `'finished'` event.
 
-A fourth — `DelegationObservable` — is what `mark.delegate` and `yield.delegate` return. Subscribers see the job's events (`JobEvent`): `progress` while the worker runs, `failed` for a failure the queue will try again, and `complete` last. Awaiting resolves to the job's completion (`JobCompletion`, the `job:complete` it ended with), so `(await ...).result` is read without narrowing an event.
+A fourth — `DelegationObservable<C>` — is what `mark.delegate` and `yield.delegate` return. `C` is the completion of the job's verb: `MarkJobCompletion` from `mark.delegate`, `YieldJobCompletion` from `yield.delegate`. Subscribers see the job's events (`JobEvent<C>`): `progress` while the worker runs, `failed` for a failure the queue will try again, and `complete` last. Awaiting resolves to the completion itself, the `job:complete` the job ended with, so `(await ...).result` is read without narrowing an event. That result is its verb's: a `mark` job's counts or a decline, the resource a `yield` job made or a decline. A completion that is another verb's errors the stream.
 
 ### Return-shape discipline
 
@@ -107,7 +107,7 @@ Namespace methods return one of exactly six shapes:
 
 - **`Promise<T>`** — atomic gateway ops (CRUD, auth, admin reads).
 - **`StreamObservable<T>`** (or **`UploadObservable`** for `yield.resource`) — long-running operations with progress events plus a final value.
-- **`DelegationObservable`** — a job another party does: its events, then its completion.
+- **`DelegationObservable<C>`** — a job another party does: its events, then its completion, which is its verb's.
 - **`CacheObservable<T>`** — live queries with stale-while-revalidate semantics.
 - **`void`** — LOCAL collaboration signals; observation happens on the bus.
 - **`Promise<number | undefined>`** — wire drives at other participants (`beckon.attention` /
@@ -128,7 +128,7 @@ The discipline is enforceable. A namespace method's return type must be one of:
 
 - `Promise<T>`
 - `StreamObservable<T>` (or `UploadObservable` / future bounded-stream subclasses)
-- `DelegationObservable`
+- `DelegationObservable<C>`
 - `CacheObservable<T>`
 - `void`
 - `Promise<number | undefined>` (wire drives only)
@@ -200,10 +200,10 @@ The authority for this list is [`specs/src/client/surface.json`](../../specs/src
 - `gather.annotation`
 - `match.search`
 
-**`DelegationObservable`** (a delegated job; `then` resolves to the job's completion):
+**`DelegationObservable<C>`** (a delegated job; `then` resolves to the job's completion, a `C`):
 
-- `mark.delegate`
-- `yield.delegate`
+- `mark.delegate`, with `MarkJobCompletion`
+- `yield.delegate`, with `YieldJobCompletion`
 
 **`UploadObservable`** (special-case bounded stream for binary upload; `then` resolves to `{ resourceId }`):
 
@@ -354,7 +354,7 @@ The integrator writing a simple script doesn't know `@semiont/sdk` uses RxJS unt
 The Rust client has the same eight shapes, with no reactive library under them.
 
 - **A long-running operation** is a `Running<T>`: `.await` it for the final value, `.next()` for each report, `.run(f)` for both. It is consumed by value, so it cannot be started twice.
-- **A delegated job** is a `Delegation`: `.await` it for the job's completion, `.next()` for each of the job's events, the completion last.
+- **A delegated job** is a `Delegation<C>`: `.await` it for the job's completion, `.next()` for each of the job's events, the completion last. `C` is the completion of the job's verb: `MarkJobCompleteCommand` from `mark.delegate`, `YieldJobCompleteCommand` from `yield_.delegate`.
 - **A live query** is a `Cached<T>`: `.watch()` for its state as it changes, `.fresh().await?` for one read. It is not awaited itself.
 - **State** that TypeScript reads from a `BehaviorSubject` comes through a `tokio::sync::watch` receiver: the value now, and each value after it.
 - **Events** come as a `Stream`. A reader that falls behind is told how far (`Lagged`) and reads on.
@@ -367,7 +367,7 @@ The Rust README has [the table that maps each TypeScript shape to its Rust form]
 The Python client has the same eight shapes, on asyncio, with no reactive library under them.
 
 - **A long-running operation** is a `Running[T]`: `await` it for the final value, or read it with `async for` for each report and then the final value. It is consumed once.
-- **A delegated job** is a `Delegation`: `await` it for the job's completion, or read it with `async for` for each of the job's events, the completion last.
+- **A delegated job** is a `Delegation[C]`: `await` it for the job's completion, or read it with `async for` for each of the job's events, the completion last. `C` is the completion of the job's verb: `MarkJobCompleteCommand` from `mark.delegate`, `YieldJobCompleteCommand` from `yield_.delegate`.
 - **A live query** is a `Cached[T]`: held with `async with`, it gives its state as it changes, and holds its resource's scope meanwhile; `await query.fresh()` is one read. It is not awaited itself. A state is `Pending`, `Ready` or `Failed`, and a `match` that leaves one out does not type-check.
 - **State** that TypeScript reads from a `BehaviorSubject` is a `Watched[T]`: `.value` now, and `async for` each value after it. A reader that falls behind is given the latest.
 - **Events** are an async iterator with a queue per reader, so a reader that falls behind loses nothing.

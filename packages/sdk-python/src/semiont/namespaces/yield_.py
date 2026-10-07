@@ -20,6 +20,7 @@ from semiont.types import (
     ResourceDescriptor,
     YieldCloneResourceRequest,
     YieldCloneTokenRequest,
+    YieldJobCompleteCommand,
     YieldJobCreateCommand,
 )
 
@@ -49,7 +50,7 @@ class YieldNamespace:
         """Upload bytes as a new resource: the upload's progress, and the resource created."""
         return self._content.put_binary(data)
 
-    def delegate(self, params: GenerationJobParams, *, stall_deadline_ms: int | None = None) -> Delegation:
+    def delegate(self, params: GenerationJobParams, *, stall_deadline_ms: int | None = None) -> Delegation[YieldJobCompleteCommand]:
         """Delegate the making of a resource from a gathered context, as a `yield` job: its progress and its completion.
 
         The context's focus says what the job is about, so the job names no
@@ -62,7 +63,7 @@ class YieldNamespace:
         about = focus.resource.id if isinstance(focus, GatheredContextFocusResource) else focus.source_resource.id
         within = generation_stall_deadline_ms(params.max_tokens) if stall_deadline_ms is None else stall_deadline_ms
         create = YieldJobCreateCommand(job_type="yield", params=stated(params))
-        return follow(self._links, create, resource_id=about, stall_ms=within)
+        return follow(self._links, create, YieldJobCompleteCommand, resource_id=about, stall_ms=within)
 
     async def clone_token(self, resource_id: ResourceId) -> CloneResourceWithTokenResponse:
         """A token another resource can be created from: a clone of this one."""

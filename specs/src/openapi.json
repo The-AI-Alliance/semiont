@@ -888,6 +888,18 @@
       "YieldJobQueuedEvent": {
         "$ref": "components/schemas/YieldJobQueuedEvent.json"
       },
+      "MarkJobResult": {
+        "$ref": "components/schemas/MarkJobResult.json"
+      },
+      "YieldJobResult": {
+        "$ref": "components/schemas/YieldJobResult.json"
+      },
+      "MarkJobCompleteCommand": {
+        "$ref": "components/schemas/MarkJobCompleteCommand.json"
+      },
+      "YieldJobCompleteCommand": {
+        "$ref": "components/schemas/YieldJobCompleteCommand.json"
+      },
       "JobFilter": {
         "$ref": "components/schemas/JobFilter.json"
       },

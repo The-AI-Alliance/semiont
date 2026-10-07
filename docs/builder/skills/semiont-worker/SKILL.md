@@ -82,7 +82,9 @@ An agent token lives an hour and has no refresh token. The session renews it by 
 
 ## Doing a job
 
-Emit `job:start`, do the work, then emit `job:complete` with the job's result, or `job:fail`. Every `mark` job reports the same counts, whatever its motivation: `found`, what the model proposed, and `persisted`, what the log holds.
+Emit `job:start`, do the work, then emit `job:complete` with the job's result, or `job:fail`.
+
+A completion is its verb's. It states its `jobType`, and its `result` is what that verb reports: a `mark` job's counts or a decline, the resource a `yield` job made or a decline. The gateway refuses a completion whose result is the other verb's. Every `mark` job reports the same counts, whatever its motivation: `found`, what the model proposed, and `persisted`, what the log holds. The worker below claims `mark` jobs only, so its completion says `mark`.
 
 ```typescript
 import type { SemiontSession } from '@semiont/sdk';
@@ -109,6 +111,7 @@ async function runJob(session: SemiontSession, adapter: JobClaimAdapter, job: Ac
 
     await transport.emit('job:complete', {
       ...base,
+      jobType: 'mark',
       result: { found, persisted },
     });
     adapter.completeJob();
@@ -229,6 +232,7 @@ async function main(): Promise<void> {
         const { found, persisted } = await highlight(session, job);
         await transport.emit('job:complete', {
           ...base,
+          jobType: 'mark',
           result: { found, persisted },
         });
         adapter.completeJob();

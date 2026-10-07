@@ -30,6 +30,7 @@ from semiont.types import (
     MarkCreateOkResponse,
     MarkCreateRequest,
     MarkDeleteCommand,
+    MarkJobCompleteCommand,
     MarkJobCreateCommand,
     MarkJobParams,
     MarkRequestedEvent,
@@ -74,7 +75,7 @@ class MarkNamespace:
             MarkUpdateEntityTypesCommand(resource_id=resource_id, current_entity_types=list(current), updated_entity_types=list(updated)),
         )
 
-    def delegate(self, resource_id: ResourceId, params: MarkJobParams) -> Delegation:
+    def delegate(self, resource_id: ResourceId, params: MarkJobParams) -> Delegation[MarkJobCompleteCommand]:
         """Delegate the annotating of a resource, as a `mark` job: its progress, any attempt that will be tried again, and its completion.
 
         `params` is the job's parameters, one shape for each motivation, and
@@ -82,7 +83,7 @@ class MarkNamespace:
         option not given.
         """
         create = MarkJobCreateCommand(job_type="mark", resource_id=resource_id, params=stated(params))
-        return follow(self._links, create, resource_id=resource_id, stall_ms=None)
+        return follow(self._links, create, MarkJobCompleteCommand, resource_id=resource_id, stall_ms=None)
 
     def request(self, source: ResourceId, selector: AnnotationSelector, motivation: Motivation) -> None:
         """Signal: a new annotation is wanted on `source`."""

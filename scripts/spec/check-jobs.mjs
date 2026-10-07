@@ -17,6 +17,8 @@
 //     filter may leave out its motivation;
 //   - JobResult has a discriminant, or two of its members could be mistaken
 //     for each other;
+//   - a completion is not told apart by exactly JobType, or the results the
+//     verbs report are not, together, exactly JobResult's;
 //   - the layout's record is not a schema;
 //   - Job's discriminator disagrees with its members, or a member's `status`
 //     is not exactly the value that selects it;
@@ -69,6 +71,7 @@ function partitions(name, property, domain, domainName) {
 const created = partitions('JobCreateCommand', 'jobType', jobTypes, 'JobType');
 const queued = partitions('JobQueuedEvent', 'jobType', jobTypes, 'JobType');
 const filters = partitions('JobFilter', 'jobType', jobTypes, 'JobType');
+const completed = partitions('JobCompleteCommand', 'jobType', jobTypes, 'JobType');
 const marks = partitions('MarkJobParams', 'motivation', motivations, 'Motivation');
 for (const [motivation, params] of Object.entries(marks)) {
   if (params.additionalProperties !== false) fail(`a ${motivation} job's parameters are open: a parameter it does not take would be accepted`);
@@ -120,6 +123,20 @@ for (const member of results.oneOf) {
     if (required.has(name)) fail(`${member.$ref} and ${required.get(name)} both require ${name}`);
     required.set(name, member.$ref);
   }
+}
+
+// A completion carries its verb's result. What is stored is any verb's
+// (JobResult), so the verbs' results are, together, exactly its members.
+const reported = new Set();
+for (const [jobType, completion] of Object.entries(completed)) {
+  const ref = completion.properties.result?.$ref;
+  const union = ref === undefined ? undefined : read(resolve(SCHEMAS, ref));
+  if (union?.oneOf === undefined) { fail(`a ${jobType} completion's result is not a union of results`); continue; }
+  if (union.discriminator !== undefined) fail(`${ref} has a discriminant of its own`);
+  for (const member of union.oneOf) reported.add(member.$ref);
+}
+if (!same([...reported], results.oneOf.map((member) => member.$ref))) {
+  fail(`the verbs report [${[...reported]}], JobResult is [${results.oneOf.map((member) => member.$ref)}]`);
 }
 
 if (!existsSync(resolve(SCHEMAS, `${storage.bucket.record}.json`))) {

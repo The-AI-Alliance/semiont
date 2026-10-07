@@ -2601,7 +2601,9 @@ async fn the_daemon_signs_in_as_an_agent_and_is_given_each_completion() {
                 },
                 http,
                 move |job| {
-                    let _ = seen.send(job.job_id);
+                    if let JobCompleteCommand::MarkJobCompleteCommand(job) = job {
+                        let _ = seen.send(job.job_id);
+                    }
                 },
             )
             .await

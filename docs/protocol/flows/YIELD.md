@@ -41,7 +41,7 @@ Each of these is appended to the event log and delivered to clients:
 
 **A generated resource records what it was derived from.** That provenance is part of `yield:created` and is permanent.
 
-**`job:complete` is the outcome, not `yield:create-ok`.** A generation is finished when the job says so. `job:complete` is announced to everyone, after every citation the generation produced has been attached to the new resource, and its result carries the new resource's id. A link built from that id opens a resource whose citations have landed. See [Jobs](../JOBS.md).
+**`job:complete` is the outcome, not `yield:create-ok`.** A generation is finished when the job says so. `job:complete` is announced to everyone, after every citation the generation produced has been attached to the new resource. Its result is a `yield` job's ([`YieldJobResult`](../../../specs/src/components/schemas/YieldJobResult.json)): the new resource's id, or a decline. A link built from that id opens a resource whose citations have landed. See [Jobs](../JOBS.md).
 
 **A generation that asks for citations gets annotations, not inline links.** With `cite` set, each claim the model ties to a source becomes a linking annotation on the generated resource, pointing at the passage it came from. A citation of something that was not in the context is dropped.
 

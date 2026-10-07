@@ -36,7 +36,7 @@ Three framings hold the SDK's surface together. Skim them once and the per-names
 |---|---|---|
 | `Promise<T>` | past-tense or short noun (`mark.annotation`, `auth.me`) | atomic gateway ops — one round-trip, one value |
 | `StreamObservable<T>` | plain verb (`gather.annotation`, `match.search`) | long-running progress streams — `await` for the final value, `.subscribe(...)` for every emit |
-| `DelegationObservable` | `delegate` (`mark.delegate`, `yield.delegate`) | a job another party does — `await` for the job's completion, `.subscribe(...)` for each of its events |
+| `DelegationObservable<C>` | `delegate` (`mark.delegate`, `yield.delegate`) | a job another party does — `await` for the job's completion, which is its verb's, `.subscribe(...)` for each of its events |
 | `CacheObservable<T>` | plain noun (`browse.resource`, `browse.annotations`) | live queries — `.subscribe(...)` for `CacheState` emissions (`pending`/`ready`/`failed`, kept live), `.fresh()` for an explicit one-shot fetch |
 | `void` | imperative verb (`beckon.hover`, `mark.request`) | local signals — fire-and-forget onto the client's own bus, coordinating one viewer's interface |
 | `Promise<number \| undefined>` | imperative verb aimed at other participants (`beckon.openResource`, `beckon.sparkleAll`) | wire drives — beckon every other participant's viewer; resolves with the `/bus/emit` subscriber count, or `undefined` when the gateway cannot count, so a driver can tell an empty room from a full one |
@@ -164,11 +164,12 @@ const { resourceId } = await semiont.yield.resource({
   storageUri: 'file://docs/doc.md',
 });
 
-// AI generation from a gathered context — DelegationObservable: subscribe
-// for the job's events, await for its completion. The params are one
-// `yield` job's: `title`, `storageUri` and `context` are required. A
-// `failed` event is a setback the queue will try again, on a stream that
-// stays open; a failure that is final rejects, as `job.failed`. The optional
+// AI generation from a gathered context —
+// DelegationObservable<YieldJobCompletion>: subscribe for the job's events,
+// await for its completion. The params are one `yield` job's: `title`,
+// `storageUri` and `context` are required. A `failed` event is a setback
+// the queue will try again, on a stream that stays open; a failure that is
+// final rejects, as `job.failed`. The optional
 // `entityTypes` are stamped on the synthesized resource (so
 // `browse.resources({ entityType: 'Character' })` finds it) and also
 // fed into the LLM prompt as a topical bias.
@@ -224,9 +225,8 @@ semiont.yield.delegate({
 });
 
 // The OUTCOME. Awaiting gives the job's completion, the `job:complete` it
-// ended with. Its `result` is one of three shapes that share no member — a
-// generation's resource, a mark job's counts, a decline — so it narrows
-// without a cast, by a member only one of them has.
+// ended with. Its `result` is a yield job's: the resource it made, or a
+// decline. The two share no member, so one check narrows it without a cast.
 const done = await semiont.yield.delegate({
   title: 'Generated Summary',
   storageUri: 'file://generated/summary.md',
@@ -286,9 +286,9 @@ await semiont.mark.unarchive(resourceId);
 // itself is frame.addEntityTypes.)
 await semiont.mark.updateEntityTypes(resourceId, ['Draft'], ['Draft', 'Question']);
 
-// A delegated annotation pass — DelegationObservable: subscribe for the
-// job's events, await for its completion. The params state the motivation
-// and what that motivation takes.
+// A delegated annotation pass — DelegationObservable<MarkJobCompletion>:
+// subscribe for the job's events, await for its completion. The params
+// state the motivation and what that motivation takes.
 semiont.mark.delegate(resourceId, {
   motivation: 'linking',
   entityTypes: ['Person', 'Organization'],
@@ -299,7 +299,7 @@ semiont.mark.delegate(resourceId, {
 });
 ```
 
-Each motivation takes its own params and no others; [the Mark flow](../protocol/flows/MARK.md#delegation) lists them. Whatever the motivation, the completion's `result` is the same counts ([`JobDetectionResult`](../../specs/src/components/schemas/JobDetectionResult.json)): `found`, what the model proposed; `persisted`, what was written; and `errors`, how many of the proposed could not be anchored in the text, absent when none. A resource whose text could not be read completes with `{ declined: true, reason }` instead.
+Each motivation takes its own params and no others; [the Mark flow](../protocol/flows/MARK.md#delegation) lists them. The completion's `result` is a `mark` job's ([`MarkJobResult`](../../specs/src/components/schemas/MarkJobResult.json)), one of two. A job that did its work gives its counts, the same for every motivation: `found`, what the model proposed; `persisted`, what was written; and `errors`, how many of the proposed could not be anchored in the text, absent when none. A resource whose text could not be read gives a decline, `{ declined: true, reason }`.
 
 ## Bind
 
@@ -381,7 +381,7 @@ Browse methods read from materialized views. Live queries return `CacheObservabl
 
 ### Streams vs live queries
 
-Streaming methods (`gather.annotation`, `match.search`) return `StreamObservable<T>` — thenable, so `await` resolves the final value. Delegated jobs (`mark.delegate`, `yield.delegate`) return `DelegationObservable` — thenable too: `await` resolves the job's completion. Live-query methods (`browse.resource`, `browse.resources`, `browse.annotations`, `browse.annotation`, `browse.events`, `browse.entityTypes`, `browse.tagSchemas`, `browse.agents`, `match.resources`, `gather.referencedBy`) return `CacheObservable<T>` — NOT thenable; subscribe for the live view or call `.fresh()` for a fresh value. `.pipe(...)` composes with RxJS operators on either (and loses the stream thenable). See [REACTIVE-MODEL.md](./REACTIVE-MODEL.md) for the design rationale and method-by-method assignment.
+Streaming methods (`gather.annotation`, `match.search`) return `StreamObservable<T>` — thenable, so `await` resolves the final value. Delegated jobs (`mark.delegate`, `yield.delegate`) return `DelegationObservable<C>` — thenable too: `await` resolves the job's completion, which is its verb's (`MarkJobCompletion`, `YieldJobCompletion`). Live-query methods (`browse.resource`, `browse.resources`, `browse.annotations`, `browse.annotation`, `browse.events`, `browse.entityTypes`, `browse.tagSchemas`, `browse.agents`, `match.resources`, `gather.referencedBy`) return `CacheObservable<T>` — NOT thenable; subscribe for the live view or call `.fresh()` for a fresh value. `.pipe(...)` composes with RxJS operators on either (and loses the stream thenable). See [REACTIVE-MODEL.md](./REACTIVE-MODEL.md) for the design rationale and method-by-method assignment.
 
 ### Live Queries (subscribe)
 
@@ -537,11 +537,21 @@ There is no administration namespace. Accounts live at the knowledge base's iden
 ## Job
 
 ```typescript
+import { isReportedJobResult, isMarkJobResult } from '@semiont/core';
+
 const status = await semiont.job.status(jobId);
 const final = await semiont.job.pollUntilComplete(jobId, {
   onProgress: (s) => console.log(s.status),
 });
+
+// A status's result is the job's record's: a result of any verb, or {} for a
+// job that reported none. The guards narrow it to one verb's.
+if (isReportedJobResult(final.result) && isMarkJobResult(final.result)) {
+  console.log(final.result);   // a mark job's counts, or a decline
+}
 ```
+
+`isYieldJobResult` is the same for a `yield` job's. A delegation needs neither: its completion is typed by its verb.
 
 ## KB Discovery
 

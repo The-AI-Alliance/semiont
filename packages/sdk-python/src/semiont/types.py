@@ -297,11 +297,13 @@ __all__ = [
     "MarkDeleteCommand",
     "MarkDeleteOk",
     "MarkDeleteOkResponse",
+    "MarkJobCompleteCommand",
     "MarkJobCreateCommand",
     "MarkJobFilter",
     "MarkJobFilterParams",
     "MarkJobParams",
     "MarkJobQueuedEvent",
+    "MarkJobResult",
     "MarkRequestedEvent",
     "MarkSubmitEvent",
     "MarkUnarchiveCommand",
@@ -397,9 +399,11 @@ __all__ = [
     "YieldCreateCommandGeneratedFrom",
     "YieldCreateOk",
     "YieldCreateOkResponse",
+    "YieldJobCompleteCommand",
     "YieldJobCreateCommand",
     "YieldJobFilter",
     "YieldJobQueuedEvent",
+    "YieldJobResult",
     "YieldMoveFailed",
     "YieldMvCommand",
     "YieldUpdateCommand",
@@ -4566,6 +4570,79 @@ class AssessingJobParams(WireModel, frozen=True, extra="forbid"):
     ] = None
 
 
+type MarkJobResult = Annotated[
+    JobDetectionResult | JobDeclinedResult,
+    Field(
+        description="What a `mark` job reports when it concludes without failing: its counts, or a decline. Neither names its kind: a decline is the one with `declined`."
+    ),
+]
+
+
+type YieldJobResult = Annotated[
+    JobGenerationResult | JobDeclinedResult,
+    Field(
+        description="What a `yield` job reports when it concludes without failing: the resource it made, or a decline. Neither names its kind: a decline is the one with `declined`."
+    ),
+]
+
+
+class MarkJobCompleteCommand(WireModel, frozen=True):
+    """
+    A `mark` job's worker says the job is complete, with what a `mark` job reports.
+    """
+
+    user_id: Annotated[
+        UserId | None,
+        Field(
+            alias="_userId",
+            description="Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.",
+        ),
+    ] = None
+    resource_id: Annotated[ResourceId, Field(alias="resourceId")]
+    job_id: Annotated[JobId, Field(alias="jobId")]
+    job_type: Annotated[Literal["mark"], Field(alias="jobType")]
+    attempt: Annotated[
+        int | None,
+        Field(
+            description="Which attempt produced this event, 1-based (a first run is 1). ALWAYS present: the queue re-runs a failed job silently, so an operator reading progress or a terminal record has no other way to tell a re-run from a first run — and provider spend, already counted in semiont_inference_tokens_total, cannot be attributed to a repeated document without it. Stated rather than inferred from absence, because 'attempt 1' is a fact the emitter always knows."
+        ),
+    ] = None
+    result: MarkJobResult | None = None
+    durability: DurabilityEvidence | None = None
+
+
+class YieldJobCompleteCommand(WireModel, frozen=True):
+    """
+    A `yield` job's worker says the job is complete, with what a `yield` job reports.
+    """
+
+    user_id: Annotated[
+        UserId | None,
+        Field(
+            alias="_userId",
+            description="Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.",
+        ),
+    ] = None
+    resource_id: Annotated[ResourceId, Field(alias="resourceId")]
+    job_id: Annotated[JobId, Field(alias="jobId")]
+    job_type: Annotated[Literal["yield"], Field(alias="jobType")]
+    attempt: Annotated[
+        int | None,
+        Field(
+            description="Which attempt produced this event, 1-based (a first run is 1). ALWAYS present: the queue re-runs a failed job silently, so an operator reading progress or a terminal record has no other way to tell a re-run from a first run — and provider spend, already counted in semiont_inference_tokens_total, cannot be attributed to a repeated document without it. Stated rather than inferred from absence, because 'attempt 1' is a fact the emitter always knows."
+        ),
+    ] = None
+    annotation_id: Annotated[
+        AnnotationId | None,
+        Field(
+            alias="annotationId",
+            description="The annotation the job's context was focused on, when it was focused on one. Lets a client route the completion to that annotation.",
+        ),
+    ] = None
+    result: YieldJobResult | None = None
+    durability: DurabilityEvidence | None = None
+
+
 class MarkJobFilter(WireModel, frozen=True, extra="forbid"):
     """
     `mark` jobs of one motivation.
@@ -5034,36 +5111,13 @@ class GetResourceByTokenResponse(WireModel, frozen=True):
     ]
 
 
-class JobCompleteCommand(WireModel, frozen=True):
-    """
-    Command to mark a job as complete
-    """
-
-    user_id: Annotated[
-        UserId | None,
-        Field(
-            alias="_userId",
-            description="Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.",
-        ),
-    ] = None
-    resource_id: Annotated[ResourceId, Field(alias="resourceId")]
-    job_id: Annotated[JobId, Field(alias="jobId")]
-    job_type: Annotated[JobType, Field(alias="jobType")]
-    attempt: Annotated[
-        int | None,
-        Field(
-            description="Which attempt produced this event, 1-based (a first run is 1). ALWAYS present: the queue re-runs a failed job silently, so an operator reading progress or a terminal record has no other way to tell a re-run from a first run — and provider spend, already counted in semiont_inference_tokens_total, cannot be attributed to a repeated document without it. Stated rather than inferred from absence, because 'attempt 1' is a fact the emitter always knows."
-        ),
-    ] = None
-    annotation_id: Annotated[
-        AnnotationId | None,
-        Field(
-            alias="annotationId",
-            description="Annotation this job is attached to, when applicable. Lets the UI route completion feedback (toast, resolve state) to a specific annotation.",
-        ),
-    ] = None
-    result: JobResult | None = None
-    durability: DurabilityEvidence | None = None
+type JobCompleteCommand = Annotated[
+    MarkJobCompleteCommand | YieldJobCompleteCommand,
+    Field(
+        description="A job's worker says the job is complete. The result it carries is its verb's: a `mark` job's counts or the resource a `yield` job made, or a decline from either. A completion whose result is the other verb's is refused where the command is admitted.",
+        discriminator="job_type",
+    ),
+]
 
 
 type JobProgressMessage = Annotated[

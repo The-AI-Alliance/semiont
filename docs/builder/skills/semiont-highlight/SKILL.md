@@ -49,7 +49,7 @@ const semiont = session.client;
 - `failed`: one attempt failed and the queue is running the job again.
 - `complete`: the job's end, with its completion as `data`.
 
-Awaiting the call resolves to the completion itself, the `job:complete` the job ended with. Its `result` holds the counts: `found` is what the model proposed, `persisted` is what was written, and `errors`, present only when there were some, is how many of the proposed could not be anchored in the text. A resource whose text could not be read gives `{ declined: true, reason }` instead.
+Awaiting the call resolves to the completion itself, the `job:complete` the job ended with. Its `result` is a `mark` job's, one of two. A job that did its work gives its counts: `found` is what the model proposed, `persisted` is what was written, and `errors`, present only when there were some, is how many of the proposed could not be anchored in the text. A resource whose text could not be read gives a decline, `{ declined: true, reason }`. One check tells the two apart.
 
 ```typescript
 import { resourceId } from '@semiont/sdk';
@@ -63,10 +63,10 @@ const done = await semiont.mark.delegate(rId, {
 });
 
 const { result } = done;
-if (result && 'found' in result) {
-  console.log(`Created ${result.persisted} of ${result.found} highlights`);
-} else if (result && 'declined' in result) {
+if (result && 'declined' in result) {
   console.log(`The resource's text could not be read: ${result.reason}`);
+} else if (result) {
+  console.log(`Created ${result.persisted} of ${result.found} highlights`);
 }
 
 await session.dispose();
@@ -132,10 +132,10 @@ async function highlight(resourceIdStr: string): Promise<void> {
     });
 
     const { result } = done;
-    if (result && 'found' in result) {
-      console.log(`Created ${result.persisted} of ${result.found} highlights`);
-    } else if (result && 'declined' in result) {
+    if (result && 'declined' in result) {
       console.log(`The resource's text could not be read: ${result.reason}`);
+    } else if (result) {
+      console.log(`Created ${result.persisted} of ${result.found} highlights`);
     }
   } finally {
     await session.dispose();

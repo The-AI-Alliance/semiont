@@ -8986,11 +8986,12 @@ func TestYieldDelegateReportsJobFailure(t *testing.T) {
 // exists at the storage URI afterwards, so a ✓ here is the worst of the three
 // outcomes to get wrong: the caller's next step runs against nothing.
 //
-// The trap this guards is specific. A result has no discriminant, and every
-// generated As*() accessor is a bare json.Unmarshal, so a declined result
-// decodes CLEANLY into JobGenerationResult with a zero-value resource id. A
-// result is read by the members it carries: a decline carries `declined` and
-// `reason`, and none of what a generation requires.
+// The trap this guards is specific. A yield job's result is a generation or a
+// decline with no discriminant between them, and every generated As*()
+// accessor is a bare json.Unmarshal, so a declined result decodes CLEANLY into
+// JobGenerationResult with a zero-value resource id. A result is read by the
+// members it carries: a decline carries `declined` and `reason`, and none of
+// what a generation requires.
 func TestYieldDelegateReportsADecline(t *testing.T) {
 	s := busScenario(t,
 		`FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{},"graph":{}}`,
@@ -9007,6 +9008,25 @@ func TestYieldDelegateReportsADecline(t *testing.T) {
 	// explicit that a decline is distinct from a failure.
 	if strings.Contains(stdout+stderr, "Generation failed") {
 		t.Errorf("a decline is not a failure:\n%s", stdout+stderr)
+	}
+}
+
+// A job's result is its verb's. A yield job that completes with a mark job's
+// counts made no resource anyone can name: the command says what it was
+// handed and fails, in either output format, and does not call it a yield.
+func TestYieldDelegateRefusesAResultThatIsNotAYieldJobs(t *testing.T) {
+	s := busScenario(t,
+		`FAKERT_BUS_REPLY_gather_resource_requested={"metadata":{},"focus":{},"graph":{}}`,
+		`FAKERT_JOB_RESULT={"found":2,"persisted":2}`)
+	for _, format := range [][]string{nil, {"--json"}} {
+		stdout, stderr, code := s.run(t, append([]string{"yield", "--delegate", "res-src", "--storage-uri", "file://generated/out.md", "--title", "Derived"}, format...)...)
+		if code == 0 {
+			t.Fatalf("%v: a yield job that reported a mark job's counts must fail the command\nstdout:\n%s", format, stdout)
+		}
+		mustContain(t, "refusal", stderr, "Job fake-job-1 completed with a result that is not a yield job's", `"found":2`, "semiont browse res-src")
+		if strings.Contains(stdout, "Yielded") {
+			t.Errorf("%v: claimed a yield that never happened:\n%s", format, stdout)
+		}
 	}
 }
 
@@ -9187,6 +9207,23 @@ func TestMarkDelegateReportsADecline(t *testing.T) {
 		t.Fatalf("--json must not turn a decline into a success\nstdout:\n%s", stdout)
 	}
 	mustContain(t, "raw completion", stdout, `"declined":true`, `"no-text-layer"`)
+}
+
+// A job's result is its verb's. A mark job that completes with the resource a
+// yield job makes annotated nothing anyone can count: the command says what it
+// was handed and fails, in either output format, and does not call it a mark.
+func TestMarkDelegateRefusesAResultThatIsNotAMarkJobs(t *testing.T) {
+	s := busScenario(t, `FAKERT_JOB_RESULT={"resourceId":"res-new","resourceName":"Generated","truncated":false}`)
+	for _, format := range [][]string{nil, {"--json"}} {
+		stdout, stderr, code := s.run(t, append([]string{"mark", "--delegate", "res-1", "--motivation", "highlighting"}, format...)...)
+		if code == 0 {
+			t.Fatalf("%v: a mark job that reported a yield job's resource must fail the command\nstdout:\n%s", format, stdout)
+		}
+		mustContain(t, "refusal", stderr, "Job fake-job-1 completed with a result that is not a mark job's", `"resourceId":"res-new"`, "semiont browse res-1 --annotations")
+		if strings.Contains(stdout, "Marked") {
+			t.Errorf("%v: claimed a mark that never happened:\n%s", format, stdout)
+		}
+	}
 }
 
 // A registry row whose directory vanished (a moved KB, a deleted trial root)

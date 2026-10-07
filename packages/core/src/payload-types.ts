@@ -32,6 +32,10 @@ export type JobFilter = components['schemas']['JobFilter'];
 export type JobResult = components['schemas']['JobResult'];
 export type JobDetectionResult = components['schemas']['JobDetectionResult'];
 export type JobGenerationResult = components['schemas']['JobGenerationResult'];
+/** What a `mark` job reports: its counts, or a decline. */
+export type MarkJobResult = components['schemas']['MarkJobResult'];
+/** What a `yield` job reports: the resource it made, or a decline. */
+export type YieldJobResult = components['schemas']['YieldJobResult'];
 
 /**
  * How far one unit of a job got, for a resume that starts mid-unit.

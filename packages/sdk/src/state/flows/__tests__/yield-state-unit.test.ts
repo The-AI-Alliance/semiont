@@ -9,7 +9,7 @@ import type { JobEvent } from '../../../awaitable';
 import { resourceId, jobId } from '@semiont/core';
 
 type JobProgress = components['schemas']['JobProgress'];
-type JobCompleteCommand = components['schemas']['JobCompleteCommand'];
+type JobCompleteCommand = components['schemas']['YieldJobCompleteCommand'];
 
 const progressEvent = (p: JobProgress): JobEvent => ({ kind: 'progress', data: p });
 

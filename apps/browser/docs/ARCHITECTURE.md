@@ -281,7 +281,7 @@ semiont.mark.annotation({                    // Promise<{ annotationId }>
 });
 semiont.mark.delete(rId, aId);               // Promise<void>
 const context = await semiont.gather.resource(resourceId);                      // Promise<GatheredContext>
-semiont.yield.delegate({ title: 'Summary', storageUri: 'file://summary.md', context });  // DelegationObservable
+semiont.yield.delegate({ title: 'Summary', storageUri: 'file://summary.md', context });  // DelegationObservable<YieldJobCompletion>
 semiont.frame.addEntityType('Person');       // Promise<void>
 ```
 

@@ -2,7 +2,7 @@ import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
 import type { GenerationJobParams, ResourceId, components } from '@semiont/core';
 import type { SemiontClient } from '../../client';
 import type { StateUnit } from '@semiont/core';
-import type { DelegationObservable } from '../../awaitable';
+import type { DelegationObservable, YieldJobCompletion } from '../../awaitable';
 
 type JobProgress = components['schemas']['JobProgress'];
 
@@ -80,7 +80,7 @@ export function createYieldStateUnit(
   // (`delegated`), shared with every other consumption — there is exactly
   // one. A stall arrives here as a plain stream error
   // (GenerationStallError), handled below like any other.
-  const drive = (gen$: DelegationObservable): void => {
+  const drive = (gen$: DelegationObservable<YieldJobCompletion>): void => {
     const genSub = gen$.subscribe({
       next: (e) => {
         // Surface live progress to the UI.

@@ -143,9 +143,10 @@ let done = client
         None,
     )
     .await?;
+// The completion is a yield job's: the resource it made, or a decline.
 let summary = match done.result {
-    Some(JobResult::GenerationResult(generated)) => Some(generated.resource_id),
-    _ => None,
+    Some(YieldJobResult::GenerationResult(generated)) => Some(generated.resource_id),
+    Some(YieldJobResult::DeclinedResult(_)) | None => None,
 };
 ```
 
@@ -242,7 +243,7 @@ A method's return type says how to use it.
 |---|---|---|
 | `async fn … -> Result<T, SemiontError>` | asked once, answered once | `.await?` |
 | `Running<T>` | a long-running operation | `.await` for its final value; `.next()` for each report and then the final value; `.run(f)` for both |
-| `Delegation` | a job another party does | `.await` for its completion; `.next()` for each of the job's events, the completion last |
+| `Delegation<C>` | a job another party does | `.await` for its completion, a `C`: its verb's, `MarkJobCompleteCommand` or `YieldJobCompleteCommand`; `.next()` for each of the job's events, the completion last |
 | `Upload` | an upload in flight | `.await` for the resource created; as a stream, its progress; dropped, cancelled |
 | `Cached<T>` | a query, built without touching the wire | `.watch()` for its state now and as it changes; `.fresh().await?` for one read; `.invalidate()` to ask again |
 | nothing, from a plain `fn` | a signal to the client's own parts | called |
@@ -345,7 +346,7 @@ dropping cannot do: wait.
 | `SemiontSession` | The same, and its client is closed. | It stops renewing and what it holds ends. Its client is left open. |
 | `SemiontBrowser` | The active session is closed, and everything it holds ends. | Everything it holds ends. The active session is dropped, not closed. |
 | a state unit | `dispose()`, which is not async: it is inert and its readers have ended. | The same. |
-| `Running<T>`, `Delegation`, `Upload` | | The operation is abandoned; an upload is cancelled. |
+| `Running<T>`, `Delegation<C>`, `Upload` | | The operation is abandoned; an upload is cancelled. |
 | a watcher of a query | | The resource's scope it held is let go. |
 
 A process that is ending calls `close` on what it built, so that what is in

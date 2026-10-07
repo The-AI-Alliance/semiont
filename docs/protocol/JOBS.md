@@ -283,14 +283,28 @@ claim carries the checkpoint its earlier attempts left, which is how a retry res
 
 ### `job:complete`
 
-Concludes a running job. Reads `jobId` and `result`
-([`JobCompleteCommand`](../../specs/src/components/schemas/JobCompleteCommand.json)); `result`
-absent is stored as `{}`. A `result` is a
-[`JobResult`](../../specs/src/components/schemas/JobResult.json), one of three: a `mark` job's counts
-(`found`, `persisted`, and `errors` when some of what was proposed could not be anchored in the
-text), the resource a `yield` job made, or a decline from either. It has no field that says which:
-the `jobType` beside it does, and the three share no member. The job moves to `complete`. `resourceId`, `jobType`, `attempt`,
-`annotationId`, `durability` and `_userId` are not read. No reply, nothing emitted.
+Concludes a running job. Reads `jobId`, `jobType` and `result`
+([`JobCompleteCommand`](../../specs/src/components/schemas/JobCompleteCommand.json)).
+
+**A completion is its verb's.** `JobCompleteCommand` is one of two, told apart by `jobType`, and
+each carries the result its verb reports:
+
+| `jobType` | `result` |
+|---|---|
+| `mark` | [`MarkJobResult`](../../specs/src/components/schemas/MarkJobResult.json): the job's counts (`found`, `persisted`, and `errors` when some of what was proposed could not be anchored in the text), or a decline |
+| `yield` | [`YieldJobResult`](../../specs/src/components/schemas/YieldJobResult.json): the resource the job made, or a decline |
+
+The gateway refuses, with `400`, a completion whose result is the other verb's: it is not the
+schema. A completion that is well formed for one verb and names a running job of the other has no
+effect: the dispatcher logs `job:complete of another verb than the job's`, and the job stays
+`running`. A `yield` completion may name `annotationId`, the annotation its context was focused
+on; a `mark` completion names none.
+
+**What is stored is any verb's.** The job moves to `complete`, and its record holds the result as a
+[`JobResult`](../../specs/src/components/schemas/JobResult.json): one of the three, with no field
+that says which. The record's `metadata.type` says which job it answers, and the three share no
+member. `result` absent is stored as `{}`. `resourceId`, `attempt`, `annotationId`, `durability` and
+`_userId` are not read. No reply, nothing emitted.
 
 ### `job:fail`
 
@@ -362,8 +376,10 @@ Reads one job. Reads `jobId`
 | `progress` | `running` |
 | `result` | `complete` |
 
-`retryCount`, `maxRetries`, the checkpoint and `params` are not exposed. A record is readable until
-retention deletes it.
+`result` is the record's: a result of any verb, or `{}`
+([`JobStoredResult`](../../specs/src/components/schemas/JobStoredResult.json)). The response's `type`
+says which verb's it is. `retryCount`, `maxRetries`, the checkpoint and `params` are not exposed. A
+record is readable until retention deletes it.
 
 #### Following a job
 
@@ -377,6 +393,11 @@ of a job it follows for `jobSilenceMs` asks for the job's status, and asks again
 ([`specs/src/client/timing.json`](../../specs/src/client/timing.json)). So is a status of
 `cancelled`, which no frame announces: a follower learns of a cancellation here and nowhere else.
 *Held by `sdk/live/job-across-drop`, `sdk/live/job-failed-unheard`, `sdk/live/job-cancelled`.*
+
+A follower reads its job's completion as its verb's, whichever way it learns of it: a
+`job:complete` frame states its `jobType`, and a status its `type`, with a `result` that must be
+that verb's. A completion that is another verb's is not this job's. The follower ends with an
+error, and does not report the job as failed.
 
 A follower reports how its job ended under the codes every SDK shares
 ([`specs/src/errors/codes.json`](../../specs/src/errors/codes.json), `job`). A `job:fail` whose
@@ -570,8 +591,8 @@ protocol.
   after the worker stopped waiting for it (10 seconds for the first-party worker), leaves the job
   `running` with nobody working on it; so does the refusal `job:claim` makes after the transition.
   Only the dead-worker sweep recovers it, 30 minutes later, and the recovery spends its retry.
-- **No attempt fencing.** `job:complete` and `job:fail` are checked only against the job being
-  `running`. A late `job:complete` or `job:fail` from an attempt the sweep gave up on concludes the
+- **No attempt fencing.** `job:complete` and `job:fail` are checked against the job being
+  `running`, a `job:complete` against the job's verb as well, and neither against the attempt. A late `job:complete` or `job:fail` from an attempt the sweep gave up on concludes the
   next attempt's record. `attempt` is on the wire and ignored.
 - **`job:cancel` ignores its checkpoint and cancels pending jobs.** The `completedUnits` and
   `unitCursors` its schema says are recorded are dropped. Because it accepts a `pending` job, a late

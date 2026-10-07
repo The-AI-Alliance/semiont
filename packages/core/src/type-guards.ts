@@ -107,3 +107,33 @@ export function isReportedJobResult(
 ): result is import('./types').components['schemas']['JobResult'] {
   return result !== undefined && Object.keys(result).length > 0;
 }
+
+/**
+ * Whether a job's result is one a `mark` job reports (`MarkJobResult`): its
+ * counts, or a decline.
+ *
+ * A stored result is any verb's (`JobResult`), and its members share no
+ * member of their own (the spec's job gate holds that). So the one result a
+ * `mark` job never reports is told by a member only it has, and what is left
+ * is held to `MarkJobResult` by the compiler: a result added to `JobResult`
+ * does not pass here unseen.
+ */
+export function isMarkJobResult(
+  result: import('./payload-types').JobResult,
+): result is import('./payload-types').MarkJobResult {
+  if ('resourceId' in result) return false;
+  result satisfies import('./payload-types').MarkJobResult;
+  return true;
+}
+
+/**
+ * Whether a job's result is one a `yield` job reports (`YieldJobResult`): the
+ * resource it made, or a decline. Told as `isMarkJobResult` tells its own.
+ */
+export function isYieldJobResult(
+  result: import('./payload-types').JobResult,
+): result is import('./payload-types').YieldJobResult {
+  if ('found' in result) return false;
+  result satisfies import('./payload-types').YieldJobResult;
+  return true;
+}

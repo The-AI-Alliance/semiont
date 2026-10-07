@@ -214,6 +214,16 @@ export class UploadObservable extends Observable<UploadProgress> implements Prom
 }
 
 /**
+ * How a delegated job ended when it did its work: its `job:complete`. It is
+ * its verb's: a `mark` job's carries its counts or a decline
+ * (`MarkJobCompletion`), a `yield` job's the resource it made or a decline
+ * (`YieldJobCompletion`).
+ */
+export type JobCompletion = components['schemas']['JobCompleteCommand'];
+export type MarkJobCompletion = components['schemas']['MarkJobCompleteCommand'];
+export type YieldJobCompletion = components['schemas']['YieldJobCompleteCommand'];
+
+/**
  * One event of a delegated job. `progress` events come while the worker
  * runs, and the last event is `complete`, carrying the job's completion.
  *
@@ -222,16 +232,13 @@ export class UploadObservable extends Observable<UploadProgress> implements Prom
  * not an ending. A failure that is final is not an event: it errors the
  * stream.
  */
-export type JobEvent =
+export type JobEvent<C extends JobCompletion = JobCompletion> =
   | { kind: 'progress'; data: components['schemas']['JobProgress'] }
   | { kind: 'failed'; data: components['schemas']['JobFailCommand'] }
-  | { kind: 'complete'; data: JobCompletion };
-
-/** How a delegated job ended when it did its work: its `job:complete`. */
-export type JobCompletion = components['schemas']['JobCompleteCommand'];
+  | { kind: 'complete'; data: C };
 
 /** The completion a delegated job's last event carries. */
-function completionOf(last: JobEvent | undefined): JobCompletion {
+function completionOf<C extends JobCompletion>(last: JobEvent<C> | undefined): C {
   if (last?.kind !== 'complete') {
     throw new Error(`A delegated job ended on ${last ? `a ${last.kind} event` : 'no event'}, not on its completion`);
   }
@@ -242,11 +249,11 @@ function completionOf(last: JobEvent | undefined): JobCompletion {
  * A delegated job, from `mark.delegate` and `yield.delegate`. Subscribers see
  * the job's events as it goes (`JobEvent`), its completion the last of them.
  * Awaiting resolves to the completion itself, so `(await ...).result` is read
- * without narrowing an event.
+ * without narrowing an event, and is the result its verb reports.
  */
-export class DelegationObservable extends Observable<JobEvent> implements PromiseLike<JobCompletion> {
-  then<R1 = JobCompletion, R2 = never>(
-    onfulfilled?: ((v: JobCompletion) => R1 | PromiseLike<R1>) | null,
+export class DelegationObservable<C extends JobCompletion = JobCompletion> extends Observable<JobEvent<C>> implements PromiseLike<C> {
+  then<R1 = C, R2 = never>(
+    onfulfilled?: ((v: C) => R1 | PromiseLike<R1>) | null,
     onrejected?: ((e: unknown) => R2 | PromiseLike<R2>) | null,
   ): PromiseLike<R1 | R2> {
     return lastValueFrom(this).then(completionOf).then(onfulfilled, onrejected);
@@ -259,9 +266,9 @@ export class DelegationObservable extends Observable<JobEvent> implements Promis
    * `.subscribe(...)` + `await`, which re-runs this cold Observable and
    * creates the job twice.
    */
-  run(onNext: (event: JobEvent) => void): Promise<JobCompletion> {
-    return new Promise<JobCompletion>((resolve, reject) => {
-      let last: JobEvent | undefined;
+  run(onNext: (event: JobEvent<C>) => void): Promise<C> {
+    return new Promise<C>((resolve, reject) => {
+      let last: JobEvent<C> | undefined;
       this.subscribe({
         next: (event) => {
           last = event;

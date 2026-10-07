@@ -1645,22 +1645,46 @@ var fakeMarkResults = map[semiont.Motivation]semiont.JobDetectionResult{
 
 func fakeCount(n int) *int { return &n }
 
-// fakeJobResult: the member of the JobResult union the job a job:create
-// describes completes with when a test scripts none: a `yield` job's resource,
-// or a `mark` job's counts for its motivation. ok=false: the description is of
-// no job this fake runs.
-func fakeJobResult(description map[string]any) (result any, ok bool) {
+// fakeCompletion: the job:complete of the job a job:create describes, as its
+// verb's member of the JobCompleteCommand union: a `mark` job's with a mark
+// job's result, a `yield` job's with a yield job's. scripted, when not empty,
+// is the result as a test wrote it; otherwise a `yield` job reports its
+// resource and a `mark` job its motivation's counts. ok=false: the description
+// is of no job this fake runs.
+func fakeCompletion(description map[string]any, jobID, resourceID, scripted string) (completion semiont.JobCompleteCommand, ok bool) {
 	jobType, _ := description["jobType"].(string)
+	var err error
 	switch semiont.JobType(jobType) {
 	case semiont.JobTypeYield:
-		return semiont.JobGenerationResult{ResourceId: "res-new", ResourceName: "Generated"}, true
+		var result semiont.YieldJobResult
+		if scripted != "" {
+			err = result.UnmarshalJSON([]byte(scripted))
+		} else {
+			err = result.FromJobGenerationResult(semiont.JobGenerationResult{ResourceId: "res-new", ResourceName: "Generated"})
+		}
+		if err == nil {
+			err = completion.FromYieldJobCompleteCommand(semiont.YieldJobCompleteCommand{JobId: jobID, ResourceId: resourceID, Result: &result})
+		}
 	case semiont.JobTypeMark:
+		var result semiont.MarkJobResult
 		params, _ := description["params"].(map[string]any)
 		motivation, _ := params["motivation"].(string)
-		result, ok := fakeMarkResults[semiont.Motivation(motivation)]
-		return result, ok
+		counts, counted := fakeMarkResults[semiont.Motivation(motivation)]
+		switch {
+		case scripted != "":
+			err = result.UnmarshalJSON([]byte(scripted))
+		case counted:
+			err = result.FromJobDetectionResult(counts)
+		default:
+			return completion, false
+		}
+		if err == nil {
+			err = completion.FromMarkJobCompleteCommand(semiont.MarkJobCompleteCommand{JobId: jobID, ResourceId: resourceID, Result: &result})
+		}
+	default:
+		return completion, false
 	}
-	return nil, false
+	return completion, err == nil
 }
 
 // busPublish fans one frame out to every subscriber listening on its channel.
@@ -2341,18 +2365,16 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 								busPublish("job:report-progress", "", job(map[string]any{
 									"attempt": 2, "progress": map[string]any{"message": map[string]any{"code": code}}}))
 							}
-							// FAKERT_JOB_RESULT=<json>: which member of the
-							// JobResult union this job completes with. A DECLINE
-							// is one of them — a job that ran fine and
-							// deliberately produced nothing. Left unset, the job
-							// completes as the job it describes does.
-							result, described := fakeJobResult(body.Payload)
-							if raw := os.Getenv("FAKERT_JOB_RESULT"); raw != "" {
-								var custom any
-								if json.Unmarshal([]byte(raw), &custom) != nil {
-									custom = map[string]any{}
-								}
-								result, described = custom, true
+							// FAKERT_JOB_RESULT=<json>: the result this job
+							// completes with, in its verb's completion. A DECLINE
+							// is one — a job that ran fine and deliberately
+							// produced nothing. Left unset, the job completes as
+							// the job it describes does.
+							completion, described := fakeCompletion(body.Payload, jobID, resourceID, os.Getenv("FAKERT_JOB_RESULT"))
+							var completed map[string]any
+							if described {
+								written, err := json.Marshal(completion)
+								described = err == nil && json.Unmarshal(written, &completed) == nil
 							}
 							switch msg := os.Getenv("FAKERT_JOB_FAIL"); {
 							case msg != "":
@@ -2360,7 +2382,7 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 							case !described:
 								busPublish("job:fail", "", job(map[string]any{"error": "fakert runs no job of this description"}))
 							default:
-								busPublish("job:complete", "", job(map[string]any{"result": result}))
+								busPublish("job:complete", "", completed)
 							}
 						}
 					}

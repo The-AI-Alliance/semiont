@@ -6,14 +6,15 @@
 //! atomic transitions settle any race between two.
 
 use crate::admission::{Refusal, Vocabulary, admit};
-use crate::queue::{Checkpoint, Claim, FailOutcome, JobQueue};
+use crate::queue::{Checkpoint, Claim, FailOutcome, JobQueue, QueueError};
 use semiont::roles::WORKER_ROLE;
 use semiont::types::{
     BusFrame, CommandError, CommandErrorCode, Job, JobAssignCommand, JobCancelCommand,
     JobCancelRequest, JobCheckpointCommand, JobClaimCommand, JobClaimedResult, JobCompleteCommand,
     JobCreatedResult, JobCreatedResultResponse, JobFailCommand, JobId, JobProgress,
-    JobReportProgressCommand, JobStatusRequest, JobStatusResponse, JobStatusResponseStatus,
-    JobStatusResult, JobStoredProgress, JobStoredResult,
+    JobReportProgressCommand, JobResult, JobStatusRequest, JobStatusResponse,
+    JobStatusResponseStatus, JobStatusResult, JobStoredProgress, JobStoredResult, MarkJobResult,
+    YieldJobResult,
 };
 use semiont_observability::logging;
 use serde::Serialize;
@@ -232,20 +233,36 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
     }
 
     async fn complete(&self, command: JobCompleteCommand) {
-        let result = match command.result {
-            Some(result) => JobStoredResult::JobResult(result),
-            None => JobStoredResult::Empty(Default::default()),
+        let (job_id, completed_as, result) = concluded(command);
+        let unsynced = |error: QueueError| {
+            logging::error(
+                "Failed to sync job completion to queue",
+                fields(json!({ "jobId": job_id, "error": error.0 })),
+            );
         };
-        match self.queue.complete_job(&command.job_id, result).await {
+        // A completion is its verb's. One of another verb than the running
+        // job's is not that job's completion, and the job stays running.
+        match self.queue.get_job(&job_id).await {
+            Ok(Some(Job::Running(job))) if job.metadata.r#type.as_str() != completed_as => {
+                return logging::warn(
+                    "job:complete of another verb than the job's",
+                    fields(json!({
+                        "jobId": job_id,
+                        "jobType": job.metadata.r#type.as_str(),
+                        "completedAs": completed_as,
+                    })),
+                );
+            }
+            Ok(_) => {}
+            Err(error) => return unsynced(error),
+        }
+        match self.queue.complete_job(&job_id, result).await {
             Ok(true) => {}
             Ok(false) => logging::warn(
                 "job:complete for a job not in running",
-                fields(json!({ "jobId": command.job_id })),
+                fields(json!({ "jobId": job_id })),
             ),
-            Err(error) => logging::error(
-                "Failed to sync job completion to queue",
-                fields(json!({ "jobId": command.job_id, "error": error.0 })),
-            ),
+            Err(error) => unsynced(error),
         }
     }
 
@@ -438,6 +455,34 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
             Ok(None) => reply("job:status-failed", failure("Job not found", None)),
             Err(error) => reply("job:status-failed", failure(error.0, None)),
         }
+    }
+}
+
+/// What the dispatcher reads of a completion, whichever verb's it is: the
+/// job, the verb as the completion's own member names it, and the result as
+/// a record stores one, which is not typed by verb.
+fn concluded(command: JobCompleteCommand) -> (JobId, &'static str, JobStoredResult) {
+    let stored = |result: Option<JobResult>| match result {
+        Some(result) => result.into(),
+        None => JobStoredResult::Empty(Default::default()),
+    };
+    match command {
+        JobCompleteCommand::MarkJobCompleteCommand(done) => (
+            done.job_id,
+            done.job_type.as_str(),
+            stored(done.result.map(|result| match result {
+                MarkJobResult::DetectionResult(counts) => counts.into(),
+                MarkJobResult::DeclinedResult(declined) => declined.into(),
+            })),
+        ),
+        JobCompleteCommand::YieldJobCompleteCommand(done) => (
+            done.job_id,
+            done.job_type.as_str(),
+            stored(done.result.map(|result| match result {
+                YieldJobResult::GenerationResult(made) => made.into(),
+                YieldJobResult::DeclinedResult(declined) => declined.into(),
+            })),
+        ),
     }
 }
 

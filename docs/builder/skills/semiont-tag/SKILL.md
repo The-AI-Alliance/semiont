@@ -80,7 +80,7 @@ if (result && 'found' in result) {
 await session.dispose();
 ```
 
-Awaiting `mark.delegate` resolves to the job's completion, the `job:complete` the job ended with. Its `result` holds the counts every `mark` job reports: `found` is what the model proposed, `persisted` is what was written, and `errors`, present only when there were some, is how many of the proposed could not be anchored in the text. A tagging job adds `byCategory`, the tags written for each category.
+Awaiting `mark.delegate` resolves to the job's completion, the `job:complete` the job ended with. Its `result` is a `mark` job's, one of two: the counts of a job that did its work, or a decline, `{ declined: true, reason }`, for a resource whose text could not be read. The counts are the same for every motivation: `found` is what the model proposed, `persisted` is what was written, and `errors`, present only when there were some, is how many of the proposed could not be anchored in the text. A tagging job adds `byCategory`, the tags written for each category.
 
 The worker reads the document once for each category, with that category's `description` and `examples` in its prompt, so the schema is the instruction. A category the schema does not have fails the job.
 
@@ -194,10 +194,10 @@ async function tagIRAC(resourceIdStr: string): Promise<void> {
     });
 
     const { result } = done;
-    if (result && 'found' in result) {
-      console.log(`Created ${result.persisted} of ${result.found} tags`, result.byCategory);
-    } else if (result && 'declined' in result) {
+    if (result && 'declined' in result) {
       console.log(`The resource's text could not be read: ${result.reason}`);
+    } else if (result) {
+      console.log(`Created ${result.persisted} of ${result.found} tags`, result.byCategory);
     }
   } finally {
     await session.dispose();

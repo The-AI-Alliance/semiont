@@ -7,9 +7,9 @@ import type {
 import { cloneFormat, deriveStorageUri, getPrimaryRepresentation } from '@semiont/core';
 
 import type { ITransport, IContentTransport } from '@semiont/core';
-import { busRequest } from '@semiont/core';
-import { UploadObservable, type DelegationObservable } from '../awaitable';
-import { delegated } from './delegation';
+import { busRequest, isReportedJobResult, isYieldJobResult } from '@semiont/core';
+import { UploadObservable, type DelegationObservable, type YieldJobCompletion } from '../awaitable';
+import { delegated, type DelegatedVerb } from './delegation';
 import { deriveStallDeadlineMs } from './generation-stall';
 import type { JobFollowTiming } from './job-status-poll';
 import type {
@@ -21,6 +21,20 @@ import type {
 import type { ResourceDescriptor } from '@semiont/core';
 
 type CloneResourceWithTokenResponse = components['schemas']['CloneResourceWithTokenResponse'];
+
+/** A `yield` job's completion, as its follower hears or learns it. */
+const YIELD: DelegatedVerb<YieldJobCompletion> = {
+  jobType: 'yield',
+  heard: (frame) => (frame.jobType === 'yield' ? frame : undefined),
+  learned: (status, resourceId) => {
+    if (status.type !== 'yield') return undefined;
+    const completion = { jobId: status.jobId, jobType: status.type, resourceId };
+    // A job completed without a result is stored with an empty one; the
+    // job:complete this stands for carried none.
+    if (!isReportedJobResult(status.result)) return completion;
+    return isYieldJobResult(status.result) ? { ...completion, result: status.result } : undefined;
+  },
+};
 
 export class YieldNamespace implements IYieldNamespace {
   constructor(
@@ -120,7 +134,7 @@ export class YieldNamespace implements IYieldNamespace {
    * ⚠️ Cold: do NOT both `.subscribe(...)` and `await` the same instance —
    * that creates the job twice. Use `.run(onNext)` for progress + completion.
    */
-  delegate(params: GenerationJobParams, stallDeadlineMs?: number): DelegationObservable {
+  delegate(params: GenerationJobParams, stallDeadlineMs?: number): DelegationObservable<YieldJobCompletion> {
     // The resource read here is for the completion the status poll stands in
     // for; the wire carries none, and the dispatcher derives its own from the
     // same focus.
@@ -142,6 +156,7 @@ export class YieldNamespace implements IYieldNamespace {
       this.bus,
       this.timing,
       { jobType: 'yield', params },
+      YIELD,
       resourceId,
       stallDeadlineMs ?? deriveStallDeadlineMs(params.maxTokens),
     );

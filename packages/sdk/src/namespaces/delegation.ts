@@ -1,10 +1,25 @@
 import { merge } from 'rxjs';
 import { filter, takeUntil } from 'rxjs/operators';
-import type { EventBus, EventMap, ITransport, ResourceId } from '@semiont/core';
-import { busRequest, isReportedJobResult } from '@semiont/core';
-import { DelegationObservable } from '../awaitable';
+import type { EventBus, EventMap, ITransport, ResourceId, TransportErrorCode, components } from '@semiont/core';
+import { busRequest, SemiontError } from '@semiont/core';
+import { DelegationObservable, type JobCompletion } from '../awaitable';
 import { GenerationStallError } from './generation-stall';
 import { JobCancelledError, JobFailedError, JobFrames, JobStatusPoll, type JobFollowTiming } from './job-status-poll';
+
+/**
+ * How a follower reads its job's completion as its verb's. A completion is
+ * heard as a `job:complete` frame, or learned from the job's status when the
+ * stream did not carry the frame. The status does not say which verb its
+ * result is, so each verb reads its own, and answers nothing for another's.
+ */
+export interface DelegatedVerb<C extends JobCompletion> {
+  /** What `mark` or `yield` this is, for an error's words. */
+  readonly jobType: C['jobType'];
+  /** A `job:complete` frame as this verb's, or nothing when it is another's. */
+  heard(frame: JobCompletion): C | undefined;
+  /** The completion a complete job's status stands for, or nothing when its type or its result is another verb's. */
+  learned(status: components['schemas']['JobStatusResponse'], resourceId: ResourceId): C | undefined;
+}
 
 /**
  * Creates a job and follows it to its end: the one driver behind
@@ -24,6 +39,11 @@ import { JobCancelledError, JobFailedError, JobFrames, JobStatusPoll, type JobFo
  * `resourceId` is the resource the job is about, for the completion the
  * status poll stands in for (`JobStatusResponse` names none). It is not sent.
  *
+ * `verb` reads the job's completion as its verb's. One that is another
+ * verb's is not the job that was delegated. It is not a failed job either,
+ * so the stream errors under the transport's code for a failure no other
+ * names (`error`), as every SDK's follower does.
+ *
  * `stallMs`, when given, is the ONE stall guard: armed at subscribe, armed
  * again on every event, cleared by any ending. It lives in this producer so
  * `await`, `.run()` and a state unit's drive all share it. Firing asks for
@@ -33,16 +53,26 @@ import { JobCancelledError, JobFailedError, JobFrames, JobStatusPoll, type JobFo
  * never answered has no id, and there is nothing to cancel. Then the stream
  * errors with `GenerationStallError`.
  */
-export function delegated(
+export function delegated<C extends JobCompletion>(
   transport: ITransport,
   bus: EventBus,
   timing: JobFollowTiming,
   job: EventMap['job:create'],
+  verb: DelegatedVerb<C>,
   resourceId: ResourceId,
   stallMs?: number,
-): DelegationObservable {
-  return new DelegationObservable((subscriber) => {
+): DelegationObservable<C> {
+  return new DelegationObservable<C>((subscriber) => {
     let done = false;
+    // The end: the job's completion, read as the verb's.
+    const completed = (completion: C | undefined, from: string) => {
+      if (completion === undefined) {
+        subscriber.error(new SemiontError(`${from} is not a completed ${verb.jobType} job's`, 'error' satisfies TransportErrorCode));
+        return;
+      }
+      subscriber.next({ kind: 'complete', data: completion });
+      subscriber.complete();
+    };
     let stallTimer: ReturnType<typeof setTimeout> | null = null;
 
     const poll = new JobStatusPoll(
@@ -52,18 +82,7 @@ export function delegated(
         if (status.status === 'complete') {
           cleanup();
           // The `complete` event the stream did not carry, from the status.
-          subscriber.next({
-            kind: 'complete',
-            data: {
-              jobId: status.jobId,
-              jobType: status.type,
-              resourceId,
-              // A job completed without a result is stored with an empty
-              // one; the job:complete this stands for carried none.
-              ...(isReportedJobResult(status.result) ? { result: status.result } : {}),
-            },
-          });
-          subscriber.complete();
+          completed(verb.learned(status, resourceId), `The status of job ${status.jobId}`);
         } else if (status.status === 'failed') {
           cleanup();
           subscriber.error(new JobFailedError(status.error ?? 'Job failed', status.jobId));
@@ -120,8 +139,7 @@ export function delegated(
 
     const completeSub = complete$.subscribe((e) => {
       cleanup();
-      subscriber.next({ kind: 'complete', data: e });
-      subscriber.complete();
+      completed(verb.heard(e), `A job:complete of job ${e.jobId}`);
     });
 
     const failSub = fail$.subscribe((e) => {

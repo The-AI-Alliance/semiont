@@ -43,7 +43,7 @@ class JobNamespace:
         return self._links.own.frames(JOB_REPORT_PROGRESS)
 
     def complete(self) -> Typed[JobCompleteCommand]:
-        """Every `job:complete` from now on, of every job."""
+        """Every `job:complete` from now on, of every job: each a `mark` job's completion or a `yield` job's, as its `job_type` says."""
         return self._links.own.frames(JOB_COMPLETE)
 
     def fail(self) -> Typed[JobFailCommand]:

@@ -24,8 +24,10 @@ import type {
   CreateResourceInput,
   GatherAnnotationComplete,
   JobEvent,
+  MarkJobCompletion,
   MatchedResources,
   ResourceList,
+  YieldJobCompletion,
 } from '@semiont/sdk';
 
 import type { McpClient } from '../handlers.js';
@@ -89,7 +91,7 @@ export const GATHER_COMPLETE: GatherAnnotationComplete = {
   response: CONTEXT,
 };
 
-export const ASSIST_COMPLETE: JobEvent = {
+export const ASSIST_COMPLETE: JobEvent<MarkJobCompletion> = {
   kind: 'complete',
   data: {
     resourceId: resourceId('res-iliad'),
@@ -99,7 +101,7 @@ export const ASSIST_COMPLETE: JobEvent = {
   },
 };
 
-export const GENERATION_COMPLETE: JobEvent = {
+export const GENERATION_COMPLETE: JobEvent<YieldJobCompletion> = {
   kind: 'complete',
   data: { resourceId: resourceId('res-iliad'), jobId: jobId('job-2'), jobType: 'yield' },
 };
@@ -119,7 +121,7 @@ export function createStub() {
     annotation: vi.fn<(input: CreateAnnotationInput) => Promise<{ annotationId: AnnotationId }>>(
       async () => ({ annotationId: annotationId('anno-new') }),
     ),
-    delegate: vi.fn<(id: ResourceId, params: MarkJobParams) => Observable<JobEvent>>(
+    delegate: vi.fn<(id: ResourceId, params: MarkJobParams) => Observable<JobEvent<MarkJobCompletion>>>(
       () => of(ASSIST_COMPLETE),
     ),
   };
@@ -140,7 +142,7 @@ export function createStub() {
     resource: vi.fn<(data: CreateResourceInput) => Promise<{ resourceId: ResourceId }>>(
       async () => ({ resourceId: resourceId('res-new') }),
     ),
-    delegate: vi.fn<(params: GenerationJobParams) => Observable<JobEvent>>(
+    delegate: vi.fn<(params: GenerationJobParams) => Observable<JobEvent<YieldJobCompletion>>>(
       () => of(GENERATION_COMPLETE),
     ),
   };

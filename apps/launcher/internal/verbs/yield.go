@@ -360,6 +360,12 @@ var yieldJobFlags = jobFlags{
 	"--structure":   {"structure", flagText},
 }
 
+// yieldJobResults: what a `yield` job reports.
+var yieldJobResults = resultMembers[semiont.YieldJobResult]{
+	semiont.JobGenerationResult{},
+	semiont.JobDeclinedResult{},
+}
+
 func runYieldDelegate(u *launcher.UI, t launcher.VerbTarget, positional []string, request semiont.GenerationJobRequest, asJSON bool) int {
 	cli := t.Transport()
 	ctx := context.Background()
@@ -421,17 +427,22 @@ func runYieldDelegate(u *launcher.UI, t launcher.VerbTarget, positional []string
 		u.Fail("yield --delegate: the job could not be described: %v", err)
 		return 1
 	}
-	done, raw, ok := delegatedJob{
+	job := delegatedJob[semiont.YieldJobCompleteCommand]{
 		verb: "yield --delegate", doing: "Generating", failed: "Generation",
 		check:  "semiont browse " + resourceID,
 		create: create,
-	}.run(u, cli)
+		jobOf:  func(done semiont.YieldJobCompleteCommand) semiont.JobId { return done.JobId },
+	}
+	done, raw, ok := job.run(u, cli)
 	if !ok {
 		return 1
 	}
 	// A decline is read first: the job ran and produced nothing, so there is
 	// no resource to name.
-	result := jobResult(done)
+	result, err := jobResult(done.Result, yieldJobResults)
+	if err != nil {
+		return job.resultFail(u, done.JobId, err)
+	}
 	declined, isDecline := result.(semiont.JobDeclinedResult)
 	if asJSON {
 		fmt.Println(string(raw))

@@ -40,6 +40,8 @@ export {
   UploadObservable,
   type JobCompletion,
   type JobEvent,
+  type MarkJobCompletion,
+  type YieldJobCompletion,
   type UploadProgress,
 } from './awaitable';
 

@@ -183,7 +183,9 @@ test.describe('frame tag-schema registry + tagging round-trip', () => {
         schemaId: E2E_TAG_SCHEMA.id,
         categories: E2E_TAG_SCHEMA.tags.map((t) => t.name),
       });
-      expect(done.jobType, 'the tagging job is a `mark` job, and it completed').toBe('mark');
+      // Awaited, a delegation resolves on the job's completion. A mark job's
+      // result is its counts or a decline; the counts say it did its work.
+      expect(done.result !== undefined && 'found' in done.result, 'the tagging job reports its counts').toBe(true);
 
       // Walk the resource's annotations and pick out the ones this
       // run created — `motivation: 'tagging'` with a classifying body

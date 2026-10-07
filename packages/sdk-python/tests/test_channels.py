@@ -18,11 +18,16 @@ from semiont.types import (
     GenerationJobParams,
     GenerationJobRequest,
     HighlightingJobParams,
+    JobDeclinedResult,
+    JobDetectionResult,
+    JobGenerationResult,
     MarkDeleteCommand,
+    MarkJobCompleteCommand,
     MarkJobCreateCommand,
     MarkJobQueuedEvent,
     StoredEventResponse,
     TaggingJobParams,
+    YieldJobCompleteCommand,
     YieldJobCreateCommand,
     YieldJobQueuedEvent,
 )
@@ -177,6 +182,27 @@ def test_a_channel_of_several_shapes_writes_each_of_them() -> None:
         "params": {"title": "A summary", "storageUri": "file://a.md", "context": CONTEXT},
     }
     assert channels.JOB_CREATE.decode(channels.JOB_CREATE.encode(making)) == making
+
+
+def test_a_job_s_completion_is_read_as_its_verb_s_with_what_that_verb_reports() -> None:
+    said: dict[str, JsonValue] = {"resourceId": "res-1", "jobId": "job-1"}
+    generated: dict[str, JsonValue] = {"resourceId": "res-summary", "resourceName": "A summary", "truncated": False}
+    marked = channels.JOB_COMPLETE.decode({**said, "jobType": "mark", "result": {"found": 3, "persisted": 2}})
+    assert type(marked) is MarkJobCompleteCommand
+    assert marked.result == JobDetectionResult(found=3, persisted=2)
+    made = channels.JOB_COMPLETE.decode({**said, "jobType": "yield", "result": generated})
+    assert type(made) is YieldJobCompleteCommand
+    assert made.result == JobGenerationResult(resource_id=ResourceId("res-summary"), resource_name="A summary", truncated=False)
+    # Either may have declined, and either may report nothing.
+    declined: dict[str, JsonValue] = {"declined": True, "reason": "encrypted"}
+    assert type(channels.JOB_COMPLETE.decode({**said, "jobType": "mark", "result": declined}).result) is JobDeclinedResult
+    assert type(channels.JOB_COMPLETE.decode({**said, "jobType": "yield", "result": declined}).result) is JobDeclinedResult
+    assert channels.JOB_COMPLETE.decode({**said, "jobType": "yield"}).result is None
+    # A result that is the other verb's is not that job's completion.
+    with pytest.raises(ValidationError):
+        channels.JOB_COMPLETE.decode({**said, "jobType": "mark", "result": generated})
+    with pytest.raises(ValidationError):
+        channels.JOB_COMPLETE.decode({**said, "jobType": "yield", "result": {"found": 3, "persisted": 2}})
 
 
 class Stamped(WireModel, frozen=True):

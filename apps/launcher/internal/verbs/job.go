@@ -26,21 +26,25 @@ import (
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
-// delegatedJob: one job a verb creates and follows to its end.
-type delegatedJob struct {
+// delegatedJob: one job a verb creates and follows to its end. C is the verb:
+// the member of the JobCompleteCommand union its jobType names, which is what
+// the job's completion is read as.
+type delegatedJob[C any] struct {
 	verb string // names the verb in a refusal: "mark --delegate"
 	// doing and note narrate the start: "Annotating res-1 (highlighting; job
 	// job-1)". note may be empty.
 	doing, note string
 	failed      string // what failed, in "Annotation failed: …"
-	check       string // the command that shows what a job still running has done
+	check       string // the command that shows what the job has done
 	create      semiont.JobCreateCommand
+	jobOf       func(C) semiont.JobId // the job a completion is of
 }
 
 // run creates the job and follows it. It returns the job:complete the job
-// ended with, read and as it arrived. ok=false: the job failed, or could not
-// be created or followed, and that was said.
-func (j delegatedJob) run(u *launcher.UI, cli bus.Transport) (done semiont.JobCompleteCommand, raw json.RawMessage, ok bool) {
+// ended with, read as the verb's and as it arrived. ok=false: the job failed,
+// could not be created or followed, or completed as another verb's, and that
+// was said.
+func (j delegatedJob[C]) run(u *launcher.UI, cli bus.Transport) (done C, raw json.RawMessage, ok bool) {
 	ctx := context.Background()
 	sub, err := cli.Subscribe(ctx, []bus.Channel{"job:report-progress", "job:complete", "job:fail"}, nil, "")
 	if err != nil {
@@ -111,12 +115,52 @@ func (j delegatedJob) run(u *launcher.UI, cli bus.Transport) (done semiont.JobCo
 			u.Fail("%s failed: %s", j.failed, f.Error)
 			return done, nil, false
 		case "job:complete":
-			if json.Unmarshal(ev.Payload, &done) != nil || done.JobId != jobID {
+			completed, mine, err := j.completion(jobID, ev.Payload)
+			if !mine {
 				continue
 			}
-			return done, ev.Payload, true
+			if err != nil {
+				u.Fail("Job %s %v.", jobID, err)
+				fmt.Fprintln(os.Stderr, "  What the job did:  "+j.check)
+				return done, nil, false
+			}
+			return completed, ev.Payload, true
 		}
 	}
+}
+
+// completion reads a job:complete as the completion of the job this verb
+// created. mine=false: it is another job's. An error: it is this job's, and
+// the union reads it as another verb's or as none: what the job completed as,
+// said after its name.
+func (j delegatedJob[C]) completion(jobID semiont.JobId, payload json.RawMessage) (done C, mine bool, err error) {
+	// Whose job it is: every member of the union names its job, so the
+	// payload is read as this verb's to learn that much.
+	var read C
+	if json.Unmarshal(payload, &read) != nil || j.jobOf(read) != jobID {
+		return done, false, nil
+	}
+	// Whose verb it is: the union's to say, by its discriminator.
+	var completed semiont.JobCompleteCommand
+	if err := completed.UnmarshalJSON(payload); err != nil {
+		return done, true, err
+	}
+	member, err := completed.ValueByDiscriminator()
+	done, isVerbs := member.(C)
+	if err != nil || !isVerbs {
+		as := "a job that names no type"
+		if said, _ := completed.Discriminator(); said != "" {
+			as = fmt.Sprintf("a %q job", said)
+		}
+		return done, true, fmt.Errorf("completed as %s, and %s created a %q job", as, j.verb, j.jobType())
+	}
+	return done, true, nil
+}
+
+// jobType: the verb's job type, as the job:create this verb sends states it.
+func (j delegatedJob[C]) jobType() string {
+	jobType, _ := j.create.Discriminator()
+	return jobType
 }
 
 // wireMembers: the members a generated type names, each with whether its
@@ -273,51 +317,58 @@ func jobParams(given map[string]any, flags jobFlags, params any, job string) err
 	return nil
 }
 
-// jobResultMembers: the members of the JobResult union, as their generated
-// types.
-var jobResultMembers = []any{
-	semiont.JobDetectionResult{},
-	semiont.JobGenerationResult{},
-	semiont.JobDeclinedResult{},
-}
+// resultMembers: the members of the result union R, as their generated types.
+// TestJobResultReadsEveryMemberOfItsVerbsUnion holds each list to its union's
+// schema.
+type resultMembers[R json.Marshaler] []any
 
-// jobResult: the member of the JobResult union a completed job reported, as
-// its own type; nil when the job reported none, or one this launcher does not
-// know.
+// jobResult: what a completed job reported, as the member of its verb's
+// result union it is; nil when it reported nothing. An error: what it reported
+// is not exactly one of the union's members.
 //
-// A result has no discriminant. Its members share no required member, so a
-// result is the one member whose required members it carries all of. The
-// generated As*() accessors are bare json.Unmarshal calls and cannot say:
-// every member "decodes" every other member's payload, and AsJobGenerationResult
-// on a decline returns a zero-valued struct with a nil error.
-func jobResult(done semiont.JobCompleteCommand) any {
-	if done.Result == nil {
-		return nil
+// A verb's result union has no discriminant. Its members share no required
+// member, so a result is the one member whose required members it carries all
+// of. The generated As*() accessors are bare json.Unmarshal calls and cannot
+// say: each "decodes" the other's payload, and AsJobGenerationResult on a
+// decline returns a zero-valued struct with a nil error.
+func jobResult[R json.Marshaler](reported *R, members resultMembers[R]) (any, error) {
+	if reported == nil {
+		return nil, nil
 	}
-	raw, err := done.Result.MarshalJSON()
-	if err != nil {
-		return nil
-	}
+	raw, err := (*reported).MarshalJSON()
 	var carried map[string]json.RawMessage
-	if json.Unmarshal(raw, &carried) != nil {
-		return nil
+	if err == nil {
+		err = json.Unmarshal(raw, &carried)
 	}
-	var result any
-	for _, member := range jobResultMembers {
+	if err != nil {
+		return nil, err
+	}
+	var is []any
+	var names []string
+	for _, member := range members {
 		generated := reflect.TypeOf(member)
+		names = append(names, generated.Name())
 		if !carriesRequired(carried, wireMembers(generated)) {
 			continue
 		}
-		if result != nil {
-			return nil
-		}
 		read := reflect.New(generated)
-		if json.Unmarshal(raw, read.Interface()) != nil {
-			return nil
+		if err := json.Unmarshal(raw, read.Interface()); err != nil {
+			return nil, err
 		}
-		result = read.Elem().Interface()
+		is = append(is, read.Elem().Interface())
 	}
-	return result
+	if len(is) != 1 {
+		return nil, fmt.Errorf("%s is not exactly one of %s", raw, strings.Join(names, ", "))
+	}
+	return is[0], nil
+}
+
+// resultFail says that a job completed with a result that is not its verb's,
+// and fails the command: a completion nobody can read is not a success.
+func (j delegatedJob[C]) resultFail(u *launcher.UI, jobID semiont.JobId, err error) int {
+	u.Fail("Job %s completed with a result that is not a %s job's: %v", jobID, j.jobType(), err)
+	fmt.Fprintln(os.Stderr, "  What the job did:  "+j.check)
+	return 1
 }
 
 // carriesRequired: whether an object carries every member a type requires.

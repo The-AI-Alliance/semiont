@@ -26,7 +26,7 @@ from semiont.namespaces.follow import Delegation
 from semiont.refresh import CACHE_QUERIES, CacheQuery
 from semiont.storage import MemoryStorage
 from semiont.transport import ConnectionState
-from semiont.types import GenerationJobParams, MarkJobParams
+from semiont.types import GenerationJobParams, JobCompleteCommand, MarkJobParams
 from semiont.watched import Variable
 
 type _Shown = WireModel | Collaborator | str | Sequence[_Shown]
@@ -280,7 +280,7 @@ class Live:
         _query(self._opened(), object_of(args, "query")).invalidate()
         return None
 
-    async def _following(self, name: str, job: Delegation) -> None:
+    async def _following[C: JobCompleteCommand](self, name: str, job: Delegation[C]) -> None:
         """A delegated job followed to its end, observed as a live query is.
 
         Each event it reports is a `ready` state, its failure a `failed` one,

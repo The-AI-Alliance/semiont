@@ -118,6 +118,8 @@ export type {
   JobResult,
   JobDetectionResult,
   JobGenerationResult,
+  MarkJobResult,
+  YieldJobResult,
   UnitCursor,
   GenerationJobParams,
   SelectionData,

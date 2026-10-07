@@ -8,14 +8,28 @@ import type {
   components,
 } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
-import { busRequest } from '@semiont/core';
-import type { DelegationObservable } from '../awaitable';
-import { delegated } from './delegation';
+import { busRequest, isMarkJobResult, isReportedJobResult } from '@semiont/core';
+import type { DelegationObservable, MarkJobCompletion } from '../awaitable';
+import { delegated, type DelegatedVerb } from './delegation';
 import type { JobFollowTiming } from './job-status-poll';
 import type {
   MarkNamespace as IMarkNamespace,
   CreateAnnotationInput,
 } from './types';
+
+/** A `mark` job's completion, as its follower hears or learns it. */
+const MARK: DelegatedVerb<MarkJobCompletion> = {
+  jobType: 'mark',
+  heard: (frame) => (frame.jobType === 'mark' ? frame : undefined),
+  learned: (status, resourceId) => {
+    if (status.type !== 'mark') return undefined;
+    const completion = { jobId: status.jobId, jobType: status.type, resourceId };
+    // A job completed without a result is stored with an empty one; the
+    // job:complete this stands for carried none.
+    if (!isReportedJobResult(status.result)) return completion;
+    return isMarkJobResult(status.result) ? { ...completion, result: status.result } : undefined;
+  },
+};
 
 export class MarkNamespace implements IMarkNamespace {
   constructor(
@@ -86,8 +100,8 @@ export class MarkNamespace implements IMarkNamespace {
     );
   }
 
-  delegate(resourceId: ResourceId, params: MarkJobParams): DelegationObservable {
-    return delegated(this.transport, this.bus, this.timing, { jobType: 'mark', resourceId, params }, resourceId);
+  delegate(resourceId: ResourceId, params: MarkJobParams): DelegationObservable<MarkJobCompletion> {
+    return delegated(this.transport, this.bus, this.timing, { jobType: 'mark', resourceId, params }, MARK, resourceId);
   }
 
   request(

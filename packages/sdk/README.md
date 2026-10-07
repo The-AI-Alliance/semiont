@@ -144,7 +144,7 @@ const found = await client.match.search(rId, refId, ctx);     // bounded streams
 
 Methods return one of: `Promise<T>` (atomic gateway ops), `StreamObservable` /
 `UploadObservable` (bounded progress — thenable, `await` resolves the final value),
-`DelegationObservable` (a delegated job — thenable, `await` resolves the job's completion),
+`DelegationObservable` (a delegated job — thenable, `await` resolves the job's completion, typed by its verb),
 `CacheObservable` (live queries — `.subscribe(...)` for `CacheState` emissions,
 `.fresh()` for the explicit network read; deliberately NOT thenable, so a cache read can
 never silently become a round trip), a count (wire drives — below), or `void` (local signals). The

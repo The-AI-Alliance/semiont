@@ -14,7 +14,7 @@ use crate::types::ResourceId;
 use crate::types::{
     CloneResourceWithTokenResponse, CreateResourceResponse, GatheredContextFocus,
     GenerationJobParams, ResourceDescriptor, YieldCloneResourceRequest, YieldCloneTokenRequest,
-    YieldJobCreateCommand,
+    YieldJobCompleteCommand, YieldJobCreateCommand,
 };
 use bytes::Bytes;
 use std::sync::Arc;
@@ -57,7 +57,8 @@ impl YieldNamespace {
     }
 
     /// Delegate the making of a resource from a gathered context as a `yield`
-    /// job: its progress and its completion. The context's focus says what
+    /// job: its progress and its completion, whose result is a `yield` job's:
+    /// the resource it made, or a decline. The context's focus says what
     /// the job is about, so the job names no resource. A follower that hears
     /// nothing for `stall_deadline`, or for
     /// `stall_deadline(params.max_tokens)` when none is stated, asks for that
@@ -66,7 +67,7 @@ impl YieldNamespace {
         &self,
         params: GenerationJobParams,
         stall_deadline: Option<Duration>,
-    ) -> Delegation {
+    ) -> Delegation<YieldJobCompleteCommand> {
         let within = stall_deadline.unwrap_or_else(|| self::stall_deadline(params.max_tokens));
         let resource_id = match &params.context.focus {
             GatheredContextFocus::Resource(focus) => focus.resource.id.clone(),

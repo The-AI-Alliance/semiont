@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { of, throwError } from 'rxjs';
 import { annotationId, resourceId, jobId } from '@semiont/core';
-import type { JobEvent } from '@semiont/sdk';
+import type { JobEvent, MarkJobCompletion, YieldJobCompletion } from '@semiont/sdk';
 
 import {
   bindBody,
@@ -195,7 +195,7 @@ describe('markAssist', () => {
 
   it('reports the total found and every progress stage', async () => {
     const { client, mark } = createStub();
-    const events: JobEvent[] = [
+    const events: JobEvent<MarkJobCompletion>[] = [
       { kind: 'progress', data: { percentage: 40, message: { code: 'analyzing' } } },
       // A pure percentage heartbeat carries no message.
       { kind: 'progress', data: { percentage: 60 } },
@@ -211,7 +211,7 @@ describe('markAssist', () => {
 
   it('reports what the model proposed, which is not what was kept', async () => {
     const { client, mark } = createStub();
-    const complete: JobEvent = {
+    const complete: JobEvent<MarkJobCompletion> = {
       kind: 'complete',
       data: {
         resourceId: resourceId('res-iliad'),
@@ -228,7 +228,7 @@ describe('markAssist', () => {
 
   it('surfaces a decline with its reason instead of reporting zero', async () => {
     const { client, mark } = createStub();
-    const complete: JobEvent = {
+    const complete: JobEvent<MarkJobCompletion> = {
       kind: 'complete',
       data: {
         resourceId: resourceId('res-iliad'),
@@ -245,26 +245,9 @@ describe('markAssist', () => {
     expect(text(result)).not.toContain('Found 0 entities');
   });
 
-  it('answers when the result is not one a mark job reports', async () => {
-    const { client, mark } = createStub();
-    const complete: JobEvent = {
-      kind: 'complete',
-      data: {
-        resourceId: resourceId('res-iliad'),
-        jobId: jobId('job-1'),
-        jobType: 'yield',
-        result: { resourceId: resourceId('res-new'), resourceName: 'New', truncated: false },
-      },
-    };
-    mark.delegate.mockReturnValue(of(complete));
-
-    expect(text(await markAssist(client, { resourceId: 'res-iliad' })))
-      .toContain('Found 0 entities.');
-  });
-
   it('reports zero when the completion carries no result', async () => {
     const { client, mark } = createStub();
-    const complete: JobEvent = {
+    const complete: JobEvent<MarkJobCompletion> = {
       kind: 'complete',
       data: { resourceId: resourceId('res-iliad'), jobId: jobId('job-1'), jobType: 'mark' },
     };
@@ -276,7 +259,7 @@ describe('markAssist', () => {
 
   it('reports zero when the stream ends on a progress event', async () => {
     const { client, mark } = createStub();
-    const progress: JobEvent = {
+    const progress: JobEvent<MarkJobCompletion> = {
       kind: 'progress',
       data: { percentage: 40, message: { code: 'analyzing' } },
     };
@@ -435,7 +418,7 @@ describe('yieldFromAnnotation', () => {
 
   it('reports every progress stage', async () => {
     const { client, yield: yieldNamespace } = createStub();
-    const events: JobEvent[] = [
+    const events: JobEvent<YieldJobCompletion>[] = [
       { kind: 'progress', data: { percentage: 50, message: { code: 'analyzing' } } },
       // A pure percentage heartbeat carries no message.
       { kind: 'progress', data: { percentage: 75 } },

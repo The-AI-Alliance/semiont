@@ -494,7 +494,11 @@ async function handleJobInner(
     if (evidence === undefined) return;
     if (durability === undefined || durability === 'acknowledged') durability = evidence;
   };
-  /** Every TERMINAL payload; `job:start` deliberately uses the bare base. */
+  /**
+   * Every TERMINAL payload; `job:start` deliberately uses the bare base. A
+   * completion is its verb's (`JobCompleteCommand`), so each one states
+   * `jobType` again beside this, where its branch has narrowed it.
+   */
   const terminalBase = () => ({ ...lifecycleBase, ...(durability ? { durability } : {}) });
 
   await emitEvent(session, 'job:start', lifecycleBase);
@@ -555,6 +559,7 @@ async function handleJobInner(
       // completion carrying the reason, not a failure.
       await emitEvent(session, 'job:complete', {
         ...terminalBase(),
+        jobType,
         result: {
           declined: true,
           reason: source.declined,
@@ -629,6 +634,7 @@ async function handleJobInner(
     );
     await emitEvent(session, 'job:complete', {
       ...terminalBase(),
+      jobType,
       result,
     });
     adapter.completeJob();
@@ -645,6 +651,7 @@ async function handleJobInner(
     );
     await emitEvent(session, 'job:complete', {
       ...terminalBase(),
+      jobType,
       result,
     });
     adapter.completeJob();
@@ -661,6 +668,7 @@ async function handleJobInner(
     );
     await emitEvent(session, 'job:complete', {
       ...terminalBase(),
+      jobType,
       result,
     });
     adapter.completeJob();
@@ -726,6 +734,7 @@ async function handleJobInner(
     }
     await emitEvent(session, 'job:complete', {
       ...terminalBase(),
+      jobType,
       result,
     });
     adapter.completeJob();
@@ -742,6 +751,7 @@ async function handleJobInner(
     );
     await emitEvent(session, 'job:complete', {
       ...terminalBase(),
+      jobType,
       result,
     });
     adapter.completeJob();
@@ -895,6 +905,7 @@ async function handleJobInner(
 
     await emitEvent(session, 'job:complete', {
       ...terminalBase(),
+      jobType,
       result: { resourceId: newResourceId, resourceName: genResult.title, truncated: genResult.truncated },
     });
     adapter.completeJob();

@@ -33,6 +33,28 @@ withDispatcher('job:complete', (world) => {
   });
 
   it.each([
+    ['a mark job the resource a yield job makes', undefined, { resourceId: 'res-made', resourceName: 'Made', truncated: false }],
+    ['a yield job the counts a mark job reports', 'yield' as const, { found: 4, persisted: 3 }],
+  ])('refuses at the door a completion that gives %s: a result is its verb\'s, and the job stays running', async (_what, verb, result) => {
+    const { creator, worker, job, ref } = await world().running(verb);
+    expect((await worker.offered('job:complete', { ...ref, result })).status).toBe(400);
+    await settle();
+    expect((await creator.statusOf(job.metadata.id)).status).toBe('running');
+  });
+
+  it.each([
+    ['a yield job\'s completion of a mark job', undefined, 'yield', { resourceId: 'res-made', resourceName: 'Made', truncated: false }],
+    ['a mark job\'s completion of a yield job', 'yield' as const, 'mark', { found: 4, persisted: 3 }],
+  ])('has no effect when it is %s: each is well formed for its own verb, and the job stays running until a completion of its own verb', async (_what, verb, completedAs, result) => {
+    const { creator, worker, job, ref } = await world().running(verb);
+    await worker.complete({ ...ref, jobType: completedAs }, result);
+    await settle();
+    expect((await creator.statusOf(job.metadata.id)).status).toBe('running');
+    await worker.complete(ref);
+    expect((await creator.until(job.metadata.id, 'the job to complete', (s) => s.status === 'complete')).result).toEqual({});
+  });
+
+  it.each([
     ['a mark job\'s counts', undefined, { found: 4, persisted: 3, errors: 1, byCategory: { Issue: 2, Rule: 1 }, underReportedPieces: 1 }],
     ['the resource a yield job made', 'yield' as const, { resourceId: 'res-made', resourceName: 'Made', truncated: true }],
     ['a decline', undefined, { declined: true, reason: 'no-text-layer' }],

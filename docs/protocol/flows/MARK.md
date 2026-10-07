@@ -85,7 +85,7 @@ The authority for both tables is [`MarkJobParams`](../../../specs/src/components
 
 A job given a param its motivation does not take is refused when it is created, and so is one whose `entityTypes`, `categories` or `schemaId` is empty. A schema and the entity types must already be in the knowledge base's vocabulary, which is [Frame](FRAME.md)'s; a job that names one that is not is refused too. See [`job:create`](../JOBS.md#jobcreate).
 
-Whatever its motivation, a job that did its work reports the same counts ([`JobDetectionResult`](../../../specs/src/components/schemas/JobDetectionResult.json)): `found`, what the model proposed; `persisted`, what the log holds; and `errors`, how many of the proposed could not be anchored in the text, absent when none.
+A `mark` job's result is one of two ([`MarkJobResult`](../../../specs/src/components/schemas/MarkJobResult.json)). A job that did its work reports its counts, the same whatever its motivation: `found`, what the model proposed; `persisted`, what the log holds; and `errors`, how many of the proposed could not be anchored in the text, absent when none. A job whose resource could not be read reports a decline, with the reason.
 
 The whole document is read: a long one is processed in pieces sized to the model's limits, never truncated. How detection is done is the worker's: see [the job types](../../../packages/jobs/docs/JobTypes.md).
 

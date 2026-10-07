@@ -13,22 +13,23 @@ import type {
   Annotation,
   AnnotationId,
   BodyOperation,
-  components,
   GatheredContext,
   GenerationJobParams,
   MarkJobParams,
+  MarkJobResult,
   ResourceDescriptor,
   ResourceId,
 } from '@semiont/core';
 
-type JobResult = components['schemas']['JobResult'];
 import type {
   CreateAnnotationInput,
   CreateResourceInput,
   GatherAnnotationComplete,
   JobEvent,
+  MarkJobCompletion,
   MatchedResources,
   ResourceList,
+  YieldJobCompletion,
 } from '@semiont/sdk';
 
 export type McpResult = { content: Array<{ type: 'text'; text: string }>; isError?: boolean };
@@ -52,7 +53,7 @@ export interface McpClient {
   };
   mark: {
     annotation(input: CreateAnnotationInput): Promise<{ annotationId: AnnotationId }>;
-    delegate(resourceId: ResourceId, params: MarkJobParams): Observable<JobEvent>;
+    delegate(resourceId: ResourceId, params: MarkJobParams): Observable<JobEvent<MarkJobCompletion>>;
   };
   bind: {
     body(resourceId: ResourceId, annotationId: AnnotationId, operations: BodyOperation[]): Promise<void>;
@@ -69,7 +70,7 @@ export interface McpClient {
   };
   yield: {
     resource(data: CreateResourceInput): PromiseLike<{ resourceId: ResourceId }>;
-    delegate(params: GenerationJobParams): Observable<JobEvent>;
+    delegate(params: GenerationJobParams): Observable<JobEvent<YieldJobCompletion>>;
   };
 }
 
@@ -162,20 +163,17 @@ export async function browseReferences(semiont: McpClient, args: any): Promise<M
 /**
  * What a `mark` job reported, as one sentence.
  *
- * A result has no tag: each of the three is told apart by a member only it
- * has, so narrowing takes no cast. Exhaustiveness is the point: a fourth
- * `JobResult` member fails to compile at the last line instead of silently
- * counting zero.
+ * A `mark` job's result is its counts or a decline, and neither has a tag:
+ * a decline is the one with `declined`. Exhaustiveness is the point: a third
+ * member of `MarkJobResult` fails to compile at the last line instead of
+ * silently counting zero.
  */
-function assistOutcome(result: JobResult | undefined): string {
+function assistOutcome(result: MarkJobResult | undefined): string {
   const found = (n: number) => `Detection complete. Found ${n} entities.`;
   if (!result) return found(0);
   // A declined job read nothing and says why; "found 0" would hide that.
   if ('declined' in result) return `Detection declined (${result.reason}).`;
   if ('found' in result) return found(result.found);
-  // Not what a `mark` job reports — it is a `yield` job's — but the type
-  // admits it, so it answers rather than going unhandled.
-  if ('resourceId' in result) return found(0);
   return result satisfies never;
 }
 

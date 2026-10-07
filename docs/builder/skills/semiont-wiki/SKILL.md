@@ -55,7 +55,7 @@ const semiont = session.client;
 
 ## Step 1: detect entity references
 
-`mark.delegate` creates a job for the stack's worker and follows it to its end. Awaiting it resolves to the job's completion, which carries the result: `found` is what the model proposed, and `persisted` is what was written. A `linking` job's params must name at least one entity type; the worker runs one detection per type.
+`mark.delegate` creates a job for the stack's worker and follows it to its end. Awaiting it resolves to the job's completion, which carries the result. It is a `mark` job's: its counts, where `found` is what the model proposed and `persisted` is what was written, or a decline for a resource whose text could not be read. A `linking` job's params must name at least one entity type; the worker runs one detection per type.
 
 ```typescript
 import { entityType, resourceId } from '@semiont/sdk';

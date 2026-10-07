@@ -10,8 +10,9 @@ use semiont::testing::{FaultAction, FaultyTransport, TestClientOptions, create_t
 use semiont::timing::{JOB_SILENCE, JOB_STATUS_POLL};
 use semiont::transport::{ConnectionState, Envelope};
 use semiont::types::{
-    HighlightingJobParams, JobCompleteCommand, JobDetectionResult, JobResult, LinkingJobParams,
-    TaggingJobParams,
+    HighlightingJobParams, JobDeclinedResultReason, JobDetectionResult, LinkingJobParams,
+    MarkJobCompleteCommand, MarkJobResult, TaggingJobParams, YieldJobCompleteCommand,
+    YieldJobResult,
 };
 use serde_json::{Map, Value, json};
 use std::future::IntoFuture;
@@ -45,7 +46,9 @@ async fn settle() {
 }
 
 /// Everything a follower gives, on a task of its own.
-fn collected(mut running: Delegation) -> JoinHandle<Vec<Result<JobEvent, SemiontError>>> {
+fn collected<C: Send + 'static>(
+    mut running: Delegation<C>,
+) -> JoinHandle<Vec<Result<JobEvent<C>, SemiontError>>> {
     tokio::spawn(async move {
         let mut seen = Vec::new();
         while let Some(item) = running.next().await {
@@ -64,7 +67,7 @@ async fn ended<T>(following: JoinHandle<T>) -> T {
         .expect("the follower ran")
 }
 
-fn highlighting(client: &SemiontClient) -> Delegation {
+fn highlighting(client: &SemiontClient) -> Delegation<MarkJobCompleteCommand> {
     client
         .mark
         .delegate(&as_id("res-1"), HighlightingJobParams::new())
@@ -110,7 +113,7 @@ fn asked(transport: &FaultyTransport, channel: &str) -> usize {
         .count()
 }
 
-fn kinds(seen: &[Result<JobEvent, SemiontError>]) -> Vec<String> {
+fn kinds<C>(seen: &[Result<JobEvent<C>, SemiontError>]) -> Vec<String> {
     seen.iter()
         .map(|item| match item {
             Ok(JobEvent::Progress(progress)) => format!("progress {}", progress.percentage),
@@ -147,10 +150,153 @@ async fn awaited_a_job_gives_its_completion() {
     say(&client, "job:report-progress", "job-1", progress(50.0));
     say(&client, "job:complete", "job-1", json!({}));
 
-    // The completion itself: nothing to tell from a job's other events.
-    let done: JobCompleteCommand = ended(following).await.expect("the job completes");
+    // The completion itself, and its verb's: nothing to tell from a job's
+    // other events, or from another verb's completion.
+    let done: MarkJobCompleteCommand = ended(following).await.expect("the job completes");
     assert_eq!(done.job_id, "job-1");
     assert_eq!(done.result, None);
+}
+
+/// What a `mark` job reports is its counts or a decline, and the completion's
+/// type says so: each match below names every result there is, and a `yield`
+/// job's resource is not among a `mark` job's.
+#[tokio::test(start_paused = true)]
+async fn awaited_a_job_gives_a_completion_whose_result_is_its_verbs() {
+    let (client, _transport) = world();
+    let following = tokio::spawn(highlighting(&client).into_future());
+    settle().await;
+    say(
+        &client,
+        "job:complete",
+        "job-1",
+        json!({ "result": { "declined": true, "reason": "no-text-layer" } }),
+    );
+    let done: MarkJobCompleteCommand = ended(following).await.expect("the job completes");
+    let reason = match done.result {
+        Some(MarkJobResult::DeclinedResult(declined)) => Some(declined.reason),
+        Some(MarkJobResult::DetectionResult(_)) | None => None,
+    };
+    assert_eq!(reason, Some(JobDeclinedResultReason::NoTextLayer));
+
+    let (client, _transport) = world();
+    let following = tokio::spawn(
+        client
+            .yield_
+            .delegate(generation(None), Some(Duration::from_secs(5)))
+            .into_future(),
+    );
+    settle().await;
+    client.bus().emit(
+        "job:complete",
+        object(json!({
+            "resourceId": "res-1", "jobId": "job-1", "jobType": "yield",
+            "result": { "resourceId": "res-made", "resourceName": "Made", "truncated": true },
+        })),
+        Envelope::default(),
+    );
+    let done: YieldJobCompleteCommand = ended(following).await.expect("the job completes");
+    let made = match done.result {
+        Some(YieldJobResult::GenerationResult(made)) => Some((made.resource_id, made.truncated)),
+        Some(YieldJobResult::DeclinedResult(_)) | None => None,
+    };
+    assert_eq!(made, Some((as_id("res-made"), true)));
+}
+
+/// A `job:complete` of the job that is another verb's is not this job's
+/// completion. Nothing says the job failed, so the follower does not say so:
+/// the knowledge base said something that is not the protocol's.
+#[tokio::test(start_paused = true)]
+async fn a_completion_frame_of_another_verb_ends_the_follower_and_not_as_a_failed_job() {
+    for more in [
+        json!({ "jobType": "yield" }),
+        json!({ "jobType": "yield", "result": { "resourceId": "res-made", "resourceName": "Made", "truncated": false } }),
+    ] {
+        let (client, _transport) = world();
+        let following = collected(highlighting(&client));
+        settle().await;
+        say(&client, "job:report-progress", "job-1", progress(25.0));
+        say(&client, "job:complete", "job-1", more);
+
+        let seen = ended(following).await;
+        assert_eq!(kinds(&seen), ["progress 25", "error error"]);
+        let Some(Err(SemiontError::Transport(error))) = seen.last() else {
+            panic!(
+                "a transport error was expected, not {:?}",
+                seen.last().map(|item| item.is_ok())
+            );
+        };
+        assert_eq!(
+            error.message,
+            "A job:complete of job job-1 is not a completion of the verb that was delegated"
+        );
+    }
+
+    // And a yield job's follower is given no mark job's completion.
+    let (client, _transport) = world();
+    let following = collected(
+        client
+            .yield_
+            .delegate(generation(None), Some(Duration::from_secs(5))),
+    );
+    settle().await;
+    say(
+        &client,
+        "job:complete",
+        "job-1",
+        json!({ "result": { "found": 4, "persisted": 3 } }),
+    );
+    assert_eq!(kinds(&ended(following).await), ["error error"]);
+}
+
+/// The status does not type its result by verb. A completion learned from it
+/// is read as the verb's: the verb's own result reads, and a status of
+/// another type, or with another verb's result, ends the follower as a frame
+/// of another verb does.
+#[tokio::test(start_paused = true)]
+async fn a_completion_learned_from_the_status_is_read_as_the_verbs_or_ends_the_follower() {
+    let learned = |answer: Value| async move {
+        let (client, transport) = world();
+        transport.queue_reply("job:status-requested", [status("complete", answer)]);
+        ended(collected(highlighting(&client))).await
+    };
+
+    let seen = learned(json!({ "result": { "found": 4, "persisted": 3, "errors": 1 } })).await;
+    assert_eq!(kinds(&seen), ["complete"]);
+    let Some(Ok(JobEvent::Complete(done))) = seen.last() else {
+        panic!("a completion was expected");
+    };
+    assert_eq!(
+        done.result,
+        Some(MarkJobResult::DetectionResult(JobDetectionResult {
+            errors: Some(1),
+            ..JobDetectionResult::new(4, 3)
+        }))
+    );
+    let seen = learned(json!({ "result": { "declined": true, "reason": "empty" } })).await;
+    assert_eq!(kinds(&seen), ["complete"]);
+
+    for (why, answer) in [
+        (
+            "another verb's result",
+            json!({ "result": { "resourceId": "res-made", "resourceName": "Made", "truncated": false } }),
+        ),
+        ("another verb's type", json!({ "type": "yield" })),
+        (
+            "another verb's type and its result",
+            json!({ "type": "yield", "result": { "resourceId": "res-made", "resourceName": "Made", "truncated": false } }),
+        ),
+    ] {
+        let seen = learned(answer).await;
+        assert_eq!(kinds(&seen), ["error error"], "{why}");
+        let Some(Err(SemiontError::Transport(error))) = seen.last() else {
+            panic!("{why}: a transport error was expected");
+        };
+        assert_eq!(
+            error.message,
+            "The status of job job-1 is not a completion of the verb that was delegated",
+            "{why}"
+        );
+    }
 }
 
 #[tokio::test(start_paused = true)]
@@ -168,7 +314,7 @@ async fn awaited_a_mark_job_gives_its_counts_and_what_it_under_reported() {
     let done = ended(following).await.expect("the job completes");
     assert_eq!(
         done.result,
-        Some(JobResult::DetectionResult(JobDetectionResult {
+        Some(MarkJobResult::DetectionResult(JobDetectionResult {
             errors: Some(2),
             under_reported_pieces: Some(1),
             ..JobDetectionResult::new(7, 5)

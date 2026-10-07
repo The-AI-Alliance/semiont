@@ -241,6 +241,62 @@ describe('MarkNamespace', () => {
     vi.useRealTimers();
   });
 
+  it("delegate() awaited gives the mark job's completion, its result a mark job's", async () => {
+    const done = mark.delegate(RID, { motivation: 'highlighting' }).run(() => {});
+    await new Promise((r) => setTimeout(r, 10));
+    eventBus.emit('job:complete', { jobId: JID, resourceId: RID, jobType: 'mark', result: { found: 3, persisted: 2, errors: 1 } });
+
+    const completion = await done;
+    // Typed by the verb: a mark job's result is its counts or a decline, so
+    // one narrowing reads the counts.
+    const counts = completion.result && 'found' in completion.result ? completion.result : undefined;
+    expect(counts).toEqual({ found: 3, persisted: 2, errors: 1 });
+  });
+
+  it("delegate() errors when the job's status carries another verb's result: it is not the job that was delegated", async () => {
+    vi.useFakeTimers();
+    const bus = new EventBus();
+    const mock = createMockTransport({
+      'job:create': (reply) => reply('job:created', { response: { jobId: JID } }),
+      'job:status-requested': (reply) => reply('job:status-result', {
+        response: {
+          ...J1_STORED, type: 'mark', status: 'complete',
+          result: { resourceId: resourceId('res-made'), resourceName: 'Made', truncated: false },
+        },
+      }),
+    });
+    const m = new MarkNamespace(mock.transport, bus);
+
+    let failure: unknown;
+    let completed = false;
+    m.delegate(RID, { motivation: 'highlighting' }).subscribe({
+      error: (e) => { failure = e; },
+      complete: () => { completed = true; },
+    });
+    await vi.advanceTimersByTimeAsync(100);
+    await vi.advanceTimersByTimeAsync(16_000);
+
+    expect(completed).toBe(false);
+    // Not a failed job: the transport's code for a failure no other names.
+    expect(failure).toMatchObject({ code: 'error', message: "The status of job j1 is not a completed mark job's" });
+
+    bus.destroy();
+    vi.useRealTimers();
+  });
+
+  it("delegate() errors on a job:complete of its job that is another verb's", async () => {
+    const failed = new Promise<Error>((resolve) => {
+      mark.delegate(RID, { motivation: 'highlighting' }).subscribe({ error: resolve });
+    });
+    await new Promise((r) => setTimeout(r, 10));
+    eventBus.emit('job:complete', {
+      jobId: JID, resourceId: RID, jobType: 'yield',
+      result: { resourceId: resourceId('res-made'), resourceName: 'Made', truncated: false },
+    });
+
+    expect(await failed).toMatchObject({ code: 'error', message: "A job:complete of job j1 is not a completed mark job's" });
+  });
+
   it('delegate() SSE completion wins over polling', async () => {
     vi.useFakeTimers();
     const bus = new EventBus();

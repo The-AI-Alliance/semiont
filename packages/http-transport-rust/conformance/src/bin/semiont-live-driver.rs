@@ -314,10 +314,10 @@ impl Live {
     /// reports is a `ready` state, its failure a `failed` one, its end a
     /// completion. `job` gives the job to follow, once the observer's name
     /// is known to be free.
-    fn follow(
+    fn follow<C: Serialize + Send + 'static>(
         &self,
         args: &Arguments,
-        job: impl FnOnce() -> Result<Delegation, Ended>,
+        job: impl FnOnce() -> Result<Delegation<C>, Ended>,
     ) -> Result<Value, Ended> {
         let observer = text(args, "observer")?.to_owned();
         let mut observers = locked(&self.observers);

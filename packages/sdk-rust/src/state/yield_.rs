@@ -13,7 +13,7 @@ use crate::errors::SemiontError;
 use crate::namespaces::JobEvent;
 use crate::state_unit::StateUnit;
 use crate::types::ResourceId;
-use crate::types::{GenerationJobParams, JobProgress, JobResult};
+use crate::types::{GenerationJobParams, JobProgress, YieldJobResult};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::watch;
@@ -101,7 +101,7 @@ impl YieldStateUnit {
                         shared.generating.set(true);
                     }
                     Ok(JobEvent::Complete(complete)) => {
-                        if let Some(JobResult::GenerationResult(result)) = complete.result {
+                        if let Some(YieldJobResult::GenerationResult(result)) = complete.result {
                             shared.outcome.set(Some(YieldOutcome {
                                 resource_id: result.resource_id,
                                 resource_name: result.resource_name,

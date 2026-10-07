@@ -201,7 +201,11 @@ test.describe('large-document assisted linking', () => {
           }
         });
 
-      expect(done.jobType, 'the linking job completes on a document this size').toBe('mark');
+      // Awaited, a delegation resolves on the job's completion. A mark job's
+
+      // result is its counts or a decline; the counts say it did its work.
+
+      expect(done.result !== undefined && 'found' in done.result, 'the linking job reports its counts on a document this size').toBe(true);
       // eslint-disable-next-line no-console
       console.log(`LARGE_DOC: assist completed in ${Date.now() - t0}ms`);
 
@@ -277,7 +281,11 @@ test.describe('large-document assisted linking', () => {
           if (entitiesFound !== undefined && entitiesFound > 0) foundTallies.add(entitiesFound);
         });
 
-      expect(done.jobType, 'the chunked linking job completes').toBe('mark');
+      // Awaited, a delegation resolves on the job's completion. A mark job's
+
+      // result is its counts or a decline; the counts say it did its work.
+
+      expect(done.result !== undefined && 'found' in done.result, 'the chunked linking job reports its counts').toBe(true);
       // eslint-disable-next-line no-console
       console.log(`CHUNKED: ${foundTallies.size} distinct entity tallies in ${Date.now() - t0}ms`);
 
@@ -372,7 +380,9 @@ test.describe('large-document assisted linking', () => {
       for (const motivation of ['highlighting', 'commenting', 'assessing'] as const) {
         const t0 = Date.now();
         const done = await client.mark.delegate(rid, { motivation, sourceLanguage: 'en' }).run(() => {});
-        expect(done.jobType, `the ${motivation} job completes`).toBe('mark');
+        // Awaited, a delegation resolves on the job's completion. A mark job's
+        // result is its counts or a decline; the counts say it did its work.
+        expect(done.result !== undefined && 'found' in done.result, `the ${motivation} job reports its counts`).toBe(true);
 
         const anns = await client.browse.annotations(rid).fresh();
         const mine = anns.filter((a) => a.motivation === motivation);
