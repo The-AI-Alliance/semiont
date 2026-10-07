@@ -27,7 +27,7 @@ import type { BusEnvelope, BusFrame } from './event-bus';
 import type { ConnectionState, ITransport } from './transport';
 import { EventBus } from './event-bus';
 import { BRIDGED_CHANNELS } from './bridged-channels';
-import { BUS_OPERATIONS, type BusOperationKey } from './bus-operations';
+import { BUS_OPERATIONS, REPLY_NAMES, type BusOperationKey } from './bus-operations';
 
 /** One wire behavior, applied to a single request-channel emit. */
 export type FaultAction =
@@ -72,8 +72,8 @@ export interface FaultyTransportConfig {
   schedule?: readonly FaultAction[];
   /**
    * Synthesize the `response` value for a delivered reply. Return `undefined`
-   * for a void ack (an empty payload). Default: `refuseUnscriptedOperation`,
-   * which throws naming the operation.
+   * for a void ack (a reply that carries no `response`). Default:
+   * `refuseUnscriptedOperation`, which throws naming the operation.
    */
   makeResponse?: (operation: BusOperationKey, payload: Record<string, unknown>) => unknown;
 }
@@ -144,6 +144,11 @@ export class FaultyTransport implements ITransport {
    * `drop-reply` still consumes its entry (the gateway answered; the wire ate
    * it) — so "first reply lost, the retry sees the NEXT page" is expressible.
    * `reject-emit` consumes nothing: that request never reached the gateway.
+   *
+   * Each entry is a `response`. A reply that names what it answers for beside
+   * its response (`REPLY_NAMES`: the resource a context was gathered for, the
+   * reference a search was for) takes that from its request, as a gateway's
+   * does: a test queues the response alone.
    */
   queueReply(op: BusOperationKey, ...responses: unknown[]): void {
     const q = this.replyQueues.get(op) ?? [];
@@ -202,9 +207,22 @@ export class FaultyTransport implements ITransport {
     const queue = this.replyQueues.get(name);
     const response = queue && queue.length > 0 ? queue.shift() : this.makeResponse(name, record);
 
+    // A reply that names what it answers for names what its request did, as a
+    // gateway's does. Refused here, where it rejects the emit, rather than in
+    // the reply's own microtask, where nobody is awaiting it.
+    const named: Record<string, unknown> = {};
+    for (const property of REPLY_NAMES[name]) {
+      if (record[property] === undefined) {
+        throw new Error(
+          `FaultyTransport: the reply to ${name} names "${property}", which this request does not state`,
+        );
+      }
+      named[property] = record[property];
+    }
+
     const reply = (): void => {
       if (this.disposed) return;
-      const replyPayload = response === undefined ? {} : { response };
+      const replyPayload = response === undefined ? { ...named } : { ...named, response };
       const resultChannel = BUS_OPERATIONS[name].result as keyof EventMap;
       // The key rides back on the envelope, never inside the reply payload.
       this.bus.emit(resultChannel, replyPayload as EventMap[keyof EventMap], {

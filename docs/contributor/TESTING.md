@@ -190,7 +190,7 @@ transport.queueReply('browse:resources-requested', { resources: [], total: 0, of
 // "No response scripted for bus operation ..." instead of answering.
 ```
 
-`queueReply` scripts what the gateway answers; the transport's `schedule` scripts the wire (`deliver`, `drop-reply`, `delay`, `duplicate-reply`, `reject-emit`). For components, `renderWithProviders` from `@semiont/react-ui/test-utils` renders inside a `SemiontBrowser` on the same doubles. The patterns are in [react-ui's testing guide](../builder/react-ui/TESTING.md).
+`queueReply` scripts what the gateway answers; the transport's `schedule` scripts the wire (`deliver`, `drop-reply`, `delay`, `duplicate-reply`, `reject-emit`). A reply that names what it answers for beside its response, as a gathered context names its resource, takes that from the request, so a test queues the response alone. For components, `renderWithProviders` from `@semiont/react-ui/test-utils` renders inside a `SemiontBrowser` on the same doubles. The patterns are in [react-ui's testing guide](../builder/react-ui/TESTING.md).
 
 Do not mock the transport by hand. A hand-rolled mock encodes its author's model of the contract, and the contract moves:
 

@@ -571,6 +571,10 @@ transport.state$.next('connecting');            // hold the attach gate
 // FaultyTransport config also takes a fault schedule: drop / delay / duplicate / reject.
 ```
 
+`queueReply` takes the `response`. A reply that names what it answers for beside
+it, as a gathered context names its resource, takes that from the request, as a
+gateway's does.
+
 For state-unit factories — which take a `SemiontSession` — `createTestSession()`
 returns a real session over the same transport (`{ session, client, transport,
 storage, token$ }`).

@@ -4,7 +4,7 @@
 //
 //   packages/core/src/bus-protocol.ts        (EventMap + CHANNEL_SCHEMAS)
 //   packages/core/src/persisted-events.ts    (the persisted-event catalog)
-//   packages/core/src/bus-operations.ts      (BUS_OPERATIONS)
+//   packages/core/src/bus-operations.ts      (BUS_OPERATIONS, and REPLY_NAMES from each reply's component schema)
 //   packages/core/src/bus-classification.ts  (CHANNEL_ATTRS — recorded/direction/writes/delivery)
 //   packages/core-rust/src/bus-classification.json (the same attributes, for the Rust services)
 //
@@ -12,6 +12,7 @@
 // with --check to diff without writing (the CI drift gate).
 
 import { deliveryClasses } from './delivery.mjs';
+import { replyNames } from './reply-names.mjs';
 import { validateRegistry, validateRegistryFormat } from './validate-registry.mjs';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -19,6 +20,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const REGISTRY = resolve(ROOT, 'specs/src/bus/registry.json');
+const SCHEMAS = resolve(ROOT, 'specs/src/components/schemas');
 const PROTOCOL = resolve(ROOT, 'packages/core/src/bus-protocol.ts');
 const PERSISTED = resolve(ROOT, 'packages/core/src/persisted-events.ts');
 const BRIDGED = resolve(ROOT, 'packages/core/src/bridged-channels.ts');
@@ -234,13 +236,44 @@ const opsLines = emitLines(
   },
 );
 
+// What a reply states beside its response is READ from the component schema
+// the registry says it carries, never listed. The table is total: an operation
+// whose reply names nothing says so.
+const namedBy = replyNames(reg, (name) => JSON.parse(readFileSync(resolve(SCHEMAS, `${name}.json`), 'utf8')));
+const replyNameLines = reg.operations.map(
+  (o) => pad(`  '${o.request}':`, VALUE_COL_OPS) + `[${namedBy.get(o.request).map((name) => `'${name}'`).join(', ')}],`,
+);
+
 const operations =
   BANNER +
   reg.preamble.operationsHeader +
   'export const BUS_OPERATIONS = {' +
   [...opsLines, ...reg.preamble.operationsInnerTail].join('\n') +
   '\n}' +
-  reg.preamble.operationsFooter;
+  reg.preamble.operationsFooter +
+  `
+/**
+ * REPLY_NAMES — what each operation's reply states beside its \`response\`.
+ *
+ * A reply names what it answers for by stating a property of its request
+ * again: the annotation or the resource a context was gathered for, the
+ * reference a search was for. Whoever answers takes each from the request.
+ * Most replies name nothing.
+ *
+ * Each list is what the reply's component schema requires, without
+ * \`response\`. The generator refuses a name the request's schema does not
+ * state, and the \`satisfies\` below holds each to the TypeScript types of both
+ * payloads.
+ */
+export const REPLY_NAMES = {
+` +
+  replyNameLines.join('\n') +
+  `
+} as const satisfies {
+  readonly [Op in BusOperationKey]: readonly (keyof EventMap[Op] &
+    keyof EventMap[(typeof BUS_OPERATIONS)[Op]['result'] & EventName])[];
+};
+`;
 
 // ── bridged-channels.ts ────────────────────────────────────────────────
 // The broadcast LIST is registry data (it is protocol vocabulary, and Go

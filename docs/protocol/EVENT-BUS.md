@@ -163,6 +163,8 @@ Two declarations make this work, and together they rule out a whole bug class (a
 
   `busRequest` reads `e.response`, so **every reply handler must carry the request's `correlationId` onto its reply's envelope and put its data under `response`** — a reply without the id hangs the caller until `bus.timeout`. The uniformity is exactly what lets the return type be derived from the registry instead of hand-annotated.
 
+  A reply may also state what it answers for beside `response`, by stating a property of its request again: `gather:complete` carries the `annotationId` its request did. [`REPLY_NAMES`](../../packages/core/src/bus-operations.ts), generated beside `BUS_OPERATIONS`, lists those properties for every operation. Each list is what the reply's schema requires, without `response`; the generator refuses one the request's schema does not state.
+
 ## Trace context: the `_trace` carrier
 
 Distributed traces ride on a relayed frame's payload. The `_trace` field carries the W3C `traceparent` (and optional `tracestate`) so spans started by handlers become children of the originating span:
