@@ -35,7 +35,7 @@ You write code against a knowledge base, in TypeScript, Rust or Python.
 
 - [Quick Start](builder/QUICK-START.md): a knowledge base running on your machine, to build against
 - [Building with the Semiont SDK](builder/README.md): install, where the SDK goes, the guides, the reference
-- [Embedding the React components](builder/README.md#react-embedding-semiontreact-ui)
+- [Embedding the React components](../packages/react-ui/README.md)
 - [Agent skills](builder/skills/), one ready-made definition per task
 
 ## Operator
