@@ -37,9 +37,10 @@ if [[ -z "${RT:-}" ]]; then
 fi
 echo "Using container runtime: $RT"
 
-# The Rust the builder image carries: read first, so a toolchain file that
-# names none stops the run before anything is built.
+# The Rust the builder image carries and the Node the browser is built in:
+# read first, so a file that names none stops the run before anything is built.
 RUST_TOOLCHAIN="$("$REPO_ROOT/scripts/ci/rust-toolchain.sh")"
+NODE_IMAGE="node:$("$REPO_ROOT/scripts/ci/node-version.sh")-alpine"
 
 # --- Build browser ---
 
@@ -50,7 +51,7 @@ $RT run --rm \
   -w /workspace \
   -m 8g \
   -e NODE_OPTIONS="--max-old-space-size=4096" \
-  node:24-alpine \
+  "$NODE_IMAGE" \
   sh -c "apk add --no-cache bash git > /dev/null && npm install --include=optional && npm run build -w semiont-browser"
 
 # --- Build the builder image ---
@@ -62,7 +63,7 @@ $RT run --rm \
 TAURI_CLI_VERSION=$($RT run --rm \
   -v "$REPO_ROOT":/workspace \
   -w /workspace \
-  node:24-alpine \
+  "$NODE_IMAGE" \
   node -p "require('./package-lock.json').packages['node_modules/@tauri-apps/cli'].version")
 
 BUILDER_IMAGE="semiont-tauri-builder"

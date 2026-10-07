@@ -2,7 +2,7 @@
   "name": "@semiont/jobs",
   "version": "0.6.13",
   "engines": {
-    "node": ">=24.0.0"
+    "node": ">=24.15.0"
   },
   "type": "module",
   "description": "The Semiont job worker: processors for each job type, and the worker process that claims jobs over the bus",

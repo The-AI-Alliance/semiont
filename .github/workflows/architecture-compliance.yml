@@ -19,7 +19,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version-file: .node-version
           cache: 'npm'
 
       - name: Install dependencies
@@ -86,6 +86,7 @@ jobs:
           npm run lint:rust-toolchain || fail=1
           npm run lint:go-toolchain || fail=1
           npm run lint:python-version || fail=1
+          npm run lint:node-version || fail=1
           npm run lint:conformance-readmes || fail=1
           npm run lint:transport-contract || fail=1
           npm run lint:client-surface || fail=1

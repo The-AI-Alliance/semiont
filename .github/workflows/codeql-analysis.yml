@@ -57,7 +57,7 @@ jobs:
       if: matrix.language == 'javascript-typescript'
       uses: actions/setup-node@v7
       with:
-        node-version: '24'
+        node-version-file: .node-version
         cache: 'npm'
 
     - name: Install all dependencies

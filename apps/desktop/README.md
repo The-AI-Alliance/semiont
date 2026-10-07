@@ -48,7 +48,7 @@ Most users only need the installers above. To build locally:
 
 ### Prerequisites
 
-- [Rust](https://rustup.rs/) and Node.js 24+. The Tauri CLI is a dev dependency of this workspace, installed by `npm install` at the repo root
+- [Rust](https://rustup.rs/) and Node.js 24.15.0 or later. The Tauri CLI is a dev dependency of this workspace, installed by `npm install` at the repo root
 - Xcode Command Line Tools (macOS)
 - Or, for the containerized path: just a container runtime (Apple Container, Docker, or Podman)
 

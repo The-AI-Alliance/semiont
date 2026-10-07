@@ -54,7 +54,7 @@ This project is part of [The AI Alliance](https://thealliance.ai/) and follows t
 - Git
 - A container runtime: Apple Container, Docker or Podman
 
-That is enough: [`scripts/ci/local-build.sh`](scripts/ci/local-build.sh) builds every package, every image and the launcher inside containers. To run the tools directly on your machine you also need Node.js 24, for the Rust and Go parts the toolchains that [`rust-toolchain.toml`](rust-toolchain.toml) and each `go.mod` name, and for the Python SDK Python 3.12 or later and [`uv`](https://docs.astral.sh/uv/).
+That is enough: [`scripts/ci/local-build.sh`](scripts/ci/local-build.sh) builds every package, every image and the launcher inside containers. To run the tools directly on your machine you also need Node.js 24.15.0 or later, for the Rust and Go parts the toolchains that [`rust-toolchain.toml`](rust-toolchain.toml) and each `go.mod` name, and for the Python SDK Python 3.12 or later and [`uv`](https://docs.astral.sh/uv/).
 
 ### Initial Setup
 

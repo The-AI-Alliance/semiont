@@ -283,7 +283,7 @@ updates:
   # the rust-toolchain entry updates. Major node updates are ignored because node
   # 26's undici breaks the qdrant client the sidecars carry; drop the ignore
   # when qdrant ships a fix. apps/browser and apps/worker carry no qdrant
-  # client, run node:26, and have their own entries.
+  # client, run Node 26, and have their own entries.
   - package-ecosystem: "docker"
     directories:
       - "/apps/gateway"
@@ -314,7 +314,7 @@ updates:
       include: "scope"
 
   # Worker base image (apps/worker/Dockerfile). Outside the service group: its
-  # @semiont/jobs carries no qdrant client, so it runs node:26 and takes the
+  # @semiont/jobs carries no qdrant client, so it runs Node 26 and takes the
   # major node updates the qdrant-bound sidecars cannot.
   - package-ecosystem: "docker"
     directory: "/apps/worker"
