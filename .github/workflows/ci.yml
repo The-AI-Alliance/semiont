@@ -19,7 +19,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version-file: .node-version
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
@@ -166,7 +166,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version-file: .node-version
 
       # Every crate each service binary links, on each platform the images are
       # built for, is under a permitted licence and credited in its image's NOTICE.
@@ -212,7 +212,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version-file: .node-version
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
@@ -275,7 +275,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version-file: .node-version
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
@@ -337,7 +337,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version-file: .node-version
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
@@ -400,7 +400,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version-file: .node-version
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
@@ -546,7 +546,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version-file: .node-version
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
@@ -579,7 +579,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version-file: .node-version
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
@@ -599,7 +599,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version-file: .node-version
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
@@ -623,7 +623,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version-file: .node-version
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
@@ -659,7 +659,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version-file: .node-version
 
       - name: Setup Go
         uses: actions/setup-go@v7.0.0

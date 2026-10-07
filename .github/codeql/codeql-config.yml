@@ -25,8 +25,12 @@ paths:
   - packages/observability-rust
   - packages/sdk-rust
   - packages/telemetry-rust
+  # The desktop shell: a Cargo workspace of its own, outside the root one
+  - apps/desktop/src-tauri/src
   # Go launcher — module root, not a src/ dir (main.go + internal/)
   - apps/launcher
+  # The Go SDK the launcher is built on: a module root too
+  - packages/sdk-go
   - packages/http-transport/src
   - packages/core/src
   - packages/content/src
@@ -41,6 +45,8 @@ paths:
   - packages/mcp-server/src
   - packages/observability/src
   - packages/sdk/src
+  # The Python SDK: what its wheel holds
+  - packages/sdk-python/src
 
 paths-ignore:
   - apps/launcher/testdata
@@ -71,3 +77,8 @@ query-filters:
         # Exclude specific queries that are not relevant
         - js/unused-local-variable
         - js/debugger-statement
+        # Reads no `type` statement (PEP 695) as a definition, so it reports
+        # every type alias the Python SDK exports. pyright holds the property
+        # in CI: a name in `__all__` that is not defined fails it
+        # (reportUnsupportedDunderAll).
+        - py/undefined-export

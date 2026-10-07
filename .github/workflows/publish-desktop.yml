@@ -36,7 +36,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version-file: .node-version
 
       # rustup installs the toolchain rust-toolchain.toml names, the one every
       # Rust build in the repository uses, then the platform's target for it.

@@ -82,7 +82,7 @@ container ls | grep -E 'semiont-(browser|gateway)'    # inspection only
 `--help` lists the full package set. The script:
 
 1. Starts a fresh `semiont-verdaccio` container on `:4873`.
-2. Builds each package in a node:24-alpine container and publishes it
+2. Builds each package in a Node container (Alpine) and publishes it
    to Verdaccio.
 3. Builds every Semiont image against Verdaccio, tagged
    `ghcr.io/the-ai-alliance/semiont-<svc>:local` (never pushed), and

@@ -2,7 +2,7 @@
   "name": "@semiont/graph",
   "version": "0.6.13",
   "engines": {
-    "node": ">=24.0.0"
+    "node": ">=24.15.0"
   },
   "type": "module",
   "description": "Graph database abstraction with Neo4j, Neptune, JanusGraph, and in-memory implementations",

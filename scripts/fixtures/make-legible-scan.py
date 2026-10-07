@@ -13,7 +13,7 @@ opposite jobs.
 
 Run it in a container that has Pillow and DejaVu (the host has neither):
 
-    container run --rm -v "$PWD":/out -w /out python:3.12-slim sh -c \
+    container run --rm -v "$PWD":/out -w /out "python:$(../ci/python-floor.sh)-slim" sh -c \
       'pip install --quiet pillow && apt-get update -qq && \
        apt-get install -y -qq fonts-dejavu-core && \
        python make-legible-scan.py /out/legible-scan.pdf'

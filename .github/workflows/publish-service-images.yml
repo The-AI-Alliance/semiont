@@ -138,7 +138,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version-file: .node-version
 
       - name: Verify packages are installable from npm
         if: matrix.installs == 'npm'
@@ -203,16 +203,20 @@ jobs:
 
       # The gateway, the dispatcher and the archivist compile with the toolchain
       # rust-toolchain.toml pins; the others install the version this run publishes.
+      # The toolchain is read before anything is written, so a file that names
+      # none fails this step.
       - name: Build arguments
         id: args
         run: |
+          if [ "${{ matrix.service }}" = gateway ] || [ "${{ matrix.service }}" = dispatcher ] || [ "${{ matrix.service }}" = archivist ]; then
+            toolchain=$(scripts/ci/rust-toolchain.sh)
+            argument="RUST_TOOLCHAIN=$toolchain"
+          else
+            argument="SEMIONT_VERSION=${{ inputs.version }}"
+          fi
           {
             echo "args<<EOF"
-            if [ "${{ matrix.service }}" = gateway ] || [ "${{ matrix.service }}" = dispatcher ] || [ "${{ matrix.service }}" = archivist ]; then
-              echo "RUST_TOOLCHAIN=$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
-            else
-              echo "SEMIONT_VERSION=${{ inputs.version }}"
-            fi
+            echo "$argument"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 

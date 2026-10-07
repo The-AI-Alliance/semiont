@@ -41,7 +41,7 @@ bases from the person's web browser (see [HUMAN-UI.md](../../architecture/HUMAN-
 
 [![ghcr](https://img.shields.io/badge/ghcr-latest-blue)](https://github.com/orgs/The-AI-Alliance/packages?repo_name=semiont)
 
-Five are Node. Each installs the published `@semiont/*` npm packages at the image's own version, so an image's version is always the npm version it carries. The four that carry `@semiont/make-meaning` run on `node:24-alpine`; the worker and the Browser run on `node:26-alpine`.
+Five are Node. Each installs the published `@semiont/*` npm packages at the image's own version, so an image's version is always the npm version it carries. The three that carry `@semiont/make-meaning` run on Node 24; the worker and the Browser run on Node 26. Each Dockerfile's `FROM` names its base.
 
 Two are Rust: the gateway and the dispatcher. Each image compiles its binary from the commit it is published from and ships it on `alpine`, with no source and no toolchain, and builds or fetches nothing when it starts.
 

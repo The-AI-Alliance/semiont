@@ -67,7 +67,7 @@ npm test --workspace=@semiont/sdk       # one workspace's suite
 Without it, run the same commands in a container:
 
 ```bash
-container run --rm -v "$PWD":/work -w /work node:24-alpine \
+container run --rm -v "$PWD":/work -w /work "node:$(scripts/ci/node-version.sh)-alpine" \
   sh -c 'npm ci --include=optional && npm run build:packages'
 ```
 

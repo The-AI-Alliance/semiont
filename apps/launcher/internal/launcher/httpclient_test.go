@@ -17,7 +17,7 @@ import (
 )
 
 // A minimal Linux host resolves no *.localhost name (measured in
-// golang:1.27.1: `getent hosts keycloak.localhost` is empty), yet the issuer of
+// the official Go image: `getent hosts keycloak.localhost` is empty), yet the issuer of
 // a Docker or Podman stack is keycloak.localhost. The launcher resolves those
 // names itself, so a resolver that knows none of them still reaches loopback.
 func TestLocalhostNamesReachLoopbackWithoutTheSystemResolver(t *testing.T) {

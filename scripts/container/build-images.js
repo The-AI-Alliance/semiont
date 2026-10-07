@@ -16,8 +16,8 @@
  *   npm run podman:build                 # Forces Podman usage
  */
 
-const { spawn } = require('child_process');
-const { existsSync, readFileSync } = require('fs');
+const { execFileSync, spawn } = require('child_process');
+const { existsSync } = require('fs');
 const { join } = require('path');
 
 const PROJECT_ROOT = join(__dirname, '..', '..');
@@ -119,8 +119,7 @@ async function buildImage(service, dockerfile, context, buildArgs = [], runtime)
 
 /** A Rust service compiles with the toolchain rust-toolchain.toml pins. */
 async function buildRust(service, runtime) {
-  const toolchain = /^channel = "(.*)"$/m.exec(readFileSync('rust-toolchain.toml', 'utf-8'))?.[1];
-  if (!toolchain) throw new Error('rust-toolchain.toml names no channel');
+  const toolchain = execFileSync('scripts/ci/rust-toolchain.sh', [], { encoding: 'utf-8' }).trim();
   await buildImage(service, `apps/${service}/Dockerfile`, '.', ['--build-arg', `RUST_TOOLCHAIN=${toolchain}`], runtime);
 }
 

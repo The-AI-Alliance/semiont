@@ -159,17 +159,17 @@ Both type checkers are part of the suite: `tests/refusals` holds programs that m
 
 None of the toolchains has to be on your machine. Two things to know:
 
-**`node_modules` holds native binaries for the platform that installed it** (rolldown, lightningcss). Run tests in the same image family you installed with. An install made under `node:24-alpine` fails under glibc `node:24` with a `*.linux-<arch>-gnu.node` module-not-found, and the reverse fails the other way. `tsc --noEmit` runs under either.
+**`node_modules` holds native binaries for the platform that installed it** (rolldown, lightningcss). Run tests in the same image family you installed with. An install made under the Alpine image (`node:<version>-alpine`) fails under the glibc one (`node:<version>`) with a `*.linux-<arch>-gnu.node` module-not-found, and the reverse fails the other way. `tsc --noEmit` runs under either.
 
 ```bash
-container run --rm -v "$(pwd)":/work -w /work node:24-alpine \
+container run --rm -v "$(pwd)":/work -w /work "node:$(scripts/ci/node-version.sh)-alpine" \
   sh -c 'npm test --workspace=@semiont/make-meaning'
 ```
 
 **`@semiont/jobs` and the conformance suites need `nats-server`**, which Alpine packages:
 
 ```bash
-container run --rm -v "$(pwd)":/work -w /work node:24-alpine \
+container run --rm -v "$(pwd)":/work -w /work "node:$(scripts/ci/node-version.sh)-alpine" \
   sh -c 'apk add --no-cache nats-server && npm test --workspace=@semiont/jobs'
 ```
 

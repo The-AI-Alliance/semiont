@@ -37,7 +37,7 @@ listed in [Testing](../docs/contributor/TESTING.md#continuous-integration).
 ### CodeQL Analysis (`codeql-analysis.yml`)
 **Automated security code scanning**:
 - Runs on push, PR, and weekly schedule
-- Analyzes the TypeScript, Go and Rust code
+- Analyzes the TypeScript, Go, Rust and Python code
 - Runs the `security-and-quality` query suite
 - Uploads results to GitHub Security tab
 
@@ -48,9 +48,13 @@ listed in [Testing](../docs/contributor/TESTING.md#continuous-integration).
 - npm: the workspaces (one entry at the root), `tests/e2e`, `tests/conformance`
 - Go modules: `apps/launcher`, `packages/sdk-go`
 - Cargo: the Rust workspace at the root, `apps/desktop/src-tauri` (each one grouped PR); the Rust toolchain: `rust-toolchain.toml`
-- GitHub Actions, and the Docker base images of the Browser, the desktop builder and the seven service images
+- GitHub Actions, and the Docker base images of the Browser and the seven service images; the desktop builder's is a Rust image, which the toolchain entry moves
 - A cooldown before a new release is adopted; security updates are not held by it
 - `npm run lint:dependabot` (Architecture Compliance) fails when a tracked manifest has no entry, or an entry names a directory with none
+- `npm run lint:rust-toolchain` (Architecture Compliance) fails when the Rust version is written anywhere but `rust-toolchain.toml`
+- `npm run lint:go-toolchain` (Architecture Compliance) fails when the Go version is written anywhere but a `go.mod`, or the two `go.mod` files pin different toolchains
+- `npm run lint:python-version` (Architecture Compliance) fails when a restatement of the Python SDK's `requires-python` (mypy, pyright, the classifiers, a workflow, a document) says another version
+- `npm run lint:node-version` (Architecture Compliance) fails when a workflow or a script writes a Node version in place of reading `.node-version`, or a `package.json` states another `engines.node` than the root's
 
 ### CodeQL Config (`codeql/codeql-config.yml`)
 **The analysis configuration**:
@@ -104,7 +108,7 @@ session code.
 ## 🛡️ Security Workflow Details
 
 ### Environment Setup
-- **Browser job**: Node.js 24, with the npm cache
+- **Browser job**: the Node `.node-version` names, with the npm cache
 - **Gateway job**: the Rust toolchain `rust-toolchain.toml` pins, with the cargo cache
 
 Neither job starts a database or an issuer. The gateway holds no database, and

@@ -7,8 +7,10 @@ set -euo pipefail
 #
 # This script:
 #   1. Builds the browser SPA (apps/browser/dist/)
-#   2. Builds the Tauri builder image for the Tauri CLI version that
-#      package-lock.json pins for apps/desktop (once per version)
+#   2. Builds the Tauri builder image, from the Rust rust-toolchain.toml
+#      names and the Tauri CLI version package-lock.json pins for
+#      apps/desktop. Every run asks for the build: the runtime's layer cache
+#      rebuilds what changed, and nothing when nothing did
 #   3. Compiles the Tauri desktop shell into
 #      apps/desktop/src-tauri/target/release/bundle/
 #
@@ -35,6 +37,11 @@ if [[ -z "${RT:-}" ]]; then
 fi
 echo "Using container runtime: $RT"
 
+# The Rust the builder image carries and the Node the browser is built in:
+# read first, so a file that names none stops the run before anything is built.
+RUST_TOOLCHAIN="$("$REPO_ROOT/scripts/ci/rust-toolchain.sh")"
+NODE_IMAGE="node:$("$REPO_ROOT/scripts/ci/node-version.sh")-alpine"
+
 # --- Build browser ---
 
 echo ""
@@ -44,26 +51,28 @@ $RT run --rm \
   -w /workspace \
   -m 8g \
   -e NODE_OPTIONS="--max-old-space-size=4096" \
-  node:24-alpine \
+  "$NODE_IMAGE" \
   sh -c "apk add --no-cache bash git > /dev/null && npm install --include=optional && npm run build -w semiont-browser"
 
-# --- Ensure builder image exists ---
+# --- Build the builder image ---
 
+# The image is built from three things: the Rust rust-toolchain.toml names, the
+# Tauri CLI version package-lock.json pins, and Dockerfile.builder's own text.
+# Asking for the build on every run leaves it to the layer cache to say which
+# of them changed.
 TAURI_CLI_VERSION=$($RT run --rm \
   -v "$REPO_ROOT":/workspace \
   -w /workspace \
-  node:24-alpine \
+  "$NODE_IMAGE" \
   node -p "require('./package-lock.json').packages['node_modules/@tauri-apps/cli'].version")
 
-# Tagged by CLI version, so a version bump builds a new image.
-BUILDER_IMAGE="semiont-tauri-builder:$TAURI_CLI_VERSION"
-if ! $RT image inspect "$BUILDER_IMAGE" > /dev/null 2>&1; then
-  echo ""
-  echo "Building Tauri builder image for Tauri CLI $TAURI_CLI_VERSION (one-time)..."
-  $RT build --tag "$BUILDER_IMAGE" \
-    --build-arg TAURI_CLI_VERSION="$TAURI_CLI_VERSION" \
-    --file "$SCRIPT_DIR/Dockerfile.builder" "$REPO_ROOT"
-fi
+BUILDER_IMAGE="semiont-tauri-builder"
+echo ""
+echo "Building Tauri builder image (Rust $RUST_TOOLCHAIN, Tauri CLI $TAURI_CLI_VERSION)..."
+$RT build --tag "$BUILDER_IMAGE" \
+  --build-arg RUST_TOOLCHAIN="$RUST_TOOLCHAIN" \
+  --build-arg TAURI_CLI_VERSION="$TAURI_CLI_VERSION" \
+  --file "$SCRIPT_DIR/Dockerfile.builder" "$REPO_ROOT"
 
 # --- Build Tauri desktop app ---
 

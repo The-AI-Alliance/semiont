@@ -11,7 +11,6 @@ on:
     - cron: '0 6 * * *'
 
 env:
-  NODE_VERSION: '24'
   # WCAG 2.1 AA compliance target
   LIGHTHOUSE_ACCESSIBILITY_THRESHOLD: 90
 
@@ -28,7 +27,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .node-version
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
@@ -90,7 +89,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .node-version
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
@@ -153,7 +152,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .node-version
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 

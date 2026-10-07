@@ -75,9 +75,9 @@ testpaths = ["tests"]
 addopts = ["--strict-markers", "--strict-config", "-ra"]
 xfail_strict = true
 
+# No target-version: ruff takes it from requires-python.
 [tool.ruff]
 line-length = 140
-target-version = "py312"
 # Generated, each held by its own drift gate.
 extend-exclude = [
     "src/semiont/channels.py",
@@ -101,6 +101,8 @@ select = ["ANN", "ASYNC", "B", "C4", "E", "F", "I", "PGH", "PT", "RUF", "SIM", "
 "tests/refusals/*" = ["ANN", "B", "F", "RUF", "SIM"]
 
 [tool.mypy]
+# requires-python's floor, which mypy does not read. lint:python-version holds
+# this, pyright's, the classifiers and CI's matrix to it.
 python_version = "3.12"
 files = ["src", "tests", "conformance", "scripts"]
 strict = true

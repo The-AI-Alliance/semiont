@@ -173,11 +173,11 @@ echo "  All packages at ${NEXT}"
 
 # Phase 2.5: Regenerate package-lock.json so the committed lock matches the new
 # versions. npm is the only thing that produces a correct lockfileVersion-3 lock
-# (a hand jq-edit desyncs its interlinked version records); run it in a node:24
-# container because the release host has no Node.
+# (a hand jq-edit desyncs its interlinked version records); run it in a Node
+# container, at the version .node-version names, because the release host has no Node.
 echo ""
 echo "Regenerating package-lock.json (npm in ${RUNTIME})..."
-"$RUNTIME" run --rm -v "$PWD":/work -w /work node:24 \
+"$RUNTIME" run --rm -v "$PWD":/work -w /work "node:$(scripts/ci/node-version.sh)" \
   npm install --package-lock-only --include=optional
 LOCK_VERSION=$(jq -r '.packages[""].version' package-lock.json)
 [[ "$LOCK_VERSION" == "$NEXT" ]] || die "package-lock.json root is '${LOCK_VERSION}' after regen (expected ${NEXT})"

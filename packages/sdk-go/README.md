@@ -34,7 +34,7 @@ cd packages/sdk-go && go generate ./...
 ```
 
 That runs the pinned generator (`oapi-codegen@v2.6.0`) inside a
-`golang:1.27` container — no host Go needed — against `specs/openapi.json`
+`golang` container at the toolchain `go.mod` pins — no host Go needed — against `specs/openapi.json`
 (the bundle `npm run openapi:bundle` writes), rewriting `client_gen.go`.
 Commit the result. CI runs the same pinned generator and fails while the
 committed client differs from what the spec generates.

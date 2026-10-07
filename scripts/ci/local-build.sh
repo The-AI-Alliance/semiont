@@ -69,8 +69,7 @@ RT=$(detect_runtime)
 #
 # No fallback. A missing toolchain line fails here rather than quietly selecting
 # some other compiler.
-GO_TOOLCHAIN="$(sed -n 's/^toolchain go\([0-9][0-9.]*\)$/\1/p' "$REPO_ROOT/apps/launcher/go.mod")"
-if [[ -z "$GO_TOOLCHAIN" ]]; then
+if ! GO_TOOLCHAIN="$("$REPO_ROOT/scripts/ci/go-toolchain.sh")"; then
   fail "No 'toolchain goX.Y.Z' line in apps/launcher/go.mod — cannot choose a Go image."
   exit 1
 fi
@@ -81,8 +80,7 @@ GO_IMAGE="golang:${GO_TOOLCHAIN}"
 # The gateway image compiles its binary with the toolchain
 # rust-toolchain.toml pins, passed to its Dockerfile as
 # RUST_TOOLCHAIN. No fallback, as for Go.
-RUST_TOOLCHAIN="$(sed -n 's/^channel = "\(.*\)"$/\1/p' "$REPO_ROOT/rust-toolchain.toml")"
-if [[ -z "$RUST_TOOLCHAIN" ]]; then
+if ! RUST_TOOLCHAIN="$("$REPO_ROOT/scripts/ci/rust-toolchain.sh")"; then
   fail "No channel in rust-toolchain.toml — cannot choose a Rust image."
   exit 1
 fi
@@ -92,12 +90,23 @@ fi
 # The oldest Python the SDK supports is a fact packages/sdk-python/pyproject.toml
 # owns (requires-python), and the SDK's generator runs on that one, here as in
 # CI. No fallback, as for Go.
-PYTHON_FLOOR="$(sed -n 's/^requires-python = ">=\([0-9][0-9.]*\)"$/\1/p' "$REPO_ROOT/packages/sdk-python/pyproject.toml")"
-if [[ -z "$PYTHON_FLOOR" ]]; then
+if ! PYTHON_FLOOR="$("$REPO_ROOT/scripts/ci/python-floor.sh")"; then
   fail "No 'requires-python = \">=X.Y\"' line in packages/sdk-python/pyproject.toml — cannot choose a Python image."
   exit 1
 fi
 PYTHON_IMAGE="python:${PYTHON_FLOOR}-alpine"
+
+# --- Node toolchain (derived, not restated) ---
+#
+# The Node that builds and tests the repository is a fact .node-version owns.
+# Every workflow derives it (actions/setup-node's node-version-file), and so
+# does this script, for the image the packages are built and published in.
+# No fallback, as for Go.
+if ! NODE_VERSION="$("$REPO_ROOT/scripts/ci/node-version.sh")"; then
+  fail "No version in .node-version — cannot choose a Node image."
+  exit 1
+fi
+NODE_IMAGE="node:${NODE_VERSION}-alpine"
 
 # --- What is kept between runs ---
 #
@@ -280,7 +289,7 @@ if [[ "$IMAGES_ONLY" != true ]]; then
 banner "BUS REGISTRY DRIFT GATE"
 
 step "Checking generated bus files against specs/src/bus/registry.json..."
-if $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace node:24-alpine \
+if $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace "$NODE_IMAGE" \
   sh -c 'node scripts/bus/generate-ts.mjs --check && node scripts/bus/generate-go.mjs --check'; then
   ok "bus registry and both generated languages agree"
 else
@@ -307,7 +316,7 @@ banner "OPENAPI BUNDLE"
 # stale or absent — bundle fresh first. Version pinned to the repo's
 # devDependency, same as CI.
 step "Bundling specs/src into specs/openapi.json..."
-if ! $RT run --rm -v "$REPO_ROOT":/workspace -v "$NPM_CACHE_DIR":/root/.npm -w /workspace node:24-alpine \
+if ! $RT run --rm -v "$REPO_ROOT":/workspace -v "$NPM_CACHE_DIR":/root/.npm -w /workspace "$NODE_IMAGE" \
   npx --yes @redocly/cli@2.34.0 bundle specs/src/openapi.json -o specs/openapi.json >/dev/null; then
   fail "Could not bundle the OpenAPI spec (redocly; output above)."
   exit 1
@@ -323,7 +332,7 @@ fi
 banner "PYTHON SDK DRIFT GATE"
 
 step "Checking the Python SDK's generated tables against specs/src..."
-if $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace node:24-alpine \
+if $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace "$NODE_IMAGE" \
   sh -c 'node scripts/bus/generate-python.mjs --check && node scripts/spec/generate-identifiers-python.mjs --check && node scripts/spec/generate-error-codes-python.mjs --check && node scripts/spec/generate-client-timing-python.mjs --check && node scripts/spec/generate-cache-refresh-python.mjs --check && node scripts/spec/generate-sdk-telemetry-python.mjs --check && node scripts/spec/generate-oauth-clients-python.mjs --check && node scripts/spec/generate-sign-in-python.mjs --check && node scripts/spec/generate-media-types-python.mjs --check'; then
   ok "the Python SDK's generated tables match specs/src"
 else
@@ -566,7 +575,7 @@ case "$DRIFT_RC" in
 esac
 
 step "Checking the generated Go client covers every schema..."
-if ! $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace node:24-alpine \
+if ! $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace "$NODE_IMAGE" \
   node scripts/ci/check-go-schema-coverage.mjs; then
   fail "The generated Go client is missing schemas (see above)."
   echo ""
@@ -703,7 +712,7 @@ fi
 
 # --- Resolve host address ---
 
-HOST_ADDR=$($RT run --rm node:24-alpine sh -c "ip route | awk '/default/{print \$3}'")
+HOST_ADDR=$($RT run --rm "$NODE_IMAGE" sh -c "ip route | awk '/default/{print \$3}'")
 step "Host address from container: ${DIM}$HOST_ADDR${RESET}"
 
 if [[ "$IMAGES_ONLY" != true ]]; then
@@ -728,7 +737,7 @@ if [[ "$IMAGES_ONLY" != true ]]; then
     -w /workspace \
     -m 8g \
     -e NODE_OPTIONS="--max-old-space-size=4096" \
-    node:24-alpine \
+    "$NODE_IMAGE" \
     sh -c "
       set -e
       apk add --no-cache bash git > /dev/null

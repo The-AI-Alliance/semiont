@@ -19,7 +19,7 @@ package launcher
 // regenerate both sides. version is the compatibility gate: consumers must
 // ignore documents they do not understand.
 
-//go:generate sh -c "cd ../../../.. && container run --rm -v $(pwd):/w -w /w golang:1.25 go run github.com/atombender/go-jsonschema@v0.23.1 -p launcher --tags json --struct-name-from-title --capitalization KB -o apps/launcher/internal/launcher/discovery_types_gen.go specs/src/discovery/DiscoveryDocument.json"
+//go:generate sh -c "cd ../../../.. && container run --rm -v $(pwd):/w -w /w golang:$(scripts/ci/go-toolchain.sh) go run github.com/atombender/go-jsonschema@v0.23.1 -p launcher --tags json --struct-name-from-title --capitalization KB -o apps/launcher/internal/launcher/discovery_types_gen.go specs/src/discovery/DiscoveryDocument.json"
 
 import (
 	"encoding/json"

@@ -836,7 +836,7 @@ regenerates regardless.
 Build and test (hermetically — no Go on the host required):
 
 ```sh
-container run --rm -v "$(pwd)":/work -w /work/apps/launcher golang:1.27.1 \
+container run --rm -v "$(pwd)":/work -w /work/apps/launcher "golang:$(scripts/ci/go-toolchain.sh)" \
   sh -c "go vet ./... && go test ./..."
 ```
 

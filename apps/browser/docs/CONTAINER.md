@@ -59,7 +59,7 @@ is published, and the server does no templating.
 
 ## What is in it
 
-- **Base image:** `node:26-alpine`.
+- **Base image:** Node 26 on Alpine, as the [Dockerfile](../Dockerfile)'s `FROM` names it.
 - **Contents:** the published `@semiont/browser` npm package, installed at the image's version.
   The image does not build from source.
 - **Entrypoint:** `tini`, then `node node_modules/@semiont/browser/server.js`.

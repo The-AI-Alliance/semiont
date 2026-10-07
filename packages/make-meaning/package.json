@@ -2,7 +2,7 @@
   "name": "@semiont/make-meaning",
   "version": "0.6.13",
   "engines": {
-    "node": ">=24.0.0"
+    "node": ">=24.15.0"
   },
   "type": "module",
   "description": "Making meaning from resources through context assembly, pattern detection, and relationship reasoning",

@@ -11,13 +11,21 @@ How this repository's dependencies are kept current, how a vulnerable one is fix
 | npm | the repository root (which covers every workspace), `tests/e2e`, `tests/conformance` |
 | Go modules | `apps/launcher`, `packages/sdk-go` |
 | Cargo | the Rust workspace at the root; the desktop app's `apps/desktop/src-tauri` |
-| The Rust toolchain | [`rust-toolchain.toml`](../../rust-toolchain.toml), which also names the builder image of the Rust services |
+| The Rust toolchain | [`rust-toolchain.toml`](../../rust-toolchain.toml), which also names every Rust image: the builder stage of the Rust services and the desktop builder |
 | GitHub Actions | the workflows |
-| Docker | the base images of the Browser, the desktop builder and the seven service images |
+| Docker | the base images of the Browser and the seven service images |
 
 Packages that must move together are grouped, so they arrive in one pull request: `react`, `i18n`, `bundler-binaries`, `opentelemetry`, `gateway-crates`, `desktop-crates` and `service-base-images`.
 
 `npm run lint:dependabot` fails when a manifest has no Dependabot entry, or an entry has no manifest. A new Dockerfile, lockfile or crate cannot go un-updated without CI saying so.
+
+`npm run lint:rust-toolchain` fails when the Rust version is written anywhere but `rust-toolchain.toml`: a Rust image whose tag is written out, a Dockerfile that does not take `RUST_TOOLCHAIN`, a toolchain picked another way, or a second reader of the file's `channel` beside [`scripts/ci/rust-toolchain.sh`](../../scripts/ci/rust-toolchain.sh). Dependabot moves that one file and runs no script, so a copy would be a copy nothing moves.
+
+`npm run lint:go-toolchain` holds the Go version the same way. Each `go.mod` pins the toolchain, because Go reads no other module's, and the gate fails when the two differ, when a Go image's tag is written out, when a workflow names a Go version in place of a `go.mod`, or when anything but [`scripts/ci/go-toolchain.sh`](../../scripts/ci/go-toolchain.sh) reads the pin.
+
+`npm run lint:python-version` holds the Python the SDK supports. `requires-python` states the floor, a person moves it, and the tools that do not read it keep a copy: mypy, pyright, the classifiers, and the versions CI installs. The gate fails when one of them, a sentence in a document, or a Python image's tag says anything else, and when anything but [`scripts/ci/python-floor.sh`](../../scripts/ci/python-floor.sh) reads the line.
+
+`npm run lint:node-version` holds Node's two versions. [`.node-version`](../../.node-version) names the Node that builds and tests: the workflows read the file, and the scripts ask [`scripts/ci/node-version.sh`](../../scripts/ci/node-version.sh) for their image's tag. `engines.node` is the floor a package asks of whoever installs it, which npm reads from each manifest alone: every manifest states it, and the gate holds them, and the lockfile's copies, to the root's. It fails on a version a workflow writes, on a Node image tag outside a Dockerfile, and on a sentence that states another floor. A Dockerfile's base image is its own, and Dependabot moves it.
 
 The crates the Rust services link are also checked against the RustSec advisory database by [Gateway Crate Advisories](../../.github/workflows/gateway-advisories.yml) (`cargo deny`): on every pull request that changes a `Cargo.toml` or `Cargo.lock`, and daily, because the database changes without a commit. An advisory judged not to reach the services is ignored in [`deny.toml`](../../deny.toml) with its reason, and an ignore that stops matching fails the run.
 
@@ -46,7 +54,7 @@ If any nested copy is below the advisory's patched version, the override is stil
 Regenerate it with npm, never by hand:
 
 ```bash
-container run --rm -v "$PWD":/work -w /work node:24 \
+container run --rm -v "$PWD":/work -w /work "node:$(scripts/ci/node-version.sh)" \
   npm install --package-lock-only --include=optional
 ```
 

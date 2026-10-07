@@ -59,6 +59,7 @@ ROOT = PACKAGE.parents[1]
 SPEC = ROOT / "specs/openapi.json"
 KINDS = ROOT / "specs/src/identifiers/kinds.json"
 OUT = PACKAGE / "src/semiont/types.py"
+FLOOR = ROOT / "scripts/ci/python-floor.sh"
 
 SCHEMA_REF = "#/components/schemas/"
 
@@ -397,6 +398,14 @@ def prepared(spec: JsonObject, kinds: frozenset[str]) -> JsonObject:
     return {**spec, "components": {**member(spec, "components", "the spec"), "schemas": named_in_place(whole)}}
 
 
+def floor() -> str:
+    """The oldest Python the package supports (`requires-python`): the one the classes are written for."""
+    asked = subprocess.run([str(FLOOR)], capture_output=True, text=True, check=False)
+    if asked.returncode != 0:
+        refuse(f"{FLOOR.relative_to(ROOT)} names no Python: {asked.stderr.strip()}")
+    return asked.stdout.strip()
+
+
 def generated(spec: JsonObject) -> str:
     """What `datamodel-code-generator` writes for `spec`."""
     with tempfile.TemporaryDirectory() as scratch:
@@ -419,7 +428,7 @@ def generated(spec: JsonObject) -> str:
                 "--output-model-type",
                 "pydantic_v2.BaseModel",
                 "--target-python-version",
-                "3.12",
+                floor(),
                 "--base-class",
                 "semiont.model.WireModel",
                 "--use-type-alias",
