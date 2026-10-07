@@ -15,6 +15,7 @@ To run tools directly on your machine instead, the versions are:
 | Toolchain | Version | Stated in |
 |---|---|---|
 | Node.js | 24 | `engines` in [`package.json`](../../package.json) |
+| Python | the floor, `requires-python` | [`pyproject.toml`](../../packages/sdk-python/pyproject.toml) of the Python SDK |
 | Rust | the pinned channel | [`rust-toolchain.toml`](../../rust-toolchain.toml) |
 | Go | the `toolchain` line | `go.mod` in [`apps/launcher`](../../apps/launcher/go.mod) and [`packages/sdk-go`](../../packages/sdk-go/go.mod) |
 

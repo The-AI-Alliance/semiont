@@ -45,6 +45,7 @@
     "lint:rust-images": "node scripts/lint/check-rust-images.mjs",
     "lint:rust-toolchain": "node scripts/lint/check-rust-toolchain.mjs",
     "lint:go-toolchain": "node scripts/lint/check-go-toolchain.mjs",
+    "lint:python-version": "node scripts/lint/check-python-version.mjs",
     "lint:conformance-readmes": "node scripts/lint/check-conformance-readmes.mjs",
     "lint:transport-contract": "node scripts/lint/check-transport-contract.mjs",
     "version:show": "node scripts/release/version.mjs show",

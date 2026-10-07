@@ -90,8 +90,7 @@ fi
 # The oldest Python the SDK supports is a fact packages/sdk-python/pyproject.toml
 # owns (requires-python), and the SDK's generator runs on that one, here as in
 # CI. No fallback, as for Go.
-PYTHON_FLOOR="$(sed -n 's/^requires-python = ">=\([0-9][0-9.]*\)"$/\1/p' "$REPO_ROOT/packages/sdk-python/pyproject.toml")"
-if [[ -z "$PYTHON_FLOOR" ]]; then
+if ! PYTHON_FLOOR="$("$REPO_ROOT/scripts/ci/python-floor.sh")"; then
   fail "No 'requires-python = \">=X.Y\"' line in packages/sdk-python/pyproject.toml — cannot choose a Python image."
   exit 1
 fi

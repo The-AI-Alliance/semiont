@@ -23,6 +23,8 @@ Packages that must move together are grouped, so they arrive in one pull request
 
 `npm run lint:go-toolchain` holds the Go version the same way. Each `go.mod` pins the toolchain, because Go reads no other module's, and the gate fails when the two differ, when a Go image's tag is written out, when a workflow names a Go version in place of a `go.mod`, or when anything but [`scripts/ci/go-toolchain.sh`](../../scripts/ci/go-toolchain.sh) reads the pin.
 
+`npm run lint:python-version` holds the Python the SDK supports. `requires-python` states the floor, a person moves it, and the tools that do not read it keep a copy: mypy, pyright, the classifiers, and the versions CI installs. The gate fails when one of them, a sentence in a document, or a Python image's tag says anything else, and when anything but [`scripts/ci/python-floor.sh`](../../scripts/ci/python-floor.sh) reads the line.
+
 The crates the Rust services link are also checked against the RustSec advisory database by [Gateway Crate Advisories](../../.github/workflows/gateway-advisories.yml) (`cargo deny`): on every pull request that changes a `Cargo.toml` or `Cargo.lock`, and daily, because the database changes without a commit. An advisory judged not to reach the services is ignored in [`deny.toml`](../../deny.toml) with its reason, and an ignore that stops matching fails the run.
 
 ## Reviewing a dependency pull request

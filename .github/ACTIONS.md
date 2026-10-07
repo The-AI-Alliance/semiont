@@ -53,6 +53,7 @@ listed in [Testing](../docs/contributor/TESTING.md#continuous-integration).
 - `npm run lint:dependabot` (Architecture Compliance) fails when a tracked manifest has no entry, or an entry names a directory with none
 - `npm run lint:rust-toolchain` (Architecture Compliance) fails when the Rust version is written anywhere but `rust-toolchain.toml`
 - `npm run lint:go-toolchain` (Architecture Compliance) fails when the Go version is written anywhere but a `go.mod`, or the two `go.mod` files pin different toolchains
+- `npm run lint:python-version` (Architecture Compliance) fails when a restatement of the Python SDK's `requires-python` (mypy, pyright, the classifiers, a workflow, a document) says another version
 
 ### CodeQL Config (`codeql/codeql-config.yml`)
 **The analysis configuration**:
