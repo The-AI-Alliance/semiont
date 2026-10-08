@@ -39,11 +39,13 @@
 //! registry's name and the payload a JSON object: for what relays frames it
 //! does not read, or is told its channels at run time.
 
-use crate::channels::{Channel, Request};
+use crate::channels::{Channel, Request, Scoped, Unscoped};
 use crate::errors::{
     BusRequestError, BusRequestErrorCode, SemiontError, TransportError, TransportErrorCode,
 };
-use crate::transport::{ConnectionState, Envelope, Frame, Frames, Lagged, TraceCarrier, Transport};
+use crate::transport::{
+    ConnectionState, Envelope, Frame, Frames, Lagged, ResourceHold, TraceCarrier, Transport,
+};
 use crate::types::ResourceId;
 use futures_core::Stream;
 use serde::Serialize;
@@ -345,6 +347,29 @@ impl<C: Channel, F: Stream<Item = Result<Frame, Lagged>> + Unpin> Stream for Typ
     }
 }
 
+/// One resource's frames out of a transport's: those of its scope, with the
+/// hold on that scope that brings them. Dropped, it lets go of the scope.
+pub struct ScopedFrames {
+    frames: Frames,
+    resource: ResourceId,
+    _hold: ResourceHold,
+}
+
+impl Stream for ScopedFrames {
+    type Item = Result<Frame, Lagged>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        loop {
+            match Pin::new(&mut self.frames).poll_next(cx) {
+                // A stream carries every scope it holds on the one channel,
+                // and another reader may hold another resource's.
+                Poll::Ready(Some(Ok(frame))) if frame.scope.as_ref() != Some(&self.resource) => {}
+                other => return other,
+            }
+        }
+    }
+}
+
 impl Bus {
     /// Send one frame on the channel `C`.
     pub async fn emit<C: Channel>(
@@ -356,8 +381,54 @@ impl Bus {
     }
 
     /// The frames delivered on the channel `C` from now on.
-    pub fn stream<C: Channel>(&self) -> Result<Typed<C>, BusRequestError> {
+    ///
+    /// `C` is a channel of no resource's scope. One a resource's scope
+    /// carries is read for a resource (`stream_of`), and does not compile
+    /// here, where nothing would ever be delivered to it:
+    ///
+    /// ```compile_fail,E0277
+    /// use semiont::bus::Bus;
+    /// use semiont::channels::MarkAdded;
+    ///
+    /// fn read(bus: &Bus) {
+    ///     let _ = bus.stream::<MarkAdded>();
+    /// }
+    /// ```
+    pub fn stream<C: Unscoped>(&self) -> Result<Typed<C>, BusRequestError> {
         Ok(Typed::of(self.frames_on(C::NAME)?))
+    }
+
+    /// The frames delivered on the channel `C` for `resource` from now on.
+    ///
+    /// `C` is a channel a resource's scope carries, and reaches only a
+    /// client that holds that scope. So the read holds it, from this call
+    /// until what it returns is dropped, and is given that resource's frames
+    /// and no other's.
+    ///
+    /// ```
+    /// use semiont::bus::Bus;
+    /// use semiont::channels::MarkAdded;
+    /// use semiont::types::ResourceId;
+    ///
+    /// async fn follow(bus: &Bus, resource: &ResourceId) {
+    ///     let Ok(mut added) = bus.stream_of::<MarkAdded>(resource) else {
+    ///         return;
+    ///     };
+    ///     while let Some(Ok(frame)) = added.next().await {
+    ///         println!("{}", frame.payload.id);
+    ///     }
+    /// }
+    /// ```
+    pub fn stream_of<C: Scoped>(
+        &self,
+        resource: &ResourceId,
+    ) -> Result<Typed<C, ScopedFrames>, BusRequestError> {
+        let frames = self.frames_on(C::NAME)?;
+        Ok(Typed::of(ScopedFrames {
+            frames,
+            resource: resource.clone(),
+            _hold: self.transport.subscribe_to_resource(resource),
+        }))
     }
 
     /// Send `payload` as the request of the operation `R` and wait up to

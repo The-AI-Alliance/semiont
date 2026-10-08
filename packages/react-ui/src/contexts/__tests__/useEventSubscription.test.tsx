@@ -1,7 +1,7 @@
 import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { EventBus } from '@semiont/core';
-import { useEventSubscription, useEventSubscriptions } from '../useEventSubscription';
+import { resourceId, userId, type EventBus, type EventOfType, type ResourceId, type StoredEvent } from '@semiont/core';
+import { useEventSubscription, useEventSubscriptions, useResourceEventSubscriptions } from '../useEventSubscription';
 import { createTestSemiontWrapper } from '../../test-utils';
 import type { ReactNode } from 'react';
 
@@ -236,5 +236,60 @@ describe('useEventSubscription', () => {
 
       expect(handler1).toHaveBeenCalledTimes(1);
     });
+  });
+});
+
+describe('useResourceEventSubscriptions', () => {
+  const RID = resourceId('res-1');
+  const OTHER = resourceId('res-2');
+
+  function archived(of: ResourceId): StoredEvent<EventOfType<'mark:archived'>> {
+    return {
+      id: `evt-${of}`,
+      type: 'mark:archived',
+      resourceId: of,
+      userId: userId('did:web:example.org:users:alice'),
+      version: 1,
+      timestamp: '2026-01-01T00:00:00Z',
+      payload: {},
+      metadata: { sequenceNumber: 1 },
+    };
+  }
+
+  it("holds the resource's scope while mounted, and is given that resource's events only", () => {
+    const { SemiontWrapper, eventBus, client } = createTestSemiontWrapper();
+    const leave = vi.fn();
+    const held = vi.spyOn(client.transport, 'subscribeToResource').mockReturnValue(leave);
+    const seen: string[] = [];
+
+    const { unmount } = renderHook(
+      () => useResourceEventSubscriptions(RID, { 'mark:archived': (stored) => seen.push(stored.id) }),
+      { wrapper: ({ children }: { children: ReactNode }) => <SemiontWrapper>{children}</SemiontWrapper> },
+    );
+    expect(held).toHaveBeenCalledExactlyOnceWith(RID);
+
+    act(() => {
+      eventBus.emit('mark:archived', archived(RID));
+      eventBus.emit('mark:archived', archived(OTHER));
+    });
+    expect(seen).toEqual(['evt-res-1']);
+
+    unmount();
+    expect(leave).toHaveBeenCalledOnce();
+  });
+
+  it('a scoped channel is not one the generic hooks take: the types refuse it, and so does the session', () => {
+    const { wrapper } = makeWrapper();
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(() =>
+      renderHook(
+        () => {
+          // @ts-expect-error — mark:archived is read for one resource: useResourceEventSubscriptions
+          useEventSubscriptions({ 'mark:archived': () => {} });
+        },
+        { wrapper },
+      ),
+    ).toThrow(/mark:archived.*resource/);
+    quiet.mockRestore();
   });
 });

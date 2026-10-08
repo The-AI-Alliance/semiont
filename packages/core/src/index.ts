@@ -183,11 +183,9 @@ export type { AssembledAnnotation } from './annotation-assembly';
 // W3C Web Annotation accessors (target/body/selector helpers + type guards)
 export {
   getBodySource,
-  getBodyType,
   isBodyResolved,
   getTargetSource,
   getTargetSelector,
-  hasTargetSelector,
   isHighlight,
   isReference,
   isAssessment,
@@ -198,8 +196,10 @@ export {
   isResolvedReference,
   getExactText,
   getAnnotationExactText,
-  getPrimarySelector,
   getTextQuoteSelector,
+  getEntityTypes,
+  getTagCategory,
+  getTagSchemaId,
   extractBoundingBox,
 } from './web-annotation-utils';
 export type {
@@ -255,7 +255,14 @@ export type {
 } from './transport';
 
 // Channel set every concrete transport bridges into the client's bus.
-export { BRIDGED_CHANNELS, RESOURCE_SCOPED_CHANNELS, type BridgedChannel } from './bridged-channels';
+export {
+  BRIDGED_CHANNELS,
+  RESOURCE_SCOPED_CHANNELS,
+  isResourceScopedChannel,
+  type BridgedChannel,
+  type ResourceScopedChannel,
+  type UnscopedChannel,
+} from './bridged-channels';
 
 // Request/reply over the bus — the transport-neutral primitive.
 export { busRequest, replyChannelsFor, relayedFailureCode, BusRequestError, type BusRequestPrimitive } from './bus-request';

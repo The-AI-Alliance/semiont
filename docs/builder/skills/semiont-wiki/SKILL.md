@@ -80,15 +80,18 @@ Set `includeDescriptiveReferences: true` to detect a description that names nobo
 A detected reference has a body that names its entity type and nothing else. Binding adds a `SpecificResource` body, so a reference without one is unbound. `browse.annotations(...)` is a live query; `.fresh()` reads it once.
 
 ```typescript
+import { getAnnotationExactText, isStubReference } from '@semiont/sdk';
+
 const annotations = await semiont.browse.annotations(rId).fresh();
 
-const unbound = annotations.filter((ann) => {
-  const bodies = ann.body === undefined ? [] : Array.isArray(ann.body) ? ann.body : [ann.body];
-  return ann.motivation === 'linking' && !bodies.some((b) => b.type === 'SpecificResource');
-});
+// A reference that links to nothing yet.
+const unbound = annotations.filter(isStubReference);
 
 console.log(`${unbound.length} references to resolve`);
+for (const ann of unbound) console.log(`  "${getAnnotationExactText(ann)}"`);   // the text each covers
 ```
+
+`isStubReference` and `getAnnotationExactText` are two of the SDK's annotation readers. They read an annotation whether its body is one item or a list and whether its selector is one or several, so the script checks neither.
 
 ## Steps 3 to 5: gather, match, then bind or generate
 
@@ -135,20 +138,7 @@ async function resolveReference(rId: ResourceId, ann: Annotation, name: string):
 }
 ```
 
-`name` is the text the reference covers. For a text resource that is the annotation's `TextQuoteSelector`:
-
-```typescript
-import type { Annotation } from '@semiont/sdk';
-
-function quotedText(ann: Annotation): string {
-  const selector = typeof ann.target === 'string' ? undefined : ann.target.selector;
-  const selectors = selector === undefined ? [] : Array.isArray(selector) ? selector : [selector];
-  for (const s of selectors) {
-    if (s.type === 'TextQuoteSelector') return s.exact;
-  }
-  return '';
-}
-```
+`name` is the text the reference covers, as step 2 prints it: `getAnnotationExactText(ann)`. For a text resource that is the annotation's `TextQuoteSelector`.
 
 ## Complete script
 
@@ -159,28 +149,15 @@ import {
   httpKb,
   annotationId,
   entityType,
+  getAnnotationExactText,
+  isStubReference,
   resourceId,
-  type Annotation,
 } from '@semiont/sdk';
 
 const MATCH_THRESHOLD = Number(process.env.MATCH_THRESHOLD ?? 30);
 const ENTITY_TYPES = (process.env.ENTITY_TYPES ?? 'Location')
   .split(',')
   .map((t) => entityType(t.trim()));
-
-function quotedText(ann: Annotation): string {
-  const selector = typeof ann.target === 'string' ? undefined : ann.target.selector;
-  const selectors = selector === undefined ? [] : Array.isArray(selector) ? selector : [selector];
-  for (const s of selectors) {
-    if (s.type === 'TextQuoteSelector') return s.exact;
-  }
-  return '';
-}
-
-function isUnbound(ann: Annotation): boolean {
-  const bodies = ann.body === undefined ? [] : Array.isArray(ann.body) ? ann.body : [ann.body];
-  return ann.motivation === 'linking' && !bodies.some((b) => b.type === 'SpecificResource');
-}
 
 async function runWikiPipeline(resourceIdStr: string): Promise<void> {
   const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
@@ -205,13 +182,13 @@ async function runWikiPipeline(resourceIdStr: string): Promise<void> {
     await semiont.mark.delegate(rId, { motivation: 'linking', entityTypes: ENTITY_TYPES });
 
     // Step 2: list the unbound references
-    const unbound = (await semiont.browse.annotations(rId).fresh()).filter(isUnbound);
+    const unbound = (await semiont.browse.annotations(rId).fresh()).filter(isStubReference);
     console.log(`${unbound.length} references to resolve`);
 
     // Steps 3 to 5, once for each
     for (const ann of unbound) {
       const annId = annotationId(ann.id);
-      const name = quotedText(ann);
+      const name = getAnnotationExactText(ann);
 
       const gathered = await semiont.gather.annotation(rId, annId, { contextWindow: 2000 });
       const context = gathered.response;

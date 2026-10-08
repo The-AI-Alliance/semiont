@@ -10,6 +10,9 @@
 //!   compile. An operation's request is tied to its result and its failure
 //!   (`Request`), and a channel that carries an event of the record names the
 //!   type of the event's own payload (`Recorded`).
+//! - How each channel is delivered, as a trait of its type: `Scoped` for one a
+//!   resource's scope carries, `Unscoped` for every other. A read of a scoped
+//!   channel names its resource, and one that names none does not compile.
 
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -25,6 +28,15 @@ pub trait Channel: 'static {
     /// The type of its payload.
     type Payload: Serialize + DeserializeOwned + Send + 'static;
 }
+
+/// A channel a resource's scope carries: an event of the record, delivered to
+/// the clients that hold its resource's scope. A read of one names its
+/// resource, whose scope the read holds (`crate::bus::Bus::stream_of`).
+pub trait Scoped: Channel {}
+
+/// A channel of no resource's scope: delivered to every client whose stream
+/// names it, or never sent at all. Read with `crate::bus::Bus::stream`.
+pub trait Unscoped: Channel {}
 
 /// The request channel of an operation, with the channels that answer it.
 pub trait Request: Channel {

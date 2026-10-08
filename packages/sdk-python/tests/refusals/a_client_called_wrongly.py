@@ -2,7 +2,7 @@
 
 from typing import assert_never
 
-from semiont.channels import BECKON_FOCUS
+from semiont.channels import BECKON_FOCUS, MARK_ADDED
 from semiont.client import SemiontClient
 from semiont.http import HttpTransport
 from semiont.identifiers import AnnotationId, ResourceId
@@ -101,6 +101,10 @@ async def another_channel_s_payload(client: Client) -> None:
 
 async def a_reply_taken_for_another(client: Client, annotation: AnnotationId) -> MarkSubmitEvent:
     return await client.wire.request(MARK_DELETE, MarkDeleteCommand(annotation_id=annotation))  # type: ignore[arg-type]  # pyright: ignore[reportReturnType]
+
+
+def a_resource_s_channel_read_for_no_resource(client: Client) -> None:
+    client.wire.frames(MARK_ADDED)  # type: ignore[call-overload]  # pyright: ignore[reportArgumentType]
 
 
 async def a_frame_read_as_another_channel_s(client: Client) -> ResourceDescriptor:

@@ -124,6 +124,43 @@ to the failed key (e.g. a component remount) clears the marker and starts a fres
 chain. A query that already holds a value never fails — stale-beats-error, the prior value
 stays visible through a failed refetch. → [CACHE-SEMANTICS.md](../protocol/CACHE-SEMANTICS.md) (B14–B15).
 
+**Read an annotation with the SDK's readers.** An annotation's `target` is a resource's id
+or an object, its selector is one selector or a list, and its `body` is absent, one item or
+a list. The readers answer what a script asks of one whichever shape each takes, so the
+script checks none of them itself.
+
+```typescript
+import {
+  getAnnotationExactText, getBodySource, getEntityTypes, getTargetSource,
+  isResolvedReference, isStubReference,
+} from '@semiont/sdk';
+
+const annotations = await session.client.browse.annotations(rId).fresh();
+for (const ann of annotations) {
+  const on = getTargetSource(ann.target);         // the resource it is on
+  const quoted = getAnnotationExactText(ann);     // the text it covers: '' when it quotes none
+  if (isResolvedReference(ann)) {
+    console.log(`"${quoted}" in ${on} links to ${getBodySource(ann.body)}`);
+  } else if (isStubReference(ann)) {
+    console.log(`"${quoted}" in ${on} is not bound yet: ${getEntityTypes(ann).join(', ')}`);
+  }
+}
+```
+
+| To ask | Reader |
+|---|---|
+| Which resource it is on, and where in it | `getTargetSource`, `getTargetSelector` |
+| The text it covers | `getAnnotationExactText`; of a selector, `getExactText` and `getTextQuoteSelector` |
+| What it links to | `getBodySource`, `isBodyResolved`: the first resource its body names, which is the link the graph draws |
+| Whether a reference is bound | `isResolvedReference`, `isStubReference` |
+| What kind it is | `isHighlight`, `isReference`, `isAssessment`, `isComment`, `isTag` |
+| What it says | `getEntityTypes`, `getCommentText`, `getTagCategory`, `getTagSchemaId` |
+
+The Rust and Python SDKs have the same readers (`semiont::annotations`,
+`semiont.annotations`), and one table,
+[`reader-cases.json`](../../specs/src/annotations/reader-cases.json), holds all three to the
+same answer for the same annotation.
+
 Live subscriptions are how you get real-time updates: **freshness follows observation** —
 subscribing to `browse.*(rId)` acquires that resource's event scope while observed and
 releases it on the last unsubscribe. No separate "subscribe to resource" call. → [Usage § Bus Connection](./Usage.md#bus-connection).

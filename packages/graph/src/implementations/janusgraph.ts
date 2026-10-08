@@ -5,7 +5,7 @@ import { assertMutableResourceUpdate } from '../interface';
 import { queryResources } from '../resource-query';
 import type { Logger } from '@semiont/core';
 import { getBodySource, getPrimaryRepresentation, getResourceId, getStorageUri } from '@semiont/core';
-import { getEntityTypes } from '@semiont/ontology';
+import { getEntityTypes } from '@semiont/core';
 import type {
   AnnotationCategory,
   GraphConnection,

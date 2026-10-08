@@ -18,7 +18,7 @@ import type {
 } from '@semiont/core';
 import { v4 as uuidv4 } from 'uuid';
 import { getBodySource, getTargetSource, getResourceId, getPrimaryRepresentation, getResourceEntityTypes } from '@semiont/core';
-import { getEntityTypes } from '@semiont/ontology';
+import { getEntityTypes } from '@semiont/core';
 import { buildAnnotation, decodeAnnotation, encodeAnnotation } from '../annotation-codec';
 import type { ResourceDescriptor } from '@semiont/core';
 import type { Annotation } from '@semiont/core';

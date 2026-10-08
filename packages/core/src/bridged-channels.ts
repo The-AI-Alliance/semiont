@@ -115,3 +115,16 @@ export const RESOURCE_SCOPED_CHANNELS = [
   'job:completed',
   'job:failed',
 ] as const satisfies readonly EventName[];
+
+/** A channel a resource's scope carries. A read of one names its resource. */
+export type ResourceScopedChannel = (typeof RESOURCE_SCOPED_CHANNELS)[number];
+
+/** A channel of no resource's scope: every other channel. */
+export type UnscopedChannel = Exclude<EventName, ResourceScopedChannel>;
+
+const SCOPED: ReadonlySet<EventName> = new Set(RESOURCE_SCOPED_CHANNELS);
+
+/** Whether `channel` is delivered on a resource's scope. */
+export function isResourceScopedChannel(channel: EventName): channel is ResourceScopedChannel {
+  return SCOPED.has(channel);
+}

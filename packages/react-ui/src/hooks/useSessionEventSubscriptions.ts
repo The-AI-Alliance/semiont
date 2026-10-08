@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useMemo } from 'react';
-import type { EventMap } from '@semiont/core';
+import type { EventMap, UnscopedChannel } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
 
 /**
@@ -10,6 +10,8 @@ import type { SemiontSession } from '@semiont/sdk';
  * path takes its session as a prop (bring-your-own-session), so it can't reach
  * the app-scoped `SemiontBrowser` bus; every channel it needs (`mark:*`,
  * `browse:click`) is session-scoped anyway and reaches it via `session.subscribe`.
+ * The channels of a resource's scope are not among them: those are read for
+ * one resource.
  *
  * Same stable-handler / stable-key semantics as `useEventSubscriptions`:
  * handlers may change every render without re-subscribing; re-subscription
@@ -19,7 +21,7 @@ import type { SemiontSession } from '@semiont/sdk';
 export function useSessionEventSubscriptions(
   session: SemiontSession | null,
   subscriptions: {
-    [K in keyof EventMap]?: (payload: EventMap[K]) => void;
+    [K in UnscopedChannel]?: (payload: EventMap[K]) => void;
   },
 ): void {
   const handlersRef = useRef(subscriptions);
@@ -37,10 +39,10 @@ export function useSessionEventSubscriptions(
     if (!session) return;
     const unsubs: Array<() => void> = [];
     for (const eventName of eventNames) {
-      const channel = eventName as keyof EventMap;
-      const fan = (payload: EventMap[keyof EventMap]) => {
+      const channel = eventName as UnscopedChannel;
+      const fan = (payload: EventMap[UnscopedChannel]) => {
         const current = handlersRef.current[channel];
-        if (current) (current as (p: EventMap[keyof EventMap]) => void)(payload);
+        if (current) (current as (p: EventMap[UnscopedChannel]) => void)(payload);
       };
       unsubs.push(session.subscribe(channel, fan));
     }

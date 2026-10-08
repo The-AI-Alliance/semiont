@@ -526,11 +526,10 @@ async def read(origin: str, token: str, resource: ResourceId) -> None:
             return
         print(reply.response.resource.name)
 
-        # Frames arrive on a resource's channels while its scope is held.
-        with transport.subscribe_to_resource(resource):
-            async with bus.frames(MARK_ADDED) as added:
-                async for frame in added:
-                    print(frame.scope, frame.payload.type)
+        # A resource's channel is read for the resource: the read holds its scope, and lets go on the way out.
+        async with bus.frames(MARK_ADDED, resource) as added:
+            async for frame in added:
+                print(frame.scope, frame.payload.type)
 ```
 
 - **The bus is typed by channel.** A channel is a constant that carries its
@@ -542,6 +541,12 @@ async def read(origin: str, token: str, resource: ResourceId) -> None:
   once, and is abandoned by cancelling the task that awaits it.
 - **Frames** are a sequence: each reader is given every one, in order, however
   far behind it falls.
+- **A resource's channel is read for the resource.** `mark:added` and the
+  other events of the record are delivered on their resource's scope, and
+  their constants are `ScopedChannel`s. `bus.frames(MARK_ADDED, resource)`
+  holds that scope until the read ends, and gives that resource's frames and
+  no other's. With no resource it does not type-check: such a read would be
+  given nothing, and say nothing of it.
 - **The connection's state** (`transport.state`) is a value: what it is now,
   and each thing it becomes. A dropped stream is a state, never an error, and
   opens again by itself.
@@ -639,6 +644,7 @@ is made in, and a frame continues the trace it was sent under (`frame.trace`).
 | `semiont.client` | `SemiontClient`, and the timing it keeps to |
 | `semiont.namespaces` | The methods of each namespace; and in `semiont.namespaces.follow`, `Delegation[C]`, what a delegated job returns, with the events of a job |
 | `semiont.running`, `semiont.cached` | `Running[T]` and `Cached[T]`: what long-running operations and queries return |
+| `semiont.annotations` | The readers of an annotation: the resource it is on and the one it links to, the text it quotes, its entity types, its tag, and what kind it is, whatever shape its target, its selector and its body take |
 | `semiont.claims`, `semiont.job_filter` | `Claims`, what `job.claim` returns, with the jobs a worker holds and the retry rule; and whether a job matches a filter |
 | `semiont.cache`, `semiont.refresh`, `semiont.resume` | The cache queries answer from and its three states, which queries each event asks again, and where a stream resumes after a restart |
 | `semiont.storage` | Where a client keeps what must outlive it: `SessionStorage`, and `MemoryStorage` |

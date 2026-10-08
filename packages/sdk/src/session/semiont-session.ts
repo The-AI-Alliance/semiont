@@ -34,14 +34,15 @@
  * directly.
  */
 
-import { BehaviorSubject, type Observable } from 'rxjs';
+import { BehaviorSubject, filter, type Observable } from 'rxjs';
 import {
   accessToken,
   baseUrl,
   type AccessToken,
   type BaseUrl,
 } from '@semiont/core';
-import type { components, EventMap } from '@semiont/core';
+import { isResourceScopedChannel } from '@semiont/core';
+import type { components, EventMap, ResourceId, ResourceScopedChannel, UnscopedChannel } from '@semiont/core';
 import { SemiontClient, APIError, HttpTransport, HttpContentTransport } from '../client';
 import type { SemiontError } from '@semiont/core';
 import type { ConnectionState } from '@semiont/core';
@@ -460,14 +461,54 @@ export class SemiontSession {
    * — channel name is a hook parameter, not known statically). All other
    * consumers must call typed namespace methods (e.g. `session.client.mark.archive(...)`).
    *
-   * @returns disposer that unsubscribes the handler.
+   * A channel of a resource's scope (`RESOURCE_SCOPED_CHANNELS`: `mark:added`
+   * and the other events of the record) reaches only a connection that holds
+   * that resource's scope. So its subscription names the resource: it holds
+   * the scope for as long as it lives, and its handler is given that
+   * resource's events and no other's. Named with no resource, such a channel
+   * does not compile, and is refused when called; so is any other channel
+   * named with one.
+   *
+   * @returns disposer that unsubscribes the handler, and lets go of the scope.
    */
-  subscribe<K extends keyof EventMap>(
+  subscribe<K extends UnscopedChannel>(channel: K, handler: (payload: EventMap[K]) => void): () => void;
+  subscribe<K extends ResourceScopedChannel>(
     channel: K,
+    resourceId: ResourceId,
     handler: (payload: EventMap[K]) => void,
+  ): () => void;
+  subscribe<G extends UnscopedChannel, S extends ResourceScopedChannel>(
+    ...args:
+      | [channel: G, handler: (payload: EventMap[G]) => void]
+      | [channel: S, resourceId: ResourceId, handler: (payload: EventMap[S]) => void]
   ): () => void {
-    const sub = this.client.bus.on(channel).subscribe(handler);
-    return () => sub.unsubscribe();
+    if (args.length === 2) {
+      const [channel, handler] = args;
+      if (isResourceScopedChannel(channel)) {
+        throw new Error(
+          `${channel} is delivered on a resource's scope, so a subscription with no resource would hear nothing: subscribe(channel, resourceId, handler)`,
+        );
+      }
+      const sub = this.client.bus.on(channel).subscribe(handler);
+      return () => sub.unsubscribe();
+    }
+    const [channel, resourceId, handler] = args;
+    if (!isResourceScopedChannel(channel)) {
+      throw new Error(
+        `${channel} is no resource's channel, so a subscription for a resource would hold a scope and hear nothing: subscribe(channel, handler)`,
+      );
+    }
+    const leave = this.client.transport.subscribeToResource(resourceId);
+    // A stream delivers every scope it holds on the one channel, and another
+    // reader may hold another resource's.
+    const sub = this.client.bus
+      .on(channel)
+      .pipe(filter((event) => event.resourceId === resourceId))
+      .subscribe(handler);
+    return () => {
+      sub.unsubscribe();
+      leave();
+    };
   }
 
   async dispose(): Promise<void> {

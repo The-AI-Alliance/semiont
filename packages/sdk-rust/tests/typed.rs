@@ -4,7 +4,7 @@
 use semiont::bus::{Bus, StreamError};
 use semiont::channels::{
     BeckonFocus, BrowseEntityTypesRequested, BrowseEntityTypesResult, Channel, JobCreate,
-    MarkAdded, Recorded, Request, YieldCreate,
+    MarkAdded, MarkArchived, Recorded, Request, YieldCreate,
 };
 use semiont::errors::SemiontError;
 use semiont::testing::FaultyTransport;
@@ -12,7 +12,7 @@ use semiont::testing::as_id;
 use semiont::transport::{Envelope, Frame, Transport};
 use semiont::types::{
     Annotation, AnnotationBodies, AnnotationTargetValue, BeckonFocusEvent,
-    BrowseEntityTypesRequest, GetAnnotationsResponse,
+    BrowseEntityTypesRequest, GetAnnotationsResponse, ResourceId,
 };
 use serde_json::{Map, Value, json};
 use std::sync::Arc;
@@ -157,6 +157,51 @@ fn a_property_that_is_optional_and_nullable_keeps_absent_null_and_a_value_apart(
         assert_eq!(written.get("motivation"), wire.get("motivation"));
         assert_eq!(read(written), read(wire));
     }
+}
+
+#[tokio::test]
+async fn a_resources_channel_is_read_for_a_resource_whose_scope_the_read_holds() {
+    let (bus, transport) = bus();
+    let (mine, theirs): (ResourceId, ResourceId) = (as_id("res-1"), as_id("res-2"));
+    assert_eq!(transport.holds(&mine), 0);
+
+    let mut archived = bus.stream_of::<MarkArchived>(&mine).expect("a stream");
+    // Its scope is held from the call, with nothing else holding it: no query
+    // of the resource is watched.
+    assert_eq!((transport.holds(&mine), transport.holds(&theirs)), (1, 0));
+
+    let recorded = |resource: &str, id: &str| Frame {
+        channel: MarkArchived::NAME.to_owned(),
+        payload: object(json!({
+            "id": id,
+            "type": "mark:archived",
+            "timestamp": "2026-10-01T12:00:00.000Z",
+            "userId": "did:web:example.org:users:alice",
+            "resourceId": resource,
+            "version": 1,
+            "payload": {},
+            "metadata": { "sequenceNumber": 3 },
+        })),
+        correlation_id: None,
+        scope: Some(as_id(resource)),
+        trace: None,
+    };
+    // A stream carries every scope it holds on the one channel, and the read
+    // is given its own resource's frames and no other's.
+    transport.deliver(recorded("res-2", "evt-theirs"));
+    transport.deliver(recorded("res-1", "evt-mine"));
+    let heard = archived.next().await.expect("a frame").expect("it decodes");
+    assert_eq!(heard.payload.id, "evt-mine");
+    assert_eq!(heard.scope, Some(mine.clone()));
+
+    // Two reads of one resource are two holds, and each lets go when it is
+    // dropped.
+    let second = bus.stream_of::<MarkArchived>(&mine).expect("a stream");
+    assert_eq!(transport.holds(&mine), 2);
+    drop(archived);
+    assert_eq!(transport.holds(&mine), 1);
+    drop(second);
+    assert_eq!(transport.holds(&mine), 0);
 }
 
 #[test]

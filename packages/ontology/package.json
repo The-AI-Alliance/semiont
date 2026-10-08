@@ -5,7 +5,7 @@
     "node": ">=24.15.0"
   },
   "type": "module",
-  "description": "Entity types and annotation-body extraction utilities for the Semiont annotation system",
+  "description": "The entity types a Semiont knowledge base starts with",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -18,9 +18,6 @@
     "dist",
     "README.md"
   ],
-  "dependencies": {
-    "@semiont/core": "*"
-  },
   "scripts": {
     "build": "npm run typecheck && tsup && tsc -p tsconfig.build.json && rollup -c rollup.dts.config.mjs && rm -rf dist-types",
     "typecheck": "tsc --noEmit",

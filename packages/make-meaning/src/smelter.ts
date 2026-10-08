@@ -47,7 +47,7 @@ import type { ChunkingConfig } from '@semiont/core';
 import { chunkText } from '@semiont/core';
 import { withActorSpan } from '@semiont/observability';
 import { busRequest, type BusRequestPrimitive } from '@semiont/core';
-import { getEntityTypes } from '@semiont/ontology';
+import { getEntityTypes } from '@semiont/core';
 import { partitionByType } from './batch-utils';
 import { browseAllResources, type RESOURCES_CHANNEL } from './browse-resources';
 import type { SmelterEvent } from './smelter-fan-in';

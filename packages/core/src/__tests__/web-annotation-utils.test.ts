@@ -2,11 +2,9 @@ import { describe, test, expect } from 'vitest';
 import { annotationId, resourceId } from '../identifiers';
 import {
   getBodySource,
-  getBodyType,
   isBodyResolved,
   getTargetSource,
   getTargetSelector,
-  hasTargetSelector,
   isHighlight,
   isReference,
   isAssessment,
@@ -17,7 +15,6 @@ import {
   isResolvedReference,
   getExactText,
   getAnnotationExactText,
-  getPrimarySelector,
   getTextQuoteSelector,
   extractBoundingBox,
 } from '../web-annotation-utils';
@@ -63,24 +60,6 @@ describe('getBodySource', () => {
   });
 });
 
-describe('getBodyType', () => {
-  test('returns TextualBody from array', () => {
-    expect(getBodyType([{ type: 'TextualBody' as const, value: 'hi' }])).toBe('TextualBody');
-  });
-
-  test('returns SpecificResource from array', () => {
-    expect(getBodyType([{ type: 'SpecificResource' as const, source: resourceId('res-1') }])).toBe('SpecificResource');
-  });
-
-  test('returns null for empty array', () => {
-    expect(getBodyType([])).toBeNull();
-  });
-
-  test('returns type from single object', () => {
-    expect(getBodyType({ type: 'TextualBody' as const, value: 'hi' })).toBe('TextualBody');
-  });
-});
-
 describe('isBodyResolved', () => {
   test('returns true when SpecificResource in body', () => {
     expect(isBodyResolved([{ type: 'SpecificResource' as const, source: resourceId('res-1') }])).toBe(true);
@@ -109,16 +88,6 @@ describe('getTargetSelector', () => {
   test('returns selector from object target', () => {
     const selector = { type: 'TextPositionSelector' as const, start: 0, end: 10 };
     expect(getTargetSelector({ source: resourceId('res-1'), selector })).toEqual(selector);
-  });
-});
-
-describe('hasTargetSelector', () => {
-  test('returns false for string target', () => {
-    expect(hasTargetSelector(resourceId('example-com'))).toBe(false);
-  });
-
-  test('returns true when selector present', () => {
-    expect(hasTargetSelector({ source: resourceId('res-1'), selector: { type: 'TextPositionSelector' as const, start: 0, end: 5 } })).toBe(true);
   });
 });
 
@@ -216,23 +185,6 @@ describe('getAnnotationExactText', () => {
       },
     });
     expect(getAnnotationExactText(ann)).toBe('selected text');
-  });
-});
-
-describe('getPrimarySelector', () => {
-  test('returns single selector', () => {
-    const s = { type: 'TextPositionSelector' as const, start: 0, end: 5 };
-    expect(getPrimarySelector(s)).toBe(s);
-  });
-
-  test('returns first from array', () => {
-    const s1 = { type: 'TextPositionSelector' as const, start: 0, end: 5 };
-    const s2 = { type: 'TextQuoteSelector' as const, exact: 'hello' };
-    expect(getPrimarySelector([s1, s2])).toBe(s1);
-  });
-
-  test('throws for empty array', () => {
-    expect(() => getPrimarySelector([])).toThrow('Empty selector array');
   });
 });
 

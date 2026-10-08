@@ -35,7 +35,7 @@ import { useGenerationArrival } from '../../../hooks/useGenerationArrival';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useLineNumbers } from '../../../contexts/LineNumbersContext';
 import { useHoverDelay } from '../../../hooks/useHoverDelay';
-import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
+import { useEventSubscriptions, useResourceEventSubscriptions } from '../../../contexts/useEventSubscription';
 import { useObservableExternalNavigation } from '../../../hooks/useObservableBrowse';
 import { useToolbarPrefs } from '../../../hooks/useToolbarPrefs';
 import { getSelectorType } from '../../../lib/media-shapes';
@@ -478,10 +478,14 @@ export function ResourceViewerPage({
     'mark:unarchive': handleResourceUnarchive,
     'yield:clone': handleResourceClone,
     'beckon:sparkle': handleAnnotationSparkle,
-    'mark:added': handleAnnotationAdded,
-    'mark:body-updated': handleAnnotationBodyUpdated,
     'browse:resource-open': handleResourceOpen,
     'browse:entity-type-clicked': handleEntityTypeClicked,
+  });
+
+  // This resource's own events, on its scope.
+  useResourceEventSubscriptions(rUri, {
+    'mark:added': handleAnnotationAdded,
+    'mark:body-updated': handleAnnotationBodyUpdated,
   });
 
   // Resource loading announcements

@@ -594,9 +594,11 @@ fn stamps(definitions: &Value, schema: &Value) -> Vec<String> {
 /// A type per channel, named for it (`job:create` is `JobCreate`), whose
 /// `Channel::Payload` is the type the registry's `shape` gives its payload;
 /// and for each operation, its request tied to its result and its failure.
+/// Each channel is `Scoped` or `Unscoped`, by the registry's `audience`.
 fn typed_channels(registry: &Value, definitions: &Value) -> String {
     let mut code = String::new();
     let mut markers: Vec<String> = Vec::new();
+    let scoped = list(&registry["audience"]["scoped"], "audience.scoped");
     for channel in list(&registry["channels"], "channels") {
         let name = text(channel, "channel", "a registry channel");
         let marker = pascal(name);
@@ -622,6 +624,12 @@ fn typed_channels(registry: &Value, definitions: &Value) -> String {
             code,
             "/// `{name}`\npub struct {marker};\nimpl Channel for {marker} {{\n    const NAME: &'static str = {name:?};\n    const STAMPS: &'static [&'static str] = &{declared:?};\n    type Payload = {payload};\n}}"
         );
+        let delivered = if scoped.iter().any(|c| c == name) {
+            "Scoped"
+        } else {
+            "Unscoped"
+        };
+        let _ = writeln!(code, "impl {delivered} for {marker} {{}}");
         if channel["shape"] == "storedEvent" {
             let _ = writeln!(
                 code,

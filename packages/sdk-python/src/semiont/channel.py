@@ -8,7 +8,7 @@ from pydantic import JsonValue, TypeAdapter
 
 from semiont.model import WireModel, written
 
-__all__ = ["AnyChannel", "AnyOperation", "Channel", "Empty", "Operation", "Response"]
+__all__ = ["AnyChannel", "AnyOperation", "Channel", "Empty", "Operation", "Response", "ScopedChannel"]
 
 
 @final
@@ -56,9 +56,8 @@ def _stamps(member: type[WireModel]) -> frozenset[str]:
     return frozenset(wire for name, stated in member.model_fields.items() if (wire := stated.alias or name).startswith("_"))
 
 
-@final
 @dataclass(frozen=True, slots=True)
-class Channel[P: WireModel]:
+class _OfPayload[P: WireModel]:
     """A channel's name, and the type of the payload it carries.
 
     `payload` is `P` itself, so the two cannot be written to disagree: a
@@ -104,6 +103,27 @@ class Channel[P: WireModel]:
     def encode(self, payload: P) -> dict[str, JsonValue]:
         """`payload` as the wire carries it (`semiont.model.written`)."""
         return written(payload)
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class Channel[P: WireModel](_OfPayload[P]):
+    """A channel of no resource's scope: delivered to every client whose stream names it, or never sent at all.
+
+    What every channel is, is `_OfPayload`'s to say: a name, and the type of
+    the payload it carries.
+    """
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class ScopedChannel[P: WireModel](_OfPayload[P]):
+    """A channel a resource's scope carries: an event of the record, delivered to the clients that hold its resource's scope.
+
+    It is not a `Channel`. So a read of one names its resource
+    (`semiont.bus.Bus.frames`), whose scope the read holds, and a read that
+    names none does not type-check: nothing would ever be delivered to it.
+    """
 
 
 class AnyOperation(Protocol):

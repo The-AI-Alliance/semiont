@@ -17,7 +17,7 @@
 
 import { annotationId as makeAnnotationId, resourceId as makeResourceId } from '@semiont/core';
 import { getBodySource, getExactText, getTargetSelector, getTargetSource } from '@semiont/core';
-import { getEntityTypes } from '@semiont/ontology';
+import { getEntityTypes } from '@semiont/core';
 import type { Annotation, AnnotationCategory, CreateAnnotationInternal } from '@semiont/core';
 
 /**

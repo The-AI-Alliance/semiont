@@ -181,7 +181,7 @@ comment(target).catch((e) => {
 - **Density** is the number of comments to aim for in each 2,000 words; the Browser offers 2 to 12. Start at 4 to 6 for a moderate editorial pass. 8 to 12 suits line editing of a short document.
 - **Comment, assessment or tag.** A comment helps the author revise or a reader understand. An assessment flags a problem. A tag classifies against a controlled vocabulary.
 - **What `mark.delegate` can read.** A resource with text: Markdown, plain text, HTML, JSON, or a PDF. A resource with no text at all, such as an image, fails the job. A document whose text could not be read (an encrypted or damaged PDF, or one that yields no text) completes with a `declined` result and a reason code.
-- **Check results** with `await semiont.browse.annotations(rId).fresh()`, filtered for `motivation === 'commenting'`.
+- **Check results** with `await semiont.browse.annotations(rId).fresh()`, filtered with `isComment` from `@semiont/sdk`; `getCommentText` gives each one's text.
 - **Manual mode is for targeted feedback.** When the user knows what to say about one passage, writing it by hand is faster and more exact than a job.
 - **From the command line.** `semiont mark --delegate <resourceId> --motivation commenting` runs the same job from the [launcher](../../../../apps/launcher/README.md#delegating-to-the-stack), with `--instructions`, `--density` and `--tone`. Use it for a one-off; write a script when the work repeats.
 - **Errors.** Every SDK throw extends `SemiontError`: catch it and route on its `code`. `BusRequestError` (a bus request, with a code such as `bus.timeout`) and `JobFailedError` narrow it. See [Error Handling](../../Usage.md#error-handling).

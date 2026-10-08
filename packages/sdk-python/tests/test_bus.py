@@ -2,15 +2,16 @@
 
 import logging
 from collections.abc import Mapping
+from operator import methodcaller
 
 import pytest
 from aio import run, soon
-from kb import refusing
+from kb import recorded, refusing
 from pydantic import JsonValue, ValidationError
 
 from semiont.bus import Bus, decoded, reply_channels_for
 from semiont.channel import Empty
-from semiont.channels import BECKON_FOCUS, BECKON_HOVER, JOB_CREATE, JOB_QUEUED, MARK_ADDED, MARK_CANCEL_PENDING, MARK_DELETE
+from semiont.channels import BECKON_FOCUS, BECKON_HOVER, JOB_CREATE, JOB_QUEUED, MARK_ARCHIVED, MARK_CANCEL_PENDING, MARK_DELETE
 from semiont.errors import BusRequestError, TransportError
 from semiont.identifiers import AnnotationId, JobId, ResourceId
 from semiont.model import stated, written
@@ -170,12 +171,59 @@ def test_frames_by_type_carry_their_payload_decoded_and_who_emitted_them(caplog:
 
         # A channel the transport can never deliver is refused at the call.
         with pytest.raises(BusRequestError) as refused:
-            Bus(transport).frames(MARK_ADDED)
+            Bus(transport).frames(BECKON_HOVER)
         assert refused.value.code == "bus.unsubscribed"
 
     with caplog.at_level(logging.WARNING, logger="semiont.bus"):
         run(scenario())
     assert len(caplog.records) == 1
+
+
+def test_a_resource_s_channel_is_read_for_a_resource_whose_scope_the_read_holds_and_whose_frames_alone_it_is_given() -> None:
+    other = ResourceId("res-2")
+
+    def archived(resource: ResourceId, event: str) -> Frame:
+        return Frame(channel="mark:archived", payload={**recorded("mark:archived", resource), "id": event}, scope=resource)
+
+    async def scenario() -> None:
+        transport = FaultyTransport()
+        bus = Bus(transport)
+        assert transport.holds(RESOURCE) == 0
+
+        async with bus.frames(MARK_ARCHIVED, RESOURCE) as mine:
+            # Its scope is held from the call, with nothing else holding it: no live query is open.
+            assert (transport.holds(RESOURCE), transport.holds(other)) == (1, 0)
+            # A stream carries every scope it holds on the one channel.
+            transport.deliver(archived(other, "evt-theirs"))
+            transport.deliver(archived(RESOURCE, "evt-mine"))
+            heard = await soon(anext(mine))
+            assert (heard.payload.id, heard.scope) == ("evt-mine", RESOURCE)
+        # Let go with the read.
+        assert transport.holds(RESOURCE) == 0
+
+        # Two reads of one resource are two holds, and each is let go with its own read.
+        first, second = bus.frames(MARK_ARCHIVED, RESOURCE), bus.frames(MARK_ARCHIVED, RESOURCE)
+        assert transport.holds(RESOURCE) == 2
+        await first.aclose()
+        assert transport.holds(RESOURCE) == 1
+        await second.aclose()
+        assert transport.holds(RESOURCE) == 0
+
+    run(scenario())
+
+
+def test_a_read_that_names_the_wrong_thing_is_refused_when_it_is_called_and_holds_nothing() -> None:
+    async def scenario() -> None:
+        transport = FaultyTransport()
+        bus = Bus(transport)
+        # What a type checker refuses (tests/refusals) is refused when it is called, too: asked here as untyped code asks.
+        with pytest.raises(TypeError, match="mark:archived is delivered on a resource's scope"):
+            methodcaller("frames", MARK_ARCHIVED)(bus)
+        with pytest.raises(TypeError, match="beckon:focus is no resource's channel"):
+            methodcaller("frames", BECKON_FOCUS, RESOURCE)(bus)
+        assert transport.scopes == []
+
+    run(scenario())
 
 
 def test_a_request_by_type_gives_its_operations_result_as_that_results_type() -> None:

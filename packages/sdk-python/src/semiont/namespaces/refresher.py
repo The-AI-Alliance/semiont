@@ -23,7 +23,7 @@ from pydantic import JsonValue, ValidationError
 
 from semiont.bus import decoded
 from semiont.cache import Cache
-from semiont.channel import Channel
+from semiont.channel import Channel, ScopedChannel
 from semiont.channels import (
     BUS_RESUME_GAP,
     FRAME_ENTITY_TYPE_ADDED,
@@ -105,7 +105,7 @@ def _annotation_named(payload: Mapping[str, JsonValue]) -> AnnotationId | None:
     return AnnotationId.parse(named) if isinstance(named, str) else None
 
 
-def _recorded(channel: Channel[StoredEventResponse], payload: Mapping[str, JsonValue]) -> Subject:
+def _recorded(channel: Channel[StoredEventResponse] | ScopedChannel[StoredEventResponse], payload: Mapping[str, JsonValue]) -> Subject:
     return Subject(resource=decoded(channel, payload).resource_id)
 
 

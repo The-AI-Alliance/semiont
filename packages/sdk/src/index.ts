@@ -143,6 +143,31 @@ export {
   BusRequestError,
 } from '@semiont/core';
 
+// The annotation readers. An annotation's target is an id or an object, its
+// selector one or a list, its body absent, one item or a list: these read
+// each without a script narrowing by hand. Every SDK has them, and
+// specs/src/annotations/reader-cases.json holds them to one answer.
+export {
+  getAnnotationExactText,
+  getBodySource,
+  getCommentText,
+  getEntityTypes,
+  getExactText,
+  getTagCategory,
+  getTagSchemaId,
+  getTargetSelector,
+  getTargetSource,
+  getTextQuoteSelector,
+  isAssessment,
+  isBodyResolved,
+  isComment,
+  isHighlight,
+  isReference,
+  isResolvedReference,
+  isStubReference,
+  isTag,
+} from '@semiont/core';
+
 // Session layer — per-KB sessions, app-level browser, storage adapter,
 // error surface, modal signals.
 export { SemiontSession, type SemiontSessionConfig, type UserInfo } from './session/semiont-session';

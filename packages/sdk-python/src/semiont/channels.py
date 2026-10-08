@@ -8,13 +8,17 @@ takes a `Channel[P]` and a `P` is refused another channel's payload by a type
 checker. The payload types are the protocol's own (`semiont.types`); which
 belongs to which channel is the registry's to say, and is derived here from
 each channel's shape.
+
+A channel a resource's scope carries is a `ScopedChannel[P]`, by the
+registry's `audience`: it is read for a resource, and a type checker refuses
+a read of one that names none.
 """
 
 from collections.abc import Mapping
 from types import MappingProxyType
 from typing import Final, Literal
 
-from semiont.channel import AnyChannel, Channel, Empty, Response
+from semiont.channel import AnyChannel, Channel, Empty, Response, ScopedChannel
 from semiont.types import (
     AnnotationContextResponse,
     BeckonFocusEvent,
@@ -770,8 +774,8 @@ YIELD_CREATED: Final = Channel[StoredEventResponse]("yield:created", StoredEvent
 YIELD_CLONED: Final = Channel[StoredEventResponse]("yield:cloned", StoredEventResponse)
 YIELD_UPDATED: Final = Channel[StoredEventResponse]("yield:updated", StoredEventResponse)
 YIELD_MOVED: Final = Channel[StoredEventResponse]("yield:moved", StoredEventResponse)
-YIELD_REPRESENTATION_ADDED: Final = Channel[StoredEventResponse]("yield:representation-added", StoredEventResponse)
-YIELD_REPRESENTATION_REMOVED: Final = Channel[StoredEventResponse]("yield:representation-removed", StoredEventResponse)
+YIELD_REPRESENTATION_ADDED: Final = ScopedChannel[StoredEventResponse]("yield:representation-added", StoredEventResponse)
+YIELD_REPRESENTATION_REMOVED: Final = ScopedChannel[StoredEventResponse]("yield:representation-removed", StoredEventResponse)
 YIELD_CREATE: Final = Channel[YieldCreateCommand]("yield:create", YieldCreateCommand)
 YIELD_CLONE_PERSIST: Final = Channel[YieldClonePersistCommand]("yield:clone-persist", YieldClonePersistCommand)
 YIELD_UPDATE: Final = Channel[YieldUpdateCommand]("yield:update", YieldUpdateCommand)
@@ -793,13 +797,13 @@ YIELD_CLONE_RESOURCE_RESULT: Final = Channel[Response[GetResourceByTokenResponse
 YIELD_CLONE_RESOURCE_FAILED: Final = Channel[CommandError]("yield:clone-resource-failed", CommandError)
 YIELD_CLONE_CREATED: Final = Channel[YieldCloneCreated]("yield:clone-created", YieldCloneCreated)
 YIELD_CLONE_CREATE_FAILED: Final = Channel[CommandError]("yield:clone-create-failed", CommandError)
-MARK_ADDED: Final = Channel[EnrichedResourceEvent]("mark:added", EnrichedResourceEvent)
-MARK_REMOVED: Final = Channel[StoredEventResponse]("mark:removed", StoredEventResponse)
-MARK_BODY_UPDATED: Final = Channel[EnrichedResourceEvent]("mark:body-updated", EnrichedResourceEvent)
-MARK_ENTITY_TAG_ADDED: Final = Channel[StoredEventResponse]("mark:entity-tag-added", StoredEventResponse)
-MARK_ENTITY_TAG_REMOVED: Final = Channel[StoredEventResponse]("mark:entity-tag-removed", StoredEventResponse)
-MARK_ARCHIVED: Final = Channel[StoredEventResponse]("mark:archived", StoredEventResponse)
-MARK_UNARCHIVED: Final = Channel[StoredEventResponse]("mark:unarchived", StoredEventResponse)
+MARK_ADDED: Final = ScopedChannel[EnrichedResourceEvent]("mark:added", EnrichedResourceEvent)
+MARK_REMOVED: Final = ScopedChannel[StoredEventResponse]("mark:removed", StoredEventResponse)
+MARK_BODY_UPDATED: Final = ScopedChannel[EnrichedResourceEvent]("mark:body-updated", EnrichedResourceEvent)
+MARK_ENTITY_TAG_ADDED: Final = ScopedChannel[StoredEventResponse]("mark:entity-tag-added", StoredEventResponse)
+MARK_ENTITY_TAG_REMOVED: Final = ScopedChannel[StoredEventResponse]("mark:entity-tag-removed", StoredEventResponse)
+MARK_ARCHIVED: Final = ScopedChannel[StoredEventResponse]("mark:archived", StoredEventResponse)
+MARK_UNARCHIVED: Final = ScopedChannel[StoredEventResponse]("mark:unarchived", StoredEventResponse)
 MARK_CREATE_REQUEST: Final = Channel[MarkCreateRequest]("mark:create-request", MarkCreateRequest)
 MARK_CREATE: Final = Channel[MarkCreateCommand]("mark:create", MarkCreateCommand)
 MARK_DELETE: Final = Channel[MarkDeleteCommand]("mark:delete", MarkDeleteCommand)
@@ -927,10 +931,10 @@ NAV_EXTERNAL: Final = Channel[BrowseExternalNavigateEvent]("nav:external", Brows
 BECKON_HOVER: Final = Channel[BeckonHoverEvent]("beckon:hover", BeckonHoverEvent)
 BECKON_FOCUS: Final = Channel[BeckonFocusEvent]("beckon:focus", BeckonFocusEvent)
 BECKON_SPARKLE: Final = Channel[BeckonSparkleEvent]("beckon:sparkle", BeckonSparkleEvent)
-JOB_STARTED: Final = Channel[StoredEventResponse]("job:started", StoredEventResponse)
-JOB_ASSIGNED: Final = Channel[StoredEventResponse]("job:assigned", StoredEventResponse)
-JOB_COMPLETED: Final = Channel[StoredEventResponse]("job:completed", StoredEventResponse)
-JOB_FAILED: Final = Channel[StoredEventResponse]("job:failed", StoredEventResponse)
+JOB_STARTED: Final = ScopedChannel[StoredEventResponse]("job:started", StoredEventResponse)
+JOB_ASSIGNED: Final = ScopedChannel[StoredEventResponse]("job:assigned", StoredEventResponse)
+JOB_COMPLETED: Final = ScopedChannel[StoredEventResponse]("job:completed", StoredEventResponse)
+JOB_FAILED: Final = ScopedChannel[StoredEventResponse]("job:failed", StoredEventResponse)
 JOB_START: Final = Channel[JobStartCommand]("job:start", JobStartCommand)
 JOB_ASSIGN: Final = Channel[JobAssignCommand]("job:assign", JobAssignCommand)
 JOB_REPORT_PROGRESS: Final = Channel[JobReportProgressCommand]("job:report-progress", JobReportProgressCommand)

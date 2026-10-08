@@ -182,7 +182,7 @@ assess(target).catch((e) => {
 - **Assessment, comment or tag.** An assessment flags a problem. A comment helps the author revise or a reader understand. A tag classifies against a controlled vocabulary.
 - **Assessments feed aggregates.** To roll every flagged risk in a matter into one checklist or report, assess first and then run [`semiont-aggregate`](../semiont-aggregate/SKILL.md).
 - **What `mark.delegate` can read.** A resource with text: Markdown, plain text, HTML, JSON, or a PDF. A resource with no text at all, such as an image, fails the job. A document whose text could not be read (an encrypted or damaged PDF, or one that yields no text) completes with a `declined` result and a reason code.
-- **Check results** with `await semiont.browse.annotations(rId).fresh()`, filtered for `motivation === 'assessing'`.
+- **Check results** with `await semiont.browse.annotations(rId).fresh()`, filtered with `isAssessment` from `@semiont/sdk`.
 - **Manual mode is for known issues.** Delegate discovers; manual records what the user already found.
 - **From the command line.** `semiont mark --delegate <resourceId> --motivation assessing` runs the same job from the [launcher](../../../../apps/launcher/README.md#delegating-to-the-stack), with `--instructions`, `--density` and `--tone`. Use it for a one-off; write a script when the work repeats.
 - **Errors.** Every SDK throw extends `SemiontError`: catch it and route on its `code`. `BusRequestError` (a bus request, with a code such as `bus.timeout`) and `JobFailedError` narrow it. See [Error Handling](../../Usage.md#error-handling).

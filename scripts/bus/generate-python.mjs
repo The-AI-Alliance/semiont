@@ -82,13 +82,17 @@ takes a \`Channel[P]\` and a \`P\` is refused another channel's payload by a typ
 checker. The payload types are the protocol's own (\`semiont.types\`); which
 belongs to which channel is the registry's to say, and is derived here from
 each channel's shape.
+
+A channel a resource's scope carries is a \`ScopedChannel[P]\`, by the
+registry's \`audience\`: it is read for a resource, and a type checker refuses
+a read of one that names none.
 """
 
 from collections.abc import Mapping
 from types import MappingProxyType
 from typing import Final, Literal
 
-from semiont.channel import AnyChannel, Channel, Empty, Response
+from semiont.channel import AnyChannel, Channel, Empty, Response, ScopedChannel
 from semiont.types import (
 ${schemaNames.map((name) => `    ${name},`).join('\n')}
 )
@@ -115,7 +119,7 @@ CHANNEL_NAMES: Final[tuple[ChannelName, ...]] = (
 ${reg.channels.map((c) => `    ${pyString(c.channel)},`).join('\n')}
 )
 
-${payloads.map((p) => `${p.constant}: Final = Channel[${p.type}](${pyString(p.channel)}, ${p.type})`).join('\n')}
+${payloads.map((p) => `${p.constant}: Final = ${scoped.includes(p.channel) ? 'ScopedChannel' : 'Channel'}[${p.type}](${pyString(p.channel)}, ${p.type})`).join('\n')}
 
 # Every channel, by its name: for code that is given a name and not a constant.
 CHANNELS: Final[Mapping[str, AnyChannel]] = MappingProxyType(
