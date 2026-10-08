@@ -8,8 +8,8 @@
 use crate::admission::{Refusal, Vocabulary, admit};
 use crate::queue::{Checkpoint, Claim, FailOutcome, JobQueue, QueueError};
 use semiont::channels::{
-    Channel, JobCancel, JobCancelRequested, JobCheckpoint, JobClaim, JobComplete, JobCreate,
-    JobFail, JobReportProgress, JobStatusRequested,
+    Channel, JobAssign, JobCancel, JobCancelRequested, JobCheckpoint, JobClaim, JobComplete,
+    JobCreate, JobFail, JobReportProgress, JobStatusRequested, Request,
 };
 use semiont::roles::WORKER_ROLE;
 use semiont::types::{
@@ -140,7 +140,7 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
                 fields(json!({ "correlationId": correlation_id, "error": refusal.message })),
             );
             vec![Reply {
-                channel: "job:create-failed",
+                channel: <<JobCreate as Request>::Failure as Channel>::NAME,
                 payload: failure(refusal.message, refusal.code),
                 correlation_id: correlation_id.clone(),
             }]
@@ -161,7 +161,7 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
             ),
         );
         vec![Reply {
-            channel: "job:created",
+            channel: <<JobCreate as Request>::Result as Channel>::NAME,
             payload: object(&JobCreatedResult {
                 response: JobCreatedResultResponse { job_id: id },
             }),
@@ -172,7 +172,7 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
     async fn claim(&self, payload: Value, correlation_id: Option<String>) -> Vec<Reply> {
         let refused = |message: String, code: Option<CommandErrorCode>| {
             vec![Reply {
-                channel: "job:claim-failed",
+                channel: <<JobClaim as Request>::Failure as Channel>::NAME,
                 payload: failure(message, code),
                 correlation_id: correlation_id.clone(),
             }]
@@ -222,12 +222,12 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
         };
         vec![
             Reply {
-                channel: "job:claimed",
+                channel: <<JobClaim as Request>::Result as Channel>::NAME,
                 payload: object(&JobClaimedResult { response: *job }),
                 correlation_id,
             },
             Reply {
-                channel: "job:assign",
+                channel: JobAssign::NAME,
                 payload: object(&assignment),
                 correlation_id: None,
             },
@@ -363,10 +363,13 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
         let answer = |cancelled: Result<u64, String>| {
             let (channel, payload) = match cancelled {
                 Ok(cancelled) => (
-                    "job:cancel-ok",
+                    <<JobCancelRequested as Request>::Result as Channel>::NAME,
                     object(&json!({ "response": { "cancelled": cancelled } })),
                 ),
-                Err(message) => ("job:cancel-failed", failure(message, None)),
+                Err(message) => (
+                    <<JobCancelRequested as Request>::Failure as Channel>::NAME,
+                    failure(message, None),
+                ),
             };
             vec![Reply {
                 channel,
@@ -439,7 +442,7 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
             Ok(request) => request,
             Err(error) => {
                 return reply(
-                    "job:status-failed",
+                    <<JobStatusRequested as Request>::Failure as Channel>::NAME,
                     failure(
                         format!("a job:status-requested that is not a JobStatusRequest: {error}"),
                         None,
@@ -449,13 +452,19 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
         };
         match self.queue.get_job(&request.job_id).await {
             Ok(Some(job)) => reply(
-                "job:status-result",
+                <<JobStatusRequested as Request>::Result as Channel>::NAME,
                 object(&JobStatusResult {
                     response: status_of(job),
                 }),
             ),
-            Ok(None) => reply("job:status-failed", failure("Job not found", None)),
-            Err(error) => reply("job:status-failed", failure(error.0, None)),
+            Ok(None) => reply(
+                <<JobStatusRequested as Request>::Failure as Channel>::NAME,
+                failure("Job not found", None),
+            ),
+            Err(error) => reply(
+                <<JobStatusRequested as Request>::Failure as Channel>::NAME,
+                failure(error.0, None),
+            ),
         }
     }
 }

@@ -14,7 +14,7 @@ use semiont::channels::{
     BrowseDirectoryRequested, BrowseEntityTypesRequested, BrowseEventsRequested, BrowseKbRequested,
     BrowseResourceRequested, BrowseResourcesRequested, BrowseTagSchemasRequested, Channel,
     FrameAddEntityType, FrameAddTagSchema, JobAssign, JobComplete, JobFail, JobStart, MarkArchive,
-    MarkCommit, MarkCreateRequest, MarkDelete, MarkUnarchive, MarkUpdateBody,
+    MarkBodyUpdateFailed, MarkCommit, MarkCreateRequest, MarkDelete, MarkUnarchive, MarkUpdateBody,
     MarkUpdateEntityTypes, PersonProfile, SmeltSettled, YieldCloneCreate, YieldClonePersist,
     YieldCloneResourceRequested, YieldCloneTokenRequested, YieldCreate, YieldUpdate,
 };
@@ -101,7 +101,7 @@ async fn handle(archivist: &Archivist, channel: &str, payload: &Object) -> Optio
             return match commands::update_body(archivist, channel, payload).await {
                 Ok(_) => None,
                 Err(refusal) => Some(Reply {
-                    channel: "mark:body-update-failed",
+                    channel: MarkBodyUpdateFailed::NAME,
                     payload: refused(refusal),
                 }),
             };
