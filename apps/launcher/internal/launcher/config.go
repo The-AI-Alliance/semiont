@@ -391,8 +391,8 @@ func resolveGatewaySection(env *envConfig, path, envName string) error {
 //
 // A section that names no job is refused by name: left alone it would bind
 // nothing, and the job it was written for would go unserved without a word.
-// The TypeScript loader refuses the same sections, and
-// specs/src/service-config/roster-cases.json holds the two to one refusal.
+// The launcher alone refuses one — a worker reads no config of a knowledge
+// base — and specs/src/service-config/roster-cases.json states each refusal.
 func resolveWorkersSection(env *envConfig, path, envName string) error {
 	sections := workerSections()
 	env.Workers = map[string]bindingCfg{}

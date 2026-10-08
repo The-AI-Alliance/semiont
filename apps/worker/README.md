@@ -13,8 +13,8 @@ long-running work that a request cannot wait on.
 
 ## One host, N processes, N identities
 
-A worker host runs **one process per distinct `(inferenceProvider, model)`** configured in the
-KB's TOML. Jobs that share an inference engine share a process; different engines mean
+A worker host runs **one process per distinct `(inferenceProvider, model)`** its configuration
+document lists as an agent. Jobs that share an inference engine share a process; different engines mean
 different processes.
 
 Each process authenticates for **its own agent identity** via `/api/tokens/agent`, and that
@@ -87,12 +87,21 @@ and where the metrics flow.
 
 ## Configuration
 
-`~/.semiontconfig` (TOML), of which it reads the `gateway`, `identity`, `workers` and
-`inference` sections. `workers` binds each job to a provider and a model, and that
-binding decides how many processes and identities the host runs. Its environment is
-`SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`, its own service account at the
-knowledge base's issuer, and whatever its sections reference as `${VAR}`, such as
-`ANTHROPIC_API_KEY`. It mounts nothing. The
+A JSON document, named by `--config` (the image passes `/etc/semiont/worker.json`), whose
+schema is [`WorkerConfig`](../../specs/src/components/schemas/WorkerConfig.json). It states
+the gateway's URL, the issuer, the health port, the log level and format, and `agents`: each
+a provider and a model, the jobs that agent claims, the provider's address, and the name of
+the variable holding its key. `agents` decides how many processes and identities the host
+runs. The worker defaults nothing and reads no config of the knowledge base: the launcher
+resolves the knowledge base's `workers` and `inference` sections into this document for the
+worker it starts, and a worker started some other way is given the same document.
+
+Its environment is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`, its own service
+account at the knowledge base's issuer, and each variable its document names, such as
+`ANTHROPIC_API_KEY`. It mounts nothing but the document.
+
+Started without `--config`, with a document that does not validate, or with a named variable
+unset, it refuses to start and says which. The
 [service catalog](../../docs/operator/services/OVERVIEW.md) states this beside the other
 services.
 

@@ -875,7 +875,7 @@ func TestKeycloakPortIsPlacedAndSticky(t *testing.T) {
 			t.Errorf("%s: Keycloak not published on %s:\n%s", step.name, step.want, run)
 		}
 		issuer := "http://192.168.64.1:" + step.want + "/realms/semiont"
-		for _, staged := range []string{"worker.toml", "archivist.json", "gateway.json", "dispatcher.json"} {
+		for _, staged := range []string{"worker.json", "archivist.json", "gateway.json", "dispatcher.json"} {
 			if !strings.Contains(stagedFile(t, s, staged), issuer) {
 				t.Errorf("%s: the staged %s does not state the issuer at port %s:\n%s", step.name, staged, step.want, stagedFile(t, s, staged))
 			}
@@ -2834,8 +2834,9 @@ func TestSecretValuesStayOffTheCommandLine(t *testing.T) {
 }
 
 // Each service is handed only the variables its own config sections
-// reference. The anthropic config names ANTHROPIC_API_KEY in [inference],
-// which the Librarian and Worker read and nothing else does: the Archivist
+// reference, or its configuration document names. The anthropic config names
+// ANTHROPIC_API_KEY in [inference], which the Librarian reads and the worker's
+// document names as its agents' key, and nothing else does: the Archivist
 // lists the collaborator roster without it. The worker and the librarian are
 // the only two images that get inference secrets.
 func TestEachServiceGetsOnlyTheSecretsItReads(t *testing.T) {
@@ -2856,7 +2857,7 @@ func TestEachServiceGetsOnlyTheSecretsItReads(t *testing.T) {
 	}
 	for _, svc := range []string{"librarian", "worker"} {
 		if v, _ := s.containerEnv(t, "semiont-"+svc, "ANTHROPIC_API_KEY"); v != "test-key" {
-			t.Errorf("%s reads [inference] but was not handed ANTHROPIC_API_KEY", svc)
+			t.Errorf("%s calls the models but was not handed ANTHROPIC_API_KEY", svc)
 		}
 	}
 	for _, svc := range []string{"archivist", "gateway", "dispatcher", "weaver", "smelter"} {
@@ -2967,19 +2968,19 @@ func TestStartForwardsAnOptionalReferenceOnlyWhenSet(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// In a section the worker reads: a service is handed only its own
+	// In a section the Librarian reads: a service is handed only its own
 	// sections' variables.
-	if _, err := f.WriteString("\n[environments.local.workers.default]\nnote = \"${SD_OPTIONAL:-fallback}\"\n"); err != nil {
+	if _, err := f.WriteString("\n[environments.local.make-meaning]\nnote = \"${SD_OPTIONAL:-fallback}\"\n"); err != nil {
 		t.Fatal(err)
 	}
 	f.Close()
 	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key")
 
-	if _, stderr, code := s.run(t, "start", "--service", "worker", "--config", "anthropic"); code != 0 {
+	if _, stderr, code := s.run(t, "start", "--service", "librarian", "--config", "anthropic"); code != 0 {
 		t.Fatalf("unset: exit %d\n%s", code, stderr)
 	}
 	log, _ := os.ReadFile(s.log)
-	if _, handed := s.containerEnv(t, "semiont-worker", "SD_OPTIONAL"); handed || strings.Contains(string(log), "SD_OPTIONAL") {
+	if _, handed := s.containerEnv(t, "semiont-librarian", "SD_OPTIONAL"); handed || strings.Contains(string(log), "SD_OPTIONAL") {
 		t.Errorf("forwarded an optional reference nobody set:\n%s", log)
 	}
 
@@ -2991,10 +2992,10 @@ func TestStartForwardsAnOptionalReferenceOnlyWhenSet(t *testing.T) {
 	if err := os.Truncate(s.log, 0); err != nil {
 		t.Fatal(err)
 	}
-	if _, stderr, code := s.run(t, "start", "--service", "worker", "--config", "anthropic"); code != 0 {
+	if _, stderr, code := s.run(t, "start", "--service", "librarian", "--config", "anthropic"); code != 0 {
 		t.Fatalf("registered: exit %d\n%s", code, stderr)
 	}
-	if v, _ := s.containerEnv(t, "semiont-worker", "SD_OPTIONAL"); v != "fake-op-secret" {
+	if v, _ := s.containerEnv(t, "semiont-librarian", "SD_OPTIONAL"); v != "fake-op-secret" {
 		t.Errorf("the registered source's value did not arrive (got %q)", v)
 	}
 
@@ -3005,10 +3006,10 @@ func TestStartForwardsAnOptionalReferenceOnlyWhenSet(t *testing.T) {
 		t.Fatal(err)
 	}
 	s.extraEnv = append(s.extraEnv, "SD_OPTIONAL=")
-	if _, stderr, code := s.run(t, "start", "--service", "worker", "--config", "anthropic"); code != 0 {
+	if _, stderr, code := s.run(t, "start", "--service", "librarian", "--config", "anthropic"); code != 0 {
 		t.Fatalf("set empty: exit %d\n%s", code, stderr)
 	}
-	if v, handed := s.containerEnv(t, "semiont-worker", "SD_OPTIONAL"); !handed || v != "" {
+	if v, handed := s.containerEnv(t, "semiont-librarian", "SD_OPTIONAL"); !handed || v != "" {
 		t.Errorf("an optional variable set to the empty string was not forwarded empty (got %q, handed %v)", v, handed)
 	}
 
@@ -3018,10 +3019,10 @@ func TestStartForwardsAnOptionalReferenceOnlyWhenSet(t *testing.T) {
 		t.Fatal(err)
 	}
 	s.extraEnv = append(s.extraEnv, "SD_OPTIONAL=from-env")
-	if _, stderr, code := s.run(t, "start", "--service", "worker", "--config", "anthropic"); code != 0 {
+	if _, stderr, code := s.run(t, "start", "--service", "librarian", "--config", "anthropic"); code != 0 {
 		t.Fatalf("set: exit %d\n%s", code, stderr)
 	}
-	if v, _ := s.containerEnv(t, "semiont-worker", "SD_OPTIONAL"); v != "from-env" {
+	if v, _ := s.containerEnv(t, "semiont-librarian", "SD_OPTIONAL"); v != "from-env" {
 		t.Errorf("the exported value did not win (got %q)", v)
 	}
 	log, _ = os.ReadFile(s.log)
@@ -4811,6 +4812,12 @@ const stdJobs = "[environments.local.jobs]\ntype = \"jetstream\"\nservers = \"${
 const stdEmbedding = "[environments.local.embedding]\ntype = \"ollama\"\nmodel = \"nomic-embed-text\"\nbaseURL = \"http://${OLLAMA_HOST}:11434\"\n\n"
 const stdEmbeddingVoyage = "[environments.local.embedding]\nplatform = \"external\"\ntype = \"voyage\"\nmodel = \"voyage-3\"\n\n"
 const stdDatabase = "[environments.local.database]\nhost = \"${POSTGRES_HOST}\"\nport = 5432\nname = \"semiont\"\nuser = \"postgres\"\n\n"
+
+// Every full start writes the worker's configuration document, and an
+// environment that binds no job to a worker has none: the launcher refuses it.
+// A variant that is not about inference binds every job to the stack's own
+// Ollama, the one stdEmbedding already has it run.
+const stdWorkers = "[environments.local.inference.ollama]\nplatform = \"posix\"\nbaseURL = \"http://${OLLAMA_HOST}:11434\"\n\n[environments.local.workers.default.inference]\ntype = \"ollama\"\nmodel = \"gemma4:26b\"\n\n"
 const stdGraph = "[environments.local.graph]\ntype = \"neo4j\"\nuri = \"bolt://${NEO4J_HOST}:7687\"\nusername = \"neo4j\"\n\n"
 
 func TestStartExternalGraphBoot(t *testing.T) {
@@ -4820,7 +4827,7 @@ func TestStartExternalGraphBoot(t *testing.T) {
 	s := newScenario(t, "container")
 	writeKBConfig(t, s, "external-graph",
 		"[environments.local.graph]\nplatform = \"external\"\ntype = \"neo4j\"\nuri = \"bolt://127.0.0.1:7777\"\nusername = \"neo4j\"\npassword = \"remotepass\"\n\n"+
-			stdVectors+stdEmbedding+stdDatabase)
+			stdVectors+stdEmbedding+stdDatabase+stdWorkers)
 	serveHealth(t, 7777)
 	stdout, stderr, code := s.run(t, "start", "--config", "external-graph")
 	if code != 0 {
@@ -4870,7 +4877,7 @@ func TestStartMovedDBPortBoot(t *testing.T) {
 	// the driver default, and every check/gate follows the config.
 	s := newScenario(t, "container")
 	writeKBConfig(t, s, "moved-db",
-		stdGraph+stdVectors+stdEmbedding+
+		stdGraph+stdVectors+stdEmbedding+stdWorkers+
 			"[environments.local.database]\nhost = \"${POSTGRES_HOST}\"\nport = 5433\nname = \"semiont\"\nuser = \"postgres\"\n\n")
 	stdout, stderr, code := s.run(t, "start", "--config", "moved-db")
 	if code != 0 {
@@ -6661,7 +6668,7 @@ func TestStartServiceWorker(t *testing.T) {
 		"image pull ghcr.io/the-ai-alliance/semiont-worker:latest",
 		"--env SEMIONT_OIDC_CLIENT_ID=semiont-worker",
 		"--env OTEL_EXPORTER_OTLP_ENDPOINT=http://",
-		"<config-stage>/worker.toml:/home/semiont/.semiontconfig:ro",
+		"<config-stage>/worker.json:/etc/semiont/worker.json:ro",
 	)
 	for _, absent := range []string{"run -d --name semiont-neo4j", "run -d --name semiont-gateway", "semiont-browser"} {
 		if strings.Contains(argv, absent) {
@@ -6805,7 +6812,7 @@ func TestStartServiceDryRunWorker(t *testing.T) {
 		"semiont start --service worker --dry-run",
 		"container stop semiont-worker",
 		"container image pull ghcr.io/the-ai-alliance/semiont-worker:latest",
-		"<config-stage>/worker.toml",
+		"<config-stage>/worker.json",
 		"wait: http://localhost:24100/health (30s)",
 	)
 	if strings.Contains(stdout, "semiont-neo4j") {
@@ -7388,6 +7395,7 @@ func TestStatusShowsARemoteCeilingInAnOllamaDrivenRow(t *testing.T) {
 	writeKBConfig(t, s, "mixed-ollama",
 		stdGraph+stdVectors+stdDatabase+stdEmbedding+
 			fmt.Sprintf("[environments.local.inference.anthropic]\nplatform = \"external\"\nendpoint = \"http://localhost:%d\"\napiKey = \"${ANTHROPIC_API_KEY}\"\n\n", anthPort)+
+			"[environments.local.inference.ollama]\nplatform = \"posix\"\nbaseURL = \"http://${OLLAMA_HOST}:11434\"\n\n"+
 			"[environments.local.workers.default.inference]\ntype = \"anthropic\"\nmodel = \"claude-sonnet-4-5-20250929\"\n\n"+
 			"[environments.local.workers.mark.highlighting.inference]\ntype = \"ollama\"\nmodel = \"gemma4:26b\"\n\n")
 	s.extraEnv = append(s.extraEnv,

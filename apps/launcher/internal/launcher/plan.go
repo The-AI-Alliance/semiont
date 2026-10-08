@@ -224,6 +224,29 @@ func remoteInferenceDriver(env *envConfig) string {
 	return types[0]
 }
 
+// remoteProviderAddress: where a remote inference provider's API is — the
+// endpoint its section states, else the provider's own. ONE decider: the
+// inference role the remote-model check dials (saasBase), and the address a
+// worker's document gives an agent whose section states none (workerdoc.go).
+func remoteProviderAddress(env *envConfig, driver string) (host string, port int) {
+	if p, ok := env.Inference[driver]; ok && p.Endpoint != "" {
+		host, port = parseHostPort(p.Endpoint)
+		if port == 0 && strings.HasPrefix(p.Endpoint, "https://") {
+			port = 443
+		}
+	}
+	if host == "" && driver == "anthropic" {
+		host = "api.anthropic.com"
+	}
+	if port == 0 {
+		port = descriptorFor("inference", driver).defaultPort
+	}
+	if port == 0 {
+		port = 443 // an unknown remote provider is still TLS SaaS
+	}
+	return host, port
+}
+
 // bindingModels: every model the config's actors and workers bind for
 // inference, with its provider, sorted and deduped. Deliberately NOT filtered
 // by provider: these are the models this stack performs inference with,
@@ -841,22 +864,7 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 	switch {
 	case !bindingsUseOllama && len(bindingModels(env)) > 0:
 		driver := remoteInferenceDriver(env)
-		host, port := "", 0
-		if p, ok := env.Inference[driver]; ok && p.Endpoint != "" {
-			host, port = parseHostPort(p.Endpoint)
-			if port == 0 && strings.HasPrefix(p.Endpoint, "https://") {
-				port = 443
-			}
-		}
-		if host == "" && driver == "anthropic" {
-			host = "api.anthropic.com"
-		}
-		if port == 0 {
-			port = descriptorFor("inference", driver).defaultPort
-		}
-		if port == 0 {
-			port = 443 // an unknown remote provider is still TLS SaaS
-		}
+		host, port := remoteProviderAddress(env, driver)
 		plan.Roles["inference"] = rolePlan{
 			Role: "inference", Presence: presenceExternal,
 			Driver: driver, Address: host, Port: port,

@@ -76,4 +76,4 @@ HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
 ENV SUPERVISE_NAME=worker \
     SUPERVISE_PROBE=http://localhost:24100/health
 ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/boot.sh"]
-CMD ["node", "/usr/local/lib/node_modules/@semiont/jobs/dist/worker-main.js"]
+CMD ["node", "/usr/local/lib/node_modules/@semiont/jobs/dist/worker-main.js", "--config", "/etc/semiont/worker.json"]

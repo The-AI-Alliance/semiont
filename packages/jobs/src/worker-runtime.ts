@@ -34,21 +34,14 @@ import {
   type WorkerVitals,
 } from '@semiont/sdk';
 import type { ServiceAccountCredential } from '@semiont/core';
+import type { WorkerConfig } from './worker-config';
 
 type Agent = components['schemas']['Agent'];
 
-/** Shape of each resolved worker inference entry under `_metadata.workers`. */
-export type ResolvedInference = {
-  type: 'anthropic' | 'ollama';
-  model: string;
-  apiKey?: string;
-  endpoint?: string;
-  baseURL?: string;
-};
-
-/** One agent identity: an inference engine and the jobs it serves. */
+/** One agent identity: who it is, the jobs it serves, and the inference client it runs them on. */
 export interface AgentGroup {
-  inference: ResolvedInference;
+  /** The provider and the model: with the knowledge base's domain, the agent's identity. */
+  agent: WorkerConfig['agents'][number]['agent'];
   serves: JobFilter[];
   client: InferenceClient;
 }
@@ -197,15 +190,15 @@ export async function startAgentWorker(
   opts: WorkerRuntimeOptions,
 ): Promise<AgentWorkerHandle> {
   const { group, gatewayBaseUrl, credential, reportsLimitsOf, logger } = opts;
-  const { inference } = group;
+  const { agent: engine } = group;
 
   // The process signs in as the agent this group works as, and the session
   // keeps that token fresh for as long as the process runs.
   const agent = await startAgentSession({
     baseUrl: gatewayBaseUrl,
     credential,
-    provider: inference.type,
-    model: inference.model,
+    provider: engine.provider,
+    model: engine.model,
     logger,
   });
 
@@ -240,16 +233,16 @@ export async function startAgentWorker(
 
   logger.info('Agent ready', {
     did: agent.did,
-    provider: inference.type,
-    model: inference.model,
+    provider: engine.provider,
+    model: engine.model,
     serves: group.serves,
   });
 
   return {
     client,
     vitals: () => ({
-      provider: inference.type,
-      model: inference.model,
+      provider: engine.provider,
+      model: engine.model,
       did: agent.did,
       serves: group.serves,
       ...claims.vitals(),

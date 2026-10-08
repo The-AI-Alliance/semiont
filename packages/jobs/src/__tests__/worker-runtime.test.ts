@@ -57,7 +57,7 @@ const noopLogger = {
 
 function makeGroup(): AgentGroup {
   return {
-    inference: { type: 'anthropic', model: 'claude-haiku-4-5' },
+    agent: { provider: 'anthropic', model: 'claude-haiku-4-5' },
     serves: [{ jobType: 'mark', params: { motivation: 'linking' } }, { jobType: 'yield' }],
     client: {} as InferenceClient, // never invoked — worker-process is mocked
   };

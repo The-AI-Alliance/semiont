@@ -570,13 +570,14 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 	return 0
 }
 
-// saasBase reconstructs the https origin from a SaaS role plan. Port 443 is
-// the real world; any other port is a test or proxy endpoint, spoken plainly.
-func saasBase(rp rolePlan) string {
-	if rp.Port == 443 {
-		return "https://" + rp.Address
+// saasBase reconstructs the https origin from a SaaS provider's address
+// (remoteProviderAddress). Port 443 is the real world; any other port is a
+// test or proxy endpoint, spoken plainly.
+func saasBase(host string, port int) string {
+	if port == 443 {
+		return "https://" + host
 	}
-	return fmt.Sprintf("http://%s:%d", rp.Address, rp.Port)
+	return fmt.Sprintf("http://%s:%d", host, port)
 }
 
 // envValue digs VAR=value out of the resolved user env.
@@ -638,7 +639,7 @@ func flowInferenceRole(x executor, fc flowCtx, addr string) int {
 					x.say(sayFail, "%v", err)
 					return 1
 				}
-				x.verifyRemoteModels("inference", saasBase(rp), key, servedBy(rp.Models, "anthropic"))
+				x.verifyRemoteModels("inference", saasBase(rp.Address, rp.Port), key, servedBy(rp.Models, "anthropic"))
 			}
 			return 0
 		}
@@ -785,7 +786,14 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage string, ote
 	if !ok {
 		return 1
 	}
-	args := sidecarArgs(sc.svc, sc.port, stage, x.rtName(), addr, clientSecret, fc.version, fc.envFor(sc.svc), otel, extra...)
+	// The worker reads a configuration document; the Smelter and the Weaver
+	// load a staged copy of the KB's config.
+	var args []string
+	if sc.svc == "worker" {
+		args = workerArgs(stage, x.rtName(), addr, clientSecret, fc.version, fc.envFor(sc.svc), otel)
+	} else {
+		args = sidecarArgs(sc.svc, sc.port, stage, x.rtName(), addr, clientSecret, fc.version, fc.envFor(sc.svc), otel, extra...)
+	}
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "%s failed to start.", sc.label)

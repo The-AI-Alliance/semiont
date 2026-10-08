@@ -14,7 +14,8 @@ The moving parts:
 
 | File | Role |
 |------|------|
-| `src/worker-main.ts` | Standalone entry point. Reads `~/.semiontconfig`, groups the jobs it serves by `(provider, model)`, and starts one agent worker per group, all in its own process. |
+| `src/worker-main.ts` | Standalone entry point. Reads its configuration document, and starts one agent worker for each agent the document lists, all in its own process. |
+| `src/worker-config.ts` | The configuration document ([`WorkerConfig`](../../../specs/src/components/schemas/WorkerConfig.json)): where `--config` names it, reading it, and what the worker refuses to start on. It parses no TOML and defaults nothing. |
 | `src/worker-runtime.ts` | `startAgentWorker(options)` — signs in as one agent, opens its client, and calls `startWorkerProcess`. |
 | `src/worker-process.ts` | `startWorkerProcess(config)` — claims jobs with the SDK's `job.claim`, then `handleJobInner` dispatches by `jobType` and motivation to the right processor, commits annotations in acknowledged batches (`mark:commit`), and emits the lifecycle events. |
 | `src/processors.ts` | The `process*Job` functions. Content + inference + params in, `{ result }` out; annotations go out through the `onChunkComplete` callback as they are produced. No bus, no queue, no I/O except calling inference. |
@@ -23,7 +24,7 @@ The moving parts:
 
 ## How a Worker Runs
 
-`worker-main.ts` is the host. For each distinct `(inferenceProvider, model)` configured under `[environments.<env>.workers]` in `~/.semiontconfig`, it calls `startAgentWorker` (`src/worker-runtime.ts`), which:
+`worker-main.ts` is the host. For each agent its configuration document lists (a provider and a model, with the jobs that pair serves), it calls `startAgentWorker` (`src/worker-runtime.ts`), which:
 
 1. Signs in (`startAgentSession`, `@semiont/sdk`): at the knowledge base's issuer as its own service account (`SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET`), then exchanging that token for this agent's at `/api/tokens/agent`. The session keeps the agent's token fresh for as long as the process runs.
 2. Builds a `generator` — a W3C `Software` agent record — with `didToAgent(did)`, from the DID that exchange minted. This is sent as each annotation's `generator`; the knowledge base checks its identity against the verified emitter and derives `creator` and `wasAttributedTo` itself, from the job the write cites.

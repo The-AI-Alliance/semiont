@@ -352,12 +352,13 @@ func (x *liveExec) stageDir() (string, bool) {
 }
 
 // archivistDialers: the services that resolve the Archivist's address from
-// their staged config copy, and so must be handed it. The Smelter, the
-// Librarian and the Worker read bytes from it directly, over HTTP and not
-// through the gateway; all three refuse to boot without it. The gateway is
-// absent because its configuration document carries the address
-// (gatewaydoc.go); the Archivist, because it IS the record.
-var archivistDialers = map[string]bool{"smelter": true, "librarian": true, "worker": true}
+// their staged config copy, and so must be handed it. The Smelter and the
+// Librarian read bytes from it directly, over HTTP and not through the
+// gateway; both refuse to boot without it. The gateway is absent because its
+// configuration document carries the address (gatewaydoc.go); the Archivist,
+// because it IS the record; the worker, because the gateway is its route to a
+// resource's bytes (workerdoc.go).
+var archivistDialers = map[string]bool{"smelter": true, "librarian": true}
 
 // kbIdentityStaged: the services that describe a KB tree they do not mount,
 // and so must be handed its committed identity rather than reading it. The
@@ -376,8 +377,8 @@ const gatewayDocumentFile = "gateway.json"
 const gatewayDocumentTarget = "/etc/semiont/gateway.json"
 
 // stageService writes one service's config into the stage: the gateway's,
-// the dispatcher's or the Archivist's resolved document, or another service's
-// patched copy of the KB config.
+// the dispatcher's, the Archivist's or the worker's resolved document, or
+// another service's patched copy of the KB config.
 func (x *liveExec) stageService(stage, svc string, cfg []byte, fc flowCtx, addr string) bool {
 	if svc == "gateway" {
 		env, _, _, err := loadConfig(fc.configFile)
@@ -417,6 +418,20 @@ func (x *liveExec) stageService(stage, svc string, cfg []byte, fc flowCtx, addr 
 		}
 		if err != nil {
 			x.u.Fail("Writing the Archivist's configuration document: %v", err)
+			return false
+		}
+		return true
+	}
+	if svc == "worker" {
+		env, envName, _, err := loadConfig(fc.configFile)
+		if err == nil {
+			var doc []byte
+			if doc, err = workerDocument(env, envName, x.rt, addr, fc.plan.Roles["identity"].Port, fc.userEnv); err == nil {
+				err = os.WriteFile(filepath.Join(stage, workerDocumentFile), doc, 0o644)
+			}
+		}
+		if err != nil {
+			x.u.Fail("Writing the worker's configuration document: %v", err)
 			return false
 		}
 		return true
@@ -1252,13 +1267,14 @@ func (x *planExec) stageCollector(string) (string, bool) {
 func (x *planExec) stageAll(fc flowCtx, addr string) (string, bool) {
 	staged := make([]string, 0, len(stackServices))
 	for _, svc := range stackServices {
-		if svc != "gateway" && svc != "dispatcher" && svc != "archivist" {
+		if svc != "gateway" && svc != "dispatcher" && svc != "archivist" && svc != "worker" {
 			staged = append(staged, svc+".toml")
 		}
 	}
 	x.c("write <config-stage>/%s (the gateway's configuration document: GatewayConfig, resolved)", gatewayDocumentFile)
 	x.c("write <config-stage>/%s (the dispatcher's configuration document: DispatcherConfig, resolved)", dispatcherDocumentFile)
 	x.c("write <config-stage>/%s (the Archivist's configuration document: ArchivistConfig, resolved)", archivistDocumentFile)
+	x.c("write <config-stage>/%s (the worker's configuration document: WorkerConfig, resolved)", workerDocumentFile)
 	x.c("stage per-service config copies under <config-stage>: %s", strings.Join(staged, " "))
 	x.c("write into each copy the addresses this start places, as literals, in the sections that service reads (launcher-staged topology):")
 	// In plan mode the context names the config; the file is under the root.
@@ -1288,6 +1304,10 @@ func (x *planExec) stageOne(svc string, fc flowCtx, _ string) (string, bool) {
 	}
 	if svc == "archivist" {
 		x.c("write a fresh <config-stage>/%s (the Archivist's configuration document: ArchivistConfig, resolved)", archivistDocumentFile)
+		return "<config-stage>", true
+	}
+	if svc == "worker" {
+		x.c("write a fresh <config-stage>/%s (the worker's configuration document: WorkerConfig, resolved)", workerDocumentFile)
 		return "<config-stage>", true
 	}
 	x.c("stage a fresh private config copy under <config-stage>: %s.toml, with the addresses this start places written into the sections it reads (launcher-staged topology)", svc)

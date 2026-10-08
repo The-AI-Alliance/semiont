@@ -418,7 +418,6 @@ export {
   type TomlFileReader,
   type InferenceConfig as TomlInferenceConfig,
   type ActorInferenceConfig as TomlActorInferenceConfig,
-  type WorkerInferenceConfig as TomlWorkerInferenceConfig,
 } from './config/toml-loader';
 
 export {

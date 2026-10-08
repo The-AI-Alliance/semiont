@@ -59,7 +59,7 @@ siteName = "Example Knowledge Base"
 }
 
 // The whole per-service staging rule in one place. This is the test that
-// catches a boot break: three services read bytes straight from the Archivist
+// catches a boot break: two services read bytes straight from the Archivist
 // and REFUSE to start without its address, and the one that describes a KB
 // tree it does not mount needs its committed identity at the same time — a
 // patch structure that assigned rather than chained would silently drop one.
@@ -71,11 +71,10 @@ func TestStagedConfigPerService(t *testing.T) {
 		archivist  bool
 		kbIdentity bool
 	}{
-		// The gateway is absent: it takes a configuration document, not a
-		// patched copy (gatewaydoc_test.go).
+		// The gateway and the worker are absent: each takes a configuration
+		// document, not a patched copy (gatewaydoc_test.go, workerdoc_test.go).
 		{"librarian", true, true},
 		{"smelter", true, false},
-		{"worker", true, false},
 		{"weaver", false, false},
 		// The Archivist IS the record — it holds the mount and dials nobody.
 		{"archivist", false, false},

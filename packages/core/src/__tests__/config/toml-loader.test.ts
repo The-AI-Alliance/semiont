@@ -59,17 +59,6 @@ model = "claude-haiku-4-5-20251001"
 maxTokens = 2048
 apiKey = "test-key"
 
-[environments.local.workers.default.inference]
-type = "anthropic"
-model = "claude-haiku-4-5-20251001"
-maxTokens = 4096
-apiKey = "test-key"
-
-[environments.local.workers.yield.inference]
-type = "anthropic"
-model = "claude-sonnet-4-6"
-maxTokens = 16384
-apiKey = "test-key"
 ${SERVICES_LOCAL}`;
 const WITH_INFERENCE_TOML_COMPLETE = `${WITH_INFERENCE_TOML}${IDENTITY_LOCAL}`;
 
@@ -129,15 +118,6 @@ describe('loadTomlConfig', () => {
     const actors = (config._metadata as any)?.actors;
     expect(actors?.gatherer?.model).toBe('claude-haiku-4-5-20251001');
     expect(actors?.matcher?.maxTokens).toBe(2048);
-  });
-
-  it('stores worker inference config in _metadata with inheritance', () => {
-    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(WITH_INFERENCE_TOML_COMPLETE), {});
-
-    const workers = (config._metadata as any)?.workers;
-    expect(workers?.mark?.tagging?.model).toBe('claude-haiku-4-5-20251001');
-    expect(workers?.yield?.model).toBe('claude-sonnet-4-6');
-    expect(workers?.yield?.maxTokens).toBe(16384);
   });
 
   // The gather settle bound: the loader is the ONE home of the default —
@@ -649,45 +629,29 @@ apiKey = "\${UNSET_P5_KEY}"
   });
 });
 
-// Who serves each role is decided here for the services that call a model,
-// and by the launcher for the roster the Archivist lists. The shared table
-// holds the two to one answer, and to one refusal of a section that names no
-// job.
+// Who serves each actor is decided here for the Librarian, which calls a
+// model, and by the launcher for the roster the Archivist lists. The shared
+// table holds the two to one answer.
 describe('the role selection agrees with the shared table', () => {
   type Role = { provider: string; model: string };
-  type Serving = { type: string; model: string };
-  type Workers<T> = { mark?: Record<string, T>; yield?: T };
-  const table: {
-    cases: { why: string; config: string; roster: { workers: Workers<Role>; actors: Record<string, Role> } }[];
-    refusals: { why: string; config: string; names: string }[];
-  } =
+  const table: { cases: { why: string; config: string; roster: { actors: Record<string, Role> } }[] } =
     JSON.parse(readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../../../../specs/src/service-config/roster-cases.json'), 'utf8'));
   const pick = (i: { type: string; model: string }): Role => ({ provider: i.type, model: i.model });
 
-  it('has cases and refusals', () => {
+  it('has cases', () => {
     expect(table.cases.length).toBeGreaterThan(0);
-    expect(table.refusals.length).toBeGreaterThan(0);
   });
 
+  // The actors only. Who serves each job is the launcher's to resolve, into
+  // the document a worker reads, and the launcher runs the table's jobs and
+  // its refusals.
   it.each(table.cases)('$why', ({ config, roster }) => {
-    const load = (service: 'worker' | 'librarian') =>
-      loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(config), {}, service)._metadata;
-    // The loader answers who serves each job; nothing here restates its rule.
-    const served = (load('worker')?.workers ?? {}) as Workers<Serving>;
-    const workers: Workers<Role> = {
-      ...(served.mark ? { mark: Object.fromEntries(Object.entries(served.mark).map(([motivation, serving]) => [motivation, pick(serving)])) } : {}),
-      ...(served.yield ? { yield: pick(served.yield) } : {}),
-    };
+    const served = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(config), {}, 'librarian')._metadata?.actors;
     const actors = Object.fromEntries(
-      Object.entries((load('librarian')?.actors ?? {}) as Record<string, { type: string; model: string }>)
+      Object.entries((served ?? {}) as Record<string, { type: string; model: string }>)
         .map(([actor, serving]) => [actor, pick(serving)]),
     );
-    expect({ workers, actors }).toEqual(roster);
-  });
-
-  it.each(table.refusals)('refuses [$names], $why: it names no job', ({ config, names }) => {
-    expect(() => loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(config), {}, 'worker')._metadata?.workers)
-      .toThrow(new RegExp(`${names.replace(/\./g, '\\.')}\\] names no job`));
+    expect(actors).toEqual(roster.actors);
   });
 });
 
@@ -702,49 +666,17 @@ platform = "posix"
 port = 3001
 `;
 
-  it('workers inherit credentials from the keyed [inference.anthropic]', () => {
-    const cfg = load(`${MINIMAL_TOML}
-[environments.local.inference.anthropic]
-platform = "external"
-apiKey = "k"
-
-[environments.local.workers.default.inference]
-type = "anthropic"
-model = "m"
-`);
-    const workers = cfg._metadata?.workers as { yield?: { apiKey?: string; endpoint?: string; model?: string } };
-    expect(workers.yield).toMatchObject({ model: 'm', apiKey: 'k' });
-    expect(cfg.inference?.anthropic).toMatchObject({ apiKey: 'k', endpoint: 'https://api.anthropic.com' });
-  });
-
-  it('workers inherit baseURL and maxTokens from a flat [inference] of type ollama', () => {
-    const cfg = load(`${MINIMAL_TOML}
-[environments.local.inference]
-type = "ollama"
-platform = "external"
-baseURL = "http://ollama.internal:11434"
-maxTokens = 512
-
-[environments.local.workers.yield.inference]
-type = "ollama"
-model = "gemma"
-`);
-    const workers = cfg._metadata?.workers as { yield?: { baseURL?: string; maxTokens?: number } };
-    expect(workers.yield).toMatchObject({ baseURL: 'http://ollama.internal:11434', maxTokens: 512 });
-    expect(cfg.inference?.ollama).toMatchObject({ baseURL: 'http://ollama.internal:11434' });
-  });
-
   it('a flat [inference] with no type refuses at the read that needs it', () => {
     for (const type of ['anthropic', 'ollama']) {
       const cfg = load(`${MINIMAL_TOML}
 [environments.local.inference]
 platform = "external"
 
-[environments.local.workers.default.inference]
+[environments.local.actors.gatherer.inference]
 type = "${type}"
 model = "m"
 `);
-      expect(() => cfg._metadata?.workers).toThrow(/inference\] is missing 'type'/);
+      expect(() => cfg._metadata?.actors).toThrow(/inference\] is missing 'type'/);
     }
   });
 
@@ -759,20 +691,20 @@ apiKey = "k"
 platform = "external"
 baseURL = "http://ollama.internal:11434"
 
-[environments.local.workers.default.inference]
+[environments.local.actors.gatherer.inference]
 type = "anthropic"
 model = "a"
 
-[environments.local.workers.yield.inference]
+[environments.local.actors.matcher.inference]
 type = "ollama"
 model = "o"
 `);
     expect(cfg.inference?.anthropic).toMatchObject({ apiKey: 'k', endpoint: 'https://api.anthropic.com' });
     expect(cfg.inference?.ollama).toMatchObject({ baseURL: 'http://ollama.internal:11434' });
     // A flat anthropic section hands its key down; a keyed ollama its baseURL.
-    const workers = cfg._metadata?.workers as { mark?: Record<string, { apiKey?: string }>; yield?: { baseURL?: string } };
-    expect(workers.mark?.tagging?.apiKey).toBe('k');
-    expect(workers.yield?.baseURL).toBe('http://ollama.internal:11434');
+    const actors = cfg._metadata?.actors as { gatherer?: { apiKey?: string }; matcher?: { baseURL?: string } };
+    expect(actors.gatherer?.apiKey).toBe('k');
+    expect(actors.matcher?.baseURL).toBe('http://ollama.internal:11434');
   });
 
   it('a config with no [inference] maps no providers', () => {

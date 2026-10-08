@@ -160,16 +160,24 @@ func servesUnder(sections []string, section string) bool {
 	return false
 }
 
-// archivistRoster: who serves each role, with every fallback the KB's config
-// allows applied. A job is served by its own section of `workers`, else each
-// section above it, else `workers.default`: a `mark` job of a motivation by
-// `workers.mark.<motivation>`, `workers.mark`, `workers.default`, and a
-// `yield` job by `workers.yield`, `workers.default`. An actor is served by
-// `make-meaning.actors.<actor>`, else `actors.<actor>`, else
-// `make-meaning.default`. The TypeScript loader decides the same thing for
-// the services that call the models, and
-// specs/src/service-config/roster-cases.json holds the two to one answer.
-func archivistRoster(env *envConfig) (roster semiont.ArchivistRoster, err error) {
+// servedJob: a job, and the role serving it.
+type servedJob struct {
+	job  workerJob
+	role *semiont.ArchivistRosterRole
+}
+
+// workerRoles: the role serving each job, in workerJobs' order, with every
+// fallback the KB's config allows applied. A job is served by its own section
+// of `workers`, else each section above it, else `workers.default`: a `mark`
+// job of a motivation by `workers.mark.<motivation>`, `workers.mark`,
+// `workers.default`, and a `yield` job by `workers.yield`, `workers.default`.
+// A job no section serves is absent. ONE resolution: the Archivist's roster
+// names these roles (archivistRoster) and the worker's document claims their
+// jobs (workerAgents), so `browse:agents` names exactly the agents the work
+// goes to. specs/src/service-config/roster-cases.json holds both to its
+// answer.
+func workerRoles(env *envConfig) ([]servedJob, error) {
+	var served []servedJob
 	for _, job := range workerJobs() {
 		var candidates []func() (*semiont.ArchivistRosterRole, error)
 		for _, section := range servingSections(job.name) {
@@ -179,11 +187,28 @@ func archivistRoster(env *envConfig) (roster semiont.ArchivistRoster, err error)
 		}
 		role, err := firstBound(candidates...)
 		if err != nil {
-			return roster, err
+			return nil, err
 		}
 		if role != nil {
-			job.slot(reflect.ValueOf(&roster.Workers).Elem()).Set(reflect.ValueOf(role))
+			served = append(served, servedJob{job: job, role: role})
 		}
+	}
+	return served, nil
+}
+
+// archivistRoster: who serves each role, with every fallback the KB's config
+// allows applied. A job is served as workerRoles says. An actor is served by
+// `make-meaning.actors.<actor>`, else `actors.<actor>`, else
+// `make-meaning.default`. The TypeScript loader decides an actor's the same
+// way for the Librarian, which calls the models, and
+// specs/src/service-config/roster-cases.json holds the two to one answer.
+func archivistRoster(env *envConfig) (roster semiont.ArchivistRoster, err error) {
+	served, err := workerRoles(env)
+	if err != nil {
+		return roster, err
+	}
+	for _, s := range served {
+		s.job.slot(reflect.ValueOf(&roster.Workers).Elem()).Set(reflect.ValueOf(s.role))
 	}
 	actor := func(name string) (*semiont.ArchivistRosterRole, error) {
 		var own, fallback *bindingCfg

@@ -29,7 +29,7 @@ This is the contract a deployment satisfies, whoever does the deploying. The lau
 | dispatcher | `/etc/semiont/dispatcher.json`, a [`DispatcherConfig`](../../../specs/src/components/schemas/DispatcherConfig.json) document | none | The gateway's bus; the broker's JetStream | one |
 | archivist | `/etc/semiont/archivist.json`, an [`ArchivistConfig`](../../../specs/src/components/schemas/ArchivistConfig.json) document | The working tree at `/kb`, read-write; the state directory, where it writes views; the anchored-text store, read-only | The gateway's bus | one |
 | librarian | `~/.semiontconfig` (TOML) | The state directory, to read views | The gateway's bus; graph; vectors; embedding; inference; the Archivist | one |
-| worker | `~/.semiontconfig` | none | The gateway, for the bus and for bytes; inference | any number |
+| worker | `/etc/semiont/worker.json`, a [`WorkerConfig`](../../../specs/src/components/schemas/WorkerConfig.json) document | none | The gateway, for the bus and for bytes; inference | any number |
 | smelter | `~/.semiontconfig` | The anchored-text store, read-write | The gateway's bus; vectors; embedding; the Archivist, for bytes | one |
 | weaver | `~/.semiontconfig` | none | The gateway's bus; graph | one |
 | browser | none; `PORT` only | none | nothing | any number |

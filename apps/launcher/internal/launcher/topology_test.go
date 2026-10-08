@@ -245,11 +245,11 @@ func TestStagingPlacesTheArchivistAndTheIdentityCard(t *testing.T) {
 	// A section for another environment is not this one's.
 	other := append(append([]byte{}, cfg...), "\n[environments.production.archivist]\nhost = \"archivist.example.com\"\nport = 9999\n"...)
 	_, plan = loadedFrom(t, other)
-	if a := stagedSection(t, stagedServiceConfig("worker", other, plan, vars, "192.168.64.1", "test-kb", "example.com"), "archivist"); a["host"] != "192.168.64.1" {
+	if a := stagedSection(t, stagedServiceConfig("smelter", other, plan, vars, "192.168.64.1", "test-kb", "example.com"), "archivist"); a["host"] != "192.168.64.1" {
 		t.Errorf("another environment's archivist section suppressed this one's: %v", a)
 	}
 	// TOML the launcher cannot read is the consumer's loader's to refuse.
-	if out := stagedServiceConfig("worker", []byte("not [toml"), plan, vars, "192.168.64.1", "test-kb", "example.com"); string(out) != "not [toml" {
+	if out := stagedServiceConfig("smelter", []byte("not [toml"), plan, vars, "192.168.64.1", "test-kb", "example.com"); string(out) != "not [toml" {
 		t.Errorf("invalid TOML was rewritten:\n%s", out)
 	}
 }
@@ -263,7 +263,8 @@ func TestNoTopologyTravelsInAnEnvironment(t *testing.T) {
 	}
 	builders := map[string][]string{
 		"gateway":    gatewayArgs("/stage", "docker", "192.168.64.1", "secret", "jwt", "latest", 4000, nil, nil),
-		"worker":     sidecarArgs("worker", 24100, "/stage", "docker", "192.168.64.1", "secret", "latest", nil, nil),
+		"worker":     workerArgs("/stage", "docker", "192.168.64.1", "secret", "latest", nil, nil),
+		"smelter":    sidecarArgs("smelter", 24101, "/stage", "docker", "192.168.64.1", "secret", "latest", nil, nil),
 		"archivist":  archivistArgs("/kb", "/stage", "docker", "192.168.64.1", "secret", "latest", nil, nil),
 		"librarian":  librarianArgs("/stage", "docker", "192.168.64.1", "secret", "latest", nil, nil),
 		"dispatcher": dispatcherArgs("/stage", "docker", "192.168.64.1", "secret", "latest", nil, nil),

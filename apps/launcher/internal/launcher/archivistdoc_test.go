@@ -114,9 +114,12 @@ func TestArchivistRosterRefusesAMalformedBinding(t *testing.T) {
 }
 
 // sharedRosterTable: specs/src/service-config/roster-cases.json. The
-// TypeScript loader, which the worker and the Librarian route work by, runs
-// the same table (packages/core toml-loader.test.ts); together they gate a
-// mirror that spans languages and cannot be generated.
+// TypeScript loader, which the Librarian routes its actors' work by, runs
+// every case's actors (packages/core toml-loader.test.ts); together they gate
+// a mirror that spans languages and cannot be generated. The workers of every
+// case, and every refusal, are the launcher's alone: it writes them into the
+// Archivist's roster and into the worker's document
+// (TestWorkerDocumentServesWhatTheRosterSays).
 type sharedRosterTable struct {
 	Cases []struct {
 		Why    string          `json:"why"`
