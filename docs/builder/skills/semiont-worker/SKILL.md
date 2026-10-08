@@ -12,7 +12,7 @@ It is the shape of Semiont's own `semiont-worker` service. A daemon that reacts 
 
 ## When to build one
 
-- The work is one of the job types the knowledge base queues: `highlight-annotation`, `comment-annotation`, `assessment-annotation`, `reference-annotation`, `tag-annotation` or `generation`. A worker of your own serves one or more of them with your own logic or your own model. Jobs are created with `job:create`, which is what `mark.assist` and `yield.fromContext` send.
+- The work is a job the knowledge base queues: a `mark` job, which annotates a resource for one motivation (`highlighting`, `commenting`, `assessing`, `linking` or `tagging`), or a `yield` job, which makes a resource. A worker of your own serves one or more of them with your own logic or your own model. Jobs are created with `job:create`, which is what `mark.delegate` and `yield.delegate` send.
 - Each job must run once, however many workers are up. A claim is atomic: of any number of simultaneous claims, exactly one wins each pending job.
 
 The dispatcher holds the queue and answers the `job:*` channels. [JOBS.md](../../../protocol/JOBS.md) is the contract.
@@ -74,7 +74,7 @@ An agent token lives an hour and has no refresh token. The session renews it by 
 
 ## Claiming jobs
 
-`createJobClaimAdapter` from `@semiont/jobs` runs the claim protocol on the session's connection: give it `session.client.transport` as its `bus`. It pulls: it claims when the connection opens, again each time a job settles, on a matching `job:queued` while idle, and on every reconnect, and it parks when the dispatcher answers that nothing is pending. `job:queued` is a wake-up, not a reservation.
+`createJobClaimAdapter` from `@semiont/jobs` runs the claim protocol on the session's connection: give it `session.client.transport` as its `bus`, and the jobs it takes as `accepts`. Each entry of `accepts` is a `JobFilter`, a partial job description: `{ jobType: 'mark', params: { motivation } }` for the `mark` jobs of one motivation, or `{ jobType: 'yield' }`. A job matches a filter when every field the filter states equals the job's, and the adapter is handed only jobs that match one of its filters. It pulls: it claims when the connection opens, again each time a job settles, on a matching `job:queued` while idle, and on every reconnect, and it parks when the dispatcher answers that nothing is pending. `job:queued` is a wake-up, not a reservation.
 
 - `adapter.activeJob$` emits each claimed job, and `null` between jobs.
 - `adapter.refused$` emits a claim the dispatcher refused for a reason other than an empty queue. `bus.unauthorized` means this credential can never claim: exit, so the operator sees it.
@@ -82,14 +82,16 @@ An agent token lives an hour and has no refresh token. The session renews it by 
 
 ## Doing a job
 
-Emit `job:start`, do the work, then emit `job:complete` with the result its job type reports, or `job:fail`.
+Emit `job:start`, do the work, then emit `job:complete` with the job's result, or `job:fail`.
+
+A completion is its verb's. It states its `jobType`, and its `result` is what that verb reports: a `mark` job's counts or a decline, the resource a `yield` job made or a decline. The gateway refuses a completion whose result is the other verb's. Every `mark` job reports the same counts, whatever its motivation: `found`, what the model proposed, and `persisted`, what the log holds. The worker below claims `mark` jobs only, so its completion says `mark`.
 
 ```typescript
 import type { SemiontSession } from '@semiont/sdk';
 import type { ActiveJob, JobClaimAdapter } from '@semiont/jobs';
 
-/** Your work. A highlight job reports how many passages it found and how many it wrote. */
-type Work = (session: SemiontSession, job: ActiveJob) => Promise<{ found: number; created: number }>;
+/** Your work. A `mark` job reports how many passages the model proposed and how many were written. */
+type Work = (session: SemiontSession, job: ActiveJob) => Promise<{ found: number; persisted: number }>;
 
 async function runJob(session: SemiontSession, adapter: JobClaimAdapter, job: ActiveJob, work: Work): Promise<void> {
   const { transport } = session.client;
@@ -105,11 +107,12 @@ async function runJob(session: SemiontSession, adapter: JobClaimAdapter, job: Ac
       progress: { percentage: 10, message: { code: 'analyzing' } },
     });
 
-    const { found, created } = await work(session, job);
+    const { found, persisted } = await work(session, job);
 
     await transport.emit('job:complete', {
       ...base,
-      result: { kind: 'highlight-annotation', highlightsFound: found, highlightsCreated: created },
+      jobType: 'mark',
+      result: { found, persisted },
     });
     adapter.completeJob();
   } catch (err) {
@@ -143,7 +146,7 @@ async function commit(bus: BusRequestPrimitive, job: ActiveJob, annotations: Ann
 
 Pass `session.client.transport` as `bus`. Give each annotation a deterministic id, so that committing a batch again after a retry changes nothing. `buildTextAnnotation` in [`packages/jobs/src/processors.ts`](../../../../packages/jobs/src/processors.ts) is how Semiont's worker builds one.
 
-`@semiont/jobs` also exports the processors Semiont's worker runs: `processHighlightJob`, `processCommentJob`, `processAssessmentJob`, `processReferenceJob`, `processTagJob` and `processGenerationJob`. Each takes the text, an inference client, the job's params and callbacks for progress and for committing each chunk, and returns the job's result. Use them to serve a job type with a different model and the same logic. Their signatures are in [the workers guide](../../../../packages/jobs/docs/Workers.md#built-in-job-types).
+`@semiont/jobs` also exports the processors Semiont's worker runs: `processHighlightJob`, `processCommentJob`, `processAssessmentJob`, `processReferenceJob`, `processTagJob` and `processGenerationJob`. Each takes the text, an inference client, the job's params and callbacks for progress and for committing each chunk, and returns the job's result. Use them to serve a job with a different model and the same logic. Their signatures are in [the workers guide](../../../../packages/jobs/docs/Workers.md#built-in-jobs).
 
 ## Complete worker
 
@@ -187,10 +190,10 @@ async function mintAgentToken(): Promise<{ token: string; did: string }> {
 }
 
 /** Your work: read the resource, find the passages, commit them. */
-async function highlight(session: SemiontSession, job: ActiveJob): Promise<{ found: number; created: number }> {
+async function highlight(session: SemiontSession, job: ActiveJob): Promise<{ found: number; persisted: number }> {
   const text = await session.client.browse.resourceContent(job.resourceId);
   console.log(`job ${job.jobId}: ${text.length} characters to read`);
-  return { found: 0, created: 0 };
+  return { found: 0, persisted: 0 };
 }
 
 async function main(): Promise<void> {
@@ -209,7 +212,10 @@ async function main(): Promise<void> {
 
   // The claim protocol runs on the session's own connection.
   const { transport } = session.client;
-  const adapter = createJobClaimAdapter({ bus: transport, jobTypes: ['highlight-annotation'] });
+  const adapter = createJobClaimAdapter({
+    bus: transport,
+    accepts: [{ jobType: 'mark', params: { motivation: 'highlighting' } }],
+  });
 
   adapter.refused$.subscribe((refusal) => {
     console.error(`claim refused (${refusal.code}): ${refusal.message}`);
@@ -223,10 +229,11 @@ async function main(): Promise<void> {
     (async () => {
       await transport.emit('job:start', base);
       try {
-        const { found, created } = await highlight(session, job);
+        const { found, persisted } = await highlight(session, job);
         await transport.emit('job:complete', {
           ...base,
-          result: { kind: 'highlight-annotation', highlightsFound: found, highlightsCreated: created },
+          jobType: 'mark',
+          result: { found, persisted },
         });
         adapter.completeJob();
       } catch (err) {
@@ -262,7 +269,7 @@ Set `SEMIONT_BUS_LOG=1` in the worker's environment. Every emit, reply and strea
 
 - **No `job:claim` at all**: `adapter.start()` was never called, or the connection never opened. Watch the connection with `session.streamState$`.
 - **Every claim answered `job:claim-failed`, saying the caller is not a worker**: the service account lacks the `semiont-worker` role, so the agent token carries no worker capability. `refused$` reports it as `bus.unauthorized`. On a launcher stack, `semiont identity sync` repairs the roles of the stack's own clients.
-- **Claims answered with nothing pending**: the worker is healthy and the queue has no job of its types.
+- **Claims answered with nothing pending**: the worker is healthy and the queue has no job its claim matches.
 
 ```typescript
 session.streamState$.subscribe((state) => console.log(`connection: ${state}`));

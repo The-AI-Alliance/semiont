@@ -1,25 +1,18 @@
 {
-  "type": "object",
-  "description": "Command to create a new job via the event bus",
-  "properties": {
-    "_userId": {
-      "$ref": "./UserId.json",
-      "description": "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this."
+  "description": "Create a job. A job description is its `jobType` and enough parameters to be well formed: a `mark` job names its resource and, in its parameters, its motivation; a `yield` job names its context.",
+  "oneOf": [
+    {
+      "$ref": "./MarkJobCreateCommand.json"
     },
-    "jobType": {
-      "$ref": "./JobType.json"
-    },
-    "resourceId": {
-      "$ref": "./ResourceId.json",
-      "description": "Resource the job operates on. REQUIRED for every jobType EXCEPT 'generation', where it must be ABSENT: the dispatcher derives it from params.context.focus (the context is authoritative) and REJECTS a supplied value via job:create-failed. Both directions are enforced at the dispatcher — this schema cannot express the per-jobType conditionality."
-    },
-    "params": {
-      "type": "object",
-      "additionalProperties": true
+    {
+      "$ref": "./YieldJobCreateCommand.json"
     }
-  },
-  "required": [
-    "jobType",
-    "params"
-  ]
+  ],
+  "discriminator": {
+    "propertyName": "jobType",
+    "mapping": {
+      "mark": "./MarkJobCreateCommand.json",
+      "yield": "./YieldJobCreateCommand.json"
+    }
+  }
 }

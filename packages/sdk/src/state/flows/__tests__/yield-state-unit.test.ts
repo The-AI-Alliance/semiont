@@ -5,32 +5,31 @@ import { createYieldStateUnit } from '../yield-state-unit';
 import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
 import { resourceContextFor, annotationContextFor } from '../../../__tests__/fixtures/gathered-context';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
-import type { YieldGenerationEvent } from '../../../namespaces/types';
+import type { JobEvent } from '../../../awaitable';
 import { resourceId, jobId } from '@semiont/core';
 
 type JobProgress = components['schemas']['JobProgress'];
-type JobCompleteCommand = components['schemas']['JobCompleteCommand'];
+type JobCompleteCommand = components['schemas']['YieldJobCompleteCommand'];
 
-const progressEvent = (p: JobProgress): YieldGenerationEvent => ({ kind: 'progress', data: p });
+const progressEvent = (p: JobProgress): JobEvent => ({ kind: 'progress', data: p });
 
-const completeEvent = (result?: JobCompleteCommand['result']): YieldGenerationEvent => ({
+const completeEvent = (result?: JobCompleteCommand['result']): JobEvent => ({
   kind: 'complete',
   data: {
     resourceId: resourceId('res-1'),
     jobId: jobId('job-1'),
-    jobType: 'generation',
+    jobType: 'yield',
     ...(result ? { result } : {}),
   },
 });
 
 const GEN_RESULT: JobCompleteCommand['result'] = {
-  kind: 'generation',
   resourceId: resourceId('res-new-1'),
   resourceName: 'Summary of PB',
   truncated: false,
 };
 
-// fromContext derives every id FROM the focus — the state unit passes the
+// The job's resource is derived FROM the focus — the state unit passes the
 // context through untouched, so these fixtures are the whole identity story.
 const CTX_ANN = annotationContextFor('res-1', 'ref-ann-1');
 const CTX_RES = resourceContextFor('res-1');
@@ -39,14 +38,14 @@ function makeProgress(overrides: Partial<JobProgress> = {}): JobProgress {
   return { percentage: 50, ...overrides };
 }
 
-function withYield(fromContextFn: ReturnType<typeof vi.fn>): TestClient {
-  return makeTestClient({ yield: { fromContext: fromContextFn } });
+function withYield(delegateFn: ReturnType<typeof vi.fn>): TestClient {
+  return makeTestClient({ yield: { delegate: delegateFn } });
 }
 
-// All lifecycle flows through the `client.yield.fromContext` Observable —
+// All lifecycle flows through the delegation `client.yield.delegate` returns —
 // yield-state-unit subscribes to no bus channel directly. Tests drive
 // lifecycle by `next`/`complete`/`error`-ing the mocked Observable that
-// `fromContext` returns.
+// `delegate` returns.
 describe('createYieldStateUnit', () => {
   let tc: TestClient;
 
@@ -64,104 +63,106 @@ describe('createYieldStateUnit', () => {
     stateUnit.dispose();
   });
 
-  it('generate() passes the context POSITIONALLY to client.yield.fromContext and defaults language to the locale', () => {
-    const fromContextFn = vi.fn(() => new Observable(() => {}));
-    tc = withYield(fromContextFn);
+  it('generate() passes its params to client.yield.delegate and defaults language to the locale', () => {
+    const delegateFn = vi.fn(() => new Observable(() => {}));
+    tc = withYield(delegateFn);
     const stateUnit = createYieldStateUnit(tc.client, 'en');
 
-    stateUnit.generate(CTX_ANN, { title: 'Test', storageUri: 'store://test' });
+    stateUnit.generate({ title: 'Test', storageUri: 'store://test', context: CTX_ANN });
 
-    expect(fromContextFn).toHaveBeenCalledOnce();
-    expect(fromContextFn).toHaveBeenCalledWith(
-      CTX_ANN,
-      expect.objectContaining({ title: 'Test', language: 'en' }),
+    expect(delegateFn).toHaveBeenCalledOnce();
+    expect(delegateFn).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Test', language: 'en', context: CTX_ANN }),
+      undefined,
     );
     stateUnit.dispose();
   });
 
-  // The unit's options ARE the namespace's (`GenerationOptions`), so every
-  // knob the wire carries reaches `fromContext` untouched — no per-field
+  // The unit's arguments ARE `yield.delegate`'s, so every parameter the job
+  // takes, and the stall deadline, reach it untouched — no per-field
   // restatement to fall behind.
 
-  it('forwards outputMediaType — and every other generation knob — untouched', () => {
-    const fromContextFn = vi.fn(() => new Observable(() => {}));
-    tc = withYield(fromContextFn);
+  it('forwards outputMediaType — every other parameter, and the stall deadline — untouched', () => {
+    const delegateFn = vi.fn(() => new Observable(() => {}));
+    tc = withYield(delegateFn);
     const stateUnit = createYieldStateUnit(tc.client, 'en');
 
-    stateUnit.generate(CTX_RES, {
+    stateUnit.generate({
       title: 'Test',
       storageUri: 'store://t',
       outputMediaType: 'application/pdf',
       entityTypes: ['Concept'],
       task: 'summary',
-    });
+      context: CTX_RES,
+    }, 90_000);
 
-    expect(fromContextFn).toHaveBeenCalledWith(
-      CTX_RES,
+    expect(delegateFn).toHaveBeenCalledWith(
       expect.objectContaining({
         outputMediaType: 'application/pdf',
         entityTypes: ['Concept'],
         task: 'summary',
+        context: CTX_RES,
       }),
+      90_000,
     );
     stateUnit.dispose();
   });
 
   it('omitting a knob sends no key at all — the worker default governs, not a UI-manufactured one', () => {
-    const fromContextFn = vi.fn((_context: unknown, _options: unknown) => new Observable(() => {}));
-    tc = withYield(fromContextFn);
+    const delegateFn = vi.fn((_params: unknown) => new Observable(() => {}));
+    tc = withYield(delegateFn);
     const stateUnit = createYieldStateUnit(tc.client, 'en');
 
-    stateUnit.generate(CTX_RES, { title: 'Test', storageUri: 'store://t' });
+    stateUnit.generate({ title: 'Test', storageUri: 'store://t', context: CTX_RES });
 
-    const options = fromContextFn.mock.calls[0]![1];
-    expect(options).toHaveProperty('title', 'Test'); // we grabbed the right argument
-    expect(options).not.toHaveProperty('outputMediaType');
+    const params = delegateFn.mock.calls[0]![0];
+    expect(params).toHaveProperty('title', 'Test'); // we grabbed the right argument
+    expect(params).not.toHaveProperty('outputMediaType');
     stateUnit.dispose();
   });
 
   it('resource-focus contexts ride the same path — one generate, no second method', () => {
-    const fromContextFn = vi.fn(() => new Observable(() => {}));
-    tc = withYield(fromContextFn);
+    const delegateFn = vi.fn(() => new Observable(() => {}));
+    tc = withYield(delegateFn);
     const stateUnit = createYieldStateUnit(tc.client, 'en');
 
-    stateUnit.generate(CTX_RES, { title: 'Test', storageUri: 'store://t' });
+    stateUnit.generate({ title: 'Test', storageUri: 'store://t', context: CTX_RES });
 
-    expect(fromContextFn).toHaveBeenCalledOnce();
-    expect(fromContextFn).toHaveBeenCalledWith(
-      CTX_RES,
-      expect.objectContaining({ title: 'Test', language: 'en' }),
+    expect(delegateFn).toHaveBeenCalledOnce();
+    expect(delegateFn).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Test', language: 'en', context: CTX_RES }),
+      undefined,
     );
     stateUnit.dispose();
   });
 
   it('pipes Observable next into progress$ and flips isGenerating=true', () => {
     const p = makeProgress({ percentage: 25 });
-    const fromContextFn = vi.fn(() => new Observable<YieldGenerationEvent>((sub) => {
+    const delegateFn = vi.fn(() => new Observable<JobEvent>((sub) => {
       sub.next(progressEvent(p));
     }));
-    tc = withYield(fromContextFn);
+    tc = withYield(delegateFn);
     const stateUnit = createYieldStateUnit(tc.client, 'en');
     const gen: boolean[] = [];
     const prog: unknown[] = [];
     stateUnit.isGenerating$.subscribe(v => gen.push(v));
     stateUnit.progress$.subscribe(v => prog.push(v));
 
-    stateUnit.generate(CTX_ANN, { title: 'T', storageUri: 's' });
+    stateUnit.generate({ title: 'T', storageUri: 's', context: CTX_ANN });
     expect(prog).toEqual([null, p]);
     expect(gen[gen.length - 1]).toBe(true);
     stateUnit.dispose();
   });
 
   it('handles multiple next emissions in sequence', () => {
-    const progressSubject = new Subject<YieldGenerationEvent>();
-    const fromContextFn = vi.fn(() => progressSubject.asObservable());
-    tc = withYield(fromContextFn);
+    const progressSubject = new Subject<JobEvent>();
+    const delegateFn = vi.fn(() => progressSubject.asObservable());
+    tc = withYield(delegateFn);
     const stateUnit = createYieldStateUnit(tc.client, 'en');
     const prog: unknown[] = [];
     stateUnit.progress$.subscribe(v => prog.push(v));
 
-    stateUnit.generate(CTX_ANN, { title: 'T', storageUri: 's' });
+    stateUnit.generate({ title: 'T', storageUri: 's', context: CTX_ANN });
 
     const p1 = makeProgress({ percentage: 30 });
     const p2 = makeProgress({ percentage: 60 });
@@ -173,16 +174,16 @@ describe('createYieldStateUnit', () => {
 
   it('flips isGenerating=false on complete and KEEPS the finished display', () => {
     vi.useFakeTimers();
-    const progressSubject = new Subject<YieldGenerationEvent>();
-    const fromContextFn = vi.fn(() => progressSubject.asObservable());
-    tc = withYield(fromContextFn);
+    const progressSubject = new Subject<JobEvent>();
+    const delegateFn = vi.fn(() => progressSubject.asObservable());
+    tc = withYield(delegateFn);
     const stateUnit = createYieldStateUnit(tc.client, 'en');
     const gen: boolean[] = [];
     const prog: unknown[] = [];
     stateUnit.isGenerating$.subscribe(v => gen.push(v));
     stateUnit.progress$.subscribe(v => prog.push(v));
 
-    stateUnit.generate(CTX_ANN, { title: 'T', storageUri: 's' });
+    stateUnit.generate({ title: 'T', storageUri: 's', context: CTX_ANN });
     progressSubject.next(progressEvent(makeProgress({ percentage: 75 })));
     progressSubject.complete();
 
@@ -201,18 +202,18 @@ describe('createYieldStateUnit', () => {
   });
 
   it('clears progress and stops generating on Observable error', () => {
-    const fromContextFn = vi.fn(() => new Observable<YieldGenerationEvent>((sub) => {
+    const delegateFn = vi.fn(() => new Observable<JobEvent>((sub) => {
       sub.next(progressEvent(makeProgress({ percentage: 40 })));
       sub.error(new Error('Generation failed'));
     }));
-    tc = withYield(fromContextFn);
+    tc = withYield(delegateFn);
     const stateUnit = createYieldStateUnit(tc.client, 'en');
     const gen: boolean[] = [];
     const prog: unknown[] = [];
     stateUnit.isGenerating$.subscribe(v => gen.push(v));
     stateUnit.progress$.subscribe(v => prog.push(v));
 
-    stateUnit.generate(CTX_ANN, { title: 'T', storageUri: 's' });
+    stateUnit.generate({ title: 'T', storageUri: 's', context: CTX_ANN });
 
     expect(gen[gen.length - 1]).toBe(false);
     expect(prog[prog.length - 1]).toBeNull();
@@ -221,9 +222,9 @@ describe('createYieldStateUnit', () => {
 
   it('holds why a run failed, until it is dismissed or another begins', () => {
     const refused = new Error('the model refused');
-    const runs: Array<Subject<YieldGenerationEvent>> = [];
+    const runs: Array<Subject<JobEvent>> = [];
     tc = withYield(vi.fn(() => {
-      const run = new Subject<YieldGenerationEvent>();
+      const run = new Subject<JobEvent>();
       runs.push(run);
       return run.asObservable();
     }));
@@ -232,21 +233,21 @@ describe('createYieldStateUnit', () => {
     stateUnit.failure$.subscribe((v) => failures.push(v));
     expect(failures).toEqual([null]);
 
-    stateUnit.generate(CTX_ANN, { title: 'T', storageUri: 's' });
+    stateUnit.generate({ title: 'T', storageUri: 's', context: CTX_ANN });
     runs[0]!.error(refused);
     expect(failures.at(-1)).toBe(refused);
     stateUnit.dismissProgress();
     expect(failures.at(-1)).toBeNull();
 
-    stateUnit.generate(CTX_ANN, { title: 'T', storageUri: 's' });
+    stateUnit.generate({ title: 'T', storageUri: 's', context: CTX_ANN });
     runs[1]!.error(refused);
     expect(failures.at(-1)).toBe(refused);
     // The next run does not begin with the last one's failure.
-    stateUnit.generate(CTX_ANN, { title: 'T', storageUri: 's' });
+    stateUnit.generate({ title: 'T', storageUri: 's', context: CTX_ANN });
     expect(failures.at(-1)).toBeNull();
 
     // A setback the queue will retry is not one, and neither is a completion.
-    runs[2]!.next({ kind: 'failed', data: { resourceId: resourceId('res-1'), jobId: jobId('job-1'), jobType: 'generation', error: 'busy', willRetry: true } });
+    runs[2]!.next({ kind: 'failed', data: { resourceId: resourceId('res-1'), jobId: jobId('job-1'), jobType: 'yield', error: 'busy', willRetry: true } });
     runs[2]!.next(completeEvent(GEN_RESULT));
     runs[2]!.complete();
     expect(failures.at(-1)).toBeNull();
@@ -255,7 +256,7 @@ describe('createYieldStateUnit', () => {
 
   // The unit has no timer of its own: the one stall guard lives in
   // `runGeneration`'s producer, so it cannot be exercised through this
-  // file's mocked `fromContext`. Its behavior — stall → server-side cancel →
+  // file's mocked `delegate`. Its behavior — stall → server-side cancel →
   // typed error → display cleared — is pinned at the stream level in
   // `namespaces/__tests__/generation-stall.test.ts`, including the unit's
   // drive path over the REAL namespace.
@@ -267,13 +268,13 @@ describe('createYieldStateUnit', () => {
   // after the event has passed.
 
   it('outcome$ starts null and stays null through progress', () => {
-    const progressSubject = new Subject<YieldGenerationEvent>();
+    const progressSubject = new Subject<JobEvent>();
     tc = withYield(vi.fn(() => progressSubject.asObservable()));
     const stateUnit = createYieldStateUnit(tc.client, 'en');
     const out: unknown[] = [];
     stateUnit.outcome$.subscribe(v => out.push(v));
 
-    stateUnit.generate(CTX_RES, { title: 'T', storageUri: 's' });
+    stateUnit.generate({ title: 'T', storageUri: 's', context: CTX_RES });
     progressSubject.next(progressEvent(makeProgress({ percentage: 95 })));
 
     expect(out.every(v => v === null)).toBe(true);
@@ -281,13 +282,13 @@ describe('createYieldStateUnit', () => {
   });
 
   it('outcome$ emits the generation result from the stream complete event', () => {
-    const progressSubject = new Subject<YieldGenerationEvent>();
+    const progressSubject = new Subject<JobEvent>();
     tc = withYield(vi.fn(() => progressSubject.asObservable()));
     const stateUnit = createYieldStateUnit(tc.client, 'en');
     const out: unknown[] = [];
     stateUnit.outcome$.subscribe(v => out.push(v));
 
-    stateUnit.generate(CTX_RES, { title: 'Summary of PB', storageUri: 's' });
+    stateUnit.generate({ title: 'Summary of PB', storageUri: 's', context: CTX_RES });
     progressSubject.next(completeEvent(GEN_RESULT));
     progressSubject.complete();
 
@@ -296,13 +297,13 @@ describe('createYieldStateUnit', () => {
   });
 
   it('outcome$ carries the truncated bit — the terminal frame derives its sentence from the OUTCOME, not the racing final progress frame', () => {
-    const progressSubject = new Subject<YieldGenerationEvent>();
+    const progressSubject = new Subject<JobEvent>();
     tc = withYield(vi.fn(() => progressSubject.asObservable()));
     const stateUnit = createYieldStateUnit(tc.client, 'en');
     const out: unknown[] = [];
     stateUnit.outcome$.subscribe(v => out.push(v));
 
-    stateUnit.generate(CTX_RES, { title: 'T', storageUri: 's' });
+    stateUnit.generate({ title: 'T', storageUri: 's', context: CTX_RES });
     progressSubject.next(completeEvent({ ...GEN_RESULT, truncated: true }));
     progressSubject.complete();
 
@@ -311,13 +312,13 @@ describe('createYieldStateUnit', () => {
   });
 
   it('a complete event without a generation result leaves outcome$ null', () => {
-    const progressSubject = new Subject<YieldGenerationEvent>();
+    const progressSubject = new Subject<JobEvent>();
     tc = withYield(vi.fn(() => progressSubject.asObservable()));
     const stateUnit = createYieldStateUnit(tc.client, 'en');
     const out: unknown[] = [];
     stateUnit.outcome$.subscribe(v => out.push(v));
 
-    stateUnit.generate(CTX_RES, { title: 'T', storageUri: 's' });
+    stateUnit.generate({ title: 'T', storageUri: 's', context: CTX_RES });
     progressSubject.next(completeEvent());
     progressSubject.complete();
 
@@ -326,13 +327,13 @@ describe('createYieldStateUnit', () => {
   });
 
   it('dismissProgress clears the outcome with the frame that displayed it', () => {
-    const progressSubject = new Subject<YieldGenerationEvent>();
+    const progressSubject = new Subject<JobEvent>();
     tc = withYield(vi.fn(() => progressSubject.asObservable()));
     const stateUnit = createYieldStateUnit(tc.client, 'en');
     const out: unknown[] = [];
     stateUnit.outcome$.subscribe(v => out.push(v));
 
-    stateUnit.generate(CTX_RES, { title: 'T', storageUri: 's' });
+    stateUnit.generate({ title: 'T', storageUri: 's', context: CTX_RES });
     progressSubject.next(completeEvent(GEN_RESULT));
     progressSubject.complete();
     expect(out.at(-1)).not.toBeNull();
@@ -343,35 +344,35 @@ describe('createYieldStateUnit', () => {
   });
 
   it('a new generate() clears the previous outcome', () => {
-    const first = new Subject<YieldGenerationEvent>();
-    const second = new Subject<YieldGenerationEvent>();
-    const fromContextFn = vi.fn()
+    const first = new Subject<JobEvent>();
+    const second = new Subject<JobEvent>();
+    const delegateFn = vi.fn()
       .mockReturnValueOnce(first.asObservable())
       .mockReturnValueOnce(second.asObservable());
-    tc = withYield(fromContextFn);
+    tc = withYield(delegateFn);
     const stateUnit = createYieldStateUnit(tc.client, 'en');
     const out: unknown[] = [];
     stateUnit.outcome$.subscribe(v => out.push(v));
 
-    stateUnit.generate(CTX_RES, { title: 'T', storageUri: 's' });
+    stateUnit.generate({ title: 'T', storageUri: 's', context: CTX_RES });
     first.next(completeEvent(GEN_RESULT));
     first.complete();
     expect(out.at(-1)).not.toBeNull();
 
-    stateUnit.generate(CTX_RES, { title: 'T2', storageUri: 's2' });
+    stateUnit.generate({ title: 'T2', storageUri: 's2', context: CTX_RES });
     expect(out.at(-1)).toBeNull();
     stateUnit.dispose();
   });
 
   it('stops responding after dispose', () => {
-    const progressSubject = new Subject<YieldGenerationEvent>();
-    const fromContextFn = vi.fn(() => progressSubject.asObservable());
-    tc = withYield(fromContextFn);
+    const progressSubject = new Subject<JobEvent>();
+    const delegateFn = vi.fn(() => progressSubject.asObservable());
+    tc = withYield(delegateFn);
     const stateUnit = createYieldStateUnit(tc.client, 'en');
     const gen: boolean[] = [];
     stateUnit.isGenerating$.subscribe(v => gen.push(v));
 
-    stateUnit.generate(CTX_ANN, { title: 'T', storageUri: 's' });
+    stateUnit.generate({ title: 'T', storageUri: 's', context: CTX_ANN });
     stateUnit.dispose();
 
     // Any subsequent emission should not update post-dispose state
@@ -389,11 +390,11 @@ describe('YieldStateUnit — StateUnit axioms', () => {
     const stub = () => new Observable((s) => s.error(new Error('axiom-stub')));
     assertStateUnitAxioms({
       setup: () => {
-        const tc = makeTestClient({ yield: { fromContext: vi.fn(stub) } });
+        const tc = makeTestClient({ yield: { delegate: vi.fn(stub) } });
         return { unit: createYieldStateUnit(tc.client, 'en'), teardown: () => tc.bus.destroy() };
       },
       surfaces: (u) => [u.isGenerating$, u.progress$, u.outcome$, u.failure$],
-      invocations: (u) => [() => u.generate(CTX_ANN, opts), () => u.generate(CTX_RES, opts)],
+      invocations: (u) => [() => u.generate({ ...opts, context: CTX_ANN }), () => u.generate({ ...opts, context: CTX_RES })],
       numRuns: 15,
     });
   });

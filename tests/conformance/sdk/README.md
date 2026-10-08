@@ -146,8 +146,8 @@ closed client for something. Its operations:
 | `fresh` | `query`: a one-shot read | `{"value": ...}` |
 | `invalidate` | `query`: the caller says the key is out of date | `null` |
 | `delete` | `resource`, `annotation`: the client deletes the annotation | `null` |
-| `assist` | `observer`, `resource`, `motivation`, `options`: the client creates a job and the observer follows it to its end | `null` |
-| `generate` | `observer`, `params` (what a generation is created with, its context among them), `stallDeadlineMs`: the client creates the generation and the observer follows it, giving up on it after that long with nothing heard | `null` |
+| `markDelegate` | `observer`, `resource`, `params` (what a `mark` job is created with, its motivation among them): the client creates the job and the observer follows it to its end | `null` |
+| `yieldDelegate` | `observer`, `params` (what a `yield` job is created with, its context among them), `stallDeadlineMs`: the client creates the job and the observer follows it, giving up on it after that long with nothing heard | `null` |
 | `sync` | | `null`, after everything the client reported before it |
 
 A `query` names what is observed: `{"query": "resource", "resource": id}`,

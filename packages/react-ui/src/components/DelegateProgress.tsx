@@ -1,6 +1,7 @@
 'use client';
 
 import type { components } from '@semiont/core';
+import type { AnnotatorKey } from '../lib/annotation-registry';
 import { ItemFoundLog } from './ItemFoundLog';
 
 type JobProgress = components['schemas']['JobProgress'];
@@ -15,9 +16,9 @@ type JobProgressMessage = components['schemas']['JobProgressMessage'];
  * The wire codes collapse to ONE required function rather than a key apiece:
  * the code→copy switch belongs in one place, and threading a string per code
  * through every call site would put a copy of it at each. Build it with
- * `assistProgressCopy(t)`.
+ * `delegateProgressCopy(t)`.
  */
-export interface AssistProgressTranslations {
+export interface DelegateProgressTranslations {
   /** Control label while the run is in flight. */
   cancel: string;
   /** Control label once the run has ended. */
@@ -55,15 +56,15 @@ export interface AssistProgressTranslations {
 }
 
 /**
- * The CSS `data-type` hook: five motivations plus generation. A closed set, so
- * it is typed as one — a typo in a bare string produces unstyled chrome, silently.
+ * The CSS `data-type` hook: the annotator registry's keys plus generation. A
+ * closed set, so it is typed as one — a typo in a bare string produces unstyled
+ * chrome, silently.
  */
-export type AssistDataType =
-  | 'highlight' | 'comment' | 'assessment' | 'reference' | 'tag' | 'generation';
+export type DelegateDataType = AnnotatorKey | 'generation';
 
-export interface AssistProgressProps {
+export interface DelegateProgressProps {
   progress: JobProgress;
-  dataType: AssistDataType;
+  dataType: DelegateDataType;
   /**
    * What the finished run produced, offered as a link in the ended frame. The
    * label is the artifact's own name — user content, never translated. Rendered
@@ -81,8 +82,8 @@ export interface AssistProgressProps {
   endedMessage?: string;
   /**
    * The run has ENDED. The owner's fact, not the payload's: terminality is
-   * signalled on `job:complete` / `job:fail`, which `AssistShell` already
-   * observes via `isAssisting`. `JobProgress` carries no terminal marker for
+   * signalled on `job:complete` / `job:fail`, which `DelegateShell` already
+   * observes via `isDelegating`. `JobProgress` carries no terminal marker for
    * this component to read.
    *
    * REQUIRED. Nothing about a progress payload can tell this component the run
@@ -91,11 +92,11 @@ export interface AssistProgressProps {
    * `false` is a wrong answer, not a safe one.
    */
   ended: boolean;
-  /** Cancel the underlying job. Caller wires `client.job.cancelRequest(...)`. */
+  /** Cancel the underlying job. Caller wires `client.job.cancelRequest(jobType)`. */
   onCancel?: () => void;
   /** Dismiss the display. Caller wires `client.mark.dismissProgress()`. */
   onDismiss?: () => void;
-  translations: AssistProgressTranslations;
+  translations: DelegateProgressTranslations;
 }
 
 /**
@@ -111,7 +112,7 @@ export interface AssistProgressProps {
  * unrelated layouts from one component, and with them duplicate renders and
  * doubled chrome.
  */
-export function AssistProgress({
+export function DelegateProgress({
   progress,
   dataType,
   ended,
@@ -120,7 +121,7 @@ export function AssistProgress({
   onCancel,
   onDismiss,
   translations: tr,
-}: AssistProgressProps) {
+}: DelegateProgressProps) {
   // One wire vocabulary for every flow: the same fields whichever flow is being
   // drawn, with no `??` chains reconciling per-flow names for the same facts.
   const current = progress.current;
@@ -134,7 +135,7 @@ export function AssistProgress({
   // Deliberately NOT `total > 1`: other flows send params that never restate the
   // subject (a highlight run reports Instructions and Density), and those have
   // no `total` at all. Gating on the presence of a count would hide genuinely
-  // informative parameters; AssistSection's highlight fixture pins this.
+  // informative parameters; DelegateSection's highlight fixture pins this.
   const params = total === 1 ? undefined : progress.requestParams;
 
   // `percentage` is REQUIRED on JobProgress, so every progress event can fill a
@@ -149,14 +150,14 @@ export function AssistProgress({
   // exists.
 
   return (
-    <div className="semiont-assist-progress" data-type={dataType} data-ended={ended}>
+    <div className="semiont-delegate-progress" data-type={dataType} data-ended={ended}>
       {params && params.length > 0 && (
-        <div className="semiont-assist-progress__params" data-testid="semiont-assist-params">
+        <div className="semiont-delegate-progress__params" data-testid="semiont-delegate-params">
           {/* No block heading, but every parameter keeps its label: a bare
               "5" for Density says nothing. */}
           {params.map((param, idx) => (
-            <span key={idx} className="semiont-assist-progress__param">
-              <span className="semiont-assist-progress__param-label">
+            <span key={idx} className="semiont-delegate-progress__param">
+              <span className="semiont-delegate-progress__param-label">
                 {tr.paramLabel(param.label)}:
               </span>{' '}
               <span>{param.value}</span>
@@ -170,11 +171,11 @@ export function AssistProgress({
         <ItemFoundLog entries={progress.completedItems} formatFound={tr.found} />
       )}
 
-      <div className="semiont-assist-progress__status">
-        <span className="semiont-assist-progress__icon" aria-hidden="true">
+      <div className="semiont-delegate-progress__status">
+        <span className="semiont-delegate-progress__icon" aria-hidden="true">
           {ended ? '✅' : '✨'}
         </span>
-        <span data-testid="semiont-assist-status">
+        <span data-testid="semiont-delegate-status">
           {ended && endedMessage
             ? endedMessage
             : progress.message ? tr.message(progress.message) : tr.inProgress}
@@ -184,14 +185,14 @@ export function AssistProgress({
       {/* The honest denominator. Present only when the count-verifier
           priced one — both counts from the wire, zero manufactured. */}
       {tr.tally && progress.entitiesFound !== undefined && progress.entitiesExpected !== undefined && (
-        <div className="semiont-assist-progress__tally" data-testid="semiont-assist-tally">
+        <div className="semiont-delegate-progress__tally" data-testid="semiont-delegate-tally">
           {tr.tally(progress.entitiesFound, progress.entitiesExpected)}
         </div>
       )}
 
       {/* Stage above, subject beneath. */}
       {current && (
-        <div className="semiont-assist-progress__subject" data-testid="semiont-assist-subject">
+        <div className="semiont-delegate-progress__subject" data-testid="semiont-delegate-subject">
           {tr.subject(current, done, total)}
         </div>
       )}
@@ -201,8 +202,8 @@ export function AssistProgress({
         <button
           type="button"
           onClick={outcome.onOpen}
-          className="semiont-assist-progress__outcome"
-          data-testid="semiont-assist-outcome"
+          className="semiont-delegate-progress__outcome"
+          data-testid="semiont-delegate-outcome"
         >
           {outcome.label}
         </button>
@@ -210,7 +211,7 @@ export function AssistProgress({
 
       {/* An ended run is 100% done by definition — the last payload's number
           is a mid-run fact and must not survive the ending. */}
-      <div className="semiont-progress-bar" data-testid="semiont-assist-bar">
+      <div className="semiont-progress-bar" data-testid="semiont-delegate-bar">
         <div
           className="semiont-progress-bar__fill"
           data-type={dataType}
@@ -222,8 +223,8 @@ export function AssistProgress({
       {(ended ? onDismiss : onCancel) && (
         <button
           onClick={ended ? onDismiss : onCancel}
-          className="semiont-assist-progress__control"
-          data-testid="semiont-assist-control"
+          className="semiont-delegate-progress__control"
+          data-testid="semiont-delegate-control"
           title={ended ? tr.close : tr.cancel}
           aria-label={ended ? tr.close : tr.cancel}
           type="button"

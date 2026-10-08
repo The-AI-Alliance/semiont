@@ -1,6 +1,6 @@
 ---
 name: semiont-comment
-description: Add commenting annotations to a Semiont resource — suggest edits, ask questions of the author, or point things out to readers using AI-assisted or manual commenting
+description: Add commenting annotations to a Semiont resource — suggest edits, ask questions of the author, or point things out to readers, by delegating the pass to the knowledge base's worker or by hand
 disable-model-invocation: false
 user-invocable: true
 allowed-tools: Bash, Read, Write, Glob, Grep
@@ -12,7 +12,7 @@ This skill works in the annotation layer of [the layered data model](../README.m
 
 ## Two modes
 
-**Delegate.** `mark.assist` with motivation `commenting` has the worker read the whole resource and comment on it. Use it for a systematic editorial review.
+**Delegate.** `mark.delegate` with motivation `commenting` has the worker read the whole resource and comment on it. Use it for a systematic editorial review.
 
 **Manual.** `mark.annotation` writes one comment on a passage you name. Use it when the user knows what to say and where.
 
@@ -43,44 +43,45 @@ const semiont = session.client;
 
 ## Delegate
 
-`semiont.mark.assist(...)` creates a job for the stack's worker and follows it to its end. It returns a `StreamObservable<MarkAssistEvent>`, and each event has a `kind`:
+`semiont.mark.delegate(rId, params)` creates a job for the stack's worker and follows it to its end. The params state the job's `motivation` and what that motivation takes: a commenting job takes `instructions`, `density`, `tone`, `language` and `sourceLanguage`. It returns a `DelegationObservable`. Read, it gives the job's events, and each has a `kind`:
 
 - `progress`: the worker's report, with a `percentage`.
 - `failed`: one attempt failed and the queue is running the job again.
-- `complete`: the job's end, with its `result`.
+- `complete`: the job's end, with its completion as `data`.
 
-Awaiting the call resolves to the last event, which is the `complete` one.
+Awaiting the call resolves to the completion itself, the `job:complete` the job ended with. Its `result` is a `mark` job's, one of two. A job that did its work gives its counts: `found` is what the model proposed, `persisted` is what was written, and `errors`, present only when there were some, is how many of the proposed could not be anchored in the text. A resource whose text could not be read gives a decline, `{ declined: true, reason }`. One check tells the two apart.
 
 ```typescript
 import { resourceId } from '@semiont/sdk';
 
 const rId = resourceId('doc-123');
 
-const done = await semiont.mark.assist(rId, 'commenting', {
+const done = await semiont.mark.delegate(rId, {
+  motivation: 'commenting',
   tone: 'conversational',
   instructions: 'Suggest edits to improve clarity and ask questions where the reasoning is unclear',
   density: 5,
 });
 
-const result = done.kind === 'complete' ? done.data.result : undefined;
-if (result?.kind === 'comment-annotation') {
-  console.log(`Created ${result.commentsCreated} of ${result.commentsFound} comments`);
-} else if (result?.kind === 'declined') {
+const { result } = done;
+if (result && 'declined' in result) {
   console.log(`The resource's text could not be read: ${result.reason}`);
+} else if (result) {
+  console.log(`Created ${result.persisted} of ${result.found} comments`);
 }
 
 await session.dispose();
 ```
 
-To watch progress as well, call `.run(onEvent)`. It subscribes once and resolves to the same last event:
+To watch progress as well, call `.run(onEvent)`. It subscribes once and resolves to the same completion:
 
 ```typescript
-const done = await semiont.mark.assist(rId, 'commenting', { density: 5 }).run((event) => {
+const done = await semiont.mark.delegate(rId, { motivation: 'commenting', density: 5 }).run((event) => {
   if (event.kind === 'progress') console.log(`${event.data.percentage}%`);
 });
 ```
 
-Consume one call one way. The stream is cold, so awaiting a call and also subscribing to it creates the job twice.
+Consume one call one way. The delegation is cold, so awaiting a call and also subscribing to it creates the job twice.
 
 The call has no deadline of its own. If the job says nothing for ten seconds, the SDK asks for the job's status and keeps asking until the job ends, so a dropped connection does not lose the result. A job that fails for good rejects with `JobFailedError`, and a cancelled one with `JobCancelledError`.
 
@@ -113,6 +114,16 @@ await semiont.mark.annotation({
 ```typescript
 import { SemiontSession, InMemorySessionStorage, httpKb, resourceId } from '@semiont/sdk';
 
+const TONES = ['scholarly', 'explanatory', 'conversational', 'technical'] as const;
+
+/** The tone to write in. A commenting job takes one of its four and refuses any other. */
+function commentTone(): (typeof TONES)[number] {
+  const wanted = process.env.COMMENT_TONE ?? 'conversational';
+  const tone = TONES.find((t) => t === wanted);
+  if (!tone) throw new Error(`COMMENT_TONE must be one of: ${TONES.join(', ')}`);
+  return tone;
+}
+
 async function comment(resourceIdStr: string): Promise<void> {
   const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
   const session = await SemiontSession.signInDevice({
@@ -130,17 +141,18 @@ async function comment(resourceIdStr: string): Promise<void> {
   const semiont = session.client;
 
   try {
-    const done = await semiont.mark.assist(resourceId(resourceIdStr), 'commenting', {
-      tone: process.env.COMMENT_TONE ?? 'conversational',
+    const done = await semiont.mark.delegate(resourceId(resourceIdStr), {
+      motivation: 'commenting',
+      tone: commentTone(),
       instructions: process.env.COMMENT_INSTRUCTIONS ?? 'Suggest edits to improve clarity and ask questions where the reasoning is unclear',
       density: Number(process.env.COMMENT_DENSITY ?? 5),
     });
 
-    const result = done.kind === 'complete' ? done.data.result : undefined;
-    if (result?.kind === 'comment-annotation') {
-      console.log(`Created ${result.commentsCreated} of ${result.commentsFound} comments`);
-    } else if (result?.kind === 'declined') {
+    const { result } = done;
+    if (result && 'declined' in result) {
       console.log(`The resource's text could not be read: ${result.reason}`);
+    } else if (result) {
+      console.log(`Created ${result.persisted} of ${result.found} comments`);
     }
   } finally {
     await session.dispose();
@@ -168,7 +180,7 @@ comment(target).catch((e) => {
   - `technical`: API documentation, specifications, engineering documents
 - **Density** is the number of comments to aim for in each 2,000 words; the Browser offers 2 to 12. Start at 4 to 6 for a moderate editorial pass. 8 to 12 suits line editing of a short document.
 - **Comment, assessment or tag.** A comment helps the author revise or a reader understand. An assessment flags a problem. A tag classifies against a controlled vocabulary.
-- **What `mark.assist` can read.** A resource with text: Markdown, plain text, HTML, JSON, or a PDF. A resource with no text at all, such as an image, fails the job. A document whose text could not be read (an encrypted or damaged PDF, or one that yields no text) completes with a `declined` result and a reason code.
+- **What `mark.delegate` can read.** A resource with text: Markdown, plain text, HTML, JSON, or a PDF. A resource with no text at all, such as an image, fails the job. A document whose text could not be read (an encrypted or damaged PDF, or one that yields no text) completes with a `declined` result and a reason code.
 - **Check results** with `await semiont.browse.annotations(rId).fresh()`, filtered for `motivation === 'commenting'`.
 - **Manual mode is for targeted feedback.** When the user knows what to say about one passage, writing it by hand is faster and more exact than a job.
 - **From the command line.** `semiont mark --delegate <resourceId> --motivation commenting` runs the same job from the [launcher](../../../../apps/launcher/README.md#delegating-to-the-stack), with `--instructions`, `--density` and `--tone`. Use it for a one-off; write a script when the work repeats.

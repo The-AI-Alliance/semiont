@@ -51,6 +51,9 @@ export {
 // The service-account and worker roles, and the predicates that read them.
 export { SERVICE_ROLE, WORKER_ROLE, ROLES_CLAIM, hasServiceRole, hasWorkerRole } from './service-role';
 
+// Whether a job matches a filter: a claim's, or a party's own before it claims.
+export { jobMatchesFilter, type FilterableJob } from './job-filter';
+
 // Job storage names and the job-type census, generated from the spec.
 export {
   JOBS_STREAM,
@@ -59,10 +62,8 @@ export {
   JOBS_CONSUMER,
   JOBS_BUCKET,
   JOB_TYPES,
-  JOB_CATEGORIES,
-  jobCategoryOf,
+  MARK_MOTIVATIONS,
   jobSubject,
-  type JobCategory,
 } from './generated/job-storage';
 
 // Graph types
@@ -112,11 +113,13 @@ export type {
   Selector,
   GatheredContext,
   CommandErrorCode,
-  JobReferenceAnnotationResult,
-  JobHighlightAnnotationResult,
-  JobCommentAnnotationResult,
-  JobAssessmentAnnotationResult,
-  JobTagAnnotationResult,
+  MarkJobParams,
+  JobFilter,
+  JobResult,
+  JobDetectionResult,
+  JobGenerationResult,
+  MarkJobResult,
+  YieldJobResult,
   UnitCursor,
   GenerationJobParams,
   SelectionData,

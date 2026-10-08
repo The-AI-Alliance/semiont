@@ -9,11 +9,11 @@ import { useTranslations } from '../contexts/TranslationContext';
  *
  *   mark:create-error / mark:delete-error / bind:body-error          → error
  *   job:fail                                                         → error
- *   mark:assist-timeout                                              → info
- *     (the assist went SILENT, not wrong: no job:fail ever fires and the
+ *   mark:delegate-timeout                                            → info
+ *     (the delegated job went SILENT, not wrong: no job:fail ever fires and the
  *     worker keeps going, so this is an advisory — the only notification
  *     the user gets that the client has stopped hearing. An error toast
- *     here would say the assist had failed while its annotations are
+ *     here would say the job had failed while its annotations are
  *     still on their way.)
  *   job:complete                                                     → success,
  *     except a clean decline (e.g. a scanned/image-only PDF with no text
@@ -62,18 +62,18 @@ export function useOutcomeToasts(resourceId: string): void {
       if (event.resourceId !== resourceId) return;
       showError(t('referenceUpdateFailed', { detail: event.message || t('unknownError') }));
     },
-    'mark:assist-timeout': (event) => {
+    'mark:delegate-timeout': (event) => {
       if (event.resourceId !== resourceId) return;
       // NOT a failure: the job is still running and its annotations will
       // still land. The client has merely stopped hearing from it, so this
       // is an advisory, not an error.
-      showInfo(t('assistQuiet'));
+      showInfo(t('delegateQuiet'));
     },
     'job:complete': (event) => {
       if (event.resourceId !== resourceId) return;
-      // The union discriminates: the result names its own kind, so no cast and
-      // no reliance on the envelope's jobType to know what arrived.
-      if (event.result?.kind === 'generation') {
+      // A result is told apart by what it alone carries: the resource a yield
+      // job made, a decline's reason, or a mark job's counts. No cast.
+      if (event.result && 'resourceId' in event.result) {
         showSuccess(event.result.resourceName
           ? t('resourceCreatedNamed', { name: event.result.resourceName })
           : t('resourceCreated'));
@@ -84,7 +84,7 @@ export function useOutcomeToasts(resourceId: string): void {
         // `decline_no-text-layer` etc. — the code IS the key suffix, so a new
         // reason on the wire needs copy and the translations gate says so.
         showInfo(t(`decline_${reason}`));
-      } else if (event.result?.kind === 'reference-annotation' && event.result.underReportedPieces !== undefined) {
+      } else if (event.result && 'found' in event.result && event.result.underReportedPieces !== undefined) {
         // A partial run, reported on the ephemeral surface: the run finished
         // but the count-verifier accepted under-reported pieces. Info, not
         // success — and only when the wire SAYS so: absence is the emitter's
@@ -100,7 +100,7 @@ export function useOutcomeToasts(resourceId: string): void {
       // continues on a fresh attempt and the progress display stays live. An
       // error toast here would report a recovering run as a failed one.
       if (event.willRetry === true) return;
-      if (event.jobType === 'generation') {
+      if (event.jobType === 'yield') {
         showError(t('generationFailed', { detail: event.error }));
       } else if (event.completedUnits && event.completedUnits.length > 0) {
         // The terminal failure left durable finds standing (partial results

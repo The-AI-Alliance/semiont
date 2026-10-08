@@ -72,14 +72,15 @@ readFile(path, 'utf8').catch(() => null))` — same validation, same semantics.
 
 ## 2. Consume a call — `await`, `.subscribe`, `.fresh()`, and the `.run()` rule
 
-Every method returns a `Promise<T>` (one value) or one of three Observable subclasses:
-`StreamObservable` (progress streams) and `UploadObservable` (uploads) are **awaitable** —
-`await` gives the final value; `CacheObservable` (live queries) is **not** — `.subscribe(...)`
-gives typed `CacheState` emissions kept live, and the one-shot network read is spelled
-**`.fresh()`** (an `await` on a live query deliberately does not compile).
+Every method returns a `Promise<T>` (one value) or one of four Observable subclasses:
+`StreamObservable` (progress streams), `DelegationObservable` (delegated jobs) and
+`UploadObservable` (uploads) are **awaitable** — `await` gives the final value, and for a
+delegated job that is the job's completion; `CacheObservable` (live queries) is **not** —
+`.subscribe(...)` gives typed `CacheState` emissions kept live, and the one-shot network read
+is spelled **`.fresh()`** (an `await` on a live query deliberately does not compile).
 
-⚠️ Streams and uploads are **cold** — do **not** both `.subscribe()` *and* `await` the same
-instance. Each consumption re-runs the producer; for a job-triggering stream that fires the
+⚠️ Streams, delegations and uploads are **cold** — do **not** both `.subscribe()` *and* `await`
+the same instance. Each consumption re-runs the producer; for a delegation that creates the
 job **twice**. To get progress *and* the terminal result from one execution, use **`.run(onNext)`**.
 
 ```typescript
@@ -90,8 +91,8 @@ const sub = session.client.browse.annotations(rId)                      // live 
 
 const anns = await session.client.browse.annotations(rId).fresh();      // one-shot fresh read
 
-const done = await session.client.mark.assist(rId, 'linking', { entityTypes })
-  .run((ev) => { if (ev.kind === 'progress') showProgress(ev.data); }); // progress + result, ONE run
+const done = await session.client.mark.delegate(rId, { motivation: 'linking', entityTypes })
+  .run((ev) => { if (ev.kind === 'progress') showProgress(ev.data); }); // progress + completion, ONE run
 ```
 
 → [REACTIVE-MODEL.md](./REACTIVE-MODEL.md) for the design of the shapes and consumption per method.
@@ -135,7 +136,7 @@ uses (idempotent — re-adding is a no-op). Structured tagging additionally need
 
 ```typescript
 await session.client.frame.addEntityTypes(['Person', 'Organization', 'Concept']);
-await session.client.frame.addTagSchema(MY_TAG_SCHEMA);   // only if you'll mark.assist('tagging')
+await session.client.frame.addTagSchema(MY_TAG_SCHEMA);   // only if you'll delegate a 'tagging' pass
 ```
 
 → [Usage § Frame](./Usage.md#frame) for the tag-schema shape and conflict semantics.
@@ -160,23 +161,30 @@ const { resourceId } = await session.client.yield.resource({
 
 ## 6. Enrich it — entity linking and tagging
 
-`mark.assist` runs an AI pass that writes annotations onto a resource: `'linking'` extracts
+`mark.delegate(resourceId, params)` runs an AI pass that writes annotations onto a resource.
+The params state the `motivation` and what that motivation takes: `'linking'` extracts
 entity references (the connections later retrieval reads as graph context), `'tagging'` applies
-a tag schema, plus `'highlighting'`/`'assessing'`/`'commenting'`. It's a long-running job —
+a tag schema, plus `'highlighting'`/`'assessing'`/`'commenting'`. Each motivation takes its own
+params and no others — [the Mark flow](../protocol/flows/MARK.md#delegation) has the table. It's a long-running job —
 `.run()` for progress. Each snapshot carries a `message` CODE with typed params rather than
 a sentence — the client owns the wording, so a browser localizes it and a CLI renders English
-from the same value. `detecting-entities` names the entity type being worked on.
+from the same value. `detecting-entities` names the entity type being worked on, and the last,
+`complete-created`, states the count and the job's motivation.
 
 ```typescript
-await session.client.mark.assist(resourceId, 'linking', { entityTypes: ['Person', 'Organization'] })
+const done = await session.client.mark.delegate(resourceId, { motivation: 'linking', entityTypes: ['Person', 'Organization'] })
   .run((ev) => {
     if (ev.kind !== 'progress') return;
     const m = ev.data.message;
     if (m && 'entityType' in m) log(m.entityType);
   });
 
+// The result is a mark job's: a decline, or the counts every motivation reports
+// (what the model proposed, what was written).
+if (done.result && 'found' in done.result) log(done.result.found, done.result.persisted);
+
 // structured tagging:
-await session.client.mark.assist(resourceId, 'tagging', { schemaId: 'legal-irac', categories: ['issue', 'rule', 'application', 'conclusion'] });
+await session.client.mark.delegate(resourceId, { motivation: 'tagging', schemaId: 'legal-irac', categories: ['issue', 'rule', 'application', 'conclusion'] });
 ```
 
 The resource's **own** classification — the `entityTypes` stamped at creation (§5) — can
@@ -194,23 +202,25 @@ await session.client.mark.updateEntityTypes(rId, current, [...current, 'Person']
 (Don't confuse this with `frame.addEntityTypes` (§4), which grows the KB-wide *vocabulary*
 — a different axis from one resource's tags.)
 
-**Who does the work — the collaborator directory.** Before dispatching an assist pass, you
+**Who does the work — the collaborator directory.** Before delegating a pass, you
 can name the agent that will serve it: `browse.agents()` returns the KB's declared roster as
-`CollaboratorEntry[]` — each entry a W3C `Agent` plus, for software agents, the
-`servesJobTypes` it's configured to serve (both types importable from `@semiont/core`). It's
+`CollaboratorEntry[]` — each entry a W3C `Agent` plus, for software agents, the jobs it's
+configured to serve, as `serves`: a list of `JobFilter`, the partial job descriptions a claim
+names (both types importable from `@semiont/core`). It's
 a KB-wide live query like `entityTypes()`: cached for the client's lifetime and refreshed
 after a connection gap (a roster change means restarting the stack, which always presents as
-one). Match a job type to its serving agent and you have the assignee *before* the work runs
+one). Match a job to its serving agent and you have the assignee *before* the work runs
 — and the same DID arrives back as `generator` on every annotation that work creates, so
 your dispatch-time attribution and the stored provenance agree by construction:
 
 ```typescript
-import type { CollaboratorEntry, JobType } from '@semiont/core';
+import type { CollaboratorEntry, JobFilter } from '@semiont/core';
 
 const roster = await session.client.browse.agents().fresh();
-const linker = roster.find((e) => e.servesJobTypes?.includes('reference-annotation'));
+const linker = roster.find((e) =>
+  e.serves?.some((f) => f.jobType === 'mark' && f.params.motivation === 'linking'));
 // linker?.agent — the Software Agent (name, provider, model, DID '@id') that will
-// serve mark.assist(rId, 'linking', …); entries without servesJobTypes are
+// serve mark.delegate(rId, { motivation: 'linking', … }); entries without serves are
 // actor-role agents (retrieval/search), not job workers.
 ```
 
@@ -242,44 +252,46 @@ pass to `yield.resource(...)` at creation (recipe 5), drawn from the vocabulary 
 with `frame.addEntityTypes` (recipe 4). So a resource becomes a "Question" by being *created*
 with `entityTypes: ['Question']`; excluding `'Question'` here then keeps prior questions out of a
 new answer's recall. (This is the resource's own stamped type — distinct from the *tag
-annotations* `mark.assist('tagging')` writes, which `excludeEntityTypes` does not touch.)
+annotations* a delegated `'tagging'` pass writes, which `excludeEntityTypes` does not touch.)
 
 ## 8. Generate a derived resource
 
-`yield.fromContext(context, options)` synthesizes a **new resource** grounded in a
-`GatheredContext` — the context IS the argument: its `focus.kind` decides the shape
+`yield.delegate(params)` synthesizes a **new resource** grounded in a
+`GatheredContext`, which is `params.context` — the job names no resource of its own: the
+context's `focus.kind` decides the shape
 (resource focus mints source→derived provenance; annotation focus auto-binds the new
-resource to the reference), and the job's ids are derived from the focus. `outputMediaType` sets the result's format (default
+resource to the reference), and the job's ids are derived from the focus. `title`, `storageUri`
+and `context` are required. `outputMediaType` sets the result's format (default
 `text/markdown`); under it, `task` carries the framing (`'resource' | 'answer' | 'summary'`,
 or any custom string — used verbatim, with a worker-side warn) and `structure` the shape
 (`'prose' | 'sections' | 'chat'`, or any custom string; **unset ⇒ no structure directive** —
 the task framing and the model decide, and `maxTokens` is length only). `prompt` is a
 refining instruction that composes with `task` (task = what, prompt = how): the role
 belongs in `task`, not in `prompt`. On completion the worker mints a source→derived reference
-annotation, so provenance is automatic. The generated resource id arrives on the terminal
-`complete` event. The context excerpts embedded in the generation prompt are id-labelled
+annotation, so provenance is automatic. The generated resource id arrives on the job's
+completion, as `result.resourceId`. The context excerpts embedded in the generation prompt are id-labelled
 (`[<resourceId>]` / `[<resourceId>/<annotationId>]`), and `cite: true` turns that into
 inline citations: the model's `[[<id>]]` tokens are stripped before storage and minted as
 W3C linking annotations on the generated resource (claim span → cited source) — citations
 arrive as ordinary navigable references, not links in the text.
 
 ```typescript
-const done = await session.client.yield.fromContext(context, {
+const done = await session.client.yield.delegate({
   title: 'Summary',
   storageUri: 'file://generated/summary.md',
+  context,
   task: 'summary',                           // the framing; 'answer' + structure: 'prose' is the Q&A recipe
   prompt: 'Ground every claim in the provided context.',
   entityTypes: ['Concept'],
   outputMediaType: 'text/markdown',
 }).run((ev) => { if (ev.kind === 'progress') showProgress(ev.data); });
 
-// JobResult is a discriminated union — narrow on `kind`, never probe for
-// properties. (`truncated` on the same member says whether the model hit the
-// maxTokens ceiling; a cut-off artifact should be reported as such.)
+// `done` is the job's completion, and its result is a yield job's: the resource
+// it made, or a decline. The two share no member, so one check tells them apart.
+// (`truncated` beside `resourceId` says whether the model hit the maxTokens
+// ceiling; a cut-off artifact should be reported as such.)
 const newId =
-  done.kind === 'complete' && done.data.result?.kind === 'generation'
-    ? done.data.result.resourceId
-    : undefined;
+  done.result && 'resourceId' in done.result ? done.result.resourceId : undefined;
 ```
 
 (An annotation-anchored generation is the same call with an annotation-focus context
@@ -351,7 +363,7 @@ session.client.beckon.attention(resourceId, annotationId);             // emit a
 
 ## 12. Drive a long-running job
 
-Generation and `mark.assist` *are* jobs — their `StreamObservable` already surfaces the
+`mark.delegate` and `yield.delegate` *are* jobs — their `DelegationObservable` already surfaces the
 lifecycle. When you instead hold a `jobId` (e.g. handed one out-of-band), poll it through the
 `job` namespace.
 
@@ -361,20 +373,21 @@ const final  = await session.client.job.pollUntilComplete(jobId, { onProgress: (
 ```
 
 **Silence is handled for you.** A job's progress and its end can be lost when a stream
-drops, and nothing sends them again. So a call that follows a job (`mark.assist`,
-`yield.fromContext`) asks for the job's status once it has heard nothing for a while, and
+drops, and nothing sends them again. So a call that follows a job (`mark.delegate`,
+`yield.delegate`) asks for the job's status once it has heard nothing for a while, and
 goes on asking until the job says something. A job that failed for good rejects as
 `JobFailedError`, and one that was cancelled as `JobCancelledError`.
 
 A generation also has a stall deadline, sized from the length it was asked for. When it
 passes, the SDK asks for the job to be cancelled and the call rejects as
-`GenerationStallError`. Set `stallDeadlineMs` in the options to choose your own:
+`GenerationStallError`. Pass a deadline in milliseconds as `yield.delegate`'s second argument
+to choose your own:
 
 ```typescript
 import { GenerationStallError } from '@semiont/sdk';
 
 try {
-  await session.client.yield.fromContext(context, { ...options, stallDeadlineMs: 90_000 });
+  await session.client.yield.delegate(params, 90_000);
 } catch (err) {
   if (err instanceof GenerationStallError) log('The generation went quiet and was cancelled.');
   else throw err;
@@ -613,7 +626,7 @@ retry/exhaustion path through timeouts. The cache's own breadcrumbs
 path ran. `invalidationWindowMs` is the same kind of knob for B19's window: a test that
 sends a key two events passes a small value, and does not wait a second for the refetch the
 window owes. `jobSilenceMs` and `jobStatusPollMs` are the same for a followed job: how long it
-may be silent before `mark.assist` or `yield.fromContext` asks for its status, and how often
+may be silent before `mark.delegate` or `yield.delegate` asks for its status, and how often
 after that.
 
 ---

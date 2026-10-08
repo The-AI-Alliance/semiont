@@ -68,8 +68,8 @@ export * from './contexts/TranslationContext';
 
 // Components - Top level
 export * from './components/CodeMirrorRenderer';
-export * from './components/AssistProgress';
-export * from './components/resource/panels/AssistShell';
+export * from './components/DelegateProgress';
+export * from './components/resource/panels/DelegateShell';
 export * from './components/ErrorBoundary';
 export * from './components/ProtectedErrorBoundary';
 export * from './components/LiveRegion';
@@ -114,7 +114,7 @@ export * from './components/resource/panels/AssessmentPanel';
 export * from './components/resource/panels/CollaborationPanel';
 export * from './components/resource/panels/CommentEntry';
 export * from './components/resource/panels/CommentsPanel';
-export * from './components/resource/panels/AssistSection';
+export * from './components/resource/panels/DelegateSection';
 export * from './components/resource/panels/HighlightEntry';
 export * from './components/resource/panels/HighlightPanel';
 export * from './components/resource/panels/JsonLdPanel';
@@ -213,7 +213,7 @@ export * from './hooks/useHoverEmitter';
 // second import line.
 export { createBeckonStateUnit, type BeckonStateUnit, createHoverHandlers, type HoverHandlers, HOVER_DELAY_MS } from '@semiont/sdk';
 export { createMarkStateUnit, type MarkStateUnit, type PendingAnnotation } from '@semiont/sdk';
-export { createYieldStateUnit, type YieldStateUnit, type GenerationOptions } from '@semiont/sdk';
+export { createYieldStateUnit, type YieldStateUnit } from '@semiont/sdk';
 export { createGatherStateUnit, type GatherStateUnit } from '@semiont/sdk';
 export { createMatchStateUnit, type MatchStateUnit } from '@semiont/sdk';
 // The job-claim worker adapter (`createJobClaimAdapter`) lives in

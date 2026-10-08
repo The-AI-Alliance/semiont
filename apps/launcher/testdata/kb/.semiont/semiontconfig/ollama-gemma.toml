@@ -48,27 +48,27 @@ model = "gemma4:26b"
 type = "ollama"
 model = "gemma4:26b"
 
-[environments.local.workers.reference-annotation.inference]
+[environments.local.workers.mark.linking.inference]
 type = "ollama"
 model = "gemma4:26b"
 
-[environments.local.workers.highlight-annotation.inference]
+[environments.local.workers.mark.highlighting.inference]
 type = "ollama"
 model = "gemma4:e2b"
 
-[environments.local.workers.assessment-annotation.inference]
+[environments.local.workers.mark.assessing.inference]
 type = "ollama"
 model = "gemma4:26b"
 
-[environments.local.workers.comment-annotation.inference]
+[environments.local.workers.mark.commenting.inference]
 type = "ollama"
 model = "gemma4:e2b"
 
-[environments.local.workers.tag-annotation.inference]
+[environments.local.workers.mark.tagging.inference]
 type = "ollama"
 model = "gemma4:e2b"
 
-[environments.local.workers.generation.inference]
+[environments.local.workers.yield.inference]
 type = "ollama"
 model = "gemma4:26b"
 

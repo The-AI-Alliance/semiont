@@ -9,7 +9,7 @@ A resource is anything a knowledge base holds: a document, an image, a PDF, any 
 | SDK method | Returns | On the wire | Answered by |
 |---|---|---|---|
 | `yield.resource` | an upload: its progress, then the new resource's id | `POST /resources`, a multipart upload | the archivist, through the gateway |
-| `yield.fromContext` | a stream: the job's progress, then its outcome | `job:create`, with job type `generation` | the dispatcher admits it; a worker runs it |
+| `yield.delegate` | a delegation: the job's events, then its completion | `job:create`, with job type `yield` | the dispatcher admits it; a worker runs it |
 | `yield.cloneToken` | a short-lived token for one resource | `yield:clone-token-requested` | the archivist |
 | `yield.fromToken` | the resource a token names | `yield:clone-resource-requested` | the archivist |
 | `yield.createFromToken` | the id of the new copy | `POST /resources`, an upload carrying the token | the archivist, through the gateway |
@@ -34,14 +34,14 @@ Each of these is appended to the event log and delivered to clients:
 
 **The emitter never names itself.** A resource's `creator` and `wasAttributedTo` are derived by the knowledge base from the verified identity of whoever made the request. For a generated resource the creator is whoever asked for the job, and the model that wrote it is its `generator`.
 
-**Generation takes a gathered context and nothing else to say what it is about.** `yield.fromContext` is given the context that [Gather](GATHER.md) assembled. The job's resource, and the reference to resolve, are derived from that context's focus. A request that supplies its own ids is refused.
+**Generation takes a gathered context and nothing else to say what it is about.** `yield.delegate` is given the context that [Gather](GATHER.md) assembled, as the `context` of its params. The job's resource, and the reference to resolve, are derived from that context's focus. A request that supplies its own ids is refused.
 
 - From an **annotation's** context, the new resource is what the reference refers to. When it is created, the knowledge base links the reference to it, which arrives as a `mark:body-updated` on the source resource.
 - From a **resource's** context, there is no reference to resolve. The worker creates a linking annotation on the source resource that points at the new one, so the derivation can be followed.
 
 **A generated resource records what it was derived from.** That provenance is part of `yield:created` and is permanent.
 
-**`job:complete` is the outcome, not `yield:create-ok`.** A generation is finished when the job says so. `job:complete` is announced to everyone, after every citation the generation produced has been attached to the new resource, and its result carries the new resource's id. A link built from that id opens a resource whose citations have landed. See [Jobs](../JOBS.md).
+**`job:complete` is the outcome, not `yield:create-ok`.** A generation is finished when the job says so. `job:complete` is announced to everyone, after every citation the generation produced has been attached to the new resource. Its result is a `yield` job's ([`YieldJobResult`](../../../specs/src/components/schemas/YieldJobResult.json)): the new resource's id, or a decline. A link built from that id opens a resource whose citations have landed. See [Jobs](../JOBS.md).
 
 **A generation that asks for citations gets annotations, not inline links.** With `cite` set, each claim the model ties to a source becomes a linking annotation on the generated resource, pointing at the passage it came from. A citation of something that was not in the context is dropped.
 
@@ -62,13 +62,14 @@ const { resourceId } = await semiont.yield.resource({
   storageUri: 'file://docs/doc.md',
 });
 
-// Generate from a gathered context. Awaiting gives the outcome.
-const done = await semiont.yield.fromContext(gatheredContext, {
+// Generate from a gathered context. Awaiting gives the job's completion.
+const done = await semiont.yield.delegate({
   title: 'Generated Summary',
   storageUri: 'file://generated/summary.md',
+  context: gatheredContext,
 });
-if (done.kind === 'complete' && done.data.result?.kind === 'generation') {
-  console.log(done.data.result.resourceId);
+if (done.result && 'resourceId' in done.result) {
+  console.log(done.result.resourceId);
 }
 ```
 

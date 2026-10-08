@@ -1,14 +1,7 @@
 {
   "type": "object",
-  "description": "Result of a completed generation job. The worker creates the resource first (the yield:create round-trip returns the id), then emits job:complete carrying it — so resourceId is always present on the wire.",
+  "description": "What a `yield` job reports when it has made its resource. The worker creates the resource first (the create round trip returns its id), then emits job:complete carrying it, so resourceId is always present on the wire.",
   "properties": {
-    "kind": {
-      "type": "string",
-      "enum": [
-        "generation"
-      ],
-      "description": "Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is."
-    },
     "resourceId": {
       "$ref": "./ResourceId.json",
       "description": "ID of the generated resource, obtained by the worker from the create round-trip before job:complete is emitted"
@@ -23,9 +16,9 @@
     }
   },
   "required": [
-    "kind",
     "resourceId",
     "resourceName",
     "truncated"
-  ]
+  ],
+  "additionalProperties": false
 }

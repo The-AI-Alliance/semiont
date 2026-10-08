@@ -2601,7 +2601,9 @@ async fn the_daemon_signs_in_as_an_agent_and_is_given_each_completion() {
                 },
                 http,
                 move |job| {
-                    let _ = seen.send(job.job_id);
+                    if let JobCompleteCommand::MarkJobCompleteCommand(job) = job {
+                        let _ = seen.send(job.job_id);
+                    }
                 },
             )
             .await
@@ -2614,7 +2616,7 @@ async fn the_daemon_signs_in_as_an_agent_and_is_given_each_completion() {
     .await;
 
     let frame = json!({ "channel": "job:complete", "payload": {
-        "resourceId": "res-1", "jobId": "job-1", "jobType": "highlight-annotation",
+        "resourceId": "res-1", "jobId": "job-1", "jobType": "mark",
     }});
     let event = Bytes::from(format!("event: bus-event\nid: e-1\ndata: {frame}\n\n"));
     for stream in world.staged.streams.lock().unwrap().iter() {

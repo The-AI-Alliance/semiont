@@ -96,13 +96,13 @@ from semiont.types import (
     JobStatusRequest,
     JobStatusResult,
     MarkArchiveCommand,
-    MarkAssistRequestEvent,
-    MarkAssistTimeoutEvent,
     MarkCommitCommand,
     MarkCommitOk,
     MarkCreateCommand,
     MarkCreateOk,
     MarkCreateRequest,
+    MarkDelegateRequestEvent,
+    MarkDelegateTimeoutEvent,
     MarkDeleteCommand,
     MarkDeleteOk,
     MarkRequestedEvent,
@@ -254,8 +254,6 @@ __all__ = [
     "MARK_ARCHIVED",
     "MARK_ARCHIVE_FAILED",
     "MARK_ARCHIVE_OK",
-    "MARK_ASSIST_REQUEST",
-    "MARK_ASSIST_TIMEOUT",
     "MARK_BODY_UPDATED",
     "MARK_BODY_UPDATE_FAILED",
     "MARK_CANCEL_PENDING",
@@ -267,6 +265,8 @@ __all__ = [
     "MARK_CREATE_FAILED",
     "MARK_CREATE_OK",
     "MARK_CREATE_REQUEST",
+    "MARK_DELEGATE_REQUEST",
+    "MARK_DELEGATE_TIMEOUT",
     "MARK_DELETE",
     "MARK_DELETE_ERROR",
     "MARK_DELETE_FAILED",
@@ -417,9 +417,9 @@ type ChannelName = Literal[
     "mark:requested",
     "mark:cancel-pending",
     "mark:submit",
-    "mark:assist-request",
+    "mark:delegate-request",
     "mark:progress-dismiss",
-    "mark:assist-timeout",
+    "mark:delegate-timeout",
     "mark:create-error",
     "mark:delete-error",
     "bind:body-error",
@@ -623,9 +623,9 @@ CHANNEL_NAMES: Final[tuple[ChannelName, ...]] = (
     "mark:requested",
     "mark:cancel-pending",
     "mark:submit",
-    "mark:assist-request",
+    "mark:delegate-request",
     "mark:progress-dismiss",
-    "mark:assist-timeout",
+    "mark:delegate-timeout",
     "mark:create-error",
     "mark:delete-error",
     "bind:body-error",
@@ -828,9 +828,9 @@ MARK_SELECT_REFERENCE: Final = Channel[SelectionData]("mark:select-reference", S
 MARK_REQUESTED: Final = Channel[MarkRequestedEvent]("mark:requested", MarkRequestedEvent)
 MARK_CANCEL_PENDING: Final = Channel[Empty]("mark:cancel-pending", Empty)
 MARK_SUBMIT: Final = Channel[MarkSubmitEvent]("mark:submit", MarkSubmitEvent)
-MARK_ASSIST_REQUEST: Final = Channel[MarkAssistRequestEvent]("mark:assist-request", MarkAssistRequestEvent)
+MARK_DELEGATE_REQUEST: Final = Channel[MarkDelegateRequestEvent]("mark:delegate-request", MarkDelegateRequestEvent)
 MARK_PROGRESS_DISMISS: Final = Channel[Empty]("mark:progress-dismiss", Empty)
-MARK_ASSIST_TIMEOUT: Final = Channel[MarkAssistTimeoutEvent]("mark:assist-timeout", MarkAssistTimeoutEvent)
+MARK_DELEGATE_TIMEOUT: Final = Channel[MarkDelegateTimeoutEvent]("mark:delegate-timeout", MarkDelegateTimeoutEvent)
 MARK_CREATE_ERROR: Final = Channel[ResourceErrorEvent]("mark:create-error", ResourceErrorEvent)
 MARK_DELETE_ERROR: Final = Channel[ResourceErrorEvent]("mark:delete-error", ResourceErrorEvent)
 BIND_BODY_ERROR: Final = Channel[ResourceErrorEvent]("bind:body-error", ResourceErrorEvent)
@@ -1035,9 +1035,9 @@ CHANNELS: Final[Mapping[str, AnyChannel]] = MappingProxyType(
         "mark:requested": MARK_REQUESTED,
         "mark:cancel-pending": MARK_CANCEL_PENDING,
         "mark:submit": MARK_SUBMIT,
-        "mark:assist-request": MARK_ASSIST_REQUEST,
+        "mark:delegate-request": MARK_DELEGATE_REQUEST,
         "mark:progress-dismiss": MARK_PROGRESS_DISMISS,
-        "mark:assist-timeout": MARK_ASSIST_TIMEOUT,
+        "mark:delegate-timeout": MARK_DELEGATE_TIMEOUT,
         "mark:create-error": MARK_CREATE_ERROR,
         "mark:delete-error": MARK_DELETE_ERROR,
         "bind:body-error": BIND_BODY_ERROR,

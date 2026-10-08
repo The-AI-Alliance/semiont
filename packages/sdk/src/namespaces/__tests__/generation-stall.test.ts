@@ -1,7 +1,7 @@
 /**
  * The ONE stall guard for generation.
  *
- * The guard lives inside `runGeneration`'s producer, so every consumption of
+ * The guard lives inside the delegation's producer (`delegated`), so every consumption of
  * the stream — `await`, `.run()`, and the yield state unit's `drive` — shares
  * it. Pins here:
  *  - silence past the deadline → `job:cancel-requested` (for the stalled
@@ -90,7 +90,7 @@ describe('generation stall guard', () => {
     vi.useFakeTimers();
     const { y, emitSpy } = harness();
 
-    const p = y.fromContext(CTX_RES, { title: 'T', storageUri: 's', maxTokens: 4000 }).run(() => {});
+    const p = y.delegate({ title: 'T', storageUri: 's', maxTokens: 4000, context: CTX_RES }).run(() => {});
     const rejection = expect(p).rejects.toBeInstanceOf(GenerationStallError);
     // The code every SDK reports for a stalled job.
     const coded = expect(p).rejects.toMatchObject({ code: 'job.stalled' });
@@ -110,12 +110,12 @@ describe('generation stall guard', () => {
     vi.useFakeTimers();
     const { y, bus, emitSpy } = harness();
 
-    const p = y.fromContext(CTX_RES, { title: 'T', storageUri: 's', maxTokens: 4000 }).run(() => {});
+    const p = y.delegate({ title: 'T', storageUri: 's', maxTokens: 4000, context: CTX_RES }).run(() => {});
     const rejection = expect(p).rejects.toBeInstanceOf(GenerationStallError);
 
     await vi.advanceTimersByTimeAsync(299_000);
     bus.emit('job:report-progress', {
-      resourceId: resourceId('res-1'), jobId: jobId('j1'), jobType: 'generation', percentage: 50,
+      resourceId: resourceId('res-1'), jobId: jobId('j1'), jobType: 'yield', percentage: 50,
       progress: { percentage: 50 },
     });
 
@@ -136,7 +136,7 @@ describe('generation stall guard', () => {
     const { transport, emitSpy } = createMockTransport({});
     const y = new YieldNamespace(transport, bus, makeMockContent());
 
-    const p = y.fromContext(CTX_RES, { title: 'T', storageUri: 's', stallDeadlineMs: 5_000 }).run(() => {});
+    const p = y.delegate({ title: 'T', storageUri: 's', context: CTX_RES }, 5_000).run(() => {});
     const rejection = expect(p).rejects.toMatchObject({ code: 'job.stalled' });
     await vi.advanceTimersByTimeAsync(5_000);
     await rejection;
@@ -153,7 +153,7 @@ describe('generation stall guard', () => {
     });
     const y = new YieldNamespace(transport, bus, makeMockContent());
 
-    const p = y.fromContext(CTX_RES, { title: 'T', storageUri: 's', maxTokens: 4000 }).run(() => {});
+    const p = y.delegate({ title: 'T', storageUri: 's', maxTokens: 4000, context: CTX_RES }).run(() => {});
     const rejection = expect(p).rejects.toMatchObject({ name: 'JobCancelledError', code: 'job.cancelled', message: 'The job was cancelled', jobId: 'j1' });
     await vi.advanceTimersByTimeAsync(16_000);
     await rejection;
@@ -167,18 +167,18 @@ describe('generation stall guard', () => {
     const { y, bus } = harness();
     const seen: string[] = [];
 
-    const done = y.fromContext(CTX_RES, { title: 'T', storageUri: 's', maxTokens: 4000 }).run((e) => {
+    const done = y.delegate({ title: 'T', storageUri: 's', maxTokens: 4000, context: CTX_RES }).run((e) => {
       seen.push(e.kind === 'failed' ? `failed ${e.data.error}` : e.kind);
     });
     await vi.advanceTimersByTimeAsync(10);
 
-    bus.emit('job:fail', { resourceId: resourceId('res-1'), jobId: jobId('j1'), jobType: 'generation', error: 'a blip', willRetry: true });
+    bus.emit('job:fail', { resourceId: resourceId('res-1'), jobId: jobId('j1'), jobType: 'yield', error: 'a blip', willRetry: true });
     bus.emit('job:report-progress', {
-      resourceId: resourceId('res-1'), jobId: jobId('j1'), jobType: 'generation', percentage: 50, progress: { percentage: 50 },
+      resourceId: resourceId('res-1'), jobId: jobId('j1'), jobType: 'yield', percentage: 50, progress: { percentage: 50 },
     });
-    bus.emit('job:complete', { resourceId: resourceId('res-1'), jobId: jobId('j1'), jobType: 'generation' });
+    bus.emit('job:complete', { resourceId: resourceId('res-1'), jobId: jobId('j1'), jobType: 'yield' });
 
-    await expect(done).resolves.toMatchObject({ kind: 'complete' });
+    await expect(done).resolves.toEqual({ resourceId: 'res-1', jobId: 'j1', jobType: 'yield' });
     expect(seen).toEqual(['failed a blip', 'progress', 'complete']);
   });
 
@@ -186,12 +186,12 @@ describe('generation stall guard', () => {
     vi.useFakeTimers();
     const { y, bus, emitSpy } = harness();
 
-    const p = y.fromContext(CTX_RES, { title: 'T', storageUri: 's', maxTokens: 4000 }).run(() => {});
+    const p = y.delegate({ title: 'T', storageUri: 's', maxTokens: 4000, context: CTX_RES }).run(() => {});
     const rejection = expect(p).rejects.toMatchObject({ code: 'job.stalled' });
 
     await vi.advanceTimersByTimeAsync(299_000);
     const asked = statusCount(emitSpy);
-    bus.emit('job:fail', { resourceId: resourceId('res-1'), jobId: jobId('j1'), jobType: 'generation', error: 'a blip', willRetry: true });
+    bus.emit('job:fail', { resourceId: resourceId('res-1'), jobId: jobId('j1'), jobType: 'yield', error: 'a blip', willRetry: true });
 
     // 299s after the setback: past where the deadline would have fallen had
     // the setback not been heard. The attempt that is coming has its whole
@@ -208,10 +208,10 @@ describe('generation stall guard', () => {
   it('a failure that is final, or that does not say, ends the job as failed', async () => {
     for (const said of [{ willRetry: false }, {}]) {
       const { y, bus } = harness();
-      const p = y.fromContext(CTX_RES, { title: 'T', storageUri: 's', maxTokens: 4000 }).run(() => {});
+      const p = y.delegate({ title: 'T', storageUri: 's', maxTokens: 4000, context: CTX_RES }).run(() => {});
       const rejection = expect(p).rejects.toMatchObject({ code: 'job.failed', message: 'the budget is spent' });
       await new Promise((resolve) => setTimeout(resolve, 0));
-      bus.emit('job:fail', { resourceId: resourceId('res-1'), jobId: jobId('j1'), jobType: 'generation', error: 'the budget is spent', ...said });
+      bus.emit('job:fail', { resourceId: resourceId('res-1'), jobId: jobId('j1'), jobType: 'yield', error: 'the budget is spent', ...said });
       await rejection;
     }
   });
@@ -220,17 +220,17 @@ describe('generation stall guard', () => {
     vi.useFakeTimers();
     const { y, bus, emitSpy } = harness();
 
-    const p = y.fromContext(CTX_RES, { title: 'T', storageUri: 's', maxTokens: 4000 }).run(() => {});
+    const p = y.delegate({ title: 'T', storageUri: 's', maxTokens: 4000, context: CTX_RES }).run(() => {});
     await vi.advanceTimersByTimeAsync(0); // let job:create settle → jobId assigned
 
     bus.emit('job:complete', {
       jobId: jobId('j1'),
-      jobType: 'generation',
+      jobType: 'yield',
       resourceId: resourceId('res-1'),
-      result: { kind: 'generation', resourceId: resourceId('res-1'), resourceName: 'X', truncated: false },
+      result: { resourceId: resourceId('res-1'), resourceName: 'X', truncated: false },
     });
 
-    await expect(p).resolves.toMatchObject({ kind: 'complete' });
+    await expect(p).resolves.toMatchObject({ jobId: 'j1', result: { resourceName: 'X' } });
     await vi.advanceTimersByTimeAsync(10_000_000);
     expect(cancelCount(emitSpy)).toBe(0);
   });
@@ -239,7 +239,7 @@ describe('generation stall guard', () => {
     vi.useFakeTimers();
     const { y, emitSpy } = harness();
 
-    const p = y.fromContext(CTX_RES, { title: 'T', storageUri: 's', maxTokens: 100 }).run(() => {});
+    const p = y.delegate({ title: 'T', storageUri: 's', maxTokens: 100, context: CTX_RES }).run(() => {});
     const rejection = expect(p).rejects.toBeInstanceOf(GenerationStallError);
 
     await vi.advanceTimersByTimeAsync(GENERATION_STALL_FLOOR_MS - 1);
@@ -253,9 +253,9 @@ describe('generation stall guard', () => {
     vi.useFakeTimers();
     const { y, emitSpy } = harness();
 
-    const p = y.fromContext(
-      CTX_RES,
-      { title: 'T', storageUri: 's', maxTokens: 100_000, stallDeadlineMs: 90_000 },
+    const p = y.delegate(
+      { title: 'T', storageUri: 's', maxTokens: 100_000, context: CTX_RES },
+      90_000,
     ).run(() => {});
     const rejection = expect(p).rejects.toBeInstanceOf(GenerationStallError);
 
@@ -265,8 +265,9 @@ describe('generation stall guard', () => {
     await rejection;
     expect(cancelCount(emitSpy)).toBe(1);
 
-    // Wire hygiene: the client-only knob is stripped before `job:create` —
-    // `params` is the WIRE's GenerationJobParams, nothing more.
+    // Wire hygiene: the deadline is the follower's own, given beside the
+    // job's params and never sent — `params` is the WIRE's
+    // GenerationJobParams, nothing more.
     const createCall = emitSpy.mock.calls.find(([ch]) => ch === 'job:create')!;
     expect((createCall[1] as { params: Record<string, unknown> }).params).not.toHaveProperty('stallDeadlineMs');
   });
@@ -281,7 +282,7 @@ describe('generation stall guard', () => {
     unit.isGenerating$.subscribe((v) => gen.push(v));
     unit.progress$.subscribe((v) => prog.push(v));
 
-    unit.generate(CTX_RES, { title: 'T', storageUri: 's', maxTokens: 4000 });
+    unit.generate({ title: 'T', storageUri: 's', maxTokens: 4000, context: CTX_RES });
     await vi.advanceTimersByTimeAsync(299_000);
     expect(cancelCount(emitSpy)).toBe(0);
 

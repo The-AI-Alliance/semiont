@@ -4,8 +4,9 @@
 //! through the states docs/protocol/JOBS.md gives it. What a queue must
 //! provide, whatever holds it:
 //!
-//! - **An atomic claim by type.** Of any number of simultaneous claims, one
-//!   wins each pending job; the rest are declined, never errors.
+//! - **An atomic claim by filter.** A claim takes a pending job that matches
+//!   any of its filters. Of any number of simultaneous claims, one wins each
+//!   pending job; the rest are declined, never errors.
 //! - **Safe transitions.** Each transition reads the record, checks the state
 //!   it needs and writes only if nothing wrote in between; one of two racing
 //!   transitions wins and the other finds the job no longer in that state.
@@ -22,8 +23,8 @@
 //! nothing else.
 
 use semiont::types::{
-    FailureClass, Job, JobCancelRequestJobType, JobId, JobPending, JobRunning, JobStoredProgress,
-    JobStoredResult, UnitCursor,
+    FailureClass, Job, JobFilter, JobId, JobPending, JobRunning, JobStoredProgress,
+    JobStoredResult, JobType, UnitCursor,
 };
 use std::collections::BTreeMap;
 use std::fmt;
@@ -44,9 +45,9 @@ impl std::error::Error for QueueError {}
 /// What a claim got.
 #[derive(Debug)]
 pub enum Claim {
-    /// A pending job of a requested type, now running for the claimant.
+    /// A pending job the claim's filters match, now running for the claimant.
     Claimed(Box<JobRunning>),
-    /// No pending job of the requested types.
+    /// No pending job matches.
     Declined,
 }
 
@@ -84,11 +85,11 @@ pub trait JobQueue: Send + Sync + 'static {
     /// The job's record, if the queue holds one.
     fn get_job(&self, id: &JobId) -> impl Future<Output = Result<Option<Job>, QueueError>> + Send;
 
-    /// Move one pending job of the given types (any type, when none are
-    /// given) to running, atomically.
+    /// Move one pending job that matches any of `accepts` to running,
+    /// atomically.
     fn claim_next_job(
         &self,
-        types: &[String],
+        accepts: &[JobFilter],
     ) -> impl Future<Output = Result<Claim, QueueError>> + Send;
 
     /// A running job completes with its result; `false` when it was not running.
@@ -123,10 +124,10 @@ pub trait JobQueue: Send + Sync + 'static {
         progress: JobStoredProgress,
     ) -> impl Future<Output = Result<(), QueueError>> + Send;
 
-    /// Cancel every pending job of the category; how many were cancelled.
+    /// Cancel every pending job of the type; how many were cancelled.
     fn cancel_pending_jobs(
         &self,
-        category: JobCancelRequestJobType,
+        job_type: JobType,
     ) -> impl Future<Output = Result<u64, QueueError>> + Send;
 
     /// Cancel a pending or running job; `false` when it was neither.

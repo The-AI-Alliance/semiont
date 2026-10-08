@@ -313,7 +313,7 @@
       "recorded": false,
       "direction": "in-process"
     },
-    "mark:assist-request": {
+    "mark:delegate-request": {
       "recorded": false,
       "direction": "in-process"
     },
@@ -321,7 +321,7 @@
       "recorded": false,
       "direction": "in-process"
     },
-    "mark:assist-timeout": {
+    "mark:delegate-timeout": {
       "recorded": false,
       "direction": "in-process"
     },

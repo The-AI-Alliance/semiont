@@ -198,14 +198,20 @@ const {
 
 ### The Mark State Unit
 
-AI-assisted detection is driven by the session-scoped **mark state unit**
+Delegated detection is driven by the session-scoped **mark state unit**
 (`createMarkStateUnit`, in `@semiont/sdk`). The resource-viewer page state unit
 owns one per resource and exposes it as `stateUnit.mark`. It tracks three
 observables that the UI reads via `useObservable`:
 
-- `mark.assistingMotivation$` — the in-progress motivation (or `null` when idle)
+- `mark.delegatingMotivation$` — the motivation of the delegated job in progress (or `null` when idle)
 - `mark.progress$` — the latest `JobProgress`
 - `mark.pendingAnnotation$` — a pending manual annotation awaiting a body
+
+A delegated job that says nothing for `delegateSilenceMs` (three minutes, in
+[`specs/src/client/timing.json`](../../../specs/src/client/timing.json)) is
+reported on the local channel `mark:delegate-timeout`. The signal ends nothing:
+the job goes on, the state unit keeps following it, and
+`delegatingMotivation$` stays set until the job ends.
 
 To trigger detection, a panel calls the SDK directly — there is no handler to
 wire up and no detection context object:
@@ -213,24 +219,26 @@ wire up and no detection context object:
 ```tsx
 import { useObservable, useSemiont } from '@semiont/react-ui';
 
-function ReferencesAssist({ stateUnit }: { stateUnit: ResourceViewerPageStateUnit }) {
+function DelegateReferences({ stateUnit }: { stateUnit: ResourceViewerPageStateUnit }) {
   const session = useObservable(useSemiont().activeSession$);
 
-  // Read live assist state from the mark state unit
-  const assistingMotivation = useObservable(stateUnit.mark.assistingMotivation$) ?? null;
+  // Read the delegated job's live state from the mark state unit
+  const delegatingMotivation = useObservable(stateUnit.mark.delegatingMotivation$) ?? null;
   const progress = useObservable(stateUnit.mark.progress$) ?? null;
 
   const handleDetect = () => {
-    // requestAssist emits the local 'mark:assist-request' event; the mark
-    // state unit picks it up and runs client.mark.assist(...) for the job.
-    session?.client.mark.requestAssist('linking', {
+    // requestDelegate emits the local 'mark:delegate-request' event; the mark
+    // state unit picks it up and runs client.mark.delegate(...) for the job.
+    // The request carries the job's params, its motivation among them.
+    session?.client.mark.requestDelegate({
+      motivation: 'linking',
       entityTypes: ['Person', 'Organization'],
     });
   };
 
   return (
-    <button onClick={handleDetect} disabled={!!assistingMotivation}>
-      {assistingMotivation ? `Detecting… ${progress?.message ?? ''}` : 'Detect references'}
+    <button onClick={handleDetect} disabled={!!delegatingMotivation}>
+      {delegatingMotivation ? `Detecting… ${progress?.message ?? ''}` : 'Detect references'}
     </button>
   );
 }
@@ -238,7 +246,7 @@ function ReferencesAssist({ stateUnit }: { stateUnit: ResourceViewerPageStateUni
 
 ### Job Lifecycle (the unified job channels)
 
-`mark.assist(resourceId, motivation, options)` dispatches a `job:create` request
+`mark.delegate(resourceId, params)` dispatches a `job:create` request
 and streams progress on the **unified job channels**:
 
 - `job:report-progress` - progress updates while the job runs
@@ -246,7 +254,7 @@ and streams progress on the **unified job channels**:
 - `job:fail` - the job failed
 
 The mark state unit subscribes to these (filtered by its own `jobId`) and drives
-`assistingMotivation$` / `progress$` from them; the panel just reads those
+`delegatingMotivation$` / `progress$` from them; the panel just reads those
 observables. The SDK's read-through cache refreshes itself off the resource's
 `browse.*` live queries when `job:complete` lands, so **no manual cache
 invalidation is needed** — newly created annotations appear automatically.
@@ -257,7 +265,7 @@ For UI side effects (toasts, scroll), subscribe to the same job channels with
 ```typescript
 import { useEventSubscriptions } from '@semiont/react-ui';
 
-function AssistMonitor({ resourceId }: { resourceId: ResourceId }) {
+function DelegatedJobMonitor({ resourceId }: { resourceId: ResourceId }) {
   useEventSubscriptions({
     'job:complete': (e) => {
       if (e.resourceId === resourceId) {
@@ -508,8 +516,8 @@ See [EVENTS.md](EVENTS.md) for complete real-time collaboration architecture.
 
 - `ANNOTATORS` - The registry: one `Annotator` per annotation type
 - `annotatorKeyForMotivation(motivation)` - The registry key for a W3C motivation
-- `client.mark.requestAssist(motivation, options)` - Trigger AI assist (mark state unit runs the job)
-- `useObservable(stateUnit.mark.assistingMotivation$)` - Read live assist state
+- `client.mark.requestDelegate(params)` - Delegate an annotation pass, with a `mark` job's params (mark state unit runs the job)
+- `useObservable(stateUnit.mark.delegatingMotivation$)` - Read the delegated job's live state
 
 ### Types
 

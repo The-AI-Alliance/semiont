@@ -9,8 +9,7 @@ import { MatchNamespace } from '../match';
 import { YieldNamespace } from '../yield';
 import { JobNamespace } from '../job';
 import { JobFailedError } from '../job-status-poll';
-import type { MarkAssistEvent, YieldGenerationEvent } from '../types';
-import type { UploadProgress } from '../../awaitable';
+import type { JobEvent, UploadProgress } from '../../awaitable';
 import type { EventMap, IGatewayOperations, ITransport, IContentTransport, GatheredContext } from '@semiont/core';
 import { inMemoryTransport, gatewayOperationSpies } from '../../__tests__/helpers/in-memory-transport';
 
@@ -20,7 +19,7 @@ const JID = jobId('j1');
 const UID = userId('did:web:test:users:u');
 // What the dispatcher holds for job `j1` whatever its type and status.
 const J1_STORED = { jobId: JID, userId: UID, created: '2026-01-01T00:00:00.000Z' };
-// fromContext derives ids FROM the focus — these fixtures carry RID/AID so
+// The job's resource is derived FROM the focus — these fixtures carry RID/AID so
 // the derivation pins below compare against known values.
 const CTX_RES = resourceContextFor('res-1');
 const CTX_ANN = annotationContextFor('res-1', 'ann-1');
@@ -186,10 +185,10 @@ describe('MarkNamespace', () => {
     await assertion;
   });
 
-  it('assist() returns Observable that emits on job:report-progress', async () => {
-    const progress: MarkAssistEvent[] = [];
+  it('delegate() returns Observable that emits on job:report-progress', async () => {
+    const progress: JobEvent[] = [];
     const completed = new Promise<void>((resolve) => {
-      mark.assist(RID, 'linking', { entityTypes: ['Person'] }).subscribe({
+      mark.delegate(RID, { motivation: 'linking', entityTypes: ['Person'] }).subscribe({
         next: (p) => progress.push(p),
         complete: () => resolve(),
       });
@@ -197,37 +196,37 @@ describe('MarkNamespace', () => {
 
     await new Promise((r) => setTimeout(r, 10));
     // Unified lifecycle: filter by the jobId (`j1`) assigned by job:create.
-    // assist() forwards the inner `progress` field as the Observable's `next`.
+    // delegate() forwards the inner `progress` field as the Observable's `next`.
     eventBus.emit('job:report-progress', {
-      jobId: JID, resourceId: RID, _userId: UID, jobType: 'reference-annotation',
+      jobId: JID, resourceId: RID, _userId: UID, jobType: 'mark',
       percentage: 50, progress: { percentage: 50, message: { code: 'detecting-entities', entityType: 'Person' } },
     });
     eventBus.emit('job:complete', {
-      jobId: JID, resourceId: RID, _userId: UID, jobType: 'reference-annotation',
-      result: { kind: 'reference-annotation', totalFound: 3, totalEmitted: 3, errors: 0 },
+      jobId: JID, resourceId: RID, _userId: UID, jobType: 'mark',
+      result: { found: 3, persisted: 3 },
     });
 
     await completed;
     expect(progress.length).toBeGreaterThan(0);
   });
 
-  it('assist() falls back to job polling when SSE is silent', async () => {
+  it('delegate() falls back to job polling when SSE is silent', async () => {
     vi.useFakeTimers();
     const bus = new EventBus();
     const mock = createMockTransport({
       'job:create': (reply) => reply('job:created', { response: { jobId: JID } }),
       'job:status-requested': (reply) => reply('job:status-result', {
         response: {
-          ...J1_STORED, type: 'highlight-annotation', status: 'complete',
-          result: { kind: 'highlight-annotation', highlightsFound: 5, highlightsCreated: 5 },
+          ...J1_STORED, type: 'mark', status: 'complete',
+          result: { found: 5, persisted: 5 },
         },
       }),
     });
     const m = new MarkNamespace(mock.transport, bus);
 
-    const progress: MarkAssistEvent[] = [];
+    const progress: JobEvent[] = [];
     let completed = false;
-    m.assist(RID, 'highlighting', {}).subscribe({
+    m.delegate(RID, { motivation: 'highlighting' }).subscribe({
       next: (p) => progress.push(p),
       complete: () => { completed = true; },
     });
@@ -242,7 +241,63 @@ describe('MarkNamespace', () => {
     vi.useRealTimers();
   });
 
-  it('assist() SSE completion wins over polling', async () => {
+  it("delegate() awaited gives the mark job's completion, its result a mark job's", async () => {
+    const done = mark.delegate(RID, { motivation: 'highlighting' }).run(() => {});
+    await new Promise((r) => setTimeout(r, 10));
+    eventBus.emit('job:complete', { jobId: JID, resourceId: RID, jobType: 'mark', result: { found: 3, persisted: 2, errors: 1 } });
+
+    const completion = await done;
+    // Typed by the verb: a mark job's result is its counts or a decline, so
+    // one narrowing reads the counts.
+    const counts = completion.result && 'found' in completion.result ? completion.result : undefined;
+    expect(counts).toEqual({ found: 3, persisted: 2, errors: 1 });
+  });
+
+  it("delegate() errors when the job's status carries another verb's result: it is not the job that was delegated", async () => {
+    vi.useFakeTimers();
+    const bus = new EventBus();
+    const mock = createMockTransport({
+      'job:create': (reply) => reply('job:created', { response: { jobId: JID } }),
+      'job:status-requested': (reply) => reply('job:status-result', {
+        response: {
+          ...J1_STORED, type: 'mark', status: 'complete',
+          result: { resourceId: resourceId('res-made'), resourceName: 'Made', truncated: false },
+        },
+      }),
+    });
+    const m = new MarkNamespace(mock.transport, bus);
+
+    let failure: unknown;
+    let completed = false;
+    m.delegate(RID, { motivation: 'highlighting' }).subscribe({
+      error: (e) => { failure = e; },
+      complete: () => { completed = true; },
+    });
+    await vi.advanceTimersByTimeAsync(100);
+    await vi.advanceTimersByTimeAsync(16_000);
+
+    expect(completed).toBe(false);
+    // Not a failed job: the transport's code for a failure no other names.
+    expect(failure).toMatchObject({ code: 'error', message: "The status of job j1 is not a completed mark job's" });
+
+    bus.destroy();
+    vi.useRealTimers();
+  });
+
+  it("delegate() errors on a job:complete of its job that is another verb's", async () => {
+    const failed = new Promise<Error>((resolve) => {
+      mark.delegate(RID, { motivation: 'highlighting' }).subscribe({ error: resolve });
+    });
+    await new Promise((r) => setTimeout(r, 10));
+    eventBus.emit('job:complete', {
+      jobId: JID, resourceId: RID, jobType: 'yield',
+      result: { resourceId: resourceId('res-made'), resourceName: 'Made', truncated: false },
+    });
+
+    expect(await failed).toMatchObject({ code: 'error', message: "A job:complete of job j1 is not a completed mark job's" });
+  });
+
+  it('delegate() SSE completion wins over polling', async () => {
     vi.useFakeTimers();
     const bus = new EventBus();
     const mock = createMockTransport({
@@ -251,15 +306,15 @@ describe('MarkNamespace', () => {
     const m = new MarkNamespace(mock.transport, bus);
 
     let completed = false;
-    m.assist(RID, 'linking', { entityTypes: ['Person'] }).subscribe({
+    m.delegate(RID, { motivation: 'linking', entityTypes: ['Person'] }).subscribe({
       next: () => {},
       complete: () => { completed = true; },
     });
 
     await vi.advanceTimersByTimeAsync(100);
     bus.emit('job:complete', {
-      jobId: JID, resourceId: RID, _userId: UID, jobType: 'reference-annotation',
-      result: { kind: 'reference-annotation', totalFound: 0, totalEmitted: 0, errors: 0 },
+      jobId: JID, resourceId: RID, _userId: UID, jobType: 'mark',
+      result: { found: 0, persisted: 0 },
     });
     expect(completed).toBe(true);
 
@@ -267,7 +322,7 @@ describe('MarkNamespace', () => {
     vi.useRealTimers();
   });
 
-  it('assist() progress resets poll timer', async () => {
+  it('delegate() progress resets poll timer', async () => {
     vi.useFakeTimers();
     const bus = new EventBus();
     const mock = createMockTransport({
@@ -275,12 +330,12 @@ describe('MarkNamespace', () => {
     });
     const m = new MarkNamespace(mock.transport, bus);
 
-    m.assist(RID, 'highlighting', {}).subscribe({ next: () => {}, error: () => {} });
+    m.delegate(RID, { motivation: 'highlighting' }).subscribe({ next: () => {}, error: () => {} });
 
     await vi.advanceTimersByTimeAsync(100);
     await vi.advanceTimersByTimeAsync(9_000);
     bus.emit('job:report-progress', {
-      jobId: JID, resourceId: RID, _userId: UID, jobType: 'highlight-annotation',
+      jobId: JID, resourceId: RID, _userId: UID, jobType: 'mark',
       percentage: 50, progress: { percentage: 50, message: { code: 'analyzing' } },
     });
 
@@ -292,9 +347,9 @@ describe('MarkNamespace', () => {
   });
 
   // ── Cancelling ONE job ──────────────────────────────────────────────
-  // `cancelByType` is category-wide; a UI cancelling one running detection
+  // `cancelByType` takes every pending job of a type; a UI cancelling one running detection
   // needs to say WHICH. The gateway targets by jobId — this is the client
-  // verb for it. Awaited, like its category sibling: the caller learns
+  // verb for it. Awaited, like its by-type sibling: the caller learns
   // whether anything was cancelled.
 
   it('cancel(jobId) targets one job and resolves the cancelled count', async () => {
@@ -325,7 +380,7 @@ describe('MarkNamespace', () => {
   // (stamped by the worker from the same predicate the queue applies) is
   // what separates the two.
 
-  it('assist() survives a retryable failure and completes on the later terminal', async () => {
+  it('delegate() survives a retryable failure and completes on the later terminal', async () => {
     const bus = new EventBus();
     const mock = createMockTransport({
       'job:create': (reply) => reply('job:created', { response: { jobId: JID } }),
@@ -335,7 +390,7 @@ describe('MarkNamespace', () => {
     const events: string[] = [];
     let errored: Error | null = null;
     let completed = false;
-    m.assist(RID, 'highlighting', {}).subscribe({
+    m.delegate(RID, { motivation: 'highlighting' }).subscribe({
       next: (e) => events.push(e.kind),
       error: (e: Error) => { errored = e; },
       complete: () => { completed = true; },
@@ -343,7 +398,7 @@ describe('MarkNamespace', () => {
     await new Promise((r) => setTimeout(r, 0));
 
     const fail = (willRetry: boolean) => bus.emit('job:fail', {
-      jobId: JID, resourceId: RID, jobType: 'highlight-annotation',
+      jobId: JID, resourceId: RID, jobType: 'mark',
       error: 'transient blip', willRetry,
     });
 
@@ -354,12 +409,12 @@ describe('MarkNamespace', () => {
     // Progress must keep flowing on the retried attempt, too — a
     // takeUntil(fail$) would silence it even when the stream survives.
     bus.emit('job:report-progress', {
-      jobId: JID, resourceId: RID, jobType: 'highlight-annotation',
+      jobId: JID, resourceId: RID, jobType: 'mark',
       percentage: 20, progress: { percentage: 20 },
     });
 
     bus.emit('job:complete', {
-      jobId: JID, resourceId: RID, jobType: 'highlight-annotation',
+      jobId: JID, resourceId: RID, jobType: 'mark',
     });
 
     expect(errored).toBeNull();
@@ -371,7 +426,7 @@ describe('MarkNamespace', () => {
     bus.destroy();
   });
 
-  it('assist() still errors when the failure IS terminal', async () => {
+  it('delegate() still errors when the failure IS terminal', async () => {
     const bus = new EventBus();
     const mock = createMockTransport({
       'job:create': (reply) => reply('job:created', { response: { jobId: JID } }),
@@ -379,9 +434,9 @@ describe('MarkNamespace', () => {
     const m = new MarkNamespace(mock.transport, bus);
 
     const err = await new Promise<Error>((resolve) => {
-      m.assist(RID, 'highlighting', {}).subscribe({ error: resolve });
+      m.delegate(RID, { motivation: 'highlighting' }).subscribe({ error: resolve });
       setTimeout(() => bus.emit('job:fail', {
-        jobId: JID, resourceId: RID, jobType: 'highlight-annotation',
+        jobId: JID, resourceId: RID, jobType: 'mark',
         error: 'budget spent', willRetry: false,
       }), 0);
     });
@@ -393,7 +448,7 @@ describe('MarkNamespace', () => {
     bus.destroy();
   });
 
-  it('assist() treats an ABSENT willRetry as terminal — an older worker must not hang the stream', async () => {
+  it('delegate() treats an ABSENT willRetry as terminal — an older worker must not hang the stream', async () => {
     const bus = new EventBus();
     const mock = createMockTransport({
       'job:create': (reply) => reply('job:created', { response: { jobId: JID } }),
@@ -401,9 +456,9 @@ describe('MarkNamespace', () => {
     const m = new MarkNamespace(mock.transport, bus);
 
     const err = await new Promise<Error>((resolve) => {
-      m.assist(RID, 'highlighting', {}).subscribe({ error: resolve });
+      m.delegate(RID, { motivation: 'highlighting' }).subscribe({ error: resolve });
       setTimeout(() => bus.emit('job:fail', {
-        jobId: JID, resourceId: RID, jobType: 'highlight-annotation',
+        jobId: JID, resourceId: RID, jobType: 'mark',
         error: 'no field',
       }), 0);
     });
@@ -411,19 +466,19 @@ describe('MarkNamespace', () => {
     bus.destroy();
   });
 
-  it('assist() ends as cancelled when the job\'s status says it was', async () => {
+  it('delegate() ends as cancelled when the job\'s status says it was', async () => {
     vi.useFakeTimers();
     const bus = new EventBus();
     const mock = createMockTransport({
       'job:create': (reply) => reply('job:created', { response: { jobId: JID } }),
       'job:status-requested': (reply) => reply('job:status-result', {
-        response: { ...J1_STORED, type: 'highlight-annotation', status: 'cancelled' },
+        response: { ...J1_STORED, type: 'mark', status: 'cancelled' },
       }),
     });
     const m = new MarkNamespace(mock.transport, bus);
 
     let failure: unknown;
-    m.assist(RID, 'highlighting', {}).subscribe({ error: (e) => { failure = e; } });
+    m.delegate(RID, { motivation: 'highlighting' }).subscribe({ error: (e) => { failure = e; } });
     await vi.advanceTimersByTimeAsync(100);
     await vi.advanceTimersByTimeAsync(16_000);
 
@@ -434,19 +489,19 @@ describe('MarkNamespace', () => {
     vi.useRealTimers();
   });
 
-  it('assist() reports a failure it learned from the job\'s status under the same code', async () => {
+  it('delegate() reports a failure it learned from the job\'s status under the same code', async () => {
     vi.useFakeTimers();
     const bus = new EventBus();
     const mock = createMockTransport({
       'job:create': (reply) => reply('job:created', { response: { jobId: JID } }),
       'job:status-requested': (reply) => reply('job:status-result', {
-        response: { ...J1_STORED, type: 'highlight-annotation', status: 'failed', error: 'worker gave up' },
+        response: { ...J1_STORED, type: 'mark', status: 'failed', error: 'worker gave up' },
       }),
     });
     const m = new MarkNamespace(mock.transport, bus);
 
     let failure: unknown;
-    m.assist(RID, 'highlighting', {}).subscribe({ error: (e) => { failure = e; } });
+    m.delegate(RID, { motivation: 'highlighting' }).subscribe({ error: (e) => { failure = e; } });
     await vi.advanceTimersByTimeAsync(100);
     await vi.advanceTimersByTimeAsync(16_000);
 
@@ -455,34 +510,6 @@ describe('MarkNamespace', () => {
     expect((failure as JobFailedError).message).toBe('worker gave up');
     bus.destroy();
     vi.useRealTimers();
-  });
-
-  // Tagging validation: dispatchAssist throws synchronously when
-  // schemaId or categories are missing. The async-thrown error
-  // becomes a rejection of the dispatchAssist promise, which the
-  // .catch propagates to subscriber.error since the consumer is
-  // still subscribed (done=false). One test per missing option so
-  // each error message is pinned.
-  it('assist() with motivation "tagging" but no schemaId errors with a specific message', async () => {
-    const err = await new Promise<Error>((resolve) => {
-      mark.assist(RID, 'tagging', { categories: ['c'] }).subscribe({
-        error: (e: Error) => resolve(e),
-      });
-    });
-    expect(err.message).toBe(
-      'mark.assist with motivation "tagging" requires options.schemaId',
-    );
-  });
-
-  it('assist() with motivation "tagging" but empty categories errors with a specific message', async () => {
-    const err = await new Promise<Error>((resolve) => {
-      mark.assist(RID, 'tagging', { schemaId: 'schema-1', categories: [] }).subscribe({
-        error: (e: Error) => resolve(e),
-      });
-    });
-    expect(err.message).toBe(
-      'mark.assist with motivation "tagging" requires a non-empty options.categories array',
-    );
   });
 });
 
@@ -624,15 +651,15 @@ describe('JobNamespace', () => {
       'job:cancel-requested': (reply) => reply('job:cancel-ok', { response: { cancelled: 3 } }),
     });
     const job = new JobNamespace(mock.transport, new EventBus());
-    const count = await job.cancelByType('generation');
+    const count = await job.cancelByType('yield');
     expect(count).toBe(3);
-    expect(mock.emitSpy).toHaveBeenCalledWith('job:cancel-requested', expect.objectContaining({ jobType: 'generation' }), expect.objectContaining({ correlationId: expect.any(String) }));
+    expect(mock.emitSpy).toHaveBeenCalledWith('job:cancel-requested', expect.objectContaining({ jobType: 'yield' }), expect.objectContaining({ correlationId: expect.any(String) }));
   });
 
   it('cancelByType REJECTS on job:cancel-failed (a queue error is not swallowed)', async () => {
     const mock = createMockTransport();
     const job = new JobNamespace(mock.transport, new EventBus());
-    const assertion = expect(job.cancelByType('annotation')).rejects.toThrow(/queue down/);
+    const assertion = expect(job.cancelByType('mark')).rejects.toThrow(/queue down/);
     await new Promise((r) => setTimeout(r, 10));
     const cid = mock.emitSpy.mock.calls[0]?.[2]?.correlationId as string;
     mock.transportBus.emit('job:cancel-failed', { message: 'queue down' }, { correlationId: cid });
@@ -645,7 +672,7 @@ describe('JobNamespace.pollUntilComplete', () => {
     vi.useFakeTimers();
     const mock = createMockTransport({
       'job:status-requested': (reply) => reply('job:status-result', {
-        response: { ...J1_STORED, type: 'highlight-annotation', status: 'running' },
+        response: { ...J1_STORED, type: 'mark', status: 'running' },
       }),
     });
     const job = new JobNamespace(mock.transport, new EventBus());
@@ -765,12 +792,12 @@ describe('YieldNamespace', () => {
     expect(capturedSignal?.aborted).toBe(true);
   });
 
-  it('fromContext(annotation focus) sends NO ids — the context is the wire truth', () => {
-    yld.fromContext(CTX_ANN, { title: 'T', storageUri: 'file://x' }).subscribe(() => {});
+  it('delegate(annotation focus) sends NO ids — the context is the wire truth', () => {
+    yld.delegate({ title: 'T', storageUri: 'file://x', context: CTX_ANN }).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
       const call = emitSpy.mock.calls.find((c: unknown[]) => c[0] === 'job:create');
       const payload = call![1] as Record<string, unknown>;
-      expect(payload.jobType).toBe('generation');
+      expect(payload.jobType).toBe('yield');
       // The server derives both ids from params.context.focus; a
       // caller-supplied id is REJECTED there, so the sdk must not send
       // either.
@@ -782,19 +809,19 @@ describe('YieldNamespace', () => {
     }, 20));
   });
 
-  it('fromContext throws loudly on a context with no usable focus — never guesses', () => {
+  it('delegate throws loudly on a context with no usable focus — never guesses', () => {
     // The one place a cast remains, deliberately: it models a context whose
     // type history was severed (wire JSON, storage, a hand-built object).
-    expect(() => yld.fromContext({} as GatheredContext, { title: 'T', storageUri: 'file://x' }))
+    expect(() => yld.delegate({ title: 'T', storageUri: 'file://x', context: {} as GatheredContext }))
       .toThrow(/gather\.resource|gather\.annotation/);
   });
 
-  it('fromContext(resource focus) sends NO ids; the context rides in params', () => {
-    yld.fromContext(CTX_RES, { title: 'T', storageUri: 'file://x' }).subscribe(() => {});
+  it('delegate(resource focus) sends NO ids; the context rides in params', () => {
+    yld.delegate({ title: 'T', storageUri: 'file://x', context: CTX_RES }).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
       const call = emitSpy.mock.calls.find((c: unknown[]) => c[0] === 'job:create');
       const payload = call![1] as Record<string, unknown>;
-      expect(payload.jobType).toBe('generation');
+      expect(payload.jobType).toBe('yield');
       expect('resourceId' in payload).toBe(false);
       const params = payload.params as Record<string, unknown>;
       expect('referenceId' in params).toBe(false);
@@ -803,8 +830,8 @@ describe('YieldNamespace', () => {
     }, 20));
   });
 
-  it('fromContext({ outputMediaType }) [resource focus] carries outputMediaType into job:create params', () => {
-    yld.fromContext(CTX_RES, { title: 'T', storageUri: 'file://x', outputMediaType: 'text/plain' }).subscribe(() => {});
+  it('delegate({ outputMediaType }) [resource focus] carries outputMediaType into job:create params', () => {
+    yld.delegate({ title: 'T', storageUri: 'file://x', outputMediaType: 'text/plain', context: CTX_RES }).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
       expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
         params: expect.objectContaining({ outputMediaType: 'text/plain' }),
@@ -813,8 +840,8 @@ describe('YieldNamespace', () => {
     }, 20));
   });
 
-  it('fromContext({ outputMediaType }) [annotation focus] carries outputMediaType into job:create params', () => {
-    yld.fromContext(CTX_ANN, { title: 'T', storageUri: 'file://x', outputMediaType: 'text/plain' }).subscribe(() => {});
+  it('delegate({ outputMediaType }) [annotation focus] carries outputMediaType into job:create params', () => {
+    yld.delegate({ title: 'T', storageUri: 'file://x', outputMediaType: 'text/plain', context: CTX_ANN }).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
       expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
         params: expect.objectContaining({ outputMediaType: 'text/plain' }),
@@ -823,10 +850,10 @@ describe('YieldNamespace', () => {
     }, 20));
   });
 
-  it('fromContext({ task, structure }) [resource focus] carries both into job:create params', () => {
+  it('delegate({ task, structure }) [resource focus] carries both into job:create params', () => {
     // The Q&A recipe these options exist for: task frames the ask, structure
     // forces the shape. The worker's template branches on both.
-    yld.fromContext(CTX_RES, { title: 'T', storageUri: 'file://x', task: 'answer', structure: 'prose' }).subscribe(() => {});
+    yld.delegate({ title: 'T', storageUri: 'file://x', task: 'answer', structure: 'prose', context: CTX_RES }).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
       expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
         params: expect.objectContaining({ task: 'answer', structure: 'prose' }),
@@ -835,10 +862,10 @@ describe('YieldNamespace', () => {
     }, 20));
   });
 
-  it('fromContext({ task, structure }) [annotation focus] carries both — including an open-union custom string', () => {
+  it('delegate({ task, structure }) [annotation focus] carries both — including an open-union custom string', () => {
     // structure 'chat' is the third canonical; task exercises the
     // (string & {}) escape hatch — the SDK must pass it through verbatim.
-    yld.fromContext(CTX_ANN, { title: 'T', storageUri: 'file://x', task: 'translate to French', structure: 'chat' }).subscribe(() => {});
+    yld.delegate({ title: 'T', storageUri: 'file://x', task: 'translate to French', structure: 'chat', context: CTX_ANN }).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
       expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
         params: expect.objectContaining({ task: 'translate to French', structure: 'chat' }),
@@ -851,7 +878,7 @@ describe('YieldNamespace', () => {
     // Unset structure ⇒ the worker emits NO structure directive. That
     // only holds if the SDK leaves the fields untouched (undefined keys
     // vanish at JSON serialization on the wire).
-    yld.fromContext(CTX_RES, { title: 'T', storageUri: 'file://x' }).subscribe(() => {});
+    yld.delegate({ title: 'T', storageUri: 'file://x', context: CTX_RES }).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
       const call = emitSpy.mock.calls.find((c: unknown[]) => c[0] === 'job:create');
       const params = (call![1] as { params: Record<string, unknown> }).params;
@@ -861,8 +888,8 @@ describe('YieldNamespace', () => {
     }, 20));
   });
 
-  it('fromContext({ cite: true }) [resource focus] carries cite into job:create params', () => {
-    yld.fromContext(CTX_RES, { title: 'T', storageUri: 'file://x', cite: true }).subscribe(() => {});
+  it('delegate({ cite: true }) [resource focus] carries cite into job:create params', () => {
+    yld.delegate({ title: 'T', storageUri: 'file://x', cite: true, context: CTX_RES }).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
       expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
         params: expect.objectContaining({ cite: true }),
@@ -871,8 +898,8 @@ describe('YieldNamespace', () => {
     }, 20));
   });
 
-  it('fromContext({ cite: true }) [annotation focus] carries cite into job:create params', () => {
-    yld.fromContext(CTX_ANN, { title: 'T', storageUri: 'file://x', cite: true }).subscribe(() => {});
+  it('delegate({ cite: true }) [annotation focus] carries cite into job:create params', () => {
+    yld.delegate({ title: 'T', storageUri: 'file://x', cite: true, context: CTX_ANN }).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
       expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
         params: expect.objectContaining({ cite: true }),
@@ -885,7 +912,7 @@ describe('YieldNamespace', () => {
     // The worker parses/strips [[..]] tokens ONLY when cite is set: double-
     // bracketed text is legitimate content otherwise. An SDK-invented
     // default would corrupt non-citing generations.
-    yld.fromContext(CTX_RES, { title: 'T', storageUri: 'file://x' }).subscribe(() => {});
+    yld.delegate({ title: 'T', storageUri: 'file://x', context: CTX_RES }).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
       const call = emitSpy.mock.calls.find((c: unknown[]) => c[0] === 'job:create');
       const params = (call![1] as { params: Record<string, unknown> }).params;
@@ -894,18 +921,19 @@ describe('YieldNamespace', () => {
     }, 20));
   });
 
-  it('fromContext({ entityTypes }) carries entityTypes through into job:create params', () => {
-    // entityTypes must survive from the GenerationOptions boundary to the
+  it('delegate({ entityTypes }) carries entityTypes through into job:create params', () => {
+    // entityTypes must survive from the caller's params to the
     // bus payload: dropped there, synthesized resources go un-stamped at
     // schema-layer queries.
-    yld.fromContext(CTX_ANN, {
+    yld.delegate({
       title: 'T',
       storageUri: 'file://x',
       entityTypes: ['Character', 'Hero'],
+      context: CTX_ANN,
     }).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
       expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
-        jobType: 'generation',
+        jobType: 'yield',
         params: expect.objectContaining({
           entityTypes: ['Character', 'Hero'],
         }),
@@ -914,10 +942,10 @@ describe('YieldNamespace', () => {
     }, 20));
   });
 
-  it('fromContext() emits progress and completes on job:complete', async () => {
-    const progress: YieldGenerationEvent[] = [];
+  it('delegate() emits progress and completes on job:complete', async () => {
+    const progress: JobEvent[] = [];
     const completed = new Promise<void>((resolve) => {
-      yld.fromContext(CTX_ANN, { title: 'T', storageUri: 'file://x' }).subscribe({
+      yld.delegate({ title: 'T', storageUri: 'file://x', context: CTX_ANN }).subscribe({
         next: (p) => progress.push(p),
         complete: () => resolve(),
       });
@@ -925,12 +953,12 @@ describe('YieldNamespace', () => {
 
     await new Promise((r) => setTimeout(r, 20));
     eventBus.emit('job:report-progress', {
-      jobId: JID, resourceId: RID, _userId: UID, jobType: 'generation',
+      jobId: JID, resourceId: RID, _userId: UID, jobType: 'yield',
       percentage: 50, progress: { percentage: 50, message: { code: 'generating-resource' } },
     });
     eventBus.emit('job:complete', {
-      jobId: JID, resourceId: RID, _userId: UID, jobType: 'generation',
-      result: { kind: 'generation', resourceId: resourceId('res-new'), resourceName: 'T', truncated: false },
+      jobId: JID, resourceId: RID, _userId: UID, jobType: 'yield',
+      result: { resourceId: resourceId('res-new'), resourceName: 'T', truncated: false },
     });
 
     await completed;
@@ -942,15 +970,15 @@ describe('YieldNamespace', () => {
     expect(result).toEqual({ token: 'tok', expiresAt: '2026-01-01', resource: mockResource('res-1') });
   });
 
-  it('fromContext() falls back to job polling when SSE is silent', async () => {
+  it('delegate() falls back to job polling when SSE is silent', async () => {
     vi.useFakeTimers();
     const bus = new EventBus();
     const mock = createMockTransport({
       'job:create': (reply) => reply('job:created', { response: { jobId: JID } }),
       'job:status-requested': (reply) => reply('job:status-result', {
         response: {
-          ...J1_STORED, type: 'generation', status: 'complete',
-          result: { kind: 'generation', resourceId: resourceId('res-poll'), resourceName: 'T', truncated: false },
+          ...J1_STORED, type: 'yield', status: 'complete',
+          result: { resourceId: resourceId('res-poll'), resourceName: 'T', truncated: false },
         },
       }),
     });
@@ -958,7 +986,7 @@ describe('YieldNamespace', () => {
 
     const progress: unknown[] = [];
     let completed = false;
-    y.fromContext(annotationContextFor('res-1', 'ann-1'), { title: 'T', storageUri: 'file://x' }).subscribe({
+    y.delegate({ title: 'T', storageUri: 'file://x', context: annotationContextFor('res-1', 'ann-1') }).subscribe({
       next: (p) => progress.push(p),
       complete: () => { completed = true; },
     });
@@ -973,7 +1001,7 @@ describe('YieldNamespace', () => {
     vi.useRealTimers();
   });
 
-  it('fromContext() SSE completion wins over polling', async () => {
+  it('delegate() SSE completion wins over polling', async () => {
     vi.useFakeTimers();
     const bus = new EventBus();
     const mock = createMockTransport({
@@ -982,15 +1010,15 @@ describe('YieldNamespace', () => {
     const y = new YieldNamespace(mock.transport, bus, makeMockContent());
 
     let completed = false;
-    y.fromContext(annotationContextFor('res-1', 'ann-1'), { title: 'T', storageUri: 'file://x' }).subscribe({
+    y.delegate({ title: 'T', storageUri: 'file://x', context: annotationContextFor('res-1', 'ann-1') }).subscribe({
       next: () => {},
       complete: () => { completed = true; },
     });
 
     await vi.advanceTimersByTimeAsync(100);
     bus.emit('job:complete', {
-      jobId: JID, resourceId: RID, _userId: UID, jobType: 'generation',
-      result: { kind: 'generation', resourceId: resourceId('res-new'), resourceName: 'T', truncated: false },
+      jobId: JID, resourceId: RID, _userId: UID, jobType: 'yield',
+      result: { resourceId: resourceId('res-new'), resourceName: 'T', truncated: false },
     });
     expect(completed).toBe(true);
 
@@ -1008,7 +1036,7 @@ describe('YieldNamespace', () => {
 //                `subscriber.closed`
 //   match.ts   — `transport.emit('match:search-requested', …).catch(...)`
 //                checks `subscriber.closed`
-//   mark.ts    — `dispatchAssist(...).catch(...)` checks the local `done`
+//   delegation.ts — the `job:create` request's `.catch(...)` checks the local `done`
 //                flag set by cleanup()
 //   yield.ts   — `busRequest('job:create', …).catch(...)` checks the local
 //                `done` flag set by cleanup()
@@ -1089,18 +1117,18 @@ describe('late-rejection guards', () => {
     bus.destroy();
   });
 
-  it('mark.assist does NOT propagate a late dispatchAssist rejection after the consumer unsubscribes', async () => {
-    // dispatchAssist round-trips on 'job:create' / 'job:created'. Make
+  it('mark.delegate does NOT propagate a late job:create rejection after the consumer unsubscribes', async () => {
+    // The delegation round-trips on 'job:create' / 'job:created'. Make
     // the underlying emit() pend indefinitely, then reject after the
     // consumer has torn down — exercises the `done` guard set by
-    // cleanup() in the StreamObservable teardown.
+    // cleanup() in the delegation's teardown.
     const { promise, reject } = makeDeferred<void>();
     const { transport, bus } = makeDeferredEmitTransport(promise);
     const mark = new MarkNamespace(transport, new EventBus());
 
     const errors: Error[] = [];
     const sub = mark
-      .assist(RID, 'linking', { entityTypes: ['Person'] })
+      .delegate(RID, { motivation: 'linking', entityTypes: ['Person'] })
       .subscribe({
         next: () => {},
         error: (e: Error) => errors.push(e),
@@ -1114,14 +1142,14 @@ describe('late-rejection guards', () => {
     bus.destroy();
   });
 
-  it('yield.fromContext does NOT propagate a late busRequest rejection after the consumer unsubscribes', async () => {
+  it('yield.delegate does NOT propagate a late busRequest rejection after the consumer unsubscribes', async () => {
     const { promise, reject } = makeDeferred<void>();
     const { transport, bus } = makeDeferredEmitTransport(promise);
     const yld = new YieldNamespace(transport, new EventBus(), makeMockContent());
 
     const errors: Error[] = [];
     const sub = yld
-      .fromContext(annotationContextFor('res-1', 'ann-1'), { title: 'T', storageUri: 'file://x' })
+      .delegate({ title: 'T', storageUri: 'file://x', context: annotationContextFor('res-1', 'ann-1') })
       .subscribe({
         next: () => {},
         error: (e: Error) => errors.push(e),

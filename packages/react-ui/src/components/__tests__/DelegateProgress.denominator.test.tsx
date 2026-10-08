@@ -16,13 +16,13 @@ import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import type { components } from '@semiont/core';
-import { AssistProgress, type AssistProgressTranslations } from '../AssistProgress';
+import { DelegateProgress, type DelegateProgressTranslations } from '../DelegateProgress';
 
 type JobProgress = components['schemas']['JobProgress'];
 
-const TALLY = 'semiont-assist-tally';
+const TALLY = 'semiont-delegate-tally';
 
-const T = (over: Partial<AssistProgressTranslations> = {}): AssistProgressTranslations =>
+const T = (over: Partial<DelegateProgressTranslations> = {}): DelegateProgressTranslations =>
   ({
     cancel: 'tr.cancel',
     close: 'tr.close',
@@ -32,7 +32,7 @@ const T = (over: Partial<AssistProgressTranslations> = {}): AssistProgressTransl
     paramLabel: (code: string) => `tr.param(${code})`,
     tally: (found: number, expected: number) => `tr.tally(${found}/${expected})`,
     ...over,
-  }) as AssistProgressTranslations;
+  }) as DelegateProgressTranslations;
 
 const detecting = (over: Partial<JobProgress> = {}): JobProgress =>
   ({
@@ -41,10 +41,10 @@ const detecting = (over: Partial<JobProgress> = {}): JobProgress =>
     ...over,
   }) as JobProgress;
 
-describe('AssistProgress — the denominator tally', () => {
+describe('DelegateProgress — the denominator tally', () => {
   it('renders found of ~expected when the wire prices both', () => {
     render(
-      <AssistProgress ended={false} dataType="reference" translations={T()}
+      <DelegateProgress ended={false} dataType="reference" translations={T()}
         progress={detecting({ entitiesFound: 7, entitiesExpected: 37 })}
       />,
     );
@@ -53,7 +53,7 @@ describe('AssistProgress — the denominator tally', () => {
 
   it('renders NO tally when entitiesExpected is absent — a denominator is never manufactured', () => {
     render(
-      <AssistProgress ended={false} dataType="reference" translations={T()}
+      <DelegateProgress ended={false} dataType="reference" translations={T()}
         progress={detecting({ entitiesFound: 7 })}
       />,
     );
@@ -62,7 +62,7 @@ describe('AssistProgress — the denominator tally', () => {
 
   it('zero found is a real count, not absence: renders 0 of ~expected', () => {
     render(
-      <AssistProgress ended={false} dataType="reference" translations={T()}
+      <DelegateProgress ended={false} dataType="reference" translations={T()}
         progress={detecting({ entitiesFound: 0, entitiesExpected: 37 })}
       />,
     );
@@ -71,7 +71,7 @@ describe('AssistProgress — the denominator tally', () => {
 
   it('no tally translator, no line — flows without the copy render nothing', () => {
     render(
-      <AssistProgress ended={false} dataType="highlight"
+      <DelegateProgress ended={false} dataType="highlight"
         translations={T({ tally: undefined })}
         progress={detecting({ entitiesFound: 7, entitiesExpected: 37 })}
       />,

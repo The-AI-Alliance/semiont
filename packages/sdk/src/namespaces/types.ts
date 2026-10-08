@@ -17,31 +17,44 @@
  *   (resolve on the reply, reject on failure)
  * - Upload (yield.resource) → `UploadObservable` (the upload's phases;
  *   await yields `{ resourceId }`)
- * - Long-running ops (gather.annotation, match.search, yield.fromContext,
- *   mark.assist) → `StreamObservable<T>` (subscribe yields every emit,
- *   await yields the last one)
+ * - Long-running ops (gather.annotation, match.search) →
+ *   `StreamObservable<T>` (subscribe yields every emit, await yields the
+ *   last one)
+ * - Delegated jobs (mark.delegate, yield.delegate) → `DelegationObservable`
+ *   (subscribe yields the job's events; await yields its completion)
  * - Ephemeral signals, local (beckon.hover/sparkle, browse.click, …) → `void`
  * - Wire drives at other participants (beckon.attention/click/openResource/
  *   sparkleAll) → `Promise<number | undefined>`: the /bus/emit subscriber
  *   count, absent when the gateway cannot count — information, not an ack
  *   (X5's third shape)
  *
- * `StreamObservable` is an `Observable` subclass that also implements
- * `PromiseLike<T>` — `await client.X.Y(...)` works directly without a
- * `lastValueFrom` wrapper. `CacheObservable` is deliberately not thenable.
+ * `StreamObservable`, `DelegationObservable` and `UploadObservable` are
+ * `Observable` subclasses that also implement `PromiseLike` — `await
+ * client.X.Y(...)` works directly without a `lastValueFrom` wrapper.
+ * `CacheObservable` is deliberately not thenable.
  * `.pipe(...)` returns a plain `Observable<T>` (the thenable subclass
  * does not propagate through pipe — by design).
  */
 
 import type { Observable } from 'rxjs';
-import type { StreamObservable, CacheObservable, UploadObservable } from '../awaitable';
+import type {
+  StreamObservable,
+  CacheObservable,
+  DelegationObservable,
+  MarkJobCompletion,
+  UploadObservable,
+  YieldJobCompletion,
+} from '../awaitable';
 import type { components, EventMap, paths } from '@semiont/core';
 import type {
   ResourceId,
   AnnotationId,
   AttributedEvent,
   BodyOperation,
+  GenerationJobParams,
   JobId,
+  JobType,
+  MarkJobParams,
   Motivation,
   AnchorRect,
   GatheredContext,
@@ -57,9 +70,7 @@ import type { AnchoredTextAnswer } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
 type MatchSearchResult = components['schemas']['MatchSearchResult'];
-type JobProgress = components['schemas']['JobProgress'];
 export type GatherAnnotationComplete = components['schemas']['GatherAnnotationComplete'];
-type SupportedMediaType = components['schemas']['SupportedMediaType'];
 type JobStatusResponse = components['schemas']['JobStatusResponse'];
 type CloneResourceWithTokenResponse = components['schemas']['CloneResourceWithTokenResponse'];
 type ProtectedResourceMetadata = components['schemas']['ProtectedResourceMetadata'];
@@ -105,81 +116,6 @@ export interface CreateResourceInput {
   isDraft?: boolean;
 }
 
-/** Options for yield.fromContext() — the grounding context is positional, not a field. */
-export interface GenerationOptions {
-  title: string;
-  storageUri: string;
-  prompt?: string;
-  /** Entity-type tags to stamp on the synthesized resource. Used both as a prompt bias for the generation worker and as the `entityTypes` set on the resulting resource (so `browse.resources({ entityType: ... })` queries can find it). */
-  entityTypes?: string[];
-  /** Annotation/resource body locale — language the generated resource is written in (typically the user's UI locale). */
-  language?: string;
-  /** Source-resource locale — language of the resource the annotation lives on, used in the prompt so the LLM understands embedded source-context snippets. BCP-47. */
-  sourceLanguage?: string;
-  temperature?: number;
-  maxTokens?: number;
-  /**
-   * Per-call override for the generation stall guard's deadline.
-   * CLIENT-only: stripped before the wire. When unset, the deadline derives
-   * from `maxTokens` — see `deriveStallDeadlineMs`. On firing, the SDK
-   * cancels the job (`job:cancel-requested`) and errors with
-   * `GenerationStallError`.
-   */
-  stallDeadlineMs?: number;
-  /**
-   * Media type of the generated resource (the role's output format). Defaults to
-   * `text/markdown` at the worker, which validates it against its supported output
-   * set and **fails the job** for anything it can't write — not a silent fallback.
-   */
-  outputMediaType?: SupportedMediaType;
-  /**
-   * What the model is asked to produce — the prompt's framing verb. Canonical
-   * values are the worker's tested framings; any other string is used VERBATIM
-   * as the lead instruction (+ a worker-side warn) — an open escape hatch, not
-   * a silent fallback. Unset ⇒ `'resource'` (article framing). `prompt` composes
-   * with it as the refining instruction (task = what, prompt = how).
-   */
-  task?: 'resource' | 'answer' | 'summary' | (string & {});
-  /**
-   * How the output is internally segmented — shape for text-bearing media,
-   * subordinate to `outputMediaType`. Canonical: `prose` (flowing paragraphs),
-   * `sections` (titled `## Section`s + `# Title`), `chat` (speaker-labeled
-   * turns). Any other string becomes a freeform "organize as: …" directive
-   * (+ worker-side warn). **Unset ⇒ NO structure directive at all** — the task
-   * framing and the model determine shape; length (`maxTokens`) never does.
-   */
-  structure?: 'prose' | 'sections' | 'chat' | (string & {});
-  /**
-   * Ask the generator to ground claims in the supplied `context` as it
-   * writes. Citations do NOT appear as links in the content: the model emits
-   * inline `[[<id>]]` tokens, which the worker resolves into
-   * `SpecificResource` **linking annotations on the generated resource**
-   * (anchored to the claim span) and strips before storage — stored content
-   * stays clean prose. Only ids actually present in `context` resolve;
-   * unknown ids are dropped with a worker-side warn, never a minted link
-   * (hallucination guard). Composes with `task: 'answer'` for grounded Q&A;
-   * complements — never replaces — the post-hoc `mark.assist('linking')`
-   * pass. Leave unset for content where literal `[[…]]` text is legitimate:
-   * the worker parses tokens only when this is set.
-   */
-  cite?: boolean;
-}
-
-/** Options for mark.assist() */
-export interface MarkAssistOptions {
-  entityTypes?: string[];
-  includeDescriptiveReferences?: boolean;
-  instructions?: string;
-  density?: number;
-  tone?: string;
-  /** Annotation body locale — language the LLM should write generated body text in (comment text, assessment text, tag/reference body language stamp). BCP-47. */
-  language?: string;
-  /** Source-resource locale — language of the content being analyzed, used in the prompt so the LLM analyzes non-English source correctly. BCP-47. */
-  sourceLanguage?: string;
-  schemaId?: string;
-  categories?: string[];
-}
-
 /** Options for yield.createFromToken() */
 export type CreateFromTokenOptions = { token: string; name: string; content: string; archiveOriginal?: boolean };
 
@@ -202,42 +138,6 @@ export type User = components['schemas']['UserResponse'];
  * There are no intermediate progress events.
  */
 export type MatchSearchProgress = MatchSearchResult;
-
-/**
- * Progress payload emitted by mark.assist() and yield.fromContext()
- * Observables. Each progress emission carries a JobProgress snapshot
- * (unified job lifecycle).
- */
-export type MarkAssistProgress = JobProgress;
-
-/**
- * Discriminated event yielded by the `mark.assist()` Observable. Progress
- * events stream while the worker runs; the final value before the
- * Observable completes is a `complete` event carrying the `JobCompleteCommand`
- * payload (with `result`, `jobId`, `jobType`, etc.). The Observable errors
- * on `job:fail`.
- */
-export type MarkAssistEvent =
-  | { kind: 'progress'; data: MarkAssistProgress }
-  /**
-   * A failure the queue will retry. The run is NOT
-   * over: a fresh attempt follows and this stream stays open until a terminal
-   * arrives. A TERMINAL failure is not this event — it errors the stream.
-   * Render it as a setback, not an ending.
-   */
-  | { kind: 'failed'; data: components['schemas']['JobFailCommand'] }
-  | { kind: 'complete'; data: components['schemas']['JobCompleteCommand'] };
-
-/**
- * Discriminated event yielded by the `yield.fromContext()` Observable.
- * Same shape and semantics as `MarkAssistEvent`: `failed` is a setback the
- * queue will try again, on a stream that stays open, and a failure that is
- * final errors the stream.
- */
-export type YieldGenerationEvent =
-  | { kind: 'progress'; data: JobProgress }
-  | { kind: 'failed'; data: components['schemas']['JobFailCommand'] }
-  | { kind: 'complete'; data: components['schemas']['JobCompleteCommand'] };
 
 // ── Namespace interfaces ────────────────────────────────────────────────────
 
@@ -349,18 +249,18 @@ export interface FrameNamespace {
    * Most-recent registration of a given `schema.id` wins; identical
    * re-registrations are silent, differing content overwrites the
    * existing entry and logs a warning. KBs typically call this at
-   * session/skill startup so the schema is available for `mark.assist`
+   * session/skill startup so the schema is available for `mark.delegate`
    * with motivation `tagging` and surfaces in `browse.tagSchemas()`.
    */
   addTagSchema(schema: TagSchema): Promise<void>;
 }
 
 /**
- * Mark — annotation CRUD, AI assist, resource lifecycle
+ * Mark — annotation CRUD, delegated annotation, resource lifecycle
  *
  * Commands return Promises that resolve on the confirming reply and
  * reject on failure. Results appear on browse Observables via bus gateway.
- * assist() returns an Observable for long-running progress.
+ * delegate() returns the delegated job: its events, and awaited, its completion.
  *
  * Gateway actor: Stower
  * Event prefix: mark:*
@@ -385,8 +285,15 @@ export interface MarkNamespace {
    */
   updateEntityTypes(resourceId: ResourceId, current: string[], updated: string[]): Promise<void>;
 
-  // AI-assisted annotation (long-running; emits progress, completes with the final event)
-  assist(resourceId: ResourceId, motivation: Motivation, options: MarkAssistOptions): StreamObservable<MarkAssistEvent>;
+  /**
+   * Annotating a resource, delegated as a `mark` job. `params` state the
+   * motivation and what a job of that motivation takes, and nothing else: a
+   * parameter it does not take does not compile, and is refused if sent.
+   *
+   * ⚠️ Cold: do NOT both `.subscribe(...)` and `await` the same instance —
+   * that creates the job twice. Use `.run(onNext)` for progress + completion.
+   */
+  delegate(resourceId: ResourceId, params: MarkJobParams): DelegationObservable<MarkJobCompletion>;
 
   // UI signals (fire-and-forget bus emits, local-bus fan-out)
   /** Request a new mark on `source` — the id routes the event to the state unit bound to that resource. */
@@ -396,8 +303,8 @@ export interface MarkNamespace {
     motivation: Motivation,
   ): void;
 
-  /** Fire-and-forget variant of `assist` — mark-state-unit orchestrates the call and its progress Observable. */
-  requestAssist(motivation: Motivation, options: MarkAssistOptions, correlationId?: string): void;
+  /** Fire-and-forget variant of `delegate` — mark-state-unit creates the job for its resource and follows it. */
+  requestDelegate(params: MarkJobParams): void;
 
   /** Submit the pending annotation with its selector and optional body. */
   submit(input: components['schemas']['MarkSubmitEvent']): void;
@@ -405,7 +312,7 @@ export interface MarkNamespace {
   /** Cancel the pending annotation (if any). */
   cancelPending(): void;
 
-  /** Dismiss the in-progress AI-assist widget. */
+  /** Dismiss the display of a delegated job's progress. */
   dismissProgress(): void;
 
   /**
@@ -501,7 +408,7 @@ export interface MatchNamespace {
  * Yield — resource creation
  *
  * resource() is file upload (an awaitable Observable of its phases).
- * fromContext() is long-running LLM generation (Observable).
+ * delegate() is generation delegated as a job: its events, and awaited, its completion.
  *
  * Gateway actor: Stower + generation worker
  * Event prefix: yield:*
@@ -512,16 +419,12 @@ export interface YieldNamespace {
   // `{ resourceId }` directly.
   resource(data: CreateResourceInput): UploadObservable;
 
-  // Grounded generation (long-running, LLM-based — yields progress, then a
-  // final complete event). The context IS the argument: its `focus.kind`
-  // decides the shape — annotation focus auto-binds the new resource to the
-  // reference; resource focus mints a source→derived provenance annotation.
-  // The job's ids are DERIVED from the focus (single source of truth); a
-  // context without a usable focus throws synchronously.
-  fromContext(
-    context: GatheredContext,
-    options: GenerationOptions,
-  ): StreamObservable<YieldGenerationEvent>;
+  // Grounded generation, delegated as a `yield` job. The job names no
+  // resource: the focus of `params.context` does — annotation focus binds the
+  // new resource to the reference; resource focus mints a source→derived
+  // provenance annotation. A context without a usable focus throws
+  // synchronously. `stallDeadlineMs` is the follower's own and is not sent.
+  delegate(params: GenerationJobParams, stallDeadlineMs?: number): DelegationObservable<YieldJobCompletion>;
 
   // Clone
   cloneToken(resourceId: ResourceId): Promise<CloneResourceWithTokenResponse>;
@@ -569,12 +472,12 @@ export interface JobNamespace {
 
   status(jobId: JobId): Promise<JobStatusResponse>;
   pollUntilComplete(jobId: JobId, options?: { interval?: number; timeout?: number; onProgress?: (status: JobStatusResponse) => void }): Promise<JobStatusResponse>;
-  cancelByType(jobType: 'annotation' | 'generation'): Promise<number>;
+  cancelByType(jobType: JobType): Promise<number>;
   /** Cancel ONE job by id; resolves with the count the queue acted on. */
   cancel(jobId: JobId): Promise<number>;
 
-  /** UI signal, local bus only: a viewer asks for the jobs of a type (e.g. "annotation") to be cancelled. `cancelByType` is the call that cancels. */
-  cancelRequest(jobType: 'annotation' | 'generation'): void;
+  /** UI signal, local bus only: a viewer asks for the jobs of a type to be cancelled. `cancelByType` is the call that cancels. */
+  cancelRequest(jobType: JobType): void;
 }
 
 /**

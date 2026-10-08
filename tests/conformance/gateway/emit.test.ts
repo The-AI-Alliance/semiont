@@ -287,7 +287,7 @@ eachPlane('emitting', (world, plane) => {
     const { result, failure } = operationFor('job:claim');
     const stream = await world().subscribe(token, { clientId, global: [result, failure] });
     const correlationId = randomUUID();
-    const reply = await world().emit(token, { channel: 'job:claim', payload: { types: ['generation'] }, correlationId, clientId });
+    const reply = await world().emit(token, { channel: 'job:claim', payload: { accepts: [{ jobType: 'yield' }] }, correlationId, clientId });
     expect(reply.status, reply.text).toBe(202);
     // The only answer is the gateway saying nobody is there to give one.
     const frame = await stream.frame(failure, (f) => f.correlationId === correlationId);

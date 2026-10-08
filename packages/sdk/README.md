@@ -67,8 +67,8 @@ attention. Each is a namespace of the client.
 
 | | Verb | What it does | Among its methods |
 |---|---|---|---|
-| Writing | `yield` | Introduce a resource, uploaded or generated from gathered context | `yield.resource`, `yield.fromContext` |
-| | `mark` | Annotate a resource | `mark.annotation`, `mark.assist`, `mark.updateEntityTypes`, `mark.archive` |
+| Writing | `yield` | Introduce a resource, uploaded or generated from gathered context | `yield.resource`, `yield.delegate` |
+| | `mark` | Annotate a resource | `mark.annotation`, `mark.delegate`, `mark.updateEntityTypes`, `mark.archive` |
 | | `bind` | Resolve an ambiguous reference to a specific resource | `bind.body`, `bind.initiate` |
 | | `frame` | Define and grow the schema vocabulary | `frame.addEntityTypes`, `frame.addTagSchema` |
 | Reading | `browse` | Navigate, read and observe, including who is here | `browse.resource`, `browse.annotations`, `browse.agents`, `browse.click` |
@@ -98,19 +98,20 @@ const { resourceId } = await session.client.yield.resource({
 });
 
 // Annotate: a model reads it and marks each mention of a concept.
-await session.client.mark.assist(resourceId, 'linking', { entityTypes: ['Concept'] });
+await session.client.mark.delegate(resourceId, { motivation: 'linking', entityTypes: ['Concept'] });
 
 // Gather: the paper, its annotations, and what the knowledge base holds around it.
 const context = await session.client.gather.resource(resourceId);
 
 // Generate: a new resource, grounded in that context and linked to its source.
-const done = await session.client.yield.fromContext(context, {
+const done = await session.client.yield.delegate({
   title: 'Attention Is All You Need: a summary',
   storageUri: 'file://generated/attention-summary.md',
+  context,
   task: 'summary',
 });
-if (done.kind === 'complete' && done.data.result?.kind === 'generation') {
-  console.log('The summary is', done.data.result.resourceId);
+if (done.result && 'resourceId' in done.result) {
+  console.log('The summary is', done.result.resourceId);
 }
 
 await session.dispose();
@@ -143,6 +144,7 @@ const found = await client.match.search(rId, refId, ctx);     // bounded streams
 
 Methods return one of: `Promise<T>` (atomic gateway ops), `StreamObservable` /
 `UploadObservable` (bounded progress — thenable, `await` resolves the final value),
+`DelegationObservable` (a delegated job — thenable, `await` resolves the job's completion, typed by its verb),
 `CacheObservable` (live queries — `.subscribe(...)` for `CacheState` emissions,
 `.fresh()` for the explicit network read; deliberately NOT thenable, so a cache read can
 never silently become a round trip), a count (wire drives — below), or `void` (local signals). The

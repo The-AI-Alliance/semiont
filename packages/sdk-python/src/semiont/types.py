@@ -52,6 +52,9 @@ __all__ = [
     "ArchivistRosterRole",
     "ArchivistRosterRoleProvider",
     "ArchivistRosterWorkers",
+    "ArchivistRosterWorkersMark",
+    "AssessingJobParams",
+    "AssessingJobParamsTone",
     "AttributedEvent",
     "BeckonFocusEvent",
     "BeckonHoverEvent",
@@ -123,6 +126,8 @@ __all__ = [
     "CollaboratorEntry",
     "CommandError",
     "CommandErrorCode",
+    "CommentingJobParams",
+    "CommentingJobParamsTone",
     "ContentFormat",
     "ContextualSummaryResponse",
     "ContextualSummaryResponseContext",
@@ -185,6 +190,7 @@ __all__ = [
     "GatheredContextMetadata",
     "GatheredContextSemanticContext",
     "GenerationJobParams",
+    "GenerationJobRequest",
     "GetAnnotationHistoryResponse",
     "GetAnnotationResponse",
     "GetAnnotationsResponse",
@@ -200,24 +206,22 @@ __all__ = [
     "GraphAnnotationNode",
     "GraphResourceNode",
     "HealthResponse",
+    "HighlightingJobParams",
     "InferenceLimits",
     "InferenceLimitsRequest",
     "InferenceLimitsResult",
     "InferenceLimitsResultResponse",
     "InferencePairLimits",
     "Job",
-    "JobAssessmentAnnotationResult",
     "JobAssignCommand",
     "JobAssignedPayload",
     "JobCancelCommand",
     "JobCancelRequest",
-    "JobCancelRequestJobType",
     "JobCancelResult",
     "JobCancelled",
     "JobCheckpointCommand",
     "JobClaimCommand",
     "JobClaimedResult",
-    "JobCommentAnnotationResult",
     "JobComplete",
     "JobCompleteCommand",
     "JobCompletedPayload",
@@ -226,11 +230,12 @@ __all__ = [
     "JobCreatedResultResponse",
     "JobDeclinedResult",
     "JobDeclinedResultReason",
+    "JobDetectionResult",
     "JobFailCommand",
     "JobFailed",
     "JobFailedPayload",
+    "JobFilter",
     "JobGenerationResult",
-    "JobHighlightAnnotationResult",
     "JobMetadata",
     "JobParams",
     "JobPending",
@@ -238,7 +243,6 @@ __all__ = [
     "JobProgressAnalyzing",
     "JobProgressAnalyzingTags",
     "JobProgressCompleteCreated",
-    "JobProgressCompleteCreatedKind",
     "JobProgressCompleteGenerated",
     "JobProgressCompletedItemsItem",
     "JobProgressCompletedItemsItemUnderReported",
@@ -255,7 +259,6 @@ __all__ = [
     "JobProgressRequestParamsItemLabel",
     "JobQueuedEvent",
     "JobRecord",
-    "JobReferenceAnnotationResult",
     "JobReportProgressCommand",
     "JobResult",
     "JobRunning",
@@ -269,7 +272,6 @@ __all__ = [
     "JobStoredProgressEmpty",
     "JobStoredResult",
     "JobStoredResultEmpty",
-    "JobTagAnnotationResult",
     "JobType",
     "KbDescription",
     "KnowledgeGraph",
@@ -277,14 +279,11 @@ __all__ = [
     "KnowledgeGraphNodesItem",
     "LimitRefusal",
     "LimitRefusalCode",
+    "LinkingJobParams",
     "ListResourcesResponse",
     "LogFormat",
     "LogLevel",
     "MarkArchiveCommand",
-    "MarkAssistRequestEvent",
-    "MarkAssistRequestEventOptions",
-    "MarkAssistRequestEventOptionsTone",
-    "MarkAssistTimeoutEvent",
     "MarkCommitCommand",
     "MarkCommitOk",
     "MarkCommitOkResponse",
@@ -292,9 +291,18 @@ __all__ = [
     "MarkCreateOk",
     "MarkCreateOkResponse",
     "MarkCreateRequest",
+    "MarkDelegateRequestEvent",
+    "MarkDelegateTimeoutEvent",
     "MarkDeleteCommand",
     "MarkDeleteOk",
     "MarkDeleteOkResponse",
+    "MarkJobCompleteCommand",
+    "MarkJobCreateCommand",
+    "MarkJobFilter",
+    "MarkJobFilterParams",
+    "MarkJobParams",
+    "MarkJobQueuedEvent",
+    "MarkJobResult",
     "MarkRequestedEvent",
     "MarkSubmitEvent",
     "MarkUnarchiveCommand",
@@ -368,6 +376,7 @@ __all__ = [
     "TagSchema",
     "TagSchemaAddedPayload",
     "TagSchemasProjection",
+    "TaggingJobParams",
     "TextPositionSelector",
     "TextQuoteSelector",
     "TextualBody",
@@ -389,6 +398,11 @@ __all__ = [
     "YieldCreateCommandGeneratedFrom",
     "YieldCreateOk",
     "YieldCreateOkResponse",
+    "YieldJobCompleteCommand",
+    "YieldJobCreateCommand",
+    "YieldJobFilter",
+    "YieldJobQueuedEvent",
+    "YieldJobResult",
     "YieldMoveFailed",
     "YieldMvCommand",
     "YieldUpdateCommand",
@@ -1120,65 +1134,13 @@ class GraphResourceNode(WireModel, frozen=True):
     metadata: dict[str, JsonValue] | None = None
 
 
-class JobAssessmentAnnotationResult(WireModel, frozen=True):
-    """
-    Result of a completed assessment-annotation job.
-    """
-
-    kind: Annotated[
-        Literal["assessment-annotation"],
-        Field(
-            description="Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is."
-        ),
-    ]
-    assessments_found: Annotated[int, Field(alias="assessmentsFound")]
-    assessments_created: Annotated[int, Field(alias="assessmentsCreated")]
-
-
-class JobClaimCommand(WireModel, frozen=True):
-    """
-    Claim the NEXT pending job matching one of the requested types (atomic: pending → running). Claim-by-type replaced claim-by-jobId: a job:queued announcement is a WAKE-UP, not a reservation — the claimed job may differ from the announced one, and two workers claiming after one announcement both succeed on different jobs instead of racing for one. An empty `types` accepts any type. The reply channels are unchanged: job:claimed carries the claimed job; job:claim-failed reports nothing-available exactly as it reported already-claimed.
-    """
-
-    types: list[str]
-    user_id: Annotated[
-        UserId | None,
-        Field(
-            alias="_userId",
-            description="Authenticated claimant's DID, injected by the /bus/emit gateway. Clients do not set this. The dispatcher records it as the holder on job:assigned.",
-        ),
-    ] = None
-    roles: Annotated[
-        list[str] | None,
-        Field(
-            alias="_roles",
-            description="The claimant's capabilities (the token's `roles`), injected by the /bus/emit gateway. Clients do not set this. The dispatcher authorizes the claim by capability — it admits the claim only when this carries the worker role — so a claimant that is not a worker for this knowledge base is refused before the queue is consulted.",
-        ),
-    ] = None
-
-
-class JobCommentAnnotationResult(WireModel, frozen=True):
-    """
-    Result of a completed comment-annotation job.
-    """
-
-    kind: Annotated[
-        Literal["comment-annotation"],
-        Field(
-            description="Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is."
-        ),
-    ]
-    comments_found: Annotated[int, Field(alias="commentsFound")]
-    comments_created: Annotated[int, Field(alias="commentsCreated")]
-
-
 class UnitCursor(WireModel, frozen=True):
     """
-    How far a single unit got, for a resume that starts mid-unit rather than redoing it. A unit is an entity type for reference-annotation, and the job's own motivation for the other annotation types — which is why a unit-grain checkpoint alone was too coarse: those jobs have exactly one unit, so nothing could be recorded until the whole document was done.
+    How far a single unit got, for a resume that starts mid-unit rather than redoing it. A unit is an entity type for a linking job, a category for a tagging job, and the job's own motivation for every other — which is why a unit-grain checkpoint alone is too coarse: those three have exactly one unit, so nothing could be recorded until the whole document was done.
 
     MERGE IS MONOTONE PER UNIT, not a union. `completedUnits` is a set and converges under concurrent snapshots because a set only grows; a cursor converges only if a stale snapshot can never move it backward.
 
-    IT CARRIES THE UNIT'S RUNNING TALLIES TOO, and they are required. A resumed unit counts only the chunks it actually runs, so without them a retry's terminal record reports the remainder of the document as if it were the whole — measured at totalFound 19 where the document yielded 25. The position and the tallies are ONE observation of the same committed chunk; splitting them would let a resume take the saving and still report a number nobody can trust.
+    IT CARRIES THE UNIT'S RUNNING TALLIES TOO, and they are required. A resumed unit counts only the chunks it actually runs, so without them a retry's terminal record reports the remainder of the document as if it were the whole — measured at a `found` of 19 where the document yielded 25. The position and the tallies are ONE observation of the same committed chunk; splitting them would let a resume take the saving and still report a number nobody can trust.
     """
 
     next: Annotated[
@@ -1205,23 +1167,24 @@ class UnitCursor(WireModel, frozen=True):
     emitted: Annotated[
         int,
         Field(
-            description="Annotations actually committed for this unit through the last committed chunk, after dedupe. The pair (found, emitted) is what the job's terminal result reports, so a resumed unit seeds both and its record describes the whole document rather than one attempt's share.",
+            description="Annotations actually committed for this unit through the last committed chunk, after dedupe. With `found` and `errors` it is what the job's terminal result reports, so a resumed unit seeds all three and its record describes the whole document rather than one attempt's share.",
+            ge=0,
+        ),
+    ]
+    errors: Annotated[
+        int,
+        Field(
+            description="Items detection returned for this unit through the last committed chunk that could not be anchored in the text. Carried with the other two tallies so that a resumed job reports the whole document's, and not only its last attempt's.",
             ge=0,
         ),
     ]
 
 
-class JobGenerationResult(WireModel, frozen=True):
+class JobGenerationResult(WireModel, frozen=True, extra="forbid"):
     """
-    Result of a completed generation job. The worker creates the resource first (the yield:create round-trip returns the id), then emits job:complete carrying it — so resourceId is always present on the wire.
+    What a `yield` job reports when it has made its resource. The worker creates the resource first (the create round trip returns its id), then emits job:complete carrying it, so resourceId is always present on the wire.
     """
 
-    kind: Annotated[
-        Literal["generation"],
-        Field(
-            description="Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is."
-        ),
-    ]
     resource_id: Annotated[
         ResourceId,
         Field(
@@ -1236,21 +1199,6 @@ class JobGenerationResult(WireModel, frozen=True):
             description="True when the model stopped at the maxTokens ceiling — the artifact is cut off, not complete. Derived at the producer from the provider's stopReason ('max_tokens' → true); required because the worker always knows."
         ),
     ]
-
-
-class JobHighlightAnnotationResult(WireModel, frozen=True):
-    """
-    Result of a completed highlight-annotation job.
-    """
-
-    kind: Annotated[
-        Literal["highlight-annotation"],
-        Field(
-            description="Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is."
-        ),
-    ]
-    highlights_found: Annotated[int, Field(alias="highlightsFound")]
-    highlights_created: Annotated[int, Field(alias="highlightsCreated")]
 
 
 class JobProgressAnalyzing(WireModel, frozen=True):
@@ -1335,34 +1283,39 @@ class JobProgressLoading(WireModel, frozen=True):
     code: Literal["loading"]
 
 
-class JobQueuedEvent(WireModel, frozen=True):
+class JobDetectionResult(WireModel, frozen=True, extra="forbid"):
     """
-    Event indicating a job has been queued
-    """
-
-    job_id: Annotated[JobId, Field(alias="jobId")]
-    job_type: Annotated[str, Field(alias="jobType")]
-    resource_id: Annotated[ResourceId, Field(alias="resourceId")]
-    user_id: Annotated[
-        UserId,
-        Field(alias="userId", description="DID of the user who initiated the job (audit)."),
-    ]
-
-
-class JobReferenceAnnotationResult(WireModel, frozen=True):
-    """
-    Result of a completed reference-annotation job.
+    What a `mark` job reports when it has done its work, whatever its motivation.
     """
 
-    kind: Annotated[
-        Literal["reference-annotation"],
+    found: Annotated[
+        int,
         Field(
-            description="Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is."
+            description="What the model proposed, before anything was checked against the text.",
+            ge=0,
         ),
     ]
-    total_found: Annotated[int, Field(alias="totalFound", description="Total entities found")]
-    total_emitted: Annotated[int, Field(alias="totalEmitted", description="Total annotations emitted")]
-    errors: Annotated[int, Field(description="Number of errors encountered")]
+    persisted: Annotated[
+        int,
+        Field(
+            description="What the log holds: the annotations committed, after the ones that could not be anchored were dropped and repeats were collapsed.",
+            ge=0,
+        ),
+    ]
+    errors: Annotated[
+        int | None,
+        Field(
+            description="How many of the proposed could not be anchored in the text. Absent means none.",
+            ge=1,
+        ),
+    ] = None
+    by_category: Annotated[
+        dict[str, int] | None,
+        Field(
+            alias="byCategory",
+            description="The annotations persisted per category. A tagging job's; absent from every other.",
+        ),
+    ] = None
     under_reported_pieces: Annotated[
         int | None,
         Field(
@@ -1411,35 +1364,11 @@ class JobStatusRequest(WireModel, frozen=True):
     job_id: Annotated[JobId, Field(alias="jobId")]
 
 
-class JobTagAnnotationResult(WireModel, frozen=True):
-    """
-    Result of a completed tag-annotation job.
-    """
-
-    kind: Annotated[
-        Literal["tag-annotation"],
-        Field(
-            description="Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is."
-        ),
-    ]
-    tags_found: Annotated[int, Field(alias="tagsFound")]
-    tags_created: Annotated[int, Field(alias="tagsCreated")]
-    by_category: Annotated[
-        dict[str, int],
-        Field(alias="byCategory", description="Count of tags created per category"),
-    ]
-
-
 type JobType = Annotated[
-    Literal[
-        "reference-annotation",
-        "generation",
-        "highlight-annotation",
-        "assessment-annotation",
-        "comment-annotation",
-        "tag-annotation",
-    ],
-    Field(description="Type of background job"),
+    Literal["mark", "yield"],
+    Field(
+        description="What a job does, as the verb that asks for it: `mark` annotates a resource, `yield` makes one. A job description is its `jobType` and the parameters that verb takes; a `mark` job's parameters state its motivation."
+    ),
 ]
 
 
@@ -2377,10 +2306,213 @@ class JobMetadata(WireModel, frozen=True, extra="forbid"):
 
 class JobParams(WireModel, frozen=True, extra="allow"):
     """
-    The parameters a job was created with: the `params` of its `job:create`, with the resource the job is about under `resourceId`. For generation the dispatcher derives that resource from the context's focus; for every other type it is the request's `resourceId`. The other fields depend on the job type and are carried as the caller sent them.
+    A job's parameters as the Dispatcher holds them: the `params` of its `job:create`, and what the Dispatcher adds. It adds `resourceId`, the resource the job is about: a `mark` job's own, and for a `yield` job the one its context focuses on. For a tagging job it adds `schema`, the tag schema its `schemaId` names, so that whoever holds the job needs no registry. Nothing the caller sent is changed or removed.
     """
 
     resource_id: Annotated[ResourceId, Field(alias="resourceId")]
+    schema_: Annotated[
+        TagSchema | None,
+        Field(
+            alias="schema",
+            description="The tag schema a tagging job's `schemaId` names, as the knowledge base registered it when the job was created. On a tagging job, and on no other.",
+        ),
+    ] = None
+
+
+class HighlightingJobParams(WireModel, frozen=True, extra="forbid"):
+    """
+    What a highlighting job takes: passages of the resource worth a reader's attention are marked, with no text of the job's own.
+    """
+
+    motivation: Literal["highlighting"]
+    instructions: Annotated[
+        str | None,
+        Field(description="What to look for, in the caller's words. Added to the prompt."),
+    ] = None
+    density: Annotated[
+        float | None,
+        Field(description="How many annotations to aim for per 2000 words of the resource."),
+    ] = None
+    source_language: Annotated[
+        str | None,
+        Field(
+            alias="sourceLanguage",
+            description="The language of the resource being read. BCP 47.",
+        ),
+    ] = None
+
+
+class LinkingJobParams(WireModel, frozen=True, extra="forbid"):
+    """
+    What a linking job takes: mentions of the named entity types are marked as references, each unresolved until it is bound to a resource.
+    """
+
+    motivation: Literal["linking"]
+    entity_types: Annotated[
+        list[str],
+        Field(
+            alias="entityTypes",
+            description="The entity types to find mentions of. Each is one the knowledge base registers.",
+            min_length=1,
+        ),
+    ]
+    include_descriptive_references: Annotated[
+        bool | None,
+        Field(
+            alias="includeDescriptiveReferences",
+            description='Whether a description that stands for an entity ("the wily hero") counts as a mention of it, beside its name.',
+        ),
+    ] = None
+    language: Annotated[
+        str | None,
+        Field(description="The language the annotations' own text is written in. BCP 47."),
+    ] = None
+    source_language: Annotated[
+        str | None,
+        Field(
+            alias="sourceLanguage",
+            description="The language of the resource being read. BCP 47.",
+        ),
+    ] = None
+
+
+class TaggingJobParams(WireModel, frozen=True, extra="forbid"):
+    """
+    What a tagging job takes: passages of the resource are marked with categories of one tag schema.
+    """
+
+    motivation: Literal["tagging"]
+    schema_id: Annotated[
+        str,
+        Field(
+            alias="schemaId",
+            description="The tag schema to tag by. It is one the knowledge base registers.",
+            min_length=1,
+        ),
+    ]
+    categories: Annotated[
+        list[str],
+        Field(description="The categories of that schema to tag with.", min_length=1),
+    ]
+    language: Annotated[
+        str | None,
+        Field(description="The language the annotations' own text is written in. BCP 47."),
+    ] = None
+    source_language: Annotated[
+        str | None,
+        Field(
+            alias="sourceLanguage",
+            description="The language of the resource being read. BCP 47.",
+        ),
+    ] = None
+
+
+class GenerationJobRequest(WireModel, frozen=True):
+    """
+    What a `yield` job is asked to make: every parameter of GenerationJobParams but its `context`, the input the resource is made from. It is what an announcement of the job carries.
+    """
+
+    title: Annotated[
+        str,
+        Field(
+            description="Title of the generated resource. Not empty: the gateway refuses a `job:create` whose title is.",
+            min_length=1,
+        ),
+    ]
+    storage_uri: Annotated[
+        str,
+        Field(
+            alias="storageUri",
+            description="Storage URI for the generated resource's content — AUTHORITATIVE: the worker writes exactly here and never derives a location from the title. Not empty, and there is no fallback: the gateway refuses a `job:create` whose storageUri is.",
+            min_length=1,
+        ),
+    ]
+    prompt: Annotated[
+        str | None,
+        Field(description="Refining instruction, composed with `task` (task = what, prompt = how)."),
+    ] = None
+    entity_types: Annotated[
+        list[str] | None,
+        Field(
+            alias="entityTypes",
+            description="Entity-type tags to stamp on the synthesized resource. Used both as a prompt bias for the generation worker and as the `entityTypes` set on the resulting resource.",
+        ),
+    ] = None
+    language: Annotated[
+        str | None,
+        Field(
+            description="Annotation/resource body locale — language the generated resource is written in (typically the user's UI locale). BCP-47."
+        ),
+    ] = None
+    source_language: Annotated[
+        str | None,
+        Field(
+            alias="sourceLanguage",
+            description="Source-resource locale — language of the resource being referenced, used in the prompt so the LLM understands embedded source-context snippets when source ≠ target language. BCP-47.",
+        ),
+    ] = None
+    temperature: Annotated[float | None, Field(description="Sampling temperature forwarded to the model.")] = None
+    max_tokens: Annotated[
+        float | None,
+        Field(
+            alias="maxTokens",
+            description="Output token budget forwarded to the model. Length never determines structure.",
+        ),
+    ] = None
+    output_media_type: Annotated[
+        SupportedMediaType | None,
+        Field(
+            alias="outputMediaType",
+            description="Requested media type of the generated resource's content. Default `text/markdown` at the worker, which validates it against its supported output set and FAILS the job for anything it can't write — not a silent fallback.",
+        ),
+    ] = None
+    task: Annotated[
+        str | None,
+        Field(
+            description="What the model is asked to produce — the prompt's framing verb. Canonical values ('resource', 'answer', 'summary') map to the worker's tested framings; any other string is used VERBATIM as the framing instruction (loud degrade: the worker warns, never silently falls back). Unset ⇒ 'resource' (article framing)."
+        ),
+    ] = None
+    structure: Annotated[
+        str | None,
+        Field(
+            description="How the output is internally segmented — shape for text-bearing media, subordinate to `outputMediaType` (never its peer). Canonical values: 'prose' (flowing paragraphs), 'sections' (titled sections + title), 'chat' (speaker-labeled turns); any other string becomes a freeform \"organize as: …\" directive (loud degrade). Unset ⇒ NO structure directive at all — the task framing and the model determine shape."
+        ),
+    ] = None
+    cite: Annotated[
+        bool | None,
+        Field(
+            description="Ask the model to cite: emit [[<id>]] transport tokens after each claim, using the ids the context embedding provides. The worker validates each id against the embedded context (unknown ids are dropped loudly), strips the tokens from the stored content, and mints W3C linking annotations on the derived resource."
+        ),
+    ] = None
+
+
+class YieldJobQueuedEvent(WireModel, frozen=True):
+    """
+    A pending `yield` job, announced with what it is asked to make and without its `context`.
+    """
+
+    job_id: Annotated[JobId, Field(alias="jobId")]
+    job_type: Annotated[Literal["yield"], Field(alias="jobType")]
+    resource_id: Annotated[
+        ResourceId,
+        Field(alias="resourceId", description="The resource the job is about."),
+    ]
+    user_id: Annotated[
+        UserId,
+        Field(
+            alias="userId",
+            description="The DID of the principal whose `job:create` created the job.",
+        ),
+    ]
+    params: GenerationJobRequest
+
+
+class YieldJobFilter(WireModel, frozen=True, extra="forbid"):
+    """
+    `yield` jobs.
+    """
+
+    job_type: Annotated[Literal["yield"], Field(alias="jobType")]
 
 
 class JobPending(WireModel, frozen=True, extra="forbid"):
@@ -2493,14 +2625,14 @@ class StorageUriEntry(WireModel, frozen=True, extra="forbid"):
     resource_id: Annotated[ResourceId, Field(alias="resourceId")]
 
 
-class MarkAssistTimeoutEvent(WireModel, frozen=True):
+class MarkDelegateTimeoutEvent(WireModel, frozen=True):
     """
-    The payload of `mark:assist-timeout`, a client-local signal: an assist went silent past its deadline, with no progress, no completion and no `job:fail`. A real job failure arrives as `job:fail` and never produces this.
+    The payload of `mark:delegate-timeout`, a client-local signal: a delegated job went silent past its deadline, with no progress, no completion and no `job:fail`. A real job failure arrives as `job:fail` and never produces this.
     """
 
     resource_id: Annotated[
         ResourceId,
-        Field(alias="resourceId", description="The resource the assist was run on."),
+        Field(alias="resourceId", description="The resource the job was delegated for."),
     ]
     motivation: Motivation
 
@@ -2747,12 +2879,6 @@ class InferenceLimitsResultResponse(WireModel, frozen=True):
     limits: list[InferencePairLimits]
 
 
-type JobCancelRequestJobType = Annotated[
-    Literal["annotation", "generation"],
-    Field(description="Cancel all PENDING jobs in this category — the bulk UI signal. Ignored when jobId is present."),
-]
-
-
 class JobCreatedResultResponse(WireModel, frozen=True):
     job_id: Annotated[JobId, Field(alias="jobId")]
 
@@ -2793,12 +2919,6 @@ type JobProgressRequestParamsItemLabel = Annotated[
 ]
 
 
-type JobProgressCompleteCreatedKind = Annotated[
-    Literal["highlight", "comment", "assessment", "reference", "tag"],
-    Field(description="What kind of annotation was created; clients pluralize/translate"),
-]
-
-
 type JobStatusResponseStatus = Literal["pending", "running", "complete", "failed", "cancelled"]
 
 
@@ -2813,18 +2933,6 @@ class KnowledgeGraphEdgesItem(WireModel, frozen=True):
     ]
     bidirectional: Annotated[bool | None, Field(description="Whether the connection goes both ways")] = None
     metadata: dict[str, JsonValue] | None = None
-
-
-type MarkAssistRequestEventOptionsTone = Literal[
-    "scholarly",
-    "explanatory",
-    "conversational",
-    "technical",
-    "analytical",
-    "critical",
-    "balanced",
-    "constructive",
-]
 
 
 class MarkCreateOkResponse(WireModel, frozen=True):
@@ -3030,6 +3138,22 @@ type LimitRefusalCode = Annotated[
         description="`streams`: the principal already holds as many streams as its coefficient of `x-semiont-limits.streamsPerPrincipal` allows. `emit-rate`: the principal's emits have used its bucket, whose rate and burst are its coefficient of `x-semiont-limits.emitsPerPrincipal`, per gateway process. `unanswered-requests`: the client already awaits as many replies as `BusSubscribeRequest.pendingReplies` may name. `capacity`: the gateway holds as many queued bytes as it can."
     ),
 ]
+
+
+type CommentingJobParamsTone = Annotated[
+    Literal["scholarly", "explanatory", "conversational", "technical"],
+    Field(description="The voice the comments are written in."),
+]
+
+
+type AssessingJobParamsTone = Annotated[
+    Literal["analytical", "critical", "balanced", "constructive"],
+    Field(description="The stance the assessments are written from."),
+]
+
+
+class MarkJobFilterParams(WireModel, frozen=True, extra="forbid"):
+    motivation: Motivation
 
 
 type JobStoredProgressEmpty = Annotated[dict[str, JsonValue], Field(max_length=0)]
@@ -3378,21 +3502,6 @@ class AnchoredTextAbsent(WireModel, frozen=True):
     kind: Literal["not-yet", "no-map", "unknown"]
 
 
-class CollaboratorEntry(WireModel, frozen=True):
-    """
-    One collaborator in the KB's directory: a W3C Agent plus, for software agents declared in the KB's worker inference config, the job types it serves. Actor-role-only agents (gatherer/matcher) and Persons omit servesJobTypes. The directory carries no inference limits: the services that hold the inference credentials report those (InferenceLimitsResult).
-    """
-
-    agent: Agent
-    serves_job_types: Annotated[
-        list[JobType] | None,
-        Field(
-            alias="servesJobTypes",
-            description="Job types this agent is declared to serve (from the KB's workers.* config sections). Absent for Persons and for agents declared only under actor roles.",
-        ),
-    ] = None
-
-
 class CommandError(WireModel, frozen=True):
     """
     Error response for failed bus commands. Replaces native Error objects on the EventBus so payloads are serializable and OpenAPI-typed.
@@ -3583,7 +3692,7 @@ class InferenceLimitsResult(WireModel, frozen=True):
 
 class JobCancelRequest(WireModel, frozen=True):
     """
-    Request to cancel a job. Target one running or pending job by `jobId`, or a whole category of pending jobs by `jobType`. A `jobId`-targeted request that names a RUNNING job is honoured cooperatively by the owning worker, which stops at its next unit boundary and emits JobCancelCommand — the queue is never made to yank a running job out from under a live worker.
+    Request to cancel a job. Target one running or pending job by `jobId`, or every pending job of one `jobType`. A `jobId`-targeted request that names a RUNNING job is honoured cooperatively by the owning worker, which stops at its next unit boundary and emits JobCancelCommand — the queue is never made to yank a running job out from under a live worker.
     """
 
     job_id: Annotated[
@@ -3593,7 +3702,13 @@ class JobCancelRequest(WireModel, frozen=True):
             description="Cancel this one job. A pending job is cancelled immediately by the dispatcher; a running job is cancelled cooperatively by its worker. Takes precedence over jobType.",
         ),
     ] = None
-    job_type: Annotated[JobCancelRequestJobType | None, Field(alias="jobType")] = None
+    job_type: Annotated[
+        JobType | None,
+        Field(
+            alias="jobType",
+            description="Cancel all PENDING jobs of this type — the bulk UI signal. Ignored when jobId is present.",
+        ),
+    ] = None
 
 
 class JobCancelCommand(WireModel, frozen=True):
@@ -3675,29 +3790,6 @@ class JobCompletedPayload(WireModel, frozen=True):
     ] = None
     result: Annotated[dict[str, JsonValue] | None, Field(description="Full result object for extensibility")] = None
     durability: DurabilityEvidence | None = None
-
-
-class JobCreateCommand(WireModel, frozen=True):
-    """
-    Command to create a new job via the event bus
-    """
-
-    user_id: Annotated[
-        UserId | None,
-        Field(
-            alias="_userId",
-            description="Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.",
-        ),
-    ] = None
-    job_type: Annotated[JobType, Field(alias="jobType")]
-    resource_id: Annotated[
-        ResourceId | None,
-        Field(
-            alias="resourceId",
-            description="Resource the job operates on. REQUIRED for every jobType EXCEPT 'generation', where it must be ABSENT: the dispatcher derives it from params.context.focus (the context is authoritative) and REJECTS a supplied value via job:create-failed. Both directions are enforced at the dispatcher — this schema cannot express the per-jobType conditionality.",
-        ),
-    ] = None
-    params: dict[str, JsonValue]
 
 
 class JobCreatedResult(WireModel, frozen=True):
@@ -3791,20 +3883,14 @@ class JobCheckpointCommand(WireModel, frozen=True):
     ] = None
 
 
-class JobDeclinedResult(WireModel, frozen=True):
+class JobDeclinedResult(WireModel, frozen=True, extra="forbid"):
     """
     Result of a job that completed without doing its work because the resource could not be read. Distinct from a failure: nothing went wrong, there was simply no text to work with — an encrypted or damaged PDF, a scan whose text could not be recognized, or a document that yielded nothing. The reasons are the extraction vocabulary the Smelter reports on `smelt:settled`, MINUS `no-extractor`: a media type that can never yield text (a zip, an image) is a bad request rather than a decline, so a worker asked to detect over one throws and the job reports `job:fail`. Everything here is a resource-specific outcome — the same media type would have succeeded on a different document.
     """
 
-    kind: Annotated[
-        Literal["declined"],
-        Field(
-            description="Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is."
-        ),
-    ]
     declined: Annotated[
         Literal[True],
-        Field(description="Discriminant. Always true — a job that did its work reports one of the other result shapes."),
+        Field(description="Always true. It is what tells a decline from the result of a job that did its work, which never carries it."),
     ]
     reason: JobDeclinedResultReason
 
@@ -3848,20 +3934,16 @@ class JobProgressCompleteCreated(WireModel, frozen=True):
 
     code: Literal["complete-created"]
     count: Annotated[int, Field(description="How many annotations were created")]
-    kind: JobProgressCompleteCreatedKind
+    motivation: Annotated[
+        Motivation,
+        Field(description="The motivation of the job, and so of what it created. A client words it in its own language."),
+    ]
 
 
 type JobResult = Annotated[
-    JobGenerationResult
-    | JobReferenceAnnotationResult
-    | JobHighlightAnnotationResult
-    | JobAssessmentAnnotationResult
-    | JobCommentAnnotationResult
-    | JobTagAnnotationResult
-    | JobDeclinedResult,
+    JobDetectionResult | JobGenerationResult | JobDeclinedResult,
     Field(
-        description="Discriminated union of all job result types — every member carries a single-valued `kind`. Consumers switch on `kind`; generated clients get typed variants.",
-        discriminator="kind",
+        description="What a job reports when it concludes without failing: a `mark` job's counts, the resource a `yield` job made, or a decline from either. A result has no discriminant of its own: the job description beside it says which job it answers, and the three share no member, so each is told from the others by what it alone carries."
     ),
 ]
 
@@ -4428,6 +4510,144 @@ class LimitRefusal(WireModel, frozen=True):
     details: JsonValue | None = None
 
 
+class CommentingJobParams(WireModel, frozen=True, extra="forbid"):
+    """
+    What a commenting job takes: passages of the resource are marked, each with a comment the model writes.
+    """
+
+    motivation: Literal["commenting"]
+    instructions: Annotated[
+        str | None,
+        Field(description="What to look for, in the caller's words. Added to the prompt."),
+    ] = None
+    tone: CommentingJobParamsTone | None = None
+    density: Annotated[
+        float | None,
+        Field(description="How many annotations to aim for per 2000 words of the resource."),
+    ] = None
+    language: Annotated[
+        str | None,
+        Field(description="The language the annotations' own text is written in. BCP 47."),
+    ] = None
+    source_language: Annotated[
+        str | None,
+        Field(
+            alias="sourceLanguage",
+            description="The language of the resource being read. BCP 47.",
+        ),
+    ] = None
+
+
+class AssessingJobParams(WireModel, frozen=True, extra="forbid"):
+    """
+    What an assessing job takes: passages of the resource are marked, each with an assessment the model writes.
+    """
+
+    motivation: Literal["assessing"]
+    instructions: Annotated[
+        str | None,
+        Field(description="What to look for, in the caller's words. Added to the prompt."),
+    ] = None
+    tone: AssessingJobParamsTone | None = None
+    density: Annotated[
+        float | None,
+        Field(description="How many annotations to aim for per 2000 words of the resource."),
+    ] = None
+    language: Annotated[
+        str | None,
+        Field(description="The language the annotations' own text is written in. BCP 47."),
+    ] = None
+    source_language: Annotated[
+        str | None,
+        Field(
+            alias="sourceLanguage",
+            description="The language of the resource being read. BCP 47.",
+        ),
+    ] = None
+
+
+type MarkJobResult = Annotated[
+    JobDetectionResult | JobDeclinedResult,
+    Field(
+        description="What a `mark` job reports when it concludes without failing: its counts, or a decline. Neither names its kind: a decline is the one with `declined`."
+    ),
+]
+
+
+type YieldJobResult = Annotated[
+    JobGenerationResult | JobDeclinedResult,
+    Field(
+        description="What a `yield` job reports when it concludes without failing: the resource it made, or a decline. Neither names its kind: a decline is the one with `declined`."
+    ),
+]
+
+
+class MarkJobCompleteCommand(WireModel, frozen=True):
+    """
+    A `mark` job's worker says the job is complete, with what a `mark` job reports.
+    """
+
+    user_id: Annotated[
+        UserId | None,
+        Field(
+            alias="_userId",
+            description="Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.",
+        ),
+    ] = None
+    resource_id: Annotated[ResourceId, Field(alias="resourceId")]
+    job_id: Annotated[JobId, Field(alias="jobId")]
+    job_type: Annotated[Literal["mark"], Field(alias="jobType")]
+    attempt: Annotated[
+        int | None,
+        Field(
+            description="Which attempt produced this event, 1-based (a first run is 1). ALWAYS present: the queue re-runs a failed job silently, so an operator reading progress or a terminal record has no other way to tell a re-run from a first run — and provider spend, already counted in semiont_inference_tokens_total, cannot be attributed to a repeated document without it. Stated rather than inferred from absence, because 'attempt 1' is a fact the emitter always knows."
+        ),
+    ] = None
+    result: MarkJobResult | None = None
+    durability: DurabilityEvidence | None = None
+
+
+class YieldJobCompleteCommand(WireModel, frozen=True):
+    """
+    A `yield` job's worker says the job is complete, with what a `yield` job reports.
+    """
+
+    user_id: Annotated[
+        UserId | None,
+        Field(
+            alias="_userId",
+            description="Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.",
+        ),
+    ] = None
+    resource_id: Annotated[ResourceId, Field(alias="resourceId")]
+    job_id: Annotated[JobId, Field(alias="jobId")]
+    job_type: Annotated[Literal["yield"], Field(alias="jobType")]
+    attempt: Annotated[
+        int | None,
+        Field(
+            description="Which attempt produced this event, 1-based (a first run is 1). ALWAYS present: the queue re-runs a failed job silently, so an operator reading progress or a terminal record has no other way to tell a re-run from a first run — and provider spend, already counted in semiont_inference_tokens_total, cannot be attributed to a repeated document without it. Stated rather than inferred from absence, because 'attempt 1' is a fact the emitter always knows."
+        ),
+    ] = None
+    annotation_id: Annotated[
+        AnnotationId | None,
+        Field(
+            alias="annotationId",
+            description="The annotation the job's context was focused on, when it was focused on one. Lets a client route the completion to that annotation.",
+        ),
+    ] = None
+    result: YieldJobResult | None = None
+    durability: DurabilityEvidence | None = None
+
+
+class MarkJobFilter(WireModel, frozen=True, extra="forbid"):
+    """
+    `mark` jobs of one motivation.
+    """
+
+    job_type: Annotated[Literal["mark"], Field(alias="jobType")]
+    params: MarkJobFilterParams
+
+
 type JobStoredResult = Annotated[
     JobResult | JobStoredResultEmpty,
     Field(
@@ -4597,10 +4817,6 @@ Non-empty array of mixed TextualBody (tagging) and SpecificResource (linking) bo
 type AnnotationBodyUpdatedPayloadOperationsItem = BodyOperationAdd | BodyOperationRemove | BodyOperationReplace
 
 
-class BrowseAgentsResultResponse(WireModel, frozen=True):
-    agents: list[CollaboratorEntry]
-
-
 class BrowseDirectoryResultResponse(WireModel, frozen=True):
     path: str
     entries: list[DirectoryEntry]
@@ -4657,7 +4873,7 @@ class JobProgressCompletedItemsItem(WireModel, frozen=True):
         int | None,
         Field(
             alias="persistedCount",
-            description="Annotations actually persisted for it — post-dedupe and post-durability-acknowledgement, so it counts what the event log holds, not what the model proposed. Beside foundCount this is the per-unit yield the sizing work is judged by. Present on flows whose units persist as they complete (reference-annotation); the tagging flow reports the same fact as byCategory on its result, because its annotations are built after the per-category loop.",
+            description="Annotations actually persisted for it — post-dedupe and post-durability-acknowledgement, so it counts what the event log holds, not what the model proposed. Beside foundCount this is the per-unit yield the sizing work is judged by. Present on flows whose units persist as they complete (a linking job); the tagging flow reports the same fact as byCategory on its result, because its annotations are built after the per-category loop.",
         ),
     ] = None
     under_reported: Annotated[JobProgressCompletedItemsItemUnderReported | None, Field(alias="underReported")] = None
@@ -4666,17 +4882,6 @@ class JobProgressCompletedItemsItem(WireModel, frozen=True):
 class JobProgressRequestParamsItem(WireModel, frozen=True):
     label: JobProgressRequestParamsItemLabel
     value: Annotated[str, Field(description="The user's own input, shown verbatim.")]
-
-
-class MarkAssistRequestEventOptions(WireModel, frozen=True):
-    instructions: str | None = None
-    tone: MarkAssistRequestEventOptionsTone | None = None
-    density: float | None = None
-    language: str | None = None
-    entity_types: Annotated[list[str] | None, Field(alias="entityTypes")] = None
-    include_descriptive_references: Annotated[bool | None, Field(alias="includeDescriptiveReferences")] = None
-    schema_id: Annotated[str | None, Field(alias="schemaId")] = None
-    categories: list[str] | None = None
 
 
 type MarkUpdateBodyCommandOperationsItem = BodyOperationAdd | BodyOperationRemove | BodyOperationReplace
@@ -4735,17 +4940,16 @@ class AnchoredTextExtractedEntryLinesItem(WireModel, frozen=True, extra="forbid"
     ]
 
 
-class ArchivistRosterWorkers(WireModel, frozen=True, extra="forbid"):
+class ArchivistRosterWorkersMark(WireModel, frozen=True, extra="forbid"):
     """
-    The agent serving each job type.
+    The agent serving `mark` jobs of each motivation.
     """
 
-    reference_annotation: Annotated[ArchivistRosterRole | None, Field(alias="reference-annotation")] = None
-    highlight_annotation: Annotated[ArchivistRosterRole | None, Field(alias="highlight-annotation")] = None
-    assessment_annotation: Annotated[ArchivistRosterRole | None, Field(alias="assessment-annotation")] = None
-    comment_annotation: Annotated[ArchivistRosterRole | None, Field(alias="comment-annotation")] = None
-    tag_annotation: Annotated[ArchivistRosterRole | None, Field(alias="tag-annotation")] = None
-    generation: ArchivistRosterRole | None = None
+    highlighting: ArchivistRosterRole | None = None
+    commenting: ArchivistRosterRole | None = None
+    assessing: ArchivistRosterRole | None = None
+    linking: ArchivistRosterRole | None = None
+    tagging: ArchivistRosterRole | None = None
 
 
 class ArchivistRosterActors(WireModel, frozen=True, extra="forbid"):
@@ -4790,14 +4994,6 @@ class AnnotationTarget(WireModel, frozen=True):
         AnnotationSelector | None,
         Field(description="Optional selector to identify a specific segment of the source resource"),
     ] = None
-
-
-class BrowseAgentsResult(WireModel, frozen=True):
-    """
-    Result of browsing the collaborator directory
-    """
-
-    response: BrowseAgentsResultResponse
 
 
 class BrowseAnnotationHistoryResult(WireModel, frozen=True):
@@ -4911,36 +5107,13 @@ class GetResourceByTokenResponse(WireModel, frozen=True):
     ]
 
 
-class JobCompleteCommand(WireModel, frozen=True):
-    """
-    Command to mark a job as complete
-    """
-
-    user_id: Annotated[
-        UserId | None,
-        Field(
-            alias="_userId",
-            description="Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.",
-        ),
-    ] = None
-    resource_id: Annotated[ResourceId, Field(alias="resourceId")]
-    job_id: Annotated[JobId, Field(alias="jobId")]
-    job_type: Annotated[JobType, Field(alias="jobType")]
-    attempt: Annotated[
-        int | None,
-        Field(
-            description="Which attempt produced this event, 1-based (a first run is 1). ALWAYS present: the queue re-runs a failed job silently, so an operator reading progress or a terminal record has no other way to tell a re-run from a first run — and provider spend, already counted in semiont_inference_tokens_total, cannot be attributed to a repeated document without it. Stated rather than inferred from absence, because 'attempt 1' is a fact the emitter always knows."
-        ),
-    ] = None
-    annotation_id: Annotated[
-        AnnotationId | None,
-        Field(
-            alias="annotationId",
-            description="Annotation this job is attached to, when applicable. Lets the UI route completion feedback (toast, resolve state) to a specific annotation.",
-        ),
-    ] = None
-    result: JobResult | None = None
-    durability: DurabilityEvidence | None = None
+type JobCompleteCommand = Annotated[
+    MarkJobCompleteCommand | YieldJobCompleteCommand,
+    Field(
+        description="A job's worker says the job is complete. The result it carries is its verb's: a `mark` job's counts or the resource a `yield` job made, or a decline from either. A completion whose result is the other verb's is refused where the command is admitted.",
+        discriminator="job_type",
+    ),
+]
 
 
 type JobProgressMessage = Annotated[
@@ -4966,15 +5139,6 @@ class ListResourcesResponse(WireModel, frozen=True):
     total: float
     offset: float
     limit: float
-
-
-class MarkAssistRequestEvent(WireModel, frozen=True):
-    """
-    Emitted when the user requests AI assistance for a mark
-    """
-
-    motivation: Motivation
-    options: MarkAssistRequestEventOptions
 
 
 class MarkCreateRequest(WireModel, frozen=True):
@@ -5112,6 +5276,69 @@ class GatewayConfig(WireModel, frozen=True, extra="forbid"):
     capacity: GatewayConfigCapacity
 
 
+type MarkJobParams = Annotated[
+    HighlightingJobParams | CommentingJobParams | AssessingJobParams | LinkingJobParams | TaggingJobParams,
+    Field(
+        description="The parameters of a `mark` job, told apart by `motivation`. Each motivation takes its own parameters and no others: a parameter a job does not take is refused where the job is created.",
+        discriminator="motivation",
+    ),
+]
+
+
+class MarkJobCreateCommand(WireModel, frozen=True, extra="forbid"):
+    """
+    Create a `mark` job: annotate one resource for one motivation.
+    """
+
+    user_id: Annotated[
+        UserId | None,
+        Field(
+            alias="_userId",
+            description="The emitter's verified DID, injected by the gateway. Clients do not set this.",
+        ),
+    ] = None
+    roles: Annotated[
+        list[str] | None,
+        Field(
+            alias="_roles",
+            description="The emitter's roles, injected by the gateway when it has any. Clients do not set this.",
+        ),
+    ] = None
+    job_type: Annotated[Literal["mark"], Field(alias="jobType")]
+    resource_id: Annotated[ResourceId, Field(alias="resourceId", description="The resource to annotate.")]
+    params: MarkJobParams
+
+
+class MarkJobQueuedEvent(WireModel, frozen=True):
+    """
+    A pending `mark` job, announced with its parameters as it was created.
+    """
+
+    job_id: Annotated[JobId, Field(alias="jobId")]
+    job_type: Annotated[Literal["mark"], Field(alias="jobType")]
+    resource_id: Annotated[
+        ResourceId,
+        Field(alias="resourceId", description="The resource the job is about."),
+    ]
+    user_id: Annotated[
+        UserId,
+        Field(
+            alias="userId",
+            description="The DID of the principal whose `job:create` created the job.",
+        ),
+    ]
+    params: MarkJobParams
+
+
+type JobFilter = Annotated[
+    MarkJobFilter | YieldJobFilter,
+    Field(
+        description="Some jobs, named by fields of the job description: a partial description, at the description's own paths. A job matches when every field stated here equals the job's. A `mark` filter always states its motivation.",
+        discriminator="job_type",
+    ),
+]
+
+
 class AnchoredTextExtractedEntry(WireModel, frozen=True, extra="forbid"):
     """
     The text extracted from the bytes, where each word is on the page, and how it was extracted.
@@ -5142,15 +5369,6 @@ class AnchoredTextExtractedEntry(WireModel, frozen=True, extra="forbid"):
     ] = None
 
 
-class ArchivistRoster(WireModel, frozen=True, extra="forbid"):
-    """
-    Who serves each role, behind `browse:agents`: a provider and a model, and no credential. Every fallback the knowledge base's config allows is already applied, so a role absent here is served by no one.
-    """
-
-    workers: ArchivistRosterWorkers
-    actors: ArchivistRosterActors
-
-
 class GetReferencedByResponseReferencedByItem(WireModel, frozen=True):
     id: Annotated[AnnotationId, Field(description="Reference annotation ID")]
     resource_name: Annotated[
@@ -5161,6 +5379,15 @@ class GetReferencedByResponseReferencedByItem(WireModel, frozen=True):
         ),
     ]
     target: GetReferencedByResponseReferencedByItemTarget
+
+
+class ArchivistRosterWorkers(WireModel, frozen=True, extra="forbid"):
+    """
+    The agent serving each job, keyed as a job description is: by `jobType`, and for `mark` by motivation.
+    """
+
+    mark: ArchivistRosterWorkersMark | None = None
+    yield_: Annotated[ArchivistRosterRole | None, Field(alias="yield")] = None
 
 
 class Annotation(WireModel, frozen=True):
@@ -5248,6 +5475,20 @@ class BrowseResourcesResult(WireModel, frozen=True):
     response: ListResourcesResponse
 
 
+class CollaboratorEntry(WireModel, frozen=True):
+    """
+    One collaborator in the KB's directory: a W3C Agent plus, for software agents declared in the KB's worker inference config, the jobs it serves. Actor-role-only agents (gatherer/matcher) and Persons omit `serves`. The directory carries no inference limits: the services that hold the inference credentials report those (InferenceLimitsResult).
+    """
+
+    agent: Agent
+    serves: Annotated[
+        list[JobFilter] | None,
+        Field(
+            description="The jobs this agent is declared to serve (from the KB's workers.* config sections), as a claim would name them. Absent for Persons and for agents declared only under actor roles."
+        ),
+    ] = None
+
+
 class EnrichedResourceEvent(StoredEventResponse, frozen=True):
     """
     Wire format for persisted events delivered over the bus SSE stream (GET /bus/subscribe). Extends StoredEventResponse with optional enrichment fields the EventStore populates from the materialized view at publish time (persistence → view → enrich → notification). Subscribers read the enrichment fields directly to update local caches without an additional fetch.
@@ -5311,6 +5552,34 @@ class GraphAnnotationNode(WireModel, frozen=True):
     metadata: dict[str, JsonValue] | None = None
 
 
+class JobClaimCommand(WireModel, frozen=True):
+    """
+    Claim the NEXT pending job that matches one of `accepts` (atomic: pending → running). A job:queued announcement is a WAKE-UP, not a reservation: the claimed job may differ from the announced one, and two claims after one announcement both succeed on different jobs instead of racing for one. job:claimed carries the claimed job; job:claim-failed reports that nothing matching is pending.
+    """
+
+    accepts: Annotated[
+        list[JobFilter],
+        Field(
+            description="The jobs this claim takes. A job is handed over when it matches any one of them.",
+            min_length=1,
+        ),
+    ]
+    user_id: Annotated[
+        UserId | None,
+        Field(
+            alias="_userId",
+            description="Authenticated claimant's DID, injected by the /bus/emit gateway. Clients do not set this. The dispatcher records it as the holder on job:assigned.",
+        ),
+    ] = None
+    roles: Annotated[
+        list[str] | None,
+        Field(
+            alias="_roles",
+            description="The claimant's capabilities (the token's `roles`), injected by the /bus/emit gateway. Clients do not set this. The dispatcher authorizes the claim by capability — it admits the claim only when this carries the worker role — so a claimant that is not a worker for this knowledge base is refused before the queue is consulted.",
+        ),
+    ] = None
+
+
 class JobProgress(WireModel, frozen=True):
     """
     Progress report from a running job. The required field is `percentage`; `message` carries the coded phase and the rest are optional job-shape fields. This is the single progress shape for every job type — annotation workers and generation alike. Terminality is signalled on `job:complete` / `job:fail`, not here. A flow that iterates a user-chosen list (entity types for references, categories for tags) reports its position as one `current`/`processed`/`total` triple, the same shape for both, so a client never needs to know which flow it is drawing.
@@ -5327,7 +5596,7 @@ class JobProgress(WireModel, frozen=True):
         AnnotationId | None,
         Field(
             alias="annotationId",
-            description="Annotation this job is attached to, when applicable. Echoed inside JobProgress (in addition to the outer command envelope) so consumers that only see the inner progress object (e.g. client.yield.fromContext's Observable) can still route visual feedback to a specific annotation.",
+            description="Annotation this job is attached to, when applicable. Echoed inside JobProgress (in addition to the outer command envelope) so consumers that only see the inner progress object (e.g. what `yield.delegate` returns) can still route visual feedback to a specific annotation.",
         ),
     ] = None
     current: JobProgressCurrent | None = None
@@ -5338,10 +5607,7 @@ class JobProgress(WireModel, frozen=True):
     total: Annotated[int | None, Field(description="Items this run will process in all.")] = None
     entities_found: Annotated[
         int | None,
-        Field(
-            alias="entitiesFound",
-            description="Entities found so far (reference-annotation)",
-        ),
+        Field(alias="entitiesFound", description="Entities found so far (a linking job)"),
     ] = None
     entities_expected: Annotated[
         int | None,
@@ -5354,7 +5620,7 @@ class JobProgress(WireModel, frozen=True):
         int | None,
         Field(
             alias="entitiesEmitted",
-            description="Annotations emitted so far (reference-annotation)",
+            description="Annotations emitted so far (a linking job)",
         ),
     ] = None
     completed_items: Annotated[
@@ -5371,6 +5637,15 @@ class JobProgress(WireModel, frozen=True):
             description="Echoed job parameters for display in the progress UI. `label` is a CODE, not a sentence — the client owns the wording, same rule as the progress message. `value` is the user's own input (an entity-type list, their instructions) and is deliberately NOT translated: it is their words, not ours.",
         ),
     ] = None
+
+
+type JobQueuedEvent = Annotated[
+    MarkJobQueuedEvent | YieldJobQueuedEvent,
+    Field(
+        description="A pending job, announced when it is created and again at each tick while it waits. It carries the job description less the job's input, so that a party deciding whether to claim reads here what its claim would be matched against. It is a wake-up and not an offer of this job: a claim is answered with the next pending job it matches.",
+        discriminator="job_type",
+    ),
+]
 
 
 class JobReportProgressCommand(WireModel, frozen=True):
@@ -5403,6 +5678,14 @@ class JobReportProgressCommand(WireModel, frozen=True):
     ] = None
     percentage: float
     progress: JobProgress | None = None
+
+
+class MarkDelegateRequestEvent(WireModel, frozen=True, extra="forbid"):
+    """
+    A request, on the client's own bus, that annotating the open resource be delegated: the parameters of the `mark` job to create, its motivation among them. The resource is the one the listening state unit is for.
+    """
+
+    params: MarkJobParams
 
 
 class MarkCreateCommand(WireModel, frozen=True):
@@ -5520,64 +5803,6 @@ class JobClaimedResult(WireModel, frozen=True, extra="forbid"):
     response: JobRunning
 
 
-class ArchivistConfig(WireModel, frozen=True, extra="forbid"):
-    """
-    Everything the Archivist reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the Archivist. The launcher writes it for the Archivist it starts, from the environment the knowledge base's config selects, and the Archivist reads it from the path its `--config` flag names (its image passes `/etc/semiont/archivist.json`). Started without `--config`, or with a path that names no file, the Archivist refuses to start and says which. No secret is a value here. What the knowledge base says of itself is not here either: its name, its `[site] domain` and its `[git] sync` are read from the committed `.semiont/config` of the tree at `root`. The Archivist's other inputs are the environment variables specs/src/service-environment/variables.json lists for it. A document that does not validate is refused at boot, naming each failing field.
-    """
-
-    gateway_url: Annotated[
-        str,
-        Field(
-            alias="gatewayUrl",
-            description="The URL the Archivist reaches the gateway at: its only route to the bus.",
-            min_length=1,
-        ),
-    ]
-    identity: ArchivistConfigIdentity
-    root: Annotated[
-        str,
-        Field(
-            description="The knowledge base's working tree: the directory holding `.semiont/`. The event log, the content and the committed config are under it.",
-            min_length=1,
-        ),
-    ]
-    state_home: Annotated[
-        str,
-        Field(
-            alias="stateHome",
-            description="The state volume. The Archivist keeps the knowledge base's views and projections under `semiont/<name>` in it, where the name is the knowledge base's.",
-            min_length=1,
-        ),
-    ]
-    anchored_text_dir: Annotated[
-        str,
-        Field(
-            alias="anchoredTextDir",
-            description="The anchored-text store the Smelter writes and the Archivist reads.",
-            min_length=1,
-        ),
-    ]
-    roster: ArchivistRoster
-    port: Annotated[
-        int,
-        Field(
-            description="The port the Archivist's HTTP surface answers on, `/health` included.",
-            ge=1,
-            le=65535,
-        ),
-    ]
-    skip_rebuild: Annotated[
-        bool,
-        Field(
-            alias="skipRebuild",
-            description="Whether the Archivist serves the views it finds at boot instead of rebuilding them from the event log first.",
-        ),
-    ]
-    staging: ArchivistConfigStaging
-    log_level: Annotated[LogLevel, Field(alias="logLevel")]
-    log_format: Annotated[LogFormat, Field(alias="logFormat")]
-
-
 class ResourceAnnotations(WireModel, frozen=True, extra="forbid"):
     """
     The annotations on one resource, as its materialized view holds them.
@@ -5628,6 +5853,19 @@ type AnchoredTextEntry = Annotated[
 ]
 
 
+class ArchivistRoster(WireModel, frozen=True, extra="forbid"):
+    """
+    Who serves each role, behind `browse:agents`: a provider and a model, and no credential. Every fallback the knowledge base's config allows is already applied, so a role absent here is served by no one.
+    """
+
+    workers: ArchivistRosterWorkers
+    actors: ArchivistRosterActors
+
+
+class BrowseAgentsResultResponse(WireModel, frozen=True):
+    agents: list[CollaboratorEntry]
+
+
 class GatheredContextFocusAnnotation(WireModel, frozen=True):
     """
     Annotation-anchored focus.
@@ -5658,6 +5896,14 @@ class GatheredContextFocusAnnotation(WireModel, frozen=True):
 
 
 type KnowledgeGraphNodesItem = Annotated[GraphResourceNode | GraphAnnotationNode, Field(discriminator="type")]
+
+
+class BrowseAgentsResult(WireModel, frozen=True):
+    """
+    Result of browsing the collaborator directory
+    """
+
+    response: BrowseAgentsResultResponse
 
 
 class BrowseAnnotationResult(WireModel, frozen=True):
@@ -5722,6 +5968,64 @@ class KnowledgeGraph(WireModel, frozen=True):
     edges: list[KnowledgeGraphEdgesItem]
 
 
+class ArchivistConfig(WireModel, frozen=True, extra="forbid"):
+    """
+    Everything the Archivist reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the Archivist. The launcher writes it for the Archivist it starts, from the environment the knowledge base's config selects, and the Archivist reads it from the path its `--config` flag names (its image passes `/etc/semiont/archivist.json`). Started without `--config`, or with a path that names no file, the Archivist refuses to start and says which. No secret is a value here. What the knowledge base says of itself is not here either: its name, its `[site] domain` and its `[git] sync` are read from the committed `.semiont/config` of the tree at `root`. The Archivist's other inputs are the environment variables specs/src/service-environment/variables.json lists for it. A document that does not validate is refused at boot, naming each failing field.
+    """
+
+    gateway_url: Annotated[
+        str,
+        Field(
+            alias="gatewayUrl",
+            description="The URL the Archivist reaches the gateway at: its only route to the bus.",
+            min_length=1,
+        ),
+    ]
+    identity: ArchivistConfigIdentity
+    root: Annotated[
+        str,
+        Field(
+            description="The knowledge base's working tree: the directory holding `.semiont/`. The event log, the content and the committed config are under it.",
+            min_length=1,
+        ),
+    ]
+    state_home: Annotated[
+        str,
+        Field(
+            alias="stateHome",
+            description="The state volume. The Archivist keeps the knowledge base's views and projections under `semiont/<name>` in it, where the name is the knowledge base's.",
+            min_length=1,
+        ),
+    ]
+    anchored_text_dir: Annotated[
+        str,
+        Field(
+            alias="anchoredTextDir",
+            description="The anchored-text store the Smelter writes and the Archivist reads.",
+            min_length=1,
+        ),
+    ]
+    roster: ArchivistRoster
+    port: Annotated[
+        int,
+        Field(
+            description="The port the Archivist's HTTP surface answers on, `/health` included.",
+            ge=1,
+            le=65535,
+        ),
+    ]
+    skip_rebuild: Annotated[
+        bool,
+        Field(
+            alias="skipRebuild",
+            description="Whether the Archivist serves the views it finds at boot instead of rebuilding them from the event log first.",
+        ),
+    ]
+    staging: ArchivistConfigStaging
+    log_level: Annotated[LogLevel, Field(alias="logLevel")]
+    log_format: Annotated[LogFormat, Field(alias="logFormat")]
+
+
 class GatheredContext(WireModel, frozen=True):
     """
     Context gathered for a gather.* call — consumed by yield.* (generation) and the matcher. A shared base (graph, semanticContext, metadata, inferredRelationshipSummary) plus a discriminated `focus` that names the anchor: an annotation or a whole resource.
@@ -5748,89 +6052,17 @@ class GatheredContext(WireModel, frozen=True):
     ] = None
 
 
-class GenerationJobParams(WireModel, frozen=True):
+class GenerationJobParams(GenerationJobRequest, frozen=True):
     """
-    Params bag for `job:create` with `jobType: 'generation'` — exactly the shape yield.fromContext(context, options) takes: options + the gathered context. The job's ids are DERIVED from context.focus at the dispatcher (resource focus → focus.resource; annotation focus → focus.sourceResource, with the worker auto-binding to focus.annotation); a caller-supplied referenceId is rejected. Carried inside JobCreateCommand.params; this schema is the generation shape's contract, including its requiredness.
+    The parameters of a `yield` job: what it is asked to make (GenerationJobRequest) and the gathered context it is made from. The job's resource is derived from `context.focus` by the dispatcher (resource focus → focus.resource; annotation focus → focus.sourceResource, with the worker binding to focus.annotation), and the dispatcher refuses a parameter this schema does not name.
     """
 
-    title: Annotated[
-        str,
-        Field(
-            description="Title of the generated resource. Non-empty: the dispatcher and worker both reject an empty title via isGenerationJobParams. NOTE minLength is documentation here — JobCreateCommand.params is additionalProperties:true, so /bus/emit's generated validator never sees this field.",
-            min_length=1,
-        ),
-    ]
-    storage_uri: Annotated[
-        str,
-        Field(
-            alias="storageUri",
-            description="Storage URI for the generated resource's content — AUTHORITATIVE: the worker writes exactly here and never derives a location from the title. Non-empty, and there is no fallback; the dispatcher and worker both reject an empty value via isGenerationJobParams. NOTE minLength is documentation here — JobCreateCommand.params is additionalProperties:true, so /bus/emit's generated validator never sees this field.",
-            min_length=1,
-        ),
-    ]
     context: Annotated[
         GatheredContext,
         Field(
             description="The gathered context that grounds the generation. Its `focus` names the anchor: the DISPATCHER derives the job's resourceId from it (resource focus → focus.resource; annotation focus → focus.sourceResource, with the worker auto-binding to focus.annotation) and REJECTS a caller-supplied id — the context is authoritative. Under `cite`, the ids its embedding carries are the only valid citation targets."
         ),
     ]
-    prompt: Annotated[
-        str | None,
-        Field(description="Refining instruction, composed with `task` (task = what, prompt = how)."),
-    ] = None
-    entity_types: Annotated[
-        list[str] | None,
-        Field(
-            alias="entityTypes",
-            description="Entity-type tags to stamp on the synthesized resource. Used both as a prompt bias for the generation worker and as the `entityTypes` set on the resulting resource.",
-        ),
-    ] = None
-    language: Annotated[
-        str | None,
-        Field(
-            description="Annotation/resource body locale — language the generated resource is written in (typically the user's UI locale). BCP-47."
-        ),
-    ] = None
-    source_language: Annotated[
-        str | None,
-        Field(
-            alias="sourceLanguage",
-            description="Source-resource locale — language of the resource being referenced, used in the prompt so the LLM understands embedded source-context snippets when source ≠ target language. BCP-47.",
-        ),
-    ] = None
-    temperature: Annotated[float | None, Field(description="Sampling temperature forwarded to the model.")] = None
-    max_tokens: Annotated[
-        float | None,
-        Field(
-            alias="maxTokens",
-            description="Output token budget forwarded to the model. Length never determines structure.",
-        ),
-    ] = None
-    output_media_type: Annotated[
-        SupportedMediaType | None,
-        Field(
-            alias="outputMediaType",
-            description="Requested media type of the generated resource's content. Default `text/markdown` at the worker, which validates it against its supported output set and FAILS the job for anything it can't write — not a silent fallback.",
-        ),
-    ] = None
-    task: Annotated[
-        str | None,
-        Field(
-            description="What the model is asked to produce — the prompt's framing verb. Canonical values ('resource', 'answer', 'summary') map to the worker's tested framings; any other string is used VERBATIM as the framing instruction (loud degrade: the worker warns, never silently falls back). Unset ⇒ 'resource' (article framing)."
-        ),
-    ] = None
-    structure: Annotated[
-        str | None,
-        Field(
-            description="How the output is internally segmented — shape for text-bearing media, subordinate to `outputMediaType` (never its peer). Canonical values: 'prose' (flowing paragraphs), 'sections' (titled sections + title), 'chat' (speaker-labeled turns); any other string becomes a freeform \"organize as: …\" directive (loud degrade). Unset ⇒ NO structure directive at all — the task framing and the model determine shape."
-        ),
-    ] = None
-    cite: Annotated[
-        bool | None,
-        Field(
-            description="Ask the model to cite: emit [[<id>]] transport tokens after each claim, using the ids the context embedding provides. The worker validates each id against the embedded context (unknown ids are dropped loudly), strips the tokens from the stored content, and mints W3C linking annotations on the derived resource."
-        ),
-    ] = None
 
 
 class MatchSearchRequest(WireModel, frozen=True):
@@ -5864,6 +6096,29 @@ class MatchSearchRequest(WireModel, frozen=True):
             description="Enable semantic similarity scoring in addition to keyword matching",
         ),
     ] = None
+
+
+class YieldJobCreateCommand(WireModel, frozen=True, extra="forbid"):
+    """
+    Create a `yield` job: make a resource from a gathered context. It names no resource of its own: the job is about the resource its context focuses on, which the Dispatcher reads from `params.context.focus`.
+    """
+
+    user_id: Annotated[
+        UserId | None,
+        Field(
+            alias="_userId",
+            description="The emitter's verified DID, injected by the gateway. Clients do not set this.",
+        ),
+    ] = None
+    roles: Annotated[
+        list[str] | None,
+        Field(
+            alias="_roles",
+            description="The emitter's roles, injected by the gateway when it has any. Clients do not set this.",
+        ),
+    ] = None
+    job_type: Annotated[Literal["yield"], Field(alias="jobType")]
+    params: GenerationJobParams
 
 
 class GatherAnnotationComplete(WireModel, frozen=True):
@@ -5900,3 +6155,12 @@ class GatherResourceComplete(WireModel, frozen=True):
         GatheredContext,
         Field(description="The gathered resource context (unified GatheredContext, focus.kind:'resource')"),
     ]
+
+
+type JobCreateCommand = Annotated[
+    MarkJobCreateCommand | YieldJobCreateCommand,
+    Field(
+        description="Create a job. A job description is its `jobType` and enough parameters to be well formed: a `mark` job names its resource and, in its parameters, its motivation; a `yield` job names its context.",
+        discriminator="job_type",
+    ),
+]

@@ -2,9 +2,11 @@ package launcher
 
 import "testing"
 
-// A verbatim slice of a real collector readout (localhost:24110, a running
-// stack). Hand-shortened only by dropping unrelated metrics — the label sets,
-// their spelling and their order are the collector's, not this test's.
+// A slice of a collector readout (localhost:24110, a running stack), shortened
+// by dropping unrelated metrics. The label sets, their spelling and their
+// order are the collector's, which sorts a series' labels by name; the job
+// outcome counter's are its row of specs/src/service-telemetry/telemetry.json
+// (`job.type`, and `job.motivation` on a mark job only).
 const sampleReadout = `# HELP semiont_job_queue_size Job queue size by status
 # TYPE semiont_job_queue_size gauge
 semiont_job_queue_size{job="semiont-dispatcher",job_status="cancelled",otel_scope_name="semiont",otel_scope_schema_url="",otel_scope_version=""} 5
@@ -18,9 +20,11 @@ semiont_bus_correlation_size{correlation_kind="claims",job="semiont-gateway",ote
 semiont_bus_correlation_size{correlation_kind="claims_max",job="semiont-gateway",otel_scope_name="semiont"} 4096
 # HELP semiont_job_outcome_total Job outcomes
 # TYPE semiont_job_outcome_total counter
-semiont_job_outcome_total{job="semiont-worker",job_outcome="completed",job_type="generation",otel_scope_name="semiont"} 4
-semiont_job_outcome_total{job="semiont-worker",job_outcome="completed",job_type="detection",otel_scope_name="semiont"} 6
-semiont_job_outcome_total{job="semiont-worker",job_outcome="failed",job_type="generation",otel_scope_name="semiont"} 2
+semiont_job_outcome_total{job="semiont-worker",job_outcome="completed",job_type="yield",otel_scope_name="semiont"} 4
+semiont_job_outcome_total{job="semiont-worker",job_motivation="highlighting",job_outcome="completed",job_type="mark",otel_scope_name="semiont"} 5
+semiont_job_outcome_total{job="semiont-worker",job_motivation="tagging",job_outcome="completed",job_type="mark",otel_scope_name="semiont"} 1
+semiont_job_outcome_total{job="semiont-worker",job_outcome="failed",job_type="yield",otel_scope_name="semiont"} 2
+semiont_job_outcome_total{job="semiont-worker",job_motivation="linking",job_outcome="failed",job_type="mark",otel_scope_name="semiont"} 1
 `
 
 func TestQueueDepthReadsTheDispatchersLiveCounts(t *testing.T) {
@@ -97,23 +101,24 @@ func TestQueueDriverDisplayPassesUnknownDriversThrough(t *testing.T) {
 	}
 }
 
-// The counter arrives split by job type and by reporting process, so a total
-// is a sum. Taking the first sample would report one job type's work as all
-// of it — 4 instead of 10 — and nothing about the number would look wrong.
-func TestJobsConcludedSumsAcrossJobTypes(t *testing.T) {
+// The counter arrives split by job type, by a mark job's motivation and by
+// reporting process, so a total is a sum. Taking the first sample would report
+// one job type's work as all of it — 4 instead of 10 — and nothing about the
+// number would look wrong.
+func TestJobsConcludedSumsAcrossJobTypesAndMotivations(t *testing.T) {
 	completed, failed, ok := jobsConcluded(sampleReadout)
 	if !ok {
 		t.Fatal("outcome counter present in the readout but not found")
 	}
-	if completed != 10 || failed != 2 {
-		t.Errorf("completed/failed = %d/%d, want 10/2 (summed across job types)", completed, failed)
+	if completed != 10 || failed != 3 {
+		t.Errorf("completed/failed = %d/%d, want 10/3 (summed across job types and motivations)", completed, failed)
 	}
 }
 
 // Nothing has failed on most stacks, and that is a real zero rather than an
 // unknown — the figure must still render.
 func TestJobsConcludedReportsWhenOnlyOneOutcomeExists(t *testing.T) {
-	const onlyCompleted = `semiont_job_outcome_total{job="semiont-worker",job_outcome="completed",job_type="generation"} 3
+	const onlyCompleted = `semiont_job_outcome_total{job="semiont-worker",job_outcome="completed",job_type="yield"} 3
 `
 	completed, failed, ok := jobsConcluded(onlyCompleted)
 	if !ok || completed != 3 || failed != 0 {

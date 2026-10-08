@@ -116,7 +116,7 @@ export type EventMap = {
   'yield:clone-create-failed': components['schemas']['CommandError'];
 
   // ========================================================================
-  // MARK FLOW — annotation CRUD, AI assist, resource lifecycle
+  // MARK FLOW — annotation CRUD, delegated annotation, resource lifecycle
   // ========================================================================
 
   // Domain events (branded — system of record)
@@ -179,13 +179,13 @@ export type EventMap = {
   'mark:requested': components['schemas']['MarkRequestedEvent'];
   'mark:cancel-pending': void;
   'mark:submit': components['schemas']['MarkSubmitEvent'];
-  'mark:assist-request': components['schemas']['MarkAssistRequestEvent'];
+  'mark:delegate-request': components['schemas']['MarkDelegateRequestEvent'];
   'mark:progress-dismiss': void;
-  // Client-local: the assist Observable went silent past its deadline (no
+  // Client-local: a delegated job went silent past its deadline (no
   // progress, no completion, no job:fail). Emitted by mark-state-unit so the
   // outcome-notification layer can tell the user; a real job failure arrives
   // as job:fail instead and never produces this.
-  'mark:assist-timeout': components['schemas']['MarkAssistTimeoutEvent'];
+  'mark:delegate-timeout': components['schemas']['MarkDelegateTimeoutEvent'];
   // Client-local UI notifications for annotation command failures, emitted by
   // the awaiting catch (mark-state-unit), which inherently knows whose command
   // failed on which resource. Distinct from the `mark:create-failed` /
@@ -653,9 +653,9 @@ export const CHANNEL_SCHEMAS = {
   'mark:requested':                   'MarkRequestedEvent',
   'mark:cancel-pending':              null, // void
   'mark:submit':                      'MarkSubmitEvent',
-  'mark:assist-request':              'MarkAssistRequestEvent',
+  'mark:delegate-request':            'MarkDelegateRequestEvent',
   'mark:progress-dismiss':            null, // void
-  'mark:assist-timeout':              null, // { resourceId; motivation } — client-local UI signal
+  'mark:delegate-timeout':            null, // { resourceId; motivation } — client-local UI signal
   'mark:create-error':                null, // { resourceId; message } — client-local UI signal
   'mark:delete-error':                null, // { resourceId; message } — client-local UI signal
   'bind:body-error':                  null, // { resourceId; message } — client-local UI signal

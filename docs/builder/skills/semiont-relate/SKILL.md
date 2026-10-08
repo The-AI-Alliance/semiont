@@ -21,7 +21,7 @@ The graph then reads passage → relationship → the two nodes. `gather.referen
 
 ## Who decides
 
-The stack's worker detects mentions of entity types. It has no job that extracts relationships, and a `linking` job does not read `instructions`. Deciding that a passage relates two nodes is the judgment this skill supplies: yours, reading the passage as the assistant, or the user's. The script reads what you need to decide and records what you decided.
+The stack's worker detects mentions of entity types. It has no job that extracts relationships, and a `linking` job takes no `instructions`. Deciding that a passage relates two nodes is the judgment this skill supplies: yours, reading the passage as the assistant, or the user's. The script reads what you need to decide and records what you decided.
 
 ## Before you start: declare the relationship types
 
@@ -255,7 +255,7 @@ relate(file).catch((e) => {
 ## Guidance for the AI assistant
 
 - **Run after the nodes exist.** A relationship joins two resources. Run [`semiont-wiki`](../semiont-wiki/SKILL.md) first, so the passage's mentions are bound to them.
-- **You are the extractor.** Read the passage and the nodes it mentions, and write the statements. No job does it for you, and a `linking` job given relationship instructions only detects mentions again.
+- **You are the extractor.** Read the passage and the nodes it mentions, and write the statements. No job does it for you: a `linking` job takes no `instructions`, and one given them is refused.
 - **The vocabulary belongs to the corpus.** Kinship, patronage and antagonism suit literature and myth. Counterparty, lessor-lessee and employer-employee suit contracts. Judge-of-court and attorney-for-client suit case law. Declare the types with `frame.addEntityTypes`.
 - **Relationships are sparse.** A hundred passages might state twenty to fifty. If you are writing one for every pair of names in a paragraph, you are recording co-occurrence. Record what the text states.
 - **One Relationship resource for each pair and type.** Every passage that establishes it is bound to the same one, so the resource collects its own evidence.

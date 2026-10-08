@@ -24,7 +24,7 @@ To use Semiont from Rust, add `semiont` and
 | Module | |
 |---|---|
 | `bundle` | `Bundle::of(root_file)` reads a spec document and follows every file `$ref`, giving one whole document. `draft7_definitions` gives its component schemas as JSON Schema draft 7. |
-| `types` | `generate(definitions, &generation)` gives the Rust source of the types: a struct per object, an enum per string enumeration, an untagged enum per `oneOf` or `anyOf`, and a type of its own per kind of id, made only by a constructor that holds a value to the schema's pattern. |
+| `types` | `generate(definitions, &generation)` gives the Rust source of the types: a struct per object, an enum per string enumeration, an untagged enum per `oneOf` or `anyOf` (decoded as the member its discriminating property names, when the schema names one), and a type of its own per kind of id, made only by a constructor that holds a value to the schema's pattern. |
 
 It is not a general OpenAPI generator. It knows the shapes Semiont's schemas
 use and refuses any other, so a schema that grows a new shape fails the

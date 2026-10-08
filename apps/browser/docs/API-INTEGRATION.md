@@ -300,13 +300,13 @@ that reply arrives on the stream: with the reply's response, or as a
 `BusRequestError` on a failure reply or when none arrives by the request's
 deadline.
 
-**Jobs** — long-running work a worker performs: AI-assisted annotation
-(`mark.assist`) and generation (`yield.fromContext`). The verb emits
+**Jobs** — long-running work a worker performs: delegated annotation
+(`mark.delegate`) and generation (`yield.delegate`). The verb emits
 `job:create`, itself a request/reply: the dispatcher admits the job and
 answers `job:created` with its `jobId`. The worker then reports on
 `job:report-progress`, `job:complete` and `job:fail`, which reach every
 client; the SDK keeps the frames that carry its job's `jobId` and delivers
-them as the verb's stream: progress, then the outcome.
+them as the verb's delegation: the job's events, then its completion.
 
 [`docs/protocol/EVENT-BUS.md`](../../../docs/protocol/EVENT-BUS.md) and
 [`docs/protocol/TRANSPORT-HTTP.md`](../../../docs/protocol/TRANSPORT-HTTP.md)

@@ -11,7 +11,7 @@ import { expectGeneratedAt } from '../fixtures/generated';
  *     → exclude an entity type from recall
  *     → Gather → real `gather:resource-requested`→`-complete` round-trip
  *     → evidence unfolds below; generation params mount under it
- *     → Generate → `yield.fromContext` (resource focus) runs the `generation` job → new derived resource.
+ *     → Generate → `yield.delegate` (resource focus) runs the `yield` job → new derived resource.
  *
  * Covers the seams unit tests can't reach:
  * the real bus request/reply gather, the cold-`StreamObservable.run()` job
@@ -41,7 +41,7 @@ test.describe('generate from resource', () => {
     await page.locator('button[data-panel="info"]').click();
     const infoPanel = page.locator('.semiont-resource-info-panel');
     await expect(infoPanel).toBeVisible({ timeout: 10_000 });
-    // The AssistShell adds a collapsible "Generate ›" section header, so match
+    // The DelegateShell adds a collapsible "Generate ›" section header, so match
     // the ✨ prefix — literal in ResourceInfoPanel, unlike the translated word.
     const generateBtn = infoPanel.getByRole('button', { name: /✨.*generate/i });
     const cloneBtn = infoPanel.getByRole('button', { name: /clone/i });
@@ -113,9 +113,9 @@ test.describe('generate from resource', () => {
 
     bus.clear();
 
-    // ── Generate → yield.fromContext runs the `generation` job → derived resource ──
-    // Same job lifecycle as spec 09 (shared runGeneration driver): job:create
-    // (jobType generation) → job:created → job:complete (carrying the new
+    // ── Generate → yield.delegate runs the `yield` job → derived resource ──
+    // Same job lifecycle as spec 09 (the one follower): job:create
+    // (jobType yield) → job:created → job:complete (carrying the new
     // result.resourceId; the worker also mints the source→derived provenance ref).
     await modal.getByRole('button', { name: /generate/i }).last().click();
 

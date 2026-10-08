@@ -2,18 +2,21 @@ package verbs
 
 // The delegated form of mark: the stack's worker reads a resource and
 // annotates it. What a client sends for each motivation is the spec's to say
-// (the `mark.assist` row of specs/src/client/surface.json, which the
-// TypeScript and Rust SDKs run too), so these tests read it from there.
+// (the `mark.delegate` row of specs/src/client/surface.json, which the
+// TypeScript, Rust and Python SDKs run too), so these tests read it from
+// there.
 
 import (
-	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
+	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 )
@@ -25,6 +28,47 @@ func specFile(t *testing.T, path ...string) []byte {
 		t.Fatal(err)
 	}
 	return b
+}
+
+// specSchema: one schema of the spec, as far as these tests read it.
+type specSchema struct {
+	OneOf []struct {
+		Ref string `json:"$ref"`
+	} `json:"oneOf"`
+	Enum       []string `json:"enum"`
+	Required   []string `json:"required"`
+	Properties map[string]struct {
+		Type string   `json:"type"`
+		Enum []string `json:"enum"`
+	} `json:"properties"`
+}
+
+func readSpecSchema(t *testing.T, file string) specSchema {
+	t.Helper()
+	var schema specSchema
+	if err := json.Unmarshal(specFile(t, "components", "schemas", file), &schema); err != nil {
+		t.Fatalf("%s could not be read: %v", file, err)
+	}
+	return schema
+}
+
+// markJobSchemas: the schema of each motivation's mark job, by motivation, as
+// the MarkJobParams union names them.
+func markJobSchemas(t *testing.T) map[semiont.Motivation]specSchema {
+	t.Helper()
+	schemas := map[semiont.Motivation]specSchema{}
+	for _, member := range readSpecSchema(t, "MarkJobParams.json").OneOf {
+		schema := readSpecSchema(t, filepath.Base(member.Ref))
+		motivation := schema.Properties["motivation"].Enum
+		if len(motivation) != 1 {
+			t.Fatalf("%s states %d motivations, want the one it is for", member.Ref, len(motivation))
+		}
+		schemas[semiont.Motivation(motivation[0])] = schema
+	}
+	if len(schemas) == 0 {
+		t.Fatal("the spec's MarkJobParams names no member: these tests would pass for the wrong reason")
+	}
+	return schemas
 }
 
 type surfaceCase struct {
@@ -62,28 +106,78 @@ func surfaceCases(t *testing.T, namespace, method string) []surfaceCase {
 	return nil
 }
 
+// flagsFor: the arguments a caller types to give a job these parameters. A
+// parameter no flag gives, or a value its flag cannot say, fails the test.
+func flagsFor(t *testing.T, flags jobFlags, params map[string]any) []string {
+	t.Helper()
+	var argv []string
+	for _, param := range sortedNames(params) {
+		flag := flags.flagOf(param)
+		if flag == "" {
+			t.Fatalf("no flag gives the parameter %q", param)
+		}
+		switch value := params[param].(type) {
+		case string:
+			argv = append(argv, flag, value)
+		case float64:
+			argv = append(argv, flag, strconv.FormatFloat(value, 'g', -1, 64))
+		case bool:
+			if !value {
+				t.Fatalf("%s cannot say %q is false", flag, param)
+			}
+			argv = append(argv, flag)
+		case []any:
+			for _, item := range value {
+				argv = append(argv, flag, item.(string))
+			}
+		default:
+			t.Fatalf("%s cannot say %q is %v", flag, param, value)
+		}
+	}
+	return argv
+}
+
+// givenBy: what a verb's job flags read from the arguments.
+func givenBy(t *testing.T, flags jobFlags, argv []string) map[string]any {
+	t.Helper()
+	u := launcher.NewUI(false)
+	given := map[string]any{}
+	for i := 0; i < len(argv); i++ {
+		a := argv[i]
+		val := func() (string, bool) {
+			if i+1 >= len(argv) {
+				return "", false
+			}
+			i++
+			return argv[i], true
+		}
+		if taken, ok := flags.take(u, a, val, given); !taken || !ok {
+			t.Fatalf("%s was not read as a job flag (taken %v, ok %v) in %v", a, taken, ok, argv)
+		}
+	}
+	return given
+}
+
 func TestMarkDelegateSendsWhatTheClientSurfaceSays(t *testing.T) {
-	cases := surfaceCases(t, "mark", "assist")
+	cases := surfaceCases(t, "mark", "delegate")
 	if len(cases) == 0 {
-		t.Fatal("the client surface states no cases for mark.assist: this test would pass for the wrong reason")
+		t.Fatal("the client surface states no cases for mark.delegate: this test would pass for the wrong reason")
 	}
 	asked := map[semiont.Motivation]bool{}
 	for _, c := range cases {
 		var args struct {
-			ResourceId string             `json:"resourceId"`
-			Motivation semiont.Motivation `json:"motivation"`
-			Options    assistOptions      `json:"options"`
+			ResourceId string         `json:"resourceId"`
+			Params     map[string]any `json:"params"`
 		}
-		// Strict: an option the surface states and assistOptions lacks is a
-		// failure here, not a field quietly dropped.
-		dec := json.NewDecoder(bytes.NewReader(c.Args))
-		dec.DisallowUnknownFields()
-		if err := dec.Decode(&args); err != nil {
-			t.Errorf("%s: the case's arguments do not fit what a delegated mark takes: %v", c.Args, err)
-			continue
+		if err := json.Unmarshal(c.Args, &args); err != nil {
+			t.Fatalf("%s: the case's arguments could not be read: %v", c.Args, err)
 		}
-		asked[args.Motivation] = true
-		command, err := assistJob(args.ResourceId, args.Motivation, args.Options)
+		motivation, _ := args.Params["motivation"].(string)
+		delete(args.Params, "motivation")
+		asked[semiont.Motivation(motivation)] = true
+		// Through the flags: what a caller types is what is sent.
+		given := givenBy(t, markJobFlags, flagsFor(t, markJobFlags, args.Params))
+		command, err := markJob(args.ResourceId, semiont.Motivation(motivation), given)
 		if err != nil {
 			t.Errorf("%s: refused: %v", c.Args, err)
 			continue
@@ -102,24 +196,70 @@ func TestMarkDelegateSendsWhatTheClientSurfaceSays(t *testing.T) {
 	}
 	// Every motivation the spec names can be delegated, and the surface says
 	// what each sends.
-	var motivations struct {
-		Enum []semiont.Motivation `json:"enum"`
+	motivations := readSpecSchema(t, "Motivation.json").Enum
+	if len(motivations) == 0 {
+		t.Fatal("the spec's motivations could not be read")
 	}
-	if err := json.Unmarshal(specFile(t, "components", "schemas", "Motivation.json"), &motivations); err != nil || len(motivations.Enum) == 0 {
-		t.Fatalf("the spec's motivations could not be read: %v", err)
-	}
-	for _, m := range motivations.Enum {
-		if !asked[m] {
-			t.Errorf("the client surface has no mark.assist case for the motivation %q", m)
+	schemas := markJobSchemas(t)
+	for _, name := range motivations {
+		motivation := semiont.Motivation(name)
+		if !asked[motivation] {
+			t.Errorf("the client surface has no mark.delegate case for the motivation %q", motivation)
 		}
-		if _, err := assistJob("res-1", m, assistOptions{EntityTypes: []string{"Person"}, SchemaId: "s1", Categories: []string{"claim"}}); err != nil {
-			t.Errorf("the motivation %q cannot be delegated: %v", m, err)
+		schema, isJob := schemas[motivation]
+		if !isJob {
+			t.Errorf("the spec's MarkJobParams has no member for the motivation %q", motivation)
+			continue
+		}
+		// Given what its schema requires, and nothing else.
+		given := map[string]any{}
+		for _, param := range schema.Required {
+			switch schema.Properties[param].Type {
+			case "array":
+				given[param] = []string{"one"}
+			default:
+				given[param] = "one"
+			}
+		}
+		delete(given, "motivation")
+		if _, err := markJob("res-1", motivation, given); err != nil {
+			t.Errorf("the motivation %q cannot be delegated: %v", motivation, err)
+		}
+	}
+}
+
+// The flag table is the launcher's; the parameters are the spec's. Every
+// parameter of every motivation's job has a flag that reads a value of its
+// type, and no flag gives a parameter no job takes: a parameter the spec gains
+// fails here until it has one.
+func TestEveryMarkJobParameterHasItsFlag(t *testing.T) {
+	kindOf := map[string]flagKind{"string": flagText, "array": flagList, "boolean": flagSet, "number": flagPositive}
+	taken := map[string]bool{}
+	for motivation, schema := range markJobSchemas(t) {
+		for param, property := range schema.Properties {
+			if param == "motivation" {
+				continue
+			}
+			taken[param] = true
+			flag, has := markJobFlags[markJobFlags.flagOf(param)]
+			if !has {
+				t.Errorf("a %s job takes %q, and no flag gives it", motivation, param)
+				continue
+			}
+			if kind, known := kindOf[property.Type]; !known || kind != flag.kind {
+				t.Errorf("a %s job's %q is a %s, which its flag %s does not read", motivation, param, property.Type, markJobFlags.flagOf(param))
+			}
+		}
+	}
+	for name, flag := range markJobFlags {
+		if !taken[flag.param] {
+			t.Errorf("%s gives %q, which no motivation's job takes", name, flag.param)
 		}
 	}
 }
 
 // What the SDKs refuse before asking, a delegated mark refuses too: a job the
-// dispatcher would turn away, or one that would find nothing to do.
+// gateway would turn away, or one that would find nothing to do.
 func TestMarkDelegateRefusalsInProcess(t *testing.T) {
 	for _, c := range []struct {
 		name string
@@ -127,15 +267,23 @@ func TestMarkDelegateRefusalsInProcess(t *testing.T) {
 		want string
 	}{
 		{"no motivation", []string{"--delegate", "res-1"}, "--motivation"},
-		{"an unknown motivation", []string{"--delegate", "res-1", "--motivation", "bookmarking"}, "highlighting"},
+		{"an unknown motivation", []string{"--delegate", "res-1", "--motivation", "bookmarking"}, "--delegate --help"},
 		{"no resource", []string{"--delegate", "--motivation", "highlighting"}, "resource"},
 		{"two resources", []string{"--delegate", "res-1", "res-2", "--motivation", "highlighting"}, "one resource"},
-		{"linking names no entity type", []string{"--delegate", "res-1", "--motivation", "linking"}, "--entity-type"},
-		{"tagging names no schema", []string{"--delegate", "res-1", "--motivation", "tagging", "--category", "claim"}, "--schema"},
-		{"tagging names no category", []string{"--delegate", "res-1", "--motivation", "tagging", "--schema", "s1"}, "--category"},
+		{"linking names no entity type", []string{"--delegate", "res-1", "--motivation", "linking"}, "linking needs --entity-type"},
+		{"tagging names no schema", []string{"--delegate", "res-1", "--motivation", "tagging", "--category", "claim"}, "tagging needs --schema"},
+		{"tagging names an empty schema", []string{"--delegate", "res-1", "--motivation", "tagging", "--schema", "", "--category", "claim"}, "tagging needs --schema"},
+		{"tagging names no category", []string{"--delegate", "res-1", "--motivation", "tagging", "--schema", "s1"}, "tagging needs --category"},
 		{"a density that is not a number", []string{"--delegate", "res-1", "--motivation", "highlighting", "--density", "lots"}, "--density"},
 		{"a density of nothing", []string{"--delegate", "res-1", "--motivation", "highlighting", "--density", "0"}, "--density"},
-		{"an unknown tone", []string{"--delegate", "res-1", "--motivation", "commenting", "--tone", "sarcastic"}, "--delegate --help"},
+		{"an unknown tone", []string{"--delegate", "res-1", "--motivation", "commenting", "--tone", "sarcastic"}, "commenting takes no --tone \"sarcastic\""},
+		{"an assessment's tone on a comment", []string{"--delegate", "res-1", "--motivation", "commenting", "--tone", "critical"}, "commenting takes no --tone \"critical\""},
+		{"a comment's tone on an assessment", []string{"--delegate", "res-1", "--motivation", "assessing", "--tone", "scholarly"}, "assessing takes no --tone \"scholarly\""},
+		{"a highlight has no tone", []string{"--delegate", "res-1", "--motivation", "highlighting", "--tone", "scholarly"}, "highlighting takes no --tone; it takes --density, --instructions, --source-language"},
+		{"a highlight has no language of its own", []string{"--delegate", "res-1", "--motivation", "highlighting", "--language", "de"}, "highlighting takes no --language"},
+		{"linking takes no instructions", []string{"--delegate", "res-1", "--motivation", "linking", "--entity-type", "Person", "--instructions", "x"}, "linking takes no --instructions"},
+		{"tagging takes no entity type", []string{"--delegate", "res-1", "--motivation", "tagging", "--schema", "s1", "--category", "claim", "--entity-type", "Person"}, "tagging takes no --entity-type"},
+		{"commenting takes no schema", []string{"--delegate", "res-1", "--motivation", "commenting", "--schema", "s1"}, "commenting takes no --schema"},
 		{"a selector is the hand form's", []string{"--delegate", "res-1", "--motivation", "highlighting", "--quote", "x"}, "--quote"},
 		{"a body is the hand form's", []string{"--delegate", "res-1", "--motivation", "commenting", "--body-text", "x"}, "--body-text"},
 		{"a tone is the delegated form's", []string{"res-1", "--tone", "scholarly"}, "--delegate"},
@@ -158,35 +306,29 @@ func TestMarkDelegateRefusalsInProcess(t *testing.T) {
 	}
 }
 
-// The help names every motivation and every tone the spec does, so a value
-// the spec gains is one the help is made to offer.
+// The help names every motivation the spec does and every value of every
+// enumerated parameter of their jobs (a comment's tones, an assessment's), so
+// a value the spec gains is one the help is made to offer.
 func TestMarkDelegateHelpNamesTheSpecsVocabulary(t *testing.T) {
-	var motivations struct {
-		Enum []string `json:"enum"`
+	motivations := readSpecSchema(t, "Motivation.json").Enum
+	var values []string
+	for _, schema := range markJobSchemas(t) {
+		for param, property := range schema.Properties {
+			if param != "motivation" {
+				values = append(values, property.Enum...)
+			}
+		}
 	}
-	if err := json.Unmarshal(specFile(t, "components", "schemas", "Motivation.json"), &motivations); err != nil {
-		t.Fatal(err)
+	if len(motivations) == 0 || len(values) == 0 {
+		t.Fatalf("the spec's vocabulary could not be read: %d motivations, %d enumerated values", len(motivations), len(values))
 	}
-	var assist struct {
-		Properties struct {
-			Options struct {
-				Properties struct {
-					Tone struct {
-						Enum []string `json:"enum"`
-					} `json:"tone"`
-				} `json:"properties"`
-			} `json:"options"`
-		} `json:"properties"`
+	harness.MustContainAll(t, "mark --delegate --help", markDelegateUsage, motivations...)
+	harness.MustContainAll(t, "mark --delegate --help", markDelegateUsage, values...)
+	for name := range markJobFlags {
+		if !strings.Contains(markDelegateUsage, "  "+name+" ") {
+			t.Errorf("mark --delegate --help does not list %s", name)
+		}
 	}
-	if err := json.Unmarshal(specFile(t, "components", "schemas", "MarkAssistRequestEvent.json"), &assist); err != nil {
-		t.Fatal(err)
-	}
-	tones := assist.Properties.Options.Properties.Tone.Enum
-	if len(motivations.Enum) == 0 || len(tones) == 0 {
-		t.Fatalf("the spec's vocabulary could not be read: %d motivations, %d tones", len(motivations.Enum), len(tones))
-	}
-	harness.MustContainAll(t, "mark --delegate --help", markDelegateUsage, motivations.Enum...)
-	harness.MustContainAll(t, "mark --delegate --help", markDelegateUsage, tones...)
 	out := harness.CaptureStdout(t, func() {
 		if code := Mark([]string{"--delegate", "--help"}); code != 0 {
 			t.Fatalf("mark --delegate --help: exit %d", code)

@@ -6,8 +6,8 @@ work, and how it reports health. It describes current behaviour. Behaviour that 
 not stated as a rule anywhere below; it is listed under [Known defects](#known-defects), and a rule
 section that touches one says what happens and links there.
 
-The client side of the two jobs Semiont's own verbs create is in the flow documents:
-[Yield](flows/YIELD.md) (generation) and [Mark](flows/MARK.md) (AI-assisted annotation). How a
+The client side of the two job types is in the flow documents: [Yield](flows/YIELD.md), whose
+`yield` job makes a resource, and [Mark](flows/MARK.md), whose `mark` job annotates one. How a
 worker is built is in the [`semiont-worker` skill](../builder/skills/semiont-worker/SKILL.md). Channel payloads
 are named in [the registry](../../specs/src/bus/registry.json); the bus conventions this document
 relies on (`_userId`, `correlationId`, audiences) are in [EVENT-BUS.md](EVENT-BUS.md). The
@@ -71,14 +71,14 @@ A job is one record, keyed by its id.
 |---|---|---|
 | `status` | always | `pending`, `running`, `complete`, `failed` or `cancelled` |
 | `metadata.id` | always | `job-` followed by 32 lowercase hexadecimal digits, minted at admission |
-| `metadata.type` | always | the `JobType`: `reference-annotation`, `highlight-annotation`, `assessment-annotation`, `comment-annotation`, `tag-annotation`, `generation` |
+| `metadata.type` | always | the [`JobType`](../../specs/src/components/schemas/JobType.json): `mark` or `yield` |
 | `metadata.userId` | always | the requester: the `_userId` the gateway stamped on the `job:create` |
 | `metadata.created` | always | ISO-8601 time of admission |
 | `metadata.retryCount` | always | attempts re-queued so far; `0` at admission |
-| `metadata.maxRetries` | always | the retry budget: `0` for `generation`, `1` for every other type |
+| `metadata.maxRetries` | always | the retry budget: `0` for a `yield` job, `1` for a `mark` job |
 | `metadata.completedUnits` | after a checkpoint | units finished by any attempt ([Checkpoints](#checkpoints)) |
 | `metadata.unitCursors` | after a checkpoint that leaves a cursor | how far each unfinished unit got |
-| `params` | always | the job's parameters ([Admission](#jobcreate)) |
+| `params` | always | the job's params as the dispatcher holds them ([Admission](#jobcreate)) |
 | `startedAt` | `running`, `complete`, `failed`; `cancelled` when cancelled while running | ISO-8601 time of the claim |
 | `progress` | `running` | the last recorded progress report; `{}` at the claim |
 | `completedAt` | `complete`, `failed`, `cancelled` | ISO-8601 time of the terminal transition |
@@ -104,7 +104,7 @@ There are exactly five states. There is no `claimed`, `retrying` or `declined` s
 | `running` | `pending` | `job:fail` when a retry is allowed | `retryCount + 1`, checkpoint merged; `startedAt`, `progress` and the error dropped | `job:queued` when the job is redelivered |
 | `running` | `failed` | `job:fail` when no retry is allowed | `completedAt`, `error`, checkpoint merged | nothing |
 | `running` | `pending` or `failed` | the dead-worker sweep | as `job:fail`, with the sweep's error and no failure class or units | `job:queued` on a retry; otherwise nothing |
-| `pending` | `cancelled` | `job:cancel-requested` naming it, by id or by category; or `job:cancel` | `completedAt`; no `startedAt` | `job:cancel-ok` (reply to `job:cancel-requested`) |
+| `pending` | `cancelled` | `job:cancel-requested` naming it, by id or by type; or `job:cancel` | `completedAt`; no `startedAt` | `job:cancel-ok` (reply to `job:cancel-requested`) |
 | `running` | `cancelled` | `job:cancel` | `completedAt`; `startedAt` kept | nothing |
 | `complete`, `failed`, `cancelled` | removed | retention | the record is deleted | nothing |
 
@@ -172,9 +172,30 @@ What holds for all nine:
 
 ### `job:create`
 
-Admits a new job. Reads `jobType`, `resourceId`, `params` and `_userId`
-([`JobCreateCommand`](../../specs/src/components/schemas/JobCreateCommand.json)). `jobType` must be a
-`JobType`, which the gateway's schema check enforces.
+Admits a new job. Reads the job description and `_userId`
+([`JobCreateCommand`](../../specs/src/components/schemas/JobCreateCommand.json)).
+
+**A job description is its `jobType` and its params.** `jobType` is the verb that asks for the job:
+`mark` annotates a resource, `yield` makes one.
+
+| `jobType` | Its resource | `params` |
+|---|---|---|
+| `mark` | the command's `resourceId` | [`MarkJobParams`](../../specs/src/components/schemas/MarkJobParams.json): one of five schemas, told apart by `motivation` (`highlighting`, `commenting`, `assessing`, `linking`, `tagging`). Each motivation takes its own params and no others; [Mark](flows/MARK.md#delegation) lists them |
+| `yield` | none of its own: the one its context focuses on | [`GenerationJobParams`](../../specs/src/components/schemas/GenerationJobParams.json): what to make, and the gathered `context` to make it from. `title`, `storageUri` and `context` are required |
+
+**The gateway refuses what is not a job description,** with `400`, in the schema check every channel
+gets. So the dispatcher is never sent:
+
+- a `jobType` that is neither of the two;
+- a `mark` job with no `resourceId`, with no `motivation` or one no job has, or with a param its
+  motivation does not take;
+- a linking job whose `entityTypes` is absent or empty, or a tagging job whose `schemaId` or
+  `categories` is;
+- a `yield` job that names a `resourceId` beside its params, one whose `title` or `storageUri` is
+  absent or empty, or one whose `context` is absent or has no focus the focus rule reads.
+
+A param a `yield` job does not take passes the gateway, because the schema of those params is open.
+The dispatcher refuses it (check 4).
 
 **Admission.** The checks run in this order; the first that fails is the reply,
 `job:create-failed` with the message below. Only a refusal because a read failed carries a `code`
@@ -183,42 +204,35 @@ Admits a new job. Reads `jobType`, `resourceId`, `params` and `_userId`
 | # | Applies to | Check | Refusal message |
 |---|---|---|---|
 | 1 | all | `_userId` is present | `_userId is required (injected by bus gateway)` |
-| 2 | all | `params.resourceId` is absent | `job:create must omit params.resourceId — the job's resource is its resourceId, or a generation's context focus` |
-| 3 | `generation` | `resourceId` is absent | `generation job:create must omit resourceId — the context's focus is authoritative` |
-| 4 | `generation` | `params.referenceId` is absent | `generation job:create must omit params.referenceId — the context's focus is authoritative` |
-| 5 | `generation` | `params.title` and `params.storageUri` are non-empty strings and `params.context` is an object | `generation params do not satisfy GenerationJobParams (title, storageUri, and context are required)` |
-| 6 | `generation` | the **focus rule** yields a resource id (below) | `generation context has no usable focus — pass a GatheredContext produced by gather.resource(...) or gather.annotation(...)` |
-| 7 | every other type | `resourceId` is present | `<jobType> job:create requires resourceId` |
-| 8 | `reference-annotation`, `generation` | when `params.entityTypes` is a non-empty array: every member is a registered entity type (**read 1**) | `Entity type not registered: <a>, <b>` — the unregistered members, comma-separated |
-| 9 | `tag-annotation` | **read 2**, then `params.schemaId` is a non-empty string | `tag-annotation requires schemaId` |
-| 10 | `tag-annotation` | `params.schemaId` names a registered tag schema | `Tag schema not registered: <schemaId>` |
-| 11 | all | the store accepts the new record | the store's error message |
+| 2 | `mark`, linking | every member of `params.entityTypes` is a registered entity type (**read 1**) | `Entity type not registered: <a>, <b>` — the unregistered members, comma-separated |
+| 3 | `mark`, tagging | `params.schemaId` names a registered tag schema (**read 2**) | `Tag schema not registered: <schemaId>` |
+| 4 | `yield` | every param is one `GenerationJobParams` names | `a yield job takes no parameter <a>, <b>` — the params it does not take, comma-separated |
+| 5 | `yield` | when `params.entityTypes` is present and not empty: every member is a registered entity type (**read 1**) | `Entity type not registered: <a>, <b>` |
+| 6 | all | the store accepts the new record | the store's error message |
 
-A `reference-annotation` whose `params.entityTypes` is present but not an array skips check 8 and is
-then refused with a runtime error message this document does not specify.
-
-**The focus rule** derives a generation job's resource from its gathered context,
+**The focus rule** derives a `yield` job's resource from its gathered context,
 `params.context.focus`: when `focus.kind` is `"resource"`, the resource is `focus.resource["@id"]`;
 when it is `"annotation"`, it is `focus.sourceResource["@id"]`, the resource the focal annotation is
-on. Any other focus yields none, and so does an `@id` that is not a
-[`ResourceId`](../../specs/src/components/schemas/ResourceId.json). For every other type the resource is the envelope's `resourceId`.
+on. A focus of any other kind, or an `@id` that is not a
+[`ResourceId`](../../specs/src/components/schemas/ResourceId.json), is not a `JobCreateCommand`. For a
+`mark` job the resource is the command's `resourceId`.
 
 **The two reads** ask the Archivist over the bus, as the dispatcher's own requests:
 `browse:entity-types-requested` (read 1) and `browse:tag-schemas-requested` (read 2), each with an
-empty payload. They are made per `job:create`, only where the table says, after checks 1–7, one after
-the other, never cached. Read 2 is made for every `tag-annotation` before `schemaId` is examined. Each
-waits up to 30 seconds. When a read fails, `job:create` is refused with the read's own message, and with
+empty payload. They are made per `job:create`, only where the table says, after check 1, never
+cached. No job needs both. Each waits up to 30 seconds. When a read fails, `job:create` is refused with the read's own message, and with
 its `code` when the read's failure carried one. For an Archivist that is not connected the message is
 `No subscriber for browse:entity-types-requested: the service that answers it is not connected` (or
 the same for `browse:tag-schemas-requested`), the code is `peer-unavailable`, and the refusal arrives at
-once. A job type that triggers
+once. A job that triggers
 neither read is admitted without the Archivist.
 
 **The record.** On admission the dispatcher builds the record — a new id, `retryCount: 0`,
-`maxRetries` by type, `created` now, `userId` the requester — with
-`params = { resourceId: <the resource derived above>, ...<the caller's params> }`, the caller's
-params holding no `resourceId` (check 2). For `tag-annotation` the resolved schema is stored as
-`params.schema` and `params.schemaId` is removed, so the worker needs no registry of its own.
+`maxRetries` by type, `created` now, `userId` the requester — and holds the job's params as they
+came, with what it adds ([`JobParams`](../../specs/src/components/schemas/JobParams.json)):
+`resourceId`, the resource derived above, and for a tagging job `schema`, the tag schema its
+`schemaId` names, so the worker needs no registry of its own. Nothing the caller sent is changed or
+removed: `schemaId` stays beside `schema`.
 
 **Reply.** `job:created` with `{ response: { jobId } }`. The job is stored as `pending` before the
 reply is sent. `job:queued` for the new job is emitted when the store delivers it, independently of
@@ -226,7 +240,7 @@ the reply, so the order of `job:created` and `job:queued` is not fixed.
 
 ### `job:claim`
 
-Hands the next pending job of the requested types to the caller. Reads `types`, `_roles` and
+Hands the caller the next pending job its claim matches. Reads `accepts`, `_roles` and
 `_userId` ([`JobClaimCommand`](../../specs/src/components/schemas/JobClaimCommand.json)).
 
 1. **The caller must be a worker.** `_roles` must contain `semiont-worker`, the role the gateway
@@ -234,13 +248,21 @@ Hands the next pending job of the requested types to the caller. Reads `types`, 
    `code: "unauthorized"`, message
    `job:claim refused: the caller is not a worker for this knowledge base`. This is checked before
    the queue is consulted, so a refused caller learns nothing about pending work.
-2. **The claim is by type, and atomic.** Non-string members of `types` are ignored; an empty list
-   matches every type. The dispatcher moves one pending job of a matching type to `running`. Of any
+2. **The claim names the jobs it takes, and is atomic.** `accepts` is a list of
+   [`JobFilter`](../../specs/src/components/schemas/JobFilter.json), at least one. A filter is a
+   partial job description: `{ jobType: "mark", params: { motivation } }` for the `mark` jobs of one
+   motivation, or `{ jobType: "yield" }`. A job matches a filter when every field the filter states
+   equals the job's at the same path; what the filter leaves out is not compared. The job is compared
+   as it is announced ([`job:queued`](#jobqueued)), and
+   [`filter-cases.json`](../../specs/src/jobs/filter-cases.json) is the table every implementation
+   answers alike. The gateway refuses a claim with no filter, a `mark` filter with no motivation, and
+   a filter that states any other field. The dispatcher moves one pending job that matches any of the
+   filters to `running`. Of any
    number of simultaneous claims, exactly one wins each pending job. No order among matching pending
    jobs is promised: this dispatcher tries first the jobs whose delivery it holds, in the order
    it received them, then every other stored record.
 3. **Nothing to claim is a decline, not an error:** `job:claim-failed`, `code: "none-pending"`,
-   message `No pending job of the requested types`.
+   message `No pending job matches the claim`.
 4. **After the transition,** one check runs before the reply: `_userId` is present, else
    `job:claim missing _userId (gateway injection)`, with no code, and the job is left `running`
    ([Known defects](#known-defects)).
@@ -261,10 +283,30 @@ claim carries the checkpoint its earlier attempts left, which is how a retry res
 
 ### `job:complete`
 
-Concludes a running job. Reads `jobId` and `result`
-([`JobCompleteCommand`](../../specs/src/components/schemas/JobCompleteCommand.json)); `result`
-absent is stored as `{}`. The job moves to `complete`. `resourceId`, `jobType`, `attempt`,
-`annotationId`, `durability` and `_userId` are not read. No reply, nothing emitted.
+Concludes a running job. Reads `jobId`, `jobType` and `result`
+([`JobCompleteCommand`](../../specs/src/components/schemas/JobCompleteCommand.json)).
+
+**A completion is its verb's.** `JobCompleteCommand` is one of two, told apart by `jobType`, and
+each carries the result its verb reports:
+
+| `jobType` | `result` |
+|---|---|
+| `mark` | [`MarkJobResult`](../../specs/src/components/schemas/MarkJobResult.json): the job's counts (`found`, `persisted`, and `errors` when some of what was proposed could not be anchored in the text), or a decline |
+| `yield` | [`YieldJobResult`](../../specs/src/components/schemas/YieldJobResult.json): the resource the job made, or a decline |
+
+The gateway refuses, with `400`, a completion whose result is the other verb's: it is not the
+schema. A completion that is well formed for one verb and names a running job of the other has no
+effect: the dispatcher logs `job:complete of another verb than the job's`, and the job stays
+`running`. The Archivist records no `job:completed` for it, and logs the same words, when the
+resource's stream holds the job's `job:assigned` or `job:started`
+([ARCHIVIST.md](ARCHIVIST.md#vocabulary-people-and-jobs)). A `yield` completion may name
+`annotationId`, the annotation its context was focused on; a `mark` completion names none.
+
+**What is stored is any verb's.** The job moves to `complete`, and its record holds the result as a
+[`JobResult`](../../specs/src/components/schemas/JobResult.json): one of the three, with no field
+that says which. The record's `metadata.type` says which job it answers, and the three share no
+member. `result` absent is stored as `{}`. `resourceId`, `attempt`, `annotationId`, `durability` and
+`_userId` are not read. No reply, nothing emitted.
 
 ### `job:fail`
 
@@ -293,7 +335,7 @@ them into the record ([Checkpoints](#checkpoints)). Never throttled. No reply, n
 
 ### `job:cancel-requested`
 
-Asks for a job, or a category of pending jobs, to be cancelled. Reads `jobId` and `jobType`
+Asks for a job, or every pending job of one type, to be cancelled. Reads `jobId` and `jobType`
 ([`JobCancelRequest`](../../specs/src/components/schemas/JobCancelRequest.json)); `jobId`, when present,
 takes precedence.
 
@@ -303,8 +345,8 @@ takes precedence.
 | `jobId`, job `pending` | cancelled now | `1`, or `0` if it left `pending` first |
 | `jobId`, job `running` | none by the dispatcher; left to its worker ([Cancellation](#cancellation)) | `1` |
 | `jobId`, job terminal | none | `0` |
-| `jobType: "generation"` | every pending `generation` job cancelled | the number cancelled |
-| `jobType: "annotation"` | every pending job of an annotation type — every `JobType` but `generation` — cancelled | the number cancelled |
+| `jobType: "mark"` | every pending `mark` job cancelled, whatever its motivation | the number cancelled |
+| `jobType: "yield"` | every pending `yield` job cancelled | the number cancelled |
 | neither | none | `0` |
 
 **Reply:** `job:cancel-ok` with `{ response: { cancelled } }`. A store error is
@@ -336,8 +378,10 @@ Reads one job. Reads `jobId`
 | `progress` | `running` |
 | `result` | `complete` |
 
-`retryCount`, `maxRetries`, the checkpoint and `params` are not exposed. A record is readable until
-retention deletes it.
+`result` is the record's: a result of any verb, or `{}`
+([`JobStoredResult`](../../specs/src/components/schemas/JobStoredResult.json)). The response's `type`
+says which verb's it is. `retryCount`, `maxRetries`, the checkpoint and `params` are not exposed. A
+record is readable until retention deletes it.
 
 #### Following a job
 
@@ -352,14 +396,19 @@ of a job it follows for `jobSilenceMs` asks for the job's status, and asks again
 `cancelled`, which no frame announces: a follower learns of a cancellation here and nowhere else.
 *Held by `sdk/live/job-across-drop`, `sdk/live/job-failed-unheard`, `sdk/live/job-cancelled`.*
 
+A follower reads its job's completion as its verb's, whichever way it learns of it: a
+`job:complete` frame states its `jobType`, and a status its `type`, with a `result` that must be
+that verb's. A completion that is another verb's is not this job's. The follower ends with an
+error, and does not report the job as failed.
+
 A follower reports how its job ended under the codes every SDK shares
 ([`specs/src/errors/codes.json`](../../specs/src/errors/codes.json), `job`). A `job:fail` whose
-`willRetry` is `true` is not an end, of an assisted job or of a generation: the follower reports the
+`willRetry` is `true` is not an end, of a `mark` job or of a `yield` job: the follower reports the
 setback and keeps following, and does not ask for the status of the attempt that died. Any other
 `job:fail`, and a status of `failed`, end it as `job.failed`, with the worker's message; a status of
-`cancelled` ends it as `job.cancelled`. A follower of a generation that has heard nothing for its
+`cancelled` ends it as `job.cancelled`. A follower of a `yield` job that has heard nothing for its
 stall deadline asks for that job to be cancelled, by its id, and ends as `job.stalled`: a
-cancellation by category would end every pending generation in the knowledge base. The deadline is
+cancellation by type would end every pending `yield` job in the knowledge base. The deadline is
 `generationStallFloorMs`, or `generationStallPerTokenMs` for each token asked for when that is
 longer, unless its caller states one. Each frame of the job starts the deadline again, a setback
 among them: the attempt that follows one has the whole deadline to say something.
@@ -370,11 +419,17 @@ among them: the attempt that follows one has the whole deadline to say something
 ### `job:queued`
 
 **A wake-up, not a reservation.** It tells idle workers that there may be something to claim. It
-reserves nothing: a claim is by type, so the job a worker receives may differ from the one announced,
-and a job may be announced any number of times.
+reserves nothing: a claim names what it takes and no job, so the job a worker receives may differ
+from the one announced, and a job may be announced any number of times.
 
 Payload ([`JobQueuedEvent`](../../specs/src/components/schemas/JobQueuedEvent.json)): `jobId`,
-`jobType`, `resourceId` (the job's `params.resourceId`), and `userId`, the requester. Registry kind
+`jobType`, `resourceId` (the job's `params.resourceId`), `userId`, the requester, and `params`: the
+job description less the job's input. A `mark` job's params are announced whole, as it was created. A
+`yield` job's are announced without its `context`
+([`GenerationJobRequest`](../../specs/src/components/schemas/GenerationJobRequest.json)). Nothing the
+dispatcher added to the params is announced, so a tagging job's carry no `schema`. An announcement
+is what a claim's filters are compared with, so the first-party worker checks one against its own
+claim and asks only when it would be handed something. Registry kind
 `event`, audience `declared`: it reaches the clients that name it, which are workers.
 
 It is emitted:
@@ -433,15 +488,15 @@ deleted at the first sweep.
 A checkpoint is how much of a job is already done, recorded on the job so a later attempt skips it.
 It has two parts, merged differently ([`checkpoint.rs`](../../apps/dispatcher/handlers/src/checkpoint.rs)):
 
-- **`completedUnits` is a set, merged by union.** A unit is an entity type for
-  `reference-annotation` and the job's single motivation for the other annotation types. A unit
+- **`completedUnits` is a set, merged by union.** A unit is an entity type for a linking job, a
+  category for a tagging job, and the job's own motivation for every other `mark` job. A unit
   once recorded stays recorded.
 - **`unitCursors` is merged monotonically per unit.** A cursor
   ([`UnitCursor`](../../specs/src/components/schemas/UnitCursor.json)) says how far an unfinished
   unit got. For each unit, the incoming cursor replaces the stored one only when its `next` is
   strictly greater; otherwise the stored one stays. A cursor is replaced whole — `next`, `size`,
-  `found` and `emitted` are one observation and never mixed across two cursors — so a checkpoint
-  arriving late never moves a unit backward.
+  `found`, `emitted` and `errors` are one observation and never mixed across two cursors — so a
+  checkpoint arriving late never moves a unit backward.
 - **A finished unit has no cursor.** After the union, every cursor for a unit in `completedUnits` is
   dropped, and incoming cursors for such units are ignored. When no cursor remains, `unitCursors` is
   removed from the record.
@@ -452,14 +507,14 @@ then retried or failed. `job:cancel` does not merge its checkpoint.
 ## Cancellation
 
 **A pending job is cancelled by the dispatcher**, on `job:cancel-requested` naming it by id, on
-`job:cancel-requested` naming its category, or on `job:cancel`.
+`job:cancel-requested` naming its type, or on `job:cancel`.
 
 **A running job is cancelled only by its worker.** `job:cancel-requested` naming a running job
 changes nothing in the queue and replies `cancelled: 1`. Workers may subscribe to
 `job:cancel-requested` too, as the first-party worker does; a worker holding the named job may stop at
 a unit boundary and confirm with `job:cancel`, which moves the job to `cancelled`. A worker that does not stop finishes the job, which then ends
-`complete` or `failed` as usual. (The first-party worker stops only `reference-annotation` jobs.) A
-bulk cancel by category never touches running jobs' records.
+`complete` or `failed` as usual. (The first-party worker stops only linking jobs.) A
+bulk cancel by type never touches running jobs' records.
 
 ## Retries
 
@@ -472,8 +527,8 @@ failureClass !== "deterministic"  and  retryCount < maxRetries
 evaluated on the record before the failure is applied. The predicate is `willRetryAfter` in
 [`will-retry.ts`](../../packages/jobs/src/will-retry.ts); the first-party worker evaluates the same
 function, on the record it claimed, to set `willRetry` on its `job:fail`. An absent `failureClass`
-counts as retryable. With the budgets set at admission, a `generation` job is never retried and any
-other job is retried at most once.
+counts as retryable. With the budgets set at admission, a `yield` job is never retried and a
+`mark` job is retried at most once.
 
 A retried job is `pending` again with `retryCount` one higher, its checkpoint merged, and no
 `startedAt`, `progress` or error. It is redelivered at once, with no delay, and so announced again. A
@@ -488,16 +543,19 @@ record per job, and **a stream** whose messages deliver jobs to the dispatcher. 
 transition needs, and writes only if nobody wrote in between; on a conflict it reads again, up to 20
 times, and then fails the operation with `Job <jobId> transition failed after 20 CAS attempts`.
 Admission is the one write that is not a compare-and-swap: it creates the record, failing if the id
-exists, and then publishes the job's message. The exact layout — bucket, stream, subjects, consumer
+exists, and then publishes the job's message, on the subject of its type. The exact layout — bucket, stream, subjects, consumer
 and record encoding — is specified machine-readably in [`specs/src/jobs/storage.json`](../../specs/src/jobs/storage.json).
 
 **A stored record that does not decode** — not a
 [`JobRecord`](../../specs/src/components/schemas/JobRecord.json), an id its kind refuses included —
 fails an operation that names its job, with `job <jobId>'s record: <why>`. A pass over every record
-goes on past it: a claim's search, a cancel by category, the tick's re-announcement, the dead-worker
+goes on past it: a claim's search, a cancel by type, the tick's re-announcement, the dead-worker
 sweep, retention and the queue's counts each log `A stored job record that does not decode` with its id and reason, and
 take the next. Such a record is never claimed, cancelled, swept, deleted or counted, and is reported at
-every pass until it is removed by hand.
+every pass until it is removed by hand. A record that decodes but whose params are not its type's
+is passed over the same way where an announcement is built, by a delivery and by a claim's search:
+the dispatcher logs `A job whose parameters are not its type's`, and the job is never announced and
+never claimed.
 
 **A delivered message is the dispatcher's lease on the job.** The dispatcher holds each delivered
 message, extends every lease every 7.5 seconds, and settles a lease when the job ends: acknowledged on
@@ -535,8 +593,8 @@ protocol.
   after the worker stopped waiting for it (10 seconds for the first-party worker), leaves the job
   `running` with nobody working on it; so does the refusal `job:claim` makes after the transition.
   Only the dead-worker sweep recovers it, 30 minutes later, and the recovery spends its retry.
-- **No attempt fencing.** `job:complete` and `job:fail` are checked only against the job being
-  `running`. A late `job:complete` or `job:fail` from an attempt the sweep gave up on concludes the
+- **No attempt fencing.** `job:complete` and `job:fail` are checked against the job being
+  `running`, a `job:complete` against the job's verb as well, and neither against the attempt. A late `job:complete` or `job:fail` from an attempt the sweep gave up on concludes the
   next attempt's record. `attempt` is on the wire and ignored.
 - **`job:cancel` ignores its checkpoint and cancels pending jobs.** The `completedUnits` and
   `unitCursors` its schema says are recorded are dropped. Because it accepts a `pending` job, a late
@@ -545,8 +603,8 @@ protocol.
 - **Admission writes the record, then publishes.** When the publish fails, the reply is
   `job:create-failed` while a claimable `pending` job exists; having no message, it is never
   announced.
-- **A bulk cancel purges the messages of running jobs.** A cancel by category removes every message
-  in that category, not only those of the jobs it cancelled: running jobs lose theirs, and a job
+- **A bulk cancel purges the messages of running jobs.** A cancel by type removes every message
+  of that type, not only those of the jobs it cancelled: running jobs lose theirs, and a job
   admitted while the cancel runs is left `pending` with no message, claimable but never announced.
 - **Broker objects are created if missing but never updated.** A changed stream, consumer or bucket
   setting — the 30-second acknowledgement window among them — takes effect only on a fresh broker.

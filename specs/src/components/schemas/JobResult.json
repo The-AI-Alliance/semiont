@@ -1,38 +1,14 @@
 {
-  "description": "Discriminated union of all job result types — every member carries a single-valued `kind`. Consumers switch on `kind`; generated clients get typed variants.",
+  "description": "What a job reports when it concludes without failing: a `mark` job's counts, the resource a `yield` job made, or a decline from either. A result has no discriminant of its own: the job description beside it says which job it answers, and the three share no member, so each is told from the others by what it alone carries.",
   "oneOf": [
+    {
+      "$ref": "./JobDetectionResult.json"
+    },
     {
       "$ref": "./JobGenerationResult.json"
     },
     {
-      "$ref": "./JobReferenceAnnotationResult.json"
-    },
-    {
-      "$ref": "./JobHighlightAnnotationResult.json"
-    },
-    {
-      "$ref": "./JobAssessmentAnnotationResult.json"
-    },
-    {
-      "$ref": "./JobCommentAnnotationResult.json"
-    },
-    {
-      "$ref": "./JobTagAnnotationResult.json"
-    },
-    {
       "$ref": "./JobDeclinedResult.json"
     }
-  ],
-  "discriminator": {
-    "propertyName": "kind",
-    "mapping": {
-      "generation": "./JobGenerationResult.json",
-      "reference-annotation": "./JobReferenceAnnotationResult.json",
-      "highlight-annotation": "./JobHighlightAnnotationResult.json",
-      "assessment-annotation": "./JobAssessmentAnnotationResult.json",
-      "comment-annotation": "./JobCommentAnnotationResult.json",
-      "tag-annotation": "./JobTagAnnotationResult.json",
-      "declined": "./JobDeclinedResult.json"
-    }
-  }
+  ]
 }

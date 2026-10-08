@@ -131,7 +131,7 @@ final.
 
 The three booleans say how a resource may come into existence: `uploadable`
 (a user supplies bytes), `authorable` (a user types it in the browser), and
-`generatable` (`yield.fromContext` may target it).
+`generatable` (`yield.delegate` may target it).
 They are independent — `application/pdf` is generatable but not authorable,
 because a model can write one and a person cannot type one.
 

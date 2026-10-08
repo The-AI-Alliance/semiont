@@ -17,7 +17,6 @@ import type {
   KnowledgeBase as _KnowledgeBase,
   ResourceDescriptor as _ResourceDescriptor,
   Annotation as _Annotation,
-  GenerationOptions as _GenerationOptions,
   TagSchema as _TagSchema,
   CacheState as _CacheState,
   AccessToken as _AccessToken,
@@ -28,6 +27,7 @@ import type {
   UserId as _UserId,
   DeviceCode as _DeviceCode,
 } from '@semiont/sdk';
+import type { GenerationJobParams as _GenerationJobParams } from '@semiont/core';
 import type { FaultyTransport as _FaultyTransport } from '@semiont/sdk/testing';
 import type { ShellStateUnit as _ShellStateUnit } from '@semiont/react-ui';
 
@@ -79,7 +79,8 @@ declare global {
   const ctx: _GatheredContext;
   const gatheredContext: _GatheredContext;
   const resourceContext: _GatheredContext;
-  const options: _GenerationOptions;
+  /** A `yield` job's params: what to make, and the gathered context to make it from. */
+  const params: _GenerationJobParams;
   const input: _CreateAnnotationInput;
   const MY_TAG_SCHEMA: _TagSchema;
   const kb: _KnowledgeBase;

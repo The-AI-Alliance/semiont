@@ -8,8 +8,8 @@
  * from the request's `maxTokens` — never a fixed constant — because the
  * guard CANCELS server-side, and a mis-sized fixed default would destroy
  * the longest legitimate runs. Consumers override per call with
- * `GenerationOptions.stallDeadlineMs`, a client-only knob that is stripped
- * before the wire.
+ * `yield.delegate`'s `stallDeadlineMs`, which is the client's own and is
+ * never sent.
  */
 
 import {

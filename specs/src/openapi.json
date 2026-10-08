@@ -462,9 +462,6 @@
       "GraphResourceNode": {
         "$ref": "components/schemas/GraphResourceNode.json"
       },
-      "JobAssessmentAnnotationResult": {
-        "$ref": "components/schemas/JobAssessmentAnnotationResult.json"
-      },
       "JobCancelRequest": {
         "$ref": "components/schemas/JobCancelRequest.json"
       },
@@ -473,9 +470,6 @@
       },
       "JobClaimCommand": {
         "$ref": "components/schemas/JobClaimCommand.json"
-      },
-      "JobCommentAnnotationResult": {
-        "$ref": "components/schemas/JobCommentAnnotationResult.json"
       },
       "JobCompleteCommand": {
         "$ref": "components/schemas/JobCompleteCommand.json"
@@ -509,9 +503,6 @@
       },
       "JobGenerationResult": {
         "$ref": "components/schemas/JobGenerationResult.json"
-      },
-      "JobHighlightAnnotationResult": {
-        "$ref": "components/schemas/JobHighlightAnnotationResult.json"
       },
       "JobProgress": {
         "$ref": "components/schemas/JobProgress.json"
@@ -552,8 +543,8 @@
       "JobQueuedEvent": {
         "$ref": "components/schemas/JobQueuedEvent.json"
       },
-      "JobReferenceAnnotationResult": {
-        "$ref": "components/schemas/JobReferenceAnnotationResult.json"
+      "JobDetectionResult": {
+        "$ref": "components/schemas/JobDetectionResult.json"
       },
       "JobReportProgressCommand": {
         "$ref": "components/schemas/JobReportProgressCommand.json"
@@ -588,9 +579,6 @@
       "JobStatusResult": {
         "$ref": "components/schemas/JobStatusResult.json"
       },
-      "JobTagAnnotationResult": {
-        "$ref": "components/schemas/JobTagAnnotationResult.json"
-      },
       "JobType": {
         "$ref": "components/schemas/JobType.json"
       },
@@ -606,8 +594,8 @@
       "MarkArchiveCommand": {
         "$ref": "components/schemas/MarkArchiveCommand.json"
       },
-      "MarkAssistRequestEvent": {
-        "$ref": "components/schemas/MarkAssistRequestEvent.json"
+      "MarkDelegateRequestEvent": {
+        "$ref": "components/schemas/MarkDelegateRequestEvent.json"
       },
       "MarkCreateCommand": {
         "$ref": "components/schemas/MarkCreateCommand.json"
@@ -867,6 +855,60 @@
       "JobParams": {
         "$ref": "components/schemas/JobParams.json"
       },
+      "MarkJobParams": {
+        "$ref": "components/schemas/MarkJobParams.json"
+      },
+      "HighlightingJobParams": {
+        "$ref": "components/schemas/HighlightingJobParams.json"
+      },
+      "CommentingJobParams": {
+        "$ref": "components/schemas/CommentingJobParams.json"
+      },
+      "AssessingJobParams": {
+        "$ref": "components/schemas/AssessingJobParams.json"
+      },
+      "LinkingJobParams": {
+        "$ref": "components/schemas/LinkingJobParams.json"
+      },
+      "TaggingJobParams": {
+        "$ref": "components/schemas/TaggingJobParams.json"
+      },
+      "GenerationJobRequest": {
+        "$ref": "components/schemas/GenerationJobRequest.json"
+      },
+      "MarkJobCreateCommand": {
+        "$ref": "components/schemas/MarkJobCreateCommand.json"
+      },
+      "YieldJobCreateCommand": {
+        "$ref": "components/schemas/YieldJobCreateCommand.json"
+      },
+      "MarkJobQueuedEvent": {
+        "$ref": "components/schemas/MarkJobQueuedEvent.json"
+      },
+      "YieldJobQueuedEvent": {
+        "$ref": "components/schemas/YieldJobQueuedEvent.json"
+      },
+      "MarkJobResult": {
+        "$ref": "components/schemas/MarkJobResult.json"
+      },
+      "YieldJobResult": {
+        "$ref": "components/schemas/YieldJobResult.json"
+      },
+      "MarkJobCompleteCommand": {
+        "$ref": "components/schemas/MarkJobCompleteCommand.json"
+      },
+      "YieldJobCompleteCommand": {
+        "$ref": "components/schemas/YieldJobCompleteCommand.json"
+      },
+      "JobFilter": {
+        "$ref": "components/schemas/JobFilter.json"
+      },
+      "MarkJobFilter": {
+        "$ref": "components/schemas/MarkJobFilter.json"
+      },
+      "YieldJobFilter": {
+        "$ref": "components/schemas/YieldJobFilter.json"
+      },
       "JobPending": {
         "$ref": "components/schemas/JobPending.json"
       },
@@ -957,8 +999,8 @@
       "BrowseDirectoryFailed": {
         "$ref": "components/schemas/BrowseDirectoryFailed.json"
       },
-      "MarkAssistTimeoutEvent": {
-        "$ref": "components/schemas/MarkAssistTimeoutEvent.json"
+      "MarkDelegateTimeoutEvent": {
+        "$ref": "components/schemas/MarkDelegateTimeoutEvent.json"
       },
       "ResourceErrorEvent": {
         "$ref": "components/schemas/ResourceErrorEvent.json"

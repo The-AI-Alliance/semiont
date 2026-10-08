@@ -1,104 +1,25 @@
-//! Mark: annotations, a resource's own metadata, and AI assistance. Each
-//! write is confirmed: it resolves when the knowledge base says it is
-//! recorded, and fails with the failure it answered. What changed then
-//! arrives on the `browse` queries.
+//! Mark: annotations, a resource's own metadata, and the annotating of a
+//! resource delegated as a job. Each write is confirmed: it resolves when the
+//! knowledge base says it is recorded, and fails with the failure it
+//! answered. What changed then arrives on the `browse` queries.
 
-use super::follow::{Following, JobEvent, follow};
-use crate::bus::payload_of;
+use super::follow::{Delegation, Following, follow};
 use crate::channels::Empty;
 use crate::channels::{
-    MarkArchive, MarkAssistRequest, MarkCancelPending, MarkCreateRequest as CreateRequest,
+    MarkArchive, MarkCancelPending, MarkCreateRequest as CreateRequest, MarkDelegateRequest,
     MarkDelete, MarkDeleteError, MarkProgressDismiss, MarkRequested, MarkSubmit, MarkUnarchive,
     MarkUpdateEntityTypes,
 };
 use crate::client::Links;
-use crate::errors::{BusRequestError, BusRequestErrorCode, SemiontError};
-use crate::running::Running;
+use crate::errors::SemiontError;
 use crate::transport::Envelope;
 use crate::types::{AnnotationId, ResourceId};
 use crate::types::{
-    AnnotationSelector, CreateAnnotationRequest, JobCreateCommand, JobType, MarkArchiveCommand,
-    MarkAssistRequestEvent, MarkAssistRequestEventOptions, MarkCreateOkResponse, MarkCreateRequest,
-    MarkDeleteCommand, MarkRequestedEvent, MarkSubmitEvent, MarkUnarchiveCommand,
+    AnnotationSelector, CreateAnnotationRequest, MarkArchiveCommand, MarkCreateOkResponse,
+    MarkCreateRequest, MarkDelegateRequestEvent, MarkDeleteCommand, MarkJobCompleteCommand,
+    MarkJobCreateCommand, MarkJobParams, MarkRequestedEvent, MarkSubmitEvent, MarkUnarchiveCommand,
     MarkUpdateEntityTypesCommand, Motivation, ResourceErrorEvent,
 };
-use serde::{Deserialize, Serialize};
-
-/// What an assist is asked to do, beyond its motivation. Each field that is
-/// stated becomes a parameter of the job under its own name.
-#[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MarkAssistOptions {
-    /// The entity types to look for. Linking requires at least one.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub entity_types: Option<Vec<String>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub include_descriptive_references: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub instructions: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub density: Option<f64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tone: Option<String>,
-    /// The language the annotations' own text is written in. BCP 47.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub language: Option<String>,
-    /// The language of the resource being read. BCP 47.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub source_language: Option<String>,
-    /// The tag schema to tag with. Tagging requires it.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub schema_id: Option<String>,
-    /// The schema's categories to tag with. Tagging requires at least one.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub categories: Option<Vec<String>>,
-}
-
-fn refused(message: &str) -> SemiontError {
-    BusRequestError::new(BusRequestErrorCode::Rejected, message).into()
-}
-
-/// The job an assist of `motivation` creates, once its options are what that
-/// job needs: refused here with what the dispatcher would answer later.
-fn assist_job(
-    resource_id: ResourceId,
-    motivation: Motivation,
-    options: &MarkAssistOptions,
-) -> Result<JobCreateCommand, SemiontError> {
-    let stated = |list: &Option<Vec<String>>| list.as_ref().is_some_and(|l| !l.is_empty());
-    let job_type = match motivation {
-        Motivation::Tagging => {
-            if options.schema_id.as_deref().is_none_or(str::is_empty) {
-                return Err(refused(
-                    "mark.assist with motivation \"tagging\" requires options.schemaId",
-                ));
-            }
-            if !stated(&options.categories) {
-                return Err(refused(
-                    "mark.assist with motivation \"tagging\" requires a non-empty options.categories array",
-                ));
-            }
-            JobType::TagAnnotation
-        }
-        Motivation::Linking => {
-            if !stated(&options.entity_types) {
-                return Err(refused(
-                    "mark.assist with motivation \"linking\" requires a non-empty entityTypes array",
-                ));
-            }
-            JobType::ReferenceAnnotation
-        }
-        Motivation::Highlighting => JobType::HighlightAnnotation,
-        Motivation::Assessing => JobType::AssessmentAnnotation,
-        Motivation::Commenting => JobType::CommentAnnotation,
-    };
-    Ok(JobCreateCommand {
-        _user_id: None,
-        job_type,
-        resource_id: Some(resource_id),
-        params: payload_of(options)?,
-    })
-}
 
 pub struct MarkNamespace {
     links: Links,
@@ -181,27 +102,58 @@ impl MarkNamespace {
         Ok(())
     }
 
-    /// Have a model annotate a resource: the job's progress, any attempt
-    /// that failed and will be tried again, and its completion.
-    pub fn assist(
+    /// Delegate the annotating of a resource as a `mark` job: its progress,
+    /// any attempt that failed and will be tried again, and its completion,
+    /// whose result is a `mark` job's: its counts, or a decline.
+    /// `params` is the job's parameters, one of five by its motivation
+    /// (`HighlightingJobParams`, `CommentingJobParams`, `AssessingJobParams`,
+    /// `LinkingJobParams`, `TaggingJobParams`), and each takes its own and no
+    /// others.
+    ///
+    /// ```
+    /// use semiont::types::{LinkingJobParams, MarkJobParams};
+    ///
+    /// let params: MarkJobParams = LinkingJobParams {
+    ///     include_descriptive_references: Some(true),
+    ///     ..LinkingJobParams::new(vec!["Person".to_owned()])
+    /// }
+    /// .into();
+    /// # let _ = params;
+    /// ```
+    ///
+    /// A parameter a job does not take is not one its type has: a linking
+    /// job given instructions does not compile.
+    ///
+    /// ```compile_fail,E0560
+    /// use semiont::types::LinkingJobParams;
+    ///
+    /// let params = LinkingJobParams {
+    ///     instructions: Some("who is related to whom".to_owned()),
+    ///     ..LinkingJobParams::new(vec!["Person".to_owned()])
+    /// };
+    /// ```
+    ///
+    /// Nor does a job made without what it needs: a tagging job is made from
+    /// its schema and its categories.
+    ///
+    /// ```compile_fail,E0061
+    /// use semiont::types::TaggingJobParams;
+    ///
+    /// let params = TaggingJobParams::new();
+    /// ```
+    pub fn delegate(
         &self,
         resource_id: &ResourceId,
-        motivation: Motivation,
-        options: MarkAssistOptions,
-    ) -> Running<JobEvent> {
-        let links = self.links.clone();
-        let resource_id = resource_id.clone();
-        match assist_job(resource_id.clone(), motivation, &options) {
-            Ok(create) => follow(
-                links,
-                Following {
-                    create,
-                    resource_id,
-                    stall: None,
-                },
-            ),
-            Err(refusal) => Running::new(|_| async move { Err(refusal) }),
-        }
+        params: impl Into<MarkJobParams>,
+    ) -> Delegation<MarkJobCompleteCommand> {
+        follow(
+            self.links.clone(),
+            Following {
+                create: MarkJobCreateCommand::new(resource_id.clone(), params.into()).into(),
+                resource_id: resource_id.clone(),
+                stall: None,
+            },
+        )
     }
 
     /// Signal: a new annotation is wanted on `source`.
@@ -221,12 +173,13 @@ impl MarkNamespace {
         );
     }
 
-    /// Signal: an assist is wanted. The client's own state runs it.
-    pub fn request_assist(&self, motivation: Motivation, options: MarkAssistRequestEventOptions) {
-        self.links.signal::<MarkAssistRequest>(
-            &MarkAssistRequestEvent {
-                motivation,
-                options,
+    /// Signal: the annotating of the open resource is to be delegated, as a
+    /// `mark` job of these parameters, the ones `delegate` takes. The
+    /// client's own state runs it.
+    pub fn request_delegate(&self, params: impl Into<MarkJobParams>) {
+        self.links.signal::<MarkDelegateRequest>(
+            &MarkDelegateRequestEvent {
+                params: params.into(),
             },
             Envelope::default(),
         );
@@ -243,7 +196,7 @@ impl MarkNamespace {
             .signal::<MarkCancelPending>(&Empty {}, Envelope::default());
     }
 
-    /// Signal: dismiss the display of an assist's progress.
+    /// Signal: dismiss the display of a delegated job's progress.
     pub fn dismiss_progress(&self) {
         self.links
             .signal::<MarkProgressDismiss>(&Empty {}, Envelope::default());

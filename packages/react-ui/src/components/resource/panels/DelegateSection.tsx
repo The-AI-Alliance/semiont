@@ -1,20 +1,35 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { assistProgressCopy, assistSubjectCopy, assistParamLabel } from '../../../lib/assist-progress-copy';
+import { delegateProgressCopy, delegateSubjectCopy, delegateParamLabel } from '../../../lib/delegate-progress-copy';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { SemiontSession } from '@semiont/sdk';
-import type { Motivation, components } from '@semiont/core';
-import { AssistShell } from './AssistShell';
-import './AssistSection.css';
+import type { MarkJobParams, components } from '@semiont/core';
+import type { AnnotatorKey } from '../../../lib/annotation-registry';
+import { DelegateShell } from './DelegateShell';
+import './DelegateSection.css';
 
 type JobProgress = components['schemas']['JobProgress'];
 
-interface AssistSectionProps {
+/** The tone a job of `M` takes, as the job's own params type states it. */
+type ToneOf<M extends 'commenting' | 'assessing'> = NonNullable<Extract<MarkJobParams, { motivation: M }>['tone']>;
+
+// The tones each menu offers, held to the job they are sent to.
+const COMMENT_TONES = ['scholarly', 'explanatory', 'conversational', 'technical'] as const satisfies readonly ToneOf<'commenting'>[];
+const ASSESSMENT_TONES = ['analytical', 'critical', 'balanced', 'constructive'] as const satisfies readonly ToneOf<'assessing'>[];
+
+/** `chosen` as one of `tones`, or none when the menu is on its default. */
+const toneAmong = <T extends string>(tones: readonly T[], chosen: string): T | undefined =>
+  tones.find((tone) => tone === chosen);
+
+/** `Part` itself, held to `Whole`: a member of `Part` that is no member of `Whole` does not compile. */
+type Subset<Whole, Part extends Whole> = Part;
+
+interface DelegateSectionProps {
   /** Session carrying the client and event bus; null renders inert. */
   session: SemiontSession | null;
-  annotationType: 'highlight' | 'assessment' | 'comment';
-  isAssisting: boolean;
+  annotationType: Subset<AnnotatorKey, 'highlight' | 'assessment' | 'comment'>;
+  isDelegating: boolean;
   /** User UI locale — written into the annotation body's `language` field for comment/assessment. */
   locale?: string;
   /** BCP-47 tag of the resource being analyzed. Forwarded to the prompt so the LLM analyzes non-English source correctly. */
@@ -23,58 +38,57 @@ interface AssistSectionProps {
 }
 
 /**
- * Assist fields for the text motivations (highlight, assessment, comment):
+ * The delegate form for the text motivations (highlight, assessment, comment):
  * instructions, tone (comment/assessment), density — composed into the shared
- * AssistShell chrome. Reference and tag panels compose the same shell with
+ * DelegateShell chrome. Reference and tag panels compose the same shell with
  * their own fields (entity chips; schema + categories).
  *
- * @emits mark:assist-request - Start assist for annotation type. Payload: { motivation: Motivation, options: { instructions?: string, tone?: string, density?: number } }
+ * @emits mark:delegate-request - Delegate a `mark` job for the annotation type. Payload: { params: MarkJobParams }, the `mark` job's own parameters, its motivation among them
  * @emits mark:progress-dismiss - Dismiss the annotation progress display
  */
-export function AssistSection({
+export function DelegateSection({
   session,
   annotationType,
-  isAssisting,
+  isDelegating,
   locale,
   sourceLanguage,
   progress,
-}: AssistSectionProps) {
+}: DelegateSectionProps) {
 
   const panelName = annotationType === 'highlight' ? 'HighlightPanel' :
                      annotationType === 'assessment' ? 'AssessmentPanel' :
                      'CommentsPanel';
   const t = useTranslations(panelName);
-  const ta = useTranslations('AssistProgress');
+  const ta = useTranslations('DelegateProgress');
   const [instructions, setInstructions] = useState('');
-  type ToneValue = 'scholarly' | 'explanatory' | 'conversational' | 'technical' | 'analytical' | 'critical' | 'balanced' | 'constructive' | '';
-  const [tone, setTone] = useState<ToneValue>('');
+  const [tone, setTone] = useState('');
   // Default density depends on annotation type
   const defaultDensity = annotationType === 'assessment' ? 4 : 5;
   const [density, setDensity] = useState(defaultDensity);
   const [useDensity, setUseDensity] = useState(true); // Enabled by default
 
-  const handleAssist = useCallback(() => {
-    // Map annotation type to motivation
-    const motivation: Motivation =
-      annotationType === 'highlight' ? 'highlighting' :
-      annotationType === 'assessment' ? 'assessing' :
-      'commenting';
-
-    session?.client.mark.requestAssist(motivation, {
+  const handleDelegate = useCallback(() => {
+    // What all three jobs take. Source locale applies to all three — it
+    // affects analysis quality on non-English source, whether or not a body
+    // is produced.
+    const shared = {
       instructions: instructions.trim() || undefined,
-      tone: (annotationType === 'comment' || annotationType === 'assessment') && tone ? tone : undefined,
       density: useDensity ? density : undefined,
-      // Body locale only applies where the LLM writes natural-language text:
-      // comment/assessment have a body, highlight does not.
-      language: (annotationType === 'comment' || annotationType === 'assessment') ? locale : undefined,
-      // Source locale applies to all three — affects analysis quality on
-      // non-English source, regardless of whether a body is produced.
       sourceLanguage,
-    });
+    };
+    // Tone and the body locale apply only where the LLM writes
+    // natural-language text: a comment and an assessment have a body, a
+    // highlight does not, and its job takes neither.
+    const params: MarkJobParams =
+      annotationType === 'highlight' ? { motivation: 'highlighting', ...shared }
+      : annotationType === 'assessment' ? { motivation: 'assessing', ...shared, tone: toneAmong(ASSESSMENT_TONES, tone), language: locale }
+      : { motivation: 'commenting', ...shared, tone: toneAmong(COMMENT_TONES, tone), language: locale };
+
+    session?.client.mark.requestDelegate(params);
 
     setInstructions('');
     setTone('');
-    // Don't reset density/useDensity - persist across assists
+    // Don't reset density/useDensity - persist across delegated jobs
   }, [annotationType, instructions, tone, useDensity, density, locale, sourceLanguage, session]);
 
   const handleDismissProgress = useCallback(() => {
@@ -82,12 +96,12 @@ export function AssistSection({
   }, [session]);
 
   return (
-    <AssistShell
-      assistType={annotationType}
+    <DelegateShell
+      delegateType={annotationType}
       title={t(annotationType === 'highlight' ? 'annotateHighlights' :
                annotationType === 'assessment' ? 'annotateAssessments' :
                'annotateComments')}
-      isAssisting={isAssisting}
+      isDelegating={isDelegating}
       progress={progress}
       progressProps={{
         onDismiss: handleDismissProgress,
@@ -95,9 +109,9 @@ export function AssistSection({
           cancel: t('cancel'),
           inProgress: t('annotating'),
           close: ta('close'),
-          message: assistProgressCopy(ta),
-          subject: assistSubjectCopy(ta),
-          paramLabel: assistParamLabel(ta),
+          message: delegateProgressCopy(ta),
+          subject: delegateSubjectCopy(ta),
+          paramLabel: delegateParamLabel(ta),
         },
       }}
       form={
@@ -127,7 +141,7 @@ export function AssistSection({
               </label>
               <select
                 value={tone}
-                onChange={(e) => setTone(e.target.value as ToneValue)}
+                onChange={(e) => setTone(e.target.value)}
                 className="semiont-select"
               >
                 <option value="">Default</option>
@@ -151,7 +165,7 @@ export function AssistSection({
             </div>
           )}
 
-          {/* Density selector — applies to every assist type */}
+          {/* Density selector — applies to all three motivations */}
           <div className="semiont-form-field">
             {/* Header with toggle */}
             <div className="semiont-form-field__header">
@@ -190,9 +204,9 @@ export function AssistSection({
           </div>
 
           <button
-            onClick={handleAssist}
+            onClick={handleDelegate}
             className="semiont-button"
-            data-variant="assist"
+            data-variant="delegate"
             data-type={annotationType}
           >
             <span className="semiont-button-icon">✨</span>

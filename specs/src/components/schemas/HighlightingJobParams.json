@@ -1,0 +1,28 @@
+{
+  "type": "object",
+  "description": "What a highlighting job takes: passages of the resource worth a reader's attention are marked, with no text of the job's own.",
+  "properties": {
+    "motivation": {
+      "type": "string",
+      "enum": [
+        "highlighting"
+      ]
+    },
+    "instructions": {
+      "type": "string",
+      "description": "What to look for, in the caller's words. Added to the prompt."
+    },
+    "density": {
+      "type": "number",
+      "description": "How many annotations to aim for per 2000 words of the resource."
+    },
+    "sourceLanguage": {
+      "type": "string",
+      "description": "The language of the resource being read. BCP 47."
+    }
+  },
+  "required": [
+    "motivation"
+  ],
+  "additionalProperties": false
+}

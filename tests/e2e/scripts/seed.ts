@@ -77,7 +77,7 @@ const PDF_FIXTURE_BASE64 =
  * PDF" above (a render smoke fixture), it carries enough extractable prose that
  * density-gated AI detection (highlight/comment) reliably finds ≥1 span and
  * entity extraction (reference/linking) finds many Concept entities —
- * `20-pdf-assisted-detection.spec.ts` runs comment + reference assist against
+ * `20-pdf-assisted-detection.spec.ts` runs delegated commenting + linking against
  * it. Standard Helvetica Type1 font; text drawn with BT/Tf/Td/Tj operators,
  * one positioned line per string advanced by the T-star line-move. Verified
  * through `@semiont/content`'s `extractPdfTextLayer` (pdfjs-dist@6): 1 page,

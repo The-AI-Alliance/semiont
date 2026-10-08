@@ -327,10 +327,10 @@ describe('UI signal wrappers', () => {
       const spy = busSpy(bus, 'job:cancel-requested');
       const job = new JobNamespace(makeMockTransport(), bus);
 
-      job.cancelRequest('annotation');
+      job.cancelRequest('mark');
 
       expect(spy).toHaveBeenCalledExactlyOnceWith('job:cancel-requested', {
-        jobType: 'annotation',
+        jobType: 'mark',
       });
     });
   });
@@ -365,31 +365,16 @@ describe('UI signal wrappers', () => {
     });
   });
 
-  describe('mark.requestAssist', () => {
-    it('emits mark:assist-request with motivation and options (local bus)', () => {
+  describe('mark.requestDelegate', () => {
+    it("emits mark:delegate-request with the job's params (local bus)", () => {
       const bus = new EventBus();
-      const spy = busSpy(bus, 'mark:assist-request');
+      const spy = busSpy(bus, 'mark:delegate-request');
       const mark = new MarkNamespace(makeMockTransport(), bus);
 
-      mark.requestAssist('linking', { entityTypes: ['Person'] });
+      mark.requestDelegate({ motivation: 'linking', entityTypes: ['Person'] });
 
-      expect(spy).toHaveBeenCalledExactlyOnceWith('mark:assist-request', {
-        motivation: 'linking',
-        options: { entityTypes: ['Person'] },
-      });
-    });
-
-    it('threads correlationId when provided', () => {
-      const bus = new EventBus();
-      const spy = busSpy(bus, 'mark:assist-request');
-      const mark = new MarkNamespace(makeMockTransport(), bus);
-
-      mark.requestAssist('highlighting', { density: 5 }, 'corr-123');
-
-      expect(spy).toHaveBeenCalledExactlyOnceWith('mark:assist-request', {
-        motivation: 'highlighting',
-        options: { density: 5 },
-        correlationId: 'corr-123',
+      expect(spy).toHaveBeenCalledExactlyOnceWith('mark:delegate-request', {
+        params: { motivation: 'linking', entityTypes: ['Person'] },
       });
     });
   });

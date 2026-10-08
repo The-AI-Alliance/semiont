@@ -56,10 +56,12 @@ committed `<root>/.semiont/config`, a TOML file.
 
 A config file that is absent or does not parse reads as every key absent.
 
-**The roster** is who serves each role, behind `browse:agents-requested`: for each of the six job
-types and the two actors that call a model (`gatherer`, `matcher`), a provider and a model, or
-nothing. The Archivist applies no fallback. The knowledge base's config allows two — a job type
-without a binding is served by `workers.default`, an actor without one by `make-meaning.default` —
+**The roster** is who serves each role, behind `browse:agents-requested`: for a `mark` job of each
+of the five motivations, for a `yield` job, and for the two actors that call a model (`gatherer`,
+`matcher`), a provider and a model, or nothing. The Archivist applies no fallback. The knowledge
+base's config allows three — a `mark` job of a motivation without a binding is served by
+`workers.mark`, and without that by `workers.default`; a `yield` job without one by
+`workers.default`; an actor without one by `make-meaning.default` —
 and the launcher applies them when it writes the document. The same selection routes the work, in
 the services that call the models; `roster-cases.json`
 ([specs/src/service-config](../../specs/src/service-config/roster-cases.json)) holds the two to one
@@ -381,6 +383,11 @@ annotationId?}`; `job:assigned` `{jobId, jobType, resourceId, holder, requester}
 `{jobId, jobType, annotationId?, result, attempt?, durability?}`; `job:failed` `{jobId, jobType,
 annotationId?, error, attempt?, failureClass?, willRetry?, durability?}`.
 
+A completion is its verb's. A `job:complete` whose `jobType` is not the one the stream records for
+that job, in the first `job:assigned` or `job:started` that names it, is not recorded: the
+Archivist logs `job:complete of another verb than the job's`, the words the dispatcher logs for the
+same completion. A completion of a job the stream records neither of is recorded.
+
 ### Clone tokens
 
 A clone token lets its holder copy one resource for fifteen minutes. It is `clone_` followed by 32
@@ -432,13 +439,14 @@ representation: the extracted text with each word's place, or the decline. Other
 The Archivist remembers the latest `smelt:settled` for each resource for five minutes, so a request
 that follows the signal does not wait.
 
-**Agents.** The roster lists each agent once, in the order its first role appears: the job types
-`reference-annotation`, `highlight-annotation`, `assessment-annotation`, `comment-annotation`,
-`tag-annotation`, `generation`, then the actors `gatherer`, `matcher`. An entry is `{agent,
-servesJobTypes?}`: the agent is `{"@type": "Software", "@id":
-"did:web:<domain>:agents:<provider>:<model>", name: "<provider> <model>", provider, model}`, and
-`servesJobTypes` lists the job types it serves, absent for an agent that serves only actors. The
-domain is read from the tree when asked.
+**Agents.** The roster lists each agent once, in the order its first role appears: a `mark` job of
+each motivation (`highlighting`, `commenting`, `assessing`, `linking`, `tagging`), a `yield` job,
+then the actors `gatherer`, `matcher`. An entry is `{agent, serves?}`: the agent is
+`{"@type": "Software", "@id": "did:web:<domain>:agents:<provider>:<model>", name: "<provider>
+<model>", provider, model}`, and `serves` lists the jobs it serves, each a
+[`JobFilter`](../../specs/src/components/schemas/JobFilter.json) as a claim would name it
+(`{jobType: "mark", params: {motivation}}` or `{jobType: "yield"}`), absent for an agent that
+serves only actors. The domain is read from the tree when asked.
 
 ## Enrichment
 

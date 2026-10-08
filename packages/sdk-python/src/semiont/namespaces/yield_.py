@@ -1,4 +1,4 @@
-"""Yield: creating resources, by upload, by generation, and by cloning."""
+"""Yield: creating resources, by upload, by a generation delegated as a job, and by cloning."""
 
 from typing import Final, final
 
@@ -6,11 +6,10 @@ from semiont.channel import Empty
 from semiont.channels import YIELD_CLONE
 from semiont.identifiers import ResourceId
 from semiont.media_types import clone_format, primary_media_type, storage_uri
-from semiont.model import written
-from semiont.namespaces.follow import JobEvent, follow
+from semiont.model import stated
+from semiont.namespaces.follow import Delegation, follow
 from semiont.namespaces.links import Links
 from semiont.operations import YIELD_CLONE_RESOURCE_REQUESTED, YIELD_CLONE_TOKEN_REQUESTED
-from semiont.running import Running
 from semiont.timing import GENERATION_STALL_ASSUMED_TOKENS_COUNT, GENERATION_STALL_FLOOR_MS, GENERATION_STALL_PER_TOKEN_MS
 from semiont.transport import ContentTransport, PutBinaryRequest, Upload
 from semiont.types import (
@@ -18,10 +17,11 @@ from semiont.types import (
     CreateResourceResponse,
     GatheredContextFocusResource,
     GenerationJobParams,
-    JobCreateCommand,
     ResourceDescriptor,
     YieldCloneResourceRequest,
     YieldCloneTokenRequest,
+    YieldJobCompleteCommand,
+    YieldJobCreateCommand,
 )
 
 __all__ = ["YieldNamespace", "generation_stall_deadline_ms"]
@@ -50,19 +50,20 @@ class YieldNamespace:
         """Upload bytes as a new resource: the upload's progress, and the resource created."""
         return self._content.put_binary(data)
 
-    def from_context(self, params: GenerationJobParams, *, stall_deadline_ms: int | None = None) -> Running[JobEvent]:
-        """Generate a resource from a gathered context: the job's progress and its completion.
+    def delegate(self, params: GenerationJobParams, *, stall_deadline_ms: int | None = None) -> Delegation[YieldJobCompleteCommand]:
+        """Delegate the making of a resource from a gathered context, as a `yield` job: its progress and its completion.
 
         The context's focus says what the job is about, so the job names no
-        resource. A follower that hears nothing for `stall_deadline_ms`, or
-        for `generation_stall_deadline_ms(params.max_tokens)` when none is
+        resource. An option of `params` given as `None` is an option not
+        given. A follower that hears nothing for `stall_deadline_ms`, or for
+        `generation_stall_deadline_ms(params.max_tokens)` when none is
         stated, asks for that job to be cancelled and ends as stalled.
         """
         focus = params.context.focus
         about = focus.resource.id if isinstance(focus, GatheredContextFocusResource) else focus.source_resource.id
         within = generation_stall_deadline_ms(params.max_tokens) if stall_deadline_ms is None else stall_deadline_ms
-        create = JobCreateCommand(job_type="generation", params=written(params))
-        return follow(self._links, create, resource_id=about, stall_ms=within)
+        create = YieldJobCreateCommand(job_type="yield", params=stated(params))
+        return follow(self._links, create, YieldJobCompleteCommand, resource_id=about, stall_ms=within)
 
     async def clone_token(self, resource_id: ResourceId) -> CloneResourceWithTokenResponse:
         """A token another resource can be created from: a clone of this one."""

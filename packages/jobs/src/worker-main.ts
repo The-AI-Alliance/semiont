@@ -40,7 +40,7 @@ import { createServer } from 'http';
 import { readFileSync, existsSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
-import { createTomlConfigLoader, JOB_TYPES, type EnvironmentConfig } from '@semiont/core';
+import { createTomlConfigLoader, MARK_MOTIVATIONS, type EnvironmentConfig, type JobFilter } from '@semiont/core';
 import { archivistContentReads } from '@semiont/content';
 
 // ── Load config via the canonical TOML loader ─────────────────────────
@@ -58,23 +58,16 @@ const envConfig = createTomlConfigLoader(
   'worker',
 )(null);
 
-const workerInferenceMap = (envConfig._metadata as (EnvironmentConfig['_metadata'] & {
-  workers?: Record<string, ResolvedInference>;
+// Who serves each job, as the loader resolved it: keyed as a job description
+// is, with every fallback already applied. A job no section serves is absent,
+// and this worker does not claim it.
+const served = (envConfig._metadata as (EnvironmentConfig['_metadata'] & {
+  workers?: { mark?: Partial<Record<(typeof MARK_MOTIVATIONS)[number], ResolvedInference>>; yield?: ResolvedInference };
 }) | undefined)?.workers;
-if (!workerInferenceMap || Object.keys(workerInferenceMap).length === 0) {
+if (!served) {
   throw new Error(
     'No worker inference config found in ~/.semiontconfig. ' +
       'Add at least [environments.<env>.workers.default.inference] with type = "..." and model = "...".',
-  );
-}
-
-function resolveWorker(jobType: string): ResolvedInference {
-  const specific = workerInferenceMap![jobType];
-  if (specific) return specific;
-  const def = workerInferenceMap!['default'];
-  if (def) return def;
-  throw new Error(
-    `No inference config for worker '${jobType}' and no workers.default in ~/.semiontconfig.`,
   );
 }
 
@@ -108,9 +101,9 @@ import { createProcessLogger } from '@semiont/observability/process-logger';
 
 const logger = createProcessLogger('worker');
 
-// ── Group job types by (provider, model) ──────────────────────────────
+// ── Group jobs by (provider, model) ───────────────────────────────────
 //
-// Two job types that point at the same inference (provider, model)
+// Two jobs that point at the same inference (provider, model)
 // share the same software-agent identity, so they share one process.
 // Different (provider, model) pairs mean different agents.
 
@@ -128,20 +121,26 @@ function toClientConfig(w: ResolvedInference): InferenceClientConfig {
   };
 }
 
+const serving: [JobFilter, ResolvedInference][] = [
+  ...MARK_MOTIVATIONS.flatMap((motivation): [JobFilter, ResolvedInference][] => {
+    const inference = served.mark?.[motivation];
+    return inference ? [[{ jobType: 'mark', params: { motivation } }, inference]] : [];
+  }),
+  ...(served.yield ? [[{ jobType: 'yield' }, served.yield] satisfies [JobFilter, ResolvedInference]] : []),
+];
 const groups = new Map<string, AgentGroup>();
-for (const jobType of JOB_TYPES) {
-  const inference = resolveWorker(jobType);
+for (const [filter, inference] of serving) {
   const key = clientKey(inference);
   let group = groups.get(key);
   if (!group) {
     group = {
       inference,
-      jobTypes: [],
+      serves: [],
       client: createInferenceClient(toClientConfig(inference), logger),
     };
     groups.set(key, group);
   }
-  group.jobTypes.push(jobType);
+  group.serves.push(filter);
 }
 
 async function main() {
@@ -161,7 +160,7 @@ async function main() {
     agents: Array.from(groups.values()).map((g) => ({
       provider: g.inference.type,
       model: g.inference.model,
-      jobTypes: g.jobTypes,
+      serves: g.serves,
     })),
   });
 

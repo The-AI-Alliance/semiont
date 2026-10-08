@@ -10,7 +10,8 @@
 //! an application has signed in to (`session`); the sign-ins `semiont login`
 //! keeps, as a storage (`sign_in_store`); the media types a knowledge base
 //! admits (`media_types`); the knowledge bases a launcher
-//! manages (`discovery`); when a failure is worth another attempt;
+//! manages (`discovery`); when a failure is worth another attempt; whether a
+//! job is one a claim takes (`job_filter`);
 //! how a knowledge base names its principals and the realm's roles; and the
 //! bus log. It does no HTTP and links no telemetry:
 //! `semiont-http-transport` carries it over a gateway.
@@ -30,6 +31,7 @@ pub mod discovery;
 pub mod errors;
 pub mod event_bus;
 pub mod identity;
+pub mod job_filter;
 pub mod media_types;
 pub mod namespaces;
 pub mod refresh;

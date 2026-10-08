@@ -25,6 +25,7 @@ def driven(driver: str, asked: list[JsonObject]) -> list[JsonObject]:
 def test_the_live_driver_answers_each_operation_once_and_disposes_of_its_client_when_its_stdin_ends() -> None:
     resource: JsonObject = {"query": "resource", "resource": "res-1"}
     opening: JsonObject = {"op": "open", "baseUrl": "http://127.0.0.1:1", "token": "t"}
+    tagging: JsonObject = {"motivation": "tagging", "schemaId": "s1", "categories": ["claim"]}
     said = driven(
         "live",
         [
@@ -41,8 +42,8 @@ def test_the_live_driver_answers_each_operation_once_and_disposes_of_its_client_
             {"id": 11, "op": "unobserve", "observer": "b"},
             {"id": 12, "op": "observe", "observer": "b", "query": {"query": "agents"}},
             {"id": 13, "op": "invalidate", "query": resource},
-            {"id": 14, "op": "assist", "observer": "c", "resource": "res-1", "motivation": "applauding", "options": {}},
-            {"id": 15, "op": "generate", "observer": "c", "params": {}, "stallDeadlineMs": 5},
+            {"id": 14, "op": "markDelegate", "observer": "c", "resource": "res-1", "params": {"motivation": "applauding"}},
+            {"id": 15, "op": "yieldDelegate", "observer": "c", "params": {}, "stallDeadlineMs": 5},
             {"id": 16, "op": "unobserve", "observer": "b"},
             {"id": 17, "op": "sync"},
             {"id": 18, "op": "close"},
@@ -50,11 +51,14 @@ def test_the_live_driver_answers_each_operation_once_and_disposes_of_its_client_
             {"id": 20, "op": "observe", "observer": "d", "query": resource},
             {"id": 21, **opening},
             {"id": 22, "op": "observe", "observer": "a", "query": resource},
+            {"id": 23, "op": "markDelegate", "observer": "e", "resource": "res-1", "params": tagging},
+            {"id": 24, "op": "markDelegate", "observer": "f", "resource": "res-1", "params": {**tagging, "tone": "scholarly"}},
+            {"id": 25, "op": "yieldDelegate", "observer": "f", "params": tagging, "stallDeadlineMs": 5},
         ],
     )
     assert said[0] == {"ready": True}
     answers = {line["id"]: {name: value for name, value in line.items() if name != "id"} for line in said if "id" in line}
-    assert sorted(answers, key=str) == sorted(range(1, 23), key=str)
+    assert sorted(answers, key=str) == sorted(range(1, 26), key=str)
     assert answers[1] == {"unsupported": True}
     assert answers[2] == {"misuse": "no client is open"}
     assert answers[3] == {"misuse": "this driver cannot override bogusMs"}
@@ -81,13 +85,27 @@ def test_the_live_driver_answers_each_operation_once_and_disposes_of_its_client_
     # And the next `open` replaces it: its observers' names are free again.
     assert answers[21] == {"ok": None}
     assert answers[22] == {"ok": None}
+    # A job is delegated with the parameters its motivation takes, and with no others: a `mark` job's are not a `yield` job's.
+    assert answers[23] == {"ok": None}
+    assert "misuse" in answers[24]
+    assert "misuse" in answers[25]
 
     emissions = [line["emission"] for line in said if "emission" in line]
     # Nothing answers at that address, so a query waits: pending is a state, and the only one there was.
     assert {"observer": "a", "state": {"status": "pending"}} in emissions
     assert {"observer": "b", "state": {"status": "pending"}} in emissions
-    assert all(isinstance(emission, dict) and emission["state"] == {"status": "pending"} for emission in emissions)
+    queries = [emission for emission in emissions if isinstance(emission, dict) and emission["observer"] != "e"]
+    assert all(emission["state"] == {"status": "pending"} for emission in queries)
+    # And a job's creation is never answered: its follower is told the client closed, and ends.
+    [followed] = [emission["state"] for emission in emissions if isinstance(emission, dict) and emission["observer"] == "e"]
+    assert isinstance(followed, dict)
+    assert followed["status"] == "failed"
+    refusal = followed["error"]
+    assert isinstance(refusal, dict)
+    assert refusal["code"] == "bus.closed"
     completed = [line["completed"] for line in said if "completed" in line]
+    assert "e" in completed
+    assert "f" not in completed
     # Closing the client ended its observers; one that was let go was told nothing; one that arrived after had nothing to see.
     assert completed.count("a") == 2
     assert "b" not in completed

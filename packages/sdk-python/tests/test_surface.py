@@ -27,7 +27,6 @@ from semiont.bus import Typed
 from semiont.client import SemiontClient
 from semiont.identifiers import AnnotationId, JobId, ResourceId
 from semiont.model import WireModel, written
-from semiont.namespaces.mark import MarkAssistOptions
 from semiont.testing import (
     ContentCall,
     FaultyTransport,
@@ -47,8 +46,8 @@ from semiont.types import (
     CreateAnnotationRequest,
     GatheredContext,
     GenerationJobParams,
-    JobCancelRequestJobType,
-    MarkAssistRequestEventOptions,
+    JobType,
+    MarkJobParams,
     MarkSubmitEvent,
     MatchSearchRequest,
     Motivation,
@@ -77,7 +76,8 @@ _MOTIVATION = TypeAdapter[Motivation](Motivation)
 _SELECTOR = TypeAdapter[AnnotationSelector](AnnotationSelector)
 _OPERATIONS = TypeAdapter[list[BindBodyOperation]](list[BindBodyOperation])
 _SORT = TypeAdapter[BrowseDirectoryRequestSort](BrowseDirectoryRequestSort)
-_JOB_CATEGORY = TypeAdapter[JobCancelRequestJobType](JobCancelRequestJobType)
+_JOB_TYPE = TypeAdapter[JobType](JobType)
+_MARK_PARAMS = TypeAdapter[MarkJobParams](MarkJobParams)
 _NAMES = TypeAdapter[list[str]](list[str])
 
 
@@ -204,14 +204,14 @@ def searched(client: Client, args: Args) -> Awaitable[object]:
     )
 
 
-def generated(client: Client, args: Args) -> Awaitable[object]:
-    # How long the follower waits is the caller's own and has an argument of its own; the rest are the job's parameters.
-    stated = dict(options(args))
-    stall = stated.pop("stallDeadlineMs", None)
-    params = GenerationJobParams.model_validate({**stated, "context": args["context"]})
-    if stall is None:
-        return client.yield_.from_context(params)
-    return client.yield_.from_context(params, stall_deadline_ms=whole(stall, "stallDeadlineMs"))
+def made(client: Client, args: Args) -> Awaitable[object]:
+    # How long the follower waits is the caller's own, and is given beside the job's parameters.
+    unknown = set(args) - {"params", "stallDeadlineMs"}
+    assert not unknown, f"the case states {unknown}, which yield.delegate does not take"
+    params = GenerationJobParams.model_validate(args["params"])
+    if "stallDeadlineMs" not in args:
+        return client.yield_.delegate(params)
+    return client.yield_.delegate(params, stall_deadline_ms=whole(args["stallDeadlineMs"], "stallDeadlineMs"))
 
 
 def uploaded(client: Client, args: Args) -> Awaitable[object]:
@@ -275,15 +275,11 @@ CALLS: Final[dict[tuple[str, str], Callable[[Client, Args], Awaitable[object] | 
     ("mark", "updateEntityTypes"): lambda client, args: client.mark.update_entity_types(
         rid(args), _NAMES.validate_python(args["current"]), _NAMES.validate_python(args["updated"])
     ),
-    ("mark", "assist"): lambda client, args: client.mark.assist(
-        rid(args), _MOTIVATION.validate_python(args["motivation"]), MarkAssistOptions.model_validate(args["options"])
-    ),
+    ("mark", "delegate"): lambda client, args: client.mark.delegate(rid(args), _MARK_PARAMS.validate_python(args["params"])),
     ("mark", "request"): lambda client, args: client.mark.request(
         rid(args, "source"), _SELECTOR.validate_python(args["selector"]), _MOTIVATION.validate_python(args["motivation"])
     ),
-    ("mark", "requestAssist"): lambda client, args: client.mark.request_assist(
-        _MOTIVATION.validate_python(args["motivation"]), MarkAssistRequestEventOptions.model_validate(args["options"])
-    ),
+    ("mark", "requestDelegate"): lambda client, args: client.mark.request_delegate(_MARK_PARAMS.validate_python(args["params"])),
     ("mark", "submit"): lambda client, args: client.mark.submit(MarkSubmitEvent.model_validate(args["input"])),
     ("mark", "cancelPending"): lambda client, _: client.mark.cancel_pending(),
     ("mark", "dismissProgress"): lambda client, _: client.mark.dismiss_progress(),
@@ -300,7 +296,7 @@ CALLS: Final[dict[tuple[str, str], Callable[[Client, Args], Awaitable[object] | 
     ),
     ("match", "resources"): found,
     ("yield", "resource"): uploaded,
-    ("yield", "fromContext"): generated,
+    ("yield", "delegate"): made,
     ("yield", "cloneToken"): lambda client, args: client.yield_.clone_token(rid(args)),
     ("yield", "fromToken"): lambda client, args: client.yield_.from_token(text(args["token"], "token")),
     ("yield", "createFromToken"): cloned,
@@ -313,9 +309,9 @@ CALLS: Final[dict[tuple[str, str], Callable[[Client, Args], Awaitable[object] | 
     ("beckon", "sparkle"): lambda client, args: client.beckon.sparkle(aid(args)),
     ("job", "status"): lambda client, args: client.job.status(JobId(text(args["jobId"], "jobId"))),
     ("job", "pollUntilComplete"): polled,
-    ("job", "cancelByType"): lambda client, args: client.job.cancel_by_type(_JOB_CATEGORY.validate_python(args["jobType"])),
+    ("job", "cancelByType"): lambda client, args: client.job.cancel_by_type(_JOB_TYPE.validate_python(args["jobType"])),
     ("job", "cancel"): lambda client, args: client.job.cancel(JobId(text(args["jobId"], "jobId"))),
-    ("job", "cancelRequest"): lambda client, args: client.job.cancel_request(_JOB_CATEGORY.validate_python(args["jobType"])),
+    ("job", "cancelRequest"): lambda client, args: client.job.cancel_request(_JOB_TYPE.validate_python(args["jobType"])),
     ("auth", "me"): lambda client, _: client.auth.me(),
     ("auth", "mediaToken"): lambda client, args: client.auth.media_token(rid(args)),
     ("auth", "protectedResourceMetadata"): lambda client, _: client.auth.protected_resource_metadata(),
@@ -515,16 +511,4 @@ def test_the_table_and_this_sdk_list_the_same_methods() -> None:
     assert len(CALLS) + len(EVENTS) == 70
     shapes = TABLE["shapes"]
     assert isinstance(shapes, dict)
-    assert set(shapes) == {"promise", "stream", "upload", "cache", "signal", "count", "events"}
-
-
-def test_every_option_of_an_assist_is_one_the_table_has_a_case_for() -> None:
-    # `MarkAssistOptions` restates what a job takes, as the other SDKs' do. The table's cases are what holds it there:
-    # each of its options is sent under its own name in one of them, and it has no option they do not send.
-    stated: set[str] = set()
-    for namespace, method, _, case in CASES:
-        if (namespace, method) == ("mark", "assist"):
-            args = case["args"]
-            assert isinstance(args, dict)
-            stated |= set(options(args))
-    assert stated == {field.alias or name for name, field in MarkAssistOptions.model_fields.items()}
+    assert set(shapes) == {"promise", "stream", "delegation", "upload", "cache", "signal", "count", "events"}

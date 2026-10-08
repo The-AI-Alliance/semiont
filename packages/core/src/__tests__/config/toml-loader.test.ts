@@ -65,7 +65,7 @@ model = "claude-haiku-4-5-20251001"
 maxTokens = 4096
 apiKey = "test-key"
 
-[environments.local.workers.generation.inference]
+[environments.local.workers.yield.inference]
 type = "anthropic"
 model = "claude-sonnet-4-6"
 maxTokens = 16384
@@ -135,9 +135,9 @@ describe('loadTomlConfig', () => {
     const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(WITH_INFERENCE_TOML_COMPLETE), {});
 
     const workers = (config._metadata as any)?.workers;
-    expect(workers?.default?.model).toBe('claude-haiku-4-5-20251001');
-    expect(workers?.generation?.model).toBe('claude-sonnet-4-6');
-    expect(workers?.generation?.maxTokens).toBe(16384);
+    expect(workers?.mark?.tagging?.model).toBe('claude-haiku-4-5-20251001');
+    expect(workers?.yield?.model).toBe('claude-sonnet-4-6');
+    expect(workers?.yield?.maxTokens).toBe(16384);
   });
 
   // The gather settle bound: the loader is the ONE home of the default —
@@ -651,34 +651,43 @@ apiKey = "\${UNSET_P5_KEY}"
 
 // Who serves each role is decided here for the services that call a model,
 // and by the launcher for the roster the Archivist lists. The shared table
-// holds the two to one answer.
+// holds the two to one answer, and to one refusal of a section that names no
+// job.
 describe('the role selection agrees with the shared table', () => {
   type Role = { provider: string; model: string };
-  const table: { cases: { why: string; config: string; roster: { workers: Record<string, Role>; actors: Record<string, Role> } }[] } =
+  type Serving = { type: string; model: string };
+  type Workers<T> = { mark?: Record<string, T>; yield?: T };
+  const table: {
+    cases: { why: string; config: string; roster: { workers: Workers<Role>; actors: Record<string, Role> } }[];
+    refusals: { why: string; config: string; names: string }[];
+  } =
     JSON.parse(readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../../../../specs/src/service-config/roster-cases.json'), 'utf8'));
-  const JOB_TYPES = ['reference-annotation', 'highlight-annotation', 'assessment-annotation', 'comment-annotation', 'tag-annotation', 'generation'];
   const pick = (i: { type: string; model: string }): Role => ({ provider: i.type, model: i.model });
 
-  it('has cases', () => {
+  it('has cases and refusals', () => {
     expect(table.cases.length).toBeGreaterThan(0);
+    expect(table.refusals.length).toBeGreaterThan(0);
   });
 
   it.each(table.cases)('$why', ({ config, roster }) => {
     const load = (service: 'worker' | 'librarian') =>
       loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(config), {}, service)._metadata;
-    const bound = (load('worker')?.workers ?? {}) as Record<string, { type: string; model: string }>;
-    // The worker's own rule: a job type's binding, else the default's.
-    const workers = Object.fromEntries(
-      JOB_TYPES.flatMap((jobType) => {
-        const serving = bound[jobType] ?? bound['default'];
-        return serving ? [[jobType, pick(serving)]] : [];
-      }),
-    );
+    // The loader answers who serves each job; nothing here restates its rule.
+    const served = (load('worker')?.workers ?? {}) as Workers<Serving>;
+    const workers: Workers<Role> = {
+      ...(served.mark ? { mark: Object.fromEntries(Object.entries(served.mark).map(([motivation, serving]) => [motivation, pick(serving)])) } : {}),
+      ...(served.yield ? { yield: pick(served.yield) } : {}),
+    };
     const actors = Object.fromEntries(
       Object.entries((load('librarian')?.actors ?? {}) as Record<string, { type: string; model: string }>)
         .map(([actor, serving]) => [actor, pick(serving)]),
     );
     expect({ workers, actors }).toEqual(roster);
+  });
+
+  it.each(table.refusals)('refuses [$names], $why: it names no job', ({ config, names }) => {
+    expect(() => loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(config), {}, 'worker')._metadata?.workers)
+      .toThrow(new RegExp(`${names.replace(/\./g, '\\.')}\\] names no job`));
   });
 });
 
@@ -703,8 +712,8 @@ apiKey = "k"
 type = "anthropic"
 model = "m"
 `);
-    const workers = cfg._metadata?.workers as Record<string, { apiKey?: string; endpoint?: string; model?: string }>;
-    expect(workers.default).toMatchObject({ model: 'm', apiKey: 'k' });
+    const workers = cfg._metadata?.workers as { yield?: { apiKey?: string; endpoint?: string; model?: string } };
+    expect(workers.yield).toMatchObject({ model: 'm', apiKey: 'k' });
     expect(cfg.inference?.anthropic).toMatchObject({ apiKey: 'k', endpoint: 'https://api.anthropic.com' });
   });
 
@@ -716,12 +725,12 @@ platform = "external"
 baseURL = "http://ollama.internal:11434"
 maxTokens = 512
 
-[environments.local.workers.generation.inference]
+[environments.local.workers.yield.inference]
 type = "ollama"
 model = "gemma"
 `);
-    const workers = cfg._metadata?.workers as Record<string, { baseURL?: string; maxTokens?: number }>;
-    expect(workers.generation).toMatchObject({ baseURL: 'http://ollama.internal:11434', maxTokens: 512 });
+    const workers = cfg._metadata?.workers as { yield?: { baseURL?: string; maxTokens?: number } };
+    expect(workers.yield).toMatchObject({ baseURL: 'http://ollama.internal:11434', maxTokens: 512 });
     expect(cfg.inference?.ollama).toMatchObject({ baseURL: 'http://ollama.internal:11434' });
   });
 
@@ -754,16 +763,16 @@ baseURL = "http://ollama.internal:11434"
 type = "anthropic"
 model = "a"
 
-[environments.local.workers.generation.inference]
+[environments.local.workers.yield.inference]
 type = "ollama"
 model = "o"
 `);
     expect(cfg.inference?.anthropic).toMatchObject({ apiKey: 'k', endpoint: 'https://api.anthropic.com' });
     expect(cfg.inference?.ollama).toMatchObject({ baseURL: 'http://ollama.internal:11434' });
     // A flat anthropic section hands its key down; a keyed ollama its baseURL.
-    const workers = cfg._metadata?.workers as Record<string, { apiKey?: string; baseURL?: string }>;
-    expect(workers.default.apiKey).toBe('k');
-    expect(workers.generation.baseURL).toBe('http://ollama.internal:11434');
+    const workers = cfg._metadata?.workers as { mark?: Record<string, { apiKey?: string }>; yield?: { baseURL?: string } };
+    expect(workers.mark?.tagging?.apiKey).toBe('k');
+    expect(workers.yield?.baseURL).toBe('http://ollama.internal:11434');
   });
 
   it('a config with no [inference] maps no providers', () => {

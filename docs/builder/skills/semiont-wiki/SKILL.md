@@ -12,11 +12,11 @@ This skill builds the canonical-node layer of [the layered data model](../README
 
 The pipeline:
 
-1. **Mark**: detect entity references (`mark.assist` with motivation `linking`).
+1. **Mark**: detect entity references (`mark.delegate` with motivation `linking`).
 2. **Browse**: list the references that are not bound yet (`browse.annotations`).
 3. **Gather**: assemble the context around one reference (`gather.annotation`).
 4. **Match**: search the knowledge base with that context (`match.search`).
-5. **Bind** or **yield**: link the reference to the best candidate (`bind.body`), or generate a resource from the context (`yield.fromContext`). The knowledge base binds the reference to a resource generated from its context.
+5. **Bind** or **yield**: link the reference to the best candidate (`bind.body`), or generate a resource from the context (`yield.delegate`). The knowledge base binds the reference to a resource generated from its context.
 
 Steps 3 to 5 run once for each unbound reference. The score that separates "bind" from "generate" is yours to set.
 
@@ -55,20 +55,21 @@ const semiont = session.client;
 
 ## Step 1: detect entity references
 
-`mark.assist` creates a job for the stack's worker and follows it to its end. Awaiting it resolves to the job's last event, the `complete` one, which carries the result. For `linking` the options must name at least one entity type; the worker runs one detection per type.
+`mark.delegate` creates a job for the stack's worker and follows it to its end. Awaiting it resolves to the job's completion, which carries the result. It is a `mark` job's: its counts, where `found` is what the model proposed and `persisted` is what was written, or a decline for a resource whose text could not be read. A `linking` job's params must name at least one entity type; the worker runs one detection per type.
 
 ```typescript
 import { entityType, resourceId } from '@semiont/sdk';
 
 const rId = resourceId('doc-123');
 
-const done = await semiont.mark.assist(rId, 'linking', {
+const done = await semiont.mark.delegate(rId, {
+  motivation: 'linking',
   entityTypes: [entityType('Location'), entityType('Person')],
 });
 
-const result = done.kind === 'complete' ? done.data.result : undefined;
-if (result?.kind === 'reference-annotation') {
-  console.log(`Created ${result.totalEmitted} of ${result.totalFound} references`);
+const { result } = done;
+if (result && 'found' in result) {
+  console.log(`Created ${result.persisted} of ${result.found} references`);
 }
 ```
 
@@ -91,7 +92,7 @@ console.log(`${unbound.length} references to resolve`);
 
 ## Steps 3 to 5: gather, match, then bind or generate
 
-For one unbound reference: gather its context, match it against the knowledge base, and bind it to the best candidate if that candidate scores high enough. Otherwise generate a resource from the same context. `yield.fromContext` takes no ids: the gathered context says which reference it is about, and when the resource is created the knowledge base binds that reference to it. Do not bind it again.
+For one unbound reference: gather its context, match it against the knowledge base, and bind it to the best candidate if that candidate scores high enough. Otherwise generate a resource from the same context. `yield.delegate` takes no ids: the gathered context, given as its params' `context`, says which reference it is about, and when the resource is created the knowledge base binds that reference to it. Do not bind it again.
 
 ```typescript
 import { annotationId, type Annotation, type ResourceId } from '@semiont/sdk';
@@ -123,12 +124,13 @@ async function resolveReference(rId: ResourceId, ann: Annotation, name: string):
   }
 
   // Step 5b: generate a resource; the knowledge base binds the reference to it
-  const generated = await semiont.yield.fromContext(context, {
+  const generated = await semiont.yield.delegate({
     title: name,
     storageUri: `file://generated/${name.toLowerCase().replace(/\s+/g, '-')}.md`,
+    context,
   });
-  const result = generated.kind === 'complete' ? generated.data.result : undefined;
-  if (result?.kind !== 'generation') throw new Error(`Nothing was generated for "${name}"`);
+  const { result } = generated;
+  if (!result || !('resourceId' in result)) throw new Error(`Nothing was generated for "${name}"`);
   console.log(`Generated "${name}" as ${result.resourceId}`);
 }
 ```
@@ -200,7 +202,7 @@ async function runWikiPipeline(resourceIdStr: string): Promise<void> {
   try {
     // Step 1: detect entity references
     console.log('Detecting entity references...');
-    await semiont.mark.assist(rId, 'linking', { entityTypes: ENTITY_TYPES });
+    await semiont.mark.delegate(rId, { motivation: 'linking', entityTypes: ENTITY_TYPES });
 
     // Step 2: list the unbound references
     const unbound = (await semiont.browse.annotations(rId).fresh()).filter(isUnbound);
@@ -229,12 +231,13 @@ async function runWikiPipeline(resourceIdStr: string): Promise<void> {
         continue;
       }
 
-      const generated = await semiont.yield.fromContext(context, {
+      const generated = await semiont.yield.delegate({
         title: name,
         storageUri: `file://generated/${name.toLowerCase().replace(/\s+/g, '-')}.md`,
+        context,
       });
-      const result = generated.kind === 'complete' ? generated.data.result : undefined;
-      if (result?.kind !== 'generation') throw new Error(`Nothing was generated for "${name}"`);
+      const { result } = generated;
+      if (!result || !('resourceId' in result)) throw new Error(`Nothing was generated for "${name}"`);
       console.log(`Generated "${name}" as ${result.resourceId}`);
     }
   } finally {
@@ -263,7 +266,7 @@ runWikiPipeline(target).catch((e) => {
 - **Review what was generated.** A generated resource is a first draft written by a model. Its result says `truncated: true` when the model ran out of tokens before it finished.
 - **Check results** with `await semiont.browse.annotations(rId).fresh()`: the `linking` annotations that now have a `SpecificResource` body are bound.
 - **To run on many resources**, loop over `(await semiont.browse.resources().fresh()).resources` and call the pipeline for each.
-- **If detection creates nothing**, the document may not mention the types you asked for. `mark.assist` reads Markdown, plain text, HTML, JSON and PDF. A resource with no text at all, such as an image, fails the job, and a document whose text could not be read completes with a `declined` result.
-- **Waiting.** `mark.assist` has no deadline: it follows its job to the end, asking for the job's status when the stream goes quiet. `yield.fromContext` gives up on a generation that says nothing for its stall deadline (two minutes, longer when `maxTokens` is large), asks for it to be cancelled, and rejects with `GenerationStallError`. Set `stallDeadlineMs` to wait longer.
-- **Progress.** To watch a job as it runs, call `.run(onEvent)` on the returned stream instead of awaiting it. It subscribes once and resolves to the last event. Do not await a call and also subscribe to it: the stream is cold, and that creates the job twice.
+- **If detection creates nothing**, the document may not mention the types you asked for. `mark.delegate` reads Markdown, plain text, HTML, JSON and PDF. A resource with no text at all, such as an image, fails the job, and a document whose text could not be read completes with a `declined` result.
+- **Waiting.** `mark.delegate` has no deadline: it follows its job to the end, asking for the job's status when the stream goes quiet. `yield.delegate` gives up on a generation that says nothing for its stall deadline (two minutes, longer when `maxTokens` is large), asks for it to be cancelled, and rejects with `GenerationStallError`. Pass a deadline in milliseconds as its second argument to wait longer.
+- **Progress.** To watch a job as it runs, call `.run(onEvent)` on the returned delegation instead of awaiting it. It subscribes once and resolves to the job's completion. Do not await a call and also subscribe to it: the delegation is cold, and that creates the job twice.
 - **Errors.** Every SDK throw extends `SemiontError`: catch it and route on its `code`. `BusRequestError` (a bus request, with a code such as `bus.timeout`) and `JobFailedError` narrow it. See [Error Handling](../../Usage.md#error-handling).

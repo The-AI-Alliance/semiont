@@ -16,16 +16,10 @@ import { compileTypst, MAX_COMPILE_REPAIRS } from './workers/generation/typst-co
 import { withinByteBudget, MAX_PDF_BYTES } from '@semiont/content';
 import { resolveCitationTokens, collectContextResourceIds, type GenerationCitation } from './workers/generation/citation-resolver';
 import { annotationIdFor } from '@semiont/event-sourcing';
-import { GENERATABLE_MEDIA_TYPES, type Annotation, type GenerationJobParams, type Logger, type ResourceId, type SupportedMediaType, type components, type JobReferenceAnnotationResult, type JobHighlightAnnotationResult, type JobCommentAnnotationResult, type JobAssessmentAnnotationResult, type JobTagAnnotationResult, type UnitCursor } from '@semiont/core';
+import { GENERATABLE_MEDIA_TYPES, type Annotation, type GenerationJobParams, type Logger, type ResourceId, type SupportedMediaType, type components, type JobDetectionResult, type UnitCursor } from '@semiont/core';
 import { reconcileSelector, createFragmentSelector, locate, type ReconciledSelector, type AnchoredText } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
-import type {
-  HighlightDetectionParams,
-  CommentDetectionParams,
-  AssessmentDetectionParams,
-  DetectionParams,
-  TagDetectionParams,
-} from './types';
+import type { HeldMarkParams } from './types';
 import { noteAnchor } from './workers/detection/anchor-audit';
 import { runBounded } from './workers/detection/bounded-concurrency';
 
@@ -362,14 +356,23 @@ export function buildPdfAnnotation(
 }
 
 /**
+ * A `mark` job's counts. `found` is what the model proposed and `persisted`
+ * what the log holds; `errors`, how many proposals could not be anchored in the
+ * text, is stated only when there were any — absent is the one way to say none.
+ */
+function detected(found: number, persisted: number, errors: number): JobDetectionResult {
+  return { found, persisted, ...(errors > 0 ? { errors } : {}) };
+}
+
+/**
  * Where one unit stands once the chunk just handed over is durable: the
  * cursor a retry resumes that unit from, instead of re-running the chunks it
  * already committed.
  *
  * The unit is named HERE rather than in the detection layer, which knows about
- * chunks and nothing about jobs: for `reference-annotation` a unit is an entity
- * type, for `tag-annotation` a category — both loop over several — and for the
- * other three the job runs exactly one unit, its own motivation.
+ * chunks and nothing about jobs: for a linking job a unit is an entity type,
+ * for a tagging job a category — both loop over several — and for the other
+ * three the job runs exactly one unit, its own motivation.
  */
 export interface UnitCheckpoint {
   unit: string;
@@ -379,7 +382,7 @@ export interface UnitCheckpoint {
 export async function processHighlightJob(
   content: string,
   inferenceClient: InferenceClient,
-  params: HighlightDetectionParams,
+  params: HeldMarkParams<'highlighting'>,
   buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
   /** This chunk's novel annotations, awaited: the durability write. */
@@ -388,7 +391,7 @@ export async function processHighlightJob(
    * is. A unit absent here starts at the top, which is every unit of a first
    * attempt. */
   resumeCursors?: Record<string, UnitCursor>,
-): Promise<ProcessorResult<JobHighlightAnnotationResult>> {
+): Promise<ProcessorResult<JobDetectionResult>> {
   const echo = detectionEcho(params);
 
   onProgress(10, { code: 'loading' }, echo);
@@ -401,13 +404,15 @@ export async function processHighlightJob(
   const prior = resumeCursors?.['highlighting'];
   let found = prior?.found ?? 0;
   let created = prior?.emitted ?? 0;
+  let errors = prior?.errors ?? 0;
   await AnnotationDetection.detectHighlights(
     content, inferenceClient, params.instructions, params.density, params.sourceLanguage,
     // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band.
     (consumedChars, totalChars) => onProgress(30 + Math.round((consumedChars / totalChars) * 30), { code: 'analyzing' }, echo),
     resumeCursors?.['highlighting'],
-    async (matches, cursor) => {
-      found += matches.length;
+    async (matches, cursor, dropped) => {
+      found += matches.length + dropped;
+      errors += dropped;
       // Highlights carry no body — motivation:'highlighting' on a target
       // is a complete annotation per the W3C Web Annotation Model.
       const fresh = dedupe(matches.map((h) => buildAnnotation('highlighting', h)));
@@ -416,14 +421,14 @@ export async function processHighlightJob(
       // One motivation per job, so exactly one unit — and with only one, a
       // unit-grain checkpoint could record nothing until the whole document
       // was done. The cursor is the entire resume story for these three types.
-      await onChunkComplete(fresh, { unit: 'highlighting', cursor: { ...cursor, found, emitted: created } });
+      await onChunkComplete(fresh, { unit: 'highlighting', cursor: { ...cursor, found, emitted: created, errors } });
     },
   );
 
-  onProgress(100, { code: 'complete-created', count: created, kind: 'highlight' }, echo);
+  onProgress(100, { code: 'complete-created', count: created, motivation: params.motivation }, echo);
 
   return {
-    result: { kind: 'highlight-annotation', highlightsFound: found, highlightsCreated: created },
+    result: detected(found, created, errors),
   };
 }
 
@@ -454,7 +459,7 @@ function detectionEcho(p: {
 export async function processCommentJob(
   content: string,
   inferenceClient: InferenceClient,
-  params: CommentDetectionParams,
+  params: HeldMarkParams<'commenting'>,
   buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
   /** This chunk's novel annotations, awaited: the durability write. */
@@ -463,7 +468,7 @@ export async function processCommentJob(
    * is. A unit absent here starts at the top, which is every unit of a first
    * attempt. */
   resumeCursors?: Record<string, UnitCursor>,
-): Promise<ProcessorResult<JobCommentAnnotationResult>> {
+): Promise<ProcessorResult<JobDetectionResult>> {
   const echo = detectionEcho(params);
 
   onProgress(10, { code: 'loading' }, echo);
@@ -480,14 +485,16 @@ export async function processCommentJob(
   const prior = resumeCursors?.['commenting'];
   let found = prior?.found ?? 0;
   let created = prior?.emitted ?? 0;
+  let errors = prior?.errors ?? 0;
   await AnnotationDetection.detectComments(
     content, inferenceClient, params.instructions, params.tone, params.density,
     params.language, params.sourceLanguage,
     // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band.
     (consumedChars, totalChars) => onProgress(30 + Math.round((consumedChars / totalChars) * 30), { code: 'analyzing' }, echo),
     resumeCursors?.['commenting'],
-    async (comments, cursor) => {
-      found += comments.length;
+    async (comments, cursor, dropped) => {
+      found += comments.length + dropped;
+      errors += dropped;
       const fresh = dedupe(comments.map((c) =>
         // Format and language go on the body TextualBody: optional in the
         // schema, but consumers that do language-aware rendering rely on them.
@@ -497,21 +504,21 @@ export async function processCommentJob(
       ));
       created += fresh.length;
       onProgress(60, { code: 'creating-annotations', count: created }, echo);
-      await onChunkComplete(fresh, { unit: 'commenting', cursor: { ...cursor, found, emitted: created } });
+      await onChunkComplete(fresh, { unit: 'commenting', cursor: { ...cursor, found, emitted: created, errors } });
     },
   );
 
-  onProgress(100, { code: 'complete-created', count: created, kind: 'comment' }, echo);
+  onProgress(100, { code: 'complete-created', count: created, motivation: params.motivation }, echo);
 
   return {
-    result: { kind: 'comment-annotation', commentsFound: found, commentsCreated: created },
+    result: detected(found, created, errors),
   };
 }
 
 export async function processAssessmentJob(
   content: string,
   inferenceClient: InferenceClient,
-  params: AssessmentDetectionParams,
+  params: HeldMarkParams<'assessing'>,
   buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
   /** This chunk's novel annotations, awaited: the durability write. */
@@ -520,7 +527,7 @@ export async function processAssessmentJob(
    * is. A unit absent here starts at the top, which is every unit of a first
    * attempt. */
   resumeCursors?: Record<string, UnitCursor>,
-): Promise<ProcessorResult<JobAssessmentAnnotationResult>> {
+): Promise<ProcessorResult<JobDetectionResult>> {
   const echo = detectionEcho(params);
 
   onProgress(10, { code: 'loading' }, echo);
@@ -534,14 +541,16 @@ export async function processAssessmentJob(
   const prior = resumeCursors?.['assessing'];
   let found = prior?.found ?? 0;
   let created = prior?.emitted ?? 0;
+  let errors = prior?.errors ?? 0;
   await AnnotationDetection.detectAssessments(
     content, inferenceClient, params.instructions, params.tone, params.density,
     params.language, params.sourceLanguage,
     // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band.
     (consumedChars, totalChars) => onProgress(30 + Math.round((consumedChars / totalChars) * 30), { code: 'analyzing' }, echo),
     resumeCursors?.['assessing'],
-    async (assessments, cursor) => {
-      found += assessments.length;
+    async (assessments, cursor, dropped) => {
+      found += assessments.length + dropped;
+      errors += dropped;
       const fresh = dedupe(assessments.map((a) =>
         // Single-object body with purpose aligned to motivation, matching the
         // majority of persisted assessments. Do not switch to an array or to
@@ -554,14 +563,14 @@ export async function processAssessmentJob(
       ));
       created += fresh.length;
       onProgress(60, { code: 'creating-annotations', count: created }, echo);
-      await onChunkComplete(fresh, { unit: 'assessing', cursor: { ...cursor, found, emitted: created } });
+      await onChunkComplete(fresh, { unit: 'assessing', cursor: { ...cursor, found, emitted: created, errors } });
     },
   );
 
-  onProgress(100, { code: 'complete-created', count: created, kind: 'assessment' }, echo);
+  onProgress(100, { code: 'complete-created', count: created, motivation: params.motivation }, echo);
 
   return {
-    result: { kind: 'assessment-annotation', assessmentsFound: found, assessmentsCreated: created },
+    result: detected(found, created, errors),
   };
 }
 
@@ -577,7 +586,7 @@ export async function processAssessmentJob(
 export async function processReferenceJob(
   content: string,
   inferenceClient: InferenceClient,
-  params: DetectionParams,
+  params: HeldMarkParams<'linking'>,
   buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
   logger: Logger,
@@ -595,7 +604,7 @@ export async function processReferenceJob(
    * starts at the top; units already COMPLETE never reach this function at
    * all, the caller having filtered them out. */
   resumeCursors?: Record<string, UnitCursor>,
-): Promise<{ result: JobReferenceAnnotationResult }> {
+): Promise<{ result: JobDetectionResult }> {
   const entityTypeNames = params.entityTypes.map(String);
   const requestParams = [{ label: 'entity-types' as const, value: entityTypeNames.join(', ') }];
   const completedItems: CompletedItem[] = [];
@@ -606,7 +615,7 @@ export async function processReferenceJob(
   // than silently half-fixed here.
   let totalFound = Object.values(resumeCursors ?? {}).reduce((n, c) => n + c.found, 0);
   let totalEmitted = Object.values(resumeCursors ?? {}).reduce((n, c) => n + c.emitted, 0);
-  let errors = 0;
+  let errors = Object.values(resumeCursors ?? {}).reduce((n, c) => n + c.errors, 0);
   let totalUnderReportedPieces = 0;
   // The denominator: cumulative count-verifier expectations over accepted
   // pieces. Zero means no piece was priced — the frame then carries nothing.
@@ -675,6 +684,7 @@ export async function processReferenceJob(
     const priorUnit = resumeCursors?.[entityTypeName];
     let unitFound = priorUnit?.found ?? 0;
     let unitPersisted = priorUnit?.emitted ?? 0;
+    let unitErrors = priorUnit?.errors ?? 0;
     // What remains unknown at the unit's end: floor-accepted pieces, folded.
     let underReported: { pieces: number; found: number; counted: number } | undefined;
     await extractEntities(
@@ -700,6 +710,7 @@ export async function processReferenceJob(
       resumeCursors?.[entityTypeName],
       async (chunkEntities, cursor) => {
         const built: Annotation[] = [];
+        let chunkErrors = 0;
         for (const entity of chunkEntities) {
           const reconciled = reconcileSelector(content, {
             exact: entity.exact,
@@ -711,7 +722,7 @@ export async function processReferenceJob(
               text: entity.exact,
               entityType: entity.entityType,
             });
-            errors++;
+            chunkErrors++;
             continue;
           }
           noteAnchor('reference', entity.exact, reconciled.anchorMethod, logger);
@@ -725,12 +736,13 @@ export async function processReferenceJob(
         // invariant below still holds.
         const nextFound = unitFound + chunkEntities.length;
         const nextEmitted = unitPersisted + fresh.length;
+        const nextErrors = unitErrors + chunkErrors;
         // Awaited: a failed commit fails the unit before it can checkpoint;
         // the cursor rides with it so the checkpoint trails the log by
         // construction rather than by the caller remembering to order them.
         await onChunkComplete?.(fresh, {
           unit: entityTypeName,
-          cursor: { ...cursor, found: nextFound, emitted: nextEmitted },
+          cursor: { ...cursor, found: nextFound, emitted: nextEmitted, errors: nextErrors },
         });
         // Tallies move only PAST the awaited commit — a chunk that fails to
         // commit contributes nothing anywhere — and the numerator advances at
@@ -738,8 +750,10 @@ export async function processReferenceJob(
         // family the viewer's found-of-~expected tally reads.
         unitFound = nextFound;
         unitPersisted = nextEmitted;
+        unitErrors = nextErrors;
         totalFound += chunkEntities.length;
         totalEmitted += fresh.length;
+        errors += chunkErrors;
         emitTypeProgress(entityTypeName);
       },
     );
@@ -760,7 +774,7 @@ export async function processReferenceJob(
 
   // The terminal frame carries the completed set — each unit's found and
   // persisted counts, the run's yield.
-  onProgress(100, { code: 'complete-created', count: totalEmitted, kind: 'reference' }, {
+  onProgress(100, { code: 'complete-created', count: totalEmitted, motivation: params.motivation }, {
     ...(totalExpected > 0 ? { entitiesExpected: totalExpected } : {}),
     completedItems: [...completedItems],
     requestParams,
@@ -768,7 +782,7 @@ export async function processReferenceJob(
 
   return {
     result: {
-      kind: 'reference-annotation', totalFound, totalEmitted, errors,
+      ...detected(totalFound, totalEmitted, errors),
       ...(totalUnderReportedPieces > 0 ? { underReportedPieces: totalUnderReportedPieces } : {}),
     },
   };
@@ -777,7 +791,7 @@ export async function processReferenceJob(
 export async function processTagJob(
   content: string,
   inferenceClient: InferenceClient,
-  params: TagDetectionParams,
+  params: HeldMarkParams<'tagging'>,
   buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
   /** This chunk's novel annotations, awaited: the durability write. */
@@ -786,7 +800,7 @@ export async function processTagJob(
    * categories, not its motivation: each walks the whole document, so one
    * shared cursor would skip text for all but one of them. */
   resumeCursors?: Record<string, UnitCursor>,
-): Promise<ProcessorResult<JobTagAnnotationResult>> {
+): Promise<ProcessorResult<JobDetectionResult>> {
   onProgress(10, { code: 'loading' });
   onProgress(30, { code: 'analyzing-tags' });
 
@@ -795,13 +809,14 @@ export async function processTagJob(
   // the key includes the body, so only true repeats collapse.
   const dedupe = makeSpanDeduper();
   // Resumed tallies — seeded from the checkpoint so the terminal record
-  // describes the whole document — and the two are seeded DIFFERENTLY because
-  // they accumulate differently. `found` sums each category's own running
+  // describes the whole document — and they are seeded DIFFERENTLY because
+  // they accumulate differently. `found` and `errors` sum each category's own running
   // total at the end of that category, and those totals are already seeded —
   // seeding here too would count the earlier attempt twice. `created`
   // accumulates per chunk from this attempt only, so it must start at what
   // earlier attempts committed.
   let found = 0;
+  let errors = 0;
   let created = Object.values(resumeCursors ?? {}).reduce((n, c) => n + c.emitted, 0);
   // byCategory counts the DEDUPED set so the per-category counts match what
   // is actually stored. The category is the first (tagging) TextualBody.
@@ -827,6 +842,7 @@ export async function processTagJob(
     const priorCategory = resumeCursors?.[category];
     let categoryFound = priorCategory?.found ?? 0;
     let categoryCreated = priorCategory?.emitted ?? 0;
+    let categoryErrors = priorCategory?.errors ?? 0;
     await AnnotationDetection.detectTags(
       content, inferenceClient, params.schema, category, params.sourceLanguage,
       // Liveness (chunk boundaries + in-flight heartbeat): this category's
@@ -837,8 +853,9 @@ export async function processTagJob(
         position(),
       ),
       resumeCursors?.[category],
-      async (matches, cursor) => {
-        categoryFound += matches.length;
+      async (matches, cursor, dropped) => {
+        categoryFound += matches.length + dropped;
+        categoryErrors += dropped;
         const fresh = dedupe(matches.map((t) => {
           const cat = t.category ?? 'unknown';
           // Two-body shape, matching every persisted tag annotation: the
@@ -857,7 +874,7 @@ export async function processTagJob(
           byCategory[cat] = (byCategory[cat] ?? 0) + 1;
         }
         onProgress(60, { code: 'creating-tag-annotations', count: created });
-        // The unit is the CATEGORY, not the motivation. `tag-annotation` loops
+        // The unit is the CATEGORY, not the motivation. A tagging job loops
         // over `params.categories`, each walking the whole document from zero,
         // so a single 'tagging' key would have every category overwriting one
         // cursor — and the monotone merge would keep the furthest, which is the
@@ -866,18 +883,19 @@ export async function processTagJob(
         categoryCreated += fresh.length;
         await onChunkComplete(fresh, {
           unit: category,
-          cursor: { ...cursor, found: categoryFound, emitted: categoryCreated },
+          cursor: { ...cursor, found: categoryFound, emitted: categoryCreated, errors: categoryErrors },
         });
       },
     );
     found += categoryFound;
+    errors += categoryErrors;
     completedItems.push({ value: category, foundCount: categoryFound });
   }
 
-  onProgress(100, { code: 'complete-created', count: created, kind: 'tag' });
+  onProgress(100, { code: 'complete-created', count: created, motivation: params.motivation });
 
   return {
-    result: { kind: 'tag-annotation', tagsFound: found, tagsCreated: created, byCategory },
+    result: { ...detected(found, created, errors), byCategory },
   };
 }
 

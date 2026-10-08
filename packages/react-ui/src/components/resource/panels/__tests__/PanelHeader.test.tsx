@@ -7,7 +7,7 @@ import { PanelHeader } from '../PanelHeader';
 describe('PanelHeader', () => {
   it('should render the title text', () => {
     renderWithProviders(
-      <PanelHeader annotationType="highlight" count={5} title="Highlights" />
+      <PanelHeader count={5} title="Highlights" />
     );
 
     expect(screen.getByText('Highlights')).toBeInTheDocument();
@@ -15,7 +15,7 @@ describe('PanelHeader', () => {
 
   it('should render the count in parentheses', () => {
     renderWithProviders(
-      <PanelHeader annotationType="comment" count={12} title="Comments" />
+      <PanelHeader count={12} title="Comments" />
     );
 
     expect(screen.getByText('(12)')).toBeInTheDocument();
@@ -23,30 +23,16 @@ describe('PanelHeader', () => {
 
   it('should render with zero count', () => {
     renderWithProviders(
-      <PanelHeader annotationType="tag" count={0} title="Tags" />
+      <PanelHeader count={0} title="Tags" />
     );
 
     expect(screen.getByText('(0)')).toBeInTheDocument();
     expect(screen.getByText('Tags')).toBeInTheDocument();
   });
 
-  it('should render with different annotation types', () => {
-    const types = ['highlight', 'reference', 'assessment', 'comment', 'tag'] as const;
-
-    for (const type of types) {
-      const { unmount } = renderWithProviders(
-        <PanelHeader annotationType={type} count={3} title={`${type} title`} />
-      );
-
-      expect(screen.getByText(`${type} title`)).toBeInTheDocument();
-      expect(screen.getByText('(3)')).toBeInTheDocument();
-      unmount();
-    }
-  });
-
   it('should render with correct class names', () => {
     const { container } = renderWithProviders(
-      <PanelHeader annotationType="highlight" count={1} title="Highlights" />
+      <PanelHeader count={1} title="Highlights" />
     );
 
     expect(container.querySelector('.semiont-panel-header')).toBeInTheDocument();
@@ -57,7 +43,7 @@ describe('PanelHeader', () => {
 
   it('should render title inside an h2 element', () => {
     renderWithProviders(
-      <PanelHeader annotationType="assessment" count={7} title="Assessments" />
+      <PanelHeader count={7} title="Assessments" />
     );
 
     const heading = screen.getByRole('heading', { level: 2 });

@@ -12,7 +12,7 @@
  *   3. Deep-merge: project base ← user overrides (user wins on conflicts)
  *      Any environment name is valid (local, staging, production, custom, ...)
  *   4. Resolve a section's ${VAR} references from process.env when it is read
- *   5. Apply inheritance: workers.<name> → workers.default → error
+ *   5. Apply inheritance: workers.mark.<motivation> → workers.mark → workers.default; workers.yield → workers.default
  *   6. Map to EnvironmentConfig shape, each part built at its first read
  */
 
@@ -20,6 +20,7 @@ import { parse as parseToml } from 'smol-toml';
 import type { EnvironmentConfig, OllamaProviderConfig, AnthropicProviderConfig } from './config.types';
 import type { PlatformType } from './config.types';
 import { serviceConfigSections, type ConfigService } from '../generated/service-config-sections';
+import { MARK_MOTIVATIONS } from '../generated/job-storage';
 
 /**
  * Deep merge two plain objects. Arrays and primitives in `override` replace those in `base`.
@@ -88,15 +89,17 @@ export interface ActorInferenceConfig {
   matcher?: InferenceConfig;
 }
 
+/**
+ * Who serves each job, keyed as a job description is: by `jobType`, and for
+ * `mark` by motivation. A job no section serves is absent.
+ */
 export interface WorkerInferenceConfig {
-  default?: InferenceConfig;
-  'reference-annotation'?: InferenceConfig;
-  'highlight-annotation'?: InferenceConfig;
-  'assessment-annotation'?: InferenceConfig;
-  'comment-annotation'?: InferenceConfig;
-  'tag-annotation'?: InferenceConfig;
-  'generation'?: InferenceConfig;
+  mark?: Partial<Record<MarkMotivation, InferenceConfig>>;
+  yield?: InferenceConfig;
 }
+
+type MarkMotivation = (typeof MARK_MOTIVATIONS)[number];
+type InferenceSection = { inference?: InferenceConfig };
 
 // ── Types for ~/.semiontconfig ────────────────────────────────────────────────
 
@@ -238,7 +241,11 @@ interface EnvironmentSection {
      */
     search?: { semanticFloor?: number };
   };
-  workers?: Record<string, { inference?: InferenceConfig }>;
+  workers?: {
+    default?: InferenceSection;
+    mark?: InferenceSection & Partial<Record<MarkMotivation, InferenceSection>>;
+    yield?: InferenceSection;
+  };
   actors?: Record<string, { inference?: InferenceConfig }>;
 }
 
@@ -435,13 +442,41 @@ export function loadTomlConfig(
     return selected;
   }
 
-  function selectedWorkers(): [keyof WorkerInferenceConfig, InferenceConfig][] {
-    const workersSection = section('workers') ?? {};
-    const roles = ['default', 'reference-annotation', 'highlight-annotation', 'assessment-annotation', 'comment-annotation', 'tag-annotation', 'generation'] as const;
-    return roles.flatMap((role) => {
-      const inference = workersSection[role]?.inference;
-      return inference ? [[role, inference] as [keyof WorkerInferenceConfig, InferenceConfig]] : [];
-    });
+  // A `mark` job of a motivation is served by `workers.mark.<motivation>`,
+  // else `workers.mark`, else `workers.default`; a `yield` job by
+  // `workers.yield`, else `workers.default`. A section that names no job is
+  // refused: left alone it would bind nothing, and the job it was written for
+  // would go unserved without a word.
+  function selectedWorkers(): WorkerInferenceConfig {
+    const workers = section('workers') ?? {};
+    const refuse = (path: string, known: readonly string[]) => {
+      throw new Error(
+        `[environments.${resolvedEnvironment}.${path}] names no job — a worker section is one of ${known.map((k) => `workers.${k}`).join(', ')}.`,
+      );
+    };
+    for (const name of Object.keys(workers)) {
+      if (name !== 'default' && name !== 'mark' && name !== 'yield') {
+        refuse(`workers.${name}`, ['default', 'mark', 'mark.<motivation>', 'yield']);
+      }
+    }
+    const motivations: readonly string[] = MARK_MOTIVATIONS;
+    for (const name of Object.keys(workers.mark ?? {})) {
+      if (name !== 'inference' && !motivations.includes(name)) {
+        refuse(`workers.mark.${name}`, MARK_MOTIVATIONS.map((m) => `mark.${m}`));
+      }
+    }
+    const fallback = workers.default?.inference;
+    const mark = Object.fromEntries(
+      MARK_MOTIVATIONS.flatMap((motivation) => {
+        const inference = workers.mark?.[motivation]?.inference ?? workers.mark?.inference ?? fallback;
+        return inference ? [[motivation, inference]] : [];
+      }),
+    );
+    const yielding = workers.yield?.inference ?? fallback;
+    return {
+      ...(Object.keys(mark).length > 0 ? { mark } : {}),
+      ...(yielding ? { yield: yielding } : {}),
+    };
   }
 
   function actorInference(): ActorInferenceConfig | undefined {
@@ -453,9 +488,11 @@ export function loadTomlConfig(
 
   function workerInference(): WorkerInferenceConfig | undefined {
     const selected = selectedWorkers();
-    return selected.length > 0
-      ? Object.fromEntries(selected.map(([role, inference]) => [role, mergeWithFlatInference(inference)]))
-      : undefined;
+    if (selected.mark === undefined && selected.yield === undefined) return undefined;
+    return {
+      ...(selected.mark ? { mark: Object.fromEntries(Object.entries(selected.mark).map(([motivation, inference]) => [motivation, mergeWithFlatInference(inference)])) } : {}),
+      ...(selected.yield ? { yield: mergeWithFlatInference(selected.yield) } : {}),
+    };
   }
 
   // Inference providers. Two formats:

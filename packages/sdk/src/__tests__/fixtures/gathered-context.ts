@@ -4,7 +4,7 @@ import { resourceId, annotationId } from '@semiont/core';
 /**
  * Minimal HONEST GatheredContext fixtures: every field satisfies the
  * generated types with no casts, keyed to the caller's ids so derivation
- * pins (`fromContext` extracts resourceId/referenceId from the focus)
+ * pins (`yield.delegate` reads the job's resource from the focus)
  * compare against known values.
  */
 export function resourceContextFor(rid: string): GatheredContext {

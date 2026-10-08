@@ -12,7 +12,10 @@ import {
   isDefined,
   isGenerationJobParams,
   isReportedJobResult,
+  isMarkJobResult,
+  isYieldJobResult,
 } from '../type-guards';
+import { resourceId } from '../identifiers';
 
 describe('@semiont/core - type-guards', () => {
   describe('isString', () => {
@@ -229,8 +232,8 @@ describe('isGenerationJobParams', () => {
     // The worker has no fallback: an empty storageUri would write to a bare
     // `file://`, and an empty title would name the resource nothing. Both are
     // silent corruption, so the guard is where they stop — it is the only
-    // runtime enforcement, since job:create params are never validated at the
-    // wire (JobCreateCommand.params is additionalProperties: true).
+    // runtime enforcement where a worker is handed a job: the gateway holds a
+    // job:create to the same rule, and nothing validates the job afterwards.
     expect(isGenerationJobParams({ ...VALID, storageUri: '' })).toBe(false);
     expect(isGenerationJobParams({ ...VALID, title: '' })).toBe(false);
   });
@@ -238,11 +241,29 @@ describe('isGenerationJobParams', () => {
 
 describe('isReportedJobResult', () => {
   it('accepts a result its worker reported', () => {
-    expect(isReportedJobResult({ kind: 'highlight-annotation', highlightsFound: 1, highlightsCreated: 1 })).toBe(true);
+    expect(isReportedJobResult({ found: 1, persisted: 1 })).toBe(true);
   });
 
   it('refuses the empty result a job completed without one is stored with, and an absent one', () => {
     expect(isReportedJobResult({})).toBe(false);
     expect(isReportedJobResult(undefined)).toBe(false);
+  });
+});
+
+describe('isMarkJobResult and isYieldJobResult', () => {
+  const counts = { found: 3, persisted: 2 };
+  const made = { resourceId: resourceId('res-new'), resourceName: 'New', truncated: false };
+  const decline = { declined: true as const, reason: 'empty' as const };
+
+  it('a mark job reports its counts or a decline, and never the resource a yield job makes', () => {
+    expect(isMarkJobResult(counts)).toBe(true);
+    expect(isMarkJobResult(decline)).toBe(true);
+    expect(isMarkJobResult(made)).toBe(false);
+  });
+
+  it('a yield job reports the resource it made or a decline, and never a mark job\'s counts', () => {
+    expect(isYieldJobResult(made)).toBe(true);
+    expect(isYieldJobResult(decline)).toBe(true);
+    expect(isYieldJobResult(counts)).toBe(false);
   });
 });

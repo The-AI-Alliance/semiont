@@ -11,7 +11,7 @@ import { signInSession } from '../fixtures/sdk-session';
  * the stress case.
  *
  * This spec holds that shape at the system level: ingest a large
- * document, run `mark.assist('linking')`, assert annotations **persisted**.
+ * document, delegate a linking job (`mark.delegate`), assert annotations **persisted**.
  * Pure SDK round-trip (no browser), per the spec-15/18 pattern — spec 06
  * already covers the browser path for the same flow at small size.
  *
@@ -131,8 +131,8 @@ function buildLargeDocument(targetBytes: number = TARGET_BYTES): string {
   return paragraphs.join('');
 }
 
-test.describe('large-document assisted linking', () => {
-  test('a 170 KB document enriches — assisted linking persists annotations', { tag: ['@slow'] }, async () => {
+test.describe('large-document delegated linking', () => {
+  test('a 170 KB document enriches — delegated linking persists annotations', { tag: ['@slow'] }, async () => {
     // Wall-clock is provider-shaped: the document is walked in chunks, each its
     // own inference call at the model's own pace. The budget is for the slowest
     // provider the suite runs against; the progress events below are the
@@ -188,12 +188,12 @@ test.describe('large-document assisted linking', () => {
         'a freshly created resource starts with no annotations',
       ).toBe(0);
 
-      // Run the assist, consuming progress as the liveness signal. `.run()`
+      // Run the delegated job, consuming progress as the liveness signal. `.run()`
       // (not subscribe-and-await) — the stream is cold, so doing both would
       // fire the job twice.
       const t0 = Date.now();
-      const final = await client.mark
-        .assist(rid, 'linking', { entityTypes: ['Concept'] })
+      const done = await client.mark
+        .delegate(rid, { motivation: 'linking', entityTypes: ['Concept'] })
         .run((e) => {
           if (e.kind === 'progress') {
             // eslint-disable-next-line no-console
@@ -201,12 +201,13 @@ test.describe('large-document assisted linking', () => {
           }
         });
 
-      expect(
-        final.kind,
-        'linking assist completes on a document this size',
-      ).toBe('complete');
+      // Awaited, a delegation resolves on the job's completion. A mark job's
+
+      // result is its counts or a decline; the counts say it did its work.
+
+      expect(done.result !== undefined && 'found' in done.result, 'the linking job reports its counts on a document this size').toBe(true);
       // eslint-disable-next-line no-console
-      console.log(`LARGE_DOC: assist completed in ${Date.now() - t0}ms`);
+      console.log(`LARGE_DOC: delegated job completed in ${Date.now() - t0}ms`);
 
       // The outcome, and the only thing this spec asserts about detection:
       // annotations actually persisted. Never chunk counts — see the header.
@@ -221,7 +222,7 @@ test.describe('large-document assisted linking', () => {
       console.log(`LARGE_DOC: ${persisted.length} annotations persisted`);
       expect(
         persisted.some((a) => a.motivation === 'linking'),
-        'the persisted annotations include the linking references the assist created',
+        'the persisted annotations include the linking references the delegated job created',
       ).toBe(true);
     } finally {
       await session.dispose();
@@ -270,8 +271,8 @@ test.describe('large-document assisted linking', () => {
 
       const t0 = Date.now();
       const foundTallies = new Set<number>();
-      const final = await client.mark
-        .assist(rid, 'linking', { entityTypes: ['Concept'] })
+      const done = await client.mark
+        .delegate(rid, { motivation: 'linking', entityTypes: ['Concept'] })
         .run((e) => {
           if (e.kind !== 'progress') return;
           const { percentage, entitiesFound } = e.data;
@@ -280,7 +281,11 @@ test.describe('large-document assisted linking', () => {
           if (entitiesFound !== undefined && entitiesFound > 0) foundTallies.add(entitiesFound);
         });
 
-      expect(final.kind, 'chunked linking assist completes').toBe('complete');
+      // Awaited, a delegation resolves on the job's completion. A mark job's
+
+      // result is its counts or a decline; the counts say it did its work.
+
+      expect(done.result !== undefined && 'found' in done.result, 'the chunked linking job reports its counts').toBe(true);
       // eslint-disable-next-line no-console
       console.log(`CHUNKED: ${foundTallies.size} distinct entity tallies in ${Date.now() - t0}ms`);
 
@@ -374,8 +379,10 @@ test.describe('large-document assisted linking', () => {
       // All three motivations — one at a time, same resource.
       for (const motivation of ['highlighting', 'commenting', 'assessing'] as const) {
         const t0 = Date.now();
-        const final = await client.mark.assist(rid, motivation, { language: 'en' }).run(() => {});
-        expect(final.kind, `${motivation} assist completes`).toBe('complete');
+        const done = await client.mark.delegate(rid, { motivation, sourceLanguage: 'en' }).run(() => {});
+        // Awaited, a delegation resolves on the job's completion. A mark job's
+        // result is its counts or a decline; the counts say it did its work.
+        expect(done.result !== undefined && 'found' in done.result, `the ${motivation} job reports its counts`).toBe(true);
 
         const anns = await client.browse.annotations(rid).fresh();
         const mine = anns.filter((a) => a.motivation === motivation);

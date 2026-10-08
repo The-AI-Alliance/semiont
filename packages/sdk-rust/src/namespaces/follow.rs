@@ -18,37 +18,120 @@
 //! not over. A failure it will not retry ends the follower with `job.failed`.
 //! A follower given a stall deadline that hears nothing for that long asks
 //! for the cancellation and ends with `job.stalled`.
+//!
+//! A job's completion is its verb's (`Completion`): a `mark` job's carries
+//! what a `mark` job reports, a `yield` job's what a `yield` job reports. A
+//! follower learns of one from a `job:complete` frame, or from the job's
+//! status when the stream did not carry the frame, and reads either as its
+//! own verb's. One that is another verb's is not the protocol's answer for
+//! this job: the follower ends with a transport error, and the job is not
+//! said to have failed.
 
 use crate::bus::StreamError;
 use crate::channels::{
     JobCancelRequested, JobComplete, JobCreate, JobFail, JobReportProgress, JobStatusRequested,
 };
 use crate::client::Links;
-use crate::errors::{BusRequestError, BusRequestErrorCode, JobError, JobErrorCode, SemiontError};
+use crate::errors::{
+    BusRequestError, BusRequestErrorCode, JobError, JobErrorCode, SemiontError, TransportError,
+    TransportErrorCode,
+};
 use crate::running::{Reporter, Running};
 use crate::transport::BoxFuture;
 use crate::types::{
     JobCancelRequest, JobCompleteCommand, JobCreateCommand, JobCreatedResult, JobFailCommand,
     JobId, JobProgress, JobReportProgressCommand, JobStatusRequest, JobStatusResponse,
-    JobStatusResponseStatus, JobStoredResult, ResourceId,
+    JobStatusResponseStatus, JobStoredResult, MarkJobCompleteCommand, ResourceId,
+    YieldJobCompleteCommand,
 };
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::time::Duration;
 use tokio::time::Instant;
 
 /// What a followed job reports, and how it ends. As JSON it is
-/// `{"kind": "progress", "data": …}`, the same event in every SDK.
+/// `{"kind": "progress", "data": …}`, the same event in every SDK. `C` is the
+/// completion of the job's verb.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(tag = "kind", content = "data", rename_all = "lowercase")]
-pub enum JobEvent {
+pub enum JobEvent<C> {
     /// The job's progress.
     Progress(JobProgress),
     /// An attempt failed and the queue will try again. The job is not over.
     Failed(JobFailCommand),
-    /// The job completed. A follower's last value.
-    Complete(JobCompleteCommand),
+    /// The job completed. A follower's last event.
+    Complete(C),
 }
+
+impl<C> From<C> for JobEvent<C> {
+    fn from(completion: C) -> JobEvent<C> {
+        JobEvent::Complete(completion)
+    }
+}
+
+/// A job another party does. Read as a stream it gives the job's events, the
+/// completion last; awaited it gives the completion. `C` is the completion of
+/// the job's verb: `MarkJobCompleteCommand` from `mark.delegate`,
+/// `YieldJobCompleteCommand` from `yield_.delegate`.
+pub type Delegation<C> = Running<JobEvent<C>, C>;
+
+/// A verb's completion, read from the two places a follower learns of one.
+/// Each reading is through the generated type, so what is not this verb's
+/// does not read as it.
+pub(crate) trait Completion: Sized + Send + 'static {
+    /// A `job:complete` frame as this verb's; none when it is another's.
+    fn of_frame(frame: JobCompleteCommand) -> Option<Self>;
+
+    /// A status that says its job completed, as this verb's completion of the
+    /// job, which is about `resource_id`; none when the status's type, or its
+    /// result, is not this verb's.
+    fn of_status(status: JobStatusResponse, resource_id: ResourceId) -> Option<Self>;
+}
+
+/// A stored result read as `R`, a verb's own: nothing for a job that
+/// completed with none, which is stored as the empty object. `None` when the
+/// result is not an `R`.
+fn stored_as<R: DeserializeOwned>(stored: Option<JobStoredResult>) -> Option<Option<R>> {
+    match stored {
+        Some(JobStoredResult::JobResult(result)) => {
+            let said = serde_json::to_value(result).ok()?;
+            serde_json::from_value(said).ok().map(Some)
+        }
+        Some(JobStoredResult::Empty(_)) | None => Some(None),
+    }
+}
+
+/// A member of `JobCompleteCommand` is its verb's completion. A status states
+/// a job's type under another name than a completion does, and does not
+/// state the resource: the completion made from one states the type its own
+/// member does, and only when that is the status's.
+macro_rules! completion {
+    ($member:ident) => {
+        impl Completion for $member {
+            fn of_frame(frame: JobCompleteCommand) -> Option<Self> {
+                match frame {
+                    JobCompleteCommand::$member(done) => Some(done),
+                    _ => None,
+                }
+            }
+
+            fn of_status(status: JobStatusResponse, resource_id: ResourceId) -> Option<Self> {
+                let done = $member::new(resource_id, status.job_id);
+                if done.job_type.as_str() != status.r#type.as_str() {
+                    return None;
+                }
+                Some($member {
+                    result: stored_as(status.result)?,
+                    ..done
+                })
+            }
+        }
+    };
+}
+
+completion!(MarkJobCompleteCommand);
+completion!(YieldJobCompleteCommand);
 
 /// A job to create and follow.
 pub(crate) struct Following {
@@ -60,8 +143,16 @@ pub(crate) struct Following {
     pub stall: Option<Duration>,
 }
 
-pub(crate) fn follow(links: Links, following: Following) -> Running<JobEvent> {
+pub(crate) fn follow<C: Completion>(links: Links, following: Following) -> Delegation<C> {
     Running::new(move |reporter| followed(links, following, reporter))
+}
+
+/// The job a completion is of, whichever verb's it is.
+fn completed_job(frame: &JobCompleteCommand) -> &JobId {
+    match frame {
+        JobCompleteCommand::MarkJobCompleteCommand(done) => &done.job_id,
+        JobCompleteCommand::YieldJobCompleteCommand(done) => &done.job_id,
+    }
 }
 
 /// A frame of some job's lifecycle.
@@ -75,7 +166,7 @@ impl Heard {
     fn job_id(&self) -> &JobId {
         match self {
             Heard::Progress(frame) => &frame.job_id,
-            Heard::Complete(frame) => &frame.job_id,
+            Heard::Complete(frame) => completed_job(frame),
             Heard::Fail(frame) => &frame.job_id,
         }
     }
@@ -128,11 +219,21 @@ fn failed(job_id: &JobId, message: String) -> SemiontError {
     .into()
 }
 
-async fn followed(
+/// The knowledge base said the job completed, and what it said is not a
+/// completion of the verb that was delegated. Nothing says the job failed.
+fn not_the_verbs(job_id: &JobId, said_in: &str) -> SemiontError {
+    TransportError::without_response(
+        format!("{said_in} of job {job_id} is not a completion of the verb that was delegated"),
+        TransportErrorCode::Error,
+    )
+    .into()
+}
+
+async fn followed<C: Completion>(
     links: Links,
     following: Following,
-    reporter: Reporter<JobEvent>,
-) -> Result<JobEvent, SemiontError> {
+    reporter: Reporter<JobEvent<C>>,
+) -> Result<C, SemiontError> {
     let Following {
         create,
         resource_id,
@@ -208,20 +309,9 @@ async fn followed(
                 if let Ok(status) = status {
                     match status.status {
                         JobStatusResponseStatus::Complete => {
-                            return Ok(JobEvent::Complete(JobCompleteCommand {
-                                _user_id: None,
-                                resource_id,
-                                job_id: status.job_id,
-                                job_type: status.r#type,
-                                attempt: None,
-                                annotation_id: None,
-                                // A job completed without a result is stored with an empty one.
-                                result: match status.result {
-                                    Some(JobStoredResult::JobResult(result)) => Some(result),
-                                    Some(JobStoredResult::Empty(_)) | None => None,
-                                },
-                                durability: None,
-                            }));
+                            let job_id = status.job_id.clone();
+                            return C::of_status(status, resource_id)
+                                .ok_or_else(|| not_the_verbs(&job_id, "The status"));
                         }
                         JobStatusResponseStatus::Failed => {
                             return Err(failed(
@@ -245,8 +335,8 @@ async fn followed(
             }
             Step::Stalled => {
                 let Some(within) = stall else { continue };
-                // That job and no other: a cancellation by category would
-                // end every pending job of it, whoever asked for them. One
+                // That job and no other: a cancellation by type would end
+                // every pending job of it, whoever asked for them. One
                 // whose creation was never answered has no id, and there is
                 // nothing to cancel. Asked for on its own task: the follower
                 // ends here, and the request must outlive it.
@@ -288,7 +378,10 @@ async fn followed(
                     ask_at = Some(Instant::now() + links.timing.job_silence);
                     stall_at = stall.map(|within| Instant::now() + within);
                 }
-                Heard::Complete(frame) => return Ok(JobEvent::Complete(frame)),
+                Heard::Complete(frame) => {
+                    return C::of_frame(frame)
+                        .ok_or_else(|| not_the_verbs(following_id, "A job:complete"));
+                }
                 // The queue re-queues the job and another attempt continues
                 // it. The dead attempt's status is not asked for: the next
                 // attempt's first frame starts the silence again. The

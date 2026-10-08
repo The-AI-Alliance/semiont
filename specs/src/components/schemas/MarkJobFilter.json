@@ -1,0 +1,29 @@
+{
+  "type": "object",
+  "description": "`mark` jobs of one motivation.",
+  "properties": {
+    "jobType": {
+      "type": "string",
+      "enum": [
+        "mark"
+      ]
+    },
+    "params": {
+      "type": "object",
+      "properties": {
+        "motivation": {
+          "$ref": "./Motivation.json"
+        }
+      },
+      "required": [
+        "motivation"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "jobType",
+    "params"
+  ],
+  "additionalProperties": false
+}

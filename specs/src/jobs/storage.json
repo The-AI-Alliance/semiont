@@ -1,20 +1,8 @@
 {
-  "$comment": "Where the job queue keeps its state on the broker: the names and subjects every implementation of the queue must use, so that work queued by one survives a switch to another. The queue is JetStream. A job is published once, when it is created, on `<subjectRoot>.<category>.<type>` into the work-queue stream `stream.name`, which captures every subject under the root; the durable consumer `consumer.durableName` delivers each message to the dispatcher that holds it as the job's lease. The job itself lives in the KV bucket `bucket.name`, one JobRecord per job keyed by the job's id, and every change to a record is a compare-and-swap on its revision. The stream is a work queue; the consumer acknowledges explicitly, delivers from the start, and never gives a message up on its own count (the queue decides retries); the bucket keeps one revision per key. The dispatcher creates the stream, the consumer and the bucket when they are missing and never updates them, so a changed setting takes effect only on a broker that has not seen them. The consumer's name predates the dispatcher and is kept because it is the name on every deployed broker. `categories` assigns every job type to exactly one category.",
+  "$comment": "Where the job queue keeps its state on the broker: the names and subjects every implementation of the queue must use, so that work queued by one survives a switch to another. The queue is JetStream. A job is published once, when it is created, on `<subjectRoot>.<jobType>` into the work-queue stream `stream.name`, which captures every subject under the root; the durable consumer `consumer.durableName` delivers each message to the dispatcher that holds it as the job's lease. The job itself lives in the KV bucket `bucket.name`, one JobRecord per job keyed by the job's id, and every change to a record is a compare-and-swap on its revision. The stream is a work queue; the consumer acknowledges explicitly, delivers from the start, and never gives a message up on its own count (the queue decides retries); the bucket keeps one revision per key. The dispatcher creates the stream, the consumer and the bucket when they are missing and never updates them, so a changed setting takes effect only on a broker that has not seen them. The consumer's name predates the dispatcher and is kept because it is the name on every deployed broker.",
   "stream": {
     "name": "JOBS",
     "subjectRoot": "jobs"
-  },
-  "categories": {
-    "generation": [
-      "generation"
-    ],
-    "annotation": [
-      "reference-annotation",
-      "highlight-annotation",
-      "assessment-annotation",
-      "comment-annotation",
-      "tag-annotation"
-    ]
   },
   "consumer": {
     "durableName": "gateway-claims"

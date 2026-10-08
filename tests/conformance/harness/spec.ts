@@ -266,9 +266,16 @@ export interface TelemetryRow {
   planes?: string[];
 }
 
+/**
+ * The services the telemetry table names: those above, and the worker, whose
+ * rows are stated ahead of a suite to hold it to them.
+ */
+type TelemetryService = Service | 'worker';
+const TELEMETRY_SERVICES: readonly TelemetryService[] = [...SERVICES, 'worker'];
+
 /** A row of the service table: the services that export it. */
 interface ServiceRow extends TelemetryRow {
-  services: Service[];
+  services: TelemetryService[];
 }
 
 /** A row of the SDK table: the transport it comes from. */
@@ -280,6 +287,7 @@ const WHEN = ['export', 'traffic', 'supervised', 'fatal'] as const;
 const isWhen = (v: unknown): v is TelemetryRow['when'] => WHEN.some((w) => w === v);
 
 const isService = (v: unknown): v is Service => SERVICES.some((s) => s === v);
+const isTelemetryService = (v: unknown): v is TelemetryService => TELEMETRY_SERVICES.some((s) => s === v);
 
 /** What every row of either table states: its name, its kind or instrument, its attributes. */
 function row(table: string, r: unknown, kindKey: 'kind' | 'instrument'): { fields: JsonObject; name: string; kind: string; attributes: TelemetryAttribute[] } {
@@ -304,8 +312,8 @@ function serviceRows(rows: unknown, kindKey: 'kind' | 'instrument'): ServiceRow[
     const { fields, name, kind, attributes } = row(SERVICE_TABLE, r, kindKey);
     const { services, when } = fields;
     if (!isWhen(when)) throw new Error(`${SERVICE_TABLE}: ${name} states no \`when\``);
-    if (!Array.isArray(services) || services.length === 0 || !services.every(isService)) {
-      throw new Error(`${SERVICE_TABLE}: ${name} names no services, or one that is not ${SERVICES.join(' or ')}`);
+    if (!Array.isArray(services) || services.length === 0 || !services.every(isTelemetryService)) {
+      throw new Error(`${SERVICE_TABLE}: ${name} names no services, or one that is not ${TELEMETRY_SERVICES.join(' or ')}`);
     }
     const planes = Array.isArray(fields['planes']) ? fields['planes'].map(String) : undefined;
     return { name, services, kind, when, attributes, ...(planes ? { planes } : {}) };

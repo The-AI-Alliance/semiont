@@ -81,7 +81,7 @@ fn answers(
             "browse:tag-schemas-requested" => json!({ "tagSchemas": [] }),
             "browse:agents-requested" => json!({ "agents": [
                 { "agent": { "@type": "Software", "name": "Reader", "provider": "anthropic", "model": "reader-1" },
-                  "servesJobTypes": ["highlight-annotation"] },
+                  "serves": [{ "jobType": "mark", "params": { "motivation": "highlighting" } }, { "jobType": "yield" }] },
                 { "agent": { "@type": "Software", "name": "Writer", "provider": "anthropic", "model": "writer-1" } },
             ] }),
             "job:limits-requested" => json!({ "limits": [
@@ -1014,8 +1014,8 @@ async fn the_directory_has_each_models_limits_as_its_key_holder_reports_them() {
     assert_eq!(limits_of(directory), [Some(1000.0), Some(2000.0)]);
     // An entry is given as the directory states it.
     assert_eq!(
-        serde_json::to_value(&directory[0]).expect("it serializes")["servesJobTypes"],
-        json!(["highlight-annotation"])
+        serde_json::to_value(&directory[0]).expect("it serializes")["serves"],
+        json!([{ "jobType": "mark", "params": { "motivation": "highlighting" } }, { "jobType": "yield" }])
     );
     assert_eq!(
         asked(

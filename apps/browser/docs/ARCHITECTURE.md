@@ -281,11 +281,11 @@ semiont.mark.annotation({                    // Promise<{ annotationId }>
 });
 semiont.mark.delete(rId, aId);               // Promise<void>
 const context = await semiont.gather.resource(resourceId);                      // Promise<GatheredContext>
-semiont.yield.fromContext(context, { title: 'Summary', storageUri: 'file://summary.md' }); // StreamObservable<YieldGenerationEvent>
+semiont.yield.delegate({ title: 'Summary', storageUri: 'file://summary.md', context });  // DelegationObservable<YieldJobCompletion>
 semiont.frame.addEntityType('Person');       // Promise<void>
 ```
 
-`StreamObservable<T>` extends RxJS `Observable<T>` and is also `PromiseLike<T>`, so both `.subscribe()` and `await` work without any wrapper. `CacheObservable<T>` extends `Observable<CacheState<T>>` — subscribe (or `useObservable`) for the live pending/ready/failed view, or call `.fresh()` for a one-shot `Promise<T>`. See [`@semiont/sdk` Usage.md](../../../docs/builder/Usage.md) for the full namespace API.
+`StreamObservable<T>` extends RxJS `Observable<T>` and is also `PromiseLike<T>`, so both `.subscribe()` and `await` work without any wrapper. `DelegationObservable` is the same for a delegated job: `.subscribe()` gives the job's events, and `await` its completion. `CacheObservable<T>` extends `Observable<CacheState<T>>` — subscribe (or `useObservable`) for the live pending/ready/failed view, or call `.fresh()` for a one-shot `Promise<T>`. See [`@semiont/sdk` Usage.md](../../../docs/builder/Usage.md) for the full namespace API.
 
 ### Caching and Invalidation
 
@@ -630,7 +630,7 @@ The resource page (`apps/browser/src/app/[locale]/know/resource/[id]/page.tsx`, 
 - **BrowseView**: Read-only mode for document viewing
 
 **Right Panel** (conditionally visible based on the shell state unit's `activePanel$`):
-- **Annotations** (`UnifiedAnnotationsPanel`): the resource's annotations, grouped by motivation, with AI assist in Annotate mode
+- **Annotations** (`UnifiedAnnotationsPanel`): the resource's annotations, grouped by motivation, with delegated annotation in Annotate mode
 - **History** (`AnnotationHistory`): the resource's append-only event log
 - **Info** (`ResourceInfoPanel`): metadata and provenance
 - **Collaboration** (`CollaborationPanel`): bus connection state and the KB's collaborators

@@ -64,7 +64,7 @@
   }
 }
 
-/* The running log of what an assist found, one line per item. */
+/* The running log of what a delegated job found, one line per item. */
 .semiont-annotation-log {
   display: flex;
   flex-direction: column;

@@ -21,15 +21,18 @@ import {
   type BodyOperation,
   type EventMap,
   type GatheredContext,
+  type GenerationJobParams,
   type IContentTransport,
   type IGatewayOperations,
+  type JobType,
+  type MarkJobParams,
   type Motivation,
   type PutBinaryRequest,
   type ResourceId,
   type TagSchema,
   type components,
 } from '@semiont/core';
-import { CacheObservable, StreamObservable, UploadObservable } from '../awaitable';
+import { CacheObservable, DelegationObservable, StreamObservable, UploadObservable } from '../awaitable';
 import type { SemiontClient } from '../client';
 import { createTestClient } from '../testing';
 import type {
@@ -41,9 +44,7 @@ import type {
   CreateFromTokenOptions,
   FrameNamespace,
   GatherNamespace,
-  GenerationOptions,
   JobNamespace,
-  MarkAssistOptions,
   MarkNamespace,
   MatchNamespace,
   SystemNamespace,
@@ -75,7 +76,7 @@ interface Case {
 }
 interface Row {
   method: string;
-  shape: 'promise' | 'stream' | 'upload' | 'cache' | 'signal' | 'count' | 'events';
+  shape: 'promise' | 'stream' | 'delegation' | 'upload' | 'cache' | 'signal' | 'count' | 'events';
   via: Omit<Step, 'sends'>;
   absent?: Record<string, string>;
   cases: Case[];
@@ -168,14 +169,14 @@ const CALLS: Calls = {
     archive: (c, a) => c.mark.archive(rid(a)),
     unarchive: (c, a) => c.mark.unarchive(rid(a)),
     updateEntityTypes: (c, a) => c.mark.updateEntityTypes(rid(a), a['current'] as string[], a['updated'] as string[]),
-    assist: (c, a) => c.mark.assist(rid(a), a['motivation'] as Motivation, a['options'] as MarkAssistOptions),
+    delegate: (c, a) => c.mark.delegate(rid(a), a['params'] as MarkJobParams),
     request: (c, a) =>
       c.mark.request(
         resourceId(String(a['source'])),
         a['selector'] as components['schemas']['MarkRequestedEvent']['selector'],
         a['motivation'] as Motivation,
       ),
-    requestAssist: (c, a) => c.mark.requestAssist(a['motivation'] as Motivation, a['options'] as MarkAssistOptions),
+    requestDelegate: (c, a) => c.mark.requestDelegate(a['params'] as MarkJobParams),
     submit: (c, a) => c.mark.submit(a['input'] as components['schemas']['MarkSubmitEvent']),
     cancelPending: (c) => c.mark.cancelPending(),
     dismissProgress: (c) => c.mark.dismissProgress(),
@@ -208,7 +209,8 @@ const CALLS: Calls = {
       const data = a['data'] as { name: string; content: string; format: string; storageUri: string };
       return c.yield.resource({ name: data.name, file: Buffer.from(data.content), format: data.format, storageUri: data.storageUri });
     },
-    fromContext: (c, a) => c.yield.fromContext(a['context'] as unknown as GatheredContext, a['options'] as unknown as GenerationOptions),
+    delegate: (c, a) =>
+      c.yield.delegate(a['params'] as unknown as GenerationJobParams, a['stallDeadlineMs'] === undefined ? undefined : Number(a['stallDeadlineMs'])),
     cloneToken: (c, a) => c.yield.cloneToken(rid(a)),
     fromToken: (c, a) => c.yield.fromToken(String(a['token'])),
     createFromToken: (c, a) => c.yield.createFromToken(a['options'] as CreateFromTokenOptions),
@@ -229,9 +231,9 @@ const CALLS: Calls = {
     fail: (c) => c.job.fail$,
     status: (c, a) => c.job.status(jobId(String(a['jobId']))),
     pollUntilComplete: (c, a) => c.job.pollUntilComplete(jobId(String(a['jobId'])), { interval: 10, timeout: 50 }),
-    cancelByType: (c, a) => c.job.cancelByType(a['jobType'] as 'annotation' | 'generation'),
+    cancelByType: (c, a) => c.job.cancelByType(a['jobType'] as JobType),
     cancel: (c, a) => c.job.cancel(jobId(String(a['jobId']))),
-    cancelRequest: (c, a) => c.job.cancelRequest(a['jobType'] as 'annotation' | 'generation'),
+    cancelRequest: (c, a) => c.job.cancelRequest(a['jobType'] as JobType),
   },
   auth: {
     me: (c) => gatewayOf(c.auth).me(),
@@ -329,6 +331,10 @@ function started(row: Row, returned: unknown): void {
     case 'stream':
       expect(returned).toBeInstanceOf(StreamObservable);
       (returned as StreamObservable<unknown>).subscribe({ error: () => {} });
+      return;
+    case 'delegation':
+      expect(returned).toBeInstanceOf(DelegationObservable);
+      (returned as DelegationObservable).subscribe({ error: () => {} });
       return;
     case 'upload':
       expect(returned).toBeInstanceOf(UploadObservable);

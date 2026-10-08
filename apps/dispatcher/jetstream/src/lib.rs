@@ -19,14 +19,15 @@
 use async_nats::jetstream::{self, AckKind, consumer::pull, kv, stream};
 use bytes::Bytes;
 use futures::StreamExt;
+use semiont::job_filter::job_matches_filter;
 use semiont::types::{
-    FailureClass, Job, JobCancelRequestJobType, JobCancelled, JobCancelledStatus, JobComplete,
-    JobCompleteStatus, JobFailed, JobFailedStatus, JobId, JobPending, JobPendingStatus,
+    FailureClass, Job, JobCancelled, JobCancelledStatus, JobComplete, JobCompleteStatus, JobFailed,
+    JobFailedStatus, JobFilter, JobId, JobMetadata, JobParams, JobPending, JobPendingStatus,
     JobQueuedEvent, JobRunning, JobRunningStatus, JobStoredProgress, JobStoredResult, JobType,
 };
 use semiont_core::nats::{self, Voice};
 use semiont_core::types::JobRecord;
-use semiont_dispatcher_handlers::admission::{now, wire_name};
+use semiont_dispatcher_handlers::admission::{announcement, now};
 use semiont_dispatcher_handlers::checkpoint::{checkpointed, failed_with};
 use semiont_dispatcher_handlers::queue::{
     Checkpoint, Claim, FailOutcome, JobQueue, QueueError, Stats,
@@ -87,16 +88,10 @@ fn scanned(id: &str, stored: &[u8]) -> Option<JobRecord> {
 
 /// The subject a job of this type is published on.
 fn subject(job_type: JobType) -> String {
-    let name = wire_name(job_type);
-    let category = JOB_CATEGORIES
-        .iter()
-        .find(|(_, types)| types.contains(&name.as_str()))
-        .map(|(category, _)| *category)
-        .unwrap_or_else(|| panic!("job type {name} has no category in the job storage layout"));
-    format!("{JOBS_SUBJECT_ROOT}.{category}.{name}")
+    format!("{JOBS_SUBJECT_ROOT}.{}", job_type.as_str())
 }
 
-fn metadata_of(job: &Job) -> &semiont::types::JobMetadata {
+fn metadata_of(job: &Job) -> &JobMetadata {
     match job {
         Job::Pending(j) => &j.metadata,
         Job::Running(j) => &j.metadata,
@@ -104,6 +99,30 @@ fn metadata_of(job: &Job) -> &semiont::types::JobMetadata {
         Job::Failed(j) => &j.metadata,
         Job::Cancelled(j) => &j.metadata,
     }
+}
+
+/// What an announcement of a job carries, which is what a claim is matched
+/// against; nothing for a job whose parameters are not its type's. That one
+/// is reported and passed over, as a record that does not decode is: it is
+/// never announced and never claimed.
+fn announced(metadata: &JobMetadata, params: &JobParams) -> Option<JobQueuedEvent> {
+    match announcement(metadata, params) {
+        Ok(announcement) => Some(announcement),
+        Err(error) => {
+            logging::error(
+                "A job whose parameters are not its type's",
+                json!({ "component": "job-queue", "jobId": metadata.id, "error": error.to_string() }),
+            );
+            None
+        }
+    }
+}
+
+/// Whether a claim naming `accepts` takes the job announced so.
+fn taken_by(accepts: &[JobFilter], announced: &JobQueuedEvent) -> bool {
+    accepts
+        .iter()
+        .any(|filter| job_matches_filter(filter, announced))
 }
 
 fn is_terminal(job: &Job) -> bool {
@@ -118,11 +137,11 @@ enum Transition<T> {
     Keep(T),
 }
 
-/// A delivery this dispatcher holds: the lease, and the job's type, so a
-/// claim by type can walk them without a read.
+/// A delivery this dispatcher holds: the lease, and the job as it is
+/// announced, so a claim can walk them without a read.
 struct Held {
     message: jetstream::Message,
-    job_type: JobType,
+    announced: JobQueuedEvent,
 }
 
 struct Inner {
@@ -386,23 +405,6 @@ impl Inner {
         Ok(all)
     }
 
-    fn announce(&self, job: &Job) {
-        let metadata = metadata_of(job);
-        let resource_id = match job {
-            Job::Pending(j) => &j.params.resource_id,
-            Job::Running(j) => &j.params.resource_id,
-            Job::Complete(j) => &j.params.resource_id,
-            Job::Failed(j) => &j.params.resource_id,
-            Job::Cancelled(j) => &j.params.resource_id,
-        };
-        let _ = self.announce.send(JobQueuedEvent {
-            job_id: metadata.id.clone(),
-            job_type: wire_name(metadata.r#type),
-            resource_id: resource_id.clone(),
-            user_id: metadata.user_id.clone(),
-        });
-    }
-
     /// A delivery: held and announced when the job is pending, held silently
     /// when it is running, consumed when it is concluded, terminated when the
     /// queue has no record of it.
@@ -429,14 +431,22 @@ impl Inner {
             return;
         };
         match &record.job {
-            Job::Pending(pending) => {
-                let job_type = pending.metadata.r#type;
-                self.held().insert(id, Held { message, job_type });
-                self.announce(&record.job);
+            Job::Pending(job) => {
+                let Some(announced) = announced(&job.metadata, &job.params) else {
+                    return;
+                };
+                let held = Held {
+                    message,
+                    announced: announced.clone(),
+                };
+                self.held().insert(id, held);
+                let _ = self.announce.send(announced);
             }
-            Job::Running(running) => {
-                let job_type = running.metadata.r#type;
-                self.held().insert(id, Held { message, job_type });
+            Job::Running(job) => {
+                let Some(announced) = announced(&job.metadata, &job.params) else {
+                    return;
+                };
+                self.held().insert(id, Held { message, announced });
             }
             _ => {
                 self.held().remove(&id);
@@ -484,12 +494,16 @@ impl Inner {
     /// The tick: re-announce the pending jobs this dispatcher holds, then sweep
     /// for running jobs whose worker went silent.
     async fn tick(&self) -> Result<(), QueueError> {
-        let ids: Vec<String> = self.held().keys().cloned().collect();
-        for id in ids {
+        let held: Vec<(String, JobQueuedEvent)> = self
+            .held()
+            .iter()
+            .map(|(id, held)| (id.clone(), held.announced.clone()))
+            .collect();
+        for (id, announced) in held {
             if let Some(record) = self.scan(&id).await?
                 && matches!(record.job, Job::Pending(_))
             {
-                self.announce(&record.job);
+                let _ = self.announce.send(announced);
             }
         }
         self.recover_stale_running_jobs().await
@@ -607,7 +621,7 @@ impl Inner {
                 if will_retry_after(&job.metadata, failure_class) {
                     let retried = JobPending {
                         status: JobPendingStatus::Pending,
-                        metadata: semiont::types::JobMetadata {
+                        metadata: JobMetadata {
                             retry_count: job.metadata.retry_count + 1,
                             ..metadata
                         },
@@ -696,14 +710,12 @@ impl JobQueue for JetStreamQueue {
             .map(|(record, _)| record.job))
     }
 
-    async fn claim_next_job(&self, types: &[String]) -> Result<Claim, QueueError> {
-        let wanted =
-            |job_type: JobType| types.is_empty() || types.iter().any(|t| *t == wire_name(job_type));
+    async fn claim_next_job(&self, accepts: &[JobFilter]) -> Result<Claim, QueueError> {
         let held: Vec<String> = self
             .inner
             .held()
             .iter()
-            .filter(|(_, h)| wanted(h.job_type))
+            .filter(|(_, held)| taken_by(accepts, &held.announced))
             .map(|(id, _)| id.clone())
             .collect();
         for id in held {
@@ -718,7 +730,9 @@ impl JobQueue for JetStreamQueue {
             let Job::Pending(job) = &record.job else {
                 continue;
             };
-            if !wanted(job.metadata.r#type) {
+            if !announced(&job.metadata, &job.params)
+                .is_some_and(|announced| taken_by(accepts, &announced))
+            {
                 continue;
             }
             if let Some(job) = self.inner.try_claim(&id).await? {
@@ -828,20 +842,7 @@ impl JobQueue for JetStreamQueue {
             .await
     }
 
-    async fn cancel_pending_jobs(
-        &self,
-        category: JobCancelRequestJobType,
-    ) -> Result<u64, QueueError> {
-        let name = serde_json::to_value(category)
-            .ok()
-            .and_then(|v| v.as_str().map(str::to_owned))
-            .expect("a category names itself");
-        let types: &[&str] = JOB_CATEGORIES
-            .iter()
-            .find(|(c, _)| *c == name)
-            .map(|(_, types)| *types)
-            .unwrap_or_else(|| panic!("the job storage layout has no category {name}"));
-        let in_category = |job_type: JobType| types.contains(&wire_name(job_type).as_str());
+    async fn cancel_pending_jobs(&self, job_type: JobType) -> Result<u64, QueueError> {
         let mut cancelled = 0;
         for id in self.inner.all_keys().await? {
             let Some(record) = self.inner.scan(&id).await? else {
@@ -850,13 +851,13 @@ impl JobQueue for JetStreamQueue {
             let Job::Pending(job) = &record.job else {
                 continue;
             };
-            if !in_category(job.metadata.r#type) {
+            if job.metadata.r#type != job_type {
                 continue;
             }
             let done = self
                 .inner
                 .cas(&id, false, |record| match &record.job {
-                    Job::Pending(job) if in_category(job.metadata.r#type) => Transition::Write(
+                    Job::Pending(job) if job.metadata.r#type == job_type => Transition::Write(
                         Box::new(Job::Cancelled(JobCancelled {
                             status: JobCancelledStatus::Cancelled,
                             metadata: job.metadata.clone(),
@@ -877,9 +878,9 @@ impl JobQueue for JetStreamQueue {
         self.inner
             .stream
             .purge()
-            .filter(format!("{JOBS_SUBJECT_ROOT}.{name}.>"))
+            .filter(subject(job_type))
             .await
-            .map_err(|e| failed("purging a category's deliveries", e))?;
+            .map_err(|e| failed("purging a job type's deliveries", e))?;
         Ok(cancelled)
     }
 
@@ -942,13 +943,13 @@ mod tests {
                 "status": "pending",
                 "metadata": {
                     "id": job_id,
-                    "type": "highlight-annotation",
+                    "type": "mark",
                     "userId": "did:web:example.org:users:alice",
                     "created": "2026-10-02T00:00:00.000Z",
                     "retryCount": 0,
                     "maxRetries": 1,
                 },
-                "params": { "resourceId": resource_id },
+                "params": { "resourceId": resource_id, "motivation": "highlighting" },
             },
             "lastProgressAt": "2026-10-02T00:00:00.000Z",
         }))
@@ -969,6 +970,66 @@ mod tests {
             .map(|record| metadata_of(&record.job).id.to_string())
             .collect();
         assert_eq!(passed, ["job-1", "job-4"]);
+    }
+
+    /// A tagging job's record as the bucket holds it: its resource and its
+    /// schema beside the parameters it was created with, in whatever order
+    /// they were written. It reads as a job with that schema, and written
+    /// again it says what it said.
+    #[test]
+    fn a_stored_tagging_jobs_record_reads_with_its_schema_and_is_written_as_it_was_read() {
+        let schema = json!({
+            "id": "irac", "name": "IRAC", "description": "Issue, rule, application, conclusion",
+            "domain": "legal",
+            "tags": [{ "name": "Issue", "description": "The question", "examples": ["Whether"] }],
+        });
+        let sent = json!({
+            "motivation": "tagging", "schemaId": "irac", "categories": ["Issue"], "language": "en",
+        });
+        let mut params = sent.clone();
+        params["schema"] = schema.clone();
+        params["resourceId"] = json!("r1");
+        let stored = json!({
+            "job": {
+                "status": "pending",
+                "metadata": {
+                    "id": "job-1",
+                    "type": "mark",
+                    "userId": "did:web:example.org:users:alice",
+                    "created": "2026-10-02T00:00:00.000Z",
+                    "retryCount": 0,
+                    "maxRetries": 1,
+                },
+                "params": params,
+            },
+            "lastProgressAt": "2026-10-02T00:00:00.000Z",
+        });
+
+        let record = decode("job-1", &serde_json::to_vec(&stored).expect("JSON"))
+            .expect("the record decodes");
+        let Job::Pending(job) = &record.job else {
+            panic!("a pending job decoded as another state");
+        };
+        assert_eq!(job.params.resource_id, "r1");
+        assert_eq!(
+            job.params.schema,
+            Some(serde_json::from_value(schema).expect("a tag schema"))
+        );
+        assert_eq!(serde_json::Value::Object(job.params.rest.clone()), sent);
+
+        // Nothing is added, dropped or rewritten: only the order of a job's
+        // parameters is the writer's.
+        let written = serde_json::to_vec(&record).expect("a record serializes");
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(&written).expect("JSON"),
+            stored
+        );
+        // And what it writes it reads back the same, to the byte.
+        let again = decode("job-1", &written).expect("it decodes again");
+        assert_eq!(
+            serde_json::to_vec(&again).expect("a record serializes"),
+            written
+        );
     }
 
     #[test]

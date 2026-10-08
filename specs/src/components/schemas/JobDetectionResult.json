@@ -1,0 +1,37 @@
+{
+  "type": "object",
+  "description": "What a `mark` job reports when it has done its work, whatever its motivation.",
+  "properties": {
+    "found": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "What the model proposed, before anything was checked against the text."
+    },
+    "persisted": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "What the log holds: the annotations committed, after the ones that could not be anchored were dropped and repeats were collapsed."
+    },
+    "errors": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "How many of the proposed could not be anchored in the text. Absent means none."
+    },
+    "byCategory": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "description": "The annotations persisted per category. A tagging job's; absent from every other."
+    },
+    "underReportedPieces": {
+      "type": "integer",
+      "description": "Total floor-accepted under-reported pieces across the job's units. Absent means none — the per-unit evidence rides the terminal progress frame's completedItems; this keeps the result self-describing without the progress stream."
+    }
+  },
+  "required": [
+    "found",
+    "persisted"
+  ],
+  "additionalProperties": false
+}

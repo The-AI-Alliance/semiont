@@ -12,7 +12,7 @@ Every mark is a [W3C Web Annotation](../W3C-WEB-ANNOTATION.md). A person and an 
 | `mark.delete` | nothing | `mark:delete` | the archivist |
 | `mark.archive`, `mark.unarchive` | nothing | `mark:archive`, `mark:unarchive` | the archivist |
 | `mark.updateEntityTypes` | nothing | `mark:update-entity-types` | the archivist |
-| `mark.assist` | a stream: the job's progress, then its outcome | `job:create`, with the job type for the motivation | the dispatcher admits it; a worker runs it |
+| `mark.delegate` | a delegation: the job's events, then its completion | `job:create`, with job type `mark` | the dispatcher admits it; a worker runs it |
 
 A worker commits what it detected with `mark:commit`, one request carrying a batch of annotations and the job they were made for.
 
@@ -42,7 +42,7 @@ An annotation's `motivation` says why it was made, and decides its body:
 
 ## Rules
 
-**The emitter never names itself.** An annotation's `creator` is derived by the knowledge base from the verified identity of the request. For an assisted annotation the creator is whoever asked for the job, and the model that produced it is its `generator`. `wasAttributedTo` lists both.
+**The emitter never names itself.** An annotation's `creator` is derived by the knowledge base from the verified identity of the request. For a delegated annotation the creator is whoever asked for the job, and the model that produced it is its `generator`. `wasAttributedTo` lists both.
 
 **A worker's commit must cite its job.** A commit from a worker that names no job, or a job that worker does not hold, is refused.
 
@@ -56,21 +56,36 @@ An annotation's `motivation` says why it was made, and decides its body:
 
 **Entity types on a resource are a diff.** `mark.updateEntityTypes` is given the current set and the wanted set, and the difference is recorded as individual added and removed events. It classifies a resource with types the vocabulary already has; adding a type to the vocabulary is [Frame](FRAME.md).
 
-**Assistance is a job.** `mark.assist` has no channel of its own. Progress and the outcome arrive on the job channels, matched by the job's id, and the annotations arrive as `mark:added` like any others. See [Jobs](../JOBS.md).
+**Delegation is a job.** `mark.delegate` has no channel of its own. Progress and the outcome arrive on the job channels, matched by the job's id, and the annotations arrive as `mark:added` like any others. See [Jobs](../JOBS.md).
 
-## Assistance
+## Delegation
 
-`mark.assist` takes a resource, a motivation, and options for that motivation:
+`mark.delegate` takes a resource and the params of a `mark` job. The params state the job's `motivation`, and each motivation takes its own params and no others:
 
-| Motivation | Job type | Options |
+| Motivation | Required | Optional |
 |---|---|---|
-| `highlighting` | `highlight-annotation` | instructions, density |
-| `commenting` | `comment-annotation` | instructions, density, tone |
-| `assessing` | `assessment-annotation` | instructions, density, tone |
-| `tagging` | `tag-annotation` | a tag schema's id, and which of its categories |
-| `linking` | `reference-annotation` | the entity types to look for, and whether to include descriptive references |
+| `highlighting` | | `instructions`, `density`, `sourceLanguage` |
+| `commenting` | | `instructions`, `density`, `tone`, `language`, `sourceLanguage` |
+| `assessing` | | `instructions`, `density`, `tone`, `language`, `sourceLanguage` |
+| `linking` | `entityTypes` | `includeDescriptiveReferences`, `language`, `sourceLanguage` |
+| `tagging` | `schemaId`, `categories` | `language`, `sourceLanguage` |
 
-Each option belongs to its own motivation: a job does not read another's. A schema and the entity types must already be in the knowledge base's vocabulary, which is [Frame](FRAME.md)'s; a job that names one that is not is refused when it is created.
+| Param | Says |
+|---|---|
+| `instructions` | What to look for, in the caller's words |
+| `density` | How many annotations to aim for per 2000 words |
+| `tone` | The voice the comments or assessments are written in. Each of the two motivations has its own set |
+| `entityTypes` | The entity types to find mentions of. At least one |
+| `includeDescriptiveReferences` | Whether a description that stands for an entity counts as a mention of it, beside its name |
+| `schemaId`, `categories` | A tag schema, and the categories of it to tag with. At least one category |
+| `language` | The language the annotations' own text is written in. BCP 47 |
+| `sourceLanguage` | The language of the resource being read. BCP 47 |
+
+The authority for both tables is [`MarkJobParams`](../../../specs/src/components/schemas/MarkJobParams.json) and the five schemas it names.
+
+A job given a param its motivation does not take is refused when it is created, and so is one whose `entityTypes`, `categories` or `schemaId` is empty. A schema and the entity types must already be in the knowledge base's vocabulary, which is [Frame](FRAME.md)'s; a job that names one that is not is refused too. See [`job:create`](../JOBS.md#jobcreate).
+
+A `mark` job's result is one of two ([`MarkJobResult`](../../../specs/src/components/schemas/MarkJobResult.json)). A job that did its work reports its counts, the same whatever its motivation: `found`, what the model proposed; `persisted`, what the log holds; and `errors`, how many of the proposed could not be anchored in the text, absent when none. A job whose resource could not be read reports a decline, with the reason.
 
 The whole document is read: a long one is processed in pieces sized to the model's limits, never truncated. How detection is done is the worker's: see [the job types](../../../packages/jobs/docs/JobTypes.md).
 
@@ -90,7 +105,8 @@ const { annotationId } = await semiont.mark.annotation({
 });
 
 // Have an agent find the references
-semiont.mark.assist(resourceId, 'linking', {
+semiont.mark.delegate(resourceId, {
+  motivation: 'linking',
   entityTypes: ['Person', 'Organization'],
 }).subscribe({
   next: (event) => console.log(event.kind, event),
@@ -102,7 +118,7 @@ From the launcher: `semiont mark --delegate <resourceId> --motivation linking --
 
 ## Local signals
 
-`mark.request`, `mark.requestAssist`, `mark.submit`, `mark.cancelPending`, `mark.dismissProgress` and `mark.reportDeleteError` publish on the client's own bus and nowhere else. They coordinate one viewer's annotation interface and are not part of the wire protocol. See [react-ui's events](../../builder/react-ui/EVENTS.md).
+`mark.request`, `mark.requestDelegate`, `mark.submit`, `mark.cancelPending`, `mark.dismissProgress` and `mark.reportDeleteError` publish on the client's own bus and nowhere else. They coordinate one viewer's annotation interface and are not part of the wire protocol. See [react-ui's events](../../builder/react-ui/EVENTS.md).
 
 ## Where it is implemented
 

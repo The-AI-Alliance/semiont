@@ -2,8 +2,8 @@ from semiont.client import SemiontClient
 from semiont.http import HttpTransport
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.namespaces.follow import JobAttemptFailed, JobCompleted, JobProgressed
-from semiont.namespaces.mark import MarkAssistOptions
 from semiont.transport import Transport
+from semiont.types import HighlightingJobParams
 from semiont.watched import Variable
 
 
@@ -12,7 +12,7 @@ async def annotate(client: SemiontClient[Transport], resource: ResourceId, annot
     text = await client.browse.resource_content(resource)  # asked once, answered once
     print(described.name, len(text))
 
-    async for event in client.mark.assist(resource, "highlighting", MarkAssistOptions()):  # a job, followed
+    async for event in client.mark.delegate(resource, HighlightingJobParams(motivation="highlighting")):  # a job, followed
         match event:
             case JobProgressed(data=progress):
                 print(progress.percentage)

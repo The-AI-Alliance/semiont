@@ -133,18 +133,18 @@ function ResourceNames() {
 // live queries, which acquire the resource scope by observation —
 // no explicit subscribeToResource call, no component-level hook needed.
 
-// Layer 2 (Hook): read the mark state unit's assist observables; the state
+// Layer 2 (Hook): read the mark state unit's delegation observables; the state
 // unit itself follows the unified job channels
-export function useMarkAssist(mark: MarkStateUnit | undefined) {
-  const assistingMotivation = useObservable(mark?.assistingMotivation$) ?? null;
+export function useMarkDelegate(mark: MarkStateUnit | undefined) {
+  const delegatingMotivation = useObservable(mark?.delegatingMotivation$) ?? null;
   const progress = useObservable(mark?.progress$) ?? null;
-  return { assistingMotivation, progress };
+  return { delegatingMotivation, progress };
 }
 
 // Layer 3 (Component): UI rendering
-function AssistStatus({ mark }: { mark: MarkStateUnit | undefined }) {
-  const { assistingMotivation, progress } = useMarkAssist(mark);
-  return <div>{assistingMotivation && <p>Detecting… {progress?.percentage ?? 0}%</p>}</div>;
+function DelegateStatus({ mark }: { mark: MarkStateUnit | undefined }) {
+  const { delegatingMotivation, progress } = useMarkDelegate(mark);
+  return <div>{delegatingMotivation && <p>Detecting… {progress?.percentage ?? 0}%</p>}</div>;
 }
 ```
 

@@ -285,7 +285,7 @@ describe('Weaver', () => {
         resourceId: docId,
         userId: userId('did:web:test:users:user1'),
         version: 1,
-        payload: { jobId: 'job-1' as any, jobType: 'reference-annotation' },
+        payload: { jobId: 'job-1' as any, jobType: 'mark' },
       });
 
       await tick();

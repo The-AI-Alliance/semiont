@@ -7,7 +7,7 @@ import { useSessionEventSubscriptions } from '../../../hooks/useSessionEventSubs
 import type { components, ResourceId, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
 import { HighlightEntry } from './HighlightEntry';
-import { AssistSection } from './AssistSection';
+import { DelegateSection } from './DelegateSection';
 import { PanelHeader } from './PanelHeader';
 
 import type { Annotation } from '@semiont/core';
@@ -27,13 +27,13 @@ interface HighlightPanelProps {
   resourceId: ResourceId;
   annotations: Annotation[];
   pendingAnnotation: PendingAnnotation | null;
-  isAssisting?: boolean;
+  isDelegating?: boolean;
   progress?: JobProgress | null;
   annotateMode?: boolean;
   scrollToAnnotationId?: string | null;
   onScrollCompleted?: () => void;
   hoveredAnnotationId?: string | null;
-  /** BCP-47 tag of the resource being analyzed — forwarded to the assist call so the LLM analyzes non-English source correctly. */
+  /** BCP-47 tag of the resource being analyzed — forwarded to the delegated job so the LLM analyzes non-English source correctly. */
   sourceLanguage?: string;
 }
 
@@ -48,7 +48,7 @@ export function HighlightPanel({
   resourceId,
   annotations,
   pendingAnnotation,
-  isAssisting = false,
+  isDelegating = false,
   progress,
   annotateMode = true,
   scrollToAnnotationId,
@@ -148,16 +148,16 @@ export function HighlightPanel({
 
   return (
     <div className="semiont-panel">
-      <PanelHeader annotationType="highlight" count={annotations.length} title={t('title')} />
+      <PanelHeader count={annotations.length} title={t('title')} />
 
       {/* Scrollable content area */}
       <div ref={containerRef} className="semiont-panel__content">
-        {/* Assist Section - only in Annotate mode; shown for any media type (AI detection is media-agnostic — text is resolved via the media-type registry, incl. PDF text layers) */}
+        {/* Delegate section - only in Annotate mode; shown for any media type (AI detection is media-agnostic — text is resolved via the media-type registry, incl. PDF text layers) */}
         {annotateMode && (
-          <AssistSection
+          <DelegateSection
             session={session}
             annotationType="highlight"
-            isAssisting={isAssisting}
+            isDelegating={isDelegating}
             progress={progress}
             sourceLanguage={sourceLanguage}
           />

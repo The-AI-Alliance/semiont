@@ -6,7 +6,7 @@ import { signInSession } from '../fixtures/sdk-session';
  * Smoke test: the Frame flow's tag-schema runtime registry surface
  * end-to-end. The architecture it exercises: schemas are per-KB
  * runtime-registered (no build-time `TAG_SCHEMAS` constant); the
- * `mark.assist` dispatcher resolves `schemaId` against the projection at
+ * Dispatcher resolves a tagging job's `schemaId` against the projection at
  * job-creation time and embeds the full `TagSchema` in the worker's params.
  *
  * Four things are exercised end-to-end:
@@ -23,15 +23,15 @@ import { signInSession } from '../fixtures/sdk-session';
  *    Archivist wrote `tagschemas.json` and the projection
  *    reader serves it back.
  *
- * 3. **Dispatcher rejects unregistered schema.** `mark.assist` with a
+ * 3. **Dispatcher rejects unregistered schema.** `mark.delegate` with a
  *    `schemaId` not in the projection must reject synchronously with
  *    `Tag schema not registered: <id>`. The dispatcher does the schema
  *    lookup and the worker has no build-time fallback, so an
  *    unknown schemaId is a synchronous-at-job-creation error rather
  *    than a worker-time "Invalid tag schema".
  *
- * 4. **Tagging applies.** `mark.assist(rid, 'tagging', { schemaId,
- *    categories })` against a registered schema runs the LLM tagging
+ * 4. **Tagging applies.** `mark.delegate(rid, { motivation: 'tagging',
+ *    schemaId, categories })` against a registered schema runs the LLM tagging
  *    pass; the resulting annotations carry the canonical two-body
  *    shape — a `purpose: 'classifying'` `TextualBody` identifying the
  *    schema id, plus a `purpose: 'tagging'` `TextualBody` carrying
@@ -49,7 +49,7 @@ import { signInSession } from '../fixtures/sdk-session';
  * - **Materialization** — the projection file isn't being
  *   written, so `browse.tagSchemas()` doesn't surface the registration.
  *   The Archivist's system projections would be the culprit.
- * - **Dispatcher fallback** — `mark.assist` against an
+ * - **Dispatcher fallback** — `mark.delegate` against an
  *   unknown schemaId silently succeeds. Means the dispatcher is
  *   either consulting a stale build-time registry or the projection
  *   lookup is hiding errors.
@@ -98,7 +98,7 @@ const E2E_TAG_SCHEMA: TagSchema = {
 };
 
 test.describe('frame tag-schema registry + tagging round-trip', () => {
-  test('register schema, observe bridged broadcast, reject unknown schemaId, apply via mark.assist, verify annotation body shape', async ({
+  test('register schema, observe bridged broadcast, reject unknown schemaId, apply via mark.delegate, verify annotation body shape', async ({
     signedInPage: page,
     bus,
   }) => {
@@ -151,7 +151,7 @@ test.describe('frame tag-schema registry + tagging round-trip', () => {
 
       // ── Phase 3: dispatcher rejects unknown schemaId ──────────────
       //
-      // mark.assist against a schemaId that isn't in the projection
+      // mark.delegate against a schemaId that isn't in the projection
       // must reject synchronously. The contract: the dispatcher
       // resolves schemaId → TagSchema at job-creation time, so an
       // unknown id surfaces as a synchronous BusRequestError
@@ -166,7 +166,8 @@ test.describe('frame tag-schema registry + tagging round-trip', () => {
       const targetId = ridBrand(target['@id']);
 
       await expect(
-        client.mark.assist(targetId, 'tagging', {
+        client.mark.delegate(targetId, {
+          motivation: 'tagging',
           schemaId: 'definitely-not-registered-schema-id',
           categories: ['Concept'],
         }),
@@ -175,17 +176,16 @@ test.describe('frame tag-schema registry + tagging round-trip', () => {
       // ── Phase 4: real tagging round-trip ──────────────────────────
       //
       // Run the LLM tagging pass against the registered schema.
-      // Awaiting the StreamObservable yields the last emit — a
-      // 'complete' event carrying the JobCompleteCommand. If the worker
-      // failed, the observable errors and the await rejects.
-      const finalEvent = await client.mark.assist(targetId, 'tagging', {
+      // Awaiting the delegation gives the job's completion (its
+      // JobCompleteCommand). If the worker failed, the await rejects.
+      const done = await client.mark.delegate(targetId, {
+        motivation: 'tagging',
         schemaId: E2E_TAG_SCHEMA.id,
         categories: E2E_TAG_SCHEMA.tags.map((t) => t.name),
       });
-      expect(
-        finalEvent.kind,
-        'mark.assist should complete with a `complete` event (not progress, not an error)',
-      ).toBe('complete');
+      // Awaited, a delegation resolves on the job's completion. A mark job's
+      // result is its counts or a decline; the counts say it did its work.
+      expect(done.result !== undefined && 'found' in done.result, 'the tagging job reports its counts').toBe(true);
 
       // Walk the resource's annotations and pick out the ones this
       // run created — `motivation: 'tagging'` with a classifying body

@@ -88,9 +88,8 @@ export function isGenerationJobParams(
   if (!isObject(value)) return false;
   // Non-empty, not merely present: the worker has no fallback, so
   // `storageUri: ''` would write to a bare `file://` and `title: ''` would
-  // name the resource nothing. This guard is the ONLY runtime enforcement —
-  // `JobCreateCommand.params` is `additionalProperties: true`, so /bus/emit's
-  // generated validator never sees these fields.
+  // name the resource nothing. The gateway holds a `job:create` to the same
+  // rule; this holds what a worker is handed, which nothing validated since.
   return (
     typeof value.title === 'string' && value.title.length > 0
     && typeof value.storageUri === 'string' && value.storageUri.length > 0
@@ -101,10 +100,40 @@ export function isGenerationJobParams(
 /**
  * Whether a completed job's stored result is one its worker reported
  * (`JobStoredResult`): a job completed without a result is stored with an
- * empty one. Every `JobResult` carries its `kind`.
+ * empty one, and every `JobResult` requires a member.
  */
 export function isReportedJobResult(
   result: import('./types').components['schemas']['JobStoredResult'] | undefined,
 ): result is import('./types').components['schemas']['JobResult'] {
-  return result !== undefined && typeof result['kind'] === 'string';
+  return result !== undefined && Object.keys(result).length > 0;
+}
+
+/**
+ * Whether a job's result is one a `mark` job reports (`MarkJobResult`): its
+ * counts, or a decline.
+ *
+ * A stored result is any verb's (`JobResult`), and its members share no
+ * member of their own (the spec's job gate holds that). So the one result a
+ * `mark` job never reports is told by a member only it has, and what is left
+ * is held to `MarkJobResult` by the compiler: a result added to `JobResult`
+ * does not pass here unseen.
+ */
+export function isMarkJobResult(
+  result: import('./payload-types').JobResult,
+): result is import('./payload-types').MarkJobResult {
+  if ('resourceId' in result) return false;
+  result satisfies import('./payload-types').MarkJobResult;
+  return true;
+}
+
+/**
+ * Whether a job's result is one a `yield` job reports (`YieldJobResult`): the
+ * resource it made, or a decline. Told as `isMarkJobResult` tells its own.
+ */
+export function isYieldJobResult(
+  result: import('./payload-types').JobResult,
+): result is import('./payload-types').YieldJobResult {
+  if ('found' in result) return false;
+  result satisfies import('./payload-types').YieldJobResult;
+  return true;
 }

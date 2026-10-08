@@ -3,7 +3,7 @@ import type { Page } from '@playwright/test';
 import { openResourceByName } from '../fixtures/discover';
 
 /**
- * Smoke test: creating a reference-annotation by hand round-trips through the
+ * Smoke test: creating a reference annotation by hand round-trips through the
  * bus and is persisted — with an entity type, and without one.
  *
  * This exercises the same "selection → pendingAnnotation → mark:submit

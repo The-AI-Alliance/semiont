@@ -5,15 +5,16 @@
 //! Frames are not serialized: each is handled as it comes, and the queue's
 //! atomic transitions settle any race between two.
 
-use crate::admission::{Refusal, Vocabulary, admit, wire_name};
-use crate::queue::{Checkpoint, Claim, FailOutcome, JobQueue};
+use crate::admission::{Refusal, Vocabulary, admit};
+use crate::queue::{Checkpoint, Claim, FailOutcome, JobQueue, QueueError};
 use semiont::roles::WORKER_ROLE;
 use semiont::types::{
     BusFrame, CommandError, CommandErrorCode, Job, JobAssignCommand, JobCancelCommand,
     JobCancelRequest, JobCheckpointCommand, JobClaimCommand, JobClaimedResult, JobCompleteCommand,
-    JobCreateCommand, JobCreatedResult, JobCreatedResultResponse, JobFailCommand, JobId,
-    JobProgress, JobReportProgressCommand, JobStatusRequest, JobStatusResponse,
-    JobStatusResponseStatus, JobStatusResult, JobStoredProgress, JobStoredResult,
+    JobCreatedResult, JobCreatedResultResponse, JobFailCommand, JobId, JobProgress,
+    JobReportProgressCommand, JobResult, JobStatusRequest, JobStatusResponse,
+    JobStatusResponseStatus, JobStatusResult, JobStoredProgress, JobStoredResult, MarkJobResult,
+    YieldJobResult,
 };
 use semiont_observability::logging;
 use serde::Serialize;
@@ -142,15 +143,7 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
                 correlation_id: correlation_id.clone(),
             }]
         };
-        let command: JobCreateCommand = match serde_json::from_value(payload) {
-            Ok(command) => command,
-            Err(error) => {
-                return refused(Refusal::new(format!(
-                    "a job:create that is not a JobCreateCommand: {error}"
-                )));
-            }
-        };
-        let job = match admit(command, self.reads.as_ref()).await {
+        let job = match admit(payload, self.reads.as_ref()).await {
             Ok(job) => job,
             Err(refusal) => return refused(refusal),
         };
@@ -162,7 +155,7 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
         logging::info(
             "Job created via bus",
             fields(
-                json!({ "jobId": id, "jobType": wire_name(job_type), "correlationId": correlation_id }),
+                json!({ "jobId": id, "jobType": job_type.as_str(), "correlationId": correlation_id }),
             ),
         );
         vec![Reply {
@@ -201,11 +194,11 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
                 Some(CommandErrorCode::Unauthorized),
             );
         }
-        let job = match self.queue.claim_next_job(&command.types).await {
+        let job = match self.queue.claim_next_job(&command.accepts).await {
             Ok(Claim::Claimed(job)) => job,
             Ok(Claim::Declined) => {
                 return refused(
-                    "No pending job of the requested types".to_owned(),
+                    "No pending job matches the claim".to_owned(),
                     Some(CommandErrorCode::NonePending),
                 );
             }
@@ -240,20 +233,36 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
     }
 
     async fn complete(&self, command: JobCompleteCommand) {
-        let result = match command.result {
-            Some(result) => JobStoredResult::JobResult(result),
-            None => JobStoredResult::Empty(Default::default()),
+        let (job_id, completed_as, result) = concluded(command);
+        let unsynced = |error: QueueError| {
+            logging::error(
+                "Failed to sync job completion to queue",
+                fields(json!({ "jobId": job_id, "error": error.0 })),
+            );
         };
-        match self.queue.complete_job(&command.job_id, result).await {
+        // A completion is its verb's. One of another verb than the running
+        // job's is not that job's completion, and the job stays running.
+        match self.queue.get_job(&job_id).await {
+            Ok(Some(Job::Running(job))) if job.metadata.r#type.as_str() != completed_as => {
+                return logging::warn(
+                    "job:complete of another verb than the job's",
+                    fields(json!({
+                        "jobId": job_id,
+                        "jobType": job.metadata.r#type.as_str(),
+                        "completedAs": completed_as,
+                    })),
+                );
+            }
+            Ok(_) => {}
+            Err(error) => return unsynced(error),
+        }
+        match self.queue.complete_job(&job_id, result).await {
             Ok(true) => {}
             Ok(false) => logging::warn(
                 "job:complete for a job not in running",
-                fields(json!({ "jobId": command.job_id })),
+                fields(json!({ "jobId": job_id })),
             ),
-            Err(error) => logging::error(
-                "Failed to sync job completion to queue",
-                fields(json!({ "jobId": command.job_id, "error": error.0 })),
-            ),
+            Err(error) => unsynced(error),
         }
     }
 
@@ -373,16 +382,16 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
         };
         let cancelled = match (request.job_id, request.job_type) {
             (Some(id), _) => self.cancel_one(&id).await,
-            (None, Some(category)) => {
+            (None, Some(job_type)) => {
                 let cancelled = self
                     .queue
-                    .cancel_pending_jobs(category)
+                    .cancel_pending_jobs(job_type)
                     .await
                     .map_err(|e| e.0);
                 if let Ok(count) = cancelled {
                     logging::info(
                         "Cancel requested",
-                        fields(json!({ "jobType": category, "cancelled": count })),
+                        fields(json!({ "jobType": job_type.as_str(), "cancelled": count })),
                     );
                 }
                 cancelled
@@ -446,6 +455,34 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
             Ok(None) => reply("job:status-failed", failure("Job not found", None)),
             Err(error) => reply("job:status-failed", failure(error.0, None)),
         }
+    }
+}
+
+/// What the dispatcher reads of a completion, whichever verb's it is: the
+/// job, the verb as the completion's own member names it, and the result as
+/// a record stores one, which is not typed by verb.
+fn concluded(command: JobCompleteCommand) -> (JobId, &'static str, JobStoredResult) {
+    let stored = |result: Option<JobResult>| match result {
+        Some(result) => result.into(),
+        None => JobStoredResult::Empty(Default::default()),
+    };
+    match command {
+        JobCompleteCommand::MarkJobCompleteCommand(done) => (
+            done.job_id,
+            done.job_type.as_str(),
+            stored(done.result.map(|result| match result {
+                MarkJobResult::DetectionResult(counts) => counts.into(),
+                MarkJobResult::DeclinedResult(declined) => declined.into(),
+            })),
+        ),
+        JobCompleteCommand::YieldJobCompleteCommand(done) => (
+            done.job_id,
+            done.job_type.as_str(),
+            stored(done.result.map(|result| match result {
+                YieldJobResult::GenerationResult(made) => made.into(),
+                YieldJobResult::DeclinedResult(declined) => declined.into(),
+            })),
+        ),
     }
 }
 

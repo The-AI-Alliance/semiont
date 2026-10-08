@@ -198,14 +198,14 @@ const (
 	// payload: MarkSubmitEvent
 	MarkSubmit Channel = "mark:submit"
 
-	// payload: MarkAssistRequestEvent
-	MarkAssistRequest Channel = "mark:assist-request"
+	// payload: MarkDelegateRequestEvent
+	MarkDelegateRequest Channel = "mark:delegate-request"
 
 	// no payload — not emittable
 	MarkProgressDismiss Channel = "mark:progress-dismiss"
 
 	// not emittable (no registered schema)
-	MarkAssistTimeout Channel = "mark:assist-timeout"
+	MarkDelegateTimeout Channel = "mark:delegate-timeout"
 
 	// not emittable (no registered schema)
 	MarkCreateError Channel = "mark:create-error"
@@ -662,7 +662,7 @@ var ChannelSchemas = map[Channel]string{
 	MarkSelectReference:              "SelectionData",
 	MarkRequested:                    "MarkRequestedEvent",
 	MarkSubmit:                       "MarkSubmitEvent",
-	MarkAssistRequest:                "MarkAssistRequestEvent",
+	MarkDelegateRequest:              "MarkDelegateRequestEvent",
 	FrameAddEntityType:               "FrameAddEntityTypeCommand",
 	FrameAddTagSchema:                "FrameAddTagSchemaCommand",
 	FrameEntityTypeAddFailed:         "CommandError",

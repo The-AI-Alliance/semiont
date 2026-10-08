@@ -3,6 +3,7 @@
   "shapes": {
     "promise": "Asked once, answered once: the value, or a failure with a code.",
     "stream": "A long-running operation: what it reports as it goes, then its final value. Awaited, it gives the final value.",
+    "delegation": "A job another party does: the job's events as it goes, its completion the last of them. Awaited, it gives the completion.",
     "upload": "An upload in flight: its progress, then the id of the resource created.",
     "cache": "A live query. Building it touches nothing; its one-shot read asks the service now.",
     "signal": "Fire-and-forget. Nothing is returned and nothing is awaited.",
@@ -208,7 +209,7 @@
     },
     {
       "namespace": "mark",
-      "docs": "Annotations: their creation and removal, a resource's own metadata, and AI assistance.",
+      "docs": "Annotations: their creation and removal, a resource's own metadata, and the annotating of a resource delegated as a job.",
       "methods": [
         {
           "method": "annotation",
@@ -252,39 +253,32 @@
           ]
         },
         {
-          "method": "assist",
-          "shape": "stream",
+          "method": "delegate",
+          "shape": "delegation",
           "via": { "request": "job:create" },
           "cases": [
             {
-              "why": "the motivation names the job type; with no options the job has no parameters",
-              "args": { "resourceId": "res-1", "motivation": "highlighting", "options": {} },
-              "sends": { "jobType": "highlight-annotation", "resourceId": "res-1", "params": {} }
+              "why": "the namespace is the verb, so the job is a mark job; its parameters state its motivation",
+              "args": { "resourceId": "res-1", "params": { "motivation": "highlighting" } },
+              "sends": { "jobType": "mark", "resourceId": "res-1", "params": { "motivation": "highlighting" } }
             },
             {
-              "args": { "resourceId": "res-1", "motivation": "linking", "options": { "entityTypes": ["Person"], "includeDescriptiveReferences": true } },
-              "sends": { "jobType": "reference-annotation", "resourceId": "res-1", "params": { "entityTypes": ["Person"], "includeDescriptiveReferences": true } }
+              "args": { "resourceId": "res-1", "params": { "motivation": "linking", "entityTypes": ["Person"], "includeDescriptiveReferences": true } },
+              "sends": { "jobType": "mark", "resourceId": "res-1", "params": { "motivation": "linking", "entityTypes": ["Person"], "includeDescriptiveReferences": true } }
             },
             {
-              "why": "every option is a parameter of the job, under its own name",
-              "args": {
-                "resourceId": "res-1",
-                "motivation": "tagging",
-                "options": { "schemaId": "s1", "categories": ["claim"], "instructions": "be brief", "density": 2.5, "tone": "scholarly", "language": "en", "sourceLanguage": "fr" }
-              },
-              "sends": {
-                "jobType": "tag-annotation",
-                "resourceId": "res-1",
-                "params": { "schemaId": "s1", "categories": ["claim"], "instructions": "be brief", "density": 2.5, "tone": "scholarly", "language": "en", "sourceLanguage": "fr" }
-              }
+              "why": "a tagging job is given what a tagging job takes, each parameter under its own name",
+              "args": { "resourceId": "res-1", "params": { "motivation": "tagging", "schemaId": "s1", "categories": ["claim"], "language": "en", "sourceLanguage": "fr" } },
+              "sends": { "jobType": "mark", "resourceId": "res-1", "params": { "motivation": "tagging", "schemaId": "s1", "categories": ["claim"], "language": "en", "sourceLanguage": "fr" } }
             },
             {
-              "args": { "resourceId": "res-1", "motivation": "assessing", "options": {} },
-              "sends": { "jobType": "assessment-annotation", "resourceId": "res-1", "params": {} }
+              "why": "an assessing job is given what an assessing job takes",
+              "args": { "resourceId": "res-1", "params": { "motivation": "assessing", "instructions": "be brief", "tone": "critical", "density": 2.5, "language": "en", "sourceLanguage": "fr" } },
+              "sends": { "jobType": "mark", "resourceId": "res-1", "params": { "motivation": "assessing", "instructions": "be brief", "tone": "critical", "density": 2.5, "language": "en", "sourceLanguage": "fr" } }
             },
             {
-              "args": { "resourceId": "res-1", "motivation": "commenting", "options": {} },
-              "sends": { "jobType": "comment-annotation", "resourceId": "res-1", "params": {} }
+              "args": { "resourceId": "res-1", "params": { "motivation": "commenting", "tone": "scholarly" } },
+              "sends": { "jobType": "mark", "resourceId": "res-1", "params": { "motivation": "commenting", "tone": "scholarly" } }
             }
           ]
         },
@@ -300,13 +294,14 @@
           ]
         },
         {
-          "method": "requestAssist",
+          "method": "requestDelegate",
           "shape": "signal",
-          "via": { "local": "mark:assist-request" },
+          "via": { "local": "mark:delegate-request" },
           "cases": [
             {
-              "args": { "motivation": "linking", "options": { "entityTypes": ["Person"] } },
-              "sends": { "motivation": "linking", "options": { "entityTypes": ["Person"] } }
+              "why": "the request carries the job's parameters as `delegate` takes them",
+              "args": { "params": { "motivation": "linking", "entityTypes": ["Person"] } },
+              "sends": { "params": { "motivation": "linking", "entityTypes": ["Person"] } }
             }
           ]
         },
@@ -483,7 +478,7 @@
     },
     {
       "namespace": "yield",
-      "docs": "Creating resources: by upload, by generation, by cloning.",
+      "docs": "Creating resources: by upload, by a generation delegated as a job, by cloning.",
       "methods": [
         {
           "method": "resource",
@@ -497,19 +492,19 @@
           ]
         },
         {
-          "method": "fromContext",
-          "shape": "stream",
+          "method": "delegate",
+          "shape": "delegation",
           "via": { "request": "job:create" },
           "cases": [
             {
-              "why": "a generation job names no resource: its context's focus does",
-              "args": { "context": { "$fixture": "context" }, "options": { "title": "A summary", "storageUri": "file://a-summary.md" } },
-              "sends": { "jobType": "generation", "params": { "title": "A summary", "storageUri": "file://a-summary.md", "context": { "$fixture": "context" } } }
+              "why": "the namespace is the verb, so the job is a yield job; it names no resource: its context's focus does",
+              "args": { "params": { "title": "A summary", "storageUri": "file://a-summary.md", "context": { "$fixture": "context" } } },
+              "sends": { "jobType": "yield", "params": { "title": "A summary", "storageUri": "file://a-summary.md", "context": { "$fixture": "context" } } }
             },
             {
-              "why": "how long the follower waits is the client's own, and is not sent",
-              "args": { "context": { "$fixture": "context" }, "options": { "title": "A summary", "storageUri": "file://a-summary.md", "prompt": "in one line", "maxTokens": 200, "stallDeadlineMs": 5000 } },
-              "sends": { "jobType": "generation", "params": { "title": "A summary", "storageUri": "file://a-summary.md", "prompt": "in one line", "maxTokens": 200, "context": { "$fixture": "context" } } }
+              "why": "how long the follower waits is the client's own: it is given beside the job's parameters, and is not sent",
+              "args": { "params": { "title": "A summary", "storageUri": "file://a-summary.md", "prompt": "in one line", "maxTokens": 200, "context": { "$fixture": "context" } }, "stallDeadlineMs": 5000 },
+              "sends": { "jobType": "yield", "params": { "title": "A summary", "storageUri": "file://a-summary.md", "prompt": "in one line", "maxTokens": 200, "context": { "$fixture": "context" } } }
             }
           ]
         },
@@ -613,25 +608,36 @@
           "method": "queued",
           "shape": "events",
           "via": { "observes": "job:queued" },
-          "cases": [{ "args": {}, "sends": { "jobId": "job-1", "jobType": "generation", "resourceId": "res-1", "userId": "did:web:example.org:users:alice" } }]
+          "cases": [
+            {
+              "why": "a yield job is announced with what it is asked to make, and without its context",
+              "args": {},
+              "sends": { "jobId": "job-1", "jobType": "yield", "resourceId": "res-1", "userId": "did:web:example.org:users:alice", "params": { "title": "A summary", "storageUri": "file://a-summary.md" } }
+            },
+            {
+              "why": "a mark job is announced with its parameters, its motivation among them",
+              "args": {},
+              "sends": { "jobId": "job-2", "jobType": "mark", "resourceId": "res-1", "userId": "did:web:example.org:users:alice", "params": { "motivation": "tagging", "schemaId": "s1", "categories": ["claim"] } }
+            }
+          ]
         },
         {
           "method": "progress",
           "shape": "events",
           "via": { "observes": "job:report-progress" },
-          "cases": [{ "args": {}, "sends": { "resourceId": "res-1", "jobId": "job-1", "jobType": "generation", "percentage": 12.5 } }]
+          "cases": [{ "args": {}, "sends": { "resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "percentage": 12.5 } }]
         },
         {
           "method": "complete",
           "shape": "events",
           "via": { "observes": "job:complete" },
-          "cases": [{ "args": {}, "sends": { "resourceId": "res-1", "jobId": "job-1", "jobType": "generation" } }]
+          "cases": [{ "args": {}, "sends": { "resourceId": "res-1", "jobId": "job-1", "jobType": "yield" } }]
         },
         {
           "method": "fail",
           "shape": "events",
           "via": { "observes": "job:fail" },
-          "cases": [{ "args": {}, "sends": { "resourceId": "res-1", "jobId": "job-1", "jobType": "generation", "error": "the model refused" } }]
+          "cases": [{ "args": {}, "sends": { "resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "error": "the model refused" } }]
         },
         {
           "method": "status",
@@ -649,19 +655,19 @@
           "method": "cancelByType",
           "shape": "promise",
           "via": { "request": "job:cancel-requested" },
-          "cases": [{ "args": { "jobType": "annotation" }, "sends": { "jobType": "annotation" } }]
+          "cases": [{ "args": { "jobType": "mark" }, "sends": { "jobType": "mark" } }]
         },
         {
           "method": "cancel",
           "shape": "promise",
           "via": { "request": "job:cancel-requested" },
-          "cases": [{ "why": "one job, and no category with it", "args": { "jobId": "job-1" }, "sends": { "jobId": "job-1" } }]
+          "cases": [{ "why": "one job, and no type with it", "args": { "jobId": "job-1" }, "sends": { "jobId": "job-1" } }]
         },
         {
           "method": "cancelRequest",
           "shape": "signal",
           "via": { "local": "job:cancel-requested" },
-          "cases": [{ "args": { "jobType": "generation" }, "sends": { "jobType": "generation" } }]
+          "cases": [{ "args": { "jobType": "yield" }, "sends": { "jobType": "yield" } }]
         }
       ]
     },

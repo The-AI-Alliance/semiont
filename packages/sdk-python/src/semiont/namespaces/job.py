@@ -1,6 +1,6 @@
 """Job: a job's lifecycle as it is announced, its status, and its cancellation.
 
-Creating a job is `mark.assist` and `yield_.from_context`.
+Creating a job is `mark.delegate` and `yield_.delegate`.
 """
 
 import asyncio
@@ -15,13 +15,13 @@ from semiont.namespaces.links import Links
 from semiont.operations import JOB_CANCEL_REQUESTED, JOB_STATUS_REQUESTED
 from semiont.types import (
     JobCancelRequest,
-    JobCancelRequestJobType,
     JobCompleteCommand,
     JobFailCommand,
     JobQueuedEvent,
     JobReportProgressCommand,
     JobStatusRequest,
     JobStatusResponse,
+    JobType,
 )
 
 __all__ = ["JobNamespace"]
@@ -35,7 +35,7 @@ class JobNamespace:
         self._links: Final = links
 
     def queued(self) -> Typed[JobQueuedEvent]:
-        """Every `job:queued` from now on."""
+        """Every `job:queued` from now on: each a `mark` job's announcement or a `yield` job's, as its `job_type` says."""
         return self._links.own.frames(JOB_QUEUED)
 
     def progress(self) -> Typed[JobReportProgressCommand]:
@@ -43,7 +43,7 @@ class JobNamespace:
         return self._links.own.frames(JOB_REPORT_PROGRESS)
 
     def complete(self) -> Typed[JobCompleteCommand]:
-        """Every `job:complete` from now on, of every job."""
+        """Every `job:complete` from now on, of every job: each a `mark` job's completion or a `yield` job's, as its `job_type` says."""
         return self._links.own.frames(JOB_COMPLETE)
 
     def fail(self) -> Typed[JobFailCommand]:
@@ -74,8 +74,8 @@ class JobNamespace:
                 raise BusRequestError("bus.timeout", f"Job polling timeout after {within_ms}ms")
             await asyncio.sleep(every_ms / 1000)
 
-    async def cancel_by_type(self, job_type: JobCancelRequestJobType) -> int:
-        """Cancel every pending job of a category: how many were cancelled. Running jobs are their workers' to stop."""
+    async def cancel_by_type(self, job_type: JobType) -> int:
+        """Cancel every pending job of one type: how many were cancelled. Running jobs are their workers' to stop."""
         return await self._cancelled(JobCancelRequest(job_type=job_type))
 
     async def cancel(self, job_id: JobId) -> int:
@@ -86,8 +86,8 @@ class JobNamespace:
         """
         return await self._cancelled(JobCancelRequest(job_id=job_id))
 
-    def cancel_request(self, job_type: JobCancelRequestJobType) -> None:
-        """Signal: the cancellation of a category is wanted."""
+    def cancel_request(self, job_type: JobType) -> None:
+        """Signal: the cancellation of every pending job of one type is wanted."""
         self._links.signal(JOB_CANCEL_REQUESTED.request, JobCancelRequest(job_type=job_type))
 
     async def _cancelled(self, request: JobCancelRequest) -> int:

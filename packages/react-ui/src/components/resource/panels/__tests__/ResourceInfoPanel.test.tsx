@@ -309,12 +309,12 @@ describe('ResourceInfoPanel Component', () => {
 
     // ── Generation: the panel is the progress surface ─────────────────────────
 
-    it('the Generate control lives inside the assist shell', () => {
+    it('the Generate control lives inside the delegate shell', () => {
       const { container } = renderWithEventBus(
         <ResourceInfoPanel {...defaultProps} onGenerate={() => {}}
           isGenerating={false} generationProgress={null} />
       );
-      const shell = container.querySelector('.semiont-assist-widget[data-type="generation"]');
+      const shell = container.querySelector('.semiont-delegate-widget[data-type="generation"]');
       expect(shell).not.toBeNull();
       expect(shell!.querySelector('button')).not.toBeNull(); // the form IS the Generate control
     });
@@ -325,7 +325,7 @@ describe('ResourceInfoPanel Component', () => {
           isGenerating
           generationProgress={{ percentage: 40, message: { code: 'generating-resource' } }} />
       );
-      expect(container.querySelector('.semiont-assist-progress')).not.toBeNull();
+      expect(container.querySelector('.semiont-delegate-progress')).not.toBeNull();
       expect(screen.queryByRole('button', { name: '✨ Generate' })).toBeNull();
     });
 
@@ -348,19 +348,19 @@ describe('ResourceInfoPanel Component', () => {
       expect(openSpy).toHaveBeenCalledTimes(1);
       expect(String(openSpy.mock.calls[0]![0])).toBe('res-new1');
 
-      fireEvent.click(screen.getByTestId('semiont-assist-control'));
+      fireEvent.click(screen.getByTestId('semiont-delegate-control'));
       expect(onDismissProgress).toHaveBeenCalledTimes(1);
     });
 
     it('a truncated completion says so; a natural stop does not', () => {
       // The mocked translator echoes unknown keys, so the assertion reads the
-      // KEY the real assistProgressCopy branch picked — structure, not copy.
+      // KEY the real delegateProgressCopy branch picked — structure, not copy.
       const base = { ...defaultProps, onGenerate: () => {}, isGenerating: false };
       const { unmount } = renderWithEventBus(
         <ResourceInfoPanel {...base}
           generationProgress={{ percentage: 100, message: { code: 'complete-generated', truncated: true } }} />
       );
-      expect(screen.getByTestId('semiont-assist-status').textContent)
+      expect(screen.getByTestId('semiont-delegate-status').textContent)
         .toContain('codeCompleteGeneratedTruncated');
       unmount();
 
@@ -368,9 +368,9 @@ describe('ResourceInfoPanel Component', () => {
         <ResourceInfoPanel {...base}
           generationProgress={{ percentage: 100, message: { code: 'complete-generated', truncated: false } }} />
       );
-      expect(screen.getByTestId('semiont-assist-status').textContent)
+      expect(screen.getByTestId('semiont-delegate-status').textContent)
         .toContain('codeCompleteGenerated');
-      expect(screen.getByTestId('semiont-assist-status').textContent)
+      expect(screen.getByTestId('semiont-delegate-status').textContent)
         .not.toContain('Truncated');
     });
 
@@ -388,7 +388,7 @@ describe('ResourceInfoPanel Component', () => {
             truncated: false,
           }} />
       );
-      expect(screen.getByTestId('semiont-assist-status').textContent).toBe('codeCompleteGenerated');
+      expect(screen.getByTestId('semiont-delegate-status').textContent).toBe('codeCompleteGenerated');
     });
 
     it('a truncated outcome says so — the bit rides the outcome, not the racing frame', () => {
@@ -402,7 +402,7 @@ describe('ResourceInfoPanel Component', () => {
             truncated: true,
           }} />
       );
-      expect(screen.getByTestId('semiont-assist-status').textContent).toBe('codeCompleteGeneratedTruncated');
+      expect(screen.getByTestId('semiont-delegate-status').textContent).toBe('codeCompleteGeneratedTruncated');
     });
 
     it('no outcome, no link: the ended frame renders without one until job:complete arrives', () => {

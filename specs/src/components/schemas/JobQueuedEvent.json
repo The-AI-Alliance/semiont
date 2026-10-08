@@ -1,25 +1,18 @@
 {
-  "type": "object",
-  "description": "Event indicating a job has been queued",
-  "properties": {
-    "jobId": {
-      "$ref": "./JobId.json"
+  "description": "A pending job, announced when it is created and again at each tick while it waits. It carries the job description less the job's input, so that a party deciding whether to claim reads here what its claim would be matched against. It is a wake-up and not an offer of this job: a claim is answered with the next pending job it matches.",
+  "oneOf": [
+    {
+      "$ref": "./MarkJobQueuedEvent.json"
     },
-    "jobType": {
-      "type": "string"
-    },
-    "resourceId": {
-      "$ref": "./ResourceId.json"
-    },
-    "userId": {
-      "$ref": "./UserId.json",
-      "description": "DID of the user who initiated the job (audit)."
+    {
+      "$ref": "./YieldJobQueuedEvent.json"
     }
-  },
-  "required": [
-    "jobId",
-    "jobType",
-    "resourceId",
-    "userId"
-  ]
+  ],
+  "discriminator": {
+    "propertyName": "jobType",
+    "mapping": {
+      "mark": "./MarkJobQueuedEvent.json",
+      "yield": "./YieldJobQueuedEvent.json"
+    }
+  }
 }

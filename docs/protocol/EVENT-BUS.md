@@ -81,15 +81,16 @@ Each channel falls into one of five payload categories. The category tells you w
 
 `CHANNEL_SCHEMAS` — declared in [the registry](../../specs/src/bus/registry.json), generated into `bus-protocol.ts` — maps every channel to its OpenAPI schema name (or `null` when validation isn't applicable — `StoredEvent` wrappers, `void` signals, inline wrapper types such as `{ response: T }`). The gateway's `/bus/emit` route validates against the same registry entries and rejects payloads that don't validate.
 
-### Wire unions discriminate — every one of them
+### Wire unions discriminate
 
-Every `oneOf` in the wire vocabulary carries an in-band discriminant, declared as an
+A wire union whose members are told apart by a field declares that field: an
 OpenAPI `discriminator` with an explicit `mapping`. This is a protocol property, not a
 per-schema accident:
 
 | union | discriminant |
 |---|---|
-| `JobResult` | `kind` — the six job types + `'declined'` (a decline is an *outcome* any job type can produce, which is why it is not named `jobType`) |
+| `JobCreateCommand`, `JobCompleteCommand`, `JobFilter`, `JobQueuedEvent` | `jobType` — `mark` / `yield` |
+| `MarkJobParams` | `motivation` — one named schema for each of the five |
 | `JobProgressMessage` | `code` — one named schema per code |
 | `Agent` | `@type` — `Person` / `Organization` / `Software` |
 | `AnnotationBody` | `type` |
@@ -98,8 +99,7 @@ per-schema accident:
 
 What that buys each generated client: **TypeScript** narrows with an exhaustive
 `switch` whose `default` is `never` — an unhandled member is a compile error, and no
-consumer needs a cast or a property probe (if you find yourself writing
-`'resourceId' in result` against a wire union, the schema owns the answer). **Go** gets typed variants with `Discriminator()` /
+consumer needs a cast. **Go** gets typed variants with `Discriminator()` /
 `ValueByDiscriminator()` instead of an opaque `json.RawMessage` — and note that the
 positional `As*()` accessors remain bare unmarshals that succeed on the wrong
 variant; `ValueByDiscriminator()` is the honest dispatch.
@@ -110,6 +110,14 @@ that degrades silently on an unhandled code, so `TestProgressTextCoversEveryCode
 feeds it every wire code and requires non-empty text for each. A new code fails that
 pin, not a user's terminal. When adding a member to any union above, that is the
 pattern: TS gets it free from the `never` default; Go needs its census extended.
+
+**`JobResult` has no discriminant, by design.** It is what a job's record holds, one of
+three: a `mark` job's counts, the resource a `yield` job made, or a decline. The record's
+type says which job it answers, and the three share no member, so each is told from the
+others by what it alone carries: `found`, `resourceId` or `declined`. In TypeScript that
+is `'found' in result`. A completion is narrower. `job:complete` is told apart by
+`jobType` and carries its verb's result, a `MarkJobResult` or a `YieldJobResult`: its
+verb's own result or a decline, and the decline is the one with `declined`.
 
 ## Identity: `_userId` and `_roles` are gateway-stamped
 

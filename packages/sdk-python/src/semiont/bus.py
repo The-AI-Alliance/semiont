@@ -143,8 +143,7 @@ def decoded[P: WireModel](channel: Channel[P], payload: Mapping[str, JsonValue])
     the bus's, not the payload's: one the channel's type does not declare is
     left out before the payload is read.
     """
-    declared = {field.alias or name for name, field in channel.payload.model_fields.items()}
-    return channel.decode({name: value for name, value in payload.items() if not name.startswith("_") or name in declared})
+    return channel.decode({name: value for name, value in payload.items() if not name.startswith("_") or name in channel.stamps})
 
 
 @final

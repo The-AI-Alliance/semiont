@@ -110,7 +110,12 @@ type envConfig struct {
 	Signal   *signalCfg            `toml:"signal"`
 	Identity *identityCfg          `toml:"identity"`
 	Actors   map[string]bindingCfg `toml:"actors"`
-	Workers  map[string]bindingCfg `toml:"workers"`
+	// WorkersWritten: the `workers` section as it is written. Only
+	// resolveWorkersSection reads it, into Workers.
+	WorkersWritten map[string]any `toml:"workers"`
+	// Workers: the binding each section of `workers` holds, by the jobs that
+	// section serves: "default", "mark", "mark.<motivation>", "yield".
+	Workers map[string]bindingCfg `toml:"-"`
 	// MakeMeaning is read for the bindings it adds to Actors (archivistRoster).
 	MakeMeaning *makeMeaningCfg `toml:"make-meaning"`
 	// Site is read ONLY to refuse it (loadConfig). A knowledge base declares
@@ -327,6 +332,9 @@ func loadConfig(path string) (*envConfig, string, configRefs, error) {
 	if err := resolveGatewaySection(&env, path, envName); err != nil {
 		return nil, "", configRefs{}, err
 	}
+	if err := resolveWorkersSection(&env, path, envName); err != nil {
+		return nil, "", configRefs{}, err
+	}
 	envSection := environmentSection(doc, envName)
 	return &env, envName, configRefs{envSection: envSection, ByService: serviceVars(envSection, &env)}, nil
 }
@@ -374,4 +382,63 @@ func resolveGatewaySection(env *envConfig, path, envName string) error {
 	}
 	env.GatewayOld = nil
 	return nil
+}
+
+// resolveWorkersSection reads the `workers` section as written into
+// env.Workers: the binding each of its sections holds. A section names the
+// jobs it serves as a job description does, by job type and, for `mark`, by
+// motivation; `workers.default` serves every job no other section does.
+//
+// A section that names no job is refused by name: left alone it would bind
+// nothing, and the job it was written for would go unserved without a word.
+// The TypeScript loader refuses the same sections, and
+// specs/src/service-config/roster-cases.json holds the two to one refusal.
+func resolveWorkersSection(env *envConfig, path, envName string) error {
+	sections := workerSections()
+	env.Workers = map[string]bindingCfg{}
+	var read func(above string, written map[string]any) error
+	read = func(above string, written map[string]any) error {
+		names := make([]string, 0, len(written))
+		for name := range written {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			value := written[name]
+			// A section's own `inference` is its binding, read with it.
+			if above != "" && name == "inference" {
+				continue
+			}
+			section := above + name
+			at := fmt.Sprintf("%s: [environments.%s.workers.%s]", path, envName, section)
+			if !contains(sections, section) {
+				return fmt.Errorf("%s names no job — a worker section is one of workers.%s", at, strings.Join(sections, ", workers."))
+			}
+			table, isTable := value.(map[string]any)
+			if !isTable {
+				return fmt.Errorf("%s is not a section", at)
+			}
+			text, err := toml.Marshal(table)
+			if err != nil {
+				return fmt.Errorf("%s: %v", at, err)
+			}
+			var held bindingCfg
+			if err := toml.Unmarshal(text, &held); err != nil {
+				return fmt.Errorf("%s: %v", at, err)
+			}
+			env.Workers[section] = held
+			// Only a section with sections under it (`mark`) is read further:
+			// what else a binding's own section holds is not the launcher's.
+			if !servesUnder(sections, section) {
+				continue
+			}
+			if err := read(section+".", table); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	err := read("", env.WorkersWritten)
+	env.WorkersWritten = nil
+	return err
 }

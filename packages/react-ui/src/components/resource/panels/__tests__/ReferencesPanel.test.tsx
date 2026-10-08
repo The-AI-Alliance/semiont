@@ -21,7 +21,7 @@ function createEventTracker() {
     events,
     clear: () => { events.length = 0; },
     _attach(eventBus: EventBus) {
-      const panelEvents = ['mark:assist-request', 'mark:submit'] as const;
+      const panelEvents = ['mark:delegate-request', 'mark:submit'] as const;
       panelEvents.forEach((eventName) => {
         eventBus.on(eventName).subscribe((payload: any) => {
           events.push({ event: eventName, payload });
@@ -70,7 +70,7 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
       createReference: 'Create Reference',
       annotating: 'Annotating...',
       // The widget's own strings come from the
-      // AssistProgress namespace, not from this panel's.
+      // DelegateProgress namespace, not from this panel's.
       inProgress: 'Annotating...',
       complete: 'Annotation complete!',
       failed: 'Annotation failed',
@@ -99,7 +99,7 @@ describe('ReferencesPanel Component', () => {
   const defaultProps = {
     resourceId: resourceId('res-1'),
     allEntityTypes: ['Person', 'Organization', 'Location', 'Date'],
-    isAssisting: false,
+    isDelegating: false,
     progress: null,
     annotateMode: true,
     Link: MockLink,
@@ -194,7 +194,7 @@ describe('ReferencesPanel Component', () => {
     const submitPayloads = (tracker: ReturnType<typeof createEventTracker>) =>
       tracker.events.filter(e => e.event === 'mark:submit').map(e => e.payload);
 
-    // The panel's own entity-type chips, not AssistSection's identically
+    // The panel's own entity-type chips, not DelegateSection's identically
     // labelled ones.
     const renderPrompt = (tracker: ReturnType<typeof createEventTracker>) => {
       const { container } = renderWithEventBus(
@@ -367,11 +367,11 @@ describe('ReferencesPanel Component', () => {
 
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'mark:assist-request' &&
-          e.payload?.motivation === 'linking' &&
-          e.payload?.options?.entityTypes?.includes('Person') &&
-          e.payload?.options?.entityTypes?.includes('Organization') &&
-          e.payload?.options?.includeDescriptiveReferences === false
+          e.event === 'mark:delegate-request' &&
+          e.payload?.params?.motivation === 'linking' &&
+          e.payload?.params?.entityTypes?.includes('Person') &&
+          e.payload?.params?.entityTypes?.includes('Organization') &&
+          e.payload?.params?.includeDescriptiveReferences === false
         )).toBe(true);
       });
     });
@@ -392,10 +392,10 @@ describe('ReferencesPanel Component', () => {
 
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'mark:assist-request' &&
-          e.payload?.motivation === 'linking' &&
-          e.payload?.options?.entityTypes?.includes('Person') &&
-          e.payload?.options?.includeDescriptiveReferences === true
+          e.event === 'mark:delegate-request' &&
+          e.payload?.params?.motivation === 'linking' &&
+          e.payload?.params?.entityTypes?.includes('Person') &&
+          e.payload?.params?.includeDescriptiveReferences === true
         )).toBe(true);
       });
     });
@@ -412,7 +412,7 @@ describe('ReferencesPanel Component', () => {
       rerender(
         <ReferencesPanel
           {...panelProps()}
-          isAssisting={true}
+          isDelegating={true}
           progress={{ percentage: 0, completedItems: [] }}
         />
       );
@@ -421,7 +421,7 @@ describe('ReferencesPanel Component', () => {
       rerender(
         <ReferencesPanel
           {...panelProps()}
-          isAssisting={false}
+          isDelegating={false}
           progress={{
             percentage: 100,
             completedItems: [{ value: 'Person', foundCount: 5 }],
@@ -439,7 +439,7 @@ describe('ReferencesPanel Component', () => {
       const startButton = screen.getByTitle('Annotate');
 
       expect(startButton).toHaveClass('semiont-button');
-      expect(startButton).toHaveAttribute('data-variant', 'assist');
+      expect(startButton).toHaveAttribute('data-variant', 'delegate');
       expect(startButton).toHaveAttribute('data-type', 'reference');
       expect(startButton).toBeDisabled();
     });
@@ -452,7 +452,7 @@ describe('ReferencesPanel Component', () => {
       const startButton = screen.getByTitle('Annotate');
 
       expect(startButton).toHaveClass('semiont-button');
-      expect(startButton).toHaveAttribute('data-variant', 'assist');
+      expect(startButton).toHaveAttribute('data-variant', 'delegate');
       expect(startButton).toHaveAttribute('data-type', 'reference');
       expect(startButton).not.toBeDisabled();
     });
@@ -463,7 +463,7 @@ describe('ReferencesPanel Component', () => {
       renderWithEventBus(
         <ReferencesPanel
           {...panelProps()}
-          isAssisting={true}
+          isDelegating={true}
           progress={{ percentage: 0, completedItems: [] }}
         />
       );
@@ -483,25 +483,25 @@ describe('ReferencesPanel Component', () => {
       renderWithEventBus(
         <ReferencesPanel
           {...panelProps()}
-          isAssisting={true}
+          isDelegating={true}
           progress={progress}
         />
       );
 
-      // Real AssistProgress renders the completed entity-type log.
+      // Real DelegateProgress renders the completed entity-type log.
       expect(screen.getByText('Person:')).toBeInTheDocument();
       expect(screen.getByText('Organization:')).toBeInTheDocument();
     });
 
     it('renders the entity log with the SAME markup the progress display uses', () => {
-      // This form-side log and AssistProgress's completed-entity log are the
+      // This form-side log and DelegateProgress's completed-entity log are the
       // same concept, so both use the semiont-annotation-log* classes and
-      // neither has a semiont-assist-widget__log* family of its own — one
+      // neither has a semiont-delegate-widget__log* family of its own — one
       // concept, one markup.
       const { container, rerender } = renderWithEventBus(
         <ReferencesPanel
           {...panelProps()}
-          isAssisting={false}
+          isDelegating={false}
           progress={{
             percentage: 100,
             completedItems: [{ value: 'Person', foundCount: 5 }],
@@ -509,19 +509,19 @@ describe('ReferencesPanel Component', () => {
         />
       );
       rerender(
-        <ReferencesPanel {...panelProps()} isAssisting={false} progress={null} />
+        <ReferencesPanel {...panelProps()} isDelegating={false} progress={null} />
       );
 
       expect(container.querySelector('.semiont-annotation-log')).toBeInTheDocument();
       expect(container.querySelector('.semiont-annotation-log-item')).toBeInTheDocument();
-      expect(container.querySelector('.semiont-assist-widget__log')).not.toBeInTheDocument();
+      expect(container.querySelector('.semiont-delegate-widget__log')).not.toBeInTheDocument();
     });
 
     it('should hide entity type selection during detection', () => {
       renderWithEventBus(
         <ReferencesPanel
           {...panelProps()}
-          isAssisting={true}
+          isDelegating={true}
           progress={{ percentage: 0, completedItems: [] }}
         />
       );
@@ -534,12 +534,12 @@ describe('ReferencesPanel Component', () => {
       renderWithEventBus(
         <ReferencesPanel
           {...panelProps()}
-          isAssisting={true}
+          isDelegating={true}
           progress={{ percentage: 0, completedItems: [] }}
         />
       );
 
-      // The control's label comes from the AssistProgress namespace's `cancel`.
+      // The control's label comes from the DelegateProgress namespace's `cancel`.
       const cancelButton = screen.getByTitle('Cancel');
       expect(cancelButton).toBeInTheDocument();
     });
@@ -550,7 +550,7 @@ describe('ReferencesPanel Component', () => {
       const { rerender } = renderWithEventBus(
         <ReferencesPanel
           {...panelProps()}
-          isAssisting={false}
+          isDelegating={false}
           progress={{
             percentage: 100,
             completedItems: [
@@ -565,7 +565,7 @@ describe('ReferencesPanel Component', () => {
       rerender(
         <ReferencesPanel
           {...panelProps()}
-          isAssisting={false}
+          isDelegating={false}
           progress={null}
         />
       );
@@ -578,7 +578,7 @@ describe('ReferencesPanel Component', () => {
       const { rerender } = renderWithEventBus(
         <ReferencesPanel
           {...panelProps()}
-          isAssisting={false}
+          isDelegating={false}
           progress={{
             percentage: 100,
             completedItems: [{ value: 'Person', foundCount: 5 }],
@@ -587,7 +587,7 @@ describe('ReferencesPanel Component', () => {
       );
 
       rerender(
-        <ReferencesPanel {...panelProps()} isAssisting={false} progress={null} />
+        <ReferencesPanel {...panelProps()} isDelegating={false} progress={null} />
       );
       expect(screen.getByText(/Found.*5/i)).toBeInTheDocument();
     });
@@ -596,7 +596,7 @@ describe('ReferencesPanel Component', () => {
       const { rerender } = renderWithEventBus(
         <ReferencesPanel
           {...panelProps()}
-          isAssisting={false}
+          isDelegating={false}
           progress={{
             percentage: 100,
             completedItems: [{ value: 'Person', foundCount: 5 }],
@@ -605,7 +605,7 @@ describe('ReferencesPanel Component', () => {
       );
 
       rerender(
-        <ReferencesPanel {...panelProps()} isAssisting={false} progress={null} />
+        <ReferencesPanel {...panelProps()} isDelegating={false} progress={null} />
       );
       expect(screen.getByText('✓')).toBeInTheDocument();
     });
@@ -614,7 +614,7 @@ describe('ReferencesPanel Component', () => {
       const { rerender } = renderWithEventBus(
         <ReferencesPanel
           {...panelProps()}
-          isAssisting={false}
+          isDelegating={false}
           progress={{
             percentage: 100,
             completedItems: [{ value: 'Person', foundCount: 5 }],
@@ -623,7 +623,7 @@ describe('ReferencesPanel Component', () => {
       );
 
       rerender(
-        <ReferencesPanel {...panelProps()} isAssisting={false} progress={null} />
+        <ReferencesPanel {...panelProps()} isDelegating={false} progress={null} />
       );
 
       // Should show both the completed log AND the selection UI
@@ -635,7 +635,7 @@ describe('ReferencesPanel Component', () => {
       const { rerender } = renderWithEventBus(
         <ReferencesPanel
           {...panelProps()}
-          isAssisting={false}
+          isDelegating={false}
           progress={{
             percentage: 100,
             completedItems: [{ value: 'Person', foundCount: 5 }],
@@ -644,7 +644,7 @@ describe('ReferencesPanel Component', () => {
       );
 
       rerender(
-        <ReferencesPanel {...panelProps()} isAssisting={false} progress={null} />
+        <ReferencesPanel {...panelProps()} isDelegating={false} progress={null} />
       );
 
       // Selection UI should be immediately available (no button click needed)
@@ -656,7 +656,7 @@ describe('ReferencesPanel Component', () => {
       renderWithEventBus(
         <ReferencesPanel
           {...panelProps()}
-          isAssisting={false}
+          isDelegating={false}
           progress={{
             percentage: 100,
             completedItems: [],
@@ -665,7 +665,7 @@ describe('ReferencesPanel Component', () => {
       );
 
       // Should not show any log items. Terminal progress (dismissable) is
-      // shown instead of the form — the AssistShell normalization; the
+      // shown instead of the form — the DelegateShell normalization; the
       // form returns once progress clears.
       expect(screen.queryByText('✓')).not.toBeInTheDocument();
       expect(screen.queryByText('Select entity types')).not.toBeInTheDocument();
@@ -683,7 +683,7 @@ describe('ReferencesPanel Component', () => {
       rerender(
         <ReferencesPanel
           {...panelProps()}
-          isAssisting={true}
+          isDelegating={true}
           progress={{ percentage: 0, completedItems: [] }}
         />
       );
@@ -697,7 +697,7 @@ describe('ReferencesPanel Component', () => {
       const { rerender } = renderWithEventBus(
         <ReferencesPanel
           {...panelProps()}
-          isAssisting={true}
+          isDelegating={true}
           progress={{ percentage: 0, completedItems: [] }}
         />
       );
@@ -709,7 +709,7 @@ describe('ReferencesPanel Component', () => {
       rerender(
         <ReferencesPanel
           {...panelProps()}
-          isAssisting={false}
+          isDelegating={false}
           progress={{
             percentage: 100,
             completedItems: [{ value: 'Person', foundCount: 5 }],
@@ -719,7 +719,7 @@ describe('ReferencesPanel Component', () => {
 
       // Then clear progress to show the log
       rerender(
-        <ReferencesPanel {...panelProps()} isAssisting={false} progress={null} />
+        <ReferencesPanel {...panelProps()} isDelegating={false} progress={null} />
       );
 
       expect(screen.queryByText('Annotation complete!')).not.toBeInTheDocument();
@@ -732,7 +732,7 @@ describe('ReferencesPanel Component', () => {
       const { rerender } = renderWithEventBus(
         <ReferencesPanel
           {...panelProps()}
-          isAssisting={false}
+          isDelegating={false}
           progress={{
             percentage: 100,
             completedItems: [{ value: 'Person', foundCount: 5 }],
@@ -742,7 +742,7 @@ describe('ReferencesPanel Component', () => {
 
       // Clear progress to show the log
       rerender(
-        <ReferencesPanel {...panelProps()} isAssisting={false} progress={null} />
+        <ReferencesPanel {...panelProps()} isDelegating={false} progress={null} />
       );
 
       // Selection UI should be immediately available
@@ -824,7 +824,7 @@ describe('ReferencesPanel Component', () => {
       renderWithEventBus(
         <ReferencesPanel
           {...panelProps()}
-          isAssisting={false}
+          isDelegating={false}
           progress={{
             percentage: 100,
             completedItems: [{ value: 'Person', foundCount: 0 }],
@@ -840,7 +840,7 @@ describe('ReferencesPanel Component', () => {
         renderWithEventBus(
           <ReferencesPanel
             {...panelProps()}
-            isAssisting={false}
+            isDelegating={false}
             progress={undefined as any}
           />
         );
@@ -876,7 +876,7 @@ describe('ReferencesPanel Component', () => {
       renderWithEventBus(<ReferencesPanel {...panelProps()} />);
 
       const buttonContainer = screen.getByText('Person').parentElement;
-      expect(buttonContainer).toHaveClass('semiont-assist-widget__chips');
+      expect(buttonContainer).toHaveClass('semiont-delegate-widget__chips');
     });
   });
 

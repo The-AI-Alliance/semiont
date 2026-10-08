@@ -47,7 +47,7 @@ export function pyDocstring(text, indent = '', width = 96) {
   return `${indent}"""${lines[0]}\n${lines.slice(1).map((l) => `${indent}${l}`).join('\n')}${lines.length > 1 ? '\n' : ''}${indent}"""`;
 }
 
-/** `emitRetry` → `EMIT_RETRY`; `mark:assist-timeout` → `MARK_ASSIST_TIMEOUT`. */
+/** `emitRetry` → `EMIT_RETRY`; `mark:delegate-timeout` → `MARK_DELEGATE_TIMEOUT`. */
 export const pyConstant = (name) =>
   name
     .replace(/([a-z0-9])([A-Z])/g, '$1_$2')

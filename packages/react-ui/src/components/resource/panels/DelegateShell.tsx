@@ -2,49 +2,49 @@
 
 import { useState, useEffect, type ReactNode } from 'react';
 import type { components } from '@semiont/core';
-import { AssistProgress, type AssistProgressProps, type AssistDataType } from '../../AssistProgress';
+import { DelegateProgress, type DelegateProgressProps, type DelegateDataType } from '../../DelegateProgress';
 
 type JobProgress = components['schemas']['JobProgress'];
 
-export interface AssistShellProps {
+export interface DelegateShellProps {
   /** localStorage persist-key suffix and CSS `data-type`. */
-  assistType: AssistDataType;
+  delegateType: DelegateDataType;
   /** Collapsible section title (already translated). */
   title: string;
-  isAssisting: boolean;
+  isDelegating: boolean;
   progress: JobProgress | null | undefined;
   /** The per-motivation form (fields + submit) — shown when no progress is displayed. */
   form: ReactNode;
   /**
    * Pass-through config for the progress renderer (cancel/dismiss wiring,
    * translations, percent bar). Dismiss policy lives HERE: the shell forwards
-   * `onDismiss` only once the assist is no longer running.
+   * `onDismiss` only once the delegated job is no longer running.
    *
    * Required because `translations` is: the shell renders the progress display
    * itself, so a caller that omitted this would render untranslated chrome —
    * the failure the widget's required translations exist to make impossible.
    */
-  progressProps: Omit<AssistProgressProps, 'progress' | 'dataType' | 'ended'>;
+  progressProps: Omit<DelegateProgressProps, 'progress' | 'dataType' | 'ended'>;
 }
 
 /**
- * The one assist-section chrome: collapsible header with persisted expand
- * state, the assisting wrapper, and the form-vs-progress switch. Every
+ * The one delegate-section chrome: collapsible header with persisted expand
+ * state, the delegating wrapper, and the form-vs-progress switch. Every
  * motivation's panel composes this shell with its own fields — the fields
  * differ per motivation by design (instructions/tone/density vs entity chips
  * vs schema+categories), so the shell owns only what is genuinely shared.
  */
-export function AssistShell({ assistType, title, isAssisting, progress, form, progressProps }: AssistShellProps) {
+export function DelegateShell({ delegateType, title, isDelegating, progress, form, progressProps }: DelegateShellProps) {
   const [isExpanded, setIsExpanded] = useState(() => {
     if (typeof window === 'undefined') return true;
-    const stored = localStorage.getItem(`assist-section-expanded-${assistType}`);
+    const stored = localStorage.getItem(`delegate-section-expanded-${delegateType}`);
     return stored ? stored === 'true' : true;
   });
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    localStorage.setItem(`assist-section-expanded-${assistType}`, String(isExpanded));
-  }, [isExpanded, assistType]);
+    localStorage.setItem(`delegate-section-expanded-${delegateType}`, String(isExpanded));
+  }, [isExpanded, delegateType]);
 
   return (
     <div className="semiont-panel__section">
@@ -61,25 +61,25 @@ export function AssistShell({ assistType, title, isAssisting, progress, form, pr
       </button>
       {isExpanded && (
         <div
-          className="semiont-assist-widget"
-          data-assisting={isAssisting && progress ? 'true' : 'false'}
-          data-type={assistType}
+          className="semiont-delegate-widget"
+          data-delegating={isDelegating && progress ? 'true' : 'false'}
+          data-type={delegateType}
         >
           {!progress && form}
           {progress && (
-            <AssistProgress
+            <DelegateProgress
               progress={progress}
-              dataType={assistType}
+              dataType={delegateType}
               // `ended` is deliberately NOT in `progressProps` (it is Omit'd):
               // the shell watches the job lifecycle, so a panel cannot get this
               // wrong or forget it.
-              // Terminality is the OWNER's fact. `isAssisting` follows the
+              // Terminality is the OWNER's fact. `isDelegating` follows the
               // job lifecycle (job:complete / job:fail); the widget must never
               // infer "done" from a progress payload, which cannot tell it
               // about a cancel or a crash after the last tick.
-              ended={!isAssisting}
+              ended={!isDelegating}
               {...progressProps}
-              {...(isAssisting ? { onDismiss: undefined } : {})}
+              {...(isDelegating ? { onDismiss: undefined } : {})}
             />
           )}
         </div>

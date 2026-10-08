@@ -1,0 +1,39 @@
+{
+  "type": "object",
+  "description": "What a tagging job takes: passages of the resource are marked with categories of one tag schema.",
+  "properties": {
+    "motivation": {
+      "type": "string",
+      "enum": [
+        "tagging"
+      ]
+    },
+    "schemaId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The tag schema to tag by. It is one the knowledge base registers."
+    },
+    "categories": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "description": "The categories of that schema to tag with."
+    },
+    "language": {
+      "type": "string",
+      "description": "The language the annotations' own text is written in. BCP 47."
+    },
+    "sourceLanguage": {
+      "type": "string",
+      "description": "The language of the resource being read. BCP 47."
+    }
+  },
+  "required": [
+    "motivation",
+    "schemaId",
+    "categories"
+  ],
+  "additionalProperties": false
+}

@@ -1,5 +1,5 @@
 import type { Observable } from 'rxjs';
-import type { EventBus, EventMap, JobId, components } from '@semiont/core';
+import type { EventBus, EventMap, JobId, JobType, components } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
 import { busRequest, BusRequestError } from '@semiont/core';
 import type { JobNamespace as IJobNamespace } from './types';
@@ -65,7 +65,7 @@ export class JobNamespace implements IJobNamespace {
     }
   }
 
-  async cancelByType(jobType: 'annotation' | 'generation'): Promise<number> {
+  async cancelByType(jobType: JobType): Promise<number> {
     // Confirmed write: cancels all PENDING jobs of the type (running jobs finish:
     // only `cancel(jobId)` stops one) and resolves with the count. Rejects on a
     // queue failure instead of swallowing it.
@@ -78,7 +78,7 @@ export class JobNamespace implements IJobNamespace {
   }
 
   /**
-   * Cancel ONE job by id. Awaited like its category
+   * Cancel ONE job by id. Awaited like its by-type
    * sibling `cancelByType`, and resolves with what the queue did: a PENDING
    * job is cancelled outright; a RUNNING one is left to its worker, which
    * stops cooperatively at the next unit boundary and keeps its checkpoint
@@ -96,7 +96,7 @@ export class JobNamespace implements IJobNamespace {
     return cancelled;
   }
 
-  cancelRequest(jobType: 'annotation' | 'generation'): void {
+  cancelRequest(jobType: JobType): void {
     // Local emit: a progress widget's cancel control fires this. Nothing in the
     // SDK subscribes to it; the call that cancels is `cancelByType`.
     this.bus.emit('job:cancel-requested', { jobType });

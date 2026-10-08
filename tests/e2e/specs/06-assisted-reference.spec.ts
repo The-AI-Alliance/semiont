@@ -2,17 +2,16 @@ import { test, expect } from '../fixtures/auth';
 
 import { openResourceByName } from '../fixtures/discover';
 /**
- * Smoke test: the AI-assisted "Annotate References" flow dispatches a
- * reference-annotation job **and the resulting reference annotations are
- * actually persisted.**
+ * Smoke test: the delegated "Annotate References" flow dispatches a
+ * `mark` job of the linking motivation **and the resulting reference
+ * annotations are actually persisted.**
  *
  * The production chain is:
  *
- *   ReferencesPanel assist widget → click "Annotate" (✨)
- *     → eventBus `mark:assist-request` (local)
- *     → mark-state-unit → `client.mark.assist(...)`
- *     → namespaces/mark.ts `dispatchAssist`
- *     → bus `job:create` (jobType="reference-annotation" + params.entityTypes)
+ *   ReferencesPanel delegate widget → click "Annotate" (✨)
+ *     → eventBus `mark:delegate-request` (local)
+ *     → mark-state-unit → `client.mark.delegate(...)`
+ *     → bus `job:create` (jobType="mark", params.motivation="linking" + params.entityTypes)
  *     → bus `job:created` (jobId)
  *     → worker entity-extraction → `mark:added` per entity
  *     → SSE → BrowseNamespace cache invalidation → references render.
@@ -20,7 +19,7 @@ import { openResourceByName } from '../fixtures/discover';
  * Two assertion levels:
  *   1. **Dispatch** (fast): `job:create` →
  *      `job:created` — the chip-selected entity type reaches the wire.
- *   2. **Outcome**: after the assist runs, ≥1 reference annotation is
+ *   2. **Outcome**: after the delegated job runs, ≥1 reference annotation is
  *      **persisted** and survives a reload.
  *
  * Why the outcome assertion matters: the dispatch pair alone passes for a
@@ -36,7 +35,7 @@ import { openResourceByName } from '../fixtures/discover';
  *
  * Requires the seeded KB to have the default entity types (incl. Concept).
  */
-test.describe('assisted reference detection', () => {
+test.describe('delegated reference detection', () => {
   test('selecting an entity type and clicking Annotate dispatches the job AND persists reference annotations', async ({ signedInPage: page, bus }) => {
     test.setTimeout(120_000);  // includes a real LLM entity-extraction round-trip
 
@@ -53,12 +52,12 @@ test.describe('assisted reference detection', () => {
     const refsBefore = await referenceEntries.count();
 
     // Enter annotate mode. The References-panel's "Annotate References"
-    // assist section only renders in annotate mode.
+    // delegate section only renders in annotate mode.
     await page.getByRole('button', { name: /^mode$/i }).click();
     await page.getByRole('menuitem', { name: /^annotate$/i }).click();
     await expect(page.locator('.cm-content').first()).toBeVisible({ timeout: 15_000 });
 
-    // Right sidebar → Annotations → References sub-tab, so the assist
+    // Right sidebar → Annotations → References sub-tab, so the delegate
     // section is in the DOM.
     await page.getByRole('button', { name: /^annotations$/i }).click();
     const referencesTab = page.getByRole('button', { name: '🔵', exact: true });
@@ -69,15 +68,15 @@ test.describe('assisted reference detection', () => {
 
     // Expand the "Annotate References" collapsible (label has a trailing "›").
     const main = page.getByRole('main');
-    const assistToggle = main.getByRole('button', { name: /annotate references/i }).first();
-    await expect(assistToggle).toBeVisible({ timeout: 10_000 });
-    if ((await assistToggle.getAttribute('aria-expanded')) !== 'true') await assistToggle.click();
+    const delegateToggle = main.getByRole('button', { name: /annotate references/i }).first();
+    await expect(delegateToggle).toBeVisible({ timeout: 10_000 });
+    if ((await delegateToggle.getAttribute('aria-expanded')) !== 'true') await delegateToggle.click();
 
     // Select the **Concept** entity-type chip (reliably present in the
     // Photosynthesis seed text — see docstring). Among the default types
     // only "Concept" matches /concept/i, so the filter is unambiguous.
     const conceptChip = page
-      .locator('.semiont-assist-widget__chips .semiont-chip--selectable')
+      .locator('.semiont-delegate-widget__chips .semiont-chip--selectable')
       .filter({ hasText: /concept/i });
     await expect(conceptChip).toBeVisible({ timeout: 10_000 });
     await conceptChip.click();
@@ -85,16 +84,15 @@ test.describe('assisted reference detection', () => {
 
     bus.clear();
 
-    // Click "Annotate" (✨) — scoped by data attrs to the reference assist
-    // so we don't hit an identically-labeled button elsewhere.
-    const submitBtn = page.locator('button[data-variant="assist"][data-type="reference"]');
+    // Click "Annotate" (✨) — scoped by data attrs to the reference delegate
+    // section so we don't hit an identically-labeled button elsewhere.
+    const submitBtn = page.locator('button[data-variant="delegate"][data-type="reference"]');
     await expect(submitBtn).toBeVisible({ timeout: 5_000 });
     await expect(submitBtn).toBeEnabled();
     await submitBtn.click();
 
-    // (1) Dispatch — the assist crossed the wire as a reference-annotation
-    // job and the gateway acked. (jobType for `linking` is
-    // `reference-annotation`; see namespaces/mark.ts jobTypeMap.)
+    // (1) Dispatch — the delegated job crossed the wire as a `mark` job of the
+    // linking motivation and the gateway acked.
     const { request } = await bus.expectRequestResponse('job:create', 'job:created', 30_000);
     expect(request.channel).toBe('job:create');
 

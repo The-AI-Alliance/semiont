@@ -128,15 +128,25 @@ export const TAG_ELEMENT_SCHEMA: ElementSchema = {
   additionalProperties: false,
 };
 
+/**
+ * What anchoring a chunk's proposals yields: the spans found in the text, and
+ * how many proposed ones were not. The second is counted because a job reports
+ * it (`errors`); dropped in silence, the job's `found` would be what survived.
+ */
+export interface Anchored<T> {
+  matches: T[];
+  dropped: number;
+}
+
 export class MotivationParsers {
   /**
    * Validate and reconcile structured comment elements.
    *
    * @param parsed - Already-parsed elements from the structured surface
    * @param content - Original content to validate offsets against
-   * @returns Array of validated comment matches
+   * @returns The comments anchored in the content, and how many were not
    */
-  static parseComments(parsed: unknown[], content: string): CommentMatch[] {
+  static parseComments(parsed: unknown[], content: string): Anchored<CommentMatch> {
 
     const valid = parsed.filter((c): c is { exact: string; prefix?: string; suffix?: string; comment: string } =>
       isObject(c) &&
@@ -169,7 +179,7 @@ export class MotivationParsers {
       });
     }
 
-    return validatedComments;
+    return { matches: validatedComments, dropped: valid.length - validatedComments.length };
   }
 
   /**
@@ -177,9 +187,9 @@ export class MotivationParsers {
    *
    * @param parsed - Already-parsed elements from the structured surface
    * @param content - Original content to validate offsets against
-   * @returns Array of validated highlight matches
+   * @returns The highlights anchored in the content, and how many were not
    */
-  static parseHighlights(parsed: unknown[], content: string): HighlightMatch[] {
+  static parseHighlights(parsed: unknown[], content: string): Anchored<HighlightMatch> {
 
     const highlights = parsed.filter((h): h is { exact: string; prefix?: string; suffix?: string } =>
       isObject(h) && isString(h.exact)
@@ -206,7 +216,7 @@ export class MotivationParsers {
       });
     }
 
-    return validatedHighlights;
+    return { matches: validatedHighlights, dropped: highlights.length - validatedHighlights.length };
   }
 
   /**
@@ -214,9 +224,9 @@ export class MotivationParsers {
    *
    * @param parsed - Already-parsed elements from the structured surface
    * @param content - Original content to validate offsets against
-   * @returns Array of validated assessment matches
+   * @returns The assessments anchored in the content, and how many were not
    */
-  static parseAssessments(parsed: unknown[], content: string): AssessmentMatch[] {
+  static parseAssessments(parsed: unknown[], content: string): Anchored<AssessmentMatch> {
 
     const assessments = parsed.filter((a): a is { exact: string; prefix?: string; suffix?: string; assessment: string } =>
       isObject(a) && isString(a.exact) && isString(a.assessment)
@@ -244,7 +254,7 @@ export class MotivationParsers {
       });
     }
 
-    return validatedAssessments;
+    return { matches: validatedAssessments, dropped: assessments.length - validatedAssessments.length };
   }
 
   /**
@@ -272,7 +282,7 @@ export class MotivationParsers {
     tags: RawTagInput[],
     content: string,
     category: string
-  ): TagMatch[] {
+  ): Anchored<TagMatch> {
     const validatedTags: TagMatch[] = [];
     for (const tag of tags) {
       const reconciled = reconcileSelector(content, {
@@ -294,7 +304,7 @@ export class MotivationParsers {
         ...(reconciled.suffix !== undefined ? { suffix: reconciled.suffix } : {}),
       });
     }
-    return validatedTags;
+    return { matches: validatedTags, dropped: tags.length - validatedTags.length };
   }
 }
 

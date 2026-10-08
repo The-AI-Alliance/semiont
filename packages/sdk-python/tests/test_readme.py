@@ -182,21 +182,21 @@ def test_a_first_program_ingests_a_paper_has_it_annotated_gathers_its_context_an
         async with made.client as client:
             summarizing = asyncio.ensure_future(a_first_program.summarize(client, paper))
 
-            assist = await asked("job:create", 1)
-            answer(made.transport, assist, {"jobId": "job-1"})
+            linking = await asked("job:create", 1)
+            answer(made.transport, linking, {"jobId": "job-1"})
             # Nothing is gathered until the model has finished marking.
             await settle()
             assert asked_for(made.transport, "gather:resource-requested") == []
-            linked: JsonObject = {"kind": "reference-annotation", "totalFound": 3, "totalEmitted": 3, "errors": 0}
-            made.transport.deliver(completion("job-1", "reference-annotation", linked))
+            linked: JsonObject = {"found": 3, "persisted": 3}
+            made.transport.deliver(completion("job-1", "mark", linked))
 
             gather = await asked("gather:resource-requested", 1)
             answer(made.transport, gather, gathered)
 
             generation = await asked("job:create", 2)
             answer(made.transport, generation, {"jobId": "job-2"})
-            generated: JsonObject = {"kind": "generation", "resourceId": "res-summary", "resourceName": "A summary", "truncated": False}
-            made.transport.deliver(completion("job-2", "generation", generated))
+            generated: JsonObject = {"resourceId": "res-summary", "resourceName": "A summary", "truncated": False}
+            made.transport.deliver(completion("job-2", "yield", generated))
             assert await soon(summarizing) == ResourceId("res-summary")
 
         # The paper was uploaded as it was given, under the name and the place the program states.
@@ -204,10 +204,10 @@ def test_a_first_program_ingests_a_paper_has_it_annotated_gathers_its_context_an
         assert (uploaded.request.file, uploaded.request.format) == (paper, "application/pdf")
         assert uploaded.request.storage_uri == "file://papers/attention-is-all-you-need.pdf"
         # It asked for concepts to be linked in that paper, gathered around it, and asked for a summary of what it gathered.
-        assert (assist.payload["jobType"], assist.payload["resourceId"]) == ("reference-annotation", "test-content-1")
-        assert assist.payload["params"] == {"entityTypes": ["Concept"]}
+        assert (linking.payload["jobType"], linking.payload["resourceId"]) == ("mark", "test-content-1")
+        assert linking.payload["params"] == {"motivation": "linking", "entityTypes": ["Concept"]}
         assert gather.payload["resourceId"] == "test-content-1"
-        assert generation.payload["jobType"] == "generation"
+        assert generation.payload["jobType"] == "yield"
         params = generation.payload["params"]
         assert isinstance(params, dict)
         assert (params["title"], params["task"]) == ("Attention Is All You Need: a summary", "summary")
@@ -222,15 +222,15 @@ def test_the_client_annotates_over_the_doubles_and_over_http(capsys: pytest.Capt
     progress: JsonObject = {
         "resourceId": "res-1",
         "jobId": "job-1",
-        "jobType": "highlight-annotation",
+        "jobType": "mark",
         "percentage": 50,
         "progress": {"percentage": 50},
     }
     complete: JsonObject = {
         "resourceId": "res-1",
         "jobId": "job-1",
-        "jobType": "highlight-annotation",
-        "result": {"kind": "highlight-annotation", "highlightsFound": 2, "highlightsCreated": 2},
+        "jobType": "mark",
+        "result": {"found": 3, "persisted": 2},
     }
 
     async def over_the_doubles() -> None:
@@ -278,7 +278,7 @@ def test_the_client_annotates_over_the_doubles_and_over_http(capsys: pytest.Capt
     assert capsys.readouterr().out.splitlines() == doubled
     described, half, done, reached = doubled
     assert (described, half, reached) == ("A resource 9", "50.0", "1")
-    assert "highlights_created=2" in done
+    assert done.startswith("found=3 persisted=2 ")
 
 
 def test_live_queries_shows_each_state_of_a_watched_query_until_its_client_closes(capsys: pytest.CaptureFixture[str]) -> None:

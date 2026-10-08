@@ -10,7 +10,7 @@
  */
 import { createInterface } from 'node:readline';
 import { BehaviorSubject, type Subscription } from 'rxjs';
-import { SemiontError, accessToken, annotationId, baseUrl, resourceId, type AccessToken, type GatheredContext, type Motivation } from '@semiont/core';
+import { SemiontError, accessToken, annotationId, baseUrl, resourceId, type AccessToken, type GenerationJobParams, type MarkJobParams } from '@semiont/core';
 import type { Observable } from 'rxjs';
 import {
   HttpContentTransport,
@@ -19,7 +19,6 @@ import {
   SemiontClient,
   type CacheObservable,
   type CacheState,
-  type GenerationOptions,
 } from '@semiont/sdk';
 
 type Arguments = Record<string, unknown>;
@@ -179,19 +178,21 @@ const operations: Record<string, (args: Arguments) => Promise<unknown> | unknown
     observers.delete(observer);
   },
 
-  assist(args) {
+  // `params` is what the job is created with, as the suite wrote it: the
+  // suite's JSON is not checked against the job's type here, so that a case
+  // may send what the knowledge base refuses.
+  markDelegate(args) {
     follow(text(args, 'observer'), () =>
-      opened().mark.assist(resourceId(text(args, 'resource')), text(args, 'motivation') as Motivation, object(args, 'options')),
+      opened().mark.delegate(resourceId(text(args, 'resource')), object(args, 'params') as MarkJobParams),
     );
   },
 
   // A generation, whose follower gives up on it after `stallDeadlineMs` of
   // silence. `params` is what the job is created with, its context among them.
-  generate(args) {
-    const { context, ...options } = object(args, 'params');
+  yieldDelegate(args) {
     const stallDeadlineMs = count(args, 'stallDeadlineMs');
     follow(text(args, 'observer'), () =>
-      opened().yield.fromContext(context as GatheredContext, { ...options, stallDeadlineMs } as GenerationOptions),
+      opened().yield.delegate(object(args, 'params') as unknown as GenerationJobParams, stallDeadlineMs),
     );
   },
 

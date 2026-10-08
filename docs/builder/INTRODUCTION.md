@@ -191,16 +191,18 @@ const context = await client.gather.resource(questionId, {
 //    The gathered context IS the argument: the job's ids derive from its
 //    focus, and `cite: true` grounds each claim as it's written — the
 //    worker mints linking annotations from claim spans to their sources.
-const generation = client.yield.fromContext(context, {
+const generation = client.yield.delegate({
   title: question,
   storageUri: 'file://generated/answer.md',
+  context,
   task: 'answer',
   structure: 'prose',
   cite: true,
   prompt: 'Be direct and concise.',
 });
-// The generation streams progress events and completes with the answer's
-// resource id — subscribe for progress, or just await the terminal.
+// The delegation gives the job's events and ends with its completion, which
+// carries the answer's resource id — subscribe for the events, or just await
+// the completion.
 ```
 
 Rendering the answer is react-ui's half: its viewer takes the same `session`

@@ -78,8 +78,8 @@ attention. Each is a namespace of the client.
 
 | | Verb | What it does | Among its methods |
 |---|---|---|---|
-| Writing | `yield_` | Introduce a resource, uploaded or generated from gathered context | `yield_.resource`, `yield_.from_context` |
-| | `mark` | Annotate a resource | `mark.annotation`, `mark.assist`, `mark.update_entity_types`, `mark.archive` |
+| Writing | `yield_` | Introduce a resource, uploaded or generated from gathered context | `yield_.resource`, `yield_.delegate` |
+| | `mark` | Annotate a resource | `mark.annotation`, `mark.delegate`, `mark.update_entity_types`, `mark.archive` |
 | | `bind` | Resolve an ambiguous reference to a specific resource | `bind.body`, `bind.initiate` |
 | | `frame` | Define and grow the schema vocabulary | `frame.add_entity_types`, `frame.add_tag_schema` |
 | Reading | `browse` | Navigate, read and observe, including who is here | `browse.resource`, `browse.annotations`, `browse.agents`, `browse.click` |
@@ -117,14 +117,7 @@ let paper_id = created.resource_id;
 // Annotate: a model reads it and marks each mention of a concept.
 client
     .mark
-    .assist(
-        &paper_id,
-        Motivation::Linking,
-        MarkAssistOptions {
-            entity_types: Some(vec!["Concept".to_owned()]),
-            ..MarkAssistOptions::default()
-        },
-    )
+    .delegate(&paper_id, LinkingJobParams::new(vec!["Concept".to_owned()]))
     .await?;
 
 // Gather: the paper, its annotations, and what the knowledge base holds
@@ -138,7 +131,7 @@ let context = client
 // source.
 let done = client
     .yield_
-    .from_context(
+    .delegate(
         GenerationJobParams {
             task: Some("summary".to_owned()),
             ..GenerationJobParams::new(
@@ -150,12 +143,10 @@ let done = client
         None,
     )
     .await?;
-let summary = match done {
-    JobEvent::Complete(JobCompleteCommand {
-        result: Some(JobResult::GenerationResult(generated)),
-        ..
-    }) => Some(generated.resource_id),
-    _ => None,
+// The completion is a yield job's: the resource it made, or a decline.
+let summary = match done.result {
+    Some(YieldJobResult::GenerationResult(generated)) => Some(generated.resource_id),
+    Some(YieldJobResult::DeclinedResult(_)) | None => None,
 };
 ```
 
@@ -185,7 +176,7 @@ One client, `SemiontClient`, serves all three. What differs is what its
 caller waits on.
 
 **A script** asks, awaits and uses `?`. A query is read once with `.fresh()`,
-and a long-running operation is awaited for its final value.
+and a job another party does is awaited for its completion.
 
 ```rust
 // Asked once, answered once.
@@ -196,14 +187,10 @@ println!("{} at {}", about.name, about.domain);
 let resource = client.browse.resource(&resource_id).fresh().await?;
 println!("{}", resource.name);
 
-// A long-running operation, awaited for its final value.
+// A job another party does, awaited for its completion.
 let done = client
     .mark
-    .assist(
-        &resource_id,
-        Motivation::Highlighting,
-        MarkAssistOptions::default(),
-    )
+    .delegate(&resource_id, HighlightingJobParams::new())
     .await?;
 ```
 
@@ -256,6 +243,7 @@ A method's return type says how to use it.
 |---|---|---|
 | `async fn … -> Result<T, SemiontError>` | asked once, answered once | `.await?` |
 | `Running<T>` | a long-running operation | `.await` for its final value; `.next()` for each report and then the final value; `.run(f)` for both |
+| `Delegation<C>` | a job another party does | `.await` for its completion, a `C`: its verb's, `MarkJobCompleteCommand` or `YieldJobCompleteCommand`; `.next()` for each of the job's events, the completion last |
 | `Upload` | an upload in flight | `.await` for the resource created; as a stream, its progress; dropped, cancelled |
 | `Cached<T>` | a query, built without touching the wire | `.watch()` for its state now and as it changes; `.fresh().await?` for one read; `.invalidate()` to ask again |
 | nothing, from a plain `fn` | a signal to the client's own parts | called |
@@ -338,7 +326,7 @@ so does dropping it.
 
 | Unit | holds | hears, or is told |
 |---|---|---|
-| `MarkStateUnit` (one resource) | the annotation being composed; the motivation and progress of the assist running | `client.mark.request`, `submit`, `cancel_pending`, `request_assist`, `dismiss_progress`; `mark:select-*` on the client's bus |
+| `MarkStateUnit` (one resource) | the annotation being composed; the motivation and progress of the delegated job running | `client.mark.request`, `submit`, `cancel_pending`, `request_delegate`, `dismiss_progress`; `mark:select-*` on the client's bus |
 | `GatherStateUnit` (one resource) | an annotation's context, and a resource's, each with its loading and its failure | `gather:requested` on the client's bus; `gather_resource` |
 | `MatchStateUnit` | nothing: it answers on the bus, under the asker's correlation id | `client.match_.request_search` |
 | `YieldStateUnit` | whether a generation runs, its progress, what it produced, and why it ended without a result | `generate`, `dismiss_progress` |
@@ -358,7 +346,7 @@ dropping cannot do: wait.
 | `SemiontSession` | The same, and its client is closed. | It stops renewing and what it holds ends. Its client is left open. |
 | `SemiontBrowser` | The active session is closed, and everything it holds ends. | Everything it holds ends. The active session is dropped, not closed. |
 | a state unit | `dispose()`, which is not async: it is inert and its readers have ended. | The same. |
-| `Running<T>`, `Upload` | | The operation is abandoned; an upload is cancelled. |
+| `Running<T>`, `Delegation<C>`, `Upload` | | The operation is abandoned; an upload is cancelled. |
 | a watcher of a query | | The resource's scope it held is let go. |
 
 A process that is ending calls `close` on what it built, so that what is in

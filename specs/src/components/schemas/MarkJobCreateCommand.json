@@ -1,0 +1,36 @@
+{
+  "type": "object",
+  "description": "Create a `mark` job: annotate one resource for one motivation.",
+  "properties": {
+    "_userId": {
+      "$ref": "./UserId.json",
+      "description": "The emitter's verified DID, injected by the gateway. Clients do not set this."
+    },
+    "_roles": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "The emitter's roles, injected by the gateway when it has any. Clients do not set this."
+    },
+    "jobType": {
+      "type": "string",
+      "enum": [
+        "mark"
+      ]
+    },
+    "resourceId": {
+      "$ref": "./ResourceId.json",
+      "description": "The resource to annotate."
+    },
+    "params": {
+      "$ref": "./MarkJobParams.json"
+    }
+  },
+  "required": [
+    "jobType",
+    "resourceId",
+    "params"
+  ],
+  "additionalProperties": false
+}

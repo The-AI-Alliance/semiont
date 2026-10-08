@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "description": "A request, on the client's own bus, that annotating the open resource be delegated: the parameters of the `mark` job to create, its motivation among them. The resource is the one the listening state unit is for.",
+  "properties": {
+    "params": {
+      "$ref": "./MarkJobParams.json"
+    }
+  },
+  "required": [
+    "params"
+  ],
+  "additionalProperties": false
+}

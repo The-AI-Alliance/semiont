@@ -1,0 +1,18 @@
+{
+  "description": "Some jobs, named by fields of the job description: a partial description, at the description's own paths. A job matches when every field stated here equals the job's. A `mark` filter always states its motivation.",
+  "oneOf": [
+    {
+      "$ref": "./MarkJobFilter.json"
+    },
+    {
+      "$ref": "./YieldJobFilter.json"
+    }
+  ],
+  "discriminator": {
+    "propertyName": "jobType",
+    "mapping": {
+      "mark": "./MarkJobFilter.json",
+      "yield": "./YieldJobFilter.json"
+    }
+  }
+}
