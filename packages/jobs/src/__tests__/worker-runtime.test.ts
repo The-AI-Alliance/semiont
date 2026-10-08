@@ -117,7 +117,6 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
       group: makeGroup(),
       gatewayBaseUrl: DIAL_URL,
       credential: CREDENTIAL,
-      contentReads: { getBinary: vi.fn() },
       reportsLimitsOf: [],
       logger: noopLogger,
     });
@@ -145,7 +144,6 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
       group: makeGroup(),
       gatewayBaseUrl: DIAL_URL,
       credential: CREDENTIAL,
-      contentReads: { getBinary: vi.fn() },
       reportsLimitsOf: [],
       logger: noopLogger,
     });
@@ -179,7 +177,6 @@ describe('worker-runtime — health vitals', () => {
       group: makeGroup(),
       gatewayBaseUrl: DIAL_URL,
       credential: CREDENTIAL,
-      contentReads: { getBinary: vi.fn() },
       reportsLimitsOf: [],
       logger: noopLogger,
     });
@@ -310,7 +307,6 @@ describe('worker-runtime — one agent reports the pool\'s limits', () => {
         group: makeGroup(),
         gatewayBaseUrl: DIAL_URL,
         credential: CREDENTIAL,
-        contentReads: { getBinary: vi.fn() },
         reportsLimitsOf,
         logger: noopLogger,
       });

@@ -10,11 +10,10 @@ A resource's bytes, read from the Archivist, and the text read out of the ones t
 
 ## Who uses it
 
-- **The Librarian, the Smelter and the Worker** hold no store. They read a resource's bytes from the Archivist, through `archivistContentReads()`.
+- **The Librarian and the Smelter** hold no store. They read a resource's bytes from the Archivist, through `archivistContentReads()`. The Worker holds none either, and reads bytes on the gateway by its client's own call.
 - **The Smelter** derives text, with `derivingExtractorFor` and the anchored-text store.
-- **The Worker** reads a PDF's text layer with `extractPdfTextLayer`.
 
-Each of those is wired in [`@semiont/make-meaning`](../make-meaning/README.md) or [`@semiont/jobs`](../jobs/README.md). The working tree itself is the [Archivist](../../docs/protocol/ARCHIVIST.md)'s: it is the only service that mounts it.
+Each of those is wired in [`@semiont/make-meaning`](../make-meaning/README.md). [`@semiont/jobs`](../jobs/README.md) takes one value from here, the byte budget a generated PDF may not exceed. The working tree itself is the [Archivist](../../docs/protocol/ARCHIVIST.md)'s: it is the only service that mounts it.
 
 **Building an application?** You do not need this package. An application uploads and reads content through [`@semiont/sdk`](../sdk/README.md): `yield.resource` and `browse.resourceContent`.
 

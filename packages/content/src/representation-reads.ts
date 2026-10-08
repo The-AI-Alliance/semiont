@@ -50,8 +50,9 @@ export class RepresentationMissing extends Error {
 
 /**
  * `ContentReads` against the Archivist — how a fleet process that holds no KB
- * mount reads bytes: the Smelter, Worker and Librarian fetch them from the
- * Archivist over HTTP rather than through the gateway.
+ * mount reads bytes: the Smelter and Librarian fetch them from the Archivist
+ * over HTTP rather than through the gateway. A worker does not: it reads them
+ * on the gateway, by its client's own call.
  *
  * The address resolves HERE, at construction, not per read: a process with no
  * Archivist configured must die while an operator is watching it boot, rather

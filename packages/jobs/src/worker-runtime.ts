@@ -14,7 +14,7 @@
 
 import type { EventMap, JobFilter } from '@semiont/core';
 import { startWorkerProcess } from './worker-process';
-import type { MarkCommitAwaits, DescriptorReadAwaits, DurabilityProbeAwaits } from './worker-process';
+import type { MarkCommitAwaits, DescriptorReadAwaits, DurabilityProbeAwaits, GeneratedTextAwaits } from './worker-process';
 import type { ConsultAnchoredTextAwaits } from './workers/detection/prepare-detection';
 import { answerLimitsRequests, type InferenceClient, type LimitsSource } from '@semiont/inference';
 import {
@@ -33,7 +33,6 @@ import {
   startAgentSession,
   type WorkerVitals,
 } from '@semiont/sdk';
-import type { ContentReads } from '@semiont/content';
 import type { ServiceAccountCredential } from '@semiont/core';
 
 type Agent = components['schemas']['Agent'];
@@ -58,15 +57,8 @@ export interface WorkerRuntimeOptions {
   group: AgentGroup;
   /** The gateway URL this worker dials — connection topology ONLY, never identity. */
   gatewayBaseUrl: string;
-  /** This process's own account at the issuer, and the bearer the byte reads
-   *  below show the Archivist. */
+  /** This process's own account at the issuer. */
   credential: ServiceAccountCredential;
-  /**
-   * The resource's bytes, for detection's extraction seam. Built by the
-   * entrypoint (`worker-main`) rather than here, so a worker with no
-   * Archivist configured refuses at boot instead of failing every job.
-   */
-  contentReads: ContentReads;
   logger: Logger;
   /**
    * The clients whose limits this agent reports on `job:limits-requested`:
@@ -132,9 +124,10 @@ export function buildHealthPayload(workers: ReadonlyArray<{ vitals(): AgentVital
 export const WORKER_AWAITED_OPERATIONS = [
   'browse:resource-requested',
   // Canonical geometry for a geometry-bearing detection: the consult behind
-  // `ConsultAnchoredText`, answered by the Smelter. Without it every PDF
-  // detection job fails at the transport probe; the census below fails the
-  // BUILD when this list and the declared awaits drift.
+  // `ConsultAnchoredText`, answered by the Smelter. A generation asks the same
+  // of the PDF it has just yielded, to anchor its citations. Without it every
+  // PDF detection job fails at the transport probe; the census below fails
+  // the BUILD when this list and the declared awaits drift.
   'browse:anchored-text-requested',
   // Durability acknowledgement for a unit's annotations. The worker AWAITS
   // this one — a unit may not advance until its annotations are in the event
@@ -189,6 +182,7 @@ type DeclaredWorkerAwaits =
   | DescriptorReadAwaits       // worker-process.ts — the resource descriptor read
   | MarkCommitAwaits           // worker-process.ts — the durability ack
   | DurabilityProbeAwaits      // worker-process.ts — did the batch land?
+  | GeneratedTextAwaits        // worker-process.ts — the text of a PDF just yielded
   | ConsultAnchoredTextAwaits; // prepare-detection.ts — canonical geometry
 
 type WorkerAwaitCensusDrift =
@@ -202,7 +196,7 @@ export const workerAwaitCensus: [WorkerAwaitCensusDrift] extends [never]
 export async function startAgentWorker(
   opts: WorkerRuntimeOptions,
 ): Promise<AgentWorkerHandle> {
-  const { group, gatewayBaseUrl, credential, contentReads, reportsLimitsOf, logger } = opts;
+  const { group, gatewayBaseUrl, credential, reportsLimitsOf, logger } = opts;
   const { inference } = group;
 
   // The process signs in as the agent this group works as, and the session
@@ -237,12 +231,6 @@ export async function startAgentWorker(
     accepts: group.serves,
     inferenceClient: group.client,
     generator,
-    // Byte reads for decode-path media only. A geometry-bearing type's text
-    // never comes from bytes here — it is CONSULTED from the Smelter's
-    // canonical anchored text over the bus, and this worker cannot derive
-    // even by mistake: deriving needs the anchored-text store, which only
-    // the Smelter holds.
-    contentReads,
     logger,
   });
 

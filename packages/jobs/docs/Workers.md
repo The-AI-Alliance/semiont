@@ -36,7 +36,6 @@ const claims = startWorkerProcess({
   accepts: group.serves,   // the jobs this agent's engine serves, as a claim names them
   inferenceClient: group.client, // the (provider, model) inference client
   generator,               // the Software agent record
-  contentReads,            // resource bytes for detection, read from the Archivist
   logger,
 });
 ```

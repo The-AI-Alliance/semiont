@@ -35,8 +35,9 @@ rather than recovered coordinates.
 
 ## What it talks to
 
-The bus (SSE in for `job:queued`, `POST /bus/emit` out for claims and lifecycle), an inference
-provider, and the Archivist's HTTP surface for bytes. It **pulls**: at every moment it becomes
+The bus (SSE in for `job:queued`, `POST /bus/emit` out for claims and lifecycle), the gateway's
+`GET /resources/{id}` for a resource's bytes, and an inference provider. The gateway is the
+only address of the knowledge base it holds. It **pulls**: at every moment it becomes
 idle — start, settle, a matching `job:queued` while parked, reconnect — it asks the dispatcher
 for the next job among those it serves, and parks when told nothing is pending. `job:queued` is a
 wake-up with no memory, not a reservation. Claims are atomic, so several workers can run against
@@ -86,8 +87,8 @@ and where the metrics flow.
 
 ## Configuration
 
-`~/.semiontconfig` (TOML), of which it reads the `gateway`, `identity`, `archivist`, `workers`
-and `inference` sections. `workers` binds each job to a provider and a model, and that
+`~/.semiontconfig` (TOML), of which it reads the `gateway`, `identity`, `workers` and
+`inference` sections. `workers` binds each job to a provider and a model, and that
 binding decides how many processes and identities the host runs. Its environment is
 `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`, its own service account at the
 knowledge base's issuer, and whatever its sections reference as `${VAR}`, such as

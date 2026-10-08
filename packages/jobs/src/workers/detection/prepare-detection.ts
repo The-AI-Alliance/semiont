@@ -1,6 +1,6 @@
-import type { ResourceId, components, AnchoredTextAnswer } from '@semiont/core';
+import type { ResourceId, components, AnchoredTextAnswer, IContentTransport } from '@semiont/core';
 import { textSourceOf, yieldsGeometryOf, decodeRepresentation } from '@semiont/core';
-import type { ContentReads, ExtractionDecline } from '@semiont/content';
+import type { ExtractionDecline } from '@semiont/content';
 import { buildTextAnnotation, buildPdfAnnotation, type BuildAnnotation } from '../../processors';
 import { DeterministicJobError } from '../../failure-class';
 
@@ -37,6 +37,13 @@ export type DetectionDecline = {
     | 'not-yet' | 'no-map' | 'unknown';
 };
 
+/** How a detection job reads a resource's bytes: the client's own
+ * `browse.resourceRepresentation`, which reads on the gateway as the agent
+ * the worker is signed in as. Derived from the transport contract, so it
+ * cannot drift from it, and injected as a narrow function for the reason the
+ * consult below is. */
+export type ReadRepresentation = (resourceId: ResourceId) => ReturnType<IContentTransport['getBinary']>;
+
 /** How a detection job reads canonical geometry: the resource-addressed
  * consult (`browse.resourceAnchoredText`), injected as a narrow function so
  * this stays on the read seam and never holds a session. */
@@ -64,9 +71,10 @@ export type ConsultAnchoredTextAwaits = 'browse:anchored-text-requested';
  * derive even by mistake: deriving needs the anchored-text store, which it
  * does not have.
  *
- * Bytes come from the injected `ContentReads` for NON-geometry types only;
- * geometry types take the injected `consult` seam instead. Both are narrow
- * read seams rather than the session — the read is all this ever wanted.
+ * Bytes come from the injected `readRepresentation` for NON-geometry types
+ * only; geometry types take the injected `consult` seam instead. Both are
+ * narrow read seams rather than the session — the read is all this ever
+ * wanted.
  *
  * The anchoring model follows the geometry, not the media type: an extraction
  * that carries positioned runs anchors spatially (page + viewrect), one that
@@ -76,7 +84,7 @@ export type ConsultAnchoredTextAwaits = 'browse:anchored-text-requested';
  */
 export async function prepareDetection(
   mediaType: string,
-  content: ContentReads,
+  readRepresentation: ReadRepresentation,
   resourceId: ResourceId,
   generator: Agent,
   consult: ConsultAnchoredText,
@@ -141,7 +149,7 @@ export async function prepareDetection(
   // embedding path makes for these types — not a second implementation that
   // happens to agree. It cannot decline: any byte sequence decodes to some
   // string, so 'empty' below is the only way this route yields nothing.
-  const { data } = await content.getBinary(resourceId);
+  const { data } = await readRepresentation(resourceId);
   const text = decodeRepresentation(Buffer.from(data), mediaType);
   if (!text.trim()) return { declined: 'empty' };
 

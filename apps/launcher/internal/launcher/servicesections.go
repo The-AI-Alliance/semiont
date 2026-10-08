@@ -11,7 +11,7 @@ var serviceConfigSections = map[string][]string{
 	"librarian": {"gateway", "graph", "vectors", "embedding", "identity", "archivist", "make-meaning", "actors", "inference"},
 	"weaver":    {"gateway", "graph", "identity"},
 	"smelter":   {"gateway", "vectors", "embedding", "identity", "archivist"},
-	"worker":    {"gateway", "identity", "archivist", "workers", "inference"},
+	"worker":    {"gateway", "identity", "workers", "inference"},
 }
 
 // launcherReads: the sections whose ${VAR} values the launcher resolves itself,

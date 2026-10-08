@@ -18,7 +18,7 @@
  *
  * The worker runs on a `SemiontClient`. Tests use a fake client whose
  * transport captures bus emits and answers `mark:commit` and `job:claim`, a
- * `contentReads.getBinary` double for detection's byte read, and
+ * `client.browse.resourceRepresentation` double for detection's byte read, and
  * `client.yield.resource` capturing the multipart upload for generation. No
  * raw `fetch` involved.
  *
@@ -38,9 +38,8 @@ import { GEN_REQUIRED, minimalContext } from './fixtures/generation-fixtures';
 import type { UnitCheckpoint } from '../processors';
 import { Subject, BehaviorSubject, map } from 'rxjs';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { extractPdfTextLayer } from '@semiont/content';
 import { JobNamespace, type HeldJob, type SemiontClient } from '@semiont/sdk';
-import { BusRequestError, EventBus, HELD_JOB_STALL_CHECK_MS, HELD_JOB_STALL_MS, jobId, resourceId, userId, type EventMap, type ITransport, type UnitCursor } from '@semiont/core';
+import { BusRequestError, EventBus, GENERATED_TEXT_ASKS_COUNT, HELD_JOB_STALL_CHECK_MS, HELD_JOB_STALL_MS, jobId, resourceId, userId, type EventMap, type ITransport, type UnitCursor } from '@semiont/core';
 import type { MarkMotivation } from '../types';
 import { recordJobOutcome, withSpan } from '@semiont/observability';
 import { handleJob, startWorkerProcess, type WorkerProcessConfig } from '../worker-process';
@@ -75,30 +74,18 @@ vi.mock('@semiont/observability', async (importOriginal) => {
   return { ...actual, recordJobOutcome: vi.fn(actual.recordJobOutcome), withSpan: vi.fn(actual.withSpan) };
 });
 
-// Stub only `extractPdfTextLayer`, so generation's citation tests supply a
-// text layer without real PDF fixtures; everything else in @semiont/content
-// stays real. Detection's extracted-vs-declined decision is driven by the
-// session's `browse.resourceAnchoredText` double, not by this mock.
-vi.mock('@semiont/content', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@semiont/content')>();
-  return {
-    ...actual,
-    // PDF citation geometry: the worker re-anchors claims through the
-    // extracted text layer; tests supply it.
-    extractPdfTextLayer: vi.fn(),
-  };
-});
+// No `@semiont/content` mock: the worker extracts no PDF's text. Detection's
+// text, and the text of a PDF a generation has just yielded, both come from
+// the client's `browse.resourceAnchoredText` double.
 
 /**
- * Detection's byte read. Module-level so assertions can reach the spy while
- * `makeConfig` keeps its one-argument shape; `vi.clearAllMocks()` clears the
- * calls between tests but leaves this implementation in place.
- *
- * It hangs off the config rather than the session because detection reads
- * from the Archivist, not through the gateway. The bytes are inert — every
- * extractor these tests exercise is mocked per test.
+ * Detection's byte read: the client's own `browse.resourceRepresentation`,
+ * which reads on the gateway as the agent the worker is signed in as.
+ * Module-level so assertions can reach the spy; `vi.clearAllMocks()` clears
+ * the calls between tests but leaves this implementation in place. The bytes
+ * are inert — every extractor these tests exercise is mocked per test.
  */
-const getBinary = vi.fn(async () => ({ data: new ArrayBuffer(8), contentType: 'application/pdf' }));
+const resourceRepresentation = vi.fn(async (_rid: string) => ({ data: new ArrayBuffer(8), contentType: 'application/pdf' }));
 
 const RID = resourceId('res-abc');
 const JID = jobId('job-xyz');
@@ -231,6 +218,7 @@ function makeFakeWorker() {
       resource: vi.fn((_rid: string) => ({
         fresh: async () => ({ representations: [{ mediaType: 'text/plain' }] }),
       })),
+      resourceRepresentation,
       // The Smelter's geometry consult. Only PDF tests take this path;
       // they override it. Default is a benign settled answer.
       resourceAnchoredText: vi.fn(async (_rid: string) => ({
@@ -337,7 +325,6 @@ function makeConfig(client: SemiontClient): WorkerProcessConfig {
       provider: 'ollama',
       model: 'test',
     } as never,
-    contentReads: { getBinary },
     logger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn(function(this: any){ return this; }) } as never,
   };
 }
@@ -840,7 +827,8 @@ describe('handleJob orchestration', () => {
     it('anchors PDF citations by page geometry — FragmentSelector, never TextPositionSelector', async () => {
       // The citation offsets index the Typst SOURCE; on a PDF they render
       // nothing — the silent wrong this test exists to prevent. The worker
-      // re-anchors each claim through the extracted text layer instead.
+      // re-anchors each claim through the PDF's anchored text instead, which
+      // it asks for as detection does: the Smelter's, for the new resource.
       vi.mocked(processGenerationJob).mockResolvedValue({
         content: new TextEncoder().encode('%PDF-FAKE'),
         title: 'Answer',
@@ -848,12 +836,13 @@ describe('handleJob orchestration', () => {
         citations: [{ resourceId: resourceId('ctx-9'), start: 0, end: 31, exact: 'Paris is the capital of France.' }],
         truncated: false,
       });
-      vi.mocked(extractPdfTextLayer).mockResolvedValue({
+      const h = makeFakeWorker();
+      vi.mocked(h.client.browse.resourceAnchoredText).mockResolvedValue({
+        kind: 'extracted',
         text: 'Paris is the capital of France. It is large.',
         items: [{ start: 0, end: 44, page: 1, x: 71, y: 746, width: 450, height: 11 }],
-        pages: [],
+        method: 'pdf-text-layer',
       } as never);
-      const h = makeFakeWorker();
 
       await handleHeld(
         h,
@@ -882,6 +871,8 @@ describe('handleJob orchestration', () => {
       expect(selectorTypes).toContain('TextQuoteSelector');
       expect(selectorTypes).not.toContain('TextPositionSelector');
       expect(payload.annotation.body).toMatchObject({ type: 'SpecificResource', source: 'ctx-9', purpose: 'linking' });
+      // Asked once, for the resource the job has just yielded.
+      expect(h.client.browse.resourceAnchoredText).toHaveBeenCalledExactlyOnceWith('new-res-42');
     });
 
     it('a hyphenated claim mints with the RENDERED text as its quote — the source string would trip the containment invariant', async () => {
@@ -897,12 +888,13 @@ describe('handleJob orchestration', () => {
         citations: [{ resourceId: resourceId('ctx-9'), start: 0, end: 27, exact: 'extraordinarily complicated' }],
         truncated: false,
       });
-      vi.mocked(extractPdfTextLayer).mockResolvedValue({
+      const h = makeFakeWorker();
+      vi.mocked(h.client.browse.resourceAnchoredText).mockResolvedValue({
+        kind: 'extracted',
         text: 'It is extraor \ndinarily complicated today.',
         items: [{ start: 0, end: 42, page: 1, x: 71, y: 764, width: 452, height: 11 }],
-        pages: [],
+        method: 'pdf-text-layer',
       } as never);
-      const h = makeFakeWorker();
 
       await handleHeld(
         h,
@@ -924,6 +916,98 @@ describe('handleJob orchestration', () => {
       }).annotation.target.selector;
       const quote = selector.find(s => s.type === 'TextQuoteSelector');
       expect(quote?.exact).toBe('extraor \ndinarily complicated');
+    });
+
+    // The Smelter has not derived the new PDF's text the moment it is
+    // yielded. The Archivist's answer already waits for the Smelter to say it
+    // has settled the content (`smelt:settled`), so the worker's part is to
+    // ask again, a bounded number of times, and never to fail the job: a
+    // retried generation would make the resource a second time.
+    const CITED_PDF: Awaited<ReturnType<typeof processGenerationJob>> = {
+      content: new TextEncoder().encode('%PDF-FAKE'),
+      title: 'Answer',
+      format: 'application/pdf',
+      citations: [{ resourceId: resourceId('ctx-9'), start: 0, end: 31, exact: 'Paris is the capital of France.' }],
+      truncated: false,
+    };
+    const PDF_TEXT = {
+      kind: 'extracted',
+      text: 'Paris is the capital of France. It is large.',
+      items: [{ start: 0, end: 44, page: 1, x: 71, y: 746, width: 450, height: 11 }],
+      method: 'pdf-text-layer',
+    };
+    const citationCommits = (h: ReturnType<typeof makeFakeWorker>) => h.busEmits
+      .filter((e) => e.channel === 'mark:commit' && (e.payload as { resourceId: string }).resourceId === 'new-res-42');
+    const runCitedPdf = (h: ReturnType<typeof makeFakeWorker>, config = makeConfig(h.client)) => handleHeld(
+      h, config,
+      makeJob('yield', { context: minimalContext('annotation'), cite: true, outputMediaType: 'application/pdf' }),
+    );
+
+    it('asks again when the new PDF\'s text is not there yet, and anchors on the answer that has it', async () => {
+      vi.mocked(processGenerationJob).mockResolvedValue(CITED_PDF);
+      const h = makeFakeWorker();
+      vi.mocked(h.client.browse.resourceAnchoredText)
+        .mockResolvedValueOnce({ kind: 'not-yet' } as never)
+        .mockResolvedValueOnce({ kind: 'not-yet' } as never)
+        .mockResolvedValue(PDF_TEXT as never);
+
+      await runCitedPdf(h);
+
+      expect(h.client.browse.resourceAnchoredText).toHaveBeenCalledTimes(3);
+      expect(citationCommits(h)).toHaveLength(1);
+      expect(h.settles()).toEqual(['job:complete']);
+    });
+
+    it('a generation whose PDF text never arrives completes with its resource, without its citations, and says so', async () => {
+      vi.mocked(processGenerationJob).mockResolvedValue(CITED_PDF);
+      const h = makeFakeWorker();
+      vi.mocked(h.client.browse.resourceAnchoredText).mockResolvedValue({ kind: 'not-yet' } as never);
+      const config = makeConfig(h.client);
+
+      await runCitedPdf(h, config);
+
+      expect(h.client.browse.resourceAnchoredText).toHaveBeenCalledTimes(GENERATED_TEXT_ASKS_COUNT);
+      expect(citationCommits(h)).toHaveLength(0);
+      expect(h.settles()).toEqual(['job:complete']);
+      const completed = h.busEmits.find((e) => e.channel === 'job:complete')!.payload as { result: { resourceId: string } };
+      expect(completed.result.resourceId).toBe('new-res-42');
+      expect(config.logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('PDF citations dropped'),
+        expect.objectContaining({ resourceId: 'new-res-42', citations: 1, reason: 'not-yet' }),
+      );
+    });
+
+    it.each([
+      ['the Smelter made no map of it', { kind: 'no-map' }, 'no-map'],
+      ['the Smelter declined it', { kind: 'declined', declined: 'encrypted' }, 'encrypted'],
+      ['the record does not know its content', { kind: 'unknown' }, 'unknown'],
+    ])('does not ask again when %s: the citations are dropped, naming why', async (_why, answer, reason) => {
+      vi.mocked(processGenerationJob).mockResolvedValue(CITED_PDF);
+      const h = makeFakeWorker();
+      vi.mocked(h.client.browse.resourceAnchoredText).mockResolvedValue(answer as never);
+      const config = makeConfig(h.client);
+
+      await runCitedPdf(h, config);
+
+      expect(h.client.browse.resourceAnchoredText).toHaveBeenCalledTimes(1);
+      expect(citationCommits(h)).toHaveLength(0);
+      expect(h.settles()).toEqual(['job:complete']);
+      expect(config.logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('PDF citations dropped'),
+        expect.objectContaining({ resourceId: 'new-res-42', citations: 1, reason }),
+      );
+    });
+
+    it('says something to whoever follows the job each time it asks again, so a wait is not read as a stall', async () => {
+      vi.mocked(processGenerationJob).mockResolvedValue(CITED_PDF);
+      const h = makeFakeWorker();
+      vi.mocked(h.client.browse.resourceAnchoredText)
+        .mockResolvedValueOnce({ kind: 'not-yet' } as never)
+        .mockResolvedValue(PDF_TEXT as never);
+
+      await runCitedPdf(h);
+
+      expect(h.busEmits.filter((e) => e.channel === 'job:report-progress')).toHaveLength(1);
     });
   });
 
@@ -1118,6 +1202,17 @@ describe('handleJob orchestration', () => {
   // it on the resource's primary media type before reading any bytes, and
   // the job fails as a user error.
 
+  describe('detection\'s byte read', () => {
+    it('reads a text resource\'s bytes by the client\'s own call, naming the resource', async () => {
+      vi.mocked(processHighlightJob).mockImplementation(emitting({ annotations: [], result: { found: 0, persisted: 0 } }));
+      const h = makeFakeWorker();
+
+      await handleHeld(h, makeConfig(h.client), makeJob('highlighting'));
+
+      expect(resourceRepresentation).toHaveBeenCalledExactlyOnceWith(RID);
+    });
+  });
+
   describe('detection media-type gate', () => {
     it('fails a detection job on a binary resource before fetching content or calling the processor', async () => {
       const h = makeFakeWorker();
@@ -1129,7 +1224,7 @@ describe('handleJob orchestration', () => {
         handleHeld(h, makeConfig(h.client), makeJob('linking', { entityTypes: ['Person'] }))
       ).rejects.toThrow(/has no extractable text/);
 
-      expect(getBinary).not.toHaveBeenCalled();
+      expect(resourceRepresentation).not.toHaveBeenCalled();
       expect(processReferenceJob).not.toHaveBeenCalled();
       expect(h.busEmits.some(e => e.channel === 'job:complete')).toBe(false);
     });
@@ -1186,10 +1281,10 @@ describe('handleJob orchestration', () => {
       );
 
       // A PDF is geometry-bearing: its text comes from the CONSULT, not from
-      // fetching and re-extracting bytes here. getBinary must NOT run — a 39 MB
+      // fetching and re-extracting bytes here. The byte read must NOT run — a 39 MB
       // download whose bytes are discarded still downloads.
       expect(h.client.browse.resourceAnchoredText).toHaveBeenCalled();
-      expect(getBinary).not.toHaveBeenCalled();
+      expect(resourceRepresentation).not.toHaveBeenCalled();
       const call = lastCall();
       expect(call).toBeDefined();
       expect(call![0]).toBe('the quick brown fox'); // source.text — the consulted canonical text
@@ -1266,7 +1361,7 @@ describe('handleJob orchestration', () => {
         handleHeld(h, makeConfig(h.client), makeJob('commenting'))
       ).rejects.toThrow(/has no extractable text/);
 
-      expect(getBinary).not.toHaveBeenCalled();
+      expect(resourceRepresentation).not.toHaveBeenCalled();
     });
 
     it('proceeds for a registry-miss text subtype (RFC 2046 fallback)', async () => {

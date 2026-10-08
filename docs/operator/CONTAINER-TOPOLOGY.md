@@ -56,7 +56,6 @@ graph TB
 
     GW -->|content proxy| ARCH
     LIB -->|bytes| ARCH
-    WORKER --> ARCH
     SMELT --> ARCH
 
     CLIENTS -.->|sign in| KC
@@ -81,8 +80,8 @@ Reading the diagram:
 - **Dotted edges are identity, and they come first.** Nobody reaches the gateway without visiting the issuer. People and SDK clients sign in there. Every service obtains its own service-account token there, then exchanges it at `POST /api/tokens/agent` for the agent identity its work is attributed to. The gateway verifies each bearer against the issuer's published keys and keeps no account of its own.
 - **Bidirectional edges are the bus**: `POST /bus/emit`, and `POST /bus/subscribe` as Server-Sent Events. The gateway hosts no actors. Every service subscribes over those two endpoints like any other participant, and each rectangle names what runs inside it.
 - **The blue rectangles are the bus's clients**, and each speaks an SDK — TypeScript (`@semiont/sdk`), Rust (`semiont`) or Go: the Browser in a person's web browser, and the same client without a UI for ingestion, curation and agentic workflows. The `semiont` launcher's verbs and the MCP server are two of them.
-- **Edges pointing at the archivist are plain HTTP.** The gateway proxies content for outside clients, and reads from the archivist the events a reconnecting stream missed. The smelter, the librarian and the workers dial the archivist directly for bytes.
-- **The dispatcher has no edge to the archivist.** Job ids, types, parameters and status flow through it, and content never does. A worker claims a job there, then reads bytes from the archivist and writes annotations to it.
+- **Edges pointing at the archivist are plain HTTP.** The gateway proxies content for its clients, the workers among them, and reads from the archivist the events a reconnecting stream missed. The smelter and the librarian dial the archivist directly for bytes.
+- **The dispatcher has no edge to the archivist.** Job ids, types, parameters and status flow through it, and content never does. A worker claims a job there, then reads bytes on the gateway and writes annotations through the bus.
 - **`semiont-browser` only serves static files.** The app runs in the person's web browser and connects to gateways from there, so the container needs no config and no connection of its own.
 
 Two mechanisms behind the gateway hub are not drawn as edges:
@@ -129,7 +128,7 @@ graph TB
     LIB["semiont-librarian<br/>Gatherer · Matcher"]
     OL["semiont-ollama<br/>Ollama — embeddings · local inference"]
 
-    subgraph G3 ["worker — any host that reaches the gateway and the Archivist"]
+    subgraph G3 ["worker — any host that reaches the gateway"]
         WORKER["semiont-worker<br/>worker pool — Generator · detection workers"]
     end
 
@@ -144,7 +143,6 @@ graph TB
     LIB -->|ro| VIEWS
     SMELT --> ANCH
     ARCH -->|ro| ANCH
-    WORKER -->|bytes · HTTP| ARCH
     GW -->|signal plane| NATS
     DISP -->|JetStream| NATS
     NATS -->|rw — sole owner: dispatcher| JS
@@ -208,7 +206,7 @@ Reading the diagram:
 - **Amber cylinders are neither.** They are operational state held in JetStream on the broker's `/data`, each with one owner. The job queue is the dispatcher's: a key-value bucket of jobs, where every transition is a compare-and-set, and a work-queue stream whose deliveries are the leases. Pending jobs live only there. The event log records that a job started, completed or failed, never that it was created, so the queue is durable. The signal tables are the gateway's, and every entry in them expires. They hold only what is in flight: who may see the reply to which request, replies kept for a client that reconnects, and each principal's open streams. Sharing them is what lets any gateway replica answer as the others would.
 - **Rectangle-to-rectangle edges** are each service's infrastructure. Dotted edges are telemetry: OTLP into the collector, traces forwarded to Jaeger, metrics scraped by Prometheus.
 - **The gateway attaches to two things**: the broker, for the signal plane and its tables, and the issuer, whose keys it verifies tokens against. It holds no database and no queue.
-- **The worker's frame is a deployment boundary.** A worker holds no mount and no broker credential. Everything it dials (the gateway's bus, the archivist's bytes, an inference provider) is a network address, so it can run on a machine the rest of the stack never shares. A worker that is not the deployment's own joins the same way: its client is granted the worker role at the issuer, and the dispatcher admits its claims by that role.
+- **The worker's frame is a deployment boundary.** A worker holds no mount and no broker credential. Everything it dials (the gateway, for the bus and for bytes, and an inference provider) is a network address, so it can run on a machine the rest of the stack never shares. A worker that is not the deployment's own joins the same way: its client is granted the worker role at the issuer, and the dispatcher admits its claims by that role.
 - **The Ollama edges show the fully local case.** On a config that names a remote API such as Anthropic's, inference for the workers and the librarian goes there instead. Embeddings stay on Ollama unless the config names Voyage.
 
 Every service authenticates in two steps. It signs in at the knowledge base's issuer as its own service account (client credentials, `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`). It then presents that token at `POST /api/tokens/agent` with a `(provider, model)` identity and receives a token carrying a software-agent DID. The smelter presents its embedding config, the weaver `(semiont, weaver)`, the dispatcher `(semiont, dispatcher)`. The gateway verifies that token as it would a person's. The two identities are deliberate: the service account is the process, and the agent DID is the work.

@@ -19,8 +19,8 @@ dispatcher against this document.
 
 **The dispatcher is the knowledge base's job control plane.** It holds the queue, admits new jobs,
 hands each one to a worker that claims it, and records how it ended. Ids, job types, parameters and
-status flow through it. Content never does: a worker reads a resource from the Archivist and writes
-its annotations back through the bus, and the dispatcher sees neither.
+status flow through it. Content never does: a worker reads a resource's bytes on the gateway and
+writes its annotations back through the bus, and the dispatcher sees neither.
 
 It is not:
 

@@ -20,14 +20,13 @@ import type { PdfTextItem } from '@semiont/core';
 // No `@semiont/content` mock. This seam imports nothing from it that runs —
 // deriving is reachable only through `derivingExtractorFor` and callable only
 // with an `AnchoredTextStore`, which this worker does not have.
-// The `getBinary` assertions below prove "the worker did not OCR" observably:
-// no bytes fetched is no derivation possible.
+// The `readRepresentation` assertions below prove "the worker did not OCR"
+// observably: no bytes fetched is no derivation possible.
 // No `@semiont/event-sourcing` mock: annotation ids are content-addressed, so
 // the real function is deterministic, and a mock would hide the identity
 // these builders compute — which is the thing worth exercising.
 
-import type { ContentReads } from '@semiont/content';
-import { prepareDetection } from '../workers/detection/prepare-detection';
+import { prepareDetection, type ReadRepresentation } from '../workers/detection/prepare-detection';
 
 type Agent = components['schemas']['Agent'];
 
@@ -49,18 +48,17 @@ const PDF_ITEMS: PdfTextItem[] = [
 ];
 
 /**
- * The byte read, serving `text`. A plain `ContentReads` rather than a
- * hollowed-out session: the worker reads bytes straight from the Archivist,
- * so the seam takes the read it actually wants and the double needs no cast
- * to claim it is something larger.
+ * The byte read, serving `text`: the one function the seam takes, which in
+ * the worker is the client's own `browse.resourceRepresentation`. A plain
+ * function rather than a hollowed-out session, so the double needs no cast to
+ * claim it is something larger.
  */
 function fakeReads(text = 'alpha beta gamma') {
   const bytes = new TextEncoder().encode(text);
   const data = new ArrayBuffer(bytes.byteLength);
   new Uint8Array(data).set(bytes);
-  const getBinary = vi.fn(async () => ({ data, contentType: 'text/markdown' }));
-  const reads: ContentReads = { getBinary };
-  return { reads, getBinary };
+  const readRepresentation = vi.fn<ReadRepresentation>(async () => ({ data, contentType: 'text/markdown' }));
+  return { reads: readRepresentation, readRepresentation };
 }
 
 /** The geometry consult, where a geometry-bearing type's detection text comes
@@ -79,13 +77,13 @@ describe('prepareDetection', () => {
   // ── NON-geometry: decode the bytes, no consult ──────────────────────────
 
   it('text: decodes for real and anchors by character offsets in that SAME text', async () => {
-    const { reads, getBinary } = fakeReads();
+    const { reads, readRepresentation } = fakeReads();
     const { consult } = fakeConsult();
 
     const source = await prepareDetection('text/markdown', reads, RID, GENERATOR, consult);
     if ('declined' in source) throw new Error(`unexpected decline: ${source.declined}`);
 
-    expect(getBinary).toHaveBeenCalledOnce();
+    expect(readRepresentation).toHaveBeenCalledExactlyOnceWith(RID);
     // The Smelter publishes nothing for non-geometry types, so consulting would
     // always miss and then block on an artifact that is never coming.
     expect(consult).not.toHaveBeenCalled();
@@ -107,19 +105,19 @@ describe('prepareDetection', () => {
 
   // ── GEOMETRY-bearing: consult the Smelter, never fetch or OCR ────────────
 
-  it('PDF: text comes from the CONSULT with its geometry, and getBinary is NOT called', async () => {
+  it('PDF: text comes from the CONSULT with its geometry, and no bytes are read', async () => {
     // The headline: the Smelter owns OCR, so a geometry type reads canonical
     // text from the Smelter. Assert on the CALL, not the result — a fetch whose
     // bytes are discarded still downloads 39 MB, and an OCR pass still burns
     // the CPU.
-    const { reads, getBinary } = fakeReads();
+    const { reads, readRepresentation } = fakeReads();
     const { consult } = fakeConsult({ kind: 'extracted', text: PDF_TEXT, items: PDF_ITEMS, method: 'pdf-text-layer' });
 
     const source = await prepareDetection('application/pdf', reads, RID, GENERATOR, consult);
     if ('declined' in source) throw new Error(`unexpected decline: ${source.declined}`);
 
     expect(consult).toHaveBeenCalledWith(RID);
-    expect(getBinary).not.toHaveBeenCalled();
+    expect(readRepresentation).not.toHaveBeenCalled();
     expect(source.text).toBe(PDF_TEXT);
 
     const ann = source.buildAnnotation('highlighting', { exact: 'alpha', start: 0, end: 5 }) as Record<string, unknown>;
@@ -133,24 +131,24 @@ describe('prepareDetection', () => {
     // A class-A carve-out would introduce a second producer for an operation
     // that is merely *probably* deterministic. The consult, not the pdfClass,
     // decides.
-    const { reads, getBinary } = fakeReads();
+    const { reads, readRepresentation } = fakeReads();
     const { consult } = fakeConsult({ kind: 'extracted', text: PDF_TEXT, items: PDF_ITEMS, method: 'pdf-text-layer' });
 
     const source = await prepareDetection('application/pdf', reads, RID, GENERATOR, consult);
     if ('declined' in source) throw new Error('unexpected decline');
     expect(consult).toHaveBeenCalledOnce();
-    expect(getBinary).not.toHaveBeenCalled();
+    expect(readRepresentation).not.toHaveBeenCalled();
   });
 
   it("a not-yet consult answer declines 'not-yet' — no fetch, no OCR (the RETRY case)", async () => {
-    const { reads, getBinary } = fakeReads();
+    const { reads, readRepresentation } = fakeReads();
     const { consult } = fakeConsult({ kind: 'not-yet' });
 
     expect(await prepareDetection('application/pdf', reads, RID, GENERATOR, consult))
       .toEqual({ declined: 'not-yet' });
     // No fallback extraction: a local OCR pass that runs and is discarded still
     // burns the CPU the consult exists to stop duplicating.
-    expect(getBinary).not.toHaveBeenCalled();
+    expect(readRepresentation).not.toHaveBeenCalled();
   });
 
   it("a no-map consult answer declines 'no-map' (TERMINAL — drift on a geometry type)", async () => {
@@ -184,12 +182,12 @@ describe('prepareDetection', () => {
   // ── media-type gate ─────────────────────────────────────────────────────
 
   it("declines 'no-extractor' for a media type that can never yield text", async () => {
-    const { reads, getBinary } = fakeReads();
+    const { reads, readRepresentation } = fakeReads();
     const { consult } = fakeConsult();
 
     expect(await prepareDetection('application/zip', reads, RID, GENERATOR, consult))
       .toEqual({ declined: 'no-extractor' });
-    expect(getBinary).not.toHaveBeenCalled();
+    expect(readRepresentation).not.toHaveBeenCalled();
     expect(consult).not.toHaveBeenCalled();
   });
 });

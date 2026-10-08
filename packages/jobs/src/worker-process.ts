@@ -18,11 +18,10 @@
 
 import { isHeldMark, type MarkMotivation } from './types';
 import type { ClaimsObservable, HeldJob, SemiontClient } from '@semiont/sdk';
-import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, findClaimSpan, capabilitiesOf, isObject, isString, jobMatchesFilter, MARK_MOTIVATIONS, type AnnotationId, type JobFilter, type JobId, type ResourceId, busRequest, BusRequestError } from '@semiont/core';
+import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, findClaimSpan, capabilitiesOf, isObject, isString, jobMatchesFilter, MARK_MOTIVATIONS, GENERATED_TEXT_ASKS_COUNT, type AnnotationId, type JobFilter, type JobId, type ResourceId, busRequest, BusRequestError } from '@semiont/core';
 
 import type { InferenceClient } from '@semiont/inference';
-import type { Logger, components, AssembledAnnotation, Annotation, UnitCursor } from '@semiont/core';
-import { extractPdfTextLayer, type ContentReads } from '@semiont/content';
+import type { Logger, components, AssembledAnnotation, Annotation, AnchoredText, UnitCursor } from '@semiont/core';
 import { prepareDetection } from './workers/detection/prepare-detection';
 import { classifyFailure, DeterministicJobError } from './failure-class';
 import { SpanKind, recordJobOutcome, withSpan } from '@semiont/observability';
@@ -81,13 +80,6 @@ export interface WorkerProcessConfig {
    * client is signed in as.
    */
   generator: Agent;
-  /**
-   * The resource's bytes, for the detection extraction seam. Dials the
-   * Archivist rather than the gateway — which is why it rides the config
-   * instead of coming off the client: the client's transport is pointed at
-   * the gateway, and this read should not be.
-   */
-  contentReads: ContentReads;
   logger: Logger;
 }
 
@@ -115,6 +107,11 @@ export type DescriptorReadAwaits = 'browse:resource-requested';
  * path would undo that; one annotation's frame is small.
  */
 export type DurabilityProbeAwaits = 'browse:annotation-requested';
+/**
+ * The read of a PDF this job has just yielded (`generatedPdfText`): the
+ * operation detection's consult awaits, awaited here for the new resource.
+ */
+export type GeneratedTextAwaits = 'browse:anchored-text-requested';
 
 /**
  * How long a unit's commit may take before the worker treats the sink as down.
@@ -124,6 +121,53 @@ export type DurabilityProbeAwaits = 'browse:annotation-requested';
  * unbounded wait on a confirmation that never comes hangs the worker.
  */
 const MARK_COMMIT_TIMEOUT_MS = 60_000;
+
+/**
+ * The text of a PDF this job has just yielded, with where each word is on its
+ * pages — or why it is not to be had.
+ *
+ * It is the Smelter's text, asked for as detection asks for a PDF's, so a
+ * PDF's text has one producer: the citations are anchored in the text the
+ * viewer shows and every later detection reads. This worker extracts none.
+ *
+ * The text is not there the moment the resource is. An ask is answered at
+ * once when the text is stored; otherwise the Archivist holds it while it
+ * waits for the Smelter to say it has settled the content (`smelt:settled`),
+ * and then answers `not-yet`. So `not-yet` is asked again, as many times as
+ * the timing table states, and `waiting` is called before each further ask:
+ * whoever follows the job reads a long silence as a stall.
+ *
+ * An absence is returned and never thrown. The resource exists by now, and a
+ * failed job is retried, which would make it a second time. `unknown` should
+ * not be seen at all for a resource the Archivist has just answered for: its
+ * append writes the view before it answers.
+ */
+async function generatedPdfText(
+  client: SemiontClient,
+  resourceId: ResourceId,
+  waiting: () => void,
+): Promise<AnchoredText | { absent: string }> {
+  for (let ask = 1; ask <= GENERATED_TEXT_ASKS_COUNT; ask++) {
+    if (ask > 1) waiting();
+    const answer = await client.browse.resourceAnchoredText(resourceId);
+    switch (answer.kind) {
+      case 'extracted': return { text: answer.text, items: answer.items ?? [] };
+      case 'not-yet': continue;
+      case 'declined': return { absent: answer.declined };
+      case 'no-map':
+      case 'unknown': return { absent: answer.kind };
+      default: {
+        // Narrows to `never` while every member of `AnchoredTextAnswer` is
+        // handled above, so a member added to the wire stops this compiling.
+        // At runtime a newer Smelter can still send one this build was not
+        // compiled with, and that is an absence like the others.
+        const unhandled: never = answer;
+        return { absent: `an answer this worker does not know: ${JSON.stringify(unhandled)}` };
+      }
+    }
+  }
+  return { absent: 'not-yet' };
+}
 
 /**
  * Persist a batch of annotations and WAIT for the event log to confirm it:
@@ -471,7 +515,13 @@ async function handleJobInner(
     // trace.
     const source = await withSpan(
       'detection:prepare',
-      () => prepareDetection(mediaType ?? '', config.contentReads, resourceId, generator, (rid) => client.browse.resourceAnchoredText(rid)),
+      () => prepareDetection(
+        mediaType ?? '',
+        (rid) => client.browse.resourceRepresentation(rid),
+        resourceId,
+        generator,
+        (rid) => client.browse.resourceAnchoredText(rid),
+      ),
       { attrs: { 'resource.id': resourceId as unknown as string, 'media.type': mediaType ?? 'unknown' } },
     );
 
@@ -736,25 +786,31 @@ async function handleJobInner(
     // selectors to the decoded string, not raw bytes. A PDF anchors by PAGE
     // GEOMETRY: the citation's offsets index the Typst SOURCE and would
     // render nothing, so each claim is re-found in the artifact's own text
-    // layer (two-stage search — strict, then break-aware for hyphenation) and
-    // located to rects. A claim the search cannot find is dropped LOUDLY,
-    // never minted wrong.
+    // (two-stage search — strict, then break-aware for hyphenation) and
+    // located to rects. That text is the Smelter's (`generatedPdfText`). A
+    // claim the search cannot find is dropped LOUDLY, never minted wrong,
+    // and so is every claim of a PDF whose text is not to be had.
     // Collected, then committed once: the citations all land on the DERIVED
     // resource, so they are one batch keyed by `newResourceId` — a different
     // resource from the provenance edge above, which is why they cannot share
     // a commit.
     const citationRefs: AssembledAnnotation['annotation'][] = [];
     if (genResult.format === 'application/pdf' && genResult.citations.length > 0) {
-      const layer = await extractPdfTextLayer(genResult.content);
-      if (!layer) {
-        config.logger.warn('PDF citations dropped — the generated artifact yielded no text layer', {
-          jobId, resourceId: newResourceId, citations: genResult.citations.length,
+      const anchored = await generatedPdfText(
+        client,
+        newResourceId,
+        // What the job last said, said again: the wait is not a stage of its own.
+        () => onProgress(100, { code: 'complete-generated', truncated: genResult.truncated }),
+      );
+      if ('absent' in anchored) {
+        config.logger.warn('PDF citations dropped — the generated artifact\'s text is not to be had', {
+          jobId, resourceId: newResourceId, citations: genResult.citations.length, reason: anchored.absent,
         });
       } else {
         for (const citation of genResult.citations) {
-          const span = findClaimSpan(layer, citation.exact);
+          const span = findClaimSpan(anchored, citation.exact);
           if (!span) {
-            config.logger.warn('PDF citation dropped — claim not found in the rendered text layer', {
+            config.logger.warn('PDF citation dropped — claim not found in the rendered text', {
               jobId, resourceId: newResourceId, citedResourceId: citation.resourceId,
               exactPreview: citation.exact.slice(0, 80),
             });
@@ -766,11 +822,11 @@ async function handleJobInner(
           // was found — and W3C-wise the quote should be the text actually
           // under the rects, which is what re-anchoring will see.
           const citationRef = buildPdfAnnotation(
-            layer,
+            anchored,
             newResourceId,
             generator,
             'linking',
-            { exact: layer.text.slice(span.start, span.end), start: span.start, end: span.end },
+            { exact: anchored.text.slice(span.start, span.end), start: span.start, end: span.end },
             { type: 'SpecificResource', source: citation.resourceId, purpose: 'linking' },
           );
           citationRefs.push(citationRef);

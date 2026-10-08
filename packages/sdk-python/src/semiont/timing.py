@@ -19,6 +19,7 @@ __all__ = [
     "DELEGATE_SILENCE_MS",
     "EMIT_RETRY",
     "EMIT_TIMEOUT_MS",
+    "GENERATED_TEXT_ASKS_COUNT",
     "GENERATION_STALL_ASSUMED_TOKENS_COUNT",
     "GENERATION_STALL_FLOOR_MS",
     "GENERATION_STALL_PER_TOKEN_MS",
@@ -168,6 +169,15 @@ HELD_JOB_STALL_MS: Final = 900000
 # How often a party that holds a job looks at how long it has shown no activity.
 HELD_JOB_STALL_CHECK_MS: Final = 60000
 
+# How many times a worker asks for the anchored text of a PDF it has just yielded
+# (`browse:anchored-text-requested`) before it gives up on anchoring that PDF's citations. The
+# text is the Smelter's to derive and is not there the moment the resource is. Each ask is
+# answered at once when the text is stored, and otherwise waits at the Archivist for the Smelter
+# to say it has settled the content (`smelt:settled`) before it is answered that the text is not
+# there yet. So the count bounds the whole wait, and a worker that reaches it completes the job
+# with the resource and without the citations.
+GENERATED_TEXT_ASKS_COUNT: Final = 8
+
 # How long a pointer rests on an annotation before the viewer says it is hovered. Shorter, and a
 # pointer crossing the page hovers everything on its way.
 HOVER_DELAY_MS: Final = 150
@@ -202,6 +212,7 @@ TIMING_NAMES: Final[tuple[str, ...]] = (
     "jobClaimTimeoutMs",
     "heldJobStallMs",
     "heldJobStallCheckMs",
+    "generatedTextAsksCount",
     "hoverDelayMs",
     "searchDebounceMs",
 )

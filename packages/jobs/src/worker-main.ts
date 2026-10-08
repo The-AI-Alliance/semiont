@@ -40,7 +40,6 @@ import { readFileSync, existsSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
 import { createTomlConfigLoader, MARK_MOTIVATIONS, type EnvironmentConfig, type JobFilter } from '@semiont/core';
-import { archivistContentReads } from '@semiont/content';
 
 // ── Load config via the canonical TOML loader ─────────────────────────
 
@@ -87,13 +86,6 @@ if (!clientId || !clientSecret) {
 }
 /** This process's account. The agent DIDs it buys are per (provider, model). */
 const credential = { issuer: issuerUrl, clientId, clientSecret };
-
-// Bytes come from the Archivist, not the gateway: the Archivist alone mounts
-// the knowledge base's tree. Resolved at module scope so a worker with no
-// Archivist address — or no service-account credential to show it — dies here,
-// while an operator is watching, rather than failing every detection job for
-// the life of the process.
-const contentReads = archivistContentReads(envConfig, credential);
 const healthPort = 24100;
 
 import { createProcessLogger } from '@semiont/observability/process-logger';
@@ -168,7 +160,7 @@ async function main() {
     // the first reply to a request, so one agent answers for the pool.
     Array.from(groups.values()).map((group, i, all) =>
       startAgentWorker({
-        group, gatewayBaseUrl, credential, contentReads, logger,
+        group, gatewayBaseUrl, credential, logger,
         reportsLimitsOf: i === 0 ? all.map((g) => g.client) : [],
       }),
     ),
