@@ -100,7 +100,7 @@ What it returns is the worker's claims:
 
 A held job says its own lifecycle: `job.start()`, then `job.progress(...)` and `job.checkpoint(...)` as often as there is something to say, then exactly one of `job.complete(result)`, `job.fail(message)` and `job.cancel()`. Each of those three says the outcome and releases the job in one call, and a second is refused. Progress and checkpoints count as activity.
 
-A completion is its verb's. Its `result` is what that verb reports: a `mark` job's counts or a decline, the resource a `yield` job made or a decline, and the gateway refuses a completion whose result is the other verb's. So a held job is typed by its verb, and `job.jobType` is narrowed before `complete` is called. Every `mark` job reports the same counts, whatever its motivation: `found`, what the model proposed, and `persisted`, what the log holds.
+A completion is its verb's. Its `result` is what that verb reports: a `mark` job's counts or a decline, the resource a `yield` job made or a decline, and the gateway refuses a completion whose result is the other verb's. So a held job is typed by its verb, and `job.jobType` is checked before `complete` is called. Every `mark` job reports the same counts, whatever its motivation: `found`, what the model proposed, and `persisted`, what the log holds.
 
 ```typescript
 import type { HeldMarkJob, SemiontClient } from '@semiont/sdk';

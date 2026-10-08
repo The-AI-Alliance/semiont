@@ -176,7 +176,7 @@ const claims = client.job.claim({
 });
 claims.refused$.subscribe((refusal) => console.error(`claim refused: ${refusal.message}`));
 claims.subscribe(async (job) => {
-  // A completion is its verb's, so the verb is narrowed before `complete` is called.
+  // A completion is its verb's, so the verb is checked before `complete` is called.
   if (job.jobType !== 'mark') return job.fail(`this worker runs no ${job.jobType} job`);
   await job.start();
   await job.progress({ percentage: 50 });
@@ -209,7 +209,7 @@ is what a worker promises the dispatcher.
 - **Annotation readers** — `getAnnotationExactText`, `getBodySource`, `getTargetSource`,
   `getEntityTypes`, `isStubReference`, `getTagCategory` and their siblings read an
   annotation whose target is an id or an object, whose selector is one or a list, and whose
-  body is absent, one item or a list, so a script narrows none of that by hand. One table,
+  body is absent, one item or a list, so a script checks none of that itself. One table,
   `specs/src/annotations/reader-cases.json`, holds every SDK's readers to the same answers.
 - **A worker's side of the job queue** — `job.claim`, the held jobs it hands out,
   `startAgentSession` for a worker's sign-in, and `JOB_CLAIM_CHANNELS` for its stream.

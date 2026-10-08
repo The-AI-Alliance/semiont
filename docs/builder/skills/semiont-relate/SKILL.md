@@ -62,19 +62,17 @@ const semiont = session.client;
 
 ## Step 1: read a passage and the nodes it mentions
 
-A reference that has been bound has a `SpecificResource` body naming its node. Print the passage and its bound references, and read them.
+A reference that has been bound has a `SpecificResource` body naming its node: `isResolvedReference` is that test, and `getBodySource` gives the node. Print the passage and its bound references, and read them.
 
 ```typescript
+import { getBodySource, isResolvedReference } from '@semiont/sdk';
+
 const text = await semiont.browse.resourceContent(rId);
 const annotations = await semiont.browse.annotations(rId).fresh();
 
 console.log(text);
 for (const ann of annotations) {
-  if (ann.motivation !== 'linking') continue;
-  const bodies = ann.body === undefined ? [] : Array.isArray(ann.body) ? ann.body : [ann.body];
-  for (const body of bodies) {
-    if (body.type === 'SpecificResource') console.log(`mentions ${body.source}`);
-  }
+  if (isResolvedReference(ann)) console.log(`mentions ${getBodySource(ann.body)}`);
 }
 ```
 

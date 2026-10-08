@@ -121,11 +121,11 @@ const following = semiont.browse.annotations(rId).subscribe((state) => {
 following.unsubscribe();
 ```
 
-To handle the events themselves, subscribe to the channel for the resource. `mark:added` carries the annotation as it stands:
+To handle the events themselves, subscribe to the channel for the resource. `mark:added` carries the annotation as it stands, and `isReference` (from `@semiont/sdk`, with the other annotation readers) says what kind it is:
 
 ```typescript
 const stopAdded = session.subscribe('mark:added', rId, (event) => {
-  if (event.annotation?.motivation === 'linking') {
+  if (event.annotation && isReference(event.annotation)) {
     console.log(`new reference ${event.annotation.id}`);
   }
 });

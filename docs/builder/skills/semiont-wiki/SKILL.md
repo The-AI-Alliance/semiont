@@ -80,15 +80,18 @@ Set `includeDescriptiveReferences: true` to detect a description that names nobo
 A detected reference has a body that names its entity type and nothing else. Binding adds a `SpecificResource` body, so a reference without one is unbound. `browse.annotations(...)` is a live query; `.fresh()` reads it once.
 
 ```typescript
+import { getAnnotationExactText, isStubReference } from '@semiont/sdk';
+
 const annotations = await semiont.browse.annotations(rId).fresh();
 
-const unbound = annotations.filter((ann) => {
-  const bodies = ann.body === undefined ? [] : Array.isArray(ann.body) ? ann.body : [ann.body];
-  return ann.motivation === 'linking' && !bodies.some((b) => b.type === 'SpecificResource');
-});
+// A reference that links to nothing yet.
+const unbound = annotations.filter(isStubReference);
 
 console.log(`${unbound.length} references to resolve`);
+for (const ann of unbound) console.log(`  "${getAnnotationExactText(ann)}"`);   // the text each covers
 ```
+
+`isStubReference` and `getAnnotationExactText` are two of the SDK's annotation readers. They read an annotation whether its body is one item or a list and whether its selector is one or several, so the script checks neither.
 
 ## Steps 3 to 5: gather, match, then bind or generate
 
@@ -135,18 +138,7 @@ async function resolveReference(rId: ResourceId, ann: Annotation, name: string):
 }
 ```
 
-`name` is the text the reference covers. For a text resource that is the annotation's `TextQuoteSelector`, which `getAnnotationExactText` reads whether the annotation's selector is one or a list:
-
-```typescript
-import { getAnnotationExactText, isStubReference, type Annotation } from '@semiont/sdk';
-
-/** The references still to resolve, each with the text it covers. */
-function unresolved(annotations: Annotation[]): Array<{ ann: Annotation; name: string }> {
-  return annotations.filter(isStubReference).map((ann) => ({ ann, name: getAnnotationExactText(ann) }));
-}
-```
-
-`isStubReference` is a reference that links to nothing yet. The SDK exports these readers, so a script narrows none of an annotation's shapes by hand.
+`name` is the text the reference covers, as step 2 prints it: `getAnnotationExactText(ann)`. For a text resource that is the annotation's `TextQuoteSelector`.
 
 ## Complete script
 

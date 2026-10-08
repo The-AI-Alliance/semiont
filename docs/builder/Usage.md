@@ -434,6 +434,11 @@ const files = await semiont.browse.files('/docs', 'mtime');
 const { name, domain, gitBranch } = await semiont.browse.kb();
 ```
 
+An annotation's target, selector and body each come in more than one shape. The SDK's readers
+(`getTargetSource`, `getAnnotationExactText`, `getBodySource`, `getEntityTypes` and their
+siblings) read each whichever it is:
+[Developer Guide § Read resources and annotations](./DEVELOPER-GUIDE.md#3-read-resources-and-annotations).
+
 ## Match
 
 `match.search` finds what a reference could refer to. It is long-running, and returns a `StreamObservable` of scored results — `await` for the final emission, or `subscribe` for streaming progress. `referenceId` is typed as `AnnotationId` (the annotation containing the reference body to search candidates for).

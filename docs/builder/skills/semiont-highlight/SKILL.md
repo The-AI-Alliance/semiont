@@ -158,7 +158,7 @@ highlight(target).catch((e) => {
 - **Ask what to highlight** if the user has not said: key claims, risks, supporting evidence, quotes. `instructions` is how the model learns what matters.
 - **Density is the main dial.** It is the number of highlights to aim for in each 2,000 words; the Browser offers 1 to 15. Start near 5 for a selective pass, go to 10 or more for dense technical material, and to 1 to 3 for a light editorial pass.
 - **What `mark.delegate` can read.** A resource with text: Markdown, plain text, HTML, JSON, or a PDF. A resource with no text at all, such as an image, fails the job. A document whose text could not be read (an encrypted or damaged PDF, or one that yields no text) completes with a `declined` result and a reason code.
-- **Check results** with `await semiont.browse.annotations(rId).fresh()`, filtered for `motivation === 'highlighting'`.
+- **Check results** with `await semiont.browse.annotations(rId).fresh()`, filtered with `isHighlight` from `@semiont/sdk`; `getAnnotationExactText` gives the passage each one marks.
 - **Manual mode is for corrections.** If the model missed one passage, add it by hand instead of running the job again.
 - **From the command line.** `semiont mark --delegate <resourceId> --motivation highlighting` runs the same job from the [launcher](../../../../apps/launcher/README.md#delegating-to-the-stack), with `--instructions`, `--density`. Use it for a one-off; write a script when the work repeats.
 - **Errors.** Every SDK throw extends `SemiontError`: catch it and route on its `code`. `BusRequestError` (a bus request, with a code such as `bus.timeout`) and `JobFailedError` narrow it. See [Error Handling](../../Usage.md#error-handling).
