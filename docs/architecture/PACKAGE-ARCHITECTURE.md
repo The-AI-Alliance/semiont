@@ -30,7 +30,7 @@ graph BT
     api["@semiont/http-transport<br/><i>HttpTransport, HttpContentTransport</i>"]
     content["@semiont/content<br/><i>Working-tree storage, text extraction</i>"]
     vectors["@semiont/vectors<br/><i>Vector store & embeddings</i>"]
-    ontology["@semiont/ontology<br/><i>Entity schemas & W3C vocab</i>"]
+    ontology["@semiont/ontology<br/><i>The entity types a knowledge base starts with</i>"]
     inference["@semiont/inference<br/><i>LLM abstraction</i>"]
 
     %% Layer 0: Foundation
@@ -81,7 +81,6 @@ graph BT
     content --> obs
     content --> core
     vectors --> core
-    ontology --> core
     inference --> obs
     inference --> core
 
