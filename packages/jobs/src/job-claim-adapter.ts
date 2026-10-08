@@ -50,7 +50,7 @@
  */
 
 import { BehaviorSubject, Observable, Subject, type Subscription } from 'rxjs';
-import { BusRequestError, busRequest, jobMatchesFilter } from '@semiont/core';
+import { BusRequestError, JOB_CLAIM_TIMEOUT_MS, busRequest, jobMatchesFilter } from '@semiont/core';
 import type { BusRequestErrorCode, EventMap, JobFilter, JobId, JobType, ResourceId, UnitCursor } from '@semiont/core';
 import type { BusRequestPrimitive } from '@semiont/core';
 
@@ -232,7 +232,7 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
     // schema.
     let claimed: ClaimedJob;
     try {
-      claimed = await busRequest(bus, 'job:claim' satisfies JobClaimAwaits, { accepts }, 10_000);
+      claimed = await busRequest(bus, 'job:claim' satisfies JobClaimAwaits, { accepts }, JOB_CLAIM_TIMEOUT_MS);
     } catch (error) {
       // The reply's verdict, promoted to the client vocabulary by core. A
       // decline is the expected quiet outcome; everything else is the

@@ -22,9 +22,12 @@ __all__ = [
     "GENERATION_STALL_ASSUMED_TOKENS_COUNT",
     "GENERATION_STALL_FLOOR_MS",
     "GENERATION_STALL_PER_TOKEN_MS",
+    "HELD_JOB_STALL_CHECK_MS",
+    "HELD_JOB_STALL_MS",
     "HOVER_DELAY_MS",
     "HTTP_REQUEST_TIMEOUT_MS",
     "INVALIDATION_WINDOW_MS",
+    "JOB_CLAIM_TIMEOUT_MS",
     "JOB_SILENCE_MS",
     "JOB_STATUS_POLL_MS",
     "LAZY_REMOVE_MS",
@@ -151,6 +154,20 @@ GENERATION_STALL_ASSUMED_TOKENS_COUNT: Final = 500
 # worker's heartbeat, so reaching it means silence and not a long call.
 DELEGATE_SILENCE_MS: Final = 180000
 
+# How long a party that takes jobs waits for the answer to one claim (`job:claim`). A claim is
+# answered at once, with a job or with nothing pending; one still unanswered here is given up
+# and reported as a refusal, and the party asks again at its next idle moment.
+JOB_CLAIM_TIMEOUT_MS: Final = 10000
+
+# How long a held job may show no activity (its claim, a progress report, its settle) before
+# whoever holds it calls it stalled. Not a limit on how long a job runs: one that keeps
+# reporting is never stalled. The dispatcher's own sweep of running jobs is the backstop for a
+# holder too wedged to notice.
+HELD_JOB_STALL_MS: Final = 900000
+
+# How often a party that holds a job looks at how long it has shown no activity.
+HELD_JOB_STALL_CHECK_MS: Final = 60000
+
 # How long a pointer rests on an annotation before the viewer says it is hovered. Shorter, and a
 # pointer crossing the page hovers everything on its way.
 HOVER_DELAY_MS: Final = 150
@@ -182,6 +199,9 @@ TIMING_NAMES: Final[tuple[str, ...]] = (
     "generationStallPerTokenMs",
     "generationStallAssumedTokensCount",
     "delegateSilenceMs",
+    "jobClaimTimeoutMs",
+    "heldJobStallMs",
+    "heldJobStallCheckMs",
     "hoverDelayMs",
     "searchDebounceMs",
 )

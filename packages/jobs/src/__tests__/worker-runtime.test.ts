@@ -9,8 +9,8 @@
  * `startAgentWorker` hands it as `generator`.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { jobId, type Logger } from '@semiont/core';
-import { startAgentWorker, authenticateAgent, parseGatewayUrl, buildHealthPayload, startStallWatchdog, STALL_THRESHOLD_MS, STALL_CHECK_INTERVAL_MS, WORKER_CHANNELS, WORKER_CONSUMED_BROADCASTS, WORKER_AWAITED_OPERATIONS, WORKER_ANSWERED_OPERATIONS, type AgentGroup, type AgentVitals } from '../worker-runtime';
+import { HELD_JOB_STALL_CHECK_MS, HELD_JOB_STALL_MS, jobId, type Logger } from '@semiont/core';
+import { startAgentWorker, authenticateAgent, parseGatewayUrl, buildHealthPayload, startStallWatchdog, WORKER_CHANNELS, WORKER_CONSUMED_BROADCASTS, WORKER_AWAITED_OPERATIONS, WORKER_ANSWERED_OPERATIONS, type AgentGroup, type AgentVitals } from '../worker-runtime';
 import { startWorkerProcess } from '../worker-process';
 import type { InferenceClient } from '@semiont/inference';
 import { createServer, type Server } from 'http';
@@ -379,7 +379,7 @@ describe('worker-runtime — stall watchdog', () => {
     const exit = vi.fn();
     const error = vi.fn();
     const logger = { ...noopLogger, error } as unknown as Logger;
-    const stale = new Date(Date.now() - STALL_THRESHOLD_MS - 60_000).toISOString();
+    const stale = new Date(Date.now() - HELD_JOB_STALL_MS - 60_000).toISOString();
     const worker = {
       vitals: () => vitalsWith({
         activeJob: { jobId: jobId('j-wedged'), type: 'yield', since: stale },
@@ -388,7 +388,7 @@ describe('worker-runtime — stall watchdog', () => {
     };
 
     const watchdog = startStallWatchdog({ workers: [worker], logger, exit });
-    vi.advanceTimersByTime(STALL_CHECK_INTERVAL_MS + 1);
+    vi.advanceTimersByTime(HELD_JOB_STALL_CHECK_MS + 1);
 
     expect(exit).toHaveBeenCalledWith(1);
     expect(error).toHaveBeenCalledWith(
@@ -407,7 +407,7 @@ describe('worker-runtime — stall watchdog', () => {
     };
 
     const watchdog = startStallWatchdog({ workers: [worker], logger: noopLogger, exit });
-    vi.advanceTimersByTime(STALL_CHECK_INTERVAL_MS * 3);
+    vi.advanceTimersByTime(HELD_JOB_STALL_CHECK_MS * 3);
 
     expect(exit).not.toHaveBeenCalled();
     watchdog.dispose();
@@ -431,7 +431,7 @@ describe('worker-runtime — stall watchdog', () => {
     };
 
     const watchdog = startStallWatchdog({ workers: [worker], logger: noopLogger, exit });
-    vi.advanceTimersByTime(STALL_CHECK_INTERVAL_MS * 5);
+    vi.advanceTimersByTime(HELD_JOB_STALL_CHECK_MS * 5);
 
     expect(exit).not.toHaveBeenCalled();
     watchdog.dispose();
@@ -445,7 +445,7 @@ describe('worker-runtime — stall watchdog', () => {
 
     const watchdog = startStallWatchdog({ workers: [worker], logger: noopLogger, exit });
 
-    vi.advanceTimersByTime(STALL_CHECK_INTERVAL_MS);
+    vi.advanceTimersByTime(HELD_JOB_STALL_CHECK_MS);
     expect(exit).not.toHaveBeenCalled();
 
     // Wedge: a job is claimed, then total silence — the timestamps
@@ -455,7 +455,7 @@ describe('worker-runtime — stall watchdog', () => {
       activeJob: { jobId: jobId('j-frozen'), type: 'yield', since: claimedAt },
       lastActivityAt: claimedAt,
     });
-    vi.advanceTimersByTime(STALL_THRESHOLD_MS + STALL_CHECK_INTERVAL_MS);
+    vi.advanceTimersByTime(HELD_JOB_STALL_MS + HELD_JOB_STALL_CHECK_MS);
 
     expect(exit).toHaveBeenCalledWith(1);
     expect(exit).toHaveBeenCalledTimes(1); // interval cleared on breach — no refire

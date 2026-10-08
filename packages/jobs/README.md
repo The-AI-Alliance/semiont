@@ -13,7 +13,6 @@ The queue is not here. It is the [dispatcher](../../apps/dispatcher/README.md)'s
 ## Who uses it
 
 - **The Worker service** is this package's `worker-main`, run as the `semiont-worker` image ([apps/worker](../../apps/worker/README.md)).
-- **[`@semiont/make-meaning`](../make-meaning/README.md)** takes one constant from it: the stall threshold that its own gather deadlines are checked against.
 
 **Building an application?** You do not need this package. An application starts a job through [`@semiont/sdk`](../sdk/README.md) (`mark.delegate` for an annotation pass, `yield.delegate` for a new resource) and follows it with the `job` namespace.
 

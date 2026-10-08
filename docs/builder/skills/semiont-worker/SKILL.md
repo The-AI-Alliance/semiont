@@ -15,7 +15,7 @@ It is the shape of Semiont's own `semiont-worker` service. A daemon that reacts 
 - The work is a job the knowledge base queues: a `mark` job, which annotates a resource for one motivation (`highlighting`, `commenting`, `assessing`, `linking` or `tagging`), or a `yield` job, which makes a resource. A worker of your own serves one or more of them with your own logic or your own model. Jobs are created with `job:create`, which is what `mark.delegate` and `yield.delegate` send.
 - Each job must run once, however many workers are up. A claim is atomic: of any number of simultaneous claims, exactly one wins each pending job.
 
-The dispatcher holds the queue and answers the `job:*` channels. [JOBS.md](../../../protocol/JOBS.md) is the contract.
+The dispatcher holds the queue and answers the `job:*` channels. [JOBS.md](../../../protocol/JOBS.md) is what it does, and [WORKER-CONTRACT.md](../../../protocol/WORKER-CONTRACT.md) is what a worker promises it.
 
 ## The lifecycle a worker reports
 

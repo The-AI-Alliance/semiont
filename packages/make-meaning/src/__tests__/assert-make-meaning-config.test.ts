@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { STALL_THRESHOLD_MS } from '@semiont/jobs';
+import { HELD_JOB_STALL_MS } from '@semiont/core';
 import { assertMakeMeaningConfig } from '../assert-make-meaning-config';
 import type { MakeMeaningConfig } from '../config';
 
@@ -25,7 +25,7 @@ describe('assertMakeMeaningConfig', () => {
   });
 
   it('rejects a settle bound that cannot degrade before the stall watchdog fails fast', () => {
-    const bad: MakeMeaningConfig = { ...config, gather: { settleTimeoutMs: STALL_THRESHOLD_MS } };
+    const bad: MakeMeaningConfig = { ...config, gather: { settleTimeoutMs: HELD_JOB_STALL_MS } };
     expect(() => assertMakeMeaningConfig(bad)).toThrow(/settleTimeoutMs.*stall watchdog/);
   });
 

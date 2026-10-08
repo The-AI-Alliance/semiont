@@ -12,6 +12,7 @@
  * one logical agent two DIDs.
  */
 
+import { HELD_JOB_STALL_CHECK_MS, HELD_JOB_STALL_MS } from '@semiont/core';
 import type { EventMap, JobFilter } from '@semiont/core';
 import { startWorkerProcess } from './worker-process';
 import type { MarkCommitAwaits, DescriptorReadAwaits, DurabilityProbeAwaits } from './worker-process';
@@ -133,8 +134,10 @@ export function buildHealthPayload(workers: ReadonlyArray<{ vitals(): AgentVital
  *
  * Thresholds are fixed by design (no env knobs) and deliberately
  * layered: inference timeout (10 min) fires first; this watchdog
- * (15 min) catches wedges where the loop still turns but activity has
- * stopped; the gateway's dead-worker janitor (30 min) re-queues the job
+ * (`heldJobStallMs`, looked at every `heldJobStallCheckMs`; both rows of
+ * specs/src/client/timing.json, which every worker in any language
+ * generates from) catches wedges where the loop still turns but activity
+ * has stopped; the dispatcher's dead-worker sweep (30 min) concludes the job
  * regardless.
  *
  * The layering matters because this watchdog has a hard limit: it is an
@@ -146,9 +149,6 @@ export function buildHealthPayload(workers: ReadonlyArray<{ vitals(): AgentVital
  * whose worker has gone silent (docs/protocol/JOBS.md). A liveness guarantee
  * a blocked loop defeats is not one; the sweep is the guarantee.
  */
-export const STALL_THRESHOLD_MS = 15 * 60_000;
-export const STALL_CHECK_INTERVAL_MS = 60_000;
-
 export interface StallWatchdogOptions {
   workers: ReadonlyArray<{ vitals(): AgentVitals }>;
   logger: Logger;
@@ -166,7 +166,7 @@ export function startStallWatchdog(opts: StallWatchdogOptions): { dispose(): voi
       if (!v.activeJob || !v.lastActivityAt) continue;
 
       const silentForMs = now - Date.parse(v.lastActivityAt);
-      if (silentForMs <= STALL_THRESHOLD_MS) continue;
+      if (silentForMs <= HELD_JOB_STALL_MS) continue;
 
       logger.error('Worker stalled — exiting for restart', {
         provider: v.provider,
@@ -177,13 +177,13 @@ export function startStallWatchdog(opts: StallWatchdogOptions): { dispose(): voi
         processingSince: v.activeJob.since,
         lastActivityAt: v.lastActivityAt,
         silentForMs,
-        thresholdMs: STALL_THRESHOLD_MS,
+        thresholdMs: HELD_JOB_STALL_MS,
       });
       clearInterval(timer);
       exit(1);
       return;
     }
-  }, STALL_CHECK_INTERVAL_MS);
+  }, HELD_JOB_STALL_CHECK_MS);
   timer.unref?.();
 
   return { dispose: () => clearInterval(timer) };

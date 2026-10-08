@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 /**
- * lint:transport-contract — the two transport documents and the SDK
- * conformance corpus name each other truthfully.
+ * lint:transport-contract — the contract documents and the conformance
+ * corpus name each other truthfully. The documents are the two transport
+ * ones and the worker contract.
  *
- * - Every rule's `*Held by …*` in docs/protocol/TRANSPORT-CONTRACT.md and
- *   TRANSPORT-HTTP.md names cases that exist: `sdk/wire/<case>`,
+ * - Every rule's `*Held by …*` in docs/protocol/TRANSPORT-CONTRACT.md,
+ *   TRANSPORT-HTTP.md and WORKER-CONTRACT.md names cases that exist: `sdk/wire/<case>`,
  *   `sdk/live/<case>` (a file, or a case built from a row of
  *   specs/src/client/refresh.json), `gateway/<file>`, `dispatcher/<file>`, or
  *   a path in the repository. One that names nothing says "no case".
@@ -20,7 +21,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
-const DOCS = ['docs/protocol/TRANSPORT-CONTRACT.md', 'docs/protocol/TRANSPORT-HTTP.md'];
+const DOCS = ['docs/protocol/TRANSPORT-CONTRACT.md', 'docs/protocol/TRANSPORT-HTTP.md', 'docs/protocol/WORKER-CONTRACT.md'];
 const SDK = 'tests/conformance/sdk';
 const failures = [];
 const read = (path) => readFileSync(join(ROOT, path), 'utf8');
@@ -70,7 +71,7 @@ for (const doc of DOCS) {
     }
   }
 }
-if (rules === 0) failures.push('neither transport document states what holds a rule');
+if (rules === 0) failures.push('no contract document states what holds a rule');
 
 for (const name of wire) {
   if (!named.has(`sdk/wire/${name}`)) failures.push(`${SDK}/wire/${name}.json holds a client to something neither transport document states: no rule is held by \`sdk/wire/${name}\``);

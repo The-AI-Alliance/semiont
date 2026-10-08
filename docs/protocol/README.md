@@ -103,6 +103,7 @@ For product framing and getting a knowledge base running, see the **[project REA
 | [CHANNELS.md](CHANNELS.md) | The channel inventory, by class |
 | [ARCHIVIST.md](ARCHIVIST.md) | The record: the event log, the views and the other files the Archivist keeps, the commands it records, the reads and the HTTP surface it answers, the facts it publishes |
 | [JOBS.md](JOBS.md) | Delegated work: the job record and its states, the `job:*` channels the dispatcher answers, claims, checkpoints, retries, cancellation |
+| [WORKER-CONTRACT.md](WORKER-CONTRACT.md) | What every worker promises, in any language: when it claims, the lifecycle it reports, cancellation, liveness |
 | [TRANSPORT-CONTRACT.md](TRANSPORT-CONTRACT.md) | What every transport promises a client, in any language |
 | [TRANSPORT-HTTP.md](TRANSPORT-HTTP.md) | The HTTP transport: `/bus/emit`, the `/bus/subscribe` stream, content, limits |
 | [CACHE-SEMANTICS.md](CACHE-SEMANTICS.md) | The numbered behaviors every SDK's live queries are held to |
