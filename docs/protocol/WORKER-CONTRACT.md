@@ -76,8 +76,8 @@ matches one of them, or with `none-pending`.
   *Held by no case.*
 - **C9.** A reply to a claim that names no job id, no job type or no
   parameters is refused where it arrives, reported as a refusal, and never
-  run.
-  *Held by no case.*
+  run. The worker goes on claiming.
+  *Held by `packages/jobs/src/__tests__/job-claim-adapter.test.ts`.*
 - **C10.** A claim waits `jobClaimTimeoutMs`
   ([`timing.json`](../../specs/src/client/timing.json)) for its answer. One
   not answered by then is reported as a refusal.

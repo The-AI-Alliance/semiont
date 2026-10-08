@@ -50,7 +50,7 @@
  */
 
 import { BehaviorSubject, Observable, Subject, type Subscription } from 'rxjs';
-import { BusRequestError, JOB_CLAIM_TIMEOUT_MS, busRequest, jobMatchesFilter } from '@semiont/core';
+import { BusRequestError, JOB_CLAIM_TIMEOUT_MS, busRequest, isObject, isString, jobMatchesFilter } from '@semiont/core';
 import type { BusRequestErrorCode, EventMap, JobFilter, JobId, JobType, ResourceId, UnitCursor } from '@semiont/core';
 import type { BusRequestPrimitive } from '@semiont/core';
 
@@ -114,8 +114,8 @@ export interface JobClaimAdapterOptions {
  * A claim the dispatcher refused for a reason other than "nothing pending".
  *
  * `code` is the `BusRequestError` code the reply was promoted to, or `null`
- * when the failure was local — a thrown non-bus error — never a manufactured
- * bus code. `bus.none-pending` never appears here: it is the quiet park, and
+ * when the failure was local — a thrown non-bus error, or a reply that names
+ * no job — never a manufactured bus code. `bus.none-pending` never appears here: it is the quiet park, and
  * emitting it would make an empty queue look like a fault.
  */
 export interface ClaimRefusal {
@@ -227,9 +227,9 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
     // the job description, never a job id. Same request/reply path as the SDK: busRequest
     // mints the correlationId, matches the job:claimed / job:claim-failed reply
     // by it, and returns the reply's `response` — the claimed job, as the spec
-    // types it. A reply is not checked on receipt: the dispatcher states it,
-    // and its conformance suite holds every frame it sends to the channel's
-    // schema.
+    // types it. A reply is not held to its schema here: the dispatcher states
+    // it, and its conformance suite holds every frame it sends to the
+    // channel's schema. What is checked below is only that it names a job.
     let claimed: ClaimedJob;
     try {
       claimed = await busRequest(bus, 'job:claim' satisfies JobClaimAwaits, { accepts }, JOB_CLAIM_TIMEOUT_MS);
@@ -242,6 +242,15 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
         return { refused: { code: error.code, message: error.message } };
       }
       return { refused: { code: null, message: error instanceof Error ? error.message : String(error) } };
+    }
+
+    // WORKER-CONTRACT C9: a reply that names no job is refused here and never
+    // run. Read unguarded, one with no `metadata` throws inside this loop,
+    // where nothing catches it and no claim would ever follow; one with no id
+    // would be handed to the work as a job.
+    const reply: unknown = claimed;
+    if (!isObject(reply) || !isObject(reply.metadata) || !isString(reply.metadata.id) || !isString(reply.metadata.type) || !isObject(reply.params)) {
+      return { refused: { code: null, message: 'job:claimed names no job: it has no job id, no job type or no parameters' } };
     }
 
     const { metadata, params } = claimed;

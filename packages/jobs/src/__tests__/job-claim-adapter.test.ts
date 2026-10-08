@@ -107,6 +107,13 @@ function fakeBus(initialState: ConnectionState = 'open') {
     /** Answer claim `i` with a refusal carrying `code` (or none). */
     refuse: (i: number, code?: EventMap['job:claim-failed']['code'], message = 'refused') =>
       eventBus.emit('job:claim-failed', code ? { message, code } : { message }, { correlationId: claims()[i]!.correlationId }),
+    /**
+     * Answer claim `i` with a `job:claimed` that is not a claimed job. The
+     * channel's type forbids exactly this, which is the point of the case, so
+     * this is the one place a reply is asserted to be what it is not.
+     */
+    grantMalformed: (i: number, response: unknown) =>
+      eventBus.emit('job:claimed', { response: response as ClaimedJob }, { correlationId: claims()[i]!.correlationId }),
   };
 }
 
@@ -312,6 +319,40 @@ describe('createJobClaimAdapter — the worker pulls when idle', () => {
 
     expect(refusals).toEqual([{ code: 'bus.rejected', message: 'job:claim: job j9 names no resource to record its assignment under' }]);
     expect(h.claims()).toHaveLength(1);
+
+    adapter.dispose();
+  });
+
+  // WORKER-CONTRACT C9. The dispatcher's suite holds every reply it sends to
+  // the schema, so none of these is expected of it. A worker still must not
+  // run what it cannot read, and must not stop claiming because of it.
+  const whole = runningJob('j1');
+  it.each([
+    ['nothing', undefined],
+    ['no metadata', { ...whole, metadata: undefined }],
+    ['no job id', { ...whole, metadata: { ...whole.metadata, id: undefined } }],
+    ['no job type', { ...whole, metadata: { ...whole.metadata, type: undefined } }],
+    ['no parameters', { ...whole, params: undefined }],
+  ])('(ix) a reply that names no job (%s) is refused here, never held, and the next wake-up claims', async (_what, response) => {
+    const adapter = createJobClaimAdapter({ bus: h.bus, accepts: EVERYTHING });
+    const refusals: ClaimRefusal[] = [];
+    const held: unknown[] = [];
+    adapter.refused$.subscribe((r) => refusals.push(r));
+    adapter.activeJob$.subscribe((job) => { if (job !== null) held.push(job); });
+    adapter.start();
+
+    h.grantMalformed(0, response);
+    await tick();
+
+    expect(refusals, 'reported, as a failure of this worker\'s own and under no bus code').toEqual([
+      { code: null, message: 'job:claimed names no job: it has no job id, no job type or no parameters' },
+    ]);
+    expect(held, 'never held, so never run').toEqual([]);
+    expect(await firstValueFrom(adapter.isProcessing$)).toBe(false);
+
+    h.pushEvent('job:queued', queued('yield'));
+    await tick();
+    expect(h.claims(), 'the loop is not left with a claim in flight').toHaveLength(2);
 
     adapter.dispose();
   });
