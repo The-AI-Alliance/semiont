@@ -98,19 +98,27 @@ func workerNamedVars(env *envConfig) []string {
 	return names
 }
 
+// workerBindingSection: the section that binds every job to a worker, as the
+// launcher names it for an operator to add.
+func workerBindingSection(envName string) string {
+	return fmt.Sprintf("[environments.%s.workers.default.inference]", envName)
+}
+
 // workerAgents: the agents the worker works as, projected from the roles
 // workerRoles resolves. An agent is an engine — a provider and a model, at one
 // address, under one key — and accepts every job that engine serves: agents
 // are in the order of the first job that needs each, and an agent's filters in
 // workerJobs' order. An environment that binds no job has no agents, and is
-// refused: the document's `agents` is never empty.
+// refused: the document's `agents` is never empty. A full start of such an
+// environment runs no worker and writes no document (workerPlan); this is the
+// refusal of a worker asked for by name.
 func workerAgents(env *envConfig, envName string, vars map[string]string) ([]semiont.WorkerAgentConfig, error) {
 	served, err := workerRoles(env)
 	if err != nil {
 		return nil, err
 	}
 	if len(served) == 0 {
-		return nil, fmt.Errorf("the environment binds no job to a worker: the worker has no job to serve — add [environments.%s.workers.default.inference] with type = \"anthropic\" or \"ollama\" and a model", envName)
+		return nil, fmt.Errorf("the environment binds no job to a worker: the worker has no job to serve — add %s with type = \"anthropic\" or \"ollama\" and a model", workerBindingSection(envName))
 	}
 	var agents []semiont.WorkerAgentConfig
 	for _, s := range served {

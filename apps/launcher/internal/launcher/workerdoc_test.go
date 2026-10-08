@@ -279,6 +279,34 @@ func TestWorkerDocumentServesWhatTheRosterSays(t *testing.T) {
 	}
 }
 
+// One resolution decides whether there is a worker at all: for every case of
+// the shared table, the plan runs one exactly when the case's roster serves a
+// job — which is exactly when the worker's document can be written
+// (TestWorkerDocumentServesWhatTheRosterSays).
+func TestPlanRunsAWorkerExactlyWhenTheRosterServesAJob(t *testing.T) {
+	ran, absent := 0, 0
+	for _, c := range readSharedRosterTable(t).Cases {
+		var roster semiont.ArchivistRoster
+		if err := json.Unmarshal(c.Roster, &roster); err != nil {
+			t.Fatalf("%s: the case's roster is not an ArchivistRoster: %v", c.Why, err)
+		}
+		serves := len(rosterServes(roster))
+		want := presenceAbsent
+		if serves > 0 {
+			want = presenceLauncher
+			ran++
+		} else {
+			absent++
+		}
+		if got := workerPlan(envFrom(t, c.Config)).Presence; got != want {
+			t.Errorf("%s: the roster serves %d jobs and the plan's worker is %s", c.Why, serves, got)
+		}
+	}
+	if ran == 0 || absent == 0 {
+		t.Fatalf("the shared table has %d cases with a worker and %d without: this gate needs both", ran, absent)
+	}
+}
+
 // Every job the roster has a worker role for has a filter that names it: a job
 // the roster gained and no filter describes would be served by an agent that
 // claims nothing.

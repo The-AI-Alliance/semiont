@@ -180,9 +180,19 @@ func Logs(args []string) int {
 		return roleContainer(svc), true
 	}
 
-	follow := logServices
+	// The default set is the services this stack runs: one its config gives
+	// nothing to do has no container to follow, and is refused only when
+	// asked for by name.
+	var follow []string
 	if service != "" {
 		follow = []string{service}
+	} else {
+		for _, svc := range logServices {
+			if st != nil && st.Services[svc].Provided == providedNone {
+				continue
+			}
+			follow = append(follow, svc)
+		}
 	}
 	targets := make(map[string]string, len(follow)) // svc → handle
 	for _, svc := range follow {

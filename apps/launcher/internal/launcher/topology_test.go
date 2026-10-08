@@ -264,7 +264,7 @@ func TestNoTopologyTravelsInAnEnvironment(t *testing.T) {
 	builders := map[string][]string{
 		"gateway":    gatewayArgs("/stage", "docker", "192.168.64.1", "secret", "jwt", "latest", 4000, nil, nil),
 		"worker":     workerArgs("/stage", "docker", "192.168.64.1", "secret", "latest", nil, nil),
-		"smelter":    sidecarArgs("smelter", 24101, "/stage", "docker", "192.168.64.1", "secret", "latest", nil, nil),
+		"smelter":    sidecarArgs("smelter", "/stage", "docker", "192.168.64.1", "secret", "latest", nil, nil),
 		"archivist":  archivistArgs("/kb", "/stage", "docker", "192.168.64.1", "secret", "latest", nil, nil),
 		"librarian":  librarianArgs("/stage", "docker", "192.168.64.1", "secret", "latest", nil, nil),
 		"dispatcher": dispatcherArgs("/stage", "docker", "192.168.64.1", "secret", "latest", nil, nil),

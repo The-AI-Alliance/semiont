@@ -744,8 +744,8 @@ func superviseEnv() []string {
 // sidecarArgs covers the two sidecars that load a staged copy of the KB's
 // config (smelter / weaver) — identical in shape, differing only in name,
 // port, and memory.
-func sidecarArgs(svc string, port int, stage, rt, addr string, clientSecret, version string, userEnv, otel []string, extra ...string) []string {
-	p := strconv.Itoa(port)
+func sidecarArgs(svc string, stage, rt, addr string, clientSecret, version string, userEnv, otel []string, extra ...string) []string {
+	p := strconv.Itoa(semiontDescriptor(svc).ports[0].port)
 	a := []string{"run", "-d", "--name", "semiont-" + svc, // no --rm: see providedRunArgs
 		"--memory", semiontDescriptor(svc).mem, "--publish", p + ":" + p,
 		"--volume", stage + "/" + svc + ".toml:/home/semiont/.semiontconfig:ro"}
@@ -910,14 +910,14 @@ func pullArgs(rt, img string) []string {
 
 type sidecarSpec struct {
 	svc, label, noun string
-	port             int
 }
 
-// sidecarSpecs: the three make-meaning sidecars, in start order.
+// sidecarSpecs: the three make-meaning sidecars, in start order. Each one's
+// container, port and memory are its descriptor's.
 var sidecarSpecs = []sidecarSpec{
-	{"worker", "Worker pool", "Worker Pool", 24100},
-	{"smelter", "Smelter", "Smelter", 24101},
-	{"weaver", "Weaver", "Weaver", 24102},
+	{"worker", "Worker pool", "Worker Pool"},
+	{"smelter", "Smelter", "Smelter"},
+	{"weaver", "Weaver", "Weaver"},
 }
 
 // --- The real run ---

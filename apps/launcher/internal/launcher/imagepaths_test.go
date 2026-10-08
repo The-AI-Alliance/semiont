@@ -160,8 +160,8 @@ func TestExactlyOneContainerMountsTheKB(t *testing.T) {
 		"archivist": archivistArgs(kbRoot, "/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
 		"librarian": librarianArgs("/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
 		"worker":    workerArgs("/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
-		"smelter":   sidecarArgs("smelter", 24101, "/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
-		"weaver":    sidecarArgs("weaver", 24102, "/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
+		"smelter":   sidecarArgs("smelter", "/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
+		"weaver":    sidecarArgs("weaver", "/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
 	}
 
 	var mounters []string

@@ -462,6 +462,9 @@ func (x *liveExec) stageAll(fc flowCtx, addr string) (string, bool) {
 		return "", false
 	}
 	for _, svc := range stackServices {
+		if !fc.plan.runs(svc) {
+			continue
+		}
 		if !x.stageService(stage, svc, cfg, fc, addr) {
 			return "", false
 		}
@@ -1274,7 +1277,9 @@ func (x *planExec) stageAll(fc flowCtx, addr string) (string, bool) {
 	x.c("write <config-stage>/%s (the gateway's configuration document: GatewayConfig, resolved)", gatewayDocumentFile)
 	x.c("write <config-stage>/%s (the dispatcher's configuration document: DispatcherConfig, resolved)", dispatcherDocumentFile)
 	x.c("write <config-stage>/%s (the Archivist's configuration document: ArchivistConfig, resolved)", archivistDocumentFile)
-	x.c("write <config-stage>/%s (the worker's configuration document: WorkerConfig, resolved)", workerDocumentFile)
+	if fc.plan.runs("worker") {
+		x.c("write <config-stage>/%s (the worker's configuration document: WorkerConfig, resolved)", workerDocumentFile)
+	}
 	x.c("stage per-service config copies under <config-stage>: %s", strings.Join(staged, " "))
 	x.c("write into each copy the addresses this start places, as literals, in the sections that service reads (launcher-staged topology):")
 	// In plan mode the context names the config; the file is under the root.

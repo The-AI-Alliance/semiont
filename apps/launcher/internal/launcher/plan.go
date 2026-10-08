@@ -46,7 +46,7 @@ type rolePlan struct {
 	Driver           string        // config `type` (catalog key)
 	Image            string        // catalog, for provided/host-fallback launches
 	Address          string        // external host, for reachability probes
-	Port             int           // primary port (config, else driver default)
+	Port             int           // primary port (config, else driver default); zero for a launcher-fiat port, the descriptor's
 	SharesOllamaWith string        // role under which the launcher runs the Ollama this one uses
 	Models           []servedModel // models this role uses, each with the provider that serves it
 	Env              []string      // container env derived from config (no credential: those are added at launch)
@@ -71,6 +71,9 @@ type rolePlan struct {
 }
 
 type launchPlan struct {
+	// Roles: the roles whose presence the config decides — every dependency
+	// role, and the worker. Semiont's other services are in every stack and
+	// have no row (runs).
 	Roles       map[string]rolePlan
 	GatewayPort int
 	// EnvName is the [defaults]-selected environment — staging needs it to
@@ -321,6 +324,16 @@ func ollamaRunArgs(rp rolePlan, extra ...string) []string {
 	return append(a, rp.Image)
 }
 
+// runs: whether this start runs role's container, asked of the roles the
+// launcher places by fiat — Semiont's own services and the observability tier
+// — and never of a dependency role, whose presence has more answers than two
+// (flowDepRole). The plan carries the one fiat role a config decides, the
+// worker; a role it does not carry runs whenever the walk reaches it.
+func (p *launchPlan) runs(role string) bool {
+	rp, planned := p.Roles[role]
+	return !planned || rp.Presence == presenceLauncher
+}
+
 // planPortChecks: the must-be-free ports, derived from the plan — only roles
 // the launcher actually provides claim ports. The order is the order the
 // checks run in, and the start goldens pin it.
@@ -345,26 +358,28 @@ func planPortChecks(plan *launchPlan, observe bool) []portNeed {
 	// Browser is not a stack member — its port is checked inside flowBrowser,
 	// and only when (re)starting.
 	checks = append(checks, portNeed{plan.GatewayPort, "Gateway"})
-	return append(checks, fiatPortNeeds(observe)...)
+	for _, role := range fiatRoles(observe) {
+		if plan.runs(role) {
+			checks = append(checks, stackPortNeeds(role)...)
+		}
+	}
+	return checks
 }
 
-// fiatPortNeeds: the ports a stack claims whatever its config says — the
-// Semiont services behind the gateway, then observability. ONE list for the
-// two sites that decide it: a full start requires these free, and a stop
-// holding no record of the stack's claims verifies these released.
-func fiatPortNeeds(observe bool) []portNeed {
-	var needs []portNeed
-	for _, role := range []string{"worker", "smelter", "weaver", "archivist", "librarian", "dispatcher"} {
-		needs = append(needs, stackPortNeeds(role)...)
-	}
+// fiatRoles: the roles whose ports are the launcher's fiat, whatever a config
+// says — the Semiont services behind the gateway, then observability. ONE
+// list for the two sites that decide it: a full start requires the ports of
+// the ones it runs free, and a stop holding no record of the stack's claims
+// verifies every one's released.
+func fiatRoles(observe bool) []string {
+	roles := []string{"worker", "smelter", "weaver", "archivist", "librarian", "dispatcher"}
 	// The collector runs on every start, observed or not.
-	needs = append(needs, stackPortNeeds("collector")...)
+	roles = append(roles, "collector")
 	if observe {
 		// --no-observe declines the observability BACKENDS (Jaeger, Prometheus).
-		needs = append(needs, stackPortNeeds("traces")...)
-		needs = append(needs, stackPortNeeds("metrics")...)
+		roles = append(roles, "traces", "metrics")
 	}
-	return needs
+	return roles
 }
 
 func knownDrivers(role string) string {
@@ -389,6 +404,21 @@ func parseHostPort(s string) (host string, port int) {
 		}
 	}
 	return s, 0
+}
+
+// workerPlan: the worker's row of the plan. The launcher runs a worker when
+// the environment binds a job to one, and the stack has none when it binds
+// none. ONE decision, read from the resolution the worker's document and the
+// Archivist's roster are written from (workerRoles); everything that
+// enumerates the stack follows it (launchPlan.runs). A binding the roster
+// refuses is still a binding: the worker is wanted, and the fault is refused
+// by name where its document is written.
+func workerPlan(env *envConfig) rolePlan {
+	worker := rolePlan{Role: "worker", Driver: driverSemiont, Presence: presenceLauncher}
+	if served, err := workerRoles(env); err == nil && len(served) == 0 {
+		worker.Presence = presenceAbsent
+	}
+	return worker
 }
 
 // derivePlan maps the selected environment to each role's presence.
@@ -911,6 +941,10 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 		}
 		plan.Roles["inference"] = rp
 	}
+
+	// worker — the one of Semiont's own services a config decides: run when
+	// the environment binds a job to it, not here when it binds none.
+	plan.Roles["worker"] = workerPlan(env)
 
 	return plan, nil
 }

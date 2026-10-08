@@ -692,6 +692,81 @@ func TestPlanPortChecksCoverEveryStackPortClaim(t *testing.T) {
 	}
 }
 
+// The worker is a role of the plan like any other the config decides: run by
+// the launcher when the environment binds a job to one, absent when it binds
+// none. An actor's binding binds no job.
+func TestPlanRunsAWorkerOnlyWhenAJobIsBound(t *testing.T) {
+	const provider = `[environments.local.inference.anthropic]
+platform = "external"
+endpoint = "https://api.anthropic.com"
+apiKey = "${ANTHROPIC_API_KEY}"
+`
+	for _, c := range []struct {
+		why       string
+		inference string
+		want      presence
+	}{
+		{"workers.default binds every job", provider + "\n[environments.local.workers.default.inference]\ntype = \"anthropic\"\nmodel = \"claude-sonnet-4-5-20250929\"\n", presenceLauncher},
+		{"one job is bound", provider + "\n[environments.local.workers.yield.inference]\ntype = \"anthropic\"\nmodel = \"claude-sonnet-4-5-20250929\"\n", presenceLauncher},
+		{"only an actor is bound", provider + "\n[environments.local.actors.gatherer.inference]\ntype = \"anthropic\"\nmodel = \"claude-sonnet-4-5-20250929\"\n", presenceAbsent},
+		{"nothing is bound", "", presenceAbsent},
+	} {
+		plan := mustDerive(t, variantConfig(t, map[string]string{"inference": c.inference}))
+		worker, planned := plan.Roles["worker"]
+		if !planned {
+			t.Fatalf("%s: the plan carries no worker", c.why)
+		}
+		if worker.Presence != c.want {
+			t.Errorf("%s: the worker is %s, want %s", c.why, worker.Presence, c.want)
+		}
+		if _, ours := lookupDescriptor(worker.Role, worker.Driver); !ours {
+			t.Errorf("%s: the worker's row names (%q, %q), which is no descriptor", c.why, worker.Role, worker.Driver)
+		}
+	}
+}
+
+// A binding the roster refuses is still a binding: the worker is wanted, and
+// the fault is refused where its document is written.
+func TestPlanRunsTheWorkerOfAMalformedBinding(t *testing.T) {
+	env := envFrom(t, "[defaults]\nenvironment = \"local\"\n\n[environments.local.workers.yield.inference]\ntype = \"openai\"\nmodel = \"m\"\n")
+	if _, err := workerRoles(env); err == nil {
+		t.Fatal("the fixture's binding is not refused: this test would prove nothing")
+	}
+	if got := workerPlan(env).Presence; got != presenceLauncher {
+		t.Errorf("the worker of a malformed binding is %s, want launcher-run: its document refuses the binding by name", got)
+	}
+}
+
+// A stack without a worker claims everything a stack with one does but the
+// worker's port, in the same order.
+func TestPlanPortChecksClaimNoPortForAnAbsentWorker(t *testing.T) {
+	bound := mustDerive(t, variantConfig(t, nil))
+	unbound := mustDerive(t, variantConfig(t, map[string]string{"inference": ""}))
+	var want []int
+	for _, port := range portNumbers(planPortChecks(bound, true)) {
+		if !slices.Contains(portNumbers(stackPortNeeds("worker")), port) {
+			want = append(want, port)
+		}
+	}
+	got := portNumbers(planPortChecks(unbound, true))
+	if !slices.Equal(got, want) {
+		t.Errorf("a stack without a worker requires %v free\nwant %v", got, want)
+	}
+	if len(want) == len(planPortChecks(bound, true)) {
+		t.Fatal("a stack with a worker claims no worker port: this test would prove nothing")
+	}
+}
+
+// `start --service worker` claims the worker's own port: the launcher's fiat,
+// which the descriptor carries and the plan does not.
+func TestServicePortNeedsOfTheWorkerAreItsDescriptors(t *testing.T) {
+	plan := mustDerive(t, variantConfig(t, nil))
+	got := servicePortNeeds("worker", plan, startOptions{})
+	if want := stackPortNeeds("worker"); !slices.Equal(got, want) {
+		t.Errorf("--service worker claims %v, want %v", got, want)
+	}
+}
+
 // A stop holding no record of the stack's claims verifies fiatPorts instead,
 // so every stack-level claim such a stop can know must be in it: one it
 // misses is a survivor nobody reports, and the next start fails on it.

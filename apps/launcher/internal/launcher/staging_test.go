@@ -71,13 +71,13 @@ func TestStagedConfigPerService(t *testing.T) {
 		archivist  bool
 		kbIdentity bool
 	}{
-		// The gateway and the worker are absent: each takes a configuration
-		// document, not a patched copy (gatewaydoc_test.go, workerdoc_test.go).
+		// The gateway, the dispatcher, the Archivist and the worker are
+		// absent: each takes a configuration document, not a patched copy
+		// (gatewaydoc_test.go, dispatcherdoc_test.go, archivistdoc_test.go,
+		// workerdoc_test.go).
 		{"librarian", true, true},
 		{"smelter", true, false},
 		{"weaver", false, false},
-		// The Archivist IS the record — it holds the mount and dials nobody.
-		{"archivist", false, false},
 	} {
 		out := x.stagedConfig(tc.svc, []byte(stagingFixture), &launchPlan{EnvName: "local"}, "192.168.64.1")
 

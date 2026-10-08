@@ -322,7 +322,7 @@ The launcher walks up from the current directory looking for `.semiont/`, as `gi
 | A section says `platform = "external"` and states no address | Add the address |
 | A section names a password for a daemon the launcher runs | Delete it. The launcher generates and keeps that password |
 | `[defaults] environment` is missing, or names an environment the file lacks | Set it to an environment the file defines |
-| The environment binds no job to a worker | Add a binding; `[environments.<env>.workers.default.inference]`, with a `type` and a `model`, covers every job. The launcher refuses to start a stack whose worker would have nothing to serve |
+| The start says the environment binds no job to a worker, and skips it | The stack runs with no worker, and no job is served. To run one, add a binding; `[environments.<env>.workers.default.inference]`, with a `type` and a `model`, covers every job. `semiont start --service worker` on such a config is refused, since it has nothing to serve |
 | A job is bound to a provider the environment has no section for, or to an Ollama with no address | Add `[environments.<env>.inference.<provider>]`, with a `baseURL` for an Ollama the launcher does not run |
 | A service finds no inference config for an actor | Add the binding under `[environments.<env>.make-meaning.actors]` or `[environments.<env>.actors]` |
 | A `${NAME}` is not set | Export it, or register its source with `semiont settings secret set NAME` |
