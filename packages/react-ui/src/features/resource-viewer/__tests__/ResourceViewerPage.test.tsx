@@ -132,9 +132,12 @@ vi.mock('../../../hooks/useOutcomeToasts', () => ({
 // Mock useEventSubscription at the direct path used by ResourceViewerPage
 // (the barrel export mock doesn't intercept direct context imports)
 const mockUseEventSubscriptions = vi.fn();
+// The resource's own events: the page reads them for its resource.
+const mockUseResourceEventSubscriptions = vi.fn();
 vi.mock('../../../contexts/useEventSubscription', () => ({
   useEventSubscription: vi.fn(),
   useEventSubscriptions: (...args: unknown[]) => mockUseEventSubscriptions(...args),
+  useResourceEventSubscriptions: (...args: unknown[]) => mockUseResourceEventSubscriptions(...args),
 }));
 
 vi.mock('@/components/toolbar/ToolbarPanels', () => ({
@@ -206,7 +209,7 @@ describe('ResourceViewerPage — outcome toasts reach the user', () => {
 // A reference resolving — from ANY strategy, local or
 // remote — arrives as mark:body-updated with a linking-add operation, and the
 // page turns exactly that into a sparkle. The harness mocks
-// useEventSubscriptions, so the pin drives the captured handler directly.
+// useResourceEventSubscriptions, so the pin drives the captured handler directly.
 describe('ResourceViewerPage — resolution sparkles', () => {
   const bodyUpdated = (operations: BodyOperation[]): EventMap['mark:body-updated'] => ({
     id: 'evt-1',
@@ -220,11 +223,13 @@ describe('ResourceViewerPage — resolution sparkles', () => {
   });
 
   const renderAndGetHandler = () => {
-    mockUseEventSubscriptions.mockClear();
+    mockUseResourceEventSubscriptions.mockClear();
     sparkleContext.triggerSparkleAnimation.mockClear();
     renderWithProviders(<ResourceViewerPage {...createMockProps()} />);
-    const map = mockUseEventSubscriptions.mock.calls.at(-1)?.[0] as
-      Record<string, (event: EventMap['mark:body-updated']) => void>;
+    // Read for the page's own resource, whose scope the subscription holds.
+    const [resource, map] = mockUseResourceEventSubscriptions.mock.calls.at(-1) as
+      [string, Record<string, (event: EventMap['mark:body-updated']) => void>];
+    expect(resource).toBe('test-123');
     return map['mark:body-updated'];
   };
 

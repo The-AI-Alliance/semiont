@@ -17,7 +17,7 @@ The shape is:
 - **Writes** go through the typed namespaces — `client.mark.*`,
   `client.bind.*`, `client.yield.*`, etc. These emit on the session bus and
   the SDK invalidates the affected cache keys; you do not invalidate by hand.
-- **Events** are observed with `useEventSubscription` / `useEventSubscriptions`.
+- **Events** are observed with `useEventSubscription` / `useEventSubscriptions`, and one resource's own events with `useResourceEventSubscriptions`.
 
 The cache's freshness and invalidation contract lives in the SDK, not here —
 see [`docs/protocol/CACHE-SEMANTICS.md`](../../protocol/CACHE-SEMANTICS.md).

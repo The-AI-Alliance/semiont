@@ -275,10 +275,14 @@ This is the right path **when a namespace method exists** for what you want. It 
 #### 2. `session.subscribe(channel, handler)` — channel-by-name observation
 
 ```ts
-const unsub = session.subscribe('mark:added', (event) => {
+const unsub = session.subscribe('yield:created', (event) => {
+  console.log('Resource created:', event.payload.name);
+});
+// One resource's events: the subscription names the resource, and holds its scope.
+const unsubAdded = session.subscribe('mark:added', rId, (event) => {
   console.log('Annotation added:', event.payload.annotation);
 });
-// later: unsub();
+// later: unsub(); unsubAdded();
 ```
 
 The escape hatch for **observing a channel that doesn't have a typed namespace getter**. Common cases:
@@ -288,6 +292,8 @@ The escape hatch for **observing a channel that doesn't have a typed namespace g
 - Agentic code subscribing to collaboration signals from other participants (`beckon:hover`, `beckon:sparkle`) to drive its own behavior.
 
 This path is sanctioned. It's typed against `EventMap` from `@semiont/core`, so the channel name and payload type stay aligned. The disposer cleans up on call.
+
+**A channel of a resource's scope is subscribed to with its resource.** `mark:added` and the other events of the record (`RESOURCE_SCOPED_CHANNELS`) reach only a connection that holds their resource's scope. So `session.subscribe(channel, resourceId, handler)` holds that scope for as long as the subscription lives, and gives the handler that resource's events and no other's. With no resource such a channel does not compile: the subscription would hear nothing, and say nothing of it. Every SDK has this rule. In Rust the read is `bus.stream_of::<MarkAdded>(&resource)`, where `bus.stream::<MarkAdded>()` does not compile; in Python it is `bus.frames(MARK_ADDED, resource)`, and a type checker refuses `bus.frames(MARK_ADDED)`.
 
 #### 3. Direct `client.bus.on(channel)` / `client.transport.emit(channel, ...)` — advanced
 
@@ -300,6 +306,7 @@ The lowest-level path. Reach for it when:
 
 - You're building a worker or actor that handles channels directly (Stower, Gatherer, etc. inside `@semiont/make-meaning` use this pattern — they *are* the handlers; namespaces wrap callers, not handlers).
 - You need RxJS operator composition on a channel stream (`.pipe(filter(...), map(...), shareReplay())`).
+- The client's own bus holds no scope for its readers: `client.bus.on('mark:added')` hears a resource's events only while something else holds that resource's scope.
 - A new operation isn't yet wrapped by a namespace method, and you're prototyping.
 
 `on(channel)` is the payload view. When you need the **envelope** — the `correlationId` that pairs a reply with its request, or the `scope` a frame was emitted into — read `frames(channel)` instead. `on` is derived from `frames`, so the two cannot disagree:

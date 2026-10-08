@@ -23,7 +23,7 @@ from typing import Final, final, override
 from pydantic import JsonValue
 
 from semiont.bus import Typed
-from semiont.channel import Channel
+from semiont.channel import Channel, ScopedChannel
 from semiont.events import Broadcast, Events
 from semiont.identifiers import ResourceId
 from semiont.model import WireModel
@@ -66,7 +66,12 @@ class EventBus(FrameSink):
         self.deliver(Frame(channel=channel, payload=payload, correlation_id=correlation_id, scope=scope))
 
     def publish[P: WireModel](
-        self, channel: Channel[P], payload: P, *, scope: ResourceId | None = None, correlation_id: str | None = None
+        self,
+        channel: Channel[P] | ScopedChannel[P],
+        payload: P,
+        *,
+        scope: ResourceId | None = None,
+        correlation_id: str | None = None,
     ) -> None:
         """Publish one frame of `channel`: to everyone, or into `scope`."""
         self.emit(channel.name, channel.encode(payload), scope=scope, correlation_id=correlation_id)
@@ -82,7 +87,7 @@ class EventBus(FrameSink):
                 self._views[channel, scope] = view
         return view.listen()
 
-    def frames[P: WireModel](self, channel: Channel[P], *, scope: ResourceId | None = None) -> Typed[P]:
+    def frames[P: WireModel](self, channel: Channel[P] | ScopedChannel[P], *, scope: ResourceId | None = None) -> Typed[P]:
         """The frames published on `channel` from now on, each with its payload decoded: to everyone, or into `scope`."""
         return Typed(channel, self.frames_on(channel.name, scope=scope))
 

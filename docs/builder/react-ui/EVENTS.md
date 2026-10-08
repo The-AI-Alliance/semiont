@@ -40,10 +40,10 @@ Use `useEventSubscription` — one channel at a time:
 ```tsx
 import { useEventSubscription, useResourceAnnotations } from '@semiont/react-ui';
 
-function AnnotationReactor() {
+function SparkleReactor() {
   const { triggerSparkleAnimation } = useResourceAnnotations();
-  useEventSubscription('mark:added', (stored) => {
-    triggerSparkleAnimation(stored.payload.annotation.id);
+  useEventSubscription('beckon:sparkle', ({ annotationId }) => {
+    triggerSparkleAnimation(annotationId);
   });
   return null;
 }
@@ -53,7 +53,7 @@ Or `useEventSubscriptions` for multiple channels in one hook:
 
 ```tsx
 useEventSubscriptions({
-  'mark:added': (stored) => { /* stored.payload.annotation */ },
+  'beckon:sparkle': ({ annotationId }) => { /* ... */ },
   'mark:create-error': ({ resourceId, message }) => { /* ... */ },
 });
 ```
@@ -62,6 +62,30 @@ useEventSubscriptions({
 doesn't need to know which bus carries the channel — the correct
 one fires, the other stays silent. When the active session swaps
 (KB switch, sign-out/sign-in), the hook rewires automatically.
+
+### One resource's events
+
+`mark:added`, `mark:body-updated` and the other events of the record
+are delivered on their resource's scope, so they are subscribed to for
+a resource, with `useResourceEventSubscriptions`:
+
+```tsx
+import { useResourceEventSubscriptions, useResourceAnnotations } from '@semiont/react-ui';
+import type { ResourceId } from '@semiont/core';
+
+function AnnotationReactor({ resourceId }: { resourceId: ResourceId }) {
+  const { triggerSparkleAnimation } = useResourceAnnotations();
+  useResourceEventSubscriptions(resourceId, {
+    'mark:added': (stored) => triggerSparkleAnimation(stored.payload.annotation.id),
+  });
+  return null;
+}
+```
+
+The subscription holds the resource's scope while the component is
+mounted, and its handlers are given that resource's events and no
+other's. The generic hooks do not take these channels: named there, one
+does not compile.
 
 ## Emitting
 

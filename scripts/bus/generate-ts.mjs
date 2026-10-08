@@ -295,7 +295,17 @@ const bridged =
   ' * what `subscribeToResource` joins. `audience: scoped` in the registry.\n */\n' +
   'export const RESOURCE_SCOPED_CHANNELS = [\n' +
   reg.audience.scoped.map((c) => `  '${c}',`).join('\n') +
-  '\n] as const satisfies readonly EventName[];\n';
+  '\n] as const satisfies readonly EventName[];\n' +
+  // A read of a channel by name is typed by this: a scoped channel is read
+  // for a resource, whose scope the read holds, and no other channel is.
+  "\n/** A channel a resource's scope carries. A read of one names its resource. */\n" +
+  'export type ResourceScopedChannel = (typeof RESOURCE_SCOPED_CHANNELS)[number];\n' +
+  "\n/** A channel of no resource's scope: every other channel. */\n" +
+  'export type UnscopedChannel = Exclude<EventName, ResourceScopedChannel>;\n' +
+  '\nconst SCOPED: ReadonlySet<EventName> = new Set(RESOURCE_SCOPED_CHANNELS);\n' +
+  "\n/** Whether `channel` is delivered on a resource's scope. */\n" +
+  'export function isResourceScopedChannel(channel: EventName): channel is ResourceScopedChannel {\n' +
+  '  return SCOPED.has(channel);\n}\n';
 
 // ── bus-classification.ts ──────────────────────────────────────────────
 // Attributes per channel, each derived from fields the registry already has.

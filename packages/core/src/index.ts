@@ -255,7 +255,14 @@ export type {
 } from './transport';
 
 // Channel set every concrete transport bridges into the client's bus.
-export { BRIDGED_CHANNELS, RESOURCE_SCOPED_CHANNELS, type BridgedChannel } from './bridged-channels';
+export {
+  BRIDGED_CHANNELS,
+  RESOURCE_SCOPED_CHANNELS,
+  isResourceScopedChannel,
+  type BridgedChannel,
+  type ResourceScopedChannel,
+  type UnscopedChannel,
+} from './bridged-channels';
 
 // Request/reply over the bus — the transport-neutral primitive.
 export { busRequest, replyChannelsFor, relayedFailureCode, BusRequestError, type BusRequestPrimitive } from './bus-request';

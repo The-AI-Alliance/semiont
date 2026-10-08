@@ -18,8 +18,7 @@ async def read(origin: str, token: str, resource: ResourceId) -> None:
             return
         print(reply.response.resource.name)
 
-        # Frames arrive on a resource's channels while its scope is held.
-        with transport.subscribe_to_resource(resource):
-            async with bus.frames(MARK_ADDED) as added:
-                async for frame in added:
-                    print(frame.scope, frame.payload.type)
+        # A resource's channel is read for the resource: the read holds its scope, and lets go on the way out.
+        async with bus.frames(MARK_ADDED, resource) as added:
+            async for frame in added:
+                print(frame.scope, frame.payload.type)

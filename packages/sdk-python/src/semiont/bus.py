@@ -7,7 +7,8 @@ operation's reply:
 
     bus = Bus(transport)
     await bus.emit(BECKON_FOCUS, BeckonFocusEvent(annotation_id=annotation))
-    async for frame in bus.frames(MARK_ADDED): ...          # frame.payload is that channel's
+    async for frame in bus.frames(BECKON_FOCUS): ...        # frame.payload is that channel's
+    async with bus.frames(MARK_ADDED, resource) as added: ...  # a resource's channel, read for it
     created = await bus.request(MARK_CREATE_REQUEST, command)
 
 **By name** (`request`, and the transport's own `emit` and `frames`), a
@@ -33,17 +34,17 @@ import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
 from types import TracebackType
-from typing import Final, Self, final
+from typing import Final, Self, final, overload
 
 from pydantic import JsonValue, ValidationError
 
-from semiont.channel import AnyOperation, Channel, Operation
+from semiont.channel import AnyOperation, Channel, Operation, ScopedChannel
 from semiont.errors import BusRequestError, TransportError
 from semiont.events import Events
 from semiont.identifiers import ResourceId, UserId
 from semiont.model import WireModel
 from semiont.timing import BUS_REQUEST_TIMEOUT_MS
-from semiont.transport import ConnectionState, Frame, TraceContext, Transport
+from semiont.transport import ConnectionState, Frame, ResourceHold, TraceContext, Transport
 from semiont.watched import NeverReached, reached
 
 __all__ = ["Bus", "Delivered", "Typed", "decoded", "reply_channels_for", "request"]
@@ -136,7 +137,7 @@ async def request(
 # ── By type ─────────────────────────────────────────────────────────────
 
 
-def decoded[P: WireModel](channel: Channel[P], payload: Mapping[str, JsonValue]) -> P:
+def decoded[P: WireModel](channel: Channel[P] | ScopedChannel[P], payload: Mapping[str, JsonValue]) -> P:
     """A payload as `channel` types it. Raises `ValidationError` for one that is not that channel's.
 
     What the gateway stamps on a payload (a member whose name begins `_`) is
@@ -166,11 +167,24 @@ class Typed[P: WireModel]:
     Iterated (`async for`), and can be held with `async with`, which stops
     listening on the way out. A frame whose payload is not the channel's is
     nobody's to act on: it is not given, and is said so in the log.
+
+    Read for a `resource`, it gives that resource's frames and no other's,
+    and `hold`, its hold on that resource's scope, is let go when it stops
+    listening.
     """
 
-    def __init__(self, channel: Channel[P], frames: Events[Frame]) -> None:
+    def __init__(
+        self,
+        channel: Channel[P] | ScopedChannel[P],
+        frames: Events[Frame],
+        *,
+        resource: ResourceId | None = None,
+        hold: ResourceHold | None = None,
+    ) -> None:
         self._channel: Final = channel
         self._frames: Final = frames
+        self._resource: Final = resource
+        self._hold: Final = hold
 
     def __aiter__(self) -> Self:
         return self
@@ -178,6 +192,9 @@ class Typed[P: WireModel]:
     async def __anext__(self) -> Delivered[P]:
         while True:
             frame = await anext(self._frames)
+            if self._resource is not None and frame.scope != self._resource:
+                # A stream carries every scope it holds on the one channel, and another reader may hold another resource's.
+                continue
             try:
                 payload = decoded(self._channel, frame.payload)
             except ValidationError as error:
@@ -193,8 +210,10 @@ class Typed[P: WireModel]:
             )
 
     async def aclose(self) -> None:
-        """Stop listening."""
+        """Stop listening, and let go of the scope it held."""
         await self._frames.aclose()
+        if self._hold is not None:
+            self._hold.release()
 
     async def __aenter__(self) -> Self:
         return self
@@ -216,8 +235,29 @@ class Bus:
         """Send one frame on `channel`. How many subscribers the gateway reached, or nothing when it kept no count."""
         return await self.transport.emit(channel.name, channel.encode(payload), scope=scope, correlation_id=correlation_id)
 
-    def frames[P: WireModel](self, channel: Channel[P]) -> Typed[P]:
-        """The frames delivered on `channel` from now on. Refused, as `bus.unsubscribed`, for a channel this transport can never deliver."""
+    @overload
+    def frames[P: WireModel](self, channel: Channel[P]) -> Typed[P]: ...
+
+    @overload
+    def frames[P: WireModel](self, channel: ScopedChannel[P], resource: ResourceId) -> Typed[P]: ...
+
+    def frames[P: WireModel](self, channel: Channel[P] | ScopedChannel[P], resource: ResourceId | None = None) -> Typed[P]:
+        """The frames delivered on `channel` from now on. Refused, as `bus.unsubscribed`, for a channel this transport can never deliver.
+
+        A channel a resource's scope carries is read for a `resource`: the
+        read holds that resource's scope until it stops listening, and is
+        given that resource's frames and no other's. Named with no resource,
+        it does not type-check, and raises: nothing would be delivered to it.
+        """
+        if isinstance(channel, ScopedChannel):
+            if resource is None:
+                raise TypeError(
+                    f"{channel.name} is delivered on a resource's scope, so a read of it names the resource: frames(channel, resource)"
+                )
+            frames = self.transport.frames(channel.name)
+            return Typed(channel, frames, resource=resource, hold=self.transport.subscribe_to_resource(resource))
+        if resource is not None:
+            raise TypeError(f"{channel.name} is no resource's channel: frames(channel)")
         return Typed(channel, self.transport.frames(channel.name))
 
     async def request[Q: WireModel, R: WireModel, F: WireModel](

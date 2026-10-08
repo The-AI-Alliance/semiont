@@ -14,7 +14,7 @@ A watcher listens to the bus and reacts. A daemon that claims queued jobs and re
 
 - **Keeps the token fresh.** An access token is short-lived (five minutes from the Keycloak a launcher stack runs). The session renews it before it expires, half its lifetime ahead and never more than five minutes, and writes the new token where the transport reads it. A request the gateway refuses is answered with one renewal as well. Your calls never see the change.
 - **Stores the tokens.** The access and refresh tokens are kept through a `SessionStorage` you supply. `InMemorySessionStorage` ships in `@semiont/sdk`.
-- **Subscribes to the bus.** `session.subscribe(channel, handler)` listens to one channel and returns a function that stops listening. Channels are typed: the handler's argument is that channel's payload.
+- **Subscribes to the bus.** `session.subscribe(channel, handler)` listens to one channel and returns a function that stops listening. Channels are typed: the handler's argument is that channel's payload. A channel of one resource's events takes the resource too: `session.subscribe(channel, resourceId, handler)`.
 - **Reports its own state.** `session.token$`, `session.user$`, `session.streamState$` (the event stream's connection: `connecting`, `open`, `reconnecting`, `degraded`, `unauthenticated`, `closed`) and `session.errors$` (each transport error, just before it is thrown to its caller).
 
 A script that already holds an access token and finishes before it expires can use `SemiontClient.fromHttp({ baseUrl, token })` with no session at all.
@@ -108,7 +108,7 @@ const stopProgress = session.subscribe('job:report-progress', (event) => {
 });
 ```
 
-**Delivered to a resource's scope.** What happens to one resource's annotations (`mark:added`, `mark:removed`, `mark:body-updated`) reaches only the connections that joined that resource's scope. A script that subscribes to `mark:added` and joins no scope hears nothing.
+**Delivered to a resource's scope.** What happens to one resource's annotations (`mark:added`, `mark:removed`, `mark:body-updated`) reaches only the connections that joined that resource's scope. So a subscription to one of these channels names its resource: it joins that resource's scope, hears that resource's events and no other's, and leaves the scope when it is stopped. Subscribing to `mark:added` with no resource does not compile.
 
 Subscribing to a live query joins its resource's scope and leaves it on unsubscribe. This is the simple way to follow one resource:
 
@@ -121,20 +121,17 @@ const following = semiont.browse.annotations(rId).subscribe((state) => {
 following.unsubscribe();
 ```
 
-To handle the events themselves, join the scope and subscribe to the channel. `mark:added` carries the annotation as it stands:
+To handle the events themselves, subscribe to the channel for the resource. `mark:added` carries the annotation as it stands:
 
 ```typescript
-const leave = session.client.transport.subscribeToResource(rId);
-
-const stopAdded = session.subscribe('mark:added', (event) => {
+const stopAdded = session.subscribe('mark:added', rId, (event) => {
   if (event.annotation?.motivation === 'linking') {
     console.log(`new reference ${event.annotation.id}`);
   }
 });
 
-// later
+// later: stops listening, and leaves the scope
 stopAdded();
-leave();
 ```
 
 Scopes compose on the one connection, so a script can join many resources.
@@ -206,7 +203,7 @@ main().catch((e) => {
 
 ## Guidance for the AI assistant
 
-- **Check the channel's audience before you subscribe.** A watcher that hears nothing is usually subscribed to a resource-scoped channel without having joined the scope.
+- **Check the channel's audience before you subscribe.** A channel delivered to a resource's scope is subscribed to with its resource, `session.subscribe(channel, resourceId, handler)`, and the compiler refuses it without one. Do not reach for `session.client.bus` to get around that: a listener there joins no scope and hears nothing.
 - **A watcher hears its own writes.** A daemon that creates resources in response to `yield:created` hears those too. Decide what stops the loop: an entity type it skips, or a check on who created the resource.
 - **Nothing awaits a handler.** Start the work, attach a `.catch`, and return. A rejection from an `async` handler goes unhandled.
 - **`signInDevice` handles renewal.** Write a `refresh` callback only when the token comes from somewhere other than the device grant, and then build the session with `fromHttp`.

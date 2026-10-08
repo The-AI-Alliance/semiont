@@ -526,11 +526,10 @@ async def read(origin: str, token: str, resource: ResourceId) -> None:
             return
         print(reply.response.resource.name)
 
-        # Frames arrive on a resource's channels while its scope is held.
-        with transport.subscribe_to_resource(resource):
-            async with bus.frames(MARK_ADDED) as added:
-                async for frame in added:
-                    print(frame.scope, frame.payload.type)
+        # A resource's channel is read for the resource: the read holds its scope, and lets go on the way out.
+        async with bus.frames(MARK_ADDED, resource) as added:
+            async for frame in added:
+                print(frame.scope, frame.payload.type)
 ```
 
 - **The bus is typed by channel.** A channel is a constant that carries its
@@ -542,6 +541,12 @@ async def read(origin: str, token: str, resource: ResourceId) -> None:
   once, and is abandoned by cancelling the task that awaits it.
 - **Frames** are a sequence: each reader is given every one, in order, however
   far behind it falls.
+- **A resource's channel is read for the resource.** `mark:added` and the
+  other events of the record are delivered on their resource's scope, and
+  their constants are `ScopedChannel`s. `bus.frames(MARK_ADDED, resource)`
+  holds that scope until the read ends, and gives that resource's frames and
+  no other's. With no resource it does not type-check: such a read would be
+  given nothing, and say nothing of it.
 - **The connection's state** (`transport.state`) is a value: what it is now,
   and each thing it becomes. A dropped stream is a state, never an error, and
   opens again by itself.
