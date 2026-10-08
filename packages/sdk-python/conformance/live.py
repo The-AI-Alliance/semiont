@@ -246,11 +246,12 @@ class Live:
             raise Misuse(f"{observer} is already observing")
         return observer
 
-    async def _watching(self, name: str, live: AsyncIterator[CacheState[_Shown]], held: AsyncExitStack) -> None:
-        """Report each state the query is in, as the observer `name`, and its end."""
+    async def _watching(self, name: str, live: AsyncIterator[CacheState[_Shown]], held: AsyncExitStack, observing: bool) -> None:
+        """Report each state the query comes to be in, as the observer `name`, and its end."""
         async with held:
-            async for state in live:
-                say({"emission": {"observer": name, "state": _state(state)}})
+            if observing:
+                async for state in live:
+                    say({"emission": {"observer": name, "state": _state(state)}})
         say({"completed": name})
 
     async def observe(self, _: int, args: Arguments) -> JsonValue:
@@ -259,7 +260,14 @@ class Live:
         # Held before this is answered: what the suite does next finds the query observed.
         held = AsyncExitStack()
         live = await held.enter_async_context(_query(client, object_of(args, "query")))
-        self._observers[observer] = self._reporters.create_task(self._watching(observer, live, held))
+        # The state an observer is given at once, the query's state now, is said
+        # here, before this is answered, and only the states after it from a task
+        # of their own: a case that reads what the observer holds straight after
+        # `observe` finds it there. None means the query completed before it gave one.
+        now = await anext(live, None)
+        if now is not None:
+            say({"emission": {"observer": observer, "state": _state(now)}})
+        self._observers[observer] = self._reporters.create_task(self._watching(observer, live, held, now is not None))
         return None
 
     async def unobserve(self, _: int, args: Arguments) -> JsonValue:

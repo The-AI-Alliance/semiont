@@ -141,7 +141,7 @@ closed client for something. Its operations:
 
 | `op` | Arguments | `ok` |
 |---|---|---|
-| `observe` | `observer` (a name), `query`: the observer begins observing the live query | `null` |
+| `observe` | `observer` (a name), `query`: the observer begins observing the live query | `null`, once the state the observer was given at once, the query's state now, has been written |
 | `unobserve` | `observer`: it stops | `null` |
 | `fresh` | `query`: a one-shot read | `{"value": ...}` |
 | `invalidate` | `query`: the caller says the key is out of date | `null` |
@@ -172,6 +172,12 @@ An observer's states are read as states, not as a sequence: a case waits for
 one to be reached, and never counts the ones before it, so an SDK whose
 observers see only the latest state conforms. A case makes each state last by
 holding back the answer that would end it.
+
+**The state an observer is given at once is written before `observe` is
+answered.** A `holds` step does not wait: it reads what the observer holds
+at that moment. So a driver that answered `observe` and wrote the first
+state from another task, in no order, would now and then be read before it
+had said anything.
 
 Its `timing` overrides `busRequestTimeoutMs`, `invalidationWindowMs`,
 `jobSilenceMs` and `jobStatusPollMs` beside the transport's `reconnectMs`,

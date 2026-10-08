@@ -141,6 +141,16 @@ macro_rules! with_query {
     }};
 }
 
+/// The line that says the observer `name` was given `state`.
+fn emission<T: Serialize>(name: &str, state: CacheState<T>) -> Value {
+    let state = match state {
+        CacheState::Pending => json!({ "status": "pending" }),
+        CacheState::Ready(value) => json!({ "status": "ready", "value": value }),
+        CacheState::Failed(error) => json!({ "status": "failed", "error": failed(&error) }),
+    };
+    json!({ "emission": { "observer": name, "state": state } })
+}
+
 impl Live {
     fn client(&self) -> Result<Arc<SemiontClient>, Ended> {
         locked(&self.open)
@@ -254,34 +264,43 @@ impl Live {
     }
 
     /// Report each state `observed` gives, as the observer `name`, and its end.
-    fn reporting<T: Serialize + Send + 'static>(
+    ///
+    /// The state a watcher is given at once, the query's state now, is said
+    /// here, before this returns, and only the states after it from a task of
+    /// their own. So it is written before the `observe` that began it is
+    /// answered, and a case that reads what the observer holds straight after
+    /// `observe` finds it there. Said from the task, it could be written
+    /// after the answer: the two would be written from two tasks, in no order.
+    async fn reporting<T: Serialize + Send + 'static>(
         &self,
         name: String,
         mut observed: Observed<T>,
     ) -> AbortHandle {
+        let observing = match observed.next().await {
+            Some(now) => {
+                say(emission(&name, now));
+                true
+            }
+            // The client is closed: the query completed before it gave a state.
+            None => false,
+        };
         locked(&self.reporters).spawn(async move {
-            while let Some(state) = observed.next().await {
-                let state = match state {
-                    CacheState::Pending => json!({ "status": "pending" }),
-                    CacheState::Ready(value) => json!({ "status": "ready", "value": value }),
-                    CacheState::Failed(error) => {
-                        json!({ "status": "failed", "error": failed(&error) })
-                    }
-                };
-                say(json!({ "emission": { "observer": name, "state": state } }));
+            while observing && let Some(state) = observed.next().await {
+                say(emission(&name, state));
             }
             say(json!({ "completed": name }));
         })
     }
 
-    fn observe(&self, args: &Arguments) -> Result<Value, Ended> {
+    async fn observe(&self, args: &Arguments) -> Result<Value, Ended> {
         let client = self.client()?;
         let observer = text(args, "observer")?.to_owned();
         if locked(&self.observers).contains_key(&observer) {
             return Err(Ended::Misuse(format!("{observer} is already observing")));
         }
         let reporting = with_query!(client, object(args, "query")?, |cached| self
-            .reporting(observer.clone(), cached.watch()));
+            .reporting(observer.clone(), cached.watch())
+            .await);
         locked(&self.observers).insert(observer, reporting);
         Ok(Value::Null)
     }
@@ -372,7 +391,7 @@ impl Live {
         match op {
             "open" => self.open(&args),
             "close" => self.close().await,
-            "observe" => self.observe(&args),
+            "observe" => self.observe(&args).await,
             "unobserve" => self.unobserve(&args),
             "fresh" => self.fresh(object(&args, "query")?).await,
             "invalidate" => self.invalidate(object(&args, "query")?),
