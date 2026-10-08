@@ -72,13 +72,16 @@ export function readWorkerConfig(
 /**
  * The key of the agent at `index`, read from the variable the document names
  * for it. An agent whose provider takes no key names no variable and has none.
+ *
+ * The refusal says which member named the variable and never what it named: a
+ * key written where the name belongs is a value found in the document.
  */
 export function apiKeyOf(config: WorkerConfig, index: number, env: Environment): string | undefined {
   const name = config.agents[index]?.apiKeyEnv;
   if (name === undefined) return undefined;
   const key = env[name];
   if (key === undefined || key === '') {
-    throw new Error(`agents[${index}].apiKeyEnv names ${name}, which is not set in the worker's environment`);
+    throw new Error(`agents[${index}].apiKeyEnv names a variable that is not set in the worker's environment`);
   }
   return key;
 }

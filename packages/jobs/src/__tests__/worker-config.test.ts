@@ -142,10 +142,23 @@ describe('what the document names and the environment holds', () => {
   it.each([
     ['is not set', {}],
     ['is empty', { ANTHROPIC_API_KEY: '' }],
-  ])('refuses to start when the variable an agent\'s key is named by %s, naming it and the field', (_how, env) => {
+  ])('refuses to start when the variable an agent\'s key is named by %s, naming the field', (_how, env) => {
     expect(() => apiKeyOf(config, 0, env)).toThrow(
-      'agents[0].apiKeyEnv names ANTHROPIC_API_KEY, which is not set in the worker\'s environment',
+      new Error('agents[0].apiKeyEnv names a variable that is not set in the worker\'s environment'),
     );
+  });
+
+  // A document is read from a file anyone may have written: a key put where
+  // its variable's name belongs is a value found in the document, and is not said.
+  it('never repeats what the document gave as the variable\'s name', () => {
+    const misplaced = readWorkerConfig(PATH, () => documentWith(['agents', 0, 'apiKeyEnv'], 'sk-ant-written-where-the-name-belongs'));
+    let refusal = '';
+    try {
+      apiKeyOf(misplaced, 0, {});
+    } catch (error) {
+      refusal = error instanceof Error ? error.message : String(error);
+    }
+    expect(refusal).toBe('agents[0].apiKeyEnv names a variable that is not set in the worker\'s environment');
   });
 
   it('the service account is the two variables every service signs in with', () => {
