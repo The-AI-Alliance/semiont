@@ -41,6 +41,7 @@
     "lint:spec-jobs": "node scripts/spec/check-jobs.mjs",
     "lint:spec-archivist": "node scripts/spec/check-archivist.mjs",
     "lint:spec-identifiers": "node scripts/spec/check-identifiers.mjs",
+    "lint:spec-case-tables": "node scripts/spec/check-case-tables.mjs",
     "lint:service-environment": "node scripts/lint/check-service-environment.mjs",
     "lint:rust-images": "node scripts/lint/check-rust-images.mjs",
     "lint:rust-toolchain": "node scripts/lint/check-rust-toolchain.mjs",

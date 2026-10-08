@@ -1,0 +1,130 @@
+{
+  "$comment": "How a worker classifies a job's failure, as every worker must classify it: the class it reports on job:fail as failureClass, which the retry rule of specs/src/jobs/retry-cases.json then acts on. A `failure` is described as data: its `name` (the kind of failure it is), the HTTP `status` it carries and the `stopReason` of the reply it could not read, whichever of those it has. A failure that is a string or null is something thrown that is no failure object at all. `failureClass` is what the worker reports: \"deterministic\" (the same request cannot succeed a second time, so the retry budget is skipped), \"transient\" (nothing about the request was judged), or null where the failure is not classified and the field is left off the wire, which the retry rule treats as retryable. Only a failure known to be deterministic is called so: calling a transient failure deterministic halves reliability, where the reverse costs one wasted attempt. The rule is asked in this order and the first part that answers decides. (1) What the worker itself raised: a DeterministicJobError, or any kind of one (a YieldCollapseError is one), is deterministic; an InferenceTimeoutError, the worker's own bound on a model call, is transient; a StructuredReadError, a reply that could not be read as the array asked for, is deterministic when its stop reason is max_tokens, and with any other stop reason is left unclassified. (2) By name: an APIUserAbortError or an AbortError is transient. (3) By status, where it is a number: a status the `job` rule of specs/src/retry/cases.json retries is transient, any other status of 400 or more is deterministic, and a status below 400 decides nothing. (4) Anything else is not classified. To run a case a runner builds the failure described: for the four names of (1) the worker's own failure of that kind, and for any other description a failure carrying the name and the status given. TypeScript runs every case in packages/jobs (src/__tests__/failure-class-cases.test.ts) against classifyFailure; a worker in another language runs the same file against its own. Add a case here before changing an implementation.",
+  "cases": [
+    {
+      "why": "the worker's own mark on a failure it knows cannot succeed a second time: a reply cut off despite the derived budget, a media type with nothing to extract",
+      "failure": { "name": "DeterministicJobError" },
+      "failureClass": "deterministic"
+    },
+    {
+      "why": "a yield collapse is a kind of DeterministicJobError: it was measured identical across retries, so a retry is spent for nothing",
+      "failure": { "name": "YieldCollapseError" },
+      "failureClass": "deterministic"
+    },
+    {
+      "why": "the worker's own bound on a model call ran out: a stall says nothing about the request",
+      "failure": { "name": "InferenceTimeoutError" },
+      "failureClass": "transient"
+    },
+    {
+      "why": "a reply that could not be read because the output budget cut it off: the same text is cut off the same way",
+      "failure": { "name": "StructuredReadError", "stopReason": "max_tokens" },
+      "failureClass": "deterministic"
+    },
+    {
+      "why": "a model that finished and still could not be read stays retryable, and unclassified rather than transient: a resumed unit re-cuts the piece at another size, so the next attempt reads different input, which is neither weather nor the same request",
+      "failure": { "name": "StructuredReadError", "stopReason": "end_turn" },
+      "failureClass": null
+    },
+    {
+      "why": "an unreadable reply whose stop reason the provider did not state: not provably repeatable, and a server that is really broken deserves its retry budget",
+      "failure": { "name": "StructuredReadError", "stopReason": "unknown" },
+      "failureClass": null
+    },
+    {
+      "why": "only max_tokens says the reply was cut off: any other stop reason leaves an unreadable reply unclassified",
+      "failure": { "name": "StructuredReadError", "stopReason": "stop_sequence" },
+      "failureClass": null
+    },
+    {
+      "why": "the provider's client was told to abort: the worker's own bound or shutdown tore the transport down, and nothing was judged",
+      "failure": { "name": "APIUserAbortError" },
+      "failureClass": "transient"
+    },
+    {
+      "why": "an abort as fetch reports it",
+      "failure": { "name": "AbortError" },
+      "failureClass": "transient"
+    },
+    {
+      "why": "an abort is asked about before a status: whatever status rides an abort, no server gave it as a verdict",
+      "failure": { "name": "AbortError", "status": 400 },
+      "failureClass": "transient"
+    },
+    {
+      "why": "408 is a timeout, which the job rule retries",
+      "failure": { "status": 408 },
+      "failureClass": "transient"
+    },
+    {
+      "why": "429 is the provider saying not now",
+      "failure": { "status": 429 },
+      "failureClass": "transient"
+    },
+    {
+      "why": "500 is retried by the job rule: the alternative is discarding paid work",
+      "failure": { "status": 500 },
+      "failureClass": "transient"
+    },
+    {
+      "why": "503 is a promise to recover, whatever the failure is called",
+      "failure": { "name": "APIError", "status": 503 },
+      "failureClass": "transient"
+    },
+    {
+      "why": "every status from 500 up, a provider's own 529 (overloaded) among them",
+      "failure": { "status": 529 },
+      "failureClass": "transient"
+    },
+    {
+      "why": "400 is a rejected request: sent again unchanged it is rejected again",
+      "failure": { "status": 400 },
+      "failureClass": "deterministic"
+    },
+    {
+      "why": "401 will be refused again",
+      "failure": { "status": 401 },
+      "failureClass": "deterministic"
+    },
+    {
+      "why": "404: bytes that are not there will not be there on a second identical read",
+      "failure": { "name": "APIError", "status": 404 },
+      "failureClass": "deterministic"
+    },
+    {
+      "why": "413 is not weather: a payload too large is too large again, though an HTTP client's own rule would retry it",
+      "failure": { "status": 413 },
+      "failureClass": "deterministic"
+    },
+    {
+      "why": "a status below 400 refused nothing, and decides nothing",
+      "failure": { "status": 302 },
+      "failureClass": null
+    },
+    {
+      "why": "a status is a number: text that looks like one is not read as one",
+      "failure": { "status": "503" },
+      "failureClass": null
+    },
+    {
+      "why": "a failure nothing here recognises, a dropped stream for one, stays unclassified and so retryable",
+      "failure": { "name": "Error" },
+      "failureClass": null
+    },
+    {
+      "why": "a network failure carries no status",
+      "failure": { "name": "TypeError" },
+      "failureClass": null
+    },
+    {
+      "why": "what was thrown is text, not a failure object",
+      "failure": "a string",
+      "failureClass": null
+    },
+    {
+      "why": "nothing at all was thrown as the failure",
+      "failure": null,
+      "failureClass": null
+    }
+  ]
+}

@@ -1,0 +1,548 @@
+{
+  "$comment": "How a worker reads a model's reply into the items it goes on to anchor and store, as every worker must read it: the four motivations whose reply is a list of passages (highlighting, commenting, assessing, tagging) and the mentions of an entity type (linking). A case is one piece of work: the whole `text` is asked about in one call (the stand-in provider's limits are wide enough that the text is a single piece: 1,000,000 tokens of context and of reply, at 3,600,000,000 output tokens an hour), the provider answers with `reply`, and the worker either hands on what it `read` or is `refused` with a failure, described as specs/src/worker/failure-class-cases.json describes one. `calls` is how many times the model was asked for items. Prompts are not held here. THE STAND-IN PROVIDER answers every call for items with `reply`. `reply.text` is the reply's text; `reply.elements`, where the reply is a JSON array, are that array's elements, and the reply's text is their JSON. The provider reads the text as every provider does: text that is JSON and an array hands over the array's elements with `stopReason`; any other text (not JSON, JSON that is not an array, no text at all) is a StructuredReadError carrying `stopReason`, and never an empty array, because finding nothing is an answer and reading nothing is not. The provider verifies yield exactly when the case states `count`, and then answers every count call with `count.text`, or fails it where `count.fails`. READING. A reply whose stop reason is max_tokens is refused with a DeterministicJobError even when it reads as an array: an array cut off part-way is still an array, and would under-report in silence. A reply that was cut off (that failure, or a StructuredReadError whose stop reason is max_tokens) is asked for once more, the text here being too small to split, and is refused when it fails again; any other unreadable reply is refused at once (what becomes of a larger piece is specs/src/worker/chunk-plan-cases.json's, kind `descent`). Of a reply that is read, each element is judged alone, and an element that is not as its motivation requires is passed over and not counted: it must be a JSON object (not an array, not null) whose `exact` is a string; for commenting its `comment` must be a string that is not blank; for assessing its `assessment` must be a string; for tagging its `exact` must not be blank; for linking its `entityType` must be a string. `prefix` and `suffix` are read only when they are strings, and nothing else an element carries is read, offsets the model was never asked for among it. A passage proposed twice is read twice: repeats are removed where annotations are made, not here. THE FOUR MOTIVATIONS. Each passage is anchored in the whole `text` by the rule of specs/src/annotations/reconcile-cases.json, the element's `prefix` and `suffix` serving only to choose between occurrences. An item is the passage as the text has it: `exact`, `start`, `end`, and the text's own `prefix` and `suffix` (never the model's), with the `comment` or `assessment` as written, or the `category` the tagging call was for. Every passage here occurs once, in a text shorter than a prefix may be, so its prefix is all the text before it and its suffix all the text after it, each absent where there is none. `dropped` counts the passages that could not be anchored: the model proposed them, and a job counts them as errors. LINKING. An item is the mention as the model wrote it (`exact`, `entityType`, `prefix`, `suffix`), not yet anchored: whether the text holds it is settled afterwards. Where the provider verifies yield, a reply that was read is followed by a count call, which asks how many mentions the piece holds. The count is the first run of the digits 0 to 9 in the count's reply. A count call that fails, or a reply with no digit, switches the check off for the piece, and nothing is counted. Otherwise, when twice the number of elements in the reply is less than the count, the reply is a yield collapse (a YieldCollapseError: the same call returns the same under-report, so only a smaller piece can do better). A text too small to split is accepted with what was found, and its `found`, `counted` and `pieceChars` (the piece's length) are reported in `underReported`. `counted` lists the count of each piece whose items were accepted, and `countCalls` is how many count calls were made. TypeScript runs every case in packages/jobs (src/__tests__/parser-cases.test.ts) through AnnotationDetection and extractEntities; a worker in another language runs the same file. Add a case here before changing an implementation.",
+  "defects": [
+    "A blank `assessment` is accepted where a blank `comment` is passed over.",
+    "An `exact` of no characters is counted as a passage that could not be anchored for highlighting, commenting and assessing, and is passed over uncounted for tagging.",
+    "The `entityType` of a mention is never compared with the entity type that was asked for, and the annotation made from the mention is given the type asked for.",
+    "A count written with a thousands separator is read as its first group of digits (1,234 as 1), which hides a collapse."
+  ],
+  "cases": [
+    {
+      "why": "a highlight is the passage alone: where it stands, and the text either side of it, are the text's own",
+      "motivation": "highlighting",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "reply": {
+        "elements": [
+          { "exact": "Bob" }
+        ],
+        "stopReason": "end_turn"
+      },
+      "calls": 1,
+      "read": {
+        "items": [
+          { "exact": "Bob", "start": 21, "end": 24, "prefix": "Alice went to Paris. ", "suffix": " stayed home." }
+        ],
+        "dropped": 0
+      }
+    },
+    {
+      "why": "offsets a model states are not read, its prefix and suffix are not stored, a suffix that is not a string is not read at all, and whatever else it adds is left behind; a passage that opens the text has no prefix",
+      "motivation": "highlighting",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "reply": {
+        "elements": [
+          { "exact": "Alice", "start": 99, "end": 104, "prefix": "Bob stayed ", "suffix": 7, "confidence": 0.9 }
+        ],
+        "stopReason": "end_turn"
+      },
+      "calls": 1,
+      "read": {
+        "items": [
+          { "exact": "Alice", "start": 0, "end": 5, "suffix": " went to Paris. Bob stayed home." }
+        ],
+        "dropped": 0
+      }
+    },
+    {
+      "why": "an element that is no passage at all is passed over and not counted; a passage the text does not hold was proposed, and is counted as dropped",
+      "motivation": "highlighting",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "reply": {
+        "elements": [
+          null,
+          "Alice",
+          7,
+          ["Alice"],
+          { "passage": "Alice" },
+          { "exact": 7 },
+          { "exact": "Carol flew to Rome and never came back again." },
+          { "exact": "Paris" }
+        ],
+        "stopReason": "end_turn"
+      },
+      "calls": 1,
+      "read": {
+        "items": [
+          { "exact": "Paris", "start": 14, "end": 19, "prefix": "Alice went to ", "suffix": ". Bob stayed home." }
+        ],
+        "dropped": 1
+      }
+    },
+    {
+      "why": "a passage proposed twice is read twice: what removes repeats is not the reading",
+      "motivation": "highlighting",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "reply": {
+        "elements": [
+          { "exact": "Bob" },
+          { "exact": "Bob" }
+        ],
+        "stopReason": "end_turn"
+      },
+      "calls": 1,
+      "read": {
+        "items": [
+          { "exact": "Bob", "start": 21, "end": 24, "prefix": "Alice went to Paris. ", "suffix": " stayed home." },
+          { "exact": "Bob", "start": 21, "end": 24, "prefix": "Alice went to Paris. ", "suffix": " stayed home." }
+        ],
+        "dropped": 0
+      }
+    },
+    {
+      "why": "an empty array is an answer: the model found nothing",
+      "motivation": "highlighting",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "reply": {
+        "elements": [],
+        "stopReason": "end_turn"
+      },
+      "calls": 1,
+      "read": {
+        "items": [],
+        "dropped": 0
+      }
+    },
+    {
+      "why": "a comment is a passage and what the model says of it, as written",
+      "motivation": "commenting",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "reply": {
+        "elements": [
+          { "exact": "Alice", "comment": "Who is she?" }
+        ],
+        "stopReason": "end_turn"
+      },
+      "calls": 1,
+      "read": {
+        "items": [
+          { "exact": "Alice", "start": 0, "end": 5, "suffix": " went to Paris. Bob stayed home.", "comment": "Who is she?" }
+        ],
+        "dropped": 0
+      }
+    },
+    {
+      "why": "a comment that is empty, blank, missing or not text says nothing: its element is passed over and not counted",
+      "motivation": "commenting",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "reply": {
+        "elements": [
+          { "exact": "Alice", "comment": "" },
+          { "exact": "Alice", "comment": "   " },
+          { "exact": "Alice" },
+          { "exact": "Alice", "comment": 5 },
+          { "exact": "Bob", "comment": "He stayed." }
+        ],
+        "stopReason": "end_turn"
+      },
+      "calls": 1,
+      "read": {
+        "items": [
+          { "exact": "Bob", "start": 21, "end": 24, "prefix": "Alice went to Paris. ", "suffix": " stayed home.", "comment": "He stayed." }
+        ],
+        "dropped": 0
+      }
+    },
+    {
+      "why": "a comment on a passage the text does not hold is counted as dropped",
+      "motivation": "commenting",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "reply": {
+        "elements": [
+          { "exact": "Carol flew to Rome and never came back again.", "comment": "Invented." },
+          { "exact": "Paris", "comment": "A city." }
+        ],
+        "stopReason": "end_turn"
+      },
+      "calls": 1,
+      "read": {
+        "items": [
+          { "exact": "Paris", "start": 14, "end": 19, "prefix": "Alice went to ", "suffix": ". Bob stayed home.", "comment": "A city." }
+        ],
+        "dropped": 1
+      }
+    },
+    {
+      "why": "an assessment is a passage and the model's judgement of it; a passage that closes the text has no suffix",
+      "motivation": "assessing",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "reply": {
+        "elements": [
+          { "exact": "Bob stayed home.", "assessment": "A plain statement." }
+        ],
+        "stopReason": "end_turn"
+      },
+      "calls": 1,
+      "read": {
+        "items": [
+          { "exact": "Bob stayed home.", "start": 21, "end": 37, "prefix": "Alice went to Paris. ", "assessment": "A plain statement." }
+        ],
+        "dropped": 0
+      }
+    },
+    {
+      "why": "an element whose assessment is missing or not text is passed over and not counted",
+      "motivation": "assessing",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "reply": {
+        "elements": [
+          { "exact": "Alice" },
+          { "exact": "Alice", "assessment": 3 },
+          { "exact": "Alice", "assessment": "Sound." }
+        ],
+        "stopReason": "end_turn"
+      },
+      "calls": 1,
+      "read": {
+        "items": [
+          { "exact": "Alice", "start": 0, "end": 5, "suffix": " went to Paris. Bob stayed home.", "assessment": "Sound." }
+        ],
+        "dropped": 0
+      }
+    },
+    {
+      "why": "a tag is a passage, given the category the call was for",
+      "motivation": "tagging",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "category": "Issue",
+      "reply": {
+        "elements": [
+          { "exact": "stayed home" }
+        ],
+        "stopReason": "end_turn"
+      },
+      "calls": 1,
+      "read": {
+        "items": [
+          { "exact": "stayed home", "start": 25, "end": 36, "prefix": "Alice went to Paris. Bob ", "suffix": ".", "category": "Issue" }
+        ],
+        "dropped": 0
+      }
+    },
+    {
+      "why": "a tag on a blank passage is passed over and not counted, one on a passage the text does not hold is counted as dropped, and a category the model names is not read",
+      "motivation": "tagging",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "category": "Rule",
+      "reply": {
+        "elements": [
+          { "exact": "  " },
+          { "exact": "Carol flew to Rome and never came back again." },
+          { "exact": "Paris", "category": "Other" }
+        ],
+        "stopReason": "end_turn"
+      },
+      "calls": 1,
+      "read": {
+        "items": [
+          { "exact": "Paris", "start": 14, "end": 19, "prefix": "Alice went to ", "suffix": ". Bob stayed home.", "category": "Rule" }
+        ],
+        "dropped": 1
+      }
+    },
+    {
+      "why": "a reply that is not JSON is refused, with its stop reason: it is not read as nothing found",
+      "motivation": "highlighting",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "reply": {
+        "text": "I found no highlights.",
+        "stopReason": "end_turn"
+      },
+      "calls": 1,
+      "refused": { "name": "StructuredReadError", "stopReason": "end_turn" }
+    },
+    {
+      "why": "a reply that is JSON but not an array is refused the same way",
+      "motivation": "commenting",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "reply": {
+        "text": "{\"comments\": []}",
+        "stopReason": "end_turn"
+      },
+      "calls": 1,
+      "refused": { "name": "StructuredReadError", "stopReason": "end_turn" }
+    },
+    {
+      "why": "a reply cut off at the output budget is refused though what arrived reads as an array; it was asked for once more first",
+      "motivation": "assessing",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "reply": {
+        "elements": [
+          { "exact": "Alice", "assessment": "Sound." }
+        ],
+        "stopReason": "max_tokens"
+      },
+      "calls": 2,
+      "refused": { "name": "DeterministicJobError" }
+    },
+    {
+      "why": "a reply cut off in the middle of its JSON cannot be read at all: it too is asked for once more, and refused as unreadable with the stop reason that says why",
+      "motivation": "tagging",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "category": "Issue",
+      "reply": {
+        "text": "[{\"exact\": \"Alice went",
+        "stopReason": "max_tokens"
+      },
+      "calls": 2,
+      "refused": { "name": "StructuredReadError", "stopReason": "max_tokens" }
+    },
+    {
+      "why": "no text at all is not an empty array",
+      "motivation": "linking",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "entityType": "Person",
+      "reply": {
+        "text": "",
+        "stopReason": "unknown"
+      },
+      "calls": 1,
+      "countCalls": 0,
+      "refused": { "name": "StructuredReadError", "stopReason": "unknown" }
+    },
+    {
+      "why": "a mention is read as the model wrote it, its own prefix and suffix with it: where it stands is settled afterwards",
+      "motivation": "linking",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "entityType": "Person",
+      "reply": {
+        "elements": [
+          { "exact": "Bob", "entityType": "Person", "prefix": "Paris. ", "suffix": " stayed" }
+        ],
+        "stopReason": "end_turn"
+      },
+      "calls": 1,
+      "countCalls": 0,
+      "read": {
+        "items": [
+          { "exact": "Bob", "entityType": "Person", "prefix": "Paris. ", "suffix": " stayed" }
+        ],
+        "counted": [],
+        "underReported": []
+      }
+    },
+    {
+      "why": "a mention the text does not hold is still read: only anchoring can tell",
+      "motivation": "linking",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "entityType": "Person",
+      "reply": {
+        "elements": [
+          { "exact": "Carol", "entityType": "Person" }
+        ],
+        "stopReason": "end_turn"
+      },
+      "calls": 1,
+      "countCalls": 0,
+      "read": {
+        "items": [
+          { "exact": "Carol", "entityType": "Person" }
+        ],
+        "counted": [],
+        "underReported": []
+      }
+    },
+    {
+      "why": "an element that is not a mention is passed over; a prefix or suffix that is not text, and anything else a mention carries, is left behind",
+      "motivation": "linking",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "entityType": "Person",
+      "reply": {
+        "elements": [
+          null,
+          "Alice",
+          { "exact": "Alice" },
+          { "entityType": "Person" },
+          { "exact": 7, "entityType": "Person" },
+          { "exact": "Alice", "entityType": 7 },
+          { "exact": "Alice", "entityType": "Person", "prefix": 3, "suffix": null, "start": 0, "end": 5 }
+        ],
+        "stopReason": "end_turn"
+      },
+      "calls": 1,
+      "countCalls": 0,
+      "read": {
+        "items": [
+          { "exact": "Alice", "entityType": "Person" }
+        ],
+        "counted": [],
+        "underReported": []
+      }
+    },
+    {
+      "why": "a cut-off reply is refused before its yield is asked about: no count call is made for it",
+      "motivation": "linking",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "entityType": "Person",
+      "reply": {
+        "elements": [
+          { "exact": "Alice", "entityType": "Person" }
+        ],
+        "stopReason": "max_tokens"
+      },
+      "count": { "text": "1" },
+      "calls": 2,
+      "countCalls": 0,
+      "refused": { "name": "DeterministicJobError" }
+    },
+    {
+      "why": "two found of three counted: twice two is not less than three, and the count is reported",
+      "motivation": "linking",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "entityType": "Person",
+      "reply": {
+        "elements": [
+          { "exact": "Alice", "entityType": "Person" },
+          { "exact": "Bob", "entityType": "Person" }
+        ],
+        "stopReason": "end_turn"
+      },
+      "count": { "text": "3" },
+      "calls": 1,
+      "countCalls": 1,
+      "read": {
+        "items": [
+          { "exact": "Alice", "entityType": "Person" },
+          { "exact": "Bob", "entityType": "Person" }
+        ],
+        "counted": [3],
+        "underReported": []
+      }
+    },
+    {
+      "why": "exactly half the count is not a collapse",
+      "motivation": "linking",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "entityType": "Person",
+      "reply": {
+        "elements": [
+          { "exact": "Alice", "entityType": "Person" },
+          { "exact": "Bob", "entityType": "Person" }
+        ],
+        "stopReason": "end_turn"
+      },
+      "count": { "text": "4" },
+      "calls": 1,
+      "countCalls": 1,
+      "read": {
+        "items": [
+          { "exact": "Alice", "entityType": "Person" },
+          { "exact": "Bob", "entityType": "Person" }
+        ],
+        "counted": [4],
+        "underReported": []
+      }
+    },
+    {
+      "why": "under half the count is a collapse; a text too small to split is accepted with what was found, reported as under-reported, and not asked about again",
+      "motivation": "linking",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "entityType": "Person",
+      "reply": {
+        "elements": [
+          { "exact": "Alice", "entityType": "Person" },
+          { "exact": "Bob", "entityType": "Person" }
+        ],
+        "stopReason": "end_turn"
+      },
+      "count": { "text": "5" },
+      "calls": 1,
+      "countCalls": 1,
+      "read": {
+        "items": [
+          { "exact": "Alice", "entityType": "Person" },
+          { "exact": "Bob", "entityType": "Person" }
+        ],
+        "counted": [5],
+        "underReported": [
+          { "found": 2, "counted": 5, "pieceChars": 37 }
+        ]
+      }
+    },
+    {
+      "why": "a count with words around it is read as its number",
+      "motivation": "linking",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "entityType": "Person",
+      "reply": {
+        "elements": [
+          { "exact": "Alice", "entityType": "Person" },
+          { "exact": "Bob", "entityType": "Person" }
+        ],
+        "stopReason": "end_turn"
+      },
+      "count": { "text": "There are 3 mentions." },
+      "calls": 1,
+      "countCalls": 1,
+      "read": {
+        "items": [
+          { "exact": "Alice", "entityType": "Person" },
+          { "exact": "Bob", "entityType": "Person" }
+        ],
+        "counted": [3],
+        "underReported": []
+      }
+    },
+    {
+      "why": "a count reply with no number in it switches the check off for the piece: what was read stands, and nothing is counted",
+      "motivation": "linking",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "entityType": "Person",
+      "reply": {
+        "elements": [
+          { "exact": "Alice", "entityType": "Person" }
+        ],
+        "stopReason": "end_turn"
+      },
+      "count": { "text": "I cannot count them." },
+      "calls": 1,
+      "countCalls": 1,
+      "read": {
+        "items": [
+          { "exact": "Alice", "entityType": "Person" }
+        ],
+        "counted": [],
+        "underReported": []
+      }
+    },
+    {
+      "why": "a count call that fails switches the check off the same way: a safety net's outage does not fail a healthy reading",
+      "motivation": "linking",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "entityType": "Person",
+      "reply": {
+        "elements": [
+          { "exact": "Alice", "entityType": "Person" }
+        ],
+        "stopReason": "end_turn"
+      },
+      "count": { "fails": true },
+      "calls": 1,
+      "countCalls": 1,
+      "read": {
+        "items": [
+          { "exact": "Alice", "entityType": "Person" }
+        ],
+        "counted": [],
+        "underReported": []
+      }
+    },
+    {
+      "why": "a count of none is a count: it agrees with a reply that found none, and is reported",
+      "motivation": "linking",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "entityType": "Person",
+      "reply": {
+        "elements": [],
+        "stopReason": "end_turn"
+      },
+      "count": { "text": "0" },
+      "calls": 1,
+      "countCalls": 1,
+      "read": {
+        "items": [],
+        "counted": [0],
+        "underReported": []
+      }
+    }
+  ]
+}

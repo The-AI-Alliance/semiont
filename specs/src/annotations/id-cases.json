@@ -1,0 +1,151 @@
+{
+  "$comment": "The id of an annotation a worker makes, as every implementation must derive it. The id is not minted: it is worked out from what the annotation is, so a worker that makes the same annotation again (a job retried, a unit resumed, another worker taking the job over) gives it the same id, and writing it a second time changes nothing. Two workers that derive it differently write every annotation twice. TypeScript (packages/event-sourcing: annotationIdFor) runs every case and fails on a difference; a worker written in another language runs the same file. READING A CASE. `resourceId`, `motivation`, `anchor` and, when the annotation has one, `body` are what the annotation is, and `id` is its id. The `anchor` is a string saying where on the resource the annotation is; how a builder makes one is stated in builder-cases.json, and here it is taken as given. Nothing else goes into an id: not when the annotation was made, not what made it, not the job it was made for. THE RULE. Write what the annotation is as one JSON object with the members `anchor`, `body`, `motivation` and `resourceId`, `body` being left out when the annotation has none, in this canonical form. There is no white space between tokens. An object is its members in the order of their names by code point (so `@` before the capital letters, and those before the small ones), at every depth, each member its name, a colon and its value, with commas between members. An array is its items in the order they have, with commas between. `true`, `false` and `null` are those words, and a whole number is its decimal digits, with a minus sign before them if it is below zero. A string is written between double quotes, and inside them a double quote is written \\\" and a backslash \\\\; the characters U+0008, U+0009, U+000A, U+000C and U+000D are written \\b, \\t, \\n, \\f and \\r; every other character below U+0020 is written \\u and its four hexadecimal digits, the letters of them in lower case; and every other character is written as itself: a slash is not escaped, U+007F is not, and no character outside ASCII is. Take the SHA-256 of that text's UTF-8 bytes, write its 32 bytes in base64url (RFC 4648 section 5, where the last two digits are `-` and `_`), and the id is the first 21 characters of that. WORKED: the canonical text of the first case is {\"anchor\":\"0:12:Ada Lovelace\",\"motivation\":\"highlighting\",\"resourceId\":\"res-1\"} and the base64url of its SHA-256 is 8yQdnrBndVZasyRD7ORRXpeXVjZd6Y8rxRKmTzfUhSg, of which the id is the first 21 characters. The bodies an annotation has carry no number that is not whole, and no case states one. Every text here is of the Basic Multilingual Plane, where the order of names by code point is also their order by UTF-16 unit and by UTF-8 byte. Add a case here before changing an implementation.",
+  "cases": [
+    {
+      "why": "an annotation with no body, a highlight: three members go into its id",
+      "resourceId": "res-1",
+      "motivation": "highlighting",
+      "anchor": "0:12:Ada Lovelace",
+      "id": "8yQdnrBndVZasyRD7ORRX"
+    },
+    {
+      "why": "an annotation with a body, a comment: the body goes in whole, its members ordered by name (format, purpose, type, value)",
+      "resourceId": "res-1",
+      "motivation": "commenting",
+      "anchor": "0:12:Ada Lovelace",
+      "body": [
+        { "type": "TextualBody", "value": "an author", "purpose": "commenting", "format": "text/plain" }
+      ],
+      "id": "oQDVZSYutxZJn11upX1Bi"
+    },
+    {
+      "why": "the same body with its members written in another order is the same annotation, and has the same id",
+      "resourceId": "res-1",
+      "motivation": "commenting",
+      "anchor": "0:12:Ada Lovelace",
+      "body": [
+        { "format": "text/plain", "value": "an author", "type": "TextualBody", "purpose": "commenting" }
+      ],
+      "id": "oQDVZSYutxZJn11upX1Bi"
+    },
+    {
+      "why": "another comment on the same span is another annotation: they differ by their bodies alone",
+      "resourceId": "res-1",
+      "motivation": "commenting",
+      "anchor": "0:12:Ada Lovelace",
+      "body": [
+        { "type": "TextualBody", "value": "a mathematician", "purpose": "commenting", "format": "text/plain" }
+      ],
+      "id": "UJ1Yz_vXoqeLLcMgNezg2"
+    },
+    {
+      "why": "the same span and the same body under another motivation are another annotation",
+      "resourceId": "res-1",
+      "motivation": "assessing",
+      "anchor": "0:12:Ada Lovelace",
+      "body": [
+        { "type": "TextualBody", "value": "an author", "purpose": "commenting", "format": "text/plain" }
+      ],
+      "id": "uOJciMhD-aOC3rbDvwF1y"
+    },
+    {
+      "why": "the same span of another resource is another annotation",
+      "resourceId": "res-2",
+      "motivation": "highlighting",
+      "anchor": "0:12:Ada Lovelace",
+      "id": "BkQwb1GB6qRjTRR5u6Ctr"
+    },
+    {
+      "why": "another span of the same resource is another annotation; and an id may begin with `-`, the base64url digit that plain base64 writes `+`",
+      "resourceId": "res-1",
+      "motivation": "highlighting",
+      "anchor": "13:18:wrote",
+      "id": "-w7fftCFfzxXMMlUsSu4A"
+    },
+    {
+      "why": "the same offsets over other words are another annotation: the words are in the anchor, so a resource whose text has changed does not keep the id",
+      "resourceId": "res-1",
+      "motivation": "highlighting",
+      "anchor": "0:12:Grace Hopper",
+      "id": "7TqAQYZUPZZ1QxanaAQko"
+    },
+    {
+      "why": "a body that is one object, a link to another resource; and an id may end with `_`, the base64url digit that plain base64 writes `/`",
+      "resourceId": "res-1",
+      "motivation": "linking",
+      "anchor": "0:12:Ada Lovelace",
+      "body": { "type": "SpecificResource", "source": "res-2", "purpose": "linking" },
+      "id": "UT5aqFrOu4jBoarVpgXH_"
+    },
+    {
+      "why": "the same body as a list of one is not the same: a list is written as a list",
+      "resourceId": "res-1",
+      "motivation": "linking",
+      "anchor": "0:12:Ada Lovelace",
+      "body": [
+        { "type": "SpecificResource", "source": "res-2", "purpose": "linking" }
+      ],
+      "id": "sVEMYHBABNhlSkCzr2RAi"
+    },
+    {
+      "why": "a tag's two bodies, its category and its schema, in the order they have",
+      "resourceId": "res-1",
+      "motivation": "tagging",
+      "anchor": "0:12:Ada Lovelace",
+      "body": [
+        { "type": "TextualBody", "value": "Person", "purpose": "tagging" },
+        { "type": "TextualBody", "value": "people-v1", "purpose": "classifying" }
+      ],
+      "id": "UbT9OcbClBRLtrEK6ToM-"
+    },
+    {
+      "why": "the order of a list is kept, unlike the order of an object's members: the same two bodies the other way round have another id",
+      "resourceId": "res-1",
+      "motivation": "tagging",
+      "anchor": "0:12:Ada Lovelace",
+      "body": [
+        { "type": "TextualBody", "value": "people-v1", "purpose": "classifying" },
+        { "type": "TextualBody", "value": "Person", "purpose": "tagging" }
+      ],
+      "id": "wcLvHzEjwN5OI5PRriWGe"
+    },
+    {
+      "why": "what is escaped in a string and what is not: the double quotes, the backslash, the line break and the tab are; U+0001 and U+001F are, as \\u0001 and \\u001f; the slash and U+007F are written as themselves",
+      "resourceId": "res-1",
+      "motivation": "highlighting",
+      "anchor": "4:24:say \"a\\b\"\n\tor/not\u0001\u001f\u007f",
+      "id": "QQ0pHyP1zF61DaG1WgyWj"
+    },
+    {
+      "why": "the other three characters with a short escape: backspace, form feed and carriage return",
+      "resourceId": "res-1",
+      "motivation": "highlighting",
+      "anchor": "0:3:\b\f\r",
+      "id": "vDpJvbu91ekm2YqnKHewI"
+    },
+    {
+      "why": "characters outside ASCII are written as themselves and hashed as their UTF-8 bytes, never as \\u escapes: an accented letter, two ideographs, an em dash and curly quotation marks",
+      "resourceId": "res-1",
+      "motivation": "commenting",
+      "anchor": "0:4:café",
+      "body": [
+        { "type": "TextualBody", "value": "世界 — “monde”" }
+      ],
+      "id": "x34YfjqVWVhx71aGiu9te"
+    },
+    {
+      "why": "a body is any JSON, and the form holds at every depth: names are ordered by code point (`@language`, `Value`, `detail`, `type`, `value`), an object inside an object is ordered too (`a` before `b`), and a number, `true`, `false` and `null` are written as JSON writes them",
+      "resourceId": "res-1",
+      "motivation": "commenting",
+      "anchor": "0:12:Ada Lovelace",
+      "body": {
+        "type": "TextualBody",
+        "value": "seven",
+        "detail": { "b": -1, "a": [true, null, false] },
+        "Value": 7,
+        "@language": "en"
+      },
+      "id": "tRarqce6wzogJIm2zALL7"
+    }
+  ]
+}

@@ -1,0 +1,486 @@
+{
+  "$comment": "The annotation a worker commits, whole, as every implementation must build it. What a job leaves in the knowledge base is these annotations, so two workers that build them differently leave different records of the same work. TypeScript (packages/jobs: buildTextAnnotation and buildPdfAnnotation; packages/core: assembleAnnotation) runs every case and fails on a difference; a worker written in another language runs the same file. `cases` BUILD the annotation of a span found in a resource's text. A case gives `text` when the resource is a text, or `anchored`, a PDF's anchored text as pdf-locate-cases.json describes it, when it is a PDF. With it come the `resourceId`; the `generator`, which says what made the annotation; the `motivation`; the `span`, which is its `start` and `end`, the `exact` words, and maybe the `prefix` and `suffix` (as reconcile-cases.json reconciles one); and maybe a `body`, one body or a list of them. The answer is the `annotation`, or `refused` and which refusal. EVERY BUILT ANNOTATION has `@context` \"http://www.w3.org/ns/anno.jsonld\" and `type` \"Annotation\"; the `motivation`; the `generator` as given; the `body` as given, and no `body` member when none was; a `target` whose `type` is \"SpecificResource\", whose `source` is the resource id and whose `selector` is a list; and an `id` derived as id-cases.json says from the resource id, the motivation, the body if there is one, and this anchor: the span's `start` in decimal, a colon, its `end` in decimal, a colon, and its `exact`. The anchor is made the same way for a text and for a PDF. Nothing in the annotation says who asked for it: that is derived where the annotation is recorded. The last selector is a TextQuoteSelector with the span's `exact`, and with its `prefix` and its `suffix` when they are given and not empty. FOR A TEXT the selector before it is a TextPositionSelector with the span's `start` and `end`. The span is checked against the text first, and the annotation is refused if the text from `start` to `end` is not `exact` (`exact-mismatch`); or a prefix is given and is not the text just before `start`, as many characters of it as the prefix has, or all there are if fewer (`prefix-mismatch`); or a suffix is given and is not the text just after `end`, in the same way (`suffix-mismatch`). FOR A PDF there is no TextPositionSelector. The span is located as pdf-locate-cases.json says, and before the quote comes one FragmentSelector for each rectangle, in their order, with `conformsTo` \"http://tools.ietf.org/rfc/rfc3778\" and the rectangle's fragment as its `value`. The annotation is refused if the span is located nowhere (`nothing-located`), or if `exact` is not in the covered text (`exact-not-covered`): the covered text is the anchored text from the least `start` to the greatest `end` of the items the span overlaps, and both it and `exact` have every run of white space made one space, and the white space at their ends dropped, before the one is looked for in the other. `requests` ASSEMBLE an annotation that is not of a found span: the edge from a resource to one generated from it, and a citation in a generated text. A case gives a `request`, which is a `motivation`, a `target` and maybe a `body`, and maybe a `generator`. The `annotation` has `@context` and `type` as above; the request's `motivation` and `target` as given; its `body` as given, and no `body` member when none was; and the `generator` if one was given. `bodies` is the body as a list: empty when there is none, of one when it is a single body, the list itself when it is a list. The request is refused if its target has an SvgSelector whose `value` does not have the text xmlns=\"http://www.w3.org/2000/svg\" in it (`svg-no-namespace`), or does not have both `<svg` and `</svg>` (`svg-no-element`), or has none of `<rect`, `<circle`, `<ellipse`, `<polygon`, `<polyline`, `<path` and `<line` (`svg-no-shape`), the first of these that fails being the refusal; or, its selectors passing, if it states no motivation (`no-motivation`). `unstated` names, for `cases` and for `requests`, the members every annotation of that kind has and no case can state: `created`, the moment it was built, an RFC 3339 date-time in UTC to the millisecond; and for an assembled annotation also `modified`, which is that same moment, and its `id`, which is not derived but newly minted each time. A runner checks that each is there and compares everything else. White space is what Unicode gives the White_Space property; no case rests on U+0085 or U+FEFF, about which implementations disagree. What an offset counts is stated in a table of its own; every text here is of the Basic Multilingual Plane, where it makes no difference. `defects` says what today's rule does that is a mistake: no case states any of it, and an implementation is not held to it. Add a case here before changing an implementation.",
+  "defects": [
+    "The check of a text span reads the text between its two offsets whichever of them is the greater, and takes an offset past the end of the text for the end: a span given backwards, or one that runs past the end, is built when the words happen to be `exact`.",
+    "A PDF span's `prefix` and `suffix` are written into the annotation without being checked against the anchored text."
+  ],
+  "unstated": {
+    "cases": ["created"],
+    "requests": ["id", "created", "modified"]
+  },
+  "cases": [
+    {
+      "why": "a highlight of a text: no body, a position and a quote, and the id of the anchor `0:12:Ada Lovelace` (the first case of id-cases.json)",
+      "text": "Ada Lovelace wrote the first algorithm.",
+      "resourceId": "res-1",
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "motivation": "highlighting",
+      "span": { "start": 0, "end": 12, "exact": "Ada Lovelace" },
+      "annotation": {
+        "@context": "http://www.w3.org/ns/anno.jsonld",
+        "type": "Annotation",
+        "id": "8yQdnrBndVZasyRD7ORRX",
+        "motivation": "highlighting",
+        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+        "target": {
+          "type": "SpecificResource",
+          "source": "res-1",
+          "selector": [
+            { "type": "TextPositionSelector", "start": 0, "end": 12 },
+            { "type": "TextQuoteSelector", "exact": "Ada Lovelace" }
+          ]
+        }
+      }
+    },
+    {
+      "why": "a comment on a text: the body is carried as given and goes into the id; the prefix and suffix, which are what the text has on either side, are written into the quote and are no part of the id",
+      "text": "Ada Lovelace wrote the first algorithm.",
+      "resourceId": "res-1",
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "motivation": "commenting",
+      "span": { "start": 13, "end": 18, "exact": "wrote", "prefix": "Ada Lovelace ", "suffix": " the first algorithm." },
+      "body": [
+        { "type": "TextualBody", "value": "a verb", "purpose": "commenting", "format": "text/plain" }
+      ],
+      "annotation": {
+        "@context": "http://www.w3.org/ns/anno.jsonld",
+        "type": "Annotation",
+        "id": "eTgxnCP0D9xM17AZIl7S_",
+        "motivation": "commenting",
+        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+        "target": {
+          "type": "SpecificResource",
+          "source": "res-1",
+          "selector": [
+            { "type": "TextPositionSelector", "start": 13, "end": 18 },
+            { "type": "TextQuoteSelector", "exact": "wrote", "prefix": "Ada Lovelace ", "suffix": " the first algorithm." }
+          ]
+        },
+        "body": [
+          { "type": "TextualBody", "value": "a verb", "purpose": "commenting", "format": "text/plain" }
+        ]
+      }
+    },
+    {
+      "why": "a span that is the whole text has nothing before or after it: its empty prefix and suffix pass the check and are not written into the quote",
+      "text": "Ada Lovelace wrote the first algorithm.",
+      "resourceId": "res-1",
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "motivation": "highlighting",
+      "span": { "start": 0, "end": 39, "exact": "Ada Lovelace wrote the first algorithm.", "prefix": "", "suffix": "" },
+      "annotation": {
+        "@context": "http://www.w3.org/ns/anno.jsonld",
+        "type": "Annotation",
+        "id": "lBxliU73D1-YYmKhQhYbf",
+        "motivation": "highlighting",
+        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+        "target": {
+          "type": "SpecificResource",
+          "source": "res-1",
+          "selector": [
+            { "type": "TextPositionSelector", "start": 0, "end": 39 },
+            { "type": "TextQuoteSelector", "exact": "Ada Lovelace wrote the first algorithm." }
+          ]
+        }
+      }
+    },
+    {
+      "why": "a reference found in a text, whose body is the one object naming its entity type: carried as one object, not made a list; and a generator that states the parameters it ran with is carried with them",
+      "text": "Ada Lovelace wrote the first algorithm.",
+      "resourceId": "res-1",
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3", "parameters": { "temperature": 0, "maxTokens": 2048 } },
+      "motivation": "linking",
+      "span": { "start": 0, "end": 12, "exact": "Ada Lovelace" },
+      "body": { "type": "TextualBody", "value": "Person", "purpose": "tagging" },
+      "annotation": {
+        "@context": "http://www.w3.org/ns/anno.jsonld",
+        "type": "Annotation",
+        "id": "xvw-OmqM0xvv7bmfSzDrA",
+        "motivation": "linking",
+        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3", "parameters": { "temperature": 0, "maxTokens": 2048 } },
+        "target": {
+          "type": "SpecificResource",
+          "source": "res-1",
+          "selector": [
+            { "type": "TextPositionSelector", "start": 0, "end": 12 },
+            { "type": "TextQuoteSelector", "exact": "Ada Lovelace" }
+          ]
+        },
+        "body": { "type": "TextualBody", "value": "Person", "purpose": "tagging" }
+      }
+    },
+    {
+      "why": "the text at the span is not the words it is said to be: refused, not built",
+      "text": "Ada Lovelace wrote the first algorithm.",
+      "resourceId": "res-1",
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "motivation": "highlighting",
+      "span": { "start": 0, "end": 12, "exact": "Grace Hopper" },
+      "refused": "exact-mismatch"
+    },
+    {
+      "why": "a prefix that is not what the text has just before the span: the eight characters before `wrote` are `ovelace ` with its space, not `Lovelace`",
+      "text": "Ada Lovelace wrote the first algorithm.",
+      "resourceId": "res-1",
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "motivation": "highlighting",
+      "span": { "start": 13, "end": 18, "exact": "wrote", "prefix": "Lovelace" },
+      "refused": "prefix-mismatch"
+    },
+    {
+      "why": "a prefix longer than all the text there is before the span cannot be that text",
+      "text": "Ada Lovelace wrote the first algorithm.",
+      "resourceId": "res-1",
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "motivation": "highlighting",
+      "span": { "start": 4, "end": 12, "exact": "Lovelace", "prefix": "Countess Ada " },
+      "refused": "prefix-mismatch"
+    },
+    {
+      "why": "a suffix that is not what the text has just after the span",
+      "text": "Ada Lovelace wrote the first algorithm.",
+      "resourceId": "res-1",
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "motivation": "highlighting",
+      "span": { "start": 13, "end": 18, "exact": "wrote", "suffix": " a first" },
+      "refused": "suffix-mismatch"
+    },
+    {
+      "why": "a suffix longer than all the text there is after the span cannot be that text",
+      "text": "Ada Lovelace wrote the first algorithm.",
+      "resourceId": "res-1",
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "motivation": "highlighting",
+      "span": { "start": 29, "end": 38, "exact": "algorithm", "suffix": ". The end" },
+      "refused": "suffix-mismatch"
+    },
+    {
+      "why": "a highlight of a PDF, on one line: one rectangle and the quote, no position; its id is of the anchor `0:10:alpha beta`, made as a text's is",
+      "anchored": {
+        "text": "alpha beta\ngamma delta",
+        "items": [
+          { "start": 0, "end": 5, "page": 1, "x": 72, "y": 720, "width": 40, "height": 12 },
+          { "start": 6, "end": 10, "page": 1, "x": 118, "y": 720, "width": 34, "height": 12 },
+          { "start": 11, "end": 16, "page": 1, "x": 72, "y": 700, "width": 45, "height": 12 },
+          { "start": 17, "end": 22, "page": 1, "x": 125, "y": 700, "width": 42, "height": 12 }
+        ]
+      },
+      "resourceId": "res-1",
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "motivation": "highlighting",
+      "span": { "start": 0, "end": 10, "exact": "alpha beta" },
+      "annotation": {
+        "@context": "http://www.w3.org/ns/anno.jsonld",
+        "type": "Annotation",
+        "id": "8mzsO4oS88lXiAeLOZ1ER",
+        "motivation": "highlighting",
+        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+        "target": {
+          "type": "SpecificResource",
+          "source": "res-1",
+          "selector": [
+            { "type": "FragmentSelector", "conformsTo": "http://tools.ietf.org/rfc/rfc3778", "value": "page=1&viewrect=72,720,80,12" },
+            { "type": "TextQuoteSelector", "exact": "alpha beta" }
+          ]
+        }
+      }
+    },
+    {
+      "why": "a comment on a PDF span that runs over two lines: a rectangle for each, the upper first, then the quote with the line break in it as the anchored text has it; the body and the context are carried as for a text",
+      "anchored": {
+        "text": "alpha beta\ngamma delta",
+        "items": [
+          { "start": 0, "end": 5, "page": 1, "x": 72, "y": 720, "width": 40, "height": 12 },
+          { "start": 6, "end": 10, "page": 1, "x": 118, "y": 720, "width": 34, "height": 12 },
+          { "start": 11, "end": 16, "page": 1, "x": 72, "y": 700, "width": 45, "height": 12 },
+          { "start": 17, "end": 22, "page": 1, "x": 125, "y": 700, "width": 42, "height": 12 }
+        ]
+      },
+      "resourceId": "res-1",
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "motivation": "commenting",
+      "span": { "start": 6, "end": 16, "exact": "beta\ngamma", "prefix": "alpha ", "suffix": " delta" },
+      "body": [
+        { "type": "TextualBody", "value": "a note", "purpose": "commenting", "format": "text/plain" }
+      ],
+      "annotation": {
+        "@context": "http://www.w3.org/ns/anno.jsonld",
+        "type": "Annotation",
+        "id": "p2dUyK-07YuB-QXSOiLeI",
+        "motivation": "commenting",
+        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+        "target": {
+          "type": "SpecificResource",
+          "source": "res-1",
+          "selector": [
+            { "type": "FragmentSelector", "conformsTo": "http://tools.ietf.org/rfc/rfc3778", "value": "page=1&viewrect=118,720,34,12" },
+            { "type": "FragmentSelector", "conformsTo": "http://tools.ietf.org/rfc/rfc3778", "value": "page=1&viewrect=72,700,45,12" },
+            { "type": "TextQuoteSelector", "exact": "beta\ngamma", "prefix": "alpha ", "suffix": " delta" }
+          ]
+        },
+        "body": [
+          { "type": "TextualBody", "value": "a note", "purpose": "commenting", "format": "text/plain" }
+        ]
+      }
+    },
+    {
+      "why": "a PDF span's words need only be in the covered text once white space is collapsed: `beta gamma` with a space is in `beta`, a line break, `gamma`; the quote and the anchor keep the words as they were given",
+      "anchored": {
+        "text": "alpha beta\ngamma delta",
+        "items": [
+          { "start": 0, "end": 5, "page": 1, "x": 72, "y": 720, "width": 40, "height": 12 },
+          { "start": 6, "end": 10, "page": 1, "x": 118, "y": 720, "width": 34, "height": 12 },
+          { "start": 11, "end": 16, "page": 1, "x": 72, "y": 700, "width": 45, "height": 12 },
+          { "start": 17, "end": 22, "page": 1, "x": 125, "y": 700, "width": 42, "height": 12 }
+        ]
+      },
+      "resourceId": "res-1",
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "motivation": "highlighting",
+      "span": { "start": 6, "end": 16, "exact": "beta gamma" },
+      "annotation": {
+        "@context": "http://www.w3.org/ns/anno.jsonld",
+        "type": "Annotation",
+        "id": "1Aqkd45MCQ6e-tkvEeO3f",
+        "motivation": "highlighting",
+        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+        "target": {
+          "type": "SpecificResource",
+          "source": "res-1",
+          "selector": [
+            { "type": "FragmentSelector", "conformsTo": "http://tools.ietf.org/rfc/rfc3778", "value": "page=1&viewrect=118,720,34,12" },
+            { "type": "FragmentSelector", "conformsTo": "http://tools.ietf.org/rfc/rfc3778", "value": "page=1&viewrect=72,700,45,12" },
+            { "type": "TextQuoteSelector", "exact": "beta gamma" }
+          ]
+        }
+      }
+    },
+    {
+      "why": "a citation in a generated PDF: a link whose body is the one object naming the resource cited",
+      "anchored": {
+        "text": "alpha beta\ngamma delta",
+        "items": [
+          { "start": 0, "end": 5, "page": 1, "x": 72, "y": 720, "width": 40, "height": 12 },
+          { "start": 6, "end": 10, "page": 1, "x": 118, "y": 720, "width": 34, "height": 12 },
+          { "start": 11, "end": 16, "page": 1, "x": 72, "y": 700, "width": 45, "height": 12 },
+          { "start": 17, "end": 22, "page": 1, "x": 125, "y": 700, "width": 42, "height": 12 }
+        ]
+      },
+      "resourceId": "res-1",
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "motivation": "linking",
+      "span": { "start": 11, "end": 22, "exact": "gamma delta" },
+      "body": { "type": "SpecificResource", "source": "res-2", "purpose": "linking" },
+      "annotation": {
+        "@context": "http://www.w3.org/ns/anno.jsonld",
+        "type": "Annotation",
+        "id": "fnGCAyZpliTKBHb049emL",
+        "motivation": "linking",
+        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+        "target": {
+          "type": "SpecificResource",
+          "source": "res-1",
+          "selector": [
+            { "type": "FragmentSelector", "conformsTo": "http://tools.ietf.org/rfc/rfc3778", "value": "page=1&viewrect=72,700,95,12" },
+            { "type": "TextQuoteSelector", "exact": "gamma delta" }
+          ]
+        },
+        "body": { "type": "SpecificResource", "source": "res-2", "purpose": "linking" }
+      }
+    },
+    {
+      "why": "a PDF span that no item overlaps has no rectangle to anchor it: refused",
+      "anchored": {
+        "text": "alpha beta\ngamma delta",
+        "items": [
+          { "start": 0, "end": 5, "page": 1, "x": 72, "y": 720, "width": 40, "height": 12 },
+          { "start": 6, "end": 10, "page": 1, "x": 118, "y": 720, "width": 34, "height": 12 },
+          { "start": 11, "end": 16, "page": 1, "x": 72, "y": 700, "width": 45, "height": 12 },
+          { "start": 17, "end": 22, "page": 1, "x": 125, "y": 700, "width": 42, "height": 12 }
+        ]
+      },
+      "resourceId": "res-1",
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "motivation": "highlighting",
+      "span": { "start": 30, "end": 35, "exact": "omega" },
+      "refused": "nothing-located"
+    },
+    {
+      "why": "a PDF span whose rectangles would be drawn round other words than it quotes: the covered text is `alpha`, which does not have `gamma` in it",
+      "anchored": {
+        "text": "alpha beta\ngamma delta",
+        "items": [
+          { "start": 0, "end": 5, "page": 1, "x": 72, "y": 720, "width": 40, "height": 12 },
+          { "start": 6, "end": 10, "page": 1, "x": 118, "y": 720, "width": 34, "height": 12 },
+          { "start": 11, "end": 16, "page": 1, "x": 72, "y": 700, "width": 45, "height": 12 },
+          { "start": 17, "end": 22, "page": 1, "x": 125, "y": 700, "width": 42, "height": 12 }
+        ]
+      },
+      "resourceId": "res-1",
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "motivation": "highlighting",
+      "span": { "start": 0, "end": 5, "exact": "gamma" },
+      "refused": "exact-not-covered"
+    }
+  ],
+  "requests": [
+    {
+      "why": "the edge from a resource to the one generated from it: a link whose target is the whole resource, with no selector; the target is carried as given, and nothing is added to it",
+      "request": {
+        "motivation": "linking",
+        "target": { "source": "res-1" },
+        "body": { "type": "SpecificResource", "source": "res-2", "purpose": "linking" }
+      },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "annotation": {
+        "@context": "http://www.w3.org/ns/anno.jsonld",
+        "type": "Annotation",
+        "motivation": "linking",
+        "target": { "source": "res-1" },
+        "body": { "type": "SpecificResource", "source": "res-2", "purpose": "linking" },
+        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" }
+      },
+      "bodies": [
+        { "type": "SpecificResource", "source": "res-2", "purpose": "linking" }
+      ]
+    },
+    {
+      "why": "a citation in a generated text: the claim's position and words on the new resource, and a body naming the resource cited; with no generator given the annotation has none",
+      "request": {
+        "motivation": "linking",
+        "target": {
+          "source": "res-2",
+          "selector": [
+            { "type": "TextPositionSelector", "start": 13, "end": 38 },
+            { "type": "TextQuoteSelector", "exact": "wrote the first algorithm" }
+          ]
+        },
+        "body": { "type": "SpecificResource", "source": "res-1", "purpose": "linking" }
+      },
+      "annotation": {
+        "@context": "http://www.w3.org/ns/anno.jsonld",
+        "type": "Annotation",
+        "motivation": "linking",
+        "target": {
+          "source": "res-2",
+          "selector": [
+            { "type": "TextPositionSelector", "start": 13, "end": 38 },
+            { "type": "TextQuoteSelector", "exact": "wrote the first algorithm" }
+          ]
+        },
+        "body": { "type": "SpecificResource", "source": "res-1", "purpose": "linking" }
+      },
+      "bodies": [
+        { "type": "SpecificResource", "source": "res-1", "purpose": "linking" }
+      ]
+    },
+    {
+      "why": "a request with no body: the annotation has none and `bodies` is empty; a selector given alone, not in a list, is carried alone",
+      "request": {
+        "motivation": "highlighting",
+        "target": {
+          "source": "res-1",
+          "selector": { "type": "TextPositionSelector", "start": 0, "end": 12 }
+        }
+      },
+      "annotation": {
+        "@context": "http://www.w3.org/ns/anno.jsonld",
+        "type": "Annotation",
+        "motivation": "highlighting",
+        "target": {
+          "source": "res-1",
+          "selector": { "type": "TextPositionSelector", "start": 0, "end": 12 }
+        }
+      },
+      "bodies": []
+    },
+    {
+      "why": "a body that is a list is carried as that list, and is `bodies`",
+      "request": {
+        "motivation": "tagging",
+        "target": { "source": "res-1" },
+        "body": [
+          { "type": "TextualBody", "value": "Person", "purpose": "tagging" },
+          { "type": "TextualBody", "value": "people-v1", "purpose": "classifying" }
+        ]
+      },
+      "annotation": {
+        "@context": "http://www.w3.org/ns/anno.jsonld",
+        "type": "Annotation",
+        "motivation": "tagging",
+        "target": { "source": "res-1" },
+        "body": [
+          { "type": "TextualBody", "value": "Person", "purpose": "tagging" },
+          { "type": "TextualBody", "value": "people-v1", "purpose": "classifying" }
+        ]
+      },
+      "bodies": [
+        { "type": "TextualBody", "value": "Person", "purpose": "tagging" },
+        { "type": "TextualBody", "value": "people-v1", "purpose": "classifying" }
+      ]
+    },
+    {
+      "why": "a target with an SvgSelector whose markup has the namespace, the element and a shape is assembled like any other",
+      "request": {
+        "motivation": "highlighting",
+        "target": {
+          "source": "res-1",
+          "selector": { "type": "SvgSelector", "value": "<svg xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"10\" y=\"10\" width=\"50\" height=\"20\"/></svg>" }
+        }
+      },
+      "annotation": {
+        "@context": "http://www.w3.org/ns/anno.jsonld",
+        "type": "Annotation",
+        "motivation": "highlighting",
+        "target": {
+          "source": "res-1",
+          "selector": { "type": "SvgSelector", "value": "<svg xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"10\" y=\"10\" width=\"50\" height=\"20\"/></svg>" }
+        }
+      },
+      "bodies": []
+    },
+    {
+      "why": "SVG markup without the SVG namespace is refused",
+      "request": {
+        "motivation": "highlighting",
+        "target": {
+          "source": "res-1",
+          "selector": { "type": "SvgSelector", "value": "<svg><rect x=\"10\" y=\"10\" width=\"50\" height=\"20\"/></svg>" }
+        }
+      },
+      "refused": "svg-no-namespace"
+    },
+    {
+      "why": "SVG markup that is not closed is refused; and an SvgSelector is looked for among a list of selectors too",
+      "request": {
+        "motivation": "highlighting",
+        "target": {
+          "source": "res-1",
+          "selector": [
+            { "type": "TextQuoteSelector", "exact": "Ada Lovelace" },
+            { "type": "SvgSelector", "value": "<svg xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"10\" y=\"10\" width=\"50\" height=\"20\"/>" }
+          ]
+        }
+      },
+      "refused": "svg-no-element"
+    },
+    {
+      "why": "SVG markup that draws no shape is refused: text is not one",
+      "request": {
+        "motivation": "highlighting",
+        "target": {
+          "source": "res-1",
+          "selector": { "type": "SvgSelector", "value": "<svg xmlns=\"http://www.w3.org/2000/svg\"><text x=\"10\" y=\"10\">Ada</text></svg>" }
+        }
+      },
+      "refused": "svg-no-shape"
+    },
+    {
+      "why": "a request that states no motivation is refused",
+      "request": {
+        "target": { "source": "res-1" }
+      },
+      "refused": "no-motivation"
+    }
+  ]
+}

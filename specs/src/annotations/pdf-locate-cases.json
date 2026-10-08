@@ -1,0 +1,349 @@
+{
+  "$comment": "Where a span of a PDF's text is on its pages, as every implementation must answer it. An annotation of a PDF is anchored by rectangles on its pages, not by offsets, so a worker that has found a span of the PDF's text must locate it; and a worker that cites a claim in a PDF it has made must first find the claim again in the text as it was rendered. TypeScript (packages/core: locate, createFragmentSelector, findClaimSpan) runs every case and fails on a difference; a worker written in another language runs the same file. ANCHORED TEXT is a `text` and its `items`. An item says which characters of the text it is (`start` up to but not including `end`), the `page` it is on (the first page is 1) and its box there: `x`, `y`, `width`, `height` in PDF points, measured from the bottom-left corner of the page, `y` growing upward. `cases` LOCATE a `span` of `anchored`. `overlapping` is the items the span overlaps, in the order `items` has them: an item overlaps when it starts before the span ends and ends after the span starts. `rects` is one rectangle for each line of each page the span touches. Take the overlapping items a page at a time, the pages in the order their first overlapping item comes in `items`. On a page, put the items in order, the greater `y` first (the top of the page) and among items of one `y` the lesser `x` first, and walk them: an item whose `y` is within 2 points of the `y` of the first item of the line being made joins that line (2 points exactly is within), and any other item begins a new line. A line's rectangle spans its items: its `x` is their least left edge, and its `width` their greatest right edge less that; its `y` is their least `y`, and its `height` their greatest `y` + `height` less that. An item's left edge is its `x` and its right edge its `x` + `width`, except where the span cuts the item: an item that starts before the span has its left edge at `x` + `width` x ((span's start - item's start) / the item's number of characters), and an item that ends after the span has its right edge at `x` + `width` x ((span's end - item's start) / the item's number of characters). A span that no item overlaps has no rectangles. `fragments` is the FragmentSelector value made from each rectangle, in the same order: `page=P&viewrect=X,Y,W,H` (RFC 3778), each number written as the shortest decimal that reads back as that number, a whole number with no point and no fraction part; a number so large or so small that it would be written with an exponent does not arise among a page's coordinates, and no case states one. `claims` FIND a `claim` in a `text`; `span` is where it is, or `null`. Collapse the claim: every run of white space becomes one space, and there is none at either end; an empty claim is not found. Strict first: collapse the text the same way and take the first place it has the collapsed claim; the span runs from the character of the text that the match's first character came from to just after the one its last character came from. Only when the strict search finds nothing, break-aware: take the first place in the text, as it is, where the collapsed claim's characters come in their order with nothing between one and the next, except that a line break (U+000A) may come between any two, with at most one space (U+0020) before it and at most one after it; the span runs from the first of those characters to just after the last. Every character of the claim is taken for itself, a space for exactly one space. If neither search finds it, the claim is not found. NUMBERS are IEEE 754 doubles. Every step of the arithmetic on the coordinates here comes out exact, whatever order the steps are taken in, so rectangles are compared for equality; a runner must read the numbers without loss. White space is what Unicode gives the White_Space property; no case rests on U+0085 or U+FEFF, about which implementations disagree. What an offset counts is stated in a table of its own; every text here is of the Basic Multilingual Plane, where it makes no difference. `defects` says what today's rule does that is a mistake: no case states any of it, and an implementation is not held to it. Add a case here before changing an implementation.",
+  "defects": [
+    "An empty span (its start equal to its end) that falls inside an item overlaps that item and is located as a rectangle of no width; the same empty span between two items is located nowhere.",
+    "The break-aware search takes a space of the claim for a space of the text only. Where the text breaks a line between two words with no space beside the break, and the claim is hyphenated somewhere else so that the strict search has already failed, the claim is not found."
+  ],
+  "cases": [
+    {
+      "why": "a span that is exactly one item is that item's box; its neighbours, one ending before the span starts and one starting after it ends, are not overlapped",
+      "anchored": {
+        "text": "Hello world again",
+        "items": [
+          { "start": 0, "end": 5, "page": 1, "x": 72, "y": 700, "width": 30, "height": 12 },
+          { "start": 6, "end": 11, "page": 1, "x": 106, "y": 700, "width": 32, "height": 12 },
+          { "start": 12, "end": 17, "page": 1, "x": 142, "y": 700, "width": 30, "height": 12 }
+        ]
+      },
+      "span": { "start": 6, "end": 11 },
+      "overlapping": [
+        { "start": 6, "end": 11, "page": 1, "x": 106, "y": 700, "width": 32, "height": 12 }
+      ],
+      "rects": [
+        { "page": 1, "x": 106, "y": 700, "width": 32, "height": 12 }
+      ],
+      "fragments": ["page=1&viewrect=106,700,32,12"]
+    },
+    {
+      "why": "the items of one line make one rectangle, from the left edge of the first to the right edge of the last (142 + 30), not a rectangle each",
+      "anchored": {
+        "text": "Hello world again",
+        "items": [
+          { "start": 0, "end": 5, "page": 1, "x": 72, "y": 700, "width": 30, "height": 12 },
+          { "start": 6, "end": 11, "page": 1, "x": 106, "y": 700, "width": 32, "height": 12 },
+          { "start": 12, "end": 17, "page": 1, "x": 142, "y": 700, "width": 30, "height": 12 }
+        ]
+      },
+      "span": { "start": 0, "end": 17 },
+      "overlapping": [
+        { "start": 0, "end": 5, "page": 1, "x": 72, "y": 700, "width": 30, "height": 12 },
+        { "start": 6, "end": 11, "page": 1, "x": 106, "y": 700, "width": 32, "height": 12 },
+        { "start": 12, "end": 17, "page": 1, "x": 142, "y": 700, "width": 30, "height": 12 }
+      ],
+      "rects": [
+        { "page": 1, "x": 72, "y": 700, "width": 100, "height": 12 }
+      ],
+      "fragments": ["page=1&viewrect=72,700,100,12"]
+    },
+    {
+      "why": "a span that touches no item is located nowhere: the one character between two items is in neither, since an item's `end` is not one of its characters",
+      "anchored": {
+        "text": "Hello world again",
+        "items": [
+          { "start": 0, "end": 5, "page": 1, "x": 72, "y": 700, "width": 30, "height": 12 },
+          { "start": 6, "end": 11, "page": 1, "x": 106, "y": 700, "width": 32, "height": 12 },
+          { "start": 12, "end": 17, "page": 1, "x": 142, "y": 700, "width": 30, "height": 12 }
+        ]
+      },
+      "span": { "start": 5, "end": 6 },
+      "overlapping": [],
+      "rects": [],
+      "fragments": []
+    },
+    {
+      "why": "a span that runs over a line break and a page break has a rectangle for each line, each on its own page: the first and third lines have the same `y`, and being on different pages are not one line",
+      "anchored": {
+        "text": "Hello world again\nSecond line\nElsewhere",
+        "items": [
+          { "start": 0, "end": 5, "page": 1, "x": 72, "y": 700, "width": 30, "height": 12 },
+          { "start": 6, "end": 11, "page": 1, "x": 106, "y": 700, "width": 32, "height": 12 },
+          { "start": 12, "end": 17, "page": 1, "x": 142, "y": 700, "width": 30, "height": 12 },
+          { "start": 18, "end": 24, "page": 1, "x": 72, "y": 680, "width": 38, "height": 12 },
+          { "start": 25, "end": 29, "page": 1, "x": 114, "y": 680, "width": 22, "height": 12 },
+          { "start": 30, "end": 39, "page": 2, "x": 72, "y": 700, "width": 50, "height": 12 }
+        ]
+      },
+      "span": { "start": 12, "end": 39 },
+      "overlapping": [
+        { "start": 12, "end": 17, "page": 1, "x": 142, "y": 700, "width": 30, "height": 12 },
+        { "start": 18, "end": 24, "page": 1, "x": 72, "y": 680, "width": 38, "height": 12 },
+        { "start": 25, "end": 29, "page": 1, "x": 114, "y": 680, "width": 22, "height": 12 },
+        { "start": 30, "end": 39, "page": 2, "x": 72, "y": 700, "width": 50, "height": 12 }
+      ],
+      "rects": [
+        { "page": 1, "x": 142, "y": 700, "width": 30, "height": 12 },
+        { "page": 1, "x": 72, "y": 680, "width": 64, "height": 12 },
+        { "page": 2, "x": 72, "y": 700, "width": 50, "height": 12 }
+      ],
+      "fragments": [
+        "page=1&viewrect=142,700,30,12",
+        "page=1&viewrect=72,680,64,12",
+        "page=2&viewrect=72,700,50,12"
+      ]
+    },
+    {
+      "why": "the lines of a page come top first whatever order the text has them in: here the text reads a note at the foot of the page before the title at its head, and `overlapping` keeps the text's order while `rects` does not",
+      "anchored": {
+        "text": "note below\nTitle above",
+        "items": [
+          { "start": 0, "end": 4, "page": 1, "x": 72, "y": 100, "width": 24, "height": 10 },
+          { "start": 5, "end": 10, "page": 1, "x": 100, "y": 100, "width": 30, "height": 10 },
+          { "start": 11, "end": 16, "page": 1, "x": 72, "y": 700, "width": 40, "height": 16 },
+          { "start": 17, "end": 22, "page": 1, "x": 118, "y": 700, "width": 44, "height": 16 }
+        ]
+      },
+      "span": { "start": 0, "end": 22 },
+      "overlapping": [
+        { "start": 0, "end": 4, "page": 1, "x": 72, "y": 100, "width": 24, "height": 10 },
+        { "start": 5, "end": 10, "page": 1, "x": 100, "y": 100, "width": 30, "height": 10 },
+        { "start": 11, "end": 16, "page": 1, "x": 72, "y": 700, "width": 40, "height": 16 },
+        { "start": 17, "end": 22, "page": 1, "x": 118, "y": 700, "width": 44, "height": 16 }
+      ],
+      "rects": [
+        { "page": 1, "x": 72, "y": 700, "width": 90, "height": 16 },
+        { "page": 1, "x": 72, "y": 100, "width": 58, "height": 10 }
+      ],
+      "fragments": [
+        "page=1&viewrect=72,700,90,16",
+        "page=1&viewrect=72,100,58,10"
+      ]
+    },
+    {
+      "why": "two items whose baselines are exactly 2 points apart are one line, and its rectangle bounds both: from the lower `y` (698) up to the higher top (712)",
+      "anchored": {
+        "text": "ab",
+        "items": [
+          { "start": 0, "end": 1, "page": 1, "x": 72, "y": 700, "width": 10, "height": 12 },
+          { "start": 1, "end": 2, "page": 1, "x": 90, "y": 698, "width": 10, "height": 12 }
+        ]
+      },
+      "span": { "start": 0, "end": 2 },
+      "overlapping": [
+        { "start": 0, "end": 1, "page": 1, "x": 72, "y": 700, "width": 10, "height": 12 },
+        { "start": 1, "end": 2, "page": 1, "x": 90, "y": 698, "width": 10, "height": 12 }
+      ],
+      "rects": [
+        { "page": 1, "x": 72, "y": 698, "width": 28, "height": 14 }
+      ],
+      "fragments": ["page=1&viewrect=72,698,28,14"]
+    },
+    {
+      "why": "a line is measured from its first item, not from the item before: the third item is 1.5 below the second but 3 below the first, so it begins a new line; and a number that is not whole is written with its fraction",
+      "anchored": {
+        "text": "abc",
+        "items": [
+          { "start": 0, "end": 1, "page": 1, "x": 72, "y": 700, "width": 10, "height": 12 },
+          { "start": 1, "end": 2, "page": 1, "x": 90, "y": 698.5, "width": 10, "height": 12 },
+          { "start": 2, "end": 3, "page": 1, "x": 108, "y": 697, "width": 10, "height": 12 }
+        ]
+      },
+      "span": { "start": 0, "end": 3 },
+      "overlapping": [
+        { "start": 0, "end": 1, "page": 1, "x": 72, "y": 700, "width": 10, "height": 12 },
+        { "start": 1, "end": 2, "page": 1, "x": 90, "y": 698.5, "width": 10, "height": 12 },
+        { "start": 2, "end": 3, "page": 1, "x": 108, "y": 697, "width": 10, "height": 12 }
+      ],
+      "rects": [
+        { "page": 1, "x": 72, "y": 698.5, "width": 28, "height": 13.5 },
+        { "page": 1, "x": 108, "y": 697, "width": 10, "height": 12 }
+      ],
+      "fragments": [
+        "page=1&viewrect=72,698.5,28,13.5",
+        "page=1&viewrect=108,697,10,12"
+      ]
+    },
+    {
+      "why": "a span inside one item, as when a renderer gives a whole line as one item, is cut from it in proportion: characters 2 to 6 of 8 are from a quarter to three quarters of its width",
+      "anchored": {
+        "text": "abcdefgh",
+        "items": [
+          { "start": 0, "end": 8, "page": 1, "x": 100, "y": 700, "width": 80, "height": 10 }
+        ]
+      },
+      "span": { "start": 2, "end": 6 },
+      "overlapping": [
+        { "start": 0, "end": 8, "page": 1, "x": 100, "y": 700, "width": 80, "height": 10 }
+      ],
+      "rects": [
+        { "page": 1, "x": 120, "y": 700, "width": 40, "height": 10 }
+      ],
+      "fragments": ["page=1&viewrect=120,700,40,10"]
+    },
+    {
+      "why": "only the items at the span's two ends are cut: the first loses its first six characters of eight (its left edge moves to 160), the last keeps its first two (its right edge is 288), and the item between them is whole",
+      "anchored": {
+        "text": "abcdefgh ijklmnop qrstuvwx",
+        "items": [
+          { "start": 0, "end": 8, "page": 1, "x": 100, "y": 700, "width": 80, "height": 10 },
+          { "start": 9, "end": 17, "page": 1, "x": 184, "y": 700, "width": 80, "height": 10 },
+          { "start": 18, "end": 26, "page": 1, "x": 268, "y": 700, "width": 80, "height": 10 }
+        ]
+      },
+      "span": { "start": 6, "end": 20 },
+      "overlapping": [
+        { "start": 0, "end": 8, "page": 1, "x": 100, "y": 700, "width": 80, "height": 10 },
+        { "start": 9, "end": 17, "page": 1, "x": 184, "y": 700, "width": 80, "height": 10 },
+        { "start": 18, "end": 26, "page": 1, "x": 268, "y": 700, "width": 80, "height": 10 }
+      ],
+      "rects": [
+        { "page": 1, "x": 160, "y": 700, "width": 128, "height": 10 }
+      ],
+      "fragments": ["page=1&viewrect=160,700,128,10"]
+    },
+    {
+      "why": "a span that starts inside one line and ends inside the next cuts the first on its left only and the second on its right only",
+      "anchored": {
+        "text": "abcdefgh\nijklmnop",
+        "items": [
+          { "start": 0, "end": 8, "page": 1, "x": 100, "y": 700, "width": 80, "height": 10 },
+          { "start": 9, "end": 17, "page": 1, "x": 100, "y": 686, "width": 80, "height": 10 }
+        ]
+      },
+      "span": { "start": 4, "end": 11 },
+      "overlapping": [
+        { "start": 0, "end": 8, "page": 1, "x": 100, "y": 700, "width": 80, "height": 10 },
+        { "start": 9, "end": 17, "page": 1, "x": 100, "y": 686, "width": 80, "height": 10 }
+      ],
+      "rects": [
+        { "page": 1, "x": 140, "y": 700, "width": 40, "height": 10 },
+        { "page": 1, "x": 100, "y": 686, "width": 20, "height": 10 }
+      ],
+      "fragments": [
+        "page=1&viewrect=140,700,40,10",
+        "page=1&viewrect=100,686,20,10"
+      ]
+    },
+    {
+      "why": "an item that hangs off the page has coordinates below zero, and they are written with their sign",
+      "anchored": {
+        "text": "margin note",
+        "items": [
+          { "start": 0, "end": 6, "page": 3, "x": -5, "y": -12, "width": 24, "height": 18 },
+          { "start": 7, "end": 11, "page": 3, "x": 23, "y": -12, "width": 16, "height": 18 }
+        ]
+      },
+      "span": { "start": 0, "end": 11 },
+      "overlapping": [
+        { "start": 0, "end": 6, "page": 3, "x": -5, "y": -12, "width": 24, "height": 18 },
+        { "start": 7, "end": 11, "page": 3, "x": 23, "y": -12, "width": 16, "height": 18 }
+      ],
+      "rects": [
+        { "page": 3, "x": -5, "y": -12, "width": 44, "height": 18 }
+      ],
+      "fragments": ["page=3&viewrect=-5,-12,44,18"]
+    },
+    {
+      "why": "a coordinate is written as the shortest decimal that reads back as it: 72.3 and 700.44, not their seventeen digits; and the width and height, which come out whole, are written as 30 and 12",
+      "anchored": {
+        "text": "decimal",
+        "items": [
+          { "start": 0, "end": 7, "page": 1, "x": 72.3, "y": 700.44, "width": 30, "height": 12 }
+        ]
+      },
+      "span": { "start": 0, "end": 7 },
+      "overlapping": [
+        { "start": 0, "end": 7, "page": 1, "x": 72.3, "y": 700.44, "width": 30, "height": 12 }
+      ],
+      "rects": [
+        { "page": 1, "x": 72.3, "y": 700.44, "width": 30, "height": 12 }
+      ],
+      "fragments": ["page=1&viewrect=72.3,700.44,30,12"]
+    }
+  ],
+  "claims": [
+    {
+      "why": "a claim that is on one line is found where it is",
+      "text": "The quick brown fox jumps over the lazy dog.",
+      "claim": "brown fox jumps",
+      "span": { "start": 10, "end": 25 }
+    },
+    {
+      "why": "the rendered text breaks the line inside the claim, with a space before the break: the strict search finds it, and the span takes in the break as the text has it (`brown \\nfox`)",
+      "text": "The quick brown \nfox jumps high.",
+      "claim": "brown fox",
+      "span": { "start": 10, "end": 20 }
+    },
+    {
+      "why": "the claim's own white space is collapsed and trimmed before it is looked for",
+      "text": "The quick brown \nfox jumps high.",
+      "claim": "  brown\n\tfox ",
+      "span": { "start": 10, "end": 20 }
+    },
+    {
+      "why": "the offsets are the text's own: the white space the text begins with and the runs of it before and inside the claim are all counted",
+      "text": " \n  Title:  the  quick\tbrown fox.",
+      "claim": "the quick brown",
+      "span": { "start": 12, "end": 28 }
+    },
+    {
+      "why": "of several places the first, and case matters: the capital `A fox` that begins the text is not it",
+      "text": "A fox and a fox and a fox.",
+      "claim": "a fox",
+      "span": { "start": 10, "end": 15 }
+    },
+    {
+      "why": "a word hyphenated at a line end is rendered as its two halves with no hyphen: the strict search misses, and the break-aware one finds the claim around the break",
+      "text": "It is extraor \ndinarily complicated today.",
+      "claim": "extraordinarily complicated",
+      "span": { "start": 6, "end": 35 }
+    },
+    {
+      "why": "the break may have its one space after it instead of before",
+      "text": "An under\n standing was reached.",
+      "claim": "understanding",
+      "span": { "start": 3, "end": 18 }
+    },
+    {
+      "why": "a claim hyphenated in one place and wrapped between words in another: the claim's space is the text's space, and the break comes after it",
+      "text": "It is extraor \ndinarily complicated \ntoday.",
+      "claim": "extraordinarily complicated today",
+      "span": { "start": 6, "end": 42 }
+    },
+    {
+      "why": "strict comes first, wherever it finds the claim: the unbroken word later in the text is the span, though a break-aware search would have taken the broken one before it",
+      "text": "The under \nstanding was that an understanding existed.",
+      "claim": "understanding",
+      "span": { "start": 32, "end": 45 }
+    },
+    {
+      "why": "the claim's characters are taken for themselves in the break-aware search: brackets, a full stop, a dollar sign and a plus are not a pattern",
+      "text": "Total cost (est.) is $5.00+ per quar \nter [net].",
+      "claim": "cost (est.) is $5.00+ per quarter [net]",
+      "span": { "start": 6, "end": 47 }
+    },
+    {
+      "why": "only a line break may come between two characters of the claim, never a space on its own: `abc` is not `a b c`",
+      "text": "x a b c y",
+      "claim": "abc",
+      "span": null
+    },
+    {
+      "why": "a claim the text does not have is not found",
+      "text": "Entirely unrelated text.",
+      "claim": "quantum entanglement",
+      "span": null
+    },
+    {
+      "why": "an empty claim is not found",
+      "text": "Some text.",
+      "claim": "",
+      "span": null
+    },
+    {
+      "why": "nor is one that is only white space, which collapses to an empty one",
+      "text": "Some text.",
+      "claim": " \n\t ",
+      "span": null
+    }
+  ]
+}
