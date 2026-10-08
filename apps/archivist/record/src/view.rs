@@ -3,6 +3,11 @@
 use crate::agents::attribution;
 use crate::shard::shard_path;
 use crate::{Object, RecordError, ids, indented, read_object, write_whole};
+use semiont::channels::{
+    Channel, MarkAdded, MarkArchived, MarkBodyUpdated, MarkEntityTagAdded, MarkEntityTagRemoved,
+    MarkRemoved, MarkUnarchived, YieldCloned, YieldCreated, YieldMoved, YieldRepresentationAdded,
+    YieldRepresentationRemoved, YieldUpdated,
+};
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 
@@ -154,7 +159,7 @@ pub fn apply(view: &mut Object, event: &Object) {
 
     if let Some(resource) = view.get_mut("resource").and_then(Value::as_object_mut) {
         match kind.as_str() {
-            "yield:created" => {
+            YieldCreated::NAME => {
                 begin(resource, event, payload);
                 attribute(resource, event, payload);
                 representations(resource).push(representation(payload));
@@ -168,7 +173,7 @@ pub fn apply(view: &mut Object, event: &Object) {
                 );
                 place(resource, "generator", payload.get("generator"));
             }
-            "yield:cloned" => {
+            YieldCloned::NAME => {
                 begin(resource, event, payload);
                 place(
                     resource,
@@ -178,7 +183,7 @@ pub fn apply(view: &mut Object, event: &Object) {
                 attribute(resource, event, payload);
                 representations(resource).push(representation(payload));
             }
-            "yield:updated" => {
+            YieldUpdated::NAME => {
                 if let Some(primary) = primary(resource) {
                     place(primary, "checksum", payload.get("contentChecksum"));
                     match payload.get("contentByteSize").filter(|v| !v.is_null()) {
@@ -192,13 +197,13 @@ pub fn apply(view: &mut Object, event: &Object) {
                 }
                 resource.insert("dateModified".into(), timestamp.clone());
             }
-            "yield:moved" => {
+            YieldMoved::NAME => {
                 if let Some(primary) = primary(resource) {
                     place(primary, "storageUri", payload.get("toUri"));
                 }
                 resource.insert("dateModified".into(), timestamp.clone());
             }
-            "yield:representation-added" => {
+            YieldRepresentationAdded::NAME => {
                 if let Some(added) = payload.get("representation") {
                     let held = representations(resource);
                     if !held
@@ -209,17 +214,17 @@ pub fn apply(view: &mut Object, event: &Object) {
                     }
                 }
             }
-            "yield:representation-removed" => {
+            YieldRepresentationRemoved::NAME => {
                 let removed = payload.get("checksum");
                 representations(resource).retain(|r| r.get("checksum") != removed);
             }
-            "mark:archived" => {
+            MarkArchived::NAME => {
                 resource.insert("archived".into(), json!(true));
             }
-            "mark:unarchived" => {
+            MarkUnarchived::NAME => {
                 resource.insert("archived".into(), json!(false));
             }
-            "mark:entity-tag-added" => {
+            MarkEntityTagAdded::NAME => {
                 if let Some(added) = payload.get("entityType") {
                     let types = resource.entry("entityTypes").or_insert_with(|| json!([]));
                     if let Some(types) = types.as_array_mut()
@@ -229,7 +234,7 @@ pub fn apply(view: &mut Object, event: &Object) {
                     }
                 }
             }
-            "mark:entity-tag-removed" => {
+            MarkEntityTagRemoved::NAME => {
                 let removed = payload.get("entityType");
                 if let Some(types) = resource
                     .get_mut("entityTypes")
@@ -248,18 +253,18 @@ pub fn apply(view: &mut Object, event: &Object) {
             .and_then(Value::as_array_mut)
         {
             match kind.as_str() {
-                "mark:added" => {
+                MarkAdded::NAME => {
                     if let Some(added) = payload.get("annotation")
                         && !held.iter().any(|a| a.get("id") == added.get("id"))
                     {
                         held.push(added.clone());
                     }
                 }
-                "mark:removed" => {
+                MarkRemoved::NAME => {
                     let removed = payload.get("annotationId");
                     held.retain(|a| a.get("id") != removed);
                 }
-                "mark:body-updated" => {
+                MarkBodyUpdated::NAME => {
                     let named = payload.get("annotationId");
                     if let Some(annotation) = held
                         .iter_mut()

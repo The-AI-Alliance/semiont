@@ -4,6 +4,7 @@
 
 use crate::anchored::SmeltProgress;
 use crate::content::Content;
+use semiont::channels::{Channel, MarkAdded, MarkBodyUpdated};
 use semiont_archivist_record::kb::Committed;
 use semiont_archivist_record::record::Record;
 use semiont_archivist_record::{Object, SYSTEM};
@@ -126,8 +127,8 @@ impl Archivist {
             let stored = recorded.event;
             let mut published = stored.clone();
             let annotation_id = match stored.get("type").and_then(Value::as_str) {
-                Some("mark:added") => stored["payload"]["annotation"].get("id").cloned(),
-                Some("mark:body-updated") => stored["payload"].get("annotationId").cloned(),
+                Some(MarkAdded::NAME) => stored["payload"]["annotation"].get("id").cloned(),
+                Some(MarkBodyUpdated::NAME) => stored["payload"].get("annotationId").cloned(),
                 _ => None,
             };
             if let (Some(annotation_id), Some(resource_id)) = (

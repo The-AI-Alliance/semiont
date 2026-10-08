@@ -3,6 +3,7 @@
 
 use crate::anchored::anchored_text;
 use crate::archivist::{Archivist, Refusal, primary_representation, text};
+use semiont::channels::{Channel, MarkAdded, MarkBodyUpdated, MarkRemoved};
 use semiont::identity::{agent_did, agent_name};
 use semiont::types::{JobFilter, MarkJobFilter, MarkJobFilterParams, YieldJobFilter};
 use semiont_archivist_record::agents::did_to_agent;
@@ -254,8 +255,8 @@ pub async fn annotation_history(archivist: &Archivist, request: &Object) -> Answ
     let about = |event: &Object| -> bool {
         let payload = &event["payload"];
         let named = match event.get("type").and_then(Value::as_str) {
-            Some("mark:added") => payload["annotation"].get("id"),
-            Some("mark:removed" | "mark:body-updated") => payload.get("annotationId"),
+            Some(MarkAdded::NAME) => payload["annotation"].get("id"),
+            Some(MarkRemoved::NAME | MarkBodyUpdated::NAME) => payload.get("annotationId"),
             _ => None,
         };
         named.and_then(Value::as_str) == Some(annotation_id)

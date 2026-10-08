@@ -62,16 +62,13 @@ const REGISTRY = 'specs/src/bus/registry.json';
  * in which it names the channels of the bus, each a file or a directory of
  * them; and its protocol document, with the tables a channel it answers leads
  * a row of, each table named by the first cell of its header.
- *
- * Of the Archivist's files only its bus module is a source: the others name
- * the events it records, by the strings the record keeps them under.
  */
 const SERVICES = [
   {
     name: 'the Archivist',
     handler: 'apps/archivist/src/bus.rs',
     rosters: ['COMMANDS', 'READS'],
-    sources: ['apps/archivist/src/bus.rs'],
+    sources: ['apps/archivist/src', 'apps/archivist/record/src', 'apps/archivist/staging/src'],
     protocol: 'docs/protocol/ARCHIVIST.md',
     tables: ['Command', 'Request'],
   },

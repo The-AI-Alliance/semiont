@@ -2165,6 +2165,7 @@ dependencies = [
  "chrono",
  "percent-encoding",
  "ring",
+ "semiont",
  "serde",
  "serde_json",
  "toml",

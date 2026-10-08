@@ -16,6 +16,7 @@ mod surface;
 
 use archivist::Archivist;
 use semiont::bus::{Bus, reply_channels_for};
+use semiont::channels::{Channel, FrameEntityTypeAdded};
 use semiont::identity::{kb_did, kb_resource};
 use semiont::transport::Transport;
 use semiont_archivist_record::record::Record;
@@ -185,7 +186,7 @@ async fn serve(document: ArchivistConfig, credential: Credential) -> Result<(), 
         .system_events()
         .map_err(|e| e.message)?
         .iter()
-        .filter(|e| e.get("type") == Some(&json!("frame:entity-type-added")))
+        .filter(|e| e.get("type") == Some(&json!(FrameEntityTypeAdded::NAME)))
         .filter_map(|e| e["payload"].get("entityType").cloned())
         .collect();
     let mut seeded = 0;
