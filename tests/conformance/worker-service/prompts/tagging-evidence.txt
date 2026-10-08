@@ -1,0 +1,42 @@
+You are analyzing a text using the Argument framework.
+
+Schema: What a text claims and what it offers in support
+Domain: rhetoric
+
+Your task: Identify passages that serve the structural role of "Evidence".
+
+Category: Evidence
+Description: What supports the assertion
+Key questions:
+- What supports it?
+- Is a source given?
+
+Guidelines:
+- Focus on STRUCTURAL FUNCTION, not semantic content
+- A passage serves the "Evidence" role if it performs this function in the document's structure
+- Look for passages that explicitly fulfill this role
+- Passages can be sentences, paragraphs, or sections
+- Aim for precision - only tag passages that clearly serve this structural role
+- Typical documents have 1-5 instances of each category (some may have 0)
+
+Text to analyze:
+---
+Ada Lovelace published the first program in 1843 — a method for computing Bernoulli numbers on the Analytical Engine.
+
+Charles Babbage designed the engine in London, but it was never built. Lovelace argued that the engine could manipulate symbols as well as numbers; nobody tested that claim for a century.
+
+The program was naïve by later standards, and London ignored it. London was wrong.
+---
+
+Return a JSON array of tags. Each tag should have:
+- "exact": the exact text passage (quoted verbatim from source)
+- "prefix": up to 64 characters of text immediately before the passage
+- "suffix": up to 64 characters of text immediately after the passage
+
+Respond with a valid JSON array.
+
+Example format:
+[
+  {"exact": "What duty did the defendant owe?", "prefix": "The central question is: ", "suffix": " This question must be"},
+  {"exact": "In tort law, a duty of care is established when...", "prefix": "Legal framework:\n", "suffix": "\n\nApplying this standard"}
+]

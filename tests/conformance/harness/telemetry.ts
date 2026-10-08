@@ -5,7 +5,7 @@
  */
 import { eventually } from './net';
 import type { OtlpReceiver } from './otlp';
-import { sdkTelemetry, spanPattern, telemetry, type Service, type Telemetry, type TelemetryRow } from './spec';
+import { sdkTelemetry, spanPattern, telemetry, type Telemetry, type TelemetryRow, type TelemetryService } from './spec';
 
 /** OTLP's span kinds, by the names the spec uses. */
 export const SPAN_KIND: Record<string, number> = { internal: 1, server: 2, client: 3, producer: 4, consumer: 5 };
@@ -22,7 +22,7 @@ export function expectedOn(rows: TelemetryRow[], plane?: string): TelemetryRow[]
  * carrying an attribute or value outside its row. Judged on everything the
  * receiver got, so run it after the cases that make the traffic.
  */
-export function outsideTheTable(otlp: OtlpReceiver, service: Service, plane?: string): Promise<string[]> {
+export function outsideTheTable(otlp: OtlpReceiver, service: TelemetryService, plane?: string): Promise<string[]> {
   return heldTo(otlp, telemetry(service), `the ${service}`, plane, true);
 }
 

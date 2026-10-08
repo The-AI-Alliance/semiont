@@ -23,15 +23,17 @@ headers and SSE `_trace` payload fields.
 | `content.{put,get}`    | `HttpContentTransport.*`                  | client   |
 | `job:<type>`           | Worker `handleJob`                        | consumer |
 
-What the Rust services export is specified, with kinds and attributes, in
+What the Rust services and the Worker service export is specified, with kinds and attributes, in
 [`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json):
 the gateway's own spans — `bus.dispatch:<channel>`, `sse.deliver:<channel>`,
-`content.{get,put}.server` and the `archivist.*` client spans. What an SDK's
+`content.{get,put}.server` and the `archivist.*` client spans — and the Worker's
+`job:<type>`, `detection:prepare` and `inference:*` spans. What an SDK's
 transports export, in any language, is specified in
 [`specs/src/sdk-telemetry/telemetry.json`](../../../specs/src/sdk-telemetry/telemetry.json):
 the `bus.emit` and `bus.recv` spans, the `content.*` client spans, and the
 count of emits a client sends. The dispatcher and the Archivist reach the bus through the Rust
-SDK, so each exports the bus rows of that table beside its own. Each service's
+SDK, so each exports the bus rows of that table beside its own; the Worker service exports
+its bus rows and the content rows for the uploads and reads it makes. Each service's
 conformance suite holds it to its rows in both directions, and the SDK suite
 holds each SDK to the SDK table.
 

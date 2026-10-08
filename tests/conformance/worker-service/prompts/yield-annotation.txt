@@ -1,0 +1,26 @@
+Generate a concise, informative resource about "Charles Babbage".
+
+
+
+Annotation context:
+- Annotation motivation: linking
+- Source resource: Notes on the engine [res-ws-yield-source]
+- User hint (steers what to generate): the mathematician, not the banker
+
+Source document context:
+---
+...on the Analytical Engine.
+
+
+**[Charles Babbage]**
+ designed the engine in London...
+---
+
+
+IMPORTANT: Write the entire resource in German.
+
+Requirements:
+- Aim for approximately 500 tokens of content
+- Be factual and informative
+- Write the response as plain text — no formatting markup (no #, *, backticks, headings, or links)
+- Begin with the title on its own first line

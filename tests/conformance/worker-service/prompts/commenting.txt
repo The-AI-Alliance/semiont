@@ -1,0 +1,31 @@
+Add comments to passages in this text following these instructions:
+
+Explain who each person was. Use a scholarly tone.
+
+Aim for approximately 4 comments per 2000 words of text.
+
+Source text language: English.
+
+IMPORTANT: Write your comments in French.
+
+Text to analyze:
+---
+Ada Lovelace published the first program in 1843 — a method for computing Bernoulli numbers on the Analytical Engine.
+
+Charles Babbage designed the engine in London, but it was never built. Lovelace argued that the engine could manipulate symbols as well as numbers; nobody tested that claim for a century.
+
+The program was naïve by later standards, and London ignored it. London was wrong.
+---
+
+Return a JSON array of comments. Each comment must have:
+- "exact": the exact text passage being commented on (quoted verbatim from source)
+- "prefix": up to 64 characters of text immediately before the passage
+- "suffix": up to 64 characters of text immediately after the passage
+- "comment": your comment following the instructions above
+
+Respond with a valid JSON array.
+
+Example:
+[
+  {"exact": "the quarterly review meeting", "prefix": "We need to schedule ", "suffix": " for next month.", "comment": "Who will lead this? Should we invite the external auditors?"}
+]

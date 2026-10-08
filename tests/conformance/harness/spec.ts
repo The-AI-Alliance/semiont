@@ -234,11 +234,11 @@ export function operationFor(request: string): RegistryOperation {
   return op;
 }
 
-/** The names of the environment variables `service` reads (service-environment/variables.json). */
-/** A Rust service the spec's service tables (service-environment, service-telemetry) cover. */
+/** A Rust service: what the spec's service-environment table covers, and, with the worker, its service-telemetry table. */
 export type Service = 'gateway' | 'dispatcher' | 'archivist';
 const SERVICES: readonly Service[] = ['gateway', 'dispatcher', 'archivist'];
 
+/** The names of the environment variables `service` reads (service-environment/variables.json). */
 export function serviceEnvironment(service: Service): string[] {
   const table: unknown = JSON.parse(readFileSync(join(SPEC_SOURCE, 'service-environment/variables.json'), 'utf8'));
   const rows = isObject(table) && Array.isArray(table['variables']) ? table['variables'] : [];
@@ -266,11 +266,8 @@ export interface TelemetryRow {
   planes?: string[];
 }
 
-/**
- * The services the telemetry table names: those above, and the worker, whose
- * rows are stated ahead of a suite to hold it to them.
- */
-type TelemetryService = Service | 'worker';
+/** The services the telemetry table names: those above, and the worker. */
+export type TelemetryService = Service | 'worker';
 const TELEMETRY_SERVICES: readonly TelemetryService[] = [...SERVICES, 'worker'];
 
 /** A row of the service table: the services that export it. */
@@ -286,7 +283,6 @@ interface SdkRow extends TelemetryRow {
 const WHEN = ['export', 'traffic', 'supervised', 'fatal'] as const;
 const isWhen = (v: unknown): v is TelemetryRow['when'] => WHEN.some((w) => w === v);
 
-const isService = (v: unknown): v is Service => SERVICES.some((s) => s === v);
 const isTelemetryService = (v: unknown): v is TelemetryService => TELEMETRY_SERVICES.some((s) => s === v);
 
 /** What every row of either table states: its name, its kind or instrument, its attributes. */
@@ -337,8 +333,12 @@ export interface Telemetry {
 
 interface Tables {
   service: { spans: ServiceRow[]; metrics: ServiceRow[] };
-  /** For each service that reaches the bus through an SDK, the SDK transports it uses. */
-  through: Partial<Record<Service, string[]>>;
+  /**
+   * For each service that reaches the bus through an SDK, what of the SDK
+   * table it exports: each entry a transport, for all of its rows, or the
+   * name of one row, for a service that uses part of a transport.
+   */
+  through: Partial<Record<TelemetryService, string[]>>;
   sdk: { spans: SdkRow[]; metrics: SdkRow[] };
 }
 
@@ -355,18 +355,20 @@ function telemetryTables(): Tables {
   const service = read(SERVICE_TABLE);
   const sdk = read(SDK_TABLE);
   const through: Tables['through'] = {};
-  for (const [name, transports] of Object.entries(isObject(service['sdk']) ? service['sdk'] : {})) {
-    if (!isService(name) || !Array.isArray(transports)) throw new Error(`${SERVICE_TABLE}: \`sdk\` names ${name}, which is not ${SERVICES.join(' or ')}, or gives it no transports`);
-    through[name] = transports.map(String);
+  for (const [name, entries] of Object.entries(isObject(service['sdk']) ? service['sdk'] : {})) {
+    if (!isTelemetryService(name) || !Array.isArray(entries)) throw new Error(`${SERVICE_TABLE}: \`sdk\` names ${name}, which is not ${TELEMETRY_SERVICES.join(' or ')}, or gives it nothing of the SDK table`);
+    through[name] = entries.map(String);
   }
   tables = {
     service: { spans: serviceRows(service['spans'], 'kind'), metrics: serviceRows(service['metrics'], 'instrument') },
     through,
     sdk: { spans: sdkRows(sdk['spans'], 'kind'), metrics: sdkRows(sdk['metrics'], 'instrument') },
   };
-  const transports = new Set([...tables.sdk.spans, ...tables.sdk.metrics].map((r) => r.transport));
+  const shared = [...tables.sdk.spans, ...tables.sdk.metrics];
   for (const [name, used] of Object.entries(through)) {
-    for (const transport of used) if (!transports.has(transport)) throw new Error(`${SERVICE_TABLE}: ${name} uses the SDK transport ${transport}, which ${SDK_TABLE} lists no rows for`);
+    for (const entry of used) {
+      if (!shared.some((r) => r.transport === entry || r.name === entry)) throw new Error(`${SERVICE_TABLE}: ${name} names ${entry} of the SDK table, which is neither a transport ${SDK_TABLE} lists rows for nor one of its rows`);
+    }
   }
   return tables;
 }
@@ -374,12 +376,12 @@ function telemetryTables(): Tables {
 /**
  * The telemetry `service` exports: the rows of the service table that list
  * it, and, when it reaches the bus through an SDK, the SDK table's rows for
- * the transports it uses.
+ * the transports it uses and the rows it names.
  */
-export function telemetry(service: Service): Telemetry {
+export function telemetry(service: TelemetryService): Telemetry {
   const { service: own, through, sdk } = telemetryTables();
   const used = through[service] ?? [];
-  const of = (rows: ServiceRow[], shared: SdkRow[]): TelemetryRow[] => [...rows.filter((r) => r.services.includes(service)), ...shared.filter((r) => used.includes(r.transport))];
+  const of = (rows: ServiceRow[], shared: SdkRow[]): TelemetryRow[] => [...rows.filter((r) => r.services.includes(service)), ...shared.filter((r) => used.includes(r.transport) || used.includes(r.name))];
   return { spans: of(own.spans, sdk.spans), metrics: of(own.metrics, sdk.metrics) };
 }
 
@@ -388,9 +390,9 @@ export function sdkTelemetry(): Telemetry {
   return telemetryTables().sdk;
 }
 
-/** What an exported span name looks like for a row: `{channel}` stands for any channel. */
+/** What an exported span name looks like for a row: `{channel}` stands for any channel, `{jobType}` for any job type. */
 export function spanPattern(row: TelemetryRow): RegExp {
-  const parts = row.name.split(/\{[a-z]+\}/).map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const parts = row.name.split(/\{[A-Za-z]+\}/).map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
   return new RegExp(`^${parts.join('.+')}$`);
 }
 
@@ -398,7 +400,7 @@ export function spanPattern(row: TelemetryRow): RegExp {
 export function spanName(template: string, fill: Record<string, string> = {}): string {
   const { service, sdk } = telemetryTables();
   if (![...service.spans, ...sdk.spans].some((r) => r.name === template)) throw new Error(`the spec lists no span ${template}`);
-  return template.replace(/\{([a-z]+)\}/g, (_, key: string) => {
+  return template.replace(/\{([A-Za-z]+)\}/g, (_, key: string) => {
     const value = fill[key];
     if (value === undefined) throw new Error(`span ${template} needs a value for {${key}}`);
     return value;

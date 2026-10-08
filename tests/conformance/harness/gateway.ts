@@ -95,7 +95,7 @@ export interface LaunchOptions {
 }
 
 /** Appends each complete line of a stream to every list in `into`; a line split across chunks is kept whole. */
-function collectLines(stream: NodeJS.ReadableStream, into: string[][]): void {
+export function collectLines(stream: NodeJS.ReadableStream, into: string[][]): void {
   let partial = '';
   const push = (line: string) => {
     if (line) for (const list of into) list.push(line);

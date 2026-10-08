@@ -1,0 +1,31 @@
+Assess passages in this text following these instructions:
+
+Judge the evidence. Use a balanced tone.
+
+Aim for approximately 3 assessments per 2000 words of text.
+
+Source text language: English.
+
+IMPORTANT: Write your assessments in Japanese.
+
+Text to analyze:
+---
+Ada Lovelace published the first program in 1843 — a method for computing Bernoulli numbers on the Analytical Engine.
+
+Charles Babbage designed the engine in London, but it was never built. Lovelace argued that the engine could manipulate symbols as well as numbers; nobody tested that claim for a century.
+
+The program was naïve by later standards, and London ignored it. London was wrong.
+---
+
+Return a JSON array of assessments. Each assessment must have:
+- "exact": the exact text passage being assessed (quoted verbatim from source)
+- "prefix": up to 64 characters of text immediately before the passage
+- "suffix": up to 64 characters of text immediately after the passage
+- "assessment": your assessment following the instructions above
+
+Respond with a valid JSON array.
+
+Example:
+[
+  {"exact": "the quarterly revenue target", "prefix": "We established ", "suffix": " for Q4 2024.", "assessment": "This target seems ambitious given market conditions. Consider revising based on recent trends."}
+]

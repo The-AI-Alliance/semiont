@@ -72,4 +72,16 @@ export const SDK_DRIVERS: Readonly<Record<string, SdkDrivers>> = {
   },
 };
 
+/**
+ * How each implementation of the Worker service is started. The
+ * worker-service suite runs each one with `--config <document>` and the
+ * environment, and meets it on the bus, at the gateway's HTTP surface, at its
+ * provider and at its health port (worker-service/README.md). An
+ * implementation joins the suite by adding its line. vitest.config.ts
+ * provides them as `workerServices`.
+ */
+export const WORKER_SERVICES: Readonly<Record<string, readonly string[]>> = {
+  typescript: ['node', join(REPO_ROOT, 'packages/jobs/dist/worker-main.js')],
+};
+
 export const SPEC_SOURCE = join(REPO_ROOT, 'specs/src');

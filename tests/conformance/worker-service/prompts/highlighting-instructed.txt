@@ -1,0 +1,28 @@
+Identify passages in this text to highlight following these instructions:
+
+Highlight every date.
+
+Aim for approximately 2 highlights per 2000 words of text.
+
+Source text language: English.
+
+Text to analyze:
+---
+Ada Lovelace published the first program in 1843 — a method for computing Bernoulli numbers on the Analytical Engine.
+
+Charles Babbage designed the engine in London, but it was never built. Lovelace argued that the engine could manipulate symbols as well as numbers; nobody tested that claim for a century.
+
+The program was naïve by later standards, and London ignored it. London was wrong.
+---
+
+Return a JSON array of highlights. Each highlight must have:
+- "exact": the exact text passage to highlight (quoted verbatim from source)
+- "prefix": up to 64 characters of text immediately before the passage
+- "suffix": up to 64 characters of text immediately after the passage
+
+Respond with a valid JSON array.
+
+Example:
+[
+  {"exact": "revenue grew 45% year-over-year", "prefix": "In Q3 2024, ", "suffix": ", exceeding all forecasts."}
+]

@@ -14,20 +14,21 @@ judge any implementation of the same spec.
 | [archivist](archivist/README.md) | an Archivist, on the bus through a real gateway, at its HTTP surface, and in the files it keeps | `npm run test:archivist` |
 | [sdk](sdk/README.md) | every SDK, through a driver, as a client of a real gateway | `npm run test:sdk` |
 | [worker](worker/README.md) | a worker written on an SDK, through a driver, with the suite playing the dispatcher | `npm run test:worker` |
+| [worker-service](worker-service/README.md) | a Worker service, as a process: on the bus through a real gateway, at a stand-in for its provider, and at its health port, with the suite playing the dispatcher, the record and the Smelter | `npm run test:worker-service` |
 
 They share one harness ([harness/](harness/)): the trusted issuer, a real
-`nats-server`, gateway, dispatcher and Archivist processes, bus streams checked message by
-message against the spec, a stand-in Archivist held to the Archivist's spec,
+`nats-server`, gateway, dispatcher, Archivist and Worker service processes, bus streams checked message by
+message against the spec, a stand-in Archivist held to the Archivist's spec, a stand-in Ollama,
 and a proxy that stands between a client and the gateway.
 [vitest.config.ts](vitest.config.ts) runs each suite as a project of its own;
-`npm test` runs all five.
+`npm test` runs all six.
 
 ## Running them
 
 All need a built gateway and `nats-server` (2.10 or later) on `PATH`. The
 dispatcher suite also needs a built dispatcher, the Archivist suite a built
-Archivist and `git`, and the SDK suite and the worker suite the Rust drivers
-and the packages built:
+Archivist and `git`, the SDK suite and the worker suite the Rust drivers
+and the packages built, and the worker-service suite the packages built:
 
 ```bash
 cargo build --release -p semiont-gateway -p semiont-dispatcher -p semiont-archivist -p semiont-conformance-drivers
