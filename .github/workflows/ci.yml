@@ -160,8 +160,14 @@ jobs:
       # crate that does not package is seen. A version already on crates.io is
       # a warning to a dry run and not a refusal, so this holds on main between
       # a release and the bump after it.
+      #
+      # In a build directory of its own, which no cache restores. To cargo, the
+      # packaged form of one of these crates is a registry package of its
+      # version, and cargo never rebuilds a registry package it has built. In
+      # the cached `target`, a crate built from another crate's packaged form
+      # would be built against what that crate was when the cache was saved.
       - name: Package and build every published crate
-        run: cargo publish --dry-run --workspace --locked
+        run: cargo publish --dry-run --workspace --locked --target-dir "$RUNNER_TEMP/packaged"
 
       - name: Setup Node.js
         uses: actions/setup-node@v7

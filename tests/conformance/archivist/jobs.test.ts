@@ -85,8 +85,11 @@ withArchivist('a job, in the record', (world) => {
     await eventually('the job\'s own completion', 10_000, () => world().stored(id).find((e) => e.type === 'job:completed' && e.payload['jobType'] === verb));
 
     expect(world().stored(id).filter((e) => e.type === 'job:completed').map((e) => e.payload)).toEqual([{ jobId, jobType: verb, result: own }]);
-    // It says so, in the words the dispatcher says it in.
-    expect(world().archivist.output.filter((line) => line.includes('job:complete of another verb than the job\'s') && line.includes(jobId))).toHaveLength(1);
+    // It says so, in the words the dispatcher says it in. Its log reaches
+    // this suite by a pipe, which can trail what it has already stored.
+    const said = () => world().archivist.output.filter((line) => line.includes('job:complete of another verb than the job\'s') && line.includes(jobId));
+    await eventually('the Archivist to say so', 10_000, () => (said().length > 0 ? true : undefined));
+    expect(said()).toHaveLength(1);
   });
 
   it('learns a job\'s verb from its start when it recorded no assignment of it', async () => {
