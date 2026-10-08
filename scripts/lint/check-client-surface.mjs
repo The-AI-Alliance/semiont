@@ -279,6 +279,7 @@ function pythonShape(isAsync, returns) {
   if (returns.startsWith('Running[')) return 'stream';
   if (returns.startsWith('Delegation[')) return 'delegation';
   if (returns === 'Upload') return 'upload';
+  if (returns === 'Claims') return 'claims';
   if (returns.startsWith('Typed[')) return 'events';
   return undefined;
 }

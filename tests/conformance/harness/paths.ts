@@ -68,6 +68,7 @@ export const SDK_DRIVERS: Readonly<Record<string, SdkDrivers>> = {
   python: {
     wire: [PYTHON, join(PYTHON_SDK, 'conformance/wire.py')],
     live: { command: [PYTHON, join(PYTHON_SDK, 'conformance/live.py')], tier: 'parity' },
+    worker: [PYTHON, join(PYTHON_SDK, 'conformance/worker.py')],
   },
 };
 

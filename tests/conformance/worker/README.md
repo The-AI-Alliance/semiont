@@ -152,13 +152,15 @@ report a handover.
 Write a worker driver over the SDK's worker surface, add it as `worker` to
 the SDK's line of `SDK_DRIVERS`, and run the suite. TypeScript's is
 [packages/sdk/conformance/worker-driver.ts](../../../packages/sdk/conformance/worker-driver.ts),
-and Rust's is
-[semiont-worker-driver.rs](../../../packages/http-transport-rust/conformance/src/bin/semiont-worker-driver.rs).
+Rust's is
+[semiont-worker-driver.rs](../../../packages/http-transport-rust/conformance/src/bin/semiont-worker-driver.rs),
+and Python's is
+[conformance/worker.py](../../../packages/sdk-python/conformance/worker.py).
 
 ## Running it
 
-It needs a built gateway and the Rust drivers, `nats-server` (2.10 or later)
-on `PATH`, and the packages built:
+It needs a built gateway and the Rust drivers, `nats-server` (2.10 or later),
+`uv` and Python 3.12 or later on `PATH`, and the packages built:
 
 ```bash
 cargo build --release -p semiont-gateway -p semiont-conformance-drivers
@@ -169,4 +171,5 @@ npm run test:worker
 ```
 
 The suite type-checks the TypeScript driver before it starts: Node runs it
-with its types stripped, and would run a mistyped one.
+with its types stripped, and would run a mistyped one. It makes the Python
+SDK's environment too (`uv sync --locked`).

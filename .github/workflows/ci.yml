@@ -503,8 +503,19 @@ jobs:
           sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
           nats-server --version
 
+      # The Python driver runs the SDK from its locked environment, which the
+      # suite's setup makes with uv.
+      - name: Setup Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.2.0
+
       # Each SDK's worker driver, put through the corpus against the gateway;
-      # the suite type-checks the TypeScript driver before it starts.
+      # the suite type-checks the TypeScript driver and makes the Python SDK's
+      # environment before it starts.
       - name: Run the worker conformance suite
         run: |
           cd tests/conformance

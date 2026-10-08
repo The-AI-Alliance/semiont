@@ -674,9 +674,6 @@
           "method": "claim",
           "shape": "claims",
           "via": { "request": "job:claim" },
-          "absent": {
-            "python": "the Python SDK has no worker's surface"
-          },
           "cases": [
             {
               "why": "a claim carries the filters of the jobs the worker takes, as it was given them",

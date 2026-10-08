@@ -236,7 +236,7 @@ async def over_http(origin: str, token: str, resource: ResourceId, annotation: A
         await annotate(client, resource, annotation)
 ```
 
-Every method returns one of eight shapes, and the table says which:
+Every method returns one of nine shapes, and the table says which:
 
 | Shape | In Python | |
 |---|---|---|
@@ -245,6 +245,7 @@ Every method returns one of eight shapes, and the table says which:
 | a job another party does | `Delegation[C]` | awaited for the job's completion, or read with `async for` for every event of the job, its completion's the last; one or the other, once |
 | an upload | `Upload` | awaited for the resource it created, read for its progress |
 | a query | `Cached[T]` | building it sends nothing; `await query.fresh()` reads it once, and held with `async with` it is watched |
+| a worker's claims | `Claims` | read with `async for`: each job the worker comes to hold, or a claim it was refused; a held job says its own lifecycle, and `complete`, `fail` and `cancel` each settle it once |
 | a signal | `def`, returning nothing | published on the client's own bus, or sent and not awaited |
 | a drive | `async def` giving `int \| None` | how many participants the gateway reached, or nothing when it kept no count |
 | a channel's events | `Typed[P]` | `async for`, each event's payload decoded |
@@ -547,6 +548,7 @@ is made in, and a frame continues the trace it was sent under (`frame.trace`).
 | `semiont.client` | `SemiontClient`, and the timing it keeps to |
 | `semiont.namespaces` | The methods of each namespace; and in `semiont.namespaces.follow`, `Delegation[C]`, what a delegated job returns, with the events of a job |
 | `semiont.running`, `semiont.cached` | `Running[T]` and `Cached[T]`: what long-running operations and queries return |
+| `semiont.claims`, `semiont.job_filter` | `Claims`, what `job.claim` returns, with the jobs a worker holds and the retry rule; and whether a job matches a filter |
 | `semiont.cache`, `semiont.refresh`, `semiont.resume` | The cache queries answer from and its three states, which queries each event asks again, and where a stream resumes after a restart |
 | `semiont.storage` | Where a client keeps what must outlive it: `SessionStorage`, and `MemoryStorage` |
 | `semiont.session` | `SemiontSession`, and `MemorySignIn` |

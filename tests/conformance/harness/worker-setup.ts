@@ -1,14 +1,15 @@
 /**
  * Once per worker run: refuse to start when a driver cannot run, so a missing
- * build reads as that, never as every case failing — and type-check the
- * TypeScript driver, because Node runs it with its types stripped and would
- * run a mistyped one.
+ * build reads as that, never as every case failing — make the Python SDK's
+ * environment, and type-check the TypeScript driver, because Node runs it
+ * with its types stripped and would run a mistyped one.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { TestProject } from 'vitest/node';
 import { REPO_ROOT } from './paths';
+import { makePythonSdkEnvironment } from './python-sdk';
 
 export default function setup(project: TestProject): void {
   const drivers = project.getProvidedContext().sdkDrivers;
@@ -16,6 +17,7 @@ export default function setup(project: TestProject): void {
   if (rust !== undefined && !existsSync(rust)) {
     throw new Error(`The Rust worker driver is not built: ${rust} does not exist. Run \`cargo build --release -p semiont-conformance-drivers\` at the repository root.`);
   }
+  if (drivers['python']?.worker) makePythonSdkEnvironment();
   if (!drivers['typescript']?.worker) return;
   // The worker driver runs the built SDK over the built transport.
   for (const pkg of ['http-transport', 'sdk']) {
