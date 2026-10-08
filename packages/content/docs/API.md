@@ -124,7 +124,7 @@ const { rects, overlap } = locate(layer, 120, 178);
 
 ### Types
 
-`PdfTextLayer`, `PdfPageInfo` and `PdfFormField` are defined, field by field, in [`src/pdf-text-layer.ts`](../src/pdf-text-layer.ts). A layer is the reading-order `text` of the whole document, the `items` that index it (one per run of text, each with its character range and its place on a page), the `pages`, and the filled values of a form's `fields`. `PdfTextItem` is `@semiont/core`'s.
+`PdfTextLayer`, `PdfPageInfo` and `PdfFormField` are defined, field by field, in [`src/pdf-text-layer.ts`](../src/pdf-text-layer.ts). A layer is the reading-order `text` of the whole document, the `items` that index it (one per run of text, each with its range of the text, counted in code points, and its place on a page), the `pages`, and the filled values of a form's `fields`. `PdfTextItem` is `@semiont/core`'s.
 
 All geometry is in PDF point space with the origin at the bottom-left of the page (Y increases upward). The Y-flip to canvas pixels happens downstream in the browser. `PdfTextItem` and the `PdfCoordinate` type that `locate()` emits live in `@semiont/core` alongside the viewrect FragmentSelector codec.
 
@@ -143,8 +143,9 @@ const stored = await store.read(checksum);  // null on any miss
 ```
 
 Derived values only, keyed by content checksum and stamped with the versions of
-this package, pdf.js, the engine and its traineddata. A stamp mismatch, a
-corrupt file and an absent one are all the same answer: a miss. A read never
+this package, pdf.js, the engine and its traineddata. A stamp mismatch, an entry
+of another format version, a corrupt file and an absent one are all the same
+answer: a miss. A read never
 throws; a failed write does, and the extractor catches it, so the store may
 make extraction faster, never make it fail.
 

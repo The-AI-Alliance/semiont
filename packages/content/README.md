@@ -48,7 +48,8 @@ const extractor = derivingExtractorFor('application/pdf');
 ## What a change must keep
 
 - **One process touches the tree.** Bytes are read from the Archivist by resource id. A service with no Archivist configured fails as it starts, and a missing address is never a reason to read a tree locally.
-- **Derived text is a cache, never the record.** Everything in the anchored-text store can be derived again from the source bytes. A read never throws: a stale stamp, a corrupt file and an absent one are all a miss. The store may make extraction faster, and may never make it fail.
+- **Derived text is a cache, never the record.** Everything in the anchored-text store can be derived again from the source bytes. A read never throws: a stale stamp, an entry of another format version, a corrupt file and an absent one are all a miss. The store may make extraction faster, and may never make it fail.
+- **An item's offsets count code points.** `start` and `end` are counted in Unicode code points from the start of the text, wherever the item is: as it is made, in the store and on the wire. A text assembled piece by piece keeps that count beside it, and a string is sliced at an offset only through `textOffsets(text).indexAt`, since a JavaScript string counts a character outside the Basic Multilingual Plane as two.
 - **The writer states its stamp.** The anchored-text store writes the stamp its entries carry to a `STAMP` file in its directory, so the Archivist, which reads the store, can tell a current entry from a stale one.
 - **No text is a named answer.** An extraction that gives none says why (`no-text-layer`, `encrypted`, `corrupt`, `too-large`). It never returns a bare null.
 - **One byte budget, enforced twice.** `MAX_PDF_BYTES` bounds what the extractor reads and what a generation writes, so Semiont never creates a resource its own extractor would decline.

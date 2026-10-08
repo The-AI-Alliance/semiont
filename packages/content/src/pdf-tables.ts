@@ -16,7 +16,7 @@
  * count, every column aligned — and declines everything else.
  */
 
-import type { PdfTextItem } from '@semiont/core';
+import { textOffsets, type PdfTextItem, type TextOffsets } from '@semiont/core';
 
 /** A reconstructed cell: its text plus the bounding box of its runs. */
 export interface TableCell {
@@ -55,13 +55,13 @@ function groupRows(items: PdfTextItem[], tolerance: number): PdfTextItem[][] {
   return rows;
 }
 
-function toCell(runs: PdfTextItem[], text: string): TableCell {
+function toCell(runs: PdfTextItem[], text: string, offsets: TextOffsets): TableCell {
   const x = Math.min(...runs.map((r) => r.x));
   const y = Math.min(...runs.map((r) => r.y));
   const right = Math.max(...runs.map((r) => r.x + r.width));
   const top = Math.max(...runs.map((r) => r.y + r.height));
   return {
-    text: runs.map((r) => text.slice(r.start, r.end)).join(' ').trim(),
+    text: runs.map((r) => text.slice(offsets.indexAt(r.start), offsets.indexAt(r.end))).join(' ').trim(),
     x,
     y,
     width: right - x,
@@ -70,30 +70,31 @@ function toCell(runs: PdfTextItem[], text: string): TableCell {
 }
 
 /** Split a row into cells: runs closer than a gutter belong to one cell. */
-function toCells(row: PdfTextItem[], gap: number, text: string): TableCell[] {
+function toCells(row: PdfTextItem[], gap: number, text: string, offsets: TextOffsets): TableCell[] {
   const cells: TableCell[] = [];
   let current: PdfTextItem[] = [];
   for (const item of [...row].sort((a, b) => a.x - b.x)) {
     const previous = current[current.length - 1];
     if (previous && item.x - (previous.x + previous.width) > gap) {
-      cells.push(toCell(current, text));
+      cells.push(toCell(current, text, offsets));
       current = [];
     }
     current.push(item);
   }
-  if (current.length > 0) cells.push(toCell(current, text));
+  if (current.length > 0) cells.push(toCell(current, text, offsets));
   return cells;
 }
 
 /**
  * Recover a grid from one page's runs, or null when the page is not a
- * regular table.
+ * regular table. The runs' offsets count code points; `offsets` is `text`'s
+ * conversion, made once by the caller for every page it asks about.
  */
-export function detectTable(items: PdfTextItem[], text: string): TableCell[][] | null {
+export function detectTable(items: PdfTextItem[], text: string, offsets: TextOffsets): TableCell[][] | null {
   if (items.length === 0) return null;
   const unit = median(items.map((i) => i.height).filter((h) => h > 0)) || 12;
 
-  const rows = groupRows(items, unit * ROW_TOLERANCE).map((row) => toCells(row, unit * CELL_GAP, text));
+  const rows = groupRows(items, unit * ROW_TOLERANCE).map((row) => toCells(row, unit * CELL_GAP, text, offsets));
   if (rows.length < MIN_ROWS) return null;
 
   const columnCount = rows[0]!.length;
@@ -113,8 +114,8 @@ export function detectTable(items: PdfTextItem[], text: string): TableCell[][] |
 
 /**
  * Render a grid as markdown rows, anchoring every cell to the geometry it
- * came from. `offset` is where this text lands in the assembled document, so
- * the returned items index the final string.
+ * came from. `offset` is where this text lands in the assembled document, in
+ * code points, so the returned items' offsets are into the final text.
  */
 export function renderTable(
   rows: TableCell[][],
@@ -122,16 +123,22 @@ export function renderTable(
   offset: number,
 ): { text: string; items: PdfTextItem[] } {
   let text = '';
+  // How many code points `text` is. A cell stands between two spaces, so no
+  // two pieces meet to make one character, and the count is a sum.
+  let length = 0;
   const items: PdfTextItem[] = [];
   rows.forEach((row, rowIndex) => {
     text += '|';
+    length += 1;
     for (const cell of row) {
       text += ' ';
-      const start = offset + text.length;
+      length += 1;
+      const start = offset + length;
       text += cell.text;
+      length += textOffsets(cell.text).length;
       items.push({
         start,
-        end: offset + text.length,
+        end: offset + length,
         page,
         x: cell.x,
         y: cell.y,
@@ -139,10 +146,16 @@ export function renderTable(
         height: cell.height,
       });
       text += ' |';
+      length += 2;
     }
     text += '\n';
+    length += 1;
     // Markdown needs the delimiter row for the header to read as a table.
-    if (rowIndex === 0) text += `|${' --- |'.repeat(row.length)}\n`;
+    if (rowIndex === 0) {
+      const delimiter = `|${' --- |'.repeat(row.length)}\n`;
+      text += delimiter;
+      length += textOffsets(delimiter).length;
+    }
   });
   return { text, items };
 }

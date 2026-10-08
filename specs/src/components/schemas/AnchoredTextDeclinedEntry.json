@@ -5,7 +5,7 @@
     "v": {
       "type": "integer",
       "enum": [
-        2
+        3
       ],
       "description": "The entry format."
     },

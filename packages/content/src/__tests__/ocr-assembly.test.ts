@@ -10,6 +10,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { textOffsets } from '@semiont/core';
 import { assemblePage, type OcrBlock } from '../ocr';
 
 const word = (text: string, x0: number) => ({
@@ -47,6 +48,20 @@ describe('assemblePage', () => {
         // word itself, for every word.
         for (const w of words) {
             expect(text.slice(w.start, w.end)).toBe(w.text);
+        }
+    });
+
+    // A word's offsets count code points, as an item's do: a string counts a
+    // character outside the Basic Multilingual Plane as two, and every word
+    // after one would sit one further along if the string's own positions
+    // were recorded.
+    it('counts a word\'s offsets in code points', () => {
+        const { text, words } = assemblePage(tree([[['𝔸', 'bc'], ['😀x', 'd']]]));
+        expect(text).toBe('𝔸 bc\n😀x d');
+        expect(words.map((w) => [w.start, w.end])).toEqual([[0, 1], [2, 4], [5, 7], [8, 9]]);
+        const offsets = textOffsets(text);
+        for (const w of words) {
+            expect(text.slice(offsets.indexAt(w.start), offsets.indexAt(w.end))).toBe(w.text);
         }
     });
 

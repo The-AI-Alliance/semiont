@@ -436,7 +436,7 @@ describe('the discriminant never reaches disk', () => {
   // discriminated outcome, and a written entry contains no `kind` byte the
   // record's own shape already implies.
 
-  it('reads a v2 entry stored without a kind back as a discriminated outcome', async () => {
+  it('reads an entry stored without a kind back as a discriminated outcome', async () => {
     const store = createAnchoredTextStore(dir);
     // Steal the live stamp from a real write, then plant kind-less entries
     // by hand — success and decline flavors.
@@ -449,11 +449,11 @@ describe('the discriminant never reaches disk', () => {
       return path.join(dir, ab, cd, `${key}.json`);
     };
     fs.writeFileSync(entryFile('feed0001'), JSON.stringify({
-      v: 2, stamp, text: 'alpha', method: 'ocr',
+      v: 3, stamp, text: 'alpha', method: 'ocr',
       lines: [{ p: 1, y: 720, h: 12, words: [[72, 30, 0, 5]] }],
     }));
     fs.mkdirSync(path.dirname(entryFile('feed0002')), { recursive: true });
-    fs.writeFileSync(entryFile('feed0002'), JSON.stringify({ v: 2, stamp, declined: 'encrypted' }));
+    fs.writeFileSync(entryFile('feed0002'), JSON.stringify({ v: 3, stamp, declined: 'encrypted' }));
 
     expect(await store.read('feed0001')).toEqual({
       kind: 'extracted', text: 'alpha', method: 'ocr',
@@ -470,6 +470,59 @@ describe('the discriminant never reaches disk', () => {
     for (const file of allEntryFiles(dir)) {
       expect(fs.readFileSync(file, 'utf8')).not.toContain('"kind"');
     }
+  });
+});
+
+/**
+ * An entry's version says what its numbers mean. In version 3 a word's
+ * offsets count code points, as an item's do wherever it is; the store packs
+ * the items it is given and adds no count of its own. An entry of another
+ * version holds numbers of another meaning, so it is a miss, and is derived
+ * again as an entry under another stamp is.
+ */
+describe('the version of an entry', () => {
+  // An emoji and a mathematical letter ahead of two runs: '𝒜lpha' is the code
+  // points 2 to 7 and 'beta' 8 to 12, where the string's own positions are
+  // 3 to 9 and 10 to 14.
+  const OUTCOME = {
+    kind: 'extracted' as const,
+    text: '😀 𝒜lpha beta',
+    items: [
+      { start: 2, end: 7, page: 1, x: 72, y: 720, width: 30, height: 12 },
+      { start: 8, end: 12, page: 1, x: 110, y: 720, width: 24, height: 12 },
+    ],
+    method: 'pdf-text-layer' as const,
+    pdfClass: 'A' as const,
+  };
+  const KEY = 'feedc0de33';
+
+  it('writes version 3, holding each word at the code points its item states, and reads the same items back', async () => {
+    const store = createAnchoredTextStore(dir);
+    await store.write(KEY, OUTCOME);
+
+    const [file] = allEntryFiles(dir);
+    const entry = JSON.parse(fs.readFileSync(file!, 'utf8'));
+    expect(entry.v).toBe(3);
+    expect(entry.text).toBe(OUTCOME.text);
+    expect(entry.lines).toEqual([{ p: 1, y: 720, h: 12, words: [[72, 30, 2, 7], [110, 24, 8, 12]] }]);
+
+    expect(await store.read(KEY)).toEqual(OUTCOME);
+  });
+
+  it('does not read or list an entry of version 2, whatever its stamp', async () => {
+    const store = createAnchoredTextStore(dir);
+    await store.write(KEY, OUTCOME);
+    await store.write('feedc0de44', { kind: 'declined', declined: 'encrypted' });
+
+    // The same entries, under the stamp this writer states, as version 2.
+    for (const file of allEntryFiles(dir)) {
+      const { v: _v, ...rest } = JSON.parse(fs.readFileSync(file, 'utf8'));
+      fs.writeFileSync(file, JSON.stringify({ v: 2, ...rest }));
+    }
+
+    expect(await store.read(KEY)).toBeNull();
+    expect(await store.read('feedc0de44')).toBeNull();
+    expect(await store.list()).toEqual([]);
   });
 });
 

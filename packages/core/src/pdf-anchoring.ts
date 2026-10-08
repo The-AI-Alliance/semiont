@@ -18,25 +18,20 @@
  */
 
 import type { PdfCoordinate } from './pdf-coordinates';
+import { textOffsets } from './text-offsets';
 import type { components } from './types';
 
 /**
- * A single text item (one text run, roughly a word) from a PDF.
- * Character offsets refer to positions in the paired `AnchoredText.text`.
+ * One positioned text run of a PDF, roughly a word: where it is on its page,
+ * and the range of the paired `AnchoredText.text` it stands for, in code
+ * points. The spec's shape.
  */
-export interface PdfTextItem {
-    start: number;  // Char offset in `AnchoredText.text` (inclusive)
-    end: number;    // Char offset in `AnchoredText.text` (exclusive)
-    page: number;   // 1-indexed page number
-    x: number;      // X position in PDF points (origin: bottom-left of page)
-    y: number;      // Y position in PDF points (origin: bottom-left of page)
-    width: number;
-    height: number;
-}
+export type PdfTextItem = components['schemas']['PdfTextItem'];
 
 /**
  * Text paired with the geometry that indexes it — the minimum needed to turn a
- * character range into a Selection, or a rectangle into a quote.
+ * range of the text into a Selection, or a rectangle into a quote. The spec's
+ * shape.
  *
  * This is the contract `locate`, `textUnder` and the annotation builders
  * actually require; they do not need pages, form fields, or anything else a
@@ -44,10 +39,7 @@ export interface PdfTextItem {
  * (recovered from pixels, so not a "text layer" in the PDF sense) satisfy the
  * same anchoring path.
  */
-export interface AnchoredText {
-    text: string;
-    items: PdfTextItem[];
-}
+export type AnchoredText = components['schemas']['AnchoredText'];
 
 /**
  * The full outcome of text extraction for one representation — the record
@@ -102,18 +94,26 @@ export function isTextRun<T>(item: T): item is T & PdfTextRun {
  * drag. Divergence would mean the same rectangle quoting differently depending
  * on which side captured it.
  *
+ * An item's `start` and `end` count Unicode code points from the start of
+ * `text`, as every offset into a text does. They are a string's own positions
+ * only in a text with no character outside the Basic Multilingual Plane.
+ *
  * Offsets are page-local. A caller assembling a multi-page document shifts them
- * by the length of the text already accumulated.
+ * by the length, in code points, of the text already accumulated.
  */
 export function anchorRuns(runs: PdfTextRun[], page: number): AnchoredText {
     const items: PdfTextItem[] = [];
     let text = '';
+    // How many code points `text` is. A separator follows every run, so no
+    // two runs meet to make one character, and the count is a sum.
+    let length = 0;
 
     for (const run of runs) {
         if (run.str.trim()) {
-            const start = text.length;
+            const start = length;
             text += run.str;
-            const end = text.length;  // range covers only this run's own chars
+            length += textOffsets(run.str).length;
+            const end = length;  // range covers only this run's own chars
 
             const [, , , , x, y] = run.transform;
             items.push({ start, end, page, x, y, width: run.width, height: run.height });
@@ -123,10 +123,12 @@ export function anchorRuns(runs: PdfTextRun[], page: number): AnchoredText {
             // newline there, space between words otherwise, so reading-order
             // lines don't glue (e.g. "textsecond").
             text += run.hasEOL ? '\n' : ' ';
+            length += 1;
         } else if (run.hasEOL) {
             // Standalone end-of-line marker (empty/whitespace str): keep the
             // line break without letting whitespace-only runs add stray spaces.
             text += '\n';
+            length += 1;
         }
     }
 

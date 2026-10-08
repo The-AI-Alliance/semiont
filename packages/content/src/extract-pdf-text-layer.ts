@@ -10,7 +10,7 @@
 
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { STANDARD_FONT_DATA_URL } from './pdfjs-assets';
-import { isObject, isString, isNumber, isArray, anchorRuns, isTextRun, type PdfTextItem } from '@semiont/core';
+import { isObject, isString, isNumber, isArray, anchorRuns, isTextRun, textOffsets, type PdfTextItem } from '@semiont/core';
 import type { PdfTextLayer, PdfPageInfo, PdfFormField } from './pdf-text-layer';
 
 /**
@@ -78,12 +78,16 @@ export async function extractPdfTextLayer(
         const pages: PdfPageInfo[] = [];
         const items: PdfTextItem[] = [];
         let text = '';
+        // How many code points `text` is: what an offset into it counts. A
+        // page's text ends in a separator or is empty, and a page break
+        // follows it, so the count is a sum over the pages.
+        let length = 0;
 
         for (let pageNum = 1; pageNum <= doc.numPages; pageNum++) {
             const page = await doc.getPage(pageNum);
             const viewport = page.getViewport({ scale: 1.0 });
             const content = await page.getTextContent();  // all text items on the page
-            const pageTextStart = text.length;
+            const pageTextStart = length;
 
             // `anchorRuns` owns the offset and separator convention; the
             // browser canvas builds its page the same way, so a rectangle
@@ -98,13 +102,14 @@ export async function extractPdfTextLayer(
             }
             text += page1.text;
             text += '\n';  // page break
+            length += textOffsets(page1.text).length + 1;
 
             pages.push({
                 pageNumber: pageNum,
                 widthPt: viewport.width,
                 heightPt: viewport.height,
                 textStart: pageTextStart,
-                textEnd: text.length,
+                textEnd: length,
                 hasTextLayer: page1.items.length > 0,
             });
         }

@@ -2,10 +2,10 @@
  * Browse (ARCHIVIST.md § Browse): the reads the Archivist answers from its
  * views, its log, the working tree, the roster and the anchored-text store.
  */
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
-import { anchoredEntry, sha256, withArchivist, type Roster } from '../harness/archivist-world';
+import { anchoredEntry, sha256, shardOf, withArchivist, type Roster } from '../harness/archivist-world';
 
 // Written out of the order the roster's schema states its roles in: the
 // answer is in the schema's.
@@ -178,15 +178,20 @@ withArchivist('browsing', (world) => {
     const reader = await world().person('reader');
     const content = Buffer.from('%PDF-1.4 the suite never parses this\n');
     const id = await world().created(reader.did, { name: 'Scanned', storageUri: 'file://scans/scanned.pdf', format: 'application/pdf', content });
-    const text = 'alpha beta gamma';
+    // An emoji and a mathematical letter, each outside the Basic Multilingual
+    // Plane: every word after the first is at another place in a count of
+    // code points than in one of UTF-16 code units or of bytes.
+    const text = '😀 alpha 𝒜eta gamma';
     await world().smelt(id, sha256(content), anchoredEntry(text));
 
+    // Each word's offsets are the entry's own, in code points, as stored.
     const answer = await reader.ask('browse:anchored-text-requested', { resourceId: id });
     expect(answer).toMatchObject({ kind: 'extracted', text, method: 'ocr' });
     expect(answer['items']).toEqual([
-      { start: 0, end: 5, page: 1, x: 72, y: 700, width: 30, height: 12 },
-      { start: 6, end: 10, page: 1, x: 72, y: 686, width: 24, height: 12 },
-      { start: 11, end: 16, page: 1, x: 72, y: 672, width: 30, height: 12 },
+      { start: 0, end: 1, page: 1, x: 72, y: 700, width: 6, height: 12 },
+      { start: 2, end: 7, page: 1, x: 72, y: 686, width: 30, height: 12 },
+      { start: 8, end: 12, page: 1, x: 72, y: 672, width: 24, height: 12 },
+      { start: 13, end: 18, page: 1, x: 72, y: 658, width: 30, height: 12 },
     ]);
 
     // The entry stands; the writer moves on to another stamp; the entry is no longer taken.
@@ -194,6 +199,22 @@ withArchivist('browsing', (world) => {
     const other = await world().created(reader.did, { name: 'Scanned again', storageUri: 'file://scans/again.pdf', format: 'application/pdf', content });
     await world().smelt(other, sha256(content), undefined, 'indexed');
     expect(await reader.ask('browse:anchored-text-requested', { resourceId: other })).toEqual({ kind: 'not-yet' });
+  });
+
+  it('takes no anchored-text entry of another version than the store\'s, whatever its stamp', async () => {
+    const reader = await world().person('reader');
+    const content = Buffer.from('%PDF-1.4 an entry of another version\n');
+    const checksum = sha256(content);
+    const id = await world().created(reader.did, { name: 'Read before', storageUri: 'file://scans/before.pdf', format: 'application/pdf', content });
+    await world().smelt(id, checksum, anchoredEntry('alpha beta'));
+
+    // The same entry, under the stamp its writer states, as version 2.
+    const entry = join(world().dirs.anchoredTextDir, ...shardOf(checksum).split('/'), `${checksum}.json`);
+    const { v, ...rest } = JSON.parse(readFileSync(entry, 'utf8')) as Record<string, unknown>;
+    expect(v).toBe(3);
+    writeFileSync(entry, JSON.stringify({ v: 2, ...rest }));
+
+    expect(await reader.ask('browse:anchored-text-requested', { resourceId: id })).toEqual({ kind: 'not-yet' });
   });
 
   it('answers a decline, no-map for content the Smelter skipped, and unknown for no resource', async () => {

@@ -13,7 +13,7 @@
 
 import { createRequire } from 'node:module';
 import { createWorker } from 'tesseract.js';
-import { isObject, isString } from '@semiont/core';
+import { isObject, isString, textOffsets } from '@semiont/core';
 
 /**
  * The vendored language data — `@tesseract.js-data/eng` ships the same
@@ -60,7 +60,10 @@ export interface OcrBlock {
 /** A recognized word, with the range it occupies in the assembled page text. */
 export interface OcrWord {
     text: string;
-    /** Offsets into `OcrPage.text` — `text.slice(start, end) === word.text`. */
+    /**
+     * Offsets into `OcrPage.text`, in code points, as a `PdfTextItem`'s are:
+     * the text from `start` to `end` is `word.text`.
+     */
     start: number;
     end: number;
     /** Image pixel space, top-left origin — mapped to PDF points downstream. */
@@ -85,6 +88,9 @@ export interface OcrPage {
  */
 export function assemblePage(blocks: OcrBlock[] | null): OcrPage {
     let text = '';
+    // How many code points `text` is. A separator stands between any two
+    // words, so no two meet to make one character, and the count is a sum.
+    let length = 0;
     const words: OcrWord[] = [];
 
     for (const block of blocks ?? []) {
@@ -94,13 +100,17 @@ export function assemblePage(blocks: OcrBlock[] | null): OcrPage {
                 for (const word of line.words ?? []) {
                     const value = word.text.trim();
                     if (!value) continue;              // an empty box is not a word
-                    if (wroteWord) text += ' ';
-                    const start = text.length;
+                    if (wroteWord) {
+                        text += ' ';
+                        length += 1;
+                    }
+                    const start = length;
                     text += value;
+                    length += textOffsets(value).length;
                     words.push({
                         text: value,
                         start,
-                        end: text.length,
+                        end: length,
                         // Horizontal extent from the word, vertical from the
                         // line. OCR boxes hug their glyphs, so a descender
                         // ('page') sits lower than its neighbours — and
@@ -122,9 +132,13 @@ export function assemblePage(blocks: OcrBlock[] | null): OcrPage {
                     });
                     wroteWord = true;
                 }
-                if (wroteWord) text += '\n';
+                if (wroteWord) {
+                    text += '\n';
+                    length += 1;
+                }
             }
             text += '\n';
+            length += 1;
         }
     }
 

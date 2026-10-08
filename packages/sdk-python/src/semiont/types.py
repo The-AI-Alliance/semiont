@@ -707,8 +707,20 @@ class PdfTextItem(WireModel, frozen=True):
     One positioned text run. Coordinates are PDF points with the origin at the bottom-left of the page, Y increasing upward; the flip to canvas pixels happens in the browser.
     """
 
-    start: Annotated[float, Field(description="Char offset into AnchoredText.text, inclusive.")]
-    end: Annotated[float, Field(description="Char offset into AnchoredText.text, exclusive.")]
+    start: Annotated[
+        int,
+        Field(
+            description="Offset into AnchoredText.text, in Unicode code points from its start, inclusive.",
+            ge=0,
+        ),
+    ]
+    end: Annotated[
+        int,
+        Field(
+            description="Offset into AnchoredText.text, in Unicode code points from its start, exclusive.",
+            ge=0,
+        ),
+    ]
     page: Annotated[float, Field(description="1-indexed page number.")]
     x: float
     y: float
@@ -4709,7 +4721,7 @@ class AnchoredTextDeclinedEntry(WireModel, frozen=True, extra="forbid"):
     The bytes were declined: no text is extracted from them.
     """
 
-    v: Annotated[Literal[2], Field(description="The entry format.")]
+    v: Annotated[Literal[3], Field(description="The entry format.")]
     stamp: Annotated[
         str,
         Field(
@@ -4932,7 +4944,7 @@ class AnchoredTextExtractedEntryLinesItem(WireModel, frozen=True, extra="forbid"
     words: Annotated[
         list[AnchoredTextExtractedEntryLinesItemWordsItem],
         Field(
-            description="Each word as `[x, width, start, end]`: its horizontal position and width in PDF points, and the offsets of its text in `text`."
+            description="Each word as `[x, width, start, end]`: its horizontal position and width in PDF points, and the offsets of its text in `text`, which are whole numbers of Unicode code points from the start of `text`."
         ),
     ]
 
@@ -5372,7 +5384,7 @@ class AnchoredTextExtractedEntry(WireModel, frozen=True, extra="forbid"):
     The text extracted from the bytes, where each word is on the page, and how it was extracted.
     """
 
-    v: Annotated[Literal[2], Field(description="The entry format.")]
+    v: Annotated[Literal[3], Field(description="The entry format.")]
     stamp: Annotated[
         str,
         Field(

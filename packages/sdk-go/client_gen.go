@@ -71,13 +71,13 @@ func (e AnchoredTextDeclinedEntryDeclined) Valid() bool {
 
 // Defines values for AnchoredTextDeclinedEntryV.
 const (
-	AnchoredTextDeclinedEntryVN2 AnchoredTextDeclinedEntryV = 2
+	AnchoredTextDeclinedEntryVN3 AnchoredTextDeclinedEntryV = 3
 )
 
 // Valid indicates whether the value is a known member of the AnchoredTextDeclinedEntryV enum.
 func (e AnchoredTextDeclinedEntryV) Valid() bool {
 	switch e {
-	case AnchoredTextDeclinedEntryVN2:
+	case AnchoredTextDeclinedEntryVN3:
 		return true
 	default:
 		return false
@@ -146,13 +146,13 @@ func (e AnchoredTextExtractedEntryPdfClass) Valid() bool {
 
 // Defines values for AnchoredTextExtractedEntryV.
 const (
-	AnchoredTextExtractedEntryVN2 AnchoredTextExtractedEntryV = 2
+	AnchoredTextExtractedEntryVN3 AnchoredTextExtractedEntryV = 3
 )
 
 // Valid indicates whether the value is a known member of the AnchoredTextExtractedEntryV enum.
 func (e AnchoredTextExtractedEntryV) Valid() bool {
 	switch e {
-	case AnchoredTextExtractedEntryVN2:
+	case AnchoredTextExtractedEntryVN3:
 		return true
 	default:
 		return false
@@ -2136,7 +2136,7 @@ type AnchoredTextExtractedEntry struct {
 		// P The page, counted from 1.
 		P int `json:"p"`
 
-		// Words Each word as `[x, width, start, end]`: its horizontal position and width in PDF points, and the offsets of its text in `text`.
+		// Words Each word as `[x, width, start, end]`: its horizontal position and width in PDF points, and the offsets of its text in `text`, which are whole numbers of Unicode code points from the start of `text`.
 		Words [][]float32 `json:"words"`
 
 		// Y The line's vertical position in PDF points, from the bottom of the page.
@@ -5049,15 +5049,15 @@ type Motivation string
 
 // PdfTextItem One positioned text run. Coordinates are PDF points with the origin at the bottom-left of the page, Y increasing upward; the flip to canvas pixels happens in the browser.
 type PdfTextItem struct {
-	// End Char offset into AnchoredText.text, exclusive.
-	End    float32 `json:"end"`
+	// End Offset into AnchoredText.text, in Unicode code points from its start, exclusive.
+	End    int     `json:"end"`
 	Height float32 `json:"height"`
 
 	// Page 1-indexed page number.
 	Page float32 `json:"page"`
 
-	// Start Char offset into AnchoredText.text, inclusive.
-	Start float32 `json:"start"`
+	// Start Offset into AnchoredText.text, in Unicode code points from its start, inclusive.
+	Start int     `json:"start"`
 	Width float32 `json:"width"`
 	X     float32 `json:"x"`
 	Y     float32 `json:"y"`
