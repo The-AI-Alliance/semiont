@@ -63,7 +63,7 @@ worker observes written as it happens.
 | `op` | Arguments | `ok` |
 |---|---|---|
 | `open` | `baseUrl`, `token`, `timing` | `null`. The stream it opens names what a worker's stream names; a case states which channels those are |
-| `close` | | `null`. The worker stops |
+| `close` | | `null`, once the worker has stopped: a job it holds is failed first, and the stream is closed after |
 | `claim` | `accepts`: the filters of the jobs the worker takes | `null`. The worker begins claiming, and claims from then on at every idle moment |
 | `start` | | `null`. The held job's `job:start` |
 | `progress` | `percentage`, and `message` when given | `null` |
@@ -83,6 +83,12 @@ It writes, as they happen, beside the transport's `state` and `error` lines:
 | `{"refused": {"code": "...", "detail": "..."}}` | a claim was refused; `code` is absent when the worker refused the reply itself |
 | `{"signalled": "<jobId>"}` | a cancellation of the held job was signalled to the work |
 | `{"stalled": "<jobId>"}` | the held job has stalled |
+
+**The end of its input is not a stop.** When the suite is done with a driver
+it ends the driver's input, and the driver exits as a worker that is killed
+does: it says nothing more, of a job it holds or of anything else. Only
+`close` stops the worker. A case that ends with a job held therefore ends
+with no `job:fail`, and a driver that failed one there would fail the case.
 
 `open`'s `timing` overrides `jobClaimTimeoutMs`, `heldJobStallMs` and
 `heldJobStallCheckMs` of
@@ -123,6 +129,7 @@ that is quiet has told the suite nothing the case has not read.
 | `cancel` | X1, X2 |
 | `vitals` | V1 |
 | `stall` | L2, V2 |
+| `stop-while-held` | L8 |
 
 `npm run lint:transport-contract` holds the two to each other: every case is
 named by a rule of the contract, and a case's `source` names a section in

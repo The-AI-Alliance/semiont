@@ -129,6 +129,13 @@ matches one of them, or with `none-pending`.
   decline. The gateway refuses any other, and the record passes over a
   completion of another verb than the job's.
   *Held by `worker/lifecycle`, `dispatcher/conclude.test.ts`, `tests/conformance/archivist/jobs.test.ts`, `scripts/spec/check-jobs.mjs`.*
+- **L8.** A worker that stops while it holds a job fails the job first:
+  `job:fail`, with an error saying that the worker stopped, no failure class,
+  and `willRetry` as [L4](#the-lifecycle) states it. The queue then retries
+  the job at once, if its budget allows. A worker that is killed, or dies,
+  says nothing: the job stays `running` until the dispatcher's sweep of
+  running jobs concludes it ([JOBS.md § Periodic work](./JOBS.md#periodic-work)).
+  *Held by `worker/stop-while-held`.*
 
 ## Committing annotations
 
