@@ -331,7 +331,9 @@ Otherwise: `refused: cites job <id>, but this resource's log holds no assignment
   `generationPrompt` when given, `generator` when there is one, `creator`, `wasAttributedTo`.
 - When the command names both the source resource and the source annotation, the new resource is
   then linked from that annotation: a `mark:body-updated` adding a `SpecificResource` whose `source`
-  is the new resource, with `purpose` `linking`. The reply does not wait for it.
+  is the new resource, with `purpose` `linking`. The link is recorded before the reply is sent. If
+  it cannot be recorded, the Archivist logs
+  `A generated resource was not linked from its annotation` and still replies `yield:create-ok`.
 
 **`yield:clone-persist`** records a copy: as `yield:create`, without the job rules and with
 `parentResourceId` in place of the generation fields. The requester is the sender.
