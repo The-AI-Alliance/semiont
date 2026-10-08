@@ -29,6 +29,13 @@ A HELD JOB owns its lifecycle. It says its own start, progress and
 checkpoints, and it settles once: `complete`, `fail` and `cancel` each say
 the outcome and release the job in one call, and a second is refused.
 
+A HELD JOB COMMITS FOR ITSELF. `commit` sends a batch of annotations to the
+record, citing the job, and returns once the batch is established: the record
+acknowledged it, or, when no acknowledgement came, answered that the batch's
+last annotation is on the resource. The job remembers the weakest of what its
+commits observed and states it when it settles, so a worker says neither
+which job a batch is for nor how its commits went.
+
     async with client.job.claim(accepts) as claims:
         async for handed in claims:
             if isinstance(handed, ClaimRefusal):
@@ -50,11 +57,12 @@ from collections.abc import Callable, Coroutine, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from types import TracebackType
-from typing import Final, Literal, Self, final
+from typing import Final, Literal, Self, assert_never, final
 
 from pydantic import JsonValue, TypeAdapter
 
-from semiont.bus import Bus, reply_channels_for
+from semiont.bus import Bus, reply_channels_for, request
+from semiont.channel import Operation
 from semiont.channels import (
     JOB_CANCEL,
     JOB_CANCEL_REQUESTED,
@@ -70,11 +78,13 @@ from semiont.errors import BusRequestError, SemiontError
 from semiont.events import Events
 from semiont.identifiers import AnnotationId, InvalidIdentifier, JobId, ResourceId
 from semiont.job_filter import job_matches_filter
-from semiont.model import written
-from semiont.operations import JOB_CLAIM
-from semiont.timing import HELD_JOB_STALL_CHECK_MS, HELD_JOB_STALL_MS, JOB_CLAIM_TIMEOUT_MS
+from semiont.model import WireModel, written
+from semiont.operations import BROWSE_ANNOTATION_REQUESTED, JOB_CLAIM, MARK_COMMIT
+from semiont.timing import HELD_JOB_STALL_CHECK_MS, HELD_JOB_STALL_MS, JOB_CLAIM_TIMEOUT_MS, MARK_COMMIT_TIMEOUT_MS
 from semiont.transport import Frame
 from semiont.types import (
+    Annotation,
+    BrowseAnnotationRequest,
     DurabilityEvidence,
     FailureClass,
     JobCancelCommand,
@@ -88,6 +98,7 @@ from semiont.types import (
     JobRunning,
     JobStartCommand,
     JobType,
+    MarkCommitCommand,
     MarkJobCompleteCommand,
     MarkJobResult,
     UnitCursor,
@@ -98,6 +109,7 @@ from semiont.watched import Variable, Watched
 
 __all__ = [
     "JOB_CLAIM_CHANNELS",
+    "JOB_COMMIT_CHANNELS",
     "ActiveJob",
     "ClaimRefusal",
     "Claims",
@@ -115,6 +127,15 @@ JOB_CLAIM_CHANNELS: Final[tuple[str, ...]] = (*reply_channels_for(JOB_CLAIM), JO
 `job:queued` and `job:cancel-requested` reach only a stream that names them,
 so a transport made for a worker is given these beside the reply channels of
 whatever else the worker awaits.
+"""
+
+JOB_COMMIT_CHANNELS: Final[tuple[str, ...]] = reply_channels_for(MARK_COMMIT, BROWSE_ANNOTATION_REQUESTED)
+"""What a worker's stream names for its commits: the replies of `mark:commit`, and of the question it asks when one goes unacknowledged.
+
+The question is the read of ONE annotation, and not of a resource's list of
+them. Reply channels reach every stream that names them, and the list's
+replies are the frames of many megabytes a worker's stream exists to keep
+out; one annotation's frame is small.
 """
 
 _STOPPED_WHILE_HELD: Final = "The worker stopped while it held the job"
@@ -137,6 +158,24 @@ def will_retry_after(retry_count: int, max_retries: int, failure_class: FailureC
     all of them answer alike.
     """
     return failure_class != "deterministic" and retry_count < max_retries
+
+
+def _weakness(evidence: DurabilityEvidence) -> int:
+    """How weak an observation of a commit is, as evidence that the batch is on the record.
+
+    The two a commit is not established by are equally weak: one says the
+    record answered that the annotation is not there, the other that nobody
+    answered, and neither says more than the other.
+    """
+    match evidence:
+        case "acknowledged":
+            return 0
+        case "probe-confirmed":
+            return 1
+        case "probe-refused" | "probe-unreachable":
+            return 2
+        case _:
+            assert_never(evidence)
 
 
 @final
@@ -227,6 +266,8 @@ class _Holder:
     """What a held job asks of the claiming that handed it out."""
 
     wire: Bus
+    mark_commit_timeout_ms: int
+    """How long each of a commit's requests waits to be answered."""
     active: Callable[[], None]
     """The work showed it is alive."""
     released: Callable[["_Held", bool], None]
@@ -258,6 +299,13 @@ class _Held:
         self._cancelled: Final = cancelled
         self._begun = False
         self._settled = False
+        self._durability: DurabilityEvidence | None = None
+        """The weakest of what this job's commits observed, across every batch and every resource it committed on.
+
+        The strongest thing still true of the job as a whole. None until a
+        batch is committed, and never a default: a job that commits nothing
+        states nothing.
+        """
 
     @property
     def cancelled(self) -> Watched[bool]:
@@ -327,6 +375,95 @@ class _Held:
             ),
         )
 
+    async def commit(self, resource_id: ResourceId, annotations: Sequence[Annotation]) -> None:
+        """`mark:commit` for this job: returns once the batch is established.
+
+        It sends the batch to the record and WAITS for the record to say it
+        has it. The gateway taking the message says nothing of the record: a
+        record that is down discards a batch the gateway accepted, and a job
+        that counted the batch as done would report work that never landed.
+
+        A commit the record does not acknowledge in time is not thereby lost.
+        If the gateway goes down after the record appended the batch, the
+        acknowledgement cannot be routed, and a job failed on that would be
+        failed over annotations that are on the record. So the outcome
+        follows what the record holds, and not the arrival of a message: the
+        record is asked. A batch is never sent a second time to find out.
+        That would double the work, and where the acknowledgement was lost
+        because the gateway is down, the second commit would only time out as
+        the first did.
+
+        A commit that was not established raises what its unanswered request
+        raised: that request's own failure. What was observed leaves by the
+        job's settle, the one place it can still be told.
+        """
+        self._unsettled(MARK_COMMIT.request.name)
+        if not annotations:
+            # A batch of no annotations is no commit: there is nothing to establish.
+            return
+        try:
+            await self._answered(MARK_COMMIT, MarkCommitCommand(resource_id=resource_id, annotations=list(annotations), job_id=self.job_id))
+        except BusRequestError as unanswered:
+            # The record's refusal, and every other failure of the request, is
+            # the commit's failure as it is. Only an acknowledgement that did
+            # not arrive leaves what the record holds unknown.
+            if unanswered.code != "bus.timeout":
+                raise
+            observed = await self._ask_whether_recorded(resource_id, annotations[-1].id)
+            self._observe(observed)
+            if observed != "probe-confirmed":
+                raise
+            return
+        self._observe("acknowledged")
+
+    async def _ask_whether_recorded(self, resource_id: ResourceId, annotation_id: AnnotationId) -> DurabilityEvidence:
+        """What asking whether the annotation is on the resource observes.
+
+        Asked of the LAST annotation of a batch nobody acknowledged, and that
+        is enough: the record appends a batch in order and stops at the first
+        annotation it cannot append (WORKER-CONTRACT A5), so the last being
+        there says every one before it is. One question, where asking of each
+        would be a round trip for each annotation.
+
+        Every answer but the annotation fails the commit, and the asymmetry
+        is deliberate. The record appends only the annotations it does not
+        hold, so a job retried over a batch that had landed costs one more
+        run of the batch's unit; a wrong "it is there" loses the batch
+        silently, which is what the acknowledgement exists to prevent. A
+        question nobody answered is neither yes nor no. It is said as its own
+        observation, and it does not establish the commit.
+        """
+        try:
+            await self._answered(BROWSE_ANNOTATION_REQUESTED, BrowseAnnotationRequest(resource_id=resource_id, annotation_id=annotation_id))
+        except SemiontError as unconfirmed:
+            # A failure reply (`bus.rejected`) means the question was answered
+            # and the answer was not the annotation. That is not "the
+            # annotation is absent": a read that failed for its own reasons
+            # answers on the same channel. So the job says what was observed,
+            # and its reader judges. Anything else (`bus.timeout`,
+            # `bus.closed`) means nobody answered.
+            return "probe-refused" if unconfirmed.code == "bus.rejected" else "probe-unreachable"
+        return "probe-confirmed"
+
+    async def _answered[Q: WireModel, R: WireModel, F: WireModel](self, operation: Operation[Q, R, F], payload: Q) -> None:
+        """One of a commit's requests, awaited for the commit's wait: it returns once it is answered, and raises as a bus request does.
+
+        What it is answered with is not read. That the record answered is
+        what establishes a commit, so an acknowledgement, or an answer to the
+        question, that this SDK cannot type is the answer it is all the same.
+        """
+        await request(
+            self._holder.wire.transport,
+            operation,
+            operation.request.encode(payload),
+            timeout_ms=self._holder.mark_commit_timeout_ms,
+        )
+
+    def _observe(self, evidence: DurabilityEvidence) -> None:
+        """Remember `evidence` if it is weaker than what is remembered. Of two equally weak, the first seen is kept."""
+        if self._durability is None or _weakness(evidence) > _weakness(self._durability):
+            self._durability = evidence
+
     async def fail(
         self,
         error: str,
@@ -334,16 +471,21 @@ class _Held:
         failure_class: FailureClass | None = None,
         completed_units: Sequence[str] | None = None,
         unit_cursors: Mapping[str, UnitCursor] | None = None,
-        durability: DurabilityEvidence | None = None,
     ) -> None:
-        """Settle: `job:fail`. It says whether the queue will retry, from the record's budget and the failure's class.
+        """Settle: `job:fail`.
 
-        `failure_class` is the failure's class, when the worker knows it;
-        `completed_units` and `unit_cursors` the checkpoint, when there is
-        one; `durability` what a commit established before the failure, when
-        the failure came from one.
+        It says whether the queue will retry, from the record's budget and
+        the failure's class, and what a commit that was not established
+        observed. `failure_class` is the failure's class, when the worker
+        knows it; `completed_units` and `unit_cursors` the checkpoint, when
+        there is one.
         """
         self._settling(JOB_FAIL.name)
+        # Stated only when a commit was not established: what is weaker than
+        # any observation that establishes one. Otherwise the failure says
+        # nothing of the job's commits.
+        observed = self._durability
+        not_established = observed is not None and _weakness(observed) > _weakness("probe-confirmed")
         failed = JobFailCommand(
             resource_id=self.resource_id,
             job_id=self.job_id,
@@ -355,7 +497,7 @@ class _Held:
             unit_cursors=None if unit_cursors is None else dict(unit_cursors),
             failure_class=failure_class,
             will_retry=will_retry_after(self.retry_count, self.max_retries, failure_class),
-            durability=durability,
+            durability=observed if not_established else None,
         )
         try:
             await self._holder.wire.emit(JOB_FAIL, failed)
@@ -421,11 +563,16 @@ class HeldMarkJob(_Held):
 
     job_type: Final[Literal["mark"]] = "mark"
 
-    async def complete(self, result: MarkJobResult, *, durability: DurabilityEvidence | None = None) -> None:
-        """Settle: `job:complete`, with what a `mark` job reports, and what its commits established."""
+    async def complete(self, result: MarkJobResult) -> None:
+        """Settle: `job:complete`, with what a `mark` job reports, and how its commits were established."""
         self._settling(JOB_COMPLETE.name)
         completed = MarkJobCompleteCommand(
-            resource_id=self.resource_id, job_id=self.job_id, job_type="mark", attempt=self.attempt, result=result, durability=durability
+            resource_id=self.resource_id,
+            job_id=self.job_id,
+            job_type="mark",
+            attempt=self.attempt,
+            result=result,
+            durability=self._durability,
         )
         try:
             await self._holder.wire.emit(JOB_COMPLETE, completed)
@@ -444,8 +591,8 @@ class HeldYieldJob(_Held):
 
     job_type: Final[Literal["yield"]] = "yield"
 
-    async def complete(self, result: YieldJobResult, *, durability: DurabilityEvidence | None = None) -> None:
-        """Settle: `job:complete`, with what a `yield` job reports, and what its commits established."""
+    async def complete(self, result: YieldJobResult) -> None:
+        """Settle: `job:complete`, with what a `yield` job reports, and how its commits were established."""
         self._settling(JOB_COMPLETE.name)
         completed = YieldJobCompleteCommand(
             resource_id=self.resource_id,
@@ -454,7 +601,7 @@ class HeldYieldJob(_Held):
             attempt=self.attempt,
             annotation_id=self.annotation_id,
             result=result,
-            durability=durability,
+            durability=self._durability,
         )
         try:
             await self._holder.wire.emit(JOB_COMPLETE, completed)
@@ -495,6 +642,7 @@ class Claims:
         job_claim_timeout_ms: int = JOB_CLAIM_TIMEOUT_MS,
         held_job_stall_ms: int = HELD_JOB_STALL_MS,
         held_job_stall_check_ms: int = HELD_JOB_STALL_CHECK_MS,
+        mark_commit_timeout_ms: int = MARK_COMMIT_TIMEOUT_MS,
     ) -> None:
         self._wire: Final = wire
         self._spawn: Final = run
@@ -505,7 +653,9 @@ class Claims:
         self._job_claim_timeout_ms: Final = job_claim_timeout_ms
         self._held_job_stall_ms: Final = held_job_stall_ms
         self._held_job_stall_check_ms: Final = held_job_stall_check_ms
-        self._holder: Final = _Holder(wire=wire, active=self._active, released=self._released)
+        self._holder: Final = _Holder(
+            wire=wire, mark_commit_timeout_ms=mark_commit_timeout_ms, active=self._active, released=self._released
+        )
         self._handed: Final[asyncio.Queue[HeldJob | ClaimRefusal | _Ended]] = asyncio.Queue()
         self._tasks: Final[set[asyncio.Task[None]]] = set()
         self._claim_in_flight: asyncio.Task[None] | None = None

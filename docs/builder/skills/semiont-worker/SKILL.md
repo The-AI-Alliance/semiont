@@ -45,10 +45,10 @@ The service account needs two roles at the issuer: `semiont-service`, which lets
 
 ```typescript
 import {
-  HttpContentTransport, HttpTransport, JOB_CLAIM_CHANNELS, SemiontClient,
+  HttpContentTransport, HttpTransport, JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, SemiontClient,
   discoverIssuer, startAgentSession, type AgentSession, type HttpEndpoint,
 } from '@semiont/sdk';
-import { baseUrl, replyChannelsFor } from '@semiont/core';
+import { baseUrl } from '@semiont/core';
 
 async function signIn(endpoint: HttpEndpoint, gatewayUrl: string): Promise<{ agent: AgentSession; client: SemiontClient }> {
   const clientId = process.env.SEMIONT_OIDC_CLIENT_ID;
@@ -72,9 +72,9 @@ async function signIn(endpoint: HttpEndpoint, gatewayUrl: string): Promise<{ age
     baseUrl: baseUrl(gatewayUrl),
     token$: agent.token$,
     tokenRefresher: agent.refresh,
-    // What this worker's stream names: what claiming reads, and the replies
-    // of each operation the worker awaits. Here that is its commit.
-    channels: [...JOB_CLAIM_CHANNELS, ...replyChannelsFor(['mark:commit'])],
+    // What this worker's stream names: what claiming reads, and what a
+    // commit of annotations awaits.
+    channels: [...JOB_CLAIM_CHANNELS, ...JOB_COMMIT_CHANNELS],
   });
   return { agent, client: new SemiontClient(transport, new HttpContentTransport(transport), transport) };
 }
@@ -82,7 +82,7 @@ async function signIn(endpoint: HttpEndpoint, gatewayUrl: string): Promise<{ age
 
 `agent.did` is the agent's DID, as the gateway minted it.
 
-**The stream must name `JOB_CLAIM_CHANNELS`.** `job:queued` and `job:cancel-requested` reach only a stream that names them, and a client made with no `channels` does not. `job.claim` refuses such a client at once, with `bus.unsubscribed`, where it would otherwise claim once and never be woken. A worker also names the reply channels of each bus operation it awaits (`replyChannelsFor`), and nothing else: every other client's replies are traffic it would only parse and drop.
+**The stream must name `JOB_CLAIM_CHANNELS`.** `job:queued` and `job:cancel-requested` reach only a stream that names them, and a client made with no `channels` does not. `job.claim` refuses such a client at once, with `bus.unsubscribed`, where it would otherwise claim once and never be woken. A worker that commits annotations names `JOB_COMMIT_CHANNELS` as well. Beyond those it names the reply channels of each bus operation it awaits itself (`replyChannelsFor`, from `@semiont/core`), and nothing else: every other client's replies are traffic it would only parse and drop.
 
 ## Claiming jobs
 
@@ -134,19 +134,18 @@ A progress message is a code, not a sentence: each client renders it in its read
 
 A worker reads the resource through the same client as any script: `client.browse.resourceContent(job.resourceId)` for its text, `job.params` for what the caller asked.
 
-It writes annotations with `mark:commit`: one batch, answered only when every annotation is in the event log, and citing the job it fulfils. The knowledge base derives who the annotations are for from that job, so the batch says what produced them (`generator`) and never who asked. A batch that names a `creator` is refused, and so is one from a worker that cites no job.
+It writes annotations by committing them for the job it holds: `job.commit(resourceId, annotations)`. That is `mark:commit`: one batch, answered only when every annotation is in the event log, and citing the job it fulfils. The knowledge base derives who the annotations are for from that job, so the batch says what produced them (`generator`) and never who asked. A batch that names a `creator` is refused, and so is one from a worker that cites no job.
 
 ```typescript
-import { busRequest } from '@semiont/core';
-import type { Annotation, HeldJob, SemiontClient } from '@semiont/sdk';
+import type { Annotation, HeldJob } from '@semiont/sdk';
 
-async function commit(client: SemiontClient, job: HeldJob, annotations: Annotation[]): Promise<void> {
-  if (annotations.length === 0) return;
-  await busRequest(client.transport, 'mark:commit', { resourceId: job.resourceId, annotations, jobId: job.jobId });
+/** Resolves once the record has the batch. A batch of none sends nothing. */
+async function write(job: HeldJob, annotations: Annotation[]): Promise<void> {
+  await job.commit(job.resourceId, annotations);
 }
 ```
 
-The worker's stream must name the commit's reply channels, as the sign-in above does. Give each annotation a deterministic id, so that committing a batch again after a retry changes nothing. `buildTextAnnotation` in [`packages/jobs/src/processors.ts`](../../../../packages/jobs/src/processors.ts) is how Semiont's worker builds one.
+The commit waits for the record's acknowledgement. When none comes it asks the record whether the batch landed, and fails only if that cannot be established. When the job settles, it says how its commits were established; the worker states none of that itself. The worker's stream must name `JOB_COMMIT_CHANNELS`, as the sign-in above does. Give each annotation a deterministic id, so that committing a batch again after a retry changes nothing. `buildTextAnnotation` in [`packages/jobs/src/processors.ts`](../../../../packages/jobs/src/processors.ts) is how Semiont's worker builds one.
 
 `@semiont/jobs` also exports the processors Semiont's worker runs: `processHighlightJob`, `processCommentJob`, `processAssessmentJob`, `processReferenceJob`, `processTagJob` and `processGenerationJob`. Each takes the text, an inference client, the job's params and callbacks for progress and for committing each chunk, and returns the job's result. Use them to serve a job with a different model and the same logic. Their signatures are in [the workers guide](../../../../packages/jobs/docs/Workers.md#built-in-jobs).
 
@@ -309,7 +308,7 @@ while let Some(handed) = claims.next().await {
             let result = JobDetectionResult::new(0, 0);
             // A settle takes the job, so it cannot be settled twice. A
             // job dropped unsettled is failed, and the queue retries it.
-            job.complete(result.into(), None).await?;
+            job.complete(result.into()).await?;
         }
         Ok(HeldJob::Yield(job)) => {
             let never = JobFailure {
@@ -338,6 +337,7 @@ What differs from TypeScript is what the language gives:
 
 - `claims.next().await` gives the next held job, or `Err` with a claim that was refused. A stream that does not name `JOB_CLAIM_CHANNELS` is one refusal, `Unsubscribed`, and then the claims end.
 - A held job is matched by its verb, `HeldJob::Mark` or `HeldJob::Yield`, before `complete` is called.
+- A held job commits its own annotations: `job.commit(job.resource_id(), annotations).await?` sends the batch as `mark:commit`, citing the job, and returns once the record has it. A worker that commits gives its transport `JOB_COMMIT_CHANNELS` beside `JOB_CLAIM_CHANNELS`.
 - `complete`, `fail` and `cancel` take the job by value, so settling twice does not compile. A job dropped unsettled is failed.
 - `job.cancelled()` and `claims.stalled()` are `tokio::sync::watch` receivers: the first turns true when a cancellation names the held job, and the second holds the last stall.
 
@@ -398,6 +398,7 @@ What differs from TypeScript is what the language gives:
 
 - `async for` over the claims gives each held job, or a `ClaimRefusal`. A stream that does not name `JOB_CLAIM_CHANNELS` raises at the first read, as `bus.unsubscribed`.
 - A held job is a `HeldMarkJob` or a `HeldYieldJob`, told apart before `complete` is called.
+- A held job commits its own annotations: `await job.commit(job.resource_id, annotations)` sends the batch as `mark:commit`, citing the job, and returns once the record has it. A worker that commits gives its transport `JOB_COMMIT_CHANNELS` beside `JOB_CLAIM_CHANNELS`.
 - `async with job` fails a job its block left unsettled. Leaving the claims' block, or `await claims.aclose()`, stops the worker and fails the job it still holds.
 - `job.cancelled` and `claims.stalled` are watched values: `.value` now, and `async for` each value after it.
 - A process is stopped by cancelling the task that runs `work`: the blocks it leaves on the way out stop the worker and close the client.
@@ -422,7 +423,7 @@ semiont.state$.subscribe((state) => console.log(`connection: ${state}`));
 - **Worker or watcher.** A worker claims queued jobs. A watcher reacts to events and is [`semiont-session`](../semiont-session/SKILL.md). One process can be both.
 - **Say the whole lifecycle through the held job.** A job with no `job.start()` looks stuck, and one never settled is stuck until the dispatcher's sweep. Never emit a `job:*` message on the transport yourself.
 - **Settle every job, once.** Each held job ends in `job.complete(...)`, `job.fail(...)` or `job.cancel()`. The worker holds one job at a time and claims the next only when the one in hand settles.
-- **Give the transport its channels.** `JOB_CLAIM_CHANNELS`, and the reply channels of whatever else the worker awaits.
+- **Give the transport its channels.** `JOB_CLAIM_CHANNELS`, `JOB_COMMIT_CHANNELS` when it commits annotations, and the reply channels of whatever else the worker awaits.
 - **Exit on `bus.unauthorized`.** A credential that cannot claim will never be able to. A crash the operator can see is better than a worker that idles forever.
 - **Never state who a job is for.** Not in a lifecycle event and not in what the worker writes. The knowledge base derives it from the job.
 - **Use Semiont's processors when the logic is Semiont's.** Write your own when the logic is the point.

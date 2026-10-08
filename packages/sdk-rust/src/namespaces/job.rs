@@ -113,9 +113,10 @@ impl JobNamespace {
 
     /// A worker's side: claim the jobs `options.accepts` describes, and hold
     /// one at a time. Claiming begins when the claims are first read, and each
-    /// job they hand out says its own lifecycle and settles once
-    /// (docs/protocol/WORKER-CONTRACT.md). The transport's stream must name
-    /// `claims::JOB_CLAIM_CHANNELS`.
+    /// job they hand out says its own lifecycle, commits its own annotations
+    /// and settles once (docs/protocol/WORKER-CONTRACT.md). The transport's
+    /// stream must name `claims::JOB_CLAIM_CHANNELS`, and
+    /// `claims::JOB_COMMIT_CHANNELS` for a worker that commits.
     pub fn claim(&self, options: ClaimOptions) -> Claims {
         Claims::new(self.links.wire.clone(), options)
     }

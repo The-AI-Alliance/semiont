@@ -9,18 +9,31 @@
  * The fake is built over a REAL `EventBus`: core's bus is typed per channel,
  * so the fake needs no cast and cannot be fed a payload production would
  * reject. A claim is answered by pushing `job:claimed` / `job:claim-failed`
- * at the correlationId the claim was sent under.
+ * at the correlationId the claim was sent under, and a commit the same way,
+ * by hand or by the record the fake plays.
  */
 
 import { readFileSync } from 'node:fs';
 import { describe, it, expect, expectTypeOf, beforeEach, vi } from 'vitest';
 import { BehaviorSubject } from 'rxjs';
-import type { BusRequestPrimitive } from '@semiont/core';
-import { EventBus, type BusEnvelope, type ConnectionState, type EventMap, annotationId, jobId as makeJobId, userId, resourceId } from '@semiont/core';
-import { ClaimsObservable, JOB_CLAIM_CHANNELS, willRetryAfter, type ClaimOptions, type ClaimRefusal, type HeldJob, type HeldJobStall } from '../claims';
+import type { Annotation, BusRequestPrimitive } from '@semiont/core';
+import { BusRequestError, EventBus, type BusEnvelope, type ConnectionState, type EventMap, annotationId, jobId as makeJobId, userId, resourceId } from '@semiont/core';
+import { ClaimsObservable, JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, willRetryAfter, type ClaimOptions, type ClaimRefusal, type HeldJob, type HeldJobStall, type HeldMarkJob, type HeldYieldJob, type JobFailure } from '../claims';
 
 /** The job a `job:claimed` reply carries: running, under the claimant. */
 type ClaimedJob = EventMap['job:claimed']['response'];
+/** What a commit observed of the record, as a settle states it. */
+type Durability = NonNullable<EventMap['job:complete']['durability']>;
+
+/** An annotation as a worker hands one to a commit: already made, with its id. */
+const annotation = (id: string): Annotation => ({
+  '@context': 'http://www.w3.org/ns/anno.jsonld',
+  type: 'Annotation',
+  id: annotationId(id),
+  motivation: 'highlighting',
+  target: { source: resourceId('res-1'), selector: { type: 'TextQuoteSelector', exact: `the words of ${id}` } },
+  created: '2026-01-01T00:00:00.000Z',
+});
 
 /** A running job as the dispatcher returns one from a claim, its metadata overridden by `metadata`. */
 function runningJob(id: string, metadata: Partial<ClaimedJob['metadata']> = {}, params: Record<string, unknown> = {}): ClaimedJob {
@@ -49,8 +62,17 @@ function fakeBus(initialState: ConnectionState = 'open') {
   const state$ = new BehaviorSubject<ConnectionState>(initialState);
   /** Channels whose emit fails, as a transport that could not reach the gateway fails one. */
   const failing = new Set<keyof EventMap>();
+  /** What a failing channel's emit fails with, when a case states it. */
+  const thrown = new Map<keyof EventMap, unknown>();
   /** Channels this bus says its stream does not name. */
   const unnamed = new Set<keyof EventMap>();
+  /**
+   * The record, as a case has it played: what it does with a commit, and
+   * what it answers when asked whether an annotation is on a resource. It
+   * answers on the next tick, at the request's correlation id. As it starts
+   * it answers neither, and a case answers by hand.
+   */
+  const record: { commit: 'acknowledged' | 'refused' | 'unanswered'; question: 'there' | 'not-there' | 'unanswered' } = { commit: 'unanswered', question: 'unanswered' };
 
   const bus: BusRequestPrimitive = {
     stream: <K extends keyof EventMap>(channel: K) => eventBus.on(channel),
@@ -61,20 +83,42 @@ function fakeBus(initialState: ConnectionState = 'open') {
     emit: vi.fn(async <K extends keyof EventMap>(channel: K, payload: EventMap[K], envelope?: BusEnvelope) => {
       // The pair is this call's own two arguments; the assertion is what buys
       // narrowing at every read site.
-      emits.push({ channel, payload, envelope } as Emitted);
-      if (failing.has(channel)) throw new Error(`the gateway did not take ${channel}`);
+      const emitted = { channel, payload, envelope } as Emitted;
+      emits.push(emitted);
+      if (failing.has(channel)) throw thrown.get(channel) ?? new Error(`the gateway did not take ${channel}`);
+      const correlationId = envelope?.correlationId;
+      if (emitted.channel === 'mark:commit' && record.commit !== 'unanswered') {
+        const ids = emitted.payload.annotations.map((committed) => committed.id);
+        const acknowledged = record.commit === 'acknowledged';
+        queueMicrotask(() => {
+          if (acknowledged) eventBus.emit('mark:commit-ok', { response: { persisted: ids.length, annotationIds: ids } }, { correlationId });
+          else eventBus.emit('mark:commit-failed', { message: 'the record could not append' }, { correlationId });
+        });
+      }
+      if (emitted.channel === 'browse:annotation-requested' && record.question !== 'unanswered') {
+        const asked = emitted.payload.annotationId;
+        const there = record.question === 'there';
+        queueMicrotask(() => {
+          if (there) eventBus.emit('browse:annotation-result', { response: { annotation: annotation(asked), resource: null, resolvedResource: null } }, { correlationId });
+          else eventBus.emit('browse:annotation-failed', { message: 'Annotation not found' }, { correlationId });
+        });
+      }
       return undefined;
     }),
   };
 
   const claims = () => emits.filter((e) => e.channel === 'job:claim');
   const cid = (i: number) => claims()[i]!.envelope?.correlationId;
+  const commits = () => emits.flatMap((e) => (e.channel === 'mark:commit' ? [e] : []));
+  const questions = () => emits.flatMap((e) => (e.channel === 'browse:annotation-requested' ? [e] : []));
 
   return {
     bus,
     state$,
     failing,
+    thrown,
     unnamed,
+    record,
     pushEvent: <K extends keyof EventMap>(channel: K, payload: EventMap[K], correlationId?: string) =>
       eventBus.emit(channel, payload, { correlationId }),
     /** Every `job:claim` emitted so far, in order. */
@@ -85,8 +129,12 @@ function fakeBus(initialState: ConnectionState = 'open') {
       return e.payload as EventMap['job:claim'];
     },
     claimCidAt: cid,
-    /** Everything said that is not a claim: the lifecycle, in order. */
-    said: () => emits.filter((e) => e.channel !== 'job:claim'),
+    /** Every `mark:commit` sent so far, in order. */
+    commits,
+    /** Every `browse:annotation-requested` sent so far, in order: what an unacknowledged commit asks. */
+    questions,
+    /** Everything said that is not a request: the lifecycle, in order. */
+    said: () => emits.filter((e) => e.channel !== 'job:claim' && e.channel !== 'mark:commit' && e.channel !== 'browse:annotation-requested'),
     /** Answer claim `i` with a running job. */
     grant: (i: number, id: string, metadata: Partial<ClaimedJob['metadata']> = {}, params: Record<string, unknown> = {}) =>
       eventBus.emit('job:claimed', { response: runningJob(id, metadata, params) }, { correlationId: cid(i) }),
@@ -143,6 +191,20 @@ function reading(h: ReturnType<typeof fakeBus>, options: Partial<ClaimOptions> =
 function finish(job: HeldJob): Promise<void> {
   if (job.jobType !== 'mark') throw new Error(`${job.jobId} is not a mark job`);
   return job.complete({ found: 0, persisted: 0 });
+}
+
+/** A commit's wait, for a case that must not wait a minute for the record. */
+const QUICK_COMMIT = { markCommitTimeoutMs: 20 };
+
+/**
+ * Commit one annotation, with the record played so that the commit observes
+ * `how`. Resolves with nothing when the commit is established, and with what
+ * it rejected with when it is not.
+ */
+function commitObserving(h: ReturnType<typeof fakeBus>, job: HeldJob, how: Durability, id = 'ann-1'): Promise<unknown> {
+  h.record.commit = how === 'acknowledged' ? 'acknowledged' : 'unanswered';
+  h.record.question = how === 'probe-confirmed' ? 'there' : how === 'probe-refused' ? 'not-there' : 'unanswered';
+  return job.commit(resourceId('res-1'), [annotation(id)]).then(() => undefined, (error: unknown) => error);
 }
 
 /** Read, and be granted the first claim: the worker holds `id`. */
@@ -502,8 +564,9 @@ describe('job.claim — the held job', () => {
     await job.start();
     await job.progress({ percentage: 40 });
     await job.checkpoint({ completedUnits: ['Person'], unitCursors: { Place: cursor } });
+    expect(await commitObserving(h, job, 'acknowledged')).toBeUndefined();
     if (job.jobType !== 'mark') throw new Error('the record says mark');
-    await job.complete({ found: 9, persisted: 7 }, { durability: 'acknowledged' });
+    await job.complete({ found: 9, persisted: 7 });
 
     const identity = { resourceId: 'res-1', jobId: 'j1', jobType: 'mark', attempt: 2 };
     expect(h.said().map(({ channel, payload }) => ({ channel, payload }))).toEqual([
@@ -565,8 +628,9 @@ describe('job.claim — the held job', () => {
     expect(h.said()[0]!.payload, 'a class the worker does not know is not stated').not.toHaveProperty('failureClass');
 
     const known = fakeBus();
-    const deterministic = await holding(known, 'j2', { retryCount: 0, maxRetries: 1 });
-    await deterministic.job.fail('the resource has no text', { failureClass: 'deterministic', durability: 'probe-refused' });
+    const deterministic = await holding(known, 'j2', { retryCount: 0, maxRetries: 1 }, {}, QUICK_COMMIT);
+    expect(await commitObserving(known, deterministic.job, 'probe-refused')).toMatchObject({ code: 'bus.timeout' });
+    await deterministic.job.fail('the resource has no text', { failureClass: 'deterministic' });
     expect(known.said()[0]!.payload).toEqual({
       resourceId: 'res-1', jobId: 'j2', jobType: 'mark', attempt: 1, error: 'the resource has no text',
       failureClass: 'deterministic', durability: 'probe-refused', willRetry: false,
@@ -683,6 +747,294 @@ describe('job.claim — the held job', () => {
     h.failing.add('job:fail');
 
     await expect(claims.stop()).resolves.toBeUndefined();
+  });
+});
+
+// WORKER-CONTRACT § Committing annotations (A1, A4, A5, A6).
+describe('job.claim — a held job commits for itself', () => {
+  let h: ReturnType<typeof fakeBus>;
+
+  beforeEach(() => {
+    h = fakeBus();
+  });
+
+  /** The last thing the worker said of the job: its settle. */
+  const settle = (of: ReturnType<typeof fakeBus> = h) => {
+    const last = of.said().at(-1);
+    if (!last) throw new Error('the worker has said nothing');
+    return last;
+  };
+
+  it('JOB_COMMIT_CHANNELS is what a worker\'s stream names for its commits', () => {
+    expect([...JOB_COMMIT_CHANNELS].sort()).toEqual(['browse:annotation-failed', 'browse:annotation-result', 'mark:commit-failed', 'mark:commit-ok']);
+  });
+
+  it('sends the batch as a request that cites the job and names the resource it is given, and is established when the record acknowledges it, and not before', async () => {
+    const { job, subscription } = await holding(h);
+    const batch = [annotation('ann-1'), annotation('ann-2')];
+
+    let established = false;
+    // A job commits on more than one resource: here, on one that is not its own.
+    const commit = job.commit(resourceId('res-new'), batch).then(() => { established = true; });
+
+    expect(h.commits().map(({ payload }) => payload)).toEqual([{ resourceId: 'res-new', annotations: batch, jobId: 'j1' }]);
+    expect(typeof h.commits()[0]!.envelope?.correlationId, 'a request, answered at its correlation id').toBe('string');
+
+    await after(30);
+    expect(established, 'the gateway taking the message says nothing of the record').toBe(false);
+
+    h.pushEvent('mark:commit-ok', { response: { persisted: 2, annotationIds: batch.map((a) => a.id) } }, h.commits()[0]!.envelope?.correlationId);
+    await commit;
+
+    expect(established).toBe(true);
+    expect(h.questions(), 'nothing is asked of a commit the record acknowledged').toEqual([]);
+    expect(h.said(), 'a commit is no lifecycle message').toEqual([]);
+
+    await finish(job);
+    expect(settle().payload).toMatchObject({ durability: 'acknowledged' });
+
+    subscription.unsubscribe();
+  });
+
+  it('a batch of no annotations is no commit: nothing is sent, and the job states nothing of its commits', async () => {
+    const { job, subscription } = await holding(h);
+
+    await expect(job.commit(resourceId('res-1'), [])).resolves.toBeUndefined();
+    expect(h.commits()).toEqual([]);
+
+    await finish(job);
+    expect(settle().payload).toEqual({ resourceId: 'res-1', jobId: 'j1', jobType: 'mark', attempt: 1, result: { found: 0, persisted: 0 } });
+
+    subscription.unsubscribe();
+  });
+
+  it('a job that committed nothing states nothing when it fails', async () => {
+    const { job, subscription } = await holding(h);
+
+    await job.fail('the model timed out');
+    expect(settle().payload).not.toHaveProperty('durability');
+
+    subscription.unsubscribe();
+  });
+
+  it('a commit the record refuses fails with the record\'s reason: nothing is asked, and nothing is observed', async () => {
+    const { job, subscription } = await holding(h, 'j1', {}, {}, QUICK_COMMIT);
+    h.record.commit = 'refused';
+
+    const refused = await job.commit(resourceId('res-1'), [annotation('ann-1')]).then(() => undefined, (error: unknown) => error);
+
+    expect(refused).toBeInstanceOf(BusRequestError);
+    expect(refused).toMatchObject({ code: 'bus.rejected', message: 'the record could not append' });
+    await after(60);
+    expect(h.questions(), 'the record has answered').toEqual([]);
+
+    await job.fail('the record could not append');
+    expect(settle().payload).toEqual({ resourceId: 'res-1', jobId: 'j1', jobType: 'mark', attempt: 1, error: 'the record could not append', willRetry: true });
+
+    subscription.unsubscribe();
+  });
+
+  it('a commit nobody acknowledges asks whether the batch\'s last annotation is on the resource; answered with it, the commit is established', async () => {
+    const { job, subscription } = await holding(h, 'j1', {}, {}, QUICK_COMMIT);
+    h.record.question = 'there';
+
+    await expect(job.commit(resourceId('res-new'), [annotation('ann-1'), annotation('ann-2')])).resolves.toBeUndefined();
+
+    expect(h.questions().map(({ payload }) => payload), 'the last, on the resource the batch was for').toEqual([{ resourceId: 'res-new', annotationId: 'ann-2' }]);
+    expect(typeof h.questions()[0]!.envelope?.correlationId).toBe('string');
+    expect(h.commits(), 'the record is asked what it holds; the batch is not sent again').toHaveLength(1);
+
+    await finish(job);
+    expect(settle().payload).toMatchObject({ durability: 'probe-confirmed' });
+
+    subscription.unsubscribe();
+  });
+
+  it('answered that it is not there, the commit fails as its unanswered request did, and the job\'s failure says what was observed', async () => {
+    const { job, subscription } = await holding(h, 'j1', {}, {}, QUICK_COMMIT);
+
+    const failed = await commitObserving(h, job, 'probe-refused');
+
+    // The failure of the `mark:commit` request itself, and not one made of
+    // it, nor the question's: its class, its code, its message, and the
+    // request it names.
+    expect(failed).toBeInstanceOf(BusRequestError);
+    expect(failed).toMatchObject({
+      name: 'BusRequestError',
+      code: 'bus.timeout',
+      message: 'Bus request timed out after 20ms on mark:commit-ok',
+      details: { channel: 'mark:commit', correlationId: h.commits()[0]!.envelope?.correlationId },
+    });
+    expect(h.questions()).toHaveLength(1);
+
+    await job.fail('the commit was not established');
+    expect(settle().payload).toEqual({
+      resourceId: 'res-1', jobId: 'j1', jobType: 'mark', attempt: 1, error: 'the commit was not established', durability: 'probe-refused', willRetry: true,
+    });
+
+    subscription.unsubscribe();
+  });
+
+  it('not answered, it waits as long again, fails the same way, and says that nobody answered', async () => {
+    const { job, subscription } = await holding(h, 'j1', {}, {}, { markCommitTimeoutMs: 60 });
+
+    const began = performance.now();
+    const failed = await commitObserving(h, job, 'probe-unreachable');
+    const waited = performance.now() - began;
+
+    expect(failed).toBeInstanceOf(BusRequestError);
+    expect(failed).toMatchObject({ code: 'bus.timeout', message: 'Bus request timed out after 60ms on mark:commit-ok', details: { channel: 'mark:commit' } });
+    expect(h.questions()).toHaveLength(1);
+    expect(waited, 'the acknowledgement\'s wait, and then the answer\'s').toBeGreaterThanOrEqual(110);
+
+    await job.fail('the commit was not established');
+    expect(settle().payload).toMatchObject({ durability: 'probe-unreachable' });
+
+    subscription.unsubscribe();
+  });
+
+  // The question's failure is read by the code it carries, never by its
+  // class: a second copy of the library anywhere in the tree makes a class
+  // check fail silently, and a refusal would be said as "nobody answered".
+  it.each([
+    ['carries bus.rejected, whatever its class', 'probe-refused', Object.assign(new Error('Annotation not found'), { code: 'bus.rejected' })],
+    ['carries another code', 'probe-unreachable', Object.assign(new Error('Bus closed before emit'), { code: 'bus.closed' })],
+    ['carries no code', 'probe-unreachable', new Error('the gateway did not take the question')],
+  ] as const)('a question whose failure %s is observed as %s', async (_what, observed, failure) => {
+    const { job, subscription } = await holding(h, 'j1', {}, {}, QUICK_COMMIT);
+    h.failing.add('browse:annotation-requested');
+    h.thrown.set('browse:annotation-requested', failure);
+
+    const failed = await job.commit(resourceId('res-1'), [annotation('ann-1')]).then(() => undefined, (error: unknown) => error);
+
+    expect(failed, 'the commit\'s own failure, never the question\'s').toMatchObject({ code: 'bus.timeout', details: { channel: 'mark:commit' } });
+    await job.fail('the commit was not established');
+    expect(settle().payload).toMatchObject({ durability: observed });
+
+    subscription.unsubscribe();
+  });
+
+  it('any other failure of the commit\'s request is thrown as it is: nothing is asked, and nothing is observed', async () => {
+    const { job, subscription } = await holding(h, 'j1', {}, {}, QUICK_COMMIT);
+    h.failing.add('mark:commit');
+
+    await expect(job.commit(resourceId('res-1'), [annotation('ann-1')])).rejects.toThrow(/did not take mark:commit/);
+    await after(60);
+    expect(h.questions()).toEqual([]);
+
+    await job.fail('the gateway did not take the commit');
+    expect(settle().payload).not.toHaveProperty('durability');
+
+    subscription.unsubscribe();
+  });
+
+  it('a worker whose stream does not name JOB_COMMIT_CHANNELS claims as any other, and its commit fails as a request on an unnamed reply channel does', async () => {
+    for (const channel of JOB_COMMIT_CHANNELS) h.unnamed.add(channel);
+    const { job, failure, subscription } = await holding(h);
+    expect(failure(), 'a worker that never commits names nothing more').toBeUndefined();
+
+    await expect(job.commit(resourceId('res-1'), [annotation('ann-1')])).rejects.toMatchObject({ code: 'bus.unsubscribed' });
+    expect(h.commits()).toEqual([]);
+
+    subscription.unsubscribe();
+  });
+
+  it('a settled job commits nothing', async () => {
+    const { job, subscription } = await holding(h);
+    await finish(job);
+
+    await expect(job.commit(resourceId('res-1'), [annotation('ann-1')])).rejects.toThrow(/already settled/);
+    expect(h.commits()).toEqual([]);
+
+    subscription.unsubscribe();
+  });
+
+  // A6. The job remembers the weakest of what its commits observed:
+  // acknowledged, then established by asking, then not established. The two
+  // ways of not being established are equally weak, and the first seen is kept.
+  describe('what its settle says of its commits', () => {
+    const ESTABLISHED: [Durability[], Durability][] = [
+      [['acknowledged'], 'acknowledged'],
+      [['acknowledged', 'acknowledged'], 'acknowledged'],
+      [['probe-confirmed'], 'probe-confirmed'],
+      [['acknowledged', 'probe-confirmed'], 'probe-confirmed'],
+      [['probe-confirmed', 'acknowledged'], 'probe-confirmed'],
+      [['acknowledged', 'probe-confirmed', 'acknowledged'], 'probe-confirmed'],
+    ];
+    const NOT_ESTABLISHED: [Durability[], Durability][] = [
+      [['probe-refused'], 'probe-refused'],
+      [['probe-unreachable'], 'probe-unreachable'],
+      [['acknowledged', 'probe-refused'], 'probe-refused'],
+      [['probe-confirmed', 'probe-unreachable'], 'probe-unreachable'],
+      [['probe-refused', 'acknowledged'], 'probe-refused'],
+      [['probe-unreachable', 'probe-confirmed'], 'probe-unreachable'],
+      [['probe-refused', 'probe-unreachable'], 'probe-refused'],
+      [['probe-unreachable', 'probe-refused'], 'probe-unreachable'],
+    ];
+
+    /** Hold a job and commit once for each of `observed`, in order. */
+    async function committed(observed: Durability[]) {
+      const r = await holding(h, 'j1', {}, {}, QUICK_COMMIT);
+      for (const [i, how] of observed.entries()) {
+        const failed = await commitObserving(h, r.job, how, `ann-${i}`);
+        if (how === 'acknowledged' || how === 'probe-confirmed') expect(failed, `${how} establishes the commit`).toBeUndefined();
+        else expect(failed, `${how} does not`).toMatchObject({ code: 'bus.timeout' });
+      }
+      expect(h.commits()).toHaveLength(observed.length);
+      return r;
+    }
+
+    it.each([...ESTABLISHED, ...NOT_ESTABLISHED])('commits that observed %j: a completion says %s', async (observed, weakest) => {
+      const { job, subscription } = await committed(observed);
+
+      await finish(job);
+      expect(settle()).toMatchObject({ channel: 'job:complete', payload: { durability: weakest } });
+
+      subscription.unsubscribe();
+    });
+
+    it.each(NOT_ESTABLISHED)('commits that observed %j: a failure says %s', async (observed, weakest) => {
+      const { job, subscription } = await committed(observed);
+
+      await job.fail('the commit was not established');
+      expect(settle()).toMatchObject({ channel: 'job:fail', payload: { durability: weakest } });
+
+      subscription.unsubscribe();
+    });
+
+    it.each(ESTABLISHED)('commits that observed %j, all established: a failure for another reason says nothing of them', async (observed) => {
+      const { job, subscription } = await committed(observed);
+
+      await job.fail('the model timed out');
+      expect(settle().channel).toBe('job:fail');
+      expect(settle().payload).not.toHaveProperty('durability');
+
+      subscription.unsubscribe();
+    });
+
+    it('a cancel says nothing of them', async () => {
+      const { job, subscription } = await committed(['probe-refused']);
+
+      await job.cancel();
+      expect(settle().payload).toEqual({ resourceId: 'res-1', jobId: 'j1', jobType: 'mark' });
+
+      subscription.unsubscribe();
+    });
+
+    it('a worker that stops while it holds a job whose commit was not established says so as it fails it', async () => {
+      const { claims } = await committed(['probe-unreachable']);
+
+      await claims.stop();
+      expect(settle().payload).toMatchObject({ error: 'The worker stopped while it held the job', durability: 'probe-unreachable' });
+    });
+
+    // The job states what its commits observed; its caller is given no way to
+    // state it for it.
+    it('is the held job\'s alone to say', () => {
+      expectTypeOf<Parameters<HeldMarkJob['complete']>>().toEqualTypeOf<[result: Parameters<HeldMarkJob['complete']>[0]]>();
+      expectTypeOf<Parameters<HeldYieldJob['complete']>>().toEqualTypeOf<[result: Parameters<HeldYieldJob['complete']>[0]]>();
+      expectTypeOf<JobFailure>().not.toHaveProperty('durability');
+    });
   });
 });
 

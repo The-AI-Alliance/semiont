@@ -245,7 +245,7 @@ Every method returns one of nine shapes, and the table says which:
 | a job another party does | `Delegation[C]` | awaited for the job's completion, or read with `async for` for every event of the job, its completion's the last; one or the other, once |
 | an upload | `Upload` | awaited for the resource it created, read for its progress |
 | a query | `Cached[T]` | building it sends nothing; `await query.fresh()` reads it once, and held with `async with` it is watched |
-| a worker's claims | `Claims` | read with `async for`: each job the worker comes to hold, or a claim it was refused; a held job says its own lifecycle, and `complete`, `fail` and `cancel` each settle it once |
+| a worker's claims | `Claims` | read with `async for`: each job the worker comes to hold, or a claim it was refused; a held job says its own lifecycle and commits its own annotations, and `complete`, `fail` and `cancel` each settle it once |
 | a signal | `def`, returning nothing | published on the client's own bus, or sent and not awaited |
 | a drive | `async def` giving `int \| None` | how many participants the gateway reached, or nothing when it kept no count |
 | a channel's events | `Typed[P]` | `async for`, each event's payload decoded |
@@ -412,6 +412,13 @@ async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
   whatever else it awaits. The announcements that wake an idle worker reach
   only a stream that names them, so a client whose stream does not is refused
   at its first claim, as `bus.unsubscribed`.
+- **A held job commits for itself**: `await job.commit(resource_id, annotations)`
+  sends the batch as `mark:commit`, citing the job, and returns once the
+  record has it. When no acknowledgement arrives it asks whether the batch's
+  last annotation is on the resource, and a commit that is not established
+  raises the failure of its unanswered request. The job says how its commits
+  were established when it settles. A worker that commits names
+  `JOB_COMMIT_CHANNELS` in its stream as well.
 - **It claims when it is idle**: when its stream opens, each time a job
   settles, when a job it accepts is announced, and when its stream opens
   again. A claim answered with nothing pending is no refusal, and the worker
@@ -645,7 +652,7 @@ is made in, and a frame continues the trace it was sent under (`frame.trace`).
 | `semiont.namespaces` | The methods of each namespace; and in `semiont.namespaces.follow`, `Delegation[C]`, what a delegated job returns, with the events of a job |
 | `semiont.running`, `semiont.cached` | `Running[T]` and `Cached[T]`: what long-running operations and queries return |
 | `semiont.annotations` | The readers of an annotation: the resource it is on and the one it links to, the text it quotes, its entity types, its tag, and what kind it is, whatever shape its target, its selector and its body take |
-| `semiont.claims`, `semiont.job_filter` | `Claims`, what `job.claim` returns, with the jobs a worker holds and the retry rule; and whether a job matches a filter |
+| `semiont.claims`, `semiont.job_filter` | `Claims`, what `job.claim` returns, with the jobs a worker holds, the channels its stream names and the retry rule; and whether a job matches a filter |
 | `semiont.cache`, `semiont.refresh`, `semiont.resume` | The cache queries answer from and its three states, which queries each event asks again, and where a stream resumes after a restart |
 | `semiont.storage` | Where a client keeps what must outlive it: `SessionStorage`, and `MemoryStorage` |
 | `semiont.session` | `SemiontSession`, and `MemorySignIn` |

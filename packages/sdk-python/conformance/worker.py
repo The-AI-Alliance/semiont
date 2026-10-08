@@ -14,16 +14,16 @@ from typing import Final, final
 from protocol import Arguments, Misuse, Operation, count, failure, object_of, say, serve, text, texts
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
-from semiont.claims import JOB_CLAIM_CHANNELS, ClaimRefusal, Claims, HeldJob
+from semiont.claims import JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, ClaimRefusal, Claims, HeldJob
 from semiont.client import SemiontClient
 from semiont.errors import SemiontError
 from semiont.events import Events
 from semiont.http import HttpTransport, Timing
 from semiont.identifiers import InvalidIdentifier, ResourceId
 from semiont.model import written
-from semiont.timing import HELD_JOB_STALL_CHECK_MS, HELD_JOB_STALL_MS, JOB_CLAIM_TIMEOUT_MS
+from semiont.timing import HELD_JOB_STALL_CHECK_MS, HELD_JOB_STALL_MS, JOB_CLAIM_TIMEOUT_MS, MARK_COMMIT_TIMEOUT_MS
 from semiont.transport import ConnectionState, ResourceHold
-from semiont.types import FailureClass, JobFilter, JobProgress, MarkJobResult, UnitCursor, YieldJobResult
+from semiont.types import Annotation, FailureClass, JobFilter, JobProgress, MarkJobResult, UnitCursor, YieldJobResult
 from semiont.watched import Variable
 
 _FILTERS: Final = TypeAdapter[list[JobFilter]](list[JobFilter])
@@ -32,6 +32,7 @@ _CLASS: Final = TypeAdapter[FailureClass](FailureClass)
 _PROGRESS: Final = TypeAdapter[JobProgress](JobProgress)
 _MARK_RESULT: Final = TypeAdapter[MarkJobResult](MarkJobResult)
 _YIELD_RESULT: Final = TypeAdapter[YieldJobResult](YieldJobResult)
+_ANNOTATIONS: Final = TypeAdapter[list[Annotation]](list[Annotation])
 
 
 @final
@@ -42,6 +43,7 @@ class _Waits:
     job_claim_timeout_ms: int = JOB_CLAIM_TIMEOUT_MS
     held_job_stall_ms: int = HELD_JOB_STALL_MS
     held_job_stall_check_ms: int = HELD_JOB_STALL_CHECK_MS
+    mark_commit_timeout_ms: int = MARK_COMMIT_TIMEOUT_MS
 
 
 def _timings(stated: Arguments) -> tuple[Timing, _Waits]:
@@ -49,10 +51,11 @@ def _timings(stated: Arguments) -> tuple[Timing, _Waits]:
     known = Timing()
     reconnect_ms, lazy_remove_ms, linger_ms = known.reconnect_ms, known.lazy_remove_ms, known.linger_ms
     waits = _Waits()
-    job_claim_timeout_ms, held_job_stall_ms, held_job_stall_check_ms = (
+    job_claim_timeout_ms, held_job_stall_ms, held_job_stall_check_ms, mark_commit_timeout_ms = (
         waits.job_claim_timeout_ms,
         waits.held_job_stall_ms,
         waits.held_job_stall_check_ms,
+        waits.mark_commit_timeout_ms,
     )
     for name in stated:
         match name:
@@ -68,6 +71,8 @@ def _timings(stated: Arguments) -> tuple[Timing, _Waits]:
                 held_job_stall_ms = count(stated, name)
             case "heldJobStallCheckMs":
                 held_job_stall_check_ms = count(stated, name)
+            case "markCommitTimeoutMs":
+                mark_commit_timeout_ms = count(stated, name)
             case _:
                 raise Misuse(f"this driver cannot override {name}")
     return (
@@ -79,7 +84,10 @@ def _timings(stated: Arguments) -> tuple[Timing, _Waits]:
             seen_event_ids_count=known.seen_event_ids_count,
         ),
         _Waits(
-            job_claim_timeout_ms=job_claim_timeout_ms, held_job_stall_ms=held_job_stall_ms, held_job_stall_check_ms=held_job_stall_check_ms
+            job_claim_timeout_ms=job_claim_timeout_ms,
+            held_job_stall_ms=held_job_stall_ms,
+            held_job_stall_check_ms=held_job_stall_check_ms,
+            mark_commit_timeout_ms=mark_commit_timeout_ms,
         ),
     )
 
@@ -158,10 +166,13 @@ class Worker:
         if self._client is not None:
             raise Misuse("a transport is already open")
         wire, self._waits = _timings(object_of(args, "timing") if "timing" in args else {})
-        # What a worker's stream names for its claims, and no more: this worker awaits nothing else.
-        transport = HttpTransport(
-            text(args, "baseUrl"), token=Variable[str | None](text(args, "token")), channels=list(JOB_CLAIM_CHANNELS), timing=wire
-        )
+        commits = args.get("commits", False)
+        if not isinstance(commits, bool):
+            raise Misuse("commits must be a boolean")
+        # What a worker's stream names for its claims, and for its commits when
+        # it will make any, and no more: this worker awaits nothing else.
+        channels = [*JOB_CLAIM_CHANNELS, *JOB_COMMIT_CHANNELS] if commits else list(JOB_CLAIM_CHANNELS)
+        transport = HttpTransport(text(args, "baseUrl"), token=Variable[str | None](text(args, "token")), channels=channels, timing=wire)
         self._transport = await self._held.enter_async_context(transport)
         self._client = await self._held.enter_async_context(SemiontClient(transport, transport.content, transport))
         self._reporters.create_task(self._states(transport))
@@ -199,6 +210,7 @@ class Worker:
             job_claim_timeout_ms=self._waits.job_claim_timeout_ms,
             held_job_stall_ms=self._waits.held_job_stall_ms,
             held_job_stall_check_ms=self._waits.held_job_stall_check_ms,
+            mark_commit_timeout_ms=self._waits.mark_commit_timeout_ms,
         )
         self._claims = claims
         self._telling.append(self._reporters.create_task(self._reading(claims)))
@@ -252,6 +264,19 @@ class Worker:
 
     async def checkpoint(self, _: int, args: Arguments) -> JsonValue:
         await self._holding().checkpoint(texts(args, "completedUnits"), _cursors(args))
+        return None
+
+    async def commit(self, _: int, args: Arguments) -> JsonValue:
+        """The held job commits for itself: it cites its own id, and remembers what the commit observed for its settle.
+
+        A case states an annotation as the wire carries one.
+        """
+        try:
+            resource = ResourceId(text(args, "resourceId"))
+        except InvalidIdentifier as error:
+            raise Misuse(f"resourceId is not a resource's id: {error}") from error
+        annotations = _as_the_suite_wrote_it(_ANNOTATIONS, args.get("annotations"), "annotations")
+        await self._holding().commit(resource, annotations)
         return None
 
     async def complete(self, _: int, args: Arguments) -> JsonValue:
@@ -323,6 +348,8 @@ class Worker:
             "start": Operation(self.start, in_turn=True),
             "progress": Operation(self.progress, in_turn=True),
             "checkpoint": Operation(self.checkpoint, in_turn=True),
+            # Not in turn: a commit settles when the record answers it, and the suite asks other things of the worker until then.
+            "commit": Operation(self.commit),
             "complete": Operation(self.complete, in_turn=True),
             "fail": Operation(self.fail, in_turn=True),
             "cancel": Operation(self.cancel, in_turn=True),

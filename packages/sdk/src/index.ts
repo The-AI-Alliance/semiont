@@ -50,6 +50,7 @@ export {
 export {
   ClaimsObservable,
   JOB_CLAIM_CHANNELS,
+  JOB_COMMIT_CHANNELS,
   willRetryAfter,
   type ClaimOptions,
   type ClaimRefusal,

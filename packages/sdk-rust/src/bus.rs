@@ -66,6 +66,17 @@ pub struct Operation {
     pub failure: &'static str,
 }
 
+impl Operation {
+    /// The operation `R` is the request of.
+    pub(crate) const fn of<R: Request>() -> Operation {
+        Operation {
+            request: R::NAME,
+            result: <R::Result as Channel>::NAME,
+            failure: <R::Failure as Channel>::NAME,
+        }
+    }
+}
+
 include!(concat!(env!("OUT_DIR"), "/operations.rs"));
 
 /// The operation `request` is the request of, as the registry declares it.
@@ -438,13 +449,8 @@ impl Bus {
         payload: &R::Payload,
         within: Duration,
     ) -> Result<<R::Result as Channel>::Payload, SemiontError> {
-        let operation = Operation {
-            request: R::NAME,
-            result: <R::Result as Channel>::NAME,
-            failure: <R::Failure as Channel>::NAME,
-        };
         let result = self
-            .result_of(&operation, payload_of(payload)?, within)
+            .result_of(&Operation::of::<R>(), payload_of(payload)?, within)
             .await?;
         decoded::<R::Result>(result.payload)
             .map_err(|why| TransportError::without_response(why, TransportErrorCode::Error).into())

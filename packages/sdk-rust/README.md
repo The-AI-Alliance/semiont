@@ -261,9 +261,18 @@ whole worker is shown, compiled and run, in
   before `complete`, since a completion carries what its verb reports.
   `start` comes first, and `progress` and `checkpoint` as often as there is
   something to say.
+- **A held job commits for itself.** `job.commit(&resource_id, annotations)`
+  sends the batch as `mark:commit`, citing the job, and returns once the
+  record has it. When no acknowledgement arrives it asks whether the batch's
+  last annotation is on the resource, and a commit that is not established
+  returns the failure of its unanswered request. A batch of no annotations
+  sends nothing. A worker that commits names `JOB_COMMIT_CHANNELS` in its
+  stream as well.
 - **A held job settles once.** `complete`, `fail` and `cancel` each take the
   job by value, say the outcome and let it go, so settling twice does not
-  compile.
+  compile. `complete` says how the job's commits were established, and
+  `fail` says what a commit that was not established observed: the job
+  remembers both, and the worker states neither.
 - **A job is never left.** One dropped unsettled is failed, and
   `claims.stop().await` fails the job the worker still holds. The queue then
   runs it again at once, where a job whose worker was killed waits for the

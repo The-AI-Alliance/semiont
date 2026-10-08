@@ -17,10 +17,10 @@ The moving parts:
 | `src/worker-main.ts` | Standalone entry point. Reads its configuration document, and starts one agent worker for each agent the document lists, all in its own process. |
 | `src/worker-config.ts` | The configuration document ([`WorkerConfig`](../../../specs/src/components/schemas/WorkerConfig.json)): where `--config` names it, reading it, and what the worker refuses to start on. It parses no TOML and defaults nothing. |
 | `src/worker-runtime.ts` | `startAgentWorker(options)` — signs in as one agent, opens its client, and calls `startWorkerProcess`. |
-| `src/worker-process.ts` | `startWorkerProcess(config)` — claims jobs with the SDK's `job.claim`, then `handleJobInner` dispatches by `jobType` and motivation to the right processor, commits annotations in acknowledged batches (`mark:commit`), and emits the lifecycle events. |
+| `src/worker-process.ts` | `startWorkerProcess(config)` — claims jobs with the SDK's `job.claim`, then `handleJobInner` dispatches by `jobType` and motivation to the right processor, and has the held job commit each batch of annotations (`job.commit`) and say the lifecycle. |
 | `src/processors.ts` | The `process*Job` functions. Content + inference + params in, `{ result }` out; annotations go out through the `onChunkComplete` callback as they are produced. No bus, no queue, no I/O except calling inference. |
 | `src/workers/annotation-detection.ts` | `AnnotationDetection` — the LLM detection logic the annotation processors call (`detectHighlights`, `detectComments`, `detectAssessments`, `detectTags`). |
-| `@semiont/sdk` | `job.claim` — asks the dispatcher for work over the bus and hands out each job the worker comes to hold. A held job says its own lifecycle and settles once. The worker never touches the queue itself. |
+| `@semiont/sdk` | `job.claim` — asks the dispatcher for work over the bus and hands out each job the worker comes to hold. A held job says its own lifecycle, commits its own annotations and settles once. The worker never touches the queue itself. |
 
 ## How a Worker Runs
 
@@ -142,14 +142,15 @@ If you need the resource's text, the worker process hands it to you; if you need
 
 ## How a Worker Emits
 
-The held job says the lifecycle, and `handleJobInner` asks it to; annotation commands go out on the client's transport:
+The held job says the lifecycle and commits the annotations, and `handleJobInner` asks it to:
 
 - `job:start` — once, when the job is picked up.
 - `job:report-progress` — driven by the processor's `onProgress` callback. The dispatcher stores it as the running job's `progress` and the UI renders it; Stower ignores it.
-- `mark:commit` — one **awaited batch per unit of work**: `{ resourceId, annotations, jobId }`. This is a `busRequest`, not a fire-and-forget emit — it resolves only after the Stower has appended every annotation to the event log, and only then does the unit count as complete. A job type that minted annotations without waiting for this acknowledgement would silently lose them whenever the persistence sink was down; a census test (`worker-process.test.ts`, "no job type persists without an acknowledgement") fails on any job type that tries.
+- `mark:commit` — one **awaited batch per unit of work**: `{ resourceId, annotations, jobId }`, sent by `job.commit(resourceId, annotations)`, which cites the job itself. This is a `busRequest`, not a fire-and-forget emit — it resolves only after the Stower has appended every annotation to the event log, and only then does the unit count as complete. A job type that minted annotations without waiting for this acknowledgement would silently lose them whenever the persistence sink was down; a census test (`worker-process.test.ts`, "no job type persists without an acknowledgement") fails on any job type that tries.
+- `browse:annotation-requested` — only when a commit is not acknowledged within `markCommitTimeoutMs`: the held job asks whether the batch's last annotation is on the resource. Answered with it, the commit is established, since a lost acknowledgement is not a lost batch. Otherwise `job.commit` rejects with the failure of its unanswered `mark:commit`, and the job fails.
 - `job:checkpoint` — after each committed chunk, carrying the completed units and each unfinished unit's cursor, so a crashed worker's retry resumes instead of re-paying.
-- `job:complete` — once, with the processor's `result`, **after** the final commit resolved.
-- `job:fail` — on error, with the message, the `failureClass`, and `willRetry`.
+- `job:complete` — once, with the processor's `result`, **after** the final commit resolved. The held job adds `durability`: the weakest of how its commits were established, `acknowledged` or `probe-confirmed`. A job that committed nothing states none.
+- `job:fail` — on error, with the message, the `failureClass`, and `willRetry`. When a commit was not established the held job adds `durability`, what that commit observed: `probe-refused` or `probe-unreachable`.
 
 The processor itself emits nothing. It calls `onProgress(percentage, message, extra?)`; the worker process turns each call into a `job:report-progress` event.
 
@@ -245,16 +246,16 @@ In `src/worker-process.ts`, add a branch to `handleJobInner`. `isHeldMark` says 
     ready!.text, inferenceClient, params,
     ready!.buildAnnotation, onProgress,
     // The durability write, per chunk, awaited. `commitChunk` calls
-    // `commitAnnotations(client, resourceId, annotations, jobId)` — the batch
-    // CITES the job, which is how the knowledge base derives who requested it —
-    // and only then records the unit's cursor. job:complete comes after: a
+    // `job.commit(resourceId, annotations)` — the batch CITES the job, which
+    // is how the knowledge base derives who requested it — and only then
+    // records the unit's cursor. job:complete comes after: a
     // success claim emitted first would report work that may never have persisted.
     commitChunk,
     job.unitCursors,
   );
   // The branch narrowed the job to a `mark` job, so the completion takes a
   // `mark` job's result. It says job:complete and releases the job together.
-  await job.complete(result, established());
+  await job.complete(result);
 }
 ```
 
@@ -276,7 +277,7 @@ job.start()
 prepareDetection()  (annotation jobs)
   ↓
 process<X>Job(...)  — YOUR LOGIC, reports via onProgress
-  ↓ per chunk: await mark:commit (acknowledged)  →  job.checkpoint(...)
+  ↓ per chunk: await job.commit(...) (acknowledged)  →  job.checkpoint(...)
   ↓ success
 job.complete(result)   — says job:complete, and the worker claims again
 

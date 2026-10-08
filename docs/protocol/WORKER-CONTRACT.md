@@ -139,11 +139,13 @@ matches one of them, or with `none-pending`.
 
 ## Committing annotations
 
-A worker that makes annotations commits them with `mark:commit`.
+A worker that makes annotations commits them with `mark:commit`, a batch at
+a time, for the job it holds. A held job commits for itself: an SDK's held job
+has the call, and what follows is what that call does.
 
 - **A1.** A commit by a worker cites the job it fulfils, in `jobId`. One
   that cites none is refused.
-  *Held by `tests/conformance/archivist/jobs.test.ts`.*
+  *Held by `worker/commit-acknowledged`, `tests/conformance/archivist/jobs.test.ts`.*
 - **A2.** A worker supplies the `id` of every annotation it commits. An
   annotation is recorded once, by its `id`: one whose `id` the resource
   already holds is not recorded again. So a worker derives each `id` from
@@ -154,6 +156,32 @@ A worker that makes annotations commits them with `mark:commit`.
   *Held by `tests/conformance/archivist/annotations.test.ts`, `packages/jobs/src/__tests__/annotation-idempotence.test.ts`.*
 - **A3.** An annotation committed with no `id` is not recorded.
   *Held by no case.*
+- **A4.** A commit is established when the record acknowledges it
+  (`mark:commit-ok`), and not before: the gateway taking the message says
+  nothing of the record. A worker waits for the acknowledgement, for
+  `markCommitTimeoutMs`, and counts nothing of the batch as done until it is
+  established. A batch of no annotations is no commit: nothing is sent.
+  *Held by `worker/commit-acknowledged`, `worker/commit-empty`.*
+- **A5.** When no acknowledgement arrives in that time, the worker asks
+  whether the batch's last annotation is on the resource
+  (`browse:annotation-requested`), and waits as long again for the answer.
+  The record appends a batch in order and stops at the first annotation it
+  cannot append, so the last being there says all of it is. Answered with the
+  annotation, the commit is established. Answered that it is not there, or not
+  answered, it is not, and the worker's commit fails with the failure of its
+  unanswered `mark:commit`. A commit the record refuses (`mark:commit-failed`)
+  fails with the record's reason, and nothing is asked.
+  *Held by `worker/commit-ack-lost`, `worker/commit-probe-refused`, `worker/commit-probe-unreachable`, `worker/commit-refused`.*
+- **A6.** A held job says how its commits were established, in `durability`,
+  when it settles, and it says what it observed, never a conclusion. Each
+  commit observes one of: `acknowledged`; `probe-confirmed`, established by
+  asking; `probe-refused`, answered that the annotation is not there;
+  `probe-unreachable`, not answered. The job remembers the weakest of them,
+  in that order, the last two being equally weak and the first of them seen
+  kept. `job:complete` states it. `job:fail` states it when it is one of the
+  last two, which is when a commit was not established. A job that committed
+  nothing, or whose only failed commit the record refused, states none.
+  *Held by `worker/commit-acknowledged`, `worker/commit-ack-lost`, `worker/commit-probe-refused`, `worker/commit-probe-unreachable`, `worker/commit-refused`, `worker/commit-empty`.*
 
 ## Cancellation
 

@@ -33,6 +33,7 @@ __all__ = [
     "JOB_STATUS_POLL_MS",
     "LAZY_REMOVE_MS",
     "LINGER_MS",
+    "MARK_COMMIT_TIMEOUT_MS",
     "MAX_RECONNECT_MS",
     "MIN_REFRESH_DELAY_MS",
     "RECONNECT_DEBOUNCE_MS",
@@ -169,6 +170,13 @@ HELD_JOB_STALL_MS: Final = 900000
 # How often a party that holds a job looks at how long it has shown no activity.
 HELD_JOB_STALL_CHECK_MS: Final = 60000
 
+# How long a worker waits for the record to acknowledge a commit of annotations (`mark:commit`),
+# and then, when no acknowledgement came, for the answer to its question whether the batch's
+# last annotation is on the resource (`browse:annotation-requested`). Generous beside an append,
+# since a batch is a unit's annotations and the record may be catching up, and finite, since a
+# wait on an acknowledgement that never comes would hold the job forever.
+MARK_COMMIT_TIMEOUT_MS: Final = 60000
+
 # How many times a worker asks for the anchored text of a PDF it has just yielded
 # (`browse:anchored-text-requested`) before it gives up on anchoring that PDF's citations. The
 # text is the Smelter's to derive and is not there the moment the resource is. Each ask is
@@ -212,6 +220,7 @@ TIMING_NAMES: Final[tuple[str, ...]] = (
     "jobClaimTimeoutMs",
     "heldJobStallMs",
     "heldJobStallCheckMs",
+    "markCommitTimeoutMs",
     "generatedTextAsksCount",
     "hoverDelayMs",
     "searchDebounceMs",

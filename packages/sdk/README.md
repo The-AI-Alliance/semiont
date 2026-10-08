@@ -188,6 +188,12 @@ claims.subscribe(async (job) => {
   agent its work is attributed to: `startAgentSession` does both, and keeps the token fresh.
 - **Its stream names `JOB_CLAIM_CHANNELS`**, and the reply channels of whatever else it
   awaits. A client whose stream does not is refused at once, as `bus.unsubscribed`.
+- **A held job commits for itself**: `job.commit(resourceId, annotations)` sends the batch
+  as `mark:commit`, citing the job, and resolves once the record has it. When no
+  acknowledgement arrives it asks whether the batch's last annotation is on the resource,
+  and a commit that is not established rejects with the failure of its unanswered request.
+  The job says how its commits were established when it settles. A worker that commits
+  names `JOB_COMMIT_CHANNELS` in its stream as well.
 - **A held job settles once**: `complete`, `fail` or `cancel`. Each says the outcome and
   lets the job go, and the worker claims the next. `claims.stop()` fails a job still held,
   so the queue runs it again at once.
@@ -212,7 +218,8 @@ is what a worker promises the dispatcher.
   body is absent, one item or a list, so a script checks none of that itself. One table,
   `specs/src/annotations/reader-cases.json`, holds every SDK's readers to the same answers.
 - **A worker's side of the job queue** — `job.claim`, the held jobs it hands out,
-  `startAgentSession` for a worker's sign-in, and `JOB_CLAIM_CHANNELS` for its stream.
+  `startAgentSession` for a worker's sign-in, and `JOB_CLAIM_CHANNELS` and
+  `JOB_COMMIT_CHANNELS` for its stream.
 - **Session layer** — `SemiontSession` (per-KB auth, proactive token refresh, lifecycle),
   `SemiontBrowser` (multi-KB orchestration), `SessionStorage` adapters, and the `httpKb`
   helper for endpoint shapes.

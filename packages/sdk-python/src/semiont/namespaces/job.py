@@ -14,7 +14,7 @@ from semiont.errors import BusRequestError
 from semiont.identifiers import JobId
 from semiont.namespaces.links import Links
 from semiont.operations import JOB_CANCEL_REQUESTED, JOB_STATUS_REQUESTED
-from semiont.timing import HELD_JOB_STALL_CHECK_MS, HELD_JOB_STALL_MS, JOB_CLAIM_TIMEOUT_MS
+from semiont.timing import HELD_JOB_STALL_CHECK_MS, HELD_JOB_STALL_MS, JOB_CLAIM_TIMEOUT_MS, MARK_COMMIT_TIMEOUT_MS
 from semiont.types import (
     JobCancelRequest,
     JobCompleteCommand,
@@ -96,15 +96,17 @@ class JobNamespace:
         job_claim_timeout_ms: int = JOB_CLAIM_TIMEOUT_MS,
         held_job_stall_ms: int = HELD_JOB_STALL_MS,
         held_job_stall_check_ms: int = HELD_JOB_STALL_CHECK_MS,
+        mark_commit_timeout_ms: int = MARK_COMMIT_TIMEOUT_MS,
     ) -> Claims:
         """A worker's side: claim the jobs `accepts` describes, and hold one at a time.
 
         Claiming begins when the claims are first read, and each job they
-        hand out says its own lifecycle and settles once
-        (docs/protocol/WORKER-CONTRACT.md). The transport's stream must name
-        `semiont.claims.JOB_CLAIM_CHANNELS`. The three waits are the values
-        of specs/src/client/timing.json unless a caller that must not wait
-        them out states others.
+        hand out says its own lifecycle, commits its own annotations and
+        settles once (docs/protocol/WORKER-CONTRACT.md). The transport's
+        stream must name `semiont.claims.JOB_CLAIM_CHANNELS`, and
+        `semiont.claims.JOB_COMMIT_CHANNELS` for a worker that commits. The
+        four waits are the values of specs/src/client/timing.json unless a
+        caller that must not wait them out states others.
         """
         return Claims(
             self._links.wire,
@@ -113,6 +115,7 @@ class JobNamespace:
             job_claim_timeout_ms=job_claim_timeout_ms,
             held_job_stall_ms=held_job_stall_ms,
             held_job_stall_check_ms=held_job_stall_check_ms,
+            mark_commit_timeout_ms=mark_commit_timeout_ms,
         )
 
     def cancel_request(self, job_type: JobType) -> None:

@@ -14,7 +14,7 @@
 
 import type { EventMap, JobFilter } from '@semiont/core';
 import { startWorkerProcess } from './worker-process';
-import type { MarkCommitAwaits, DescriptorReadAwaits, DurabilityProbeAwaits, GeneratedTextAwaits } from './worker-process';
+import type { DescriptorReadAwaits, GeneratedTextAwaits } from './worker-process';
 import type { ConsultAnchoredTextAwaits } from './workers/detection/prepare-detection';
 import { answerLimitsRequests, type InferenceClient, type LimitsSource } from '@semiont/inference';
 import {
@@ -29,6 +29,7 @@ import {
   HttpContentTransport,
   HttpTransport,
   JOB_CLAIM_CHANNELS,
+  JOB_COMMIT_CHANNELS,
   SemiontClient,
   startAgentSession,
   type WorkerVitals,
@@ -96,7 +97,7 @@ export function buildHealthPayload(workers: ReadonlyArray<{ vitals(): AgentVital
 }
 
 /**
- * The bus operations a worker process ever AWAITS a reply to. Reply channels
+ * The bus operations worker code itself AWAITS a reply to. Reply channels
  * are global fan-out on the gateway, so a full `BRIDGED_CHANNELS`
  * subscription makes every worker receive every other client's reply traffic
  * — measured at ~85 multi-MB `browse:annotations-result` frames/min, all
@@ -110,9 +111,11 @@ export function buildHealthPayload(workers: ReadonlyArray<{ vitals(): AgentVital
  * the operation named. `busRequest`'s `isSubscribed` probe remains the
  * runtime backstop for an await nobody declared — a loud `bus.unsubscribed`
  * at first use, never a silent 30 s timeout.
- * (`job:claim` is not here: the SDK awaits it, in `job.claim`, and
- * `JOB_CLAIM_CHANNELS` is its reply channels and the two broadcasts a
- * worker reads. `WORKER_CHANNELS` is the union of the two.)
+ * (What the SDK awaits is not here. `job:claim` is awaited in `job.claim`,
+ * and `JOB_CLAIM_CHANNELS` is its reply channels and the two broadcasts a
+ * worker reads. A held job's commit awaits `mark:commit`, and the question it
+ * asks when one goes unacknowledged, and `JOB_COMMIT_CHANNELS` is their
+ * reply channels. `WORKER_CHANNELS` is the union of all three.)
  */
 export const WORKER_AWAITED_OPERATIONS = [
   'browse:resource-requested',
@@ -122,16 +125,6 @@ export const WORKER_AWAITED_OPERATIONS = [
   // PDF detection job fails at the transport probe; the census below fails
   // the BUILD when this list and the declared awaits drift.
   'browse:anchored-text-requested',
-  // Durability acknowledgement for a unit's annotations. The worker AWAITS
-  // this one — a unit may not advance until its annotations are in the event
-  // log — so its replies must be in the narrow channel set or every commit
-  // fails fast with `bus.unsubscribed`.
-  'mark:commit',
-  // The durability probe for a commit whose acknowledgement never routed.
-  // SINGULAR by design: the annotation LIST channel is the multi-MB fan-out
-  // this narrowing exists to keep out, and a rare error path is no reason to
-  // let it in.
-  'browse:annotation-requested',
 ] as const satisfies readonly BusOperationKey[];
 
 /**
@@ -154,6 +147,10 @@ export const WORKER_ANSWERED_OPERATIONS = [
 // channel roster be wider than the registry.
 export const WORKER_CHANNELS: readonly (keyof EventMap)[] = [
   ...JOB_CLAIM_CHANNELS,
+  // A unit may not advance until its annotations are on the record, so every
+  // job that makes annotations commits: without these every commit fails
+  // fast with `bus.unsubscribed`.
+  ...JOB_COMMIT_CHANNELS,
   ...replyChannelsFor(WORKER_AWAITED_OPERATIONS),
 ];
 
@@ -173,8 +170,6 @@ export const WORKER_CHANNELS: readonly (keyof EventMap)[] = [
  */
 type DeclaredWorkerAwaits =
   | DescriptorReadAwaits       // worker-process.ts — the resource descriptor read
-  | MarkCommitAwaits           // worker-process.ts — the durability ack
-  | DurabilityProbeAwaits      // worker-process.ts — did the batch land?
   | GeneratedTextAwaits        // worker-process.ts — the text of a PDF just yielded
   | ConsultAnchoredTextAwaits; // prepare-detection.ts — canonical geometry
 
@@ -213,8 +208,8 @@ export async function startAgentWorker(
     token$: agent.token$,
     tokenRefresher: agent.refresh,
     // Only the channels this process reads — not the full bridged set. See
-    // WORKER_AWAITED_OPERATIONS. The agent that reports its pool's limits
-    // also subscribes the requests it answers.
+    // WORKER_CHANNELS. The agent that reports its pool's limits also
+    // subscribes the requests it answers.
     channels: reportsLimitsOf.length > 0 ? [...WORKER_CHANNELS, ...WORKER_ANSWERED_OPERATIONS] : WORKER_CHANNELS,
   });
   const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);

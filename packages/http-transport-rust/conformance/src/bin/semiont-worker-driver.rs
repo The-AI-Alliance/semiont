@@ -8,10 +8,12 @@
 //! out.
 
 use chrono::{DateTime, SecondsFormat, Utc};
-use semiont::claims::{ClaimOptions, ClaimTiming, Claims, HeldJob, JOB_CLAIM_CHANNELS, JobFailure};
+use semiont::claims::{
+    ClaimOptions, ClaimTiming, Claims, HeldJob, JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, JobFailure,
+};
 use semiont::client::{ClientOptions, SemiontClient};
 use semiont::transport::{ConnectionState, ResourceHold, Transport};
-use semiont::types::{JobProgress, ResourceId};
+use semiont::types::{Annotation, JobProgress, ResourceId};
 use semiont_conformance_drivers::{
     Arguments, Driver, Ended, Running, count, failure, identifier, locked, object, say, serve,
     text, texts,
@@ -113,6 +115,7 @@ impl Worker {
                 "jobClaimTimeoutMs" => worker.job_claim = ms(name)?,
                 "heldJobStallMs" => worker.held_job_stall = ms(name)?,
                 "heldJobStallCheckMs" => worker.held_job_stall_check = ms(name)?,
+                "markCommitTimeoutMs" => worker.mark_commit = ms(name)?,
                 other => {
                     return Err(Ended::Misuse(format!(
                         "this driver cannot override {other}"
@@ -120,20 +123,24 @@ impl Worker {
                 }
             }
         }
+        let commits = match args.get("commits") {
+            None => false,
+            Some(Value::Bool(commits)) => *commits,
+            Some(_) => return Err(Ended::Misuse("commits must be a boolean".to_owned())),
+        };
+        // What a worker's stream names for its claims, and for its commits
+        // when it will make any, and no more: this worker awaits nothing else.
+        let mut channels = JOB_CLAIM_CHANNELS.map(str::to_owned).to_vec();
+        if commits {
+            channels.extend(JOB_COMMIT_CHANNELS.map(str::to_owned));
+        }
         *locked(&self.timing) = worker;
         let (token, tokens) = watch::channel(Some(text(args, "token")?.to_owned()));
         let transport = HttpTransport::new(HttpTransportConfig {
             base_url: text(args, "baseUrl")?.to_owned(),
             token: tokens,
             refresher: None,
-            // What a worker's stream names for its claims, and no more: this
-            // worker awaits nothing else.
-            channels: Some(
-                JOB_CLAIM_CHANNELS
-                    .iter()
-                    .map(|&name| name.to_owned())
-                    .collect(),
-            ),
+            channels: Some(channels),
             http: reqwest::Client::new(),
             timing,
             bookmarks: None,
@@ -297,6 +304,24 @@ impl Worker {
                 job.checkpoint(units, cursors).await?;
                 Ok(Value::Null)
             }
+            // The held job commits for itself: it cites its own id, and
+            // remembers what the commit observed for its settle. A case
+            // states an annotation as the wire carries one.
+            "commit" => {
+                let resource: ResourceId = identifier(&args, "resourceId")?;
+                let annotations: Vec<Annotation> = typed(
+                    args.get("annotations").ok_or_else(|| {
+                        Ended::Misuse("annotations must be a list of annotations".to_owned())
+                    })?,
+                    "annotations",
+                )?;
+                let held = self.held.lock().await;
+                let job = held
+                    .as_ref()
+                    .ok_or_else(|| Ended::Misuse("the worker holds no job".to_owned()))?;
+                job.commit(&resource, annotations).await?;
+                Ok(Value::Null)
+            }
             // A completion is its verb's, so the verb is matched before the
             // result is given. A case states a result as the wire carries
             // one, and the gateway refuses one that is the other verb's.
@@ -305,8 +330,8 @@ impl Worker {
                     .get("result")
                     .ok_or_else(|| Ended::Misuse("result must be an object".to_owned()))?;
                 match self.settling().await? {
-                    HeldJob::Mark(job) => job.complete(typed(result, "result")?, None).await?,
-                    HeldJob::Yield(job) => job.complete(typed(result, "result")?, None).await?,
+                    HeldJob::Mark(job) => job.complete(typed(result, "result")?).await?,
+                    HeldJob::Yield(job) => job.complete(typed(result, "result")?).await?,
                 }
                 Ok(Value::Null)
             }
@@ -315,7 +340,6 @@ impl Worker {
                     failure_class: optional(&args, "failureClass")?,
                     completed_units: optional(&args, "completedUnits")?,
                     unit_cursors: optional(&args, "unitCursors")?,
-                    durability: None,
                 };
                 let error = text(&args, "error")?.to_owned();
                 self.settling().await?.fail(error, failure).await?;
@@ -358,6 +382,7 @@ impl Driver for Worker {
         "start",
         "progress",
         "checkpoint",
+        "commit",
         "complete",
         "fail",
         "cancel",

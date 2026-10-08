@@ -16,6 +16,7 @@ import {
   HttpContentTransport,
   HttpTransport,
   JOB_CLAIM_CHANNELS,
+  JOB_COMMIT_CHANNELS,
   SemiontClient,
   type ClaimsObservable,
   type HeldJob,
@@ -62,7 +63,7 @@ function failure(error: unknown): { code?: string; status?: number; detail: stri
 
 /** The entries of specs/src/client/timing.json this driver can override: the transport's, and a worker's. */
 const TRANSPORT_TIMING = ['reconnectMs', 'lazyRemoveMs', 'lingerMs'] as const;
-const WORKER_TIMING = ['jobClaimTimeoutMs', 'heldJobStallMs', 'heldJobStallCheckMs'] as const;
+const WORKER_TIMING = ['jobClaimTimeoutMs', 'heldJobStallMs', 'heldJobStallCheckMs', 'markCommitTimeoutMs'] as const;
 
 let transport: HttpTransport | undefined;
 let client: SemiontClient | undefined;
@@ -104,12 +105,15 @@ const operations: Record<string, (args: Arguments) => Promise<unknown> | unknown
     for (const name of Object.keys(timing)) {
       if (![...TRANSPORT_TIMING, ...WORKER_TIMING].some((known) => known === name)) throw new Misuse(`this driver cannot override ${name}`);
     }
+    const commits = args['commits'] ?? false;
+    if (typeof commits !== 'boolean') throw new Misuse('commits must be a boolean');
     const token$ = new BehaviorSubject<AccessToken | null>(accessToken(text(args, 'token')));
     transport = new HttpTransport({
       baseUrl: baseUrl(text(args, 'baseUrl')),
       token$,
-      // What a worker's stream names for its claims, and no more: this worker awaits nothing else.
-      channels: JOB_CLAIM_CHANNELS,
+      // What a worker's stream names for its claims, and for its commits when
+      // it will make any, and no more: this worker awaits nothing else.
+      channels: commits ? [...JOB_CLAIM_CHANNELS, ...JOB_COMMIT_CHANNELS] : JOB_CLAIM_CHANNELS,
       ...(timing['reconnectMs'] === undefined ? {} : { reconnectMs: count(timing, 'reconnectMs') }),
       ...(timing['lazyRemoveMs'] === undefined ? {} : { lazyRemoveMs: count(timing, 'lazyRemoveMs') }),
       ...(timing['lingerMs'] === undefined ? {} : { lingerMs: count(timing, 'lingerMs') }),
@@ -139,6 +143,7 @@ const operations: Record<string, (args: Arguments) => Promise<unknown> | unknown
       ...(timing['jobClaimTimeoutMs'] === undefined ? {} : { jobClaimTimeoutMs: count(timing, 'jobClaimTimeoutMs') }),
       ...(timing['heldJobStallMs'] === undefined ? {} : { heldJobStallMs: count(timing, 'heldJobStallMs') }),
       ...(timing['heldJobStallCheckMs'] === undefined ? {} : { heldJobStallCheckMs: count(timing, 'heldJobStallCheckMs') }),
+      ...(timing['markCommitTimeoutMs'] === undefined ? {} : { markCommitTimeoutMs: count(timing, 'markCommitTimeoutMs') }),
     });
     claims = worker;
     worker.refused$.subscribe((refusal) => say({ refused: { ...(refusal.code === null ? {} : { code: refusal.code }), detail: refusal.message } }));
@@ -168,6 +173,15 @@ const operations: Record<string, (args: Arguments) => Promise<unknown> | unknown
     const { completedUnits, unitCursors } = checkpoint(args);
     if (completedUnits === undefined) throw new Misuse('a checkpoint states the units finished');
     await holding().checkpoint({ completedUnits, ...(unitCursors === undefined ? {} : { unitCursors }) });
+  },
+
+  // The held job commits for itself: it cites its own id, and remembers what
+  // the commit observed for its settle.
+  async commit(args) {
+    const annotations = args['annotations'];
+    if (!Array.isArray(annotations)) throw new Misuse('annotations must be a list of annotations');
+    // A case states an annotation as the wire carries one; the gateway holds the commit to the schema.
+    await holding().commit(resourceId(text(args, 'resourceId')), annotations as Parameters<HeldJob['commit']>[1]);
   },
 
   // A completion is its verb's, so the verb is narrowed before the result is

@@ -62,12 +62,13 @@ worker observes written as it happens.
 
 | `op` | Arguments | `ok` |
 |---|---|---|
-| `open` | `baseUrl`, `token`, `timing` | `null`. The stream it opens names what a worker's stream names; a case states which channels those are |
+| `open` | `baseUrl`, `token`, `timing`, and `commits` when the worker will commit annotations | `null`. The stream it opens names what a worker's stream names, and with `commits` the reply channels a commit awaits as well; a case states which channels those are |
 | `close` | | `null`, once the worker has stopped: a job it holds is failed first, and the stream is closed after |
 | `claim` | `accepts`: the filters of the jobs the worker takes | `null`. The worker begins claiming, and claims from then on at every idle moment |
 | `start` | | `null`. The held job's `job:start` |
 | `progress` | `percentage`, and `message` when given | `null` |
 | `checkpoint` | `completedUnits`, `unitCursors` | `null` |
+| `commit` | `resourceId`, `annotations` | `null`, once the batch is established for the held job. It fails when the batch is not established or the record refuses it |
 | `complete` | `result` | `null`. The held job is settled |
 | `fail` | `error`, and `failureClass`, `completedUnits`, `unitCursors` when given | `null`. The held job is settled; the worker says whether it will be retried |
 | `cancel` | `completedUnits` when given | `null`. The held job is settled as cancelled |
@@ -90,8 +91,8 @@ does: it says nothing more, of a job it holds or of anything else. Only
 `close` stops the worker. A case that ends with a job held therefore ends
 with no `job:fail`, and a driver that failed one there would fail the case.
 
-`open`'s `timing` overrides `jobClaimTimeoutMs`, `heldJobStallMs` and
-`heldJobStallCheckMs` of
+`open`'s `timing` overrides `jobClaimTimeoutMs`, `heldJobStallMs`,
+`heldJobStallCheckMs` and `markCommitTimeoutMs` of
 [`specs/src/client/timing.json`](../../../specs/src/client/timing.json)
 beside the transport's `reconnectMs`, `lazyRemoveMs` and `lingerMs`, so a
 case does not wait out ten seconds or fifteen minutes.
@@ -130,6 +131,11 @@ that is quiet has told the suite nothing the case has not read.
 | `vitals` | V1 |
 | `stall` | L2, V2 |
 | `stop-while-held` | L8 |
+| `commit-acknowledged` | A1, A4, A6 |
+| `commit-empty` | A4, A6 |
+| `commit-ack-lost` | A5, A6 |
+| `commit-probe-refused`, `commit-probe-unreachable` | A5, A6 |
+| `commit-refused` | A5, A6 |
 
 `npm run lint:transport-contract` holds the two to each other: every case is
 named by a rule of the contract, and a case's `source` names a section in
@@ -139,7 +145,7 @@ which a rule is held by it.
 
 | Rule | Why no case holds it |
 |---|---|
-| A1, A2, A3, committing annotations | No driver commits an annotation: building one is the work, which is the worker's own. What the record does with a commit is held by the [Archivist suite](../archivist/README.md). |
+| A2, A3, an annotation's `id` | The suite plays the record, so it cannot show what the record does with an `id`, or with none: that is held by the [Archivist suite](../archivist/README.md). And no driver builds an annotation: a case hands it one already made. |
 
 **For TypeScript, `handover` cannot fail by a fault in the worker.** Its
 transport reports no change of state when a stream hands over, so a worker is

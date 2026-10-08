@@ -480,9 +480,9 @@ export interface JobNamespace {
   /**
    * A worker's side: claim the jobs `options.accepts` describes, and hold one
    * at a time. Claiming begins when the claims are read, and each job they
-   * hand out says its own lifecycle and settles once
-   * (docs/protocol/WORKER-CONTRACT.md). The transport's stream must name
-   * `JOB_CLAIM_CHANNELS`.
+   * hand out says its own lifecycle, commits its own annotations and settles
+   * once (docs/protocol/WORKER-CONTRACT.md). The transport's stream must name
+   * `JOB_CLAIM_CHANNELS`, and `JOB_COMMIT_CHANNELS` for a worker that commits.
    */
   claim(options: ClaimOptions): ClaimsObservable;
 

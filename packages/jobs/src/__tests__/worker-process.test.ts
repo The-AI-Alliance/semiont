@@ -17,14 +17,17 @@
  * resource viewers filter the same global stream by `resourceId`.
  *
  * The worker runs on a `SemiontClient`. Tests use a fake client whose
- * transport captures bus emits and answers `mark:commit` and `job:claim`, a
+ * transport captures bus emits and answers `job:claim`, `mark:commit` and the
+ * question a held job asks of a commit nobody acknowledged
+ * (`browse:annotation-requested`), a
  * `client.browse.resourceRepresentation` double for detection's byte read, and
  * `client.yield.resource` capturing the multipart upload for generation. No
  * raw `fetch` involved.
  *
  * The job a test runs is a REAL held job: the fake transport answers the
  * SDK's own `job.claim` with the record the test states, so what a held job
- * emits, and when it is settled, is the SDK's doing and not this file's.
+ * emits, how it commits, and when it is settled, is the SDK's doing and not
+ * this file's.
  *
  * On failure the outer wrapper (startWorkerProcess) fails the held job,
  * which emits `job:fail`; we exercise that by letting a processor throw
@@ -39,7 +42,7 @@ import type { UnitCheckpoint } from '../processors';
 import { Subject, BehaviorSubject, map } from 'rxjs';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { JobNamespace, type HeldJob, type SemiontClient } from '@semiont/sdk';
-import { BusRequestError, EventBus, GENERATED_TEXT_ASKS_COUNT, HELD_JOB_STALL_CHECK_MS, HELD_JOB_STALL_MS, jobId, resourceId, userId, type EventMap, type ITransport, type UnitCursor } from '@semiont/core';
+import { EventBus, GENERATED_TEXT_ASKS_COUNT, HELD_JOB_STALL_CHECK_MS, HELD_JOB_STALL_MS, jobId, resourceId, userId, type EventMap, type ITransport, type UnitCursor } from '@semiont/core';
 import type { MarkMotivation } from '../types';
 import { recordJobOutcome, withSpan } from '@semiont/observability';
 import { handleJob, startWorkerProcess, type WorkerProcessConfig } from '../worker-process';
@@ -132,7 +135,7 @@ function makeFakeWorker() {
    *   silent     never arrived, so nothing appended, nothing answered
    *   fail       refused, nothing appended
    *
-   * `ack-lost` and `silent` are indistinguishable to the worker's `busRequest`
+   * `ack-lost` and `silent` are indistinguishable to the commit's `busRequest`
    * — both are a `bus.timeout` — and they are opposite truths about the data.
    * Telling them apart is what the durability probe is for, so the fake must
    * be able to be each.
@@ -192,6 +195,22 @@ function makeFakeWorker() {
         });
       }
     }
+    // The durability probe: the question a held job asks of a commit nobody
+    // acknowledged. Answered from what the log actually holds — the only
+    // evidence that can separate a lost acknowledgement from a lost batch —
+    // and refused when the annotation is absent, as the real read is
+    // (`browse:annotation-failed`, "Annotation not found"). `probeSink` plays
+    // the read being UNANSWERABLE, which is a different fact from the read
+    // answering "no" — `bus.timeout` versus `bus.rejected`, and opposite
+    // epistemic states.
+    if (channel === 'browse:annotation-requested' && probeSink.mode === 'answer') {
+      const correlationId = envelope?.correlationId as string;
+      const hit = landed.find((a) => String(a.id) === String(payload.annotationId));
+      queueMicrotask(() => {
+        if (hit) replyStream('browse:annotation-result').next({ correlationId, payload: { response: { annotation: hit, resource: null, resolvedResource: null } } });
+        else replyStream('browse:annotation-failed').next({ correlationId, payload: { message: 'Annotation not found' } });
+      });
+    }
     return 1;
   });
   const transport = {
@@ -223,23 +242,6 @@ function makeFakeWorker() {
       // they override it. Default is a benign settled answer.
       resourceAnchoredText: vi.fn(async (_rid: string) => ({
         kind: 'extracted', text: 'the content', items: [], method: 'pdf-text-layer',
-      })),
-      // The durability probe. What the log actually holds — the only
-      // evidence that can separate a lost acknowledgement from a lost batch.
-      // Rejects when absent, as the real read does
-      // (`browse:annotation-failed`, "Annotation not found").
-      annotation: vi.fn((_rid: string, aid: string) => ({
-        fresh: async () => {
-          // `probeSink` plays the read being UNANSWERABLE, which is a
-          // different fact from the read answering "no" — `bus.timeout`
-          // versus `bus.rejected`, and opposite epistemic states.
-          if (probeSink.mode === 'unreachable') {
-            throw new BusRequestError('Bus request timed out after 30000ms on browse:annotation-result', 'bus.timeout');
-          }
-          const hit = landed.find((a) => String(a.id) === String(aid));
-          if (!hit) throw new BusRequestError('Annotation not found', 'bus.rejected');
-          return hit;
-        },
       })),
     },
     yield: {
@@ -1077,7 +1079,7 @@ describe('handleJob orchestration', () => {
     // Each case stubs its OWN processor. `vi.clearAllMocks()` clears calls but
     // KEEPS implementations, so without this the four detection cases would pass
     // on a `mockResolvedValue` leaked from an earlier test in the file — and an
-    // un-stubbed processor returns undefined, whose empty batch `commitAnnotations`
+    // un-stubbed processor returns undefined, whose empty batch `job.commit`
     // correctly skips, so the census would assert against a job that never
     // minted anything. A gate that only holds when its neighbours run first is
     // not a gate.
@@ -1896,7 +1898,7 @@ describe('a lost acknowledgement is not a lost batch', () => {
   beforeEach(() => { vi.useFakeTimers(); });
   afterEach(() => { vi.useRealTimers(); });
 
-  /** Drive `handleJob` past `MARK_COMMIT_TIMEOUT_MS` without waiting a real minute. */
+  /** Drive `handleJob` past a commit's wait (`markCommitTimeoutMs`) without waiting a real minute. */
   async function runPastCommitTimeout(h: ReturnType<typeof makeFakeWorker>) {
     vi.mocked(processHighlightJob).mockImplementation(emitting({
       annotations: [{ id: 'a1' }, { id: 'a2' }] as never,
@@ -2013,9 +2015,11 @@ describe('the record says HOW durability was established', () => {
     setup(h);
     startWorkerProcess(makeConfig(h.client));
     h.offer(makeJob('highlighting'));
-    // Past the commit's 60 s bound on the fake clock; advanceTimersByTimeAsync
-    // flushes the detached promise chain startWorkerProcess runs the job on.
-    await vi.advanceTimersByTimeAsync(61_000);
+    // Past the commit's 60 s bound on the fake clock, and past the 60 s more
+    // it waits for an answer to its question when nobody gives one;
+    // advanceTimersByTimeAsync flushes the detached promise chain
+    // startWorkerProcess runs the job on.
+    await vi.advanceTimersByTimeAsync(121_000);
 
     return h.busEmits.find((e) => e.channel === 'job:fail')?.payload as Record<string, unknown> | undefined;
   }

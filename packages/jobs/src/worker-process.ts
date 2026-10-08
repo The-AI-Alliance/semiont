@@ -11,14 +11,15 @@
  * configured to serve.
  *
  * `job.claim` (`@semiont/sdk`) is the worker's side of the queue: the
- * claiming, and held jobs that say their own lifecycle and settle once
- * (docs/protocol/WORKER-CONTRACT.md). This file is the work: it runs each
- * job the claims hand out through its processor, and says how it went.
+ * claiming, and held jobs that say their own lifecycle, commit their own
+ * annotations and settle once (docs/protocol/WORKER-CONTRACT.md). This file
+ * is the work: it runs each job the claims hand out through its processor,
+ * and says how it went.
  */
 
 import { isHeldMark, type MarkMotivation } from './types';
 import type { ClaimsObservable, HeldJob, SemiontClient } from '@semiont/sdk';
-import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, findClaimSpan, capabilitiesOf, isObject, isString, jobMatchesFilter, MARK_MOTIVATIONS, GENERATED_TEXT_ASKS_COUNT, type AnnotationId, type JobFilter, type JobId, type ResourceId, busRequest, BusRequestError } from '@semiont/core';
+import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, findClaimSpan, capabilitiesOf, jobMatchesFilter, MARK_MOTIVATIONS, GENERATED_TEXT_ASKS_COUNT, type JobFilter, type ResourceId } from '@semiont/core';
 
 import type { InferenceClient } from '@semiont/inference';
 import type { Logger, components, AssembledAnnotation, Annotation, AnchoredText, UnitCursor } from '@semiont/core';
@@ -49,8 +50,6 @@ function motivationOf(job: Pick<HeldJob, 'jobType' | 'params'>): MarkMotivation 
 }
 
 type Agent = components['schemas']['Agent'];
-/** Derived from the spec; the wire owns this vocabulary. */
-type DurabilityEvidence = components['schemas']['DurabilityEvidence'];
 
 export interface WorkerProcessConfig {
   /**
@@ -85,42 +84,19 @@ export interface WorkerProcessConfig {
 
 /**
  * Census declarations (`WORKER_AWAITED_OPERATIONS`, worker-runtime.ts) for the
- * three operations THIS module awaits. The claim itself is the SDK's to
- * await, and its reply channels come with `JOB_CLAIM_CHANNELS`.
- * `MarkCommitAwaits` is tied to its call by a `satisfies`; the other two have
- * no operation literal to tie to — they await through the SDK
- * (`client.browse.*(...).fresh()`), whose
- * bus-backed methods do not carry their operation in their own type, so
- * their declarations are by convention.
+ * operations THIS module awaits. What the SDK awaits is the SDK's to name: a
+ * claim (`JOB_CLAIM_CHANNELS`), and a held job's commit
+ * (`JOB_COMMIT_CHANNELS`). Neither declaration has an operation literal to
+ * tie to: both await through the SDK (`client.browse.*`), whose bus-backed
+ * methods do not carry their operation in their own type, so the
+ * declarations are by convention.
  */
-export type MarkCommitAwaits = 'mark:commit';
 export type DescriptorReadAwaits = 'browse:resource-requested';
-/**
- * The durability probe: when a `mark:commit` acknowledgement times out, the
- * worker asks whether the batch's last annotation is on the resource before
- * declaring an outcome.
- *
- * Deliberately the SINGULAR read, not `browse:annotations-requested`. Reply
- * channels are global fan-out, and the annotation LIST channel is the one
- * measured at ~85 multi-MB frames/min — enough to OOM the worker, and the
- * reason `WORKER_CHANNELS` is narrow. Subscribing it to serve a rare error
- * path would undo that; one annotation's frame is small.
- */
-export type DurabilityProbeAwaits = 'browse:annotation-requested';
 /**
  * The read of a PDF this job has just yielded (`generatedPdfText`): the
  * operation detection's consult awaits, awaited here for the new resource.
  */
 export type GeneratedTextAwaits = 'browse:anchored-text-requested';
-
-/**
- * How long a unit's commit may take before the worker treats the sink as down.
- *
- * Generous relative to an append — the batch is one unit's annotations and the
- * Archivist may be catching up — but FINITE, which is the whole point: an
- * unbounded wait on a confirmation that never comes hangs the worker.
- */
-const MARK_COMMIT_TIMEOUT_MS = 60_000;
 
 /**
  * The text of a PDF this job has just yielded, with where each word is on its
@@ -167,121 +143,6 @@ async function generatedPdfText(
     }
   }
   return { absent: 'not-yet' };
-}
-
-/**
- * Persist a batch of annotations and WAIT for the event log to confirm it:
- * `mark:commit` replies only once the batch is in the log, and nothing counts
- * as complete before that.
- *
- * Every worker path that mints annotations goes through here. `mark:create` is
- * fire-and-forget: its emit resolves when the gateway accepts the frame, which
- * says nothing about the Stower having appended anything — so on that path a
- * down Archivist discards a job's whole output while the job reports success.
- * The emit timeout (`EMIT_TIMEOUT_MS`) stops such a path HANGING; only the
- * acknowledgement stops it LOSING.
- *
- * Empty is a no-op, not a round trip: a job that found nothing has nothing to
- * make durable, and the caller still proceeds.
- */
-async function commitAnnotations(
-  client: SemiontClient,
-  resourceId: ResourceId,
-  annotations: readonly { readonly id: AnnotationId }[],
-  jobId: JobId,
-): Promise<DurabilityEvidence | undefined> {
-  if (annotations.length === 0) return undefined;
-  try {
-    await busRequest(
-      client.transport,
-      'mark:commit' satisfies MarkCommitAwaits,
-      // The batch cites the job it fulfils. Who asked for these annotations is
-      // derived downstream from that job's own events; the worker never says.
-      { resourceId, annotations, jobId },
-      MARK_COMMIT_TIMEOUT_MS,
-    );
-    return 'acknowledged';
-  } catch (error) {
-    if (!(error instanceof BusRequestError) || error.code !== 'bus.timeout') throw error;
-    const evidence = await probeDurability(client, resourceId, annotations);
-    // The batch is in the log; only the acknowledgement was lost. Returning
-    // success here is the point of the probe — see `probeDurability`.
-    if (evidence === 'probe-confirmed') return evidence;
-    // Not established. The failure carries WHAT WAS OBSERVED out to the
-    // terminal record, which is the only place it can still be told.
-    throw new CommitDurabilityError(error.message, evidence, error);
-  }
-}
-
-/**
- * A commit that could not be established as durable, carrying the observation
- * out to `job:fail`.
- *
- * Subclasses nothing meaningful on purpose: `classifyFailure` recognises
- * neither this nor the `BusRequestError` it wraps, so both land `undefined` —
- * retryable. The message is the wrapped error's, so the persisted `error`
- * string is the same with or without the wrapper; this adds evidence beside
- * it rather than replacing it.
- */
-export class CommitDurabilityError extends Error {
-  override readonly name = 'CommitDurabilityError';
-  constructor(message: string, readonly durability: DurabilityEvidence, cause: unknown) {
-    super(message, { cause });
-  }
-}
-
-/**
- * Did the batch land?
- *
- * A lost `mark:commit-ok` says nothing about the event log: if the gateway
- * goes down after a batch is appended, the ack cannot route, and without the
- * probe the job reports FAILED over durable data — indistinguishable, to a
- * user, from having produced nothing. The outcome must follow the durable
- * fact, not the arrival of a message.
- *
- * Only the LAST annotation is probed, and that is sufficient rather than
- * approximate: `handleMarkCommit` appends a batch strictly in order and stops
- * at the first failure (`stower.ts`, pinned by
- * `stower-commit-idempotence.test.ts`), so the last id being present means every
- * earlier one is too. Probing all of them would be a round trip per
- * annotation; probing the list channel would subscribe the frames that OOM
- * the worker (see `DurabilityProbeAwaits`).
- *
- * Every non-answer — `'probe-refused'`, `'probe-unreachable'` — fails the
- * commit, which retries, and that asymmetry is deliberate. `mark:commit`
- * appends only the annotations the log does not already hold, so a needless
- * retry costs one re-run of the unit; a wrong `'probe-confirmed'` loses the
- * whole unit silently, which is the false success the acknowledgement
- * exists to prevent. An unreachable probe is neither yes nor no: it is a
- * third, INDETERMINATE state, named as such in the evidence and treated as
- * failure by the caller.
- */
-async function probeDurability(
-  client: SemiontClient,
-  resourceId: ResourceId,
-  annotations: readonly { readonly id: AnnotationId }[],
-): Promise<Exclude<DurabilityEvidence, 'acknowledged'>> {
-  const last = annotations[annotations.length - 1];
-  if (!last) return 'probe-unreachable';
-  try {
-    await client.browse
-      .annotation(resourceId, last.id)
-      .fresh();
-    return 'probe-confirmed';
-  } catch (error) {
-    // A failure REPLY (`bus.rejected`) means the read was answered and did not
-    // produce the annotation. That is not the same as "the annotations are
-    // absent" — a read that threw for its own reasons answers on the same
-    // channel — so the record says what was observed and lets the reader judge.
-    // Anything else (`bus.timeout`, `bus.closed`) means nobody answered.
-    // Discriminated STRUCTURALLY, on the code the error carries, not by
-    // `instanceof`: a second copy of @semiont/core anywhere in the tree makes
-    // the prototype check fail, and it would fail SILENTLY — degrading a
-    // refusal into "unreachable", which is the one distinction this field
-    // exists to make. (`vi.resetModules` produces exactly that.)
-    const code = isObject(error) && isString(error.code) ? error.code : undefined;
-    return code === 'bus.rejected' ? 'probe-refused' : 'probe-unreachable';
-  }
 }
 
 /**
@@ -371,7 +232,9 @@ export function startWorkerProcess(config: WorkerProcessConfig): ClaimsObservabl
           const unitCursors = unitCursorsByJob.get(job.jobId);
           // `job.fail` states `willRetry`: whether this failure is the END,
           // answered by the same table the queue applies. Without it a
-          // follower cannot tell a recovering run from a dead one.
+          // follower cannot tell a recovering run from a dead one. It also
+          // states what a commit that was not established observed, when the
+          // job made one: that is the held job's own to say.
           await job.fail(message, {
             ...(completedUnits && completedUnits.length > 0 ? { completedUnits } : {}),
             // Where each unfinished unit got to. Absent rather than `{}` when
@@ -379,10 +242,6 @@ export function startWorkerProcess(config: WorkerProcessConfig): ClaimsObservabl
             // tracked and none progressed.
             ...(unitCursors && Object.keys(unitCursors).length > 0 ? { unitCursors } : {}),
             ...(failureClass !== undefined ? { failureClass } : {}),
-            // What the commit path OBSERVED about durability, when the failure
-            // came from a commit at all. Present only on that path: absent means
-            // the question never arose, never that durability was ruled out.
-            ...(error instanceof CommitDurabilityError ? { durability: error.durability } : {}),
           });
         })
         // The failure itself could not be said. The job is released, and the
@@ -469,20 +328,13 @@ async function handleJobInner(
   // each globally, with the job's identity, its attempt, and the annotation a
   // generation job is anchored to. Start, complete and fail are recorded by
   // the Stower; progress is passed on and not recorded.
-
-  // What this job's commits ESTABLISHED, folded across every batch it makes
-  // (a reference job commits per unit; generation commits on two resources).
-  // Weakest wins: one batch rescued by the probe makes the whole completion a
-  // probe-confirmed claim, because that is the strongest thing still true of
-  // the job as a whole. Undefined until a batch actually commits — a job that
-  // mints nothing states nothing.
-  let durability: DurabilityEvidence | undefined;
-  const record = (evidence: DurabilityEvidence | undefined) => {
-    if (evidence === undefined) return;
-    if (durability === undefined || durability === 'acknowledged') durability = evidence;
-  };
-  /** What this job's commits established, as a settle states it. A job that committed nothing states nothing. */
-  const established = () => (durability ? { durability } : {});
+  //
+  // The held job commits for itself too (`job.commit`). Every path here that
+  // makes annotations commits them through it, a batch at a time, and waits
+  // for the record to have the batch; none emits `mark:create`, whose emit
+  // resolves when the gateway takes the frame and says nothing of the record.
+  // A reference job commits per chunk, and a generation on two resources. The
+  // job states how its commits were established when it settles.
 
   await job.start();
 
@@ -550,7 +402,7 @@ async function handleJobInner(
       // A genuine content decline (encrypted, corrupt, scanned-without-OCR,
       // empty) — the resource legitimately has nothing to detect over. A clean
       // completion carrying the reason, not a failure.
-      await job.complete({ declined: true, reason: source.declined }, established());
+      await job.complete({ declined: true, reason: source.declined });
       return;
     }
     ready = source;
@@ -584,7 +436,7 @@ async function handleJobInner(
    * re-runs that chunk into a log that dedupes it by id.
    */
   const commitChunk = async (annotations: Annotation[], checkpoint: UnitCheckpoint) => {
-    record(await commitAnnotations(client, resourceId, annotations, jobId));
+    await job.commit(resourceId, annotations);
     unitCursors.set(checkpoint.unit, checkpoint.cursor);
     // Published to the caller's accumulator as it moves: the failure path runs
     // OUTSIDE this function, so a cursor only this scope knows about would be
@@ -607,7 +459,7 @@ async function handleJobInner(
       // first attempt.
       job.unitCursors,
     );
-    await job.complete(result, established());
+    await job.complete(result);
 
   } else if (job.jobType === 'mark' && isHeldMark(params, 'commenting')) {
     const { result } = await processCommentJob(
@@ -619,7 +471,7 @@ async function handleJobInner(
       // Empty on a first attempt.
       job.unitCursors,
     );
-    await job.complete(result, established());
+    await job.complete(result);
 
   } else if (job.jobType === 'mark' && isHeldMark(params, 'assessing')) {
     const { result } = await processAssessmentJob(
@@ -631,7 +483,7 @@ async function handleJobInner(
       // Empty on a first attempt.
       job.unitCursors,
     );
-    await job.complete(result, established());
+    await job.complete(result);
 
   } else if (job.jobType === 'mark' && isHeldMark(params, 'linking')) {
     // Checkpointed resume. A retried claim skips the units earlier attempts
@@ -686,7 +538,7 @@ async function handleJobInner(
       await job.cancel(committed.length > 0 ? { completedUnits: [...committed] } : {});
       return;
     }
-    await job.complete(result, established());
+    await job.complete(result);
 
   } else if (job.jobType === 'mark' && isHeldMark(params, 'tagging')) {
     const { result } = await processTagJob(
@@ -698,7 +550,7 @@ async function handleJobInner(
       // Empty on a first attempt.
       job.unitCursors,
     );
-    await job.complete(result, established());
+    await job.complete(result);
 
   } else if (job.jobType === 'yield') {
     // Trust-boundary narrowing: params crossed the wire as untyped JSON. The
@@ -774,7 +626,7 @@ async function handleJobInner(
         },
         generator,
       );
-      record(await commitAnnotations(client, resourceId, [provenanceRef], jobId));
+      await job.commit(resourceId, [provenanceRef]);
     }
 
     // Inline citations: mint each as a linking annotation ON THE DERIVED
@@ -852,9 +704,9 @@ async function handleJobInner(
       }
     }
 
-    record(await commitAnnotations(client, newResourceId, citationRefs, jobId));
+    await job.commit(newResourceId, citationRefs);
 
-    await job.complete({ resourceId: newResourceId, resourceName: genResult.title, truncated: genResult.truncated }, established());
+    await job.complete({ resourceId: newResourceId, resourceName: genResult.title, truncated: genResult.truncated });
 
   } else {
     // A job this worker claims and cannot run: a tagging job handed over
