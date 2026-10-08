@@ -108,6 +108,12 @@ export interface JobClaimAdapterOptions {
    * `job:queued` wake-up is checked against. At least one.
    */
   accepts: JobFilter[];
+  /**
+   * `jobClaimTimeoutMs` of specs/src/client/timing.json, for a caller that
+   * must not wait it out: a test, or the conformance driver. Absent, the
+   * table's value stands.
+   */
+  jobClaimTimeoutMs?: number;
 }
 
 /**
@@ -199,7 +205,7 @@ type ClaimOutcome = { job: ActiveJob } | { declined: true } | { refused: ClaimRe
  * Attach job-claim behaviour to a shared bus.
  */
 export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaimAdapter {
-  const { bus, accepts } = options;
+  const { bus, accepts, jobClaimTimeoutMs = JOB_CLAIM_TIMEOUT_MS } = options;
 
   const activeJob$ = new BehaviorSubject<ActiveJob | null>(null);
   const isProcessing$ = new BehaviorSubject<boolean>(false);
@@ -232,7 +238,7 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
     // channel's schema. What is checked below is only that it names a job.
     let claimed: ClaimedJob;
     try {
-      claimed = await busRequest(bus, 'job:claim' satisfies JobClaimAwaits, { accepts }, JOB_CLAIM_TIMEOUT_MS);
+      claimed = await busRequest(bus, 'job:claim' satisfies JobClaimAwaits, { accepts }, jobClaimTimeoutMs);
     } catch (error) {
       // The reply's verdict, promoted to the client vocabulary by core. A
       // decline is the expected quiet outcome; everything else is the

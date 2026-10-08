@@ -11,7 +11,8 @@
     "test:gateway": "npm run typecheck && vitest run --project gateway",
     "test:dispatcher": "npm run typecheck && vitest run --project dispatcher",
     "test:archivist": "npm run typecheck && vitest run --project archivist",
-    "test:sdk": "npm run typecheck && vitest run --project sdk"
+    "test:sdk": "npm run typecheck && vitest run --project sdk",
+    "test:worker": "npm run typecheck && vitest run --project worker"
   },
   "devDependencies": {
     "@opentelemetry/api": "^1.9.1",

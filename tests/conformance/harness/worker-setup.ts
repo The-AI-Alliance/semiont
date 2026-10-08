@@ -1,0 +1,29 @@
+/**
+ * Once per worker run: refuse to start when a driver cannot run, so a missing
+ * build reads as that, never as every case failing — and type-check the
+ * TypeScript driver, because Node runs it with its types stripped and would
+ * run a mistyped one.
+ */
+import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import type { TestProject } from 'vitest/node';
+import { REPO_ROOT } from './paths';
+
+export default function setup(project: TestProject): void {
+  const drivers = project.getProvidedContext().sdkDrivers;
+  if (!drivers['typescript']?.worker) return;
+  // The worker driver runs the built worker package over the built transport.
+  for (const pkg of ['http-transport', 'jobs']) {
+    const built = join(REPO_ROOT, 'packages', pkg, 'dist/index.js');
+    if (!existsSync(built)) {
+      throw new Error(`The TypeScript worker is not built: ${built} does not exist. Run \`npm run build:packages\` at the repository root.`);
+    }
+  }
+  try {
+    execFileSync(join(REPO_ROOT, 'node_modules/.bin/tsc'), ['-p', join('packages', 'jobs', 'conformance')], { cwd: REPO_ROOT, stdio: 'pipe' });
+  } catch (error) {
+    const output = (error as { stdout?: Buffer }).stdout?.toString('utf8') ?? String(error);
+    throw new Error(`The TypeScript driver in packages/jobs/conformance does not type-check:\n${output}`);
+  }
+}

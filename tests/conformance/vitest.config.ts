@@ -47,6 +47,15 @@ export default defineConfig({
           globalSetup: ['harness/global-setup.ts', 'harness/sdk-setup.ts'],
         },
       },
+      {
+        extends: true,
+        test: {
+          name: 'worker',
+          include: ['worker/**/*.test.ts'],
+          provide: { gatewayCommand: GATEWAY_COMMAND, sdkDrivers: SDK_DRIVERS },
+          globalSetup: ['harness/global-setup.ts', 'harness/worker-setup.ts'],
+        },
+      },
     ],
   },
 });

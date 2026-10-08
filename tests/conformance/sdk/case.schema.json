@@ -500,6 +500,54 @@
               "type": "array"
             }
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "claimed"
+          ],
+          "properties": {
+            "claimed": {
+              "description": "A worker case: the next job the worker reports as claimed, as it read the record."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "refused"
+          ],
+          "properties": {
+            "refused": {
+              "description": "A worker case: the next refusal of a claim the worker reports."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "signalled"
+          ],
+          "properties": {
+            "signalled": {
+              "description": "A worker case: the next held job whose cancellation the worker says was signalled."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "stalled"
+          ],
+          "properties": {
+            "stalled": {
+              "description": "A worker case: the next held job the worker says has stalled."
+            }
+          }
         }
       ]
     }

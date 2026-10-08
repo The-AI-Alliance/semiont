@@ -398,6 +398,26 @@ describe('worker-runtime — stall watchdog', () => {
     watchdog.dispose();
   });
 
+  it('holds a job to the threshold and the cadence a caller states, in place of the table\'s', () => {
+    vi.useFakeTimers();
+    const exit = vi.fn();
+    const quiet = new Date(Date.now() - 2_000).toISOString();
+    const worker = {
+      vitals: () => vitalsWith({
+        activeJob: { jobId: jobId('j-quiet'), type: 'yield', since: quiet },
+        lastActivityAt: quiet,
+      }),
+    };
+
+    // Two seconds quiet is far inside the table's fifteen minutes, and past this caller's one.
+    const watchdog = startStallWatchdog({ workers: [worker], logger: noopLogger as unknown as Logger, exit, heldJobStallMs: 1_000, heldJobStallCheckMs: 100 });
+    vi.advanceTimersByTime(99);
+    expect(exit, 'not looked at before the stated cadence').not.toHaveBeenCalled();
+    vi.advanceTimersByTime(2);
+    expect(exit).toHaveBeenCalledWith(1);
+    watchdog.dispose();
+  });
+
   it('never fires for an idle agent, however old its timestamps', () => {
     vi.useFakeTimers();
     const exit = vi.fn();

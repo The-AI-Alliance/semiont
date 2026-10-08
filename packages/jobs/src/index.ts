@@ -43,4 +43,6 @@ export {
  * subscribe the REAL set rather than a hand-written list of the channel it is
  * testing.
  */
-export { WORKER_CHANNELS, WORKER_CONSUMED_BROADCASTS } from './worker-runtime';
+export { WORKER_CHANNELS, WORKER_CONSUMED_BROADCASTS, startStallWatchdog, type StallWatchdogOptions, type AgentVitals } from './worker-runtime';
+// Whether a failure will be tried again, which a worker states on `job:fail`.
+export { willRetryAfter } from './will-retry';

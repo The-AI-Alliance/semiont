@@ -357,6 +357,25 @@ describe('createJobClaimAdapter — the worker pulls when idle', () => {
     adapter.dispose();
   });
 
+  // WORKER-CONTRACT C10. The table's wait is ten seconds; a caller that must
+  // not wait it out states its own, as the transport's callers do.
+  it('(x) a claim nobody answers is given up after jobClaimTimeoutMs, reported, and the next wake-up claims', async () => {
+    const adapter = createJobClaimAdapter({ bus: h.bus, accepts: EVERYTHING, jobClaimTimeoutMs: 20 });
+    const refusals: ClaimRefusal[] = [];
+    adapter.refused$.subscribe((r) => refusals.push(r));
+    adapter.start();
+
+    await new Promise((r) => setTimeout(r, 80));
+    expect(refusals.map((r) => r.code)).toEqual(['bus.timeout']);
+    expect(await firstValueFrom(adapter.isProcessing$)).toBe(false);
+
+    h.pushEvent('job:queued', queued('yield'));
+    await tick();
+    expect(h.claims()).toHaveLength(2);
+
+    adapter.dispose();
+  });
+
   it('job:queued is in the worker MANIFEST — the adapter widens nothing', () => {
     // The worker's transport subscribes its manifest, NOT BRIDGED_CHANNELS,
     // so a `job:queued` missing from the manifest is a channel the adapter's

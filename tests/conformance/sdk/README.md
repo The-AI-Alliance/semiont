@@ -189,6 +189,9 @@ time it exits.
 
 ## A case
 
+The worker suite ([worker/README.md](../worker/README.md)) writes its cases in this
+format and runs them with this runner, adding four steps of its own.
+
 ```json
 {
   "about": "what the case holds a client to, in a sentence",

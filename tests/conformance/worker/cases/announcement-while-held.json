@@ -1,0 +1,23 @@
+{
+  "about": "an announcement that arrives while a job is held causes no claim; the worker claims when it settles",
+  "source": "docs/protocol/WORKER-CONTRACT.md § Claiming",
+  "steps": [
+    {"let": {"accepts": [{"jobType": "mark", "params": {"motivation": "highlighting"}}]}},
+    {"let": {"job": {"status": "running", "metadata": {"id": "job-1", "type": "mark", "userId": {"$var": "client"}, "created": "2026-01-01T00:00:00.000Z", "retryCount": 0, "maxRetries": 3}, "params": {"resourceId": {"$var": "r1"}, "motivation": "highlighting"}, "startedAt": "2026-01-01T00:00:01.000Z", "progress": {}}}},
+    {"backend": "listen", "with": {"channels": ["job:claim"]}},
+    {"driver": "open", "with": {"timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},
+    {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["job:cancel-requested", "job:claim-failed", "job:claimed", "job:queued"], "scoped": [], "pendingReplies": []}},
+    {"state": "open"},
+    {"driver": "claim", "with": {"accepts": {"$var": "accepts"}}},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "job:claim", "payload": {"accepts": {"$var": "accepts"}}, "correlationId": {"$var": "c1"}, "clientId": {"$var": "clientId"}}},
+    {"backend": "emit", "with": {"channel": "job:claimed", "correlationId": {"$var": "c1"}, "payload": {"response": {"$var": "job"}}}},
+    {"claimed": {"jobId": "job-1", "jobType": "mark", "resourceId": {"$var": "r1"}, "params": {"resourceId": {"$var": "r1"}, "motivation": "highlighting"}, "completedUnits": [], "unitCursors": {}, "retryCount": 0, "maxRetries": 3}},
+    {"backend": "emit", "with": {"channel": "job:queued", "payload": {"jobId": "job-9", "jobType": "mark", "resourceId": {"$var": "r2"}, "userId": {"$var": "client"}, "params": {"motivation": "highlighting"}}}},
+    {"quiet": 300},
+    {"driver": "complete", "with": {"result": {"found": 0, "persisted": 0}}},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "job:complete", "payload": {"resourceId": {"$var": "r1"}, "jobId": "job-1", "jobType": "mark", "attempt": 1, "result": {"found": 0, "persisted": 0}}, "clientId": {"$var": "clientId"}}},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "job:claim", "payload": {"accepts": {"$var": "accepts"}}, "correlationId": {"$var": "c2"}, "clientId": {"$var": "clientId"}}},
+    {"backend": "emit", "with": {"channel": "job:claim-failed", "correlationId": {"$var": "c2"}, "payload": {"message": "No pending job matches", "code": "none-pending"}}},
+    {"quiet": 200}
+  ]
+}

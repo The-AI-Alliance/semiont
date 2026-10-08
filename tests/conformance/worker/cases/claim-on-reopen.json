@@ -1,0 +1,20 @@
+{
+  "about": "a worker whose stream drops claims when it is open again",
+  "source": "docs/protocol/WORKER-CONTRACT.md § Claiming",
+  "steps": [
+    {"let": {"accepts": [{"jobType": "mark", "params": {"motivation": "highlighting"}}]}},
+    {"backend": "listen", "with": {"channels": ["job:claim"]}},
+    {"driver": "open", "with": {"timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},
+    {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["job:cancel-requested", "job:claim-failed", "job:claimed", "job:queued"], "scoped": [], "pendingReplies": []}},
+    {"state": "open"},
+    {"driver": "claim", "with": {"accepts": {"$var": "accepts"}}},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "job:claim", "payload": {"accepts": {"$var": "accepts"}}, "correlationId": {"$var": "c1"}, "clientId": {"$var": "clientId"}}},
+    {"backend": "emit", "with": {"channel": "job:claim-failed", "correlationId": {"$var": "c1"}, "payload": {"message": "No pending job matches", "code": "none-pending"}}},
+    {"backend": "cut"},
+    {"wire": "POST /bus/subscribe", "status": 200},
+    {"state": "open"},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "job:claim", "payload": {"accepts": {"$var": "accepts"}}, "correlationId": {"$var": "c2"}, "clientId": {"$var": "clientId"}}},
+    {"backend": "emit", "with": {"channel": "job:claim-failed", "correlationId": {"$var": "c2"}, "payload": {"message": "No pending job matches", "code": "none-pending"}}},
+    {"quiet": 200}
+  ]
+}

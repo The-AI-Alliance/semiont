@@ -154,10 +154,20 @@ export interface StallWatchdogOptions {
   logger: Logger;
   /** Test seam; defaults to process.exit. */
   exit?: (code: number) => void;
+  /**
+   * `heldJobStallMs` and `heldJobStallCheckMs` of
+   * specs/src/client/timing.json, for a caller that must not wait them out: a
+   * test, or the conformance driver. Absent, the table's values stand.
+   */
+  heldJobStallMs?: number;
+  heldJobStallCheckMs?: number;
 }
 
 export function startStallWatchdog(opts: StallWatchdogOptions): { dispose(): void } {
-  const { workers, logger, exit = (code: number) => process.exit(code) } = opts;
+  const {
+    workers, logger, exit = (code: number) => process.exit(code),
+    heldJobStallMs = HELD_JOB_STALL_MS, heldJobStallCheckMs = HELD_JOB_STALL_CHECK_MS,
+  } = opts;
 
   const timer = setInterval(() => {
     const now = Date.now();
@@ -166,7 +176,7 @@ export function startStallWatchdog(opts: StallWatchdogOptions): { dispose(): voi
       if (!v.activeJob || !v.lastActivityAt) continue;
 
       const silentForMs = now - Date.parse(v.lastActivityAt);
-      if (silentForMs <= HELD_JOB_STALL_MS) continue;
+      if (silentForMs <= heldJobStallMs) continue;
 
       logger.error('Worker stalled — exiting for restart', {
         provider: v.provider,
@@ -177,13 +187,13 @@ export function startStallWatchdog(opts: StallWatchdogOptions): { dispose(): voi
         processingSince: v.activeJob.since,
         lastActivityAt: v.lastActivityAt,
         silentForMs,
-        thresholdMs: HELD_JOB_STALL_MS,
+        thresholdMs: heldJobStallMs,
       });
       clearInterval(timer);
       exit(1);
       return;
     }
-  }, HELD_JOB_STALL_CHECK_MS);
+  }, heldJobStallCheckMs);
   timer.unref?.();
 
   return { dispose: () => clearInterval(timer) };
