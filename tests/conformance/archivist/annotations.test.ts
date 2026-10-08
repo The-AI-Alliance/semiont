@@ -84,21 +84,6 @@ withArchivist('an annotation', (world) => {
     expect(await grace.refused('browse:annotations-requested', { resourceId: 'e'.repeat(32) })).toBe(`Resource ${'e'.repeat(32)} not found in view storage`);
   });
 
-  it('reads back with the text around it', async () => {
-    const id = await resource(world(), 'In context');
-    const grace = await world().person('grace');
-    const annotationId = ((await grace.ask('mark:create-request', { resourceId: id, request: highlight(id, 'fox', 16) })) as { annotationId: string }).annotationId;
-
-    const context = await grace.ask('browse:annotation-context-requested', { resourceId: id, annotationId, contextBefore: 6, contextAfter: 6 });
-    expect(context['context']).toEqual({ before: 'brown ', selected: 'fox', after: ' jumps' });
-    expect(context).toMatchObject({ annotation: { id: annotationId }, resource: { '@id': id, name: 'In context' } });
-
-    const whole = await grace.ask('browse:annotation-context-requested', { resourceId: id, annotationId });
-    expect(whole['context']).toEqual({ before: TEXT.slice(0, 16), selected: 'fox', after: TEXT.slice(19) });
-
-    expect(await grace.refused('browse:annotation-context-requested', { resourceId: id, annotationId: 'f'.repeat(32) })).toBe('Annotation not found');
-  });
-
   it('records a batch once, however often it is sent', async () => {
     const id = await resource(world(), 'Committed');
     const importer = await world().person('importer');

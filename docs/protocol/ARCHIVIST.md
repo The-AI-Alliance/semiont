@@ -419,7 +419,6 @@ names no one.
 | `browse:annotation-requested` `{annotationId, resourceId}` | `{annotation, resource, resolvedResource}`: the annotation, its resource's descriptor, and the descriptor of the resource its body links to, if any. `Annotation not found` |
 | `browse:annotation-history-requested` `{annotationId, resourceId}` | `{events, total, annotationId, resourceId}`: the resource's events about that annotation, in sequence order. The annotation must be in the view: `Annotation not found` |
 | `browse:events-requested` `{resourceId, type?, userId?, limit?}` | `{events, total, resourceId}`: the resource's events in log order, filtered, then the first `limit`. Each event carries `agent`, its sender as an agent |
-| `browse:annotation-context-requested` `{annotationId, resourceId, contextBefore?, contextAfter?}` | `{annotation, context: {before, selected, after}, resource}`: the annotation's text and up to `contextBefore` and `contextAfter` characters around it (100 each when absent), counted in UTF-16 code units. Needs a `TextPositionSelector`: `TextPositionSelector required for context`. `Annotation not found`; `Resource not found`; `Resource content not found: no text for this media (not decoded, and no derived text yet)` |
 | `browse:anchored-text-requested` `{resourceId}` | The resource's anchored text; see below |
 | `browse:entity-types-requested` | `{entityTypes}` from `entitytypes.json` |
 | `browse:tag-schemas-requested` | `{tagSchemas}` from `tagschemas.json` |

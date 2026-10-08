@@ -2275,19 +2275,6 @@ type AnnotationBodyUpdatedPayload_Operations_Item struct {
 	union json.RawMessage
 }
 
-// AnnotationContextResponse defines model for AnnotationContextResponse.
-type AnnotationContextResponse struct {
-	Annotation Annotation `json:"annotation"`
-	Context    struct {
-		After    *string `json:"after,omitempty"`
-		Before   *string `json:"before,omitempty"`
-		Selected string  `json:"selected"`
-	} `json:"context"`
-
-	// Resource Metadata about a resource (1:1 with its URI). JSON-LD subject is @id. Link to concrete bytes via representations.
-	Resource ResourceDescriptor `json:"resource"`
-}
-
 // AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
 type AnnotationId = string
 
@@ -2623,17 +2610,6 @@ type BrowseAnchoredTextResult struct {
 	//
 	// Flat, one discriminant: every member carries `kind`, rather than nesting an outcome inside a status envelope and giving the wire two `kind` fields at different depths.
 	Response AnchoredTextAnswer `json:"response"`
-}
-
-// BrowseAnnotationContextRequest Request to get contextual text around an annotation
-type BrowseAnnotationContextRequest struct {
-	// AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
-	AnnotationId  AnnotationId `json:"annotationId"`
-	ContextAfter  *int         `json:"contextAfter,omitempty"`
-	ContextBefore *int         `json:"contextBefore,omitempty"`
-
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
-	ResourceId ResourceId `json:"resourceId"`
 }
 
 // BrowseAnnotationHistoryRequest Request to browse the history of an annotation

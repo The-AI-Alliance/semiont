@@ -35,8 +35,6 @@ __all__ = [
     "AnnotationBody",
     "AnnotationBodyUpdatedPayload",
     "AnnotationBodyUpdatedPayloadOperationsItem",
-    "AnnotationContextResponse",
-    "AnnotationContextResponseContext",
     "AnnotationGeneratorList",
     "AnnotationRemovedPayload",
     "AnnotationSelector",
@@ -73,7 +71,6 @@ __all__ = [
     "BrowseAgentsResultResponse",
     "BrowseAnchoredTextRequest",
     "BrowseAnchoredTextResult",
-    "BrowseAnnotationContextRequest",
     "BrowseAnnotationHistoryRequest",
     "BrowseAnnotationHistoryResult",
     "BrowseAnnotationRequest",
@@ -579,17 +576,6 @@ class BrowseAgentsRequest(WireModel, frozen=True):
     """
     Request to browse the KB's collaborator directory (its declared Agents)
     """
-
-
-class BrowseAnnotationContextRequest(WireModel, frozen=True):
-    """
-    Request to get contextual text around an annotation
-    """
-
-    annotation_id: Annotated[AnnotationId, Field(alias="annotationId")]
-    resource_id: Annotated[ResourceId, Field(alias="resourceId")]
-    context_before: Annotated[int | None, Field(alias="contextBefore", ge=0, le=5000)] = None
-    context_after: Annotated[int | None, Field(alias="contextAfter", ge=0, le=5000)] = None
 
 
 class BrowseAnnotationHistoryRequest(WireModel, frozen=True):
@@ -2676,12 +2662,6 @@ class WeaveApplied(WireModel, frozen=True):
             description="The resource-stream sequence of the last applied event.",
         ),
     ]
-
-
-class AnnotationContextResponseContext(WireModel, frozen=True):
-    before: str | None = None
-    selected: str
-    after: str | None = None
 
 
 type BindBodyOperationOp = Annotated[Literal["add", "remove", "replace"], Field(description="The type of body operation")]
@@ -5499,12 +5479,6 @@ class AnnotationAddedPayload(WireModel, frozen=True):
             description="SHA-256 of resource content at annotation time",
         ),
     ] = None
-
-
-class AnnotationContextResponse(WireModel, frozen=True):
-    annotation: Annotation
-    context: AnnotationContextResponseContext
-    resource: ResourceDescriptor
 
 
 class BrowseAnchoredTextResult(WireModel, frozen=True):

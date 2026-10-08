@@ -129,9 +129,6 @@
       "browse:annotation-history-requested",
       "browse:annotation-history-result",
       "browse:annotation-history-failed",
-      "browse:annotation-context-requested",
-      "browse:annotation-context-result",
-      "browse:annotation-context-failed",
       "browse:entity-types-requested",
       "browse:entity-types-result",
       "browse:entity-types-failed",
@@ -334,9 +331,6 @@
       "browse:annotation-history-requested",
       "browse:annotation-history-result",
       "browse:annotation-history-failed",
-      "browse:annotation-context-requested",
-      "browse:annotation-context-result",
-      "browse:annotation-context-failed",
       "browse:entity-types-requested",
       "browse:entity-types-result",
       "browse:entity-types-failed",
@@ -2400,50 +2394,6 @@
       }
     },
     {
-      "channel": "browse:annotation-context-requested",
-      "shape": "schema",
-      "schema": "BrowseAnnotationContextRequest",
-      "validate": "BrowseAnnotationContextRequest",
-      "docs": {
-        "lead": [
-          ""
-        ],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": ""
-      }
-    },
-    {
-      "channel": "browse:annotation-context-result",
-      "shape": "envelope",
-      "schema": "AnnotationContextResponse",
-      "validate": null,
-      "docs": {
-        "lead": [],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": "// { response: AnnotationContextResponse }"
-      }
-    },
-    {
-      "channel": "browse:annotation-context-failed",
-      "shape": "schema",
-      "schema": "CommandError",
-      "validate": null,
-      "docs": {
-        "lead": [],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": ""
-      }
-    },
-    {
       "channel": "browse:entity-types-requested",
       "shape": "schema",
       "schema": "BrowseEntityTypesRequest",
@@ -3712,17 +3662,6 @@
       }
     },
     {
-      "request": "browse:annotation-context-requested",
-      "result": "browse:annotation-context-result",
-      "failure": "browse:annotation-context-failed",
-      "docs": {
-        "lead": [
-          "  // dormant — handler registered, no client caller (annotation-detail capability)"
-        ],
-        "trailing": ""
-      }
-    },
-    {
       "request": "frame:add-entity-type",
       "result": "frame:entity-type-add-ok",
       "failure": "frame:entity-type-add-failed",
@@ -4201,7 +4140,6 @@
     "reads": [
       "browse:agents-requested",
       "browse:anchored-text-requested",
-      "browse:annotation-context-requested",
       "browse:annotation-history-requested",
       "browse:annotation-requested",
       "browse:annotations-requested",

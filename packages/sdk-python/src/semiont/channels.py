@@ -20,7 +20,6 @@ from typing import Final, Literal
 
 from semiont.channel import AnyChannel, Channel, Empty, Response, ScopedChannel
 from semiont.types import (
-    AnnotationContextResponse,
     BeckonFocusEvent,
     BeckonHoverEvent,
     BeckonSparkleEvent,
@@ -31,7 +30,6 @@ from semiont.types import (
     BrowseAgentsResult,
     BrowseAnchoredTextRequest,
     BrowseAnchoredTextResult,
-    BrowseAnnotationContextRequest,
     BrowseAnnotationHistoryRequest,
     BrowseAnnotationHistoryResult,
     BrowseAnnotationRequest,
@@ -168,9 +166,6 @@ __all__ = [
     "BROWSE_ANNOTATIONS_FAILED",
     "BROWSE_ANNOTATIONS_REQUESTED",
     "BROWSE_ANNOTATIONS_RESULT",
-    "BROWSE_ANNOTATION_CONTEXT_FAILED",
-    "BROWSE_ANNOTATION_CONTEXT_REQUESTED",
-    "BROWSE_ANNOTATION_CONTEXT_RESULT",
     "BROWSE_ANNOTATION_FAILED",
     "BROWSE_ANNOTATION_HISTORY_FAILED",
     "BROWSE_ANNOTATION_HISTORY_REQUESTED",
@@ -486,9 +481,6 @@ type ChannelName = Literal[
     "browse:annotation-history-requested",
     "browse:annotation-history-result",
     "browse:annotation-history-failed",
-    "browse:annotation-context-requested",
-    "browse:annotation-context-result",
-    "browse:annotation-context-failed",
     "browse:entity-types-requested",
     "browse:entity-types-result",
     "browse:entity-types-failed",
@@ -692,9 +684,6 @@ CHANNEL_NAMES: Final[tuple[ChannelName, ...]] = (
     "browse:annotation-history-requested",
     "browse:annotation-history-result",
     "browse:annotation-history-failed",
-    "browse:annotation-context-requested",
-    "browse:annotation-context-result",
-    "browse:annotation-context-failed",
     "browse:entity-types-requested",
     "browse:entity-types-result",
     "browse:entity-types-failed",
@@ -897,9 +886,6 @@ BROWSE_EVENTS_FAILED: Final = Channel[CommandError]("browse:events-failed", Comm
 BROWSE_ANNOTATION_HISTORY_REQUESTED: Final = Channel[BrowseAnnotationHistoryRequest]("browse:annotation-history-requested", BrowseAnnotationHistoryRequest)
 BROWSE_ANNOTATION_HISTORY_RESULT: Final = Channel[BrowseAnnotationHistoryResult]("browse:annotation-history-result", BrowseAnnotationHistoryResult)
 BROWSE_ANNOTATION_HISTORY_FAILED: Final = Channel[CommandError]("browse:annotation-history-failed", CommandError)
-BROWSE_ANNOTATION_CONTEXT_REQUESTED: Final = Channel[BrowseAnnotationContextRequest]("browse:annotation-context-requested", BrowseAnnotationContextRequest)
-BROWSE_ANNOTATION_CONTEXT_RESULT: Final = Channel[Response[AnnotationContextResponse]]("browse:annotation-context-result", Response[AnnotationContextResponse])
-BROWSE_ANNOTATION_CONTEXT_FAILED: Final = Channel[CommandError]("browse:annotation-context-failed", CommandError)
 BROWSE_ENTITY_TYPES_REQUESTED: Final = Channel[BrowseEntityTypesRequest]("browse:entity-types-requested", BrowseEntityTypesRequest)
 BROWSE_ENTITY_TYPES_RESULT: Final = Channel[BrowseEntityTypesResult]("browse:entity-types-result", BrowseEntityTypesResult)
 BROWSE_ENTITY_TYPES_FAILED: Final = Channel[CommandError]("browse:entity-types-failed", CommandError)
@@ -1104,9 +1090,6 @@ CHANNELS: Final[Mapping[str, AnyChannel]] = MappingProxyType(
         "browse:annotation-history-requested": BROWSE_ANNOTATION_HISTORY_REQUESTED,
         "browse:annotation-history-result": BROWSE_ANNOTATION_HISTORY_RESULT,
         "browse:annotation-history-failed": BROWSE_ANNOTATION_HISTORY_FAILED,
-        "browse:annotation-context-requested": BROWSE_ANNOTATION_CONTEXT_REQUESTED,
-        "browse:annotation-context-result": BROWSE_ANNOTATION_CONTEXT_RESULT,
-        "browse:annotation-context-failed": BROWSE_ANNOTATION_CONTEXT_FAILED,
         "browse:entity-types-requested": BROWSE_ENTITY_TYPES_REQUESTED,
         "browse:entity-types-result": BROWSE_ENTITY_TYPES_RESULT,
         "browse:entity-types-failed": BROWSE_ENTITY_TYPES_FAILED,
@@ -1212,8 +1195,6 @@ BRIDGED_CHANNELS: Final[tuple[ChannelName, ...]] = (
     "browse:kb-failed",
     "browse:directory-result",
     "browse:directory-failed",
-    "browse:annotation-context-result",
-    "browse:annotation-context-failed",
     "frame:entity-type-add-ok",
     "frame:entity-type-add-failed",
     "frame:tag-schema-add-ok",

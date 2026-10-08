@@ -67,7 +67,6 @@ const FROZEN_BRIDGED = [
   'browse:agents-result', 'browse:agents-failed',
   'browse:kb-result', 'browse:kb-failed',
   'browse:directory-result', 'browse:directory-failed',
-  'browse:annotation-context-result', 'browse:annotation-context-failed',
   'mark:delete-ok', 'mark:delete-failed',
   'mark:create-ok', 'mark:create-failed',
   'mark:commit-ok', 'mark:commit-failed',

@@ -2138,7 +2138,6 @@ version = "0.0.0"
 dependencies = [
  "axum",
  "chrono",
- "encoding_rs",
  "futures",
  "opentelemetry",
  "percent-encoding",

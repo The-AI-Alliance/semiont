@@ -38,14 +38,13 @@ pub const COMMANDS: [&str; 19] = [
 
 /// The reads, and the Smelter's signal: answered as they arrive, in no
 /// particular order.
-pub const READS: [&str; 16] = [
+pub const READS: [&str; 15] = [
     "browse:resource-requested",
     "browse:resources-requested",
     "browse:annotations-requested",
     "browse:annotation-requested",
     "browse:annotation-history-requested",
     "browse:events-requested",
-    "browse:annotation-context-requested",
     "browse:anchored-text-requested",
     "browse:entity-types-requested",
     "browse:tag-schemas-requested",
@@ -146,9 +145,6 @@ async fn handle(archivist: &Archivist, channel: &str, payload: &Object) -> Optio
             browse::annotation_history(archivist, payload).await
         }
         "browse:events-requested" => browse::events(archivist, payload).await,
-        "browse:annotation-context-requested" => {
-            browse::annotation_context(archivist, payload).await
-        }
         "browse:anchored-text-requested" => browse::anchored(archivist, payload).await,
         "browse:entity-types-requested" => browse::entity_types(archivist, payload).await,
         "browse:tag-schemas-requested" => browse::tag_schemas(archivist, payload).await,

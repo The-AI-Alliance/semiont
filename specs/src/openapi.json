@@ -123,9 +123,6 @@
       "AnnotationBodyUpdatedPayload": {
         "$ref": "components/schemas/AnnotationBodyUpdatedPayload.json"
       },
-      "AnnotationContextResponse": {
-        "$ref": "components/schemas/AnnotationContextResponse.json"
-      },
       "AnnotationId": {
         "$ref": "components/schemas/AnnotationId.json"
       },
@@ -179,9 +176,6 @@
       },
       "BrowseAgentsResult": {
         "$ref": "components/schemas/BrowseAgentsResult.json"
-      },
-      "BrowseAnnotationContextRequest": {
-        "$ref": "components/schemas/BrowseAnnotationContextRequest.json"
       },
       "BrowseAnnotationHistoryRequest": {
         "$ref": "components/schemas/BrowseAnnotationHistoryRequest.json"

@@ -393,15 +393,6 @@ const (
 	// not emittable (no registered schema)
 	BrowseAnnotationHistoryFailed Channel = "browse:annotation-history-failed"
 
-	// payload: BrowseAnnotationContextRequest
-	BrowseAnnotationContextRequested Channel = "browse:annotation-context-requested"
-
-	// not emittable (no registered schema)
-	BrowseAnnotationContextResult Channel = "browse:annotation-context-result"
-
-	// not emittable (no registered schema)
-	BrowseAnnotationContextFailed Channel = "browse:annotation-context-failed"
-
 	// payload: BrowseEntityTypesRequest
 	BrowseEntityTypesRequested Channel = "browse:entity-types-requested"
 
@@ -702,7 +693,6 @@ var ChannelSchemas = map[Channel]string{
 	BrowseEventsResult:               "BrowseEventsResult",
 	BrowseAnnotationHistoryRequested: "BrowseAnnotationHistoryRequest",
 	BrowseAnnotationHistoryResult:    "BrowseAnnotationHistoryResult",
-	BrowseAnnotationContextRequested: "BrowseAnnotationContextRequest",
 	BrowseEntityTypesRequested:       "BrowseEntityTypesRequest",
 	BrowseEntityTypesResult:          "BrowseEntityTypesResult",
 	BrowseTagSchemasRequested:        "BrowseTagSchemasRequest",

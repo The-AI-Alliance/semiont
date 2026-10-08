@@ -358,10 +358,6 @@ export type EventMap = {
   'browse:annotation-history-result': components['schemas']['BrowseAnnotationHistoryResult'];
   'browse:annotation-history-failed': components['schemas']['CommandError'];
 
-  'browse:annotation-context-requested': components['schemas']['BrowseAnnotationContextRequest'];
-  'browse:annotation-context-result': { response: components['schemas']['AnnotationContextResponse'] };
-  'browse:annotation-context-failed': components['schemas']['CommandError'];
-
   'browse:entity-types-requested': components['schemas']['BrowseEntityTypesRequest'];
   'browse:entity-types-result': components['schemas']['BrowseEntityTypesResult'];
   'browse:entity-types-failed': components['schemas']['CommandError'];
@@ -716,9 +712,6 @@ export const CHANNEL_SCHEMAS = {
   'browse:annotation-history-requested': 'BrowseAnnotationHistoryRequest',
   'browse:annotation-history-result': 'BrowseAnnotationHistoryResult',
   'browse:annotation-history-failed': null,
-  'browse:annotation-context-requested': 'BrowseAnnotationContextRequest',
-  'browse:annotation-context-result': null, // { response: AnnotationContextResponse }
-  'browse:annotation-context-failed': null,
   'browse:entity-types-requested':    'BrowseEntityTypesRequest',
   'browse:entity-types-result':       'BrowseEntityTypesResult',
   'browse:entity-types-failed':       null,
