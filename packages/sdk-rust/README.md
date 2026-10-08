@@ -235,6 +235,56 @@ if let Some(session) = session {
 }
 ```
 
+## A worker
+
+A worker claims jobs from a knowledge base's queue, does each one, and says
+what became of it. `client.job.claim` is its side of the queue. It is given
+what the worker accepts, each a `JobFilter`: the `mark` jobs of one
+motivation, or the `yield` jobs. The `Claims` it returns hand out the jobs
+the worker comes to hold, one at a time, and a held job says its own
+lifecycle.
+
+A worker signs in as an agent, which is the transport crate's to do, so a
+whole worker is shown, compiled and run, in
+[the transport's README](../http-transport-rust/README.md#a-daemon).
+
+- **Its stream names `JOB_CLAIM_CHANNELS`**, and the reply channels of
+  whatever else it awaits. The announcements that wake an idle worker reach
+  only a stream that names them, so a client whose stream does not is handed
+  one refusal, `Unsubscribed`, and claims nothing.
+- **It claims when it is idle**: when its claims are first read, each time a
+  job settles, when a job it accepts is announced, and when its stream opens
+  again. A claim answered with nothing pending is no refusal, and the worker
+  waits. `claims.next().await` gives the next held job, or the next claim
+  the dispatcher refused or did not answer.
+- **A held job is its verb's**: `HeldJob::Mark` or `HeldJob::Yield`, matched
+  before `complete`, since a completion carries what its verb reports.
+  `start` comes first, and `progress` and `checkpoint` as often as there is
+  something to say.
+- **A held job settles once.** `complete`, `fail` and `cancel` each take the
+  job by value, say the outcome and let it go, so settling twice does not
+  compile.
+- **A job is never left.** One dropped unsettled is failed, and
+  `claims.stop().await` fails the job the worker still holds. The queue then
+  runs it again at once, where a job whose worker was killed waits for the
+  dispatcher's sweep.
+- **`fail` says whether the queue will run the job again**
+  (`will_retry_after`), from the budget on the record the worker claimed and
+  the failure's class: `FailureClass::Deterministic` is a failure no second
+  attempt can change.
+- **A cancellation is signalled.** `job.cancelled()` turns true when a
+  cancellation names the held job: the work stops where it can, and says
+  `job.cancel(..)`.
+- **`claims.vitals()`** is what the worker can say of itself: when it last
+  heard an announcement, claimed, was active and settled, the job it holds,
+  and how many it has completed. **`claims.stalled()`** tells of a held job
+  that has shown no activity for fifteen minutes.
+
+What a worker promises the dispatcher is the
+[worker contract](../../docs/protocol/WORKER-CONTRACT.md), and
+[its conformance suite](../../tests/conformance/worker/README.md) holds this
+crate to it.
+
 ## What a method returns
 
 A method's return type says how to use it.

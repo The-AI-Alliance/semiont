@@ -2,7 +2,8 @@
 //! of its own source, runs them, and asserts that the README's fenced Rust
 //! blocks are those regions word for word: an example that stops compiling
 //! or stops doing what it says fails a test, and a block edited by hand in
-//! the README fails this.
+//! the README fails this. A document that shows some of those examples, as
+//! a skill does, is held the same way (`assert_blocks_are_examples`).
 //!
 //! A region is the lines between `// <readme:NAME>` and `// </readme:NAME>`,
 //! less their common indentation.
@@ -78,10 +79,8 @@ fn rust_blocks(markdown: &str) -> Vec<String> {
     blocks
 }
 
-/// Fail unless every fenced Rust block of `readme` is one of the regions
-/// marked in `sources`, word for word, and every region is shown. The
-/// failure says which block, or which region, is the odd one.
-pub fn assert_readme_shows(readme: &str, sources: &[&str]) -> Result<(), String> {
+/// The regions marked in `sources`, by name.
+fn marked(sources: &[&str]) -> Result<BTreeMap<String, String>, String> {
     let mut marked = BTreeMap::new();
     for source in sources {
         for (name, text) in regions(source)? {
@@ -90,13 +89,43 @@ pub fn assert_readme_shows(readme: &str, sources: &[&str]) -> Result<(), String>
             }
         }
     }
+    Ok(marked)
+}
+
+/// The first of `blocks` that is none of the regions `marked`.
+fn odd_one<'a>(blocks: &'a [String], marked: &BTreeMap<String, String>) -> Option<&'a String> {
+    blocks
+        .iter()
+        .find(|block| !marked.values().any(|region| region == *block))
+}
+
+/// Fail unless `document` shows a Rust block, and every fenced Rust block it
+/// shows is one of the regions marked in `sources`, word for word. It need
+/// not show them all: a README, which does, is held by `assert_readme_shows`.
+pub fn assert_blocks_are_examples(document: &str, sources: &[&str]) -> Result<(), String> {
+    let marked = marked(sources)?;
+    let blocks = rust_blocks(document);
+    if blocks.is_empty() {
+        return Err("the document shows no Rust block".to_owned());
+    }
+    match odd_one(&blocks, &marked) {
+        Some(block) => Err(format!(
+            "a Rust block is not an example that is compiled and run:\n{block}"
+        )),
+        None => Ok(()),
+    }
+}
+
+/// Fail unless every fenced Rust block of `readme` is one of the regions
+/// marked in `sources`, word for word, and every region is shown. The
+/// failure says which block, or which region, is the odd one.
+pub fn assert_readme_shows(readme: &str, sources: &[&str]) -> Result<(), String> {
+    let marked = marked(sources)?;
     let blocks = rust_blocks(readme);
-    for block in &blocks {
-        if !marked.values().any(|region| region == block) {
-            return Err(format!(
-                "a Rust block of the README is not an example that is compiled and run:\n{block}"
-            ));
-        }
+    if let Some(block) = odd_one(&blocks, &marked) {
+        return Err(format!(
+            "a Rust block of the README is not an example that is compiled and run:\n{block}"
+        ));
     }
     for (name, region) in &marked {
         if !blocks.contains(region) {
@@ -139,6 +168,27 @@ mod tests {
         assert!(
             failure.starts_with("the example \"one\" is not shown"),
             "{failure}"
+        );
+    }
+
+    #[test]
+    fn a_document_that_shows_some_of_the_examples_and_nothing_else_passes() {
+        const TWO: &str = "// <readme:one>\nlet x = 1;\n// </readme:one>\n// <readme:two>\nlet y = 2;\n// </readme:two>\n";
+        let skill = "A skill.\n\n```rust\nlet y = 2;\n```\n\n```python\ny = 2\n```\n";
+        assert_eq!(assert_blocks_are_examples(skill, &[TWO]), Ok(()));
+
+        let edited = "```rust\nlet y = 3;\n```\n";
+        let failure = assert_blocks_are_examples(edited, &[TWO]).expect_err("the block was edited");
+        assert!(
+            failure.starts_with("a Rust block is not an example"),
+            "{failure}"
+        );
+        assert!(failure.contains("let y = 3;"), "{failure}");
+
+        // A document held to the examples shows one: its Rust blocks gone is a failure, not a pass.
+        assert_eq!(
+            assert_blocks_are_examples("No code here.\n", &[TWO]),
+            Err("the document shows no Rust block".to_owned())
         );
     }
 

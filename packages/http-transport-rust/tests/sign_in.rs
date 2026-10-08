@@ -15,11 +15,14 @@ use axum::routing::{get, post};
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use bytes::Bytes;
+use semiont::claims::{ClaimOptions, HeldJob, JOB_CLAIM_CHANNELS, JobFailure};
 use semiont::client::ClientOptions;
 use semiont::discovery::{
     DiscoveryAbsentReason, DiscoveryRead, DiscoveryState, DiscoveryTransport,
 };
-use semiont::errors::{IdentityUnverifiableReason, SessionErrorCode, SignInError, SignInErrorCode};
+use semiont::errors::{
+    BusRequestErrorCode, IdentityUnverifiableReason, SessionErrorCode, SignInError, SignInErrorCode,
+};
 use semiont::session::{
     HttpEndpoint, KbEndpoint, KbTarget, KnowledgeBase, Protocol, SemiontBrowser,
     SemiontBrowserConfig, SemiontSession, SessionEndReason, StoredSession, save_knowledge_bases,
@@ -28,10 +31,13 @@ use semiont::session::{
 use semiont::sign_in_store::{FILE_NAME, SignInStore};
 use semiont::storage::{InMemorySessionStorage, SessionStorage};
 use semiont::testing::as_id;
-use semiont::testing::examples::assert_readme_shows;
+use semiont::testing::examples::{assert_blocks_are_examples, assert_readme_shows};
 use semiont::timing::{HTTP_REQUEST_TIMEOUT, REFRESH_RETRY};
 use semiont::transport::PutBinaryRequest;
-use semiont::types::JobCompleteCommand;
+use semiont::types::{
+    FailureClass, JobCompleteCommand, JobDetectionResult, JobProgress, MarkJobFilter,
+    MarkJobFilterParams, Motivation,
+};
 use semiont_http_transport::agent::{Agent, AgentToken};
 use semiont_http_transport::client::client;
 use semiont_http_transport::discovery::http_discovery;
@@ -103,6 +109,11 @@ struct Staged {
     /// What the gateway answers the other requests with: by request channel,
     /// the channel of the answer and its payload.
     answers: Mutex<HashMap<String, (String, Value)>>,
+    /// The jobs its queue hands a claim, in order. A claim made when none is
+    /// left is not answered.
+    claimable: Mutex<VecDeque<Value>>,
+    /// Every emit its bus accepted, in order.
+    emitted: Mutex<Vec<Value>>,
     /// What each stream was opened with.
     subscriptions: Mutex<Vec<Value>>,
     streams: Mutex<Vec<mpsc::UnboundedSender<Bytes>>>,
@@ -280,8 +291,12 @@ async fn emit(State(staged): State<Arc<Staged>>, headers: HeaderMap, body: Strin
         return StatusCode::BAD_REQUEST.into_response();
     }
     let sent: Value = serde_json::from_str(&body).expect("an emit");
+    staged.emitted.lock().unwrap().push(sent.clone());
     let asked = sent["channel"].as_str().unwrap_or_default();
-    let answer = if asked == "browse:kb-requested" {
+    let answer = if asked == "job:claim" {
+        let next = staged.claimable.lock().unwrap().pop_front();
+        next.map(|job| ("job:claimed".to_owned(), json!({ "response": job })))
+    } else if asked == "browse:kb-requested" {
         Some(match staged.describes.lock().unwrap().clone() {
             Describes::As(description) => (
                 "browse:kb-result".to_owned(),
@@ -453,6 +468,8 @@ impl World {
                 json!({ "name": "KB A", "domain": "example.org:kb-a", "gitBranch": "main" }),
             )),
             answers: Mutex::default(),
+            claimable: Mutex::default(),
+            emitted: Mutex::default(),
             subscriptions: Mutex::default(),
             streams: Mutex::default(),
             discovery: Mutex::new((404, "text/plain".to_owned(), String::new(), None)),
@@ -2447,6 +2464,84 @@ async fn a_daemon(
     Ok(())
 }
 
+async fn a_worker(
+    gateway: &str,
+    credential: Credential,
+    http: reqwest::Client,
+) -> Result<(), Box<dyn Error>> {
+    // <readme:worker>
+    // A worker signs in as a daemon does: with its service account, as the
+    // agent its work is attributed to.
+    let agent = AgentToken::sign_in(
+        gateway,
+        Agent {
+            provider: "ollama".to_owned(),
+            model: "gemma3:4b".to_owned(),
+        },
+        ServiceToken::new(credential, http.clone()),
+        http.clone(),
+    )
+    .await?;
+    println!("working as {}", agent.did());
+    let client = client(
+        HttpTransportConfig {
+            base_url: agent.gateway().to_owned(),
+            token: agent.token(),
+            refresher: Some(agent.clone()),
+            // Its stream names what claiming reads. This worker awaits
+            // nothing else, so it names nothing else.
+            channels: Some(JOB_CLAIM_CHANNELS.map(str::to_owned).to_vec()),
+            http,
+            timing: Timing::default(),
+            bookmarks: None,
+        },
+        ClientOptions::default(),
+    );
+
+    // What it accepts: the `mark` jobs of one motivation.
+    let highlighting = MarkJobFilter::new(MarkJobFilterParams {
+        motivation: Motivation::Highlighting,
+    });
+    let claims = client
+        .job
+        .claim(ClaimOptions::new(vec![highlighting.into()]));
+
+    // Each job the worker comes to hold, one at a time. The next is claimed
+    // when this one settles.
+    while let Some(handed) = claims.next().await {
+        match handed {
+            Ok(HeldJob::Mark(job)) => {
+                job.start().await?;
+                // Your work: read the resource, find the passages, commit them.
+                job.progress(JobProgress::new(50.0)).await?;
+                let result = JobDetectionResult::new(0, 0);
+                // A settle takes the job, so it cannot be settled twice. A
+                // job dropped unsettled is failed, and the queue retries it.
+                job.complete(result.into(), None).await?;
+            }
+            Ok(HeldJob::Yield(job)) => {
+                let never = JobFailure {
+                    failure_class: Some(FailureClass::Deterministic),
+                    ..JobFailure::default()
+                };
+                job.fail("this worker runs no yield job", never).await?;
+            }
+            Err(refusal) => {
+                eprintln!("claim refused: {}", refusal.message);
+                // This credential can never claim. Stop, so that whoever
+                // runs the worker sees it.
+                if refusal.code == Some(BusRequestErrorCode::Unauthorized) {
+                    break;
+                }
+            }
+        }
+    }
+    // Stopping fails a job the worker still holds.
+    claims.stop().await;
+    // </readme:worker>
+    Ok(())
+}
+
 async fn an_application(
     storage: Arc<dyn SessionStorage>,
     gateway: HttpEndpoint,
@@ -2670,6 +2765,85 @@ async fn the_daemon_signs_in_as_an_agent_and_is_given_each_completion() {
 }
 
 #[tokio::test]
+async fn the_worker_claims_as_its_agent_says_the_lifecycle_of_the_job_it_is_handed_and_claims_again()
+ {
+    let world = World::start().await;
+    world.answers([granted(&jwt(3600, 1), None)]);
+    world.staged.claimable.lock().unwrap().push_back(json!({
+        "status": "running",
+        "metadata": {
+            "id": "job-1", "type": "mark", "userId": "did:web:kb.example:users:u",
+            "created": "2026-01-01T00:00:00.000Z", "retryCount": 0, "maxRetries": 1,
+        },
+        "params": { "resourceId": "res-1", "motivation": "highlighting" },
+        "startedAt": "2026-01-01T00:00:01.000Z",
+        "progress": {},
+    }));
+    let running = tokio::spawn({
+        let (gateway, issuer, http) = (world.origin.clone(), world.issuer(), world.http.clone());
+        async move {
+            a_worker(
+                &gateway,
+                Credential {
+                    issuer,
+                    client_id: "my-worker".to_owned(),
+                    client_secret: "a-secret".to_owned(),
+                },
+                http,
+            )
+            .await
+            .map_err(|failed| failed.to_string())
+        }
+    });
+    let said = || -> Vec<String> {
+        let emitted = world.staged.emitted.lock().unwrap();
+        emitted
+            .iter()
+            .map(|emit| emit["channel"].as_str().unwrap_or_default().to_owned())
+            .collect()
+    };
+    // Settling the job is an idle moment, and so the next claim.
+    until("the worker's second claim", || {
+        said()
+            .iter()
+            .filter(|channel| *channel == "job:claim")
+            .count()
+            == 2
+    })
+    .await;
+
+    assert_eq!(
+        said(),
+        [
+            "job:claim",
+            "job:start",
+            "job:report-progress",
+            "job:complete",
+            "job:claim"
+        ]
+    );
+    let emitted = world.staged.emitted.lock().unwrap().clone();
+    assert_eq!(
+        emitted[0]["payload"],
+        json!({ "accepts": [{ "jobType": "mark", "params": { "motivation": "highlighting" } }] })
+    );
+    assert_eq!(emitted[1]["payload"]["jobId"], "job-1");
+    assert_eq!(
+        emitted[3]["payload"]["result"],
+        json!({ "found": 0, "persisted": 0 })
+    );
+    // Its stream names what claiming reads, and nothing else.
+    assert_eq!(
+        world.staged.subscriptions.lock().unwrap()[0]["global"],
+        json!(JOB_CLAIM_CHANNELS)
+    );
+    // Stopped while it holds nothing, it has failed nothing.
+    assert!(!running.is_finished());
+    running.abort();
+    assert!(!said().iter().any(|channel| channel == "job:fail"));
+}
+
+#[tokio::test]
 async fn the_application_signs_a_person_in_through_the_loopback_redirect() {
     let world = World::start().await;
     let storage = Arc::new(InMemorySessionStorage::new());
@@ -2700,4 +2874,15 @@ async fn the_application_signs_a_person_in_through_the_loopback_redirect() {
 fn every_rust_block_of_the_readme_is_an_example_that_ran_here() {
     assert_readme_shows(include_str!("../README.md"), &[include_str!("sign_in.rs")])
         .unwrap_or_else(|odd| panic!("{odd}"));
+}
+
+/// The `semiont-worker` skill shows a worker in Rust. What it shows is the
+/// worker that ran here.
+#[test]
+fn every_rust_block_of_the_worker_skill_is_an_example_that_ran_here() {
+    assert_blocks_are_examples(
+        include_str!("../../../docs/builder/skills/semiont-worker/SKILL.md"),
+        &[include_str!("sign_in.rs")],
+    )
+    .unwrap_or_else(|odd| panic!("{odd}"));
 }

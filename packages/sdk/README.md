@@ -147,7 +147,8 @@ Methods return one of: `Promise<T>` (atomic gateway ops), `StreamObservable` /
 `DelegationObservable` (a delegated job — thenable, `await` resolves the job's completion, typed by its verb),
 `CacheObservable` (live queries — `.subscribe(...)` for `CacheState` emissions,
 `.fresh()` for the explicit network read; deliberately NOT thenable, so a cache read can
-never silently become a round trip), a count (wire drives — below), or `void` (local signals). The
+never silently become a round trip), `ClaimsObservable` (a worker's claims — below), a count
+(wire drives — below), or `void` (local signals). The
 per-method table and the `.run()` rule for progress-plus-result live in
 [`docs/builder/REACTIVE-MODEL.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/REACTIVE-MODEL.md).
 
@@ -161,6 +162,41 @@ their screens. Each of these wire drives resolves with how many clients it reach
 The `void` signals (`beckon.hover`, `bind.initiate`, `mark.request`) are different: they stay
 on one client's own bus, where its interface coordinates itself.
 
+## A worker
+
+A worker claims jobs from a knowledge base's queue, does each one, and says what became of
+it. `client.job.claim` is its side of the queue. It is given what the worker accepts, each a
+`JobFilter`: the `mark` jobs of one motivation, or the `yield` jobs. The `ClaimsObservable` it
+returns hands out the jobs the worker comes to hold, one at a time, and a held job says its
+own lifecycle.
+
+```ts
+const claims = client.job.claim({
+  accepts: [{ jobType: 'mark', params: { motivation: 'highlighting' } }],
+});
+claims.refused$.subscribe((refusal) => console.error(`claim refused: ${refusal.message}`));
+claims.subscribe(async (job) => {
+  // A completion is its verb's, so the verb is narrowed before `complete` is called.
+  if (job.jobType !== 'mark') return job.fail(`this worker runs no ${job.jobType} job`);
+  await job.start();
+  await job.progress({ percentage: 50 });
+  await job.complete({ found: 0, persisted: 0 });             // settles: the next job is claimed
+});
+```
+
+- **A worker is an agent.** Its process signs in with a service account and is given the
+  agent its work is attributed to: `startAgentSession` does both, and keeps the token fresh.
+- **Its stream names `JOB_CLAIM_CHANNELS`**, and the reply channels of whatever else it
+  awaits. A client whose stream does not is refused at once, as `bus.unsubscribed`.
+- **A held job settles once**: `complete`, `fail` or `cancel`. Each says the outcome and
+  lets the job go, and the worker claims the next. `claims.stop()` fails a job still held,
+  so the queue runs it again at once.
+
+The [`semiont-worker` skill](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/skills/semiont-worker/SKILL.md)
+is a whole worker, sign-in to shutdown, and
+[`docs/protocol/WORKER-CONTRACT.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/WORKER-CONTRACT.md)
+is what a worker promises the dispatcher.
+
 ## Any transport
 
 `SemiontClient` is built against the `ITransport` / `IContentTransport` contracts from
@@ -170,6 +206,8 @@ on one client's own bus, where its interface coordinates itself.
 
 - **`SemiontClient`** — the verb-oriented coordinator: the eight flow namespaces, plus `job`
   (always present) and `auth`/`system` (present when constructed with gateway operations).
+- **A worker's side of the job queue** — `job.claim`, the held jobs it hands out,
+  `startAgentSession` for a worker's sign-in, and `JOB_CLAIM_CHANNELS` for its stream.
 - **Session layer** — `SemiontSession` (per-KB auth, proactive token refresh, lifecycle),
   `SemiontBrowser` (multi-KB orchestration), `SessionStorage` adapters, and the `httpKb`
   helper for endpoint shapes.

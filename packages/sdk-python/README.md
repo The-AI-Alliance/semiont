@@ -348,6 +348,97 @@ async def watch(client: SemiontClient[Transport], resource: ResourceId) -> None:
 The behaviours every SDK's live queries are held to are numbered in
 [the cache's semantics][cache-semantics].
 
+## A worker
+
+A worker claims jobs from a knowledge base's queue, does each one, and says
+what became of it. `client.job.claim` is its side of the queue. It is given
+what the worker accepts, each a `JobFilter`: the `mark` jobs of one
+motivation, or the `yield` jobs. What it returns hands out the jobs the worker
+comes to hold, one at a time, and a held job says its own lifecycle.
+
+```python
+from semiont.claims import JOB_CLAIM_CHANNELS, ClaimRefusal, HeldMarkJob, HeldYieldJob
+from semiont.client import SemiontClient
+from semiont.http import AgentToken, Credential, HttpTransport, ServiceToken
+from semiont.types import JobDetectionResult, JobProgress, MarkJobFilter, MarkJobFilterParams
+
+
+async def highlight(job: HeldMarkJob) -> JobDetectionResult:
+    """Your work: read the resource, find the passages, commit them."""
+    await job.progress(JobProgress(percentage=50))
+    return JobDetectionResult(found=0, persisted=0)
+
+
+async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
+    # The process proves who it is at the issuer, and is given the agent its work is attributed to.
+    service = ServiceToken(Credential(issuer=issuer, client_id=client_id, client_secret=secret))
+    accepts = [MarkJobFilter(job_type="mark", params=MarkJobFilterParams(motivation="highlighting"))]
+    async with (
+        AgentToken(gateway, provider="ollama", model="gemma3:4b", service=service) as agent,
+        # Its stream names what claiming reads. This worker awaits nothing else, so it names nothing else.
+        HttpTransport(gateway, token=agent.token, refresher=agent.refresh, channels=JOB_CLAIM_CHANNELS) as transport,
+        SemiontClient(transport, transport.content, transport) as client,
+        # Leaving this block stops the worker: a job it still holds is failed first, and the queue retries it.
+        client.job.claim(accepts) as claims,
+    ):
+        # Each job the worker comes to hold, one at a time. The next is claimed when this one settles.
+        async for handed in claims:
+            match handed:
+                case ClaimRefusal(code="bus.unauthorized"):
+                    # This credential can never claim. Stop, so that whoever runs the worker sees it.
+                    raise PermissionError(handed.message)
+                case ClaimRefusal():
+                    print(f"claim refused: {handed.message}")
+                case HeldYieldJob():
+                    await handed.fail("this worker runs no yield job", failure_class="deterministic")
+                case HeldMarkJob():
+                    # A job left unsettled at the end of this block is failed.
+                    async with handed as job:
+                        await job.start()
+                        try:
+                            result = await highlight(job)
+                        except Exception as error:
+                            await job.fail(str(error))
+                        else:
+                            await job.complete(result)
+```
+
+- **A worker is an agent.** Its process signs in with a service account, and
+  the gateway gives it the agent its work is attributed to. The account needs
+  two roles at the issuer: `semiont-service`, to be given an agent, and
+  `semiont-worker`, without which every claim is refused as
+  `bus.unauthorized`.
+- **Its stream names `JOB_CLAIM_CHANNELS`**, and the reply channels of
+  whatever else it awaits. The announcements that wake an idle worker reach
+  only a stream that names them, so a client whose stream does not is refused
+  at its first claim, as `bus.unsubscribed`.
+- **It claims when it is idle**: when its stream opens, each time a job
+  settles, when a job it accepts is announced, and when its stream opens
+  again. A claim answered with nothing pending is no refusal, and the worker
+  waits. A `ClaimRefusal` is a claim the dispatcher refused or did not
+  answer.
+- **A held job settles once**: `complete`, with what its verb reports,
+  `fail`, or `cancel`. Each says the outcome and lets the job go, and a
+  second is refused. `start` comes first, and `progress` and `checkpoint` as
+  often as there is something to say.
+- **A job is never left.** `async with job` fails a job its block left
+  unsettled, and leaving the claims' block stops the worker, which fails the
+  job it still holds. The queue then runs it again at once, where a job whose
+  worker was killed waits for the dispatcher's sweep.
+- **`fail` says whether the queue will run the job again**, from the budget
+  on the record the worker claimed and the failure's class:
+  `failure_class="deterministic"` is a failure no second attempt can change.
+- **A cancellation is signalled.** `job.cancelled` becomes true when a
+  cancellation names the held job: the work stops where it can, and says
+  `await job.cancel()`.
+- **`claims.vitals()`** is what the worker can say of itself: when it last
+  heard an announcement, claimed, was active and settled, the job it holds,
+  and how many it has completed. **`claims.stalled`** tells of a held job that
+  has shown no activity for fifteen minutes.
+
+What a worker promises the dispatcher is [the worker contract][worker-contract],
+and [its conformance suite][worker-conformance] holds this package to it.
+
 ## Testing what is built on it
 
 `semiont.testing` gives a real client over doubles. Its namespaces, its cache
@@ -594,6 +685,8 @@ Apache-2.0. See [LICENSE][license].
 [transport-http]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/TRANSPORT-HTTP.md
 [cache-semantics]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/CACHE-SEMANTICS.md
 [conformance]: https://github.com/The-AI-Alliance/semiont/blob/main/tests/conformance/sdk/README.md
+[worker-contract]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/WORKER-CONTRACT.md
+[worker-conformance]: https://github.com/The-AI-Alliance/semiont/blob/main/tests/conformance/worker/README.md
 [sdk-typescript]: https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/README.md
 [sdk-rust]: https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk-rust/README.md
 [launcher]: https://github.com/The-AI-Alliance/semiont/blob/main/apps/launcher/README.md

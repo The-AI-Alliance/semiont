@@ -1,6 +1,6 @@
 ---
 name: semiont-worker
-description: Build a job-claim worker daemon — claim jobs from the queue, process them, and report each one's lifecycle. Uses @semiont/sdk and @semiont/core.
+description: Build a job-claim worker daemon — claim jobs from the queue, process them, and report each one's lifecycle. In TypeScript on @semiont/sdk and @semiont/core, in Rust on the semiont and semiont-http-transport crates, or in Python on the semiont package.
 disable-model-invocation: false
 user-invocable: true
 allowed-tools: Bash, Read, Write, Glob, Grep
@@ -9,6 +9,8 @@ allowed-tools: Bash, Read, Write, Glob, Grep
 You are helping a user build a worker: a daemon that claims jobs from a Semiont knowledge base's queue, does each one, and reports the job's lifecycle so that whoever asked for it, and anyone watching, sees its progress and its outcome.
 
 It is the shape of Semiont's own `semiont-worker` service. A daemon that reacts to bus events instead of claiming queued work is a watcher, which is [`semiont-session`](../semiont-session/SKILL.md).
+
+The worker is built up below in TypeScript. [The same worker in Rust](#the-same-worker-in-rust) and [in Python](#the-same-worker-in-python) follow it. The queue, the lifecycle, who a worker is and what it promises are the same in all three.
 
 ## When to build one
 
@@ -255,6 +257,151 @@ main().catch((e) => {
 
 Let a job in hand finish before shutting down, or stop the claims, which fails it. A job whose worker simply died stays `running` until the dispatcher's sweep finds it with no progress or checkpoint for 30 minutes, and then re-queues it if its retry budget allows ([JOBS.md](../../../protocol/JOBS.md#periodic-work)).
 
+## The same worker in Rust
+
+The Rust SDK is two crates: `semiont`, whose client has `job.claim`, and `semiont-http-transport`, which signs the worker in. `AgentToken::sign_in` does both steps of [who a worker is](#who-a-worker-is), and keeps the agent's token fresh for as long as the process holds it.
+
+```rust
+// A worker signs in as a daemon does: with its service account, as the
+// agent its work is attributed to.
+let agent = AgentToken::sign_in(
+    gateway,
+    Agent {
+        provider: "ollama".to_owned(),
+        model: "gemma3:4b".to_owned(),
+    },
+    ServiceToken::new(credential, http.clone()),
+    http.clone(),
+)
+.await?;
+println!("working as {}", agent.did());
+let client = client(
+    HttpTransportConfig {
+        base_url: agent.gateway().to_owned(),
+        token: agent.token(),
+        refresher: Some(agent.clone()),
+        // Its stream names what claiming reads. This worker awaits
+        // nothing else, so it names nothing else.
+        channels: Some(JOB_CLAIM_CHANNELS.map(str::to_owned).to_vec()),
+        http,
+        timing: Timing::default(),
+        bookmarks: None,
+    },
+    ClientOptions::default(),
+);
+
+// What it accepts: the `mark` jobs of one motivation.
+let highlighting = MarkJobFilter::new(MarkJobFilterParams {
+    motivation: Motivation::Highlighting,
+});
+let claims = client
+    .job
+    .claim(ClaimOptions::new(vec![highlighting.into()]));
+
+// Each job the worker comes to hold, one at a time. The next is claimed
+// when this one settles.
+while let Some(handed) = claims.next().await {
+    match handed {
+        Ok(HeldJob::Mark(job)) => {
+            job.start().await?;
+            // Your work: read the resource, find the passages, commit them.
+            job.progress(JobProgress::new(50.0)).await?;
+            let result = JobDetectionResult::new(0, 0);
+            // A settle takes the job, so it cannot be settled twice. A
+            // job dropped unsettled is failed, and the queue retries it.
+            job.complete(result.into(), None).await?;
+        }
+        Ok(HeldJob::Yield(job)) => {
+            let never = JobFailure {
+                failure_class: Some(FailureClass::Deterministic),
+                ..JobFailure::default()
+            };
+            job.fail("this worker runs no yield job", never).await?;
+        }
+        Err(refusal) => {
+            eprintln!("claim refused: {}", refusal.message);
+            // This credential can never claim. Stop, so that whoever
+            // runs the worker sees it.
+            if refusal.code == Some(BusRequestErrorCode::Unauthorized) {
+                break;
+            }
+        }
+    }
+}
+// Stopping fails a job the worker still holds.
+claims.stop().await;
+```
+
+`gateway` is the gateway's origin as text, `credential` is the service account (a `Credential`: its issuer, client id and client secret), and `http` is the process's `reqwest::Client`. [The transport's README](../../../../packages/http-transport-rust/README.md#a-daemon) has what surrounds this block, and [the SDK's](../../../../packages/sdk-rust/README.md#a-worker) has the rules it keeps.
+
+What differs from TypeScript is what the language gives:
+
+- `claims.next().await` gives the next held job, or `Err` with a claim that was refused. A stream that does not name `JOB_CLAIM_CHANNELS` is one refusal, `Unsubscribed`, and then the claims end.
+- A held job is matched by its verb, `HeldJob::Mark` or `HeldJob::Yield`, before `complete` is called.
+- `complete`, `fail` and `cancel` take the job by value, so settling twice does not compile. A job dropped unsettled is failed.
+- `job.cancelled()` and `claims.stalled()` are `tokio::sync::watch` receivers: the first turns true when a cancellation names the held job, and the second holds the last stall.
+
+## The same worker in Python
+
+The Python SDK is one package, `semiont`. `AgentToken`, held with `async with`, does both steps of [who a worker is](#who-a-worker-is), and keeps the agent's token fresh until its block is left.
+
+```python
+from semiont.claims import JOB_CLAIM_CHANNELS, ClaimRefusal, HeldMarkJob, HeldYieldJob
+from semiont.client import SemiontClient
+from semiont.http import AgentToken, Credential, HttpTransport, ServiceToken
+from semiont.types import JobDetectionResult, JobProgress, MarkJobFilter, MarkJobFilterParams
+
+
+async def highlight(job: HeldMarkJob) -> JobDetectionResult:
+    """Your work: read the resource, find the passages, commit them."""
+    await job.progress(JobProgress(percentage=50))
+    return JobDetectionResult(found=0, persisted=0)
+
+
+async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
+    # The process proves who it is at the issuer, and is given the agent its work is attributed to.
+    service = ServiceToken(Credential(issuer=issuer, client_id=client_id, client_secret=secret))
+    accepts = [MarkJobFilter(job_type="mark", params=MarkJobFilterParams(motivation="highlighting"))]
+    async with (
+        AgentToken(gateway, provider="ollama", model="gemma3:4b", service=service) as agent,
+        # Its stream names what claiming reads. This worker awaits nothing else, so it names nothing else.
+        HttpTransport(gateway, token=agent.token, refresher=agent.refresh, channels=JOB_CLAIM_CHANNELS) as transport,
+        SemiontClient(transport, transport.content, transport) as client,
+        # Leaving this block stops the worker: a job it still holds is failed first, and the queue retries it.
+        client.job.claim(accepts) as claims,
+    ):
+        # Each job the worker comes to hold, one at a time. The next is claimed when this one settles.
+        async for handed in claims:
+            match handed:
+                case ClaimRefusal(code="bus.unauthorized"):
+                    # This credential can never claim. Stop, so that whoever runs the worker sees it.
+                    raise PermissionError(handed.message)
+                case ClaimRefusal():
+                    print(f"claim refused: {handed.message}")
+                case HeldYieldJob():
+                    await handed.fail("this worker runs no yield job", failure_class="deterministic")
+                case HeldMarkJob():
+                    # A job left unsettled at the end of this block is failed.
+                    async with handed as job:
+                        await job.start()
+                        try:
+                            result = await highlight(job)
+                        except Exception as error:
+                            await job.fail(str(error))
+                        else:
+                            await job.complete(result)
+```
+
+`gateway` is the gateway's origin and `issuer` is the issuer the knowledge base trusts. Nothing in the package reads the environment: the process reads its own `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`, and passes what it found. [The package's README](../../../../packages/sdk-python/README.md#a-worker) has the rules this program keeps.
+
+What differs from TypeScript is what the language gives:
+
+- `async for` over the claims gives each held job, or a `ClaimRefusal`. A stream that does not name `JOB_CLAIM_CHANNELS` raises at the first read, as `bus.unsubscribed`.
+- A held job is a `HeldMarkJob` or a `HeldYieldJob`, told apart before `complete` is called.
+- `async with job` fails a job its block left unsettled. Leaving the claims' block, or `await claims.aclose()`, stops the worker and fails the job it still holds.
+- `job.cancelled` and `claims.stalled` are watched values: `.value` now, and `async for` each value after it.
+- A process is stopped by cancelling the task that runs `work`: the blocks it leaves on the way out stop the worker and close the client.
+
 ## When a worker does nothing
 
 Set `SEMIONT_BUS_LOG=1` in the worker's environment. Every emit, reply and stream frame is then logged as one line, and the claim protocol can be read off the log:
@@ -271,6 +418,7 @@ semiont.state$.subscribe((state) => console.log(`connection: ${state}`));
 
 ## Guidance for the AI assistant
 
+- **Write the worker in the language of the user's project.** Take the TypeScript, the Rust or the Python worker above as it stands. Each is a program its SDK's tests compile and run, so do not translate one into another by hand: the names differ where the languages do.
 - **Worker or watcher.** A worker claims queued jobs. A watcher reacts to events and is [`semiont-session`](../semiont-session/SKILL.md). One process can be both.
 - **Say the whole lifecycle through the held job.** A job with no `job.start()` looks stuck, and one never settled is stuck until the dispatcher's sweep. Never emit a `job:*` message on the transport yourself.
 - **Settle every job, once.** Each held job ends in `job.complete(...)`, `job.fail(...)` or `job.cancel()`. The worker holds one job at a time and claims the next only when the one in hand settles.
