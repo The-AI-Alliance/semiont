@@ -51,8 +51,8 @@ import { PERSISTED_EVENT_TYPES } from '../persisted-events';
  * the bridged set.
  *
  * `job:queued` is deliberately absent: its audience is `declared`, so it
- * reaches only a client whose manifest names it — the worker
- * (`WORKER_CONSUMED_BROADCASTS` in @semiont/jobs).
+ * reaches only a client whose manifest names it — a worker
+ * (`JOB_CLAIM_CHANNELS` in @semiont/sdk).
  */
 const FROZEN_BRIDGED = [
   'browse:resources-result', 'browse:resources-failed',

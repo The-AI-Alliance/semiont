@@ -25,7 +25,6 @@
   "scripts": {
     "build": "npm run typecheck && tsup && tsc -p tsconfig.build.json && rollup -c rollup.dts.config.mjs && rm -rf dist-types",
     "typecheck": "tsc --noEmit",
-    "typecheck:conformance": "tsc -p conformance",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
   },

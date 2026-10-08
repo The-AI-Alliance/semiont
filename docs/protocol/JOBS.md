@@ -525,9 +525,9 @@ On `job:fail` (and on the sweep) a retry is allowed exactly when
 failureClass !== "deterministic"  and  retryCount < maxRetries
 ```
 
-evaluated on the record before the failure is applied. The predicate is `willRetryAfter` in
-[`will-retry.ts`](../../packages/jobs/src/will-retry.ts); the first-party worker evaluates the same
-function, on the record it claimed, to set `willRetry` on its `job:fail`. An absent `failureClass`
+evaluated on the record before the failure is applied. A worker evaluates the same predicate, on
+the record it claimed, to set `willRetry` on its `job:fail`: `willRetryAfter` in the TypeScript SDK
+([`claims.ts`](../../packages/sdk/src/claims.ts)), which a held job's `fail` applies. An absent `failureClass`
 counts as retryable. With the budgets set at admission, a `yield` job is never retried and a
 `mark` job is retried at most once.
 

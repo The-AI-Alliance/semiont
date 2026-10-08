@@ -2,25 +2,23 @@
  * Worker Process Entry Point
  *
  * One worker process serves a single software-agent identity — one
- * `(inferenceProvider, model)` pair. The session it owns is
- * authenticated *as that agent* (`/api/tokens/agent`), so every event
- * the worker emits attributes to the agent at the bus seat. Multiple
+ * `(inferenceProvider, model)` pair. The client it owns is signed in
+ * *as that agent* (`/api/tokens/agent`), so every event the worker emits
+ * is attributed to the agent at the bus seat. Multiple
  * agents on the same host run as multiple worker processes side by
  * side; their job-claim subscriptions don't interfere because each
  * agent only subscribes to the job types its inference engine is
  * configured to serve.
  *
- * `createJobClaimAdapter` handles the reactive contract (SSE
- * subscription, claim, completion tracking). This file wires the
- * job processors to the adapter and drives lifecycle emissions.
+ * `job.claim` (`@semiont/sdk`) is the worker's side of the queue: the
+ * claiming, and held jobs that say their own lifecycle and settle once
+ * (docs/protocol/WORKER-CONTRACT.md). This file is the work: it runs each
+ * job the claims hand out through its processor, and says how it went.
  */
 
-import { createJobClaimAdapter, type JobClaimAdapter, type ActiveJob } from './job-claim-adapter';
-import { willRetryAfter } from './will-retry';
 import { isHeldMark, type MarkMotivation } from './types';
-import type { SemiontSession } from '@semiont/sdk';
-import { type HttpTransport } from '@semiont/http-transport';
-import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, findClaimSpan, capabilitiesOf, isObject, isString, jobMatchesFilter, MARK_MOTIVATIONS, type AnnotationId, type EventMap, type JobFilter, type JobId, type ResourceId, busRequest, BusRequestError } from '@semiont/core';
+import type { ClaimsObservable, HeldJob, SemiontClient } from '@semiont/sdk';
+import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, findClaimSpan, capabilitiesOf, isObject, isString, jobMatchesFilter, MARK_MOTIVATIONS, type AnnotationId, type JobFilter, type JobId, type ResourceId, busRequest, BusRequestError } from '@semiont/core';
 
 import type { InferenceClient } from '@semiont/inference';
 import type { Logger, components, AssembledAnnotation, Annotation, UnitCursor } from '@semiont/core';
@@ -46,24 +44,9 @@ import {
  * message, a span, a metric's label. Undefined for a `yield` job, and for a
  * `mark` job whose params name none of the five.
  */
-function motivationOf(job: { type: string; params: Record<string, unknown> }): MarkMotivation | undefined {
-  if (job.type !== 'mark') return undefined;
+function motivationOf(job: Pick<HeldJob, 'jobType' | 'params'>): MarkMotivation | undefined {
+  if (job.jobType !== 'mark') return undefined;
   return MARK_MOTIVATIONS.find((motivation) => motivation === job.params.motivation);
-}
-
-/**
- * The ONE derivation of the annotation a job is attached to: the annotation a
- * `yield` job's context is focused on. A `yield` job focused on a resource
- * has none, and neither has a `mark` job.
- */
-export function referenceIdOf(job: { type: string; params: Record<string, unknown> }): AnnotationId | undefined {
-  if (job.type !== 'yield') return undefined;
-  const context = job.params.context as { focus?: { kind?: unknown; annotation?: { id?: AnnotationId } } } | undefined;
-  const focus = context?.focus;
-  if (focus?.kind === 'annotation' && typeof focus.annotation?.id === 'string') {
-    return focus.annotation.id;
-  }
-  return undefined;
 }
 
 type Agent = components['schemas']['Agent'];
@@ -72,10 +55,11 @@ type DurabilityEvidence = components['schemas']['DurabilityEvidence'];
 
 export interface WorkerProcessConfig {
   /**
-   * The session authenticated as this worker's software-agent identity.
-   * Bus emits through this session attribute to that agent.
+   * The client signed in as this worker's software-agent identity. What it
+   * emits is attributed to that agent, and its transport's stream names what
+   * a worker's names (`WORKER_CHANNELS`).
    */
-  session: SemiontSession;
+  client: SemiontClient;
   /**
    * The jobs this agent takes. Every job a worker claims runs through the
    * same inference engine — different inference engines mean different
@@ -87,19 +71,20 @@ export interface WorkerProcessConfig {
    * Test seam; defaults to `process.exit`. A claim the dispatcher refuses
    * because this credential is not a worker's can never succeed — the
    * process exits so the supervisor restarts it and the launcher's preflight
-   * names the repair, instead of parking forever in silence.
+   * names the repair, instead of parking forever in silence. A held job that
+   * stalls exits the same way.
    */
   exit?: (code: number) => void;
   /**
    * The agent (Software) record stamped onto annotations as `generator`
    * and onto resources as `wasAttributedTo`. Same identity that the
-   * session is authenticated as.
+   * client is signed in as.
    */
   generator: Agent;
   /**
    * The resource's bytes, for the detection extraction seam. Dials the
    * Archivist rather than the gateway — which is why it rides the config
-   * instead of coming off the session: the session's transport is pointed at
+   * instead of coming off the client: the client's transport is pointed at
    * the gateway, and this read should not be.
    */
   contentReads: ContentReads;
@@ -108,9 +93,11 @@ export interface WorkerProcessConfig {
 
 /**
  * Census declarations (`WORKER_AWAITED_OPERATIONS`, worker-runtime.ts) for the
- * three operations THIS module awaits. `MarkCommitAwaits` is tied to its call by
- * a `satisfies`; the other two have no operation literal to tie to — they
- * await through the SDK (`session.client.browse.*(...).fresh()`), whose
+ * three operations THIS module awaits. The claim itself is the SDK's to
+ * await, and its reply channels come with `JOB_CLAIM_CHANNELS`.
+ * `MarkCommitAwaits` is tied to its call by a `satisfies`; the other two have
+ * no operation literal to tie to — they await through the SDK
+ * (`client.browse.*(...).fresh()`), whose
  * bus-backed methods do not carry their operation in their own type, so
  * their declarations are by convention.
  */
@@ -154,7 +141,7 @@ const MARK_COMMIT_TIMEOUT_MS = 60_000;
  * make durable, and the caller still proceeds.
  */
 async function commitAnnotations(
-  session: SemiontSession,
+  client: SemiontClient,
   resourceId: ResourceId,
   annotations: readonly { readonly id: AnnotationId }[],
   jobId: JobId,
@@ -162,7 +149,7 @@ async function commitAnnotations(
   if (annotations.length === 0) return undefined;
   try {
     await busRequest(
-      (session.client.transport as HttpTransport).actor,
+      client.transport,
       'mark:commit' satisfies MarkCommitAwaits,
       // The batch cites the job it fulfils. Who asked for these annotations is
       // derived downstream from that job's own events; the worker never says.
@@ -172,7 +159,7 @@ async function commitAnnotations(
     return 'acknowledged';
   } catch (error) {
     if (!(error instanceof BusRequestError) || error.code !== 'bus.timeout') throw error;
-    const evidence = await probeDurability(session, resourceId, annotations);
+    const evidence = await probeDurability(client, resourceId, annotations);
     // The batch is in the log; only the acknowledgement was lost. Returning
     // success here is the point of the probe — see `probeDurability`.
     if (evidence === 'probe-confirmed') return evidence;
@@ -226,14 +213,14 @@ export class CommitDurabilityError extends Error {
  * failure by the caller.
  */
 async function probeDurability(
-  session: SemiontSession,
+  client: SemiontClient,
   resourceId: ResourceId,
   annotations: readonly { readonly id: AnnotationId }[],
 ): Promise<Exclude<DurabilityEvidence, 'acknowledged'>> {
   const last = annotations[annotations.length - 1];
   if (!last) return 'probe-unreachable';
   try {
-    await session.client.browse
+    await client.browse
       .annotation(resourceId, last.id)
       .fresh();
     return 'probe-confirmed';
@@ -253,39 +240,22 @@ async function probeDurability(
   }
 }
 
-async function emitEvent<K extends keyof EventMap>(
-  session: SemiontSession,
-  channel: K,
-  payload: EventMap[K],
-): Promise<void> {
-  // All worker-emitted bus events are global. `job:complete` / `job:fail`
-  // are global, `jobId`-keyed correlation signals: the dispatching
-  // caller filters by `jobId`, and resource viewers filter the same global
-  // stream by `resourceId`. No resource-scoped copy.
-  await session.client.transport.emit(channel, payload as EventMap[K]);
-}
-
-export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter {
-  const { session, logger } = config;
-  // Workers are HTTP-bound: the actor is needed for the job-claim
-  // protocol (SSE subscribe + ad-hoc channel adds). Cast to HttpTransport
-  // is intentional: every worker is an HTTP worker. The adapter
-  // itself is transport-neutral — see `BusRequestPrimitive` in
-  // `@semiont/core`.
-  const httpTransport = session.client.transport as HttpTransport;
-  const adapter = createJobClaimAdapter({
-    bus: httpTransport.actor,
-    accepts: config.accepts,
-  });
+/**
+ * Claim the jobs `config.accepts` describes and run each one. The claims are
+ * returned for their vitals, and to be stopped.
+ */
+export function startWorkerProcess(config: WorkerProcessConfig): ClaimsObservable {
+  const { client, logger } = config;
+  const claims = client.job.claim({ accepts: config.accepts });
 
   // What a refused claim means to this process. `bus.none-pending` never
-  // arrives here (the adapter parks on it quietly). `bus.unauthorized` is a
+  // arrives here (an empty queue is not a fault). `bus.unauthorized` is a
   // verdict about this credential — retrying cannot change it — so the
   // process exits for restart rather than parking forever with nothing in
   // its own logs saying why. Everything else is logged and the worker stays
   // parked until the next wake-up, which retries.
   const exit = config.exit ?? ((code: number) => process.exit(code));
-  adapter.refused$.subscribe(({ code, message }) => {
+  claims.refused$.subscribe(({ code, message }) => {
     if (code === 'bus.unauthorized') {
       logger.error('Claim refused: this worker is not authorized to claim jobs — exiting for restart', {
         code, message, accepts: config.accepts,
@@ -309,96 +279,100 @@ export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter
   // happened.
   const unitCursorsByJob = new Map<string, Record<string, UnitCursor>>();
 
-  // Cooperative cancellation: a job:cancel-requested targeting the ACTIVE job
-  // aborts its signal; the reference loop stops at its next unit boundary and
-  // the job moves to cancelled/ carrying its checkpoint — no worker kill. The
-  // worker processes one job at a time (the adapter's isProcessing gate), so a
-  // single controller keyed by jobId is enough. A pending job's cancel is
-  // handled gateway-side; a running job's must be cooperative, or it would be
-  // yanked out from under a live worker (the roach-motel race).
-  let activeCancel: { jobId: string; controller: AbortController } | null = null;
-  // `job:cancel-requested` rides the worker manifest
-  // (`WORKER_CONSUMED_BROADCASTS`), declared once at construction rather than
-  // widened here.
-  httpTransport.on('job:cancel-requested', (event) => {
-    const targetId = (event as { jobId?: string }).jobId;
-    if (targetId && activeCancel?.jobId === targetId) {
-      logger.info('Cancel requested for active job — stopping at next unit boundary', { jobId: targetId });
-      activeCancel.controller.abort();
-    }
+  // A held job that shows no activity is wedged: every announcement is
+  // ignored while a job is held, and the settle is what claims, so a worker
+  // that never settles never recovers on its own. Silent hang, loud crash,
+  // and whatever restart policy the deployment chose. The threshold and the
+  // check are rows of specs/src/client/timing.json, with no env knobs, and
+  // sit between two other lines: the inference timeout fires first, and the
+  // dispatcher's sweep of running jobs concludes the job regardless. That
+  // sweep is the guarantee: this check is an in-process timer, and cannot
+  // fire while the event loop itself is blocked.
+  claims.stalled$.subscribe((stall) => {
+    logger.error('Worker stalled — exiting for restart', {
+      agent: config.generator['@id'],
+      jobId: stall.jobId,
+      jobType: stall.jobType,
+      processingSince: stall.heldSince,
+      lastActivityAt: stall.lastActivityAt,
+      silentForMs: stall.silentForMs,
+      thresholdMs: stall.thresholdMs,
+    });
+    exit(1);
   });
 
-  adapter.activeJob$.subscribe((job) => {
-    if (!job) return;
-    logger.info('Processing job', { jobId: job.jobId, type: job.type, resourceId: job.resourceId });
-    const controller = new AbortController();
-    activeCancel = { jobId: job.jobId, controller };
-    handleJob(adapter, config, job, completedUnitsByJob, controller.signal, unitCursorsByJob)
-      .then(() => {
-        completedUnitsByJob.delete(job.jobId);
-        unitCursorsByJob.delete(job.jobId);
-      })
-      .catch((error) => {
-        const message = error instanceof Error ? error.message : String(error);
-        // Classify HERE, while the error is still typed — on the wire it is
-        // only a string (taxonomy in failure-class.ts).
-        const failureClass = classifyFailure(error);
-        logger.error('Job failed', { jobId: job.jobId, error: message, failureClass, stack: error instanceof Error ? error.stack : undefined });
-        const completedUnits = completedUnitsByJob.get(job.jobId);
-        const unitCursors = unitCursorsByJob.get(job.jobId);
-        completedUnitsByJob.delete(job.jobId);
-        unitCursorsByJob.delete(job.jobId);
-        const failAnnotationId = referenceIdOf(job);
-        emitEvent(session, 'job:fail', {
-          resourceId: job.resourceId,
-          jobId: job.jobId,
-          jobType: job.type,
-          ...(failAnnotationId ? { annotationId: failAnnotationId } : {}),
-          error: message,
-          ...(completedUnits && completedUnits.length > 0 ? { completedUnits } : {}),
-          // Where each unfinished unit got to. Absent rather than `{}` when
-          // nothing was reached: an empty object would claim units were
-          // tracked and none progressed.
-          ...(unitCursors && Object.keys(unitCursors).length > 0 ? { unitCursors } : {}),
-          ...(failureClass !== undefined ? { failureClass } : {}),
-          // What the commit path OBSERVED about durability, when the failure
-          // came from a commit at all. Present only on that path: absent means
-          // the question never arose, never that durability was ruled out.
-          ...(error instanceof CommitDurabilityError ? { durability: error.durability } : {}),
-          // Whether this failure is the END, answered by the same predicate
-          // the queue applies at failJob. Without it a client cannot tell a
-          // recovering run from a dead one: it sees job:fail either way and
-          // would end its stream on a job the queue is about to re-run.
-          willRetry: willRetryAfter(job, failureClass),
-        }).catch(() => {});
-        adapter.failJob(job.jobId, message);
-      })
-      .finally(() => {
-        if (activeCancel?.jobId === job.jobId) activeCancel = null;
-      });
+  claims.subscribe({
+    next: (job) => {
+      logger.info('Processing job', { jobId: job.jobId, type: job.jobType, resourceId: job.resourceId });
+      // Cooperative cancellation: a cancellation that names the held job
+      // aborts its signal; the reference loop stops at its next unit boundary
+      // and the job moves to cancelled/ carrying its checkpoint — no worker
+      // kill. A pending job's cancel is handled by the dispatcher; a running
+      // job's must be cooperative, or it would be yanked out from under a
+      // live worker (the roach-motel race).
+      job.cancelled.addEventListener('abort', () => {
+        logger.info('Cancel requested for active job — stopping at next unit boundary', { jobId: job.jobId });
+      }, { once: true });
+      handleJob(config, job, completedUnitsByJob, unitCursorsByJob)
+        .catch(async (error: unknown) => {
+          const message = error instanceof Error ? error.message : String(error);
+          // Classify HERE, while the error is still typed — on the wire it is
+          // only a string (taxonomy in failure-class.ts).
+          const failureClass = classifyFailure(error);
+          logger.error('Job failed', { jobId: job.jobId, error: message, failureClass, stack: error instanceof Error ? error.stack : undefined });
+          // A settle the gateway did not take has released the job already,
+          // and there is nothing more this worker can say of it.
+          if (job.settled) return;
+          const completedUnits = completedUnitsByJob.get(job.jobId);
+          const unitCursors = unitCursorsByJob.get(job.jobId);
+          // `job.fail` states `willRetry`: whether this failure is the END,
+          // answered by the same table the queue applies. Without it a
+          // follower cannot tell a recovering run from a dead one.
+          await job.fail(message, {
+            ...(completedUnits && completedUnits.length > 0 ? { completedUnits } : {}),
+            // Where each unfinished unit got to. Absent rather than `{}` when
+            // nothing was reached: an empty object would claim units were
+            // tracked and none progressed.
+            ...(unitCursors && Object.keys(unitCursors).length > 0 ? { unitCursors } : {}),
+            ...(failureClass !== undefined ? { failureClass } : {}),
+            // What the commit path OBSERVED about durability, when the failure
+            // came from a commit at all. Present only on that path: absent means
+            // the question never arose, never that durability was ruled out.
+            ...(error instanceof CommitDurabilityError ? { durability: error.durability } : {}),
+          });
+        })
+        // The failure itself could not be said. The job is released, and the
+        // dispatcher's sweep concludes it.
+        .catch((error: unknown) => {
+          logger.error('Job failure could not be reported', { jobId: job.jobId, error: error instanceof Error ? error.message : String(error) });
+        })
+        .finally(() => {
+          completedUnitsByJob.delete(job.jobId);
+          unitCursorsByJob.delete(job.jobId);
+        });
+    },
+    // The transport's stream does not name what a worker's must: nothing
+    // would ever wake this worker, so it does not stay up.
+    error: (error: unknown) => {
+      logger.error('Cannot claim jobs — exiting for restart', { error: error instanceof Error ? error.message : String(error) });
+      exit(1);
+    },
   });
 
-  adapter.start();
-  return adapter;
+  return claims;
 }
 
 // Exported for unit testing — the orchestration (claim→fetch→process→emit→complete)
 // is the only thing not otherwise exercised by processors.test.ts.
 // Do not call from outside the worker process.
 export async function handleJob(
-  adapter: JobClaimAdapter,
   config: WorkerProcessConfig,
-  job: ActiveJob,
+  job: HeldJob,
   // The subscription in startWorkerProcess passes its shared accumulator so
   // the failure path can read what the reference branch committed
   // (checkpointed resume); standalone callers may omit it — a fresh map
   // changes no behavior, only discards the checkpoint on return.
   completedUnitsByJob: Map<string, string[]> = new Map(),
-  // Cancellation signal: aborted when a job:cancel-requested targets this
-  // job; the reference loop stops at its next unit boundary and the job moves
-  // to cancelled/. Standalone callers omit it — an undefined signal never
-  // aborts.
-  signal?: AbortSignal,
   // The mid-unit half of the checkpoint, same sharing rule as
   // `completedUnitsByJob`: filled here, read by the failure path.
   unitCursorsByJob: Map<string, Record<string, UnitCursor>> = new Map(),
@@ -408,12 +382,12 @@ export async function handleJob(
   let outcome: 'completed' | 'failed' = 'completed';
   try {
     return await withSpan(
-      `job:${job.type}`,
-      () => handleJobInner(adapter, config, job, completedUnitsByJob, signal, unitCursorsByJob),
+      `job:${job.jobType}`,
+      () => handleJobInner(config, job, completedUnitsByJob, unitCursorsByJob),
       {
         kind: SpanKind.CONSUMER,
         attrs: {
-          'job.type': job.type,
+          'job.type': job.jobType,
           ...(motivation ? { 'job.motivation': motivation } : {}),
           'job.id': job.jobId,
           'resource.id': job.resourceId,
@@ -424,64 +398,33 @@ export async function handleJob(
     outcome = 'failed';
     throw err;
   } finally {
-    recordJobOutcome({ jobType: job.type, ...(motivation ? { motivation } : {}) }, outcome, performance.now() - start);
+    recordJobOutcome({ jobType: job.jobType, ...(motivation ? { motivation } : {}) }, outcome, performance.now() - start);
   }
 }
 
 async function handleJobInner(
-  adapter: JobClaimAdapter,
   config: WorkerProcessConfig,
-  job: ActiveJob,
+  job: HeldJob,
   completedUnitsByJob: Map<string, string[]>,
-  signal?: AbortSignal,
   unitCursorsByJob: Map<string, Record<string, UnitCursor>> = new Map(),
 ): Promise<void> {
-  const { session, inferenceClient, generator } = config;
+  const { client, inferenceClient, generator } = config;
   // Who asked for the job is not among what the worker holds: it cites the
   // job, and the Stower derives the requester from the dispatcher's record of
   // it — provenance is derived, never asserted.
-  const { jobId, type: jobType, resourceId, params } = job;
+  const { jobId, jobType, resourceId, params } = job;
   // What this job is, as a claim or a config section names it, for a message.
   const what = jobType === 'mark' ? `mark (${motivationOf(job) ?? 'no motivation'})` : jobType;
-
-  // Annotation-scoped jobs (generation, triggered from a
-  // reference) carry the source annotation through every lifecycle
-  // payload so the UI can attach visual feedback to that annotation.
-  // Resource-scoped jobs (bulk reference/tag/highlight/comment/
-  // assessment detection scanning a whole resource) leave it unset.
-  const annotationId = referenceIdOf(job);
-  // No `userId`: the job lifecycle commands declare only `_userId`, injected by
-  // the gateway from the authenticated session. Spreading an extra field would
-  // put out-of-contract data on a global channel — and would not be caught by
-  // `emitEvent`'s typing, because TypeScript suppresses excess-property checks
-  // for spreads and for variables passed by reference.
-  // 1-based, and on EVERY lifecycle event including progress: the queue re-runs
-  // a failed job silently, so without this an operator cannot tell a re-run from
-  // a first run, and the provider spend already counted in Prometheus cannot be
-  // attributed to a repeated document. Always stated, never left to absence —
-  // `attempt: 1` is a fact the emitter always knows.
-  const attempt = job.retryCount + 1;
-  const lifecycleBase = {
-    resourceId, jobId, jobType, attempt,
-    ...(annotationId ? { annotationId } : {}),
-  };
+  // Aborted when a cancellation names this job; the reference loop stops at
+  // its next unit boundary and the job moves to cancelled/.
+  const signal = job.cancelled;
 
   // ── Job lifecycle signaling ───────────────────────────────────────────
-  // `job:start` / `job:report-progress` / `job:complete` / `job:fail`
-  // are the ONE unified lifecycle family. Start/complete/fail are
-  // persisted by Stower (as the past-tense `job:started` / `job:completed` /
-  // `job:failed`); progress is ephemeral UI feedback and Stower ignores it.
-  //
-  // These are GLOBAL broadcasts carrying no correlationId — the identity a
-  // consumer routes on is domain data in the payload, not the envelope. Two
-  // consumers, two different keys:
-  //   - a DISPATCHING caller filters by `jobId` (sdk `mark.delegate`,
-  //     `yield.fromContext`) — it awaited one specific job;
-  //   - a RESOURCE VIEWER filters by `resourceId` (react-ui
-  //     `useOutcomeToasts`) — it wants anything happening to what it shows.
-  // `jobType` and `result.kind` are READ for rendering; neither is a filter.
-  // (`emitEvent` below states the same rule at the emit site. If these two
-  // ever disagree, the consumers are the evidence.)
+  // The held job says its own lifecycle (`job.start`, `job.progress`,
+  // `job.checkpoint`, and one of `job.complete`, `job.fail`, `job.cancel`),
+  // each globally, with the job's identity, its attempt, and the annotation a
+  // generation job is anchored to. Start, complete and fail are recorded by
+  // the Stower; progress is passed on and not recorded.
 
   // What this job's commits ESTABLISHED, folded across every batch it makes
   // (a reference job commits per unit; generation commits on two resources).
@@ -494,17 +437,17 @@ async function handleJobInner(
     if (evidence === undefined) return;
     if (durability === undefined || durability === 'acknowledged') durability = evidence;
   };
-  /**
-   * Every TERMINAL payload; `job:start` deliberately uses the bare base. A
-   * completion is its verb's (`JobCompleteCommand`), so each one states
-   * `jobType` again beside this, where its branch has narrowed it.
-   */
-  const terminalBase = () => ({ ...lifecycleBase, ...(durability ? { durability } : {}) });
+  /** What this job's commits established, as a settle states it. A job that committed nothing states nothing. */
+  const established = () => (durability ? { durability } : {});
 
-  await emitEvent(session, 'job:start', lifecycleBase);
+  await job.start();
 
   if (!config.accepts.some((filter) => jobMatchesFilter(filter, { jobType, params }))) {
-    adapter.failJob(jobId, `Worker not configured for job: ${what}`);
+    // The dispatcher hands out only what the claim accepts, so this is a job
+    // the two disagree about. It is failed on the wire, where a job only
+    // released here would stay `running` until the dispatcher's sweep; no
+    // class is stated, so the record's retry budget decides what becomes of it.
+    await job.fail(`Worker not configured for job: ${what}`);
     return;
   }
 
@@ -520,15 +463,15 @@ async function handleJobInner(
   // declines cleanly and completes the job saying which. Generation reads the
   // annotation in its params, not the source bytes, so it is not prepared here.
   let ready: { text: string; buildAnnotation: BuildAnnotation } | null = null;
-  if (jobType === 'mark') {
-    const descriptor = await session.client.browse.resource(resourceId).fresh();
+  if (job.jobType === 'mark') {
+    const descriptor = await client.browse.resource(resourceId).fresh();
     const mediaType = getPrimaryMediaType(descriptor);
     // Its own span: extraction (fetch + decode, or a multi-second OCR pass on
     // a scanned PDF) is otherwise indistinguishable from inference in a
     // trace.
     const source = await withSpan(
       'detection:prepare',
-      () => prepareDetection(mediaType ?? '', config.contentReads, resourceId, generator, (rid) => session.client.browse.resourceAnchoredText(rid)),
+      () => prepareDetection(mediaType ?? '', config.contentReads, resourceId, generator, (rid) => client.browse.resourceAnchoredText(rid)),
       { attrs: { 'resource.id': resourceId as unknown as string, 'media.type': mediaType ?? 'unknown' } },
     );
 
@@ -557,38 +500,21 @@ async function handleJobInner(
       // A genuine content decline (encrypted, corrupt, scanned-without-OCR,
       // empty) — the resource legitimately has nothing to detect over. A clean
       // completion carrying the reason, not a failure.
-      await emitEvent(session, 'job:complete', {
-        ...terminalBase(),
-        jobType,
-        result: {
-          declined: true,
-          reason: source.declined,
-        },
-      });
-      adapter.completeJob();
+      await job.complete({ declined: true, reason: source.declined }, established());
       return;
     }
     ready = source;
   }
 
   const onProgress: OnProgress = (percentage, message, extra) => {
-    // Progress doubles as the worker's liveness heartbeat: it feeds the
-    // stall watchdog here and refreshes the gateway janitor's mtime
-    // heartbeat via the job:report-progress mirror.
+    // Progress doubles as the worker's liveness heartbeat: the held job
+    // counts it as activity, which is what the stall rule reads, and the
+    // dispatcher's sweep of running jobs reads the report itself.
     //
     // `message` is a code plus typed params, forwarded verbatim — the
     // producer says WHAT happened and every client renders it in its own
     // language. No sentence is composed anywhere on this path.
-    adapter.touchActivity();
-    emitEvent(session, 'job:report-progress', {
-      ...terminalBase(),
-      percentage,
-      progress: {
-        percentage, message,
-        ...(annotationId ? { annotationId } : {}),
-        ...(extra ?? {}),
-      },
-    }).catch(() => {});
+    job.progress({ percentage, message, ...(extra ?? {}) }).catch(() => {});
   };
 
   /**
@@ -608,20 +534,19 @@ async function handleJobInner(
    * re-runs that chunk into a log that dedupes it by id.
    */
   const commitChunk = async (annotations: Annotation[], checkpoint: UnitCheckpoint) => {
-    record(await commitAnnotations(session, resourceId, annotations, jobId));
+    record(await commitAnnotations(client, resourceId, annotations, jobId));
     unitCursors.set(checkpoint.unit, checkpoint.cursor);
     // Published to the caller's accumulator as it moves: the failure path runs
     // OUTSIDE this function, so a cursor only this scope knows about would be
     // lost on exactly the failures it exists to survive.
     unitCursorsByJob.set(job.jobId, Object.fromEntries(unitCursors));
-    await emitEvent(session, 'job:checkpoint', {
-      jobId: job.jobId,
+    await job.checkpoint({
       completedUnits: [...(completedUnitsByJob.get(job.jobId) ?? [])],
       unitCursors: Object.fromEntries(unitCursors),
     });
   };
 
-  if (jobType === 'mark' && isHeldMark(params, 'highlighting')) {
+  if (job.jobType === 'mark' && isHeldMark(params, 'highlighting')) {
     const { result } = await processHighlightJob(
       ready!.text, inferenceClient, params, ready!.buildAnnotation, onProgress,
       // The durability write, per chunk, awaited; folds into the terminal
@@ -632,14 +557,9 @@ async function handleJobInner(
       // first attempt.
       job.unitCursors,
     );
-    await emitEvent(session, 'job:complete', {
-      ...terminalBase(),
-      jobType,
-      result,
-    });
-    adapter.completeJob();
+    await job.complete(result, established());
 
-  } else if (jobType === 'mark' && isHeldMark(params, 'commenting')) {
+  } else if (job.jobType === 'mark' && isHeldMark(params, 'commenting')) {
     const { result } = await processCommentJob(
       ready!.text, inferenceClient, params, ready!.buildAnnotation, onProgress,
       // The durability write, per chunk, awaited; folds into the terminal
@@ -649,14 +569,9 @@ async function handleJobInner(
       // Empty on a first attempt.
       job.unitCursors,
     );
-    await emitEvent(session, 'job:complete', {
-      ...terminalBase(),
-      jobType,
-      result,
-    });
-    adapter.completeJob();
+    await job.complete(result, established());
 
-  } else if (jobType === 'mark' && isHeldMark(params, 'assessing')) {
+  } else if (job.jobType === 'mark' && isHeldMark(params, 'assessing')) {
     const { result } = await processAssessmentJob(
       ready!.text, inferenceClient, params, ready!.buildAnnotation, onProgress,
       // The durability write, per chunk, awaited; folds into the terminal
@@ -666,14 +581,9 @@ async function handleJobInner(
       // Empty on a first attempt.
       job.unitCursors,
     );
-    await emitEvent(session, 'job:complete', {
-      ...terminalBase(),
-      jobType,
-      result,
-    });
-    adapter.completeJob();
+    await job.complete(result, established());
 
-  } else if (jobType === 'mark' && isHeldMark(params, 'linking')) {
+  } else if (job.jobType === 'mark' && isHeldMark(params, 'linking')) {
     // Checkpointed resume. A retried claim skips the units earlier attempts
     // completed; every remaining unit commits chunk by chunk through
     // `commitChunk`, and the unit callback checkpoints it once its last chunk
@@ -704,8 +614,7 @@ async function handleJobInner(
         // the two sets as disjoint.
         unitCursors.delete(unit);
         unitCursorsByJob.set(job.jobId, Object.fromEntries(unitCursors));
-        await emitEvent(session, 'job:checkpoint', {
-          jobId: job.jobId,
+        await job.checkpoint({
           completedUnits: [...committed],
           ...(unitCursors.size > 0 ? { unitCursors: Object.fromEntries(unitCursors) } : {}),
         });
@@ -722,24 +631,14 @@ async function handleJobInner(
     // requested for this job. Announce it so the queue moves the
     // (still-running) job to cancelled/ — never yanked out from under this
     // worker — carrying the units it did finish (already checkpointed above).
-    // completeJob releases the claim; a cancel is a clean terminal, not a
-    // failure.
-    if (signal?.aborted) {
-      await emitEvent(session, 'job:cancel', {
-        ...terminalBase(),
-        ...(committed.length > 0 ? { completedUnits: [...committed] } : {}),
-      });
-      adapter.completeJob();
+    // A cancel is a clean terminal, not a failure.
+    if (signal.aborted) {
+      await job.cancel(committed.length > 0 ? { completedUnits: [...committed] } : {});
       return;
     }
-    await emitEvent(session, 'job:complete', {
-      ...terminalBase(),
-      jobType,
-      result,
-    });
-    adapter.completeJob();
+    await job.complete(result, established());
 
-  } else if (jobType === 'mark' && isHeldMark(params, 'tagging')) {
+  } else if (job.jobType === 'mark' && isHeldMark(params, 'tagging')) {
     const { result } = await processTagJob(
       ready!.text, inferenceClient, params, ready!.buildAnnotation, onProgress,
       // The durability write, per chunk, awaited; folds into the terminal
@@ -749,14 +648,9 @@ async function handleJobInner(
       // Empty on a first attempt.
       job.unitCursors,
     );
-    await emitEvent(session, 'job:complete', {
-      ...terminalBase(),
-      jobType,
-      result,
-    });
-    adapter.completeJob();
+    await job.complete(result, established());
 
-  } else if (jobType === 'yield') {
+  } else if (job.jobType === 'yield') {
     // Trust-boundary narrowing: params crossed the wire as untyped JSON. The
     // guard checks the schema's required trio; a malformed bag fails the job
     // loudly here instead of surfacing as a mid-generation TypeError.
@@ -775,9 +669,10 @@ async function handleJobInner(
     // page uses, so the multipart wire shape has ONE definition.
     // The Archivist writes content to disk and records the resource
     // (`yield:create`); we only learn the new resourceId from the response.
-    // Annotation-focus generation auto-binds to the triggering reference; the
-    // id is derived from the context's focus (the wire does not carry it).
-    const genReferenceId = referenceIdOf(job);
+    // Annotation-focus generation auto-binds to the triggering reference: the
+    // annotation the job is anchored to, which the held job derives from the
+    // context's focus (the wire does not carry it).
+    const genReferenceId = job.annotationId;
 
     // The Save location the user typed is AUTHORITATIVE and there is no
     // fallback. Deriving one from the title would put the artifact at
@@ -799,7 +694,7 @@ async function handleJobInner(
       });
     }
 
-    const { resourceId: newResourceId } = await session.client.yield.resource({
+    const { resourceId: newResourceId } = await client.yield.resource({
       name: genResult.title,
       file: Buffer.from(genResult.content),
       format: genResult.format,
@@ -829,7 +724,7 @@ async function handleJobInner(
         },
         generator,
       );
-      record(await commitAnnotations(session, resourceId, [provenanceRef], jobId));
+      record(await commitAnnotations(client, resourceId, [provenanceRef], jobId));
     }
 
     // Inline citations: mint each as a linking annotation ON THE DERIVED
@@ -901,18 +796,13 @@ async function handleJobInner(
       }
     }
 
-    record(await commitAnnotations(session, newResourceId, citationRefs, jobId));
+    record(await commitAnnotations(client, newResourceId, citationRefs, jobId));
 
-    await emitEvent(session, 'job:complete', {
-      ...terminalBase(),
-      jobType,
-      result: { resourceId: newResourceId, resourceName: genResult.title, truncated: genResult.truncated },
-    });
-    adapter.completeJob();
+    await job.complete({ resourceId: newResourceId, resourceName: genResult.title, truncated: genResult.truncated }, established());
 
   } else {
     // A job this worker claims and cannot run: a tagging job handed over
     // without the schema the Dispatcher resolves, say.
-    adapter.failJob(jobId, `No processor for job: ${what}`);
+    await job.fail(`No processor for job: ${what}`);
   }
 }

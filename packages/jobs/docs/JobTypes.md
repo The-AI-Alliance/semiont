@@ -94,7 +94,7 @@ The three tallies ride each unit's cursor, so a job that resumes reports the who
 
 **Ids come from the focus.** A `yield` job's params carry no `referenceId`, and its `job:create` carries no `resourceId`. The context already names its anchor, and a second copy could disagree with it. The dispatcher derives the job's `resourceId` from `context.focus`, and a `job:create` that supplies one is refused. In the worker, `referenceIdOf(job)` is the one derivation:
 
-| `context.focus.kind` | `referenceIdOf(job)` | What the worker does |
+| `context.focus.kind` | The held job's `annotationId` | What the worker does |
 |---|---|---|
 | `annotation` | `focus.annotation.id` | Uploads with `sourceAnnotationId`, and the Stower binds that reference to the new resource |
 | `resource` | `undefined` | Makes a reference from the source to the new resource |

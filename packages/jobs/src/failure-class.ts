@@ -11,7 +11,7 @@
  * Classification happens HERE, in the worker, where errors are still typed —
  * at the gateway's `job:fail` handler the failure is already a flattened
  * string, and message-regex classification is the drift this module exists
- * to avoid. The class rides the `job:fail` payload; `failJob` consumes it.
+ * to avoid. The class rides the `job:fail` payload; the dispatcher's queue consumes it.
  */
 
 import { isNumber, isObject, isString, RETRY_RULES, type components } from '@semiont/core';

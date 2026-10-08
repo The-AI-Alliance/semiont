@@ -160,6 +160,7 @@ function typescriptShape(returns, isProperty) {
   if (returns.startsWith('Promise<')) return 'promise';
   if (returns.startsWith('StreamObservable<')) return 'stream';
   if (returns.startsWith('DelegationObservable<')) return 'delegation';
+  if (returns === 'ClaimsObservable') return 'claims';
   if (returns === 'UploadObservable') return 'upload';
   if (returns.startsWith('CacheObservable<')) return 'cache';
   return undefined;

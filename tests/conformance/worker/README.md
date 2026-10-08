@@ -63,7 +63,7 @@ worker observes written as it happens.
 | `op` | Arguments | `ok` |
 |---|---|---|
 | `open` | `baseUrl`, `token`, `timing` | `null`. The stream it opens names what a worker's stream names; a case states which channels those are |
-| `close` | | `null` |
+| `close` | | `null`. The worker stops |
 | `claim` | `accepts`: the filters of the jobs the worker takes | `null`. The worker begins claiming, and claims from then on at every idle moment |
 | `start` | | `null`. The held job's `job:start` |
 | `progress` | `percentage`, and `message` when given | `null` |
@@ -100,7 +100,8 @@ case does not wait out ten seconds or fifteen minutes.
 | `{"stalled": "<jobId>"}` | the next stall it reports is of this job |
 
 By the end of a case the worker has reported none of these that the case
-did not expect.
+did not expect, and neither has it by the end of a `quiet` step: a worker
+that is quiet has told the suite nothing the case has not read.
 
 ## The cases
 
@@ -139,19 +140,11 @@ told nothing it could wrongly claim on: one that claims at every `open` it is
 told of passes the case. The case holds C8 for an SDK whose transport does
 report a handover.
 
-**The TypeScript driver composes the lifecycle.** `@semiont/jobs` has the
-claim loop, the claimed record, the vitals, the stall rule and the retry rule,
-and those are what the cases reach. It has no held job that emits and
-releases in one call: a worker's author emits each lifecycle message on the
-transport and then tells the adapter the job is settled. The driver does the
-same. So for TypeScript the cases of L1 to L7, X1 and X2 hold that
-composition, written in the driver, and not the package.
-
 ## Adding an SDK
 
 Write a worker driver over the SDK's worker surface, add it as `worker` to
 the SDK's line of `SDK_DRIVERS`, and run the suite. TypeScript's is
-[packages/jobs/conformance/driver.ts](../../../packages/jobs/conformance/driver.ts).
+[packages/sdk/conformance/worker-driver.ts](../../../packages/sdk/conformance/worker-driver.ts).
 
 ## Running it
 

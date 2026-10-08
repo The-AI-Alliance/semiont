@@ -631,23 +631,18 @@ contract.
 
 ### Worker / actor adapters
 
-Worker-side adapters live with their domain and consume `BusRequestPrimitive`, the transport-neutral bus interface that `@semiont/core` exports. `createJobClaimAdapter` is exported by `@semiont/jobs`; `smelterFanIn` by `@semiont/make-meaning`. The primitive has six members: `emit(channel, payload, envelope?)`; `stream(channel)` and `frames(channel)`, the payload and envelope views of a channel; `state$`; `trackReply(correlationId)`; and `isSubscribed(channel)`. `emit`, `stream` and `frames` are typed by the channel name, so the payload comes from `EventMap[channel]` rather than from a type argument a caller supplies. The HTTP `ActorStateUnit` from `@semiont/http-transport` extends it; in-process code gets one from an `EventBus` with `asBusRequestPrimitive` (`@semiont/make-meaning`). A worker hands the adapter the HTTP actor like this:
+Worker-side adapters consume `BusRequestPrimitive`, the transport-neutral bus interface that `@semiont/core` exports. A worker's claiming is the SDK's own: `client.job.claim`, which runs over the client's transport. `smelterFanIn` is exported by `@semiont/make-meaning`. The primitive has six members: `emit(channel, payload, envelope?)`; `stream(channel)` and `frames(channel)`, the payload and envelope views of a channel; `state$`; `trackReply(correlationId)`; and `isSubscribed(channel)`. `emit`, `stream` and `frames` are typed by the channel name, so the payload comes from `EventMap[channel]` rather than from a type argument a caller supplies. Every `ITransport` is one, and so is the HTTP `ActorStateUnit` from `@semiont/http-transport`; in-process code gets one from an `EventBus` with `asBusRequestPrimitive` (`@semiont/make-meaning`). A worker claims jobs like this:
 
 ```typescript sketch
-import type { HttpTransport } from '@semiont/sdk';
-import { createJobClaimAdapter } from '@semiont/jobs';
-
-// session.client.transport is the bus-shaped ITransport. For HTTP-backed
-// workers, narrow to HttpTransport to access the underlying ActorStateUnit.
-const httpTransport = session.client.transport as HttpTransport;
-const adapter = createJobClaimAdapter({
-  bus: httpTransport.actor,
+const claims = client.job.claim({
   accepts: [{ jobType: 'yield' }, { jobType: 'mark', params: { motivation: 'linking' } }],
 });
-adapter.start();
+claims.subscribe((job) => {
+  // `job` is held until it is settled: job.complete(...), job.fail(...) or job.cancel(...).
+});
 ```
 
-The cast names the seam: the workers that exist are HTTP workers. The adapter itself is transport-neutral: it takes any `BusRequestPrimitive`.
+The client's transport must name `JOB_CLAIM_CHANNELS` in its stream: the two broadcasts a worker reads reach only a stream that names them. The [`semiont-worker` skill](./skills/semiont-worker/SKILL.md) is the whole of it.
 
 ## Debugging the bus
 

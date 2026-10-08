@@ -58,7 +58,7 @@ export const SDK_DRIVERS: Readonly<Record<string, SdkDrivers>> = {
   typescript: {
     wire: ['node', join(REPO_ROOT, 'packages/http-transport/conformance/driver.ts')],
     live: { command: ['node', join(REPO_ROOT, 'packages/sdk/conformance/driver.ts')], tier: 'parity' },
-    worker: ['node', join(REPO_ROOT, 'packages/jobs/conformance/driver.ts')],
+    worker: ['node', join(REPO_ROOT, 'packages/sdk/conformance/worker-driver.ts')],
   },
   rust: {
     wire: [join(REPO_ROOT, 'target/release/semiont-wire-driver')],

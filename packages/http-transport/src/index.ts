@@ -25,12 +25,12 @@ export {
   type TokenRefresher,
 } from './transport/http-transport';
 export { APIError } from './transport/api-error';
+export { agentToken, type AgentSignIn } from './transport/agent-token';
 
 export { HttpContentTransport } from './transport/http-content-transport';
 
 // `actor-state-unit` is HttpTransport's SSE machinery. Exposed for domain-side
-// worker adapters (`createJobClaimAdapter` in `@semiont/jobs`,
-// `smelterFanIn` in `@semiont/make-meaning`) that build
+// worker adapters (`smelterFanIn` in `@semiont/make-meaning`) that build
 // worker-flavored variants on top of it. Application code should not
 // import these directly.
 export {

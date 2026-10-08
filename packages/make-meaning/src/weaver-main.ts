@@ -3,7 +3,7 @@
  *
  * Thin wiring for the `Weaver` pipeline: loads configuration from
  * ~/.semiontconfig (TOML) via the canonical `createTomlConfigLoader`,
- * holds an agent token for its service account (`./agent-session`), connects the graph
+ * holds an agent token for its service account (`startAgentSession`), connects the graph
  * database, hands the fan-in's streams to the Weaver, and
  * runs a startup catch-up. All event processing lives in `./weaver`.
  *
@@ -92,7 +92,7 @@ const healthPort = 24102;
 const checkpointPath = join(tmpdir(), 'semiont', 'weaver-checkpoint.json');
 
 import { createProcessLogger } from '@semiont/observability/process-logger';
-import { startAgentSession } from './agent-session';
+import { startAgentSession } from '@semiont/sdk';
 const logger = createProcessLogger('weaver');
 
 // ── Main ─────────────────────────────────────────────────────────────

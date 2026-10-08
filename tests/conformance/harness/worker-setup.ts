@@ -13,17 +13,17 @@ import { REPO_ROOT } from './paths';
 export default function setup(project: TestProject): void {
   const drivers = project.getProvidedContext().sdkDrivers;
   if (!drivers['typescript']?.worker) return;
-  // The worker driver runs the built worker package over the built transport.
-  for (const pkg of ['http-transport', 'jobs']) {
+  // The worker driver runs the built SDK over the built transport.
+  for (const pkg of ['http-transport', 'sdk']) {
     const built = join(REPO_ROOT, 'packages', pkg, 'dist/index.js');
     if (!existsSync(built)) {
       throw new Error(`The TypeScript worker is not built: ${built} does not exist. Run \`npm run build:packages\` at the repository root.`);
     }
   }
   try {
-    execFileSync(join(REPO_ROOT, 'node_modules/.bin/tsc'), ['-p', join('packages', 'jobs', 'conformance')], { cwd: REPO_ROOT, stdio: 'pipe' });
+    execFileSync(join(REPO_ROOT, 'node_modules/.bin/tsc'), ['-p', join('packages', 'sdk', 'conformance')], { cwd: REPO_ROOT, stdio: 'pipe' });
   } catch (error) {
     const output = (error as { stdout?: Buffer }).stdout?.toString('utf8') ?? String(error);
-    throw new Error(`The TypeScript driver in packages/jobs/conformance does not type-check:\n${output}`);
+    throw new Error(`The TypeScript drivers in packages/sdk/conformance do not type-check:\n${output}`);
   }
 }

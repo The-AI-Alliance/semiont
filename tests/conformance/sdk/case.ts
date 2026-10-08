@@ -344,6 +344,10 @@ class Run {
     } else if ('quiet' in step) {
       await new Promise((resolve) => setTimeout(resolve, step.quiet));
       this.nothingUnaccounted(`within ${step.quiet} ms`);
+      // A worker that is quiet has also said nothing the case has not read:
+      // a cancellation signalled too soon is told once, and would otherwise
+      // pass for the one a later step expects.
+      if (this.layer === 'worker') this.nothingUnreported(`within ${step.quiet} ms`);
     } else if ('observe' in step) {
       const id = this.driver.send('observe', { observer: step.as, query: this.bindings.resolve(step.observe) });
       this.judge('observe', await this.driver.outcome(id, 'observe to settle', WAIT_MS), {});
@@ -693,6 +697,19 @@ class Run {
     if (extra.length > 0) throw new Error(`the client sent what the case does not account for, ${when}: ${extra.join('; ')}`);
   }
 
+  /** A worker has told the suite nothing a step has not read. */
+  private nothingUnreported(when: string): void {
+    const unread: Array<[string, unknown[]]> = [
+      ['claimed a job', this.driver.claimed.slice(this.reportCursor.claimed)],
+      ['was refused a claim', this.driver.refusals.slice(this.reportCursor.refused)],
+      ['signalled a cancellation', this.driver.signalled.slice(this.reportCursor.signalled)],
+      ['stalled', this.driver.stalled.slice(this.reportCursor.stalled)],
+    ];
+    for (const [what, more] of unread) {
+      if (more.length > 0) throw new Error(`the worker said it ${what}, ${when}, and the case does not expect it: ${JSON.stringify(more)}`);
+    }
+  }
+
   /** The frames the gateway sent the client on `channel` since it began listening: each event once, in the order it first came. */
   private carried(channel: string, since: number): DeliveredFrame[] {
     const seen = new Set<string>();
@@ -733,15 +750,7 @@ class Run {
       const expected = this.frameCursor.get(channel) ?? 0;
       if (delivered.length !== expected) throw new Error(`the client delivered ${delivered.length} frames on ${channel}; the case expects ${expected}`);
     }
-    const unread: Array<[string, unknown[]]> = [
-      ['claimed a job', this.driver.claimed.slice(this.reportCursor.claimed)],
-      ['was refused a claim', this.driver.refusals.slice(this.reportCursor.refused)],
-      ['signalled a cancellation', this.driver.signalled.slice(this.reportCursor.signalled)],
-      ['stalled', this.driver.stalled.slice(this.reportCursor.stalled)],
-    ];
-    for (const [what, more] of unread) {
-      if (more.length > 0) throw new Error(`the worker said it ${what} and the case does not expect it: ${JSON.stringify(more)}`);
-    }
+    this.nothingUnreported('by the end of the case');
     const unexpected = this.driver.failures.slice(this.failureCursor);
     if (unexpected.length > 0) throw new Error(`the error stream carried what the case does not expect: ${JSON.stringify(unexpected)}`);
     if (this.driver.violations.length > 0) throw new Error(`the driver broke its protocol: ${this.driver.violations.join('; ')}`);

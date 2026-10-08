@@ -3,7 +3,7 @@
  *
  * Thin wiring for the `Smelter` pipeline: loads configuration from
  * ~/.semiontconfig (TOML) via the canonical `createTomlConfigLoader`,
- * holds an agent token for its service account (`./agent-session`), constructs the embedding
+ * holds an agent token for its service account (`startAgentSession`), constructs the embedding
  * provider, vector store, content transport, and HTTP transport, then
  * hands the fan-in's event streams to the Smelter and runs
  * a startup reconcile. All event processing lives in `./smelter`.
@@ -96,7 +96,7 @@ const credential = { issuer: issuerUrl, clientId, clientSecret };
 const healthPort = 24101;
 
 import { createProcessLogger } from '@semiont/observability/process-logger';
-import { startAgentSession } from './agent-session';
+import { startAgentSession } from '@semiont/sdk';
 import { registerVectorIndexSizeProvider } from '@semiont/observability';
 import { STARTUP_CONNECT_TIMEOUT_MS, RESTART_HINT } from './startup';
 const logger = createProcessLogger('smelter');

@@ -511,4 +511,4 @@ def test_the_table_and_this_sdk_list_the_same_methods() -> None:
     assert len(CALLS) + len(EVENTS) == 70
     shapes = TABLE["shapes"]
     assert isinstance(shapes, dict)
-    assert set(shapes) == {"promise", "stream", "delegation", "upload", "cache", "signal", "count", "events"}
+    assert set(shapes) == {"promise", "stream", "delegation", "upload", "cache", "signal", "count", "events", "claims"}

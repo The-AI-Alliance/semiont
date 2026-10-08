@@ -8,7 +8,7 @@
  *   job:start                                  (at entry)
  *     → for each chunk: mark:commit (awaited), then job:checkpoint
  *                                                 (annotation jobs)
- *     → session.client.yield.resource(...)
+ *     → client.yield.resource(...)
  *                                                 (generation only; creates the resource)
  *     → job:complete                            (at success exit)
  *
@@ -16,32 +16,34 @@
  * once, with no resource scope. The dispatching caller filters by `jobId`;
  * resource viewers filter the same global stream by `resourceId`.
  *
- * The worker runs on top of a `SemiontSession`. Tests use a fake session
- * whose `client.transport.emit` captures bus emits and answers
- * `mark:commit`, a `contentReads.getBinary` double for detection's byte
- * read, and `client.yield.resource` capturing the multipart upload for
- * generation. No raw `fetch` involved.
+ * The worker runs on a `SemiontClient`. Tests use a fake client whose
+ * transport captures bus emits and answers `mark:commit` and `job:claim`, a
+ * `contentReads.getBinary` double for detection's byte read, and
+ * `client.yield.resource` capturing the multipart upload for generation. No
+ * raw `fetch` involved.
  *
- * On failure the outer wrapper (startWorkerProcess) emits `job:fail`
- * and calls adapter.failJob(); we exercise that by letting a processor
- * throw and checking the caller handles it.
+ * The job a test runs is a REAL held job: the fake transport answers the
+ * SDK's own `job.claim` with the record the test states, so what a held job
+ * emits, and when it is settled, is the SDK's doing and not this file's.
+ *
+ * On failure the outer wrapper (startWorkerProcess) fails the held job,
+ * which emits `job:fail`; we exercise that by letting a processor throw
+ * and checking the caller handles it.
  *
  * Processors' return values are covered by processors.test.ts. This
  * file covers the iterate-and-emit orchestration layer.
  */
 
 import { GEN_REQUIRED, minimalContext } from './fixtures/generation-fixtures';
-import { referenceIdOf } from '../worker-process';
 import type { UnitCheckpoint } from '../processors';
 import { Subject, BehaviorSubject, map } from 'rxjs';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { extractPdfTextLayer } from '@semiont/content';
-import type { SemiontSession } from '@semiont/sdk';
-import { BusRequestError, jobId, resourceId } from '@semiont/core';
+import { JobNamespace, type HeldJob, type SemiontClient } from '@semiont/sdk';
+import { BusRequestError, EventBus, HELD_JOB_STALL_CHECK_MS, HELD_JOB_STALL_MS, jobId, resourceId, userId, type EventMap, type ITransport, type UnitCursor } from '@semiont/core';
 import type { MarkMotivation } from '../types';
 import { recordJobOutcome, withSpan } from '@semiont/observability';
-import type { ActiveJob, JobClaimAdapter } from '../job-claim-adapter';
-import { handleJob, type WorkerProcessConfig } from '../worker-process';
+import { handleJob, startWorkerProcess, type WorkerProcessConfig } from '../worker-process';
 import { classifyFailure } from '../failure-class';
 import {
   processHighlightJob,
@@ -101,23 +103,27 @@ const getBinary = vi.fn(async () => ({ data: new ArrayBuffer(8), contentType: 'a
 const RID = resourceId('res-abc');
 const JID = jobId('job-xyz');
 
-/** Captured interactions — bus emits, complete/fail, and yield.resource call. */
-interface BusEmit { channel: string; payload: unknown; scope?: string | undefined; }
-interface AdapterCall { method: 'completeJob' | 'failJob' | 'touchActivity'; args: unknown[]; }
+/** The job a `job:claimed` reply carries: what the dispatcher hands a worker. */
+type ClaimedJob = EventMap['job:claimed']['response'];
 
-function makeFakeSessionAndAdapter() {
+/** Captured interactions — bus emits and the yield.resource call. A claim is the harness's own, and is not among them. */
+interface BusEmit { channel: string; payload: unknown; scope?: string | undefined; }
+
+function makeFakeWorker() {
   const busEmits: BusEmit[] = [];
-  const yieldResourceCalls: Parameters<SemiontSession['client']['yield']['resource']>[0][] = [];
-  const adapterCalls: AdapterCall[] = [];
+  const yieldResourceCalls: Parameters<SemiontClient['yield']['resource']>[0][] = [];
+  /** The stand-in dispatcher's queue: each `job:claim` is answered with the next of these, or with nothing pending. */
+  const offered: ClaimedJob[] = [];
+  /** Refusals the stand-in dispatcher answers the next claims with, before anything it has queued. */
+  const refusals: EventMap['job:claim-failed'][] = [];
+  /** Channels the gateway does not take: an emit on one fails, as it does when the gateway cannot be reached. */
+  const failingEmits = new Set<string>();
 
   // The Archivist stand-in for the durability ack: a unit counts as complete
   // only once `mark:commit` has acknowledged its annotations as logged.
   // `mark:commit` is a request/reply operation, so the harness must answer
   // it or every unit blocks until the commit timeout. `commitSink` lets a test
   // play the sink being down.
-  // Handlers registered via `transport.on`, so a test can fire the signals the
-  // worker subscribes (the `job:cancel-requested` that cancels a running job).
-  const transportHandlers = new Map<string, (e: unknown) => void>();
   // Replies are FRAMES: `busRequest` matches on the envelope's key, so a
   // double that only carried payloads would let a key-dropping reply pass.
   const replyStreams = new Map<
@@ -152,6 +158,18 @@ function makeFakeSessionAndAdapter() {
   const probeSink: { mode: 'answer' | 'unreachable' } = { mode: 'answer' };
 
   const transportEmit = vi.fn(async (channel: string, payload: Record<string, unknown>, envelope?: { correlationId?: string; scope?: string }) => {
+    if (channel === 'job:claim') {
+      // Answered on the next tick, as a real dispatcher would.
+      const correlationId = envelope?.correlationId as string;
+      const refusal = refusals.shift();
+      const record = refusal ? undefined : offered.shift();
+      queueMicrotask(() => {
+        if (record) replyStream('job:claimed').next({ correlationId, payload: { response: record } });
+        else replyStream('job:claim-failed').next({ correlationId, payload: { ...(refusal ?? { message: 'No pending job matches', code: 'none-pending' }) } });
+      });
+      return 1;
+    }
+    if (failingEmits.has(channel)) throw new Error(`the gateway did not take ${channel}`);
     busEmits.push({ channel, payload, scope: envelope?.scope });
     if (channel === 'mark:commit') {
       commitCount++;
@@ -189,79 +207,107 @@ function makeFakeSessionAndAdapter() {
     }
     return 1;
   });
-  const session = {
-    client: {
-      transport: {
-        emit: transportEmit,
-        // `startWorkerProcess` reads `transport.actor` to attach the job-claim
-        // adapter, and `transport.on` to subscribe the cancel signal; test
-        // needs minimal stand-ins for both.
-        on: vi.fn((channel: string, handler: (e: unknown) => void) => {
-          transportHandlers.set(channel, handler);
-          return () => {};
-        }),
-        actor: {
-          stream: vi.fn((channel: string) =>
-            replyStream(channel).asObservable().pipe(map((frame) => frame.payload)),
-          ),
-          frames: vi.fn((channel: string) => replyStream(channel).asObservable()),
-          emit: transportEmit,
-          // 'open' is the attach gate's pass value; anything else holds every
-          // busRequest until it times out.
-          state$: new BehaviorSubject('open'),
-          isSubscribed: () => true,
-          trackReply: () => () => {},
-          removeChannels: vi.fn(),
+  const transport = {
+    emit: transportEmit,
+    stream: vi.fn((channel: string) =>
+      replyStream(channel).asObservable().pipe(map((frame) => frame.payload)),
+    ),
+    frames: vi.fn((channel: string) => replyStream(channel).asObservable()),
+    // 'open' is the attach gate's pass value; anything else holds every
+    // busRequest until it times out.
+    state$: new BehaviorSubject('open'),
+    isSubscribed: () => true,
+    trackReply: () => () => {},
+  };
+  const client = {
+    transport,
+    // The SDK's own namespace over the fake transport: `job.claim` here is the
+    // real claiming, and the jobs it hands out are real held jobs.
+    job: new JobNamespace(transport as unknown as ITransport, new EventBus()),
+    browse: {
+      // Detection jobs gate on the resource's media type before
+      // fetching content; default to a text resource so the happy
+      // paths proceed.
+      resource: vi.fn((_rid: string) => ({
+        fresh: async () => ({ representations: [{ mediaType: 'text/plain' }] }),
+      })),
+      // The Smelter's geometry consult. Only PDF tests take this path;
+      // they override it. Default is a benign settled answer.
+      resourceAnchoredText: vi.fn(async (_rid: string) => ({
+        kind: 'extracted', text: 'the content', items: [], method: 'pdf-text-layer',
+      })),
+      // The durability probe. What the log actually holds — the only
+      // evidence that can separate a lost acknowledgement from a lost batch.
+      // Rejects when absent, as the real read does
+      // (`browse:annotation-failed`, "Annotation not found").
+      annotation: vi.fn((_rid: string, aid: string) => ({
+        fresh: async () => {
+          // `probeSink` plays the read being UNANSWERABLE, which is a
+          // different fact from the read answering "no" — `bus.timeout`
+          // versus `bus.rejected`, and opposite epistemic states.
+          if (probeSink.mode === 'unreachable') {
+            throw new BusRequestError('Bus request timed out after 30000ms on browse:annotation-result', 'bus.timeout');
+          }
+          const hit = landed.find((a) => String(a.id) === String(aid));
+          if (!hit) throw new BusRequestError('Annotation not found', 'bus.rejected');
+          return hit;
         },
-      },
-      browse: {
-        // Detection jobs gate on the resource's media type before
-        // fetching content; default to a text resource so the happy
-        // paths proceed.
-        resource: vi.fn((_rid: string) => ({
-          fresh: async () => ({ representations: [{ mediaType: 'text/plain' }] }),
-        })),
-        // The Smelter's geometry consult. Only PDF tests take this path;
-        // they override it. Default is a benign settled answer.
-        resourceAnchoredText: vi.fn(async (_rid: string) => ({
-          kind: 'extracted', text: 'the content', items: [], method: 'pdf-text-layer',
-        })),
-        // The durability probe. What the log actually holds — the only
-        // evidence that can separate a lost acknowledgement from a lost batch.
-        // Rejects when absent, as the real read does
-        // (`browse:annotation-failed`, "Annotation not found").
-        annotation: vi.fn((_rid: string, aid: string) => ({
-          fresh: async () => {
-            // `probeSink` plays the read being UNANSWERABLE, which is a
-            // different fact from the read answering "no" — `bus.timeout`
-            // versus `bus.rejected`, and opposite epistemic states.
-            if (probeSink.mode === 'unreachable') {
-              throw new BusRequestError('Bus request timed out after 30000ms on browse:annotation-result', 'bus.timeout');
-            }
-            const hit = landed.find((a) => String(a.id) === String(aid));
-            if (!hit) throw new BusRequestError('Annotation not found', 'bus.rejected');
-            return hit;
-          },
-        })),
-      },
-      yield: {
-        resource: vi.fn(async (data: Parameters<SemiontSession['client']['yield']['resource']>[0]) => {
-          yieldResourceCalls.push(data);
-          return { resourceId: 'new-res-42' };
-        }),
-      },
+      })),
     },
-  } as unknown as SemiontSession;
+    yield: {
+      resource: vi.fn(async (data: Parameters<SemiontClient['yield']['resource']>[0]) => {
+        yieldResourceCalls.push(data);
+        return { resourceId: 'new-res-42' };
+      }),
+    },
+  } as unknown as SemiontClient;
 
-  const adapter = {
-    completeJob: vi.fn(() => adapterCalls.push({ method: 'completeJob', args: [] })),
-    failJob: vi.fn((jid: string, err: string) => adapterCalls.push({ method: 'failJob', args: [jid, err] })),
-    // Every progress emission refreshes the worker's liveness first — a fake
-    // without it throws the moment a test drives `onProgress`.
-    touchActivity: vi.fn(() => adapterCalls.push({ method: 'touchActivity', args: [] })),
-  } as unknown as JobClaimAdapter;
+  /** Hold `record`: the next claim is answered with it, and the job the SDK's claims hand out is returned. */
+  const hold = (record: ClaimedJob): Promise<HeldJob> => new Promise((resolve, reject) => {
+    offered.push(record);
+    client.job.claim({ accepts: EVERYTHING }).subscribe({ next: resolve, error: reject });
+  });
+  /** Queue `record` and announce it, so a worker that holds nothing claims it. */
+  const offer = (record: ClaimedJob): void => {
+    offered.push(record);
+    wake();
+  };
+  /** An announcement every worker here takes: an idle one claims. */
+  const wake = (): void => {
+    replyStream('job:queued').next({ payload: { jobId: 'job-announced', jobType: 'yield', resourceId: RID, userId: 'did:web:kb.example:users:u', params: {} } });
+  };
+  /** A cancellation naming `id`, as the gateway relays one. */
+  const cancel = (id: string): void => {
+    replyStream('job:cancel-requested').next({ payload: { jobId: id } });
+  };
+  /** How the jobs run here were settled, in order: each is one of job:complete, job:fail and job:cancel. */
+  const settles = (): string[] => busEmits.map((e) => e.channel).filter((channel) => ['job:complete', 'job:fail', 'job:cancel'].includes(channel));
 
-  return { session, transportHandlers, adapter, busEmits, yieldResourceCalls, adapterCalls, commitSink, landed, probeSink };
+  return { client, hold, offer, wake, cancel, refusals, failingEmits, settles, busEmits, yieldResourceCalls, commitSink, landed, probeSink };
+}
+
+/** A worker that takes every job: one filter for each. */
+const EVERYTHING: WorkerProcessConfig['accepts'] = [
+  ...(['highlighting', 'commenting', 'assessing', 'linking', 'tagging'] as const).map((motivation) => ({ jobType: 'mark' as const, params: { motivation } })),
+  { jobType: 'yield' },
+];
+
+/**
+ * Run `record` as a job this worker holds. A `signal` stands for a
+ * cancellation of it: when it aborts, the gateway relays one naming the job.
+ */
+async function handleHeld(
+  h: ReturnType<typeof makeFakeWorker>,
+  config: WorkerProcessConfig,
+  record: ClaimedJob,
+  completedUnitsByJob?: Map<string, string[]>,
+  signal?: AbortSignal,
+  unitCursorsByJob?: Map<string, Record<string, UnitCursor>>,
+): Promise<void> {
+  const job = await h.hold(record);
+  if (signal?.aborted) h.cancel(job.jobId);
+  else signal?.addEventListener('abort', () => h.cancel(job.jobId), { once: true });
+  return handleJob(config, job, completedUnitsByJob, unitCursorsByJob);
 }
 
 /**
@@ -279,13 +325,10 @@ const emitting = (r: { annotations: unknown[]; result: unknown; unit?: string })
     return { result: r.result } as never;
   }) as never;
 
-function makeConfig(session: SemiontSession): WorkerProcessConfig {
+function makeConfig(client: SemiontClient): WorkerProcessConfig {
   return {
-    session,
-    accepts: [
-      ...(['highlighting', 'commenting', 'assessing', 'linking', 'tagging'] as const).map((motivation) => ({ jobType: 'mark' as const, params: { motivation } })),
-      { jobType: 'yield' },
-    ],
+    client,
+    accepts: EVERYTHING,
     inferenceClient: {} as never,
     generator: {
       '@type': 'Software',
@@ -313,13 +356,20 @@ function makeJob(
   budget: { retryCount: number; maxRetries: number } = { retryCount: 0, maxRetries: 0 },
   /** Mid-unit resume positions from an earlier attempt. Empty is the
    * first-attempt case every test but the resume ones want. */
-  unitCursors: ActiveJob['unitCursors'] = {},
-): ActiveJob {
+  unitCursors: Record<string, UnitCursor> = {},
+): ClaimedJob {
   return {
-    jobId: JID,
-    type: what === 'yield' ? 'yield' : 'mark',
-    resourceId: RID,
-    ...budget,
+    status: 'running',
+    metadata: {
+      id: JID,
+      type: what === 'yield' ? 'yield' : 'mark',
+      userId: userId('did:web:kb.example:users:u'),
+      created: '2026-01-01T00:00:00.000Z',
+      ...budget,
+      // Both appear on the record once an attempt has checkpointed.
+      ...(completedUnits.length > 0 ? { completedUnits } : {}),
+      ...(Object.keys(unitCursors).length > 0 ? { unitCursors } : {}),
+    },
     // What the Dispatcher hands over: the description's params and what it
     // adds. A yield job's must satisfy the wire's required trio (the worker
     // guard enforces it), and a tagging job comes with its schema resolved;
@@ -332,8 +382,8 @@ function makeJob(
         ...(what === 'tagging' ? { schemaId: TAG_SCHEMA.id, schema: TAG_SCHEMA, categories: ['Issue'] } : {}),
         ...paramsOverride,
       },
-    completedUnits,
-    unitCursors,
+    startedAt: '2026-01-01T00:00:01.000Z',
+    progress: {},
   };
 }
 
@@ -348,7 +398,7 @@ describe('handleJob orchestration', () => {
   //   (2) leads with `job:start` carrying jobId + jobType
   //   (3) one awaited `mark:commit` per chunk, trailed by its `job:checkpoint`
   //   (4) exactly one `job:complete` emit carrying jobType + result
-  //   (5) adapter.completeJob called exactly once, AFTER the above
+  //   (5) the held job settled exactly once, AFTER the above
 
   describe('highlighting', () => {
     it('forwards the progress CODE onto the wire — the producer says what, clients say it in their language', async () => {
@@ -359,9 +409,9 @@ describe('handleJob orchestration', () => {
         onProgress(60, { code: 'creating-annotations', count: 2 });
         return { annotations: [], result: { found: 0, persisted: 0 } as never };
       });
-      const h = makeFakeSessionAndAdapter();
+      const h = makeFakeWorker();
 
-      await handleJob(h.adapter, makeConfig(h.session), makeJob('highlighting'));
+      await handleHeld(h, makeConfig(h.client), makeJob('highlighting'));
 
       const progressEvent = h.busEmits.find(e => e.channel === 'job:report-progress');
       expect(progressEvent).toBeDefined();
@@ -376,9 +426,9 @@ describe('handleJob orchestration', () => {
         annotations: [{ id: 'a1' }, { id: 'a2' }] as never,
         result: { found: 2, persisted: 2 } as never,
       }));
-      const h = makeFakeSessionAndAdapter();
+      const h = makeFakeWorker();
 
-      await handleJob(h.adapter, makeConfig(h.session), makeJob('highlighting'));
+      await handleHeld(h, makeConfig(h.client), makeJob('highlighting'));
 
       expect(h.busEmits.map(e => e.channel))
         // A `job:checkpoint` trails every committed chunk, not only every
@@ -388,7 +438,7 @@ describe('handleJob orchestration', () => {
         .toEqual(['job:start', 'mark:commit', 'job:checkpoint', 'job:complete']);
       expect(h.busEmits.find(e => e.channel === 'job:complete')!.payload)
         .toMatchObject({ jobType: 'mark', result: { found: 2 } });
-      expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
+      expect(h.settles().filter((how) => how !== 'job:fail')).toHaveLength(1);
     });
 
     it('cites the job on the mark:commit it persists with', async () => {
@@ -399,14 +449,14 @@ describe('handleJob orchestration', () => {
         annotations: [{ id: 'a1' }] as never,
         result: { found: 1, persisted: 1 } as never,
       }));
-      const h = makeFakeSessionAndAdapter();
+      const h = makeFakeWorker();
       const job = makeJob('highlighting');
 
-      await handleJob(h.adapter, makeConfig(h.session), job);
+      await handleHeld(h, makeConfig(h.client), job);
 
       const commit = h.busEmits.find(e => e.channel === 'mark:commit');
       expect(commit).toBeDefined();
-      expect((commit!.payload as { jobId?: string }).jobId).toBe(job.jobId);
+      expect((commit!.payload as { jobId?: string }).jobId).toBe(job.metadata.id);
     });
   });
 
@@ -416,9 +466,9 @@ describe('handleJob orchestration', () => {
         annotations: [{ id: 'c1' }] as never,
         result: { found: 1, persisted: 1 } as never,
       }));
-      const h = makeFakeSessionAndAdapter();
+      const h = makeFakeWorker();
 
-      await handleJob(h.adapter, makeConfig(h.session), makeJob('commenting'));
+      await handleHeld(h, makeConfig(h.client), makeJob('commenting'));
 
       expect(h.busEmits.map(e => e.channel))
         // A `job:checkpoint` trails every committed chunk, not only every
@@ -426,7 +476,7 @@ describe('handleJob orchestration', () => {
         // can be before the job ends: the unit grain alone is too coarse for
         // these four types.
         .toEqual(['job:start', 'mark:commit', 'job:checkpoint', 'job:complete']);
-      expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
+      expect(h.settles().filter((how) => how !== 'job:fail')).toHaveLength(1);
     });
   });
 
@@ -436,9 +486,9 @@ describe('handleJob orchestration', () => {
         annotations: [{ id: 'a1' }] as never,
         result: { found: 1, persisted: 1 } as never,
       }));
-      const h = makeFakeSessionAndAdapter();
+      const h = makeFakeWorker();
 
-      await handleJob(h.adapter, makeConfig(h.session), makeJob('assessing'));
+      await handleHeld(h, makeConfig(h.client), makeJob('assessing'));
 
       expect(h.busEmits.map(e => e.channel))
         // A `job:checkpoint` trails every committed chunk, not only every
@@ -446,7 +496,7 @@ describe('handleJob orchestration', () => {
         // can be before the job ends: the unit grain alone is too coarse for
         // these four types.
         .toEqual(['job:start', 'mark:commit', 'job:checkpoint', 'job:complete']);
-      expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
+      expect(h.settles().filter((how) => how !== 'job:fail')).toHaveLength(1);
     });
   });
 
@@ -460,9 +510,9 @@ describe('handleJob orchestration', () => {
         annotations: [{ id: 't1' }] as never,
         result: { found: 1, persisted: 1 } as never,
       }));
-      const h = makeFakeSessionAndAdapter();
+      const h = makeFakeWorker();
 
-      await handleJob(h.adapter, makeConfig(h.session), makeJob('tagging'));
+      await handleHeld(h, makeConfig(h.client), makeJob('tagging'));
 
       expect(h.busEmits.map(e => e.channel))
         // A `job:checkpoint` trails every committed chunk, not only every
@@ -474,7 +524,7 @@ describe('handleJob orchestration', () => {
         jobType: 'mark',
         result: { found: 1, persisted: 1 },
       });
-      expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
+      expect(h.settles().filter((how) => how !== 'job:fail')).toHaveLength(1);
     });
   });
 
@@ -487,9 +537,9 @@ describe('handleJob orchestration', () => {
         citations: [],
         truncated: true,
       });
-      const h = makeFakeSessionAndAdapter();
+      const h = makeFakeWorker();
 
-      await handleJob(h.adapter, makeConfig(h.session), makeJob('yield', {
+      await handleHeld(h, makeConfig(h.client), makeJob('yield', {
         context: minimalContext('annotation'),   // the focus IS the reference
         prompt: 'Write about X',
         language: 'en',
@@ -518,7 +568,7 @@ describe('handleJob orchestration', () => {
       });
       expect(h.busEmits.map(e => e.channel)).not.toContain('yield:create');
       expect(h.busEmits.map(e => e.channel)).not.toContain('mark:commit');
-      expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
+      expect(h.settles().filter((how) => how !== 'job:fail')).toHaveLength(1);
     });
 
     // ── The Save location is authoritative ───────────────────────────────────
@@ -534,9 +584,9 @@ describe('handleJob orchestration', () => {
         citations: [],
         truncated: false,
       });
-      const h = makeFakeSessionAndAdapter();
+      const h = makeFakeWorker();
 
-      await handleJob(h.adapter, makeConfig(h.session), makeJob('yield', {
+      await handleHeld(h, makeConfig(h.client), makeJob('yield', {
         storageUri: 'file://research/notes.md',
       }));
 
@@ -555,8 +605,8 @@ describe('handleJob orchestration', () => {
           citations: [],
           truncated: false,
         });
-        const h = makeFakeSessionAndAdapter();
-        await handleJob(h.adapter, makeConfig(h.session), makeJob('yield', {
+        const h = makeFakeWorker();
+        await handleHeld(h, makeConfig(h.client), makeJob('yield', {
           storageUri: 'file://research/notes.md',
         }));
         uris.push(h.yieldResourceCalls[0]!.storageUri);
@@ -576,10 +626,10 @@ describe('handleJob orchestration', () => {
         citations: [],
         truncated: false,
       });
-      const h = makeFakeSessionAndAdapter();
+      const h = makeFakeWorker();
 
       await expect(
-        handleJob(h.adapter, makeConfig(h.session), makeJob('yield', { storageUri: '' })),
+        handleHeld(h, makeConfig(h.client), makeJob('yield', { storageUri: '' })),
       ).rejects.toThrow(/GenerationJobParams/);
 
       // "Fails" must mean NOTHING WAS WRITTEN — not merely that an error
@@ -601,18 +651,18 @@ describe('handleJob orchestration', () => {
         citations: [],
         truncated: false,
       });
-      const h = makeFakeSessionAndAdapter();
-      const config = makeConfig(h.session);
+      const h = makeFakeWorker();
+      const config = makeConfig(h.client);
 
-      await handleJob(h.adapter, config, makeJob('yield', {
+      await handleHeld(h, config, makeJob('yield', {
         storageUri: 'file://research/notes.md',
         outputMediaType: 'application/pdf',
       }));
 
       // Faithful: the requested URI is honored verbatim, and the job succeeds.
       expect(h.yieldResourceCalls[0]!.storageUri).toBe('file://research/notes.md');
-      expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
-      expect(h.adapterCalls.filter(c => c.method === 'failJob')).toHaveLength(0);
+      expect(h.settles().filter((how) => how !== 'job:fail')).toHaveLength(1);
+      expect(h.settles().filter((how) => how === 'job:fail')).toHaveLength(0);
 
       // Loud: the warning names both halves of the disagreement.
       const warns = vi.mocked(config.logger.warn).mock.calls;
@@ -630,10 +680,10 @@ describe('handleJob orchestration', () => {
         citations: [],
         truncated: false,
       });
-      const h = makeFakeSessionAndAdapter();
-      const config = makeConfig(h.session);
+      const h = makeFakeWorker();
+      const config = makeConfig(h.client);
 
-      await handleJob(h.adapter, config, makeJob('yield', {
+      await handleHeld(h, config, makeJob('yield', {
         storageUri: 'file://research/NOTES.PDF',
         outputMediaType: 'application/pdf',
       }));
@@ -647,10 +697,10 @@ describe('handleJob orchestration', () => {
       // untyped JSON — a trio-less bag must throw HERE, named, not surface as
       // a mid-generation TypeError. (Override wins over the factory's
       // GEN_REQUIRED injection.)
-      const h = makeFakeSessionAndAdapter();
+      const h = makeFakeWorker();
 
       await expect(
-        handleJob(h.adapter, makeConfig(h.session), makeJob('yield', { title: undefined }))
+        handleHeld(h, makeConfig(h.client), makeJob('yield', { title: undefined }))
       ).rejects.toThrow(/params do not satisfy GenerationJobParams/);
       expect(processGenerationJob).not.toHaveBeenCalled();
     });
@@ -663,11 +713,11 @@ describe('handleJob orchestration', () => {
         citations: [],
         truncated: false,
       });
-      const h = makeFakeSessionAndAdapter();
-      vi.mocked(h.session.client.yield.resource).mockRejectedValueOnce(new Error('Upload failed: 500'));
+      const h = makeFakeWorker();
+      vi.mocked(h.client.yield.resource).mockRejectedValueOnce(new Error('Upload failed: 500'));
 
       await expect(
-        handleJob(h.adapter, makeConfig(h.session), makeJob('yield', { context: minimalContext('annotation') }))
+        handleHeld(h, makeConfig(h.client), makeJob('yield', { context: minimalContext('annotation') }))
       ).rejects.toThrow(/Upload failed: 500/);
     });
 
@@ -682,11 +732,11 @@ describe('handleJob orchestration', () => {
         citations: [],
         truncated: false,
       });
-      const h = makeFakeSessionAndAdapter();
+      const h = makeFakeWorker();
 
-      await handleJob(
-        h.adapter,
-        makeConfig(h.session),
+      await handleHeld(
+        h,
+        makeConfig(h.client),
         makeJob('yield', {
           entityTypes: ['Character', 'Hero'],
         }),
@@ -708,9 +758,9 @@ describe('handleJob orchestration', () => {
         citations: [],
         truncated: false,
       });
-      const h = makeFakeSessionAndAdapter();
+      const h = makeFakeWorker();
 
-      await handleJob(h.adapter, makeConfig(h.session), makeJob('yield', { context: minimalContext('annotation') }));
+      await handleHeld(h, makeConfig(h.client), makeJob('yield', { context: minimalContext('annotation') }));
 
       expect(h.yieldResourceCalls).toHaveLength(1);
       expect(h.yieldResourceCalls[0]!.entityTypes).toBeUndefined();
@@ -725,9 +775,9 @@ describe('handleJob orchestration', () => {
       vi.mocked(processGenerationJob).mockResolvedValue({
         content: new TextEncoder().encode('body'), title: 'Derived Doc', format: 'text/markdown', citations: [], truncated: false,
       });
-      const h = makeFakeSessionAndAdapter();
+      const h = makeFakeWorker();
 
-      await handleJob(h.adapter, makeConfig(h.session), makeJob('yield', {}));
+      await handleHeld(h, makeConfig(h.client), makeJob('yield', {}));
 
       expect(h.yieldResourceCalls[0]!.sourceAnnotationId).toBeUndefined(); // no auto-bind
 
@@ -757,9 +807,9 @@ describe('handleJob orchestration', () => {
         citations: [{ resourceId: resourceId('ctx-9'), start: 0, end: 31, exact: 'Paris is the capital of France.' }],
         truncated: false,
       });
-      const h = makeFakeSessionAndAdapter();
+      const h = makeFakeWorker();
 
-      await handleJob(h.adapter, makeConfig(h.session), makeJob('yield', { context: minimalContext('annotation'), cite: true }));
+      await handleHeld(h, makeConfig(h.client), makeJob('yield', { context: minimalContext('annotation'), cite: true }));
 
       // One commit per batch, so a per-annotation view is reconstructed:
       // each annotation paired with the resourceId its batch was keyed by.
@@ -803,11 +853,11 @@ describe('handleJob orchestration', () => {
         items: [{ start: 0, end: 44, page: 1, x: 71, y: 746, width: 450, height: 11 }],
         pages: [],
       } as never);
-      const h = makeFakeSessionAndAdapter();
+      const h = makeFakeWorker();
 
-      await handleJob(
-        h.adapter,
-        makeConfig(h.session),
+      await handleHeld(
+        h,
+        makeConfig(h.client),
         makeJob('yield', { context: minimalContext('annotation'), cite: true, outputMediaType: 'application/pdf' }),
       );
 
@@ -852,11 +902,11 @@ describe('handleJob orchestration', () => {
         items: [{ start: 0, end: 42, page: 1, x: 71, y: 764, width: 452, height: 11 }],
         pages: [],
       } as never);
-      const h = makeFakeSessionAndAdapter();
+      const h = makeFakeWorker();
 
-      await handleJob(
-        h.adapter,
-        makeConfig(h.session),
+      await handleHeld(
+        h,
+        makeConfig(h.client),
         makeJob('yield', { context: minimalContext('annotation'), cite: true, outputMediaType: 'application/pdf' }),
       );
 
@@ -889,9 +939,9 @@ describe('handleJob orchestration', () => {
         annotations: [{ id: 'a1' }] as never,
         result: { found: 1, persisted: 1 } as never,
       }));
-      const h = makeFakeSessionAndAdapter();
+      const h = makeFakeWorker();
 
-      await handleJob(h.adapter, makeConfig(h.session), makeJob('highlighting'));
+      await handleHeld(h, makeConfig(h.client), makeJob('highlighting'));
 
       const keysOf = (channel: string) =>
         Object.keys(h.busEmits.find(e => e.channel === channel)!.payload as object).sort();
@@ -993,8 +1043,8 @@ describe('handleJob orchestration', () => {
 
     it.each(EXERCISED)('%s commits rather than fire-and-forgets', async (jobType, coverage) => {
       coverage.setup?.();
-      const h = makeFakeSessionAndAdapter();
-      await handleJob(h.adapter, makeConfig(h.session), makeJob(jobType as never, coverage.exercise));
+      const h = makeFakeWorker();
+      await handleHeld(h, makeConfig(h.client), makeJob(jobType as never, coverage.exercise));
 
       const channels = h.busEmits.map(e => e.channel);
       expect(channels, `${jobType} must not emit un-acknowledged mark:create`).not.toContain('mark:create');
@@ -1017,33 +1067,35 @@ describe('handleJob orchestration', () => {
 
   describe('a job this worker does not take', () => {
     it('emits job:start, then fails a job this worker does not take', async () => {
-      const h = makeFakeSessionAndAdapter();
-      const config: WorkerProcessConfig = { ...makeConfig(h.session), accepts: [{ jobType: 'yield' }] };
+      const h = makeFakeWorker();
+      const config: WorkerProcessConfig = { ...makeConfig(h.client), accepts: [{ jobType: 'yield' }] };
 
-      await handleJob(h.adapter, config, makeJob('highlighting'));
+      await handleHeld(h, config, makeJob('highlighting'));
 
       // A real job the worker is simply not configured for: the lifecycle
-      // is well-formed, so it starts and then fails.
-      expect(h.busEmits.map(e => e.channel)).toEqual(['job:start']);
-      const fail = h.adapterCalls.find(c => c.method === 'failJob');
-      expect(String(fail!.args[1])).toBe('Worker not configured for job: mark (highlighting)');
-      expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(0);
+      // is well-formed, so it starts and then fails, and the failure is SAID.
+      // A job released here and never failed on the wire stays `running` at
+      // the dispatcher until its sweep.
+      expect(h.busEmits.map(e => e.channel)).toEqual(['job:start', 'job:fail']);
+      expect(h.busEmits[1]!.payload).toMatchObject({ jobId: JID, error: 'Worker not configured for job: mark (highlighting)' });
+      // No class is stated, so the record's retry budget decides what becomes of it.
+      expect(h.busEmits[1]!.payload).not.toHaveProperty('failureClass');
     });
   });
 
   describe('processor throws', () => {
-    it('propagates the error (caller wraps with job:fail + adapter.failJob)', async () => {
+    it('propagates the error (the caller fails the held job)', async () => {
       vi.mocked(processReferenceJob).mockRejectedValue(new Error('inference blew up'));
-      const h = makeFakeSessionAndAdapter();
+      const h = makeFakeWorker();
 
       await expect(
-        handleJob(h.adapter, makeConfig(h.session), makeJob('linking', { entityTypes: ['Person'] }))
+        handleHeld(h, makeConfig(h.client), makeJob('linking', { entityTypes: ['Person'] }))
       ).rejects.toThrow('inference blew up');
 
       // On failure, handleJob itself does NOT emit job:complete.
       // job:start still fires at entry; the outer wrapper emits job:fail.
       expect(h.busEmits.some(e => e.channel === 'job:complete')).toBe(false);
-      expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(0);
+      expect(h.settles().filter((how) => how !== 'job:fail')).toHaveLength(0);
     });
   });
 
@@ -1055,13 +1107,13 @@ describe('handleJob orchestration', () => {
 
   describe('detection media-type gate', () => {
     it('fails a detection job on a binary resource before fetching content or calling the processor', async () => {
-      const h = makeFakeSessionAndAdapter();
-      vi.mocked(h.session.client.browse.resource).mockReturnValue({
+      const h = makeFakeWorker();
+      vi.mocked(h.client.browse.resource).mockReturnValue({
         fresh: async () => ({ representations: [{ mediaType: 'application/zip' }] }),
       } as never);
 
       await expect(
-        handleJob(h.adapter, makeConfig(h.session), makeJob('linking', { entityTypes: ['Person'] }))
+        handleHeld(h, makeConfig(h.client), makeJob('linking', { entityTypes: ['Person'] }))
       ).rejects.toThrow(/has no extractable text/);
 
       expect(getBinary).not.toHaveBeenCalled();
@@ -1101,20 +1153,20 @@ describe('handleJob orchestration', () => {
 
     it.each(PDF_FANOUT)('fans $jobType out to the geometry-consult path', async ({ jobType, arm, lastCall }) => {
       arm();
-      const h = makeFakeSessionAndAdapter();
-      vi.mocked(h.session.client.browse.resource).mockReturnValue({
+      const h = makeFakeWorker();
+      vi.mocked(h.client.browse.resource).mockReturnValue({
         fresh: async () => ({
         representations: [{ mediaType: 'application/pdf' }],
       }),
       } as never);
       // Geometry text comes from the Smelter consult, not extract.
-      vi.mocked(h.session.client.browse.resourceAnchoredText).mockResolvedValue({
+      vi.mocked(h.client.browse.resourceAnchoredText).mockResolvedValue({
         kind: 'extracted', text: 'the quick brown fox', items: [], method: 'pdf-text-layer',
       } as never);
 
-      await handleJob(
-        h.adapter,
-        makeConfig(h.session),
+      await handleHeld(
+        h,
+        makeConfig(h.client),
         // The reference branch reads entityTypes before dispatching to the
         // (mocked) processor — give it the params a real job always carries.
         makeJob(jobType, jobType === 'linking' ? { entityTypes: ['Person'] } : {}),
@@ -1123,7 +1175,7 @@ describe('handleJob orchestration', () => {
       // A PDF is geometry-bearing: its text comes from the CONSULT, not from
       // fetching and re-extracting bytes here. getBinary must NOT run — a 39 MB
       // download whose bytes are discarded still downloads.
-      expect(h.session.client.browse.resourceAnchoredText).toHaveBeenCalled();
+      expect(h.client.browse.resourceAnchoredText).toHaveBeenCalled();
       expect(getBinary).not.toHaveBeenCalled();
       const call = lastCall();
       expect(call).toBeDefined();
@@ -1136,37 +1188,37 @@ describe('handleJob orchestration', () => {
       // A genuine content decline comes back from the CONSULT by name: the
       // Smelter tried and settled skipped. The dispatch completes the job with
       // that reason rather than crashing or running the model on nothing.
-      const h = makeFakeSessionAndAdapter();
-      vi.mocked(h.session.client.browse.resource).mockReturnValue({
+      const h = makeFakeWorker();
+      vi.mocked(h.client.browse.resource).mockReturnValue({
         fresh: async () => ({
         representations: [{ mediaType: 'application/pdf' }],
       }),
       } as never);
-      vi.mocked(h.session.client.browse.resourceAnchoredText).mockResolvedValue({
+      vi.mocked(h.client.browse.resourceAnchoredText).mockResolvedValue({
         kind: 'declined', declined: 'no-text-layer',
       } as never);
 
-      await handleJob(h.adapter, makeConfig(h.session), makeJob('highlighting'));
+      await handleHeld(h, makeConfig(h.client), makeJob('highlighting'));
 
       expect(processHighlightJob).not.toHaveBeenCalled();
       const complete = h.busEmits.find(e => e.channel === 'job:complete');
       expect(complete).toBeDefined();
       expect((complete!.payload as { result?: unknown }).result)
         .toMatchObject({ declined: true, reason: 'no-text-layer' });
-      expect(h.adapterCalls.some(c => c.method === 'completeJob')).toBe(true);
+      expect(h.settles()).toEqual(['job:complete']);
     });
 
     it('a not-yet consult is a TRANSIENT failure — the retry finds the store warm', async () => {
       // The Smelter has not settled this generation yet. Not a decline, not a
       // clean completion — a retryable failure. The throw carries no
       // deterministic class, so classifyFailure leaves it transient.
-      const h = makeFakeSessionAndAdapter();
-      vi.mocked(h.session.client.browse.resource).mockReturnValue({
+      const h = makeFakeWorker();
+      vi.mocked(h.client.browse.resource).mockReturnValue({
         fresh: async () => ({ representations: [{ mediaType: 'application/pdf' }] }),
       } as never);
-      vi.mocked(h.session.client.browse.resourceAnchoredText).mockResolvedValue({ kind: 'not-yet' } as never);
+      vi.mocked(h.client.browse.resourceAnchoredText).mockResolvedValue({ kind: 'not-yet' } as never);
 
-      const err = await handleJob(h.adapter, makeConfig(h.session), makeJob('highlighting'))
+      const err = await handleHeld(h, makeConfig(h.client), makeJob('highlighting'))
         .then(() => null, (e) => e);
       expect(err).toBeInstanceOf(Error);
       expect((err as Error).message).toMatch(/not yet derived/);
@@ -1176,13 +1228,13 @@ describe('handleJob orchestration', () => {
     });
 
     it('a no-map consult is a TERMINAL failure — drift the retry cannot fix', async () => {
-      const h = makeFakeSessionAndAdapter();
-      vi.mocked(h.session.client.browse.resource).mockReturnValue({
+      const h = makeFakeWorker();
+      vi.mocked(h.client.browse.resource).mockReturnValue({
         fresh: async () => ({ representations: [{ mediaType: 'application/pdf' }] }),
       } as never);
-      vi.mocked(h.session.client.browse.resourceAnchoredText).mockResolvedValue({ kind: 'no-map' } as never);
+      vi.mocked(h.client.browse.resourceAnchoredText).mockResolvedValue({ kind: 'no-map' } as never);
 
-      const err = await handleJob(h.adapter, makeConfig(h.session), makeJob('highlighting'))
+      const err = await handleHeld(h, makeConfig(h.client), makeJob('highlighting'))
         .then(() => null, (e) => e);
       expect((err as Error).message).toMatch(/consult returned 'no-map'/);
       expect(classifyFailure(err)).toBe('deterministic');   // terminal
@@ -1190,15 +1242,15 @@ describe('handleJob orchestration', () => {
     });
 
     it('fails a detection job when the resource has no primary representation', async () => {
-      const h = makeFakeSessionAndAdapter();
-      vi.mocked(h.session.client.browse.resource).mockReturnValue({
+      const h = makeFakeWorker();
+      vi.mocked(h.client.browse.resource).mockReturnValue({
         fresh: async () => ({
         representations: [],
       }),
       } as never);
 
       await expect(
-        handleJob(h.adapter, makeConfig(h.session), makeJob('commenting'))
+        handleHeld(h, makeConfig(h.client), makeJob('commenting'))
       ).rejects.toThrow(/has no extractable text/);
 
       expect(getBinary).not.toHaveBeenCalled();
@@ -1211,14 +1263,14 @@ describe('handleJob orchestration', () => {
         annotations: [] as never,
         result: { found: 0, persisted: 0 } as never,
       }));
-      const h = makeFakeSessionAndAdapter();
-      vi.mocked(h.session.client.browse.resource).mockReturnValue({
+      const h = makeFakeWorker();
+      vi.mocked(h.client.browse.resource).mockReturnValue({
         fresh: async () => ({
         representations: [{ mediaType: 'text/x-custom' }],
       }),
       } as never);
 
-      await handleJob(h.adapter, makeConfig(h.session), makeJob('commenting'));
+      await handleHeld(h, makeConfig(h.client), makeJob('commenting'));
 
       expect(processCommentJob).toHaveBeenCalled();
       expect(h.busEmits.some(e => e.channel === 'job:complete')).toBe(true);
@@ -1232,11 +1284,11 @@ describe('handleJob orchestration', () => {
         citations: [],
         truncated: false,
       });
-      const h = makeFakeSessionAndAdapter();
+      const h = makeFakeWorker();
 
-      await handleJob(h.adapter, makeConfig(h.session), makeJob('yield', { context: minimalContext('annotation') }));
+      await handleHeld(h, makeConfig(h.client), makeJob('yield', { context: minimalContext('annotation') }));
 
-      expect(h.session.client.browse.resource).not.toHaveBeenCalled();
+      expect(h.client.browse.resource).not.toHaveBeenCalled();
       expect(h.busEmits.some(e => e.channel === 'job:complete')).toBe(true);
     });
   });
@@ -1258,9 +1310,9 @@ describe('handleJob — global job-completion', () => {
       annotations: [] as never,
       result: {} as never,
     }));
-    const h = makeFakeSessionAndAdapter();
+    const h = makeFakeWorker();
 
-    await handleJob(h.adapter, makeConfig(h.session), makeJob('highlighting'));
+    await handleHeld(h, makeConfig(h.client), makeJob('highlighting'));
 
     const completes = h.busEmits.filter(e => e.channel === 'job:complete');
     expect(completes).toHaveLength(1);
@@ -1272,9 +1324,9 @@ describe('handleJob — global job-completion', () => {
       annotations: [] as never,
       result: {} as never,
     }));
-    const h = makeFakeSessionAndAdapter();
+    const h = makeFakeWorker();
 
-    await handleJob(h.adapter, makeConfig(h.session), makeJob('highlighting'));
+    await handleHeld(h, makeConfig(h.client), makeJob('highlighting'));
 
     const startEmit = h.busEmits.find(e => e.channel === 'job:start');
     expect(startEmit).toBeDefined();
@@ -1286,9 +1338,9 @@ describe('handleJob — global job-completion', () => {
       annotations: [{ id: 'a1' }] as never,
       result: {} as never,
     }));
-    const h = makeFakeSessionAndAdapter();
+    const h = makeFakeWorker();
 
-    await handleJob(h.adapter, makeConfig(h.session), makeJob('highlighting'));
+    await handleHeld(h, makeConfig(h.client), makeJob('highlighting'));
 
     const commitEmit = h.busEmits.find(e => e.channel === 'mark:commit');
     expect(commitEmit).toBeDefined();
@@ -1298,43 +1350,20 @@ describe('handleJob — global job-completion', () => {
 });
 
 // ──────────────────────────────────────────────────────────────────────
-// startWorkerProcess — the outer wrapper that creates a job-claim
-// adapter from session.client.transport.actor, subscribes to activeJob$,
-// and translates handleJob rejections into job:fail + adapter.failJob.
+// startWorkerProcess — the outer wrapper that claims jobs (`job.claim`),
+// runs each one it comes to hold, and fails a held job whose run rejects.
 // ──────────────────────────────────────────────────────────────────────
 
 describe('startWorkerProcess', () => {
-  // Import lazily so the top-level vi.mock of ../processors applies.
-  const loadStartWorkerProcess = async () => {
-    const mod = await import('../worker-process');
-    return mod.startWorkerProcess;
-  };
-
-  // The double is the claim adapter: each test mocks `createJobClaimAdapter`
-  // to return a fake whose `activeJob$` or `refused$` it holds, so pushing a
-  // value there drives the worker's subscription directly. The real
-  // adapter's `job:queued` / `job:claim` exchange never runs.
+  // Nothing is mocked between the worker and the wire: the SDK's own claiming
+  // runs over the fake transport, and the stand-in dispatcher answers each
+  // `job:claim` with what a test offered, refused, or with nothing pending.
 
   // The cancel SIGNAL's routing, distinct from what the loop does once aborted.
   // A worker holds one active job; a `job:cancel-requested` naming a different
   // one must not touch it. Getting this wrong cancels a stranger's work, and
   // the failure is invisible — the wrong job simply stops.
   it('aborts the active job only when the cancel names it', async () => {
-    const { BehaviorSubject } = await import('rxjs');
-    const activeJob$ = new BehaviorSubject<ActiveJob | null>(null);
-    vi.doMock('../job-claim-adapter', () => ({
-      createJobClaimAdapter: vi.fn(() => ({
-        activeJob$,
-        isProcessing$: { subscribe: vi.fn() },
-        jobsCompleted$: { subscribe: vi.fn() },
-        errors$: { subscribe: vi.fn() },
-        refused$: { subscribe: vi.fn() },
-        start: vi.fn(), stop: vi.fn(),
-        completeJob: vi.fn(), failJob: vi.fn(), dispose: vi.fn(),
-      })),
-    }));
-    vi.resetModules();
-    const startWorkerProcess = await loadStartWorkerProcess();
 
     let seenSignal: AbortSignal | undefined;
     let release: (() => void) | undefined;
@@ -1346,25 +1375,20 @@ describe('startWorkerProcess', () => {
       },
     );
 
-    const h = makeFakeSessionAndAdapter();
-    startWorkerProcess(makeConfig(h.session));
-    activeJob$.next(makeJob('linking', { entityTypes: ['Person'] }));
+    const h = makeFakeWorker();
+    startWorkerProcess(makeConfig(h.client));
+    h.offer(makeJob('linking', { entityTypes: ['Person'] }));
     await vi.waitFor(() => expect(seenSignal).toBeDefined());
 
-    const fireCancel = h.transportHandlers.get('job:cancel-requested');
-    expect(fireCancel).toBeDefined();
-
     // A cancel for some other job leaves this one running.
-    fireCancel!({ jobId: 'some-other-job' });
+    h.cancel('some-other-job');
     expect(seenSignal!.aborted).toBe(false);
 
     // A cancel naming the active job aborts it.
-    fireCancel!({ jobId: JID });
+    h.cancel(JID);
     expect(seenSignal!.aborted).toBe(true);
 
     release?.();
-    vi.doUnmock('../job-claim-adapter');
-    vi.resetModules();
   });
 
   // The refusal policy: a claim refused because this credential is not a
@@ -1372,78 +1396,76 @@ describe('startWorkerProcess', () => {
   // parking forever, refused on every wake-up, with nothing in its own logs
   // saying why. Any other refusal is logged and the worker stays parked until
   // the next wake-up.
-  it('exits on bus.unauthorized from refused$ and only logs on anything else', async () => {
-    const { BehaviorSubject, Subject } = await import('rxjs');
-    const refused$ = new Subject<{ code: string | null; message: string }>();
-    vi.doMock('../job-claim-adapter', () => ({
-      createJobClaimAdapter: vi.fn(() => ({
-        activeJob$: new BehaviorSubject<ActiveJob | null>(null),
-        isProcessing$: { subscribe: vi.fn() },
-        jobsCompleted$: { subscribe: vi.fn() },
-        errors$: { subscribe: vi.fn() },
-        refused$,
-        start: vi.fn(), stop: vi.fn(),
-        completeJob: vi.fn(), failJob: vi.fn(), dispose: vi.fn(),
-      })),
-    }));
-    vi.resetModules();
-    const startWorkerProcess = await loadStartWorkerProcess();
-
-    const h = makeFakeSessionAndAdapter();
+  it('exits on a claim refused as unauthorized, and only logs any other refusal', async () => {
+    const h = makeFakeWorker();
     const exit = vi.fn();
-    startWorkerProcess({ ...makeConfig(h.session), exit });
+    const config = { ...makeConfig(h.client), exit };
+    h.refusals.push({ message: 'the queue could not be read' });
+    startWorkerProcess(config);
+    await new Promise((r) => setTimeout(r, 0));
 
-    refused$.next({ code: 'bus.timeout', message: 'no reply' });
-    refused$.next({ code: null, message: 'socket hang up' });
-    expect(exit, 'a transient or local refusal parks; it does not kill the worker').not.toHaveBeenCalled();
+    expect(config.logger.warn).toHaveBeenCalledWith('Claim declined; parked until the next wake-up', { code: 'bus.rejected', message: 'the queue could not be read' });
+    expect(exit, 'a refusal that may not recur parks the worker; it does not kill it').not.toHaveBeenCalled();
 
-    refused$.next({ code: 'bus.unauthorized', message: 'job:claim refused: the caller is not a worker for this knowledge base' });
+    h.refusals.push({ code: 'unauthorized', message: 'job:claim refused: the caller is not a worker for this knowledge base' });
+    h.wake();
+    await new Promise((r) => setTimeout(r, 0));
     expect(exit).toHaveBeenCalledWith(1);
-
-    vi.doUnmock('../job-claim-adapter');
-    vi.resetModules();
   });
 
-  it('subscribes to activeJob$ and dispatches handleJob on each emitted job', async () => {
-    const { BehaviorSubject } = await import('rxjs');
-    const activeJob$ = new BehaviorSubject<ActiveJob | null>(null);
-    const completeJob = vi.fn();
-    const failJob = vi.fn();
-    const adapterStart = vi.fn();
+  // A held job that shows no activity is wedged, and a wedged worker never
+  // settles, so it never claims again. The SDK reports the stall
+  // (`heldJobStallMs`, looked at every `heldJobStallCheckMs`); what a host
+  // does then is the host's, and this one exits for restart.
+  it('exits when the job it holds stalls', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(processHighlightJob).mockImplementation(() => new Promise(() => {}));
+      const h = makeFakeWorker();
+      const exit = vi.fn();
+      const config = { ...makeConfig(h.client), exit };
+      h.offer(makeJob('highlighting'));
+      startWorkerProcess(config);
 
-    // `createJobClaimAdapter` lives in `./job-claim-adapter` (sibling of
-    // worker-process.ts). Mock the sibling so worker-process picks up the fake.
-    vi.doMock('../job-claim-adapter', () => ({
-      createJobClaimAdapter: vi.fn(() => ({
-        activeJob$: activeJob$.asObservable(),
-        isProcessing$: { subscribe: vi.fn() },
-        jobsCompleted$: { subscribe: vi.fn() },
-        errors$: { subscribe: vi.fn() },
-        refused$: { subscribe: vi.fn() },
-        start: adapterStart,
-        stop: vi.fn(),
-        completeJob,
-        failJob,
-        dispose: vi.fn(),
-      })),
-    }));
-    vi.resetModules();
+      await vi.advanceTimersByTimeAsync(HELD_JOB_STALL_MS - 1_000);
+      expect(exit, 'silent for less than the threshold').not.toHaveBeenCalled();
 
-    const startWorkerProcess = await loadStartWorkerProcess();
+      await vi.advanceTimersByTimeAsync(HELD_JOB_STALL_CHECK_MS + 1_000);
+      expect(exit).toHaveBeenCalledWith(1);
+      expect(config.logger.error).toHaveBeenCalledWith('Worker stalled — exiting for restart', expect.objectContaining({ jobId: JID, thresholdMs: HELD_JOB_STALL_MS }));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // A completion that could not be sent has still released the job, and the
+  // worker has nothing more to say of it: a `job:fail` after it would be a
+  // second settle of one job.
+  it('does not fail a job whose completion the gateway did not take', async () => {
+    vi.mocked(processHighlightJob).mockImplementation(emitting({ annotations: [] as never, result: { found: 0, persisted: 0 } as never }));
+    const h = makeFakeWorker();
+    h.failingEmits.add('job:complete');
+    const config = makeConfig(h.client);
+    h.offer(makeJob('highlighting'));
+    startWorkerProcess(config);
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(h.settles(), 'nothing it tried to say reached the wire, and it did not try a second settle').toEqual([]);
+    expect(config.logger.error).toHaveBeenCalledWith('Job failed', expect.objectContaining({ jobId: JID, error: 'the gateway did not take job:complete' }));
+  });
+
+  it('claims, and runs each job it comes to hold', async () => {
 
     vi.mocked(processHighlightJob).mockImplementation(emitting({
       annotations: [] as never,
       result: {} as never,
     }));
 
-    const h = makeFakeSessionAndAdapter();
-    startWorkerProcess(makeConfig(h.session));
+    const h = makeFakeWorker();
+    startWorkerProcess(makeConfig(h.client));
 
-    // Adapter was started exactly once.
-    expect(adapterStart).toHaveBeenCalledTimes(1);
-
-    // Push a job onto activeJob$ — the subscription should run handleJob.
-    activeJob$.next(makeJob('highlighting'));
+    // The dispatcher has a job for this worker: it claims it and runs it.
+    h.offer(makeJob('highlighting'));
     // Let handleJob's async chain settle.
     await new Promise((r) => setTimeout(r, 0));
 
@@ -1451,44 +1473,19 @@ describe('startWorkerProcess', () => {
     expect(h.busEmits.map((e) => e.channel)).toContain('job:start');
     expect(h.busEmits.map((e) => e.channel)).toContain('job:complete');
 
-    vi.doUnmock('../job-claim-adapter');
-    vi.resetModules();
   });
 
-  it('emits job:fail + calls adapter.failJob when handleJob rejects', async () => {
-    const { BehaviorSubject } = await import('rxjs');
-    const activeJob$ = new BehaviorSubject<ActiveJob | null>(null);
-    const completeJob = vi.fn();
-    const failJob = vi.fn();
-    const adapterStart = vi.fn();
-
-    vi.doMock('../job-claim-adapter', () => ({
-      createJobClaimAdapter: vi.fn(() => ({
-        activeJob$: activeJob$.asObservable(),
-        isProcessing$: { subscribe: vi.fn() },
-        jobsCompleted$: { subscribe: vi.fn() },
-        errors$: { subscribe: vi.fn() },
-        refused$: { subscribe: vi.fn() },
-        start: adapterStart,
-        stop: vi.fn(),
-        completeJob,
-        failJob,
-        dispose: vi.fn(),
-      })),
-    }));
-    vi.resetModules();
-
-    const startWorkerProcess = await loadStartWorkerProcess();
+  it('fails the held job when handleJob rejects', async () => {
 
     vi.mocked(processReferenceJob).mockRejectedValueOnce(new Error('inference blew up'));
 
-    const h = makeFakeSessionAndAdapter();
-    startWorkerProcess(makeConfig(h.session));
+    const h = makeFakeWorker();
+    startWorkerProcess(makeConfig(h.client));
 
-    activeJob$.next(makeJob('linking', { entityTypes: ['Person'] }));
+    h.offer(makeJob('linking', { entityTypes: ['Person'] }));
     await new Promise((r) => setTimeout(r, 10));
 
-    // Outer handler emits job:fail on the bus and calls adapter.failJob.
+    // The outer handler fails the held job, which says job:fail on the bus.
     // job:fail is a global, jobId-keyed signal — emitted once, no resource scope.
     const failEmits = h.busEmits.filter((e) => e.channel === 'job:fail');
     expect(failEmits).toHaveLength(1);
@@ -1505,41 +1502,19 @@ describe('startWorkerProcess', () => {
     });
     // A mark job is attached to no annotation.
     expect(failEmit.payload).not.toHaveProperty('annotationId');
-    expect(failJob).toHaveBeenCalledWith(JID, 'inference blew up');
 
-    vi.doUnmock('../job-claim-adapter');
-    vi.resetModules();
   });
 
   it('reports willRetry:true when the budget still has room — the failure is not the end', async () => {
-    const { BehaviorSubject } = await import('rxjs');
-    const activeJob$ = new BehaviorSubject<ActiveJob | null>(null);
-    vi.doMock('../job-claim-adapter', () => ({
-      createJobClaimAdapter: vi.fn(() => ({
-        activeJob$: activeJob$.asObservable(),
-        isProcessing$: { subscribe: vi.fn() },
-        jobsCompleted$: { subscribe: vi.fn() },
-        errors$: { subscribe: vi.fn() },
-        refused$: { subscribe: vi.fn() },
-        start: vi.fn(),
-        stop: vi.fn(),
-        completeJob: vi.fn(),
-        failJob: vi.fn(),
-        dispose: vi.fn(),
-      })),
-    }));
-    vi.resetModules();
-
-    const startWorkerProcess = await loadStartWorkerProcess();
     vi.mocked(processReferenceJob).mockRejectedValueOnce(new Error('transient blip'));
 
-    const h = makeFakeSessionAndAdapter();
-    startWorkerProcess(makeConfig(h.session));
+    const h = makeFakeWorker();
+    startWorkerProcess(makeConfig(h.client));
 
     // A first attempt with one retry budgeted — the queue WILL re-queue this.
     // `entityTypes` matters: without it the processor is never invoked, the
     // queued rejection is never consumed, and it leaks into a later test.
-    activeJob$.next(
+    h.offer(
       makeJob('linking', { entityTypes: ['Person'] }, [], { retryCount: 0, maxRetries: 1 }),
     );
     await new Promise((r) => setTimeout(r, 10));
@@ -1547,26 +1522,8 @@ describe('startWorkerProcess', () => {
     const failEmit = h.busEmits.find((e) => e.channel === 'job:fail')!;
     expect(failEmit.payload).toMatchObject({ jobId: JID, willRetry: true });
 
-    vi.doUnmock('../job-claim-adapter');
-    vi.resetModules();
   });
 });
-
-// ─── One derivation for the reference id ───────────────────────────────
-describe('referenceIdOf', () => {
-  it('derives from the focus for generation jobs (annotation focus → annotation.id)', () => {
-    expect(referenceIdOf(makeJob('yield', { context: minimalContext('annotation') }))).toBe('ann-1');
-  });
-
-  it('is undefined for resource-focus generation', () => {
-    expect(referenceIdOf(makeJob('yield', {}))).toBeUndefined();
-  });
-
-  it('is undefined for a mark job, which is attached to no annotation', () => {
-    expect(referenceIdOf(makeJob('linking', { entityTypes: ['Person'] }))).toBeUndefined();
-  });
-});
-
 
 // ── Checkpointed resume ───────────────────────────────────────────────
 // The worker owns durability: the chunk-commit callback is the effect (per
@@ -1589,9 +1546,9 @@ describe('linking — checkpointed resume', () => {
         return { result: { found: 3, persisted: 3 } as never };
       },
     );
-    const h = makeFakeSessionAndAdapter();
+    const h = makeFakeWorker();
 
-    await handleJob(h.adapter, makeConfig(h.session), makeJob('linking', { entityTypes: ['Person', 'Date', 'Location'] }));
+    await handleHeld(h, makeConfig(h.client), makeJob('linking', { entityTypes: ['Person', 'Date', 'Location'] }));
 
     // Exactly the callback's emissions, in unit order: ONE mark:commit per
     // non-empty unit, each followed by a durable job:checkpoint, persisted as
@@ -1639,7 +1596,7 @@ describe('linking — checkpointed resume', () => {
       { Location: { next: 1_800, size: 330, found: 0, emitted: 0, errors: 0 } },
       undefined,
     ]);
-    expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
+    expect(h.settles().filter((how) => how !== 'job:fail')).toHaveLength(1);
   });
 
   it('hands the claimed cursors to the processor so a partway unit resumes', async () => {
@@ -1654,11 +1611,11 @@ describe('linking — checkpointed resume', () => {
         return { result: { found: 0, persisted: 0 } } as never;
       }) as never,
     );
-    const h = makeFakeSessionAndAdapter();
+    const h = makeFakeWorker();
     const cursors = { Person: { next: 12_400, size: 560, found: 0, emitted: 0, errors: 0 } };
 
-    await handleJob(
-      h.adapter, makeConfig(h.session),
+    await handleHeld(
+      h, makeConfig(h.client),
       makeJob('linking', { entityTypes: ['Person'] }, [], { retryCount: 1, maxRetries: 3 }, cursors),
     );
 
@@ -1675,11 +1632,11 @@ describe('linking — checkpointed resume', () => {
         return { result: { found: 0, persisted: 0 } } as never;
       }) as never,
     );
-    const h = makeFakeSessionAndAdapter();
+    const h = makeFakeWorker();
     const cursors = { highlighting: { next: 8_000, size: 400, found: 0, emitted: 0, errors: 0 } };
 
-    await handleJob(
-      h.adapter, makeConfig(h.session),
+    await handleHeld(
+      h, makeConfig(h.client),
       makeJob('highlighting', {}, [], { retryCount: 1, maxRetries: 3 }, cursors),
     );
 
@@ -1700,13 +1657,13 @@ describe('linking — checkpointed resume', () => {
         return { result: { found: 1, persisted: 1 } as never };
       },
     );
-    const h = makeFakeSessionAndAdapter();
+    const h = makeFakeWorker();
     const controller = new AbortController();
     controller.abort();
 
-    await handleJob(
-      h.adapter,
-      makeConfig(h.session),
+    await handleHeld(
+      h,
+      makeConfig(h.client),
       makeJob('linking', { entityTypes: ['Person', 'Location'] }),
       new Map(),
       controller.signal,
@@ -1717,18 +1674,18 @@ describe('linking — checkpointed resume', () => {
     expect(channels).not.toContain('job:complete');
     const cancel = h.busEmits.find(e => e.channel === 'job:cancel');
     expect((cancel!.payload as { completedUnits: string[] }).completedUnits).toEqual(['Person']);
-    expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
+    expect(h.settles().filter((how) => how !== 'job:fail')).toHaveLength(1);
   });
 
   it('a retried claim skips checkpointed units — the processor never sees them', async () => {
     vi.mocked(processReferenceJob).mockImplementation(
       async () => ({ result: { found: 0, persisted: 0 } as never }),
     );
-    const h = makeFakeSessionAndAdapter();
+    const h = makeFakeWorker();
 
-    await handleJob(
-      h.adapter,
-      makeConfig(h.session),
+    await handleHeld(
+      h,
+      makeConfig(h.client),
       makeJob('linking', { entityTypes: ['Person', 'Date', 'Location'] }, ['Person', 'Date']),
     );
 
@@ -1739,28 +1696,6 @@ describe('linking — checkpointed resume', () => {
 
 describe('startWorkerProcess — job:fail carries the checkpoint', () => {
   it('accumulates committed units and puts them on the job:fail payload', async () => {
-    const { BehaviorSubject } = await import('rxjs');
-    const activeJob$ = new BehaviorSubject<ActiveJob | null>(null);
-    const failJob = vi.fn();
-
-    vi.doMock('../job-claim-adapter', () => ({
-      createJobClaimAdapter: vi.fn(() => ({
-        activeJob$: activeJob$.asObservable(),
-        isProcessing$: { subscribe: vi.fn() },
-        jobsCompleted$: { subscribe: vi.fn() },
-        errors$: { subscribe: vi.fn() },
-        refused$: { subscribe: vi.fn() },
-        start: vi.fn(),
-        stop: vi.fn(),
-        completeJob: vi.fn(),
-        failJob,
-        dispose: vi.fn(),
-        vitals: vi.fn(),
-        touchActivity: vi.fn(),
-      })),
-    }));
-    vi.resetModules();
-    const { startWorkerProcess } = await import('../worker-process');
 
     // Two units commit, then the third stalls — the failure payload must
     // name what completed so the retry can skip it.
@@ -1773,10 +1708,10 @@ describe('startWorkerProcess — job:fail carries the checkpoint', () => {
       },
     );
 
-    const h = makeFakeSessionAndAdapter();
-    startWorkerProcess(makeConfig(h.session));
+    const h = makeFakeWorker();
+    startWorkerProcess(makeConfig(h.client));
 
-    activeJob$.next(makeJob('linking', { entityTypes: ['Person', 'Date', 'Location'] }));
+    h.offer(makeJob('linking', { entityTypes: ['Person', 'Date', 'Location'] }));
     await new Promise((r) => setTimeout(r, 10));
 
     const failEmit = h.busEmits.find((e) => e.channel === 'job:fail');
@@ -1786,36 +1721,12 @@ describe('startWorkerProcess — job:fail carries the checkpoint', () => {
       error: 'Location stalled',
       completedUnits: ['Person', 'Date'],
     });
-    expect(failJob).toHaveBeenCalledWith(JID, 'Location stalled');
 
-    vi.doUnmock('../job-claim-adapter');
-    vi.resetModules();
   });
 });
 
 describe('startWorkerProcess — job:fail carries the failure class', () => {
   it('a provider request-rejection is classified deterministic on the payload', async () => {
-    const { BehaviorSubject } = await import('rxjs');
-    const activeJob$ = new BehaviorSubject<ActiveJob | null>(null);
-
-    vi.doMock('../job-claim-adapter', () => ({
-      createJobClaimAdapter: vi.fn(() => ({
-        activeJob$: activeJob$.asObservable(),
-        isProcessing$: { subscribe: vi.fn() },
-        jobsCompleted$: { subscribe: vi.fn() },
-        errors$: { subscribe: vi.fn() },
-        refused$: { subscribe: vi.fn() },
-        start: vi.fn(),
-        stop: vi.fn(),
-        completeJob: vi.fn(),
-        failJob: vi.fn(),
-        dispose: vi.fn(),
-        vitals: vi.fn(),
-        touchActivity: vi.fn(),
-      })),
-    }));
-    vi.resetModules();
-    const { startWorkerProcess } = await import('../worker-process');
 
     // The SDK shape for "your request is the problem": an Error carrying a
     // 4xx status. Attempt 2 of this exact request cannot succeed.
@@ -1823,10 +1734,10 @@ describe('startWorkerProcess — job:fail carries the failure class', () => {
       Object.assign(new Error('request exceeds size limits'), { status: 413 }),
     );
 
-    const h = makeFakeSessionAndAdapter();
-    startWorkerProcess(makeConfig(h.session));
+    const h = makeFakeWorker();
+    startWorkerProcess(makeConfig(h.client));
 
-    activeJob$.next(makeJob('linking', { entityTypes: ['Person'] }));
+    h.offer(makeJob('linking', { entityTypes: ['Person'] }));
     await new Promise((r) => setTimeout(r, 10));
 
     const failEmit = h.busEmits.find((e) => e.channel === 'job:fail');
@@ -1837,8 +1748,6 @@ describe('startWorkerProcess — job:fail carries the failure class', () => {
       failureClass: 'deterministic',
     });
 
-    vi.doUnmock('../job-claim-adapter');
-    vi.resetModules();
   });
 });
 
@@ -1860,19 +1769,19 @@ describe('a lost acknowledgement is not a lost batch', () => {
   afterEach(() => { vi.useRealTimers(); });
 
   /** Drive `handleJob` past `MARK_COMMIT_TIMEOUT_MS` without waiting a real minute. */
-  async function runPastCommitTimeout(h: ReturnType<typeof makeFakeSessionAndAdapter>) {
+  async function runPastCommitTimeout(h: ReturnType<typeof makeFakeWorker>) {
     vi.mocked(processHighlightJob).mockImplementation(emitting({
       annotations: [{ id: 'a1' }, { id: 'a2' }] as never,
       result: { found: 2, persisted: 2 } as never,
     }));
-    const run = handleJob(h.adapter, makeConfig(h.session), makeJob('highlighting'));
+    const run = handleHeld(h, makeConfig(h.client), makeJob('highlighting'));
     const settled = run.then(() => 'completed' as const, (e) => e as Error);
     await vi.advanceTimersByTimeAsync(61_000);
     return settled;
   }
 
   it('reports SUCCESS when the annotations are durable and only the ack was lost', async () => {
-    const h = makeFakeSessionAndAdapter();
+    const h = makeFakeWorker();
     h.commitSink.mode = 'ack-lost';
 
     const outcome = await runPastCommitTimeout(h);
@@ -1890,7 +1799,7 @@ describe('a lost acknowledgement is not a lost batch', () => {
     // worker and opposite truths about the data; a probe that answered "durable"
     // for both would convert a false failure into a false SUCCESS,
     // which is the defect the acknowledgement exists to prevent.
-    const h = makeFakeSessionAndAdapter();
+    const h = makeFakeWorker();
     h.commitSink.mode = 'silent';
 
     const outcome = await runPastCommitTimeout(h);
@@ -1907,7 +1816,7 @@ describe('a lost acknowledgement is not a lost batch', () => {
     // the work, and when the ack was lost because the gateway is DOWN, the
     // re-commit just times out again and answers nothing. Ask the log what it
     // holds; do not write to it to find out.
-    const h = makeFakeSessionAndAdapter();
+    const h = makeFakeWorker();
     h.commitSink.mode = 'ack-lost';
 
     await runPastCommitTimeout(h);
@@ -1932,22 +1841,22 @@ describe('the record says HOW durability was established', () => {
   beforeEach(() => { vi.useFakeTimers(); });
   afterEach(() => { vi.useRealTimers(); });
 
-  async function run(h: ReturnType<typeof makeFakeSessionAndAdapter>) {
+  async function run(h: ReturnType<typeof makeFakeWorker>) {
     vi.mocked(processHighlightJob).mockImplementation(emitting({
       annotations: [{ id: 'a1' }, { id: 'a2' }] as never,
       result: { found: 2, persisted: 2 } as never,
     }));
-    const settled = handleJob(h.adapter, makeConfig(h.session), makeJob('highlighting'))
+    const settled = handleHeld(h, makeConfig(h.client), makeJob('highlighting'))
       .then(() => 'completed' as const, (e) => e as Error);
     await vi.advanceTimersByTimeAsync(61_000);
     return settled;
   }
 
-  const terminal = (h: ReturnType<typeof makeFakeSessionAndAdapter>, channel: string) =>
+  const terminal = (h: ReturnType<typeof makeFakeWorker>, channel: string) =>
     h.busEmits.find((e) => e.channel === channel)?.payload as Record<string, unknown> | undefined;
 
   it('an acknowledged commit completes as acknowledged', async () => {
-    const h = makeFakeSessionAndAdapter();
+    const h = makeFakeWorker();
     await run(h);
     expect(terminal(h, 'job:complete')).toMatchObject({ durability: 'acknowledged' });
   });
@@ -1955,7 +1864,7 @@ describe('the record says HOW durability was established', () => {
   it('a completion rescued by the probe says so — it is a weaker claim', async () => {
     // Inferred from ONE annotation's presence, resting on the Stower's
     // append-ordering invariant. True, and not the same evidence as an ack.
-    const h = makeFakeSessionAndAdapter();
+    const h = makeFakeWorker();
     h.commitSink.mode = 'ack-lost';
     await run(h);
     expect(terminal(h, 'job:complete')).toMatchObject({ durability: 'probe-confirmed' });
@@ -1966,35 +1875,20 @@ describe('the record says HOW durability was established', () => {
    * handleJob (which throws), so the failure-side record can only be observed
    * through the real entry point.
    */
-  async function runToFailure(setup: (h: ReturnType<typeof makeFakeSessionAndAdapter>) => void) {
-    const { BehaviorSubject } = await import('rxjs');
-    const activeJob$ = new BehaviorSubject<ActiveJob | null>(null);
-    vi.doMock('../job-claim-adapter', () => ({
-      createJobClaimAdapter: vi.fn(() => ({
-        activeJob$: activeJob$.asObservable(),
-        isProcessing$: { subscribe: vi.fn() }, jobsCompleted$: { subscribe: vi.fn() },
-        errors$: { subscribe: vi.fn() }, refused$: { subscribe: vi.fn() }, start: vi.fn(), stop: vi.fn(),
-        completeJob: vi.fn(), failJob: vi.fn(), dispose: vi.fn(), vitals: vi.fn(),
-        touchActivity: vi.fn(),
-      })),
-    }));
-    vi.resetModules();
-    const { startWorkerProcess } = await import('../worker-process');
+  async function runToFailure(setup: (h: ReturnType<typeof makeFakeWorker>) => void) {
 
     vi.mocked(processHighlightJob).mockImplementation(emitting({
       annotations: [{ id: 'a1' }, { id: 'a2' }] as never,
       result: { found: 2, persisted: 2 } as never,
     }));
-    const h = makeFakeSessionAndAdapter();
+    const h = makeFakeWorker();
     setup(h);
-    startWorkerProcess(makeConfig(h.session));
-    activeJob$.next(makeJob('highlighting'));
+    startWorkerProcess(makeConfig(h.client));
+    h.offer(makeJob('highlighting'));
     // Past the commit's 60 s bound on the fake clock; advanceTimersByTimeAsync
     // flushes the detached promise chain startWorkerProcess runs the job on.
     await vi.advanceTimersByTimeAsync(61_000);
 
-    vi.doUnmock('../job-claim-adapter');
-    vi.resetModules();
     return h.busEmits.find((e) => e.channel === 'job:fail')?.payload as Record<string, unknown> | undefined;
   }
 
@@ -2034,10 +1928,10 @@ describe('the record says HOW durability was established', () => {
       citations: [{ resourceId: 'ctx-9', start: 0, end: 31, exact: 'Paris is the capital of France.' }],
       truncated: false,
     } as never);
-    const h = makeFakeSessionAndAdapter();
+    const h = makeFakeWorker();
     h.commitSink.mode = 'first-ok-then-lost';
 
-    const settled = handleJob(h.adapter, makeConfig(h.session), makeJob('yield', { cite: true }))
+    const settled = handleHeld(h, makeConfig(h.client), makeJob('yield', { cite: true }))
       .then(() => 'completed' as const, (e) => e as Error);
     await vi.advanceTimersByTimeAsync(61_000);
     expect(await settled).toBe('completed');
@@ -2053,8 +1947,8 @@ describe('the record says HOW durability was established', () => {
       annotations: [] as never,
       result: { found: 0, persisted: 0 } as never,
     }));
-    const h = makeFakeSessionAndAdapter();
-    await handleJob(h.adapter, makeConfig(h.session), makeJob('highlighting'));
+    const h = makeFakeWorker();
+    await handleHeld(h, makeConfig(h.client), makeJob('highlighting'));
     expect(terminal(h, 'job:complete')).not.toHaveProperty('durability');
   });
 });
@@ -2077,9 +1971,9 @@ describe('every event says which attempt produced it', () => {
       await onChunkComplete([{ id: 'a1' }], { unit: 'highlighting', cursor: { next: 900, size: 220, found: 0, emitted: 0, errors: 0 } });
       return { result: { found: 1, persisted: 1 } } as never;
     }) as never);
-    const h = makeFakeSessionAndAdapter();
+    const h = makeFakeWorker();
 
-    await handleJob(h.adapter, makeConfig(h.session), retried(1));   // retryCount 1 ⇒ attempt 2
+    await handleHeld(h, makeConfig(h.client), retried(1));   // retryCount 1 ⇒ attempt 2
 
     const progress = h.busEmits.filter((e) => e.channel === 'job:report-progress');
     expect(progress.length).toBeGreaterThan(0);
@@ -2091,9 +1985,9 @@ describe('every event says which attempt produced it', () => {
 
   it('a first attempt says 1 — the fact is always stated, never inferred from absence', async () => {
     vi.mocked(processHighlightJob).mockImplementation(emitting({ annotations: [], result: { found: 0, persisted: 0 } }));
-    const h = makeFakeSessionAndAdapter();
+    const h = makeFakeWorker();
 
-    await handleJob(h.adapter, makeConfig(h.session), retried(0));
+    await handleHeld(h, makeConfig(h.client), retried(0));
 
     expect(h.busEmits.find((e) => e.channel === 'job:complete')!.payload).toMatchObject({ attempt: 1 });
   });
@@ -2109,9 +2003,9 @@ describe('what a job is labelled with', () => {
 
   it('a mark job: its type, and its motivation in a label of its own', async () => {
     vi.mocked(processTagJob).mockImplementation(emitting({ annotations: [], result: { found: 0, persisted: 0 } }));
-    const h = makeFakeSessionAndAdapter();
+    const h = makeFakeWorker();
 
-    await handleJob(h.adapter, makeConfig(h.session), makeJob('tagging'));
+    await handleHeld(h, makeConfig(h.client), makeJob('tagging'));
 
     expect(recordJobOutcome).toHaveBeenCalledWith({ jobType: 'mark', motivation: 'tagging' }, 'completed', expect.any(Number));
     const [name, , options] = jobSpan()!;
@@ -2123,9 +2017,9 @@ describe('what a job is labelled with', () => {
     vi.mocked(processGenerationJob).mockResolvedValue({
       content: new TextEncoder().encode('# Generated'), title: 'New Resource', format: 'text/markdown', citations: [], truncated: false,
     });
-    const h = makeFakeSessionAndAdapter();
+    const h = makeFakeWorker();
 
-    await handleJob(h.adapter, makeConfig(h.session), makeJob('yield', { context: minimalContext('annotation') }));
+    await handleHeld(h, makeConfig(h.client), makeJob('yield', { context: minimalContext('annotation') }));
 
     expect(recordJobOutcome).toHaveBeenCalledWith({ jobType: 'yield' }, 'completed', expect.any(Number));
     const [name, , options] = jobSpan()!;
@@ -2135,9 +2029,9 @@ describe('what a job is labelled with', () => {
 
   it('a job that fails is counted as failed, under the same labels', async () => {
     vi.mocked(processHighlightJob).mockRejectedValue(new Error('inference blew up'));
-    const h = makeFakeSessionAndAdapter();
+    const h = makeFakeWorker();
 
-    await handleJob(h.adapter, makeConfig(h.session), makeJob('highlighting')).catch(() => {});
+    await handleHeld(h, makeConfig(h.client), makeJob('highlighting')).catch(() => {});
 
     expect(recordJobOutcome).toHaveBeenCalledWith({ jobType: 'mark', motivation: 'highlighting' }, 'failed', expect.any(Number));
   });

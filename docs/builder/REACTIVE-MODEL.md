@@ -23,6 +23,7 @@ Every namespace method returns exactly one of these. Which one is the method's r
 | `delegation` | A job another party does: the job's events as it goes, its completion the last of them. The completion is its verb's. | `DelegationObservable<C>` | `Delegation<C>` | `Delegation[C]` |
 | `upload` | An upload in flight: its progress, then the id of the resource created. | `UploadObservable` | `Upload` | `Upload` |
 | `cache` | A live query. Building it touches nothing; its one-shot read asks the service now. | `CacheObservable<T>` | `Cached<T>` | `Cached[T]` |
+| `claims` | A worker's claims: each job it comes to hold, one at a time, from the first claim on. A held job starts, reports and settles itself. | `ClaimsObservable` | — | — |
 | `signal` | Fire-and-forget. Nothing is returned and nothing is awaited. | a method returning `void` | a plain `fn` | a plain `def` returning `None` |
 | `count` | A drive at the other participants: how many the gateway reached, or no count when it kept none. | `Promise<number \| undefined>` | `async fn … -> Result<Option<u64>, SemiontError>` | `async def … -> int \| None` |
 | `events` | The events of one channel of the client's own bus, from now on. | a property named `<method>$` | `Typed<C, BusFrames>` | `Typed[P]` |
@@ -103,11 +104,12 @@ A fourth — `DelegationObservable<C>` — is what `mark.delegate` and `yield.de
 
 ### Return-shape discipline
 
-Namespace methods return one of exactly six shapes:
+Namespace methods return one of exactly seven shapes:
 
 - **`Promise<T>`** — atomic gateway ops (CRUD, auth, admin reads).
 - **`StreamObservable<T>`** (or **`UploadObservable`** for `yield.resource`) — long-running operations with progress events plus a final value.
 - **`DelegationObservable<C>`** — a job another party does: its events, then its completion, which is its verb's.
+- **`ClaimsObservable`** — a worker's claims, from `job.claim`: each job the worker comes to hold, one at a time. It is read once, and a job it hands out says its own lifecycle and settles once.
 - **`CacheObservable<T>`** — live queries with stale-while-revalidate semantics.
 - **`void`** — LOCAL collaboration signals; observation happens on the bus.
 - **`Promise<number | undefined>`** — wire drives at other participants (`beckon.attention` /
@@ -129,6 +131,7 @@ The discipline is enforceable. A namespace method's return type must be one of:
 - `Promise<T>`
 - `StreamObservable<T>` (or `UploadObservable` / future bounded-stream subclasses)
 - `DelegationObservable<C>`
+- `ClaimsObservable`
 - `CacheObservable<T>`
 - `void`
 - `Promise<number | undefined>` (wire drives only)

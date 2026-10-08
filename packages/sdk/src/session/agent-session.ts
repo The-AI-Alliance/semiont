@@ -1,17 +1,23 @@
 /**
- * The agent token session a long-lived sidecar holds.
+ * The token session a long-lived agent holds: a worker, or one of the
+ * knowledge base's own services.
  *
- * Every sidecar in this package authenticates the same way: prove who the
- * PROCESS is at the trusted issuer with its own service-account credential,
- * exchange that token at `POST /api/tokens/agent` for an agent token naming a
- * (provider, model) identity, hold it, and keep it fresh for as long as the
- * process runs.
+ * Every such process signs in the same way (`agentToken`,
+ * `@semiont/http-transport`): it proves who the PROCESS is at the trusted
+ * issuer with its own service-account credential, exchanges that token at
+ * `POST /api/tokens/agent` for an agent token naming a (provider, model)
+ * identity, holds it, and keeps it fresh for as long as the process runs.
  *
  * Two identities on purpose. The service account is rotatable on its own and
  * its tokens expire; the agent DID is what events are attributed to. One
  * shared static secret would grant any agent identity to anyone holding it.
  *
- * This lives in one place because a copy per sidecar is a copy of the token
+ * It is not a `SemiontSession`. A person whose token cannot be renewed is
+ * signed out, and signs in again. An agent whose renewal fails keeps the
+ * token it has and tries again: a process holding a token that still works
+ * does not stop working over one bad round trip.
+ *
+ * This lives in one place because a copy per process is a copy of the token
  * lifetime — a number the GATEWAY owns. A copy that falls behind the gateway's
  * lifetime leaves the listen-only path (SSE, which reads `token$` on reconnect
  * rather than driving a request that could 401) quiet with nothing in the
@@ -19,8 +25,8 @@
  *
  * So the lifetime is not restated here. When a token expires is that token's
  * own `exp` claim, and how long before expiry to renew is `refreshDelayMs`
- * — the same derivation `SemiontSession` schedules from for human and worker
- * sessions. One refresh policy, read from the credential itself.
+ * — the same derivation `SemiontSession` schedules from. One refresh policy,
+ * read from the credential itself.
  *
  * That policy derives its margin from the token's own lifetime, never a fixed
  * one: a fixed margin can equal the lifetime an issuer mints (Keycloak's
@@ -36,30 +42,10 @@
  */
 
 import { BehaviorSubject } from 'rxjs';
-import {
-  accessToken as makeAccessToken,
-  retryWithBackoff,
-  isTransientFetchError,
-  serviceAccountToken,
-  STARTUP_FETCH_RETRY,
-} from '@semiont/core';
-import type { ServiceAccountCredential } from '@semiont/core';
-import type { AccessToken } from '@semiont/core';
-import { parseJwtExpiry, refreshDelayMs } from '@semiont/sdk';
-import { RETRY_RULES } from '@semiont/core';
-
-/**
- * An HTTP-level refusal from the token endpoint, carrying its status.
- *
- * A plain `Error` puts the status in the message and nowhere else, so the one
- * caller that needs to branch on it — is this renewable? — cannot.
- */
-class AuthRefused extends Error {
-  constructor(message: string, readonly status: number) {
-    super(message);
-    this.name = 'AuthRefused';
-  }
-}
+import { accessToken as makeAccessToken, isObject, RETRY_RULES } from '@semiont/core';
+import type { AccessToken, ServiceAccountCredential, UserId } from '@semiont/core';
+import { agentToken } from '@semiont/http-transport';
+import { parseJwtExpiry, refreshDelayMs } from './storage';
 
 /** The logging surface this module uses, structurally. */
 interface SessionLogger {
@@ -73,14 +59,20 @@ export interface AgentSessionOptions {
   baseUrl: string;
   /** This process's own account at the issuer. */
   credential: ServiceAccountCredential;
-  /** The agent identity's inference provider, e.g. `semiont`. */
+  /** The agent identity's inference provider, e.g. `ollama`. */
   provider: string;
-  /** The agent identity's model, e.g. `weaver`. */
+  /** The agent identity's model, e.g. `gemma3:4b`. */
   model: string;
   logger: SessionLogger;
 }
 
 export interface AgentSession {
+  /**
+   * The agent's DID, as the gateway minted it under the knowledge base's own
+   * domain. Carried verbatim: re-derived from the URL the process happens to
+   * dial, one agent has two DIDs.
+   */
+  readonly did: UserId;
   /** The current token, for HttpTransport's `token$`. */
   readonly token$: BehaviorSubject<AccessToken | null>;
   /** Re-authenticate now and push the new token. HttpTransport's `tokenRefresher`. */
@@ -89,63 +81,32 @@ export interface AgentSession {
   stop(): void;
 }
 
-/**
- * One authentication round trip.
- *
- * Connection-level failures are retried with backoff: the gateway may be
- * mid-restart or the container network still warming up when a sidecar starts,
- * and orchestration runs these with `--rm` and no restart policy, so exiting on
- * the first failed fetch is permanent death. HTTP-level rejections (a refused
- * credential) are NOT retried; the far end is up and said no.
- */
-async function authenticate(opts: AgentSessionOptions): Promise<string> {
+/** One sign-in. A gateway or an issuer that cannot be reached is tried again, and each wait is logged. */
+function authenticate(opts: AgentSessionOptions) {
   const { baseUrl, credential, provider, model, logger } = opts;
-
-  return retryWithBackoff(
-    async () => {
-      // Both round trips sit inside the retry: the issuer and the gateway come
-      // up independently of this process, and either being slow to boot is the
-      // transient case this exists for.
-      const caller = await serviceAccountToken(credential);
-
-      const response = await fetch(`${baseUrl}/api/tokens/agent`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${caller}`,
-        },
-        body: JSON.stringify({ provider, model }),
-      });
-
-      if (!response.ok) {
-        throw new AuthRefused(
-          `Authentication failed: ${response.status} ${response.statusText}`,
-          response.status,
-        );
-      }
-
-      const { token } = await response.json() as { token: string; did: string };
-      return token;
-    },
-    isTransientFetchError,
-    STARTUP_FETCH_RETRY,
-    ({ attempt, attempts, delayMs, error }) => {
+  return agentToken({
+    baseUrl,
+    credential,
+    provider,
+    model,
+    onRetry: ({ attempt, attempts, delayMs, error }) => {
       logger.warn('Gateway unreachable, retrying authentication', {
+        agent: `${provider}:${model}`,
         attempt,
         attempts,
         retryInMs: delayMs,
         error: error instanceof Error ? error.message : String(error),
       });
     },
-  );
+  });
 }
 
 /**
- * Authenticate, then keep the token fresh until `stop()`.
+ * Sign in as an agent, then keep the token fresh until `stop()`.
  *
- * Throws whatever `authenticate` throws on the FIRST attempt: a sidecar that
+ * Throws whatever the sign-in throws on the FIRST attempt: a process that
  * cannot authenticate at startup has nothing useful to do, and failing loudly
- * is what lets the supervisor restart it. Later refreshes only log, because a
+ * is what lets its supervisor restart it. Later refreshes only log, because a
  * process holding a still-valid token should not die over one bad round trip.
  */
 export async function startAgentSession(opts: AgentSessionOptions): Promise<AgentSession> {
@@ -157,8 +118,8 @@ export async function startAgentSession(opts: AgentSessionOptions): Promise<Agen
     as: opts.credential.clientId,
   });
   const first = await authenticate(opts);
-  const token$ = new BehaviorSubject<AccessToken | null>(makeAccessToken(first));
-  logger.info('Authenticated', { expiresAt: parseJwtExpiry(first)?.toISOString() ?? null });
+  const token$ = new BehaviorSubject<AccessToken | null>(makeAccessToken(first.token));
+  logger.info('Authenticated', { did: first.did, expiresAt: parseJwtExpiry(first.token)?.toISOString() ?? null });
 
   let timer: ReturnType<typeof setTimeout> | null = null;
   let stopped = false;
@@ -176,14 +137,17 @@ export async function startAgentSession(opts: AgentSessionOptions): Promise<Agen
     const delay = refreshDelayMs(token);
     if (delay === null) return;
     timer = setTimeout(() => {
-      refresh().catch((error) => {
+      refresh().catch((error: unknown) => {
         const detail = { error: error instanceof Error ? error.message : String(error) };
-        // The issuer's answer is the verdict; its absence never is. A refused
+        // The far end's answer is the verdict; its absence never is. A refused
         // credential cannot become valid again, so re-arming against it is an
         // infinite loop that outlives the revocation it should have respected —
         // 47 attempts in ten minutes, measured. An outage is the other case:
         // the token in hand may still be good, and the loop is how it recovers.
-        if (!RETRY_RULES.refresh.retryable(error instanceof AuthRefused ? { status: error.status } : {})) {
+        // The status is read off the error structurally, as core's retry rules
+        // read it: a refusal is whatever carries one.
+        const status = isObject(error) && typeof error['status'] === 'number' ? error['status'] : undefined;
+        if (!RETRY_RULES.refresh.retryable(status === undefined ? {} : { status })) {
           logger.error('Re-authentication refused; not retrying', detail);
           return;
         }
@@ -197,14 +161,15 @@ export async function startAgentSession(opts: AgentSessionOptions): Promise<Agen
 
   const refresh = async (): Promise<string | null> => {
     const next = await authenticate(opts);
-    token$.next(makeAccessToken(next));
-    rearm(next);
-    return next;
+    token$.next(makeAccessToken(next.token));
+    rearm(next.token);
+    return next.token;
   };
 
-  rearm(first);
+  rearm(first.token);
 
   return {
+    did: first.did,
     token$,
     refresh,
     stop: () => {

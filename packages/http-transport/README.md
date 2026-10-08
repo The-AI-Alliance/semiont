@@ -25,7 +25,7 @@ How the TypeScript SDK reaches a knowledge base over HTTP. It implements the thr
 | `HttpTransportConfig` | What a transport is given: the gateway's address, a token source, a `TokenRefresher`, and the channels its stream names |
 | `currentUserOf(baseUrl, token)` | One request asking the gateway who a token is, with no transport behind it. A session asks this of a stored credential before it trusts it |
 | `APIError` | What an HTTP failure is thrown as |
-| `createActorStateUnit` | The stream's machinery. Exported for the service-side adapters built on it (`createJobClaimAdapter` in `@semiont/jobs`, `smelterFanIn` in `@semiont/make-meaning`). Application code does not use it |
+| `createActorStateUnit` | The stream's machinery. Exported for the service-side adapters built on it (`smelterFanIn` in `@semiont/make-meaning`). Application code does not use it |
 
 ## Example
 

@@ -15,24 +15,24 @@ The moving parts:
 | File | Role |
 |------|------|
 | `src/worker-main.ts` | Standalone entry point. Reads `~/.semiontconfig`, groups the jobs it serves by `(provider, model)`, and starts one agent worker per group, all in its own process. |
-| `src/worker-runtime.ts` | `startAgentWorker(options)` — authenticates one agent, opens its session, and calls `startWorkerProcess`. |
-| `src/worker-process.ts` | `startWorkerProcess(config)` — claims jobs via the `JobClaimAdapter`, then `handleJobInner` dispatches by `jobType` and motivation to the right processor, commits annotations in acknowledged batches (`mark:commit`), and emits the lifecycle events. |
+| `src/worker-runtime.ts` | `startAgentWorker(options)` — signs in as one agent, opens its client, and calls `startWorkerProcess`. |
+| `src/worker-process.ts` | `startWorkerProcess(config)` — claims jobs with the SDK's `job.claim`, then `handleJobInner` dispatches by `jobType` and motivation to the right processor, commits annotations in acknowledged batches (`mark:commit`), and emits the lifecycle events. |
 | `src/processors.ts` | The `process*Job` functions. Content + inference + params in, `{ result }` out; annotations go out through the `onChunkComplete` callback as they are produced. No bus, no queue, no I/O except calling inference. |
 | `src/workers/annotation-detection.ts` | `AnnotationDetection` — the LLM detection logic the annotation processors call (`detectHighlights`, `detectComments`, `detectAssessments`, `detectTags`). |
-| `src/job-claim-adapter.ts` | `JobClaimAdapter` — asks the dispatcher for work over the bus and holds the claimed job. The worker never touches the queue itself. |
+| `@semiont/sdk` | `job.claim` — asks the dispatcher for work over the bus and hands out each job the worker comes to hold. A held job says its own lifecycle and settles once. The worker never touches the queue itself. |
 
 ## How a Worker Runs
 
 `worker-main.ts` is the host. For each distinct `(inferenceProvider, model)` configured under `[environments.<env>.workers]` in `~/.semiontconfig`, it calls `startAgentWorker` (`src/worker-runtime.ts`), which:
 
-1. Authenticates at the knowledge base's issuer as its own service account (`SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET`), then exchanges that token for this agent's at `/api/tokens/agent`.
+1. Signs in (`startAgentSession`, `@semiont/sdk`): at the knowledge base's issuer as its own service account (`SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET`), then exchanging that token for this agent's at `/api/tokens/agent`. The session keeps the agent's token fresh for as long as the process runs.
 2. Builds a `generator` — a W3C `Software` agent record — with `didToAgent(did)`, from the DID that exchange minted. This is sent as each annotation's `generator`; the knowledge base checks its identity against the verified emitter and derives `creator` and `wasAttributedTo` itself, from the job the write cites.
-3. Opens a `SemiontSession` (`@semiont/sdk`) authenticated *as that agent*, so every event the worker emits attributes to the agent at the bus seat.
+3. Opens a `SemiontClient` (`@semiont/sdk`) signed in *as that agent*, so every event the worker emits is attributed to the agent at the bus seat. Its transport's stream names `WORKER_CHANNELS`: what the claiming names, and the reply channels of what the worker awaits.
 4. Calls `startWorkerProcess`:
 
 ```typescript
-const adapter = startWorkerProcess({
-  session,                 // SemiontSession, authenticated as this agent
+const claims = startWorkerProcess({
+  client,                  // SemiontClient, signed in as this agent
   accepts: group.serves,   // the jobs this agent's engine serves, as a claim names them
   inferenceClient: group.client, // the (provider, model) inference client
   generator,               // the Software agent record
@@ -41,33 +41,31 @@ const adapter = startWorkerProcess({
 });
 ```
 
-`startWorkerProcess` creates a `JobClaimAdapter` over the session's transport actor. The adapter **pulls**: it asks the dispatcher for the next job that matches `accepts` at every moment it becomes idle — at start, after each job settles, on a matching `job:queued` while parked, and on reconnect — and parks when told nothing is pending. It surfaces each claimed job on `activeJob$`, and for every one `startWorkerProcess` calls `handleJob → handleJobInner`, which does the actual fetch / process / emit.
+`startWorkerProcess` reads the claims `client.job.claim` returns. The claiming **pulls**: it asks the dispatcher for the next job that matches `accepts` at every moment it becomes idle — at start, after each job settles, on a matching `job:queued` while parked, and on reconnect — and parks when told nothing is pending. It surfaces each claimed job on `activeJob$`, and for every one `startWorkerProcess` calls `handleJob → handleJobInner`, which does the actual fetch / process / emit.
 
 A job queued while a worker is busy is claimed at that worker's next settle. The dispatcher also announces pending jobs again at each tick, which covers a wake-up lost on its way to an idle worker. A repeated announcement is harmless: a claim names what it takes and no job, so a worker that finds nothing pending is declined and parks.
 
-An announcement carries the job description less its input: a `mark` job's params whole, and a `yield` job's without its `context`. The adapter checks it against its own claim with `jobMatchesFilter` (`@semiont/core`), the comparison the dispatcher makes, and asks only when it would be handed something.
+An announcement carries the job description less its input: a `mark` job's params whole, and a `yield` job's without its `context`. The claiming checks it against its own claim with `jobMatchesFilter` (`@semiont/core`), the comparison the dispatcher makes, and asks only when it would be handed something.
 
 A claim the dispatcher refuses for any reason other than an empty queue arrives on `refused$`. `bus.unauthorized` means this credential can never claim — the shipped worker exits on it so the operator sees why, rather than parking forever.
 
-On `SIGTERM` or `SIGINT` the host disposes each agent's adapter and session, then closes its health server.
+A held job that shows no activity for `heldJobStallMs` is reported on `stalled$`, and the shipped worker exits on that too: a wedged worker never settles, so it never claims again.
+
+On `SIGTERM` or `SIGINT` the host stops each agent's claims, which fails a job still held so the queue retries it at once, then disposes its client and closes its health server.
 
 ## A Worker Written Outside This Package
 
-The claim runtime is exported from the package root, with its types (`JobClaimAdapter`, `JobClaimAdapterOptions`, `ActiveJob`, `ClaimRefusal`, `WorkerVitals`), for a worker that is not this one. It takes a `BusRequestPrimitive` (`@semiont/core`) and the jobs to claim, each a `JobFilter`: a partial job description, matched by the fields it states.
+The worker's side of the queue is the SDK's, for a worker that is not this one: `client.job.claim({ accepts })` (`@semiont/sdk`), with the jobs to claim, each a `JobFilter`: a partial job description, matched by the dispatcher against each pending job.
 
 ```typescript
-import { createJobClaimAdapter } from '@semiont/jobs';
-
-const adapter = createJobClaimAdapter({
-  bus: httpTransport.actor,             // HttpTransport's ActorStateUnit
+const claims = client.job.claim({
   accepts: [{ jobType: 'mark', params: { motivation: 'highlighting' } }],
 });
-adapter.activeJob$.subscribe((job) => { /* null between jobs */ });
-adapter.refused$.subscribe((refusal) => { /* a claim refused for a reason other than an empty queue */ });
-adapter.start();
+claims.refused$.subscribe((refusal) => { /* a claim refused for a reason other than an empty queue */ });
+claims.subscribe((job) => { /* held until it is settled */ });
 ```
 
-The caller emits the lifecycle events itself and reports each outcome with `adapter.completeJob()` or `adapter.failJob(jobId, message)`, either of which pulls the next job. The [`semiont-worker` skill](../../../docs/builder/skills/semiont-worker/SKILL.md) walks through a complete worker, and [Jobs](../../../docs/protocol/JOBS.md) is the protocol it speaks.
+A held job says its own lifecycle (`job.start()`, `job.progress(...)`, `job.checkpoint(...)`) and settles once, with `job.complete(result)`, `job.fail(message)` or `job.cancel()`, each of which says the outcome and claims the next job. The [`semiont-worker` skill](../../../docs/builder/skills/semiont-worker/SKILL.md) walks through a complete worker, [Jobs](../../../docs/protocol/JOBS.md) is what the dispatcher does with each message, and the [worker contract](../../../docs/protocol/WORKER-CONTRACT.md) is what a worker promises it.
 
 ## Built-in Jobs
 
@@ -134,17 +132,17 @@ Annotation processors receive `content` as their first argument — they never f
 ```typescript
 const source = await prepareDetection(
   mediaType, config.contentReads, resourceId, generator,
-  (rid) => session.client.browse.resourceAnchoredText(rid),
+  (rid) => client.browse.resourceAnchoredText(rid),
 );
 ```
 
 Text media types are read as bytes through `contentReads`; geometry-bearing types such as PDF get the Smelter's canonical anchored text instead. A resource with nothing to detect over completes the job with a `declined` result rather than running a processor.
 
-If you need the resource's text, the worker process hands it to you; if you need something else from the KB, reach for `session.client`.
+If you need the resource's text, the worker process hands it to you; if you need something else from the KB, reach for `config.client`.
 
 ## How a Worker Emits
 
-Workers emit lifecycle and annotation commands directly on the session's transport. `handleJobInner` does this through a small `emitEvent` helper that wraps `session.client.transport.emit(...)`:
+The held job says the lifecycle, and `handleJobInner` asks it to; annotation commands go out on the client's transport:
 
 - `job:start` — once, when the job is picked up.
 - `job:report-progress` — driven by the processor's `onProgress` callback. The dispatcher stores it as the running job's `progress` and the UI renders it; Stower ignores it.
@@ -242,54 +240,51 @@ Then export it from `src/index.ts` next to the other `process*Job` functions.
 In `src/worker-process.ts`, add a branch to `handleJobInner`. `isHeldMark` says the job is this one and narrows its params. The branch hands the processor the prepared text, the `buildAnnotation` closure and `commitChunk` — the shared durability write, which commits a chunk and then records its cursor, in that order — and reports completion only after it returns:
 
 ```typescript
-} else if (jobType === 'mark' && isHeldMark(params, 'describing')) {
+} else if (job.jobType === 'mark' && isHeldMark(params, 'describing')) {
   const { result } = await processDescribeJob(
     ready!.text, inferenceClient, params,
     ready!.buildAnnotation, onProgress,
     // The durability write, per chunk, awaited. `commitChunk` calls
-    // `commitAnnotations(session, resourceId, annotations, jobId)` — the batch
+    // `commitAnnotations(client, resourceId, annotations, jobId)` — the batch
     // CITES the job, which is how the knowledge base derives who requested it —
     // and only then records the unit's cursor. job:complete comes after: a
     // success claim emitted first would report work that may never have persisted.
     commitChunk,
     job.unitCursors,
   );
-  await emitEvent(session, 'job:complete', {
-    ...terminalBase(),
-    jobType,       // narrowed by the branch: a completion is its verb's
-    result,
-  });
-  adapter.completeJob();
+  // The branch narrowed the job to a `mark` job, so the completion takes a
+  // `mark` job's result. It says job:complete and releases the job together.
+  await job.complete(result, established());
 }
 ```
 
 The host needs no edit: `src/worker-main.ts` walks `MARK_MOTIVATIONS`, so it claims the job once the spec lists the motivation and the config says who serves it (`workers.mark.describing`, else `workers.mark`, else `workers.default`). Finally, take a position in the persistence census (`worker-process.test.ts`, `JOB_TYPE_COVERAGE` — typed total over the jobs a worker runs, so forgetting is a compile error): either an `exercise` entry proving your job commits before completing, or a `coveredBy` pointer to where that is pinned instead. That's the whole extension path — no base class, no lifecycle methods to override.
 
-> A `yield` job follows a different tail: alongside its committed annotations (provenance on the source resource, citations on the derived one — two commits, keyed by resource), the branch uploads the generated content via `session.client.yield.resource(...)` and reports the new `resourceId` on `job:complete`. Mirror a `mark` branch unless you're producing a new resource.
+> A `yield` job follows a different tail: alongside its committed annotations (provenance on the source resource, citations on the derived one — two commits, keyed by resource), the branch uploads the generated content via `client.yield.resource(...)` and reports the new `resourceId` on `job:complete`. Mirror a `mark` branch unless you're producing a new resource.
 
 ## Lifecycle and Failure Handling
 
 You write no claim loop. `startWorkerProcess` owns it:
 
 ```
-idle (start · settle · wake-up · reconnect)  →  JobClaimAdapter claims the jobs it serves
+idle (start · settle · wake-up · reconnect)  →  job.claim claims the jobs it serves
   ↓
-activeJob$ emits  →  handleJob → handleJobInner
+the claims hand out a held job  →  handleJob → handleJobInner
   ↓
-emit job:start
+job.start()
   ↓
 prepareDetection()  (annotation jobs)
   ↓
 process<X>Job(...)  — YOUR LOGIC, reports via onProgress
-  ↓ per chunk: await mark:commit (acknowledged)  →  emit job:checkpoint
+  ↓ per chunk: await mark:commit (acknowledged)  →  job.checkpoint(...)
   ↓ success
-emit job:complete  →  adapter.completeJob()
+job.complete(result)   — says job:complete, and the worker claims again
 
   ↓ error (anything throws)
-emit job:fail  →  adapter.failJob(jobId, message)
+job.fail(message, ...) — says job:fail, with willRetry, and the worker claims again
 ```
 
-The subscription in `startWorkerProcess` wraps `handleJob` in a `.catch` that emits `job:fail` and calls `adapter.failJob`, so any throw from your processor surfaces as a clean failure. `handleJob` also records an OpenTelemetry span (`job:<type>`) and a job-outcome metric around each run — you get that for free by living inside `handleJobInner`.
+The subscription in `startWorkerProcess` wraps `handleJob` in a `.catch` that fails the held job, so any throw from your processor surfaces as a clean failure. `handleJob` also records an OpenTelemetry span (`job:<type>`) and a job-outcome metric around each run — you get that for free by living inside `handleJobInner`.
 
 At the dispatcher, `job:fail` feeds a retry-or-fail path: the job is re-queued (and re-announced) while `retryCount < maxRetries` — unless the worker classified the failure `deterministic` (truncation at the subdivision floor, unsupported media, a 4xx other than 408 or 429), in which case it fails for good at once rather than paying for a retry that cannot succeed. The event's `completedUnits` and `unitCursors` are merged into job metadata so the retry resumes. Your `onProgress` calls double as a heartbeat — a running job that reports nothing within the dispatcher's window is presumed orphaned and recovered the same way, so call `onProgress` at meaningful stages rather than never.
 
@@ -371,4 +366,4 @@ describe('processDescribeJob', () => {
 });
 ```
 
-To exercise the claim → fetch → process → emit → complete orchestration end to end, test `handleJob` from `worker-process.ts` with a fake adapter and a fake session whose `transport.emit` is a spy — but that's the only place you need to mock the bus. The processor stays pure.
+To exercise the claim → fetch → process → emit → complete orchestration end to end, test `handleJob` from `worker-process.ts` with a fake client whose `transport.emit` is a spy and answers `job:claim`, so the job it runs is a real held job — but that's the only place you need to mock the bus. The processor stays pure.
