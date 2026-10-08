@@ -85,9 +85,10 @@ what its schema says; and a case fails otherwise, whatever it was about.
   bound, what an archive unstages, the branch, a batch that cannot be staged,
   and a knowledge base that does not sync git, which runs none.
 
-Behaviour ARCHIVIST.md lists as a known defect is not pinned by any case. Two
-channels the Archivist subscribes to, `yield:mv` and `mark:create`, are not
-reachable through a gateway and have no cases.
+Behaviour ARCHIVIST.md lists as a known defect is not pinned by any case.
+Neither is what `yield:moved`, `yield:representation-added` and
+`yield:representation-removed` change in a view: no command the Archivist
+answers appends one, and no case writes one into a log.
 
 ## Running it
 
