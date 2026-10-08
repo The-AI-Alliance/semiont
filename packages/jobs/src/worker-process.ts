@@ -444,11 +444,11 @@ async function handleJobInner(
 
   if (!config.accepts.some((filter) => jobMatchesFilter(filter, { jobType, params }))) {
     // The dispatcher hands out only what the claim accepts, so this is a job
-    // the two disagree about. It is failed on the wire, where a job only
-    // released here would stay `running` until the dispatcher's sweep; no
-    // class is stated, so the record's retry budget decides what becomes of it.
-    await job.fail(`Worker not configured for job: ${what}`);
-    return;
+    // the two disagree about. No second attempt changes what this worker is
+    // configured for, so it skips the retry budget: thrown, the caller fails
+    // the held job on the wire. A job only released here would stay `running`
+    // until the dispatcher's sweep.
+    throw new DeterministicJobError(`Worker not configured for job: ${what}`);
   }
 
   // Detection needs the resource's text plus a media-appropriate way to anchor a
@@ -802,7 +802,8 @@ async function handleJobInner(
 
   } else {
     // A job this worker claims and cannot run: a tagging job handed over
-    // without the schema the Dispatcher resolves, say.
-    await job.fail(`No processor for job: ${what}`);
+    // without the schema the Dispatcher resolves, say. A second attempt
+    // would be handed the same job, so it skips the retry budget.
+    throw new DeterministicJobError(`No processor for job: ${what}`);
   }
 }

@@ -1065,21 +1065,34 @@ describe('handleJob orchestration', () => {
     });
   });
 
-  describe('a job this worker does not take', () => {
-    it('emits job:start, then fails a job this worker does not take', async () => {
+  describe('a job this worker cannot run', () => {
+    // Such a job fails as deterministic: no second attempt changes what a
+    // worker is configured for, or supplies a processor it lacks, so the
+    // retry budget is not spent on one. It is thrown, like every other
+    // deterministic failure here, and the caller fails the held job.
+    it('starts, then refuses for good a job this worker is not configured for', async () => {
       const h = makeFakeWorker();
       const config: WorkerProcessConfig = { ...makeConfig(h.client), accepts: [{ jobType: 'yield' }] };
 
-      await handleHeld(h, config, makeJob('highlighting'));
+      const refused = await handleHeld(h, config, makeJob('highlighting')).catch((e: unknown) => e);
 
-      // A real job the worker is simply not configured for: the lifecycle
-      // is well-formed, so it starts and then fails, and the failure is SAID.
-      // A job released here and never failed on the wire stays `running` at
-      // the dispatcher until its sweep.
-      expect(h.busEmits.map(e => e.channel)).toEqual(['job:start', 'job:fail']);
-      expect(h.busEmits[1]!.payload).toMatchObject({ jobId: JID, error: 'Worker not configured for job: mark (highlighting)' });
-      // No class is stated, so the record's retry budget decides what becomes of it.
-      expect(h.busEmits[1]!.payload).not.toHaveProperty('failureClass');
+      expect(String(refused)).toContain('Worker not configured for job: mark (highlighting)');
+      expect(classifyFailure(refused)).toBe('deterministic');
+      // The lifecycle is well-formed: it starts, and settles nothing itself.
+      expect(h.busEmits.map(e => e.channel)).toEqual(['job:start']);
+      // A job that was not run is not counted as one that completed.
+      expect(recordJobOutcome).toHaveBeenLastCalledWith({ jobType: 'mark', motivation: 'highlighting' }, 'failed', expect.any(Number));
+    });
+
+    it('refuses for good a job it has no processor for', async () => {
+      // A tagging job handed over without the schema the Dispatcher resolves.
+      const h = makeFakeWorker();
+
+      const refused = await handleHeld(h, makeConfig(h.client), makeJob('tagging', { schema: undefined })).catch((e: unknown) => e);
+
+      expect(String(refused)).toContain('No processor for job: mark (tagging)');
+      expect(classifyFailure(refused)).toBe('deterministic');
+      expect(h.settles(), 'the caller fails the held job').toEqual([]);
     });
   });
 
@@ -1522,6 +1535,26 @@ describe('startWorkerProcess', () => {
     const failEmit = h.busEmits.find((e) => e.channel === 'job:fail')!;
     expect(failEmit.payload).toMatchObject({ jobId: JID, willRetry: true });
 
+  });
+
+  // A job this worker cannot run fails as deterministic. So the wire says
+  // the failure is the end, whatever is left of the record's retry budget:
+  // a second attempt would be handed to a worker that cannot run it either.
+  it('fails a job it is not configured for as deterministic: said on the wire, and not retried', async () => {
+    const h = makeFakeWorker();
+    startWorkerProcess({ ...makeConfig(h.client), accepts: [{ jobType: 'yield' }] });
+
+    // One retry is budgeted, and is not spent.
+    h.offer(makeJob('highlighting', {}, [], { retryCount: 0, maxRetries: 1 }));
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(h.busEmits.map((e) => e.channel)).toEqual(['job:start', 'job:fail']);
+    expect(h.busEmits[1]!.payload).toMatchObject({
+      jobId: JID,
+      error: 'Worker not configured for job: mark (highlighting)',
+      failureClass: 'deterministic',
+      willRetry: false,
+    });
   });
 });
 
