@@ -31,44 +31,19 @@ type FragmentSelector = components['schemas']['FragmentSelector'];
 // Re-export selector types for convenience
 export type { TextPositionSelector, TextQuoteSelector, SvgSelector, FragmentSelector, Selector };
 
+/** A body's items: none when there is no body, the one when it is a single item, each when it is a list. */
+function bodyItems(body: Annotation['body']) {
+  return body === undefined ? [] : Array.isArray(body) ? body : [body];
+}
+
 /**
  * Get the source from an annotation body (null if stub)
  * Search for SpecificResource in body array
  */
 export function getBodySource(body: Annotation['body']): ResourceId | null {
-  const bodies = body === undefined ? [] : Array.isArray(body) ? body : [body];
-  for (const item of bodies) {
+  for (const item of bodyItems(body)) {
     if (item.type === 'SpecificResource') return item.source;
   }
-  return null;
-}
-
-/**
- * Get the type from an annotation body (returns first body type in array)
- */
-export function getBodyType(body: Annotation['body']): 'TextualBody' | 'SpecificResource' | null {
-  if (Array.isArray(body)) {
-    if (body.length === 0) {
-      return null;
-    }
-    // Return type of first body item
-    if (typeof body[0] === 'object' && body[0] !== null && 'type' in body[0]) {
-      const firstType = (body[0] as { type: unknown }).type;
-      if (firstType === 'TextualBody' || firstType === 'SpecificResource') {
-        return firstType;
-      }
-    }
-    return null;
-  }
-
-  // Single body object
-  if (typeof body === 'object' && body !== null && 'type' in body) {
-    const bodyType = (body as { type: unknown }).type;
-    if (bodyType === 'TextualBody' || bodyType === 'SpecificResource') {
-      return bodyType;
-    }
-  }
-
   return null;
 }
 
@@ -98,13 +73,6 @@ export function getTargetSelector(target: Annotation['target']) {
     return undefined;
   }
   return target.selector;
-}
-
-/**
- * Check if target has a selector
- */
-export function hasTargetSelector(target: Annotation['target']): boolean {
-  return typeof target !== 'string' && target.selector !== undefined;
 }
 
 /**
@@ -172,6 +140,47 @@ export function isResolvedReference(annotation: Annotation): annotation is Refer
   return isReference(annotation) && isBodyResolved(annotation.body);
 }
 
+/**
+ * The entity types an annotation states: the text of each body that tags, in
+ * the order its body has them. A body with no text states none.
+ *
+ * Takes anything with an annotation's `body`: one item, a list, or none
+ * (a highlight has none).
+ */
+export function getEntityTypes(annotation: { body?: Annotation['body'] }): string[] {
+  const types: string[] = [];
+  for (const item of bodyItems(annotation.body)) {
+    if (item.type === 'TextualBody' && item.purpose === 'tagging' && item.value.length > 0) {
+      types.push(item.value);
+    }
+  }
+  return types;
+}
+
+/** The text of the first body that states it for `purpose`. */
+function textFor(body: Annotation['body'], purpose: 'tagging' | 'classifying'): string | undefined {
+  for (const item of bodyItems(body)) {
+    if (item.type === 'TextualBody' && item.purpose === purpose) return item.value;
+  }
+  return undefined;
+}
+
+/**
+ * A tag's category (e.g. "Issue", "Rule"): the text of its body that tags.
+ * Nothing for an annotation that is not a tag.
+ */
+export function getTagCategory(annotation: Annotation): string | undefined {
+  return isTag(annotation) ? textFor(annotation.body, 'tagging') : undefined;
+}
+
+/**
+ * The id of the schema a tag's category is of (e.g. "legal-irac"): the text
+ * of its body that classifies. Nothing for an annotation that is not a tag.
+ */
+export function getTagSchemaId(annotation: Annotation): string | undefined {
+  return isTag(annotation) ? textFor(annotation.body, 'classifying') : undefined;
+}
+
 // =============================================================================
 // SELECTOR UTILITIES
 // =============================================================================
@@ -206,26 +215,6 @@ export function getExactText(selector: Selector | Selector[] | undefined): strin
 export function getAnnotationExactText(annotation: Annotation): string {
   const selector = getTargetSelector(annotation.target);
   return getExactText(selector as Selector | Selector[] | undefined);
-}
-
-/**
- * Get the primary selector from a selector (single or array)
- *
- * When selector is an array, returns the first selector.
- * When selector is a single object, returns it as-is.
- */
-export function getPrimarySelector(selector: Selector | Selector[]): Selector {
-  if (Array.isArray(selector)) {
-    if (selector.length === 0) {
-      throw new Error('Empty selector array');
-    }
-    const first = selector[0];
-    if (!first) {
-      throw new Error('Invalid selector array');
-    }
-    return first;
-  }
-  return selector;
 }
 
 /**

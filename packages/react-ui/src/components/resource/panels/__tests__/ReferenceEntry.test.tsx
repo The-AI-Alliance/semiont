@@ -28,16 +28,13 @@ vi.mock('@semiont/core', async () => {
     ...actual,
     getAnnotationExactText: (...args: unknown[]) => mockGetAnnotationExactText(...args),
     isBodyResolved: (...args: unknown[]) => mockIsBodyResolved(...args),
+    getEntityTypes: (...args: unknown[]) => mockGetEntityTypes(...args),
     getBodySource: (...args: unknown[]) => mockGetBodySource(...args),
     getFragmentSelector: (...args: unknown[]) => mockGetFragmentSelector(...args),
     getSvgSelector: (...args: unknown[]) => mockGetSvgSelector(...args),
     getTargetSelector: (...args: unknown[]) => mockGetTargetSelector(...args),
   };
 });
-
-vi.mock('@semiont/ontology', () => ({
-  getEntityTypes: (...args: unknown[]) => mockGetEntityTypes(...args),
-}));
 
 vi.mock('../../../../lib/resource-utils', () => ({
   getResourceIcon: vi.fn(() => '📄'),

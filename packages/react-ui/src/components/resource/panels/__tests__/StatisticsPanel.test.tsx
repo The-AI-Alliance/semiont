@@ -14,12 +14,9 @@ vi.mock('@semiont/core', async () => {
   return {
     ...actual,
     isBodyResolved: (...args: unknown[]) => mockIsBodyResolved(...args),
+    getEntityTypes: (...args: unknown[]) => mockGetEntityTypes(...args),
   };
 });
-
-vi.mock('@semiont/ontology', () => ({
-  getEntityTypes: (...args: unknown[]) => mockGetEntityTypes(...args),
-}));
 
 import { StatisticsPanel } from '../StatisticsPanel';
 import { resourceId } from '@semiont/core';

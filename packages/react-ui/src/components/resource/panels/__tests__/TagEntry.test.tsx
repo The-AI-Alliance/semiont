@@ -16,17 +16,12 @@ vi.mock('@semiont/core', async () => {
   return {
     ...actual,
     getAnnotationExactText: vi.fn(),
+    getTagCategory: vi.fn(),
+    getTagSchemaId: vi.fn(),
   };
 });
 
-// Mock @semiont/ontology
-vi.mock('@semiont/ontology', () => ({
-  getTagCategory: vi.fn(),
-  getTagSchemaId: vi.fn(),
-}));
-
-import { getAnnotationExactText, resourceId } from '@semiont/core';
-import { getTagCategory, getTagSchemaId } from '@semiont/ontology';
+import { getAnnotationExactText, getTagCategory, getTagSchemaId, resourceId } from '@semiont/core';
 import type { MockedFunction } from 'vitest';
 import { TagEntry } from '../TagEntry';
 

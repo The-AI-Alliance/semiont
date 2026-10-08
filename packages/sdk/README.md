@@ -206,6 +206,11 @@ is what a worker promises the dispatcher.
 
 - **`SemiontClient`** — the verb-oriented coordinator: the eight flow namespaces, plus `job`
   (always present) and `auth`/`system` (present when constructed with gateway operations).
+- **Annotation readers** — `getAnnotationExactText`, `getBodySource`, `getTargetSource`,
+  `getEntityTypes`, `isStubReference`, `getTagCategory` and their siblings read an
+  annotation whose target is an id or an object, whose selector is one or a list, and whose
+  body is absent, one item or a list, so a script narrows none of that by hand. One table,
+  `specs/src/annotations/reader-cases.json`, holds every SDK's readers to the same answers.
 - **A worker's side of the job queue** — `job.claim`, the held jobs it hands out,
   `startAgentSession` for a worker's sign-in, and `JOB_CLAIM_CHANNELS` for its stream.
 - **Session layer** — `SemiontSession` (per-KB auth, proactive token refresh, lifecycle),

@@ -4,7 +4,7 @@
 import { GraphDatabase } from '../interface';
 import { assertMutableResourceUpdate } from '../interface';
 import { queryResources } from '../resource-query';
-import { getEntityTypes } from '@semiont/ontology';
+import { getEntityTypes } from '@semiont/core';
 import type { Logger } from '@semiont/core';
 import {
   buildAnnotation,

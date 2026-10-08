@@ -183,11 +183,9 @@ export type { AssembledAnnotation } from './annotation-assembly';
 // W3C Web Annotation accessors (target/body/selector helpers + type guards)
 export {
   getBodySource,
-  getBodyType,
   isBodyResolved,
   getTargetSource,
   getTargetSelector,
-  hasTargetSelector,
   isHighlight,
   isReference,
   isAssessment,
@@ -198,8 +196,10 @@ export {
   isResolvedReference,
   getExactText,
   getAnnotationExactText,
-  getPrimarySelector,
   getTextQuoteSelector,
+  getEntityTypes,
+  getTagCategory,
+  getTagSchemaId,
   extractBoundingBox,
 } from './web-annotation-utils';
 export type {

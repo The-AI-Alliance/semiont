@@ -23,6 +23,7 @@
 // neither is anything else: the library has no `unwrap` and no `expect`.
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]
 
+pub mod annotations;
 pub mod bus;
 pub mod bus_log;
 pub mod cache;

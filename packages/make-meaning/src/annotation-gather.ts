@@ -12,7 +12,7 @@ import type { EmbeddingProvider, VectorSearchResult, VectorStore } from '@semion
 import { generateResourceSummary } from './generation/resource-generation';
 import { getBodySource, getTargetSource, getTargetSelector, getResourceEntityTypes, getStorageUri, deriveViews } from '@semiont/core';
 import type { components, GatheredContext, Annotation, ResourceDescriptor, ResourceId, AnnotationId, Logger } from '@semiont/core';
-import { getEntityTypes } from '@semiont/ontology';
+import { getEntityTypes } from '@semiont/core';
 import { AnnotationContext, type AnnotationTextContext } from './annotation-context';
 import { ResourceContext } from './resource-context';
 import { GraphContext, type KnowledgeGraphReads } from './graph-context';

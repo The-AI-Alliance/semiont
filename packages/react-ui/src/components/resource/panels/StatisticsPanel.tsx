@@ -2,7 +2,7 @@
 
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { isBodyResolved } from '@semiont/core';
-import { getEntityTypes } from '@semiont/ontology';
+import { getEntityTypes } from '@semiont/core';
 import './StatisticsPanel.css';
 
 import type { Annotation } from '@semiont/core';

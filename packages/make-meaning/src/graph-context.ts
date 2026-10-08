@@ -11,7 +11,7 @@ import type {
 } from '@semiont/core';
 import { getResourceId, getResourceEntityTypes, getTargetSource } from '@semiont/core';
 import type { Logger } from '@semiont/core';
-import { getEntityTypes } from '@semiont/ontology';
+import { getEntityTypes } from '@semiont/core';
 import { recordGatherDegrade } from '@semiont/observability';
 import type { GraphDatabase } from '@semiont/graph';
 import type { ViewStorage } from '@semiont/event-sourcing';

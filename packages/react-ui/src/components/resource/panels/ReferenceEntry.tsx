@@ -5,7 +5,7 @@ import type { Ref } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { Annotation } from '@semiont/core';
 import { getAnnotationExactText, isBodyResolved, getBodySource, getTargetSource, getFragmentSelector, getSvgSelector, getTargetSelector, getPrimaryMediaType } from '@semiont/core';
-import { getEntityTypes } from '@semiont/ontology';
+import { getEntityTypes } from '@semiont/core';
 import { getResourceIcon } from '../../../lib/resource-utils';
 import { readyValue, type SemiontSession } from '@semiont/sdk';
 import { useObservable } from '../../../hooks/useObservable';

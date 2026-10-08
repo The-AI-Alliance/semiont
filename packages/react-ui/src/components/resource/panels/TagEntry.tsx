@@ -5,7 +5,7 @@ import { isReady } from '@semiont/sdk';
 import type { Ref } from 'react';
 import type { Annotation } from '@semiont/core';
 import { getAnnotationExactText } from '@semiont/core';
-import { getTagCategory, getTagSchemaId } from '@semiont/ontology';
+import { getTagCategory, getTagSchemaId } from '@semiont/core';
 import { useObservable } from '../../../hooks/useObservable';
 import type { SemiontSession } from '@semiont/sdk';
 import { useHoverEmitter } from '../../../hooks/useHoverEmitter';

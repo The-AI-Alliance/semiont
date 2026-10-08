@@ -19,7 +19,7 @@ import type {
 } from '@semiont/core';
 import { v4 as uuidv4 } from 'uuid';
 import { getPrimaryRepresentation, getStorageUri } from '@semiont/core';
-import { getEntityTypes } from '@semiont/ontology';
+import { getEntityTypes } from '@semiont/core';
 import {
   buildAnnotation,
   decodeAnnotation,

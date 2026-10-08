@@ -135,20 +135,18 @@ async function resolveReference(rId: ResourceId, ann: Annotation, name: string):
 }
 ```
 
-`name` is the text the reference covers. For a text resource that is the annotation's `TextQuoteSelector`:
+`name` is the text the reference covers. For a text resource that is the annotation's `TextQuoteSelector`, which `getAnnotationExactText` reads whether the annotation's selector is one or a list:
 
 ```typescript
-import type { Annotation } from '@semiont/sdk';
+import { getAnnotationExactText, isStubReference, type Annotation } from '@semiont/sdk';
 
-function quotedText(ann: Annotation): string {
-  const selector = typeof ann.target === 'string' ? undefined : ann.target.selector;
-  const selectors = selector === undefined ? [] : Array.isArray(selector) ? selector : [selector];
-  for (const s of selectors) {
-    if (s.type === 'TextQuoteSelector') return s.exact;
-  }
-  return '';
+/** The references still to resolve, each with the text it covers. */
+function unresolved(annotations: Annotation[]): Array<{ ann: Annotation; name: string }> {
+  return annotations.filter(isStubReference).map((ann) => ({ ann, name: getAnnotationExactText(ann) }));
 }
 ```
+
+`isStubReference` is a reference that links to nothing yet. The SDK exports these readers, so a script narrows none of an annotation's shapes by hand.
 
 ## Complete script
 
@@ -159,28 +157,15 @@ import {
   httpKb,
   annotationId,
   entityType,
+  getAnnotationExactText,
+  isStubReference,
   resourceId,
-  type Annotation,
 } from '@semiont/sdk';
 
 const MATCH_THRESHOLD = Number(process.env.MATCH_THRESHOLD ?? 30);
 const ENTITY_TYPES = (process.env.ENTITY_TYPES ?? 'Location')
   .split(',')
   .map((t) => entityType(t.trim()));
-
-function quotedText(ann: Annotation): string {
-  const selector = typeof ann.target === 'string' ? undefined : ann.target.selector;
-  const selectors = selector === undefined ? [] : Array.isArray(selector) ? selector : [selector];
-  for (const s of selectors) {
-    if (s.type === 'TextQuoteSelector') return s.exact;
-  }
-  return '';
-}
-
-function isUnbound(ann: Annotation): boolean {
-  const bodies = ann.body === undefined ? [] : Array.isArray(ann.body) ? ann.body : [ann.body];
-  return ann.motivation === 'linking' && !bodies.some((b) => b.type === 'SpecificResource');
-}
 
 async function runWikiPipeline(resourceIdStr: string): Promise<void> {
   const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
@@ -205,13 +190,13 @@ async function runWikiPipeline(resourceIdStr: string): Promise<void> {
     await semiont.mark.delegate(rId, { motivation: 'linking', entityTypes: ENTITY_TYPES });
 
     // Step 2: list the unbound references
-    const unbound = (await semiont.browse.annotations(rId).fresh()).filter(isUnbound);
+    const unbound = (await semiont.browse.annotations(rId).fresh()).filter(isStubReference);
     console.log(`${unbound.length} references to resolve`);
 
     // Steps 3 to 5, once for each
     for (const ann of unbound) {
       const annId = annotationId(ann.id);
-      const name = quotedText(ann);
+      const name = getAnnotationExactText(ann);
 
       const gathered = await semiont.gather.annotation(rId, annId, { contextWindow: 2000 });
       const context = gathered.response;
