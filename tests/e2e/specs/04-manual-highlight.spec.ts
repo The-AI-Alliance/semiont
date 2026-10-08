@@ -8,7 +8,7 @@ import { openResourceByName } from '../fixtures/discover';
  * If this test passes, the full chain is working:
  * selection → mark:requested → pendingAnnotation
  * → mark:submit → client.mark.annotation → actor.emit(mark:create-request)
- * → annotation-assembly handler → mark:create → Stower appendEvent →
+ * → the Archivist assembles the annotation and appends it →
  * mark:added domain event → SSE → BrowseNamespace cache invalidation →
  * annotations refetch → UI re-renders with the new highlight.
  */

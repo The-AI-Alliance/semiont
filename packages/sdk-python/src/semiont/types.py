@@ -284,7 +284,6 @@ __all__ = [
     "MarkCommitCommand",
     "MarkCommitOk",
     "MarkCommitOkResponse",
-    "MarkCreateCommand",
     "MarkCreateOk",
     "MarkCreateOkResponse",
     "MarkCreateRequest",
@@ -403,8 +402,6 @@ __all__ = [
     "YieldJobFilter",
     "YieldJobQueuedEvent",
     "YieldJobResult",
-    "YieldMoveFailed",
-    "YieldMvCommand",
     "YieldUpdateCommand",
     "YieldUpdateOk",
     "YieldUpdateOkResponse",
@@ -2020,22 +2017,6 @@ class YieldClonePersistCommand(WireModel, frozen=True):
             description="The resource this one is cloned FROM. Required: it is what makes this a clone rather than a creation.",
         ),
     ]
-
-
-class YieldMvCommand(WireModel, frozen=True):
-    """
-    Bus command to move (rename) a yielded resource.
-    """
-
-    user_id: Annotated[
-        UserId | None,
-        Field(
-            alias="_userId",
-            description="Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.",
-        ),
-    ] = None
-    from_uri: Annotated[str, Field(alias="fromUri")]
-    to_uri: Annotated[str, Field(alias="toUri")]
 
 
 class YieldUpdateCommand(WireModel, frozen=True):
@@ -4744,20 +4725,6 @@ class ArchivistRosterRole(WireModel, frozen=True, extra="forbid"):
     ]
 
 
-class YieldMoveFailed(CommandError, frozen=True):
-    """
-    The payload of `yield:move-failed`: a CommandError that names the resource the move was asked of.
-    """
-
-    from_uri: Annotated[
-        str,
-        Field(
-            alias="fromUri",
-            description="The storage URI the resource was to be moved from.",
-        ),
-    ]
-
-
 class GatherFailed(CommandError, frozen=True):
     """
     The payload of `gather:failed`: a CommandError that names the annotation whose context could not be gathered.
@@ -5722,25 +5689,9 @@ class MarkDelegateRequestEvent(WireModel, frozen=True, extra="forbid"):
     params: MarkJobParams
 
 
-class MarkCreateCommand(WireModel, frozen=True):
-    """
-    Bus command to create an annotation on a resource. The annotation carries body, target and, when software wrote it, a generator naming the emitter itself; `creator` and `wasAttributedTo` are derived by the knowledge base from the verified emitter, and a payload carrying `creator` is refused.
-    """
-
-    user_id: Annotated[
-        UserId | None,
-        Field(
-            alias="_userId",
-            description="Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.",
-        ),
-    ] = None
-    annotation: Annotation
-    resource_id: Annotated[ResourceId, Field(alias="resourceId")]
-
-
 class MarkCommitCommand(WireModel, frozen=True):
     """
-    Bus command to persist a detection unit's annotations as one acknowledged batch. Unlike mark:create, which is fire-and-forget and resolves when the bus accepts it, this command is answered only after every annotation is in the event log — so a worker can gate unit completion on durability rather than on emission. The batch is the unit: a partial commit is reported as a failure, and the worker retries the whole unit, which is safe because annotation ids are deterministic: content-addressed, so re-emitting one is a no-op.
+    Bus command to persist a detection unit's annotations as one acknowledged batch. It is answered only after every annotation is in the event log, so a worker can gate unit completion on durability rather than on emission. The batch is the unit: a partial commit is reported as a failure, and the worker retries the whole unit, which is safe because annotation ids are deterministic: content-addressed, so re-emitting one is a no-op.
     """
 
     user_id: Annotated[

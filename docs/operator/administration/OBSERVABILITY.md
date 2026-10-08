@@ -258,7 +258,7 @@ dispatcher and the Archivist — by their logger, the TypeScript services by
 can be filtered by `trace_id` and joined with the trace UI.
 
 ```json
-{"level":"info","message":"emit","channel":"mark:create","trace_id":"4bf92f3577b34da6a3ce929d0e0e4736","span_id":"00f067aa0ba902b7"}
+{"level":"info","message":"emit","channel":"mark:create-request","trace_id":"4bf92f3577b34da6a3ce929d0e0e4736","span_id":"00f067aa0ba902b7"}
 ```
 
 When no SDK is initialized, or no span is active, neither field is added.

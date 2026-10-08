@@ -39,9 +39,6 @@ const (
 	// payload: YieldUpdateCommand
 	YieldUpdate Channel = "yield:update"
 
-	// payload: YieldMvCommand
-	YieldMv Channel = "yield:mv"
-
 	// no payload — not emittable
 	YieldClone Channel = "yield:clone"
 
@@ -71,9 +68,6 @@ const (
 
 	// not emittable (no registered schema)
 	YieldUpdateFailed Channel = "yield:update-failed"
-
-	// not emittable (no registered schema)
-	YieldMoveFailed Channel = "yield:move-failed"
 
 	// not emittable (no registered schema)
 	YieldCloneTokenGenerated Channel = "yield:clone-token-generated"
@@ -116,9 +110,6 @@ const (
 
 	// payload: MarkCreateRequest
 	MarkCreateRequest Channel = "mark:create-request"
-
-	// payload: MarkCreateCommand
-	MarkCreate Channel = "mark:create"
 
 	// payload: MarkDeleteCommand
 	MarkDelete Channel = "mark:delete"
@@ -620,7 +611,6 @@ var ChannelSchemas = map[Channel]string{
 	YieldCreate:                      "YieldCreateCommand",
 	YieldClonePersist:                "YieldClonePersistCommand",
 	YieldUpdate:                      "YieldUpdateCommand",
-	YieldMv:                          "YieldMvCommand",
 	YieldCloneTokenRequested:         "YieldCloneTokenRequest",
 	YieldCloneResourceRequested:      "YieldCloneResourceRequest",
 	YieldCloneCreate:                 "YieldCloneCreateCommand",
@@ -630,7 +620,6 @@ var ChannelSchemas = map[Channel]string{
 	YieldUpdateOk:                    "YieldUpdateOk",
 	YieldCloneCreated:                "YieldCloneCreated",
 	MarkCreateRequest:                "MarkCreateRequest",
-	MarkCreate:                       "MarkCreateCommand",
 	MarkDelete:                       "MarkDeleteCommand",
 	MarkUpdateBody:                   "MarkUpdateBodyCommand",
 	MarkArchive:                      "MarkArchiveCommand",

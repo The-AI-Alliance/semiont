@@ -94,7 +94,6 @@ export type EventMap = {
   'yield:create': components['schemas']['YieldCreateCommand'];
   'yield:clone-persist': components['schemas']['YieldClonePersistCommand'];
   'yield:update': components['schemas']['YieldUpdateCommand'];
-  'yield:mv': components['schemas']['YieldMvCommand'];
   'yield:clone': void;
   'yield:clone-token-requested': components['schemas']['YieldCloneTokenRequest'];
   'yield:clone-resource-requested': components['schemas']['YieldCloneResourceRequest'];
@@ -107,7 +106,6 @@ export type EventMap = {
   'yield:clone-persist-failed': components['schemas']['CommandError'];
   'yield:update-ok': components['schemas']['YieldUpdateOk'];
   'yield:update-failed': components['schemas']['CommandError'];
-  'yield:move-failed': components['schemas']['YieldMoveFailed'];
   'yield:clone-token-generated': { response: components['schemas']['CloneResourceWithTokenResponse'] };
   'yield:clone-token-failed': components['schemas']['CommandError'];
   'yield:clone-resource-result': { response: components['schemas']['GetResourceByTokenResponse'] };
@@ -134,7 +132,6 @@ export type EventMap = {
 
   // Commands
   'mark:create-request': components['schemas']['MarkCreateRequest'];
-  'mark:create': components['schemas']['MarkCreateCommand'];
   'mark:delete': Refines<components['schemas']['MarkDeleteCommand'], MarkDeleteCommand>;
   'mark:update-body': Refines<components['schemas']['MarkUpdateBodyCommand'], MarkUpdateBodyCommand>;
   'mark:archive': components['schemas']['MarkArchiveCommand'];
@@ -584,7 +581,6 @@ export const CHANNEL_SCHEMAS = {
   'yield:create':                     'YieldCreateCommand',
   'yield:clone-persist':              'YieldClonePersistCommand',
   'yield:update':                     'YieldUpdateCommand',
-  'yield:mv':                         'YieldMvCommand',
   'yield:clone':                      null, // void
   'yield:clone-token-requested':      'YieldCloneTokenRequest',
   'yield:clone-resource-requested':   'YieldCloneResourceRequest',
@@ -595,7 +591,6 @@ export const CHANNEL_SCHEMAS = {
   'yield:clone-persist-failed':       null, // CommandError
   'yield:update-ok':                  'YieldUpdateOk',
   'yield:update-failed':              null, // CommandError
-  'yield:move-failed':                null, // { fromUri } & CommandError
   'yield:clone-token-generated':      null, // { response: CloneResourceWithTokenResponse }
   'yield:clone-token-failed':         null, // CommandError
   'yield:clone-resource-result':      null, // { response: GetResourceByTokenResponse }
@@ -614,7 +609,6 @@ export const CHANNEL_SCHEMAS = {
   'mark:archived':                    null,
   'mark:unarchived':                  null,
   'mark:create-request':              'MarkCreateRequest',
-  'mark:create':                      'MarkCreateCommand',
   'mark:delete':                      'MarkDeleteCommand',
   'mark:update-body':                 'MarkUpdateBodyCommand',
   'mark:archive':                     'MarkArchiveCommand',

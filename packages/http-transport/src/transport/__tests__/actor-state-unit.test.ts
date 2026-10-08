@@ -116,7 +116,7 @@ describe('createActorStateUnit', () => {
   it('emit bounds the /bus/emit POST with a timeout signal', async () => {
     // An unresponsive gateway must not hang the caller's loop forever. Pin
     // that the POST carries an AbortSignal (the emit deadline); without it, a
-    // wedged gateway hangs every mark:create / job:complete indefinitely.
+    // wedged gateway hangs every job:report-progress / job:complete indefinitely.
     mockFetch.mockResolvedValueOnce({ ok: true });
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',

@@ -27,10 +27,11 @@
  * NOT checked here: "every reply channel is bridged." A channel must be bridged
  * iff it has a *remote* (SSE/HttpTransport) consumer, which is encoded only in
  * `busRequest` calls — and those already constrain their result/failure channels
- * to `BridgedChannel` at compile time. Reply-*named* channels whose only
- * consumers are in-process are correctly unbridged (e.g. `yield:move-failed`: the
- * CLI `mv` command has no remote SDK surface, so nothing remote awaits it), so a
- * name-based scan would be all false positives. "Is a remote reply" is data in
+ * to `BridgedChannel` at compile time. A reply-*named* channel that is no
+ * operation's reply is correctly unbridged (e.g. `mark:body-update-failed`:
+ * `mark:update-body` is a command with no reply pair, and its failure reaches
+ * only a client whose manifest names it), so a name-based scan would give
+ * false positives. "Is a remote reply" is data in
  * `BUS_OPERATIONS`, which the bridged set derives from.
  */
 

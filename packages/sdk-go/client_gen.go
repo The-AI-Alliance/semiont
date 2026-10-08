@@ -1971,30 +1971,6 @@ func (e YieldJobQueuedEventJobType) Valid() bool {
 	}
 }
 
-// Defines values for YieldMoveFailedCode.
-const (
-	YieldMoveFailedCodeNonePending     YieldMoveFailedCode = "none-pending"
-	YieldMoveFailedCodeNotFound        YieldMoveFailedCode = "not-found"
-	YieldMoveFailedCodePeerUnavailable YieldMoveFailedCode = "peer-unavailable"
-	YieldMoveFailedCodeUnauthorized    YieldMoveFailedCode = "unauthorized"
-)
-
-// Valid indicates whether the value is a known member of the YieldMoveFailedCode enum.
-func (e YieldMoveFailedCode) Valid() bool {
-	switch e {
-	case YieldMoveFailedCodeNonePending:
-		return true
-	case YieldMoveFailedCodeNotFound:
-		return true
-	case YieldMoveFailedCodePeerUnavailable:
-		return true
-	case YieldMoveFailedCodeUnauthorized:
-		return true
-	default:
-		return false
-	}
-}
-
 // Agent Web Annotation / W3C PROV Agent. Discriminated by @type — Person, Organization, or Software (named member schemas: AgentPerson, AgentOrganization, AgentSoftware). Software peers are first-class participants, not a sub-class of Person.
 type Agent struct {
 	union json.RawMessage
@@ -4720,7 +4696,7 @@ type MarkArchiveCommand struct {
 	StorageUri *string `json:"storageUri,omitempty"`
 }
 
-// MarkCommitCommand Bus command to persist a detection unit's annotations as one acknowledged batch. Unlike mark:create, which is fire-and-forget and resolves when the bus accepts it, this command is answered only after every annotation is in the event log — so a worker can gate unit completion on durability rather than on emission. The batch is the unit: a partial commit is reported as a failure, and the worker retries the whole unit, which is safe because annotation ids are deterministic: content-addressed, so re-emitting one is a no-op.
+// MarkCommitCommand Bus command to persist a detection unit's annotations as one acknowledged batch. It is answered only after every annotation is in the event log, so a worker can gate unit completion on durability rather than on emission. The batch is the unit: a partial commit is reported as a failure, and the worker retries the whole unit, which is safe because annotation ids are deterministic: content-addressed, so re-emitting one is a no-op.
 type MarkCommitCommand struct {
 	// UnderscoreRoles The emitter's capabilities (the token's `roles`), injected by the /bus/emit gateway. Clients do not set this. An emitter carrying the worker role must cite the job this batch fulfils in `jobId`; the Stower refuses the batch otherwise.
 	UnderscoreRoles *[]string `json:"_roles,omitempty"`
@@ -4748,16 +4724,6 @@ type MarkCommitOk struct {
 		// Persisted Annotations the command named that are durable in the event log. Equals the batch size on success, on a first commit and on a retry alike — the commit appends only what the resource does not already hold, so a wholly-redundant retry has still succeeded and says so. Not an append tally: a caller must never have to read a 0 as 'all good'.
 		Persisted int `json:"persisted"`
 	} `json:"response"`
-}
-
-// MarkCreateCommand Bus command to create an annotation on a resource. The annotation carries body, target and, when software wrote it, a generator naming the emitter itself; `creator` and `wasAttributedTo` are derived by the knowledge base from the verified emitter, and a payload carrying `creator` is refused.
-type MarkCreateCommand struct {
-	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
-	UnderscoreUserId *UserId    `json:"_userId,omitempty"`
-	Annotation       Annotation `json:"annotation"`
-
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
-	ResourceId ResourceId `json:"resourceId"`
 }
 
 // MarkCreateOk Success reply after creating an annotation, matched to the originating command by correlationId.
@@ -6357,32 +6323,6 @@ type YieldJobQueuedEventJobType string
 // YieldJobResult What a `yield` job reports when it concludes without failing: the resource it made, or a decline. Neither names its kind: a decline is the one with `declined`.
 type YieldJobResult struct {
 	union json.RawMessage
-}
-
-// YieldMoveFailed defines model for YieldMoveFailed.
-type YieldMoveFailed struct {
-	// Code Machine-readable failure class, for consumers that must BRANCH on why a command failed rather than log it. Optional and deliberately sparse: absent means 'no class declared', and every existing failure stays that way. An enum rather than a free string so the vocabulary has an owner — an unconstrained code is a mirror with no gate, and adding one should be a deliberate spec change. `message` remains the human-readable text and is unaffected. Members: `peer-unavailable` — the channel this command was sent on has no subscriber, i.e. the service that answers it has not connected yet. Transient by nature (a peer still starting), which is what distinguishes it from a refusal: retrying is the correct response. `not-found` — the resource this command addressed does not exist in this knowledge base. A verdict, not a symptom: it is emitted only where the answer comes from the event store, which is the system of record, and never from a projection that may merely be lagging. Deterministic, so unlike `peer-unavailable` retrying is pointless — and consumers may act destructively on it (the SDK deletes a restored tab). Absence is not denial: a future 'exists, but not for you' must travel as its own code, never as this one. `unauthorized` — that code: the caller is authenticated but not permitted to do what it asked. A verdict about the CALLER, not the resource, so retrying under the same credential cannot succeed and a consumer must never spin on it; emitted by `job:claim` for a caller whose token carries no worker role. `none-pending` — a declined claim, not an error: the queue holds no pending job of the requested types. Nothing went wrong; the one code a consumer PARKS on, meaning 'nothing to do until a wake-up'. Emitted by `job:claim` only. A `job:claim` refusal carrying neither is unclassified — a malformed record or a missing injection — and a consumer treats it as 'log it, assume nothing'.
-	Code *YieldMoveFailedCode `json:"code,omitempty"`
-
-	// Details Optional additional context (stack trace, field name, etc.)
-	Details *string `json:"details,omitempty"`
-
-	// FromUri The storage URI the resource was to be moved from.
-	FromUri string `json:"fromUri"`
-
-	// Message Human-readable error message
-	Message string `json:"message"`
-}
-
-// YieldMoveFailedCode Machine-readable failure class, for consumers that must BRANCH on why a command failed rather than log it. Optional and deliberately sparse: absent means 'no class declared', and every existing failure stays that way. An enum rather than a free string so the vocabulary has an owner — an unconstrained code is a mirror with no gate, and adding one should be a deliberate spec change. `message` remains the human-readable text and is unaffected. Members: `peer-unavailable` — the channel this command was sent on has no subscriber, i.e. the service that answers it has not connected yet. Transient by nature (a peer still starting), which is what distinguishes it from a refusal: retrying is the correct response. `not-found` — the resource this command addressed does not exist in this knowledge base. A verdict, not a symptom: it is emitted only where the answer comes from the event store, which is the system of record, and never from a projection that may merely be lagging. Deterministic, so unlike `peer-unavailable` retrying is pointless — and consumers may act destructively on it (the SDK deletes a restored tab). Absence is not denial: a future 'exists, but not for you' must travel as its own code, never as this one. `unauthorized` — that code: the caller is authenticated but not permitted to do what it asked. A verdict about the CALLER, not the resource, so retrying under the same credential cannot succeed and a consumer must never spin on it; emitted by `job:claim` for a caller whose token carries no worker role. `none-pending` — a declined claim, not an error: the queue holds no pending job of the requested types. Nothing went wrong; the one code a consumer PARKS on, meaning 'nothing to do until a wake-up'. Emitted by `job:claim` only. A `job:claim` refusal carrying neither is unclassified — a malformed record or a missing injection — and a consumer treats it as 'log it, assume nothing'.
-type YieldMoveFailedCode string
-
-// YieldMvCommand Bus command to move (rename) a yielded resource.
-type YieldMvCommand struct {
-	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
-	UnderscoreUserId *UserId `json:"_userId,omitempty"`
-	FromUri          string  `json:"fromUri"`
-	ToUri            string  `json:"toUri"`
 }
 
 // YieldUpdateCommand Bus command to update a yielded resource's storage content.

@@ -82,7 +82,7 @@ describe('useGenerationArrival', () => {
   });
 
   it('an outcome arriving before its edge waits, then reveals when it lands', () => {
-    // mark:create for the provenance ref is awaited before job:complete, so
+    // The commit of the provenance ref is awaited before job:complete, so
     // in practice the edge is already projected — this pin covers the
     // ordering anyway.
     const { rerender, onReveal } = renderArrival({ outcome: null, annotations: [] });

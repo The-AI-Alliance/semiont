@@ -64,7 +64,7 @@ interface TaggingPanelProps {
  *
  * @emits annotate:detect-request - Start tag annotation. Payload: { motivation: 'tagging', options: { schemaId: string, categories: string[] } }
  * @emits mark:cancel-pending - Cancel pending tag annotation. Payload: undefined
- * @emits mark:create - Create new tag annotation. Payload: { motivation: 'tagging', selector: Selector | Selector[], body: Body[] }
+ * @emits mark:submit - Create new tag annotation. Payload: { motivation: 'tagging', selector: Selector | Selector[], body: Body[] }
  * @subscribes browse:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function TaggingPanel({

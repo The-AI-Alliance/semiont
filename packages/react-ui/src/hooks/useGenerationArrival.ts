@@ -26,7 +26,7 @@ export function useGenerationArrival(
   // Pre-seed with the mount-time outcome so a held value cannot fire.
   const seen = useRef(outcome);
   // Armed between the outcome arriving and its edge appearing — usually the
-  // same render (the worker awaits the edge's mark:create before
+  // same render (the worker awaits the commit of the edge before
   // job:complete), but the ordering is not this hook's to assume.
   const pending = useRef<YieldOutcome | null>(null);
   const onRevealRef = useRef(onReveal);

@@ -138,7 +138,7 @@ if let Some(roles) = principal.roles.as_ref().filter(|r| !r.is_empty()) {
 
 In the schema, `_userId` is **optional** with the canonical description "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this." Handlers reading the channel can rely on `_userId` being present for any payload that came through the gateway — and treat its absence as a malformed event: the Stower refuses a `yield:create` that carries none.
 
-The underscore prefix is the convention's marker — anything starting with `_` on a payload is gateway plumbing, not consumer-supplied data. This applies uniformly across every command schema that needs auth context: `MarkCreateCommand`, `MarkArchiveCommand`, `YieldCreateCommand`, `YieldCloneCreateCommand`, `JobCompleteCommand`, etc.
+The underscore prefix is the convention's marker — anything starting with `_` on a payload is gateway plumbing, not consumer-supplied data. This applies uniformly across every command schema that needs auth context: `MarkCommitCommand`, `MarkArchiveCommand`, `YieldCreateCommand`, `YieldCloneCreateCommand`, `JobCompleteCommand`, etc.
 
 ## Correlation: request/response over a fan-out bus
 

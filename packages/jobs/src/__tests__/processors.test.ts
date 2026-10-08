@@ -485,10 +485,10 @@ describe('processReferenceJob', () => {
 
 // ── The unit gates on the COMMIT, not on the emit ───────────────────────────
 //
-// `onChunkComplete` is the durability seam. Fire-and-forget (`mark:create`),
-// it would lose the unit silently on a down Archivist; the worker's version
-// awaits a `mark:commit` acknowledgement, which means a rejecting sink must
-// stop the unit from counting — and a recovering one must let it through.
+// `onChunkComplete` is the durability seam. Fire-and-forget, it would lose
+// the unit silently on a down Archivist; the worker's version awaits a
+// `mark:commit` acknowledgement, which means a rejecting sink must stop the
+// unit from counting — and a recovering one must let it through.
 //
 // Tested here rather than at the worker because this is where "counts anywhere"
 // is decided: the loop awaits the callback BEFORE touching totals, completed

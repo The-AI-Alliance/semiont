@@ -77,7 +77,7 @@ await withSpan(
 
 // Actor handler wrapper — used at each actor's bus subscriptions to standardize
 // span names across actors (Stower, Browser, Gatherer, Matcher, Smelter).
-await withActorSpan('stower', 'mark:create', () => handler(payload));
+await withActorSpan('stower', 'mark:create-request', () => handler(payload));
 ```
 
 ### Trace-context propagation
@@ -130,8 +130,8 @@ import {
   recordInferenceUsage,
 } from '@semiont/observability';
 
-recordBusSent('mark:create', resourceId);  // channel, and the scope it was sent in
-recordHandlerDuration('stower', 'mark:create', durationMs);
+recordBusSent('mark:create-request', resourceId);  // channel, and the scope it was sent in
+recordHandlerDuration('stower', 'mark:create-request', durationMs);
 recordJobOutcome({ jobType: 'mark', motivation: 'linking' }, 'completed', durationMs);
 recordInferenceUsage({ provider: 'ollama', model: 'gemma3:27b', durationMs, outcome: 'success', inputTokens: 412, outputTokens: 87 });
 ```

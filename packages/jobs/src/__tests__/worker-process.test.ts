@@ -1053,7 +1053,7 @@ describe('handleJob orchestration', () => {
 
   // ── Every minting path is acknowledged ─────────────────────────────────────
   //
-  // A path that emits `mark:create` fire-and-forget can lose its output: the
+  // A path that emits its annotations fire-and-forget can lose its output: the
   // emit timeout (EMIT_TIMEOUT_MS) stops it HANGING, but an emit that
   // resolves means the gateway accepted the frame, not that the Stower
   // appended anything, so a down Archivist discards the output while the job
@@ -1133,8 +1133,6 @@ describe('handleJob orchestration', () => {
       await handleHeld(h, makeConfig(h.client), makeJob(jobType as never, coverage.exercise));
 
       const channels = h.busEmits.map(e => e.channel);
-      expect(channels, `${jobType} must not emit un-acknowledged mark:create`).not.toContain('mark:create');
-
       const commits = h.busEmits.filter(e => e.channel === 'mark:commit');
       expect(commits, `${jobType} must acknowledge every batch it mints`).toHaveLength(coverage.commits);
 

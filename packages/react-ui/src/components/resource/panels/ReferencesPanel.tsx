@@ -94,7 +94,7 @@ interface Props {
  * Panel for managing reference annotations with entity type annotation
  *
  * @emits annotate:detect-request - Start reference annotation. Payload: { motivation: 'linking', options: { entityTypes: string[], includeDescriptiveReferences: boolean } }
- * @emits mark:create - Create new reference annotation. Payload: { motivation: 'linking', selector: Selector | Selector[], body: Body[] }
+ * @emits mark:submit - Create new reference annotation. Payload: { motivation: 'linking', selector: Selector | Selector[], body: Body[] }
  * @emits mark:cancel-pending - Cancel pending reference annotation. Payload: undefined
  * @subscribes browse:click - Annotation clicked. Payload: { annotationId: string }
  */

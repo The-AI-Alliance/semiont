@@ -49,10 +49,6 @@
       "writes": true,
       "delivery": "passing"
     },
-    "yield:mv": {
-      "recorded": false,
-      "direction": "in-process"
-    },
     "yield:clone": {
       "recorded": false,
       "direction": "in-process"
@@ -104,10 +100,6 @@
       "recorded": false,
       "direction": "inbound",
       "delivery": "correlated"
-    },
-    "yield:move-failed": {
-      "recorded": false,
-      "direction": "in-process"
     },
     "yield:clone-token-generated": {
       "recorded": false,
@@ -179,10 +171,6 @@
       "direction": "outbound",
       "writes": true,
       "delivery": "passing"
-    },
-    "mark:create": {
-      "recorded": false,
-      "direction": "in-process"
     },
     "mark:delete": {
       "recorded": false,

@@ -331,8 +331,8 @@ async function handleJobInner(
   //
   // The held job commits for itself too (`job.commit`). Every path here that
   // makes annotations commits them through it, a batch at a time, and waits
-  // for the record to have the batch; none emits `mark:create`, whose emit
-  // resolves when the gateway takes the frame and says nothing of the record.
+  // for the record to have the batch: an emit alone resolves when the gateway
+  // takes the frame, and says nothing of the record.
   // A reference job commits per chunk, and a generation on two resources. The
   // job states how its commits were established when it settles.
 

@@ -100,7 +100,6 @@ from semiont.types import (
     MarkArchiveCommand,
     MarkCommitCommand,
     MarkCommitOk,
-    MarkCreateCommand,
     MarkCreateOk,
     MarkCreateRequest,
     MarkDelegateRequestEvent,
@@ -138,8 +137,6 @@ from semiont.types import (
     YieldCloneTokenRequest,
     YieldCreateCommand,
     YieldCreateOk,
-    YieldMoveFailed,
-    YieldMvCommand,
     YieldUpdateCommand,
     YieldUpdateOk,
 )
@@ -259,7 +256,6 @@ __all__ = [
     "MARK_COMMIT",
     "MARK_COMMIT_FAILED",
     "MARK_COMMIT_OK",
-    "MARK_CREATE",
     "MARK_CREATE_ERROR",
     "MARK_CREATE_FAILED",
     "MARK_CREATE_OK",
@@ -341,8 +337,6 @@ __all__ = [
     "YIELD_CREATE_FAILED",
     "YIELD_CREATE_OK",
     "YIELD_MOVED",
-    "YIELD_MOVE_FAILED",
-    "YIELD_MV",
     "YIELD_REPRESENTATION_ADDED",
     "YIELD_REPRESENTATION_REMOVED",
     "YIELD_UPDATE",
@@ -363,7 +357,6 @@ type ChannelName = Literal[
     "yield:create",
     "yield:clone-persist",
     "yield:update",
-    "yield:mv",
     "yield:clone",
     "yield:clone-token-requested",
     "yield:clone-resource-requested",
@@ -374,7 +367,6 @@ type ChannelName = Literal[
     "yield:clone-persist-failed",
     "yield:update-ok",
     "yield:update-failed",
-    "yield:move-failed",
     "yield:clone-token-generated",
     "yield:clone-token-failed",
     "yield:clone-resource-result",
@@ -389,7 +381,6 @@ type ChannelName = Literal[
     "mark:archived",
     "mark:unarchived",
     "mark:create-request",
-    "mark:create",
     "mark:delete",
     "mark:update-body",
     "mark:archive",
@@ -566,7 +557,6 @@ CHANNEL_NAMES: Final[tuple[ChannelName, ...]] = (
     "yield:create",
     "yield:clone-persist",
     "yield:update",
-    "yield:mv",
     "yield:clone",
     "yield:clone-token-requested",
     "yield:clone-resource-requested",
@@ -577,7 +567,6 @@ CHANNEL_NAMES: Final[tuple[ChannelName, ...]] = (
     "yield:clone-persist-failed",
     "yield:update-ok",
     "yield:update-failed",
-    "yield:move-failed",
     "yield:clone-token-generated",
     "yield:clone-token-failed",
     "yield:clone-resource-result",
@@ -592,7 +581,6 @@ CHANNEL_NAMES: Final[tuple[ChannelName, ...]] = (
     "mark:archived",
     "mark:unarchived",
     "mark:create-request",
-    "mark:create",
     "mark:delete",
     "mark:update-body",
     "mark:archive",
@@ -768,7 +756,6 @@ YIELD_REPRESENTATION_REMOVED: Final = ScopedChannel[StoredEventResponse]("yield:
 YIELD_CREATE: Final = Channel[YieldCreateCommand]("yield:create", YieldCreateCommand)
 YIELD_CLONE_PERSIST: Final = Channel[YieldClonePersistCommand]("yield:clone-persist", YieldClonePersistCommand)
 YIELD_UPDATE: Final = Channel[YieldUpdateCommand]("yield:update", YieldUpdateCommand)
-YIELD_MV: Final = Channel[YieldMvCommand]("yield:mv", YieldMvCommand)
 YIELD_CLONE: Final = Channel[Empty]("yield:clone", Empty)
 YIELD_CLONE_TOKEN_REQUESTED: Final = Channel[YieldCloneTokenRequest]("yield:clone-token-requested", YieldCloneTokenRequest)
 YIELD_CLONE_RESOURCE_REQUESTED: Final = Channel[YieldCloneResourceRequest]("yield:clone-resource-requested", YieldCloneResourceRequest)
@@ -779,7 +766,6 @@ YIELD_CLONE_PERSIST_OK: Final = Channel[YieldClonePersistOk]("yield:clone-persis
 YIELD_CLONE_PERSIST_FAILED: Final = Channel[CommandError]("yield:clone-persist-failed", CommandError)
 YIELD_UPDATE_OK: Final = Channel[YieldUpdateOk]("yield:update-ok", YieldUpdateOk)
 YIELD_UPDATE_FAILED: Final = Channel[CommandError]("yield:update-failed", CommandError)
-YIELD_MOVE_FAILED: Final = Channel[YieldMoveFailed]("yield:move-failed", YieldMoveFailed)
 YIELD_CLONE_TOKEN_GENERATED: Final = Channel[Response[CloneResourceWithTokenResponse]]("yield:clone-token-generated", Response[CloneResourceWithTokenResponse])
 YIELD_CLONE_TOKEN_FAILED: Final = Channel[CommandError]("yield:clone-token-failed", CommandError)
 YIELD_CLONE_RESOURCE_RESULT: Final = Channel[Response[GetResourceByTokenResponse]]("yield:clone-resource-result", Response[GetResourceByTokenResponse])
@@ -794,7 +780,6 @@ MARK_ENTITY_TAG_REMOVED: Final = ScopedChannel[StoredEventResponse]("mark:entity
 MARK_ARCHIVED: Final = ScopedChannel[StoredEventResponse]("mark:archived", StoredEventResponse)
 MARK_UNARCHIVED: Final = ScopedChannel[StoredEventResponse]("mark:unarchived", StoredEventResponse)
 MARK_CREATE_REQUEST: Final = Channel[MarkCreateRequest]("mark:create-request", MarkCreateRequest)
-MARK_CREATE: Final = Channel[MarkCreateCommand]("mark:create", MarkCreateCommand)
 MARK_DELETE: Final = Channel[MarkDeleteCommand]("mark:delete", MarkDeleteCommand)
 MARK_UPDATE_BODY: Final = Channel[MarkUpdateBodyCommand]("mark:update-body", MarkUpdateBodyCommand)
 MARK_ARCHIVE: Final = Channel[MarkArchiveCommand]("mark:archive", MarkArchiveCommand)
@@ -972,7 +957,6 @@ CHANNELS: Final[Mapping[str, AnyChannel]] = MappingProxyType(
         "yield:create": YIELD_CREATE,
         "yield:clone-persist": YIELD_CLONE_PERSIST,
         "yield:update": YIELD_UPDATE,
-        "yield:mv": YIELD_MV,
         "yield:clone": YIELD_CLONE,
         "yield:clone-token-requested": YIELD_CLONE_TOKEN_REQUESTED,
         "yield:clone-resource-requested": YIELD_CLONE_RESOURCE_REQUESTED,
@@ -983,7 +967,6 @@ CHANNELS: Final[Mapping[str, AnyChannel]] = MappingProxyType(
         "yield:clone-persist-failed": YIELD_CLONE_PERSIST_FAILED,
         "yield:update-ok": YIELD_UPDATE_OK,
         "yield:update-failed": YIELD_UPDATE_FAILED,
-        "yield:move-failed": YIELD_MOVE_FAILED,
         "yield:clone-token-generated": YIELD_CLONE_TOKEN_GENERATED,
         "yield:clone-token-failed": YIELD_CLONE_TOKEN_FAILED,
         "yield:clone-resource-result": YIELD_CLONE_RESOURCE_RESULT,
@@ -998,7 +981,6 @@ CHANNELS: Final[Mapping[str, AnyChannel]] = MappingProxyType(
         "mark:archived": MARK_ARCHIVED,
         "mark:unarchived": MARK_UNARCHIVED,
         "mark:create-request": MARK_CREATE_REQUEST,
-        "mark:create": MARK_CREATE,
         "mark:delete": MARK_DELETE,
         "mark:update-body": MARK_UPDATE_BODY,
         "mark:archive": MARK_ARCHIVE,

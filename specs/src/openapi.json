@@ -591,9 +591,6 @@
       "MarkDelegateRequestEvent": {
         "$ref": "components/schemas/MarkDelegateRequestEvent.json"
       },
-      "MarkCreateCommand": {
-        "$ref": "components/schemas/MarkCreateCommand.json"
-      },
       "MarkCreateOk": {
         "$ref": "components/schemas/MarkCreateOk.json"
       },
@@ -785,9 +782,6 @@
       },
       "YieldClonePersistOk": {
         "$ref": "components/schemas/YieldClonePersistOk.json"
-      },
-      "YieldMvCommand": {
-        "$ref": "components/schemas/YieldMvCommand.json"
       },
       "YieldUpdateCommand": {
         "$ref": "components/schemas/YieldUpdateCommand.json"
@@ -986,9 +980,6 @@
       },
       "ArchivistRosterRole": {
         "$ref": "components/schemas/ArchivistRosterRole.json"
-      },
-      "YieldMoveFailed": {
-        "$ref": "components/schemas/YieldMoveFailed.json"
       },
       "GatherFailed": {
         "$ref": "components/schemas/GatherFailed.json"

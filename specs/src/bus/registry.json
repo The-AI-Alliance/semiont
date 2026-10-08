@@ -11,7 +11,6 @@
       "yield:create",
       "yield:clone-persist",
       "yield:update",
-      "yield:mv",
       "yield:clone",
       "yield:clone-token-requested",
       "yield:clone-resource-requested",
@@ -22,7 +21,6 @@
       "yield:clone-persist-failed",
       "yield:update-ok",
       "yield:update-failed",
-      "yield:move-failed",
       "yield:clone-token-generated",
       "yield:clone-token-failed",
       "yield:clone-resource-result",
@@ -37,7 +35,6 @@
       "mark:archived",
       "mark:unarchived",
       "mark:create-request",
-      "mark:create",
       "mark:delete",
       "mark:update-body",
       "mark:archive",
@@ -213,7 +210,6 @@
       "yield:create",
       "yield:clone-persist",
       "yield:update",
-      "yield:mv",
       "yield:clone",
       "yield:clone-token-requested",
       "yield:clone-resource-requested",
@@ -224,7 +220,6 @@
       "yield:clone-persist-failed",
       "yield:update-ok",
       "yield:update-failed",
-      "yield:move-failed",
       "yield:clone-token-generated",
       "yield:clone-token-failed",
       "yield:clone-resource-result",
@@ -241,7 +236,6 @@
       "mark:archived",
       "mark:unarchived",
       "mark:create-request",
-      "mark:create",
       "mark:delete",
       "mark:update-body",
       "mark:archive",
@@ -557,20 +551,6 @@
       }
     },
     {
-      "channel": "yield:mv",
-      "shape": "schema",
-      "schema": "YieldMvCommand",
-      "validate": "YieldMvCommand",
-      "docs": {
-        "lead": [],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": ""
-      }
-    },
-    {
       "channel": "yield:clone",
       "shape": "void",
       "validate": null,
@@ -710,20 +690,6 @@
       "schemaDocs": {
         "lead": [],
         "trailing": "// CommandError"
-      }
-    },
-    {
-      "channel": "yield:move-failed",
-      "shape": "schema",
-      "schema": "YieldMoveFailed",
-      "validate": null,
-      "docs": {
-        "lead": [],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": "// { fromUri } & CommandError"
       }
     },
     {
@@ -944,20 +910,6 @@
           "",
           "  // Commands"
         ],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": ""
-      }
-    },
-    {
-      "channel": "mark:create",
-      "shape": "schema",
-      "schema": "MarkCreateCommand",
-      "validate": "MarkCreateCommand",
-      "docs": {
-        "lead": [],
         "trailing": ""
       },
       "schemaDocs": {
@@ -3976,10 +3928,7 @@
   "inProcess": {
     "doc": "/**\n * Explicitly LOCAL-ONLY: these channels never cross the signal plane — UI\n * signals, event-log appends, and single-process relays. Membership is a\n * DECISION, not a default: a channel absent from every class (operations,\n * outboundCommands, bridgedBroadcasts, here) refuses to generate. There is\n * no fallthrough: one would silently classify a wire channel such as\n * `job:queued` as in-process and starve every worker.\n */",
     "channels": [
-      "yield:mv",
       "yield:clone",
-      "yield:move-failed",
-      "mark:create",
       "mark:select-comment",
       "mark:select-tag",
       "mark:select-assessment",
