@@ -96,6 +96,7 @@ interface Props {
  * @emits mark:delegate-request - Start reference annotation. Payload: MarkDelegateRequestEvent, its params those of a 'linking' job: entityTypes, includeDescriptiveReferences, language, sourceLanguage
  * @emits mark:submit - Create new reference annotation. Payload: MarkSubmitEvent with motivation 'linking', and the chosen entity types as a TextualBody when any are chosen
  * @emits mark:cancel-pending - Cancel pending reference annotation. Payload: undefined
+ * @emits mark:progress-dismiss - Dismiss the reference annotation progress display. Payload: undefined
  * @subscribes browse:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function ReferencesPanel({
