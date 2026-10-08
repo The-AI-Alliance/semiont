@@ -52,7 +52,7 @@ interface Props {
 /**
  * View component for annotating resources with text selection and drawing
  *
- * @emits mark:requested - User requested to create annotation. Payload: { selector: Selector | Selector[], motivation: SelectionMotivation }
+ * @emits mark:requested - User requested to create annotation. Payload: { source: ResourceId, selector: Selector | Selector[], motivation: SelectionMotivation }
  * @subscribes beckon:hover - Annotation hovered. Payload: { annotationId: string | null }
  * @subscribes beckon:focus - Scroll to and highlight annotation, unless `resourceId` names a different resource. Payload: { annotationId: string, resourceId?: string }
  */

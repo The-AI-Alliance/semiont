@@ -70,7 +70,7 @@ export interface ReferenceHover {
  * - Layer 1: Markdown renders once (MemoizedMarkdown, cached by content)
  * - Layer 2: Annotation overlay applied via DOM Range API after paint
  *
- * @emits browse:click - User clicked on annotation. Payload: { annotationId: string, motivation: Motivation }
+ * @emits browse:click - User clicked on annotation. Payload: { annotationId: string, anchorRect?: AnchorRect }
  * @emits beckon:hover - User hovered over annotation. Payload: { annotationId: string | null }
  *
  * @subscribes beckon:hover - Highlight annotation on hover. Payload: { annotationId: string | null }

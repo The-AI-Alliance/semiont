@@ -90,6 +90,7 @@
     "lint:staging-boundary": "node scripts/lint/check-staging-boundary.mjs",
     "lint:placeholder-readers": "node scripts/lint/check-placeholder-readers.mjs",
     "lint:secure-context-apis": "node scripts/lint/check-secure-context-apis.mjs",
+    "lint:event-tags": "node scripts/lint/check-event-tags.mjs",
     "lint:client-surface": "node scripts/lint/check-client-surface.mjs",
     "lint:internal-deps": "node scripts/lint/check-internal-dep-specifiers.mjs"
   },
