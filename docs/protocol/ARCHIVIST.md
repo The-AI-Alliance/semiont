@@ -269,7 +269,7 @@ its sender, which the gateway sets. A reply carries the command's correlation id
 
 | Command | Reply | On failure | Appends |
 |---|---|---|---|
-| `yield:create` | `yield:create-ok` `{resourceId}` | `yield:create-failed` | `yield:created` |
+| `yield:create` | `yield:create-ok` `{resourceId}` | `yield:create-failed` | `yield:created`, then `mark:body-updated` when the command names both the source resource and the source annotation |
 | `yield:clone-persist` | `yield:clone-persist-ok` `{resourceId}` | `yield:clone-persist-failed` | `yield:cloned` |
 | `yield:update` | `yield:update-ok` `{resourceId}` | `yield:update-failed` | `yield:updated` |
 | `mark:create-request` | `mark:create-ok` `{annotationId}` | `mark:create-failed` | `mark:added` |
@@ -330,7 +330,7 @@ Otherwise: `refused: cites job <id>, but this resource's log holds no assignment
   `generatedFrom` when the command names both the source resource and the source annotation,
   `generationPrompt` when given, `generator` when there is one, `creator`, `wasAttributedTo`.
 - When the command names both the source resource and the source annotation, the new resource is
-  then linked from that annotation: a `mark:update-body` adding a `SpecificResource` whose `source`
+  then linked from that annotation: a `mark:body-updated` adding a `SpecificResource` whose `source`
   is the new resource, with `purpose` `linking`. The reply does not wait for it.
 
 **`yield:clone-persist`** records a copy: as `yield:create`, without the job rules and with
@@ -393,11 +393,11 @@ same completion. A completion of a job the stream records neither of is recorded
 A clone token lets its holder copy one resource for fifteen minutes. It is `clone_` followed by 32
 lowercase hex digits, and is kept in memory: a restart forgets every token.
 
-| Command | Does | Refusals |
-|---|---|---|
-| `yield:clone-token-requested` `{resourceId}` | Issues a token for a resource whose content is in the working tree. Replies `yield:clone-token-generated` `{token, expiresAt, resource}` | `Resource not found`; `Resource content not found` |
-| `yield:clone-resource-requested` `{token}` | Replies `yield:clone-resource-result` `{sourceResource, expiresAt}`. The token stays valid | `Invalid or expired token`; `Token expired`; `Source resource not found` |
-| `yield:clone-create` | Records the copy as `yield:clone-persist` does, with the source's entity types, then archives the source when `archiveOriginal` is set and it is not archived. Replies `yield:clone-created` `{resourceId}`. The token is spent | Those of `yield:clone-resource-requested`, and those of `yield:clone-persist` |
+| Command | Does | Refusals | Appends |
+|---|---|---|---|
+| `yield:clone-token-requested` `{resourceId}` | Issues a token for a resource whose content is in the working tree. Replies `yield:clone-token-generated` `{token, expiresAt, resource}` | `Resource not found`; `Resource content not found` | none |
+| `yield:clone-resource-requested` `{token}` | Replies `yield:clone-resource-result` `{sourceResource, expiresAt}`. The token stays valid | `Invalid or expired token`; `Token expired`; `Source resource not found` | none |
+| `yield:clone-create` | Records the copy as `yield:clone-persist` does, with the source's entity types, then archives the source when `archiveOriginal` is set and it is not archived. Replies `yield:clone-created` `{resourceId}`. The token is spent | Those of `yield:clone-resource-requested`, and those of `yield:clone-persist` | `yield:cloned`, then `mark:archived` when it archives the source |
 
 Failures are on `yield:clone-token-failed`, `yield:clone-resource-failed` and
 `yield:clone-create-failed`.
