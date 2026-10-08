@@ -7,8 +7,9 @@ not stated as a rule anywhere below; it is listed under [Known defects](#known-d
 section that touches one says what happens and links there.
 
 The client side of the two job types is in the flow documents: [Yield](flows/YIELD.md), whose
-`yield` job makes a resource, and [Mark](flows/MARK.md), whose `mark` job annotates one. How a
-worker is built is in the [`semiont-worker` skill](../builder/skills/semiont-worker/SKILL.md). Channel payloads
+`yield` job makes a resource, and [Mark](flows/MARK.md), whose `mark` job annotates one. What a
+worker promises is [WORKER-CONTRACT.md](WORKER-CONTRACT.md), and how one is built is in the
+[`semiont-worker` skill](../builder/skills/semiont-worker/SKILL.md). Channel payloads
 are named in [the registry](../../specs/src/bus/registry.json); the bus conventions this document
 relies on (`_userId`, `correlationId`, audiences) are in [EVENT-BUS.md](EVENT-BUS.md). The
 [dispatcher conformance suite](../../tests/conformance/dispatcher/README.md) checks a running
@@ -524,9 +525,12 @@ On `job:fail` (and on the sweep) a retry is allowed exactly when
 failureClass !== "deterministic"  and  retryCount < maxRetries
 ```
 
-evaluated on the record before the failure is applied. The predicate is `willRetryAfter` in
-[`will-retry.ts`](../../packages/jobs/src/will-retry.ts); the first-party worker evaluates the same
-function, on the record it claimed, to set `willRetry` on its `job:fail`. An absent `failureClass`
+evaluated on the record before the failure is applied. A worker evaluates the same predicate, on
+the record it claimed, to set `willRetry` on its `job:fail`: `willRetryAfter` in the TypeScript SDK
+([`claims.ts`](../../packages/sdk/src/claims.ts)), and `will_retry_after` in the Rust SDK
+([`claims.rs`](../../packages/sdk-rust/src/claims.rs)) and the Python SDK
+([`claims.py`](../../packages/sdk-python/src/semiont/claims.py)), which a held job's `fail` applies. The
+dispatcher's own is the Rust SDK's. An absent `failureClass`
 counts as retryable. With the budgets set at admission, a `yield` job is never retried and a
 `mark` job is retried at most once.
 

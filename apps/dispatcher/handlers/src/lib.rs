@@ -10,4 +10,3 @@ pub mod admission;
 pub mod checkpoint;
 pub mod handlers;
 pub mod queue;
-pub mod retry;

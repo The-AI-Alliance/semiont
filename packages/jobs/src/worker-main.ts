@@ -28,7 +28,6 @@
 import {
   startAgentWorker,
   buildHealthPayload,
-  startStallWatchdog,
   type AgentGroup,
   type ResolvedInference,
 } from './worker-runtime';
@@ -188,13 +187,8 @@ async function main() {
     logger.info('Health endpoint ready', { port: healthPort });
   });
 
-  // Fail fast on a wedged claim loop: a crashed container is visible,
-  // diagnosable, and restartable; a silent zombie is none of those.
-  const watchdog = startStallWatchdog({ workers, logger });
-
   const shutdown = async () => {
     logger.info('Shutting down');
-    watchdog.dispose();
     await Promise.all(workers.map((w) => w.dispose()));
     health.close();
     process.exit(0);

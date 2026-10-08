@@ -29,6 +29,7 @@ import type { Plane } from '../harness/gateway';
 import { nonConformance, type Reply } from '../harness/http';
 import { startOtlp } from '../harness/otlp';
 import { SPEC_SOURCE } from '../harness/paths';
+import { SERVICE_ROLE, WORKER_ROLE } from '../harness/roles';
 import { errorsOf, registry, spec, type Method } from '../harness/spec';
 import { outsideTheSdkTable } from '../harness/telemetry';
 import type { World } from '../harness/world';
@@ -70,12 +71,20 @@ export type Step =
   | { completes: string }
   | { fetch: string; payload?: unknown; as: string }
   | { fetches: Array<{ fetch: string; payload?: unknown; as: string }> }
-  | { scopes: unknown[] };
+  | { scopes: unknown[] }
+  | { claimed: unknown }
+  | { refused: unknown }
+  | { signalled: unknown }
+  | { stalled: unknown };
 
 type FetchStep = { fetch: string; payload?: unknown; as: string };
 
-/** A layer of the suite: the transport, or the client's live queries over it. */
-export type Layer = 'wire' | 'live';
+/**
+ * A layer of the SDK suite: the transport, or the client's live queries over
+ * it. `worker` is the worker suite's (worker/README.md): a worker's requests
+ * are read as a wire case reads a client's, a transcript in order.
+ */
+export type Layer = 'wire' | 'live' | 'worker';
 
 interface CaseDocument {
   about: string;
@@ -103,7 +112,11 @@ export function caseOf(name: string, document: unknown): Case {
 
 /** Every case in `sdk/<layer>/`, each checked against case.schema.json. */
 export function cases(layer: string): Case[] {
-  const dir = join(HERE, layer);
+  return casesIn(join(HERE, layer));
+}
+
+/** Every case in the directory `dir`, each checked against case.schema.json. */
+export function casesIn(dir: string): Case[] {
   return readdirSync(dir)
     .filter((file) => file.endsWith('.json'))
     .sort()
@@ -185,6 +198,8 @@ class Run {
   private stateCursor = 0;
   private failureCursor = 0;
   private readonly frameCursor = new Map<string, number>();
+  /** In a worker case: how many of each thing the worker reported the case has read. */
+  private readonly reportCursor = { claimed: 0, refused: 0, signalled: 0, stalled: 0 };
   /** Operations started with `as`, by name. */
   private readonly pending = new Map<string, { id: number; op: string }>();
   /** Requests a wire step named, by name. */
@@ -329,6 +344,10 @@ class Run {
     } else if ('quiet' in step) {
       await new Promise((resolve) => setTimeout(resolve, step.quiet));
       this.nothingUnaccounted(`within ${step.quiet} ms`);
+      // A worker that is quiet has also said nothing the case has not read:
+      // a cancellation signalled too soon is told once, and would otherwise
+      // pass for the one a later step expects.
+      if (this.layer === 'worker') this.nothingUnreported(`within ${step.quiet} ms`);
     } else if ('observe' in step) {
       const id = this.driver.send('observe', { observer: step.as, query: this.bindings.resolve(step.observe) });
       this.judge('observe', await this.driver.outcome(id, 'observe to settle', WAIT_MS), {});
@@ -341,6 +360,20 @@ class Run {
       await this.fetch(step);
     } else if ('fetches' in step) {
       await this.fetches(step.fetches);
+    } else if ('claimed' in step) {
+      await this.reported('claimed', 'job the worker claims', this.driver.claimed, step.claimed);
+    } else if ('refused' in step) {
+      const at = this.reportCursor.refused;
+      const { failure, detail } = await this.driver.until('the worker to report a refused claim', () => this.driver.refusals[at], WAIT_MS);
+      this.reportCursor.refused++;
+      // A refusal the worker made itself carries no code; one the bus made carries one of the table's.
+      if (failure.code !== undefined) this.inVocabulary(failure, detail);
+      const difference = this.bindings.match(step.refused, failure);
+      if (difference !== undefined) throw new Error(`the next refusal the worker reports differs: ${difference} (${detail})`);
+    } else if ('signalled' in step) {
+      await this.reported('signalled', 'cancellation the worker signals', this.driver.signalled, step.signalled);
+    } else if ('stalled' in step) {
+      await this.reported('stalled', 'stall the worker reports', this.driver.stalled, step.stalled);
     } else {
       const expected = (this.bindings.resolve(step.scopes) as unknown[]).map(String).sort();
       let named: string[] = [];
@@ -359,6 +392,15 @@ class Run {
           throw new Error(`${error instanceof Error ? error.message : String(error)}: it names ${JSON.stringify(named)}, not ${JSON.stringify(expected)}`);
         });
     }
+  }
+
+  /** The next thing of its kind the worker reported is this one. */
+  private async reported(kind: 'claimed' | 'signalled' | 'stalled', what: string, said: unknown[], pattern: unknown): Promise<void> {
+    const at = this.reportCursor[kind];
+    const next = await this.driver.until(`the next ${what}`, () => (said.length > at ? { value: said[at] } : undefined), WAIT_MS);
+    this.reportCursor[kind]++;
+    const difference = this.bindings.match(pattern, next.value);
+    if (difference !== undefined) throw new Error(`the next ${what} differs: ${difference}`);
   }
 
   /** Everything the client reported before it answers this is read by the time it does. */
@@ -645,7 +687,7 @@ class Run {
     // A live case answers for every request the client made of a service, and
     // for anything that is neither that nor its stream.
     const unaccounted =
-      this.layer === 'wire'
+      this.layer !== 'live'
         ? this.proxy.requests.slice(this.wireCursor)
         : [...this.emits().slice(this.fetchCursor), ...this.proxy.requests.filter((record) => !['/bus/emit', '/bus/subscribe'].includes(record.path.split('?')[0]!))];
     const extra = unaccounted.map((record) => {
@@ -653,6 +695,19 @@ class Run {
       return `${seen.operation} ${JSON.stringify(seen.body)}`;
     });
     if (extra.length > 0) throw new Error(`the client sent what the case does not account for, ${when}: ${extra.join('; ')}`);
+  }
+
+  /** A worker has told the suite nothing a step has not read. */
+  private nothingUnreported(when: string): void {
+    const unread: Array<[string, unknown[]]> = [
+      ['claimed a job', this.driver.claimed.slice(this.reportCursor.claimed)],
+      ['was refused a claim', this.driver.refusals.slice(this.reportCursor.refused)],
+      ['signalled a cancellation', this.driver.signalled.slice(this.reportCursor.signalled)],
+      ['stalled', this.driver.stalled.slice(this.reportCursor.stalled)],
+    ];
+    for (const [what, more] of unread) {
+      if (more.length > 0) throw new Error(`the worker said it ${what}, ${when}, and the case does not expect it: ${JSON.stringify(more)}`);
+    }
   }
 
   /** The frames the gateway sent the client on `channel` since it began listening: each event once, in the order it first came. */
@@ -695,6 +750,7 @@ class Run {
       const expected = this.frameCursor.get(channel) ?? 0;
       if (delivered.length !== expected) throw new Error(`the client delivered ${delivered.length} frames on ${channel}; the case expects ${expected}`);
     }
+    this.nothingUnreported('by the end of the case');
     const unexpected = this.driver.failures.slice(this.failureCursor);
     if (unexpected.length > 0) throw new Error(`the error stream carried what the case does not expect: ${JSON.stringify(unexpected)}`);
     if (this.driver.violations.length > 0) throw new Error(`the driver broke its protocol: ${this.driver.violations.join('; ')}`);
@@ -719,6 +775,9 @@ class Run {
       '  observers:',
       ...observers,
       `  error stream: ${JSON.stringify(this.driver.failures)}`,
+      ...(this.layer === 'worker'
+        ? [`  claimed: ${JSON.stringify(this.driver.claimed)}`, `  refused: ${JSON.stringify(this.driver.refusals)}`, `  signalled: ${JSON.stringify(this.driver.signalled)}`, `  stalled: ${JSON.stringify(this.driver.stalled)}`]
+        : []),
       '  the driver’s stderr:',
       ...this.driver.stderr.slice(-20).map((line) => `    ${line}`),
     ].join('\n');
@@ -734,7 +793,8 @@ export async function runCase(world: World, command: readonly string[], kase: Ca
   const participant = await world.agent('conformance', `participant-${randomUUID()}`);
   const run = new Run(layer, world, proxy, driver, { token: participant.token, clientId: randomUUID() }, world.personDid(subject));
 
-  run.bind('token', await world.person(subject, { jti: randomUUID() }));
+  // A worker signs in as an agent whose token carries the worker role beside the service's; every other client is a person.
+  run.bind('token', layer === 'worker' ? (await world.agent('conformance', `worker-${randomUUID()}`, [SERVICE_ROLE, WORKER_ROLE])).token : await world.person(subject, { jti: randomUUID() }));
   run.bind('token2', await world.person(subject, { jti: randomUUID() }));
   run.bind('client', world.personDid(subject));
   run.bind('participant', participant.did);

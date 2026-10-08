@@ -13,7 +13,6 @@ The queue is not here. It is the [dispatcher](../../apps/dispatcher/README.md)'s
 ## Who uses it
 
 - **The Worker service** is this package's `worker-main`, run as the `semiont-worker` image ([apps/worker](../../apps/worker/README.md)).
-- **[`@semiont/make-meaning`](../make-meaning/README.md)** takes one constant from it: the stall threshold that its own gather deadlines are checked against.
 
 **Building an application?** You do not need this package. An application starts a job through [`@semiont/sdk`](../sdk/README.md) (`mark.delegate` for an annotation pass, `yield.delegate` for a new resource) and follows it with the `job` namespace.
 
@@ -22,7 +21,6 @@ The queue is not here. It is the [dispatcher](../../apps/dispatcher/README.md)'s
 | | |
 |---|---|
 | `@semiont/jobs/worker-main` | The Worker's entry point. It signs in as an agent, opens a client for each model it is configured with, and claims jobs until it is stopped |
-| `createJobClaimAdapter` | Claiming over the bus: `job:claim` whenever the worker is idle, woken by a `job:queued` that its claim would match |
 | `processHighlightJob`, `processCommentJob`, `processAssessmentJob`, `processReferenceJob`, `processTagJob`, `processGenerationJob` | One function for each motivation of a `mark` job, and one for a `yield` job. There are no worker classes |
 | `AnnotationDetection`, `generateResourceFromTopic` | What the processors call: the detection passes, and generation |
 | `HeldMarkParams`, `isHeldMark` | A `mark` job's params as a worker is handed them, typed from the spec, and the guard that says which motivation's they are |

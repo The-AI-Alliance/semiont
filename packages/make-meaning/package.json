@@ -46,7 +46,6 @@
     "@semiont/graph": "*",
     "@semiont/http-transport": "*",
     "@semiont/inference": "*",
-    "@semiont/jobs": "*",
     "@semiont/observability": "*",
     "@semiont/ontology": "*",
     "@semiont/sdk": "*",

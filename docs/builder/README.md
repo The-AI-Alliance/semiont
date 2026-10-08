@@ -64,7 +64,7 @@ Read in this order. Most people need only the first three.
 | [Introduction](./INTRODUCTION.md) | The ideas, once: one wire, annotations as data, AI work as jobs, live data, and where your code sits |
 | **[Developer Guide](./DEVELOPER-GUIDE.md)** | **How to build: the recipes, with the exact lines** |
 | [Usage](./Usage.md) | The reference: every method of every namespace, its options, what it returns, and the errors |
-| [Reactive model](./REACTIVE-MODEL.md) | Why a method returns what it does: the eight shapes every SDK shares, in TypeScript, Rust and Python |
+| [Reactive model](./REACTIVE-MODEL.md) | Why a method returns what it does: the nine shapes every SDK shares, in TypeScript, Rust and Python |
 | [State units](./STATE-UNITS.md) | The pattern for coordinated page and flow state in an application, in TypeScript and Rust |
 | [Cache semantics](../protocol/CACHE-SEMANTICS.md) | The numbered contract every SDK's live queries are held to |
 

@@ -2,7 +2,7 @@
 
 The Semiont SDKs are for collaborative **knowledge work** — humans and AI agents working as peers on a shared corpus across one or many machines. That collaboration shapes their design: live queries, progress streams, and cross-participant attention signals are all first-class, not data-API afterthoughts.
 
-So a client's methods do not all return the same kind of thing. Some are asked once and answered once. Others have values over time. Every SDK sorts its methods into the same eight shapes, and differs only in how its language says "later": Promises and RxJS Observables in TypeScript; futures, streams and `watch` receivers in Rust; coroutines, async iterators and `async with` in Python. This doc states the shapes first, then each language's form of them.
+So a client's methods do not all return the same kind of thing. Some are asked once and answered once. Others have values over time. Every SDK sorts its methods into the same nine shapes, and differs only in how its language says "later": Promises and RxJS Observables in TypeScript; futures, streams and `watch` receivers in Rust; coroutines, async iterators and `async with` in Python. This doc states the shapes first, then each language's form of them.
 
 If you only want to *use* the SDK, [Usage.md](./Usage.md) is the per-namespace tour. Read this if you're curious about the design, deciding whether to await a call or watch it, picking a return shape for a new namespace method, or trying to figure out which path to the bus is right for your use case.
 
@@ -12,7 +12,7 @@ Most SDK calls have a "current value" to return. Some genuinely have *values ove
 
 Each SDK makes the same choice: the form that can be read over time is the primitive, and a caller who only wants the final answer can await it and move on.
 
-## The eight shapes
+## The nine shapes
 
 Every namespace method returns exactly one of these. Which one is the method's row in [`specs/src/client/surface.json`](../../specs/src/client/surface.json), the table every SDK is held to: `lint:client-surface` fails a method whose signature is not its row's.
 
@@ -23,6 +23,7 @@ Every namespace method returns exactly one of these. Which one is the method's r
 | `delegation` | A job another party does: the job's events as it goes, its completion the last of them. The completion is its verb's. | `DelegationObservable<C>` | `Delegation<C>` | `Delegation[C]` |
 | `upload` | An upload in flight: its progress, then the id of the resource created. | `UploadObservable` | `Upload` | `Upload` |
 | `cache` | A live query. Building it touches nothing; its one-shot read asks the service now. | `CacheObservable<T>` | `Cached<T>` | `Cached[T]` |
+| `claims` | A worker's claims: each job it comes to hold, one at a time, from the first claim on. A held job starts, reports and settles itself. | `ClaimsObservable` | `Claims` | `Claims` |
 | `signal` | Fire-and-forget. Nothing is returned and nothing is awaited. | a method returning `void` | a plain `fn` | a plain `def` returning `None` |
 | `count` | A drive at the other participants: how many the gateway reached, or no count when it kept none. | `Promise<number \| undefined>` | `async fn … -> Result<Option<u64>, SemiontError>` | `async def … -> int \| None` |
 | `events` | The events of one channel of the client's own bus, from now on. | a property named `<method>$` | `Typed<C, BusFrames>` | `Typed[P]` |
@@ -103,11 +104,12 @@ A fourth — `DelegationObservable<C>` — is what `mark.delegate` and `yield.de
 
 ### Return-shape discipline
 
-Namespace methods return one of exactly six shapes:
+Namespace methods return one of exactly seven shapes:
 
 - **`Promise<T>`** — atomic gateway ops (CRUD, auth, admin reads).
 - **`StreamObservable<T>`** (or **`UploadObservable`** for `yield.resource`) — long-running operations with progress events plus a final value.
 - **`DelegationObservable<C>`** — a job another party does: its events, then its completion, which is its verb's.
+- **`ClaimsObservable`** — a worker's claims, from `job.claim`: each job the worker comes to hold, one at a time. It is read once, and a job it hands out says its own lifecycle and settles once.
 - **`CacheObservable<T>`** — live queries with stale-while-revalidate semantics.
 - **`void`** — LOCAL collaboration signals; observation happens on the bus.
 - **`Promise<number | undefined>`** — wire drives at other participants (`beckon.attention` /
@@ -129,6 +131,7 @@ The discipline is enforceable. A namespace method's return type must be one of:
 - `Promise<T>`
 - `StreamObservable<T>` (or `UploadObservable` / future bounded-stream subclasses)
 - `DelegationObservable<C>`
+- `ClaimsObservable`
 - `CacheObservable<T>`
 - `void`
 - `Promise<number | undefined>` (wire drives only)
@@ -351,11 +354,12 @@ The integrator writing a simple script doesn't know `@semiont/sdk` uses RxJS unt
 
 ## In Rust
 
-The Rust client has the same eight shapes, with no reactive library under them.
+The Rust client has the same nine shapes, with no reactive library under them.
 
 - **A long-running operation** is a `Running<T>`: `.await` it for the final value, `.next()` for each report, `.run(f)` for both. It is consumed by value, so it cannot be started twice.
 - **A delegated job** is a `Delegation<C>`: `.await` it for the job's completion, `.next()` for each of the job's events, the completion last. `C` is the completion of the job's verb: `MarkJobCompleteCommand` from `mark.delegate`, `YieldJobCompleteCommand` from `yield_.delegate`.
 - **A live query** is a `Cached<T>`: `.watch()` for its state as it changes, `.fresh().await?` for one read. It is not awaited itself.
+- **A worker's claims** are a `Claims`: `.next().await` for the next job the worker holds, or the next claim it was refused. A held job is settled by value, so it cannot be settled twice, and one dropped unsettled fails its job.
 - **State** that TypeScript reads from a `BehaviorSubject` comes through a `tokio::sync::watch` receiver: the value now, and each value after it.
 - **Events** come as a `Stream`. A reader that falls behind is told how far (`Lagged`) and reads on.
 - **Composition** uses `futures::StreamExt` or `tokio-stream`. The crate brings no operator library.
@@ -364,11 +368,12 @@ The Rust README has [the table that maps each TypeScript shape to its Rust form]
 
 ## In Python
 
-The Python client has the same eight shapes, on asyncio, with no reactive library under them.
+The Python client has the same nine shapes, on asyncio, with no reactive library under them.
 
 - **A long-running operation** is a `Running[T]`: `await` it for the final value, or read it with `async for` for each report and then the final value. It is consumed once.
 - **A delegated job** is a `Delegation[C]`: `await` it for the job's completion, or read it with `async for` for each of the job's events, the completion last. `C` is the completion of the job's verb: `MarkJobCompleteCommand` from `mark.delegate`, `YieldJobCompleteCommand` from `yield_.delegate`.
 - **A live query** is a `Cached[T]`: held with `async with`, it gives its state as it changes, and holds its resource's scope meanwhile; `await query.fresh()` is one read. It is not awaited itself. A state is `Pending`, `Ready` or `Failed`, and a `match` that leaves one out does not type-check.
+- **A worker's claims** are a `Claims`: read with `async for`, it gives each job the worker comes to hold, or a claim it was refused. A held job settles once; held with `async with` and left unsettled, it fails its job, as the claims do for the job they hold when they are closed.
 - **State** that TypeScript reads from a `BehaviorSubject` is a `Watched[T]`: `.value` now, and `async for` each value after it. A reader that falls behind is given the latest.
 - **Events** are an async iterator with a queue per reader, so a reader that falls behind loses nothing.
 - **Composition** is the language's own: `async for`, `asyncio.TaskGroup`, `asyncio.timeout`. The package brings no operator library.

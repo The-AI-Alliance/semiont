@@ -1,9 +1,9 @@
 /**
- * The agent-token session every make-meaning sidecar holds (`agent-session.ts`).
+ * The agent-token session a worker and every sidecar holds (`agent-session.ts`).
  *
- * The sidecar entry points that start one (`*-main.ts`) are process-level and
- * no suite imports them, so this suite is the only spec for the one place a
- * sidecar's credential becomes a token — and stays one across a gateway
+ * The entry points that start one (`*-main.ts`) are process-level and no
+ * suite imports them, so this suite is the only spec for the one place a
+ * process's credential becomes a token — and stays one across a gateway
  * restart. These pin the contract from the header:
  *
  *   - two round trips: the issuer (service-account credential) then the
@@ -18,22 +18,28 @@
  *     nothing for a token that carries no `exp`;
  *   - `stop()` disarms it.
  *
- * The issuer half is mocked at `serviceAccountToken` (its own suite lives in
- * core); the gateway half is a stubbed global `fetch` answering real
- * `Response`s. Timers are fake, and the clock is pinned so `exp` arithmetic is
+ * Global `fetch` is stubbed. It answers the issuer itself (discovery, and a
+ * grant with no `expires_in`, which core therefore does not keep), and hands
+ * the exchange to `fetchMock`, which each test scripts with real `Response`s.
+ * Timers are fake, and the clock is pinned so `exp` arithmetic is
  * deterministic.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { serviceAccountToken } from '@semiont/core';
 import { startAgentSession, type AgentSession } from '../agent-session';
 
-vi.mock('@semiont/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@semiont/core')>();
-  return { ...actual, serviceAccountToken: vi.fn() };
-});
-
-const issuerToken = vi.mocked(serviceAccountToken);
+/** The exchange: `POST /api/tokens/agent`, as each test scripts it. */
 const fetchMock = vi.fn<typeof fetch>();
+/** How many client-credentials grants the issuer has been asked for. */
+let grants = 0;
+const routed: typeof fetch = async (input, init) => {
+  const url = String(input instanceof Request ? input.url : input);
+  if (url.includes('/.well-known/openid-configuration')) return Response.json({ token_endpoint: 'https://issuer.test/realms/kb/token' });
+  if (url.endsWith('/token')) {
+    grants += 1;
+    return Response.json({ access_token: 'issuer-token' });
+  }
+  return fetchMock(input, init);
+};
 
 const NOW = new Date('2026-09-21T12:00:00Z');
 const credential = { issuer: 'https://issuer.test/realms/kb', clientId: 'semiont-dispatcher', clientSecret: 'shh' };
@@ -68,10 +74,9 @@ describe('startAgentSession', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW);
-    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('fetch', routed);
     fetchMock.mockReset();
-    issuerToken.mockReset();
-    issuerToken.mockResolvedValue('issuer-token');
+    grants = 0;
     session = null;
   });
 
@@ -88,23 +93,26 @@ describe('startAgentSession', () => {
 
     session = await start(logger);
 
-    expect(issuerToken).toHaveBeenCalledWith(credential);
+    expect(grants).toBe(1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toBe('http://gateway.test/api/tokens/agent');
-    expect(init).toMatchObject({
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer issuer-token' },
-      body: JSON.stringify({ provider: 'semiont', model: 'dispatcher' }),
-    });
+    expect(init?.method).toBe('POST');
+    expect(new Headers(init?.headers).get('authorization')).toBe('Bearer issuer-token');
+    expect(init?.body).toBe(JSON.stringify({ provider: 'semiont', model: 'dispatcher' }));
     expect(session.token$.value).toBe(agentToken);
-    expect(logger.info).toHaveBeenCalledWith('Authenticated', { expiresAt: new Date(NOW.getTime() + 60 * 60 * 1000).toISOString() });
+    // The DID is the gateway's, verbatim, and never re-derived from the URL dialled.
+    expect(session.did).toBe('did:web:kb.test:agents:semiont:dispatcher');
+    expect(logger.info).toHaveBeenCalledWith('Authenticated', {
+      did: 'did:web:kb.test:agents:semiont:dispatcher',
+      expiresAt: new Date(NOW.getTime() + 60 * 60 * 1000).toISOString(),
+    });
   });
 
   it('a refused credential fails the first attempt loudly and is NOT retried', async () => {
     fetchMock.mockResolvedValueOnce(new Response('', { status: 401, statusText: 'Unauthorized' }));
 
-    await expect(start()).rejects.toThrow('Authentication failed: 401 Unauthorized');
+    await expect(start()).rejects.toThrow('The gateway refused the agent token of semiont:dispatcher: HTTP 401 Unauthorized');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -139,7 +147,7 @@ describe('startAgentSession', () => {
 
     await expect(session.refresh()).resolves.toBe(second);
     expect(seen).toEqual([first, second]);
-    expect(issuerToken).toHaveBeenCalledTimes(2);
+    expect(grants, 'each sign-in proves the process again').toBe(2);
   });
 
   // The schedule is `refreshDelayMs`, shared with `SemiontSession`. The margin
@@ -182,7 +190,9 @@ describe('startAgentSession', () => {
     const second = tokenExpiringIn(400_000 + 600_000, 'second');
     fetchMock
       .mockResolvedValueOnce(minted(first))
-      .mockResolvedValueOnce(new Response('', { status: 503, statusText: 'Service Unavailable' }))
+      // A 500 and not a 503: the sign-in itself tries a "not now" again, and
+      // this is the failure it does not.
+      .mockResolvedValueOnce(new Response('', { status: 500, statusText: 'Internal Server Error' }))
       .mockResolvedValueOnce(minted(second));
     const logger = makeLogger();
     session = await start(logger);
@@ -190,7 +200,7 @@ describe('startAgentSession', () => {
     await vi.advanceTimersByTimeAsync(200_000);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(logger.error).toHaveBeenCalledWith('Proactive re-authentication failed', {
-      error: 'Authentication failed: 503 Service Unavailable',
+      error: 'The gateway refused the agent token of semiont:dispatcher: HTTP 500 Internal Server Error',
     });
     expect(session.token$.value, 'a still-valid token is not thrown away over one bad round trip').toBe(first);
 

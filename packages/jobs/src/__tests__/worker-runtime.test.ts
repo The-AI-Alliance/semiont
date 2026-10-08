@@ -9,13 +9,11 @@
  * `startAgentWorker` hands it as `generator`.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { jobId, type Logger } from '@semiont/core';
-import { startAgentWorker, authenticateAgent, parseGatewayUrl, buildHealthPayload, startStallWatchdog, STALL_THRESHOLD_MS, STALL_CHECK_INTERVAL_MS, WORKER_CHANNELS, WORKER_CONSUMED_BROADCASTS, WORKER_AWAITED_OPERATIONS, WORKER_ANSWERED_OPERATIONS, type AgentGroup, type AgentVitals } from '../worker-runtime';
+import type { Logger } from '@semiont/core';
+import { JOB_CLAIM_CHANNELS } from '@semiont/sdk';
+import { startAgentWorker, buildHealthPayload, WORKER_CHANNELS, WORKER_AWAITED_OPERATIONS, WORKER_ANSWERED_OPERATIONS, type AgentGroup, type AgentVitals } from '../worker-runtime';
 import { startWorkerProcess } from '../worker-process';
 import type { InferenceClient } from '@semiont/inference';
-import { createServer, type Server } from 'http';
-import { once } from 'events';
-import type { AddressInfo } from 'net';
 
 const { FAKE_ADAPTER_VITALS } = vi.hoisted(() => ({
   FAKE_ADAPTER_VITALS: {
@@ -30,7 +28,7 @@ const { FAKE_ADAPTER_VITALS } = vi.hoisted(() => ({
 
 vi.mock('../worker-process', () => ({
   startWorkerProcess: vi.fn(() => ({
-    dispose: vi.fn(),
+    stop: vi.fn(async () => {}),
     vitals: vi.fn(() => FAKE_ADAPTER_VITALS),
   })),
 }));
@@ -85,7 +83,7 @@ function installFetchStub(): {
       return Response.json({ access_token: 'service-account-token' });
     }
     if (url.includes('/api/tokens/agent')) {
-      exchangeAuth.push(String((init?.headers as Record<string, string> | undefined)?.Authorization ?? ''));
+      exchangeAuth.push(new Headers(init?.headers).get('authorization') ?? '');
       exchangeCalls.push(JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>);
       return new Response(JSON.stringify({ token: fakeJwt(), did: CANONICAL_DID }), {
         status: 200,
@@ -140,158 +138,28 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
     await worker.dispose();
   });
 
-  it('authenticateAgent presents its service-account token and returns the mint verbatim', async () => {
+  it('signs in as the agent its group works as, presenting its service account\'s token, and stops its claims when disposed', async () => {
     const { exchangeCalls, exchangeAuth } = installFetchStub();
 
-    const result = await authenticateAgent({
+    const worker = await startAgentWorker({
+      group: makeGroup(),
       gatewayBaseUrl: DIAL_URL,
       credential: CREDENTIAL,
-      provider: 'anthropic',
-      model: 'claude-haiku-4-5',
+      contentReads: { getBinary: vi.fn() },
+      reportsLimitsOf: [],
+      logger: noopLogger,
     });
 
-    expect(result.did).toBe(CANONICAL_DID);
     // The body names what is WANTED; the header proves who is asking. The two
     // are separate because one process asks for several agent identities.
-    expect(exchangeCalls).toEqual([
-      { provider: 'anthropic', model: 'claude-haiku-4-5' },
-    ]);
+    expect(exchangeCalls).toEqual([{ provider: 'anthropic', model: 'claude-haiku-4-5' }]);
     expect(exchangeAuth).toEqual(['Bearer service-account-token']);
-  });
 
-  it('authenticateAgent throws naming the agent on a non-200 exchange', async () => {
-    // The credential is fine and the issuer mints; it is the GATEWAY that
-    // refuses. Distinguishing the two is why each has its own test.
-    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
-      const url = String(input instanceof Request ? input.url : input);
-      if (url.includes('/.well-known/openid-configuration')) {
-        return Response.json({ issuer: ISSUER, token_endpoint: `${ISSUER}/token` });
-      }
-      if (url.endsWith('/token')) return Response.json({ access_token: 'service-account-token' });
-      return new Response('nope', { status: 401, statusText: 'Unauthorized' });
-    }));
-
-    await expect(
-      authenticateAgent({ gatewayBaseUrl: DIAL_URL, credential: CREDENTIAL, provider: 'anthropic', model: 'm1' }),
-    ).rejects.toThrow(/anthropic:m1.*401/);
-  });
-
-  it('authenticateAgent surfaces a refused service-account credential', async () => {
-    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
-      const url = String(input instanceof Request ? input.url : input);
-      if (url.includes('/.well-known/openid-configuration')) {
-        return Response.json({ issuer: ISSUER, token_endpoint: `${ISSUER}/token` });
-      }
-      // The issuer, not the gateway, says no — a wrong client secret never
-      // reaches the exchange at all.
-      return new Response('nope', { status: 401, statusText: 'Unauthorized' });
-    }));
-
-    await expect(
-      authenticateAgent({ gatewayBaseUrl: DIAL_URL, credential: CREDENTIAL, provider: 'anthropic', model: 'm1' }),
-    ).rejects.toThrow(/semiont-worker.*401/);
-  });
-
-  // Without the retry, any momentary gateway unreachability at the instant
-  // the worker starts (gateway restart, container-network warm-up) throws
-  // `TypeError: fetch failed` straight out of main() and kills the process
-  // — with `--rm` and no restart policy, permanently.
-  it('retries startup auth while the gateway is unreachable and succeeds once it comes up', async () => {
-    // Reserve a port, then free it — the first attempts dial a closed port
-    // and fail at the connection level, exactly like a gateway mid-restart.
-    const probe = createServer();
-    probe.listen(0, '127.0.0.1');
-    await once(probe, 'listening');
-    const port = (probe.address() as AddressInfo).port;
-    probe.close();
-    await once(probe, 'close');
-
-    let gateway: Server | undefined;
-    const bringUp = setTimeout(() => {
-      gateway = createServer((req, res) => {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        // One server answers both hops: the issuer and the gateway come up
-        // together here, which is the shape of a stack restart.
-        if (req.url?.includes('/.well-known/openid-configuration')) {
-          res.end(JSON.stringify({
-            issuer: `http://127.0.0.1:${port}`,
-            token_endpoint: `http://127.0.0.1:${port}/token`,
-          }));
-          return;
-        }
-        if (req.url?.endsWith('/token')) {
-          res.end(JSON.stringify({ access_token: 'service-account-token' }));
-          return;
-        }
-        res.end(JSON.stringify({ token: fakeJwt(), did: CANONICAL_DID }));
-      });
-      gateway.listen(port, '127.0.0.1');
-    }, 150);
-
-    const warn = vi.fn();
-    try {
-      const result = await authenticateAgent({
-        gatewayBaseUrl: `http://127.0.0.1:${port}`,
-        credential: { ...CREDENTIAL, issuer: `http://127.0.0.1:${port}` },
-        provider: 'anthropic',
-        model: 'claude-haiku-4-5',
-        logger: { ...noopLogger, warn } as unknown as Logger,
-        retry: { attempts: 20, initialDelayMs: 50, maxDelayMs: 100 },
-      });
-      expect(result.did).toBe(CANONICAL_DID);
-      expect(warn).toHaveBeenCalledWith(
-        'Gateway unreachable, retrying agent authentication',
-        expect.objectContaining({ agent: 'anthropic:claude-haiku-4-5', attempt: expect.any(Number) }),
-      );
-    } finally {
-      clearTimeout(bringUp);
-      if (gateway) {
-        gateway.close();
-        await once(gateway, 'close');
-      }
-    }
-  }, 15_000);
-
-  it('gives up after the retry budget when the gateway never comes up', async () => {
-    const calls = { count: 0 };
-    vi.stubGlobal('fetch', vi.fn(async () => {
-      calls.count++;
-      throw Object.assign(new TypeError('fetch failed'), {
-        cause: Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' }),
-      });
-    }));
-
-    await expect(
-      authenticateAgent({
-        gatewayBaseUrl: DIAL_URL,
-        credential: CREDENTIAL,
-        provider: 'anthropic',
-        model: 'm1',
-        retry: { attempts: 3, initialDelayMs: 1, maxDelayMs: 2 },
-      }),
-    ).rejects.toThrow('fetch failed');
-    expect(calls.count).toBe(3);
-  });
-
-  it('does NOT retry an HTTP-level rejection — the gateway is up and said no', async () => {
-    const fetchMock = vi.fn(async () => new Response('nope', { status: 401, statusText: 'Unauthorized' }));
-    vi.stubGlobal('fetch', fetchMock);
-
-    await expect(
-      authenticateAgent({
-        gatewayBaseUrl: DIAL_URL,
-        credential: CREDENTIAL,
-        provider: 'anthropic',
-        model: 'm1',
-        retry: { attempts: 5, initialDelayMs: 1, maxDelayMs: 2 },
-      }),
-    ).rejects.toThrow(/401/);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('parseGatewayUrl keeps its connection role: host/port/protocol from the dial string', () => {
-    expect(parseGatewayUrl('http://192.168.64.1:4000')).toEqual({ protocol: 'http', host: '192.168.64.1', port: 4000 });
-    expect(parseGatewayUrl('https://kb.example')).toEqual({ protocol: 'https', host: 'kb.example', port: 443 });
+    // A job still held when the worker goes is failed by the stop, so the
+    // queue retries it now and does not wait for its sweep.
+    const claims = vi.mocked(startWorkerProcess).mock.results[0]!.value;
+    await worker.dispose();
+    expect(claims.stop).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -355,120 +223,13 @@ describe('worker-runtime — health vitals', () => {
   });
 });
 
-describe('worker-runtime — stall watchdog', () => {
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  const vitalsWith = (over: Partial<AgentVitals>): AgentVitals => ({
-    provider: 'ollama',
-    model: 'm',
-    did: 'did:web:kb.example:agents:ollama:m',
-    serves: [{ jobType: 'yield' }],
-    lastQueuedEventAt: null,
-    lastClaimAt: null,
-    lastFinishedAt: null,
-    lastActivityAt: null,
-    activeJob: null,
-    jobsCompleted: 0,
-    ...over,
-  });
-
-  it('exits loudly when a processing agent shows no activity past the threshold', () => {
-    vi.useFakeTimers();
-    const exit = vi.fn();
-    const error = vi.fn();
-    const logger = { ...noopLogger, error } as unknown as Logger;
-    const stale = new Date(Date.now() - STALL_THRESHOLD_MS - 60_000).toISOString();
-    const worker = {
-      vitals: () => vitalsWith({
-        activeJob: { jobId: jobId('j-wedged'), type: 'yield', since: stale },
-        lastActivityAt: stale,
-      }),
-    };
-
-    const watchdog = startStallWatchdog({ workers: [worker], logger, exit });
-    vi.advanceTimersByTime(STALL_CHECK_INTERVAL_MS + 1);
-
-    expect(exit).toHaveBeenCalledWith(1);
-    expect(error).toHaveBeenCalledWith(
-      'Worker stalled — exiting for restart',
-      expect.objectContaining({ jobId: 'j-wedged', jobType: 'yield' }),
-    );
-    watchdog.dispose();
-  });
-
-  it('never fires for an idle agent, however old its timestamps', () => {
-    vi.useFakeTimers();
-    const exit = vi.fn();
-    const ancient = new Date(Date.now() - 60 * 60_000).toISOString();
-    const worker = {
-      vitals: () => vitalsWith({ lastActivityAt: ancient, lastFinishedAt: ancient }),
-    };
-
-    const watchdog = startStallWatchdog({ workers: [worker], logger: noopLogger, exit });
-    vi.advanceTimersByTime(STALL_CHECK_INTERVAL_MS * 3);
-
-    expect(exit).not.toHaveBeenCalled();
-    watchdog.dispose();
-  });
-
-  it('never fires while progress keeps activity fresh — long jobs are not duration-limited', () => {
-    vi.useFakeTimers();
-    const exit = vi.fn();
-    // Job claimed an hour ago, but activity stays one minute old at
-    // every check: a long multi-call job proving liveness between
-    // inference calls via onProgress → touchActivity.
-    const worker = {
-      vitals: () => vitalsWith({
-        activeJob: {
-          jobId: jobId('j-long'),
-          type: 'mark',
-          since: new Date(Date.now() - 60 * 60_000).toISOString(),
-        },
-        lastActivityAt: new Date(Date.now() - 60_000).toISOString(),
-      }),
-    };
-
-    const watchdog = startStallWatchdog({ workers: [worker], logger: noopLogger, exit });
-    vi.advanceTimersByTime(STALL_CHECK_INTERVAL_MS * 5);
-
-    expect(exit).not.toHaveBeenCalled();
-    watchdog.dispose();
-  });
-
-  it('the teeth: a wedge that develops after start is caught on a later tick', () => {
-    vi.useFakeTimers();
-    const exit = vi.fn();
-    let vital = vitalsWith({}); // idle and healthy at start
-    const worker = { vitals: () => vital };
-
-    const watchdog = startStallWatchdog({ workers: [worker], logger: noopLogger, exit });
-
-    vi.advanceTimersByTime(STALL_CHECK_INTERVAL_MS);
-    expect(exit).not.toHaveBeenCalled();
-
-    // Wedge: a job is claimed, then total silence — the timestamps
-    // freeze while the clock advances past the threshold.
-    const claimedAt = new Date(Date.now()).toISOString();
-    vital = vitalsWith({
-      activeJob: { jobId: jobId('j-frozen'), type: 'yield', since: claimedAt },
-      lastActivityAt: claimedAt,
-    });
-    vi.advanceTimersByTime(STALL_THRESHOLD_MS + STALL_CHECK_INTERVAL_MS);
-
-    expect(exit).toHaveBeenCalledWith(1);
-    expect(exit).toHaveBeenCalledTimes(1); // interval cleared on breach — no refire
-    watchdog.dispose();
-  });
-});
-
 describe('worker-runtime — narrowed SSE subscription', () => {
   it('WORKER_CHANNELS is exactly the manifest: awaited replies PLUS declared broadcasts', () => {
     // An explicit pin, deliberately: growing a worker's subscription set must
     // stay a conscious edit to a literal list — that is the OOM protection.
-    // The list names the broadcasts the worker consumes
-    // (`WORKER_CONSUMED_BROADCASTS`) as well as the reply channels.
+    // The list names what the SDK's claiming names (`JOB_CLAIM_CHANNELS`:
+    // its replies, and the two broadcasts it reads) as well as the reply
+    // channels of what the worker itself awaits.
     expect([...WORKER_CHANNELS].sort()).toEqual([
       // Canonical-geometry consult replies — the pair without which every
       // PDF detection job fails.
@@ -494,13 +255,13 @@ describe('worker-runtime — narrowed SSE subscription', () => {
       // and never answers — the gateway's handler replies for PENDING jobs,
       // the worker aborts for RUNNING ones. Two consumers, one contract.
       'job:cancel-requested',
-      // The queue announcement the claim adapter races for. Without its
+      // The queue announcement that wakes an idle worker. Without its
       // declaration every worker idles.
       'job:queued',
     ].sort());
   });
 
-  it('every worker channel is a registry reply or a DECLARED broadcast — the manifest cannot drift', async () => {
+  it('every worker channel is an awaited reply or one the claiming names — the manifest cannot drift', async () => {
     // The set cannot drift from the registry, with the one legitimate
     // widening named. `job:cancel-requested` is NOT in BRIDGED_CHANNELS: it
     // is an operation request channel, so a plain "must be bridged" check
@@ -508,11 +269,11 @@ describe('worker-runtime — narrowed SSE subscription', () => {
     // outside both sets is drift.
     const { BRIDGED_CHANNELS, replyChannelsFor } = await import('@semiont/core');
     const replies = new Set<string>(replyChannelsFor(WORKER_AWAITED_OPERATIONS));
-    const declared = new Set<string>(WORKER_CONSUMED_BROADCASTS);
+    const declared = new Set<string>(JOB_CLAIM_CHANNELS);
     for (const channel of WORKER_CHANNELS) {
       expect(
         replies.has(channel) || declared.has(channel),
-        `${channel} is neither an awaited reply nor a declared broadcast`,
+        `${channel} is neither an awaited reply nor one the claiming names`,
       ).toBe(true);
     }
     // The replies half must be registry-bridged.

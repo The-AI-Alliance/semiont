@@ -45,6 +45,23 @@ export {
   type UploadProgress,
 } from './awaitable';
 
+// A worker's side of the job queue: what `job.claim` returns, the jobs it
+// hands out, and what a transport made for a worker names.
+export {
+  ClaimsObservable,
+  JOB_CLAIM_CHANNELS,
+  willRetryAfter,
+  type ClaimOptions,
+  type ClaimRefusal,
+  type HeldJob,
+  type HeldJobStall,
+  type HeldMarkJob,
+  type HeldYieldJob,
+  type JobCheckpoint,
+  type JobFailure,
+  type WorkerVitals,
+} from './claims';
+
 // The SWR cache primitive behind every `browse.*` live query. Exported so
 // consumers of its observables (react-ui's `trackList`) can be tested against
 // the REAL B14/B15 semantics instead of mock subjects — mock-only coverage is
@@ -129,6 +146,8 @@ export {
 // Session layer — per-KB sessions, app-level browser, storage adapter,
 // error surface, modal signals.
 export { SemiontSession, type SemiontSessionConfig, type UserInfo } from './session/semiont-session';
+// A software agent's sign-in: a worker's, or one of the knowledge base's own services'.
+export { startAgentSession, type AgentSession, type AgentSessionOptions } from './session/agent-session';
 export { SemiontBrowser, type SemiontBrowserConfig, type SignInOutcome, type KbReadVerdict } from './session/semiont-browser';
 export {
   BROWSER_CLIENT_ID,

@@ -1,4 +1,4 @@
-"""The two conformance drivers speak the suite's protocol (`tests/conformance/sdk/README.md`)."""
+"""The conformance drivers speak their suites' protocol (`tests/conformance/sdk/README.md`, `tests/conformance/worker/README.md`)."""
 
 import subprocess
 import sys
@@ -169,3 +169,57 @@ def test_the_wire_driver_answers_each_operation_once_and_disposes_of_its_transpo
     assert states[-1] == "closed"
     assert set(states) <= set(get_args(ConnectionState.__value__))
     assert [line for line in said if "error" in line and "id" not in line] == []
+
+
+def test_the_worker_driver_answers_each_operation_once_and_fails_nothing_when_its_stdin_ends() -> None:
+    opening: JsonObject = {"op": "open", "baseUrl": "http://127.0.0.1:1", "token": "t"}
+    highlighting: JsonObject = {"jobType": "mark", "params": {"motivation": "highlighting"}}
+    waits: JsonObject = {"reconnectMs": 5, "jobClaimTimeoutMs": 50, "heldJobStallMs": 100, "heldJobStallCheckMs": 10}
+    said = driven(
+        "worker",
+        [
+            {"id": 1, "op": "no-such-operation"},
+            {"id": 2, "op": "claim", "accepts": [highlighting]},
+            {"id": 3, **opening, "timing": {"bogusMs": 1}},
+            {"id": 4, **opening, "timing": waits},
+            {"id": 5, **opening},
+            {"id": 6, "op": "vitals"},
+            {"id": 7, "op": "start"},
+            {"id": 8, "op": "subscribe-resource", "resource": "not an id"},
+            {"id": 9, "op": "claim", "accepts": [{"jobType": "applaud"}]},
+            {"id": 10, "op": "claim", "accepts": [highlighting, {"jobType": "yield"}]},
+            {"id": 11, "op": "claim", "accepts": []},
+            {"id": 12, "op": "vitals"},
+            {"id": 13, "op": "complete", "result": {}},
+            {"id": 14, "op": "sync"},
+        ],
+    )
+    assert said[0] == {"ready": True}
+    answers = {line["id"]: {name: value for name, value in line.items() if name != "id"} for line in said if "id" in line}
+    assert sorted(answers, key=str) == sorted(range(1, 15), key=str)
+    assert answers[1] == {"unsupported": True}
+    assert answers[2] == {"misuse": "no transport is open"}
+    assert answers[3] == {"misuse": "this driver cannot override bogusMs"}
+    assert answers[4] == {"ok": None}
+    assert answers[5] == {"misuse": "a transport is already open"}
+    assert answers[6] == {"misuse": "the worker is not claiming"}
+    assert answers[7] == {"misuse": "the worker has held no job"}
+    assert "misuse" in answers[8]
+    # A filter is the SDK's type for one: what it refuses is the suite's mistake, never a claim.
+    assert "misuse" in answers[9]
+    assert answers[10] == {"ok": None}
+    assert answers[11] == {"misuse": "the worker is already claiming"}
+    # Nothing answers at that address, so the worker holds nothing and has finished nothing.
+    vitals = answers[12]["ok"]
+    assert isinstance(vitals, dict)
+    assert vitals["activeJob"] is None
+    assert vitals["jobsCompleted"] == 0
+    assert vitals["lastFinishedAt"] is None
+    assert answers[13] == {"misuse": "the worker has held no job"}
+    assert answers[14] == {"ok": None}
+    # It claimed nothing and was refused nothing it could say of: a claim nobody answers is not a refusal the worker made up.
+    assert [line for line in said if "claimed" in line or "signalled" in line or "stalled" in line] == []
+    states = [line["state"] for line in said if "state" in line]
+    assert states[0] == "initial"
+    assert states[-1] == "closed"
+    assert set(states) <= set(get_args(ConnectionState.__value__))

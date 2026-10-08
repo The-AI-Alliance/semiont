@@ -153,7 +153,7 @@ uv run ruff check && uv run ruff format --check
 uv run pytest
 ```
 
-Both type checkers are part of the suite: `tests/refusals` holds programs that must not type-check, and `tests/readme` the programs the package's README shows, which `tests/test_readme.py` runs. The package's own tests are built on `semiont.testing`, the doubles it ships.
+Both type checkers are part of the suite: `tests/refusals` holds programs that must not type-check, and `tests/readme` the programs the package's README shows, which `tests/test_readme.py` runs. The Python block of the [`semiont-worker` skill](../builder/skills/semiont-worker/SKILL.md) is held to one of them, word for word, by the same file. The package's own tests are built on `semiont.testing`, the doubles it ships.
 
 ### In a container
 

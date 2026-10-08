@@ -216,8 +216,8 @@ export { createMarkStateUnit, type MarkStateUnit, type PendingAnnotation } from 
 export { createYieldStateUnit, type YieldStateUnit } from '@semiont/sdk';
 export { createGatherStateUnit, type GatherStateUnit } from '@semiont/sdk';
 export { createMatchStateUnit, type MatchStateUnit } from '@semiont/sdk';
-// The job-claim worker adapter (`createJobClaimAdapter`) lives in
-// `@semiont/jobs` and the `BusRequestPrimitive` interface in `@semiont/sdk`; both are
+// A worker's claiming (`job.claim`) is `@semiont/sdk`'s and the
+// `BusRequestPrimitive` interface is `@semiont/core`'s; both are
 // worker-process machinery, not re-exported here.
 
 // Page-shaped state machines live here in `@semiont/react-ui` because they

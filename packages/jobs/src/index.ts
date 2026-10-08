@@ -26,26 +26,10 @@ export { AnnotationDetection } from './workers/annotation-detection';
 // Generation utilities
 export { generateResourceFromTopic } from './workers/generation/resource-generation';
 
-// The job-claim protocol runtime: what a worker built outside this package
-// claims jobs with (docs/builder/skills/semiont-worker).
-export {
-  createJobClaimAdapter,
-  type JobClaimAdapter,
-  type JobClaimAdapterOptions,
-  type ActiveJob,
-  type ClaimRefusal,
-  type WorkerVitals,
-} from './job-claim-adapter';
-
-// Worker liveness bounds: the stall watchdog's limit. STALL_THRESHOLD_MS also
-// participates in the nesting assertion at make-meaning's composition
-// root: gather read-barrier budgets must degrade before this watchdog
-// fails fast.
-export { STALL_THRESHOLD_MS } from './worker-runtime';
 /**
  * The worker's complete subscription manifest: every channel its transport is
  * constructed with, declared once. Exported so a composition-grain test can
  * subscribe the REAL set rather than a hand-written list of the channel it is
  * testing.
  */
-export { WORKER_CHANNELS, WORKER_CONSUMED_BROADCASTS } from './worker-runtime';
+export { WORKER_CHANNELS, type AgentVitals } from './worker-runtime';

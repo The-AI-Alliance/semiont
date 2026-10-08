@@ -68,8 +68,8 @@ const JOBS = [...MARK_MOTIVATIONS.map((motivation) => `mark.${motivation}`), 'yi
 
 /**
  * Consumer-side re-declaration of the `/health` contract
- * (`WorkerHealthPayload` / `AgentVitals`, packages/jobs/src/worker-runtime.ts
- * + job-claim-adapter.ts). Every field is runtime-asserted below; the type
+ * (`WorkerHealthPayload` / `AgentVitals`, packages/jobs/src/worker-runtime.ts,
+ * over the SDK's `WorkerVitals`). Every field is runtime-asserted below; the type
  * exists so the assertions read cleanly, not as the check itself.
  */
 interface AgentVitalsEntry {

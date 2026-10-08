@@ -19,6 +19,7 @@
 use async_nats::jetstream::{self, AckKind, consumer::pull, kv, stream};
 use bytes::Bytes;
 use futures::StreamExt;
+use semiont::claims::will_retry_after;
 use semiont::job_filter::job_matches_filter;
 use semiont::types::{
     FailureClass, Job, JobCancelled, JobCancelledStatus, JobComplete, JobCompleteStatus, JobFailed,
@@ -32,7 +33,6 @@ use semiont_dispatcher_handlers::checkpoint::{checkpointed, failed_with};
 use semiont_dispatcher_handlers::queue::{
     Checkpoint, Claim, FailOutcome, JobQueue, QueueError, Stats,
 };
-use semiont_dispatcher_handlers::retry::will_retry_after;
 use semiont_observability::logging;
 use serde_json::json;
 use std::collections::HashMap;

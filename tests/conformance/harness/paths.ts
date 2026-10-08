@@ -36,6 +36,8 @@ export interface SdkDrivers {
    * CACHE-SEMANTICS.
    */
   live?: { command: readonly string[]; tier: 'fleet' | 'parity' };
+  /** How its worker driver is started, when the SDK has a worker's surface (worker/README.md). */
+  worker?: readonly string[];
   /**
    * The wire cases its driver cannot be put through, each with why. The suite
    * holds an exemption as it holds a case: the driver must answer
@@ -56,14 +58,17 @@ export const SDK_DRIVERS: Readonly<Record<string, SdkDrivers>> = {
   typescript: {
     wire: ['node', join(REPO_ROOT, 'packages/http-transport/conformance/driver.ts')],
     live: { command: ['node', join(REPO_ROOT, 'packages/sdk/conformance/driver.ts')], tier: 'parity' },
+    worker: ['node', join(REPO_ROOT, 'packages/sdk/conformance/worker-driver.ts')],
   },
   rust: {
     wire: [join(REPO_ROOT, 'target/release/semiont-wire-driver')],
     live: { command: [join(REPO_ROOT, 'target/release/semiont-live-driver')], tier: 'parity' },
+    worker: [join(REPO_ROOT, 'target/release/semiont-worker-driver')],
   },
   python: {
     wire: [PYTHON, join(PYTHON_SDK, 'conformance/wire.py')],
     live: { command: [PYTHON, join(PYTHON_SDK, 'conformance/live.py')], tier: 'parity' },
+    worker: [PYTHON, join(PYTHON_SDK, 'conformance/worker.py')],
   },
 };
 

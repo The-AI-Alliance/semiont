@@ -15,36 +15,25 @@
 import type { EventMap, JobFilter } from '@semiont/core';
 import { startWorkerProcess } from './worker-process';
 import type { MarkCommitAwaits, DescriptorReadAwaits, DurabilityProbeAwaits } from './worker-process';
-import type { WorkerVitals, JobClaimAwaits } from './job-claim-adapter';
 import type { ConsultAnchoredTextAwaits } from './workers/detection/prepare-detection';
 import { answerLimitsRequests, type InferenceClient, type LimitsSource } from '@semiont/inference';
-import { hostname } from 'os';
 import {
   replyChannelsFor,
   didToAgent,
   baseUrl,
-  retryWithBackoff,
-  isTransientFetchError,
-  STARTUP_FETCH_RETRY,
   type BusOperationKey,
-  type RetryPolicy,
   type components,
   type Logger,
-  type AccessToken,
 } from '@semiont/core';
 import {
-  InMemorySessionStorage,
+  HttpContentTransport,
+  HttpTransport,
+  JOB_CLAIM_CHANNELS,
   SemiontClient,
-  SemiontSession,
-  kbGatewayUrl,
-  setStoredSession,
-  type HttpEndpoint,
-  type KbTarget,
+  startAgentSession,
+  type WorkerVitals,
 } from '@semiont/sdk';
-import { HttpContentTransport, HttpTransport } from '@semiont/http-transport';
 import type { ContentReads } from '@semiont/content';
-import { BehaviorSubject } from 'rxjs';
-import { serviceAccountToken } from '@semiont/core';
 import type { ServiceAccountCredential } from '@semiont/core';
 
 type Agent = components['schemas']['Agent'];
@@ -87,7 +76,7 @@ export interface WorkerRuntimeOptions {
   reportsLimitsOf: readonly LimitsSource[];
 }
 
-/** Per-agent liveness: the adapter's snapshot plus this agent's identity. */
+/** Per-agent liveness: what the agent's claims say of themselves, plus this agent's identity. */
 export interface AgentVitals extends WorkerVitals {
   provider: string;
   model: string;
@@ -96,7 +85,7 @@ export interface AgentVitals extends WorkerVitals {
 }
 
 export interface AgentWorkerHandle {
-  session: SemiontSession;
+  client: SemiontClient;
   vitals(): AgentVitals;
   dispose(): Promise<void>;
 }
@@ -122,74 +111,6 @@ export function buildHealthPayload(workers: ReadonlyArray<{ vitals(): AgentVital
 }
 
 /**
- * Stall watchdog — the fail-fast line behind the inference timeout. There
- * is no poll timer to heartbeat — the worker pulls when idle, and a parked
- * idle worker is not a stall; the honest stall signal is *processing
- * without activity*: an agent holding a claimed job whose `lastActivityAt`
- * (claim / progress / finish) has stopped advancing is wedged — the adapter
- * defers every wake-up while a job is held and pulls at settle, so a wedged
- * agent never settles and never recovers on its own. Silent hang → loud
- * crash → whatever restart policy the deployment chose.
- *
- * Thresholds are fixed by design (no env knobs) and deliberately
- * layered: inference timeout (10 min) fires first; this watchdog
- * (15 min) catches wedges where the loop still turns but activity has
- * stopped; the gateway's dead-worker janitor (30 min) re-queues the job
- * regardless.
- *
- * The layering matters because this watchdog has a hard limit: it is an
- * IN-PROCESS timer, so it cannot fire while the event loop itself is
- * blocked — the exact condition a blocked loop creates. An emit is bounded
- * at the transport (`EMIT_TIMEOUT_MS`), so the loop errors on one instead of
- * blocking; but for any other blocked-loop bug the ONLY backstop is the
- * out-of-process one — the dispatcher's sweep, which fails a running job
- * whose worker has gone silent (docs/protocol/JOBS.md). A liveness guarantee
- * a blocked loop defeats is not one; the sweep is the guarantee.
- */
-export const STALL_THRESHOLD_MS = 15 * 60_000;
-export const STALL_CHECK_INTERVAL_MS = 60_000;
-
-export interface StallWatchdogOptions {
-  workers: ReadonlyArray<{ vitals(): AgentVitals }>;
-  logger: Logger;
-  /** Test seam; defaults to process.exit. */
-  exit?: (code: number) => void;
-}
-
-export function startStallWatchdog(opts: StallWatchdogOptions): { dispose(): void } {
-  const { workers, logger, exit = (code: number) => process.exit(code) } = opts;
-
-  const timer = setInterval(() => {
-    const now = Date.now();
-    for (const worker of workers) {
-      const v = worker.vitals();
-      if (!v.activeJob || !v.lastActivityAt) continue;
-
-      const silentForMs = now - Date.parse(v.lastActivityAt);
-      if (silentForMs <= STALL_THRESHOLD_MS) continue;
-
-      logger.error('Worker stalled — exiting for restart', {
-        provider: v.provider,
-        model: v.model,
-        did: v.did,
-        jobId: v.activeJob.jobId,
-        jobType: v.activeJob.type,
-        processingSince: v.activeJob.since,
-        lastActivityAt: v.lastActivityAt,
-        silentForMs,
-        thresholdMs: STALL_THRESHOLD_MS,
-      });
-      clearInterval(timer);
-      exit(1);
-      return;
-    }
-  }, STALL_CHECK_INTERVAL_MS);
-  timer.unref?.();
-
-  return { dispose: () => clearInterval(timer) };
-}
-
-/**
  * The bus operations a worker process ever AWAITS a reply to. Reply channels
  * are global fan-out on the gateway, so a full `BRIDGED_CHANNELS`
  * subscription makes every worker receive every other client's reply traffic
@@ -204,12 +125,11 @@ export function startStallWatchdog(opts: StallWatchdogOptions): { dispose(): voi
  * the operation named. `busRequest`'s `isSubscribed` probe remains the
  * runtime backstop for an await nobody declared — a loud `bus.unsubscribed`
  * at first use, never a silent 30 s timeout.
- * (`job:queued` is not here: it is a broadcast, not an awaited reply. The
- * broadcasts a worker consumes are declared in `WORKER_CONSUMED_BROADCASTS`
- * below, and `WORKER_CHANNELS` is the union.)
+ * (`job:claim` is not here: the SDK awaits it, in `job.claim`, and
+ * `JOB_CLAIM_CHANNELS` is its reply channels and the two broadcasts a
+ * worker reads. `WORKER_CHANNELS` is the union of the two.)
  */
 export const WORKER_AWAITED_OPERATIONS = [
-  'job:claim',
   'browse:resource-requested',
   // Canonical geometry for a geometry-bearing detection: the consult behind
   // `ConsultAnchoredText`, answered by the Smelter. Without it every PDF
@@ -227,26 +147,6 @@ export const WORKER_AWAITED_OPERATIONS = [
   // let it in.
   'browse:annotation-requested',
 ] as const satisfies readonly BusOperationKey[];
-
-/**
- * The broadcasts a worker CONSUMES — announcements nobody replies to, which
- * therefore derive from no operation.
- *
- * One home, because the alternative fails silently: as `addChannels` calls
- * beside their consumers, the worker's complete set exists nowhere and a
- * widening can be deleted without any list getting shorter — every worker
- * then idles on a `job:queued` its transport never carries,
- * `lastQueuedEventAt: null`, nothing thrown and nothing logged.
- *
- * An entry here must have a consumer and a consumer must have an entry; the
- * census beside this file asserts both directions.
- */
-export const WORKER_CONSUMED_BROADCASTS = [
-  // The queue announcement the claim adapter races for.
-  'job:queued',
-  // Cooperative cancellation of the ACTIVE job: it stops at a unit boundary.
-  'job:cancel-requested',
-] as const satisfies readonly (keyof EventMap)[];
 
 /**
  * The requests a worker ANSWERS. It holds the inference credentials, so it is
@@ -267,8 +167,8 @@ export const WORKER_ANSWERED_OPERATIONS = [
 // `readonly string[]` would throw that proof away and let a transport's
 // channel roster be wider than the registry.
 export const WORKER_CHANNELS: readonly (keyof EventMap)[] = [
+  ...JOB_CLAIM_CHANNELS,
   ...replyChannelsFor(WORKER_AWAITED_OPERATIONS),
-  ...WORKER_CONSUMED_BROADCASTS,
 ];
 
 /**
@@ -286,7 +186,6 @@ export const WORKER_CHANNELS: readonly (keyof EventMap)[] = [
  * runtime backstop for an await nobody declared.
  */
 type DeclaredWorkerAwaits =
-  | JobClaimAwaits             // job-claim-adapter.ts — claiming an announced job
   | DescriptorReadAwaits       // worker-process.ts — the resource descriptor read
   | MarkCommitAwaits           // worker-process.ts — the durability ack
   | DurabilityProbeAwaits      // worker-process.ts — did the batch land?
@@ -300,158 +199,41 @@ export const workerAwaitCensus: [WorkerAwaitCensusDrift] extends [never]
   ? 'in-census'
   : WorkerAwaitCensusDrift = 'in-census';
 
-export function parseGatewayUrl(url: string): { protocol: 'http' | 'https'; host: string; port: number } {
-  const parsed = new URL(url);
-  const protocol = (parsed.protocol.replace(':', '') === 'https' ? 'https' : 'http') as 'http' | 'https';
-  const host = parsed.hostname;
-  const port = parsed.port
-    ? Number(parsed.port)
-    : protocol === 'https' ? 443 : 80;
-  return { protocol, host, port };
-}
-
-/**
- * Exchange this process's issuer token for an agent JWT and its canonical DID.
- * The DID is minted by the gateway (under the KB's own domain) — the caller
- * carries it verbatim.
- *
- * Connection-level failures (`TypeError: fetch failed`) are retried with
- * exponential backoff: the gateway may be mid-restart or the container
- * network still warming up when this process starts, and orchestration
- * runs workers with `--rm` and no restart policy — exiting on the first
- * failed fetch is permanent death. HTTP-level rejections (401 on a bad
- * secret) are NOT retried; the gateway is up and said no.
- */
-export async function authenticateAgent(opts: {
-  gatewayBaseUrl: string;
-  credential: ServiceAccountCredential;
-  provider: string;
-  model: string;
-  logger?: Logger;
-  retry?: RetryPolicy;
-}): Promise<{ token: string; did: string }> {
-  const { gatewayBaseUrl, credential, provider, model, logger, retry = STARTUP_FETCH_RETRY } = opts;
-
-  return retryWithBackoff(
-    async () => {
-      // The process proves who IT is, then asks for the agent identity it wants.
-      // One worker holds several of the latter when job types are configured
-      // with different models, which is why they are separate exchanges.
-      const caller = await serviceAccountToken(credential);
-
-      const response = await fetch(`${gatewayBaseUrl}/api/tokens/agent`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${caller}`,
-        },
-        body: JSON.stringify({ provider, model }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Agent authentication failed for ${provider}:${model}: ${response.status} ${response.statusText}`);
-      }
-
-      return await response.json() as { token: string; did: string };
-    },
-    isTransientFetchError,
-    retry,
-    ({ attempt, attempts, delayMs, error }) => {
-      logger?.warn('Gateway unreachable, retrying agent authentication', {
-        agent: `${provider}:${model}`,
-        attempt,
-        attempts,
-        retryInMs: delayMs,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    },
-  );
-}
-
 export async function startAgentWorker(
   opts: WorkerRuntimeOptions,
 ): Promise<AgentWorkerHandle> {
   const { group, gatewayBaseUrl, credential, contentReads, reportsLimitsOf, logger } = opts;
   const { inference } = group;
 
-  const { protocol, host, port } = parseGatewayUrl(gatewayBaseUrl);
-  const { token: initialToken, did } = await authenticateAgent({
-    gatewayBaseUrl,
+  // The process signs in as the agent this group works as, and the session
+  // keeps that token fresh for as long as the process runs.
+  const agent = await startAgentSession({
+    baseUrl: gatewayBaseUrl,
     credential,
     provider: inference.type,
     model: inference.model,
     logger,
   });
 
-  // The exchange minted this worker's canonical DID (under the KB's own
+  // The sign-in minted this worker's canonical DID (under the KB's own
   // domain) and we carry it VERBATIM — never re-derive identity from
-  // the URL we happen to dial (`host` is connection topology only):
+  // the URL we happen to dial (which is connection topology only):
   // re-deriving gives one logical agent two DIDs.
-  const generator: Agent = didToAgent(did);
+  const generator: Agent = didToAgent(agent.did);
 
-  const kbId = `agent-${inference.type}-${inference.model}-${hostname()}`;
-  const endpoint: HttpEndpoint = { kind: 'http', host, port, protocol };
-  const kb: KbTarget = {
-    id: kbId,
-    label: `${inference.type} / ${inference.model} @ ${host}`,
-    endpoint,
-  };
-  const storage = new InMemorySessionStorage();
-  // No refresh token: a worker renews by re-authenticating as its service
-  // account, not by presenting a refresh grant. The client id and token
-  // endpoint are its own, so the stored session names the credential that
-  // actually backs it rather than leaving them blank.
-  setStoredSession(storage, kbId, {
-    access: initialToken,
-    refresh: '',
-    clientId: credential.clientId,
-    tokenEndpoint: credential.issuer,
-  });
-
-  const token$ = new BehaviorSubject<AccessToken | null>(null);
-  let session!: SemiontSession;
   const transport = new HttpTransport({
-    baseUrl: baseUrl(kbGatewayUrl(endpoint)),
-    token$,
-    tokenRefresher: () => session.refresh().then((t) => t ?? null),
-    // Only the reply channels this process awaits — not the full bridged
-    // set. See WORKER_AWAITED_OPERATIONS. The agent that reports its pool's
-    // limits also subscribes the requests it answers.
+    baseUrl: baseUrl(gatewayBaseUrl),
+    token$: agent.token$,
+    tokenRefresher: agent.refresh,
+    // Only the channels this process reads — not the full bridged set. See
+    // WORKER_AWAITED_OPERATIONS. The agent that reports its pool's limits
+    // also subscribes the requests it answers.
     channels: reportsLimitsOf.length > 0 ? [...WORKER_CHANNELS, ...WORKER_ANSWERED_OPERATIONS] : WORKER_CHANNELS,
   });
-  const content = new HttpContentTransport(transport);
-  const client = new SemiontClient(transport, content, transport);
-  session = new SemiontSession({
-    kb,
-    storage,
-    client,
-    token$,
-    refresh: async () => {
-      try {
-        const { token } = await authenticateAgent({
-          gatewayBaseUrl,
-          credential,
-          provider: inference.type,
-          model: inference.model,
-          logger,
-        });
-        return token;
-      } catch (err) {
-        logger.error('Agent token refresh failed', {
-          error: err instanceof Error ? err.message : String(err),
-          agent: did,
-        });
-        return null;
-      }
-    },
-    onError: (err) => {
-      logger.error('Session error', { code: err.code, message: err.message, agent: did });
-    },
-  });
-  await session.ready;
+  const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
 
-  const adapter = startWorkerProcess({
-    session,
+  const claims = startWorkerProcess({
+    client,
     accepts: group.serves,
     inferenceClient: group.client,
     generator,
@@ -469,25 +251,28 @@ export async function startAgentWorker(
     : undefined;
 
   logger.info('Agent ready', {
-    did,
+    did: agent.did,
     provider: inference.type,
     model: inference.model,
     serves: group.serves,
   });
 
   return {
-    session,
+    client,
     vitals: () => ({
       provider: inference.type,
       model: inference.model,
-      did,
+      did: agent.did,
       serves: group.serves,
-      ...adapter.vitals(),
+      ...claims.vitals(),
     }),
     dispose: async () => {
       limitsResponder?.unsubscribe();
-      adapter.dispose();
-      await session.dispose();
+      // A job still held is failed before the client goes, so the queue
+      // retries it now and does not wait for its sweep.
+      await claims.stop();
+      agent.stop();
+      client.dispose();
     },
   };
 }

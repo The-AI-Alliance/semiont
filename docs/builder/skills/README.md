@@ -2,7 +2,7 @@
 
 A skill is a definition an AI coding assistant loads to do one job with Semiont: a `SKILL.md` that says when the skill applies, what to ask the user, and the script to write. Each one here stands alone, so copy the directories you want into your assistant's skills directory (`.claude/skills/` for Claude Code), or into a knowledge base's own repository beside the skills written for its corpus.
 
-The scripts are TypeScript on `@semiont/sdk`, and every code fence in them is type-checked against the built SDK with the rest of the builder docs. See [the SDK guide](../Usage.md) for the calls they use.
+The scripts are TypeScript on `@semiont/sdk`, and every code fence in them is type-checked against the built SDK with the rest of the builder docs. [`semiont-worker`](semiont-worker/SKILL.md) shows its worker in Rust and in Python too, and each of those blocks is, word for word, a program its SDK's own tests compile and run. See [the SDK guide](../Usage.md) for the calls they use.
 
 ## The layers
 

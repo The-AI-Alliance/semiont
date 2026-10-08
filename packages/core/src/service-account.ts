@@ -17,6 +17,7 @@
  * code that has no other reason to know it.
  */
 
+import { HTTP_REQUEST_TIMEOUT_MS } from './generated/client-timing';
 import { isObject, isString } from './type-guards';
 
 export interface ServiceAccountCredential {
@@ -54,7 +55,7 @@ async function tokenEndpoint(issuer: string): Promise<string> {
         '.well-known/openid-configuration',
         issuer.endsWith('/') ? issuer : `${issuer}/`,
       );
-      const response = await fetch(url);
+      const response = await fetch(url, { signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS) });
       if (!response.ok) {
         throw new Error(`OIDC discovery for ${issuer} failed: HTTP ${response.status} from ${url}`);
       }
@@ -80,6 +81,11 @@ async function tokenEndpoint(issuer: string): Promise<string> {
  * Throws on refusal rather than returning null: a sidecar that cannot prove who
  * it is has nothing useful to do, and the caller's retry policy decides whether
  * this is worth attempting again.
+ *
+ * Both requests, the issuer's discovery and the grant, are bounded by
+ * `httpRequestTimeoutMs` (specs/src/client/timing.json): an issuer that
+ * accepts a connection and never answers would otherwise hold a process's
+ * start, and every renewal after it, for as long as the process lives.
  */
 export async function serviceAccountToken(credential: ServiceAccountCredential): Promise<string> {
   const { issuer, clientId, clientSecret } = credential;
@@ -100,6 +106,7 @@ export async function serviceAccountToken(credential: ServiceAccountCredential):
       client_id: clientId,
       client_secret: clientSecret,
     }),
+    signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS),
   });
 
   if (!response.ok) {

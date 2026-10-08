@@ -20,7 +20,7 @@
 
 use crate::bus::{operation, reply_names};
 use crate::channels::BRIDGED_CHANNELS;
-use crate::errors::{BusRequestError, TransportError, TransportErrorCode};
+use crate::errors::{BusRequestError, BusRequestErrorCode, TransportError, TransportErrorCode};
 use crate::event_bus::EventBus;
 use crate::locked;
 use crate::transport::{
@@ -105,6 +105,8 @@ struct Inner {
     failures: Mutex<Option<broadcast::Sender<TransportError>>>,
     bridges: Mutex<Vec<Arc<EventBus>>>,
     closed: AtomicBool,
+    /// The channels a test has stopped naming in the stream.
+    unnamed: Mutex<Vec<String>>,
 }
 
 impl Inner {
@@ -172,6 +174,7 @@ impl FaultyTransport {
                 failures: Mutex::new(Some(broadcast::channel(STREAM_BACKLOG).0)),
                 bridges: Mutex::new(Vec::new()),
                 closed: AtomicBool::new(false),
+                unnamed: Mutex::new(Vec::new()),
             }),
         }
     }
@@ -249,6 +252,12 @@ impl FaultyTransport {
     /// Deliver a frame as if the bus had carried it.
     pub fn deliver(&self, frame: Frame) {
         self.inner.deliver(frame);
+    }
+
+    /// Stop naming `channel` in the stream: it is no longer delivered, as on
+    /// a transport built with a channel set that leaves it out.
+    pub fn unname(&self, channel: &str) {
+        locked(&self.inner.unnamed).push(channel.to_owned());
     }
 }
 
@@ -375,12 +384,21 @@ impl Transport for FaultyTransport {
     }
 
     fn frames(&self, channel: &str) -> Result<Frames, BusRequestError> {
+        if !self.is_subscribed(channel) {
+            return Err(BusRequestError::new(
+                BusRequestErrorCode::Unsubscribed,
+                format!("FaultyTransport: the stream does not name {channel}"),
+            ));
+        }
         Ok(self.inner.hub.frames(channel))
     }
 
-    /// Every channel: this transport delivers whatever is emitted through it.
-    fn is_subscribed(&self, _channel: &str) -> bool {
-        true
+    /// Every channel, but one a test has stopped naming (`unname`): this
+    /// transport delivers whatever is emitted through it.
+    fn is_subscribed(&self, channel: &str) -> bool {
+        !locked(&self.inner.unnamed)
+            .iter()
+            .any(|unnamed| unnamed == channel)
     }
 
     /// Nothing here is delivered by scope, so a hold changes only the count

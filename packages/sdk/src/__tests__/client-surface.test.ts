@@ -33,6 +33,7 @@ import {
   type components,
 } from '@semiont/core';
 import { CacheObservable, DelegationObservable, StreamObservable, UploadObservable } from '../awaitable';
+import { ClaimsObservable, type ClaimOptions } from '../claims';
 import type { SemiontClient } from '../client';
 import { createTestClient } from '../testing';
 import type {
@@ -76,7 +77,7 @@ interface Case {
 }
 interface Row {
   method: string;
-  shape: 'promise' | 'stream' | 'delegation' | 'upload' | 'cache' | 'signal' | 'count' | 'events';
+  shape: 'promise' | 'stream' | 'delegation' | 'upload' | 'cache' | 'signal' | 'count' | 'events' | 'claims';
   via: Omit<Step, 'sends'>;
   absent?: Record<string, string>;
   cases: Case[];
@@ -234,6 +235,7 @@ const CALLS: Calls = {
     cancelByType: (c, a) => c.job.cancelByType(a['jobType'] as JobType),
     cancel: (c, a) => c.job.cancel(jobId(String(a['jobId']))),
     cancelRequest: (c, a) => c.job.cancelRequest(a['jobType'] as JobType),
+    claim: (c, a) => c.job.claim(a['options'] as unknown as ClaimOptions),
   },
   auth: {
     me: (c) => gatewayOf(c.auth).me(),
@@ -342,6 +344,10 @@ function started(row: Row, returned: unknown): void {
       return;
     case 'events':
       expect(returned).toBeInstanceOf(Observable);
+      return;
+    case 'claims':
+      expect(returned).toBeInstanceOf(ClaimsObservable);
+      (returned as ClaimsObservable).subscribe({ error: () => {} });
       return;
   }
 }

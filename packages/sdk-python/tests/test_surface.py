@@ -46,6 +46,7 @@ from semiont.types import (
     CreateAnnotationRequest,
     GatheredContext,
     GenerationJobParams,
+    JobFilter,
     JobType,
     MarkJobParams,
     MarkSubmitEvent,
@@ -77,6 +78,7 @@ _SELECTOR = TypeAdapter[AnnotationSelector](AnnotationSelector)
 _OPERATIONS = TypeAdapter[list[BindBodyOperation]](list[BindBodyOperation])
 _SORT = TypeAdapter[BrowseDirectoryRequestSort](BrowseDirectoryRequestSort)
 _JOB_TYPE = TypeAdapter[JobType](JobType)
+_FILTERS = TypeAdapter[list[JobFilter]](list[JobFilter])
 _MARK_PARAMS = TypeAdapter[MarkJobParams](MarkJobParams)
 _NAMES = TypeAdapter[list[str]](list[str])
 
@@ -238,6 +240,13 @@ def polled(client: Client, args: Args) -> Awaitable[object]:
     return client.job.poll_until_complete(JobId(text(args["jobId"], "jobId")), every_ms=10, within_ms=50)
 
 
+def claimed(client: Client, args: Args) -> Awaitable[object]:
+    """The first thing a worker's claims hand out: claiming begins when they are first read."""
+    options = args["options"]
+    assert isinstance(options, dict)
+    return anext(client.job.claim(_FILTERS.validate_python(options["accepts"])))
+
+
 def hovered(client: Client, args: Args) -> None:
     hovering = args["annotationId"]
     client.beckon.hover(None if hovering is None else AnnotationId(text(hovering, "annotationId")))
@@ -312,6 +321,7 @@ CALLS: Final[dict[tuple[str, str], Callable[[Client, Args], Awaitable[object] | 
     ("job", "cancelByType"): lambda client, args: client.job.cancel_by_type(_JOB_TYPE.validate_python(args["jobType"])),
     ("job", "cancel"): lambda client, args: client.job.cancel(JobId(text(args["jobId"], "jobId"))),
     ("job", "cancelRequest"): lambda client, args: client.job.cancel_request(_JOB_TYPE.validate_python(args["jobType"])),
+    ("job", "claim"): claimed,
     ("auth", "me"): lambda client, _: client.auth.me(),
     ("auth", "mediaToken"): lambda client, args: client.auth.media_token(rid(args)),
     ("auth", "protectedResourceMetadata"): lambda client, _: client.auth.protected_resource_metadata(),
@@ -508,7 +518,7 @@ def test_a_method_does_what_its_row_says(case: tuple[str, str, JsonObject, JsonO
 
 def test_the_table_and_this_sdk_list_the_same_methods() -> None:
     assert sorted({(namespace, method) for namespace, method, _, _ in CASES}) == sorted([*CALLS, *EVENTS])
-    assert len(CALLS) + len(EVENTS) == 70
+    assert len(CALLS) + len(EVENTS) == 71
     shapes = TABLE["shapes"]
     assert isinstance(shapes, dict)
-    assert set(shapes) == {"promise", "stream", "delegation", "upload", "cache", "signal", "count", "events"}
+    assert set(shapes) == {"promise", "stream", "delegation", "upload", "cache", "signal", "count", "events", "claims"}

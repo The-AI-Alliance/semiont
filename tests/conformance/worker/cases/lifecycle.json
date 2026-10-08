@@ -1,0 +1,29 @@
+{
+  "about": "a held job's lifecycle is one start, then progress and checkpoints, then one completion that states the job's type and its verb's result; every message is global and carries the job's identity; after it the worker claims again",
+  "source": "docs/protocol/WORKER-CONTRACT.md § The lifecycle",
+  "steps": [
+    {"let": {"accepts": [{"jobType": "mark", "params": {"motivation": "highlighting"}}]}},
+    {"let": {"job": {"status": "running", "metadata": {"id": "job-1", "type": "mark", "userId": {"$var": "client"}, "created": "2026-01-01T00:00:00.000Z", "retryCount": 0, "maxRetries": 3}, "params": {"resourceId": {"$var": "r1"}, "motivation": "highlighting"}, "startedAt": "2026-01-01T00:00:01.000Z", "progress": {}}}},
+    {"backend": "listen", "with": {"channels": ["job:claim"]}},
+    {"driver": "open", "with": {"timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},
+    {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["job:cancel-requested", "job:claim-failed", "job:claimed", "job:queued"], "scoped": [], "pendingReplies": []}},
+    {"state": "open"},
+    {"driver": "claim", "with": {"accepts": {"$var": "accepts"}}},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "job:claim", "payload": {"accepts": {"$var": "accepts"}}, "correlationId": {"$var": "c1"}, "clientId": {"$var": "clientId"}}},
+    {"backend": "emit", "with": {"channel": "job:claimed", "correlationId": {"$var": "c1"}, "payload": {"response": {"$var": "job"}}}},
+    {"claimed": {"jobId": "job-1", "jobType": "mark", "resourceId": {"$var": "r1"}, "params": {"resourceId": {"$var": "r1"}, "motivation": "highlighting"}, "completedUnits": [], "unitCursors": {}, "retryCount": 0, "maxRetries": 3}},
+
+    {"driver": "start"},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "job:start", "payload": {"resourceId": {"$var": "r1"}, "jobId": "job-1", "jobType": "mark", "attempt": 1}, "clientId": {"$var": "clientId"}}},
+    {"driver": "progress", "with": {"percentage": 40}},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "job:report-progress", "payload": {"resourceId": {"$var": "r1"}, "jobId": "job-1", "jobType": "mark", "attempt": 1, "percentage": 40, "progress": {"percentage": 40}}, "clientId": {"$var": "clientId"}}},
+    {"driver": "checkpoint", "with": {"completedUnits": ["Person"], "unitCursors": {"Place": {"next": 1200, "size": 800, "found": 4, "emitted": 3, "errors": 0}}}},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "job:checkpoint", "payload": {"jobId": "job-1", "completedUnits": ["Person"], "unitCursors": {"Place": {"next": 1200, "size": 800, "found": 4, "emitted": 3, "errors": 0}}}, "clientId": {"$var": "clientId"}}},
+    {"driver": "complete", "with": {"result": {"found": 9, "persisted": 7}}},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "job:complete", "payload": {"resourceId": {"$var": "r1"}, "jobId": "job-1", "jobType": "mark", "attempt": 1, "result": {"found": 9, "persisted": 7}}, "clientId": {"$var": "clientId"}}},
+
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "job:claim", "payload": {"accepts": {"$var": "accepts"}}, "correlationId": {"$var": "c2"}, "clientId": {"$var": "clientId"}}},
+    {"backend": "emit", "with": {"channel": "job:claim-failed", "correlationId": {"$var": "c2"}, "payload": {"message": "No pending job matches", "code": "none-pending"}}},
+    {"quiet": 200}
+  ]
+}

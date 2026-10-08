@@ -239,6 +239,7 @@ const METHODS: &[(&str, &[&str])] = &[
             "pollUntilComplete",
             "cancelByType",
             "cancel",
+            "claim",
             "cancelRequest",
         ],
     ),
@@ -549,6 +550,18 @@ fn call(world: &World, namespace: &str, method: &str, args: Args) {
             go!(client.job.cancel(&as_id(&job_id)))
         }
         ("job", "cancelRequest") => client.job.cancel_request(args.typed("jobType")),
+        ("job", "claim") => {
+            let options: Value = args.typed("options");
+            let accepts = serde_json::from_value(options["accepts"].clone())
+                .unwrap_or_else(|error| panic!("the case's accepts are not filters: {error}"));
+            // Claiming begins when the claims are first read.
+            let claims = client
+                .job
+                .claim(semiont::claims::ClaimOptions::new(accepts));
+            tokio::spawn(async move {
+                let _ = claims.next().await;
+            });
+        }
 
         ("auth", "me") => go!(async move {
             match &client.auth {

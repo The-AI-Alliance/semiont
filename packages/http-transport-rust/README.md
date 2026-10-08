@@ -193,6 +193,86 @@ while let Some(event) = completed.next().await {
 | `timing` | The deadlines. `Timing::default()` is the ones every Semiont SDK keeps. |
 | `bookmarks` | Where the stream's place is kept across restarts. With none, the stream begins each life at the present. |
 
+**A worker** is a daemon whose agent claims jobs from the knowledge base's
+queue. Its stream names `JOB_CLAIM_CHANNELS`, and the client's `job.claim`
+hands it each job it comes to hold.
+
+```rust
+// A worker signs in as a daemon does: with its service account, as the
+// agent its work is attributed to.
+let agent = AgentToken::sign_in(
+    gateway,
+    Agent {
+        provider: "ollama".to_owned(),
+        model: "gemma3:4b".to_owned(),
+    },
+    ServiceToken::new(credential, http.clone()),
+    http.clone(),
+)
+.await?;
+println!("working as {}", agent.did());
+let client = client(
+    HttpTransportConfig {
+        base_url: agent.gateway().to_owned(),
+        token: agent.token(),
+        refresher: Some(agent.clone()),
+        // Its stream names what claiming reads. This worker awaits
+        // nothing else, so it names nothing else.
+        channels: Some(JOB_CLAIM_CHANNELS.map(str::to_owned).to_vec()),
+        http,
+        timing: Timing::default(),
+        bookmarks: None,
+    },
+    ClientOptions::default(),
+);
+
+// What it accepts: the `mark` jobs of one motivation.
+let highlighting = MarkJobFilter::new(MarkJobFilterParams {
+    motivation: Motivation::Highlighting,
+});
+let claims = client
+    .job
+    .claim(ClaimOptions::new(vec![highlighting.into()]));
+
+// Each job the worker comes to hold, one at a time. The next is claimed
+// when this one settles.
+while let Some(handed) = claims.next().await {
+    match handed {
+        Ok(HeldJob::Mark(job)) => {
+            job.start().await?;
+            // Your work: read the resource, find the passages, commit them.
+            job.progress(JobProgress::new(50.0)).await?;
+            let result = JobDetectionResult::new(0, 0);
+            // A settle takes the job, so it cannot be settled twice. A
+            // job dropped unsettled is failed, and the queue retries it.
+            job.complete(result.into(), None).await?;
+        }
+        Ok(HeldJob::Yield(job)) => {
+            let never = JobFailure {
+                failure_class: Some(FailureClass::Deterministic),
+                ..JobFailure::default()
+            };
+            job.fail("this worker runs no yield job", never).await?;
+        }
+        Err(refusal) => {
+            eprintln!("claim refused: {}", refusal.message);
+            // This credential can never claim. Stop, so that whoever
+            // runs the worker sees it.
+            if refusal.code == Some(BusRequestErrorCode::Unauthorized) {
+                break;
+            }
+        }
+    }
+}
+// Stopping fails a job the worker still holds.
+claims.stop().await;
+```
+
+The service account needs two roles at the issuer: `semiont-service`, to be
+given an agent, and `semiont-worker`, without which every claim is refused.
+What claiming does, and what a held job is, are in the SDK's
+[A worker](../sdk-rust/README.md#a-worker).
+
 ### An application
 
 An application holds a `SemiontBrowser` whose sessions are built by
@@ -305,10 +385,14 @@ on stderr.
 
 Every Rust block on this page is a region of
 [tests/sign_in.rs](tests/sign_in.rs), compiled and run there against a
-stand-in gateway and issuer. [tests/stream.rs](tests/stream.rs) holds the
+stand-in gateway and issuer. The Rust block of the
+[`semiont-worker` skill](../../docs/builder/skills/semiont-worker/SKILL.md)
+is held to the same regions. [tests/stream.rs](tests/stream.rs) holds the
 stream's behaviour against a gateway that misbehaves on cue.
 [conformance/](conformance) holds the two drivers the
-[SDK conformance suite](../../tests/conformance/sdk/README.md) runs.
+[SDK conformance suite](../../tests/conformance/sdk/README.md) runs, and the
+one the [worker conformance suite](../../tests/conformance/worker/README.md)
+runs.
 
 ## License
 

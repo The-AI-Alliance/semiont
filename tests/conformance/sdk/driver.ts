@@ -3,7 +3,9 @@
  * starts an SDK's driver, sends it operations, and keeps what the driver says
  * it did and saw — each operation's outcome, the states its transport passed
  * through, the frames it delivered, the failures its error stream carried and
- * the progress its uploads reported.
+ * the progress its uploads reported. A worker's driver (worker/README.md)
+ * also says what its worker claimed, what it was refused, and when a held
+ * job's cancellation was signalled or the job stalled.
  */
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createInterface } from 'node:readline';
@@ -69,6 +71,14 @@ export class Driver {
   readonly completed = new Set<string>();
   /** The progress each upload reported, by the id of its operation, in order. */
   readonly progress = new Map<number, ReportedProgress[]>();
+  /** The jobs a worker reported as claimed, each as it read the record, in order. */
+  readonly claimed: unknown[] = [];
+  /** The refusals of a claim a worker reported, in order, each with the SDK's own words for it. */
+  readonly refusals: Array<{ failure: ReportedFailure; detail: string }> = [];
+  /** The held jobs whose cancellation a worker said was signalled, in order. */
+  readonly signalled: unknown[] = [];
+  /** The held jobs a worker said had stalled, in order. */
+  readonly stalled: unknown[] = [];
   /** Lines the driver wrote that the protocol does not allow. */
   readonly violations: string[] = [];
   /** What it wrote to stderr: shown when a case fails. */
@@ -136,6 +146,14 @@ export class Driver {
         return;
       }
       this.progress.set(upload, [...(this.progress.get(upload) ?? []), { bytesUploaded, totalBytes }]);
+    } else if (keys.length === 1 && isObject(message['claimed'])) {
+      this.claimed.push(message['claimed']);
+    } else if (keys.length === 1 && failureOf(message['refused'])) {
+      this.refusals.push(failureOf(message['refused'])!);
+    } else if (keys.length === 1 && typeof message['signalled'] === 'string') {
+      this.signalled.push(message['signalled']);
+    } else if (keys.length === 1 && typeof message['stalled'] === 'string') {
+      this.stalled.push(message['stalled']);
     } else if (keys.length === 1 && typeof message['completed'] === 'string') {
       this.completed.add(message['completed']);
     } else if (keys.length === 1 && isObject(message['emission']) && typeof message['emission']['observer'] === 'string') {

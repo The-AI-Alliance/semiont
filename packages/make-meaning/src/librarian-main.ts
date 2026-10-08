@@ -133,7 +133,7 @@ const credential = { issuer: issuerUrl, clientId, clientSecret };
 const healthPort = 24104;
 
 import { createProcessLogger } from '@semiont/observability/process-logger';
-import { startAgentSession } from './agent-session';
+import { startAgentSession } from '@semiont/sdk';
 const logger = createProcessLogger('librarian');
 
 // ── Main ─────────────────────────────────────────────────────────────

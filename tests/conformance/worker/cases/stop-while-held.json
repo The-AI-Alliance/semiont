@@ -1,0 +1,22 @@
+{
+  "about": "a worker that stops while it holds a job fails the job first, stating no class, and says whether it will be retried from the record's budget",
+  "source": "docs/protocol/WORKER-CONTRACT.md § The lifecycle",
+  "steps": [
+    {"let": {"accepts": [{"jobType": "mark", "params": {"motivation": "highlighting"}}]}},
+    {"let": {"job": {"status": "running", "metadata": {"id": "job-1", "type": "mark", "userId": {"$var": "client"}, "created": "2026-01-01T00:00:00.000Z", "retryCount": 0, "maxRetries": 1}, "params": {"resourceId": {"$var": "r1"}, "motivation": "highlighting"}, "startedAt": "2026-01-01T00:00:01.000Z", "progress": {}}}},
+    {"backend": "listen", "with": {"channels": ["job:claim"]}},
+    {"driver": "open", "with": {"timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},
+    {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["job:cancel-requested", "job:claim-failed", "job:claimed", "job:queued"], "scoped": [], "pendingReplies": []}},
+    {"state": "open"},
+    {"driver": "claim", "with": {"accepts": {"$var": "accepts"}}},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "job:claim", "payload": {"accepts": {"$var": "accepts"}}, "correlationId": {"$var": "c1"}, "clientId": {"$var": "clientId"}}},
+    {"backend": "emit", "with": {"channel": "job:claimed", "correlationId": {"$var": "c1"}, "payload": {"response": {"$var": "job"}}}},
+    {"claimed": {"jobId": "job-1", "jobType": "mark", "resourceId": {"$var": "r1"}, "params": {"resourceId": {"$var": "r1"}, "motivation": "highlighting"}, "completedUnits": [], "unitCursors": {}, "retryCount": 0, "maxRetries": 1}},
+    {"driver": "start"},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "job:start", "payload": {"resourceId": {"$var": "r1"}, "jobId": "job-1", "jobType": "mark", "attempt": 1}, "clientId": {"$var": "clientId"}}},
+
+    {"driver": "close"},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "job:fail", "payload": {"resourceId": {"$var": "r1"}, "jobId": "job-1", "jobType": "mark", "attempt": 1, "error": {"$var": "_"}, "willRetry": true}, "clientId": {"$var": "clientId"}}},
+    {"quiet": 200}
+  ]
+}

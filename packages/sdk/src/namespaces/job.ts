@@ -2,6 +2,7 @@ import type { Observable } from 'rxjs';
 import type { EventBus, EventMap, JobId, JobType, components } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
 import { busRequest, BusRequestError } from '@semiont/core';
+import { ClaimsObservable, type ClaimOptions } from '../claims';
 import type { JobNamespace as IJobNamespace } from './types';
 
 type JobStatusResponse = components['schemas']['JobStatusResponse'];
@@ -94,6 +95,10 @@ export class JobNamespace implements IJobNamespace {
       { jobId },
     );
     return cancelled;
+  }
+
+  claim(options: ClaimOptions): ClaimsObservable {
+    return new ClaimsObservable(this.transport, options);
   }
 
   cancelRequest(jobType: JobType): void {

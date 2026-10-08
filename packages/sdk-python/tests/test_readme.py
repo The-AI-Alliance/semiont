@@ -16,11 +16,12 @@ from aio import hurried, run, settle, soon
 from gateway_server import GatewayServer
 from issuer import AGENT, ALICE, ME, PENDING, SECRET, TOKEN, agent_token, issuer_of, minted, says, trusting
 from kb import answer, asked_for, knowing, recorded, refusing, silent
-from readme import a_first_program, a_person, an_agent, content, live_queries, testing, the_bus, the_client
-from spec import PACKAGE, JsonObject
+from readme import a_first_program, a_person, a_worker, an_agent, content, live_queries, testing, the_bus, the_client
+from spec import PACKAGE, ROOT, JsonObject
 from tokens import token
 
 from semiont.bus import reply_channels_for
+from semiont.claims import JOB_CLAIM_CHANNELS
 from semiont.http import HttpTransport
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.operations import JOB_CLAIM
@@ -30,6 +31,7 @@ from semiont.transport import Content, Frame
 from semiont.watched import Variable
 
 README = (PACKAGE / "README.md").read_text(encoding="utf-8")
+SKILL = (ROOT / "docs/builder/skills/semiont-worker/SKILL.md").read_text(encoding="utf-8")
 PROGRAMS = {
     path.stem: path.read_text(encoding="utf-8") for path in sorted((PACKAGE / "tests/readme").glob("*.py")) if path.stem != "__init__"
 }
@@ -63,11 +65,19 @@ async def until(what: str, seen: Callable[[], bool]) -> None:
 
 def test_every_python_block_of_the_readme_is_a_program_here_word_for_word_and_every_program_is_shown() -> None:
     shown = python_blocks(README)
-    assert len(PROGRAMS) >= 9
+    assert len(PROGRAMS) >= 10
     for block in shown:
         assert block in PROGRAMS.values(), f"a Python block of the README is not a program that is checked and run:\n{block}"
     for name, program in PROGRAMS.items():
         assert shown.count(program) == 1, f"tests/readme/{name}.py is not shown in the README, once, as it is"
+
+
+def test_every_python_block_of_the_worker_skill_is_a_program_here_word_for_word() -> None:
+    # The skill shows a worker in Python. What it shows is a program that is checked and run here.
+    shown = python_blocks(SKILL)
+    assert shown, "the semiont-worker skill shows no Python block"
+    for block in shown:
+        assert block in PROGRAMS.values(), f"a Python block of the semiont-worker skill is not a program that is checked and run:\n{block}"
 
 
 def test_every_program_is_run_by_a_test_named_for_it() -> None:
@@ -320,6 +330,74 @@ def test_an_agent_opens_its_stream_as_the_agent_its_service_account_was_exchange
 
     run(scenario())
     assert capsys.readouterr().out.splitlines() == ["open"]
+
+
+def test_a_worker_claims_as_its_agent_says_the_lifecycle_of_the_job_it_is_handed_and_claims_again(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    job: JsonObject = {
+        "status": "running",
+        "metadata": {
+            "id": "job-1",
+            "type": "mark",
+            "userId": "did:web:kb.example:users:u",
+            "created": "2026-01-01T00:00:00.000Z",
+            "retryCount": 0,
+            "maxRetries": 1,
+        },
+        "params": {"resourceId": "res-1", "motivation": "highlighting"},
+        "startedAt": "2026-01-01T00:00:01.000Z",
+        "progress": {},
+    }
+
+    async def scenario() -> None:
+        async with GatewayServer() as gateway:
+            trusting(gateway)
+            gateway.answers[TOKEN] = {"access_token": token(3600, 0)}
+            gateway.scripted[("POST", AGENT)] = [agent_token(1)]
+            # The dispatcher: the first claim is handed a job, the second is refused, and no other is answered.
+            answers: list[tuple[str, JsonObject]] = [
+                ("job:claimed", {"response": job}),
+                ("job:claim-failed", {"code": "rejected", "message": "the queue is being moved"}),
+            ]
+
+            def dispatching(emit: JsonObject) -> None:
+                if emit["channel"] == "job:claim" and answers:
+                    channel, payload = answers.pop(0)
+                    gateway.send(None, {"channel": channel, "payload": payload, "correlationId": emit["correlationId"]})
+
+            gateway.on_emit = dispatching
+            working = asyncio.ensure_future(a_worker.work(gateway.origin, issuer_of(gateway), "my-worker", SECRET))
+
+            def said() -> list[str]:
+                return [str(emit["channel"]) for emit in gateway.emits]
+
+            # Settling the job is an idle moment, and so the next claim: the one that is refused.
+            await until("the worker's second claim", lambda: said().count("job:claim") == 2)
+            await settle()
+            assert said() == ["job:claim", "job:start", "job:report-progress", "job:complete", "job:claim"]
+            claim, start, progress, complete, _ = gateway.emits
+            assert claim["payload"] == {"accepts": [{"jobType": "mark", "params": {"motivation": "highlighting"}}]}
+            # Every message of the lifecycle names the job and the attempt it is.
+            identity: JsonObject = {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark", "attempt": 1}
+            assert start["payload"] == identity
+            assert progress["payload"] == {**identity, "percentage": 50, "progress": {"percentage": 50}}
+            assert complete["payload"] == {**identity, "result": {"found": 0, "persisted": 0}}
+            # It works as the agent, on a stream that names what claiming reads and nothing else.
+            (exchanged,) = gateway.of("POST", AGENT)
+            assert exchanged.json() == {"provider": "ollama", "model": "gemma3:4b"}
+            (subscribed,) = gateway.of("POST", "/bus/subscribe")
+            assert subscribed.headers["authorization"] != exchanged.headers["authorization"]
+            assert subscribed.json()["global"] == list(JOB_CLAIM_CHANNELS)
+
+            # Stopped while it holds nothing, it says nothing more.
+            assert not working.done()
+            working.cancel()
+            await asyncio.gather(working, return_exceptions=True)
+            assert said().count("job:fail") == 0
+
+    run(scenario())
+    assert capsys.readouterr().out.splitlines() == ["claim refused: the queue is being moved"]
 
 
 def test_a_person_signs_in_by_the_device_grant_once_and_is_that_person_from_then_on(

@@ -449,6 +449,81 @@ jobs:
         env:
           CI: true
 
+  # A worker written on an SDK, held to docs/protocol/WORKER-CONTRACT.md: a
+  # real gateway, with the suite playing the dispatcher.
+  worker-conformance:
+    name: Worker Conformance
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Install the pinned Rust toolchain
+        run: |
+          rustup toolchain install
+
+      # The workspace's release build, shared with Gateway Conformance.
+      - name: Cache cargo
+        uses: actions/cache@v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-gateway-release-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-gateway-release-
+
+      - name: Build the gateway and the Rust drivers
+        run: cargo build --release --locked -p semiont-gateway -p semiont-conformance-drivers
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            tests/conformance/package-lock.json
+
+      # The TypeScript worker driver runs the built worker package over the
+      # built transport, as a worker's author would.
+      - name: Install dependencies
+        run: |
+          npm ci --include=optional
+          npm run build:packages
+
+      # Every case runs on the NATS plane too, against a real broker spawned
+      # from PATH.
+      - name: Install nats-server
+        run: |
+          NATS_VERSION=v2.14.0
+          curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
+          sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
+          nats-server --version
+
+      # The Python driver runs the SDK from its locked environment, which the
+      # suite's setup makes with uv.
+      - name: Setup Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.2.0
+
+      # Each SDK's worker driver, put through the corpus against the gateway;
+      # the suite type-checks the TypeScript driver and makes the Python SDK's
+      # environment before it starts.
+      - name: Run the worker conformance suite
+        run: |
+          cd tests/conformance
+          npm ci
+          npm run test:worker
+        env:
+          CI: true
+
   # The Python SDK: both type checkers, strict, on the oldest Python it
   # supports, where a newer one would let through what that one refuses; its
   # tests on every Python it supports. tests/refusals is checked with the rest:
