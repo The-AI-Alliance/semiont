@@ -948,6 +948,12 @@
       "DispatcherConfig": {
         "$ref": "components/schemas/DispatcherConfig.json"
       },
+      "WorkerConfig": {
+        "$ref": "components/schemas/WorkerConfig.json"
+      },
+      "WorkerAgentConfig": {
+        "$ref": "components/schemas/WorkerAgentConfig.json"
+      },
       "DispatcherHealth": {
         "$ref": "components/schemas/DispatcherHealth.json"
       },

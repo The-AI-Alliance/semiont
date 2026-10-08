@@ -22,9 +22,9 @@
 //   - the layout's record is not a schema;
 //   - Job's discriminator disagrees with its members, or a member's `status`
 //     is not exactly the value that selects it;
-//   - DispatcherConfig defaults anything, or leaves optional a field that is
-//     not a secret's name: the dispatcher reads what its document says and
-//     supplies nothing of its own.
+//   - DispatcherConfig or WorkerConfig defaults anything, or leaves optional
+//     a field that is not a secret's name: the dispatcher and a worker each
+//     read what their document says and supply nothing of their own.
 //
 // It reads the source files, so it cannot pass on a stale bundle.
 
@@ -156,16 +156,23 @@ for (const [status, ref] of Object.entries(mapping)) {
   }
 }
 
-function everythingStated(node, path) {
-  if ('default' in node) fail(`DispatcherConfig defaults ${path}`);
+// A document's schema, followed through what it refers to and into what it
+// lists: a part stated in a file of its own is held as the rest is.
+function everythingStated(document, node, path) {
+  if ('$ref' in node) return everythingStated(document, read(resolve(SCHEMAS, node.$ref)), path);
+  if ('default' in node) fail(`${document} defaults ${path}`);
+  if (node.type === 'array') return everythingStated(document, node.items, `${path}[]`);
   if (node.type !== 'object') return;
   for (const [name, property] of Object.entries(node.properties)) {
     const at = path ? `${path}.${name}` : name;
-    if (!node.required?.includes(name) && !name.endsWith('Env')) fail(`DispatcherConfig leaves ${at} optional`);
-    everythingStated(property, at);
+    if (!node.required?.includes(name) && !name.endsWith('Env')) fail(`${document} leaves ${at} optional`);
+    everythingStated(document, property, at);
   }
 }
-everythingStated(schema('DispatcherConfig'), '');
+for (const document of ['DispatcherConfig', 'WorkerConfig']) {
+  if (!existsSync(resolve(SCHEMAS, `${document}.json`))) fail(`${document} is not a schema`);
+  else everythingStated(document, schema(document), '');
+}
 
 if (failures.length > 0) {
   for (const message of failures) console.error(`✗ ${message}`);

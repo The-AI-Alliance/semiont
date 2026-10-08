@@ -386,6 +386,9 @@ __all__ = [
     "UserResponse",
     "WeaveApplied",
     "WeaveRebuildCommand",
+    "WorkerAgentConfig",
+    "WorkerConfig",
+    "WorkerConfigIdentity",
     "YieldCloneCreateCommand",
     "YieldCloneCreated",
     "YieldCloneCreatedResponse",
@@ -3269,6 +3272,20 @@ class DispatcherConfigTiming(WireModel, frozen=True, extra="forbid"):
     ]
 
 
+class WorkerConfigIdentity(WireModel, frozen=True, extra="forbid"):
+    """
+    The issuer the worker's service account signs in at.
+    """
+
+    issuer: Annotated[
+        str,
+        Field(
+            description="The issuer URL, exactly as tokens carry it in `iss`.",
+            min_length=1,
+        ),
+    ]
+
+
 class ArchivistConfigIdentity(WireModel, frozen=True, extra="forbid"):
     """
     The issuer the Archivist's service account signs in at, and whose tokens it admits callers of its HTTP surface by.
@@ -5339,6 +5356,37 @@ type JobFilter = Annotated[
 ]
 
 
+class WorkerAgentConfig(WireModel, frozen=True, extra="forbid"):
+    """
+    One agent a worker works as: who it is, the jobs it claims, and where its provider is reached.
+    """
+
+    agent: ArchivistRosterRole
+    accepts: Annotated[
+        list[JobFilter],
+        Field(
+            description="The jobs this agent serves, as a claim names them (`job:claim`): the worker claims with these filters and no other.",
+            min_length=1,
+        ),
+    ]
+    base_url: Annotated[
+        str,
+        Field(
+            alias="baseUrl",
+            description="The address the provider's API is reached at.",
+            min_length=1,
+        ),
+    ]
+    api_key_env: Annotated[
+        str | None,
+        Field(
+            alias="apiKeyEnv",
+            description="The environment variable holding the provider's API key, when the provider requires one.",
+            min_length=1,
+        ),
+    ] = None
+
+
 class AnchoredTextExtractedEntry(WireModel, frozen=True, extra="forbid"):
     """
     The text extracted from the bytes, where each word is on the page, and how it was extracted.
@@ -5801,6 +5849,35 @@ class JobClaimedResult(WireModel, frozen=True, extra="forbid"):
     """
 
     response: JobRunning
+
+
+class WorkerConfig(WireModel, frozen=True, extra="forbid"):
+    """
+    Everything a worker reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the worker. The launcher writes it for the worker it starts, from the environment the knowledge base's config selects, and the worker reads it from the path its `--config` flag names (its image passes `/etc/semiont/worker.json`). Whoever starts a worker another way writes the same document: this schema is the contract, and a worker needs no launcher. Started without `--config`, or with a path that names no file, the worker refuses to start and says which. No secret is a value here: a provider's key is named by the environment variable that holds it, and the worker's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` in its environment. A document that does not validate is refused at boot, naming each failing field.
+    """
+
+    gateway_url: Annotated[
+        str,
+        Field(
+            alias="gatewayUrl",
+            description="The URL the worker reaches the gateway at: its route to the bus and to a resource's bytes, and the only address of the knowledge base it holds.",
+            min_length=1,
+        ),
+    ]
+    identity: WorkerConfigIdentity
+    agents: Annotated[
+        list[WorkerAgentConfig],
+        Field(
+            description="The agents this worker works as. Each is an inference provider and a model, and the jobs that pair serves. The worker signs in once as each, and claims that agent's jobs for it. Every fallback the knowledge base's config allows is already applied, so a job no agent here accepts is not claimed by this worker.",
+            min_length=1,
+        ),
+    ]
+    port: Annotated[
+        int,
+        Field(description="The port the worker answers `/health` on.", ge=1, le=65535),
+    ]
+    log_level: Annotated[LogLevel, Field(alias="logLevel")]
+    log_format: Annotated[LogFormat, Field(alias="logFormat")]
 
 
 class ResourceAnnotations(WireModel, frozen=True, extra="forbid"):
