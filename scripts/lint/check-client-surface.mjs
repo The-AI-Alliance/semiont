@@ -205,6 +205,7 @@ function rustShape(isAsync, returns) {
   if (returns.startsWith('Running<')) return 'stream';
   if (returns.startsWith('Delegation<')) return 'delegation';
   if (returns === 'Upload') return 'upload';
+  if (returns === 'Claims') return 'claims';
   if (returns.startsWith('Typed<')) return 'events';
   if (isAsync && returns === 'Result<Option<u64>, SemiontError>') return 'count';
   if (isAsync && returns.startsWith('Result<')) return 'promise';

@@ -475,8 +475,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gateway-release-
 
-      - name: Build the gateway
-        run: cargo build --release --locked -p semiont-gateway
+      - name: Build the gateway and the Rust drivers
+        run: cargo build --release --locked -p semiont-gateway -p semiont-conformance-drivers
 
       - name: Setup Node.js
         uses: actions/setup-node@v7

@@ -12,6 +12,10 @@ import { REPO_ROOT } from './paths';
 
 export default function setup(project: TestProject): void {
   const drivers = project.getProvidedContext().sdkDrivers;
+  const rust = drivers['rust']?.worker?.[0];
+  if (rust !== undefined && !existsSync(rust)) {
+    throw new Error(`The Rust worker driver is not built: ${rust} does not exist. Run \`cargo build --release -p semiont-conformance-drivers\` at the repository root.`);
+  }
   if (!drivers['typescript']?.worker) return;
   // The worker driver runs the built SDK over the built transport.
   for (const pkg of ['http-transport', 'sdk']) {

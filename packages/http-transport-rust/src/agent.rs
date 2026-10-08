@@ -19,7 +19,7 @@ use semiont::retry::{self, RetryFacts, retry_with_backoff};
 use semiont::session::renew_when_due;
 use semiont::timing::{HTTP_REQUEST_TIMEOUT, REFRESH_RETRY};
 use semiont::transport::BoxFuture;
-use semiont::types::{AgentTokenRequest, AgentTokenResponse};
+use semiont::types::{AgentTokenRequest, AgentTokenResponse, UserId};
 use std::fmt;
 use std::sync::{Arc, Weak};
 use tokio::sync::watch;
@@ -82,6 +82,7 @@ pub struct AgentToken {
     agent: Agent,
     service: ServiceToken,
     http: reqwest::Client,
+    did: UserId,
     token: watch::Sender<Option<String>>,
 }
 
@@ -94,16 +95,25 @@ impl AgentToken {
         service: ServiceToken,
         http: reqwest::Client,
     ) -> Result<Arc<AgentToken>, AgentSignInError> {
+        let gateway = gateway.trim_end_matches('/').to_owned();
+        let signed_in = exchange(&gateway, &agent, &service, &http).await?;
         let agent = Arc::new(AgentToken {
-            gateway: gateway.trim_end_matches('/').to_owned(),
+            gateway,
             agent,
             service,
             http,
-            token: watch::channel(None).0,
+            did: signed_in.did,
+            token: watch::channel(Some(signed_in.token)).0,
         });
-        agent.renew().await?;
         tokio::spawn(keep_renewed(Arc::downgrade(&agent), agent.token()));
         Ok(agent)
+    }
+
+    /// The agent's DID, as the gateway minted it under the knowledge base's
+    /// own domain. It is carried as it came: re-derived from the URL the
+    /// process happens to dial, one agent has two DIDs.
+    pub fn did(&self) -> &UserId {
+        &self.did
     }
 
     /// The gateway the agent signs in at.
@@ -118,43 +128,49 @@ impl AgentToken {
 
     /// Exchange again, and make the answer the token.
     async fn renew(&self) -> Result<String, AgentSignInError> {
-        let token = self.exchange().await?;
+        let token = exchange(&self.gateway, &self.agent, &self.service, &self.http)
+            .await?
+            .token;
         self.token.send_replace(Some(token.clone()));
         Ok(token)
     }
+}
 
-    async fn exchange(&self) -> Result<String, AgentSignInError> {
-        let authorization = self
-            .service
-            .authorization()
-            .await
-            .map_err(AgentSignInError::SignIn)?;
-        let body = AgentTokenRequest {
-            provider: self.agent.provider.clone(),
-            model: self.agent.model.clone(),
-        };
-        let url = format!("{}/api/tokens/agent", self.gateway);
-        let response = self
-            .http
-            .post(&url)
-            .header("authorization", authorization)
-            .json(&body)
-            .timeout(HTTP_REQUEST_TIMEOUT)
-            .send()
-            .await
-            .map_err(|e| {
-                AgentSignInError::Unreachable(format!("{url} got no answer{}", why_unanswered(&e)))
-            })?;
-        if !response.status().is_success() {
-            return Err(AgentSignInError::Refused {
-                status: response.status().as_u16(),
-            });
-        }
-        let answer: AgentTokenResponse = response.json().await.map_err(|e| {
-            AgentSignInError::Malformed(format!("{url} did not answer an agent token: {e}"))
+/// One sign-in: the service account's token, exchanged at the gateway for
+/// the agent's, and the DID the gateway names the agent by.
+async fn exchange(
+    gateway: &str,
+    agent: &Agent,
+    service: &ServiceToken,
+    http: &reqwest::Client,
+) -> Result<AgentTokenResponse, AgentSignInError> {
+    let authorization = service
+        .authorization()
+        .await
+        .map_err(AgentSignInError::SignIn)?;
+    let body = AgentTokenRequest {
+        provider: agent.provider.clone(),
+        model: agent.model.clone(),
+    };
+    let url = format!("{gateway}/api/tokens/agent");
+    let response = http
+        .post(&url)
+        .header("authorization", authorization)
+        .json(&body)
+        .timeout(HTTP_REQUEST_TIMEOUT)
+        .send()
+        .await
+        .map_err(|e| {
+            AgentSignInError::Unreachable(format!("{url} got no answer{}", why_unanswered(&e)))
         })?;
-        Ok(answer.token)
+    if !response.status().is_success() {
+        return Err(AgentSignInError::Refused {
+            status: response.status().as_u16(),
+        });
     }
+    response.json().await.map_err(|e| {
+        AgentSignInError::Malformed(format!("{url} did not answer an agent token: {e}"))
+    })
 }
 
 impl TokenRefresher for AgentToken {

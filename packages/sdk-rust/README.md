@@ -249,6 +249,7 @@ A method's return type says how to use it.
 | nothing, from a plain `fn` | a signal to the client's own parts | called |
 | `async fn … -> Result<Option<u64>, SemiontError>` | a drive at the other participants | `.await?`: how many the gateway reached, `None` when it kept no count |
 | `Typed<C, BusFrames>` | one channel's events, from now on | `.next()` |
+| `Claims` | a worker's claims, from `job.claim` | `.next().await` for the next job the worker holds, or the next claim it was refused; a held job says its own lifecycle, and `complete`, `fail` and `cancel` take it by value |
 
 A `Running` and an `Upload` are consumed by value, so one operation is never
 started twice. Nothing is sent until one is first polled, and dropping one
@@ -425,6 +426,7 @@ Each module is documented on [docs.rs](https://docs.rs/semiont).
 | `types` | The protocol's types, generated from the spec when the crate is built: the ids, and every request, response and event |
 | `channels` | The bus's channels, one type each, naming its payload. A channel the protocol does not have, or a payload that is not that channel's, does not compile. |
 | `errors`, `timing`, `retry` | The failure codes, the deadlines and the retry rules every Semiont SDK shares |
+| `claims`, `job_filter` | A worker's side of the job queue: its claims, the jobs it holds, whether a failed job is retried, and whether a job is one a claim takes. What a worker promises is the [worker contract](../../docs/protocol/WORKER-CONTRACT.md) |
 | `session` | `SemiontSession`, `SemiontBrowser`, `SessionFactory`, `SessionSignals` |
 | `storage`, `sign_in_store` | Where a client keeps what must outlive it, and the sign-ins `semiont login` keeps |
 | `state`, `state_unit` | The state units, and what every unit commits to |

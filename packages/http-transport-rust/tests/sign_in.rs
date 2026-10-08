@@ -2583,6 +2583,40 @@ async fn a_first_sign_in_shows_the_code_and_gives_a_session_that_knows_who_it_is
     session.close().await;
 }
 
+// The DID is minted by the gateway, under the knowledge base's own domain, and
+// an agent carries it verbatim. Re-derived from the URL the process happens
+// to dial, one agent has two DIDs.
+#[tokio::test]
+async fn an_agent_carries_the_did_its_gateway_minted() {
+    let world = World::start().await;
+    world.answers([granted(&jwt(3600, 1), None)]);
+
+    let agent = AgentToken::sign_in(
+        &world.origin,
+        Agent {
+            provider: "example".to_owned(),
+            model: "indexer".to_owned(),
+        },
+        ServiceToken::new(
+            Credential {
+                issuer: world.issuer(),
+                client_id: "semiont-indexer".to_owned(),
+                client_secret: "a-secret".to_owned(),
+            },
+            world.http.clone(),
+        ),
+        world.http.clone(),
+    )
+    .await
+    .expect("signed in");
+
+    assert_eq!(agent.did().as_str(), "did:web:example.org:agents:indexer");
+    assert!(
+        !world.origin.contains("example.org"),
+        "the gateway is dialled somewhere else"
+    );
+}
+
 #[tokio::test]
 async fn the_daemon_signs_in_as_an_agent_and_is_given_each_completion() {
     let world = World::start().await;

@@ -527,7 +527,9 @@ failureClass !== "deterministic"  and  retryCount < maxRetries
 
 evaluated on the record before the failure is applied. A worker evaluates the same predicate, on
 the record it claimed, to set `willRetry` on its `job:fail`: `willRetryAfter` in the TypeScript SDK
-([`claims.ts`](../../packages/sdk/src/claims.ts)), which a held job's `fail` applies. An absent `failureClass`
+([`claims.ts`](../../packages/sdk/src/claims.ts)) and `will_retry_after` in the Rust SDK
+([`claims.rs`](../../packages/sdk-rust/src/claims.rs)), which a held job's `fail` applies. The
+dispatcher's own is the Rust SDK's. An absent `failureClass`
 counts as retryable. With the budgets set at admission, a `yield` job is never retried and a
 `mark` job is retried at most once.
 

@@ -23,7 +23,7 @@ Every namespace method returns exactly one of these. Which one is the method's r
 | `delegation` | A job another party does: the job's events as it goes, its completion the last of them. The completion is its verb's. | `DelegationObservable<C>` | `Delegation<C>` | `Delegation[C]` |
 | `upload` | An upload in flight: its progress, then the id of the resource created. | `UploadObservable` | `Upload` | `Upload` |
 | `cache` | A live query. Building it touches nothing; its one-shot read asks the service now. | `CacheObservable<T>` | `Cached<T>` | `Cached[T]` |
-| `claims` | A worker's claims: each job it comes to hold, one at a time, from the first claim on. A held job starts, reports and settles itself. | `ClaimsObservable` | — | — |
+| `claims` | A worker's claims: each job it comes to hold, one at a time, from the first claim on. A held job starts, reports and settles itself. | `ClaimsObservable` | `Claims` | — |
 | `signal` | Fire-and-forget. Nothing is returned and nothing is awaited. | a method returning `void` | a plain `fn` | a plain `def` returning `None` |
 | `count` | A drive at the other participants: how many the gateway reached, or no count when it kept none. | `Promise<number \| undefined>` | `async fn … -> Result<Option<u64>, SemiontError>` | `async def … -> int \| None` |
 | `events` | The events of one channel of the client's own bus, from now on. | a property named `<method>$` | `Typed<C, BusFrames>` | `Typed[P]` |

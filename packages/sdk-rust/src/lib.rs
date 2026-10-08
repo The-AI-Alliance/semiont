@@ -11,7 +11,9 @@
 //! keeps, as a storage (`sign_in_store`); the media types a knowledge base
 //! admits (`media_types`); the knowledge bases a launcher
 //! manages (`discovery`); when a failure is worth another attempt; whether a
-//! job is one a claim takes (`job_filter`);
+//! job is one a claim takes (`job_filter`); a worker's side of the job queue:
+//! its claims, the jobs it holds and whether a failed one is retried
+//! (`claims`);
 //! how a knowledge base names its principals and the realm's roles; and the
 //! bus log. It does no HTTP and links no telemetry:
 //! `semiont-http-transport` carries it over a gateway.
@@ -26,6 +28,7 @@ pub mod bus_log;
 pub mod cache;
 pub mod cached;
 pub mod channels;
+pub mod claims;
 pub mod client;
 pub mod discovery;
 pub mod errors;

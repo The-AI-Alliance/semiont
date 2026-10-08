@@ -1,10 +1,12 @@
-//! Job: a job's lifecycle as it is announced, its status, and its
-//! cancellation. Creating a job is `mark.delegate` and `yield_.delegate`.
+//! Job: a job's lifecycle as it is announced, its status, its cancellation,
+//! and, for a worker, the claiming of jobs. Creating a job is `mark.delegate`
+//! and `yield_.delegate`.
 
 use crate::bus::Typed;
 use crate::channels::{
     JobCancelRequested, JobComplete, JobFail, JobQueued, JobReportProgress, JobStatusRequested,
 };
+use crate::claims::{ClaimOptions, Claims};
 use crate::client::Links;
 use crate::errors::{BusRequestError, BusRequestErrorCode, SemiontError};
 use crate::event_bus::BusFrames;
@@ -107,6 +109,15 @@ impl JobNamespace {
             job_type: None,
         })
         .await
+    }
+
+    /// A worker's side: claim the jobs `options.accepts` describes, and hold
+    /// one at a time. Claiming begins when the claims are first read, and each
+    /// job they hand out says its own lifecycle and settles once
+    /// (docs/protocol/WORKER-CONTRACT.md). The transport's stream must name
+    /// `claims::JOB_CLAIM_CHANNELS`.
+    pub fn claim(&self, options: ClaimOptions) -> Claims {
+        Claims::new(self.links.wire.clone(), options)
     }
 
     /// Signal: the cancellation of every pending job of a type is wanted.

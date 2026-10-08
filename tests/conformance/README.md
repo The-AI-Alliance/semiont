@@ -26,8 +26,8 @@ and a proxy that stands between a client and the gateway.
 
 All need a built gateway and `nats-server` (2.10 or later) on `PATH`. The
 dispatcher suite also needs a built dispatcher, the Archivist suite a built
-Archivist and `git`, the SDK suite the Rust drivers and the packages built,
-and the worker suite the packages built:
+Archivist and `git`, and the SDK suite and the worker suite the Rust drivers
+and the packages built:
 
 ```bash
 cargo build --release -p semiont-gateway -p semiont-dispatcher -p semiont-archivist -p semiont-conformance-drivers
