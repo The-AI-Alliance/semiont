@@ -58,7 +58,7 @@ interface CommentsPanelProps {
 /**
  * Panel for managing comment annotations with text input
  *
- * @emits mark:submit - Create new comment annotation. Payload: { motivation: 'commenting', selector: Selector | Selector[], body: Body[] }
+ * @emits mark:submit - Create new comment annotation. Payload: MarkSubmitEvent with motivation 'commenting' and the comment as a TextualBody
  * @emits mark:cancel-pending - Cancel pending comment annotation. Payload: undefined
  * @subscribes browse:click - Annotation clicked. Payload: { annotationId: string }
  */

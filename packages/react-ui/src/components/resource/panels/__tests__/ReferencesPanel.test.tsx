@@ -355,7 +355,7 @@ describe('ReferencesPanel Component', () => {
       expect(startButton).not.toBeDisabled();
     });
 
-    it('should emit annotate:detect-request event with selected types and includeDescriptiveReferences', async () => {
+    it('should emit mark:delegate-request event with selected types and includeDescriptiveReferences', async () => {
       const tracker = createEventTracker();
       renderWithEventBus(<ReferencesPanel {...panelProps()} />, tracker);
 
@@ -376,7 +376,7 @@ describe('ReferencesPanel Component', () => {
       });
     });
 
-    it('should emit annotate:detect-request event with includeDescriptiveReferences when checkbox is checked', async () => {
+    it('should emit mark:delegate-request event with includeDescriptiveReferences when checkbox is checked', async () => {
       const tracker = createEventTracker();
       renderWithEventBus(<ReferencesPanel {...panelProps()} />, tracker);
 

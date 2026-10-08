@@ -62,9 +62,9 @@ interface TaggingPanelProps {
 /**
  * Panel for managing tag annotations with schema-based annotation
  *
- * @emits annotate:detect-request - Start tag annotation. Payload: { motivation: 'tagging', options: { schemaId: string, categories: string[] } }
+ * @emits mark:delegate-request - Start tag annotation. Payload: MarkDelegateRequestEvent, its params those of a 'tagging' job: schemaId, categories, language, sourceLanguage
  * @emits mark:cancel-pending - Cancel pending tag annotation. Payload: undefined
- * @emits mark:submit - Create new tag annotation. Payload: { motivation: 'tagging', selector: Selector | Selector[], body: Body[] }
+ * @emits mark:submit - Create new tag annotation. Payload: MarkSubmitEvent with motivation 'tagging' and two TextualBody items, the category and the schema's id
  * @subscribes browse:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function TaggingPanel({

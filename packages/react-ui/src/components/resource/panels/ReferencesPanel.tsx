@@ -93,8 +93,8 @@ interface Props {
 /**
  * Panel for managing reference annotations with entity type annotation
  *
- * @emits annotate:detect-request - Start reference annotation. Payload: { motivation: 'linking', options: { entityTypes: string[], includeDescriptiveReferences: boolean } }
- * @emits mark:submit - Create new reference annotation. Payload: { motivation: 'linking', selector: Selector | Selector[], body: Body[] }
+ * @emits mark:delegate-request - Start reference annotation. Payload: MarkDelegateRequestEvent, its params those of a 'linking' job: entityTypes, includeDescriptiveReferences, language, sourceLanguage
+ * @emits mark:submit - Create new reference annotation. Payload: MarkSubmitEvent with motivation 'linking', and the chosen entity types as a TextualBody when any are chosen
  * @emits mark:cancel-pending - Cancel pending reference annotation. Payload: undefined
  * @subscribes browse:click - Annotation clicked. Payload: { annotationId: string }
  */

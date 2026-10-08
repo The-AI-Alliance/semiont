@@ -564,7 +564,7 @@ describe('TaggingPanel Component', () => {
       expect(annotateButton).not.toBeDisabled();
     });
 
-    it('should emit annotate:detect-request event with selected schema and categories', async () => {
+    it('should emit mark:delegate-request event with selected schema and categories', async () => {
       const tracker = createEventTracker();
       renderWithEventBus(
         <TaggingPanel

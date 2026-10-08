@@ -58,7 +58,7 @@ interface AssessmentPanelProps {
 /**
  * Panel for managing assessment annotations with text input
  *
- * @emits mark:submit - Create new assessment annotation. Payload: { motivation: 'assessing', selector: Selector | Selector[], body: Body[] }
+ * @emits mark:submit - Create new assessment annotation. Payload: MarkSubmitEvent with motivation 'assessing', and a TextualBody when there is text
  * @emits mark:cancel-pending - Cancel pending assessment annotation. Payload: undefined
  * @subscribes browse:click - Annotation clicked. Payload: { annotationId: string }
  */
