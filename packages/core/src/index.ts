@@ -343,6 +343,7 @@ export {
 export type { Point, BoundingBox } from './svg-utils';
 
 // Text context extraction (depends on fuzzy-anchor)
+export { textOffsets, type TextOffsets } from './text-offsets';
 export { extractContext, reconcileSelector } from './text-context';
 export type { ReconciledSelector, AnchorMethod, LlmSelectorInput } from './text-context';
 

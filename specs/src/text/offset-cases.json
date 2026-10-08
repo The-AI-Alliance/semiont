@@ -1,0 +1,100 @@
+{
+  "$comment": "What a text offset counts: Unicode code points from the start of the text, on the wire, in the record and in every store. A case is a text and some spans of it. `codePoints` is how many code points the text is: an offset may equal it and may not exceed it. A span is named by its words, `exact`, and by which occurrence of them it is (`occurrence`, 1 for the first); `start` and `end` are the offsets it must be given, which are the number of code points before its first and before the one after its last. An implementation runs every span both ways. It finds the span by its own search, in its own string's count, converts where it found it to offsets, and must get `start` and `end`. And it takes `start` and `end`, converts them to its own string's count, and the text there must be `exact`. This is the one case table with characters outside the Basic Multilingual Plane, because they are what tell the counts apart: a string indexed in UTF-16 code units (JavaScript, Java, C#) counts each of them as two, and one indexed in UTF-8 bytes as four. A combining mark and a joiner are each a code point of their own, so what a reader sees as one character can be several. Run by TypeScript (packages/core: `textOffsets`, the conversion every maker and applier of an offset goes through). An implementation in another language that makes or applies an offset runs it too.",
+  "cases": [
+    {
+      "why": "a text of the basic plane: every count agrees, and the offset is the position",
+      "text": "The quick brown fox",
+      "codePoints": 19,
+      "spans": [
+        { "exact": "The", "occurrence": 1, "start": 0, "end": 3 },
+        { "exact": "quick", "occurrence": 1, "start": 4, "end": 9 },
+        { "exact": "fox", "occurrence": 1, "start": 16, "end": 19 }
+      ]
+    },
+    {
+      "why": "one character outside the basic plane is one code point: what follows it is one further on, not two",
+      "text": "a😀b",
+      "codePoints": 3,
+      "spans": [
+        { "exact": "a", "occurrence": 1, "start": 0, "end": 1 },
+        { "exact": "😀", "occurrence": 1, "start": 1, "end": 2 },
+        { "exact": "b", "occurrence": 1, "start": 2, "end": 3 }
+      ]
+    },
+    {
+      "why": "a span long after such a character: every offset after it is counted the same way",
+      "text": "😀 first, then words",
+      "codePoints": 19,
+      "spans": [
+        { "exact": "first", "occurrence": 1, "start": 2, "end": 7 },
+        { "exact": "words", "occurrence": 1, "start": 14, "end": 19 }
+      ]
+    },
+    {
+      "why": "a span that holds such a character: it adds one to the span's length, and a span may begin or end on it",
+      "text": "let 𝑥 be",
+      "codePoints": 8,
+      "spans": [
+        { "exact": "let 𝑥", "occurrence": 1, "start": 0, "end": 5 },
+        { "exact": "𝑥 be", "occurrence": 1, "start": 4, "end": 8 },
+        { "exact": "𝑥", "occurrence": 1, "start": 4, "end": 5 }
+      ]
+    },
+    {
+      "why": "several such characters, among characters of the basic plane that are not Latin: each is one, wherever it is",
+      "text": "𠮷野家 と 𠮷田",
+      "codePoints": 8,
+      "spans": [
+        { "exact": "𠮷", "occurrence": 1, "start": 0, "end": 1 },
+        { "exact": "野家", "occurrence": 1, "start": 1, "end": 3 },
+        { "exact": "𠮷", "occurrence": 2, "start": 6, "end": 7 },
+        { "exact": "田", "occurrence": 1, "start": 7, "end": 8 }
+      ]
+    },
+    {
+      "why": "a combining mark is a code point of its own, in the basic plane: the accented letter here is two",
+      "text": "café au lait",
+      "codePoints": 13,
+      "spans": [
+        { "exact": "café", "occurrence": 1, "start": 0, "end": 5 },
+        { "exact": "au", "occurrence": 1, "start": 6, "end": 8 },
+        { "exact": "lait", "occurrence": 1, "start": 9, "end": 13 }
+      ]
+    },
+    {
+      "why": "a joined sequence a reader sees as one picture is five code points: three people and two joiners",
+      "text": "👩‍👩‍👧 family",
+      "codePoints": 12,
+      "spans": [
+        { "exact": "👩‍👩‍👧", "occurrence": 1, "start": 0, "end": 5 },
+        { "exact": "family", "occurrence": 1, "start": 6, "end": 12 }
+      ]
+    },
+    {
+      "why": "a flag is two code points, each outside the basic plane",
+      "text": "🇫🇷 Paris",
+      "codePoints": 8,
+      "spans": [
+        { "exact": "🇫🇷", "occurrence": 1, "start": 0, "end": 2 },
+        { "exact": "Paris", "occurrence": 1, "start": 3, "end": 8 }
+      ]
+    },
+    {
+      "why": "a span that ends the text ends at the text's count of code points",
+      "text": "end 🙂",
+      "codePoints": 5,
+      "spans": [
+        { "exact": "🙂", "occurrence": 1, "start": 4, "end": 5 }
+      ]
+    },
+    {
+      "why": "the same words twice, with such a character between: the second occurrence is counted past it",
+      "text": "ab 🎉 ab",
+      "codePoints": 7,
+      "spans": [
+        { "exact": "ab", "occurrence": 1, "start": 0, "end": 2 },
+        { "exact": "ab", "occurrence": 2, "start": 5, "end": 7 }
+      ]
+    }
+  ]
+}
