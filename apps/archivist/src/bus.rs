@@ -1,9 +1,23 @@
 //! The Archivist on the bus: the channels it answers, a reply to each
 //! request, and every appended event published as a fact.
+//!
+//! The rosters and the dispatch name each channel by its type, which exists
+//! only for a channel the bus registry declares. `lint:spec-channel-rosters`
+//! holds the two to each other and to docs/protocol/ARCHIVIST.md.
 
 use crate::archivist::{Archivist, Refusal};
 use crate::{browse, commands};
 use semiont::bus::{Bus, operation};
+use semiont::channels::{
+    BindUpdateBody, BrowseAgentsRequested, BrowseAnchoredTextRequested,
+    BrowseAnnotationHistoryRequested, BrowseAnnotationRequested, BrowseAnnotationsRequested,
+    BrowseDirectoryRequested, BrowseEntityTypesRequested, BrowseEventsRequested, BrowseKbRequested,
+    BrowseResourceRequested, BrowseResourcesRequested, BrowseTagSchemasRequested, Channel,
+    FrameAddEntityType, FrameAddTagSchema, JobAssign, JobComplete, JobFail, JobStart, MarkArchive,
+    MarkCommit, MarkCreateRequest, MarkDelete, MarkUnarchive, MarkUpdateBody,
+    MarkUpdateEntityTypes, PersonProfile, SmeltSettled, YieldCloneCreate, YieldClonePersist,
+    YieldCloneResourceRequested, YieldCloneTokenRequested, YieldCreate, YieldUpdate,
+};
 use semiont::transport::{Envelope, Frame, Frames};
 use semiont_archivist_record::Object;
 use semiont_observability::logging;
@@ -15,45 +29,45 @@ use tokio::sync::mpsc::UnboundedReceiver;
 /// The commands: each channel's frames are handled one at a time, in the
 /// order they arrive.
 pub const COMMANDS: [&str; 19] = [
-    "yield:create",
-    "yield:clone-persist",
-    "yield:update",
-    "yield:clone-create",
-    "mark:create-request",
-    "mark:commit",
-    "mark:delete",
-    "mark:update-body",
-    "bind:update-body",
-    "mark:archive",
-    "mark:unarchive",
-    "mark:update-entity-types",
-    "frame:add-entity-type",
-    "frame:add-tag-schema",
-    "person:profile",
-    "job:start",
-    "job:assign",
-    "job:complete",
-    "job:fail",
+    YieldCreate::NAME,
+    YieldClonePersist::NAME,
+    YieldUpdate::NAME,
+    YieldCloneCreate::NAME,
+    MarkCreateRequest::NAME,
+    MarkCommit::NAME,
+    MarkDelete::NAME,
+    MarkUpdateBody::NAME,
+    BindUpdateBody::NAME,
+    MarkArchive::NAME,
+    MarkUnarchive::NAME,
+    MarkUpdateEntityTypes::NAME,
+    FrameAddEntityType::NAME,
+    FrameAddTagSchema::NAME,
+    PersonProfile::NAME,
+    JobStart::NAME,
+    JobAssign::NAME,
+    JobComplete::NAME,
+    JobFail::NAME,
 ];
 
 /// The reads, and the Smelter's signal: answered as they arrive, in no
 /// particular order.
 pub const READS: [&str; 15] = [
-    "browse:resource-requested",
-    "browse:resources-requested",
-    "browse:annotations-requested",
-    "browse:annotation-requested",
-    "browse:annotation-history-requested",
-    "browse:events-requested",
-    "browse:anchored-text-requested",
-    "browse:entity-types-requested",
-    "browse:tag-schemas-requested",
-    "browse:agents-requested",
-    "browse:kb-requested",
-    "browse:directory-requested",
-    "yield:clone-token-requested",
-    "yield:clone-resource-requested",
-    "smelt:settled",
+    BrowseResourceRequested::NAME,
+    BrowseResourcesRequested::NAME,
+    BrowseAnnotationsRequested::NAME,
+    BrowseAnnotationRequested::NAME,
+    BrowseAnnotationHistoryRequested::NAME,
+    BrowseEventsRequested::NAME,
+    BrowseAnchoredTextRequested::NAME,
+    BrowseEntityTypesRequested::NAME,
+    BrowseTagSchemasRequested::NAME,
+    BrowseAgentsRequested::NAME,
+    BrowseKbRequested::NAME,
+    BrowseDirectoryRequested::NAME,
+    YieldCloneTokenRequested::NAME,
+    YieldCloneResourceRequested::NAME,
+    SmeltSettled::NAME,
 ];
 
 /// A reply: the channel it goes on, and what it carries.
@@ -73,7 +87,7 @@ fn refused(refusal: Refusal) -> Value {
 async fn handle(archivist: &Archivist, channel: &str, payload: &Object) -> Option<Reply> {
     // The channels that are no operation's request.
     match channel {
-        "smelt:settled" => {
+        SmeltSettled::NAME => {
             if let (Some(resource), Some(checksum), Some(outcome)) = (
                 payload.get("resourceId").and_then(Value::as_str),
                 payload.get("contentChecksum").and_then(Value::as_str),
@@ -83,7 +97,7 @@ async fn handle(archivist: &Archivist, channel: &str, payload: &Object) -> Optio
             }
             return None;
         }
-        "mark:update-body" => {
+        MarkUpdateBody::NAME => {
             return match commands::update_body(archivist, channel, payload).await {
                 Ok(_) => None,
                 Err(refusal) => Some(Reply {
@@ -92,9 +106,13 @@ async fn handle(archivist: &Archivist, channel: &str, payload: &Object) -> Optio
                 }),
             };
         }
-        "person:profile" | "job:start" | "job:assign" | "job:complete" | "job:fail" => {
+        PersonProfile::NAME
+        | JobStart::NAME
+        | JobAssign::NAME
+        | JobComplete::NAME
+        | JobFail::NAME => {
             let outcome = match channel {
-                "person:profile" => commands::person_profile(archivist, payload).await,
+                PersonProfile::NAME => commands::person_profile(archivist, payload).await,
                 _ => commands::job(archivist, channel, payload).await,
             };
             if let Err(refusal) = outcome {
@@ -109,7 +127,7 @@ async fn handle(archivist: &Archivist, channel: &str, payload: &Object) -> Optio
     }
 
     let operation = operation(channel)?;
-    if channel == "browse:directory-requested" {
+    if channel == BrowseDirectoryRequested::NAME {
         return Some(match browse::directory(archivist, payload).await {
             Ok(response) => Reply {
                 channel: operation.result,
@@ -122,34 +140,34 @@ async fn handle(archivist: &Archivist, channel: &str, payload: &Object) -> Optio
         });
     }
     let answered = match channel {
-        "yield:create" => commands::yield_create(archivist, payload).await,
-        "yield:clone-persist" => commands::yield_clone_persist(archivist, payload).await,
-        "yield:update" => commands::yield_update(archivist, payload).await,
-        "yield:clone-create" => commands::clone_create(archivist, payload).await,
-        "yield:clone-token-requested" => commands::clone_token(archivist, payload).await,
-        "yield:clone-resource-requested" => commands::clone_resource(archivist, payload).await,
-        "mark:create-request" => commands::mark_create_request(archivist, payload).await,
-        "mark:commit" => commands::mark_commit(archivist, payload).await,
-        "mark:delete" => commands::mark_delete(archivist, payload).await,
-        "bind:update-body" => commands::update_body(archivist, channel, payload).await,
-        "mark:archive" => commands::mark_archive(archivist, payload).await,
-        "mark:unarchive" => commands::mark_unarchive(archivist, payload).await,
-        "mark:update-entity-types" => commands::mark_update_entity_types(archivist, payload).await,
-        "frame:add-entity-type" => commands::frame_add_entity_type(archivist, payload).await,
-        "frame:add-tag-schema" => commands::frame_add_tag_schema(archivist, payload).await,
-        "browse:resource-requested" => browse::resource(archivist, payload).await,
-        "browse:resources-requested" => browse::resources(archivist, payload).await,
-        "browse:annotations-requested" => browse::annotations(archivist, payload).await,
-        "browse:annotation-requested" => browse::annotation(archivist, payload).await,
-        "browse:annotation-history-requested" => {
+        YieldCreate::NAME => commands::yield_create(archivist, payload).await,
+        YieldClonePersist::NAME => commands::yield_clone_persist(archivist, payload).await,
+        YieldUpdate::NAME => commands::yield_update(archivist, payload).await,
+        YieldCloneCreate::NAME => commands::clone_create(archivist, payload).await,
+        YieldCloneTokenRequested::NAME => commands::clone_token(archivist, payload).await,
+        YieldCloneResourceRequested::NAME => commands::clone_resource(archivist, payload).await,
+        MarkCreateRequest::NAME => commands::mark_create_request(archivist, payload).await,
+        MarkCommit::NAME => commands::mark_commit(archivist, payload).await,
+        MarkDelete::NAME => commands::mark_delete(archivist, payload).await,
+        BindUpdateBody::NAME => commands::update_body(archivist, channel, payload).await,
+        MarkArchive::NAME => commands::mark_archive(archivist, payload).await,
+        MarkUnarchive::NAME => commands::mark_unarchive(archivist, payload).await,
+        MarkUpdateEntityTypes::NAME => commands::mark_update_entity_types(archivist, payload).await,
+        FrameAddEntityType::NAME => commands::frame_add_entity_type(archivist, payload).await,
+        FrameAddTagSchema::NAME => commands::frame_add_tag_schema(archivist, payload).await,
+        BrowseResourceRequested::NAME => browse::resource(archivist, payload).await,
+        BrowseResourcesRequested::NAME => browse::resources(archivist, payload).await,
+        BrowseAnnotationsRequested::NAME => browse::annotations(archivist, payload).await,
+        BrowseAnnotationRequested::NAME => browse::annotation(archivist, payload).await,
+        BrowseAnnotationHistoryRequested::NAME => {
             browse::annotation_history(archivist, payload).await
         }
-        "browse:events-requested" => browse::events(archivist, payload).await,
-        "browse:anchored-text-requested" => browse::anchored(archivist, payload).await,
-        "browse:entity-types-requested" => browse::entity_types(archivist, payload).await,
-        "browse:tag-schemas-requested" => browse::tag_schemas(archivist, payload).await,
-        "browse:agents-requested" => browse::agents(archivist, payload).await,
-        "browse:kb-requested" => browse::knowledge_base(archivist, payload).await,
+        BrowseEventsRequested::NAME => browse::events(archivist, payload).await,
+        BrowseAnchoredTextRequested::NAME => browse::anchored(archivist, payload).await,
+        BrowseEntityTypesRequested::NAME => browse::entity_types(archivist, payload).await,
+        BrowseTagSchemasRequested::NAME => browse::tag_schemas(archivist, payload).await,
+        BrowseAgentsRequested::NAME => browse::agents(archivist, payload).await,
+        BrowseKbRequested::NAME => browse::knowledge_base(archivist, payload).await,
         _ => return None,
     };
     Some(match answered {

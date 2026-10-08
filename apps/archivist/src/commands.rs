@@ -4,6 +4,7 @@
 use crate::archivist::{
     Archivist, CloneToken, Refusal, event, locked, primary_representation, text,
 };
+use semiont::channels::{Channel, JobAssign, JobComplete, JobStart};
 use semiont::media_types::{AnchoringModel, capabilities_of};
 use semiont::roles::WORKER_ROLE;
 use semiont_archivist_record::agents::attribution;
@@ -552,7 +553,7 @@ fn recorded_verb(
 pub async fn job(archivist: &Archivist, channel: &str, command: &Object) -> Answered {
     let user = sender(channel, command)?;
     let resource_id = required(channel, command, "resourceId")?;
-    if channel == "job:complete"
+    if channel == JobComplete::NAME
         && let Some(job_id) = command.get("jobId")
         && let Some(recorded) = recorded_verb(archivist, resource_id, job_id)?
         && command.get("jobType") != Some(&recorded)
@@ -569,12 +570,12 @@ pub async fn job(archivist: &Archivist, channel: &str, command: &Object) -> Answ
         return Ok(json!({}));
     }
     let (kind, fields): (&str, &[&str]) = match channel {
-        "job:start" => ("job:started", &["jobId", "jobType", "annotationId"]),
-        "job:assign" => (
+        JobStart::NAME => ("job:started", &["jobId", "jobType", "annotationId"]),
+        JobAssign::NAME => (
             "job:assigned",
             &["jobId", "jobType", "resourceId", "holder", "requester"],
         ),
-        "job:complete" => (
+        JobComplete::NAME => (
             "job:completed",
             &[
                 "jobId",

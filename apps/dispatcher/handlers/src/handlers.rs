@@ -7,6 +7,10 @@
 
 use crate::admission::{Refusal, Vocabulary, admit};
 use crate::queue::{Checkpoint, Claim, FailOutcome, JobQueue, QueueError};
+use semiont::channels::{
+    Channel, JobCancel, JobCancelRequested, JobCheckpoint, JobClaim, JobComplete, JobCreate,
+    JobFail, JobReportProgress, JobStatusRequested,
+};
 use semiont::roles::WORKER_ROLE;
 use semiont::types::{
     BusFrame, CommandError, CommandErrorCode, Job, JobAssignCommand, JobCancelCommand,
@@ -22,17 +26,20 @@ use serde::de::DeserializeOwned;
 use serde_json::{Map, Value, json};
 use std::sync::Arc;
 
-/// The channels the dispatcher subscribes to and answers.
+/// The channels the dispatcher subscribes to and answers. Each is named, here
+/// and in `handle`, by its type, which exists only for a channel the bus
+/// registry declares. `lint:spec-channel-rosters` holds the two to each other
+/// and to JOBS.md § Channels.
 pub const COMMANDS: [&str; 9] = [
-    "job:create",
-    "job:claim",
-    "job:complete",
-    "job:fail",
-    "job:report-progress",
-    "job:checkpoint",
-    "job:cancel-requested",
-    "job:cancel",
-    "job:status-requested",
+    JobCreate::NAME,
+    JobClaim::NAME,
+    JobComplete::NAME,
+    JobFail::NAME,
+    JobReportProgress::NAME,
+    JobCheckpoint::NAME,
+    JobCancelRequested::NAME,
+    JobCancel::NAME,
+    JobStatusRequested::NAME,
 ];
 
 /// A frame the dispatcher sends in answer: on `channel`, correlated when it
@@ -84,26 +91,21 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
     /// Handle one frame of a channel in `COMMANDS`; answer the replies it owes, in order.
     pub async fn handle(&self, frame: BusFrame) -> Vec<Reply> {
         let correlation_id = frame.correlation_id.clone();
+        let channel = frame.channel.as_str();
         let payload = Value::Object(frame.payload);
-        match frame.channel.as_str() {
-            "job:create" => self.create(payload, correlation_id).await,
-            "job:claim" => self.claim(payload, correlation_id).await,
-            "job:complete" => {
-                self.signal(payload, "job:complete", |c| self.complete(c))
+        match channel {
+            JobCreate::NAME => self.create(payload, correlation_id).await,
+            JobClaim::NAME => self.claim(payload, correlation_id).await,
+            JobComplete::NAME => self.signal(payload, channel, |c| self.complete(c)).await,
+            JobFail::NAME => self.signal(payload, channel, |c| self.fail(c)).await,
+            JobReportProgress::NAME => {
+                self.signal(payload, channel, |c| self.report_progress(c))
                     .await
             }
-            "job:fail" => self.signal(payload, "job:fail", |c| self.fail(c)).await,
-            "job:report-progress" => {
-                self.signal(payload, "job:report-progress", |c| self.report_progress(c))
-                    .await
-            }
-            "job:checkpoint" => {
-                self.signal(payload, "job:checkpoint", |c| self.checkpoint(c))
-                    .await
-            }
-            "job:cancel-requested" => self.cancel_requested(payload, correlation_id).await,
-            "job:cancel" => self.signal(payload, "job:cancel", |c| self.cancel(c)).await,
-            "job:status-requested" => self.status(payload, correlation_id).await,
+            JobCheckpoint::NAME => self.signal(payload, channel, |c| self.checkpoint(c)).await,
+            JobCancelRequested::NAME => self.cancel_requested(payload, correlation_id).await,
+            JobCancel::NAME => self.signal(payload, channel, |c| self.cancel(c)).await,
+            JobStatusRequested::NAME => self.status(payload, correlation_id).await,
             other => {
                 logging::warn(
                     "A frame on a channel the dispatcher does not answer",

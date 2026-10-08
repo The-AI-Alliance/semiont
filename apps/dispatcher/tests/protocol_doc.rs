@@ -1,10 +1,13 @@
-//! docs/protocol/JOBS.md describes every channel the dispatcher answers or
-//! emits. The document is what another implementation of the dispatcher is
-//! written from, so a channel the code grows and the document does not is
-//! behaviour the next implementation will not have.
+//! docs/protocol/JOBS.md describes every channel the dispatcher emits: the
+//! replies of its operations, and the two it sends on its own. The document
+//! is what another implementation of the dispatcher is written from, so a
+//! channel the code grows and the document does not is behaviour the next
+//! implementation will not have.
 //!
 //! The channels are read from the dispatcher's own source: every `job:`
-//! channel named in a string literal of its three crates.
+//! channel named in a string literal of its three crates. The channels it
+//! answers are named there by their types, and `lint:spec-channel-rosters`
+//! holds those to the document.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -38,7 +41,7 @@ fn channels(source: &str, into: &mut BTreeSet<String>) {
 }
 
 #[test]
-fn the_job_protocol_document_names_every_channel_the_dispatcher_answers_or_emits() {
+fn the_job_protocol_document_names_every_channel_the_dispatcher_emits() {
     let mut files = Vec::new();
     for crate_dir in ["src", "handlers/src", "jetstream/src"] {
         rust_files(&root().join(crate_dir), &mut files);
@@ -50,9 +53,11 @@ fn the_job_protocol_document_names_every_channel_the_dispatcher_answers_or_emits
             &mut named,
         );
     }
+    // The result and the failure of each of its four operations, `job:assign`
+    // and `job:queued`.
     assert!(
-        named.len() > 9,
-        "found only {named:?} in the dispatcher's source: the census reads nothing"
+        named.len() >= 10,
+        "found only {named:?} in the dispatcher's source: the census reads less than the dispatcher emits"
     );
 
     let doc = std::fs::read_to_string(root().join("../../docs/protocol/JOBS.md"))
