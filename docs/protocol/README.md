@@ -61,7 +61,7 @@ The bus is not defined in prose. **[`specs/src/bus/registry.json`](../../specs/s
 
 The TypeScript, Rust, Go and Python clients each *generate* their channel tables from that file. Four implementations in four languages derive from one artifact, which is the practical answer to "is this a protocol or just a TypeScript library."
 
-The same holds one level up. **[`specs/src/client/surface.json`](../../specs/src/client/surface.json)** declares every method an SDK gives each verb and the shape of what it returns. Every SDK is held to it: a lint checks each SDK's methods against the table, and each SDK's own tests run the table's cases.
+The same holds one level up. **[`specs/src/client/surface.json`](../../specs/src/client/surface.json)** declares every method an SDK gives each verb and the shape of what it returns, and the members of what a worker is handed: its claims, and a job it holds. Every SDK is held to it: a lint checks each SDK's methods and those members against the table, and each SDK's own tests run the table's cases.
 
 ## Speaking the protocol
 

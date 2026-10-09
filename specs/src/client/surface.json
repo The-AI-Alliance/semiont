@@ -1,5 +1,5 @@
 {
-  "$comment": "AUTHORITY for the surface of a Semiont client: every namespace, every method, the shape of what it returns, and what calling it does first. Every SDK is held to this table two ways. Its signatures are read by scripts/lint/check-client-surface.mjs, which fails on a method the table lacks, one an SDK lacks, and one whose return shape is not the row's. Its behaviour is run: each SDK's surface test calls every method as each of its `cases` states and holds what the call did to the row. A method name is the table's, in camelCase; an SDK spells it by its language's convention (`resourceContent` is `resource_content` in Rust), and a namespace whose name is a keyword there takes a trailing underscore (`yield_`, `match_`). An `events` row is a property named `<method>$` in TypeScript. `absent` names an SDK that does not have the method, and why: the lint then fails if that SDK has it, so an exemption that stopped being true is caught. Add a row here before adding a method to any SDK.",
+  "$comment": "AUTHORITY for the surface of a Semiont client: every namespace, every method, the shape of what it returns, and what calling it does first. Every SDK is held to this table two ways. Its signatures are read by scripts/lint/check-client-surface.mjs, which fails on a method the table lacks, one an SDK lacks, and one whose return shape is not the row's. Its behaviour is run: each SDK's surface test calls every method as each of its `cases` states and holds what the call did to the row. A method name is the table's, in camelCase; an SDK spells it by its language's convention (`resourceContent` is `resource_content` in Rust), and a namespace whose name is a keyword there takes a trailing underscore (`yield_`, `match_`). An `events` row is a property named `<method>$` in TypeScript. `absent` names an SDK that does not have the method, and why: the lint then fails if that SDK has it, so an exemption that stopped being true is caught. Add a row here before adding a method to any SDK. `worker` is the surface of what a worker is handed: the claims `job.claim` returns, and a job the worker holds. Each lists its members by name, and the same lint holds every SDK to the list both ways: a member the list has and an SDK lacks, and a public member an SDK has and the list lacks. A member is held by its name alone, spelled as its language spells it, and its form is its language's: what a held job states is a property in TypeScript and Python and a method in Rust, and a property that gives a stream of values is named `<member>$` in TypeScript. What a language's own protocols give a type is no member here: how a type is made, Python's names that begin with an underscore, its `__aenter__` and `__anext__` among them, Rust's trait implementations, and what a TypeScript class inherits from a class the SDK does not declare. `absent` is as it is for a method. `named` gives the name an SDK has the member under where its ecosystem has a name of its own for it, and why: the lint then fails if that SDK lacks that name, or has the table's name as well. `takes` marks a member a held job has as its verb's: for each verb, the schema of what the member takes. What a member does is not held here and these rows have no cases: docs/protocol/WORKER-CONTRACT.md states it, and the worker conformance suite (tests/conformance/worker) holds each SDK to it. Add a member here before adding it to any SDK.",
   "shapes": {
     "promise": "Asked once, answered once: the value, or a failure with a code.",
     "stream": "A long-running operation: what it reports as it goes, then its final value. Awaited, it gives the final value.",
@@ -712,6 +712,67 @@
           "via": { "gateway": "getStatus" },
           "cases": [{ "args": {}, "sends": {} }]
         }
+      ]
+    }
+  ],
+  "worker": [
+    {
+      "handed": "claims",
+      "docs": "What `job.claim` returns: each job the worker comes to hold, one at a time, and what the worker can say of itself meanwhile. How the jobs are read is the language's: subscribed to in TypeScript, iterated in Python, asked for one at a time in Rust.",
+      "members": [
+        {
+          "member": "next",
+          "absent": {
+            "typescript": "The claims are an rxjs Observable, read by subscribing to them: `subscribe` is rxjs's own, and the SDK declares no member for it.",
+            "python": "The claims are an asynchronous iterator, read with `async for`: `__anext__` is the language's protocol."
+          }
+        },
+        {
+          "member": "refused",
+          "absent": {
+            "rust": "`next` answers a `Result`, and a claim that was refused is its `Err`: it is handed out where a job would be.",
+            "python": "The claims are iterated, and a claim that was refused is handed out where a job would be, as a `ClaimRefusal`: `match` tells the two apart."
+          }
+        },
+        { "member": "stalled" },
+        { "member": "vitals" },
+        {
+          "member": "stop",
+          "named": {
+            "python": { "name": "aclose", "why": "Python closes an asynchronous iterator with `aclose`: it is what an asynchronous generator has, and what `contextlib.aclosing` calls." }
+          }
+        }
+      ]
+    },
+    {
+      "handed": "heldJob",
+      "docs": "A job a worker holds, from its claim until it settles it. A held job is its verb's, `mark` or `yield`. A member with `takes` is one a held job has as its verb's, and it takes what that verb's entry names; every other member is the same for both verbs, and a job held as either verb's has it without its verb being asked.",
+      "members": [
+        { "member": "jobId" },
+        { "member": "jobType" },
+        { "member": "resourceId" },
+        { "member": "params" },
+        { "member": "completedUnits" },
+        { "member": "unitCursors" },
+        { "member": "retryCount" },
+        { "member": "maxRetries" },
+        { "member": "attempt" },
+        { "member": "annotationId" },
+        { "member": "trace" },
+        { "member": "cancelled" },
+        {
+          "member": "settled",
+          "absent": {
+            "rust": "`complete`, `fail` and `cancel` take the job by value: a job its holder has settled is gone, and nothing is left to ask it."
+          }
+        },
+        { "member": "start" },
+        { "member": "progress" },
+        { "member": "checkpoint" },
+        { "member": "commit" },
+        { "member": "complete", "takes": { "mark": "MarkJobResult", "yield": "YieldJobResult" } },
+        { "member": "fail" },
+        { "member": "cancel" }
       ]
     }
   ]

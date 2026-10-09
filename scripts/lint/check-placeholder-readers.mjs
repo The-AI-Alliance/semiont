@@ -39,6 +39,9 @@ const ALLOWED = {
   'scripts/lint/check-css-classes-live.js': [
     'finds interpolations in JavaScript template literals — not a config placeholder',
   ],
+  'scripts/lint/check-client-surface.mjs': [
+    'steps over interpolations in TypeScript template literals while reading a declaration — not a config placeholder',
+  ],
   'scripts/lint/check-rust-toolchain.mjs': [
     "holds a Dockerfile's FROM to rust:${RUST_TOOLCHAIN}-<variant>, a build argument — not a config placeholder",
   ],
