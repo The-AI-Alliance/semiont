@@ -38,7 +38,11 @@
       ]
     },
     "@id": {
-      "$ref": "./ResourceId.json",
+      "allOf": [
+        {
+          "$ref": "./ResourceId.json"
+        }
+      ],
       "description": "The id of the resource being described."
     },
     "@type": {
@@ -240,11 +244,19 @@
       "description": "Application-specific: Whether this resource is a draft"
     },
     "sourceAnnotationId": {
-      "$ref": "./AnnotationId.json",
+      "allOf": [
+        {
+          "$ref": "./AnnotationId.json"
+        }
+      ],
       "description": "Application-specific: ID of annotation that triggered generation"
     },
     "sourceResourceId": {
-      "$ref": "./ResourceId.json",
+      "allOf": [
+        {
+          "$ref": "./ResourceId.json"
+        }
+      ],
       "description": "Application-specific: ID of source resource for clones/derivatives"
     },
     "originatedFrom": {

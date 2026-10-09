@@ -1,0 +1,37 @@
+# This file instructs Redocly's linter to ignore the rules contained for specific parts of your API.
+# See https://redocly.com/docs/cli/ for more information.
+specs/src/paths/api_health.json:
+  operation-4xx-response:
+    - '#/get/responses'
+specs/src/paths/root.json:
+  operation-4xx-response:
+    - '#/get/responses'
+specs/src/paths/api_openapi.json:
+  operation-4xx-response:
+    - '#/get/responses'
+specs/src/paths/well-known_oauth-protected-resource.json:
+  operation-4xx-response:
+    - '#/get/responses'
+specs/src/archivist/paths/health.json:
+  operation-4xx-response:
+    - '#/get/responses'
+specs/src/components/schemas/Annotation.json:
+  spec-ref-siblings:
+    - '#/properties/creator/description'
+specs/src/components/schemas/AttributedEvent.json:
+  spec-ref-siblings:
+    - '#/allOf/1/properties/agent/description'
+specs/src/components/schemas/BindBodyOperation.json:
+  spec-ref-siblings:
+    - '#/properties/item/description'
+    - '#/properties/oldItem/description'
+    - '#/properties/newItem/description'
+specs/src/components/schemas/JobProgress.json:
+  spec-ref-siblings:
+    - '#/properties/message/description'
+specs/src/components/schemas/ResourceClonedPayload.json:
+  spec-ref-siblings:
+    - '#/properties/creator/description'
+specs/src/components/schemas/ResourceCreatedPayload.json:
+  spec-ref-siblings:
+    - '#/properties/creator/description'

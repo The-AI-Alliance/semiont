@@ -14,11 +14,11 @@
               "enum": ["annotation"]
             },
             "annotation": {
-              "$ref": "./Annotation.json",
+              "allOf": [{ "$ref": "./Annotation.json" }],
               "description": "The annotation this context was gathered for"
             },
             "sourceResource": {
-              "$ref": "./ResourceDescriptor.json",
+              "allOf": [{ "$ref": "./ResourceDescriptor.json" }],
               "description": "The resource containing the annotation"
             },
             "selected": {
@@ -45,7 +45,7 @@
               "description": "User-provided hint to supplement or replace the selected text for search and generation"
             },
             "targetResource": {
-              "$ref": "./ResourceDescriptor.json",
+              "allOf": [{ "$ref": "./ResourceDescriptor.json" }],
               "description": "The resource the annotation links to, if it is a resolved reference. Dormant capability — produced/exposed but not yet consumed."
             },
             "targetContext": {
@@ -73,7 +73,7 @@
               "enum": ["resource"]
             },
             "resource": {
-              "$ref": "./ResourceDescriptor.json",
+              "allOf": [{ "$ref": "./ResourceDescriptor.json" }],
               "description": "The resource this context was gathered for"
             },
             "summary": {
@@ -104,7 +104,7 @@
       ]
     },
     "graph": {
-      "$ref": "./KnowledgeGraph.json",
+      "allOf": [{ "$ref": "./KnowledgeGraph.json" }],
       "description": "Knowledge graph backbone — resources AND annotations as typed nodes. The flattened views (connections, citedBy, siblings) are derived from this."
     },
     "semanticContext": {

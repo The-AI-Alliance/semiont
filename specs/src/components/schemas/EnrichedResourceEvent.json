@@ -9,7 +9,7 @@
       "type": "object",
       "properties": {
         "annotation": {
-          "$ref": "./Annotation.json",
+          "allOf": [{ "$ref": "./Annotation.json" }],
           "description": "Populated for events that mutate an annotation (mark:added, mark:body-updated, mark:removed). Carries the post-materialization annotation as it exists in the view, so subscribers can update local caches in-place without refetching. Absent for events that don't touch annotations."
         }
       }

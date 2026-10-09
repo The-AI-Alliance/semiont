@@ -9,11 +9,19 @@
       "description": "Stated by the annotation of a span: the target is a part of its source, which the selector picks out. An annotation of a resource as a whole states none."
     },
     "source": {
-      "$ref": "./ResourceId.json",
+      "allOf": [
+        {
+          "$ref": "./ResourceId.json"
+        }
+      ],
       "description": "The id of the resource being annotated"
     },
     "selector": {
-      "$ref": "./AnnotationSelector.json",
+      "allOf": [
+        {
+          "$ref": "./AnnotationSelector.json"
+        }
+      ],
       "description": "Optional selector to identify a specific segment of the source resource"
     }
   },

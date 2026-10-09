@@ -8,7 +8,11 @@
       "type": "object",
       "properties": {
         "context": {
-          "$ref": "./GatheredContext.json",
+          "allOf": [
+            {
+              "$ref": "./GatheredContext.json"
+            }
+          ],
           "description": "The gathered context that grounds the generation. Its `focus` names the anchor: the DISPATCHER derives the job's resourceId from it (resource focus → focus.resource; annotation focus → focus.sourceResource, with the worker auto-binding to focus.annotation) and REJECTS a caller-supplied id — the context is authoritative. Under `cite`, the ids its embedding carries are the only valid citation targets."
         }
       },

@@ -3,7 +3,7 @@
   "description": "A worker's settling of a running job it holds whose work it has stopped for a cancellation \u2014 the queue moves the job to cancelled/. Distinct from JobCancelRequest (the client\u2192worker REQUEST to stop): this is the worker announcing it did, so the running job is never yanked to cancelled/ out from under a live worker (the roach-motel race).",
   "properties": {
     "_userId": {
-      "$ref": "./UserId.json",
+      "allOf": [{ "$ref": "./UserId.json" }],
       "description": "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this."
     },
     "resourceId": {
@@ -16,7 +16,7 @@
       "$ref": "./JobType.json"
     },
     "annotationId": {
-      "$ref": "./AnnotationId.json",
+      "allOf": [{ "$ref": "./AnnotationId.json" }],
       "description": "Annotation this job is attached to, when applicable. Lets the UI route cancellation feedback to a specific annotation."
     },
     "completedUnits": {

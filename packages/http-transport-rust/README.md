@@ -200,25 +200,36 @@ hands it each job it comes to hold.
 ```rust
 // A worker signs in as a daemon does: with its service account, as the
 // agent its work is attributed to.
+let (provider, model) = ("ollama", "gemma3:4b");
 let agent = AgentToken::sign_in(
     gateway,
     Agent {
-        provider: "ollama".to_owned(),
-        model: "gemma3:4b".to_owned(),
+        provider: provider.to_owned(),
+        model: model.to_owned(),
     },
     ServiceToken::new(credential, http.clone()),
     http.clone(),
 )
 .await?;
 println!("working as {}", agent.did());
+// What made the annotations it commits: the agent the gateway gave it.
+let generator = AgentSoftware {
+    id: Some(agent.did().to_string()),
+    provider: Some(provider.to_owned()),
+    model: Some(model.to_owned()),
+    ..AgentSoftware::new(agent_name(provider, model))
+}
+.into();
+// Its stream names what claiming and committing read. This worker awaits
+// nothing else, so it names nothing else.
+let mut channels = JOB_CLAIM_CHANNELS.map(str::to_owned).to_vec();
+channels.extend(JOB_COMMIT_CHANNELS.map(str::to_owned));
 let client = client(
     HttpTransportConfig {
         base_url: agent.gateway().to_owned(),
         token: agent.token(),
         refresher: Some(agent.clone()),
-        // Its stream names what claiming reads. This worker awaits
-        // nothing else, so it names nothing else.
-        channels: Some(JOB_CLAIM_CHANNELS.map(str::to_owned).to_vec()),
+        channels: Some(channels),
         http,
         timing: Timing::default(),
         bookmarks: None,
@@ -240,9 +251,35 @@ while let Some(handed) = claims.next().await {
     match handed {
         Ok(HeldJob::Mark(job)) => {
             job.start().await?;
-            // Your work: read the resource, find the passages, commit them.
+            // Your work: read the resource, have its passages quoted,
+            // and commit a highlight of each one the text has.
+            let resource_id = job.resource_id().clone();
+            let text = client.browse.resource_content(&resource_id).await?;
+            let quoted = passages(&text).await;
             job.progress(JobProgress::new(50.0)).await?;
-            let result = JobDetectionResult::new(0, 0);
+            let mut highlights: Vec<Annotation> = Vec::new();
+            for quote in &quoted {
+                // What a model quotes is not trusted: it is found in
+                // the text, as the text has it, or it is dropped.
+                let Some(found) = reconcile(&text, quote) else {
+                    continue;
+                };
+                let built = annotation_of_span(
+                    &text,
+                    &found.span,
+                    &resource_id,
+                    Motivation::Highlighting,
+                    &generator,
+                    None,
+                )?;
+                // An annotation's id is worked out from what it is, so
+                // a passage quoted twice is one annotation.
+                if !highlights.iter().any(|kept| kept.id == built.id) {
+                    highlights.push(built);
+                }
+            }
+            let result = JobDetectionResult::new(quoted.len() as u64, highlights.len() as u64);
+            job.commit(&resource_id, highlights).await?;
             // A settle takes the job, so it cannot be settled twice. A
             // job dropped unsettled is failed, and the queue retries it.
             job.complete(result.into()).await?;
@@ -268,9 +305,13 @@ while let Some(handed) = claims.next().await {
 claims.stop().await;
 ```
 
+`passages` stands for the worker's model: given the text, the passages it
+would highlight, each as the words it quoted (a `Vec<QuotedText>`).
+
 The service account needs two roles at the issuer: `semiont-service`, to be
 given an agent, and `semiont-worker`, without which every claim is refused.
-What claiming does, and what a held job is, are in the SDK's
+What claiming does, what a held job is, and what `reconcile` and
+`annotation_of_span` do with a model's words are in the SDK's
 [A worker](../sdk-rust/README.md#a-worker).
 
 ### An application

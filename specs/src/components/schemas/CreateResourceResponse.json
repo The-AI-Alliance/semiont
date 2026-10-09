@@ -3,7 +3,11 @@
   "description": "The id of the resource an upload created. The Archivist answers it (200) once it has stored the bytes and recorded the resource, and the gateway forwards it (202), so the id is the one the record minted and its creation event is persisted. What remains asynchronous is downstream projection: graph, views and vectors settle afterwards.",
   "properties": {
     "resourceId": {
-      "$ref": "./ResourceId.json",
+      "allOf": [
+        {
+          "$ref": "./ResourceId.json"
+        }
+      ],
       "description": "The id of the newly created resource, as the record minted it."
     }
   },

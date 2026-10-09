@@ -28,7 +28,7 @@
       "description": "True if this file is a tracked resource in the Knowledge Base"
     },
     "resourceId": {
-      "$ref": "./ResourceId.json",
+      "allOf": [{ "$ref": "./ResourceId.json" }],
       "description": "Resource ID (only when tracked is true)"
     },
     "entityTypes": {

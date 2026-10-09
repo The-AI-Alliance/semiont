@@ -3,15 +3,27 @@
   "description": "Request payload sent on the match:search-request bus channel to find candidate matches.",
   "properties": {
     "resourceId": {
-      "$ref": "./ResourceId.json",
+      "allOf": [
+        {
+          "$ref": "./ResourceId.json"
+        }
+      ],
       "description": "Resource ID the reference annotation belongs to. Used to scope result events on the EventBus so the events-stream delivers them to participants viewing this resource."
     },
     "referenceId": {
-      "$ref": "./AnnotationId.json",
+      "allOf": [
+        {
+          "$ref": "./AnnotationId.json"
+        }
+      ],
       "description": "Annotation ID of the reference to search candidates for"
     },
     "context": {
-      "$ref": "./GatheredContext.json",
+      "allOf": [
+        {
+          "$ref": "./GatheredContext.json"
+        }
+      ],
       "description": "Gathered context for the reference annotation"
     },
     "limit": {

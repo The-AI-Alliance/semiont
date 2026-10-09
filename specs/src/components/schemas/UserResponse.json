@@ -3,7 +3,11 @@
   "description": "The authenticated principal, as this knowledge base names it.\n\nThe `did` is the identity: it is what the bus stamps on every event, what resource creation is attributed to, and what a client must compare against to recognise its own work in the data. It is the only identifier: a row id would appear nowhere else in the system and correlate with nothing.\n\nThe remaining fields exist to be displayed, and all of them come from the token's own claims.",
   "properties": {
     "did": {
-      "$ref": "./UserId.json",
+      "allOf": [
+        {
+          "$ref": "./UserId.json"
+        }
+      ],
       "description": "The authenticated principal's DID — `did:web:<domain>:users:<subject>` for a person, where the subject is the issuer claim the knowledge base names its people by (`identity.subjectClaim`), `did:web:<domain>:agents:<provider>:<model>` for a software agent."
     },
     "email": {

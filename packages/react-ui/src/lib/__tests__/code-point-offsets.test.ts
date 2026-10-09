@@ -293,8 +293,10 @@ describe('an offset into the content and a position in CodeMirror\'s document', 
   it('from an offset to a position and back is the offset, for every offset not inside a CRLF', () => {
     for (const content of [SMALL, CRLF, CRLF_ASTRAL, LONG]) {
       const text = Array.from(content);
+      // An offset may be the count itself: the end of the content.
       for (let offset = 0; offset <= text.length; offset++) {
-        if (text[offset - 1] === '\r' && text[offset] === '\n') continue;
+        const insideCrlf = 0 < offset && offset < text.length && text[offset - 1] === '\r' && text[offset] === '\n';
+        if (insideCrlf) continue;
         expect(offsetAt(content, positionAt(content, offset))).toBe(offset);
       }
     }

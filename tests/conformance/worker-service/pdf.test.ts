@@ -7,7 +7,7 @@
  */
 import { expect, it } from 'vitest';
 import { eachWorkerService, type RunningJob, type WorkerServiceWorld } from '../harness/worker-service-world';
-import { expectGenerations, FORMATS, identity, settled, withoutCreated } from './support';
+import { FORMATS, identity, settled, withoutCreated } from './support';
 
 /** The text the Smelter read out of the PDF, and each run of it on the page: two lines of one page. */
 const PDF_TEXT = 'Ada Lovelace published the first program. Charles Babbage designed the engine.';

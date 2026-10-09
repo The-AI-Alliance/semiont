@@ -342,25 +342,30 @@ from `gather.annotation` — no extra ids to pass; the focus carries them.)
 branded — pass it straight to other methods.
 
 ```typescript
-import { extractContext } from '@semiont/core';
+import { reconcile } from '@semiont/sdk';
 
-// passage anchor — position for speed, quote for robustness: pair the
-// TextPositionSelector with a TextQuoteSelector whose prefix/suffix come from
-// core's extractContext, so the anchor survives content drift and re-anchoring.
-const ctx = extractContext(text, start, end);
-const { annotationId } = await session.client.mark.annotation({
-  motivation: 'linking',
-  target: {
-    source: rId,
-    selector: [
-      { type: 'TextPositionSelector', start, end },
-      { type: 'TextQuoteSelector', exact: text.slice(start, end),
-        ...(ctx.prefix !== undefined ? { prefix: ctx.prefix } : {}),
-        ...(ctx.suffix !== undefined ? { suffix: ctx.suffix } : {}) },
-    ],
-  },
-  body: { type: 'SpecificResource', source: targetDocId, purpose: 'linking' }, // a resolved reference
-});
+// passage anchor — position for speed, quote for robustness. `reconcile` finds
+// the words in the text and answers a span of the text's own: its offsets, which
+// count Unicode code points, and the text's own exact, prefix and suffix, so
+// the anchor survives content drift and re-anchoring. `null`: the text does not
+// have the words.
+const span = reconcile(text, { exact: 'Marie Curie' });
+if (span) {
+  const { annotationId } = await session.client.mark.annotation({
+    motivation: 'linking',
+    target: {
+      source: rId,
+      selector: [
+        { type: 'TextPositionSelector', start: span.start, end: span.end },
+        { type: 'TextQuoteSelector', exact: span.exact,
+          ...(span.prefix !== undefined ? { prefix: span.prefix } : {}),
+          ...(span.suffix !== undefined ? { suffix: span.suffix } : {}) },
+      ],
+    },
+    body: { type: 'SpecificResource', source: targetDocId, purpose: 'linking' }, // a resolved reference
+  });
+  console.log(`linked as ${annotationId}`);
+}
 
 // whole-resource edge: claim → source
 await session.client.mark.annotation({
@@ -371,6 +376,28 @@ await session.client.mark.annotation({
 ```
 
 To add a reference body to an *existing* annotation, use `bind.body(resourceId, annotationId, ops)`.
+
+**Find a passage, and build an annotation, with the SDK's builders.** A model names a
+passage by quoting it, and may misquote it. `reconcile` is what finds the words in the text.
+The other two build a whole annotation, with an id derived from what the annotation is, so
+that building it again gives the same id. That is what a worker commits for a job it holds:
+see the [worker skill](skills/semiont-worker/SKILL.md).
+
+| To do | Builder |
+|---|---|
+| Find the words a model quoted in a text | `reconcile(text, { exact, prefix, suffix })`: a span with its offsets and how it was found (`anchorMethod`), or `null` |
+| Build the annotation of a span of a text, or of a PDF | `annotationOfSpan({ text, span, resourceId, motivation, generator, body })`, with a PDF's `anchored` text in place of `text` |
+| Build an annotation of a resource as a whole | `annotationOfResource({ resourceId, motivation, generator, body })` |
+
+A span that is not the text's is refused: `annotationOfSpan` throws a `SpanRefusedError`,
+whose `code` names the refusal. `reconcile` is one way to find a model's words, with its own
+tolerance for a misquote; a span found another way is built the same.
+
+The Rust and Python SDKs have the same three (`semiont::annotations`,
+`semiont.annotations`), and two tables,
+[`reconcile-cases.json`](../../specs/src/annotations/reconcile-cases.json) and
+[`builder-cases.json`](../../specs/src/annotations/builder-cases.json), hold all three to
+the same answer.
 
 ## 10. Find link candidates (semantic search)
 

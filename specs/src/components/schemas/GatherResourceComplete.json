@@ -3,11 +3,19 @@
   "description": "Completion payload emitted on the gather:resource-complete bus channel when resource context gathering finishes.",
   "properties": {
     "resourceId": {
-      "$ref": "./ResourceId.json",
+      "allOf": [
+        {
+          "$ref": "./ResourceId.json"
+        }
+      ],
       "description": "Branded ResourceId of the resource whose context was gathered"
     },
     "response": {
-      "$ref": "./GatheredContext.json",
+      "allOf": [
+        {
+          "$ref": "./GatheredContext.json"
+        }
+      ],
       "description": "The gathered resource context (unified GatheredContext, focus.kind:'resource')"
     }
   },

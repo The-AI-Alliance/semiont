@@ -6,7 +6,7 @@
       "description": "The chunk text that matched"
     },
     "resourceId": {
-      "$ref": "./ResourceId.json",
+      "allOf": [{ "$ref": "./ResourceId.json" }],
       "description": "Source resource ID"
     },
     "resourceName": {
@@ -14,7 +14,7 @@
       "description": "The source resource's display name, resolved from its view at gather time. Required: a match card must name its source, and corpus matches routinely come from outside the graph neighborhood, so there is no node to borrow a name from. A match whose source no longer resolves to a view is dropped by the producer rather than served nameless."
     },
     "annotationId": {
-      "$ref": "./AnnotationId.json",
+      "allOf": [{ "$ref": "./AnnotationId.json" }],
       "description": "Source annotation ID, if the match is from an annotation"
     },
     "score": {

@@ -16,7 +16,7 @@
 //! a text is given as the `&str` it is: no caller converts one.
 //!
 //! ```
-//! use semiont::annotations::{QuotedText, Spanned, annotation_of_span, reconcile};
+//! use semiont::annotations::{QuotedText, annotation_of_span, reconcile};
 //! use semiont::types::{Agent, AgentSoftware, Motivation, ResourceId};
 //!
 //! let text = "Ada Lovelace wrote the first algorithm.";
@@ -30,7 +30,7 @@
 //!
 //! let highlight = |span| {
 //!     annotation_of_span(
-//!         Spanned::Text(text),
+//!         text,
 //!         span,
 //!         &resource_id,
 //!         Motivation::Highlighting,
@@ -419,7 +419,9 @@ pub fn reconcile(text: &str, quoted: &QuotedText) -> Option<ReconciledSpan> {
     })
 }
 
-/// What a span is a span of: a text, or a PDF's anchored text.
+/// What a span is a span of: a text, or a PDF's anchored text. A `&str` and
+/// an `&AnchoredText` each convert into it, so a caller of
+/// [`annotation_of_span`] hands over the one it has.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Spanned<'a> {
     /// A resource that is a text. Its annotation states the span's offsets.
@@ -428,6 +430,24 @@ pub enum Spanned<'a> {
     /// its pages. Its annotation states a rectangle for each line the span
     /// touches, and no offsets.
     Pdf(&'a AnchoredText),
+}
+
+impl<'a> From<&'a str> for Spanned<'a> {
+    fn from(text: &'a str) -> Self {
+        Spanned::Text(text)
+    }
+}
+
+impl<'a> From<&'a String> for Spanned<'a> {
+    fn from(text: &'a String) -> Self {
+        Spanned::Text(text)
+    }
+}
+
+impl<'a> From<&'a AnchoredText> for Spanned<'a> {
+    fn from(anchored: &'a AnchoredText) -> Self {
+        Spanned::Pdf(anchored)
+    }
 }
 
 /// The fragment syntax a PDF's rectangles are written in.
@@ -496,7 +516,9 @@ fn annotation(
 }
 
 /// Builds the annotation of a span of a text, or of a PDF's anchored text:
-/// its selectors, its id, and the body and the generator as given.
+/// its selectors, its id, and the body and the generator as given. What is
+/// spanned is handed over as it is: the text as a `&str`, or a PDF's
+/// `&AnchoredText`.
 ///
 /// A span that is not the text's is refused, and the first check that fails
 /// is the refusal: a [`SpanRefusal`], whose codes are the spec's
@@ -512,14 +534,15 @@ fn annotation(
 /// quote. The id is derived from the resource, the motivation, the body and
 /// the span's offsets and words, so the same span built again has the same
 /// id. `created` is the moment it is built.
-pub fn annotation_of_span(
-    spanned: Spanned<'_>,
+pub fn annotation_of_span<'a>(
+    spanned: impl Into<Spanned<'a>>,
     span: &TextSpan,
     resource_id: &ResourceId,
     motivation: Motivation,
     generator: &Agent,
     body: Option<AnnotationBodies>,
 ) -> Result<Annotation, SpanRefusal> {
+    let spanned = spanned.into();
     let text = match spanned {
         Spanned::Text(text) => text,
         Spanned::Pdf(anchored) => anchored.text.as_str(),

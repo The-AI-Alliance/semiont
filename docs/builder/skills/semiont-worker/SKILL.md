@@ -316,25 +316,36 @@ The Rust SDK is two crates: `semiont`, whose client has `job.claim`, and `semion
 ```rust
 // A worker signs in as a daemon does: with its service account, as the
 // agent its work is attributed to.
+let (provider, model) = ("ollama", "gemma3:4b");
 let agent = AgentToken::sign_in(
     gateway,
     Agent {
-        provider: "ollama".to_owned(),
-        model: "gemma3:4b".to_owned(),
+        provider: provider.to_owned(),
+        model: model.to_owned(),
     },
     ServiceToken::new(credential, http.clone()),
     http.clone(),
 )
 .await?;
 println!("working as {}", agent.did());
+// What made the annotations it commits: the agent the gateway gave it.
+let generator = AgentSoftware {
+    id: Some(agent.did().to_string()),
+    provider: Some(provider.to_owned()),
+    model: Some(model.to_owned()),
+    ..AgentSoftware::new(agent_name(provider, model))
+}
+.into();
+// Its stream names what claiming and committing read. This worker awaits
+// nothing else, so it names nothing else.
+let mut channels = JOB_CLAIM_CHANNELS.map(str::to_owned).to_vec();
+channels.extend(JOB_COMMIT_CHANNELS.map(str::to_owned));
 let client = client(
     HttpTransportConfig {
         base_url: agent.gateway().to_owned(),
         token: agent.token(),
         refresher: Some(agent.clone()),
-        // Its stream names what claiming reads. This worker awaits
-        // nothing else, so it names nothing else.
-        channels: Some(JOB_CLAIM_CHANNELS.map(str::to_owned).to_vec()),
+        channels: Some(channels),
         http,
         timing: Timing::default(),
         bookmarks: None,
@@ -356,9 +367,35 @@ while let Some(handed) = claims.next().await {
     match handed {
         Ok(HeldJob::Mark(job)) => {
             job.start().await?;
-            // Your work: read the resource, find the passages, commit them.
+            // Your work: read the resource, have its passages quoted,
+            // and commit a highlight of each one the text has.
+            let resource_id = job.resource_id().clone();
+            let text = client.browse.resource_content(&resource_id).await?;
+            let quoted = passages(&text).await;
             job.progress(JobProgress::new(50.0)).await?;
-            let result = JobDetectionResult::new(0, 0);
+            let mut highlights: Vec<Annotation> = Vec::new();
+            for quote in &quoted {
+                // What a model quotes is not trusted: it is found in
+                // the text, as the text has it, or it is dropped.
+                let Some(found) = reconcile(&text, quote) else {
+                    continue;
+                };
+                let built = annotation_of_span(
+                    &text,
+                    &found.span,
+                    &resource_id,
+                    Motivation::Highlighting,
+                    &generator,
+                    None,
+                )?;
+                // An annotation's id is worked out from what it is, so
+                // a passage quoted twice is one annotation.
+                if !highlights.iter().any(|kept| kept.id == built.id) {
+                    highlights.push(built);
+                }
+            }
+            let result = JobDetectionResult::new(quoted.len() as u64, highlights.len() as u64);
+            job.commit(&resource_id, highlights).await?;
             // A settle takes the job, so it cannot be settled twice. A
             // job dropped unsettled is failed, and the queue retries it.
             job.complete(result.into()).await?;
@@ -384,13 +421,14 @@ while let Some(handed) = claims.next().await {
 claims.stop().await;
 ```
 
-`gateway` is the gateway's origin as text, `credential` is the service account (a `Credential`: its issuer, client id and client secret), and `http` is the process's `reqwest::Client`. [The transport's README](../../../../packages/http-transport-rust/README.md#a-daemon) has what surrounds this block, and [the SDK's](../../../../packages/sdk-rust/README.md#a-worker) has the rules it keeps.
+`gateway` is the gateway's origin as text, `credential` is the service account (a `Credential`: its issuer, client id and client secret), and `http` is the process's `reqwest::Client`. `passages` stands for your model: given the text, the passages it would highlight, each as the words it quoted (a `Vec<QuotedText>`). [The transport's README](../../../../packages/http-transport-rust/README.md#a-daemon) has what surrounds this block, and [the SDK's](../../../../packages/sdk-rust/README.md#a-worker) has the rules it keeps.
 
 What differs from TypeScript is what the language gives:
 
 - `claims.next().await` gives the next held job, or `Err` with a claim that was refused. A stream that does not name `JOB_CLAIM_CHANNELS` is one refusal, `Unsubscribed`, and then the claims end.
 - A held job is matched by its verb, `HeldJob::Mark` or `HeldJob::Yield`, before `complete` is called.
-- A held job commits its own annotations: `job.commit(job.resource_id(), annotations).await?` sends the batch as `mark:commit`, citing the job, and returns once the record has it. A worker that commits gives its transport `JOB_COMMIT_CHANNELS` beside `JOB_CLAIM_CHANNELS`.
+- `reconcile` gives `Some` of the span it found in the text, or `None`. `annotation_of_span` gives the annotation, or an `Err` that names why the span was refused (a `SpanRefusal`).
+- A held job commits its own annotations: `job.commit(&resource_id, annotations).await?` sends the batch as `mark:commit`, citing the job, and returns once the record has it. A worker that commits gives its transport `JOB_COMMIT_CHANNELS` beside `JOB_CLAIM_CHANNELS`.
 - `complete`, `fail` and `cancel` take the job by value, so settling twice does not compile. A job dropped unsettled is failed.
 - `job.cancelled()` and `claims.stalled()` are `tokio::sync::watch` receivers: the first turns true when a cancellation names the held job, and the second holds the last stall.
 

@@ -3,15 +3,27 @@
   "description": "Command payload sent on the bind:update-body bus channel to modify annotation bodies.",
   "properties": {
     "_userId": {
-      "$ref": "./UserId.json",
+      "allOf": [
+        {
+          "$ref": "./UserId.json"
+        }
+      ],
       "description": "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this."
     },
     "annotationId": {
-      "$ref": "./AnnotationId.json",
+      "allOf": [
+        {
+          "$ref": "./AnnotationId.json"
+        }
+      ],
       "description": "Branded AnnotationId of the annotation whose body is being updated"
     },
     "resourceId": {
-      "$ref": "./ResourceId.json",
+      "allOf": [
+        {
+          "$ref": "./ResourceId.json"
+        }
+      ],
       "description": "Branded ResourceId of the resource the annotation belongs to"
     },
     "operations": {

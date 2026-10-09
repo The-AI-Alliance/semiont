@@ -5,8 +5,8 @@
     "id": { "type": "string", "description": "Unique event ID (UUID)" },
     "type": { "type": "string", "description": "Event type (flow verb name, e.g. mark:added)" },
     "timestamp": { "type": "string", "format": "date-time", "description": "When the event occurred" },
-    "userId": { "$ref": "./UserId.json", "description": "DID of the user who triggered the event" },
-    "resourceId": { "$ref": "./ResourceId.json", "description": "Resource this event affects (absent for system events)" },
+    "userId": { "allOf": [{ "$ref": "./UserId.json" }], "description": "DID of the user who triggered the event" },
+    "resourceId": { "allOf": [{ "$ref": "./ResourceId.json" }], "description": "Resource this event affects (absent for system events)" },
     "version": { "type": "integer", "description": "Event schema version" },
     "payload": { "type": "object", "additionalProperties": true, "description": "Event-type-specific payload" },
     "metadata": { "$ref": "EventMetadata.json" }

@@ -6,7 +6,11 @@
       "$ref": "./AnnotationId.json"
     },
     "resourceId": {
-      "$ref": "./ResourceId.json",
+      "allOf": [
+        {
+          "$ref": "./ResourceId.json"
+        }
+      ],
       "description": "Guard: the resource this focus applies to. A viewer showing a different resource ignores the event. Never causes navigation."
     }
   },

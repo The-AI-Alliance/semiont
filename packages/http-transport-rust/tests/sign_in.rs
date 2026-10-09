@@ -15,7 +15,8 @@ use axum::routing::{get, post};
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use bytes::Bytes;
-use semiont::claims::{ClaimOptions, HeldJob, JOB_CLAIM_CHANNELS, JobFailure};
+use semiont::annotations::{QuotedText, annotation_of_span, reconcile};
+use semiont::claims::{ClaimOptions, HeldJob, JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, JobFailure};
 use semiont::client::ClientOptions;
 use semiont::discovery::{
     DiscoveryAbsentReason, DiscoveryRead, DiscoveryState, DiscoveryTransport,
@@ -23,6 +24,7 @@ use semiont::discovery::{
 use semiont::errors::{
     BusRequestErrorCode, IdentityUnverifiableReason, SessionErrorCode, SignInError, SignInErrorCode,
 };
+use semiont::identity::agent_name;
 use semiont::session::{
     HttpEndpoint, KbEndpoint, KbTarget, KnowledgeBase, Protocol, SemiontBrowser,
     SemiontBrowserConfig, SemiontSession, SessionEndReason, StoredSession, save_knowledge_bases,
@@ -35,8 +37,8 @@ use semiont::testing::examples::{assert_blocks_are_examples, assert_readme_shows
 use semiont::timing::{HTTP_REQUEST_TIMEOUT, REFRESH_RETRY};
 use semiont::transport::PutBinaryRequest;
 use semiont::types::{
-    FailureClass, JobCompleteCommand, JobDetectionResult, JobProgress, MarkJobFilter,
-    MarkJobFilterParams, Motivation,
+    AgentSoftware, Annotation, FailureClass, JobCompleteCommand, JobDetectionResult, JobProgress,
+    MarkJobFilter, MarkJobFilterParams, Motivation,
 };
 use semiont_http_transport::agent::{Agent, AgentToken};
 use semiont_http_transport::client::client;
@@ -296,6 +298,16 @@ async fn emit(State(staged): State<Arc<Staged>>, headers: HeaderMap, body: Strin
     let answer = if asked == "job:claim" {
         let next = staged.claimable.lock().unwrap().pop_front();
         next.map(|job| ("job:claimed".to_owned(), json!({ "response": job })))
+    } else if asked == "mark:commit" {
+        // The record's acknowledgement: the batch as it was sent.
+        let ids: Vec<Value> = sent["payload"]["annotations"]
+            .as_array()
+            .map(|batch| batch.iter().map(|sent| sent["id"].clone()).collect())
+            .unwrap_or_default();
+        Some((
+            "mark:commit-ok".to_owned(),
+            json!({ "response": { "persisted": ids.len(), "annotationIds": ids } }),
+        ))
     } else if asked == "browse:kb-requested" {
         Some(match staged.describes.lock().unwrap().clone() {
             Describes::As(description) => (
@@ -2464,6 +2476,12 @@ async fn a_daemon(
     Ok(())
 }
 
+/// The example's model: the passages of a text it would highlight, each as
+/// the words it quoted. This one quotes the first line.
+async fn passages(text: &str) -> Vec<QuotedText> {
+    vec![QuotedText::new(text.lines().next().unwrap_or_default())]
+}
+
 async fn a_worker(
     gateway: &str,
     credential: Credential,
@@ -2472,25 +2490,36 @@ async fn a_worker(
     // <readme:worker>
     // A worker signs in as a daemon does: with its service account, as the
     // agent its work is attributed to.
+    let (provider, model) = ("ollama", "gemma3:4b");
     let agent = AgentToken::sign_in(
         gateway,
         Agent {
-            provider: "ollama".to_owned(),
-            model: "gemma3:4b".to_owned(),
+            provider: provider.to_owned(),
+            model: model.to_owned(),
         },
         ServiceToken::new(credential, http.clone()),
         http.clone(),
     )
     .await?;
     println!("working as {}", agent.did());
+    // What made the annotations it commits: the agent the gateway gave it.
+    let generator = AgentSoftware {
+        id: Some(agent.did().to_string()),
+        provider: Some(provider.to_owned()),
+        model: Some(model.to_owned()),
+        ..AgentSoftware::new(agent_name(provider, model))
+    }
+    .into();
+    // Its stream names what claiming and committing read. This worker awaits
+    // nothing else, so it names nothing else.
+    let mut channels = JOB_CLAIM_CHANNELS.map(str::to_owned).to_vec();
+    channels.extend(JOB_COMMIT_CHANNELS.map(str::to_owned));
     let client = client(
         HttpTransportConfig {
             base_url: agent.gateway().to_owned(),
             token: agent.token(),
             refresher: Some(agent.clone()),
-            // Its stream names what claiming reads. This worker awaits
-            // nothing else, so it names nothing else.
-            channels: Some(JOB_CLAIM_CHANNELS.map(str::to_owned).to_vec()),
+            channels: Some(channels),
             http,
             timing: Timing::default(),
             bookmarks: None,
@@ -2512,9 +2541,35 @@ async fn a_worker(
         match handed {
             Ok(HeldJob::Mark(job)) => {
                 job.start().await?;
-                // Your work: read the resource, find the passages, commit them.
+                // Your work: read the resource, have its passages quoted,
+                // and commit a highlight of each one the text has.
+                let resource_id = job.resource_id().clone();
+                let text = client.browse.resource_content(&resource_id).await?;
+                let quoted = passages(&text).await;
                 job.progress(JobProgress::new(50.0)).await?;
-                let result = JobDetectionResult::new(0, 0);
+                let mut highlights: Vec<Annotation> = Vec::new();
+                for quote in &quoted {
+                    // What a model quotes is not trusted: it is found in
+                    // the text, as the text has it, or it is dropped.
+                    let Some(found) = reconcile(&text, quote) else {
+                        continue;
+                    };
+                    let built = annotation_of_span(
+                        &text,
+                        &found.span,
+                        &resource_id,
+                        Motivation::Highlighting,
+                        &generator,
+                        None,
+                    )?;
+                    // An annotation's id is worked out from what it is, so
+                    // a passage quoted twice is one annotation.
+                    if !highlights.iter().any(|kept| kept.id == built.id) {
+                        highlights.push(built);
+                    }
+                }
+                let result = JobDetectionResult::new(quoted.len() as u64, highlights.len() as u64);
+                job.commit(&resource_id, highlights).await?;
                 // A settle takes the job, so it cannot be settled twice. A
                 // job dropped unsettled is failed, and the queue retries it.
                 job.complete(result.into()).await?;
@@ -2818,6 +2873,7 @@ async fn the_worker_claims_as_its_agent_says_the_lifecycle_of_the_job_it_is_hand
             "job:claim",
             "job:start",
             "job:report-progress",
+            "mark:commit",
             "job:complete",
             "job:claim"
         ]
@@ -2828,14 +2884,40 @@ async fn the_worker_claims_as_its_agent_says_the_lifecycle_of_the_job_it_is_hand
         json!({ "accepts": [{ "jobType": "mark", "params": { "motivation": "highlighting" } }] })
     );
     assert_eq!(emitted[1]["payload"]["jobId"], "job-1");
+    // What it committed: one highlight, of the first line of the bytes the
+    // gateway served, for the job it holds, made by the agent it works as.
+    let commit = &emitted[3]["payload"];
+    assert_eq!(commit["jobId"], "job-1");
+    assert_eq!(commit["resourceId"], "res-1");
+    let highlights = commit["annotations"].as_array().expect("a batch");
+    assert_eq!(highlights.len(), 1);
+    assert_eq!(highlights[0]["motivation"], "highlighting");
     assert_eq!(
-        emitted[3]["payload"]["result"],
-        json!({ "found": 0, "persisted": 0 })
+        highlights[0]["target"],
+        json!({ "type": "SpecificResource", "source": "res-1", "selector": [
+            { "type": "TextPositionSelector", "start": 0, "end": 18 },
+            { "type": "TextQuoteSelector", "exact": "the bytes of res-1" },
+        ]})
     );
-    // Its stream names what claiming reads, and nothing else.
+    assert_eq!(
+        highlights[0]["generator"],
+        json!({
+            "@type": "Software", "@id": "did:web:example.org:agents:indexer",
+            "name": "ollama gemma3:4b", "provider": "ollama", "model": "gemma3:4b",
+        })
+    );
+    assert_eq!(
+        emitted[4]["payload"]["result"],
+        json!({ "found": 1, "persisted": 1 })
+    );
+    // Its stream names what claiming and committing read, and nothing else.
+    let named: Vec<&str> = JOB_CLAIM_CHANNELS
+        .into_iter()
+        .chain(JOB_COMMIT_CHANNELS)
+        .collect();
     assert_eq!(
         world.staged.subscriptions.lock().unwrap()[0]["global"],
-        json!(JOB_CLAIM_CHANNELS)
+        json!(named)
     );
     // Stopped while it holds nothing, it has failed nothing.
     assert!(!running.is_finished());

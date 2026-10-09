@@ -1,8 +1,7 @@
 {
   "oneOf": [
     {
-      "$ref": "./Selector.json",
-      "description": "One selector"
+      "$ref": "./Selector.json"
     },
     {
       "type": "array",

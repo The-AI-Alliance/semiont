@@ -345,10 +345,6 @@ export type { Point, BoundingBox } from './svg-utils';
 export { textOffsets, type TextOffsets } from './text-offsets';
 export { extractContext } from './text-context';
 
-// SHA-256 and base64url, for what must hash at once and in every context
-export { sha256 } from './sha256';
-export { base64url } from './base64url';
-
 // Text encoding helpers
 export { extractCharset, decodeWithCharset } from './text-encoding';
 
