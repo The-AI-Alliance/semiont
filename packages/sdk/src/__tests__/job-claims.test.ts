@@ -16,7 +16,7 @@
 import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, it, expect, expectTypeOf, beforeEach, vi } from 'vitest';
 import { BehaviorSubject } from 'rxjs';
-import { context, propagation } from '@opentelemetry/api';
+import { ROOT_CONTEXT, context, propagation, trace as otelTrace } from '@opentelemetry/api';
 import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
 import { W3CTraceContextPropagator } from '@opentelemetry/core';
 import { getActiveTraceparent, withTraceparent } from '@semiont/observability';
@@ -1233,6 +1233,31 @@ describe('job.claim — each job has a trace of its own', () => {
     await tick();
 
     expect(r.handedIn).toEqual([trace(1)]);
+    r.subscription.unsubscribe();
+  });
+
+  it('a held job states the trace its reply arrived in, and none for a reply that arrived in none', async () => {
+    const r = readingTraces();
+    inTrace(trace(1), () => h.grant(0, 'j1'));
+    await tick();
+    expect(r.held[0]!.trace).toEqual({ traceparent: trace(1) });
+
+    await inTrace(trace(7), () => finish(r.held[0]!));
+    h.grant(1, 'j2');
+    await tick();
+    expect(r.held[1]!.trace, 'not that of the job settled before it').toBeUndefined();
+
+    r.subscription.unsubscribe();
+  });
+
+  it('the trace a held job states is a carrier OpenTelemetry\'s propagation takes as it is', async () => {
+    const r = readingTraces();
+    inTrace(trace(1), () => h.grant(0, 'j1'));
+    await tick();
+
+    const continued = propagation.extract(ROOT_CONTEXT, r.held[0]!.trace);
+
+    expect(otelTrace.getSpanContext(continued)?.traceId).toBe('1'.repeat(32));
     r.subscription.unsubscribe();
   });
 

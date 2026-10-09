@@ -7,8 +7,10 @@ received, a span for each upload and each read, and a count of the emits sent.
 
 Trace context crosses the wire as W3C's `traceparent` and `tracestate`. A
 request carries the context it was made in. A frame brings the context it was
-sent under, and the span that marks its arrival continues that trace. What is
-nobody's to continue is done `untraced`, and begins a trace of its own.
+sent under, and the span that marks its arrival continues that trace. Work
+done for a frame, or for a job a worker holds, is done `continuing` the trace
+it brought. What is nobody's to continue is done `untraced`, and begins a
+trace of its own.
 """
 
 from collections.abc import Generator, Mapping
@@ -16,14 +18,14 @@ from contextlib import AbstractContextManager, contextmanager
 from typing import Final, assert_never
 
 from opentelemetry import metrics, trace
-from opentelemetry.context import Context, attach, detach
+from opentelemetry.context import Context, attach, detach, get_current
 from opentelemetry.trace import SpanKind
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
 from semiont.telemetry_table import BUS_EMIT, BUS_RECV, CONTENT_GET, CONTENT_GET_GRAPH, CONTENT_PUT, SEMIONT_BUS_SENT, SpanKindName, SpanRow
 from semiont.transport import TraceContext
 
-__all__ = ["active", "emitting", "getting", "getting_graph", "putting", "received", "trace_headers", "untraced"]
+__all__ = ["active", "continuing", "emitting", "getting", "getting_graph", "putting", "received", "trace_headers", "untraced"]
 
 _SCOPE: Final = "semiont"
 _TRACER: Final = trace.get_tracer(_SCOPE)
@@ -76,6 +78,31 @@ def active() -> TraceContext | None:
     return None if traceparent is None else TraceContext(traceparent=traceparent, tracestate=carrier.get("tracestate") or None)
 
 
+def _carrier(trace: TraceContext) -> dict[str, str]:
+    """`trace` as the headers that carry it."""
+    carrier = {"traceparent": trace.traceparent}
+    if trace.tracestate is not None:
+        carrier["tracestate"] = trace.tracestate
+    return carrier
+
+
+@contextmanager
+def continuing(trace: TraceContext | None) -> Generator[None]:
+    """Hold the trace `trace` names: a span started while this is held continues it. With no trace, nothing is entered.
+
+    `trace` is what a frame brought (`frame.trace`), or what a job a worker
+    holds states (`job.trace`).
+    """
+    if trace is None:
+        yield
+        return
+    held = attach(_W3C.extract(_carrier(trace), get_current()))
+    try:
+        yield
+    finally:
+        detach(held)
+
+
 @contextmanager
 def untraced() -> Generator[None]:
     """Hold no trace: what is done while this is held has no parent, whatever span is current around it.
@@ -104,12 +131,7 @@ def received(channel: str, scope: str | None, sent_under: TraceContext | None) -
     Returns the trace the work done for the frame continues: the arrival's
     own span when one was recorded, and what the frame brought otherwise.
     """
-    parent: Context | None = None
-    if sent_under is not None:
-        carrier = {"traceparent": sent_under.traceparent}
-        if sent_under.tracestate is not None:
-            carrier["tracestate"] = sent_under.tracestate
-        parent = _W3C.extract(carrier)
+    parent = None if sent_under is None else _W3C.extract(_carrier(sent_under))
     with _span(BUS_RECV, _on_the_bus(channel, scope), channel=channel, parent=parent):
         return active() or sent_under
 

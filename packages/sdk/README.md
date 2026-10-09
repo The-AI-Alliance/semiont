@@ -197,10 +197,16 @@ claims.subscribe(async (job) => {
 - **A held job settles once**: `complete`, `fail` or `cancel`. Each says the outcome and
   lets the job go, and the worker claims the next. `claims.stop()` fails a job still held,
   so the queue runs it again at once.
-- **Each job has a trace of its own.** A claim is made in no trace, whatever span the job
-  before it was settled in, and a job is handed over in the trace its reply arrived in,
-  which is its claim's: the span a worker that exports telemetry opens around a job, and
-  what the job sends from inside it, continue that trace.
+- **Each job has a trace of its own**, and a worker's author writes nothing for it. A claim
+  is made in no trace, whatever span the job before it was settled in, and a job is handed
+  over in the trace its reply arrived in, which is its claim's: the span a worker that
+  exports telemetry opens around a job, and what the job sends from inside it, continue
+  that trace. `job.trace` is the same trace as a value, a W3C carrier (`traceparent`, and
+  `tracestate` when there is one) or `undefined` for a reply that arrived in none: for
+  what is done for the job where the hand-over does not reach, such as work passed to
+  another process. OpenTelemetry's `propagation.extract` takes it as it is. It is the
+  trace OpenTelemetry has active when the reply arrives, so in a process that has set up
+  no OpenTelemetry it is `undefined`, as every trace is there.
 
 The [`semiont-worker` skill](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/skills/semiont-worker/SKILL.md)
 is a whole worker, sign-in to shutdown, and

@@ -6,7 +6,10 @@ on the SDK's client, the claims it returns, and the held jobs they hand out.
 As a worker's code does, it runs each job it is handed in a span of its own,
 `job:{jobType}` carrying the job's id as `job.id`: opened in the trace the
 job states, where the job is handed to it, and ended once it has settled the
-job. Everything it does for the job it does in that span.
+job. Everything it does for the job it does in that span. The suite's
+operations for one job arrive one at a time, each in a task of its own, so no
+`async with job` block can hold them: the span is opened in `job.trace`, the
+value, as work outside such a block is.
 
 Started with `OTEL_EXPORTER_OTLP_ENDPOINT` in its environment, it exports its
 telemetry there over OTLP/HTTP, and has exported all of it by the time it
@@ -25,10 +28,10 @@ from opentelemetry import context as otel_context
 from opentelemetry import trace as otel_trace
 from opentelemetry.context import Context
 from opentelemetry.trace import Span, SpanKind
-from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 from protocol import Arguments, Misuse, Operation, count, exporting, failure, object_of, say, serve, text, texts
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
+from semiont import telemetry
 from semiont.claims import JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, ClaimRefusal, Claims, HeldJob
 from semiont.client import SemiontClient
 from semiont.errors import SemiontError
@@ -48,7 +51,6 @@ _PROGRESS: Final = TypeAdapter[JobProgress](JobProgress)
 _MARK_RESULT: Final = TypeAdapter[MarkJobResult](MarkJobResult)
 _YIELD_RESULT: Final = TypeAdapter[YieldJobResult](YieldJobResult)
 _ANNOTATIONS: Final = TypeAdapter[list[Annotation]](list[Annotation])
-_W3C: Final = TraceContextTextMapPropagator()
 
 
 @final
@@ -167,17 +169,12 @@ class Worker:
 
     def _hold(self, job: HeldJob) -> None:
         """Hold `job`, and open the span it is run in: in the trace the job states."""
-        carried: dict[str, str] = {}
-        if job.trace is not None:
-            carried["traceparent"] = job.trace.traceparent
-            if job.trace.tracestate is not None:
-                carried["tracestate"] = job.trace.tracestate
-        within = _W3C.extract(carried)
-        span = otel_trace.get_tracer("semiont-conformance-driver").start_span(
-            f"job:{job.job_type}", context=within, kind=SpanKind.CONSUMER, attributes={"job.id": job.job_id}
-        )
-        self._job = job
-        self._span = (span, otel_trace.set_span_in_context(span, within))
+        with telemetry.continuing(job.trace):
+            span = otel_trace.get_tracer("semiont-conformance-driver").start_span(
+                f"job:{job.job_type}", kind=SpanKind.CONSUMER, attributes={"job.id": job.job_id}
+            )
+            self._job = job
+            self._span = (span, otel_trace.set_span_in_context(span))
 
     @contextmanager
     def _working(self) -> Generator[HeldJob]:

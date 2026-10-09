@@ -238,8 +238,12 @@ A dispatcher that exports answers a claim in the trace of the claim
   the context of the reply that carried it, so a worker's span for the job
   continues that trace. So each job a worker runs has a trace of its own: its
   claim, the reply that handed it over, the worker's span for it, and every
-  message the job sends. Where a language carries no context from the code
-  that hands a job over to the code that is handed it, the held job states the
-  trace its reply arrived in, and the worker's code opens its span in that
-  trace.
+  message the job sends. In every SDK a held job states the trace its reply
+  arrived in. Where the language carries context from the code that hands a
+  job over to the code handed it (TypeScript at the hand-over, Python inside
+  `async with job`), the job's code also runs in it. In TypeScript what the
+  job states is the trace OpenTelemetry has active as the reply arrives: a
+  process that has set up no OpenTelemetry has no trace, and its held jobs
+  state none. In Rust and Python it is what the reply's frame carried,
+  whatever the process has set up.
   *Held by `worker/job-trace`.*

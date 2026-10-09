@@ -440,11 +440,16 @@ async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
 - **A cancellation is signalled.** `job.cancelled` becomes true when a
   cancellation names the held job: the work stops where it can, and says
   `await job.cancel()`.
-- **Each job has a trace of its own.** A claim is made in no trace, whatever
-  span the job before it was settled in. `job.trace` is the trace the job's
-  reply arrived in, which is its claim's: a worker that exports telemetry
-  opens its span for the job in that trace, and what the job sends from
-  inside the span continues it.
+- **Each job has a trace of its own**, and a worker's author writes nothing
+  for it. A claim is made in no trace, whatever span the job before it was
+  settled in, and `async with job` runs its block in the trace the job's
+  reply arrived in, which is its claim's: a span a worker that exports
+  telemetry starts in the block, and what the job sends from inside it,
+  continue that trace. `job.trace` is the same trace as a value, a
+  `TraceContext` (`traceparent`, and `tracestate` when there is one) or
+  `None` for a reply that arrived in none: for what is done for the job
+  where its block does not reach, such as another task, which enters it with
+  `with semiont.telemetry.continuing(job.trace):`.
 - **`claims.vitals()`** is what the worker can say of itself: when it last
   heard an announcement, claimed, was active and settled, the job it holds,
   and how many it has completed. **`claims.stalled`** tells of a held job that
@@ -650,7 +655,9 @@ the application it runs in installs a provider. With one, it exports what
 SDK does: a span for each frame sent and each received, a span for each upload
 and each read, and a count of the emits sent. A request carries the trace it
 is made in, and a frame continues the trace it was sent under (`frame.trace`).
-A job a worker holds states the trace it is run in (`job.trace`).
+A job a worker holds states the trace it is run in (`job.trace`), and runs
+the block that holds it in that trace. `semiont.telemetry.continuing(trace)`
+holds either for as long as its `with` block lasts.
 
 ## What is in the package
 
@@ -674,7 +681,7 @@ A job a worker holds states the trace it is run in (`job.trace`).
 | `semiont.watched`, `semiont.events` | A value that changes and a sequence of events: what a state and a channel's frames are read as |
 | `semiont.media_types` | The media types a knowledge base admits, and the rules read from them |
 | `semiont.identity` | How a knowledge base is named, and the principals who act in it |
-| `semiont.telemetry` | What the transports tell OpenTelemetry |
+| `semiont.telemetry` | What the transports tell OpenTelemetry, and `continuing`, which holds the trace a frame or a held job brought |
 | `semiont.testing` | The doubles: `FaultyTransport`, `InMemoryContent`, `StubGateway`, `create_test_client` |
 
 Nothing here restates the protocol by hand. `identifiers`, `types`,

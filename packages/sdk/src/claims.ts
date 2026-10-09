@@ -46,7 +46,9 @@
  * with is handed to its reader in the trace its reply arrived in, which is
  * the claim's own once the dispatcher has answered in it: so the span a
  * worker opens around a job, and every message the job sends, continue the
- * trace that began with its claim.
+ * trace that began with its claim. The held job states that trace too
+ * (`trace`), as a value, for what is done for the job where the hand-over
+ * does not reach.
  */
 
 import { Observable, Subject, type Subscriber, type Subscription } from 'rxjs';
@@ -226,6 +228,13 @@ interface Held<T extends JobType, R> {
   readonly attempt: number;
   /** The annotation the job is anchored to: the one a `yield` job's context is focused on. */
   readonly annotationId: AnnotationId | undefined;
+  /**
+   * The trace the job is run in: the W3C carrier of the trace its reply
+   * arrived in, or undefined for a reply that arrived in none. The job is
+   * handed to its reader in that trace already. This is the same trace as a
+   * value, for what is done for the job where that hand-over does not reach.
+   */
+  readonly trace: TraceCarrier | undefined;
   /** Aborted when a cancellation names this job. The work stops where it can, and the worker says `cancel`. */
   readonly cancelled: AbortSignal;
   /** Whether the job has been settled: completed, failed or cancelled. */
@@ -305,6 +314,7 @@ class HeldJobOf<T extends JobType, R> implements Held<T, R> {
   readonly maxRetries: number;
   readonly attempt: number;
   readonly annotationId: AnnotationId | undefined;
+  readonly trace: TraceCarrier | undefined;
   readonly cancelled: AbortSignal;
   private readonly cancellation = new AbortController();
   private state: 'claimed' | 'begun' | 'settled' = 'claimed';
@@ -320,6 +330,8 @@ class HeldJobOf<T extends JobType, R> implements Held<T, R> {
     readonly jobType: T,
     claimed: ClaimedJob,
     private readonly holder: Holder,
+    /** The trace the reply that carried `claimed` arrived in. */
+    trace: TraceCarrier | undefined,
     /** The completion this job's verb states, from what every lifecycle message carries and its result. */
     private readonly completion: (said: Named<T> & { attempt: number }, result: R) => EventMap['job:complete'],
   ) {
@@ -334,6 +346,7 @@ class HeldJobOf<T extends JobType, R> implements Held<T, R> {
     this.maxRetries = metadata.maxRetries;
     this.attempt = metadata.retryCount + 1;
     this.annotationId = anchorOf(jobType, params);
+    this.trace = trace;
     this.cancelled = this.cancellation.signal;
   }
 
@@ -512,19 +525,25 @@ class HeldJobOf<T extends JobType, R> implements Held<T, R> {
 }
 
 /**
- * Hold the job a claim was answered with, as its verb's. Undefined for a
+ * Hold the job a claim was answered with, as its verb's, in the trace its
+ * reply arrived in: `arrivedIn` has it by the job's id. Undefined for a
  * reply that names no job (WORKER-CONTRACT C9): read unguarded, one with no
  * `metadata` throws inside the loop, where no claim would ever follow, and
  * one with no id would be handed to the work as a job.
  */
-function heldJob(claimed: ClaimedJob, holder: Holder): HeldJobOf<'mark', MarkJobResult> | HeldJobOf<'yield', YieldJobResult> | undefined {
+function heldJob(
+  claimed: ClaimedJob,
+  holder: Holder,
+  arrivedIn: ReadonlyMap<string, TraceCarrier | undefined>,
+): HeldJobOf<'mark', MarkJobResult> | HeldJobOf<'yield', YieldJobResult> | undefined {
   const reply: unknown = claimed;
   if (!isObject(reply) || !isObject(reply['metadata']) || !isString(reply['metadata']['id']) || !isObject(reply['params'])) return undefined;
+  const trace = arrivedIn.get(reply['metadata']['id']);
   switch (reply['metadata']['type']) {
     case 'mark':
-      return new HeldJobOf('mark', claimed, holder, (said, result: MarkJobResult) => ({ ...said, result }));
+      return new HeldJobOf('mark', claimed, holder, trace, (said, result: MarkJobResult) => ({ ...said, result }));
     case 'yield':
-      return new HeldJobOf('yield', claimed, holder, (said, result: YieldJobResult) => ({ ...said, result }));
+      return new HeldJobOf('yield', claimed, holder, trace, (said, result: YieldJobResult) => ({ ...said, result }));
     default:
       return undefined;
   }
@@ -558,8 +577,9 @@ class ClaimLoop implements Holder {
    * arrived in, by the job it names. A frame is delivered inside the span of
    * its arrival, and the claim's answer is read after it, where that span is
    * no longer active: so the trace is kept here, at the delivery, for the
-   * hand-over. By the job, because every worker's reply reaches a stream that
-   * names the channel, and a job is claimed by one.
+   * job that is held from the answer. By the job, because every worker's
+   * reply reaches a stream that names the channel, and a job is claimed by
+   * one.
    */
   private readonly arrivedIn = new Map<string, TraceCarrier | undefined>();
 
@@ -686,7 +706,6 @@ class ClaimLoop implements Holder {
     // In no trace: the claim, and the reading of its answer.
     withoutTrace(() => void this.claimNext().then((outcome) => {
       this.claimInFlight = false;
-      const arrivedIn = 'job' in outcome ? this.arrivedIn.get(outcome.job.jobId) : undefined;
       this.arrivedIn.clear();
       if (this.phase !== 'claiming') {
         // Answered after the worker stopped: the job is this worker's at the
@@ -703,7 +722,7 @@ class ClaimLoop implements Holder {
         this.wakePending = false;
         this.held = outcome.job;
         // In the trace its reply arrived in.
-        withTraceparent(arrivedIn, () => this.reader?.next(outcome.job));
+        withTraceparent(outcome.job.trace, () => this.reader?.next(outcome.job));
         return;
       }
       if ('refused' in outcome) this.refused$.next(outcome.refused);
@@ -729,7 +748,7 @@ class ClaimLoop implements Holder {
       }
       return { refused: { code: null, message: error instanceof Error ? error.message : String(error) } };
     }
-    const job = heldJob(claimed, this);
+    const job = heldJob(claimed, this, this.arrivedIn);
     return job ? { job } : { refused: { code: null, message: 'job:claimed names no job: it has no job id, no job type or no parameters' } };
   }
 

@@ -40,9 +40,10 @@ EACH JOB HAS A TRACE OF ITS OWN (WORKER-CONTRACT T1). A claim is made in no
 trace, whatever span is current where the idle moment came: the settle of the
 job before it runs inside that job's span, and a claim made there would be in
 that job's trace. A held job states the trace its reply arrived in (`trace`),
-which is the claim's own once the dispatcher has answered in it: a worker
-opens its span for the job in that trace, so the span, and every message the
-job sends from inside it, continue the trace that began with the claim.
+which is the claim's own once the dispatcher has answered in it, and a job
+held with `async with` runs its block in that trace: so a span a worker
+starts there, and every message the job sends from inside it, continue the
+trace that began with the claim, with nothing written for it.
 
     async with client.job.claim(accepts) as claims:
         async for handed in claims:
@@ -54,14 +55,15 @@ job sends from inside it, continue the trace that began with the claim.
                 await job.complete(result)
 
 Held with `async with`, the claims are stopped on the way out, and a job
-still held then is failed first. A held job held with `async with` is failed
-on the way out if nothing settled it. Python tells nobody when a value is let
-go of, so a job that is neither settled nor held that way stays with the
-dispatcher until its worker stops.
+still held then is failed first. A held job held with `async with` runs its
+block in its trace, and is failed on the way out if nothing settled it.
+Python tells nobody when a value is let go of, so a job that is neither
+settled nor held that way stays with the dispatcher until its worker stops.
 """
 
 import asyncio
 from collections.abc import Callable, Coroutine, Mapping, Sequence
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from types import TracebackType
@@ -290,7 +292,13 @@ class _Held:
         metadata, params = claimed.metadata, claimed.params
         self._holder: Final = holder
         self.trace: Final = trace
-        """The trace the job is run in: the one its reply arrived in. Nothing for a reply that arrived in none."""
+        """The trace the job is run in: the one its reply arrived in. Nothing for a reply that arrived in none.
+
+        A block that holds the job with `async with` runs in it. It is a
+        value, for what is done for the job where that block does not reach.
+        """
+        self._entered: Final[list[AbstractContextManager[None]]] = []
+        """The job's trace, held once for each block that holds the job and has not been left."""
         self.job_id: Final = metadata.id
         self.resource_id: Final[ResourceId] = params.resource_id
         self.params: Final[JobParams] = params
@@ -299,7 +307,10 @@ class _Held:
         self.completed_units: Final[Sequence[str]] = tuple(metadata.completed_units or ())
         """The units earlier attempts finished. A worker does not do them again. Empty on a first attempt."""
         self.unit_cursors: Final[Mapping[str, UnitCursor]] = dict(metadata.unit_cursors or {})
-        """How far each unit begun and not finished got on an earlier attempt. Empty on a first attempt."""
+        """The furthest each unit begun got on an earlier attempt, and what it had counted there.
+
+        A finished unit's is where it ended. Empty on a first attempt.
+        """
         self.retry_count: Final = metadata.retry_count
         self.max_retries: Final = metadata.max_retries
         self.attempt: Final = metadata.retry_count + 1
@@ -374,7 +385,8 @@ class _Held:
     async def checkpoint(self, completed_units: Sequence[str], unit_cursors: Mapping[str, UnitCursor] | None = None) -> None:
         """`job:checkpoint`: what a later attempt resumes from. Counts as activity.
 
-        The units finished, and how far each unit begun and not finished got.
+        The units finished, and the furthest each unit begun got, a finished
+        unit's cursor where it ended.
         """
         self._unsettled(JOB_CHECKPOINT.name)
         self._begun = True
@@ -518,8 +530,9 @@ class _Held:
     async def cancel(self, completed_units: Sequence[str] | None = None, unit_cursors: Mapping[str, UnitCursor] | None = None) -> None:
         """Settle: `job:cancel`, once the work has stopped for a cancellation.
 
-        With the units it finished, and how far the others got. The message
-        is the command's own fields and no more: it names no attempt.
+        With the units it finished, and the furthest each unit begun got, a
+        finished unit's cursor where it ended. The message is the command's
+        own fields and no more: it names no attempt.
         """
         self._settling(JOB_CANCEL.name)
         cancelled = JobCancelCommand(
@@ -541,11 +554,18 @@ class _Held:
         self._settled = True
 
     async def __aenter__(self) -> Self:
+        # The block runs in the trace the job's reply arrived in.
+        entered = telemetry.continuing(self.trace)
+        entered.__enter__()
+        self._entered.append(entered)
         return self
 
     async def __aexit__(self, kind: type[BaseException] | None, error: BaseException | None, trace: TracebackType | None) -> None:
-        # Left without being settled: nobody will settle it now.
-        await _fail_for(self, _LET_GO_UNSETTLED)
+        try:
+            # Left without being settled: nobody will settle it now.
+            await _fail_for(self, _LET_GO_UNSETTLED)
+        finally:
+            self._entered.pop().__exit__(kind, error, trace)
 
 
 async def _fail_for(job: _Held, reason: str) -> None:

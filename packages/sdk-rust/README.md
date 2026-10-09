@@ -287,9 +287,13 @@ whole worker is shown, compiled and run, in
 - **Each job has a trace of its own.** A claim is made on the claiming's own
   task, in no trace, whatever span the job before it was settled in.
   `job.trace()` is the trace the job's reply arrived in, which is its
-  claim's: a worker that exports telemetry runs the job in that trace
-  (`semiont_telemetry::continuing(job.trace(), ..)`), and what the job sends
-  continues it.
+  claim's: a `TraceCarrier` (`traceparent`, and `tracestate` when there is
+  one), or `None` for a reply that arrived in none. A worker that exports
+  telemetry runs the job in it with one call,
+  `semiont_telemetry::continuing(job.trace(), work).await`, and the spans
+  `work` opens, and what the job sends from inside it, continue that trace.
+  The carrier is a value: it can be handed to whatever else the worker
+  starts for the job.
 - **`claims.vitals()`** is what the worker can say of itself: when it last
   heard an announcement, claimed, was active and settled, the job it holds,
   and how many it has completed. **`claims.stalled()`** tells of a held job

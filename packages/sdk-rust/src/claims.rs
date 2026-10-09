@@ -238,7 +238,8 @@ pub struct JobFailure {
     pub failure_class: Option<FailureClass>,
     /// The units finished before the failure.
     pub completed_units: Option<Vec<String>>,
-    /// How far each unit begun and not finished got.
+    /// The furthest each unit begun got, a finished unit's cursor where it
+    /// ended.
     pub unit_cursors: Option<BTreeMap<String, UnitCursor>>,
 }
 
@@ -635,8 +636,9 @@ impl<V> Held<V> {
         &self.core.completed_units
     }
 
-    /// How far each unit begun and not finished got on an earlier attempt.
-    /// Empty on a first attempt.
+    /// The furthest each unit begun got on an earlier attempt, and what it
+    /// had counted there: a finished unit's is where it ended. Empty on a
+    /// first attempt.
     pub fn unit_cursors(&self) -> &BTreeMap<String, UnitCursor> {
         &self.core.unit_cursors
     }
@@ -733,8 +735,8 @@ impl<V> Held<V> {
     }
 
     /// `job:checkpoint`: what a later attempt resumes from. The units
-    /// finished, and how far each unit begun and not finished got. Counts as
-    /// activity.
+    /// finished, and the furthest each unit begun got, a finished unit's
+    /// cursor where it ended. Counts as activity.
     pub async fn checkpoint(
         &self,
         completed_units: Vec<String>,
@@ -828,7 +830,8 @@ impl<V> Held<V> {
     }
 
     /// Settle: `job:cancel`, once the work has stopped for a cancellation,
-    /// with the units it finished and how far the others got.
+    /// with the units it finished, and the furthest each unit begun got, a
+    /// finished unit's cursor where it ended.
     pub async fn cancel(
         self,
         completed_units: Option<Vec<String>>,

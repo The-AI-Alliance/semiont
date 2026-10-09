@@ -23,6 +23,7 @@ from opentelemetry.trace import NonRecordingSpan, SpanContext, TraceFlags
 from pydantic import BaseModel, Field, JsonValue, TypeAdapter
 from spec import SPEC, JsonObject, objects, read, text
 
+from semiont import telemetry
 from semiont.claims import (
     JOB_CLAIM_CHANNELS,
     JOB_COMMIT_CHANNELS,
@@ -1113,6 +1114,106 @@ def test_a_held_job_states_the_trace_its_reply_arrived_in_and_none_when_it_arriv
             second = await held(claims)
             assert second.trace is None, "its reply arrived in no trace: it is not in that of the job settled before it"
             await finish(second)
+        await w.over()
+
+    run(scenario())
+
+
+def started() -> str | None:
+    """The trace a span started where this is called is in: its id, or nothing for one in none."""
+    span = otel_trace.get_tracer("a worker").start_span("the work")
+    within = span.get_span_context()
+    span.end()
+    return f"{within.trace_id:032x}" if within.is_valid else None
+
+
+def test_a_job_held_with_async_with_runs_its_block_in_the_trace_its_reply_arrived_in_and_what_follows_the_block_does_not() -> None:
+    async def scenario() -> None:
+        # The first claim's own answer is lost on the wire, and the test answers it by hand.
+        w = World(wire=[DropReply(), Deliver(), Deliver()])
+        arrived_in = TraceContext(traceparent="00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01")
+        async with w.client.job.claim(EVERYTHING) as claims:
+            reading = asyncio.ensure_future(held(claims))
+            await turns()
+            (claim,) = w.requested("job:claim")
+            w.transport.deliver(
+                Frame(channel="job:claimed", payload={"response": running("job-1")}, correlation_id=claim.correlation_id, trace=arrived_in)
+            )
+            first = await reading
+            w.offered.append(running("job-2"))
+
+            assert started() != "0af7651916cd43dd8448eb211c80319c", "being handed a job enters nothing"
+            async with first as job:
+                # A span the worker's code starts for the job, with no code of its own to continue the trace.
+                assert started() == "0af7651916cd43dd8448eb211c80319c"
+                await job.start()
+                assert started() == "0af7651916cd43dd8448eb211c80319c", "across what the job sends"
+                await finish(job)
+                assert started() == "0af7651916cd43dd8448eb211c80319c", "to the end of its block"
+            assert started() != "0af7651916cd43dd8448eb211c80319c", "a span started after the block is not in the job's trace"
+
+            # A job whose reply arrived in no trace enters none: its block runs in whatever its reader was in.
+            second = await held(claims)
+            with in_span(5):
+                async with second as job:
+                    assert started() == "5" * 32
+                    await finish(job)
+                assert started() == "5" * 32
+            await turns()
+            assert w.claimed_in == [None, None, None], "and a claim made from inside a block is in no trace"
+        await w.over()
+
+    run(scenario())
+
+
+def test_a_held_jobs_trace_is_a_value_that_work_done_outside_its_block_continues() -> None:
+    async def scenario() -> None:
+        w = World(wire=[DropReply(), Deliver()])
+        arrived_in = TraceContext(traceparent="00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01")
+        async with w.client.job.claim(EVERYTHING) as claims:
+            reading = asyncio.ensure_future(held(claims))
+            await turns()
+            (claim,) = w.requested("job:claim")
+            w.transport.deliver(
+                Frame(channel="job:claimed", payload={"response": running("job-1")}, correlation_id=claim.correlation_id, trace=arrived_in)
+            )
+            job = await reading
+
+            async def elsewhere() -> str | None:
+                # Another task, which no block of the job's reaches: the trace is entered by name.
+                with telemetry.continuing(job.trace):
+                    return started()
+
+            assert await asyncio.ensure_future(elsewhere()) == "0af7651916cd43dd8448eb211c80319c"
+            assert started() != "0af7651916cd43dd8448eb211c80319c", "and nothing was entered here"
+            await finish(job)
+        await w.over()
+
+    run(scenario())
+
+
+def test_a_block_left_with_its_job_unsettled_fails_the_job_and_leaves_the_jobs_trace() -> None:
+    async def scenario() -> None:
+        w = World(wire=[DropReply(), Deliver()])
+        arrived_in = TraceContext(traceparent="00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01")
+        async with w.client.job.claim(EVERYTHING) as claims:
+            reading = asyncio.ensure_future(held(claims))
+            await turns()
+            (claim,) = w.requested("job:claim")
+            w.transport.deliver(
+                Frame(channel="job:claimed", payload={"response": running("job-1")}, correlation_id=claim.correlation_id, trace=arrived_in)
+            )
+            job = await reading
+
+            async def breaking() -> None:
+                async with job:
+                    assert started() == "0af7651916cd43dd8448eb211c80319c"
+                    raise RuntimeError("the work broke")
+
+            with pytest.raises(RuntimeError, match="the work broke"):
+                await breaking()
+            assert started() != "0af7651916cd43dd8448eb211c80319c"
+            assert [channel for channel, _ in w.said()] == ["job:fail"]
         await w.over()
 
     run(scenario())
