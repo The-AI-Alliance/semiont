@@ -333,6 +333,8 @@ export function ResourceInfoPanel({
  * the honest label until then — and stays if the descriptor never resolves
  * (deleted source, no session). Own component because the id list maps in a
  * loop and the subscription is a hook.
+ *
+ * @emits browse:resource-open - Open the source resource. Payload: { resourceId: string }
  */
 function DerivedFromLink({ session, id, first }: {
   session: SemiontSession | null;

@@ -18,13 +18,22 @@
  *   - writes in braces a member the channel's payload does not have, leaves
  *     out one it requires, or marks optional one it requires.
  *
- * And when a file sends on a channel it has no `@emits` tag for, whether or
- * not it carries any tag. What a file sends on is read from it as written: an emit
- * of its own, `.emit('<channel>', …)`, and a call of a method of the SDK's
- * client, `client.<namespace>.<method>(…)`. Which channel a method sends on
- * is read from the SDK (packages/sdk/src/namespaces), from the method's own
- * body: where it emits on the client's bus or its transport, or makes a
- * request. A channel the registry calls a read needs no tag.
+ * A tag belongs to the declaration its comment documents, and is held to
+ * that declaration's code and to no other's: a function, a component or a
+ * constant declared at the top level of its file. It fails when
+ *   - a declaration sends on a channel its own comment has no `@emits` tag
+ *     for. A channel the registry calls a read needs none;
+ *   - an `@emits` tag names a channel its declaration does not send on: the
+ *     code it describes is somewhere else;
+ *   - a tag is in a comment that documents no declaration, or a send stands
+ *     outside every declaration.
+ *
+ * What a declaration sends on is read from it as written: an emit of its
+ * own, `.emit('<channel>', …)`, and a call of a method of the SDK's client,
+ * `….<namespace>.<method>(…)`, whatever holds the client. Which channel a
+ * method sends on is read from the SDK (packages/sdk/src/namespaces), from
+ * the method's own body: where it emits on the client's bus or its
+ * transport, or makes a request.
  *
  * A payload's members are its schema's, those of the schema's `allOf` among
  * them, and the ones the registry's `tsRefinement` adds as `… & { … }`:
@@ -34,7 +43,7 @@
  * that states no payload is held to its channel alone. A send made through
  * anything but the client's own namespaces, a state unit's or a child
  * component's, is not read; nor is one a client method makes outside its own
- * body. And nothing holds a tag to a send, or a subscription to a tag.
+ * body. And nothing holds a subscription to a `@subscribes` tag.
  *
  * Scanned: the TypeScript of packages/react-ui and apps/browser, comments
  * included, since a tag is one. Not scanned: tests.
@@ -116,10 +125,18 @@ function payloadOf(channel) {
   return { schema: channel.schema, members };
 }
 
-/** Every tag of `text`, whole: a tag runs to the next one or to the end of its comment. */
-function tagsOf(text) {
+const DECLARATION = /^(?:export\s+)?(?:default\s+)?(?:declare\s+)?(?:async\s+)?(?:function\*?|const|let|var|class|interface|type|enum)\s+([A-Za-z_$][\w$]*)/;
+
+/** The declarations at the top level of a file, each by its name and the line it begins on. Each runs to the next. */
+const declarationsOf = (lines) => lines.flatMap((line, at) => (DECLARATION.test(line) ? [{ name: DECLARATION.exec(line)[1], at }] : []));
+
+/**
+ * Every tag of a file, whole: a tag runs to the next one or to the end of its
+ * comment. Each with the declaration its comment documents: the one that
+ * begins on the first line after the comment that is not blank.
+ */
+function tagsOf(lines, declarations) {
   const tags = [];
-  const lines = text.split('\n');
   for (let at = 0; at < lines.length; at++) {
     const [, kind, channel, rest] = /^\s*\*\s*@(emits|subscribes)\s+(\S+)(.*)$/.exec(lines[at]) ?? [];
     if (kind === undefined) continue;
@@ -129,7 +146,9 @@ function tagsOf(text) {
       if (more === undefined || more.trimStart().startsWith('@')) break;
       said += ` ${more.trim()}`;
     }
-    tags.push({ line: at + 1, kind, channel, payload: /\bPayload:\s*(.*)$/.exec(said)?.[1] });
+    let after = lines.findIndex((line, index) => index >= at && line.includes('*/')) + 1;
+    while (after < lines.length && lines[after].trim() === '') after++;
+    tags.push({ line: at + 1, kind, channel, payload: /\bPayload:\s*(.*)$/.exec(said)?.[1], documents: declarations.find((declaration) => declaration.at === after) });
   }
   return tags;
 }
@@ -174,22 +193,38 @@ function sentByClient() {
 }
 const sentBy = sentByClient();
 if (sentBy.size === 0) fail(`no method of the SDK's client sends on a channel: the check has lost what it reads`);
+const CALL = new RegExp(`\\.\\s*(${[...new Set([...sentBy.keys()].map((method) => method.split('.')[0]))].join('|')})\\s*\\??\\.\\s*(\\w+)\\s*\\(`, 'g');
 
 let tags = 0;
 const files = repositoryFiles(ROOT).filter((file) => SCANNED.some((prefix) => file.startsWith(prefix)) && SOURCE.test(file) && !TEST.test(file));
 for (const file of files) {
   const text = readFileSync(resolve(ROOT, file), 'utf8');
-  const found = tagsOf(text);
+  const declarations = declarationsOf(text.split('\n'));
+  const found = tagsOf(text.split('\n'), declarations);
 
-  const documented = new Set(found.filter((tag) => tag.kind === 'emits').map((tag) => tag.channel));
+  // What each declaration sends on, and how: the declaration a send is in is the last to begin before it.
   const code = withoutComments(text);
-  const sent = new Map();
-  for (const [, namespace, method] of code.matchAll(/\bclient\s*\??\.\s*(\w+)\s*\??\.\s*(\w+)\s*\(/g)) {
-    for (const channel of sentBy.get(`${namespace}.${method}`) ?? []) sent.set(channel, `client.${namespace}.${method}()`);
+  const sent = new Map(declarations.map((declaration) => [declaration, new Map()]));
+  const send = (index, channel, how) => {
+    const line = code.slice(0, index).split('\n').length - 1;
+    const declaration = declarations.findLast((each) => each.at <= line);
+    if (declaration === undefined) fail(`${file}:${line + 1}: sends on ${channel}, through ${how}, outside every declaration`);
+    else sent.get(declaration).set(channel, how);
+  };
+  for (const call of code.matchAll(CALL)) {
+    for (const channel of sentBy.get(`${call[1]}.${call[2]}`) ?? []) send(call.index, channel, `${call[1]}.${call[2]}()`);
   }
-  for (const [, channel] of code.matchAll(/\.emit\(\s*'([a-z]+:[a-z-]+)'/g)) sent.set(channel, 'an emit of its own');
-  for (const [channel, how] of sent) {
-    if (!reads.has(channel) && !documented.has(channel)) fail(`${file}: sends on ${channel}, through ${how}, and has no @emits tag for it`);
+  for (const emit of code.matchAll(/\.emit\(\s*'([a-z]+:[a-z-]+)'/g)) send(emit.index, emit[1], 'an emit of its own');
+
+  for (const [declaration, channels] of sent) {
+    const tagged = new Set(found.filter((tag) => tag.kind === 'emits' && tag.documents === declaration).map((tag) => tag.channel));
+    for (const [channel, how] of channels) {
+      if (!reads.has(channel) && !tagged.has(channel)) fail(`${file}:${declaration.at + 1} ${declaration.name}: sends on ${channel}, through ${how}, and its own comment has no @emits tag for it`);
+    }
+  }
+  for (const tag of found) {
+    if (tag.documents === undefined) fail(`${file}:${tag.line} @${tag.kind} ${tag.channel}: is in a comment that documents no declaration`);
+    else if (tag.kind === 'emits' && !sent.get(tag.documents).has(tag.channel)) fail(`${file}:${tag.line} @emits ${tag.channel}: ${tag.documents.name} does not send on it: the code this tag describes is somewhere else`);
   }
 
   for (const { line, kind, channel, payload } of found) {
@@ -227,4 +262,4 @@ if (failures.length > 0) {
   for (const message of failures) console.error(`✗ ${message}`);
   process.exit(1);
 }
-console.log(`✓ lint:event-tags — ${tags} tags name channels the registry declares, each payload one states is its channel's, and every file tags each channel it sends on`);
+console.log(`✓ lint:event-tags — ${tags} tags name channels the registry declares, each payload one states is its channel's, and each @emits tag is on the declaration that sends`);

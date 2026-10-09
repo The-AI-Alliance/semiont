@@ -30,6 +30,8 @@ interface ReferenceEntryProps {
 /**
  * @emits browse:click - This entry clicked. Payload: { annotationId: string }
  * @emits bind:initiate - Start resolving this reference. Payload: BindInitiateCommand
+ * @emits bind:update-body - Unlink this reference from the resource it resolves to. Payload: BindUpdateBodyCommand
+ * @emits bind:body-error - Report an unlink that was refused. Payload: { resourceId: string, message: string }
  */
 export function ReferenceEntry({
   session,

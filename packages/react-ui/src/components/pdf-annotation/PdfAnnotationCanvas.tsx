@@ -83,10 +83,6 @@ interface PdfAnnotationCanvasProps {
 
 /**
  * PDF annotation canvas with page navigation and rectangle drawing
- *
- * @emits browse:click - Annotation clicked on PDF. Payload: { annotationId: string, anchorRect?: AnchorRect }
- * @emits mark:requested - New annotation drawn on PDF. Payload: { source: ResourceId, selector: [FragmentSelector, TextQuoteSelector?], motivation: SelectionMotivation } — the quote is the text under the rectangle, omitted when the page has no text layer
- * @emits beckon:hover - Annotation hovered or unhovered. Payload: { annotationId: string | null }
  */
 export function PdfAnnotationCanvas({
   pdfUrl,

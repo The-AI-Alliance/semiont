@@ -73,7 +73,7 @@ interface PdfPageViewProps {
  * this page's text; a drag can no more span pages than a rectangle can.
  *
  * @emits browse:click - Annotation clicked on the page. Payload: { annotationId: string, anchorRect?: AnchorRect }
- * @emits mark:requested - New annotation drawn on the page. Payload: { source: ResourceId, selector: [FragmentSelector, TextQuoteSelector?], motivation: SelectionMotivation }
+ * @emits mark:requested - New annotation drawn on the page. Payload: { source: ResourceId, selector: [FragmentSelector, TextQuoteSelector?], motivation: SelectionMotivation } — the quote is the text under the rectangle, omitted when the page has no text layer
  * @emits beckon:hover - Annotation hovered or unhovered. Payload: { annotationId: string | null }
  */
 export function PdfPageView({

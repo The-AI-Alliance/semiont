@@ -32,6 +32,9 @@ interface ResourceAnnotationsContextType {
 
 const ResourceAnnotationsContext = createContext<ResourceAnnotationsContextType | undefined>(undefined);
 
+/**
+ * @emits mark:create-request - Create an annotation of a resource. Payload: MarkCreateRequest
+ */
 export function ResourceAnnotationsProvider({ children }: { children: React.ReactNode }) {
   // UI state only - no data management
   const [sparkleAnnotationIds, setSparkleAnnotationIds] = useState<Set<string>>(new Set());
