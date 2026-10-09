@@ -66,11 +66,11 @@ func NewHealthClient(base string, opts ...ClientOption) (*HealthClient, error) {
 }
 
 func (h *HealthClient) HealthCheck(ctx context.Context) (*HealthResponse, error) {
-	// The RAW call, not GetApiHealthWithResponse: that wrapper decodes before
+	// The RAW call, not GetHealthWithResponse: that wrapper decodes before
 	// it reports, so a 2xx with an unrecognised body comes back as an error
 	// and a live gateway reads as down. Status first, body second — which is
 	// the order a liveness check has to ask them in.
-	resp, err := h.c.GetApiHealth(ctx)
+	resp, err := h.c.GetHealth(ctx)
 	if err != nil {
 		return nil, err
 	}

@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { Observable, Subject } from 'rxjs';
-import { DELEGATE_SILENCE_MS, annotationId, resourceId as makeResourceId } from '@semiont/core';
+import { DELEGATE_SILENCE_MS, annotationId, jobId, resourceId as makeResourceId } from '@semiont/core';
 import { createMarkStateUnit } from '../mark-state-unit';
+import type { JobEvent, MarkJobCompletion } from '../../../awaitable';
 import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 
@@ -24,18 +25,21 @@ describe('createMarkStateUnit', () => {
 
   afterEach(() => { tc?.bus.destroy(); });
 
-  it('initializes with null pending, null motivation, null progress', () => {
+  it('initializes with null pending, null motivation, null progress, no job', () => {
     tc = withMark();
     const stateUnit = createMarkStateUnit(tc.client, RID);
     const pend: unknown[] = [];
     const motiv: unknown[] = [];
     const prog: unknown[] = [];
+    const ids: unknown[] = [];
     stateUnit.pendingAnnotation$.subscribe(v => pend.push(v));
     stateUnit.delegatingMotivation$.subscribe(v => motiv.push(v));
     stateUnit.progress$.subscribe(v => prog.push(v));
+    stateUnit.jobId$.subscribe(v => ids.push(v));
     expect(pend).toEqual([null]);
     expect(motiv).toEqual([null]);
     expect(prog).toEqual([null]);
+    expect(ids).toEqual([null]);
     stateUnit.dispose();
   });
 
@@ -260,6 +264,73 @@ describe('createMarkStateUnit', () => {
     stateUnit.dispose();
   });
 
+  // ── The delegated job's id ───────────────────────────────────────
+  // What `client.job.cancel` names. A job is named only between the queue's
+  // answer to its creation and its end: before, there is no id; after, there
+  // is nothing to cancel.
+
+  it("holds the delegated job's id from the queue's answer to the job's completion", () => {
+    const job = new Subject<JobEvent<MarkJobCompletion>>();
+    tc = withMark({ delegate: vi.fn(() => job.asObservable()) });
+    const stateUnit = createMarkStateUnit(tc.client, RID);
+    const ids: unknown[] = [];
+    stateUnit.jobId$.subscribe(v => ids.push(v));
+
+    tc.bus.emit('mark:delegate-request', { params: { motivation: 'linking', entityTypes: ['Person'] } });
+    expect(ids.at(-1)).toBeNull();
+
+    job.next({ kind: 'created', data: { jobId: jobId('job-1') } });
+    expect(ids.at(-1)).toBe('job-1');
+
+    job.next({ kind: 'progress', data: { percentage: 10 } });
+    expect(ids.at(-1)).toBe('job-1');
+
+    job.next({ kind: 'complete', data: { resourceId: RID, jobId: jobId('job-1'), jobType: 'mark' } });
+    job.complete();
+    expect(ids.at(-1)).toBeNull();
+    stateUnit.dispose();
+  });
+
+  it("forgets the delegated job's id when the job ends in an error", () => {
+    const job = new Subject<JobEvent<MarkJobCompletion>>();
+    tc = withMark({ delegate: vi.fn(() => job.asObservable()) });
+    const stateUnit = createMarkStateUnit(tc.client, RID);
+    const ids: unknown[] = [];
+    stateUnit.jobId$.subscribe(v => ids.push(v));
+
+    tc.bus.emit('mark:delegate-request', { params: { motivation: 'highlighting' } });
+    job.next({ kind: 'created', data: { jobId: jobId('job-1') } });
+    job.error(new Error('The job was cancelled'));
+
+    expect(ids.at(-1)).toBeNull();
+    stateUnit.dispose();
+  });
+
+  it("names the job delegated last: not the one before it, whose end does not forget it", () => {
+    const first = new Subject<JobEvent<MarkJobCompletion>>();
+    const second = new Subject<JobEvent<MarkJobCompletion>>();
+    const delegateFn = vi.fn()
+      .mockImplementationOnce(() => first.asObservable())
+      .mockImplementationOnce(() => second.asObservable());
+    tc = withMark({ delegate: delegateFn });
+    const stateUnit = createMarkStateUnit(tc.client, RID);
+    const ids: unknown[] = [];
+    stateUnit.jobId$.subscribe(v => ids.push(v));
+
+    tc.bus.emit('mark:delegate-request', { params: { motivation: 'highlighting' } });
+    first.next({ kind: 'created', data: { jobId: jobId('job-1') } });
+
+    // The next job's creation is unanswered: the control beside its display has nothing to name.
+    tc.bus.emit('mark:delegate-request', { params: { motivation: 'highlighting' } });
+    expect(ids.at(-1)).toBeNull();
+    second.next({ kind: 'created', data: { jobId: jobId('job-2') } });
+    expect(ids.at(-1)).toBe('job-2');
+
+    first.complete();
+    expect(ids.at(-1)).toBe('job-2');
+    stateUnit.dispose();
+  });
+
   it('clears progress on mark:progress-dismiss', () => {
     const progressSubject = new Subject();
     const delegateFn = vi.fn(() => progressSubject.asObservable());
@@ -462,7 +533,7 @@ describe('MarkStateUnit — StateUnit axioms', () => {
         const tc = withMark();
         return { unit: createMarkStateUnit(tc.client, RID), teardown: () => tc.bus.destroy() };
       },
-      surfaces: (u) => [u.pendingAnnotation$, u.delegatingMotivation$, u.progress$],
+      surfaces: (u) => [u.pendingAnnotation$, u.delegatingMotivation$, u.progress$, u.jobId$],
     });
   });
 

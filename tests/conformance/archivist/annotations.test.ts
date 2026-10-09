@@ -5,7 +5,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { expect, it } from 'vitest';
-import { highlight, withArchivist, type Annotation, type ArchivistWorld } from '../harness/archivist-world';
+import { highlight, sha256, withArchivist, type Annotation, type ArchivistWorld } from '../harness/archivist-world';
 
 const TEXT = 'The quick brown fox jumps over the lazy dog.\n';
 
@@ -82,21 +82,6 @@ withArchivist('an annotation', (world) => {
 
     expect(await grace.refused('browse:annotation-requested', { resourceId: id, annotationId: 'f'.repeat(32) })).toBe('Annotation not found');
     expect(await grace.refused('browse:annotations-requested', { resourceId: 'e'.repeat(32) })).toBe(`Resource ${'e'.repeat(32)} not found in view storage`);
-  });
-
-  it('reads back with the text around it', async () => {
-    const id = await resource(world(), 'In context');
-    const grace = await world().person('grace');
-    const annotationId = ((await grace.ask('mark:create-request', { resourceId: id, request: highlight(id, 'fox', 16) })) as { annotationId: string }).annotationId;
-
-    const context = await grace.ask('browse:annotation-context-requested', { resourceId: id, annotationId, contextBefore: 6, contextAfter: 6 });
-    expect(context['context']).toEqual({ before: 'brown ', selected: 'fox', after: ' jumps' });
-    expect(context).toMatchObject({ annotation: { id: annotationId }, resource: { '@id': id, name: 'In context' } });
-
-    const whole = await grace.ask('browse:annotation-context-requested', { resourceId: id, annotationId });
-    expect(whole['context']).toEqual({ before: TEXT.slice(0, 16), selected: 'fox', after: TEXT.slice(19) });
-
-    expect(await grace.refused('browse:annotation-context-requested', { resourceId: id, annotationId: 'f'.repeat(32) })).toBe('Annotation not found');
   });
 
   it('records a batch once, however often it is sent', async () => {
@@ -179,16 +164,35 @@ withArchivist('an annotation', (world) => {
     expect((described['entityReferences'] as Array<{ id: string }>).map((a) => a.id)).toEqual([annotationId]);
   });
 
-  it('links a generated resource from the annotation it was generated for', async () => {
+  it('has linked a generated resource from the annotation it was generated for when it answers the upload', async () => {
     const id = await resource(world(), 'Source');
     const grace = await world().person('grace', { scopes: [id] });
     const annotationId = ((await grace.ask('mark:create-request', { resourceId: id, request: { ...highlight(id, 'fox', 16), motivation: 'linking' } })) as { annotationId: string }).annotationId;
 
     const generated = await world().created(grace.did, { name: 'About the fox', storageUri: 'file://generated/fox.md', content: 'Foxes.\n', sourceResourceId: id, sourceAnnotationId: annotationId, generationPrompt: 'Tell me about the fox' });
+    // The record is read as the answer arrives, with nothing waited for: the link is recorded before the answer is sent.
+    const link = { type: 'SpecificResource', source: generated, purpose: 'linking' };
+    expect(world().stored(id).at(-1)).toMatchObject({ type: 'mark:body-updated', userId: grace.did, payload: { annotationId, operations: [{ op: 'add', item: link }] } });
+    expect(world().view(id)!.annotations.annotations[0]!.body).toEqual([link]);
+
     expect(world().stored(generated)[0]!.payload).toMatchObject({ generatedFrom: { resourceId: id, annotationId }, generationPrompt: 'Tell me about the fox' });
     expect(world().view(generated)!.resource).toMatchObject({ wasDerivedFrom: id });
-
+    // The link is published as any event is, to its resource's scope.
     await grace.stream.next('the link', (m) => m.frame?.channel === 'mark:body-updated' && m.frame.scope === id);
-    expect(world().view(id)!.annotations.annotations[0]!.body).toEqual([{ type: 'SpecificResource', source: generated, purpose: 'linking' }]);
+  });
+
+  it('has linked a generated resource when it replies to yield:create', async () => {
+    const id = await resource(world(), 'Another source');
+    const grace = await world().person('grace', { scopes: [id] });
+    const annotationId = ((await grace.ask('mark:create-request', { resourceId: id, request: { ...highlight(id, 'dog', 40), motivation: 'linking' } })) as { annotationId: string }).annotationId;
+    const uri = 'file://generated/dog.md';
+    const content = 'Dogs.\n';
+    world().write(uri, content);
+
+    const { resourceId: generated } = (await grace.ask('yield:create', { name: 'About the dog', storageUri: uri, contentChecksum: sha256(content), byteSize: Buffer.byteLength(content), format: 'text/markdown', generatedFrom: { resourceId: id, annotationId } })) as { resourceId: string };
+    // As above: read as the reply arrives.
+    const link = { type: 'SpecificResource', source: generated, purpose: 'linking' };
+    expect(world().stored(id).at(-1)).toMatchObject({ type: 'mark:body-updated', userId: grace.did, payload: { annotationId, operations: [{ op: 'add', item: link }] } });
+    expect(world().view(id)!.annotations.annotations[0]!.body).toEqual([link]);
   });
 });

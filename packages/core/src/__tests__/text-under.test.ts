@@ -90,7 +90,7 @@ describe('textUnder', () => {
       .toBe('again');
   });
 
-  // The over-inclusion trap. buildPdfAnnotation slices text from the first
+  // The over-inclusion trap. `annotationOfSpan` slices text from the first
   // covered offset to the last, which is safe there because the result only
   // feeds a containment check. Here the result IS the stored quote, so the
   // uncovered text between two covered runs must not be pulled in.
@@ -134,5 +134,46 @@ describe('textUnder', () => {
     // Reaches 8pt into the y=700 line: 67% of each 12pt-tall run.
     expect(textUnder(LAYER, { page: 1, x: 70, y: 660, width: 200, height: 48 }))
       .toBe('Hello world again\nSecond line');
+  });
+});
+
+// An item's `start` and `end` count code points. A string counts a character
+// outside the Basic Multilingual Plane as two, so the text of an item after
+// one is further along the string than its offsets say.
+describe('textUnder — items count code points', () => {
+  //   y=700  😀 Hello 𝑥 world        (page 1; 15 code points, 17 units of a string)
+  const ASTRAL: AnchoredText = {
+    text: '😀 Hello 𝑥 world',
+    items: [
+      { start: 0, end: 1, page: 1, x: 72, y: 700, width: 12, height: 12 },    // 😀
+      { start: 2, end: 7, page: 1, x: 88, y: 700, width: 30, height: 12 },    // Hello
+      { start: 8, end: 9, page: 1, x: 122, y: 700, width: 8, height: 12 },    // 𝑥
+      { start: 10, end: 15, page: 1, x: 134, y: 700, width: 32, height: 12 }, // world
+    ],
+  };
+
+  it('quotes a run after such a character whole', () => {
+    expect(textUnder(ASTRAL, { page: 1, x: 86, y: 698, width: 34, height: 16 })).toBe('Hello');
+  });
+
+  it('quotes such a character itself, and the document\'s own spacing after it', () => {
+    expect(textUnder(ASTRAL, { page: 1, x: 70, y: 698, width: 50, height: 16 })).toBe('😀 Hello');
+  });
+
+  it('joins runs on either side of one', () => {
+    expect(textUnder(ASTRAL, { page: 1, x: 86, y: 698, width: 82, height: 16 })).toBe('Hello 𝑥 world');
+  });
+
+  it('puts one space for the text a rectangle misses, counted in code points', () => {
+    // The first and last runs only: what lies between is not white space, so
+    // it is not carried over.
+    const columns: AnchoredText = {
+      text: '😀 Hello 𝑥 world',
+      items: [
+        { start: 0, end: 1, page: 1, x: 72, y: 700, width: 12, height: 12 },
+        { start: 10, end: 15, page: 1, x: 72, y: 680, width: 32, height: 12 },
+      ],
+    };
+    expect(textUnder(columns, { page: 1, x: 70, y: 675, width: 40, height: 40 })).toBe('😀 world');
   });
 });

@@ -348,9 +348,8 @@ def test_a_jobs_status_is_asked_for_until_it_has_ended_and_each_answer_is_given_
             await soon(client.job.poll_until_complete(JobId("job-1"), every_ms=10, within_ms=30))
         assert late.value.code == "bus.timeout"
 
-        transport.queue_reply("job:cancel-requested", [{"cancelled": 3}, {"cancelled": 1}])
-        assert await soon(client.job.cancel_by_type("mark")) == 3
-        assert await soon(client.job.cancel(JobId("job-1"))) == 1
+        transport.queue_reply("job:cancel-requested", [{"cancelled": True}])
+        assert await soon(client.job.cancel(JobId("job-1"))) is True
         await client.close()
 
     run(scenario())

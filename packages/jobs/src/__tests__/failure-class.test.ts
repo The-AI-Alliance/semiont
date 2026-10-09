@@ -11,6 +11,7 @@
 import { describe, it, expect } from 'vitest';
 import { StructuredReadError } from '@semiont/inference';
 import { RETRY_RULES } from '@semiont/core';
+import { APIError } from '@semiont/http-transport';
 import { classifyFailure, DeterministicJobError } from '../failure-class';
 import { YieldCollapseError } from '../workers/detection/detection-chunking';
 import { InferenceTimeoutError } from '../workers/inference-call';
@@ -88,6 +89,16 @@ describe('classifyFailure', () => {
     // descends by size (see detection-chunking), which keeps the
     // deterministic-in-practice case from burning that budget at same size.
     expect(classifyFailure(new StructuredReadError('response is not valid JSON', 'unknown'))).toBeUndefined();
+  });
+
+  it('a read of bytes the gateway refuses classifies by its status, as the transport reports it', () => {
+    // The worker reads a resource's bytes on the gateway, and a refusal is the
+    // transport's own error. Bytes that are not there will not be there on a
+    // second identical read; an Archivist the gateway cannot reach may be.
+    const missing = APIError.refusal(404, 'Not Found', { error: 'No representation' }, null);
+    const unreachable = APIError.refusal(503, 'Service Unavailable', { error: 'The Archivist cannot serve it' }, null);
+    expect(classifyFailure(missing)).toBe('deterministic');
+    expect(classifyFailure(unreachable)).toBe('transient');
   });
 
   // ── the status branch is DERIVED, not restated ────────────────────────────

@@ -24,7 +24,6 @@ import {
   type GenerationJobParams,
   type IContentTransport,
   type IGatewayOperations,
-  type JobType,
   type MarkJobParams,
   type Motivation,
   type PutBinaryRequest,
@@ -232,9 +231,7 @@ const CALLS: Calls = {
     fail: (c) => c.job.fail$,
     status: (c, a) => c.job.status(jobId(String(a['jobId']))),
     pollUntilComplete: (c, a) => c.job.pollUntilComplete(jobId(String(a['jobId'])), { interval: 10, timeout: 50 }),
-    cancelByType: (c, a) => c.job.cancelByType(a['jobType'] as JobType),
     cancel: (c, a) => c.job.cancel(jobId(String(a['jobId']))),
-    cancelRequest: (c, a) => c.job.cancelRequest(a['jobType'] as JobType),
     claim: (c, a) => c.job.claim(a['options'] as unknown as ClaimOptions),
   },
   auth: {

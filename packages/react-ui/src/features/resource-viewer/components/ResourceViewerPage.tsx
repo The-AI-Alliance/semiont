@@ -132,6 +132,9 @@ export interface ResourceViewerPageProps {
  * @emits nav:push - Navigate to a resource or filtered view
  * @emits beckon:sparkle - Trigger sparkle animation on an annotation
  * @emits bind:update-body - Update annotation body content
+ * @emits mark:archive - Archive the current resource on the knowledge base
+ * @emits mark:unarchive - Unarchive the current resource on the knowledge base
+ * @emits panel:open - Open a panel: the one the viewer asks for, or the annotations panel for a pending or newly generated annotation
  * @subscribes mark:archive - Archive the current resource
  * @subscribes mark:unarchive - Unarchive the current resource
  * @subscribes yield:clone - Clone the current resource
@@ -263,12 +266,14 @@ export function ResourceViewerPage({
   const pendingAnnotation = useObservable(stateUnit?.mark.pendingAnnotation$) ?? null;
   const delegatingMotivation = useObservable(stateUnit?.mark.delegatingMotivation$) ?? null;
   const progress = useObservable(stateUnit?.mark.progress$) ?? null;
+  const delegatedJobId = useObservable(stateUnit?.mark.jobId$) ?? null;
   const activePanel = useObservable(stateUnit?.browse.activePanel$) ?? null;
   const scrollToAnnotationId = useObservable(stateUnit?.browse.scrollToAnnotationId$) ?? null;
   const panelInitialTab = useObservable(stateUnit?.browse.panelInitialTab$) ?? null;
   const onScrollCompleted = stateUnit?.browse.onScrollCompleted;
   const generationProgress = useObservable(stateUnit?.yield.progress$) ?? null;
   const isGenerating = useObservable(stateUnit?.yield.isGenerating$) ?? false;
+  const generationJobId = useObservable(stateUnit?.yield.jobId$) ?? null;
   const generationOutcome = useObservable(stateUnit?.yield.outcome$) ?? null;
 
   // A completion witnessed on this page reveals the derivation edge the worker
@@ -635,6 +640,7 @@ export function ResourceViewerPage({
                 annotateMode={annotateMode}
                 delegatingMotivation={delegatingMotivation}
                 progress={progress}
+                jobId={delegatedJobId}
                 pendingAnnotation={pendingAnnotation}
                 allEntityTypes={allEntityTypes}
                 annotationsError={annotationsError}
@@ -699,6 +705,7 @@ export function ResourceViewerPage({
                 generationProgress={
                   generationProgress && !generationProgress.annotationId ? generationProgress : null
                 }
+                generationJobId={generationJobId}
                 generationOutcome={generationOutcome}
                 onDismissProgress={() => stateUnit?.yield.dismissProgress()}
               />

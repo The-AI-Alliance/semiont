@@ -1,0 +1,30 @@
+{
+  "about": "when no acknowledgement arrives, the worker asks whether the batch's last annotation is on the resource; answered with it, the commit is established, and the job's completion says it was established by asking",
+  "source": "docs/protocol/WORKER-CONTRACT.md § Committing annotations",
+  "steps": [
+    {"let": {"accepts": [{"jobType": "mark", "params": {"motivation": "highlighting"}}]}},
+    {"let": {"job": {"status": "running", "metadata": {"id": "job-1", "type": "mark", "userId": {"$var": "client"}, "created": "2026-01-01T00:00:00.000Z", "retryCount": 0, "maxRetries": 3}, "params": {"resourceId": {"$var": "r1"}, "motivation": "highlighting"}, "startedAt": "2026-01-01T00:00:01.000Z", "progress": {}}}},
+    {"let": {"first": {"@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-1", "motivation": "highlighting", "target": {"source": {"$var": "r1"}, "selector": {"type": "TextQuoteSelector", "exact": "the words of annotation 1"}}, "created": "2026-01-01T00:00:00.000Z"}}},
+    {"let": {"last": {"@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-2", "motivation": "highlighting", "target": {"source": {"$var": "r1"}, "selector": {"type": "TextQuoteSelector", "exact": "the words of annotation 2"}}, "created": "2026-01-01T00:00:00.000Z"}}},
+    {"backend": "listen", "with": {"channels": ["job:claim", "mark:commit", "browse:annotation-requested"]}},
+    {"driver": "open", "with": {"commits": true, "timing": {"reconnectMs": 50, "lazyRemoveMs": 50, "markCommitTimeoutMs": 300}}},
+    {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["browse:annotation-failed", "browse:annotation-result", "job:cancel-requested", "job:claim-failed", "job:claimed", "job:queued", "mark:commit-failed", "mark:commit-ok"], "scoped": [], "pendingReplies": []}},
+    {"state": "open"},
+    {"driver": "claim", "with": {"accepts": {"$var": "accepts"}}},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "job:claim", "payload": {"accepts": {"$var": "accepts"}}, "correlationId": {"$var": "c1"}, "clientId": {"$var": "clientId"}}},
+    {"backend": "emit", "with": {"channel": "job:claimed", "correlationId": {"$var": "c1"}, "payload": {"response": {"$var": "job"}}}},
+    {"claimed": {"jobId": "job-1", "jobType": "mark", "resourceId": {"$var": "r1"}, "params": {"resourceId": {"$var": "r1"}, "motivation": "highlighting"}, "completedUnits": [], "unitCursors": {}, "retryCount": 0, "maxRetries": 3}},
+    {"driver": "start"},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "job:start", "payload": {"resourceId": {"$var": "r1"}, "jobId": "job-1", "jobType": "mark", "attempt": 1}, "clientId": {"$var": "clientId"}}},
+    {"driver": "commit", "with": {"resourceId": {"$var": "r1"}, "annotations": [{"$var": "first"}, {"$var": "last"}]}, "as": "commit"},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "mark:commit", "payload": {"resourceId": {"$var": "r1"}, "annotations": [{"$var": "first"}, {"$var": "last"}], "jobId": "job-1"}, "correlationId": {"$var": "m1"}, "clientId": {"$var": "clientId"}}},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "browse:annotation-requested", "payload": {"resourceId": {"$var": "r1"}, "annotationId": "ann-2"}, "correlationId": {"$var": "p1"}, "clientId": {"$var": "clientId"}}},
+    {"backend": "emit", "with": {"channel": "browse:annotation-result", "correlationId": {"$var": "p1"}, "payload": {"response": {"annotation": {"$var": "last"}, "resource": null, "resolvedResource": null}}}},
+    {"settles": "commit", "returns": null},
+    {"driver": "complete", "with": {"result": {"found": 2, "persisted": 2}}},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "job:complete", "payload": {"resourceId": {"$var": "r1"}, "jobId": "job-1", "jobType": "mark", "attempt": 1, "result": {"found": 2, "persisted": 2}, "durability": "probe-confirmed"}, "clientId": {"$var": "clientId"}}},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "job:claim", "payload": {"accepts": {"$var": "accepts"}}, "correlationId": {"$var": "c2"}, "clientId": {"$var": "clientId"}}},
+    {"backend": "emit", "with": {"channel": "job:claim-failed", "correlationId": {"$var": "c2"}, "payload": {"message": "No pending job matches", "code": "none-pending"}}},
+    {"quiet": 200}
+  ]
+}

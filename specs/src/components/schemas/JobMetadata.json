@@ -38,7 +38,7 @@
       "additionalProperties": {
         "$ref": "./UnitCursor.json"
       },
-      "description": "How far each unfinished unit got, keyed by unit."
+      "description": "The furthest each unit begun got, keyed by unit, with what it had counted there. A finished unit keeps its cursor: where it ended, and its final counts."
     }
   },
   "required": [

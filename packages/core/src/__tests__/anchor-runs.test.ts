@@ -13,6 +13,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { anchorRuns, textUnder, type PdfTextRun } from '../pdf-anchoring';
+import { textOffsets } from '../text-offsets';
 
 // pdf.js text matrix: [a, b, c, d, x, y] — only x/y are read.
 const run = (str: string, x: number, y: number, over: Partial<PdfTextRun> = {}): PdfTextRun => ({
@@ -65,6 +66,25 @@ describe('anchorRuns', () => {
 
     expect(text).toBe('first ');
     expect(items).toHaveLength(1);
+  });
+
+  // An item's offsets count code points, as every offset into a text does. A
+  // string counts a character outside the Basic Multilingual Plane as two, so
+  // a run after one sits one further along the string than its offset says.
+  it('counts each run\'s offsets in code points', () => {
+    const runs = [
+      run('𝔸lpha', 72, 700),
+      run('😀', 110, 700, { hasEOL: true }),
+      run('beta', 72, 686),
+      run('gamma', 100, 686),
+    ];
+    const { text, items } = anchorRuns(runs, 1);
+
+    expect(text).toBe('𝔸lpha 😀\nbeta gamma ');
+    expect(items.map((item) => [item.start, item.end])).toEqual([[0, 5], [6, 7], [8, 12], [13, 18]]);
+    const offsets = textOffsets(text);
+    expect(items.map((item) => text.slice(offsets.indexAt(item.start), offsets.indexAt(item.end))))
+      .toEqual(runs.map((r) => r.str));
   });
 
   it('produces empty AnchoredText for a page with no runs', () => {

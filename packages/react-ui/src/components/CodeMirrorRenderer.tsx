@@ -1,15 +1,16 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { EditorView, Decoration, DecorationSet, lineNumbers } from '@codemirror/view';
 import { EditorState, RangeSetBuilder, StateField, StateEffect, Compartment } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
 import { ReferenceResolutionWidget, showWidgetPreview, hideWidgetPreview } from '../lib/codemirror-widgets';
 import { scrollAnnotationIntoView } from '../lib/scroll-utils';
-import { annotationId as toAnnotationId } from '@semiont/core';
+import { annotationId as toAnnotationId, textOffsets } from '@semiont/core';
 import { isReference } from '@semiont/core';
 import { createHoverHandlers, type SemiontSession } from '@semiont/sdk';
 import {
+  documentPositions,
   convertSegmentPositions,
   computeAnnotationDecorations,
   computeWidgetDecorations,
@@ -26,15 +27,10 @@ import {
 // Re-export TextSegment for consumers
 export type { TextSegment } from '../lib/codemirror-logic';
 
-// Type augmentation for custom DOM properties used to store CodeMirror state
-interface EnrichedHTMLElement extends HTMLElement {
-  __cmView?: EditorView;
-}
-
 interface Props {
   content: string;
-  segments?: TextSegment[]; // Optional - only needed for annotation rendering
-  onTextSelect?: (exact: string, position: { start: number; end: number }) => void;
+  /** Optional - only needed for annotation rendering. Each is from one offset into `content` to another, in code points. */
+  segments?: TextSegment[];
   onChange?: (content: string) => void;
   editable?: boolean;
   sparkleAnnotationIds?: Set<string>;
@@ -59,7 +55,6 @@ const updateAnnotationsEffect = StateEffect.define<AnnotationUpdate>();
 
 // Effect to update widget decorations
 interface WidgetUpdate {
-  content: string;
   segments: TextSegment[];
   generatingReferenceId?: string | null | undefined;
   getTargetResourceName?: (resourceId: string) => string | undefined;
@@ -115,7 +110,6 @@ function createAnnotationDecorationsField() {
 
 // Build widget decorations using pure metadata
 function buildWidgetDecorations(
-  _content: string,
   segments: TextSegment[],
   generatingReferenceId: string | null | undefined,
   getTargetResourceName?: (resourceId: string) => string | undefined
@@ -157,7 +151,6 @@ const widgetDecorationsField = StateField.define<DecorationSet>({
     for (const effect of tr.effects) {
       if (effect.is(updateWidgetsEffect)) {
         decorations = buildWidgetDecorations(
-          effect.value.content,
           effect.value.segments,
           effect.value.generatingReferenceId,
           effect.value.getTargetResourceName
@@ -170,6 +163,9 @@ const widgetDecorationsField = StateField.define<DecorationSet>({
   provide: field => EditorView.decorations.from(field)
 });
 
+/**
+ * @emits beckon:hover - Annotation in the text hovered or unhovered. Payload: { annotationId: string | null }
+ */
 export function CodeMirrorRenderer({
   content,
   segments = [],
@@ -190,11 +186,12 @@ export function CodeMirrorRenderer({
   const viewRef = useRef<EditorView | null>(null);
   const contentRef = useRef(content);
 
-  // Convert segment positions from CRLF space to LF space
-  // CodeMirror normalizes line endings internally, so positions must be adjusted
-  const convertedSegments = convertSegmentPositions(segments, content);
+  // A segment is at offsets into the content, in code points. The editor's
+  // document is indexed in UTF-16 code units and holds each line break as one,
+  // so the segments are placed in it through the content's conversions.
+  const positions = useMemo(() => documentPositions(content, textOffsets(content)), [content]);
+  const convertedSegments = convertSegmentPositions(segments, positions);
 
-  const segmentsRef = useRef(convertedSegments);
   // Index segments by annotation ID for O(1) click lookups
   const segmentsByIdRef = useRef(new Map<string, TextSegment>());
   const lineNumbersCompartment = useRef(new Compartment());
@@ -202,7 +199,6 @@ export function CodeMirrorRenderer({
   const getTargetResourceNameRef = useRef(getTargetResourceName);
 
   // Update refs when they change
-  segmentsRef.current = segments;
   const segmentsById = new Map<string, TextSegment>();
   for (const s of segments) {
     if (s.annotation) segmentsById.set(s.annotation.id, s);
@@ -297,9 +293,6 @@ export function CodeMirrorRenderer({
 
     viewRef.current = view;
     contentRef.current = content;
-
-    // Store the view on the container for position calculation
-    (containerRef.current as EnrichedHTMLElement).__cmView = view;
 
     // Attach hover event listeners using native DOM events with delegation
     const container = view.dom;
@@ -414,19 +407,18 @@ export function CodeMirrorRenderer({
     });
   }, [convertedSegments, sparkleAnnotationIds]);
 
-  // Update widgets when content, segments, or generatingReferenceId changes
+  // Update widgets when segments or generatingReferenceId changes
   useEffect(() => {
     if (!viewRef.current || !enableWidgets) return;
 
     viewRef.current.dispatch({
       effects: updateWidgetsEffect.of({
-        content,
         segments: convertedSegments,
         generatingReferenceId,
         getTargetResourceName: getTargetResourceNameRef.current
       })
     });
-  }, [content, convertedSegments, enableWidgets, generatingReferenceId]);
+  }, [convertedSegments, enableWidgets, generatingReferenceId]);
 
   // Handle hovered annotation - add pulse effect and scroll if not visible
   useEffect(() => {

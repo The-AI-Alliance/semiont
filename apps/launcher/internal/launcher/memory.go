@@ -44,12 +44,15 @@ func memCeilingGB(m string) float64 {
 
 // startCeilingsGB sums the --memory ceilings THIS start will actually
 // request, from the one table that defines them. The list mirrors the flow:
-// the Semiont services and the Browser always run; provided infra roles come
-// from the plan; traces rides --observe; one Ollama runs when either the
+// the Semiont services the plan runs, and the Browser; provided infra roles
+// come from the plan; traces rides --observe; one Ollama runs when either the
 // inference or the embedding role provides it as a container.
 func startCeilingsGB(plan *launchPlan, opts startOptions) float64 {
 	sum := 0.0
 	for _, svc := range []string{"gateway", "worker", "smelter", "weaver", "archivist", "librarian", "dispatcher", "browser"} {
+		if plan != nil && !plan.runs(svc) {
+			continue
+		}
 		sum += memCeilingGB(semiontDescriptor(svc).mem)
 	}
 	// The collector runs on every start too, but it is not one of ours:

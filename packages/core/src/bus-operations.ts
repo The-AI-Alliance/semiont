@@ -51,8 +51,6 @@ export const BUS_OPERATIONS = {
   'browse:agents-requested':             { result: 'browse:agents-result',           failure: 'browse:agents-failed' },
   'browse:kb-requested':                 { result: 'browse:kb-result',               failure: 'browse:kb-failed' },
   'browse:directory-requested':          { result: 'browse:directory-result',        failure: 'browse:directory-failed' },
-  // dormant — handler registered, no client caller (annotation-detail capability)
-  'browse:annotation-context-requested': { result: 'browse:annotation-context-result', failure: 'browse:annotation-context-failed' },
 
   // ── FRAME (KB schema writes) ────────────────────────────────────
   'frame:add-entity-type':               { result: 'frame:entity-type-add-ok',       failure: 'frame:entity-type-add-failed' },
@@ -137,7 +135,6 @@ export const REPLY_NAMES = {
   'browse:agents-requested':             [],
   'browse:kb-requested':                 [],
   'browse:directory-requested':          [],
-  'browse:annotation-context-requested': [],
   'frame:add-entity-type':               [],
   'frame:add-tag-schema':                [],
   'gather:requested':                    ['annotationId'],

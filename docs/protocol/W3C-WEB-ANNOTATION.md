@@ -323,7 +323,7 @@ A text annotation carries a selector array that combines a position and a quote.
 
 ### TextPositionSelector
 
-Character positions from document start:
+Two offsets from the start of the resource's decoded text, counted in Unicode code points:
 
 ```json
 {

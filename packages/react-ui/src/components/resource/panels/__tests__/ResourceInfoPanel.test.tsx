@@ -4,7 +4,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { BehaviorSubject } from 'rxjs';
 import type { EventBus, ResourceDescriptor } from '@semiont/core';
-import { resourceId as makeResourceId } from '@semiont/core';
+import { jobId, resourceId as makeResourceId } from '@semiont/core';
 import type { CacheObservable, CacheState, SemiontClient, SemiontSession } from '@semiont/sdk';
 import { ResourceInfoPanel } from '../ResourceInfoPanel';
 import { createTestSemiontWrapper } from '../../../../test-utils';
@@ -327,6 +327,29 @@ describe('ResourceInfoPanel Component', () => {
       );
       expect(container.querySelector('.semiont-delegate-progress')).not.toBeNull();
       expect(screen.queryByRole('button', { name: '✨ Generate' })).toBeNull();
+    });
+
+    it('the control of a running generation asks for that job to be cancelled, by its id', () => {
+      const { client } = renderWithEventBus(
+        <ResourceInfoPanel {...defaultProps} onGenerate={() => {}}
+          isGenerating
+          generationJobId={jobId('job-1')}
+          generationProgress={{ percentage: 40, message: { code: 'generating-resource' } }} />
+      );
+      const cancelSpy = vi.spyOn(client.job, 'cancel').mockResolvedValue(true);
+
+      fireEvent.click(screen.getByTestId('semiont-delegate-control'));
+      expect(cancelSpy).toHaveBeenCalledExactlyOnceWith('job-1');
+    });
+
+    it('a running generation the queue has not named yet has no cancel control', () => {
+      renderWithEventBus(
+        <ResourceInfoPanel {...defaultProps} onGenerate={() => {}}
+          isGenerating
+          generationProgress={{ percentage: 40, message: { code: 'generating-resource' } }} />
+      );
+
+      expect(screen.queryByTestId('semiont-delegate-control')).toBeNull();
     });
 
     it('the ended frame links the generated resource by name, and dismisses', () => {

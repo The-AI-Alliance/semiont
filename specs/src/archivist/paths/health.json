@@ -1,5 +1,6 @@
 {
   "get": {
+    "operationId": "getHealth",
     "summary": "Liveness",
     "description": "Answers while the process serves. Public: the launcher probes it before any credential exists.",
     "security": [],

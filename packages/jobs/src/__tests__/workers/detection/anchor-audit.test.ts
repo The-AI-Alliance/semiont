@@ -2,8 +2,8 @@
  * Anchor auditing: the method that anchored each annotation is counted, so
  * the degraded-anchor rate is a measured number.
  *
- * The mechanical selector-vs-source check is already a write-time invariant in
- * both annotation builders, so it cannot fail and auditing it would measure a
+ * The mechanical selector-vs-source check is already made at write time, by
+ * `annotationOfSpan`, so it cannot fail and auditing it would measure a
  * constant. The uncertain part is WHICH METHOD anchored a span — and visible
  * only as a log line, degraded anchors go unreviewed.
  */
@@ -22,8 +22,10 @@ describe('noteAnchor', () => {
   beforeEach(() => recordAnchorOutcomeMock.mockClear());
 
   it('counts the CLEAN anchors too — without them the degraded count has no denominator', () => {
-    noteAnchor('reference', 'Paris', 'unique-match');
+    const logger = { warn: vi.fn(), info: vi.fn(), debug: vi.fn(), error: vi.fn() };
+    noteAnchor('reference', 'Paris', 'unique-match', logger as never);
     expect(recordAnchorOutcomeMock).toHaveBeenCalledWith('reference', 'unique-match');
+    expect(logger.warn).not.toHaveBeenCalled();
   });
 
   it('counts a degraded anchor and warns about it', () => {

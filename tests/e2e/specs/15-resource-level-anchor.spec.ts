@@ -13,11 +13,12 @@ import { signInSession } from '../fixtures/sdk-session';
  * `semiont-newsroom-kb/skills/bind-claim-to-source` — a source-only `target`
  * with a `SpecificResource` body.
  *
- * `@semiont/core`'s `assembleAnnotation` requires no selector of a target, so
- * the `mark.annotation` below is accepted: a successful create + serve IS the
- * verification that whole-resource targets are first-class. (The deterministic
- * check lives in the `@semiont/core` unit test; this is the system-level guard
- * against the live stack.)
+ * A target needs no selector (the spec's `AnnotationTarget` requires its
+ * `source` and nothing else), so the `mark.annotation` below is accepted: a
+ * successful create + serve IS the verification that whole-resource targets
+ * are first-class. (The deterministic check of the SDK's side lives in
+ * `@semiont/sdk`'s `mark-annotation-target.test.ts`; this is the system-level
+ * guard against the live stack.)
  *
  * Self-seeding: creates its own two resources, so it doesn't depend on the
  * global seed's fixtures.

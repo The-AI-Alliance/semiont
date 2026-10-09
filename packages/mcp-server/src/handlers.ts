@@ -7,7 +7,7 @@
 
 import { lastValueFrom, type Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
-import { getExactText, getBodySource } from '@semiont/core';
+import { getExactText, getBodySource, isObject } from '@semiont/core';
 import { resourceId, annotationId } from '@semiont/core';
 import type {
   Annotation,
@@ -82,6 +82,20 @@ export interface McpClient {
  */
 function gatheredContext(final: GatherAnnotationComplete): GatheredContext {
   return final.response;
+}
+
+/**
+ * The refusal of a call that leaves out what its tool requires, naming each
+ * thing left out. A handler supplies nothing a caller was to state: a value
+ * made up here would be sent as if the caller had chosen it.
+ */
+function required(missing: string[]): Error {
+  return new Error(`${missing.join(', ')} ${missing.length === 1 ? 'is' : 'are'} required`);
+}
+
+/** A count of code points: a whole number of at least zero. */
+function isCount(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0;
 }
 
 // ── Browse ──────────────────────────────────────────────────────────────────
@@ -177,8 +191,24 @@ function markOutcome(result: MarkJobResult | undefined): string {
   return result satisfies never;
 }
 
+/**
+ * The selection a `mark_annotation` call states: where it starts and how long
+ * it is, both counted in Unicode code points, and the text selected.
+ */
+function selectionOf(stated: unknown): { offset: number; length: number; text: string } {
+  // What is not an object states none of the three.
+  const selection: Record<string, unknown> = isObject(stated) ? stated : {};
+  const { offset, length, text } = selection;
+  const missing = Object.entries({ offset, length, text }).filter(([, value]) => value === undefined).map(([member]) => `selectionData.${member}`);
+  if (missing.length > 0) throw required(missing);
+  if (!isCount(offset)) throw new Error('selectionData.offset must be a whole number of at least zero');
+  if (!isCount(length)) throw new Error('selectionData.length must be a whole number of at least zero');
+  if (typeof text !== 'string' || text === '') throw new Error('selectionData.text must be a string that is not empty');
+  return { offset, length, text };
+}
+
 export async function markAnnotation(semiont: McpClient, args: any): Promise<McpResult> {
-  const selectionData = args?.selectionData || {};
+  const selection = selectionOf(args?.selectionData);
   const entityTypes = args?.entityTypes || [];
 
   const body = entityTypes.map((value: string) => ({
@@ -190,8 +220,8 @@ export async function markAnnotation(semiont: McpClient, args: any): Promise<Mcp
     target: {
       source: args?.resourceId,
       selector: [
-        { type: 'TextPositionSelector', start: selectionData.offset || 0, end: (selectionData.offset || 0) + (selectionData.length || 0) },
-        { type: 'TextQuoteSelector', exact: selectionData.text || '' },
+        { type: 'TextPositionSelector', start: selection.offset, end: selection.offset + selection.length },
+        { type: 'TextQuoteSelector', exact: selection.text },
       ],
     },
     body,
@@ -254,13 +284,17 @@ export async function gatherAnnotation(semiont: McpClient, args: any): Promise<M
 // ── Yield ───────────────────────────────────────────────────────────────────
 
 export async function yieldResource(semiont: McpClient, args: any): Promise<McpResult> {
+  const name: unknown = args?.name;
+  const content: unknown = args?.content;
+  if (typeof name !== 'string' || typeof content !== 'string') {
+    throw required([...(typeof name === 'string' ? [] : ['name']), ...(typeof content === 'string' ? [] : ['content'])]);
+  }
   const format = args?.contentType || 'text/plain';
-  const content = args?.content || '';
   const blob = new Blob([content], { type: format });
-  const file = new File([blob], args?.name + '.txt', { type: format });
+  const file = new File([blob], name + '.txt', { type: format });
 
   const data = await semiont.yield.resource({
-    name: args?.name, file, format, storageUri: args?.storageUri,
+    name, file, format, storageUri: args?.storageUri,
     entityTypes: args?.entityTypes || [],
   });
 

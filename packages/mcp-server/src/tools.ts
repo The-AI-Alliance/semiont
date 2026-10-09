@@ -45,7 +45,7 @@ export const TOOLS: Tool[] = [
       type: 'object',
       properties: {
         resourceId: { type: 'string', description: 'Resource ID' },
-        selectionData: { type: 'object', description: 'Selection data (offset, length, text)', properties: { offset: { type: 'number' }, length: { type: 'number' }, text: { type: 'string' } } },
+        selectionData: { type: 'object', description: "The selection: its offset and its length, both counted in Unicode code points of the resource's text, and the text selected", properties: { offset: { type: 'integer', minimum: 0 }, length: { type: 'integer', minimum: 0 }, text: { type: 'string', minLength: 1 } }, required: ['offset', 'length', 'text'] },
         entityTypes: { type: 'array', items: { type: 'string' }, description: 'Entity types, each added to the annotation as a tagging body' },
       },
       required: ['resourceId', 'selectionData'],

@@ -1,7 +1,7 @@
-import type { ResourceId, components, AnchoredTextAnswer } from '@semiont/core';
-import { textSourceOf, yieldsGeometryOf, decodeRepresentation } from '@semiont/core';
-import type { ContentReads, ExtractionDecline } from '@semiont/content';
-import { buildTextAnnotation, buildPdfAnnotation, type BuildAnnotation } from '../../processors';
+import type { ResourceId, components, AnchoredTextAnswer, IContentTransport, TextOffsets } from '@semiont/core';
+import { annotationOfSpan, textSourceOf, yieldsGeometryOf, decodeRepresentation, textOffsets } from '@semiont/core';
+import type { ExtractionDecline } from '@semiont/content';
+import type { BuildAnnotation } from '../../processors';
 import { DeterministicJobError } from '../../failure-class';
 
 type Agent = components['schemas']['Agent'];
@@ -14,9 +14,14 @@ type Agent = components['schemas']['Agent'];
  * (its decline enum is wider than the wire's), so it narrows by `declined`
  * presence; the wire outcome it wraps discriminates by `kind`, as every
  * wire union does.
+ *
+ * `offsets` is the text's conversions between its offsets, which count code
+ * points, and its string's positions. They are made here, once, where the
+ * text is first held, and every function of the job that cuts the text is
+ * handed them.
  */
 export type DetectionSource =
-  | { text: string; buildAnnotation: BuildAnnotation }
+  | { text: string; offsets: TextOffsets; buildAnnotation: BuildAnnotation }
   | DetectionDecline;
 
 /**
@@ -36,6 +41,13 @@ export type DetectionDecline = {
     // declined to map), the second is a resource with no content identity.
     | 'not-yet' | 'no-map' | 'unknown';
 };
+
+/** How a detection job reads a resource's bytes: the client's own
+ * `browse.resourceRepresentation`, which reads on the gateway as the agent
+ * the worker is signed in as. Derived from the transport contract, so it
+ * cannot drift from it, and injected as a narrow function for the reason the
+ * consult below is. */
+export type ReadRepresentation = (resourceId: ResourceId) => ReturnType<IContentTransport['getBinary']>;
 
 /** How a detection job reads canonical geometry: the resource-addressed
  * consult (`browse.resourceAnchoredText`), injected as a narrow function so
@@ -64,19 +76,20 @@ export type ConsultAnchoredTextAwaits = 'browse:anchored-text-requested';
  * derive even by mistake: deriving needs the anchored-text store, which it
  * does not have.
  *
- * Bytes come from the injected `ContentReads` for NON-geometry types only;
- * geometry types take the injected `consult` seam instead. Both are narrow
- * read seams rather than the session — the read is all this ever wanted.
+ * Bytes come from the injected `readRepresentation` for NON-geometry types
+ * only; geometry types take the injected `consult` seam instead. Both are
+ * narrow read seams rather than the session — the read is all this ever
+ * wanted.
  *
  * The anchoring model follows the geometry, not the media type: an extraction
  * that carries positioned runs anchors spatially (page + viewrect), one that
- * does not anchors by character offset. Detection processors stay
+ * does not anchors by offset, in code points. Detection processors stay
  * media-agnostic — they take `.text` and the returned `buildAnnotation`, and
  * never see a layer or a media type.
  */
 export async function prepareDetection(
   mediaType: string,
-  content: ContentReads,
+  readRepresentation: ReadRepresentation,
   resourceId: ResourceId,
   generator: Agent,
   consult: ConsultAnchoredText,
@@ -101,8 +114,9 @@ export async function prepareDetection(
         const anchored = { text: answer.text, items: answer.items ?? [] };
         return {
           text: answer.text,
-          buildAnnotation: (motivation, match, body) =>
-            buildPdfAnnotation(anchored, resourceId, generator, motivation, match, body),
+          offsets: textOffsets(answer.text),
+          buildAnnotation: (motivation, span, body) =>
+            annotationOfSpan({ anchored, resourceId, generator, motivation, span, body }),
         };
       }
       // The Smelter's own decline (encrypted, corrupt) — passed through by name.
@@ -135,19 +149,20 @@ export async function prepareDetection(
   // NON-GEOMETRY types (markdown, plain text) have no canonical artifact to
   // consult — the Smelter publishes nothing for them, so there is nothing to
   // diverge from. Decode the bytes directly; the text itself is the
-  // coordinate system, anchored by character offset.
+  // coordinate system, anchored by offset, in code points.
   //
   // `decodeRepresentation` is core's, and it is the SAME call the Smelter's
   // embedding path makes for these types — not a second implementation that
   // happens to agree. It cannot decline: any byte sequence decodes to some
   // string, so 'empty' below is the only way this route yields nothing.
-  const { data } = await content.getBinary(resourceId);
+  const { data } = await readRepresentation(resourceId);
   const text = decodeRepresentation(Buffer.from(data), mediaType);
   if (!text.trim()) return { declined: 'empty' };
 
   return {
     text,
-    buildAnnotation: (motivation, match, body) =>
-      buildTextAnnotation(text, resourceId, generator, motivation, match, body),
+    offsets: textOffsets(text),
+    buildAnnotation: (motivation, span, body) =>
+      annotationOfSpan({ text, resourceId, generator, motivation, span, body }),
   };
 }

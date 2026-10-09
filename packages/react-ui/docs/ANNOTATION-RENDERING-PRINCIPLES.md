@@ -10,10 +10,10 @@ The annotation rendering system is built on ten fundamental axioms, verified by 
 
 ### 1. POSITION PRESERVATION
 
-Annotations must preserve the exact character positions from the source text, regardless of rendering transformations.
+Annotations must keep their exact place in the source text, regardless of rendering transformations.
 
 **Implications:**
-- Character offsets are always relative to the original source text
+- An offset is always into the original source text, and counts its Unicode code points from the start: a character outside the Basic Multilingual Plane is one, and a CRLF is two
 - Markdown transformations don't affect position calculations
 - Positions remain stable across re-renders
 
@@ -21,7 +21,7 @@ Annotations must preserve the exact character positions from the source text, re
 ```typescript
 const text = "# Title\n- dog\n- cat";
 const annotation = { offset: 10, length: 3, text: "dog" };
-// Position 10-13 always refers to "dog" in source, regardless of how markdown renders
+// Offsets 10 to 13 are always "dog" in the source, regardless of how markdown renders
 ```
 
 ### 2. NON-OVERLAPPING
@@ -34,7 +34,7 @@ Multiple annotations can exist but the renderer must handle overlapping graceful
 - Maintain clear visual boundaries
 - Prevent annotation collision in the DOM
 
-**Rationale:** Overlapping CodeMirror marks create ambiguous click targets and complex event handling, so segmentation skips overlaps for predictable behavior. The BrowseView overlay works in offset space against the pristine text nodes, so its overlap geometry is exact and every annotation renders.
+**Rationale:** Overlapping CodeMirror marks create ambiguous click targets and complex event handling, so segmentation skips overlaps for predictable behavior. The BrowseView overlay works in positions of the rendered text against the pristine text nodes, so its overlap geometry is exact and every annotation renders.
 
 ### 3. CONTENT INTEGRITY
 
@@ -45,7 +45,7 @@ The rendered text content must match the source content exactly.
 - All characters from source must appear in rendered output
 - Text reconstruction from segments must equal original text
 
-**Verification:** the segments `segmentTextWithAnnotations(content, annotations)` returns (in `src/lib/text-segmentation.ts`) cover the content exactly:
+**Verification:** the segments `segmentTextWithAnnotations(content, offsets, annotations)` returns (in `src/lib/text-segmentation.ts`) cover the content exactly:
 ```typescript
 declare const segments: TextSegment[];
 expect(segments.map((s) => s.exact).join('')).toBe(content); // Must always be true
@@ -68,10 +68,10 @@ Markdown rendering must be transparent to position tracking.
 
 **Principles:**
 - Positions refer to source text, not rendered HTML
-- Markdown syntax characters are included in position counts
+- An offset counts markdown syntax characters, as it counts every character of the source
 - Annotations work across markdown boundaries
 
-**Why CodeMirror:** This axiom drove the decision to use CodeMirror for AnnotateView. By showing markdown source with syntax highlighting, positions map 1:1 with the source text, eliminating complex coordinate transformations.
+**Why CodeMirror:** This axiom drove the decision to use CodeMirror for AnnotateView. By showing markdown source with syntax highlighting, every character an offset counts is displayed, in order. What is left is a conversion of count and not of content: the editor's document is indexed in UTF-16 code units and holds a line break as one unit, and `documentPositions()` converts between its positions and offsets.
 
 ### 6. INCREMENTAL STABILITY
 
@@ -125,14 +125,14 @@ Markdown elements must render as their semantic HTML equivalents with proper sty
 
 The renderer trusts the stored selector and re-anchors only on a verbatim quote match. It never fuzzy-matches at render time.
 
-**Rationale:** The event log is the system of record. An annotation's `TextPositionSelector` and `TextQuoteSelector` are written to agree — `reconcileSelector` plus the `buildTextAnnotation` no-overlap invariant guarantee `content.substring(start, end) === exact` at write time. The only legitimate render-time discrepancy is *positional drift*: content shifted above the span after the annotation was written, so the offset is stale but the exact text still exists byte-identical. Re-anchoring to that verbatim match is the W3C-intended use of `TextQuoteSelector`, and is safe because it demands identical text — no judgment call.
+**Rationale:** The event log is the system of record. An annotation's `TextPositionSelector` and `TextQuoteSelector` are written to agree — `reconcile` finds the span, and `annotationOfSpan` refuses one whose text from offset `start` to offset `end` is not `exact`, at write time. The only legitimate render-time discrepancy is *positional drift*: content shifted above the span after the annotation was written, so the offset is stale but the exact text still exists byte-identical. Re-anchoring to that verbatim match is the W3C-intended use of `TextQuoteSelector`, and is safe because it demands identical text — no judgment call.
 
 **What the renderer does** (`anchorAnnotation` in `@semiont/core`):
 - `fast-path` — the stored offset already lands on `exact`.
 - `unique-occurrence` / `context-disambiguated` / `position-tiebreaker` — `exact` is found verbatim; prefix/suffix and (for repeated text) position pick the occurrence.
 - `position-fallback` — `exact` is not found verbatim; render at the stored offset and flag low-confidence.
 
-**What it does not do:** fuzzy / normalized / Levenshtein recovery. A non-verbatim mismatch means the content representation diverged or the record is wrong — both upstream concerns, fixed at the source (canonical content, or re-running detection), not papered over at render. Fuzzy matching lives only at write time in `reconcileSelector`.
+**What it does not do:** fuzzy / normalized / Levenshtein recovery. A non-verbatim mismatch means the content representation diverged or the record is wrong — both upstream concerns, fixed at the source (canonical content, or re-running detection), not papered over at render. Fuzzy matching lives only at write time in `reconcile`.
 
 **Affordance:** every anchor carries a `strategy` and `confidence`. Anything below `confidence: 'high'` gets the `.annotation-low-confidence` class (dotted underline), a hover tooltip naming the strategy, and a one-shot `console.warn`, so corpus-wide anchor drift surfaces instead of staying invisible.
 
@@ -147,7 +147,9 @@ The segmentation axioms are pinned by unit tests in `src/lib/__tests__/text-segm
 5. Verbatim re-anchoring: a stale `TextPositionSelector` re-anchors through the `TextQuoteSelector`, and annotated segments carry their anchor `strategy` and `confidence`
 6. Low confidence: the `annotation-low-confidence` class and the strategy tooltip, and one degraded-anchor warning per annotation
 
-The BrowseView overlay is covered by `src/lib/__tests__/annotation-overlay.test.ts`: the source→rendered offset map across markdown syntax, the per-type CSS class, nested spans for overlapping annotations (later annotation innermost), one mutation per annotated text node, and a clean restore of the original text.
+What an offset counts is pinned by `src/lib/__tests__/code-point-offsets.test.ts`, which runs the offset table (`specs/src/text/offset-cases.json`) through the selection builder and the segmenter, and by `src/components/resource/__tests__/AnnotateView.code-point-offsets.test.tsx` and `BrowseView.code-point-offsets.test.tsx`, which mount the real editor and the real markdown renderer: a selection is recorded at its offsets, and a stored selector lights exactly its words, after characters outside the basic plane, in CRLF documents, and across markdown syntax.
+
+The BrowseView overlay is covered by `src/lib/__tests__/annotation-overlay.test.ts`: the source→rendered position map across markdown syntax, the per-type CSS class, nested spans for overlapping annotations (later annotation innermost), one mutation per annotated text node, and a clean restore of the original text.
 
 Property-based tests ([fast-check](https://github.com/dubzzz/fast-check)) cover the PDF coordinate transformations in `src/lib/__tests__/pdf-coordinates.test.ts` and the per-page rectangles in `src/components/pdf-annotation/__tests__/rects-for-page.test.ts`.
 

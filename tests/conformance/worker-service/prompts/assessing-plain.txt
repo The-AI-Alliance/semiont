@@ -1,0 +1,32 @@
+Identify passages in this text that merit critical assessment or evaluation.
+For each passage, provide analysis of its validity, strength, or implications.
+
+Guidelines:
+- Select passages containing claims, arguments, conclusions, or assertions
+- Assess evidence quality, logical soundness, or practical implications
+- Provide assessments that ADD INSIGHT beyond restating the text
+- Focus on passages where evaluation would help readers form judgments
+- Keep assessments concise yet substantive (1-3 sentences typically)
+- Aim for 2-6 assessments per 2000 words (focus on key passages)
+
+Text to analyze:
+---
+Ada Lovelace published the first program in 1843 — a method for computing Bernoulli numbers on the Analytical Engine.
+
+Charles Babbage designed the engine in London, but it was never built. Lovelace argued that the engine could manipulate symbols as well as numbers; nobody tested that claim for a century.
+
+The program was naïve by later standards, and London ignored it. London was wrong.
+---
+
+Return a JSON array of assessments. Each assessment should have:
+- "exact": the exact text passage being assessed (quoted verbatim from source)
+- "prefix": up to 64 characters of text immediately before the passage
+- "suffix": up to 64 characters of text immediately after the passage
+- "assessment": your analytical assessment (1-3 sentences, evaluate validity/strength/implications)
+
+Respond with a valid JSON array.
+
+Example format:
+[
+  {"exact": "AI will replace most jobs by 2030", "prefix": "Many experts predict that ", "suffix": ", fundamentally reshaping", "assessment": "This claim lacks nuance and supporting evidence. Employment patterns historically show job transformation rather than wholesale replacement. The timeline appears speculative without specific sector analysis."}
+]

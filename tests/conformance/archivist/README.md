@@ -48,11 +48,13 @@ what its schema says; and a case fails otherwise, whatever it was about.
 - **Annotations** (`annotations.test.ts`): an annotation assembled, a batch
   committed once however often it is sent, bodies changed, an annotation
   removed, what each reads back as, the annotation a published fact carries,
-  and a generated resource linked from the annotation it was generated for.
+  and a generated resource linked from the annotation it was generated for by
+  the time its creation is answered, on `yield:create` and over HTTP.
 - **Browse** (`browse.test.ts`): the knowledge base, the vocabulary and its
   seeding, tag schemas, the listing, a resource's events, people named by
-  their profile, a directory of the working tree, anchored text under the
-  stamp its writer states, and the roster.
+  their profile, a directory of the working tree, anchored text as it is
+  stored, under the stamp its writer states and in the store's version only,
+  and the roster.
 - **Clone tokens** (`clone.test.ts`): issued, looked up, spent on a copy over
   the bus and by an upload, and refused.
 - **Jobs** (`jobs.test.ts`): the lifecycle recorded in a resource's stream, no
@@ -83,9 +85,10 @@ what its schema says; and a case fails otherwise, whatever it was about.
   bound, what an archive unstages, the branch, a batch that cannot be staged,
   and a knowledge base that does not sync git, which runs none.
 
-Behaviour ARCHIVIST.md lists as a known defect is not pinned by any case. Two
-channels the Archivist subscribes to, `yield:mv` and `mark:create`, are not
-reachable through a gateway and have no cases.
+Behaviour ARCHIVIST.md lists as a known defect is not pinned by any case.
+Neither is what `yield:moved`, `yield:representation-added` and
+`yield:representation-removed` change in a view: no command the Archivist
+answers appends one, and no case writes one into a log.
 
 ## Running it
 

@@ -1,5 +1,5 @@
 import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
-import type { GenerationJobParams, ResourceId, components } from '@semiont/core';
+import type { GenerationJobParams, JobId, ResourceId, components } from '@semiont/core';
 import type { SemiontClient } from '../../client';
 import type { StateUnit } from '@semiont/core';
 import type { DelegationObservable, YieldJobCompletion } from '../../awaitable';
@@ -42,6 +42,12 @@ export interface YieldStateUnit extends StateUnit {
    */
   failure$: Observable<Error | null>;
   /**
+   * The id of the generation job, from the queue's answer to its creation to
+   * the job's end: what `client.job.cancel` names. Null before the answer,
+   * when there is no id, and after the end, when there is nothing to cancel.
+   */
+  jobId$: Observable<JobId | null>;
+  /**
    * Grounded generation — the focus of `params.context` decides the shape
    * (annotation focus auto-binds; resource focus mints provenance) and names
    * the job's resource; see `client.yield.delegate`.
@@ -66,6 +72,7 @@ export function createYieldStateUnit(
   const progress$ = new BehaviorSubject<JobProgress | null>(null);
   const outcome$ = new BehaviorSubject<YieldOutcome | null>(null);
   const failure$ = new BehaviorSubject<Error | null>(null);
+  const jobId$ = new BehaviorSubject<JobId | null>(null);
 
   // Generation progress/complete/fail is driven entirely by the delegation
   // `client.yield.delegate` returns — it gives this job's events only, so no
@@ -81,8 +88,18 @@ export function createYieldStateUnit(
   // one. A stall arrives here as a plain stream error
   // (GenerationStallError), handled below like any other.
   const drive = (gen$: DelegationObservable<YieldJobCompletion>): void => {
+    // This job's id. At the job's end it is forgotten only while it is still
+    // the one held: a job generated later replaces it.
+    let created: JobId | null = null;
+    const forgetJob = () => {
+      if (created !== null && jobId$.getValue() === created) jobId$.next(null);
+    };
     const genSub = gen$.subscribe({
       next: (e) => {
+        if (e.kind === 'created') {
+          created = e.data.jobId;
+          jobId$.next(created);
+        }
         // Surface live progress to the UI.
         if (e.kind === 'progress') {
           progress$.next(e.data);
@@ -103,21 +120,24 @@ export function createYieldStateUnit(
         // The finished display STAYS until dismissed — `isGenerating$` going
         // false is what flips it to its ended form.
         isGenerating$.next(false);
+        forgetJob();
       },
       error: (error: unknown) => {
         progress$.next(null);
         isGenerating$.next(false);
         failure$.next(error instanceof Error ? error : new Error(String(error)));
+        forgetJob();
       },
     });
     subs.push(genSub);
   };
 
   const generate = (params: GenerationJobParams, stallDeadlineMs?: number): void => {
-    // A new run's frame must not carry the previous run's link, or its
-    // failure.
+    // A new run's frame must not carry the previous run's link, its
+    // failure, or its job's id.
     outcome$.next(null);
     failure$.next(null);
+    jobId$.next(null);
     drive(client.yield.delegate(
       { ...params, language: params.language || locale },
       stallDeadlineMs,
@@ -129,6 +149,7 @@ export function createYieldStateUnit(
     progress$: progress$.asObservable(),
     outcome$: outcome$.asObservable(),
     failure$: failure$.asObservable(),
+    jobId$: jobId$.asObservable(),
     generate,
     dismissProgress() {
       progress$.next(null);
@@ -141,6 +162,7 @@ export function createYieldStateUnit(
       progress$.complete();
       outcome$.complete();
       failure$.complete();
+      jobId$.complete();
     },
   };
 }

@@ -4,6 +4,7 @@
 use crate::shard::shard_path;
 use crate::{Object, RecordError, failed, indented, read_object, write_whole};
 use ring::digest::{SHA256, digest};
+use semiont::channels::{Channel, YieldCloned, YieldCreated, YieldMoved};
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 
@@ -79,11 +80,11 @@ impl UriIndex {
                 .filter(|v| !v.is_empty())
         };
         match event.get("type").and_then(Value::as_str) {
-            Some("yield:created" | "yield:cloned") => match text("storageUri") {
+            Some(YieldCreated::NAME | YieldCloned::NAME) => match text("storageUri") {
                 Some(uri) => self.put(uri, resource_id),
                 None => Ok(()),
             },
-            Some("yield:moved") => {
+            Some(YieldMoved::NAME) => {
                 if let Some(from) = text("fromUri") {
                     self.drop(from)?;
                 }

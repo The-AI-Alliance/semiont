@@ -11,6 +11,9 @@ export interface HoverEmitterProps {
   onMouseLeave: () => void;
 }
 
+/**
+ * @emits beckon:hover - The annotation when the pointer rests on it, and null when it leaves. Payload: { annotationId: string | null }
+ */
 export function useHoverEmitter(session: SemiontSession | null, annotationId: AnnotationId, hoverDelayMs: number = HOVER_DELAY_MS): HoverEmitterProps {
   const currentHoverRef = useRef<AnnotationId | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

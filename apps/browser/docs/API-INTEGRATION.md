@@ -257,7 +257,7 @@ const link: BodyItem = { type: 'SpecificResource', purpose: 'linking', source: r
 
 Two complementary selector types anchor annotations to text:
 
-**TextPositionSelector** — character offsets (fast, precise):
+**TextPositionSelector** — offsets into the text, counted in Unicode code points (fast, precise):
 ```typescript
 import type { TextPositionSelector } from '@semiont/core';
 

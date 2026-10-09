@@ -248,6 +248,61 @@ A worker signs in as an agent, which is the transport crate's to do, so a
 whole worker is shown, compiled and run, in
 [the transport's README](../http-transport-rust/README.md#a-daemon).
 
+What a worker does with a job it holds is its own. One that marks a text
+asks a model what to mark, and the model quotes the text. `annotations` turns
+what it quoted into annotations, and the job commits them. Here `job` is a
+`mark` job the worker holds, `text` the text of its resource, `quoted` what a
+model quoted of it, and `generator` the agent the worker signed in as.
+
+```rust
+job.start().await?;
+let resource_id = job.resource_id().clone();
+
+// The words a model quoted are found in the text, or they are not in it:
+// only what is found is built. A span is the text's own, and its offsets
+// count code points.
+let mut highlights = Vec::new();
+for quote in quoted {
+    let Some(found) = reconcile(text, quote) else {
+        continue;
+    };
+    highlights.push(annotation_of_span(
+        Spanned::Text(text),
+        &found.span,
+        &resource_id,
+        Motivation::Highlighting,
+        generator,
+        None,
+    )?);
+}
+
+// The job commits what was built, and says what became of the work.
+let result = JobDetectionResult::new(quoted.len() as u64, highlights.len() as u64);
+job.commit(&resource_id, highlights).await?;
+job.complete(result.into()).await?;
+```
+
+| Function | What it does |
+|---|---|
+| `reconcile(text, &quoted)` | Finds the words a model quoted in a text. `quoted` is a `QuotedText`: the `exact` words, and maybe the `prefix` and `suffix` the model says stand around them. The answer is `Some(ReconciledSpan)`, the `span` the words are (`start`, `end`, `exact`, and the text's own `prefix` and `suffix`) and the `anchor_method` that found it, or `None`. Words the text does not have character for character are looked for without regard to white space and the forms of quotation marks and dashes, then without regard to letter case, then within a twentieth of their length in edits. |
+| `annotation_of_span(spanned, &span, &resource_id, motivation, &generator, body)` | Builds the annotation of a span: its selectors, its id, and the body and generator as given. `spanned` is `Spanned::Text(&text)`, or `Spanned::Pdf(&anchored)` for a PDF's `AnchoredText`, whose annotation states a rectangle for each line the span touches. A span that is not the text's is an `Err` of an `errors::SpanRefusal`, which displays as its code: `span-out-of-range`, `exact-mismatch`, `prefix-mismatch`, `suffix-mismatch`, `nothing-located`, `exact-not-covered`. |
+| `annotation_of_resource(&resource_id, motivation, generator, body)` | Builds an annotation of a resource as a whole, with no selector: the link from a source to what was generated from it is one. |
+
+`reconcile` is one way to find a model's words in a text, with its own
+tolerance for a misquote. A worker that finds its spans another way gives
+`annotation_of_span` a `TextSpan` of its own. The builders make nothing a
+payload written by hand could not, so nothing a knowledge base relies on
+rests on them.
+
+An annotation's id is derived from what the annotation is: its resource, its
+motivation, its body and where it is. A worker that builds the same
+annotation again, on a retry or after another worker's attempt, gives it the
+same id, and committing it a second time changes nothing. An offset counts
+Unicode code points from the start of the text, as the wire's do, and the
+text is given as the `&str` it is. The tables under
+[`specs/src/annotations`](../../specs/src/annotations) hold every SDK's
+builders to the same answers.
+
 - **Its stream names `JOB_CLAIM_CHANNELS`**, and the reply channels of
   whatever else it awaits. The announcements that wake an idle worker reach
   only a stream that names them, so a client whose stream does not is handed
@@ -261,9 +316,18 @@ whole worker is shown, compiled and run, in
   before `complete`, since a completion carries what its verb reports.
   `start` comes first, and `progress` and `checkpoint` as often as there is
   something to say.
+- **A held job commits for itself.** `job.commit(&resource_id, annotations)`
+  sends the batch as `mark:commit`, citing the job, and returns once the
+  record has it. When no acknowledgement arrives it asks whether the batch's
+  last annotation is on the resource, and a commit that is not established
+  returns the failure of its unanswered request. A batch of no annotations
+  sends nothing. A worker that commits names `JOB_COMMIT_CHANNELS` in its
+  stream as well.
 - **A held job settles once.** `complete`, `fail` and `cancel` each take the
   job by value, say the outcome and let it go, so settling twice does not
-  compile.
+  compile. `complete` says how the job's commits were established, and
+  `fail` says what a commit that was not established observed: the job
+  remembers both, and the worker states neither.
 - **A job is never left.** One dropped unsettled is failed, and
   `claims.stop().await` fails the job the worker still holds. The queue then
   runs it again at once, where a job whose worker was killed waits for the
@@ -275,6 +339,16 @@ whole worker is shown, compiled and run, in
 - **A cancellation is signalled.** `job.cancelled()` turns true when a
   cancellation names the held job: the work stops where it can, and says
   `job.cancel(..)`.
+- **Each job has a trace of its own.** A claim is made on the claiming's own
+  task, in no trace, whatever span the job before it was settled in.
+  `job.trace()` is the trace the job's reply arrived in, which is its
+  claim's: a `TraceCarrier` (`traceparent`, and `tracestate` when there is
+  one), or `None` for a reply that arrived in none. A worker that exports
+  telemetry runs the job in it with one call,
+  `semiont_telemetry::continuing(job.trace(), work).await`, and the spans
+  `work` opens, and what the job sends from inside it, continue that trace.
+  The carrier is a value: it can be handed to whatever else the worker
+  starts for the job.
 - **`claims.vitals()`** is what the worker can say of itself: when it last
   heard an announcement, claimed, was active and settled, the job it holds,
   and how many it has completed. **`claims.stalled()`** tells of a held job
@@ -293,7 +367,7 @@ A method's return type says how to use it.
 |---|---|---|
 | `async fn … -> Result<T, SemiontError>` | asked once, answered once | `.await?` |
 | `Running<T>` | a long-running operation | `.await` for its final value; `.next()` for each report and then the final value; `.run(f)` for both |
-| `Delegation<C>` | a job another party does | `.await` for its completion, a `C`: its verb's, `MarkJobCompleteCommand` or `YieldJobCompleteCommand`; `.next()` for each of the job's events, the completion last |
+| `Delegation<C>` | a job another party does | `.await` for its completion, a `C`: its verb's, `MarkJobCompleteCommand` or `YieldJobCompleteCommand`; `.next()` for each of the job's events: the queue's answer that names the job first (its id is what `job.cancel` takes), the completion last |
 | `Upload` | an upload in flight | `.await` for the resource created; as a stream, its progress; dropped, cancelled |
 | `Cached<T>` | a query, built without touching the wire | `.watch()` for its state now and as it changes; `.fresh().await?` for one read; `.invalidate()` to ask again |
 | nothing, from a plain `fn` | a signal to the client's own parts | called |
@@ -377,10 +451,10 @@ so does dropping it.
 
 | Unit | holds | hears, or is told |
 |---|---|---|
-| `MarkStateUnit` (one resource) | the annotation being composed; the motivation and progress of the delegated job running | `client.mark.request`, `submit`, `cancel_pending`, `request_delegate`, `dismiss_progress`; `mark:select-*` on the client's bus |
+| `MarkStateUnit` (one resource) | the annotation being composed; the motivation, id and progress of the delegated job running | `client.mark.request`, `submit`, `cancel_pending`, `request_delegate`, `dismiss_progress`; `mark:select-*` on the client's bus |
 | `GatherStateUnit` (one resource) | an annotation's context, and a resource's, each with its loading and its failure | `gather:requested` on the client's bus; `gather_resource` |
 | `MatchStateUnit` | nothing: it answers on the bus, under the asker's correlation id | `client.match_.request_search` |
-| `YieldStateUnit` | whether a generation runs, its progress, what it produced, and why it ended without a result | `generate`, `dismiss_progress` |
+| `YieldStateUnit` | whether a generation runs, its job's id, its progress, what it produced, and why it ended without a result | `generate`, `dismiss_progress` |
 | `BeckonStateUnit` | the annotation hovered | `client.beckon.hover`; an annotation opened, here or by another participant; `focus` |
 | `SearchPipeline<T>` | a query and the results of the query it settled on | `set_query` |
 
@@ -476,7 +550,7 @@ Each module is documented on [docs.rs](https://docs.rs/semiont).
 | `types` | The protocol's types, generated from the spec when the crate is built: the ids, and every request, response and event |
 | `channels` | The bus's channels, one type each, naming its payload. A channel the protocol does not have, or a payload that is not that channel's, does not compile. Each is `Scoped`, carried by a resource's scope, or `Unscoped`. |
 | `errors`, `timing`, `retry` | The failure codes, the deadlines and the retry rules every Semiont SDK shares |
-| `annotations` | The readers of an annotation: the resource it is on and the one it links to, the text it quotes, its entity types, its tag, and what kind it is. Its target is an id or an object, its selector one or a list, its body absent, one item or a list, and these read each. [`reader-cases.json`](../../specs/src/annotations/reader-cases.json) holds every SDK's readers to the same answers. |
+| `annotations` | The readers of an annotation: the resource it is on and the one it links to, the text it quotes, its entity types, its tag, and what kind it is. Its target is an id or an object, its selector one or a list, its body absent, one item or a list, and these read each. [`reader-cases.json`](../../specs/src/annotations/reader-cases.json) holds every SDK's readers to the same answers. And the builders of one, which [a worker](#a-worker) uses: `reconcile`, `annotation_of_span` and `annotation_of_resource`, held by [`reconcile-cases.json`](../../specs/src/annotations/reconcile-cases.json) and [`builder-cases.json`](../../specs/src/annotations/builder-cases.json). |
 | `claims`, `job_filter` | A worker's side of the job queue: its claims, the jobs it holds, whether a failed job is retried, and whether a job is one a claim takes. What a worker promises is the [worker contract](../../docs/protocol/WORKER-CONTRACT.md) |
 | `session` | `SemiontSession`, `SemiontBrowser`, `SessionFactory`, `SessionSignals` |
 | `storage`, `sign_in_store` | Where a client keeps what must outlive it, and the sign-ins `semiont login` keeps |

@@ -17,7 +17,8 @@
 //! resource. The motivation those parameters state is held while it runs,
 //! and its progress as it comes. A finished job's progress stays until it is
 //! dismissed (`client.mark.dismiss_progress`) or the next one begins. One
-//! that fails clears both.
+//! that fails clears both. The job's id is held from the queue's answer to
+//! its creation to the job's end: it is what `client.job.cancel` names.
 //!
 //! A delegated job that says nothing for `DELEGATE_SILENCE` has gone quiet,
 //! which is not over: the unit says so once (`mark:delegate-timeout`) and
@@ -36,13 +37,13 @@ use crate::namespaces::JobEvent;
 use crate::state_unit::StateUnit;
 use crate::timing::DELEGATE_SILENCE;
 use crate::transport::Envelope;
-use crate::types::ResourceId;
 use crate::types::{
     AnnotationSelector, AnnotationTarget, CreateAnnotationRequest, FragmentSelector,
     FragmentSelectorType, JobProgress, MarkDelegateTimeoutEvent, MarkJobParams, MarkSubmitEvent,
     Motivation, ResourceErrorEvent, SelectionData, Selector, SvgSelector, SvgSelectorType,
     TextQuoteSelector, TextQuoteSelectorType,
 };
+use crate::types::{JobId, ResourceId};
 use std::sync::Arc;
 use tokio::sync::watch;
 
@@ -101,6 +102,7 @@ struct Shared {
     pending: Held<Option<PendingAnnotation>>,
     delegating: Held<Option<Motivation>>,
     progress: Held<Option<JobProgress>>,
+    job_id: Held<Option<JobId>>,
     tasks: Tasks,
 }
 
@@ -142,6 +144,7 @@ impl MarkStateUnit {
             pending: Held::new(None),
             delegating: Held::new(None),
             progress: Held::new(None),
+            job_id: Held::new(None),
             tasks: Tasks::new(),
         });
         shared.tasks.spawn(listen(shared.clone(), heard));
@@ -162,6 +165,14 @@ impl MarkStateUnit {
     /// it is dismissed.
     pub fn progress(&self) -> watch::Receiver<Option<JobProgress>> {
         self.shared.progress.read()
+    }
+
+    /// The id of the delegated job, from the queue's answer to its creation
+    /// to the job's end: what `client.job.cancel` names. None before the
+    /// answer, when there is no id, and after the end, when there is nothing
+    /// to cancel.
+    pub fn job_id(&self) -> watch::Receiver<Option<JobId>> {
+        self.shared.job_id.read()
     }
 }
 
@@ -201,6 +212,7 @@ async fn listen(shared: Arc<Shared>, mut heard: BusFrames) {
             };
             shared.delegating.set(Some(motivation));
             shared.progress.set(None);
+            shared.job_id.set(None);
             shared
                 .tasks
                 .spawn(delegate(shared.clone(), request.params, motivation));
@@ -220,8 +232,8 @@ async fn create(shared: Arc<Shared>, submission: MarkSubmitEvent) {
         .annotation(CreateAnnotationRequest {
             motivation: submission.motivation,
             target: AnnotationTarget {
-                source: shared.resource_id.clone(),
                 selector: Some(submission.selector),
+                ..AnnotationTarget::new(shared.resource_id.clone())
             },
             body: submission.body,
         })
@@ -234,6 +246,14 @@ async fn create(shared: Arc<Shared>, submission: MarkSubmitEvent) {
 
 async fn delegate(shared: Arc<Shared>, params: MarkJobParams, motivation: Motivation) {
     let mut run = shared.client.mark.delegate(&shared.resource_id, params);
+    // This job's id. At the job's end it is let go only while it is still
+    // the one held: a job delegated later replaces it.
+    let mut created: Option<JobId> = None;
+    let forget = |created: &Option<JobId>| {
+        if let Some(job_id) = created {
+            shared.job_id.forget(job_id);
+        }
+    };
     // Whether the next silence is still to be said. It is said once, and
     // again only after the job has said something.
     let mut listening_for_silence = true;
@@ -252,6 +272,10 @@ async fn delegate(shared: Arc<Shared>, params: MarkJobParams, motivation: Motiva
         };
         listening_for_silence = true;
         match event {
+            Some(Ok(JobEvent::Created(job))) => {
+                shared.job_id.set(Some(job.job_id.clone()));
+                created = Some(job.job_id);
+            }
             Some(Ok(JobEvent::Progress(progress))) => shared.progress.set(Some(progress)),
             // An attempt that will be tried again, or the completion, which
             // the stream's end follows.
@@ -259,10 +283,12 @@ async fn delegate(shared: Arc<Shared>, params: MarkJobParams, motivation: Motiva
             Some(Err(_)) => {
                 shared.delegating.set(None);
                 shared.progress.set(None);
+                forget(&created);
                 return;
             }
             None => {
                 shared.delegating.set(None);
+                forget(&created);
                 return;
             }
         }
@@ -304,6 +330,7 @@ impl StateUnit for MarkStateUnit {
         self.shared.pending.end();
         self.shared.delegating.end();
         self.shared.progress.end();
+        self.shared.job_id.end();
     }
 }
 

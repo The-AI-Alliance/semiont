@@ -19,8 +19,8 @@ dispatcher against this document.
 
 **The dispatcher is the knowledge base's job control plane.** It holds the queue, admits new jobs,
 hands each one to a worker that claims it, and records how it ended. Ids, job types, parameters and
-status flow through it. Content never does: a worker reads a resource from the Archivist and writes
-its annotations back through the bus, and the dispatcher sees neither.
+status flow through it. Content never does: a worker reads a resource's bytes on the gateway and
+writes its annotations back through the bus, and the dispatcher sees neither.
 
 It is not:
 
@@ -78,7 +78,7 @@ A job is one record, keyed by its id.
 | `metadata.retryCount` | always | attempts re-queued so far; `0` at admission |
 | `metadata.maxRetries` | always | the retry budget: `0` for a `yield` job, `1` for a `mark` job |
 | `metadata.completedUnits` | after a checkpoint | units finished by any attempt ([Checkpoints](#checkpoints)) |
-| `metadata.unitCursors` | after a checkpoint that leaves a cursor | how far each unfinished unit got |
+| `metadata.unitCursors` | after a checkpoint that states a cursor | the furthest each unit begun got, and what it had counted there ([Checkpoints](#checkpoints)) |
 | `params` | always | the job's params as the dispatcher holds them ([Admission](#jobcreate)) |
 | `startedAt` | `running`, `complete`, `failed`; `cancelled` when cancelled while running | ISO-8601 time of the claim |
 | `progress` | `running` | the last recorded progress report; `{}` at the claim |
@@ -105,7 +105,7 @@ There are exactly five states. There is no `claimed`, `retrying` or `declined` s
 | `running` | `pending` | `job:fail` when a retry is allowed | `retryCount + 1`, checkpoint merged; `startedAt`, `progress` and the error dropped | `job:queued` when the job is redelivered |
 | `running` | `failed` | `job:fail` when no retry is allowed | `completedAt`, `error`, checkpoint merged | nothing |
 | `running` | `pending` or `failed` | the dead-worker sweep | as `job:fail`, with the sweep's error and no failure class or units | `job:queued` on a retry; otherwise nothing |
-| `pending` | `cancelled` | `job:cancel-requested` naming it, by id or by type; or `job:cancel` | `completedAt`; no `startedAt` | `job:cancel-ok` (reply to `job:cancel-requested`) |
+| `pending` | `cancelled` | `job:cancel-requested` naming it; or `job:cancel` | `completedAt`; no `startedAt` | `job:cancel-ok` (reply to `job:cancel-requested`) |
 | `running` | `cancelled` | `job:cancel` | `completedAt`; `startedAt` kept | nothing |
 | `complete`, `failed`, `cancelled` | removed | retention | the record is deleted | nothing |
 
@@ -336,21 +336,21 @@ them into the record ([Checkpoints](#checkpoints)). Never throttled. No reply, n
 
 ### `job:cancel-requested`
 
-Asks for a job, or every pending job of one type, to be cancelled. Reads `jobId` and `jobType`
-([`JobCancelRequest`](../../specs/src/components/schemas/JobCancelRequest.json)); `jobId`, when present,
-takes precedence.
+Asks for one job to be cancelled, named by its id. Reads `jobId`
+([`JobCancelRequest`](../../specs/src/components/schemas/JobCancelRequest.json)). A cancellation
+selects no other way: a request that names no job is not a `JobCancelRequest`, and the gateway
+refuses it at its door.
 
-| Request | Effect | `cancelled` |
+| The job named | Effect | `cancelled` |
 |---|---|---|
-| `jobId`, no such job | none | `0` |
-| `jobId`, job `pending` | cancelled now | `1`, or `0` if it left `pending` first |
-| `jobId`, job `running` | none by the dispatcher; left to its worker ([Cancellation](#cancellation)) | `1` |
-| `jobId`, job terminal | none | `0` |
-| `jobType: "mark"` | every pending `mark` job cancelled, whatever its motivation | the number cancelled |
-| `jobType: "yield"` | every pending `yield` job cancelled | the number cancelled |
-| neither | none | `0` |
+| no such job | none | `false` |
+| `pending` | cancelled now | `true`, or `false` if it left `pending` first |
+| `running` | none by the dispatcher; left to its worker ([Cancellation](#cancellation)) | `true` |
+| terminal | none | `false` |
 
-**Reply:** `job:cancel-ok` with `{ response: { cancelled } }`. A store error is
+**Reply:** `job:cancel-ok` with `{ response: { cancelled } }`
+([`JobCancelResult`](../../specs/src/components/schemas/JobCancelResult.json)): whether the
+dispatcher acted on the job, which for a running one means accepted, not stopped. A store error is
 `job:cancel-failed` with the store's message and no code.
 
 ### `job:cancel`
@@ -386,6 +386,13 @@ record is readable until retention deletes it.
 
 #### Following a job
 
+A follower says first what the queue answered its `job:create` with: the job's id
+([`JobCreatedResult`](../../specs/src/components/schemas/JobCreatedResult.json)). It says so before
+anything else of the job, a frame that reached the client ahead of the reply among them. The id is
+how the follower's caller names the job from then on: to `job:cancel-requested` and to
+`job:status-requested`.
+*Held by `sdk/live/job-created`.*
+
 `job:report-progress`, `job:complete` and `job:fail` reach the client that created the job as passing
 frames: a stream that is down when one is published does not carry it later, and nothing redelivers
 it ([TRANSPORT-CONTRACT.md](./TRANSPORT-CONTRACT.md#delivery)).
@@ -408,8 +415,7 @@ A follower reports how its job ended under the codes every SDK shares
 setback and keeps following, and does not ask for the status of the attempt that died. Any other
 `job:fail`, and a status of `failed`, end it as `job.failed`, with the worker's message; a status of
 `cancelled` ends it as `job.cancelled`. A follower of a `yield` job that has heard nothing for its
-stall deadline asks for that job to be cancelled, by its id, and ends as `job.stalled`: a
-cancellation by type would end every pending `yield` job in the knowledge base. The deadline is
+stall deadline asks for that job to be cancelled and ends as `job.stalled`. The deadline is
 `generationStallFloorMs`, or `generationStallPerTokenMs` for each token asked for when that is
 longer, unless its caller states one. Each frame of the job starts the deadline again, a setback
 among them: the attempt that follows one has the whole deadline to say something.
@@ -491,31 +497,40 @@ It has two parts, merged differently ([`checkpoint.rs`](../../apps/dispatcher/ha
 
 - **`completedUnits` is a set, merged by union.** A unit is an entity type for a linking job, a
   category for a tagging job, and the job's own motivation for every other `mark` job. A unit
-  once recorded stays recorded.
+  once recorded stays recorded. `completedUnits` is what says a unit is finished: a cursor never
+  says so, wherever it stands.
 - **`unitCursors` is merged monotonically per unit.** A cursor
-  ([`UnitCursor`](../../specs/src/components/schemas/UnitCursor.json)) says how far an unfinished
-  unit got. For each unit, the incoming cursor replaces the stored one only when its `next` is
-  strictly greater; otherwise the stored one stays. A cursor is replaced whole — `next`, `size`,
-  `found`, `emitted` and `errors` are one observation and never mixed across two cursors — so a
-  checkpoint arriving late never moves a unit backward.
-- **A finished unit has no cursor.** After the union, every cursor for a unit in `completedUnits` is
-  dropped, and incoming cursors for such units are ignored. When no cursor remains, `unitCursors` is
-  removed from the record.
+  ([`UnitCursor`](../../specs/src/components/schemas/UnitCursor.json)) is the furthest a unit got,
+  and what it had counted when it got there. For each unit, the incoming cursor replaces the stored
+  one only when its `next` is strictly greater; otherwise the stored one stays. A cursor is replaced
+  whole — `next`, `size`, `found`, `emitted` and `errors` are one observation and never mixed across
+  two cursors — so a checkpoint arriving late never moves a unit backward.
+- **A finished unit keeps its cursor.** `unitCursors` holds a cursor for every unit a checkpoint has
+  stated one for, finished or not, and the merge is one rule for every unit: nothing is dropped
+  because a unit is in `completedUnits`, and an incoming cursor for a finished unit is merged as any
+  other is. A worker that names a unit finished states that unit's cursor in the same checkpoint
+  ([WORKER-CONTRACT L2](./WORKER-CONTRACT.md#the-lifecycle)): where the unit ended, `next` at the
+  length of the text and `size` the size its last piece was cut at, with its final `found`,
+  `emitted` and `errors`. A later attempt skips the unit and counts it by that cursor. The
+  dispatcher reads nothing of a cursor but its `next`, and does not hold a finished unit to having
+  one: a unit named finished with no cursor stated is recorded as finished, with none.
+  `unitCursors` is absent from a record no checkpoint has stated a cursor for.
 
 The same merge applies to `job:checkpoint` and to the checkpoint on a `job:fail`, whether the job is
 then retried or failed. `job:cancel` does not merge its checkpoint.
 
 ## Cancellation
 
-**A pending job is cancelled by the dispatcher**, on `job:cancel-requested` naming it by id, on
-`job:cancel-requested` naming its type, or on `job:cancel`.
+**A pending job is cancelled by the dispatcher**, on `job:cancel-requested` naming it or on
+`job:cancel`.
 
 **A running job is cancelled only by its worker.** `job:cancel-requested` naming a running job
-changes nothing in the queue and replies `cancelled: 1`. Workers may subscribe to
-`job:cancel-requested` too, as the first-party worker does; a worker holding the named job may stop at
-a unit boundary and confirm with `job:cancel`, which moves the job to `cancelled`. A worker that does not stop finishes the job, which then ends
-`complete` or `failed` as usual. (The first-party worker stops only linking jobs.) A
-bulk cancel by type never touches running jobs' records.
+changes nothing in the queue and replies `cancelled: true`. Workers may subscribe to
+`job:cancel-requested` too, as the first-party worker does; a worker holding the named job may stop
+and confirm with `job:cancel`, which moves the job to `cancelled`. A worker that does not stop finishes the job, which then ends
+`complete` or `failed` as usual. The first-party worker stops every job, at the job's next stopping
+place and not at once: it does not interrupt a generation that is under way
+([WORKER-SERVICE.md § Cancellation](./WORKER-SERVICE.md#cancellation)).
 
 ## Retries
 
@@ -553,7 +568,7 @@ and record encoding — is specified machine-readably in [`specs/src/jobs/storag
 **A stored record that does not decode** — not a
 [`JobRecord`](../../specs/src/components/schemas/JobRecord.json), an id its kind refuses included —
 fails an operation that names its job, with `job <jobId>'s record: <why>`. A pass over every record
-goes on past it: a claim's search, a cancel by type, the tick's re-announcement, the dead-worker
+goes on past it: a claim's search, the tick's re-announcement, the dead-worker
 sweep, retention and the queue's counts each log `A stored job record that does not decode` with its id and reason, and
 take the next. Such a record is never claimed, cancelled, swept, deleted or counted, and is reported at
 every pass until it is removed by hand. A record that decodes but whose params are not its type's
@@ -607,9 +622,6 @@ protocol.
 - **Admission writes the record, then publishes.** When the publish fails, the reply is
   `job:create-failed` while a claimable `pending` job exists; having no message, it is never
   announced.
-- **A bulk cancel purges the messages of running jobs.** A cancel by type removes every message
-  of that type, not only those of the jobs it cancelled: running jobs lose theirs, and a job
-  admitted while the cancel runs is left `pending` with no message, claimable but never announced.
 - **Broker objects are created if missing but never updated.** A changed stream, consumer or bucket
   setting — the 30-second acknowledgement window among them — takes effect only on a fresh broker.
 - **The durable consumer is named `gateway-claims`,** after a component that does not hold it.

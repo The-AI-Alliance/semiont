@@ -808,7 +808,7 @@ func printSessions(u *UI, ss *StackSet) {
 		if base != "" {
 			if cli, err := semiont.NewClientWithResponses(base); err == nil {
 				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-				resp, err := cli.GetApiUsersMeWithResponse(ctx, Bearer(e.Token))
+				resp, err := cli.GetCurrentUserWithResponse(ctx, Bearer(e.Token))
 				cancel()
 				switch {
 				case err == nil && resp.JSON200 != nil:

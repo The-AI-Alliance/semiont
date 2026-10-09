@@ -5,9 +5,10 @@
  * text, or Typst source (which the worker compiles to PDF), by `outputMediaType`.
  */
 
-import { getLocaleEnglishName, deriveViews } from '@semiont/core';
+import { estimateTokens, getLocaleEnglishName, deriveViews, textOffsets } from '@semiont/core';
 import type { GatheredContext, Logger, SupportedMediaType } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
+import { DeterministicJobError } from '../../failure-class';
 import { boundedGenerateWithMetadata } from '../inference-call';
 
 
@@ -17,10 +18,17 @@ function getLanguageName(locale: string): string {
 
 // Prompt-embedding caps — bound the context fed to the model. Named constants;
 // promote to caller-tunable options only if a consumer actually hits the wall.
-// A fact past these bounds never reaches the model.
+// A fact past these bounds never reaches the model. The two caps on a text
+// count its code points.
 const RESOURCE_CONTENT_CAP = 4000;
 const SEMANTIC_MATCH_LIMIT = 3;
-const SEMANTIC_MATCH_CHARS = 240;
+const SEMANTIC_MATCH_CODE_POINTS = 240;
+
+/** The first `count` code points of `text`, or all of it when it has fewer. */
+function firstCodePoints(text: string, count: number): string {
+  const offsets = textOffsets(text);
+  return text.slice(0, offsets.indexAt(Math.min(count, offsets.length)));
+}
 
 /**
  * Model-visible identifier handle for an embedded excerpt — the ONE bracket
@@ -161,12 +169,12 @@ ${after ? `${after}...` : ''}
       resourceSection = `\n\nResource context:\n${parts.join('\n')}`;
 
       if (focus.content?.main) {
-        resourceSection += `\n\nResource content:\n---\n${focus.content.main.slice(0, RESOURCE_CONTENT_CAP)}\n---`;
+        resourceSection += `\n\nResource content:\n---\n${firstCodePoints(focus.content.main, RESOURCE_CONTENT_CAP)}\n---`;
       }
       const related = Object.entries(focus.content?.related ?? {});
       if (related.length > 0) {
         const blocks = related
-          .map(([id, text]) => `[${id}]\n${text.slice(0, RESOURCE_CONTENT_CAP)}`)
+          .map(([id, text]) => `[${id}]\n${firstCodePoints(text, RESOURCE_CONTENT_CAP)}`)
           .join('\n\n');
         resourceSection += `\n\nRelated resource content:\n---\n${blocks}\n---`;
       }
@@ -215,7 +223,7 @@ ${after ? `${after}...` : ''}
     const lines = [...similar]
       .sort((a, b) => b.score - a.score)
       .slice(0, SEMANTIC_MATCH_LIMIT)
-      .map(m => `- ${idLabel(m.resourceId, m.annotationId)} (${m.score.toFixed(2)})${m.machineRead ? ' [OCR]' : ''} ${m.text.slice(0, SEMANTIC_MATCH_CHARS)}`);
+      .map(m => `- ${idLabel(m.resourceId, m.annotationId)} (${m.score.toFixed(2)})${m.machineRead ? ' [OCR]' : ''} ${firstCodePoints(m.text, SEMANTIC_MATCH_CODE_POINTS)}`);
     // A passage marked [OCR] was recognized from a scanned image, so its
     // wording — and especially its digits — may be misread. Saying so is the
     // whole point of carrying the flag: the model is the only reader of these
@@ -337,6 +345,18 @@ ${formatRequirements}`;
       content: content
     };
   };
+
+  // A provider whose reply ceiling is its context window has one window for
+  // prompt and reply. A prompt and a length that are together over it fit on
+  // no attempt: the job fails without asking, and skips the retry budget. A
+  // provider with a reply ceiling of its own refuses what it will not take.
+  const limits = await client.limits();
+  const promptTokens = estimateTokens(prompt);
+  if (limits.maxOutputTokens >= limits.contextTokens && promptTokens + finalMaxTokens > limits.contextTokens) {
+    throw new DeterministicJobError(
+      `The prompt (~${promptTokens} tokens) and the ${finalMaxTokens} tokens asked for are together over the context window of '${client.modelId}' (${limits.contextTokens} tokens)`,
+    );
+  }
 
   logger.debug('Sending prompt to inference', {
     promptLength: prompt.length,

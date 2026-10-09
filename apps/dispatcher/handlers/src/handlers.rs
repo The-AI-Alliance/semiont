@@ -7,6 +7,10 @@
 
 use crate::admission::{Refusal, Vocabulary, admit};
 use crate::queue::{Checkpoint, Claim, FailOutcome, JobQueue, QueueError};
+use semiont::channels::{
+    Channel, JobAssign, JobCancel, JobCancelRequested, JobCheckpoint, JobClaim, JobComplete,
+    JobCreate, JobFail, JobReportProgress, JobStatusRequested, Request,
+};
 use semiont::roles::WORKER_ROLE;
 use semiont::types::{
     BusFrame, CommandError, CommandErrorCode, Job, JobAssignCommand, JobCancelCommand,
@@ -22,17 +26,20 @@ use serde::de::DeserializeOwned;
 use serde_json::{Map, Value, json};
 use std::sync::Arc;
 
-/// The channels the dispatcher subscribes to and answers.
+/// The channels the dispatcher subscribes to and answers. Each is named, here
+/// and in `handle`, by its type, which exists only for a channel the bus
+/// registry declares. `lint:spec-channel-rosters` holds the two to each other
+/// and to JOBS.md § Channels.
 pub const COMMANDS: [&str; 9] = [
-    "job:create",
-    "job:claim",
-    "job:complete",
-    "job:fail",
-    "job:report-progress",
-    "job:checkpoint",
-    "job:cancel-requested",
-    "job:cancel",
-    "job:status-requested",
+    JobCreate::NAME,
+    JobClaim::NAME,
+    JobComplete::NAME,
+    JobFail::NAME,
+    JobReportProgress::NAME,
+    JobCheckpoint::NAME,
+    JobCancelRequested::NAME,
+    JobCancel::NAME,
+    JobStatusRequested::NAME,
 ];
 
 /// A frame the dispatcher sends in answer: on `channel`, correlated when it
@@ -84,26 +91,21 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
     /// Handle one frame of a channel in `COMMANDS`; answer the replies it owes, in order.
     pub async fn handle(&self, frame: BusFrame) -> Vec<Reply> {
         let correlation_id = frame.correlation_id.clone();
+        let channel = frame.channel.as_str();
         let payload = Value::Object(frame.payload);
-        match frame.channel.as_str() {
-            "job:create" => self.create(payload, correlation_id).await,
-            "job:claim" => self.claim(payload, correlation_id).await,
-            "job:complete" => {
-                self.signal(payload, "job:complete", |c| self.complete(c))
+        match channel {
+            JobCreate::NAME => self.create(payload, correlation_id).await,
+            JobClaim::NAME => self.claim(payload, correlation_id).await,
+            JobComplete::NAME => self.signal(payload, channel, |c| self.complete(c)).await,
+            JobFail::NAME => self.signal(payload, channel, |c| self.fail(c)).await,
+            JobReportProgress::NAME => {
+                self.signal(payload, channel, |c| self.report_progress(c))
                     .await
             }
-            "job:fail" => self.signal(payload, "job:fail", |c| self.fail(c)).await,
-            "job:report-progress" => {
-                self.signal(payload, "job:report-progress", |c| self.report_progress(c))
-                    .await
-            }
-            "job:checkpoint" => {
-                self.signal(payload, "job:checkpoint", |c| self.checkpoint(c))
-                    .await
-            }
-            "job:cancel-requested" => self.cancel_requested(payload, correlation_id).await,
-            "job:cancel" => self.signal(payload, "job:cancel", |c| self.cancel(c)).await,
-            "job:status-requested" => self.status(payload, correlation_id).await,
+            JobCheckpoint::NAME => self.signal(payload, channel, |c| self.checkpoint(c)).await,
+            JobCancelRequested::NAME => self.cancel_requested(payload, correlation_id).await,
+            JobCancel::NAME => self.signal(payload, channel, |c| self.cancel(c)).await,
+            JobStatusRequested::NAME => self.status(payload, correlation_id).await,
             other => {
                 logging::warn(
                     "A frame on a channel the dispatcher does not answer",
@@ -138,7 +140,7 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
                 fields(json!({ "correlationId": correlation_id, "error": refusal.message })),
             );
             vec![Reply {
-                channel: "job:create-failed",
+                channel: <<JobCreate as Request>::Failure as Channel>::NAME,
                 payload: failure(refusal.message, refusal.code),
                 correlation_id: correlation_id.clone(),
             }]
@@ -159,7 +161,7 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
             ),
         );
         vec![Reply {
-            channel: "job:created",
+            channel: <<JobCreate as Request>::Result as Channel>::NAME,
             payload: object(&JobCreatedResult {
                 response: JobCreatedResultResponse { job_id: id },
             }),
@@ -170,7 +172,7 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
     async fn claim(&self, payload: Value, correlation_id: Option<String>) -> Vec<Reply> {
         let refused = |message: String, code: Option<CommandErrorCode>| {
             vec![Reply {
-                channel: "job:claim-failed",
+                channel: <<JobClaim as Request>::Failure as Channel>::NAME,
                 payload: failure(message, code),
                 correlation_id: correlation_id.clone(),
             }]
@@ -220,12 +222,12 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
         };
         vec![
             Reply {
-                channel: "job:claimed",
+                channel: <<JobClaim as Request>::Result as Channel>::NAME,
                 payload: object(&JobClaimedResult { response: *job }),
                 correlation_id,
             },
             Reply {
-                channel: "job:assign",
+                channel: JobAssign::NAME,
                 payload: object(&assignment),
                 correlation_id: None,
             },
@@ -358,13 +360,16 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
     }
 
     async fn cancel_requested(&self, payload: Value, correlation_id: Option<String>) -> Vec<Reply> {
-        let answer = |cancelled: Result<u64, String>| {
+        let answer = |cancelled: Result<bool, String>| {
             let (channel, payload) = match cancelled {
                 Ok(cancelled) => (
-                    "job:cancel-ok",
+                    <<JobCancelRequested as Request>::Result as Channel>::NAME,
                     object(&json!({ "response": { "cancelled": cancelled } })),
                 ),
-                Err(message) => ("job:cancel-failed", failure(message, None)),
+                Err(message) => (
+                    <<JobCancelRequested as Request>::Failure as Channel>::NAME,
+                    failure(message, None),
+                ),
             };
             vec![Reply {
                 channel,
@@ -380,43 +385,29 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
                 )));
             }
         };
-        let cancelled = match (request.job_id, request.job_type) {
-            (Some(id), _) => self.cancel_one(&id).await,
-            (None, Some(job_type)) => {
-                let cancelled = self
-                    .queue
-                    .cancel_pending_jobs(job_type)
-                    .await
-                    .map_err(|e| e.0);
-                if let Ok(count) = cancelled {
-                    logging::info(
-                        "Cancel requested",
-                        fields(json!({ "jobType": job_type.as_str(), "cancelled": count })),
-                    );
-                }
-                cancelled
-            }
-            (None, None) => Ok(0),
-        };
+        let cancelled = self.cancel_one(&request.job_id).await;
         if let Err(message) = &cancelled {
-            logging::error("Failed to cancel jobs", fields(json!({ "error": message })));
+            logging::error(
+                "Failed to cancel the job a request named",
+                fields(json!({ "jobId": request.job_id.as_str(), "error": message })),
+            );
         }
         answer(cancelled)
     }
 
-    /// A pending job is cancelled now; a running one is its worker's to stop.
-    async fn cancel_one(&self, id: &JobId) -> Result<u64, String> {
+    /// Whether the queue acted on the job: a pending job is cancelled now; a
+    /// running one is its worker's to stop, which is accepted and not stopped.
+    async fn cancel_one(&self, id: &JobId) -> Result<bool, String> {
         let cancelled = match self.queue.get_job(id).await.map_err(|e| e.0)? {
-            None => 0,
-            Some(Job::Pending(_)) => u64::from(self.queue.cancel_job(id).await.map_err(|e| e.0)?),
+            Some(Job::Pending(_)) => self.queue.cancel_job(id).await.map_err(|e| e.0)?,
             Some(Job::Running(_)) => {
                 logging::info(
                     "Cancel of running job delegated to its worker",
                     fields(json!({ "jobId": id.as_str() })),
                 );
-                1
+                true
             }
-            Some(_) => 0,
+            Some(_) | None => false,
         };
         logging::info(
             "Cancel requested",
@@ -437,7 +428,7 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
             Ok(request) => request,
             Err(error) => {
                 return reply(
-                    "job:status-failed",
+                    <<JobStatusRequested as Request>::Failure as Channel>::NAME,
                     failure(
                         format!("a job:status-requested that is not a JobStatusRequest: {error}"),
                         None,
@@ -447,13 +438,19 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
         };
         match self.queue.get_job(&request.job_id).await {
             Ok(Some(job)) => reply(
-                "job:status-result",
+                <<JobStatusRequested as Request>::Result as Channel>::NAME,
                 object(&JobStatusResult {
                     response: status_of(job),
                 }),
             ),
-            Ok(None) => reply("job:status-failed", failure("Job not found", None)),
-            Err(error) => reply("job:status-failed", failure(error.0, None)),
+            Ok(None) => reply(
+                <<JobStatusRequested as Request>::Failure as Channel>::NAME,
+                failure("Job not found", None),
+            ),
+            Err(error) => reply(
+                <<JobStatusRequested as Request>::Failure as Channel>::NAME,
+                failure(error.0, None),
+            ),
         }
     }
 }

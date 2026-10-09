@@ -2,28 +2,46 @@
 
 It reaches the worker's surface only as a worker's author does: `job.claim`
 on the SDK's client, the claims it returns, and the held jobs they hand out.
+
+As a worker's code does, it runs each job it is handed in a span of its own,
+`job:{jobType}` carrying the job's id as `job.id`: opened in the trace the
+job states, where the job is handed to it, and ended once it has settled the
+job. Everything it does for the job it does in that span. The suite's
+operations for one job arrive one at a time, each in a task of its own, so no
+`async with job` block can hold them: the span is opened in `job.trace`, the
+value, as work outside such a block is.
+
+Started with `OTEL_EXPORTER_OTLP_ENDPOINT` in its environment, it exports its
+telemetry there over OTLP/HTTP, and has exported all of it by the time it
+exits.
 """
 
 import asyncio
 import sys
-from contextlib import AsyncExitStack
+from collections.abc import Generator
+from contextlib import AsyncExitStack, contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Final, final
 
-from protocol import Arguments, Misuse, Operation, count, failure, object_of, say, serve, text, texts
+from opentelemetry import context as otel_context
+from opentelemetry import trace as otel_trace
+from opentelemetry.context import Context
+from opentelemetry.trace import Span, SpanKind
+from protocol import Arguments, Misuse, Operation, count, exporting, failure, object_of, say, serve, text, texts
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
-from semiont.claims import JOB_CLAIM_CHANNELS, ClaimRefusal, Claims, HeldJob
+from semiont import telemetry
+from semiont.claims import JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, ClaimRefusal, Claims, HeldJob
 from semiont.client import SemiontClient
 from semiont.errors import SemiontError
 from semiont.events import Events
 from semiont.http import HttpTransport, Timing
 from semiont.identifiers import InvalidIdentifier, ResourceId
 from semiont.model import written
-from semiont.timing import HELD_JOB_STALL_CHECK_MS, HELD_JOB_STALL_MS, JOB_CLAIM_TIMEOUT_MS
+from semiont.timing import HELD_JOB_STALL_CHECK_MS, HELD_JOB_STALL_MS, JOB_CLAIM_TIMEOUT_MS, MARK_COMMIT_TIMEOUT_MS
 from semiont.transport import ConnectionState, ResourceHold
-from semiont.types import FailureClass, JobFilter, JobProgress, MarkJobResult, UnitCursor, YieldJobResult
+from semiont.types import Annotation, FailureClass, JobFilter, JobProgress, MarkJobResult, UnitCursor, YieldJobResult
 from semiont.watched import Variable
 
 _FILTERS: Final = TypeAdapter[list[JobFilter]](list[JobFilter])
@@ -32,6 +50,7 @@ _CLASS: Final = TypeAdapter[FailureClass](FailureClass)
 _PROGRESS: Final = TypeAdapter[JobProgress](JobProgress)
 _MARK_RESULT: Final = TypeAdapter[MarkJobResult](MarkJobResult)
 _YIELD_RESULT: Final = TypeAdapter[YieldJobResult](YieldJobResult)
+_ANNOTATIONS: Final = TypeAdapter[list[Annotation]](list[Annotation])
 
 
 @final
@@ -42,6 +61,7 @@ class _Waits:
     job_claim_timeout_ms: int = JOB_CLAIM_TIMEOUT_MS
     held_job_stall_ms: int = HELD_JOB_STALL_MS
     held_job_stall_check_ms: int = HELD_JOB_STALL_CHECK_MS
+    mark_commit_timeout_ms: int = MARK_COMMIT_TIMEOUT_MS
 
 
 def _timings(stated: Arguments) -> tuple[Timing, _Waits]:
@@ -49,10 +69,11 @@ def _timings(stated: Arguments) -> tuple[Timing, _Waits]:
     known = Timing()
     reconnect_ms, lazy_remove_ms, linger_ms = known.reconnect_ms, known.lazy_remove_ms, known.linger_ms
     waits = _Waits()
-    job_claim_timeout_ms, held_job_stall_ms, held_job_stall_check_ms = (
+    job_claim_timeout_ms, held_job_stall_ms, held_job_stall_check_ms, mark_commit_timeout_ms = (
         waits.job_claim_timeout_ms,
         waits.held_job_stall_ms,
         waits.held_job_stall_check_ms,
+        waits.mark_commit_timeout_ms,
     )
     for name in stated:
         match name:
@@ -68,6 +89,8 @@ def _timings(stated: Arguments) -> tuple[Timing, _Waits]:
                 held_job_stall_ms = count(stated, name)
             case "heldJobStallCheckMs":
                 held_job_stall_check_ms = count(stated, name)
+            case "markCommitTimeoutMs":
+                mark_commit_timeout_ms = count(stated, name)
             case _:
                 raise Misuse(f"this driver cannot override {name}")
     return (
@@ -79,7 +102,10 @@ def _timings(stated: Arguments) -> tuple[Timing, _Waits]:
             seen_event_ids_count=known.seen_event_ids_count,
         ),
         _Waits(
-            job_claim_timeout_ms=job_claim_timeout_ms, held_job_stall_ms=held_job_stall_ms, held_job_stall_check_ms=held_job_stall_check_ms
+            job_claim_timeout_ms=job_claim_timeout_ms,
+            held_job_stall_ms=held_job_stall_ms,
+            held_job_stall_check_ms=held_job_stall_check_ms,
+            mark_commit_timeout_ms=mark_commit_timeout_ms,
         ),
     )
 
@@ -124,6 +150,8 @@ class Worker:
         self._claims: Claims | None = None
         self._job: HeldJob | None = None
         """The job the worker last came to hold, as its claims handed it out."""
+        self._span: tuple[Span, Context] | None = None
+        """The span the held job is run in, and the context in which that span is the current one."""
         self._holds: Final[list[ResourceHold]] = []
         self._telling: Final[list[asyncio.Task[None]]] = []
         """The tasks that say what the worker's claims hand out and tell it: ended when the driver is done."""
@@ -139,10 +167,36 @@ class Worker:
             raise Misuse("the worker is not claiming")
         return self._claims
 
-    def _holding(self) -> HeldJob:
-        if self._job is None:
+    def _hold(self, job: HeldJob) -> None:
+        """Hold `job`, and open the span it is run in: in the trace the job states."""
+        with telemetry.continuing(job.trace):
+            span = otel_trace.get_tracer("semiont-conformance-driver").start_span(
+                f"job:{job.job_type}", kind=SpanKind.CONSUMER, attributes={"job.id": job.job_id}
+            )
+            self._job = job
+            self._span = (span, otel_trace.set_span_in_context(span))
+
+    @contextmanager
+    def _working(self) -> Generator[HeldJob]:
+        """The held job, for something done for it: done in the job's span."""
+        if self._job is None or self._span is None:
             raise Misuse("the worker has held no job")
-        return self._job
+        current = otel_context.attach(self._span[1])
+        try:
+            yield self._job
+        finally:
+            otel_context.detach(current)
+
+    @contextmanager
+    def _settling(self) -> Generator[HeldJob]:
+        """The held job, to be settled: its span ends once that is done, however it went."""
+        span = self._span
+        try:
+            with self._working() as job:
+                yield job
+        finally:
+            if span is not None:
+                span[0].end()
 
     async def _states(self, transport: HttpTransport) -> None:
         async for state in transport.state:
@@ -158,10 +212,13 @@ class Worker:
         if self._client is not None:
             raise Misuse("a transport is already open")
         wire, self._waits = _timings(object_of(args, "timing") if "timing" in args else {})
-        # What a worker's stream names for its claims, and no more: this worker awaits nothing else.
-        transport = HttpTransport(
-            text(args, "baseUrl"), token=Variable[str | None](text(args, "token")), channels=list(JOB_CLAIM_CHANNELS), timing=wire
-        )
+        commits = args.get("commits", False)
+        if not isinstance(commits, bool):
+            raise Misuse("commits must be a boolean")
+        # What a worker's stream names for its claims, and for its commits when
+        # it will make any, and no more: this worker awaits nothing else.
+        channels = [*JOB_CLAIM_CHANNELS, *JOB_COMMIT_CHANNELS] if commits else list(JOB_CLAIM_CHANNELS)
+        transport = HttpTransport(text(args, "baseUrl"), token=Variable[str | None](text(args, "token")), channels=channels, timing=wire)
         self._transport = await self._held.enter_async_context(transport)
         self._client = await self._held.enter_async_context(SemiontClient(transport, transport.content, transport))
         self._reporters.create_task(self._states(transport))
@@ -199,6 +256,7 @@ class Worker:
             job_claim_timeout_ms=self._waits.job_claim_timeout_ms,
             held_job_stall_ms=self._waits.held_job_stall_ms,
             held_job_stall_check_ms=self._waits.held_job_stall_check_ms,
+            mark_commit_timeout_ms=self._waits.mark_commit_timeout_ms,
         )
         self._claims = claims
         self._telling.append(self._reporters.create_task(self._reading(claims)))
@@ -213,7 +271,7 @@ class Worker:
                     refused["code"] = handed.code
                 say({"refused": refused})
                 continue
-            self._job = handed
+            self._hold(handed)
             self._telling.append(self._reporters.create_task(self._signalled(handed)))
             say(
                 {
@@ -242,16 +300,33 @@ class Worker:
                 say({"stalled": stall.job_id})
 
     async def start(self, _: int, __: Arguments) -> JsonValue:
-        await self._holding().start()
+        with self._working() as job:
+            await job.start()
         return None
 
     async def progress(self, _: int, args: Arguments) -> JsonValue:
         stated = {name: args[name] for name in ("percentage", "message") if name in args}
-        await self._holding().progress(_as_the_suite_wrote_it(_PROGRESS, stated, "progress"))
+        with self._working() as job:
+            await job.progress(_as_the_suite_wrote_it(_PROGRESS, stated, "progress"))
         return None
 
     async def checkpoint(self, _: int, args: Arguments) -> JsonValue:
-        await self._holding().checkpoint(texts(args, "completedUnits"), _cursors(args))
+        with self._working() as job:
+            await job.checkpoint(texts(args, "completedUnits"), _cursors(args))
+        return None
+
+    async def commit(self, _: int, args: Arguments) -> JsonValue:
+        """The held job commits for itself: it cites its own id, and remembers what the commit observed for its settle.
+
+        A case states an annotation as the wire carries one.
+        """
+        try:
+            resource = ResourceId(text(args, "resourceId"))
+        except InvalidIdentifier as error:
+            raise Misuse(f"resourceId is not a resource's id: {error}") from error
+        annotations = _as_the_suite_wrote_it(_ANNOTATIONS, args.get("annotations"), "annotations")
+        with self._working() as job:
+            await job.commit(resource, annotations)
         return None
 
     async def complete(self, _: int, args: Arguments) -> JsonValue:
@@ -260,27 +335,30 @@ class Worker:
         A case states a result as the wire carries one, and the gateway
         refuses one that is the other verb's.
         """
-        job, result = self._holding(), object_of(args, "result")
-        if job.job_type == "mark":
-            await job.complete(_as_the_suite_wrote_it(_MARK_RESULT, result, "result"))
-        else:
-            await job.complete(_as_the_suite_wrote_it(_YIELD_RESULT, result, "result"))
+        result = object_of(args, "result")
+        with self._settling() as job:
+            if job.job_type == "mark":
+                await job.complete(_as_the_suite_wrote_it(_MARK_RESULT, result, "result"))
+            else:
+                await job.complete(_as_the_suite_wrote_it(_YIELD_RESULT, result, "result"))
         return None
 
     async def fail(self, _: int, args: Arguments) -> JsonValue:
-        await self._holding().fail(
-            text(args, "error"),
-            failure_class=_failure_class(args),
-            completed_units=texts(args, "completedUnits") if "completedUnits" in args else None,
-            unit_cursors=_cursors(args),
-        )
+        with self._settling() as job:
+            await job.fail(
+                text(args, "error"),
+                failure_class=_failure_class(args),
+                completed_units=texts(args, "completedUnits") if "completedUnits" in args else None,
+                unit_cursors=_cursors(args),
+            )
         return None
 
     async def cancel(self, _: int, args: Arguments) -> JsonValue:
-        await self._holding().cancel(
-            texts(args, "completedUnits") if "completedUnits" in args else None,
-            _cursors(args),
-        )
+        with self._settling() as job:
+            await job.cancel(
+                texts(args, "completedUnits") if "completedUnits" in args else None,
+                _cursors(args),
+            )
         return None
 
     async def vitals(self, _: int, __: Arguments) -> JsonValue:
@@ -323,6 +401,8 @@ class Worker:
             "start": Operation(self.start, in_turn=True),
             "progress": Operation(self.progress, in_turn=True),
             "checkpoint": Operation(self.checkpoint, in_turn=True),
+            # Not in turn: a commit settles when the record answers it, and the suite asks other things of the worker until then.
+            "commit": Operation(self.commit),
             "complete": Operation(self.complete, in_turn=True),
             "fail": Operation(self.fail, in_turn=True),
             "cancel": Operation(self.cancel, in_turn=True),
@@ -332,9 +412,14 @@ class Worker:
 
 
 async def main() -> int:
-    async with AsyncExitStack() as held, asyncio.TaskGroup() as reporters:
-        worker = Worker(held, reporters)
-        return await serve(worker.operations(), worker.dispose)
+    flush = exporting()
+    try:
+        async with AsyncExitStack() as held, asyncio.TaskGroup() as reporters:
+            worker = Worker(held, reporters)
+            return await serve(worker.operations(), worker.dispose)
+    finally:
+        if flush is not None:
+            flush()
 
 
 if __name__ == "__main__":

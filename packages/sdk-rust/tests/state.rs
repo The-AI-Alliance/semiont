@@ -955,6 +955,64 @@ async fn yield_shows_a_runs_progress_and_keeps_it_with_the_outcome_when_the_run_
     assert_eq!(yielding(&unit), (false, Some(95.0), Some(outcome(true))));
 }
 
+/// The id is what `job.cancel` names. A job is named from the queue's answer
+/// to its creation to its end: before, there is no id; after, there is
+/// nothing to cancel.
+#[tokio::test(start_paused = true)]
+async fn yield_holds_its_jobs_id_from_the_queues_answer_to_the_jobs_end() {
+    let (client, transport) = unanswered();
+    let unit = YieldStateUnit::new(client.clone(), "en");
+    assert_eq!(*unit.job_id().borrow(), None);
+
+    unit.generate(generation(json!({})), None);
+    settle().await;
+    assert_eq!(*unit.job_id().borrow(), None);
+
+    answer(
+        &transport,
+        "job:create",
+        0,
+        "job:created",
+        json!({ "response": { "jobId": "job-1" } }),
+    );
+    settle().await;
+    assert_eq!(*unit.job_id().borrow(), Some(as_id("job-1")));
+    // A job the queue holds is not yet a run under way.
+    assert!(!*unit.is_generating().borrow());
+
+    say(&client, "job:report-progress", progress(YIELD, 5.0));
+    settle().await;
+    assert_eq!(*unit.job_id().borrow(), Some(as_id("job-1")));
+
+    say(&client, "job:complete", generated(false));
+    settle().await;
+    assert_eq!(*unit.job_id().borrow(), None);
+}
+
+#[tokio::test(start_paused = true)]
+async fn yield_forgets_the_id_of_a_job_that_fails_and_of_the_last_run_when_another_begins() {
+    let (client, _transport) = jobs();
+    let unit = YieldStateUnit::new(client.clone(), "en");
+    unit.generate(generation(json!({})), None);
+    settle().await;
+    assert_eq!(*unit.job_id().borrow(), Some(as_id("job-1")));
+
+    // The next run's control names nothing until its own job is created:
+    // the id is gone when the call returns.
+    unit.generate(generation(json!({})), None);
+    assert_eq!(*unit.job_id().borrow(), None);
+    settle().await;
+    assert_eq!(*unit.job_id().borrow(), Some(as_id("job-1")));
+
+    say(
+        &client,
+        "job:fail",
+        job_frame(YIELD, json!({ "error": "the model refused" })),
+    );
+    settle().await;
+    assert_eq!(*unit.job_id().borrow(), None);
+}
+
 #[tokio::test(start_paused = true)]
 async fn yield_has_no_outcome_from_a_completion_that_carries_no_generation() {
     let (client, _transport) = jobs();
@@ -1143,6 +1201,7 @@ impl AxiomSubject for Yields {
             Box::new(unit.progress()),
             Box::new(unit.outcome()),
             Box::new(unit.failure()),
+            Box::new(unit.job_id()),
         ]
     }
 
@@ -1217,7 +1276,7 @@ async fn mark_carries_a_selector_of_several_as_it_was_given() {
     let (client, _transport) = world();
     let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
     let several = json!([
-        { "type": "TextPositionSelector", "start": 3.0, "end": 8.0 },
+        { "type": "TextPositionSelector", "start": 3, "end": 8 },
         { "type": "TextQuoteSelector", "exact": "hello", "prefix": "oh ", "suffix": " there" },
         { "type": "SvgSelector", "value": "<svg/>" },
         { "type": "FragmentSelector", "value": "page=2", "conformsTo": "http://tools.ietf.org/rfc/rfc3778" },
@@ -1422,6 +1481,60 @@ async fn mark_delegates_the_job_it_is_asked_for_and_shows_its_progress() {
     client.mark.dismiss_progress();
     settle().await;
     assert_eq!(delegating(&unit), (None, None));
+}
+
+/// The id is what `job.cancel` names. A job is named from the queue's answer
+/// to its creation to its end: before, there is no id; after, there is
+/// nothing to cancel.
+#[tokio::test(start_paused = true)]
+async fn mark_holds_its_delegated_jobs_id_from_the_queues_answer_to_the_jobs_end() {
+    let (client, transport) = unanswered();
+    let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
+    assert_eq!(*unit.job_id().borrow(), None);
+
+    ask_to_delegate(&client);
+    settle().await;
+    assert_eq!(*unit.job_id().borrow(), None);
+
+    answer(
+        &transport,
+        "job:create",
+        0,
+        "job:created",
+        json!({ "response": { "jobId": "job-1" } }),
+    );
+    settle().await;
+    assert_eq!(*unit.job_id().borrow(), Some(as_id("job-1")));
+
+    say(&client, "job:report-progress", progress(MARK, 40.0));
+    settle().await;
+    assert_eq!(*unit.job_id().borrow(), Some(as_id("job-1")));
+
+    say(&client, "job:complete", job_frame(MARK, json!({})));
+    settle().await;
+    assert_eq!(*unit.job_id().borrow(), None);
+}
+
+#[tokio::test(start_paused = true)]
+async fn mark_forgets_the_id_of_a_delegated_job_that_fails_and_of_the_last_job_when_another_is_asked_for()
+ {
+    let (client, _transport) = jobs();
+    let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
+    ask_to_delegate(&client);
+    settle().await;
+    assert_eq!(*unit.job_id().borrow(), Some(as_id("job-1")));
+
+    say(
+        &client,
+        "job:fail",
+        job_frame(MARK, json!({ "error": "the model refused" })),
+    );
+    settle().await;
+    assert_eq!(*unit.job_id().borrow(), None);
+
+    ask_to_delegate(&client);
+    settle().await;
+    assert_eq!(*unit.job_id().borrow(), Some(as_id("job-1")));
 }
 
 #[tokio::test(start_paused = true)]
@@ -1710,6 +1823,7 @@ impl AxiomSubject for Marks {
             Box::new(unit.pending()),
             Box::new(unit.delegating()),
             Box::new(unit.progress()),
+            Box::new(unit.job_id()),
         ]
     }
 }

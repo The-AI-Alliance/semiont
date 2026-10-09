@@ -14,16 +14,17 @@ The moving parts:
 
 | File | Role |
 |------|------|
-| `src/worker-main.ts` | Standalone entry point. Reads `~/.semiontconfig`, groups the jobs it serves by `(provider, model)`, and starts one agent worker per group, all in its own process. |
+| `src/worker-main.ts` | Standalone entry point. Reads its configuration document, and starts one agent worker for each agent the document lists, all in its own process. |
+| `src/worker-config.ts` | The configuration document ([`WorkerConfig`](../../../specs/src/components/schemas/WorkerConfig.json)): where `--config` names it, reading it, and what the worker refuses to start on. It parses no TOML and defaults nothing. |
 | `src/worker-runtime.ts` | `startAgentWorker(options)` — signs in as one agent, opens its client, and calls `startWorkerProcess`. |
-| `src/worker-process.ts` | `startWorkerProcess(config)` — claims jobs with the SDK's `job.claim`, then `handleJobInner` dispatches by `jobType` and motivation to the right processor, commits annotations in acknowledged batches (`mark:commit`), and emits the lifecycle events. |
+| `src/worker-process.ts` | `startWorkerProcess(config)` — claims jobs with the SDK's `job.claim`, then `handleJobInner` dispatches by `jobType` and motivation to the right processor, and has the held job commit each batch of annotations (`job.commit`) and say the lifecycle. |
 | `src/processors.ts` | The `process*Job` functions. Content + inference + params in, `{ result }` out; annotations go out through the `onChunkComplete` callback as they are produced. No bus, no queue, no I/O except calling inference. |
 | `src/workers/annotation-detection.ts` | `AnnotationDetection` — the LLM detection logic the annotation processors call (`detectHighlights`, `detectComments`, `detectAssessments`, `detectTags`). |
-| `@semiont/sdk` | `job.claim` — asks the dispatcher for work over the bus and hands out each job the worker comes to hold. A held job says its own lifecycle and settles once. The worker never touches the queue itself. |
+| `@semiont/sdk` | `job.claim` — asks the dispatcher for work over the bus and hands out each job the worker comes to hold. A held job says its own lifecycle, commits its own annotations and settles once. The worker never touches the queue itself. |
 
 ## How a Worker Runs
 
-`worker-main.ts` is the host. For each distinct `(inferenceProvider, model)` configured under `[environments.<env>.workers]` in `~/.semiontconfig`, it calls `startAgentWorker` (`src/worker-runtime.ts`), which:
+`worker-main.ts` is the host. For each agent its configuration document lists (a provider and a model, with the jobs that pair serves), it calls `startAgentWorker` (`src/worker-runtime.ts`), which:
 
 1. Signs in (`startAgentSession`, `@semiont/sdk`): at the knowledge base's issuer as its own service account (`SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET`), then exchanging that token for this agent's at `/api/tokens/agent`. The session keeps the agent's token fresh for as long as the process runs.
 2. Builds a `generator` — a W3C `Software` agent record — with `didToAgent(did)`, from the DID that exchange minted. This is sent as each annotation's `generator`; the knowledge base checks its identity against the verified emitter and derives `creator` and `wasAttributedTo` itself, from the job the write cites.
@@ -36,7 +37,6 @@ const claims = startWorkerProcess({
   accepts: group.serves,   // the jobs this agent's engine serves, as a claim names them
   inferenceClient: group.client, // the (provider, model) inference client
   generator,               // the Software agent record
-  contentReads,            // resource bytes for detection, read from the Archivist
   logger,
 });
 ```
@@ -73,28 +73,35 @@ A held job says its own lifecycle (`job.start()`, `job.progress(...)`, `job.chec
 
 | `jobType` | Motivation | Processor | Returns |
 |-----------|------------|-----------|---------|
-| `mark` | `highlighting` | `processHighlightJob` | `{ result }` (annotations committed per chunk) |
-| `mark` | `commenting` | `processCommentJob` | `{ result }` (annotations committed per chunk) |
-| `mark` | `assessing` | `processAssessmentJob` | `{ result }` (annotations committed per chunk) |
-| `mark` | `linking` | `processReferenceJob` | `{ result }` (annotations committed per chunk) |
-| `mark` | `tagging` | `processTagJob` | `{ result }` (annotations committed per chunk) |
-| `yield` | | `processGenerationJob` | `{ content, title, format, citations, truncated }` |
+| `mark` | `highlighting` | `processHighlightJob` | `{ result }` (annotations committed per chunk), or `{ cancelled }` |
+| `mark` | `commenting` | `processCommentJob` | `{ result }` (annotations committed per chunk), or `{ cancelled }` |
+| `mark` | `assessing` | `processAssessmentJob` | `{ result }` (annotations committed per chunk), or `{ cancelled }` |
+| `mark` | `linking` | `processReferenceJob` | `{ result }` (annotations committed per chunk), or `{ cancelled }` |
+| `mark` | `tagging` | `processTagJob` | `{ result }` (annotations committed per chunk), or `{ cancelled }` |
+| `yield` | | `processGenerationJob` | `{ content, title, format, citations, truncated }`, or `{ cancelled: true }` |
 
 The highlighting, commenting, assessing and tagging processors share one signature shape:
 
 ```typescript sketch
 process<X>Job(
   content: string,            // prepared by the worker process, not the processor
+  offsets: TextOffsets,       // the content's conversions (`textOffsets(content)`), made once with it
   inferenceClient: InferenceClient,
   params: HeldMarkParams<M>,         // that motivation's params, with what the dispatcher adds
   buildAnnotation: BuildAnnotation,  // (motivation, match, body?) => Annotation; carries the generator
   onProgress: OnProgress,
+  logger: Logger,             // what it reads of a reply, and what it cannot anchor, are log lines
+  signal: AbortSignal,        // the held job's cancellation (`job.cancelled`)
   onChunkComplete: (annotations: Annotation[], checkpoint: UnitCheckpoint) => Promise<void>,
   resumeCursors?: Record<string, UnitCursor>,   // where an earlier attempt left each unit
-): Promise<ProcessorResult<JobDetectionResult>>  // `{ result }` only: found, persisted, errors
+): Promise<ProcessorResult<JobDetectionResult>>  // `{ result }`: found, persisted, errors; or `{ cancelled }`
 ```
 
-`processReferenceJob` runs several units (entity types) concurrently, so after `onProgress` it takes `logger`, an `onUnitComplete(entityType)` checkpoint callback, and an abort `signal`, then the optional `onChunkComplete` and `resumeCursors`.
+`processReferenceJob` runs several units (entity types) concurrently, so between `signal` and `onChunkComplete` it takes an `onUnitComplete(entityType)` checkpoint callback. After `resumeCursors` it takes `completedUnits`, the entity types earlier attempts finished: it does not ask about them again, and counts each by its cursor.
+
+**Every job stops for a cancellation**, at its next stopping place and not at once ([WORKER-SERVICE.md § Cancellation](../../../docs/protocol/WORKER-SERVICE.md#cancellation)). A detection stops after the chunk it is on: that chunk is committed and checkpointed, no other is cut, nothing more is reported, and the processor returns `{ cancelled: { completedUnits } }`, the units it had finished. A generation stops once its model has answered, before anything is uploaded. The request to the provider is not aborted when a cancellation arrives, so a cancelled job holds its agent until the model answers or the call's ten-minute bound ends it.
+
+**Every offset counts Unicode code points**: a span's `start` and `end`, a cursor's `next`, and every length worked out from them, as the wire states them ([W3C-SELECTORS.md](../../../docs/protocol/W3C-SELECTORS.md#textpositionselector)). A JavaScript string is indexed in UTF-16 code units, which is another count after the first character outside the Basic Multilingual Plane, so nothing here takes an offset for a string's position. `offsets` is the content's `TextOffsets`, which converts between the two: it is made once, where the content is first held (`prepareDetection`), and handed to every function that cuts, searches or slices the content.
 
 Two things a processor does **not** do. It never returns annotations for the caller to write —
 each chunk is committed through `onChunkComplete` as it is produced, so a retry resumes from
@@ -102,7 +109,7 @@ the cursor rather than re-running the job. And it never sees a user identity: an
 states what produced it, and who *requested* it is derived by the knowledge base from the job
 the commit cites.
 
-`ProcessorResult<R>` is `{ result: R }`. The annotations a processor commits are W3C Web Annotation objects shaped by the `buildAnnotation` closure it is handed — `buildTextAnnotation` for text, `buildPdfAnnotation` for geometry-bearing media. The text builder enforces a write-time invariant (`content.substring(start, end) === exact`) so a mis-anchored selector throws loudly instead of corrupting the KB.
+`ProcessorResult<R>` is `{ result: R }`, or `{ cancelled: { completedUnits } }` for a job a cancellation stopped. The annotations a processor commits are W3C Web Annotation objects shaped by the `buildAnnotation` closure it is handed — `annotationOfSpan` (`@semiont/core`, and every SDK), over the text for text and over the PDF's anchored text for geometry-bearing media. The builder refuses a span that is not the text's, so a mis-anchored selector throws loudly (a `SpanRefusedError`, whose `code` names the refusal) instead of corrupting the KB: the span's `start` and `end` are two whole numbers inside the text, and its `prefix` and `suffix` are what the text has on either side; for a text the text from `start` to `end` is `exact`, and for a PDF the text its rectangles cover has `exact` in it ([`builder-cases.json`](../../../specs/src/annotations/builder-cases.json)).
 
 Generation is the odd one out — it produces *content*, not annotations:
 
@@ -112,7 +119,8 @@ processGenerationJob(
   params: GenerationJobParams,
   onProgress: OnProgress,
   logger: Logger,
-): Promise<{
+  signal: AbortSignal,              // the held job's cancellation (`job.cancelled`)
+): Promise<{ cancelled: true } | {  // cancelled by the time its model had answered: nothing was made
   content: Uint8Array;              // bytes, not a string — the output media type decides
   title: string;
   format: SupportedMediaType;       // validated against the registry's `generatable` types;
@@ -142,14 +150,15 @@ If you need the resource's text, the worker process hands it to you; if you need
 
 ## How a Worker Emits
 
-The held job says the lifecycle, and `handleJobInner` asks it to; annotation commands go out on the client's transport:
+The held job says the lifecycle and commits the annotations, and `handleJobInner` asks it to:
 
 - `job:start` — once, when the job is picked up.
 - `job:report-progress` — driven by the processor's `onProgress` callback. The dispatcher stores it as the running job's `progress` and the UI renders it; Stower ignores it.
-- `mark:commit` — one **awaited batch per unit of work**: `{ resourceId, annotations, jobId }`. This is a `busRequest`, not a fire-and-forget emit — it resolves only after the Stower has appended every annotation to the event log, and only then does the unit count as complete. A job type that minted annotations without waiting for this acknowledgement would silently lose them whenever the persistence sink was down; a census test (`worker-process.test.ts`, "no job type persists without an acknowledgement") fails on any job type that tries.
-- `job:checkpoint` — after each committed chunk, carrying the completed units and each unfinished unit's cursor, so a crashed worker's retry resumes instead of re-paying.
-- `job:complete` — once, with the processor's `result`, **after** the final commit resolved.
-- `job:fail` — on error, with the message, the `failureClass`, and `willRetry`.
+- `mark:commit` — one **awaited batch per unit of work**: `{ resourceId, annotations, jobId }`, sent by `job.commit(resourceId, annotations)`, which cites the job itself. This is a `busRequest`, not a fire-and-forget emit — it resolves only after the Stower has appended every annotation to the event log, and only then does the unit count as complete. A job type that minted annotations without waiting for this acknowledgement would silently lose them whenever the persistence sink was down; a census test (`worker-process.test.ts`, "no job type persists without an acknowledgement") fails on any job type that tries.
+- `browse:annotation-requested` — only when a commit is not acknowledged within `markCommitTimeoutMs`: the held job asks whether the batch's last annotation is on the resource. Answered with it, the commit is established, since a lost acknowledgement is not a lost batch. Otherwise `job.commit` rejects with the failure of its unanswered `mark:commit`, and the job fails.
+- `job:checkpoint` — after each committed chunk, carrying the units this attempt completed and the cursor of each unit the job has begun, a finished unit's among them, so a crashed worker's retry resumes instead of re-paying and still counts the whole job.
+- `job:complete` — once, with the processor's `result`, **after** the final commit resolved. The held job adds `durability`: the weakest of how its commits were established, `acknowledged` or `probe-confirmed`. A job that committed nothing states none.
+- `job:fail` — on error, with the message, the `failureClass`, and `willRetry`. When a commit was not established the held job adds `durability`, what that commit observed: `probe-refused` or `probe-unreachable`.
 
 The processor itself emits nothing. It calls `onProgress(percentage, message, extra?)`; the worker process turns each call into a `job:report-progress` event.
 
@@ -184,18 +193,24 @@ type Held = HeldMarkParams<'describing'>;   // DescribingJobParams & { resourceI
 
 ### 2. Write the processor
 
-In `src/processors.ts`, add a function that takes content + inference + params, commits what it produces through `onChunkComplete`, and returns `{ result }`. Shape each annotation with the `buildAnnotation` closure it is handed (never `buildTextAnnotation` directly — the closure is what carries this worker's `generator` and the media-appropriate selector), dedupe with `makeSpanDeduper()`, and put detection logic in `AnnotationDetection`:
+In `src/processors.ts`, add a function that takes content + inference + params, commits what it produces through `onChunkComplete`, and returns `{ result }`, or `{ cancelled }` when a cancellation stopped it. Shape each annotation with the `buildAnnotation` closure it is handed (never `annotationOfSpan` directly — the closure is what carries this worker's `generator` and the media-appropriate text), dedupe with `makeSpanDeduper()`, and put detection logic in `AnnotationDetection`:
 
 ```typescript
 export async function processDescribeJob(
   content: string,
+  offsets: TextOffsets,
   inferenceClient: InferenceClient,
   params: HeldMarkParams<'describing'>,
   buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
+  logger: Logger,
+  signal: AbortSignal,
   onChunkComplete: (annotations: Annotation[], checkpoint: UnitCheckpoint) => Promise<void>,
   resumeCursors?: Record<string, UnitCursor>,
 ): Promise<ProcessorResult<JobDetectionResult>> {
+  // Cancelled before it began: nothing is asked, and nothing is reported.
+  if (signal.aborted) return { cancelled: { completedUnits: [] } };
+
   onProgress(10, { code: 'loading' });
   onProgress(30, { code: 'analyzing' });
 
@@ -206,9 +221,11 @@ export async function processDescribeJob(
   let found = prior?.found ?? 0;
   let persisted = prior?.emitted ?? 0;
   let errors = prior?.errors ?? 0;
+  let next = prior?.next ?? 0;   // where the walk stands
 
+  // The detection loop stops between chunks once `signal` is aborted.
   await AnnotationDetection.detectDescriptions(
-    content, inferenceClient, params.instructions, params.language, params.sourceLanguage, undefined, prior,
+    content, offsets, inferenceClient, logger, signal, params.instructions, params.language, params.sourceLanguage, undefined, prior,
     // Each chunk: the spans anchored in the text, and how many proposed ones were not.
     async (matches, cursor, dropped) => {
       found += matches.length + dropped;
@@ -223,8 +240,12 @@ export async function processDescribeJob(
       // The durability write: awaited, so the cursor never leads the log. The
       // cursor carries the unit's three tallies with its position.
       await onChunkComplete(fresh, { unit: 'describing', cursor: { ...cursor, found, emitted: persisted, errors } });
+      next = cursor.next;
     },
   );
+
+  // A cancelled job reports no completion. Its one unit is finished, and named, when its walk reached the end of the text.
+  if (signal.aborted) return { cancelled: { completedUnits: next >= offsets.length ? ['describing'] : [] } };
 
   onProgress(100, { code: 'complete-created', count: persisted, motivation: params.motivation });
 
@@ -237,24 +258,24 @@ Then export it from `src/index.ts` next to the other `process*Job` functions.
 
 ### 3. Add a dispatch branch
 
-In `src/worker-process.ts`, add a branch to `handleJobInner`. `isHeldMark` says the job is this one and narrows its params. The branch hands the processor the prepared text, the `buildAnnotation` closure and `commitChunk` — the shared durability write, which commits a chunk and then records its cursor, in that order — and reports completion only after it returns:
+In `src/worker-process.ts`, add a branch to `handleJobInner`. `isHeldMark` says the job is this one and narrows its params. The branch hands the processor the prepared text, its `offsets`, the `buildAnnotation` closure and `commitChunk` — the shared durability write, which commits a chunk and then records its cursor, in that order — and reports completion only after it returns:
 
 ```typescript
 } else if (job.jobType === 'mark' && isHeldMark(params, 'describing')) {
-  const { result } = await processDescribeJob(
-    ready!.text, inferenceClient, params,
-    ready!.buildAnnotation, onProgress,
+  return settle(job, await processDescribeJob(
+    ready!.text, ready!.offsets, inferenceClient, params,
+    ready!.buildAnnotation, onProgress, config.logger, signal,
     // The durability write, per chunk, awaited. `commitChunk` calls
-    // `commitAnnotations(client, resourceId, annotations, jobId)` — the batch
-    // CITES the job, which is how the knowledge base derives who requested it —
-    // and only then records the unit's cursor. job:complete comes after: a
+    // `job.commit(resourceId, annotations)` — the batch CITES the job, which
+    // is how the knowledge base derives who requested it — and only then
+    // records the unit's cursor. job:complete comes after: a
     // success claim emitted first would report work that may never have persisted.
     commitChunk,
     job.unitCursors,
-  );
-  // The branch narrowed the job to a `mark` job, so the completion takes a
-  // `mark` job's result. It says job:complete and releases the job together.
-  await job.complete(result, established());
+  ));
+  // The branch narrowed the job to a `mark` job, so `settle` takes a `mark`
+  // job's result: it says job:complete, or job:cancel with the units finished
+  // when a cancellation stopped the processor, and releases the job together.
 }
 ```
 
@@ -276,9 +297,12 @@ job.start()
 prepareDetection()  (annotation jobs)
   ↓
 process<X>Job(...)  — YOUR LOGIC, reports via onProgress
-  ↓ per chunk: await mark:commit (acknowledged)  →  job.checkpoint(...)
+  ↓ per chunk: await job.commit(...) (acknowledged)  →  job.checkpoint(...)
   ↓ success
 job.complete(result)   — says job:complete, and the worker claims again
+
+  ↓ a cancellation stopped it (the processor returned `{ cancelled }`)
+job.cancel(...)        — says job:cancel, with the units finished, and the worker claims again
 
   ↓ error (anything throws)
 job.fail(message, ...) — says job:fail, with willRetry, and the worker claims again
@@ -286,7 +310,7 @@ job.fail(message, ...) — says job:fail, with willRetry, and the worker claims 
 
 The subscription in `startWorkerProcess` wraps `handleJob` in a `.catch` that fails the held job, so any throw from your processor surfaces as a clean failure. `handleJob` also records an OpenTelemetry span (`job:<type>`) and a job-outcome metric around each run — you get that for free by living inside `handleJobInner`.
 
-At the dispatcher, `job:fail` feeds a retry-or-fail path: the job is re-queued (and re-announced) while `retryCount < maxRetries` — unless the worker classified the failure `deterministic` (truncation at the subdivision floor, unsupported media, a 4xx other than 408 or 429, a job the worker is not configured for or has no processor for), in which case it fails for good at once rather than paying for a retry that cannot succeed. The event's `completedUnits` and `unitCursors` are merged into job metadata so the retry resumes. Your `onProgress` calls double as a heartbeat — a running job that reports nothing within the dispatcher's window is presumed orphaned and recovered the same way, so call `onProgress` at meaningful stages rather than never.
+At the dispatcher, `job:fail` feeds a retry-or-fail path: the job is re-queued (and re-announced) while `retryCount < maxRetries` — unless the worker classified the failure `deterministic` (truncation at the subdivision floor, unsupported media, a model window too small for the job, a format the worker does not generate, a 4xx other than 408 or 429, a job the worker is not configured for or has no processor for), in which case it fails for good at once rather than paying for a retry that cannot succeed. The event's `completedUnits` and `unitCursors` are merged into job metadata so the retry resumes. Your `onProgress` calls double as a heartbeat — a running job that reports nothing within the dispatcher's window is presumed orphaned and recovered the same way, so call `onProgress` at meaningful stages rather than never.
 
 ## Reporting Progress
 
@@ -312,11 +336,11 @@ The message vocabulary is the spec's `JobProgressMessage`; each client renders t
 
 ## Testing a Processor
 
-Because processors are pure, you test them with no bus, no session, and no queue. Mock `AnnotationDetection` (the LLM call), feed in content that actually contains your spans (the `buildTextAnnotation` invariant checks `content.substring(start, end) === exact`), and assert on the committed annotations and the `onProgress` calls:
+Because processors are pure, you test them with no bus, no session, and no queue. Mock `AnnotationDetection` (the LLM call), feed in content that actually contains your spans (`annotationOfSpan` refuses a span whose text from `start` to `end` is not `exact`), and assert on the committed annotations and the `onProgress` calls:
 
 ```typescript
 import { describe, it, expect, vi } from 'vitest';
-import { resourceId, type Annotation, type components } from '@semiont/core';
+import { annotationOfSpan, resourceId, textOffsets, type Annotation, type components } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 
 type Agent = components['schemas']['Agent'];
@@ -326,7 +350,7 @@ vi.mock('../workers/annotation-detection', () => ({
 }));
 
 import { AnnotationDetection } from '../workers/annotation-detection';
-import { processDescribeJob, buildTextAnnotation } from '../processors';
+import { processDescribeJob } from '../processors';
 
 const RID = resourceId('res-test');
 const GENERATOR: Agent = {
@@ -339,18 +363,19 @@ const inferenceClient = { generateText: vi.fn() } as unknown as InferenceClient;
 describe('processDescribeJob', () => {
   it('produces describing annotations, counts what was proposed, and reports progress', async () => {
     const content = 'an important passage worth describing.';
+    const offsets = textOffsets(content);
     // One chunk: one span anchored in the text, and one proposed that was not.
     vi.mocked(AnnotationDetection.detectDescriptions).mockImplementation(async (...args) => {
       const onChunk = args[args.length - 1] as (m: unknown[], cursor: { next: number; size: number }, dropped: number) => Promise<void>;
-      await onChunk([{ exact: 'important passage', start: 3, end: 20, description: 'a key point' }], { next: content.length, size: 500 }, 1);
+      await onChunk([{ exact: 'important passage', start: 3, end: 20, description: 'a key point' }], { next: offsets.length, size: 500 }, 1);
       return [];
     });
 
     const progress = vi.fn();
     const committed: Annotation[] = [];
     const { result } = await processDescribeJob(
-      content, inferenceClient, { motivation: 'describing', resourceId: RID },
-      (motivation, match, body) => buildTextAnnotation(content, RID, GENERATOR, motivation, match, body),
+      content, offsets, inferenceClient, { motivation: 'describing', resourceId: RID },
+      (motivation, span, body) => annotationOfSpan({ text: content, resourceId: RID, generator: GENERATOR, motivation, span, body }),
       progress,
       async (annotations) => { committed.push(...annotations); },
     );

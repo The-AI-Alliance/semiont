@@ -23,7 +23,7 @@ Every other TypeScript package, the Browser, and the conformance and end-to-end 
 | The bus | `EventBus`, the `EventMap` of every channel and its payload, and `busRequest` for a request and its reply | [src/event-bus.ts](src/event-bus.ts), [src/bus-protocol.ts](src/bus-protocol.ts), [src/bus-request.ts](src/bus-request.ts) |
 | The record's events | `PersistedEvent`, `StoredEvent`, and the list of every event type a knowledge base records | [src/persisted-events.ts](src/persisted-events.ts), [src/event-base.ts](src/event-base.ts) |
 | The transport contract | `ITransport`, `IContentTransport`, `IGatewayOperations`: what a client needs of the wire | [src/transport.ts](src/transport.ts) |
-| Annotations | Building one, applying changes to its body, and reading its target, its selectors and its links | [src/annotation-assembly.ts](src/annotation-assembly.ts), [src/web-annotation-utils.ts](src/web-annotation-utils.ts) |
+| Annotations | Building one (`reconcile`, `annotationOfSpan`, `annotationOfResource`), applying changes to its body, and reading its target, its selectors and its links | [src/annotation-builders.ts](src/annotation-builders.ts), [src/web-annotation-utils.ts](src/web-annotation-utils.ts) |
 | Anchoring | Finding an annotation again after its text changed, and the geometry of text on a PDF page (`locate`, `textUnder`) | [src/anchor-annotation.ts](src/anchor-annotation.ts), [src/pdf-anchoring.ts](src/pdf-anchoring.ts) |
 | Identity | DIDs for people, software and a knowledge base itself, and `attribution`, which says who a record is attributed to | [src/did-utils.ts](src/did-utils.ts) |
 | Media types | Which types a knowledge base admits, and what can be done with each | [src/media-types.ts](src/media-types.ts) |

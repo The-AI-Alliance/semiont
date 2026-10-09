@@ -2,10 +2,13 @@
  * Text ↔ geometry anchoring for PDFs.
  *
  * Two directions over the same pairing of text and the runs that index it:
- * `locate` turns a character span into rectangles (an annotation the model
- * produced by quoting text), `textUnder` turns a rectangle into characters (an
+ * `locate` turns a span of the text into rectangles (an annotation the model
+ * produced by quoting text), `textUnder` turns a rectangle into text (an
  * annotation a person produced by dragging a box). They are inverses and live
  * together deliberately.
+ *
+ * A span, like an item's `start` and `end`, is two offsets: they count
+ * Unicode code points from the start of the text.
  *
  * This is pure arithmetic over plain data, so it sits here beside
  * `PdfCoordinate` and the viewrect codec rather than in `@semiont/content`:
@@ -18,25 +21,20 @@
  */
 
 import type { PdfCoordinate } from './pdf-coordinates';
+import { textOffsets } from './text-offsets';
 import type { components } from './types';
 
 /**
- * A single text item (one text run, roughly a word) from a PDF.
- * Character offsets refer to positions in the paired `AnchoredText.text`.
+ * One positioned text run of a PDF, roughly a word: where it is on its page,
+ * and the range of the paired `AnchoredText.text` it stands for, in code
+ * points. The spec's shape.
  */
-export interface PdfTextItem {
-    start: number;  // Char offset in `AnchoredText.text` (inclusive)
-    end: number;    // Char offset in `AnchoredText.text` (exclusive)
-    page: number;   // 1-indexed page number
-    x: number;      // X position in PDF points (origin: bottom-left of page)
-    y: number;      // Y position in PDF points (origin: bottom-left of page)
-    width: number;
-    height: number;
-}
+export type PdfTextItem = components['schemas']['PdfTextItem'];
 
 /**
  * Text paired with the geometry that indexes it — the minimum needed to turn a
- * character range into a Selection, or a rectangle into a quote.
+ * range of the text into a Selection, or a rectangle into a quote. The spec's
+ * shape.
  *
  * This is the contract `locate`, `textUnder` and the annotation builders
  * actually require; they do not need pages, form fields, or anything else a
@@ -44,10 +42,7 @@ export interface PdfTextItem {
  * (recovered from pixels, so not a "text layer" in the PDF sense) satisfy the
  * same anchoring path.
  */
-export interface AnchoredText {
-    text: string;
-    items: PdfTextItem[];
-}
+export type AnchoredText = components['schemas']['AnchoredText'];
 
 /**
  * The full outcome of text extraction for one representation — the record
@@ -102,18 +97,26 @@ export function isTextRun<T>(item: T): item is T & PdfTextRun {
  * drag. Divergence would mean the same rectangle quoting differently depending
  * on which side captured it.
  *
+ * An item's `start` and `end` count Unicode code points from the start of
+ * `text`, as every offset into a text does. They are a string's own positions
+ * only in a text with no character outside the Basic Multilingual Plane.
+ *
  * Offsets are page-local. A caller assembling a multi-page document shifts them
- * by the length of the text already accumulated.
+ * by the length, in code points, of the text already accumulated.
  */
 export function anchorRuns(runs: PdfTextRun[], page: number): AnchoredText {
     const items: PdfTextItem[] = [];
     let text = '';
+    // How many code points `text` is. A separator follows every run, so no
+    // two runs meet to make one character, and the count is a sum.
+    let length = 0;
 
     for (const run of runs) {
         if (run.str.trim()) {
-            const start = text.length;
+            const start = length;
             text += run.str;
-            const end = text.length;  // range covers only this run's own chars
+            length += textOffsets(run.str).length;
+            const end = length;  // range covers only this run's own chars
 
             const [, , , , x, y] = run.transform;
             items.push({ start, end, page, x, y, width: run.width, height: run.height });
@@ -123,10 +126,12 @@ export function anchorRuns(runs: PdfTextRun[], page: number): AnchoredText {
             // newline there, space between words otherwise, so reading-order
             // lines don't glue (e.g. "textsecond").
             text += run.hasEOL ? '\n' : ' ';
+            length += 1;
         } else if (run.hasEOL) {
             // Standalone end-of-line marker (empty/whitespace str): keep the
             // line break without letting whitespace-only runs add stray spaces.
             text += '\n';
+            length += 1;
         }
     }
 
@@ -144,19 +149,27 @@ const SAME_LINE_THRESHOLD_PT = 2;
  * Locates bounding rectangles for a span of text in an AnchoredText
  * (single-line or multi-line).
  *
+ * `start` and `end` are offsets into `anchored.text`, in code points, as the
+ * items' own are. Nothing here reads the text, so nothing is converted: the
+ * arithmetic is on offsets throughout.
+ *
  * Finds all overlapping items [start, end), groups them by page and line, and
  * records one bounding rectangle per line as a PdfCoordinate.
  *
  * Returns both the per-line `rects` and the `overlap` items they were computed
- * from — so a caller that also needs the covered text (e.g. buildPdfAnnotation's
- * geometry↔text containment invariant) reuses this single `items` scan
- * instead of re-filtering. Both arrays are empty if no item overlaps the span.
+ * from — so a caller that also needs the covered text (`annotationOfSpan`,
+ * which holds a PDF's span to the text its rectangles cover) reuses this single `items` scan
+ * instead of re-filtering. Both arrays are empty if no item overlaps the span:
+ * an empty span (`start` equal to `end`) overlaps none, wherever it falls.
  */
 export function locate(
     anchored: AnchoredText,
     start: number,
     end: number
 ): { rects: PdfCoordinate[]; overlap: PdfTextItem[] } {
+    // An empty span has no character for an item to hold, inside one as between two.
+    if (start === end) return { rects: [], overlap: [] };
+
     const overlap: PdfTextItem[] = anchored.items.filter(
         item => item.start < end && item.end > start
     );
@@ -169,20 +182,21 @@ export function locate(
     for (const [page, pageItems] of pages) {
         const lines = groupItemsByLine(pageItems, SAME_LINE_THRESHOLD_PT);
         // Compute one bounding rectangle per line and add it to rects.
-        // Boundary items that extend past [start, end) are clipped by character
-        // fraction: renderers like Typst emit ONE item per line, so without
+        // Boundary items that extend past [start, end) are clipped by the
+        // fraction of their code points the span takes: renderers like Typst
+        // emit ONE item per line, so without
         // clipping a mid-line phrase would bound the whole line. Proportional
         // interpolation is the measured fallback — exact glyph metrics need
         // the operator-list route, an open refinement, and can replace this
         // arithmetic without changing the shape.
         for (const lineItems of lines) {
             const edges = lineItems.map(i => {
-                const chars = i.end - i.start;
-                const left = i.start < start && chars > 0
-                    ? i.x + i.width * ((start - i.start) / chars)
+                const codePoints = i.end - i.start;
+                const left = i.start < start && codePoints > 0
+                    ? i.x + i.width * ((start - i.start) / codePoints)
                     : i.x;
-                const right = i.end > end && chars > 0
-                    ? i.x + i.width * ((end - i.start) / chars)
+                const right = i.end > end && codePoints > 0
+                    ? i.x + i.width * ((end - i.start) / codePoints)
                     : i.x + i.width;
                 return { left, right };
             });
@@ -211,6 +225,9 @@ export function locate(
  * inherits the extractor's known column-major ordering on multi-column pages
  * rather than answering it a second, different way.
  *
+ * An item's `start` and `end` count code points, so the text of each run is
+ * read out of the string through the text's conversions.
+ *
  * Returns `''` when nothing is covered — over an image, over whitespace, or
  * over a scanned page with no text layer. Callers must then emit no
  * `TextQuoteSelector` at all: an empty quote would assert the box was drawn
@@ -222,24 +239,26 @@ export function textUnder(anchored: AnchoredText, rect: PdfCoordinate): string {
         .sort((a, b) => a.start - b.start);
     if (covered.length === 0) return '';
 
+    const offsets = textOffsets(anchored.text);
+    /** The text between two offsets. */
+    const between = (start: number, end: number): string =>
+        anchored.text.slice(offsets.indexAt(start), offsets.indexAt(end));
+
     // Join with the document's own separator when the runs are adjacent in
     // `text` — pdf.js splits words at kerning and font changes, so a blanket
     // join(' ') would emit "aga in" for a single word. When runs are NOT
     // adjacent the rectangle missed the text between them, so substitute a
     // space rather than splicing in words the box does not cover. (Slicing
-    // first-offset..last-offset the way buildPdfAnnotation does is safe there
+    // first-offset..last-offset the way `annotationOfSpan` does is safe there
     // — it only feeds a containment check — but here the result is the stored
     // quote, and on a two-column page it would swallow half of each column.)
-    let quoted = slice(anchored, covered[0]);
+    let quoted = between(covered[0].start, covered[0].end);
     for (let i = 1; i < covered.length; i++) {
-        const gap = anchored.text.slice(covered[i - 1].end, covered[i].start);
-        quoted += (gap.trim() === '' ? gap : ' ') + slice(anchored, covered[i]);
+        const gap = between(covered[i - 1].end, covered[i].start);
+        quoted += (gap.trim() === '' ? gap : ' ') + between(covered[i].start, covered[i].end);
     }
     return quoted.trim();
 }
-
-const slice = (anchored: AnchoredText, item: PdfTextItem): string =>
-    anchored.text.slice(item.start, item.end);
 
 /**
  * Fraction of a run's own area a rectangle must overlap for the run to count

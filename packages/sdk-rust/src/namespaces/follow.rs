@@ -12,7 +12,8 @@
 //! The follower listens before it creates the job: a frame of the job can be
 //! read from the stream beside the reply that names it. Frames that arrive
 //! before the job's id is known are held, and the job's are then handled in
-//! the order they came.
+//! the order they came. The reply itself is the follower's first event: it
+//! names the job, to `job.cancel` and to `job.status`.
 //!
 //! A failure the queue will retry is reported and followed past: the job is
 //! not over. A failure it will not retry ends the follower with `job.failed`.
@@ -39,10 +40,10 @@ use crate::errors::{
 use crate::running::{Reporter, Running};
 use crate::transport::BoxFuture;
 use crate::types::{
-    JobCancelRequest, JobCompleteCommand, JobCreateCommand, JobCreatedResult, JobFailCommand,
-    JobId, JobProgress, JobReportProgressCommand, JobStatusRequest, JobStatusResponse,
-    JobStatusResponseStatus, JobStoredResult, MarkJobCompleteCommand, ResourceId,
-    YieldJobCompleteCommand,
+    JobCancelRequest, JobCompleteCommand, JobCreateCommand, JobCreatedResult,
+    JobCreatedResultResponse, JobFailCommand, JobId, JobProgress, JobReportProgressCommand,
+    JobStatusRequest, JobStatusResponse, JobStatusResponseStatus, JobStoredResult,
+    MarkJobCompleteCommand, ResourceId, YieldJobCompleteCommand,
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -56,6 +57,9 @@ use tokio::time::Instant;
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(tag = "kind", content = "data", rename_all = "lowercase")]
 pub enum JobEvent<C> {
+    /// The queue's answer to the job's creation, naming the job. A
+    /// follower's first event.
+    Created(JobCreatedResultResponse),
     /// The job's progress.
     Progress(JobProgress),
     /// An attempt failed and the queue will try again. The job is not over.
@@ -272,7 +276,11 @@ async fn followed<C: Completion>(
         match step {
             Step::Created(created) => {
                 creating = None;
-                job_id = Some(created?.response.job_id);
+                let created = created?.response;
+                job_id = Some(created.job_id.clone());
+                // Ahead of the frames held for it: the job's id is the first
+                // thing its follower gives.
+                reporter.report(JobEvent::Created(created));
                 ask_at = Some(Instant::now() + links.timing.job_silence);
                 frames = std::mem::take(&mut held);
             }
@@ -335,19 +343,14 @@ async fn followed<C: Completion>(
             }
             Step::Stalled => {
                 let Some(within) = stall else { continue };
-                // That job and no other: a cancellation by type would end
-                // every pending job of it, whoever asked for them. One
-                // whose creation was never answered has no id, and there is
-                // nothing to cancel. Asked for on its own task: the follower
-                // ends here, and the request must outlive it.
+                // A job whose creation was never answered has no id, and
+                // there is nothing to cancel. Asked for on its own task: the
+                // follower ends here, and the request must outlive it.
                 if let Some(stalled) = job_id.clone() {
                     let links = links.clone();
                     tokio::spawn(async move {
                         let _ = links
-                            .request::<JobCancelRequested>(&JobCancelRequest {
-                                job_id: Some(stalled),
-                                job_type: None,
-                            })
+                            .request::<JobCancelRequested>(&JobCancelRequest { job_id: stalled })
                             .await;
                     });
                 }

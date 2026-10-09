@@ -1,5 +1,6 @@
 {
   "get": {
+    "operationId": "getResourceContent",
     "summary": "A resource's bytes",
     "description": "The bytes of the resource's representation, streamed, with the media type the record stores.",
     "security": [

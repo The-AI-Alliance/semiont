@@ -3,7 +3,9 @@
 //! for word (`semiont::testing::examples`).
 
 use bytes::Bytes;
+use semiont::annotations::{QuotedText, Spanned, annotation_of_span, reconcile};
 use semiont::bus::{operation, reply_names};
+use semiont::claims::{ClaimOptions, Held, HeldJob, Mark};
 use semiont::client::SemiontClient;
 use semiont::errors::SemiontError;
 use semiont::session::{
@@ -20,9 +22,9 @@ use semiont::testing::{
 };
 use semiont::transport::{BoxFuture, Envelope, Frame, PutBinaryRequest};
 use semiont::types::{
-    GatherResourceRequestOptions, GenerationJobParams, HighlightingJobParams, InvalidIdentifier,
-    JobCompleteCommand, LinkingJobParams, MarkJobCompleteCommand, Motivation, ResourceId,
-    YieldJobResult,
+    Agent, GatherResourceRequestOptions, GenerationJobParams, HighlightingJobParams,
+    InvalidIdentifier, JobCompleteCommand, JobDetectionResult, LinkingJobParams,
+    MarkJobCompleteCommand, Motivation, ResourceId, YieldJobResult,
 };
 use serde_json::{Map, Value, json};
 use std::sync::{Arc, Mutex};
@@ -132,6 +134,42 @@ async fn a_daemon(client: &SemiontClient, mut done: impl FnMut(JobCompleteComman
         }
     }
     // </readme:daemon>
+}
+
+async fn a_held_jobs_work(
+    job: Held<Mark>,
+    text: &str,
+    quoted: &[QuotedText],
+    generator: &Agent,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // <readme:worker>
+    job.start().await?;
+    let resource_id = job.resource_id().clone();
+
+    // The words a model quoted are found in the text, or they are not in it:
+    // only what is found is built. A span is the text's own, and its offsets
+    // count code points.
+    let mut highlights = Vec::new();
+    for quote in quoted {
+        let Some(found) = reconcile(text, quote) else {
+            continue;
+        };
+        highlights.push(annotation_of_span(
+            Spanned::Text(text),
+            &found.span,
+            &resource_id,
+            Motivation::Highlighting,
+            generator,
+            None,
+        )?);
+    }
+
+    // The job commits what was built, and says what became of the work.
+    let result = JobDetectionResult::new(quoted.len() as u64, highlights.len() as u64);
+    job.commit(&resource_id, highlights).await?;
+    job.complete(result.into()).await?;
+    // </readme:worker>
+    Ok(())
 }
 
 async fn an_application(
@@ -442,6 +480,114 @@ async fn the_daemon_is_given_each_completion_until_the_client_closes() {
         .await
         .expect("the daemon ends when its client closes")
         .expect("the daemon ran");
+}
+
+#[tokio::test(start_paused = true)]
+async fn the_worker_builds_an_annotation_of_each_quote_the_text_has_and_its_job_commits_them() {
+    // The first case of the table the builders are held by: its text, and
+    // the highlight built of the words it marks.
+    let table: Value =
+        serde_json::from_str(include_str!("../specs/annotations/builder-cases.json"))
+            .expect("the table is JSON");
+    let case = &table["cases"][0];
+    let text = case["text"].as_str().expect("text");
+    let generator: Agent = serde_json::from_value(case["generator"].clone()).expect("an agent");
+
+    // A queue that holds one job on the case's resource, and a record that
+    // acknowledges what is committed.
+    let pending = Arc::new(Mutex::new(Some(json!({
+        "status": "running",
+        "metadata": {
+            "id": "job-1", "type": "mark", "userId": "did:web:kb.example:users:u",
+            "created": "2026-01-01T00:00:00.000Z", "retryCount": 0, "maxRetries": 1,
+        },
+        "params": { "resourceId": case["resourceId"] },
+        "startedAt": "2026-01-01T00:00:01.000Z",
+        "progress": {},
+    }))));
+    let (queue, emptied) = (pending.clone(), pending);
+    let transport = FaultyTransport::answering(vec![], move |operation, payload| match operation {
+        "job:claim" => Ok(queue.lock().expect("the queue").take()),
+        "mark:commit" => {
+            let ids: Vec<Value> = payload["annotations"]
+                .as_array()
+                .expect("annotations")
+                .iter()
+                .map(|committed| committed["id"].clone())
+                .collect();
+            Ok(Some(
+                json!({ "persisted": ids.len(), "annotationIds": ids }),
+            ))
+        }
+        other => Err(format!("{other} is not answered here")),
+    });
+    transport.refuse_when(move |operation, _| {
+        (operation == "job:claim" && emptied.lock().expect("the queue").is_none())
+            .then(|| json!({ "message": "No pending job matches", "code": "none-pending" }))
+    });
+    let test = create_test_client(TestClientOptions {
+        transport: Some(transport.clone()),
+        ..TestClientOptions::default()
+    });
+    let highlighting = serde_json::from_value(
+        json!({ "jobType": "mark", "params": { "motivation": "highlighting" } }),
+    )
+    .expect("a filter");
+    let claims = test.client.job.claim(ClaimOptions::new(vec![highlighting]));
+    let Some(Ok(HeldJob::Mark(job))) = claims.next().await else {
+        panic!("the worker holds the mark job");
+    };
+
+    // The model quoted the case's words as the text has them, two more
+    // without their capitals, and words that are not in the text.
+    let quoted = [
+        QuotedText::new(case["span"]["exact"].as_str().expect("what the case marks")),
+        QuotedText::new("FIRST ALGORITHM"),
+        QuotedText::new("Charles Babbage"),
+    ];
+    a_held_jobs_work(job, text, &quoted, &generator)
+        .await
+        .expect("the job is done");
+
+    let said: Vec<Frame> = transport
+        .emitted()
+        .into_iter()
+        .filter(|frame| frame.channel != "job:claim")
+        .collect();
+    let channels: Vec<&str> = said.iter().map(|frame| frame.channel.as_str()).collect();
+    assert_eq!(channels, ["job:start", "mark:commit", "job:complete"]);
+
+    let commit = &said[1].payload;
+    assert_eq!(
+        (&commit["resourceId"], &commit["jobId"]),
+        (&case["resourceId"], &json!("job-1"))
+    );
+    let committed = commit["annotations"].as_array().expect("annotations");
+    assert_eq!(committed.len(), 2, "one for each quote the text has");
+    // The first is the table's annotation of that span: its id and its
+    // position. Its quote has the text's own words, and what the text has
+    // after them, which is the rest of it.
+    let exact = case["span"]["exact"].as_str().expect("exact");
+    assert_eq!(committed[0]["id"], case["annotation"]["id"]);
+    assert_eq!(
+        committed[0]["target"]["selector"],
+        json!([
+            case["annotation"]["target"]["selector"][0],
+            {
+                "type": "TextQuoteSelector", "exact": exact,
+                "suffix": text.strip_prefix(exact).expect("the text begins with them"),
+            },
+        ])
+    );
+    // The second quotes the text's own words, not the model's.
+    assert_eq!(
+        committed[1]["target"]["selector"][1]["exact"],
+        "first algorithm"
+    );
+    assert_eq!(
+        said[2].payload["result"],
+        json!({ "found": 3, "persisted": 2 })
+    );
 }
 
 /// Scripted sessions that keep each session's client, for a test that

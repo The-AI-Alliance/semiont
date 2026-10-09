@@ -3,8 +3,7 @@
  */
 
 import { describe, test, expect } from 'vitest';
-import { getSvgSelector, validateSvgMarkup } from '../annotation-assembly';
-import { extractBoundingBox } from '../web-annotation-utils';
+import { extractBoundingBox, getSvgSelector } from '../web-annotation-utils';
 import type { SvgSelector, TextPositionSelector } from '../web-annotation-utils';
 
 describe('SVG Selector Utilities', () => {
@@ -48,56 +47,6 @@ describe('SVG Selector Utilities', () => {
 
     test('should return null for undefined selector', () => {
       expect(getSvgSelector(undefined)).toBeNull();
-    });
-  });
-
-  describe('validateSvgMarkup', () => {
-    test('should accept valid SVG with rect', () => {
-      const svg = '<svg xmlns="http://www.w3.org/2000/svg"><rect x="10" y="20" width="100" height="50"/></svg>';
-      expect(validateSvgMarkup(svg)).toBeNull();
-    });
-
-    test('should accept valid SVG with circle', () => {
-      const svg = '<svg xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="40"/></svg>';
-      expect(validateSvgMarkup(svg)).toBeNull();
-    });
-
-    test('should accept valid SVG with polygon', () => {
-      const svg = '<svg xmlns="http://www.w3.org/2000/svg"><polygon points="200,10 250,190 160,210"/></svg>';
-      expect(validateSvgMarkup(svg)).toBeNull();
-    });
-
-    test('should accept valid SVG with path', () => {
-      const svg = '<svg xmlns="http://www.w3.org/2000/svg"><path d="M150 0 L75 200 L225 200 Z"/></svg>';
-      expect(validateSvgMarkup(svg)).toBeNull();
-    });
-
-    test('should reject SVG without xmlns attribute', () => {
-      const svg = '<svg><rect x="10" y="20" width="100" height="50"/></svg>';
-      const error = validateSvgMarkup(svg);
-      expect(error).toBeTruthy();
-      expect(error).toContain('xmlns');
-    });
-
-    test('should reject SVG without closing tag', () => {
-      const svg = '<svg xmlns="http://www.w3.org/2000/svg"><rect x="10" y="20" width="100" height="50"/>';
-      const error = validateSvgMarkup(svg);
-      expect(error).toBeTruthy();
-      expect(error).toContain('closing tag');
-    });
-
-    test('should reject SVG without opening tag', () => {
-      const svg = '<rect x="10" y="20" width="100" height="50"/></svg>';
-      const error = validateSvgMarkup(svg);
-      expect(error).toBeTruthy();
-      expect(error).toContain('xmlns');
-    });
-
-    test('should reject SVG without any shape elements', () => {
-      const svg = '<svg xmlns="http://www.w3.org/2000/svg"></svg>';
-      const error = validateSvgMarkup(svg);
-      expect(error).toBeTruthy();
-      expect(error).toContain('shape element');
     });
   });
 

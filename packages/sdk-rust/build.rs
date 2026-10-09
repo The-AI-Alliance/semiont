@@ -33,9 +33,11 @@ use std::path::PathBuf;
 /// The schemas generated beside the API's bodies and the channels' payloads:
 /// the job the queue holds, the parameters a generation job is created with,
 /// an event of the record as the stream carries it, the log settings every
-/// public crate's logging takes, and the document a launcher publishes of the
-/// knowledge bases it manages.
-const BESIDE: [&str; 7] = [
+/// public crate's logging takes, the document a launcher publishes of the
+/// knowledge bases it manages, and a PDF's anchored text, which an annotation
+/// of a span of one is built over.
+const BESIDE: [&str; 8] = [
+    "AnchoredText",
     "Job",
     "GenerationJobParams",
     "StoredEventResponse",
@@ -777,6 +779,7 @@ fn error_codes(table: &Value) -> String {
         "IdentityUnverifiableReason",
         &table["kbIdentity"],
     );
+    code_enum(&mut code, "SpanRefusal", &table["spanRefusal"]);
     code
 }
 

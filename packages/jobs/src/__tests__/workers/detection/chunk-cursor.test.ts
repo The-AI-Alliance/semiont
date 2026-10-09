@@ -14,7 +14,7 @@
  * by.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   runAdaptiveChunks,
   deriveDetectionBudget,
@@ -22,6 +22,7 @@ import {
 } from '../../../workers/detection/detection-chunking';
 import { nextChunkSize, type CallOutcome } from '../../../workers/detection/chunk-size-controller';
 import type { UnitCursor } from '@semiont/core';
+import { textOffsets } from '@semiont/core';
 
 /** Ollama shape — a shared window, the config the live gate runs on. No
  * published output rate, so the assumed-floor duration bound applies, exactly
@@ -29,6 +30,9 @@ import type { UnitCursor } from '@semiont/core';
  * 3_600_000_000` exists to switch that bound OFF while pinning allocation
  * arithmetic; borrowing it here would test a provider that does not exist.) */
 const LIMITS = { contextTokens: 32_768, maxOutputTokens: 32_768 };
+
+/** No walk here is cancelled unless its test says so. */
+const NEVER = new AbortController().signal;
 const budgetFor = (typesPerCall = 1) => deriveDetectionBudget(LIMITS, 500, typesPerCall);
 
 /** Prose long enough to need many chunks, with real sentence boundaries for the
@@ -50,7 +54,7 @@ async function run(
 ) {
   const seen: AdaptiveChunk[] = [];
   const budget = budgetFor(typesPerCall);
-  await runAdaptiveChunks(text, budget, async (chunk) => {
+  await runAdaptiveChunks(text, textOffsets(text), budget, NEVER, async (chunk) => {
     seen.push(chunk);
     return outcome(chunk, budget.outputBudget);
   }, resume);
@@ -65,6 +69,31 @@ const dense = (budget: number): CallOutcome => ({ outputTokens: Math.floor(budge
 const steady = (budget: number): CallOutcome => ({ outputTokens: Math.floor(budget * 0.65), truncated: false });
 
 describe('runAdaptiveChunks', () => {
+  it('cuts no chunk once its signal is aborted: the chunk in hand is finished, and the walk stops there', async () => {
+    const controller = new AbortController();
+    const seen: AdaptiveChunk[] = [];
+    const budget = budgetFor();
+    const text = prose(600);
+    await runAdaptiveChunks(text, textOffsets(text), budget, controller.signal, async (chunk) => {
+      seen.push(chunk);
+      // The cancellation arrives while the second chunk is in hand.
+      if (seen.length === 2) controller.abort();
+      return steady(budget.outputBudget);
+    });
+
+    // The second chunk was awaited to its end, and no third was cut though text remained.
+    expect(seen).toHaveLength(2);
+    expect(seen[1]!.next).toBeLessThan(textOffsets(text).length);
+  });
+
+  it('cuts nothing at all when its signal is aborted before it begins', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const onChunk = vi.fn();
+    await runAdaptiveChunks(prose(600), textOffsets(prose(600)), budgetFor(), controller.signal, onChunk);
+    expect(onChunk).not.toHaveBeenCalled();
+  });
+
   it('covers the document exactly once, in order, however the size moves', async () => {
     // The safety property that must survive adaptivity: no text may be skipped
     // and no chunk may fail to advance. Overlap means pieces re-read each
@@ -219,7 +248,7 @@ describe('runAdaptiveChunks', () => {
     // an unprocessed chunk would checkpoint a lie.
     const seen: AdaptiveChunk[] = [];
     const budget = budgetFor();
-    await expect(runAdaptiveChunks(prose(600), budget, async (chunk) => {
+    await expect(runAdaptiveChunks(prose(600), textOffsets(prose(600)), budget, NEVER, async (chunk) => {
       seen.push(chunk);
       if (seen.length === 2) throw new Error('chunk 2 failed');
       return sparse(budget.outputBudget);

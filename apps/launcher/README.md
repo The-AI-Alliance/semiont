@@ -370,8 +370,8 @@ semiont stop
   runs, nothing of where they listen: no `uri`, `host`, `servers`, `baseURL`
   or `issuer` line, so the file is the same on every machine. Each service's
   staged copy states every address this start placed, as a literal, in the
-  sections that service reads; the gateway's and dispatcher's documents carry
-  theirs. Two addresses reach a container through its environment instead: the
+  sections that service reads; the gateway's, the dispatcher's, the
+  Archivist's and the worker's documents carry theirs. Two addresses reach a container through its environment instead: the
 gateway's (`GATEWAY_HOST`), which a config's `publicURL` interpolates, and the
 telemetry collector's (`OTEL_EXPORTER_OTLP_ENDPOINT`). A
   config may also write a launcher-run daemon's address as the launcher's own

@@ -1,6 +1,6 @@
 import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
 import { DELEGATE_SILENCE_MS } from '@semiont/core';
-import type { ResourceId, Motivation, Selector, EventMap, components } from '@semiont/core';
+import type { JobId, ResourceId, Motivation, Selector, EventMap, components } from '@semiont/core';
 import type { SemiontClient } from '../../client';
 import type { StateUnit } from '@semiont/core';
 
@@ -15,6 +15,12 @@ export interface MarkStateUnit extends StateUnit {
   pendingAnnotation$: Observable<PendingAnnotation | null>;
   delegatingMotivation$: Observable<Motivation | null>;
   progress$: Observable<JobProgress | null>;
+  /**
+   * The id of the delegated job, from the queue's answer to its creation to
+   * the job's end: what `client.job.cancel` names. Null before the answer,
+   * when there is no id, and after the end, when there is nothing to cancel.
+   */
+  jobId$: Observable<JobId | null>;
 }
 
 type SelectionData = EventMap['mark:select-comment'];
@@ -37,6 +43,7 @@ export function createMarkStateUnit(
   const pendingAnnotation$ = new BehaviorSubject<PendingAnnotation | null>(null);
   const delegatingMotivation$ = new BehaviorSubject<Motivation | null>(null);
   const progress$ = new BehaviorSubject<JobProgress | null>(null);
+  const jobId$ = new BehaviorSubject<JobId | null>(null);
 
   // A finished run STAYS on screen. There is no dismissal
   // timer: the result line — "Created 7 references" — is the one thing in the
@@ -110,6 +117,13 @@ export function createMarkStateUnit(
     const { motivation } = event.params;
     delegatingMotivation$.next(motivation);
     progress$.next(null);
+    jobId$.next(null);
+    // This job's id. At the job's end it is forgotten only while it is still
+    // the one held: a job delegated later replaces it.
+    let created: JobId | null = null;
+    const forgetJob = () => {
+      if (created !== null && jobId$.getValue() === created) jobId$.next(null);
+    };
 
     // Silence detector, NOT a timeout. The job
     // outlives the client's attention: a run the UI gives up on can go on
@@ -155,6 +169,10 @@ export function createMarkStateUnit(
         // by useOutcomeToasts (react-ui), which subscribes job:complete /
         // job:fail directly — not through this Observable.
         if (e.kind === 'progress') progress$.next(e.data);
+        if (e.kind === 'created') {
+          created = e.data.jobId;
+          jobId$.next(created);
+        }
       },
       complete: () => {
         // Resolves the UI whenever it arrives — including long after the
@@ -163,6 +181,7 @@ export function createMarkStateUnit(
         // ended form; the payload is left in place for the user to read.
         clearStale();
         delegatingMotivation$.next(null);
+        forgetJob();
       },
       error: () => {
         // A real failure: `job:fail` already toasts it through the outcome
@@ -170,6 +189,7 @@ export function createMarkStateUnit(
         clearStale();
         delegatingMotivation$.next(null);
         progress$.next(null);
+        forgetJob();
       },
     });
     subs.push(delegationSub);
@@ -183,11 +203,13 @@ export function createMarkStateUnit(
     pendingAnnotation$: pendingAnnotation$.asObservable(),
     delegatingMotivation$: delegatingMotivation$.asObservable(),
     progress$: progress$.asObservable(),
+    jobId$: jobId$.asObservable(),
     dispose() {
       subs.forEach(s => s.unsubscribe());
       pendingAnnotation$.complete();
       delegatingMotivation$.complete();
       progress$.complete();
+      jobId$.complete();
     },
   };
 }

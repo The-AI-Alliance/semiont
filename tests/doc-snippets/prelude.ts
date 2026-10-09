@@ -26,6 +26,7 @@ import type {
   JobId as _JobId,
   UserId as _UserId,
   DeviceCode as _DeviceCode,
+  AgentSession as _AgentSession,
 } from '@semiont/sdk';
 import type { GenerationJobParams as _GenerationJobParams } from '@semiont/core';
 import type { FaultyTransport as _FaultyTransport } from '@semiont/sdk/testing';
@@ -56,6 +57,8 @@ declare global {
   /** A wired-up client — one-shot scripts call it `semiont`, sessions `client`. */
   const semiont: _SemiontClient;
   const client: _SemiontClient;
+  /** A worker's sign-in (`startAgentSession`): the agent its work is attributed to. */
+  const agent: _AgentSession;
   /** The scriptable test transport from `@semiont/sdk/testing` snippets. */
   const transport: _FaultyTransport;
   const token$: import('rxjs').BehaviorSubject<_AccessToken | null>;

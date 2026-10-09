@@ -11,7 +11,6 @@
       "yield:create",
       "yield:clone-persist",
       "yield:update",
-      "yield:mv",
       "yield:clone",
       "yield:clone-token-requested",
       "yield:clone-resource-requested",
@@ -22,7 +21,6 @@
       "yield:clone-persist-failed",
       "yield:update-ok",
       "yield:update-failed",
-      "yield:move-failed",
       "yield:clone-token-generated",
       "yield:clone-token-failed",
       "yield:clone-resource-result",
@@ -37,7 +35,6 @@
       "mark:archived",
       "mark:unarchived",
       "mark:create-request",
-      "mark:create",
       "mark:delete",
       "mark:update-body",
       "mark:archive",
@@ -129,9 +126,6 @@
       "browse:annotation-history-requested",
       "browse:annotation-history-result",
       "browse:annotation-history-failed",
-      "browse:annotation-context-requested",
-      "browse:annotation-context-result",
-      "browse:annotation-context-failed",
       "browse:entity-types-requested",
       "browse:entity-types-result",
       "browse:entity-types-failed",
@@ -216,7 +210,6 @@
       "yield:create",
       "yield:clone-persist",
       "yield:update",
-      "yield:mv",
       "yield:clone",
       "yield:clone-token-requested",
       "yield:clone-resource-requested",
@@ -227,7 +220,6 @@
       "yield:clone-persist-failed",
       "yield:update-ok",
       "yield:update-failed",
-      "yield:move-failed",
       "yield:clone-token-generated",
       "yield:clone-token-failed",
       "yield:clone-resource-result",
@@ -244,7 +236,6 @@
       "mark:archived",
       "mark:unarchived",
       "mark:create-request",
-      "mark:create",
       "mark:delete",
       "mark:update-body",
       "mark:archive",
@@ -334,9 +325,6 @@
       "browse:annotation-history-requested",
       "browse:annotation-history-result",
       "browse:annotation-history-failed",
-      "browse:annotation-context-requested",
-      "browse:annotation-context-result",
-      "browse:annotation-context-failed",
       "browse:entity-types-requested",
       "browse:entity-types-result",
       "browse:entity-types-failed",
@@ -563,20 +551,6 @@
       }
     },
     {
-      "channel": "yield:mv",
-      "shape": "schema",
-      "schema": "YieldMvCommand",
-      "validate": "YieldMvCommand",
-      "docs": {
-        "lead": [],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": ""
-      }
-    },
-    {
       "channel": "yield:clone",
       "shape": "void",
       "validate": null,
@@ -716,20 +690,6 @@
       "schemaDocs": {
         "lead": [],
         "trailing": "// CommandError"
-      }
-    },
-    {
-      "channel": "yield:move-failed",
-      "shape": "schema",
-      "schema": "YieldMoveFailed",
-      "validate": null,
-      "docs": {
-        "lead": [],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": "// { fromUri } & CommandError"
       }
     },
     {
@@ -950,20 +910,6 @@
           "",
           "  // Commands"
         ],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": ""
-      }
-    },
-    {
-      "channel": "mark:create",
-      "shape": "schema",
-      "schema": "MarkCreateCommand",
-      "validate": "MarkCreateCommand",
-      "docs": {
-        "lead": [],
         "trailing": ""
       },
       "schemaDocs": {
@@ -2400,50 +2346,6 @@
       }
     },
     {
-      "channel": "browse:annotation-context-requested",
-      "shape": "schema",
-      "schema": "BrowseAnnotationContextRequest",
-      "validate": "BrowseAnnotationContextRequest",
-      "docs": {
-        "lead": [
-          ""
-        ],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": ""
-      }
-    },
-    {
-      "channel": "browse:annotation-context-result",
-      "shape": "envelope",
-      "schema": "AnnotationContextResponse",
-      "validate": null,
-      "docs": {
-        "lead": [],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": "// { response: AnnotationContextResponse }"
-      }
-    },
-    {
-      "channel": "browse:annotation-context-failed",
-      "shape": "schema",
-      "schema": "CommandError",
-      "validate": null,
-      "docs": {
-        "lead": [],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": ""
-      }
-    },
-    {
       "channel": "browse:entity-types-requested",
       "shape": "schema",
       "schema": "BrowseEntityTypesRequest",
@@ -3288,9 +3190,9 @@
       "validate": null,
       "docs": {
         "lead": [
-          "  // cancel-by-type confirmed-write reply: the count of *pending* jobs cancelled",
-          "  // (running jobs finish — there's no worker-kill channel). Failure surfaces a",
-          "  // queue error rather than being swallowed."
+          "  // confirmed-write reply to a cancellation: whether the queue acted on the job it",
+          "  // named (a pending job is cancelled; a running one is left to its worker).",
+          "  // Failure surfaces a queue error rather than being swallowed."
         ],
         "trailing": ""
       },
@@ -3712,17 +3614,6 @@
       }
     },
     {
-      "request": "browse:annotation-context-requested",
-      "result": "browse:annotation-context-result",
-      "failure": "browse:annotation-context-failed",
-      "docs": {
-        "lead": [
-          "  // dormant — handler registered, no client caller (annotation-detail capability)"
-        ],
-        "trailing": ""
-      }
-    },
-    {
       "request": "frame:add-entity-type",
       "result": "frame:entity-type-add-ok",
       "failure": "frame:entity-type-add-failed",
@@ -4037,10 +3928,7 @@
   "inProcess": {
     "doc": "/**\n * Explicitly LOCAL-ONLY: these channels never cross the signal plane — UI\n * signals, event-log appends, and single-process relays. Membership is a\n * DECISION, not a default: a channel absent from every class (operations,\n * outboundCommands, bridgedBroadcasts, here) refuses to generate. There is\n * no fallthrough: one would silently classify a wire channel such as\n * `job:queued` as in-process and starve every worker.\n */",
     "channels": [
-      "yield:mv",
       "yield:clone",
-      "yield:move-failed",
-      "mark:create",
       "mark:select-comment",
       "mark:select-tag",
       "mark:select-assessment",
@@ -4201,7 +4089,6 @@
     "reads": [
       "browse:agents-requested",
       "browse:anchored-text-requested",
-      "browse:annotation-context-requested",
       "browse:annotation-history-requested",
       "browse:annotation-requested",
       "browse:annotations-requested",

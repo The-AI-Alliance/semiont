@@ -83,9 +83,9 @@ type Equal<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 
 /**
  * Narrowed to `PersistedEventType`, and that is not tidiness — over all of
- * `EventMap` this catches `mark:create` and every empty-object reply such as
- * `mark:archive-ok`, channels whose own payload type happens to have an
- * `annotation` key. They are a command and replies, not enriched stored events.
+ * `EventMap` this catches every empty-object reply such as `mark:archive-ok`,
+ * channels whose own payload type happens to have an `annotation` key. They
+ * are replies, not enriched stored events.
  *
  * The narrowing mirrors what `validate-registry.mjs` already enforces: the
  * `enriched` flag is only allowed on a stored event. Without it this test would

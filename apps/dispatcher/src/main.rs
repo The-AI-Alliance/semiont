@@ -14,7 +14,9 @@ use axum::routing::any;
 use futures::StreamExt;
 use opentelemetry::KeyValue;
 use semiont::bus::{Bus, payload_of, reply_channels_for};
-use semiont::channels::{BrowseEntityTypesRequested, BrowseTagSchemasRequested, Channel, Request};
+use semiont::channels::{
+    BrowseEntityTypesRequested, BrowseTagSchemasRequested, Channel, JobQueued, Request,
+};
 use semiont::errors::relayed_failure_code;
 use semiont::timing::BUS_REQUEST_TIMEOUT;
 use semiont::transport::{Envelope, Transport};
@@ -182,7 +184,7 @@ async fn serve(
                 Ok(payload) => {
                     let job_id = payload.get("jobId").cloned();
                     announcer
-                        .emit_on("job:queued", payload, Envelope::default())
+                        .emit_on(JobQueued::NAME, payload, Envelope::default())
                         .await
                         .map_err(|error| (job_id, error))
                 }

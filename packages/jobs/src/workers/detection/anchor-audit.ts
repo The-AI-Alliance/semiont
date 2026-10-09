@@ -22,10 +22,8 @@ const DEGRADED: ReadonlySet<string> = new Set<AnchorMethod>(['first-of-many', 'f
  * detection run was precise, and that rate is the measured precision that
  * belongs beside the yield numbers.
  */
-export function noteAnchor(label: string, exact: string, method: AnchorMethod, logger?: Logger): void {
+export function noteAnchor(label: string, exact: string, method: AnchorMethod, logger: Logger): void {
   recordAnchorOutcome(label, method);
   if (!DEGRADED.has(method)) return;
-  const detail = { text: exact, anchorMethod: method };
-  if (logger) logger.warn('Annotation anchored via degraded method', { label, ...detail });
-  else console.warn(`[${label}] anchored via ${method}: "${exact}"`);
+  logger.warn('Annotation anchored via degraded method', { label, text: exact, anchorMethod: method });
 }

@@ -18,12 +18,13 @@ from semiont.error_codes import (
     JobErrorCode,
     SemiontSessionErrorCode,
     SignInErrorCode,
+    SpanRefusal,
     TransportErrorCode,
     transport_error_code_for_status,
 )
 from semiont.identifiers import JobId
 
-__all__ = ["BusRequestError", "JobError", "SemiontError", "SessionError", "SignInError", "TransportError"]
+__all__ = ["BusRequestError", "JobError", "SemiontError", "SessionError", "SignInError", "SpanRefusedError", "TransportError"]
 
 
 class SemiontError(Exception, ABC):
@@ -144,4 +145,18 @@ class SessionError(SemiontError):
     @property
     @override
     def code(self) -> SemiontSessionErrorCode:
+        return self._code
+
+
+@final
+class SpanRefusedError(SemiontError):
+    """A span no annotation was built of: it is not the text's, or, for a PDF, is nowhere on its pages."""
+
+    def __init__(self, code: SpanRefusal, message: str) -> None:
+        super().__init__(message)
+        self._code: Final = code
+
+    @property
+    @override
+    def code(self) -> SpanRefusal:
         return self._code

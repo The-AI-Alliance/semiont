@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "description": "Text paired with the geometry that indexes it — the minimum needed to turn a character range into a selection, or a rectangle into a quote. Whole-resource: a producer iterates page by page, but every consumer wants one map.",
+  "description": "Text paired with the geometry that indexes it — the minimum needed to turn a range of the text, two offsets counted in Unicode code points, into a selection, or a rectangle into a quote. Whole-resource: a producer iterates page by page, but every consumer wants one map.",
   "properties": {
     "text": {
       "type": "string",

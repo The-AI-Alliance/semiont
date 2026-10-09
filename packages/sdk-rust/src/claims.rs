@@ -32,27 +32,42 @@
 //! settling twice does not compile. One dropped without being settled is
 //! failed.
 //!
+//! A HELD JOB COMMITS FOR ITSELF. `commit` sends a batch of annotations to
+//! the record, citing the job, and returns once the batch is established: the
+//! record acknowledged it, or, when no acknowledgement came, answered that
+//! the batch's last annotation is on the resource. The job remembers the
+//! weakest of what its commits observed and states it when it settles, so a
+//! worker says neither which job a batch is for nor how its commits went.
+//!
 //! The claiming runs on a task of its own, begun when the claims are first
 //! read. So a cancellation reaches the held job, a stall is looked for, and
 //! every announcement is stamped, while whoever holds the job is busy with
 //! the work and reads nothing.
+//!
+//! EACH JOB HAS A TRACE OF ITS OWN (WORKER-CONTRACT T1). A claim is made on
+//! the claiming's own task, where no span of the worker's is current: so it
+//! is in no trace, whatever span the job before it was settled in. A held
+//! job states the trace its reply arrived in (`trace`), which is the claim's
+//! own once the dispatcher has answered in it: a worker opens its span for
+//! the job in that trace, so the span, and every message the job sends from
+//! inside it, continue the trace that began with the claim.
 
-use crate::bus::Bus;
+use crate::bus::{Bus, Operation, payload_of};
 use crate::channels::{
-    Channel, JobCancel, JobCancelRequested, JobCheckpoint, JobClaim, JobComplete, JobFail,
-    JobQueued, JobReportProgress, JobStart, Request,
+    BrowseAnnotationRequested, Channel, JobCancel, JobCancelRequested, JobCheckpoint, JobClaim,
+    JobComplete, JobFail, JobQueued, JobReportProgress, JobStart, MarkCommit, Request,
 };
 use crate::errors::{BusRequestErrorCode, SemiontError, TransportError, TransportErrorCode};
 use crate::job_filter::job_matches_filter;
 use crate::locked;
-use crate::timing::{HELD_JOB_STALL, HELD_JOB_STALL_CHECK, JOB_CLAIM_TIMEOUT};
-use crate::transport::{ConnectionState, Envelope};
+use crate::timing::{HELD_JOB_STALL, HELD_JOB_STALL_CHECK, JOB_CLAIM_TIMEOUT, MARK_COMMIT_TIMEOUT};
+use crate::transport::{ConnectionState, Envelope, TraceCarrier};
 use crate::types::{
-    AnnotationId, DurabilityEvidence, FailureClass, JobCancelCommand, JobCheckpointCommand,
-    JobClaimCommand, JobCompleteCommand, JobFailCommand, JobFilter, JobId, JobMetadata, JobParams,
-    JobProgress, JobReportProgressCommand, JobRunning, JobStartCommand, JobType,
-    MarkJobCompleteCommand, MarkJobResult, ResourceId, UnitCursor, YieldJobCompleteCommand,
-    YieldJobResult,
+    Annotation, AnnotationId, BrowseAnnotationRequest, DurabilityEvidence, FailureClass,
+    JobCancelCommand, JobCheckpointCommand, JobClaimCommand, JobCompleteCommand, JobFailCommand,
+    JobFilter, JobId, JobMetadata, JobParams, JobProgress, JobReportProgressCommand, JobRunning,
+    JobStartCommand, JobType, MarkCommitCommand, MarkJobCompleteCommand, MarkJobResult, ResourceId,
+    UnitCursor, YieldJobCompleteCommand, YieldJobResult,
 };
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -76,6 +91,32 @@ pub const JOB_CLAIM_CHANNELS: [&str; 4] = [
     JobQueued::NAME,
     JobCancelRequested::NAME,
 ];
+
+/// What a worker's stream names for its commits: the replies of `mark:commit`
+/// and of the question it asks when one goes unacknowledged.
+///
+/// The question is the read of ONE annotation, and not of a resource's list
+/// of them. Reply channels reach every stream that names them, and the list's
+/// replies are the frames of many megabytes a worker's stream exists to keep
+/// out; one annotation's frame is small.
+pub const JOB_COMMIT_CHANNELS: [&str; 4] = [
+    <<MarkCommit as Request>::Result as Channel>::NAME,
+    <<MarkCommit as Request>::Failure as Channel>::NAME,
+    <<BrowseAnnotationRequested as Request>::Result as Channel>::NAME,
+    <<BrowseAnnotationRequested as Request>::Failure as Channel>::NAME,
+];
+
+/// How weak an observation of a commit is, as evidence that the batch is on
+/// the record. The two a commit is not established by are equally weak: one
+/// says the record answered that the annotation is not there, the other that
+/// nobody answered, and neither says more than the other.
+const fn weakness(evidence: DurabilityEvidence) -> u8 {
+    match evidence {
+        DurabilityEvidence::Acknowledged => 0,
+        DurabilityEvidence::ProbeConfirmed => 1,
+        DurabilityEvidence::ProbeRefused | DurabilityEvidence::ProbeUnreachable => 2,
+    }
+}
 
 /// Whether a failed attempt is retried: exactly when the failure is not known
 /// to be deterministic and the job has retries left, on the record before the
@@ -101,6 +142,9 @@ pub struct ClaimTiming {
     pub held_job_stall: Duration,
     /// How often a held job is looked at for a stall.
     pub held_job_stall_check: Duration,
+    /// How long a commit waits for the record to acknowledge it, and then,
+    /// when no acknowledgement came, for the answer to its question.
+    pub mark_commit: Duration,
 }
 
 impl Default for ClaimTiming {
@@ -109,6 +153,7 @@ impl Default for ClaimTiming {
             job_claim: JOB_CLAIM_TIMEOUT,
             held_job_stall: HELD_JOB_STALL,
             held_job_stall_check: HELD_JOB_STALL_CHECK,
+            mark_commit: MARK_COMMIT_TIMEOUT,
         }
     }
 }
@@ -185,18 +230,17 @@ pub struct HeldJobStall {
     pub threshold: Duration,
 }
 
-/// What a failure carries beside its error.
+/// What a failure carries beside its error. What the job's commits observed
+/// is the held job's own to state.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct JobFailure {
     /// The failure's class, when the worker knows it.
     pub failure_class: Option<FailureClass>,
     /// The units finished before the failure.
     pub completed_units: Option<Vec<String>>,
-    /// How far each unit begun and not finished got.
+    /// The furthest each unit begun got, a finished unit's cursor where it
+    /// ended.
     pub unit_cursors: Option<BTreeMap<String, UnitCursor>>,
-    /// What a commit established before the failure, when the failure came
-    /// from one.
-    pub durability: Option<DurabilityEvidence>,
 }
 
 /// The error of a job failed because its worker stopped, and not because the
@@ -223,13 +267,34 @@ struct Holding {
     attempt: i64,
     annotation_id: Option<AnnotationId>,
     budget: JobMetadata,
+    /// The trace the reply that handed the job over arrived in.
+    trace: Option<TraceCarrier>,
     /// Settled once, by whoever is first: the handle, the worker's stop, or
     /// the handle's drop.
     settled: AtomicBool,
     cancelled: watch::Sender<bool>,
+    /// The weakest of what this job's commits observed, across every batch
+    /// and every resource it committed on: the strongest thing still true of
+    /// the job as a whole. None until a batch is committed, and never a
+    /// default: a job that commits nothing states nothing.
+    durability: Mutex<Option<DurabilityEvidence>>,
 }
 
 impl Holding {
+    /// Remember `evidence` if it is weaker than what is remembered. Of two
+    /// equally weak, the first seen is kept.
+    fn observe(&self, evidence: DurabilityEvidence) {
+        let mut remembered = locked(&self.durability);
+        if remembered.is_none_or(|kept| weakness(evidence) > weakness(kept)) {
+            *remembered = Some(evidence);
+        }
+    }
+
+    /// What this job's commits observed, as its completion states it.
+    fn observed(&self) -> Option<DurabilityEvidence> {
+        *locked(&self.durability)
+    }
+
     fn fail(&self, error: &str, failure: JobFailure) -> JobFailCommand {
         let will_retry = will_retry_after(&self.budget, failure.failure_class);
         JobFailCommand {
@@ -239,7 +304,12 @@ impl Holding {
             unit_cursors: failure.unit_cursors,
             failure_class: failure.failure_class,
             will_retry: Some(will_retry),
-            durability: failure.durability,
+            // Stated only when a commit was not established: what is weaker
+            // than any observation that establishes one. Otherwise the
+            // failure says nothing of the job's commits.
+            durability: self.observed().filter(|observed| {
+                weakness(*observed) > weakness(DurabilityEvidence::ProbeConfirmed)
+            }),
             ..JobFailCommand::new(
                 self.resource_id.clone(),
                 self.job_id.clone(),
@@ -283,6 +353,59 @@ impl Inner {
     /// The work showed it is alive.
     fn active(&self) {
         locked(&self.state).last_activity = Some((Instant::now(), SystemTime::now()));
+    }
+
+    /// One of a commit's requests, waited on for `mark_commit`. It fails as a
+    /// bus request fails. What answers it is not read: that an answer came
+    /// on its result channel is all a commit asks, so the answer is not held
+    /// to its type here.
+    async fn ask<R: Request>(&self, payload: &R::Payload) -> Result<(), SemiontError> {
+        self.wire
+            .request_of(
+                &Operation::of::<R>(),
+                payload_of(payload)?,
+                self.timing.mark_commit,
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// Is the annotation on the resource? Asked of the LAST annotation of a
+    /// batch nobody acknowledged, and that is enough: the record appends a
+    /// batch in order and stops at the first annotation it cannot append
+    /// (WORKER-CONTRACT A5), so the last being there says every one before
+    /// it is. One question, where asking of each would be a round trip for
+    /// each annotation.
+    ///
+    /// Every answer but the annotation fails the commit, and the asymmetry is
+    /// deliberate. The record appends only the annotations it does not hold,
+    /// so a job retried over a batch that had landed costs one more run of
+    /// the batch's unit; a wrong "it is there" loses the batch silently,
+    /// which is what the acknowledgement exists to prevent. A question nobody
+    /// answered is neither yes nor no. It is said as its own observation, and
+    /// it does not establish the commit.
+    async fn ask_whether_recorded(
+        &self,
+        resource_id: &ResourceId,
+        annotation_id: AnnotationId,
+    ) -> DurabilityEvidence {
+        let question = BrowseAnnotationRequest {
+            resource_id: resource_id.clone(),
+            annotation_id,
+        };
+        match self.ask::<BrowseAnnotationRequested>(&question).await {
+            Ok(()) => DurabilityEvidence::ProbeConfirmed,
+            // A failure reply (`Rejected`) means the question was answered
+            // and the answer was not the annotation. That is not "the
+            // annotation is absent": a read that failed for its own reasons
+            // answers on the same channel. So the job says what was observed,
+            // and its reader judges.
+            Err(SemiontError::Bus(answered)) if answered.code == BusRequestErrorCode::Rejected => {
+                DurabilityEvidence::ProbeRefused
+            }
+            // Anything else (a timeout, a closed bus) means nobody answered.
+            Err(_) => DurabilityEvidence::ProbeUnreachable,
+        }
     }
 
     /// `holding` is the job this worker holds, from now.
@@ -513,8 +636,9 @@ impl<V> Held<V> {
         &self.core.completed_units
     }
 
-    /// How far each unit begun and not finished got on an earlier attempt.
-    /// Empty on a first attempt.
+    /// The furthest each unit begun got on an earlier attempt, and what it
+    /// had counted there: a finished unit's is where it ended. Empty on a
+    /// first attempt.
     pub fn unit_cursors(&self) -> &BTreeMap<String, UnitCursor> {
         &self.core.unit_cursors
     }
@@ -536,6 +660,12 @@ impl<V> Held<V> {
     /// context is focused on.
     pub fn annotation_id(&self) -> Option<&AnnotationId> {
         self.core.holding.annotation_id.as_ref()
+    }
+
+    /// The trace the job is run in: the one its reply arrived in. `None` for
+    /// a reply that arrived in none.
+    pub fn trace(&self) -> Option<&TraceCarrier> {
+        self.core.holding.trace.as_ref()
     }
 
     /// Whether a cancellation has named this job: the current answer, and
@@ -605,8 +735,8 @@ impl<V> Held<V> {
     }
 
     /// `job:checkpoint`: what a later attempt resumes from. The units
-    /// finished, and how far each unit begun and not finished got. Counts as
-    /// activity.
+    /// finished, and the furthest each unit begun got, a finished unit's
+    /// cursor where it ended. Counts as activity.
     pub async fn checkpoint(
         &self,
         completed_units: Vec<String>,
@@ -627,8 +757,69 @@ impl<V> Held<V> {
         Ok(())
     }
 
+    /// `mark:commit` for this job: a batch of annotations on `resource_id`.
+    /// It returns `Ok` once the batch is established.
+    ///
+    /// It sends the batch to the record and WAITS for the record to say it
+    /// has it. The gateway taking the message says nothing of the record: a
+    /// record that is down discards a batch the gateway accepted, and a job
+    /// that counted the batch as done would report work that never landed.
+    ///
+    /// A commit the record does not acknowledge in time is not thereby lost.
+    /// If the gateway goes down after the record appended the batch, the
+    /// acknowledgement cannot be routed, and a job failed on that would be
+    /// failed over annotations that are on the record. So the outcome follows
+    /// what the record holds, and not the arrival of a message: the record
+    /// is asked. A batch is never sent a second time to find out. That would
+    /// double the work, and where the acknowledgement was lost because the
+    /// gateway is down, the second commit would only time out as the first
+    /// did.
+    ///
+    /// A commit that was not established fails as its unanswered request
+    /// did, with that request's own failure. What was observed leaves by the
+    /// job's settle, the one place it can still be told.
+    pub async fn commit(
+        &self,
+        resource_id: &ResourceId,
+        annotations: Vec<Annotation>,
+    ) -> Result<(), SemiontError> {
+        self.core.unsettled(MarkCommit::NAME)?;
+        // A batch of no annotations is no commit: there is nothing to establish.
+        let Some(last) = annotations.last().map(|last| last.id.clone()) else {
+            return Ok(());
+        };
+        let (inner, holding) = (&self.core.inner, &self.core.holding);
+        let batch = MarkCommitCommand {
+            job_id: Some(holding.job_id.clone()),
+            ..MarkCommitCommand::new(resource_id.clone(), annotations)
+        };
+        let unanswered = match inner.ask::<MarkCommit>(&batch).await {
+            Ok(()) => {
+                holding.observe(DurabilityEvidence::Acknowledged);
+                return Ok(());
+            }
+            // The record's refusal, and every other failure of the request,
+            // is the commit's failure as it is. Only an acknowledgement that
+            // did not arrive leaves what the record holds unknown.
+            Err(SemiontError::Bus(unanswered))
+                if unanswered.code == BusRequestErrorCode::Timeout =>
+            {
+                unanswered
+            }
+            Err(failed) => return Err(failed),
+        };
+        let observed = inner.ask_whether_recorded(resource_id, last).await;
+        holding.observe(observed);
+        if observed == DurabilityEvidence::ProbeConfirmed {
+            Ok(())
+        } else {
+            Err(unanswered.into())
+        }
+    }
+
     /// Settle: `job:fail`. It says whether the queue will retry, from the
-    /// record's budget and the failure's class.
+    /// record's budget and the failure's class, and what a commit that was
+    /// not established observed.
     pub async fn fail(
         self,
         error: impl Into<String>,
@@ -639,7 +830,8 @@ impl<V> Held<V> {
     }
 
     /// Settle: `job:cancel`, once the work has stopped for a cancellation,
-    /// with the units it finished and how far the others got.
+    /// with the units it finished, and the furthest each unit begun got, a
+    /// finished unit's cursor where it ended.
     pub async fn cancel(
         self,
         completed_units: Option<Vec<String>>,
@@ -661,18 +853,14 @@ impl<V> Held<V> {
 }
 
 impl Held<Mark> {
-    /// Settle: `job:complete`, with what a `mark` job reports, and what its
-    /// commits established.
-    pub async fn complete(
-        self,
-        result: MarkJobResult,
-        durability: Option<DurabilityEvidence>,
-    ) -> Result<(), SemiontError> {
+    /// Settle: `job:complete`, with what a `mark` job reports, and how its
+    /// commits were established.
+    pub async fn complete(self, result: MarkJobResult) -> Result<(), SemiontError> {
         let holding = &self.core.holding;
         let completed = MarkJobCompleteCommand {
             attempt: Some(holding.attempt),
             result: Some(result),
-            durability,
+            durability: holding.observed(),
             ..MarkJobCompleteCommand::new(holding.resource_id.clone(), holding.job_id.clone())
         };
         self.core
@@ -682,19 +870,15 @@ impl Held<Mark> {
 }
 
 impl Held<Yield> {
-    /// Settle: `job:complete`, with what a `yield` job reports, and what its
-    /// commits established.
-    pub async fn complete(
-        self,
-        result: YieldJobResult,
-        durability: Option<DurabilityEvidence>,
-    ) -> Result<(), SemiontError> {
+    /// Settle: `job:complete`, with what a `yield` job reports, and how its
+    /// commits were established.
+    pub async fn complete(self, result: YieldJobResult) -> Result<(), SemiontError> {
         let holding = &self.core.holding;
         let completed = YieldJobCompleteCommand {
             attempt: Some(holding.attempt),
             annotation_id: holding.annotation_id.clone(),
             result: Some(result),
-            durability,
+            durability: holding.observed(),
             ..YieldJobCompleteCommand::new(holding.resource_id.clone(), holding.job_id.clone())
         };
         self.core
@@ -768,6 +952,10 @@ impl HeldJob {
         either!(self, job => job.annotation_id())
     }
 
+    pub fn trace(&self) -> Option<&TraceCarrier> {
+        either!(self, job => job.trace())
+    }
+
     pub fn cancelled(&self) -> watch::Receiver<bool> {
         either!(self, job => job.cancelled())
     }
@@ -786,6 +974,14 @@ impl HeldJob {
         unit_cursors: Option<BTreeMap<String, UnitCursor>>,
     ) -> Result<(), SemiontError> {
         either!(self, job => job.checkpoint(completed_units, unit_cursors).await)
+    }
+
+    pub async fn commit(
+        &self,
+        resource_id: &ResourceId,
+        annotations: Vec<Annotation>,
+    ) -> Result<(), SemiontError> {
+        either!(self, job => job.commit(resource_id, annotations).await)
     }
 
     pub async fn fail(
@@ -819,8 +1015,13 @@ fn anchor_of(job_type: JobType, params: &JobParams) -> Option<AnnotationId> {
     focus.get("annotation")?.get("id")?.as_str()?.parse().ok()
 }
 
-/// Hold the job a claim was answered with, as its verb's.
-fn held(inner: &Arc<Inner>, claimed: JobRunning) -> (Arc<Holding>, HeldJob) {
+/// Hold the job a claim was answered with, as its verb's, in the `trace`
+/// its reply arrived in.
+fn held(
+    inner: &Arc<Inner>,
+    claimed: JobRunning,
+    trace: Option<TraceCarrier>,
+) -> (Arc<Holding>, HeldJob) {
     let JobRunning {
         metadata, params, ..
     } = claimed;
@@ -832,8 +1033,10 @@ fn held(inner: &Arc<Inner>, claimed: JobRunning) -> (Arc<Holding>, HeldJob) {
             .unwrap_or(i64::MAX)
             .saturating_add(1),
         annotation_id: anchor_of(metadata.r#type, &params),
+        trace,
         settled: AtomicBool::new(false),
         cancelled: watch::channel(false).0,
+        durability: Mutex::new(None),
         budget: metadata.clone(),
     });
     let core = Core {
@@ -874,11 +1077,11 @@ async fn claim_next(inner: Arc<Inner>) -> ClaimOutcome {
     let claim = JobClaimCommand::new(inner.accepts.clone());
     match inner
         .wire
-        .request::<JobClaim>(&claim, inner.timing.job_claim)
+        .result::<JobClaim>(&claim, inner.timing.job_claim)
         .await
     {
         Ok(claimed) => {
-            let (holding, job) = held(&inner, claimed.response);
+            let (holding, job) = held(&inner, claimed.payload.response, claimed.trace);
             ClaimOutcome::Job(holding, Box::new(job))
         }
         Err(SemiontError::Bus(refused)) if refused.code == BusRequestErrorCode::NonePending => {

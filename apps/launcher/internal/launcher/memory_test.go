@@ -67,6 +67,19 @@ func TestStartCeilingsGB(t *testing.T) {
 	}
 }
 
+// A stack without a worker requests no memory for one.
+func TestStartCeilingsLeaveOutAnAbsentWorker(t *testing.T) {
+	plan := &launchPlan{Roles: map[string]rolePlan{
+		"worker": {Role: "worker", Driver: driverSemiont, Presence: presenceAbsent},
+	}}
+	without := startCeilingsGB(plan, startOptions{})
+	plan.Roles["worker"] = rolePlan{Role: "worker", Driver: driverSemiont, Presence: presenceLauncher}
+	with := startCeilingsGB(plan, startOptions{})
+	if want := memCeilingGB(semiontDescriptor("worker").mem); with-without != want || want == 0 {
+		t.Fatalf("ceilings with a worker %vG, without %vG: want them %vG apart", with, without, want)
+	}
+}
+
 // The warning fires only past 75% of the host, and carries the arithmetic —
 // numbers the operator can act on, not a vibe.
 func TestMemoryBudgetWarning(t *testing.T) {

@@ -4,10 +4,16 @@
  * Instead of weaving annotations into the markdown AST via remark/rehype plugins
  * (which forces O(ASTnodes × annotations) work on every render), this module:
  *
- * 1. Builds a source→rendered offset map once after the markdown DOM paints
- * 2. Resolves W3C TextPositionSelector offsets to rendered-text offset spans
+ * 1. Builds a source→rendered position map once after the markdown DOM paints
+ * 2. Resolves W3C TextPositionSelector offsets to stretches of the rendered text
  * 3. Rebuilds each annotated text node ONCE, off-DOM, into segments wrapped by
  *    <span> elements carrying data-annotation-* attributes
+ *
+ * Two counts meet here. A selector's offsets count the source's Unicode code
+ * points. The source string and the rendered DOM text are both indexed in
+ * UTF-16 code units, where a character outside the Basic Multilingual Plane
+ * is two: the map and every stretch of the rendered text are in those. An
+ * offset is converted where it is looked up in the map, and nowhere else.
  *
  * Markdown renders once (cached by React.memo). Annotation changes only touch
  * the overlay spans — no markdown re-parse, no AST walk.
@@ -19,22 +25,24 @@
  * normal result of repeated annotation on the same passage — have their
  * ranges collapsed or inflated by earlier wraps, painting whole paragraphs and
  * fragmenting text nodes so hard that 36 annotations produce 2,554 wraps and
- * a 10-second main-thread freeze. Working in offset space against the pristine
- * text-node index makes overlap geometry exact, and costs one `replaceChild`
- * per annotated text node.
+ * a 10-second main-thread freeze. Working in positions of the rendered text
+ * against the pristine text-node index makes overlap geometry exact, and costs
+ * one `replaceChild` per annotated text node.
  */
 
 import { getTextPositionSelector, getTargetSelector, getExactText, getBodySource } from '@semiont/core';
 import { ANNOTATORS } from './annotation-registry';
 
-import type { Annotation } from '@semiont/core';
+import type { Annotation, TextOffsets } from '@semiont/core';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface OverlayAnnotation {
   id: string;
   exact: string;
+  /** The offset into the source the annotation starts at, in code points. */
   offset: number;
+  /** How many code points of the source it is. */
   length: number;
   type: string;
   source: string | null;
@@ -42,23 +50,24 @@ export interface OverlayAnnotation {
 
 export interface TextNodeEntry {
   node: Text;
-  start: number; // cumulative rendered offset
+  start: number; // where the node starts in the rendered text, in UTF-16 code units
   end: number;
 }
 
-/** An annotation resolved to rendered-text offsets: `[start, end)`. */
+/** An annotation resolved to a stretch of the rendered text: `[start, end)`, in UTF-16 code units. */
 export interface ResolvedAnnotationSpan {
   annotation: OverlayAnnotation;
   start: number;
   end: number;
 }
 
-// ─── Source → Rendered Offset Map ────────────────────────────────────────────
+// ─── Source → Rendered Position Map ──────────────────────────────────────────
 
 /**
- * Build a map from markdown source offsets to rendered text offsets.
- * Character-by-character alignment: walks source and rendered text in parallel,
- * matching characters and skipping markdown syntax in the source.
+ * Build a map from positions in the markdown source string to positions in
+ * the rendered text, both in UTF-16 code units.
+ * Unit-by-unit alignment: walks source and rendered text in parallel,
+ * matching code units and skipping markdown syntax in the source.
  *
  * Complexity: O(sourceLength) — runs once per content change.
  */
@@ -73,7 +82,7 @@ export function buildSourceToRenderedMap(
     renderedText += walker.currentNode.textContent ?? '';
   }
 
-  // Character-by-character alignment
+  // Unit-by-unit alignment
   const map = new Map<number, number>();
   let renderedPos = 0;
   let sourcePos = 0;
@@ -101,44 +110,54 @@ export function buildSourceToRenderedMap(
 // ─── Text Node Index ─────────────────────────────────────────────────────────
 
 /**
- * Build a sorted array of text nodes with cumulative rendered offsets.
+ * Build a sorted array of text nodes, each with where it starts and ends in
+ * the rendered text.
  *
  * Complexity: O(textNodes) — runs once per overlay application.
  */
 export function buildTextNodeIndex(container: HTMLElement): TextNodeEntry[] {
   const entries: TextNodeEntry[] = [];
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-  let offset = 0;
+  let position = 0;
 
   while (walker.nextNode()) {
     const node = walker.currentNode as Text;
     const length = node.textContent?.length ?? 0;
-    entries.push({ node, start: offset, end: offset + length });
-    offset += length;
+    entries.push({ node, start: position, end: position + length });
+    position += length;
   }
 
   return entries;
 }
 
-// ─── Resolve Annotations to Rendered Offset Spans ────────────────────────────
+// ─── Resolve Annotations to Stretches of the Rendered Text ───────────────────
 
 /**
- * Resolve annotations to rendered-text offset spans using the cached offset
- * map. Annotations whose offsets don't map (content changed under them) are
- * skipped, as are empty ones.
+ * Resolve annotations to stretches of the rendered text. `offsets` is the
+ * source's own conversions (`textOffsets(source)`) and `sourceToRendered` the
+ * map `buildSourceToRenderedMap` made of the same source.
+ *
+ * An annotation's two offsets are taken to positions in the source string,
+ * and its first and last code units are looked up in the map. Annotations
+ * that are not at offsets of the source (content changed under them) or whose
+ * ends don't map are skipped, as are empty ones.
  *
  * Complexity: O(annotations).
  */
 export function resolveAnnotationSpans(
   annotations: OverlayAnnotation[],
-  offsetMap: Map<number, number>
+  offsets: TextOffsets,
+  sourceToRendered: Map<number, number>
 ): ResolvedAnnotationSpan[] {
   const spans: ResolvedAnnotationSpan[] = [];
 
   for (const annotation of annotations) {
     if (annotation.length <= 0) continue;
-    const start = offsetMap.get(annotation.offset);
-    const last = offsetMap.get(annotation.offset + annotation.length - 1);
+    const startOffset = annotation.offset;
+    const endOffset = annotation.offset + annotation.length;
+    if (!Number.isInteger(startOffset) || !Number.isInteger(endOffset) || startOffset < 0 || endOffset > offsets.length) continue;
+    const start = sourceToRendered.get(offsets.indexAt(startOffset));
+    const last = sourceToRendered.get(offsets.indexAt(endOffset) - 1);
     if (start === undefined || last === undefined || last < start) continue;
     spans.push({ annotation, start, end: last + 1 });
   }
@@ -229,7 +248,8 @@ export function clearHighlights(container: HTMLElement): void {
 
 /**
  * Convert W3C Annotations to the simplified overlay format.
- * Extracts TextPositionSelector offsets and annotation type.
+ * Extracts TextPositionSelector offsets, in code points as the selector has
+ * them, and annotation type.
  */
 export function toOverlayAnnotations(annotations: Annotation[]): OverlayAnnotation[] {
   return annotations

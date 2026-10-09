@@ -9,6 +9,7 @@ description = "The Archivist's record, as docs/protocol/ARCHIVIST.md states it: 
 chrono = { workspace = true, features = ["clock", "std"] }
 percent-encoding.workspace = true
 ring.workspace = true
+semiont.workspace = true
 serde_json = { workspace = true, features = ["preserve_order"] }
 toml.workspace = true
 unicode-normalization.workspace = true

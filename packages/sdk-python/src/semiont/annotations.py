@@ -1,32 +1,63 @@
-"""Reading an annotation.
+"""Reading an annotation, and building one.
 
 An annotation's `target` is a resource's id or an object; its `selector` is one
-selector or a list; its `body` is absent, one item or a list. These functions
-read each, so that nothing that reads an annotation narrows those shapes by
-hand.
+selector or a list; its `body` is absent, one item or a list. The readers read
+each, so that nothing that reads an annotation narrows those shapes by hand.
 
-Every SDK has them, and `specs/src/annotations/reader-cases.json` holds each to
-one answer for one annotation: this package's tests run it.
+The builders make the annotations a worker commits. `reconcile` finds the
+words a model quoted in a text, `annotation_of_span` builds the annotation of
+the span it found, and `annotation_of_resource` builds one of a resource as a
+whole. An annotation built here has the id every SDK gives it, so building it
+again, in any language, writes nothing new.
+
+Every SDK has the readers and the builders. The case tables in
+`specs/src/annotations` hold each to one answer (`reader-cases.json`,
+`reconcile-cases.json`, `builder-cases.json`): this package's tests run them.
 """
 
 from collections.abc import Iterator, Sequence
+from datetime import UTC, datetime
+from typing import Final
 
+from pydantic import JsonValue
+
+from semiont._annotation_id import annotation_id_for
+from semiont._pdf_locate import fragment_of, locate
+from semiont._spans import AnchorMethod, MatchQuality, QuotedText, ReconciledSpan, TextSpan, reconcile
+from semiont._white_space import collapsed
+from semiont.error_codes import SpanRefusal
+from semiont.errors import SpanRefusedError
 from semiont.identifiers import ResourceId
+from semiont.model import stated, written
 from semiont.types import (
+    Agent,
+    AnchoredText,
     Annotation,
     AnnotationBodies,
     AnnotationBody,
     AnnotationSelector,
     AnnotationTarget,
     BodyPurpose,
+    FragmentSelector,
+    Motivation,
     Selector,
     SpecificResource,
+    TextPositionSelector,
     TextQuoteSelector,
     TextualBody,
 )
 
 __all__ = [
+    "AnchorMethod",
+    "MatchQuality",
+    "QuotedText",
+    "ReconciledSpan",
+    "SpanRefusal",
+    "SpanRefusedError",
+    "TextSpan",
     "annotation_exact_text",
+    "annotation_of_resource",
+    "annotation_of_span",
     "body_source",
     "comment_text",
     "entity_types",
@@ -39,6 +70,7 @@ __all__ = [
     "is_resolved_reference",
     "is_stub_reference",
     "is_tag",
+    "reconcile",
     "tag_category",
     "tag_schema_id",
     "target_selector",
@@ -179,3 +211,129 @@ def tag_schema_id(annotation: Annotation) -> str | None:
     Nothing for an annotation that is not a tag.
     """
     return next(_texts_for(annotation, "classifying"), None) if is_tag(annotation) else None
+
+
+_PDF_FRAGMENTS: Final = "http://tools.ietf.org/rfc/rfc3778"
+"""What a PDF's fragment conforms to."""
+
+
+def _is_a_span_of(length: int, start: object, end: object) -> bool:
+    """Whether two offsets are a span of a text of `length` code points: whole numbers, in order, inside the text.
+
+    A type checker holds a caller to whole numbers. Code that has none hands
+    on whatever it read, and that is refused here by name.
+    """
+    return isinstance(start, int) and isinstance(end, int) and 0 <= start <= end <= length
+
+
+def _fragments(anchored: AnchoredText, span: TextSpan) -> list[Selector]:
+    """A selector for each rectangle a span of a PDF's anchored text is located at, when the items it overlaps cover its words."""
+    overlapping, rectangles = locate(anchored, span.start, span.end)
+    if not rectangles:
+        raise SpanRefusedError("nothing-located", f"no item of the anchored text overlaps offsets {span.start} to {span.end}")
+    covered = anchored.text[min(item.start for item in overlapping) : max(item.end for item in overlapping)]
+    if collapsed(span.exact) not in collapsed(covered):
+        raise SpanRefusedError(
+            "exact-not-covered", f"the items that overlap offsets {span.start} to {span.end} do not cover the span's words"
+        )
+    return [FragmentSelector(type="FragmentSelector", conforms_to=_PDF_FRAGMENTS, value=fragment_of(rectangle)) for rectangle in rectangles]
+
+
+def _said(body: AnnotationBodies | None) -> AnnotationBodies | None:
+    """A body saying only what it holds, one body or a list as it was given."""
+    if body is None:
+        return None
+    if isinstance(body, list):
+        return [stated(item) for item in body]
+    return stated(body)
+
+
+def _as_written(body: AnnotationBodies | None) -> JsonValue:
+    """A body as the wire carries it, which is what goes into an annotation's id. `None` for no body."""
+    if body is None:
+        return None
+    if isinstance(body, list):
+        items: list[JsonValue] = [written(item) for item in body]
+        return items
+    return written(body)
+
+
+def _built(
+    target: AnnotationTarget, motivation: Motivation, anchor: str, generator: Agent | None, body: AnnotationBodies | None
+) -> Annotation:
+    """The annotation of `target`, built now, with the id of what it is. It states what it was given and nothing else."""
+    said = _said(body)
+    return stated(
+        Annotation(
+            context="http://www.w3.org/ns/anno.jsonld",
+            type="Annotation",
+            id=annotation_id_for(target.source, motivation, anchor, _as_written(said)),
+            motivation=motivation,
+            target=target,
+            body=said,
+            generator=None if generator is None else stated(generator),
+            created=datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+        )
+    )
+
+
+def annotation_of_span(
+    text: str | AnchoredText,
+    span: TextSpan,
+    *,
+    resource_id: ResourceId,
+    motivation: Motivation,
+    generator: Agent,
+    body: AnnotationBodies | None = None,
+) -> Annotation:
+    """Build the annotation of a span of a resource's text.
+
+    `text` is the resource's text, or a PDF's anchored text. A span of a text
+    is selected by its position and its quote. A span of a PDF is selected by
+    a rectangle for each line it touches, and its quote. `generator` says what
+    made the annotation, and `body` is carried as it is given.
+
+    A span is checked against the text before anything is built, and one that
+    is not the text's raises `SpanRefusedError`, whose `code` says which
+    refusal it is. A span `reconcile` found is the text's own.
+    """
+    whole = text if isinstance(text, str) else text.text
+    if not _is_a_span_of(len(whole), span.start, span.end):
+        raise SpanRefusedError(
+            "span-out-of-range", f"offsets {span.start} to {span.end} are not a span of a text of {len(whole)} code points"
+        )
+    where: list[Selector]
+    if isinstance(text, str):
+        if whole[span.start : span.end] != span.exact:
+            raise SpanRefusedError("exact-mismatch", f"the text from offset {span.start} to offset {span.end} is not the span's words")
+        where = [TextPositionSelector(type="TextPositionSelector", start=span.start, end=span.end)]
+    else:
+        where = _fragments(text, span)
+    if span.prefix is not None and not whole.endswith(span.prefix, 0, span.start):
+        raise SpanRefusedError("prefix-mismatch", f"the span's prefix is not the text just before offset {span.start}")
+    if span.suffix is not None and not whole.startswith(span.suffix, span.end):
+        raise SpanRefusedError("suffix-mismatch", f"the span's suffix is not the text just after offset {span.end}")
+    quote = stated(TextQuoteSelector(type="TextQuoteSelector", exact=span.exact, prefix=span.prefix or None, suffix=span.suffix or None))
+    selector: list[Selector] = [*where, quote]
+    return _built(
+        AnnotationTarget(type="SpecificResource", source=resource_id, selector=selector),
+        motivation,
+        f"{span.start}:{span.end}:{span.exact}",
+        generator,
+        body,
+    )
+
+
+def annotation_of_resource(
+    resource_id: ResourceId,
+    *,
+    motivation: Motivation,
+    generator: Agent | None = None,
+    body: AnnotationBodies | None = None,
+) -> Annotation:
+    """Build an annotation of a resource as a whole, which has no selector.
+
+    The link from a resource to one generated from it is such an annotation:
+    its `motivation` is `linking`, and its `body` names the generated resource.
+    """
+    return _built(AnnotationTarget(source=resource_id), motivation, "", generator, body)

@@ -37,7 +37,8 @@ container rm semiont-jaeger
 # write <config-stage>/gateway.json (the gateway's configuration document: GatewayConfig, resolved)
 # write <config-stage>/dispatcher.json (the dispatcher's configuration document: DispatcherConfig, resolved)
 # write <config-stage>/archivist.json (the Archivist's configuration document: ArchivistConfig, resolved)
-# stage per-service config copies under <config-stage>: librarian.toml worker.toml smelter.toml weaver.toml
+# write <config-stage>/worker.json (the worker's configuration document: WorkerConfig, resolved)
+# stage per-service config copies under <config-stage>: librarian.toml smelter.toml weaver.toml
 # write into each copy the addresses this start places, as literals, in the sections that service reads (launcher-staged topology):
 #   [graph] uri = bolt://<host-addr>:7687
 #   [vectors] host = <host-addr>
@@ -49,7 +50,6 @@ container rm semiont-jaeger
 # write <config-stage>/collector.yaml (launcher-owned; traces exporter iff observing)
 # write <config-stage>/prometheus.yml (launcher-owned; scrapes the collector readout)
 # add [environments.local.archivist] host/port (launcher-staged topology) to librarian.toml
-# add [environments.local.archivist] host/port (launcher-staged topology) to worker.toml
 # add [environments.local.archivist] host/port (launcher-staged topology) to smelter.toml
 # resolve persistent-store stamps before any container runs: a database mismatch refuses; a projection mismatch clears the store's contents (the dir itself is kept, so attached shares survive)
 container image pull ghcr.io/the-ai-alliance/semiont-gateway:latest
@@ -122,7 +122,7 @@ container run -d --name semiont-librarian --memory 2G --publish 24104:24104 --vo
 # wait: http://localhost:24104/health (30s)
 container run -d --name semiont-dispatcher --memory 2G --publish 24105:24105 --volume <config-stage>/dispatcher.json:/etc/semiont/dispatcher.json:ro --env NATS_USER --env NATS_PASSWORD --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env SEMIONT_OIDC_CLIENT_ID=semiont-dispatcher --env SEMIONT_OIDC_CLIENT_SECRET --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-dispatcher:latest
 # wait: http://localhost:24105/health (30s)
-container run -d --name semiont-worker --memory 2G --publish 24100:24100 --volume <config-stage>/worker.toml:/home/semiont/.semiontconfig:ro --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env GATEWAY_HOST=<host-addr> --env BACKEND_HOST=<host-addr> --env SEMIONT_OIDC_CLIENT_ID=semiont-worker --env SEMIONT_OIDC_CLIENT_SECRET --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-worker:latest
+container run -d --name semiont-worker --memory 2G --publish 24100:24100 --volume <config-stage>/worker.json:/etc/semiont/worker.json:ro --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env SEMIONT_OIDC_CLIENT_ID=semiont-worker --env SEMIONT_OIDC_CLIENT_SECRET --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-worker:latest
 # wait: http://localhost:24100/health (30s)
 # anchored-text state: <data-home>/roots/example.github.io-test-kb/anchored-text (created if absent; reused across restarts)
 container run -d --name semiont-smelter --memory 2G --publish 24101:24101 --volume <config-stage>/smelter.toml:/home/semiont/.semiontconfig:ro --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env GATEWAY_HOST=<host-addr> --env BACKEND_HOST=<host-addr> --env SEMIONT_OIDC_CLIENT_ID=semiont-smelter --env SEMIONT_OIDC_CLIENT_SECRET --env SEMIONT_SUPERVISE=1 -v <data-home>/roots/example.github.io-test-kb/anchored-text:/anchored-text ghcr.io/the-ai-alliance/semiont-smelter:latest

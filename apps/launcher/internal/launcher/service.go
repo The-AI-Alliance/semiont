@@ -53,10 +53,8 @@ func runStartService(u *UI, rt, version, root, configFile string, opts startOpti
 	if code := flowOneService(x, flowCtx{plan: plan, opts: opts, version: version, root: root, configFile: configFile, userEnv: userEnv, restart: true}); code != 0 {
 		return code
 	}
-	if plan != nil {
-		if rp, ok := plan.Roles[opts.service]; ok && (rp.Presence == presenceExternal || rp.Presence == presenceAbsent) {
-			return 0
-		}
+	if _, nothing := nothingToLaunch(plan, opts.service); nothing {
+		return 0
 	}
 	fmt.Println()
 	fmt.Printf("%s  %s\n", u.Wrap(AnsiBold+AnsiGreen, "🚀 "+opts.service+" is up"), u.Dim("("+took(time.Since(t0))+")"))

@@ -7,7 +7,7 @@ import { ReferencesPanel } from '../ReferencesPanel';
 import type { Annotation, AnnotationId, EventBus } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
 import { createTestSemiontWrapper } from '../../../../test-utils';
-import { resourceId } from '@semiont/core';
+import { jobId, resourceId } from '@semiont/core';
 
 // Composition-based event tracker
 interface TrackedEvent {
@@ -101,6 +101,7 @@ describe('ReferencesPanel Component', () => {
     allEntityTypes: ['Person', 'Organization', 'Location', 'Date'],
     isDelegating: false,
     progress: null,
+    jobId: null,
     annotateMode: true,
     Link: MockLink,
     routes: mockRoutes,
@@ -355,7 +356,7 @@ describe('ReferencesPanel Component', () => {
       expect(startButton).not.toBeDisabled();
     });
 
-    it('should emit annotate:detect-request event with selected types and includeDescriptiveReferences', async () => {
+    it('should emit mark:delegate-request event with selected types and includeDescriptiveReferences', async () => {
       const tracker = createEventTracker();
       renderWithEventBus(<ReferencesPanel {...panelProps()} />, tracker);
 
@@ -376,7 +377,7 @@ describe('ReferencesPanel Component', () => {
       });
     });
 
-    it('should emit annotate:detect-request event with includeDescriptiveReferences when checkbox is checked', async () => {
+    it('should emit mark:delegate-request event with includeDescriptiveReferences when checkbox is checked', async () => {
       const tracker = createEventTracker();
       renderWithEventBus(<ReferencesPanel {...panelProps()} />, tracker);
 
@@ -398,6 +399,24 @@ describe('ReferencesPanel Component', () => {
           e.payload?.params?.includeDescriptiveReferences === true
         )).toBe(true);
       });
+    });
+
+    it('the control of a running job asks for that job to be cancelled, by its id', async () => {
+      const cancelSpy = vi.spyOn(session.client.job, 'cancel').mockResolvedValue(true);
+      renderWithEventBus(
+        <ReferencesPanel {...panelProps()} isDelegating={true} jobId={jobId('job-1')} progress={{ percentage: 0, completedItems: [] }} />,
+      );
+
+      await userEvent.click(screen.getByTestId('semiont-delegate-control'));
+      expect(cancelSpy).toHaveBeenCalledExactlyOnceWith('job-1');
+    });
+
+    it('a running job the queue has not named yet has no cancel control', () => {
+      renderWithEventBus(
+        <ReferencesPanel {...panelProps()} isDelegating={true} jobId={null} progress={{ percentage: 0, completedItems: [] }} />,
+      );
+
+      expect(screen.queryByTestId('semiont-delegate-control')).toBeNull();
     });
 
     it('should clear selected types after detection starts', async () => {
@@ -530,11 +549,12 @@ describe('ReferencesPanel Component', () => {
       expect(screen.queryByText('Person')).not.toBeInTheDocument();
     });
 
-    it('should render cancel button when detecting', async () => {
+    it('should render cancel button when detecting, once the job has its id', async () => {
       renderWithEventBus(
         <ReferencesPanel
           {...panelProps()}
           isDelegating={true}
+          jobId={jobId('job-1')}
           progress={{ percentage: 0, completedItems: [] }}
         />
       );

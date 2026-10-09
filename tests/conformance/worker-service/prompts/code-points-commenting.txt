@@ -1,0 +1,30 @@
+Identify passages in this text that would benefit from explanatory comments.
+For each passage, provide contextual information, clarification, or background.
+
+Guidelines:
+- Select passages that reference technical terms, historical figures, complex concepts, or unclear references
+- Provide comments that ADD VALUE beyond restating the text
+- Focus on explanation, background, or connections to other ideas
+- Avoid obvious or trivial comments
+- Keep comments concise (1-3 sentences typically)
+- Aim for 3-8 comments per 2000 words (not too sparse or dense)
+
+Text to analyze:
+---
+📜 Ada Lovelace published the first program in 1843 — a method for computing the Bernoulli numbers 𝐵 on the Analytical Engine.
+
+Charles Babbage 🛠 designed the engine in London, but it was never built. Lovelace argued that the engine could manipulate symbols as well as numbers; nobody tested that claim for a century.
+---
+
+Return a JSON array of comments. Each comment should have:
+- "exact": the exact text passage being commented on (quoted verbatim from source)
+- "prefix": up to 64 characters of text immediately before the passage
+- "suffix": up to 64 characters of text immediately after the passage
+- "comment": your explanatory comment (1-3 sentences, provide context/background/clarification)
+
+Respond with a valid JSON array.
+
+Example format:
+[
+  {"exact": "Ouranos", "prefix": "In the beginning, ", "suffix": " ruled the universe", "comment": "Ouranos (also spelled Uranus) is the primordial Greek deity personifying the sky. In Hesiod's Theogony, he is the son and husband of Gaia (Earth) and father of the Titans."}
+]

@@ -54,7 +54,6 @@ import type {
   BodyOperation,
   GenerationJobParams,
   JobId,
-  JobType,
   MarkJobParams,
   Motivation,
   AnchorRect,
@@ -473,21 +472,17 @@ export interface JobNamespace {
 
   status(jobId: JobId): Promise<JobStatusResponse>;
   pollUntilComplete(jobId: JobId, options?: { interval?: number; timeout?: number; onProgress?: (status: JobStatusResponse) => void }): Promise<JobStatusResponse>;
-  cancelByType(jobType: JobType): Promise<number>;
-  /** Cancel ONE job by id; resolves with the count the queue acted on. */
-  cancel(jobId: JobId): Promise<number>;
+  /** Cancel ONE job by id; resolves with whether the queue acted on it. */
+  cancel(jobId: JobId): Promise<boolean>;
 
   /**
    * A worker's side: claim the jobs `options.accepts` describes, and hold one
    * at a time. Claiming begins when the claims are read, and each job they
-   * hand out says its own lifecycle and settles once
-   * (docs/protocol/WORKER-CONTRACT.md). The transport's stream must name
-   * `JOB_CLAIM_CHANNELS`.
+   * hand out says its own lifecycle, commits its own annotations and settles
+   * once (docs/protocol/WORKER-CONTRACT.md). The transport's stream must name
+   * `JOB_CLAIM_CHANNELS`, and `JOB_COMMIT_CHANNELS` for a worker that commits.
    */
   claim(options: ClaimOptions): ClaimsObservable;
-
-  /** UI signal, local bus only: a viewer asks for the jobs of a type to be cancelled. `cancelByType` is the call that cancels. */
-  cancelRequest(jobType: JobType): void;
 }
 
 /**

@@ -61,7 +61,7 @@ function getAnnotationTooltip(annotation: Annotation): string {
  * Render annotation overlay - displays existing annotations as SVG shapes
  *
  * @emits beckon:hover - Annotation hovered or unhovered. Payload: { annotationId: string | null }
- * @emits browse:click - Annotation clicked. Payload: { annotationId: string, motivation: Motivation }
+ * @emits browse:click - Annotation clicked. Payload: { annotationId: string, anchorRect?: AnchorRect }
  */
 export function AnnotationOverlay({
   annotations,

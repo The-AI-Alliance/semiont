@@ -15,7 +15,7 @@
  * and concurrent, so a slow page delays only its own resource.
  */
 
-import { isObject, type PdfTextItem } from '@semiont/core';
+import { isObject, textOffsets, type PdfTextItem } from '@semiont/core';
 import { extractPdfTextLayer } from './extract-pdf-text-layer';
 import type { TextExtractor, ExtractedText, ExtractionDecline } from './text-extractor';
 import type { PdfTextLayer } from './pdf-text-layer';
@@ -97,15 +97,21 @@ async function ocrPages(
   for (const page of pages) {
     const images = imagesByPage.get(page)!;
     let text = '';
+    // How many code points `text` is: where the next image's words begin.
+    let length = 0;
     const items: PdfTextItem[] = [];
     const confidences: number[] = [];
     for (const image of images) {
       const result = recognized[cursor++];
       if (!result?.text.trim()) continue;
-      if (text) text += '\n';
-      items.push(...mapWordsToItems(result.words, image, page, text.length));
+      if (text) {
+        text += '\n';
+        length += 1;
+      }
+      items.push(...mapWordsToItems(result.words, image, page, length));
       confidences.push(...result.words.map((word) => word.confidence));
       text += result.text;
+      length += textOffsets(result.text).length;
     }
     if (text) byPage.set(page, { text, items, confidences });
   }
@@ -118,20 +124,26 @@ async function ocrPages(
 /**
  * Recovered pages in page order as one block of text, with every word's
  * offsets shifted to where its page actually lands. `baseOffset` is where this
- * block begins in the document being assembled.
+ * block begins in the document being assembled, in code points.
  */
 function joinPages(byPage: Map<number, OcrPageResult>, baseOffset: number): OcrPageResult {
   let text = '';
+  // How many code points `text` is: where the next page's words begin.
+  let length = 0;
   const items: PdfTextItem[] = [];
   const confidences: number[] = [];
   for (const [, page] of [...byPage.entries()].sort((a, b) => a[0] - b[0])) {
-    if (text) text += '\n\n';
-    const shift = baseOffset + text.length;
+    if (text) {
+      text += '\n\n';
+      length += 2;
+    }
+    const shift = baseOffset + length;
     for (const item of page.items) {
       items.push({ ...item, start: item.start + shift, end: item.end + shift });
     }
     confidences.push(...page.confidences);
     text += page.text;
+    length += textOffsets(page.text).length;
   }
   return { text, items, confidences };
 }
@@ -156,13 +168,18 @@ export function classifyPdfError(error: unknown): 'encrypted' | 'corrupt' {
  */
 function foldFormFields(layer: PdfTextLayer): ExtractedText {
   let text = layer.text;
+  // How many code points `text` is: a value's offsets are counted from it.
+  let length = textOffsets(layer.text).length;
   const items: PdfTextItem[] = [...layer.items];
   for (const field of layer.fields) {
-    const start = text.length + `${field.name}: `.length;
-    text += `${field.name}: ${field.value}\n`;
+    const label = `${field.name}: `;
+    const start = length + textOffsets(label).length;
+    const end = start + textOffsets(field.value).length;
+    text += `${label}${field.value}\n`;
+    length = end + 1;
     items.push({
       start,
-      end: start + field.value.length,
+      end,
       page: field.page,
       x: field.x,
       y: field.y,
@@ -181,23 +198,29 @@ function foldFormFields(layer: PdfTextLayer): ExtractedText {
  * an outcome table — gets row-coherent tables without disturbing its prose.
  */
 function shapeTables(layer: PdfTextLayer): ExtractedText | null {
+  // The layer's offsets are code points; this is where they meet its string.
+  const layerOffsets = textOffsets(layer.text);
   const pages = layer.pages.map((page) => {
     const pageItems = layer.items.filter((item) => item.page === page.pageNumber);
-    return { page, pageItems, table: detectTable(pageItems, layer.text) };
+    return { page, pageItems, table: detectTable(pageItems, layer.text, layerOffsets) };
   });
   if (!pages.some((p) => p.table)) return null;
 
   let text = '';
+  // How many code points `text` is: where the next page lands.
+  let length = 0;
   const items: PdfTextItem[] = [];
   for (const { page, pageItems, table } of pages) {
     if (table) {
-      const rendered = renderTable(table, page.pageNumber, text.length);
+      const rendered = renderTable(table, page.pageNumber, length);
       text += rendered.text;
+      length += textOffsets(rendered.text).length;
       items.push(...rendered.items);
     } else {
       // Verbatim page: copy its slice and shift its runs' offsets to match.
-      const shift = text.length - page.textStart;
-      text += layer.text.slice(page.textStart, page.textEnd);
+      const shift = length - page.textStart;
+      text += layer.text.slice(layerOffsets.indexAt(page.textStart), layerOffsets.indexAt(page.textEnd));
+      length += page.textEnd - page.textStart;
       for (const item of pageItems) {
         items.push({ ...item, start: item.start + shift, end: item.end + shift });
       }
@@ -303,8 +326,9 @@ async function extractPdf(content: Buffer): Promise<ExtractedText | ExtractionDe
       return { ...shaped, unreadPages: stillUnread, pdfClass: hybridClass };
     }
     // Appended, so the native pages' items keep pointing at the right
-    // characters; the OCR'd words are offset to where they actually land.
-    const shift = shaped.text.length;
+    // characters; the OCR'd words are offset to where they actually land:
+    // past the native text, by its length in code points.
+    const shift = textOffsets(shaped.text).length;
     const ocr: OcrPageResult = {
       text: recovered.text,
       items: recovered.items.map((item) => ({ ...item, start: item.start + shift, end: item.end + shift })),

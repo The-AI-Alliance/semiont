@@ -200,11 +200,12 @@ const {
 
 Delegated detection is driven by the session-scoped **mark state unit**
 (`createMarkStateUnit`, in `@semiont/sdk`). The resource-viewer page state unit
-owns one per resource and exposes it as `stateUnit.mark`. It tracks three
+owns one per resource and exposes it as `stateUnit.mark`. It tracks four
 observables that the UI reads via `useObservable`:
 
 - `mark.delegatingMotivation$` — the motivation of the delegated job in progress (or `null` when idle)
 - `mark.progress$` — the latest `JobProgress`
+- `mark.jobId$` — the delegated job's id, from the queue's answer to its creation to the job's end (or `null`); what `client.job.cancel` takes
 - `mark.pendingAnnotation$` — a pending manual annotation awaiting a body
 
 A delegated job that says nothing for `delegateSilenceMs` (three minutes, in
@@ -343,7 +344,7 @@ never supplied by the emitter.
 ### Selectors
 
 **Text Selectors:**
-- `TextPositionSelector` - Character offsets (start, end)
+- `TextPositionSelector` - Offsets into the text (start, end), counted in Unicode code points
 - `TextQuoteSelector` - Exact text + context (prefix, suffix)
 
 **Image Selectors:**
@@ -380,7 +381,7 @@ format BrowseView paints:
 
 ```typescript
 for (const { id, exact, offset, length, type, source } of toOverlayAnnotations(annotations)) {
-  // offset, length: the TextPositionSelector span in the markdown source
+  // offset, length: the TextPositionSelector span in the markdown source, in Unicode code points
   // type: the matching annotator's internalType ('highlight', 'comment', …)
   // source: the resource a SpecificResource body links to, else null
 }
@@ -418,14 +419,17 @@ hover emits `beckon:hover` once the pointer has dwelt for `hoverDelayMs`.
 
 ### Text Segmentation
 
-`TextAnnotateRenderer` derives the segments with `segmentTextWithAnnotations(content, annotations)`.
-Each `TextSegment` is one run of the content:
+`TextAnnotateRenderer` derives the segments with
+`segmentTextWithAnnotations(content, textOffsets(content), annotations)`.
+Each `TextSegment` is one run of the content, from one offset to another. An offset counts Unicode
+code points, so it is the string's own position only in a content with no character outside the
+Basic Multilingual Plane; `textOffsets` (from `@semiont/core`) converts between the two:
 
 ```typescript
 declare const segments: TextSegment[];
 
 for (const { exact, start, end, annotation, strategy, confidence } of segments) {
-  // exact === content.slice(start, end)
+  // exact === content.slice(offsets.indexAt(start), offsets.indexAt(end)), for offsets = textOffsets(content)
   // annotation, strategy, confidence: present only on annotated segments
 }
 ```

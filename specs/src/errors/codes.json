@@ -144,5 +144,16 @@
       { "code": "unreachable", "docs": "The knowledge base was not reached, so it said nothing." },
       { "code": "not-reported", "docs": "The knowledge base answered that it cannot say what it is." }
     ]
+  },
+  "spanRefusal": {
+    "docs": "Why no annotation was built of a span: the span is not the text's, or, for a PDF, is nowhere on its pages. specs/src/annotations/builder-cases.json holds when each is given.",
+    "codes": [
+      { "code": "span-out-of-range", "docs": "The span's offsets are not two whole numbers from 0, the second no less than the first, within the text." },
+      { "code": "exact-mismatch", "docs": "The words the span states are not the text between its offsets." },
+      { "code": "prefix-mismatch", "docs": "The prefix the span states is not the text just before it." },
+      { "code": "suffix-mismatch", "docs": "The suffix the span states is not the text just after it." },
+      { "code": "nothing-located", "docs": "No item of the PDF's anchored text holds any of the span, so it is nowhere on a page." },
+      { "code": "exact-not-covered", "docs": "The items of the PDF's anchored text that hold the span do not have its words." }
+    ]
   }
 }

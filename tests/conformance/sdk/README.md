@@ -293,7 +293,7 @@ no other.
 | Directive | Arguments | Does |
 |---|---|---|
 | `listen` | `channels`, `scope` | the participant subscribes: globally, or to one scope |
-| `emit` | `channel`, `payload`, `scope`, `correlationId` | the participant emits; the gateway must accept it |
+| `emit` | `channel`, `payload`, `scope`, `correlationId` | the participant emits; the gateway must accept it. With the `correlationId` of a request the client sent, it emits in the trace that request was sent under, as a service answers in the trace of what it answers |
 | `record` | `resource`, `channel`, `sequence`, `count`, `live`, `payload`, `enriched`, `unscoped` | a persisted event, with `payload` when given, enters the resource's record, or `count` of them at the sequence numbers from `sequence` on; with `live`, each is also published, with the fields of `enriched` added, on the resource's scope, or to every client with `unscoped` |
 | `archivist` | `replayFails` | the Archivist fails, or stops failing, the gateway's reads of a record |
 | `content` | `resource`, `mediaType`, `bytes` | the Archivist holds these bytes for the resource |

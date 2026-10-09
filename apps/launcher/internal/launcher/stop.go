@@ -466,12 +466,19 @@ func Stop(args []string) int {
 	return 0
 }
 
-// fiatPorts: the launcher-owned ports every stack claims regardless of
-// config — the release-verification fallback when no record captured the
-// stack's exact claims (older launcher's record, name-sweep path): a full
-// start's launcher-fiat claims, then the broker's. 3000 is absent: the
-// Browser is not a stack member and its port is not the stack's to verify.
-var fiatPorts = portNumbers(append(fiatPortNeeds(true), stackPortNeeds("messaging")...))
+// fiatPorts: the launcher-owned ports a stack can claim whatever its config
+// says — the release-verification fallback when no record captured the
+// stack's exact claims (older launcher's record, name-sweep path): every
+// launcher-fiat role's, since a stop with no record cannot know which of them
+// the stack ran, then the broker's. 3000 is absent: the Browser is not a
+// stack member and its port is not the stack's to verify.
+var fiatPorts = func() []int {
+	var needs []portNeed
+	for _, role := range append(fiatRoles(true), "messaging") {
+		needs = append(needs, stackPortNeeds(role)...)
+	}
+	return portNumbers(needs)
+}()
 
 // verifyPortsReleased: stop's job isn't done until the ports are actually
 // free — runtimes release published ports asynchronously (Apple container's

@@ -2,6 +2,7 @@
 //! tag schemas, and what its people are called.
 
 use crate::{Object, RecordError, dictionary_order, indented, read_object};
+use semiont::channels::{Channel, FrameEntityTypeAdded, FrameTagSchemaAdded, PersonProfiled};
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 
@@ -78,7 +79,7 @@ impl Projections {
             .and_then(Value::as_object)
             .unwrap_or(&none);
         match event.get("type").and_then(Value::as_str) {
-            Some("frame:entity-type-added") => {
+            Some(FrameEntityTypeAdded::NAME) => {
                 let Some(added) = payload.get("entityType").and_then(Value::as_str) else {
                     return Ok(());
                 };
@@ -99,7 +100,7 @@ impl Projections {
                 projection.insert(ENTITY_TYPES.1.into(), json!(types));
                 self.write(ENTITY_TYPES, &projection)
             }
-            Some("frame:tag-schema-added") => {
+            Some(FrameTagSchemaAdded::NAME) => {
                 let Some(added) = payload.get("schema") else {
                     return Ok(());
                 };
@@ -126,7 +127,7 @@ impl Projections {
                 projection.insert(TAG_SCHEMAS.1.into(), Value::Array(schemas));
                 self.write(TAG_SCHEMAS, &projection)
             }
-            Some("person:profiled") => {
+            Some(PersonProfiled::NAME) => {
                 let (Some(did), Some(name)) = (
                     event.get("userId").and_then(Value::as_str),
                     payload.get("name"),

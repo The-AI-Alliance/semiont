@@ -3,7 +3,7 @@
 import type { ResourceId } from '@semiont/core';
 import { useEffect, useRef, useCallback, useMemo, memo, type MouseEvent as ReactMouseEvent } from 'react';
 import { annotationId as toAnnotationId } from '@semiont/core';
-import { capabilitiesOf, getBodySource, isResolvedReference } from '@semiont/core';
+import { capabilitiesOf, getBodySource, isResolvedReference, textOffsets } from '@semiont/core';
 import type { Annotation, ResourceDescriptor } from '@semiont/core';
 import { createHoverHandlers } from '@semiont/sdk';
 import { ANNOTATORS } from '../../lib/annotation-registry';
@@ -70,7 +70,7 @@ export interface ReferenceHover {
  * - Layer 1: Markdown renders once (MemoizedMarkdown, cached by content)
  * - Layer 2: Annotation overlay applied via DOM Range API after paint
  *
- * @emits browse:click - User clicked on annotation. Payload: { annotationId: string, motivation: Motivation }
+ * @emits browse:click - User clicked on annotation. Payload: { annotationId: string, anchorRect?: AnchorRect }
  * @emits beckon:hover - User hovered over annotation. Payload: { annotationId: string | null }
  *
  * @subscribes beckon:hover - Highlight annotation on hover. Payload: { annotationId: string | null }
@@ -111,9 +111,13 @@ export const BrowseView = memo(function BrowseView({
     [allAnnotations]
   );
 
+  // The content's conversions, made once for a content: an annotation's
+  // offsets count its code points, and the overlay's map is of the string.
+  const offsets = useMemo(() => textOffsets(content), [content]);
+
   // The two-layer overlay in ONE effect, keyed on everything it reads: the
   // rendered content DOM (`content` re-renders it) AND the annotations.
-  // Splitting these across two effects with a ref-passed offset map silently
+  // Splitting these across two effects with a ref-passed map silently
   // drops the `content` dependency — content arriving after annotations
   // (any async-content host) paints ZERO spans until a remount. The
   // length===0 early-return is safe: the prior run's cleanup already cleared.
@@ -121,13 +125,13 @@ export const BrowseView = memo(function BrowseView({
     if (!containerRef.current || overlayAnnotations.length === 0) return;
 
     const container = containerRef.current;
-    const offsetMap = buildSourceToRenderedMap(content, container);
+    const sourceToRendered = buildSourceToRenderedMap(content, container);
     const textNodeIndex = buildTextNodeIndex(container);
-    const spans = resolveAnnotationSpans(overlayAnnotations, offsetMap);
+    const spans = resolveAnnotationSpans(overlayAnnotations, offsets, sourceToRendered);
     applyHighlights(spans, textNodeIndex);
 
     return () => clearHighlights(container);
-  }, [content, overlayAnnotations]);
+  }, [content, offsets, overlayAnnotations]);
 
   // Attach click handler, hover handler, and animations after render
   useEffect(() => {

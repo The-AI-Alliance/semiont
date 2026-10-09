@@ -31,7 +31,8 @@ A worker does three things, and this document is about those three: it
 **live** while it holds one. The work itself (reading a resource, calling a
 model, deciding what to annotate) is the worker's own and is not specified
 here, except for one thing every worker that commits annotations must do
-([Committing annotations](#committing-annotations)).
+([Committing annotations](#committing-annotations)), and for the trace a
+worker that exports telemetry runs a job in ([Traces](#traces)).
 
 ## The stream
 
@@ -93,9 +94,15 @@ matches one of them, or with `none-pending`.
 - **R2.** `metadata.completedUnits` and `metadata.unitCursors` are the
   checkpoint earlier attempts left, and a worker resumes from them: a
   finished unit is not done again, and an unfinished one continues from its
-  cursor. Absent, each reads as none. A worker reads them as the dispatcher
-  states them and repairs nothing; what the dispatcher keeps of a checkpoint
-  is [JOBS.md § Checkpoints](./JOBS.md#checkpoints).
+  cursor. `completedUnits` is what says a unit is finished, and a cursor
+  never says so: `unitCursors` holds the furthest each unit begun got, with
+  what it had counted there, and a finished unit's is where it ended. So a
+  worker that does not do a finished unit again can still count it, by that
+  cursor. Absent, each reads as none; a finished unit the record holds no
+  cursor for is not done again, and nothing says what it counted. A worker
+  reads them as the dispatcher states them and repairs nothing; what the
+  dispatcher keeps of a checkpoint is
+  [JOBS.md § Checkpoints](./JOBS.md#checkpoints).
   *Held by `worker/checkpoint-read`, `dispatcher/progress.test.ts`.*
 
 ## The lifecycle
@@ -107,14 +114,18 @@ matches one of them, or with `none-pending`.
 - **L2.** While it works a worker may emit `job:report-progress` and
   `job:checkpoint`, any number of each. A progress report carries what
   `job:start` carried. A checkpoint carries `jobId`, the units finished, and
-  a cursor for each unit begun and not finished. Each one emitted counts as
-  activity ([Liveness](#liveness)).
+  a cursor for each unit begun. A checkpoint that names a unit finished
+  carries that unit's cursor, where it ended: the dispatcher keeps it
+  ([JOBS.md § Checkpoints](./JOBS.md#checkpoints)), and it is what a later
+  attempt counts the unit by. Each one emitted counts as activity
+  ([Liveness](#liveness)).
   *Held by `worker/lifecycle`, `worker/stall`.*
 - **L3.** A worker settles each job it claimed exactly once, with one of
   `job:complete`, `job:fail` or `job:cancel`.
   *Held by `worker/lifecycle`.*
 - **L4.** `job:fail` carries the error; the failure's class, when the worker
-  knows it; the checkpoint, when there is one; and `willRetry`, which is
+  knows it; the checkpoint, when there is one, as a `job:checkpoint` states
+  one ([L2](#the-lifecycle)); and `willRetry`, which is
   what [`retry-cases.json`](../../specs/src/jobs/retry-cases.json) answers
   for the claimed record's retry budget and that class. The dispatcher
   applies the same table, so a follower told `willRetry` is told what the
@@ -139,11 +150,13 @@ matches one of them, or with `none-pending`.
 
 ## Committing annotations
 
-A worker that makes annotations commits them with `mark:commit`.
+A worker that makes annotations commits them with `mark:commit`, a batch at
+a time, for the job it holds. A held job commits for itself: an SDK's held job
+has the call, and what follows is what that call does.
 
 - **A1.** A commit by a worker cites the job it fulfils, in `jobId`. One
   that cites none is refused.
-  *Held by `tests/conformance/archivist/jobs.test.ts`.*
+  *Held by `worker/commit-acknowledged`, `tests/conformance/archivist/jobs.test.ts`.*
 - **A2.** A worker supplies the `id` of every annotation it commits. An
   annotation is recorded once, by its `id`: one whose `id` the resource
   already holds is not recorded again. So a worker derives each `id` from
@@ -151,9 +164,35 @@ A worker that makes annotations commits them with `mark:commit`.
   anchored, its body) and from nothing about the attempt, and a job that is
   retried or resumed commits the same annotations under the same ids. An
   `id` made afresh on each attempt records every annotation again.
-  *Held by `tests/conformance/archivist/annotations.test.ts`, `packages/jobs/src/__tests__/annotation-idempotence.test.ts`.*
+  *Held by `tests/conformance/archivist/annotations.test.ts`, `packages/core/src/__tests__/annotation-of-span.test.ts`.*
 - **A3.** An annotation committed with no `id` is not recorded.
   *Held by no case.*
+- **A4.** A commit is established when the record acknowledges it
+  (`mark:commit-ok`), and not before: the gateway taking the message says
+  nothing of the record. A worker waits for the acknowledgement, for
+  `markCommitTimeoutMs`, and counts nothing of the batch as done until it is
+  established. A batch of no annotations is no commit: nothing is sent.
+  *Held by `worker/commit-acknowledged`, `worker/commit-empty`.*
+- **A5.** When no acknowledgement arrives in that time, the worker asks
+  whether the batch's last annotation is on the resource
+  (`browse:annotation-requested`), and waits as long again for the answer.
+  The record appends a batch in order and stops at the first annotation it
+  cannot append, so the last being there says all of it is. Answered with the
+  annotation, the commit is established. Answered that it is not there, or not
+  answered, it is not, and the worker's commit fails with the failure of its
+  unanswered `mark:commit`. A commit the record refuses (`mark:commit-failed`)
+  fails with the record's reason, and nothing is asked.
+  *Held by `worker/commit-ack-lost`, `worker/commit-probe-refused`, `worker/commit-probe-unreachable`, `worker/commit-refused`.*
+- **A6.** A held job says how its commits were established, in `durability`,
+  when it settles, and it says what it observed, never a conclusion. Each
+  commit observes one of: `acknowledged`; `probe-confirmed`, established by
+  asking; `probe-refused`, answered that the annotation is not there;
+  `probe-unreachable`, not answered. The job remembers the weakest of them,
+  in that order, the last two being equally weak and the first of them seen
+  kept. `job:complete` states it. `job:fail` states it when it is one of the
+  last two, which is when a commit was not established. A job that committed
+  nothing, or whose only failed commit the record refused, states none.
+  *Held by `worker/commit-acknowledged`, `worker/commit-ack-lost`, `worker/commit-probe-refused`, `worker/commit-probe-unreachable`, `worker/commit-refused`, `worker/commit-empty`.*
 
 ## Cancellation
 
@@ -164,8 +203,7 @@ worker stops.
   the work. When the work stops, the worker emits `job:cancel`, with the
   units it finished, and is idle.
   *Held by `worker/cancel`.*
-- **X2.** A `job:cancel-requested` that names another job, or a category of
-  jobs, is ignored.
+- **X2.** A `job:cancel-requested` that names another job is ignored.
   *Held by `worker/cancel`.*
 
 ## Liveness
@@ -183,3 +221,29 @@ worker stops.
   it runs. A worker too wedged to look is caught by the dispatcher's own
   sweep of running jobs ([JOBS.md § Periodic work](./JOBS.md#periodic-work)).
   *Held by `worker/stall`.*
+
+## Traces
+
+A worker that exports telemetry sends each message in the trace of the work
+that sent it, and receives each frame in the trace it was sent under
+([`specs/src/sdk-telemetry/telemetry.json`](../../specs/src/sdk-telemetry/telemetry.json)).
+A dispatcher that exports answers a claim in the trace of the claim
+([`dispatcher/environment.test.ts`](../../tests/conformance/dispatcher/environment.test.ts)).
+
+- **T1.** A claim begins a trace of its own: it is in the trace of no job
+  the worker held before it. Whatever a worker's code was doing when it
+  settled a job, the claim the SDK makes next starts from no span of that
+  job. The job a claim hands over is run in the trace of that claim:
+  what reads `job:claimed` and gives the job to the worker's code does so in
+  the context of the reply that carried it, so a worker's span for the job
+  continues that trace. So each job a worker runs has a trace of its own: its
+  claim, the reply that handed it over, the worker's span for it, and every
+  message the job sends. In every SDK a held job states the trace its reply
+  arrived in. Where the language carries context from the code that hands a
+  job over to the code handed it (TypeScript at the hand-over, Python inside
+  `async with job`), the job's code also runs in it. In TypeScript what the
+  job states is the trace OpenTelemetry has active as the reply arrives: a
+  process that has set up no OpenTelemetry has no trace, and its held jobs
+  state none. In Rust and Python it is what the reply's frame carried,
+  whatever the process has set up.
+  *Held by `worker/job-trace`.*

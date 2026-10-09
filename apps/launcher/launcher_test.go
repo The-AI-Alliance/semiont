@@ -875,7 +875,7 @@ func TestKeycloakPortIsPlacedAndSticky(t *testing.T) {
 			t.Errorf("%s: Keycloak not published on %s:\n%s", step.name, step.want, run)
 		}
 		issuer := "http://192.168.64.1:" + step.want + "/realms/semiont"
-		for _, staged := range []string{"worker.toml", "archivist.json", "gateway.json", "dispatcher.json"} {
+		for _, staged := range []string{"worker.json", "archivist.json", "gateway.json", "dispatcher.json"} {
 			if !strings.Contains(stagedFile(t, s, staged), issuer) {
 				t.Errorf("%s: the staged %s does not state the issuer at port %s:\n%s", step.name, staged, step.want, stagedFile(t, s, staged))
 			}
@@ -2834,8 +2834,9 @@ func TestSecretValuesStayOffTheCommandLine(t *testing.T) {
 }
 
 // Each service is handed only the variables its own config sections
-// reference. The anthropic config names ANTHROPIC_API_KEY in [inference],
-// which the Librarian and Worker read and nothing else does: the Archivist
+// reference, or its configuration document names. The anthropic config names
+// ANTHROPIC_API_KEY in [inference], which the Librarian reads and the worker's
+// document names as its agents' key, and nothing else does: the Archivist
 // lists the collaborator roster without it. The worker and the librarian are
 // the only two images that get inference secrets.
 func TestEachServiceGetsOnlyTheSecretsItReads(t *testing.T) {
@@ -2856,7 +2857,7 @@ func TestEachServiceGetsOnlyTheSecretsItReads(t *testing.T) {
 	}
 	for _, svc := range []string{"librarian", "worker"} {
 		if v, _ := s.containerEnv(t, "semiont-"+svc, "ANTHROPIC_API_KEY"); v != "test-key" {
-			t.Errorf("%s reads [inference] but was not handed ANTHROPIC_API_KEY", svc)
+			t.Errorf("%s calls the models but was not handed ANTHROPIC_API_KEY", svc)
 		}
 	}
 	for _, svc := range []string{"archivist", "gateway", "dispatcher", "weaver", "smelter"} {
@@ -2967,19 +2968,19 @@ func TestStartForwardsAnOptionalReferenceOnlyWhenSet(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// In a section the worker reads: a service is handed only its own
+	// In a section the Librarian reads: a service is handed only its own
 	// sections' variables.
-	if _, err := f.WriteString("\n[environments.local.workers.default]\nnote = \"${SD_OPTIONAL:-fallback}\"\n"); err != nil {
+	if _, err := f.WriteString("\n[environments.local.make-meaning]\nnote = \"${SD_OPTIONAL:-fallback}\"\n"); err != nil {
 		t.Fatal(err)
 	}
 	f.Close()
 	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key")
 
-	if _, stderr, code := s.run(t, "start", "--service", "worker", "--config", "anthropic"); code != 0 {
+	if _, stderr, code := s.run(t, "start", "--service", "librarian", "--config", "anthropic"); code != 0 {
 		t.Fatalf("unset: exit %d\n%s", code, stderr)
 	}
 	log, _ := os.ReadFile(s.log)
-	if _, handed := s.containerEnv(t, "semiont-worker", "SD_OPTIONAL"); handed || strings.Contains(string(log), "SD_OPTIONAL") {
+	if _, handed := s.containerEnv(t, "semiont-librarian", "SD_OPTIONAL"); handed || strings.Contains(string(log), "SD_OPTIONAL") {
 		t.Errorf("forwarded an optional reference nobody set:\n%s", log)
 	}
 
@@ -2991,10 +2992,10 @@ func TestStartForwardsAnOptionalReferenceOnlyWhenSet(t *testing.T) {
 	if err := os.Truncate(s.log, 0); err != nil {
 		t.Fatal(err)
 	}
-	if _, stderr, code := s.run(t, "start", "--service", "worker", "--config", "anthropic"); code != 0 {
+	if _, stderr, code := s.run(t, "start", "--service", "librarian", "--config", "anthropic"); code != 0 {
 		t.Fatalf("registered: exit %d\n%s", code, stderr)
 	}
-	if v, _ := s.containerEnv(t, "semiont-worker", "SD_OPTIONAL"); v != "fake-op-secret" {
+	if v, _ := s.containerEnv(t, "semiont-librarian", "SD_OPTIONAL"); v != "fake-op-secret" {
 		t.Errorf("the registered source's value did not arrive (got %q)", v)
 	}
 
@@ -3005,10 +3006,10 @@ func TestStartForwardsAnOptionalReferenceOnlyWhenSet(t *testing.T) {
 		t.Fatal(err)
 	}
 	s.extraEnv = append(s.extraEnv, "SD_OPTIONAL=")
-	if _, stderr, code := s.run(t, "start", "--service", "worker", "--config", "anthropic"); code != 0 {
+	if _, stderr, code := s.run(t, "start", "--service", "librarian", "--config", "anthropic"); code != 0 {
 		t.Fatalf("set empty: exit %d\n%s", code, stderr)
 	}
-	if v, handed := s.containerEnv(t, "semiont-worker", "SD_OPTIONAL"); !handed || v != "" {
+	if v, handed := s.containerEnv(t, "semiont-librarian", "SD_OPTIONAL"); !handed || v != "" {
 		t.Errorf("an optional variable set to the empty string was not forwarded empty (got %q, handed %v)", v, handed)
 	}
 
@@ -3018,10 +3019,10 @@ func TestStartForwardsAnOptionalReferenceOnlyWhenSet(t *testing.T) {
 		t.Fatal(err)
 	}
 	s.extraEnv = append(s.extraEnv, "SD_OPTIONAL=from-env")
-	if _, stderr, code := s.run(t, "start", "--service", "worker", "--config", "anthropic"); code != 0 {
+	if _, stderr, code := s.run(t, "start", "--service", "librarian", "--config", "anthropic"); code != 0 {
 		t.Fatalf("set: exit %d\n%s", code, stderr)
 	}
-	if v, _ := s.containerEnv(t, "semiont-worker", "SD_OPTIONAL"); v != "from-env" {
+	if v, _ := s.containerEnv(t, "semiont-librarian", "SD_OPTIONAL"); v != "from-env" {
 		t.Errorf("the exported value did not win (got %q)", v)
 	}
 	log, _ = os.ReadFile(s.log)
@@ -4880,6 +4881,162 @@ func TestStartMovedDBPortBoot(t *testing.T) {
 	mustContain(t, "argv", s.argv(t), "-p 5433:5432", "nc -z -w 2 192.168.64.1 5433")
 }
 
+// --- a stack without a worker ---
+
+// noWorker: a config that binds no job to a worker. The section a start names
+// for binding one is noWorkerSection.
+const (
+	noWorker        = stdGraph + stdVectors + stdEmbedding + stdDatabase
+	noWorkerSection = "[environments.local.workers.default.inference]"
+)
+
+// An environment that binds no job to a worker starts everything else and no
+// worker: none is pulled, staged a document, given a port or run, and the
+// start says so once, naming the section that binds a job. What reads the
+// stack afterwards reads it as it is: status reports the worker as not
+// configured and the stack as healthy, logs follow the services that run, and
+// stop sweeps no worker.
+func TestStartWithoutAWorkerBoot(t *testing.T) {
+	s := newScenario(t, "container")
+	writeKBConfig(t, s, "no-worker", noWorker)
+	stdout, stderr, code := s.run(t, "start", "--config", "no-worker")
+	if code != 0 {
+		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	started := s.argv(t)
+	checkGolden(t, "start-no-worker-boot.argv", started)
+
+	mustContain(t, "stdout", stdout,
+		"worker — the environment binds no job to a worker; skipping (add "+noWorkerSection+" to run one)",
+		"🚀 Semiont stack is up")
+	if n := strings.Count(stdout+stderr, noWorkerSection); n != 1 {
+		t.Errorf("the start names %s %d times, want once\nstdout:\n%s\nstderr:\n%s", noWorkerSection, n, stdout, stderr)
+	}
+	mustNotContain(t, "start argv", started, "run -d --name semiont-worker", "semiont-worker:", "24100")
+	mustContain(t, "start argv", started, "run -d --name semiont-smelter", "run -d --name semiont-weaver")
+
+	stages := s.stageRe().FindAllString(string(s.mustLog(t)), -1)
+	if len(stages) == 0 {
+		t.Fatal("no staging dir in the argv log")
+	}
+	if _, err := os.Stat(filepath.Join(stages[len(stages)-1], "worker.json")); !os.IsNotExist(err) {
+		t.Errorf("a document was staged for a worker that does not run (stat: %v)", err)
+	}
+	var archivist struct {
+		Roster struct {
+			Workers map[string]any `json:"workers"`
+		} `json:"roster"`
+	}
+	if err := json.Unmarshal([]byte(stagedFile(t, s, "archivist.json")), &archivist); err != nil {
+		t.Fatalf("the staged archivist.json: %v", err)
+	}
+	if len(archivist.Roster.Workers) != 0 {
+		t.Errorf("the Archivist's roster names workers the stack does not run: %v", archivist.Roster.Workers)
+	}
+
+	rec, err := os.ReadFile(statePathFor(s.home))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc struct {
+		Stacks map[string]struct {
+			Ports    []int `json:"ports"`
+			Services map[string]struct {
+				Provided string `json:"provided"`
+			} `json:"services"`
+		} `json:"stacks"`
+	}
+	if err := json.Unmarshal(rec, &doc); err != nil {
+		t.Fatalf("stack.json: %v", err)
+	}
+	local := doc.Stacks["local"]
+	if got := local.Services["worker"].Provided; got != "none" {
+		t.Errorf("the record says the worker is provided %q, want none:\n%s", got, rec)
+	}
+	for _, port := range local.Ports {
+		if port == 24100 {
+			t.Errorf("the stack claims the port of a worker it does not run:\n%s", rec)
+		}
+	}
+
+	// Naming one stack makes status's exit its health: a stack that runs no
+	// worker by its config is not short of one.
+	before := s.argv(t)
+	stdout, stderr, code = s.run(t, "status", "--root", s.kb)
+	if code != 0 {
+		t.Errorf("status --root: exit %d for a stack that runs everything its config asks for\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	workerRows := 0
+	for _, line := range strings.Split(stdout, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "worker") {
+			workerRows++
+			mustContain(t, "the worker's status row", line, "not configured")
+		}
+	}
+	if workerRows != 1 {
+		t.Errorf("status has %d worker rows, want one:\n%s", workerRows, stdout)
+	}
+	mustNotContain(t, "status stdout", stdout, "24100")
+	mustNotContain(t, "status argv", strings.TrimPrefix(s.argv(t), before), "semiont-worker")
+
+	before = s.argv(t)
+	stdout, stderr, code = s.run(t, "logs")
+	if code != 0 {
+		t.Fatalf("logs: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "logs stdout", stdout, "Following gateway · smelter · weaver · archivist · librarian · dispatcher · browser —")
+	mustNotContain(t, "logs argv", strings.TrimPrefix(s.argv(t), before), "semiont-worker")
+	// Asked for by name, the worker has nothing to follow, and says why.
+	_, stderr, code = s.run(t, "logs", "--service", "worker")
+	if code != 1 {
+		t.Errorf("logs --service worker: exit %d, want 1", code)
+	}
+	mustContain(t, "logs --service worker stderr", stderr, "worker is not referenced by the running stack's config — nothing to follow.")
+
+	before = s.argv(t)
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d\n%s", code, stderr)
+	}
+	stopped := strings.TrimPrefix(s.argv(t), before)
+	mustNotContain(t, "stop argv", stopped, "semiont-worker", "24100")
+	mustContain(t, "stop argv", stopped, "stop fid-semiont-gateway", "stop fid-semiont-smelter")
+}
+
+// The plan of that start is the start: no document, no pull, no port, no
+// container and no health wait for a worker, and one line saying why.
+func TestStartWithoutAWorkerDryRun(t *testing.T) {
+	s := newScenario(t, "container")
+	writeKBConfig(t, s, "no-worker", noWorker)
+	stdout, stderr, code := s.run(t, "start", "--config", "no-worker", "--dry-run")
+	if code != 0 {
+		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
+	}
+	plan := s.norm(stdout)
+	mustContain(t, "plan", plan,
+		"# worker: the environment binds no job to a worker — nothing to launch (add "+noWorkerSection+" to run one)",
+		"run -d --name semiont-smelter", "wait: http://localhost:24101/health (30s)")
+	if n := strings.Count(plan, noWorkerSection); n != 1 {
+		t.Errorf("the plan names %s %d times, want once:\n%s", noWorkerSection, n, plan)
+	}
+	// The preflight sweep still names semiont-worker: it removes whatever an
+	// earlier start of another config left, by name.
+	mustNotContain(t, "plan", plan, "run -d --name semiont-worker", "semiont-worker:", "worker.json", "24100")
+}
+
+// Asked for by name, a worker with no job to serve is refused, naming the
+// section that binds one, and nothing is run.
+func TestStartServiceWorkerIsRefusedWhenNoJobIsBound(t *testing.T) {
+	s := newScenario(t, "container")
+	writeKBConfig(t, s, "no-worker", noWorker)
+	stdout, stderr, code := s.run(t, "start", "--service", "worker", "--config", "no-worker")
+	if code != 1 {
+		t.Fatalf("exit %d, want 1\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stderr", stderr, "the environment binds no job to a worker", noWorkerSection)
+	mustNotContain(t, "stdout", stdout, "nothing to launch", "is up")
+	mustNotContain(t, "argv", s.argv(t), "run -d --name semiont-worker")
+}
+
 func TestStartNoInferenceBoot(t *testing.T) {
 	// A config that references no ollama anywhere: nothing local is launched
 	// for inference — but its Claude-bound worker means inference IS
@@ -6661,7 +6818,7 @@ func TestStartServiceWorker(t *testing.T) {
 		"image pull ghcr.io/the-ai-alliance/semiont-worker:latest",
 		"--env SEMIONT_OIDC_CLIENT_ID=semiont-worker",
 		"--env OTEL_EXPORTER_OTLP_ENDPOINT=http://",
-		"<config-stage>/worker.toml:/home/semiont/.semiontconfig:ro",
+		"<config-stage>/worker.json:/etc/semiont/worker.json:ro",
 	)
 	for _, absent := range []string{"run -d --name semiont-neo4j", "run -d --name semiont-gateway", "semiont-browser"} {
 		if strings.Contains(argv, absent) {
@@ -6805,7 +6962,7 @@ func TestStartServiceDryRunWorker(t *testing.T) {
 		"semiont start --service worker --dry-run",
 		"container stop semiont-worker",
 		"container image pull ghcr.io/the-ai-alliance/semiont-worker:latest",
-		"<config-stage>/worker.toml",
+		"<config-stage>/worker.json",
 		"wait: http://localhost:24100/health (30s)",
 	)
 	if strings.Contains(stdout, "semiont-neo4j") {
@@ -7388,6 +7545,7 @@ func TestStatusShowsARemoteCeilingInAnOllamaDrivenRow(t *testing.T) {
 	writeKBConfig(t, s, "mixed-ollama",
 		stdGraph+stdVectors+stdDatabase+stdEmbedding+
 			fmt.Sprintf("[environments.local.inference.anthropic]\nplatform = \"external\"\nendpoint = \"http://localhost:%d\"\napiKey = \"${ANTHROPIC_API_KEY}\"\n\n", anthPort)+
+			"[environments.local.inference.ollama]\nplatform = \"posix\"\nbaseURL = \"http://${OLLAMA_HOST}:11434\"\n\n"+
 			"[environments.local.workers.default.inference]\ntype = \"anthropic\"\nmodel = \"claude-sonnet-4-5-20250929\"\n\n"+
 			"[environments.local.workers.mark.highlighting.inference]\ntype = \"ollama\"\nmodel = \"gemma4:26b\"\n\n")
 	s.extraEnv = append(s.extraEnv,

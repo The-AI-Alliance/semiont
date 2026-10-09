@@ -569,7 +569,7 @@ import { CodeMirrorRenderer } from '@semiont/react-ui';
 <CodeMirrorRenderer content={content} editable={false} showLineNumbers hoverDelayMs={200} />
 ```
 
-`content` and `hoverDelayMs` are required; also optional: `segments`, `onTextSelect`, `onChange`, `session`, `sparkleAnnotationIds`, `hoveredAnnotationId`, `scrollToAnnotationId`, `sourceView`, `enableWidgets`, `getTargetResourceName`, `generatingReferenceId`.
+`content` and `hoverDelayMs` are required; also optional: `segments`, `onChange`, `session`, `sparkleAnnotationIds`, `hoveredAnnotationId`, `scrollToAnnotationId`, `sourceView`, `enableWidgets`, `getTargetResourceName`, `generatingReferenceId`.
 
 ### StatusDisplay
 

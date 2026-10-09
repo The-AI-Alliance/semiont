@@ -4,7 +4,7 @@ Which selectors a Semiont annotation carries, and why the answer depends on the
 resource it points at.
 
 A resource's media type constrains the selectors that can apply to it. Text
-offers character offsets; a PDF offers page geometry; an image offers regions.
+offers offsets into it; a PDF offers page geometry; an image offers regions.
 The media-type registry records that as `AnchoringModel` — `'text-selector'` or
 `'spatial'` — and every producer follows it. **How** the geometry for a spatial anchor is obtained, and
 how a scanned page gets one at all, is
@@ -49,17 +49,28 @@ Every text annotation includes both selector types:
 
 ### TextPositionSelector
 
-Specifies character positions from the start of the document:
+Specifies a span by two offsets from the start of the resource's text:
 
 ```typescript
 import type { TextPositionSelector } from '@semiont/core';
 
 const position: TextPositionSelector = {
   type: 'TextPositionSelector',
-  start: 100,   // character offset from the beginning
-  end: 120,     // character offset from the beginning, not a length
+  start: 100,   // offset of the first code point selected
+  end: 120,     // offset just past the last one: an offset too, not a length
 };
 ```
+
+An offset counts **Unicode code points** from the start of the resource's
+decoded text, exactly as it was decoded: nothing is normalized first. That is
+the count the Web Annotation Data Model requires, and it is the same number in
+every language. A character outside the Basic Multilingual Plane (an emoji, a
+mathematical letter, some CJK) is one code point, where a JavaScript string
+has two UTF-16 code units for it, so an offset is a string's own position only
+up to the first such character. `textOffsets` in `@semiont/core` converts
+between the two, and
+[`specs/src/text/offset-cases.json`](../../specs/src/text/offset-cases.json)
+holds the count for every implementation.
 
 **W3C Specification:** [§4.2.1 TextPositionSelector](https://www.w3.org/TR/annotation-model/#text-position-selector)
 
@@ -91,12 +102,14 @@ const quote: TextQuoteSelector = {
 The two selectors are not independent guesses — they are reconciled at write time so they describe the same span. The LLM does **not** supply offsets; it supplies `exact` (a verbatim substring) plus optional prefix/suffix context. Our code computes `start`/`end` by searching the source for `exact`, and a no-overlap invariant rejects any annotation whose selectors disagree:
 
 ```
-content.substring(start, end) === exact
-content.substring(start - prefix.length, start) === prefix   // when prefix present
-content.substring(end, end + suffix.length) === suffix       // when suffix present
+the text from start to end                              is exact
+the text that ends at start, as long as prefix is       is prefix   // when prefix present
+the text that starts at end, as long as suffix is       is suffix   // when suffix present
 ```
 
-This write-time reconciliation (`reconcileSelector` in `@semiont/core`) is where fuzzy matching lives — verbatim, then deterministic normalization (smart quotes, whitespace), then Levenshtein within a 5% tolerance — because the source content is in hand and the output is the authoritative record. All five annotation-detection workers converge on it. When `exact` appears more than once, prefix/suffix disambiguate; an undisambiguated multi-occurrence match is flagged `first-of-many` for audit rather than silently anchored. See [@semiont/core Utilities](../../packages/core/docs/Utilities.md#reconcile-llm-emitted-selectors).
+Every position and every length there is counted in code points.
+
+This write-time reconciliation (`reconcile` in `@semiont/core`, and in every SDK) is where fuzzy matching lives — verbatim, then deterministic normalization (smart quotes, whitespace), then Levenshtein within a 5% tolerance — because the source content is in hand and the output is the authoritative record. All five annotation-detection workers converge on it. When `exact` appears more than once, prefix/suffix disambiguate; an undisambiguated multi-occurrence match is flagged `first-of-many` for audit rather than silently anchored. See [@semiont/core Utilities](../../packages/core/docs/Utilities.md#reconcile-what-a-model-quoted).
 
 ### Render-Time Anchoring (Verbatim Only)
 
@@ -106,7 +119,7 @@ Because the stored selectors already agree, the renderer trusts them and re-anch
 
 A PDF anchors **spatially**. Its characters are drawn at positions rather than
 held at offsets, and the extracted text is a derived artifact — re-extraction
-could shift every offset — so character positions are not a durable anchor for
+could shift every offset — so offsets into it are not a durable anchor for
 one. Page geometry is.
 
 ### FragmentSelector — RFC 3778

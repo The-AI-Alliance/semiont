@@ -596,7 +596,9 @@ func probeDriver(role string) string {
 // the Browser is machine-level, not a stack member: the images a start
 // pulls, the configs it stages and mounts, and the realm accounts those
 // services present. Three hand-written lists drift: one an entry short
-// stages that service no config and passes it empty hosts.
+// stages that service no config and passes it empty hosts. A start pulls and
+// stages the ones its plan runs (launchPlan.runs); the realm holds an account
+// for every one, whichever start imported it.
 var stackServices = func() []string {
 	var out []string
 	for _, role := range startOrder {

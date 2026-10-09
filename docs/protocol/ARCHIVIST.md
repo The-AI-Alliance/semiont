@@ -269,7 +269,7 @@ its sender, which the gateway sets. A reply carries the command's correlation id
 
 | Command | Reply | On failure | Appends |
 |---|---|---|---|
-| `yield:create` | `yield:create-ok` `{resourceId}` | `yield:create-failed` | `yield:created` |
+| `yield:create` | `yield:create-ok` `{resourceId}` | `yield:create-failed` | `yield:created`, then `mark:body-updated` when the command names both the source resource and the source annotation |
 | `yield:clone-persist` | `yield:clone-persist-ok` `{resourceId}` | `yield:clone-persist-failed` | `yield:cloned` |
 | `yield:update` | `yield:update-ok` `{resourceId}` | `yield:update-failed` | `yield:updated` |
 | `mark:create-request` | `mark:create-ok` `{annotationId}` | `mark:create-failed` | `mark:added` |
@@ -330,8 +330,10 @@ Otherwise: `refused: cites job <id>, but this resource's log holds no assignment
   `generatedFrom` when the command names both the source resource and the source annotation,
   `generationPrompt` when given, `generator` when there is one, `creator`, `wasAttributedTo`.
 - When the command names both the source resource and the source annotation, the new resource is
-  then linked from that annotation: a `mark:update-body` adding a `SpecificResource` whose `source`
-  is the new resource, with `purpose` `linking`. The reply does not wait for it.
+  then linked from that annotation: a `mark:body-updated` adding a `SpecificResource` whose `source`
+  is the new resource, with `purpose` `linking`. The link is recorded before the reply is sent. If
+  it cannot be recorded, the Archivist logs
+  `A generated resource was not linked from its annotation` and still replies `yield:create-ok`.
 
 **`yield:clone-persist`** records a copy: as `yield:create`, without the job rules and with
 `parentResourceId` in place of the generation fields. The requester is the sender.
@@ -393,11 +395,11 @@ same completion. A completion of a job the stream records neither of is recorded
 A clone token lets its holder copy one resource for fifteen minutes. It is `clone_` followed by 32
 lowercase hex digits, and is kept in memory: a restart forgets every token.
 
-| Command | Does | Refusals |
-|---|---|---|
-| `yield:clone-token-requested` `{resourceId}` | Issues a token for a resource whose content is in the working tree. Replies `yield:clone-token-generated` `{token, expiresAt, resource}` | `Resource not found`; `Resource content not found` |
-| `yield:clone-resource-requested` `{token}` | Replies `yield:clone-resource-result` `{sourceResource, expiresAt}`. The token stays valid | `Invalid or expired token`; `Token expired`; `Source resource not found` |
-| `yield:clone-create` | Records the copy as `yield:clone-persist` does, with the source's entity types, then archives the source when `archiveOriginal` is set and it is not archived. Replies `yield:clone-created` `{resourceId}`. The token is spent | Those of `yield:clone-resource-requested`, and those of `yield:clone-persist` |
+| Command | Does | Refusals | Appends |
+|---|---|---|---|
+| `yield:clone-token-requested` `{resourceId}` | Issues a token for a resource whose content is in the working tree. Replies `yield:clone-token-generated` `{token, expiresAt, resource}` | `Resource not found`; `Resource content not found` | none |
+| `yield:clone-resource-requested` `{token}` | Replies `yield:clone-resource-result` `{sourceResource, expiresAt}`. The token stays valid | `Invalid or expired token`; `Token expired`; `Source resource not found` | none |
+| `yield:clone-create` | Records the copy as `yield:clone-persist` does, with the source's entity types, then archives the source when `archiveOriginal` is set and it is not archived. Replies `yield:clone-created` `{resourceId}`. The token is spent | Those of `yield:clone-resource-requested`, and those of `yield:clone-persist` | `yield:cloned`, then `mark:archived` when it archives the source |
 
 Failures are on `yield:clone-token-failed`, `yield:clone-resource-failed` and
 `yield:clone-create-failed`.
@@ -419,7 +421,6 @@ names no one.
 | `browse:annotation-requested` `{annotationId, resourceId}` | `{annotation, resource, resolvedResource}`: the annotation, its resource's descriptor, and the descriptor of the resource its body links to, if any. `Annotation not found` |
 | `browse:annotation-history-requested` `{annotationId, resourceId}` | `{events, total, annotationId, resourceId}`: the resource's events about that annotation, in sequence order. The annotation must be in the view: `Annotation not found` |
 | `browse:events-requested` `{resourceId, type?, userId?, limit?}` | `{events, total, resourceId}`: the resource's events in log order, filtered, then the first `limit`. Each event carries `agent`, its sender as an agent |
-| `browse:annotation-context-requested` `{annotationId, resourceId, contextBefore?, contextAfter?}` | `{annotation, context: {before, selected, after}, resource}`: the annotation's text and up to `contextBefore` and `contextAfter` characters around it (100 each when absent), counted in UTF-16 code units. Needs a `TextPositionSelector`: `TextPositionSelector required for context`. `Annotation not found`; `Resource not found`; `Resource content not found: no text for this media (not decoded, and no derived text yet)` |
 | `browse:anchored-text-requested` `{resourceId}` | The resource's anchored text; see below |
 | `browse:entity-types-requested` | `{entityTypes}` from `entitytypes.json` |
 | `browse:tag-schemas-requested` | `{tagSchemas}` from `tagschemas.json` |

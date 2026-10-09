@@ -170,18 +170,17 @@ export { busLog, busLogEnabled, setBusLogTraceIdProvider, type BusOp } from './b
 export { findBodyItem } from './annotation-utils';
 export type { BodyItemIdentity } from './annotation-utils';
 
-// Annotation assembly (pure functions for building W3C Annotations)
-export {
-  assembleAnnotation,
-  getTextPositionSelector,
-  getSvgSelector,
-  getFragmentSelector,
-  validateSvgMarkup,
-} from './annotation-assembly';
-export type { AssembledAnnotation } from './annotation-assembly';
+// The annotation builders: what a worker turns a model's words into
+// annotations with. Every SDK has the three, and
+// specs/src/annotations/builder-cases.json holds them to one answer.
+export { reconcile, annotationOfSpan, annotationOfResource, SpanRefusedError } from './annotation-builders';
+export type { QuotedText, TextSpan, ReconciledSpan, AnchorMethod } from './annotation-builders';
 
 // W3C Web Annotation accessors (target/body/selector helpers + type guards)
 export {
+  getTextPositionSelector,
+  getSvgSelector,
+  getFragmentSelector,
   getBodySource,
   isBodyResolved,
   getTargetSource,
@@ -283,6 +282,7 @@ export {
   type SemiontSessionErrorCode,
   type SignInErrorCode,
   type IdentityUnverifiableReason,
+  type SpanRefusal,
 } from './generated/error-codes';
 export * from './generated/oauth-clients';
 export { BUS_OPERATIONS, type BusOperationKey, type BusOperationSpec } from './bus-operations';
@@ -301,9 +301,8 @@ export {
   normalizeText,
   buildContentCache,
   findBestTextMatch,
-  verifyPosition,
 } from './fuzzy-anchor';
-export type { TextPosition, MatchQuality, ContentCache } from './fuzzy-anchor';
+export type { MatchQuality, ContentCache } from './fuzzy-anchor';
 
 // Render-time anchoring (combines position + quote selectors with scoring)
 export {
@@ -342,9 +341,13 @@ export {
 } from './svg-utils';
 export type { Point, BoundingBox } from './svg-utils';
 
-// Text context extraction (depends on fuzzy-anchor)
-export { extractContext, reconcileSelector } from './text-context';
-export type { ReconciledSelector, AnchorMethod, LlmSelectorInput } from './text-context';
+// Text offsets, and the context of a span of a text
+export { textOffsets, type TextOffsets } from './text-offsets';
+export { extractContext } from './text-context';
+
+// SHA-256 and base64url, for what must hash at once and in every context
+export { sha256 } from './sha256';
+export { base64url } from './base64url';
 
 // Text encoding helpers
 export { extractCharset, decodeWithCharset } from './text-encoding';
@@ -418,7 +421,6 @@ export {
   type TomlFileReader,
   type InferenceConfig as TomlInferenceConfig,
   type ActorInferenceConfig as TomlActorInferenceConfig,
-  type WorkerInferenceConfig as TomlWorkerInferenceConfig,
 } from './config/toml-loader';
 
 export {

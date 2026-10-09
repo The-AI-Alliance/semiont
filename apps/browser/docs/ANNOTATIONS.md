@@ -207,11 +207,13 @@ The registry is imported and used in `@semiont/react-ui`:
 
 **Implementation Details**:
 ```text
-segmentTextWithAnnotations(content, annotations)   — lib/text-segmentation.ts
+segmentTextWithAnnotations(content, offsets, annotations)   — lib/text-segmentation.ts
 1. Anchor each annotation: the stored position, re-anchored on a verbatim quote match
 2. Drop anchors outside the content or empty; sort by start
 3. Skip an annotation that overlaps an earlier one
-4. Emit plain and annotated segments covering the whole content
+4. Emit plain and annotated segments covering the whole content, each from one offset to another
+
+An offset counts the content's Unicode code points; `offsets` is `textOffsets(content)`.
 ```
 
 ### Click Actions
@@ -342,7 +344,7 @@ BrowseView paints from a lightweight `OverlayAnnotation`, created by `toOverlayA
 ```typescript
 for (const { id, exact, offset, length, type, source } of toOverlayAnnotations(annotations)) {
   // exact: the annotated text
-  // offset, length: the span in the markdown source
+  // offset, length: the span in the markdown source, in Unicode code points
   // type: internal type from the registry ('highlight', 'comment', …)
   // source: the resource a SpecificResource body links to, else null
 }

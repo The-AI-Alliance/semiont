@@ -130,6 +130,16 @@
       "docs": "How often a party that holds a job looks at how long it has shown no activity."
     },
     {
+      "name": "markCommitTimeoutMs",
+      "value": 60000,
+      "docs": "How long a worker waits for the record to acknowledge a commit of annotations (`mark:commit`), and then, when no acknowledgement came, for the answer to its question whether the batch's last annotation is on the resource (`browse:annotation-requested`). Generous beside an append, since a batch is a unit's annotations and the record may be catching up, and finite, since a wait on an acknowledgement that never comes would hold the job forever."
+    },
+    {
+      "name": "generatedTextAsksCount",
+      "value": 8,
+      "docs": "How many times a worker asks for the anchored text of a PDF it has just yielded (`browse:anchored-text-requested`) before it gives up on anchoring that PDF's citations. The text is the Smelter's to derive and is not there the moment the resource is. Each ask is answered at once when the text is stored, and otherwise waits at the Archivist for the Smelter to say it has settled the content (`smelt:settled`) before it is answered that the text is not there yet. So the count bounds the whole wait, and a worker that reaches it completes the job with the resource and without the citations."
+    },
+    {
       "name": "hoverDelayMs",
       "value": 150,
       "docs": "How long a pointer rests on an annotation before the viewer says it is hovered. Shorter, and a pointer crossing the page hovers everything on its way."

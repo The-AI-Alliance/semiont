@@ -3,7 +3,7 @@
  * the resource-generate flow.
  *
  * Contract: presentational and provider-free — no SemiontProvider, no session;
- * cancel/dismiss arrive as callbacks the caller wires (job.cancelRequest /
+ * cancel/dismiss arrive as callbacks the caller wires (job.cancel /
  * mark.dismissProgress). Feature blocks are data-presence-driven: a call
  * site gets a block by passing the data for it.
  *

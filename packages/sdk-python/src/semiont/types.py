@@ -35,8 +35,6 @@ __all__ = [
     "AnnotationBody",
     "AnnotationBodyUpdatedPayload",
     "AnnotationBodyUpdatedPayloadOperationsItem",
-    "AnnotationContextResponse",
-    "AnnotationContextResponseContext",
     "AnnotationGeneratorList",
     "AnnotationRemovedPayload",
     "AnnotationSelector",
@@ -73,7 +71,6 @@ __all__ = [
     "BrowseAgentsResultResponse",
     "BrowseAnchoredTextRequest",
     "BrowseAnchoredTextResult",
-    "BrowseAnnotationContextRequest",
     "BrowseAnnotationHistoryRequest",
     "BrowseAnnotationHistoryResult",
     "BrowseAnnotationRequest",
@@ -287,7 +284,6 @@ __all__ = [
     "MarkCommitCommand",
     "MarkCommitOk",
     "MarkCommitOkResponse",
-    "MarkCreateCommand",
     "MarkCreateOk",
     "MarkCreateOkResponse",
     "MarkCreateRequest",
@@ -386,6 +382,9 @@ __all__ = [
     "UserResponse",
     "WeaveApplied",
     "WeaveRebuildCommand",
+    "WorkerAgentConfig",
+    "WorkerConfig",
+    "WorkerConfigIdentity",
     "YieldCloneCreateCommand",
     "YieldCloneCreated",
     "YieldCloneCreatedResponse",
@@ -403,8 +402,6 @@ __all__ = [
     "YieldJobFilter",
     "YieldJobQueuedEvent",
     "YieldJobResult",
-    "YieldMoveFailed",
-    "YieldMvCommand",
     "YieldUpdateCommand",
     "YieldUpdateOk",
     "YieldUpdateOkResponse",
@@ -578,17 +575,6 @@ class BrowseAgentsRequest(WireModel, frozen=True):
     """
 
 
-class BrowseAnnotationContextRequest(WireModel, frozen=True):
-    """
-    Request to get contextual text around an annotation
-    """
-
-    annotation_id: Annotated[AnnotationId, Field(alias="annotationId")]
-    resource_id: Annotated[ResourceId, Field(alias="resourceId")]
-    context_before: Annotated[int | None, Field(alias="contextBefore", ge=0, le=5000)] = None
-    context_after: Annotated[int | None, Field(alias="contextAfter", ge=0, le=5000)] = None
-
-
 class BrowseAnnotationHistoryRequest(WireModel, frozen=True):
     """
     Request to browse the history of an annotation
@@ -718,8 +704,20 @@ class PdfTextItem(WireModel, frozen=True):
     One positioned text run. Coordinates are PDF points with the origin at the bottom-left of the page, Y increasing upward; the flip to canvas pixels happens in the browser.
     """
 
-    start: Annotated[float, Field(description="Char offset into AnchoredText.text, inclusive.")]
-    end: Annotated[float, Field(description="Char offset into AnchoredText.text, exclusive.")]
+    start: Annotated[
+        int,
+        Field(
+            description="Offset into AnchoredText.text, in Unicode code points from its start, inclusive.",
+            ge=0,
+        ),
+    ]
+    end: Annotated[
+        int,
+        Field(
+            description="Offset into AnchoredText.text, in Unicode code points from its start, exclusive.",
+            ge=0,
+        ),
+    ]
     page: Annotated[float, Field(description="1-indexed page number.")]
     x: float
     y: float
@@ -1134,9 +1132,17 @@ class GraphResourceNode(WireModel, frozen=True):
     metadata: dict[str, JsonValue] | None = None
 
 
+class JobCancelRequest(WireModel, frozen=True):
+    """
+    Request to cancel one job, named by its id. A pending job is cancelled immediately by the dispatcher. A running job is cancelled only by the worker that holds it: the worker stops its work and settles the job with `job:cancel` (JobCancelCommand). The queue is never made to yank a running job out from under a live worker.
+    """
+
+    job_id: Annotated[JobId, Field(alias="jobId")]
+
+
 class UnitCursor(WireModel, frozen=True):
     """
-    How far a single unit got, for a resume that starts mid-unit rather than redoing it. A unit is an entity type for a linking job, a category for a tagging job, and the job's own motivation for every other — which is why a unit-grain checkpoint alone is too coarse: those three have exactly one unit, so nothing could be recorded until the whole document was done.
+    The furthest a single unit got, and what it had counted when it got there. A unit left partway is resumed from its cursor rather than redone. A finished unit keeps its cursor: `next` at the length of the text, `size` the size its last piece was cut at, and its final `found`, `emitted` and `errors`, so that an attempt that skips the unit still counts it. A cursor never says a unit is finished, wherever it stands: `completedUnits` does. A unit is an entity type for a linking job, a category for a tagging job, and the job's own motivation for every other — which is why a unit-grain checkpoint alone is too coarse: those three have exactly one unit, so nothing could be recorded until the whole document was done.
 
     MERGE IS MONOTONE PER UNIT, not a union. `completedUnits` is a set and converges under concurrent snapshots because a set only grows; a cursor converges only if a stale snapshot can never move it backward.
 
@@ -1146,7 +1152,7 @@ class UnitCursor(WireModel, frozen=True):
     next: Annotated[
         int,
         Field(
-            description="Characters consumed once the last COMMITTED chunk completed — the resume position. Deliberately the chunk's `next`, never its `at`: the checkpoint must not lead the log, so it records where a chunk that is already durable ended, not where the in-flight one began. Recording `at` would make a resume re-run the chunk it already paid for.",
+            description="Unicode code points of the text consumed once the last COMMITTED chunk completed — the resume position, and the length of the text for a unit whose last chunk it was. Deliberately the chunk's `next`, never its `at`: the checkpoint must not lead the log, so it records where a chunk that is already durable ended, not where the in-flight one began. Recording `at` would make a resume re-run the chunk it already paid for.",
             ge=0,
         ),
     ]
@@ -1589,8 +1595,20 @@ class SelectionData(WireModel, frozen=True):
     """
 
     exact: Annotated[str, Field(description="The exact selected text")]
-    start: Annotated[int, Field(description="Start character offset")]
-    end: Annotated[int, Field(description="End character offset")]
+    start: Annotated[
+        int,
+        Field(
+            description="Offset into the resource's decoded text, exactly as decoded, in Unicode code points from its start: where the selected text starts.",
+            ge=0,
+        ),
+    ]
+    end: Annotated[
+        int,
+        Field(
+            description="Offset into the resource's decoded text, exactly as decoded, in Unicode code points from its start: just past where the selected text ends.",
+            ge=0,
+        ),
+    ]
     svg_selector: Annotated[
         str | None,
         Field(
@@ -1845,8 +1863,20 @@ class TagSchemaAddedPayload(WireModel, frozen=True):
 
 class TextPositionSelector(WireModel, frozen=True):
     type: Literal["TextPositionSelector"]
-    start: Annotated[float, Field(description="Character offset from resource start")]
-    end: Annotated[float, Field(description="Character offset from resource start")]
+    start: Annotated[
+        int,
+        Field(
+            description="Offset into the resource's decoded text, exactly as decoded, in Unicode code points from its start: where the selected text starts.",
+            ge=0,
+        ),
+    ]
+    end: Annotated[
+        int,
+        Field(
+            description="Offset into the resource's decoded text, exactly as decoded, in Unicode code points from its start: just past where the selected text ends.",
+            ge=0,
+        ),
+    ]
 
 
 class TextQuoteSelector(WireModel, frozen=True):
@@ -2019,22 +2049,6 @@ class YieldClonePersistCommand(WireModel, frozen=True):
             description="The resource this one is cloned FROM. Required: it is what makes this a clone rather than a creation.",
         ),
     ]
-
-
-class YieldMvCommand(WireModel, frozen=True):
-    """
-    Bus command to move (rename) a yielded resource.
-    """
-
-    user_id: Annotated[
-        UserId | None,
-        Field(
-            alias="_userId",
-            description="Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.",
-        ),
-    ] = None
-    from_uri: Annotated[str, Field(alias="fromUri")]
-    to_uri: Annotated[str, Field(alias="toUri")]
 
 
 class YieldUpdateCommand(WireModel, frozen=True):
@@ -2299,7 +2313,7 @@ class JobMetadata(WireModel, frozen=True, extra="forbid"):
         dict[str, UnitCursor] | None,
         Field(
             alias="unitCursors",
-            description="How far each unfinished unit got, keyed by unit.",
+            description="The furthest each unit begun got, keyed by unit, with what it had counted there. A finished unit keeps its cursor: where it ended, and its final counts.",
         ),
     ] = None
 
@@ -2651,10 +2665,13 @@ class ResourceErrorEvent(WireModel, frozen=True):
 
 class JobCancelResult(WireModel, frozen=True):
     """
-    What a cancel did, in the `response` of `job:cancel-ok`: how many jobs it cancelled. A pending job is cancelled outright; a running one is left to its worker, so for it the count means accepted, not stopped.
+    What a cancel did, in the `response` of `job:cancel-ok`: whether the queue acted on the job it named. A pending job is cancelled outright; a running one is left to its worker, so for it true means accepted, not stopped.
     """
 
-    cancelled: Annotated[int, Field(description="The number of jobs cancelled.")]
+    cancelled: Annotated[
+        bool,
+        Field(description="True when the queue acted on the job; false when the job is unknown or already over."),
+    ]
 
 
 class WeaveApplied(WireModel, frozen=True):
@@ -2673,12 +2690,6 @@ class WeaveApplied(WireModel, frozen=True):
             description="The resource-stream sequence of the last applied event.",
         ),
     ]
-
-
-class AnnotationContextResponseContext(WireModel, frozen=True):
-    before: str | None = None
-    selected: str
-    after: str | None = None
 
 
 type BindBodyOperationOp = Annotated[Literal["add", "remove", "replace"], Field(description="The type of body operation")]
@@ -3269,6 +3280,20 @@ class DispatcherConfigTiming(WireModel, frozen=True, extra="forbid"):
     ]
 
 
+class WorkerConfigIdentity(WireModel, frozen=True, extra="forbid"):
+    """
+    The issuer the worker's service account signs in at.
+    """
+
+    issuer: Annotated[
+        str,
+        Field(
+            description="The issuer URL, exactly as tokens carry it in `iss`.",
+            min_length=1,
+        ),
+    ]
+
+
 class ArchivistConfigIdentity(WireModel, frozen=True, extra="forbid"):
     """
     The issuer the Archivist's service account signs in at, and whose tokens it admits callers of its HTTP surface by.
@@ -3482,7 +3507,7 @@ class BrowsePanelOpenEvent(WireModel, frozen=True):
 
 class AnchoredText(WireModel, frozen=True):
     """
-    Text paired with the geometry that indexes it — the minimum needed to turn a character range into a selection, or a rectangle into a quote. Whole-resource: a producer iterates page by page, but every consumer wants one map.
+    Text paired with the geometry that indexes it — the minimum needed to turn a range of the text, two offsets counted in Unicode code points, into a selection, or a rectangle into a quote. Whole-resource: a producer iterates page by page, but every consumer wants one map.
     """
 
     text: Annotated[str, Field(description="Reading-order text of the whole resource.")]
@@ -3690,30 +3715,9 @@ class InferenceLimitsResult(WireModel, frozen=True):
     response: InferenceLimitsResultResponse
 
 
-class JobCancelRequest(WireModel, frozen=True):
-    """
-    Request to cancel a job. Target one running or pending job by `jobId`, or every pending job of one `jobType`. A `jobId`-targeted request that names a RUNNING job is honoured cooperatively by the owning worker, which stops at its next unit boundary and emits JobCancelCommand — the queue is never made to yank a running job out from under a live worker.
-    """
-
-    job_id: Annotated[
-        JobId | None,
-        Field(
-            alias="jobId",
-            description="Cancel this one job. A pending job is cancelled immediately by the dispatcher; a running job is cancelled cooperatively by its worker. Takes precedence over jobType.",
-        ),
-    ] = None
-    job_type: Annotated[
-        JobType | None,
-        Field(
-            alias="jobType",
-            description="Cancel all PENDING jobs of this type — the bulk UI signal. Ignored when jobId is present.",
-        ),
-    ] = None
-
-
 class JobCancelCommand(WireModel, frozen=True):
     """
-    A worker's confirmation that it has cooperatively stopped a running job at a unit boundary — the queue moves the job to cancelled/. Distinct from JobCancelRequest (the client→worker REQUEST to stop): this is the worker announcing it did, so the running job is never yanked to cancelled/ out from under a live worker (the roach-motel race).
+    A worker's settling of a running job it holds whose work it has stopped for a cancellation — the queue moves the job to cancelled/. Distinct from JobCancelRequest (the client→worker REQUEST to stop): this is the worker announcing it did, so the running job is never yanked to cancelled/ out from under a live worker (the roach-motel race).
     """
 
     user_id: Annotated[
@@ -3737,14 +3741,14 @@ class JobCancelCommand(WireModel, frozen=True):
         list[str] | None,
         Field(
             alias="completedUnits",
-            description="Entity-type units whose annotations were fully emitted before cancellation. Recorded on the cancelled job's metadata so the work already done stays visible.",
+            description="The units the worker had finished when it stopped. Recorded on the cancelled job's metadata so the work already done stays visible.",
         ),
     ] = None
     unit_cursors: Annotated[
         dict[str, UnitCursor] | None,
         Field(
             alias="unitCursors",
-            description="How far each in-progress unit got, keyed by unit — the grain `completedUnits` cannot express. A unit appearing here is NOT complete; a unit in `completedUnits` is skipped whole whatever cursor it last carried. Merged monotonically per unit: a stale snapshot must never move a cursor backward.",
+            description="The furthest each unit begun got, keyed by unit, with what it had counted there — the grain `completedUnits` cannot express. A unit named in `completedUnits` is stated here too, by the cursor it ended at: a later attempt skips it whole and counts it by that cursor. A cursor never says a unit is finished; only `completedUnits` does. Merged monotonically per unit, finished or not: a stale snapshot must never move a cursor backward.",
         ),
     ] = None
 
@@ -3840,7 +3844,7 @@ class JobFailCommand(WireModel, frozen=True):
         dict[str, UnitCursor] | None,
         Field(
             alias="unitCursors",
-            description="How far each in-progress unit got, keyed by unit — the grain `completedUnits` cannot express. A unit appearing here is NOT complete; a unit in `completedUnits` is skipped whole whatever cursor it last carried. Merged monotonically per unit: a stale snapshot must never move a cursor backward.",
+            description="The furthest each unit begun got, keyed by unit, with what it had counted there — the grain `completedUnits` cannot express. A unit named in `completedUnits` is stated here too, by the cursor it ended at: a later attempt skips it whole and counts it by that cursor. A cursor never says a unit is finished; only `completedUnits` does. Merged monotonically per unit, finished or not: a stale snapshot must never move a cursor backward.",
         ),
     ] = None
     failure_class: Annotated[FailureClass | None, Field(alias="failureClass")] = None
@@ -3878,7 +3882,7 @@ class JobCheckpointCommand(WireModel, frozen=True):
         dict[str, UnitCursor] | None,
         Field(
             alias="unitCursors",
-            description="How far each in-progress unit got, keyed by unit — the grain `completedUnits` cannot express. A unit appearing here is NOT complete; a unit in `completedUnits` is skipped whole whatever cursor it last carried. Merged monotonically per unit: a stale snapshot must never move a cursor backward.",
+            description="The furthest each unit begun got, keyed by unit, with what it had counted there — the grain `completedUnits` cannot express. A unit named in `completedUnits` is stated here too, by the cursor it ended at: a later attempt skips it whole and counts it by that cursor. A cursor never says a unit is finished; only `completedUnits` does. Merged monotonically per unit, finished or not: a stale snapshot must never move a cursor backward.",
         ),
     ] = None
 
@@ -4712,7 +4716,7 @@ class AnchoredTextDeclinedEntry(WireModel, frozen=True, extra="forbid"):
     The bytes were declined: no text is extracted from them.
     """
 
-    v: Annotated[Literal[2], Field(description="The entry format.")]
+    v: Annotated[Literal[3], Field(description="The entry format.")]
     stamp: Annotated[
         str,
         Field(
@@ -4732,20 +4736,6 @@ class ArchivistRosterRole(WireModel, frozen=True, extra="forbid"):
     model: Annotated[
         str,
         Field(description="The model identifier, as the provider names it.", min_length=1),
-    ]
-
-
-class YieldMoveFailed(CommandError, frozen=True):
-    """
-    The payload of `yield:move-failed`: a CommandError that names the resource the move was asked of.
-    """
-
-    from_uri: Annotated[
-        str,
-        Field(
-            alias="fromUri",
-            description="The storage URI the resource was to be moved from.",
-        ),
     ]
 
 
@@ -4935,7 +4925,7 @@ class AnchoredTextExtractedEntryLinesItem(WireModel, frozen=True, extra="forbid"
     words: Annotated[
         list[AnchoredTextExtractedEntryLinesItemWordsItem],
         Field(
-            description="Each word as `[x, width, start, end]`: its horizontal position and width in PDF points, and the offsets of its text in `text`."
+            description="Each word as `[x, width, start, end]`: its horizontal position and width in PDF points, and the offsets of its text in `text`, which are whole numbers of Unicode code points from the start of `text`."
         ),
     ]
 
@@ -4989,6 +4979,12 @@ class AnnotationTarget(WireModel, frozen=True):
     W3C Web Annotation target object - source is required, selector is optional
     """
 
+    type: Annotated[
+        Literal["SpecificResource"] | None,
+        Field(
+            description="Stated by the annotation of a span: the target is a part of its source, which the selector picks out. An annotation of a resource as a whole states none."
+        ),
+    ] = None
     source: Annotated[ResourceId, Field(description="The id of the resource being annotated")]
     selector: Annotated[
         AnnotationSelector | None,
@@ -5339,12 +5335,43 @@ type JobFilter = Annotated[
 ]
 
 
+class WorkerAgentConfig(WireModel, frozen=True, extra="forbid"):
+    """
+    One agent a worker works as: who it is, the jobs it claims, and where its provider is reached.
+    """
+
+    agent: ArchivistRosterRole
+    accepts: Annotated[
+        list[JobFilter],
+        Field(
+            description="The jobs this agent serves, as a claim names them (`job:claim`): the worker claims with these filters and no other.",
+            min_length=1,
+        ),
+    ]
+    base_url: Annotated[
+        str,
+        Field(
+            alias="baseUrl",
+            description="The address the provider's API is reached at.",
+            min_length=1,
+        ),
+    ]
+    api_key_env: Annotated[
+        str | None,
+        Field(
+            alias="apiKeyEnv",
+            description="The environment variable holding the provider's API key, when the provider requires one.",
+            min_length=1,
+        ),
+    ] = None
+
+
 class AnchoredTextExtractedEntry(WireModel, frozen=True, extra="forbid"):
     """
     The text extracted from the bytes, where each word is on the page, and how it was extracted.
     """
 
-    v: Annotated[Literal[2], Field(description="The entry format.")]
+    v: Annotated[Literal[3], Field(description="The entry format.")]
     stamp: Annotated[
         str,
         Field(
@@ -5451,12 +5478,6 @@ class AnnotationAddedPayload(WireModel, frozen=True):
             description="SHA-256 of resource content at annotation time",
         ),
     ] = None
-
-
-class AnnotationContextResponse(WireModel, frozen=True):
-    annotation: Annotation
-    context: AnnotationContextResponseContext
-    resource: ResourceDescriptor
 
 
 class BrowseAnchoredTextResult(WireModel, frozen=True):
@@ -5688,25 +5709,9 @@ class MarkDelegateRequestEvent(WireModel, frozen=True, extra="forbid"):
     params: MarkJobParams
 
 
-class MarkCreateCommand(WireModel, frozen=True):
-    """
-    Bus command to create an annotation on a resource. The annotation carries body, target and, when software wrote it, a generator naming the emitter itself; `creator` and `wasAttributedTo` are derived by the knowledge base from the verified emitter, and a payload carrying `creator` is refused.
-    """
-
-    user_id: Annotated[
-        UserId | None,
-        Field(
-            alias="_userId",
-            description="Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.",
-        ),
-    ] = None
-    annotation: Annotation
-    resource_id: Annotated[ResourceId, Field(alias="resourceId")]
-
-
 class MarkCommitCommand(WireModel, frozen=True):
     """
-    Bus command to persist a detection unit's annotations as one acknowledged batch. Unlike mark:create, which is fire-and-forget and resolves when the bus accepts it, this command is answered only after every annotation is in the event log — so a worker can gate unit completion on durability rather than on emission. The batch is the unit: a partial commit is reported as a failure, and the worker retries the whole unit, which is safe because annotation ids are deterministic: content-addressed, so re-emitting one is a no-op.
+    Bus command to persist a detection unit's annotations as one acknowledged batch. It is answered only after every annotation is in the event log, so a worker can gate unit completion on durability rather than on emission. The batch is the unit: a partial commit is reported as a failure, and the worker retries the whole unit, which is safe because annotation ids are deterministic: content-addressed, so re-emitting one is a no-op.
     """
 
     user_id: Annotated[
@@ -5801,6 +5806,35 @@ class JobClaimedResult(WireModel, frozen=True, extra="forbid"):
     """
 
     response: JobRunning
+
+
+class WorkerConfig(WireModel, frozen=True, extra="forbid"):
+    """
+    Everything a worker reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the worker. The launcher writes it for the worker it starts, from the environment the knowledge base's config selects, and the worker reads it from the path its `--config` flag names (its image passes `/etc/semiont/worker.json`). Whoever starts a worker another way writes the same document: this schema is the contract, and a worker needs no launcher. Started without `--config`, or with a path that names no file, the worker refuses to start and says which. No secret is a value here: a provider's key is named by the environment variable that holds it, and the worker's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` in its environment. A document that does not validate is refused at boot, naming each failing field.
+    """
+
+    gateway_url: Annotated[
+        str,
+        Field(
+            alias="gatewayUrl",
+            description="The URL the worker reaches the gateway at: its route to the bus and to a resource's bytes, and the only address of the knowledge base it holds.",
+            min_length=1,
+        ),
+    ]
+    identity: WorkerConfigIdentity
+    agents: Annotated[
+        list[WorkerAgentConfig],
+        Field(
+            description="The agents this worker works as. Each is an inference provider and a model, and the jobs that pair serves. The worker signs in once as each, and claims that agent's jobs for it. Every fallback the knowledge base's config allows is already applied, so a job no agent here accepts is not claimed by this worker.",
+            min_length=1,
+        ),
+    ]
+    port: Annotated[
+        int,
+        Field(description="The port the worker answers `/health` on.", ge=1, le=65535),
+    ]
+    log_level: Annotated[LogLevel, Field(alias="logLevel")]
+    log_format: Annotated[LogFormat, Field(alias="logFormat")]
 
 
 class ResourceAnnotations(WireModel, frozen=True, extra="forbid"):

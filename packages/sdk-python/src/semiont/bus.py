@@ -87,6 +87,11 @@ async def request(
     transport's stream does not carry the operation's replies; and
     `TransportError` when the emit itself is refused.
     """
+    return (await _result_of(transport, operation, payload, timeout_ms)).payload
+
+
+async def _result_of(transport: Transport, operation: AnyOperation, payload: Mapping[str, JsonValue], timeout_ms: int) -> Frame:
+    """A request, as far as its result: the frame that answers it on its operation's result channel. A failure is the request's error."""
     asked, result, failure = operation.request.name, operation.result.name, operation.failure.name
     for channel in (result, failure):
         if not transport.is_subscribed(channel):
@@ -130,7 +135,7 @@ async def request(
     if reply is None:
         raise BusRequestError("bus.closed", f"Bus closed before a reply on {result}")
     if reply.channel == result:
-        return reply.payload
+        return reply
     raise BusRequestError.answered(reply.payload)
 
 
@@ -158,6 +163,18 @@ class Delivered[P: WireModel]:
     user_id: UserId | None = None
     """Who emitted it, as the gateway stamped it."""
     trace: TraceContext | None = None
+
+
+def _delivered[P: WireModel](channel: Channel[P] | ScopedChannel[P], frame: Frame) -> Delivered[P]:
+    """`frame`, its payload as `channel` types it. Raises `ValidationError` for a payload that is not that channel's."""
+    stamped = frame.payload.get(_EMITTED_BY)
+    return Delivered(
+        payload=decoded(channel, frame.payload),
+        correlation_id=frame.correlation_id,
+        scope=frame.scope,
+        user_id=UserId.parse(stamped) if isinstance(stamped, str) else None,
+        trace=frame.trace,
+    )
 
 
 @final
@@ -196,18 +213,10 @@ class Typed[P: WireModel]:
                 # A stream carries every scope it holds on the one channel, and another reader may hold another resource's.
                 continue
             try:
-                payload = decoded(self._channel, frame.payload)
+                return _delivered(self._channel, frame)
             except ValidationError as error:
                 _LOG.warning("a payload on %s is not that channel's: %s", self._channel.name, error)
                 continue
-            stamped = frame.payload.get(_EMITTED_BY)
-            return Delivered(
-                payload=payload,
-                correlation_id=frame.correlation_id,
-                scope=frame.scope,
-                user_id=UserId.parse(stamped) if isinstance(stamped, str) else None,
-                trace=frame.trace,
-            )
 
     async def aclose(self) -> None:
         """Stop listening, and let go of the scope it held."""
@@ -268,8 +277,21 @@ class Bus:
         Raises as `request` does, and `TransportError` when the result that
         came is not the operation's.
         """
-        reply = await request(self.transport, operation, operation.request.encode(payload), timeout_ms=timeout_ms)
-        try:
-            return decoded(operation.result, reply)
-        except ValidationError as error:
-            raise TransportError("error", f"a payload on {operation.result.name} is not that channel's: {error}") from error
+        return (await answer_of(self.transport, operation, payload, timeout_ms)).payload
+
+
+async def answer_of[Q: WireModel, R: WireModel, F: WireModel](
+    transport: Transport, operation: Operation[Q, R, F], payload: Q, timeout_ms: int
+) -> Delivered[R]:
+    """A request by type, as far as the frame that answers it on its result channel: its payload, and what came beside it.
+
+    The package's own, and no part of what this module offers: it is not in
+    `__all__`. A worker's claim reads the trace its reply arrived in. Raises
+    as `request` does, and `TransportError` when the result that came is not
+    the operation's.
+    """
+    reply = await _result_of(transport, operation, operation.request.encode(payload), timeout_ms)
+    try:
+        return _delivered(operation.result, reply)
+    except ValidationError as error:
+        raise TransportError("error", f"a payload on {operation.result.name} is not that channel's: {error}") from error

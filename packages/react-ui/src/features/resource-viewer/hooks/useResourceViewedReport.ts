@@ -16,6 +16,8 @@ import { useObservable } from '../../../hooks/useObservable';
  * This is the REPORT half of the tour protocol. The imperative half is
  * `browse:resource-open`; they must never share a channel (the driver would
  * hear its own commands, and one viewer's click would steer another's page).
+ *
+ * @emits browse:resource-viewed - The resource this page shows, once it has loaded. Payload: { resourceId: string }
  */
 export function useResourceViewedReport(rid: ResourceId, loaded: boolean): void {
   const semiont = useSemiont();

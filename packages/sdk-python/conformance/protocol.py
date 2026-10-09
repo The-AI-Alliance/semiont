@@ -9,6 +9,7 @@ the next is read.
 """
 
 import asyncio
+import os
 import sys
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
@@ -18,7 +19,20 @@ from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from semiont.errors import SemiontError
 
-__all__ = ["Arguments", "Misuse", "Operation", "count", "failure", "object_of", "optional_text", "say", "serve", "text", "texts"]
+__all__ = [
+    "Arguments",
+    "Misuse",
+    "Operation",
+    "count",
+    "exporting",
+    "failure",
+    "object_of",
+    "optional_text",
+    "say",
+    "serve",
+    "text",
+    "texts",
+]
 
 type Arguments = Mapping[str, JsonValue]
 
@@ -101,6 +115,34 @@ def failure(error: BaseException) -> dict[str, JsonValue]:
         stated["status"] = error.status
     stated["detail"] = detail
     return stated
+
+
+def exporting() -> Callable[[], None] | None:
+    """Export telemetry over OTLP/HTTP when the suite says where. Returns what sends the last of it."""
+    if "OTEL_EXPORTER_OTLP_ENDPOINT" not in os.environ:
+        return None
+    # Taken only by a driver that exports, and only then: it is most of a second to load.
+    from opentelemetry import metrics, trace
+    from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
+    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+    from opentelemetry.sdk.metrics import MeterProvider
+    from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+    from opentelemetry.sdk.resources import Resource
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+    resource = Resource.create({"service.name": "semiont-conformance-driver"})
+    spans = TracerProvider(resource=resource)
+    spans.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+    meters = MeterProvider(resource=resource, metric_readers=[PeriodicExportingMetricReader(OTLPMetricExporter())])
+    trace.set_tracer_provider(spans)
+    metrics.set_meter_provider(meters)
+
+    def flush() -> None:
+        spans.shutdown()
+        meters.shutdown()
+
+    return flush
 
 
 @final

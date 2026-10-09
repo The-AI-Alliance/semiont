@@ -1,0 +1,23 @@
+Identify entity references in the following text. Look for mentions of: Place.
+
+Find direct mentions only (names, proper nouns). Do not include pronouns or descriptive references.
+
+Text to analyze:
+"""
+Ada Lovelace published the first program in 1843 — a method for computing Bernoulli numbers on the Analytical Engine.
+
+Charles Babbage designed the engine in London, but it was never built. Lovelace argued that the engine could manipulate symbols as well as numbers; nobody tested that claim for a century.
+
+The program was naïve by later standards, and London ignored it. London was wrong.
+"""
+
+Respond with a JSON array of entities found. Each entity should have:
+- exact: the exact text span from the input (quoted verbatim — character-for-character)
+- entityType: one of the provided entity types
+- prefix: up to 64 characters of text immediately before the entity (used to disambiguate when the same text appears more than once)
+- suffix: up to 64 characters of text immediately after the entity (same purpose)
+
+If no entities are found, respond with an empty array [].
+
+Example output:
+[{"exact":"Alice","entityType":"Person","prefix":"","suffix":" went to"},{"exact":"Paris","entityType":"Location","prefix":"went to ","suffix":" yesterday"}]

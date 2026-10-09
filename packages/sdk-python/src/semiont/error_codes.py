@@ -22,8 +22,10 @@ __all__ = [
     "JobErrorCode",
     "SEMIONT_SESSION_ERROR_CODES",
     "SIGN_IN_ERROR_CODES",
+    "SPAN_REFUSALS",
     "SemiontSessionErrorCode",
     "SignInErrorCode",
+    "SpanRefusal",
     "TRANSPORT_ERROR_CODES",
     "TransportErrorCode",
     "UNRECOGNIZED_FAILURE_CODE",
@@ -229,4 +231,31 @@ type IdentityUnverifiableReason = Literal[
 IDENTITY_UNVERIFIABLE_REASONS: Final[tuple[IdentityUnverifiableReason, ...]] = (
     "unreachable",
     "not-reported",
+)
+
+# Why no annotation was built of a span: the span is not the text's, or, for a PDF, is nowhere
+# on its pages. specs/src/annotations/builder-cases.json holds when each is given.
+type SpanRefusal = Literal[
+    # The span's offsets are not two whole numbers from 0, the second no less than the first,
+    # within the text.
+    "span-out-of-range",
+    # The words the span states are not the text between its offsets.
+    "exact-mismatch",
+    # The prefix the span states is not the text just before it.
+    "prefix-mismatch",
+    # The suffix the span states is not the text just after it.
+    "suffix-mismatch",
+    # No item of the PDF's anchored text holds any of the span, so it is nowhere on a page.
+    "nothing-located",
+    # The items of the PDF's anchored text that hold the span do not have its words.
+    "exact-not-covered",
+]
+
+SPAN_REFUSALS: Final[tuple[SpanRefusal, ...]] = (
+    "span-out-of-range",
+    "exact-mismatch",
+    "prefix-mismatch",
+    "suffix-mismatch",
+    "nothing-located",
+    "exact-not-covered",
 )

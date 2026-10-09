@@ -31,7 +31,6 @@
   "dependencies": {
     "@semiont/content": "*",
     "@semiont/core": "*",
-    "@semiont/event-sourcing": "*",
     "@semiont/http-transport": "*",
     "@semiont/inference": "*",
     "@semiont/observability": "*",

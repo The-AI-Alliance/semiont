@@ -6,8 +6,8 @@
 // document — and each restates a fact another owns. The check fails when they
 // disagree:
 //
-//   - JobCancelRequest's `jobType` is not JobType, the only unit a bulk cancel
-//     selects by;
+//   - JobCancelRequest is anything but one required `jobId`, a JobId: a
+//     cancellation names one job, and selects no other way;
 //   - a job description, an announcement or a filter is not told apart by
 //     exactly JobType, or a mark job's parameters by exactly Motivation, or a
 //     motivation's parameters are open;
@@ -22,9 +22,9 @@
 //   - the layout's record is not a schema;
 //   - Job's discriminator disagrees with its members, or a member's `status`
 //     is not exactly the value that selects it;
-//   - DispatcherConfig defaults anything, or leaves optional a field that is
-//     not a secret's name: the dispatcher reads what its document says and
-//     supplies nothing of its own.
+//   - DispatcherConfig or WorkerConfig defaults anything, or leaves optional
+//     a field that is not a secret's name: the dispatcher and a worker each
+//     read what their document says and supply nothing of their own.
 //
 // It reads the source files, so it cannot pass on a stale bundle.
 
@@ -46,8 +46,13 @@ const motivations = schema('Motivation').enum;
 const same = (a, b) => [...a].sort().join() === [...b].sort().join();
 const refName = (ref) => ref.replace(/^\.\//, '').replace(/\.json$/, '');
 
-if (schema('JobCancelRequest').properties.jobType.$ref !== './JobType.json') {
-  fail(`JobCancelRequest.jobType is not JobType, the only unit a bulk cancel selects by`);
+const cancellation = schema('JobCancelRequest');
+if (
+  !same(Object.keys(cancellation.properties), ['jobId']) ||
+  !same(cancellation.required ?? [], ['jobId']) ||
+  cancellation.properties.jobId.$ref !== './JobId.json'
+) {
+  fail(`JobCancelRequest is not exactly one required jobId, a JobId: a cancellation names one job, and selects no other way`);
 }
 
 // A union told apart by a property: its mapping is its members, the property
@@ -156,16 +161,23 @@ for (const [status, ref] of Object.entries(mapping)) {
   }
 }
 
-function everythingStated(node, path) {
-  if ('default' in node) fail(`DispatcherConfig defaults ${path}`);
+// A document's schema, followed through what it refers to and into what it
+// lists: a part stated in a file of its own is held as the rest is.
+function everythingStated(document, node, path) {
+  if ('$ref' in node) return everythingStated(document, read(resolve(SCHEMAS, node.$ref)), path);
+  if ('default' in node) fail(`${document} defaults ${path}`);
+  if (node.type === 'array') return everythingStated(document, node.items, `${path}[]`);
   if (node.type !== 'object') return;
   for (const [name, property] of Object.entries(node.properties)) {
     const at = path ? `${path}.${name}` : name;
-    if (!node.required?.includes(name) && !name.endsWith('Env')) fail(`DispatcherConfig leaves ${at} optional`);
-    everythingStated(property, at);
+    if (!node.required?.includes(name) && !name.endsWith('Env')) fail(`${document} leaves ${at} optional`);
+    everythingStated(document, property, at);
   }
 }
-everythingStated(schema('DispatcherConfig'), '');
+for (const document of ['DispatcherConfig', 'WorkerConfig']) {
+  if (!existsSync(resolve(SCHEMAS, `${document}.json`))) fail(`${document} is not a schema`);
+  else everythingStated(document, schema(document), '');
+}
 
 if (failures.length > 0) {
   for (const message of failures) console.error(`✗ ${message}`);

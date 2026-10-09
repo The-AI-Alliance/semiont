@@ -23,15 +23,17 @@ headers and SSE `_trace` payload fields.
 | `content.{put,get}`    | `HttpContentTransport.*`                  | client   |
 | `job:<type>`           | Worker `handleJob`                        | consumer |
 
-What the Rust services export is specified, with kinds and attributes, in
+What the Rust services and the Worker service export is specified, with kinds and attributes, in
 [`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json):
 the gateway's own spans — `bus.dispatch:<channel>`, `sse.deliver:<channel>`,
-`content.{get,put}.server` and the `archivist.*` client spans. What an SDK's
+`content.{get,put}.server` and the `archivist.*` client spans — and the Worker's
+`job:<type>`, `detection:prepare` and `inference:*` spans. What an SDK's
 transports export, in any language, is specified in
 [`specs/src/sdk-telemetry/telemetry.json`](../../../specs/src/sdk-telemetry/telemetry.json):
 the `bus.emit` and `bus.recv` spans, the `content.*` client spans, and the
 count of emits a client sends. The dispatcher and the Archivist reach the bus through the Rust
-SDK, so each exports the bus rows of that table beside its own. Each service's
+SDK, so each exports the bus rows of that table beside its own; the Worker service exports
+its bus rows and the content rows for the uploads and reads it makes. Each service's
 conformance suite holds it to its rows in both directions, and the SDK suite
 holds each SDK to the SDK table.
 
@@ -207,7 +209,7 @@ Librarian, the Smelter, the Weaver and the worker.
 |------------------------------|------------------|---------------------------------------------------------|-----------------------------------------------|
 | `semiont.bus.sent`           | counter          | `bus.channel`, and `bus.scope` on a scoped emit         | Every transport `emit` (`HttpTransport`): an emit a client sent |
 | `semiont.handler.duration`   | histogram        | `actor`, `bus.channel`                                  | Every actor handler (Stower / Gatherer / Matcher / Browser / Smelter) |
-| `semiont.job.outcome`        | counter          | `job.type` (`mark` / `yield`), `job.motivation` on a `mark` job, `job.outcome` (`completed` / `failed`) | Worker `handleJob`                       |
+| `semiont.job.outcome`        | counter          | `job.type` (`mark` / `yield`), `job.motivation` on a `mark` job, `job.outcome` (`completed` / `failed` / `cancelled`) | Worker `handleJob`                       |
 | `semiont.job.duration`       | histogram        | `job.type`, `job.motivation` on a `mark` job, `job.outcome` | Worker `handleJob`                            |
 | `semiont.inference.calls`    | counter          | `inference.provider`, `inference.model`, `inference.outcome` | Anthropic + Ollama clients               |
 | `semiont.inference.tokens`   | counter          | `inference.provider`, `inference.model`, `inference.direction` (`input`/`output`) | Anthropic + Ollama (when usage exposed) |
@@ -256,7 +258,7 @@ dispatcher and the Archivist — by their logger, the TypeScript services by
 can be filtered by `trace_id` and joined with the trace UI.
 
 ```json
-{"level":"info","message":"emit","channel":"mark:create","trace_id":"4bf92f3577b34da6a3ce929d0e0e4736","span_id":"00f067aa0ba902b7"}
+{"level":"info","message":"emit","channel":"mark:create-request","trace_id":"4bf92f3577b34da6a3ce929d0e0e4736","span_id":"00f067aa0ba902b7"}
 ```
 
 When no SDK is initialized, or no span is active, neither field is added.

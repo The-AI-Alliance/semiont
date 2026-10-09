@@ -14,48 +14,27 @@ import { extractEntities } from './workers/detection/entity-extractor';
 import { DEFAULT_MAX_TOKENS, generateResourceFromTopic } from './workers/generation/resource-generation';
 import { compileTypst, MAX_COMPILE_REPAIRS } from './workers/generation/typst-compiler';
 import { withinByteBudget, MAX_PDF_BYTES } from '@semiont/content';
-import { resolveCitationTokens, collectContextResourceIds, type GenerationCitation } from './workers/generation/citation-resolver';
-import { annotationIdFor } from '@semiont/event-sourcing';
-import { GENERATABLE_MEDIA_TYPES, type Annotation, type GenerationJobParams, type Logger, type ResourceId, type SupportedMediaType, type components, type JobDetectionResult, type UnitCursor } from '@semiont/core';
-import { reconcileSelector, createFragmentSelector, locate, type ReconciledSelector, type AnchoredText } from '@semiont/core';
+import { resolveCitationTokens, collectCitableIds, type GenerationCitation } from './workers/generation/citation-resolver';
+import { GENERATABLE_MEDIA_TYPES, type Annotation, type GenerationJobParams, type Logger, type SupportedMediaType, type components, type JobDetectionResult, type UnitCursor } from '@semiont/core';
+import { reconcile, type TextOffsets, type TextSpan } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import type { HeldMarkParams } from './types';
+import { DeterministicJobError } from './failure-class';
 import { noteAnchor } from './workers/detection/anchor-audit';
 import { runBounded } from './workers/detection/bounded-concurrency';
 
-type Agent = components['schemas']['Agent'];
-
-/** A detected span — offsets into the extracted `.text`, plus optional context. */
-export type SpanMatch = { exact: string; start: number; end: number; prefix?: string; suffix?: string };
-
 /**
- * The span half of an annotation's identity. Annotation ids are
- * content-addressed — hashed from the resource, motivation, anchor and body —
- * so re-emitting an annotation from a retry or a resumed unit is a no-op; this
- * is the anchor.
- *
- * Shared by both builders because the span IS the same fact in both — the PDF
- * path additionally persists geometry for it, but that geometry is derived
- * from these offsets, so hashing it too would add no distinguishing power and
- * would make an id depend on a layout the text path cannot reproduce.
- *
- * `exact` is included, not just the offsets: after a content update the same
- * offsets cover different text, and that is a different annotation.
- */
-function spanAnchor(match: Pick<SpanMatch, 'start' | 'end' | 'exact'>): string {
-  return `${match.start}:${match.end}:${match.exact}`;
-}
-
-/**
- * Turn a detected span into a stored annotation. The media type, resource, and
- * attribution context are closed over by the caller (see `prepareDetection`);
- * the detection processor supplies only the motivation, the span, and any
- * motivation-specific body. This is the single axis that varies by media type,
- * so the detection processors themselves stay media-agnostic.
+ * Turn a detected span into a stored annotation: `annotationOfSpan`
+ * (`@semiont/core`), with the text or the PDF's anchored text, the resource
+ * and the generator closed over by the caller (see `prepareDetection`). The
+ * detection processor supplies only the motivation, the span (its offsets
+ * into the text the model was asked about, in code points), and any
+ * motivation-specific body. This is the single axis that varies by media
+ * type, so the detection processors themselves stay media-agnostic.
  */
 export type BuildAnnotation = (
   motivation: Motivation,
-  match: SpanMatch,
+  span: TextSpan,
   body?: Annotation['body'],
 ) => Annotation;
 
@@ -94,27 +73,23 @@ type JobProgressMessage = components['schemas']['JobProgressMessage'];
 export type Motivation = Annotation['motivation'];
 
 /**
- * A detection processor returns only its result. Annotations leave through
- * `onChunkComplete`, per chunk — a return that also carried them would be a
- * second path to the same write.
+ * How a processor ended: it ran to its end and has the job's result, or a
+ * cancellation stopped it and it has the units it had finished by then, which
+ * is what `job:cancel` names. A unit it was partway through is not among them.
+ *
+ * Annotations are in neither. They leave through `onChunkComplete`, per chunk —
+ * a return that also carried them would be a second path to the same write.
  */
-export interface ProcessorResult<R> {
-  result: R;
-}
+export type ProcessorResult<R> =
+  | { result: R }
+  | { cancelled: { completedUnits: string[] } };
 
 /**
- * Strip the audit-only fields (`anchorMethod`, `llmOffsets`, `matchQuality`)
- * off a `ReconciledSelector` so the rest is shaped like a match input for
- * `buildTextAnnotation`. The audit info belongs in logs, not in storage.
+ * How a job of one unit that a cancellation stopped ended. `next` is where its
+ * walk stands: at the end of the text the unit is finished, and is named.
  */
-function toMatch(r: ReconciledSelector): { exact: string; start: number; end: number; prefix?: string; suffix?: string } {
-  return {
-    exact: r.exact,
-    start: r.start,
-    end: r.end,
-    ...(r.prefix !== undefined ? { prefix: r.prefix } : {}),
-    ...(r.suffix !== undefined ? { suffix: r.suffix } : {}),
-  };
+function stoppedAt(unit: string, next: number, offsets: TextOffsets): { cancelled: { completedUnits: string[] } } {
+  return { cancelled: { completedUnits: next >= offsets.length ? [unit] : [] } };
 }
 
 /**
@@ -128,7 +103,7 @@ function annotationDedupeKey(ann: Record<string, unknown>): string {
   const selectors = Array.isArray(target?.selector) ? target.selector : [];
   const pos = selectors.find((s) => s.type === 'TextPositionSelector');
   // Anchor identity is media-specific. Text annotations carry a
-  // TextPositionSelector (durable char offsets). PDF annotations have none —
+  // TextPositionSelector (durable offsets). PDF annotations have none —
   // their anchor is the per-line FragmentSelector viewrect geometry plus the
   // TextQuoteSelector text. Keying only on TextPositionSelector would collapse
   // every PDF annotation sharing a motivation+body onto one (its offsets fall
@@ -151,7 +126,7 @@ function annotationDedupeKey(ann: Record<string, unknown>): string {
  *
  * Two things produce such repeats. Adjacent chunks overlap, so the same span
  * arrives twice. And each LLM-emitted span is reconciled independently (no
- * cross-entry coordination), with `reconcileSelector`'s `first-of-many`
+ * cross-entry coordination), with `reconcile`'s `first-of-many`
  * fallback anchoring every undisambiguated entry at the *same* first
  * occurrence — so a phrase repeated in non-distinctive context yields several
  * entries on one span.
@@ -176,182 +151,6 @@ function makeSpanDeduper(): (annotations: Annotation[]) => Annotation[] {
       out.push(ann);
     }
     return out;
-  };
-}
-
-export function buildTextAnnotation(
-  content: string,
-  resourceId: ResourceId,
-  generator: Agent,
-  motivation: Motivation,
-  match: { exact: string; start: number; end: number; prefix?: string; suffix?: string },
-  // Body may be a single AnnotationBody object or a non-empty array of
-  // them, OR omitted entirely. W3C treats body as optional; annotations
-  // whose motivation alone conveys meaning (highlighting) legitimately
-  // skip it. Every other motivation passes something; the
-  // processor that calls this makes the choice per-motivation.
-  body?: Annotation['body'],
-) {
-  // Write-time invariant. Every selector that reaches storage must be
-  // internally consistent with the source content. If a worker bypasses
-  // `reconcileSelector` or a future change introduces overlap, the
-  // throw fires loudly here instead of corrupting the KB.
-  if (content.substring(match.start, match.end) !== match.exact) {
-    throw new Error(
-      `buildTextAnnotation invariant: content.substring(${match.start}, ${match.end}) !== exact ` +
-        `for resource ${resourceId}, motivation ${motivation}`,
-    );
-  }
-  if (match.prefix !== undefined) {
-    const actualPrefix = content.substring(Math.max(0, match.start - match.prefix.length), match.start);
-    if (actualPrefix !== match.prefix) {
-      throw new Error(
-        `buildTextAnnotation invariant: content prefix-slice !== prefix ` +
-          `for resource ${resourceId}, motivation ${motivation}`,
-      );
-    }
-  }
-  if (match.suffix !== undefined) {
-    const actualSuffix = content.substring(match.end, Math.min(content.length, match.end + match.suffix.length));
-    if (actualSuffix !== match.suffix) {
-      throw new Error(
-        `buildTextAnnotation invariant: content suffix-slice !== suffix ` +
-          `for resource ${resourceId}, motivation ${motivation}`,
-      );
-    }
-  }
-
-  // The worker says WHAT produced this — `generator`, which carries the
-  // model's parameters — and nothing about who asked. `creator` and
-  // `wasAttributedTo` are derived by the Stower from the cited job's own
-  // events; a payload carrying them is refused.
-  return {
-    '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-    'type': 'Annotation' as const,
-    'id': annotationIdFor({ resourceId: resourceId as string, motivation, anchor: spanAnchor(match), body }),
-    motivation,
-    generator,
-    created: new Date().toISOString(),
-    target: {
-      type: 'SpecificResource' as const,
-      source: resourceId,
-      selector: [
-        { type: 'TextPositionSelector' as const, start: match.start, end: match.end },
-        {
-          type: 'TextQuoteSelector' as const,
-          exact: match.exact,
-          ...(match.prefix && { prefix: match.prefix }),
-          ...(match.suffix && { suffix: match.suffix }),
-        },
-      ],
-    },
-    ...(body !== undefined ? { body } : {}),
-  };
-}
-
-/**
- * PDF sibling of `buildTextAnnotation`. The model returns the same
- * `{ exact, start, end, prefix?, suffix? }` match over the extracted text
- * layer's `text`; geometry comes from the layer, never the model.
- *
- * `target.selector` = one `FragmentSelector` per line (`locate` unions the
- * overlapping text-layer items into per-line viewrects) plus a
- * `TextQuoteSelector` anchor. No `TextPositionSelector`: the extracted text
- * layer is a derived artifact, not the stored content, so its char offsets are
- * not a durable anchor.
- *
- * **And the `id` is hashed over exactly those offsets** — `annotationIdFor` gets
- * `spanAnchor(match)`, i.e. `${start}:${end}:${exact}`. That is worth stating
- * plainly, because it sits in tension with the paragraph above: identity here
- * depends on something the annotation refuses to store, on the grounds that it is
- * not durable. The consequence is not a corrupt write but an invisible one — an
- * extraction that moved would re-identify the same visual span, and the two
- * annotations would agree in every stored field (same rects, same quoted text) and
- * differ only in `id`, so every dedupe layer would correctly let both through.
- *
- * It is left as it is on evidence, not by oversight. The offsets come from a
- * derivation cached per content checksum and gated by a stamp that a release of
- * `@semiont/content`, the PDF engine or its traineddata busts by design; measured
- * across the caret-reachable engine move (pdfjs 6.2.108 → 6.3.289) over 1,192 pages
- * of real documents, they do not move, and `pdf-offset-stability.test.ts` in
- * `@semiont/content` fails if they ever do. The OCR path is unmeasured, and a
- * scanned document takes its whole text from there. If that gate ever fires, this
- * is the line to revisit: hashing the DURABLE anchor instead (page geometry plus
- * `exact`) makes identity depend only on what the annotation carries — at the cost
- * of one round of new ids for every PDF annotation minted afterwards.
- *
- * Write-time invariant (geometry <-> text): geometry is item-level (word runs),
- * so the covered items' text must *contain* `exact` (whitespace-normalized) —
- * containment, not reconstruction. An empty cover (no overlapping items -> no
- * rects) also fails. Throws loudly, naming the resource + motivation, rather
- * than persisting geometry that doesn't back the quoted text.
- */
-export function buildPdfAnnotation(
-  anchored: AnchoredText,
-  resourceId: ResourceId,
-  generator: Agent,
-  motivation: Motivation,
-  match: { exact: string; start: number; end: number; prefix?: string; suffix?: string },
-  body?: Annotation['body'],
-) {
-  // `locate` returns both the per-line rects and the overlap items it found;
-  // reuse `overlap` for the containment check rather than re-scanning layer.items.
-  const { rects, overlap } = locate(anchored, match.start, match.end);
-
-  const coveredText = overlap.length
-    ? anchored.text.substring(
-        Math.min(...overlap.map((i) => i.start)),
-        Math.max(...overlap.map((i) => i.end)),
-      )
-    : '';
-  const normalize = (s: string) => s.replace(/\s+/g, ' ').trim();
-  // Two distinct failures, reported distinctly. Merged, both printed "covered
-  // text does not contain exact" — which sends anyone debugging an empty cover
-  // to inspect text matching that never ran. Same class deliberately: both stay
-  // plain `Error`, so `classifyFailure` leaves them unrecognized and therefore
-  // retryable (classification is one-sided — only KNOWN-deterministic failures
-  // skip the budget). No rects LOOKS deterministic, but the stored map is keyed
-  // by content checksum, so a retry after the bytes change reads a different
-  // map and can legitimately succeed.
-  if (rects.length === 0) {
-    throw new Error(
-      `buildPdfAnnotation invariant: no rects located for offsets ${match.start}-${match.end} ` +
-        `for resource ${resourceId}, motivation ${motivation}`,
-    );
-  }
-  if (!normalize(coveredText).includes(normalize(match.exact))) {
-    throw new Error(
-      `buildPdfAnnotation invariant: covered text does not contain exact ` +
-        `for resource ${resourceId}, motivation ${motivation}`,
-    );
-  }
-
-  // As for the text builder: `generator` only; attribution is derived downstream.
-  return {
-    '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-    'type': 'Annotation' as const,
-    'id': annotationIdFor({ resourceId: resourceId as string, motivation, anchor: spanAnchor(match), body }),
-    motivation,
-    generator,
-    created: new Date().toISOString(),
-    target: {
-      type: 'SpecificResource' as const,
-      source: resourceId,
-      selector: [
-        ...rects.map((coord) => ({
-          type: 'FragmentSelector' as const,
-          conformsTo: 'http://tools.ietf.org/rfc/rfc3778' as const,
-          value: createFragmentSelector(coord),
-        })),
-        {
-          type: 'TextQuoteSelector' as const,
-          exact: match.exact,
-          ...(match.prefix && { prefix: match.prefix }),
-          ...(match.suffix && { suffix: match.suffix }),
-        },
-      ],
-    },
-    ...(body !== undefined ? { body } : {}),
   };
 }
 
@@ -381,10 +180,15 @@ export interface UnitCheckpoint {
 
 export async function processHighlightJob(
   content: string,
+  /** The content's own conversions (`textOffsets(content)`), made once where the content is first held. */
+  offsets: TextOffsets,
   inferenceClient: InferenceClient,
   params: HeldMarkParams<'highlighting'>,
   buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
+  logger: Logger,
+  /** The held job's cancellation: the job stops after the chunk it is on, and reports nothing more. */
+  signal: AbortSignal,
   /** This chunk's novel annotations, awaited: the durability write. */
   onChunkComplete: (annotations: Annotation[], checkpoint: UnitCheckpoint) => Promise<void>,
   /** Where earlier attempts left each unit, keyed the same way the checkpoint
@@ -392,6 +196,9 @@ export async function processHighlightJob(
    * attempt. */
   resumeCursors?: Record<string, UnitCursor>,
 ): Promise<ProcessorResult<JobDetectionResult>> {
+  // Cancelled before it began: nothing is asked, and nothing is reported.
+  if (signal.aborted) return { cancelled: { completedUnits: [] } };
+
   const echo = detectionEcho(params);
 
   onProgress(10, { code: 'loading' }, echo);
@@ -405,9 +212,12 @@ export async function processHighlightJob(
   let found = prior?.found ?? 0;
   let created = prior?.emitted ?? 0;
   let errors = prior?.errors ?? 0;
+  /** Where the walk stands: the offset its next chunk starts at. */
+  let next = prior?.next ?? 0;
   await AnnotationDetection.detectHighlights(
-    content, inferenceClient, params.instructions, params.density, params.sourceLanguage,
-    // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band.
+    content, offsets, inferenceClient, logger, signal, params.instructions, params.density, params.sourceLanguage,
+    // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band. Both are
+    // offsets: how far through the content, of its length, in code points.
     (consumedChars, totalChars) => onProgress(30 + Math.round((consumedChars / totalChars) * 30), { code: 'analyzing' }, echo),
     resumeCursors?.['highlighting'],
     async (matches, cursor, dropped) => {
@@ -422,8 +232,12 @@ export async function processHighlightJob(
       // unit-grain checkpoint could record nothing until the whole document
       // was done. The cursor is the entire resume story for these three types.
       await onChunkComplete(fresh, { unit: 'highlighting', cursor: { ...cursor, found, emitted: created, errors } });
+      next = cursor.next;
     },
   );
+
+  // A cancelled job reports no completion, whether or not anything was left to do.
+  if (signal.aborted) return stoppedAt('highlighting', next, offsets);
 
   onProgress(100, { code: 'complete-created', count: created, motivation: params.motivation }, echo);
 
@@ -458,10 +272,15 @@ function detectionEcho(p: {
 
 export async function processCommentJob(
   content: string,
+  /** The content's own conversions (`textOffsets(content)`), made once where the content is first held. */
+  offsets: TextOffsets,
   inferenceClient: InferenceClient,
   params: HeldMarkParams<'commenting'>,
   buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
+  logger: Logger,
+  /** The held job's cancellation: the job stops after the chunk it is on, and reports nothing more. */
+  signal: AbortSignal,
   /** This chunk's novel annotations, awaited: the durability write. */
   onChunkComplete: (annotations: Annotation[], checkpoint: UnitCheckpoint) => Promise<void>,
   /** Where earlier attempts left each unit, keyed the same way the checkpoint
@@ -469,6 +288,9 @@ export async function processCommentJob(
    * attempt. */
   resumeCursors?: Record<string, UnitCursor>,
 ): Promise<ProcessorResult<JobDetectionResult>> {
+  // Cancelled before it began: nothing is asked, and nothing is reported.
+  if (signal.aborted) return { cancelled: { completedUnits: [] } };
+
   const echo = detectionEcho(params);
 
   onProgress(10, { code: 'loading' }, echo);
@@ -486,10 +308,13 @@ export async function processCommentJob(
   let found = prior?.found ?? 0;
   let created = prior?.emitted ?? 0;
   let errors = prior?.errors ?? 0;
+  /** Where the walk stands: the offset its next chunk starts at. */
+  let next = prior?.next ?? 0;
   await AnnotationDetection.detectComments(
-    content, inferenceClient, params.instructions, params.tone, params.density,
+    content, offsets, inferenceClient, logger, signal, params.instructions, params.tone, params.density,
     params.language, params.sourceLanguage,
-    // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band.
+    // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band. Both are
+    // offsets: how far through the content, of its length, in code points.
     (consumedChars, totalChars) => onProgress(30 + Math.round((consumedChars / totalChars) * 30), { code: 'analyzing' }, echo),
     resumeCursors?.['commenting'],
     async (comments, cursor, dropped) => {
@@ -505,8 +330,12 @@ export async function processCommentJob(
       created += fresh.length;
       onProgress(60, { code: 'creating-annotations', count: created }, echo);
       await onChunkComplete(fresh, { unit: 'commenting', cursor: { ...cursor, found, emitted: created, errors } });
+      next = cursor.next;
     },
   );
+
+  // A cancelled job reports no completion, whether or not anything was left to do.
+  if (signal.aborted) return stoppedAt('commenting', next, offsets);
 
   onProgress(100, { code: 'complete-created', count: created, motivation: params.motivation }, echo);
 
@@ -517,10 +346,15 @@ export async function processCommentJob(
 
 export async function processAssessmentJob(
   content: string,
+  /** The content's own conversions (`textOffsets(content)`), made once where the content is first held. */
+  offsets: TextOffsets,
   inferenceClient: InferenceClient,
   params: HeldMarkParams<'assessing'>,
   buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
+  logger: Logger,
+  /** The held job's cancellation: the job stops after the chunk it is on, and reports nothing more. */
+  signal: AbortSignal,
   /** This chunk's novel annotations, awaited: the durability write. */
   onChunkComplete: (annotations: Annotation[], checkpoint: UnitCheckpoint) => Promise<void>,
   /** Where earlier attempts left each unit, keyed the same way the checkpoint
@@ -528,6 +362,9 @@ export async function processAssessmentJob(
    * attempt. */
   resumeCursors?: Record<string, UnitCursor>,
 ): Promise<ProcessorResult<JobDetectionResult>> {
+  // Cancelled before it began: nothing is asked, and nothing is reported.
+  if (signal.aborted) return { cancelled: { completedUnits: [] } };
+
   const echo = detectionEcho(params);
 
   onProgress(10, { code: 'loading' }, echo);
@@ -542,10 +379,13 @@ export async function processAssessmentJob(
   let found = prior?.found ?? 0;
   let created = prior?.emitted ?? 0;
   let errors = prior?.errors ?? 0;
+  /** Where the walk stands: the offset its next chunk starts at. */
+  let next = prior?.next ?? 0;
   await AnnotationDetection.detectAssessments(
-    content, inferenceClient, params.instructions, params.tone, params.density,
+    content, offsets, inferenceClient, logger, signal, params.instructions, params.tone, params.density,
     params.language, params.sourceLanguage,
-    // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band.
+    // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band. Both are
+    // offsets: how far through the content, of its length, in code points.
     (consumedChars, totalChars) => onProgress(30 + Math.round((consumedChars / totalChars) * 30), { code: 'analyzing' }, echo),
     resumeCursors?.['assessing'],
     async (assessments, cursor, dropped) => {
@@ -564,8 +404,12 @@ export async function processAssessmentJob(
       created += fresh.length;
       onProgress(60, { code: 'creating-annotations', count: created }, echo);
       await onChunkComplete(fresh, { unit: 'assessing', cursor: { ...cursor, found, emitted: created, errors } });
+      next = cursor.next;
     },
   );
+
+  // A cancelled job reports no completion, whether or not anything was left to do.
+  if (signal.aborted) return stoppedAt('assessing', next, offsets);
 
   onProgress(100, { code: 'complete-created', count: created, motivation: params.motivation }, echo);
 
@@ -582,14 +426,22 @@ export async function processAssessmentJob(
  * returns only the result — returning the annotations as well would make a
  * post-run batch, where one failed call discards every completed unit's
  * work wholesale.
+ *
+ * A cancellation stops it after the chunk each unit in flight is on: a unit
+ * whose last chunk that was is finished and checkpointed as any other, one
+ * with text left is not, and no unit is begun.
  */
 export async function processReferenceJob(
   content: string,
+  /** The content's own conversions (`textOffsets(content)`), made once where the content is first held. */
+  offsets: TextOffsets,
   inferenceClient: InferenceClient,
   params: HeldMarkParams<'linking'>,
   buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
   logger: Logger,
+  /** The held job's cancellation: the job stops after the chunk it is on, and reports nothing more. */
+  signal: AbortSignal,
   /**
    * The CHECKPOINT, fired once per unit after every one of its chunks has
    * committed. It carries no annotations — the effect already happened per
@@ -597,22 +449,27 @@ export async function processReferenceJob(
    * them would be a second commit path.
    */
   onUnitComplete: (entityType: string) => Promise<void>,
-  signal?: AbortSignal,
   /** This chunk's novel annotations, awaited: the durability write. */
-  onChunkComplete?: (annotations: Annotation[], checkpoint: UnitCheckpoint) => Promise<void>,
-  /** Where earlier attempts left each entity-type unit. A unit absent here
-   * starts at the top; units already COMPLETE never reach this function at
-   * all, the caller having filtered them out. */
+  onChunkComplete: (annotations: Annotation[], checkpoint: UnitCheckpoint) => Promise<void>,
+  /** Where earlier attempts left each entity-type unit: the furthest it got,
+   * and what it had counted there. A unit absent here starts at the top. A
+   * finished unit's is where it ended. */
   resumeCursors?: Record<string, UnitCursor>,
-): Promise<{ result: JobDetectionResult }> {
+  /** The entity types earlier attempts finished, as the claimed record names
+   * them. They are not asked about again, and are counted by their cursors. */
+  completedUnits?: readonly string[],
+): Promise<ProcessorResult<JobDetectionResult>> {
+  // Cancelled before it began: nothing is asked, and nothing is reported.
+  if (signal.aborted) return { cancelled: { completedUnits: [] } };
+
   const entityTypeNames = params.entityTypes.map(String);
   const requestParams = [{ label: 'entity-types' as const, value: entityTypeNames.join(', ') }];
   const completedItems: CompletedItem[] = [];
-  // Seeded with what earlier attempts already counted for the units this
-  // attempt is RESUMING. Units that completed earlier carry no cursor — they
-  // are filtered out before this function sees them — so their share is
-  // missing from the job total: a known gap at unit grain, left whole rather
-  // than silently half-fixed here.
+  /** The units this attempt finished, in the order they finished: what a cancellation names. */
+  const finishedUnits: string[] = [];
+  // Seeded with what earlier attempts counted. A cursor is held for every
+  // unit the job has begun, the units it finished among them, so the totals
+  // are the whole job's from the first report.
   let totalFound = Object.values(resumeCursors ?? {}).reduce((n, c) => n + c.found, 0);
   let totalEmitted = Object.values(resumeCursors ?? {}).reduce((n, c) => n + c.emitted, 0);
   let errors = Object.values(resumeCursors ?? {}).reduce((n, c) => n + c.errors, 0);
@@ -636,7 +493,17 @@ export async function processReferenceJob(
   // read-modify-write straddles an await), so no locking is needed. Progress is
   // "M of N done" rather than "on type i": concurrent types finish out of
   // order, and `completedItems` tolerates that.
-  let completed = 0;
+  //
+  // The types an earlier attempt finished are the job's all the same: they are
+  // among the finished from the first report, in the job's order, each with
+  // what its cursor counted. One the record holds no cursor for is finished,
+  // and nothing says what it found: it is not listed.
+  const finishedEarlier = entityTypeNames.filter((name) => completedUnits?.includes(name));
+  for (const name of finishedEarlier) {
+    const ended = resumeCursors?.[name];
+    if (ended) completedItems.push({ value: name, foundCount: ended.found, persistedCount: ended.emitted });
+  }
+  let completed = finishedEarlier.length;
   const total = entityTypeNames.length;
 
   const emitTypeProgress = (entityTypeName: string): void => {
@@ -656,13 +523,11 @@ export async function processReferenceJob(
   // Concurrency is the PROVIDER's capability, not a flat constant: a hosted
   // API parallelizes, a local single-model server does not. Reading it
   // from the client is what makes the same code correct on both.
-  await runBounded(entityTypeNames, inferenceClient.maxConcurrency, async (entityTypeName) => {
+  await runBounded(entityTypeNames.filter((name) => !finishedEarlier.includes(name)), inferenceClient.maxConcurrency, async (entityTypeName) => {
     if (!entityTypeName) return;
     // Cooperative cancellation: once aborted, a pending type is skipped when
-    // its turn comes; types already in flight finish and commit, so committed
-    // units stay checkpointed. The caller reads `signal.aborted` to move the
-    // job to cancelled/ rather than complete/.
-    if (signal?.aborted) return;
+    // its turn comes, and a type in flight stops after the chunk it is on.
+    if (signal.aborted) return;
 
     emitTypeProgress(entityTypeName);
 
@@ -685,10 +550,12 @@ export async function processReferenceJob(
     let unitFound = priorUnit?.found ?? 0;
     let unitPersisted = priorUnit?.emitted ?? 0;
     let unitErrors = priorUnit?.errors ?? 0;
+    /** Where the unit's walk stands: the offset its next chunk starts at. */
+    let unitNext = priorUnit?.next ?? 0;
     // What remains unknown at the unit's end: floor-accepted pieces, folded.
     let underReported: { pieces: number; found: number; counted: number } | undefined;
     await extractEntities(
-      content, [entityTypeName], inferenceClient, params.includeDescriptiveReferences ?? false, logger,
+      content, offsets, [entityTypeName], inferenceClient, params.includeDescriptiveReferences ?? false, logger, signal,
       params.sourceLanguage,
       // Liveness heartbeat: fires at chunk boundaries and every ~15 s while a
       // call is in flight, so a long single-chunk call is not silent. It
@@ -708,11 +575,13 @@ export async function processReferenceJob(
         emitTypeProgress(entityTypeName);
       },
       resumeCursors?.[entityTypeName],
-      async (chunkEntities, cursor) => {
+      async (chunkEntities, cursor, dropped) => {
         const built: Annotation[] = [];
-        let chunkErrors = 0;
+        // A mention of another entity type than this unit's was proposed and
+        // made nothing: it is counted with those whose text is nowhere.
+        let chunkErrors = dropped;
         for (const entity of chunkEntities) {
-          const reconciled = reconcileSelector(content, {
+          const reconciled = reconcile(content, {
             exact: entity.exact,
             ...(entity.prefix !== undefined ? { prefix: entity.prefix } : {}),
             ...(entity.suffix !== undefined ? { suffix: entity.suffix } : {}),
@@ -726,7 +595,7 @@ export async function processReferenceJob(
             continue;
           }
           noteAnchor('reference', entity.exact, reconciled.anchorMethod, logger);
-          built.push(buildAnnotation('linking', toMatch(reconciled), unresolvedBody));
+          built.push(buildAnnotation('linking', reconciled, unresolvedBody));
         }
         const fresh = dedupe(built);
         // What this chunk makes true ONCE IT IS DURABLE. Computed before the
@@ -734,13 +603,14 @@ export async function processReferenceJob(
         // the running totals — a checkpoint reporting only this attempt's share
         // would reset the count on every death — but assigned after, so the
         // invariant below still holds.
-        const nextFound = unitFound + chunkEntities.length;
+        const chunkFound = chunkEntities.length + dropped;
+        const nextFound = unitFound + chunkFound;
         const nextEmitted = unitPersisted + fresh.length;
         const nextErrors = unitErrors + chunkErrors;
         // Awaited: a failed commit fails the unit before it can checkpoint;
         // the cursor rides with it so the checkpoint trails the log by
         // construction rather than by the caller remembering to order them.
-        await onChunkComplete?.(fresh, {
+        await onChunkComplete(fresh, {
           unit: entityTypeName,
           cursor: { ...cursor, found: nextFound, emitted: nextEmitted, errors: nextErrors },
         });
@@ -751,15 +621,21 @@ export async function processReferenceJob(
         unitFound = nextFound;
         unitPersisted = nextEmitted;
         unitErrors = nextErrors;
-        totalFound += chunkEntities.length;
+        unitNext = cursor.next;
+        totalFound += chunkFound;
         totalEmitted += fresh.length;
         errors += chunkErrors;
-        emitTypeProgress(entityTypeName);
+        // A cancelled job has stopped with this chunk's checkpoint, and says nothing after it.
+        if (!signal.aborted) emitTypeProgress(entityTypeName);
       },
     );
 
+    // A cancellation stopped the unit with text left: it is not finished.
+    if (signal.aborted && unitNext < offsets.length) return;
+
     // Every chunk of this unit is durable; only now may it checkpoint.
     await onUnitComplete(entityTypeName);
+    finishedUnits.push(entityTypeName);
     // Found vs persisted, per unit — the gap between them is this flow's yield.
     completedItems.push({
       value: entityTypeName,
@@ -769,8 +645,11 @@ export async function processReferenceJob(
     });
     if (underReported) totalUnderReportedPieces += underReported.pieces;
     completed++;
-    emitTypeProgress(entityTypeName);
+    if (!signal.aborted) emitTypeProgress(entityTypeName);
   });
+
+  // A cancelled job reports no completion, whether or not anything was left to do.
+  if (signal.aborted) return { cancelled: { completedUnits: finishedUnits } };
 
   // The terminal frame carries the completed set — each unit's found and
   // persisted counts, the run's yield.
@@ -790,10 +669,15 @@ export async function processReferenceJob(
 
 export async function processTagJob(
   content: string,
+  /** The content's own conversions (`textOffsets(content)`), made once where the content is first held. */
+  offsets: TextOffsets,
   inferenceClient: InferenceClient,
   params: HeldMarkParams<'tagging'>,
   buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
+  logger: Logger,
+  /** The held job's cancellation: the job stops after the chunk it is on, and reports nothing more. */
+  signal: AbortSignal,
   /** This chunk's novel annotations, awaited: the durability write. */
   onChunkComplete: (annotations: Annotation[], checkpoint: UnitCheckpoint) => Promise<void>,
   /** Where earlier attempts left each CATEGORY — a tag job's units are its
@@ -801,6 +685,9 @@ export async function processTagJob(
    * shared cursor would skip text for all but one of them. */
   resumeCursors?: Record<string, UnitCursor>,
 ): Promise<ProcessorResult<JobDetectionResult>> {
+  // Cancelled before it began: nothing is asked, and nothing is reported.
+  if (signal.aborted) return { cancelled: { completedUnits: [] } };
+
   onProgress(10, { code: 'loading' });
   onProgress(30, { code: 'analyzing-tags' });
 
@@ -822,6 +709,8 @@ export async function processTagJob(
   // is actually stored. The category is the first (tagging) TextualBody.
   const byCategory: Record<string, number> = {};
   const completedItems: CompletedItem[] = [];
+  /** The categories whose walk reached the end of the text: what a cancellation names. */
+  const finishedUnits: string[] = [];
 
   for (let c = 0; c < params.categories.length; c++) {
     const category = params.categories[c]!;
@@ -843,8 +732,14 @@ export async function processTagJob(
     let categoryFound = priorCategory?.found ?? 0;
     let categoryCreated = priorCategory?.emitted ?? 0;
     let categoryErrors = priorCategory?.errors ?? 0;
+    // What earlier attempts committed for this category is in the count by
+    // category, as it is in `created`. Set once: a category the job names
+    // twice is walked twice, and its cursor counted once.
+    if (categoryCreated > 0) byCategory[category] ??= categoryCreated;
+    /** Where the category's walk stands: the offset its next chunk starts at. */
+    let categoryNext = priorCategory?.next ?? 0;
     await AnnotationDetection.detectTags(
-      content, inferenceClient, params.schema, category, params.sourceLanguage,
+      content, offsets, inferenceClient, logger, signal, params.schema, category, params.sourceLanguage,
       // Liveness (chunk boundaries + in-flight heartbeat): this category's
       // slice of the 30–60 band.
       (consumedChars, totalChars) => onProgress(
@@ -857,13 +752,12 @@ export async function processTagJob(
         categoryFound += matches.length + dropped;
         categoryErrors += dropped;
         const fresh = dedupe(matches.map((t) => {
-          const cat = t.category ?? 'unknown';
           // Two-body shape, matching every persisted tag annotation: the
           // category as a tagging TextualBody, plus the tagging-schema id as a
           // classifying TextualBody. The classifying body is the only trace of
           // schema provenance in the event log — do not drop it.
           return buildAnnotation('tagging', t, [
-            { type: 'TextualBody', value: cat,              purpose: 'tagging',     format: 'text/plain' satisfies SupportedMediaType, language: bodyLanguage },
+            { type: 'TextualBody', value: t.category,       purpose: 'tagging',     format: 'text/plain' satisfies SupportedMediaType, language: bodyLanguage },
             { type: 'TextualBody', value: params.schema.id, purpose: 'classifying', format: 'text/plain' satisfies SupportedMediaType },
           ]);
         }));
@@ -885,8 +779,12 @@ export async function processTagJob(
           unit: category,
           cursor: { ...cursor, found: categoryFound, emitted: categoryCreated, errors: categoryErrors },
         });
+        categoryNext = cursor.next;
       },
     );
+    if (categoryNext >= offsets.length) finishedUnits.push(category);
+    // A cancelled job begins no other category, and reports no completion.
+    if (signal.aborted) return { cancelled: { completedUnits: finishedUnits } };
     found += categoryFound;
     errors += categoryErrors;
     completedItems.push({ value: category, foundCount: categoryFound });
@@ -914,22 +812,45 @@ export function assertWithinOutputBudget(byteLength: number): void {
   }
 }
 
+/** What a `yield` job made: the artifact to upload, and the claims in it to cite. */
+export interface GeneratedArtifact {
+  content: Uint8Array;
+  title: string;
+  format: SupportedMediaType;
+  citations: GenerationCitation[];
+  truncated: boolean;
+}
+
+/**
+ * `signal` is the held job's cancellation. A `yield` job stops before it
+ * uploads: once its model has answered, a cancellation that has arrived by
+ * then ends the job with nothing made of the answer and nothing more
+ * reported. The request to the provider is not aborted when a cancellation
+ * arrives: the generation under way runs to its answer, or to its own
+ * ten-minute bound, and the job stops then.
+ *
+ * What it returns is the artifact, and not the job's result: a generation has
+ * no result to state before its resource exists.
+ */
 export async function processGenerationJob(
   inferenceClient: InferenceClient,
   params: GenerationJobParams,
   onProgress: OnProgress,
   logger: Logger,
-): Promise<{ content: Uint8Array; title: string; format: SupportedMediaType; citations: GenerationCitation[]; truncated: boolean }> {
+  signal: AbortSignal,
+): Promise<GeneratedArtifact | { cancelled: true }> {
   // Refuse any requested media type the registry doesn't mark `generatable` —
   // loudly (the throw propagates as job:fail), never a silent markdown fallback
   // under a mislabeled format. The gate reads the registry capability, not a
-  // local table. Validate before the LLM call.
+  // local table. Validate before the LLM call. No attempt changes what this
+  // worker generates, so the refusal skips the retry budget.
   const outputMediaType: SupportedMediaType = params.outputMediaType ?? 'text/markdown';
   if (!GENERATABLE_MEDIA_TYPES.includes(outputMediaType)) {
-    throw new Error(
+    throw new DeterministicJobError(
       `Unsupported outputMediaType for generation: ${outputMediaType}. Generation produces ${GENERATABLE_MEDIA_TYPES.join(' or ')}.`,
     );
   }
+  const stopped = { cancelled: true } as const;
 
   const title = params.title;
   const entityTypes = (params.entityTypes ?? []).map(String);
@@ -945,9 +866,9 @@ export async function processGenerationJob(
     // Under `cite`, [[<id>]] tokens are stripped from the SOURCE before every
     // compile — they must never render into the artifact. The citations carry
     // the claim text; the worker re-anchors it by page geometry after
-    // extraction. Offsets in these citations index the Typst source and
-    // are NOT used for PDF anchoring.
-    const validIds = params.cite === true ? collectContextResourceIds(params.context) : null;
+    // extraction. Offsets in these citations count the Typst source's code
+    // points and are NOT used for PDF anchoring.
+    const citable = params.cite === true ? collectCitableIds(params.context) : null;
 
     let generated = await generateResourceFromTopic(
       title, entityTypes, inferenceClient, logger,
@@ -955,10 +876,11 @@ export async function processGenerationJob(
       params.maxTokens, params.sourceLanguage, outputMediaType,
       params.task, params.structure, params.cite,
     );
+    if (signal.aborted) return stopped;
     let source = generated.content;
     let citations: GenerationCitation[] = [];
-    if (validIds) {
-      const resolved = resolveCitationTokens(generated.content, validIds, logger);
+    if (citable) {
+      const resolved = resolveCitationTokens(generated.content, citable, logger);
       source = resolved.content;
       citations = resolved.citations;
     }
@@ -991,8 +913,9 @@ export async function processGenerationJob(
         params.task, params.structure, params.cite,
         { source, error: compiled.error },
       );
-      if (validIds) {
-        const resolved = resolveCitationTokens(generated.content, validIds, logger);
+      if (signal.aborted) return stopped;
+      if (citable) {
+        const resolved = resolveCitationTokens(generated.content, citable, logger);
         source = resolved.content;
         citations = resolved.citations;
       } else {
@@ -1043,6 +966,7 @@ export async function processGenerationJob(
     params.structure,
     params.cite,
   );
+  if (signal.aborted) return stopped;
 
   // Under `cite`, the model emitted [[<id>]] transport tokens — resolve them:
   // validate against the ids the context actually contained, strip from the
@@ -1051,7 +975,7 @@ export async function processGenerationJob(
   let content = generated.content;
   let citations: GenerationCitation[] = [];
   if (params.cite === true) {
-    const resolved = resolveCitationTokens(content, collectContextResourceIds(params.context), logger);
+    const resolved = resolveCitationTokens(content, collectCitableIds(params.context), logger);
     content = resolved.content;
     citations = resolved.citations;
   }
@@ -1060,7 +984,7 @@ export async function processGenerationJob(
 
   // The artifact is bytes; text is an encoding of them. One shape for every
   // output media type, so a string can never travel mislabeled as a binary
-  // format. Citation offsets index the decoded text.
+  // format. Citation offsets count the decoded text's code points.
   const artifact = new TextEncoder().encode(content);
   assertWithinOutputBudget(artifact.byteLength);
 

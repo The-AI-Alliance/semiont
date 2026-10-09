@@ -1,0 +1,665 @@
+{
+  "$comment": "How a worker plans the pieces of a text it asks a model about, as every worker must plan them: the budget a unit opens with, the step that sizes the next piece from what the last one cost, the walk over the text, and the descent into a piece whose reply failed. Each case has a `kind`, read as stated below. TypeScript runs every case in packages/jobs (src/__tests__/chunk-plan-cases.test.ts) against detection-chunking.ts and chunk-size-controller.ts; a worker in another language runs the same file. Add a case here before changing an implementation. SIZES AND CUTS. Sizes are in tokens, a token being reckoned as four code points, and positions are offsets: they count the text's Unicode code points (specs/src/text/offset-cases.json), as every length here does. A text with a character outside the Basic Multilingual Plane is shorter by that count than by a count of UTF-16 code units, and the cases that have one tell the two apart. Where a cut falls is the rule of specs/src/text/chunk-cases.json. No text here has white space, so no cut looks for a break and a piece is exactly the span it was cut at: a piece cut at `at` with size S and overlap V runs to `to`, which is at + 4S or the end of the text, whichever comes first. Where it reaches the end, `next` is the text's length in code points and there is no further piece; otherwise `next` is to - 4V, or `to` where that is not past `at`. A text cut whole at a size is one piece, itself, when it is at most that many tokens (its length in code points over four, rounded up), and is otherwise cut from 0, piece after piece, until one reaches its end. KIND `budget`: what a unit opens with, from the provider's `limits`, the tokens of the prompt around the text (`scaffoldTokens`) and how many families of span one call asks for (`typesPerCall`). Let available = contextTokens - scaffoldTokens. A provider whose maxOutputTokens is not below its contextTokens has one window for prompt and reply: text = floor(available / 3) and reply = available - text. Any other provider has a reply ceiling of its own: reply = maxOutputTokens and text = contextTokens - reply - scaffoldTokens, unless that leaves the text 0 or less, where the shared split is used instead. A call must end inside the worker's ten-minute bound on it: safe = floor(rate x 300000 / 3600000), half the bound at the provider's outputTokensPerHour, or at 108000 an hour where it states none; when reply is more than safe, text becomes floor(text x (safe / reply)), the quotient taken first and in double-precision floating point, and reply becomes safe. The reply must have room to echo every span of the text: text is at most floor(reply / (2 x typesPerCall)). A text of 64 tokens or fewer is `refused`: the window is too small, and the job fails rather than run, with a DeterministicJobError: the same window refuses the same job again, so no retry is spent on it. `refused` describes that failure as specs/src/worker/failure-class-cases.json describes one. Otherwise the `budget` is: `size` = text, the size the first piece is cut at; `overlap` = 64, what each cut keeps of the piece before; `outputBudget` = reply, the most one call may answer; `floor` = the lesser of size and 128; `ceiling` = the greater of size and contextTokens - scaffoldTokens - reply, the most text that leaves the whole reply room beside it. KIND `step`: the size of the next piece (`nextSize`), from the `size` the last piece was cut at and its `outcome`: `sizeFailed`, whether a call on it failed in a way a smaller piece can fix (even if a descent then recovered it), and `outputTokens`, what the provider counted over its calls, absent where any call went uncounted. A piece that size-failed shrinks the next: floor(size x 0.7). Otherwise, with no count, or with an outputBudget of 0 or less, the size holds: absent is not zero, and nothing measured moves nothing. Otherwise the share of the outputBudget that was used decides: under 0.5 grows the next piece, floor(size x 1.5); over 0.8 shrinks it, floor(size x 0.7); from 0.5 to 0.8 it holds. Whatever is answered is then brought inside `bounds`: no less than `floor`, no more than `ceiling`. `sizing` states those four numbers. Each product is taken in double-precision floating point and then rounded down, as `size * 0.7` is in TypeScript and in Python alike; whole-number arithmetic (size x 7 / 10) is a different rule, and answers one more at some sizes. KIND `walk`: the pieces a unit is cut into, one at a time, each only after the one before has answered. The first is cut at 0 at the budget's `size`; each next one is cut at the last one's `next`, with the budget's `overlap`, at the size the step gives for the last one's size and outcome; the walk ends when a piece reaches the end of the text, and an empty text has no piece. `outcomes` is what the runner answers for each piece in turn; `pieces` is what the walk must then have handed out: where each was cut (`at`), where it ran to (`to`), the `size` it was cut at and its `next`. An outcome that `fails` is a piece whose work failed: the walk stops there with that failure and cuts nothing further (`completes` is false). Once a piece's results are committed, the unit's cursor records that piece's `next` and `size`. A walk given a cursor to `resume` from starts at the cursor's `next`, at the size the step gives for the cursor's `size` and a size failure: the attempt that wrote the cursor died, the same size would cut the same piece and be answered the same way, and the opening size would throw away what that attempt learned. A cursor already at the end of the text asks nothing. A cursor also carries the unit's tallies, which the walk does not read: `found`, every item the replies have proposed; `errors`, those of them that could not be anchored in the text; `emitted`, the annotations committed once repeats are removed. Whoever makes the annotations adds each piece's to what the cursor it resumed from held, so that a resumed job reports the whole text. No case here holds the tallies. KIND `descent`: what is done with one piece of a walk, cut at `size` with `overlap`. `replies` is what the runner answers to each call in turn: `items`, with the `outputTokens` the provider counted and the number of mentions the call priced (`counted`) where it did, or `fails`, a failure described as specs/src/worker/failure-class-cases.json describes one (a YieldCollapseError with the `salvage` it carries, what its reply did find, and its `verdict`). `asked` is the calls that must then have been made, each given as the span [from, to] of `piece` it asked about. The piece is asked about whole, and a reply that answers is accepted. Four failures are ones a smaller piece can fix: a cut-off reply (a DeterministicJobError of any kind, a YieldCollapseError among them, or a StructuredReadError whose stop reason is max_tokens); a StructuredReadError whose stop reason is unknown; a StructuredReadError whose stop reason is end_turn, a model that finished and still could not be read; and an InferenceTimeoutError. Any other failure ends the descent and is raised as it was. For one of the four, the piece is cut whole at half its size (rounded down) with the same overlap, and it descends only if that changes what is asked (the cut gives something other than the piece itself) and, for a cut-off reply or an unknown stop, the half size is more than 128 tokens, however deep the descent already is (what a piece demands halves with its size, so this ends); or, for a timeout or an end_turn stop, the piece is fewer than 2 levels below the one the descent began with (a quarter-size piece that still fails is not failing for its size). A piece that descends is replaced by its half-size pieces, each handled in turn as a piece of the half size one level down, and what its own failed reply carried is discarded; the first of them to raise ends the whole descent, the rest unasked. A piece that does not descend is settled where it stands: a YieldCollapseError is accepted, its salvage being the piece's items, and its verdict is reported (`underReported`); any other cut-off reply is asked for once more, the same piece, and that answer or failure stands; a timeout, an unknown stop or an end_turn stop is raised. `result` is: `items`, those of every accepted piece, in order; `sizeFailed`, true once any call failed in one of the four ways; `outputTokens`, the sum over the calls that answered, stated only when at least one did and every one that did reported a count; `counted`, the count of each accepted piece that had one (an accepted collapse has its verdict's), and none for a piece that descended; `underReported`, the verdict of each collapse accepted. `raises` is the index in `replies` of the failure the descent ends with, raised as it was.",
+  "sizing": {
+    "growBelow": 0.5,
+    "shrinkAbove": 0.8,
+    "growFactor": 1.5,
+    "shrinkFactor": 0.7
+  },
+  "cases": [
+    {
+      "kind": "budget",
+      "why": "one window for prompt and reply: a third of what the scaffold leaves is text and the rest is reply, and the window then holds no more text than the opening size",
+      "limits": { "contextTokens": 8192, "maxOutputTokens": 8192 },
+      "scaffoldTokens": 500,
+      "typesPerCall": 1,
+      "budget": { "size": 2564, "overlap": 64, "floor": 128, "ceiling": 2564, "outputBudget": 5128 }
+    },
+    {
+      "kind": "budget",
+      "why": "a provider that states no rate is held to 108,000 output tokens an hour: half the ten-minute bound is 9,000 tokens of reply, the text shrinks by the same factor, and the window leaves the text far more room than it opens with",
+      "limits": { "contextTokens": 262144, "maxOutputTokens": 262144 },
+      "scaffoldTokens": 500,
+      "typesPerCall": 1,
+      "budget": { "size": 4499, "overlap": 64, "floor": 128, "ceiling": 252644, "outputBudget": 9000 }
+    },
+    {
+      "kind": "budget",
+      "why": "a reply ceiling of its own, and a stated rate: the reply is capped at that rate (10,666 tokens), and the text is at most half the reply whatever the window could hold",
+      "limits": { "contextTokens": 200000, "maxOutputTokens": 64000, "outputTokensPerHour": 128000 },
+      "scaffoldTokens": 500,
+      "typesPerCall": 1,
+      "budget": { "size": 5333, "overlap": 64, "floor": 128, "ceiling": 188834, "outputBudget": 10666 }
+    },
+    {
+      "kind": "budget",
+      "why": "a reply ceiling already under the duration cap stands as it is",
+      "limits": { "contextTokens": 200000, "maxOutputTokens": 8000 },
+      "scaffoldTokens": 1000,
+      "typesPerCall": 1,
+      "budget": { "size": 4000, "overlap": 64, "floor": 128, "ceiling": 191000, "outputBudget": 8000 }
+    },
+    {
+      "kind": "budget",
+      "why": "a reply ceiling that leaves the text nothing falls back to the shared split",
+      "limits": { "contextTokens": 10000, "maxOutputTokens": 9900 },
+      "scaffoldTokens": 500,
+      "typesPerCall": 1,
+      "budget": { "size": 3166, "overlap": 64, "floor": 128, "ceiling": 3166, "outputBudget": 6334 }
+    },
+    {
+      "kind": "budget",
+      "why": "a call that asks for three families of span at once has a third of the text to ask about: the reply it needs grows with each",
+      "limits": { "contextTokens": 200000, "maxOutputTokens": 64000, "outputTokensPerHour": 128000 },
+      "scaffoldTokens": 500,
+      "typesPerCall": 3,
+      "budget": { "size": 1777, "overlap": 64, "floor": 128, "ceiling": 188834, "outputBudget": 10666 }
+    },
+    {
+      "kind": "budget",
+      "why": "a cramped window: the floor is never above the opening size",
+      "limits": { "contextTokens": 1000, "maxOutputTokens": 1000 },
+      "scaffoldTokens": 700,
+      "typesPerCall": 1,
+      "budget": { "size": 100, "overlap": 64, "floor": 100, "ceiling": 100, "outputBudget": 200 }
+    },
+    {
+      "kind": "budget",
+      "why": "65 tokens of text is the least a window may leave",
+      "limits": { "contextTokens": 695, "maxOutputTokens": 695 },
+      "scaffoldTokens": 500,
+      "typesPerCall": 1,
+      "budget": { "size": 65, "overlap": 64, "floor": 65, "ceiling": 65, "outputBudget": 130 }
+    },
+    {
+      "kind": "budget",
+      "why": "64 tokens of text is one overlap, and a piece of it would read nothing new: the window is refused, with a failure no retry is spent on",
+      "limits": { "contextTokens": 694, "maxOutputTokens": 694 },
+      "scaffoldTokens": 500,
+      "typesPerCall": 1,
+      "refused": { "name": "DeterministicJobError" }
+    },
+
+    {
+      "kind": "step",
+      "why": "39% of the budget used: the piece left room, and the next one grows",
+      "size": 5000,
+      "outcome": { "sizeFailed": false, "outputTokens": 3900 },
+      "bounds": { "floor": 96, "ceiling": 40000, "outputBudget": 10000 },
+      "nextSize": 7500
+    },
+    {
+      "kind": "step",
+      "why": "92% used: near the edge, the next piece eases off before one is cut off",
+      "size": 6001,
+      "outcome": { "sizeFailed": false, "outputTokens": 9200 },
+      "bounds": { "floor": 96, "ceiling": 40000, "outputBudget": 10000 },
+      "nextSize": 4200
+    },
+    {
+      "kind": "step",
+      "why": "65% used: inside the band, the size holds",
+      "size": 6000,
+      "outcome": { "sizeFailed": false, "outputTokens": 6500 },
+      "bounds": { "floor": 96, "ceiling": 40000, "outputBudget": 10000 },
+      "nextSize": 6000
+    },
+    {
+      "kind": "step",
+      "why": "exactly half used is not under half: the size holds",
+      "size": 6000,
+      "outcome": { "sizeFailed": false, "outputTokens": 5000 },
+      "bounds": { "floor": 96, "ceiling": 40000, "outputBudget": 10000 },
+      "nextSize": 6000
+    },
+    {
+      "kind": "step",
+      "why": "exactly 80% used is not over it: the size holds",
+      "size": 6000,
+      "outcome": { "sizeFailed": false, "outputTokens": 8000 },
+      "bounds": { "floor": 96, "ceiling": 40000, "outputBudget": 10000 },
+      "nextSize": 6000
+    },
+    {
+      "kind": "step",
+      "why": "a size failure shrinks the next piece whatever was counted, even nothing used at all",
+      "size": 801,
+      "outcome": { "sizeFailed": true, "outputTokens": 0 },
+      "bounds": { "floor": 96, "ceiling": 40000, "outputBudget": 10000 },
+      "nextSize": 560
+    },
+    {
+      "kind": "step",
+      "why": "a size failure needs no count to say the size was wrong",
+      "size": 1001,
+      "outcome": { "sizeFailed": true },
+      "bounds": { "floor": 96, "ceiling": 40000, "outputBudget": 10000 },
+      "nextSize": 700
+    },
+    {
+      "kind": "step",
+      "why": "no count is not a count of zero: nothing was measured, and the size holds",
+      "size": 1000,
+      "outcome": { "sizeFailed": false },
+      "bounds": { "floor": 96, "ceiling": 40000, "outputBudget": 10000 },
+      "nextSize": 1000
+    },
+    {
+      "kind": "step",
+      "why": "a count of zero is a measurement: none of the budget was used, and the next piece grows",
+      "size": 1000,
+      "outcome": { "sizeFailed": false, "outputTokens": 0 },
+      "bounds": { "floor": 96, "ceiling": 40000, "outputBudget": 10000 },
+      "nextSize": 1500
+    },
+    {
+      "kind": "step",
+      "why": "growth rounds down",
+      "size": 333,
+      "outcome": { "sizeFailed": false, "outputTokens": 100 },
+      "bounds": { "floor": 96, "ceiling": 40000, "outputBudget": 10000 },
+      "nextSize": 499
+    },
+    {
+      "kind": "step",
+      "why": "the product is a floating-point one: 90 x 0.7 is a hair under 63 in double precision and rounds down to 62, where whole-number arithmetic would answer 63",
+      "size": 90,
+      "outcome": { "sizeFailed": true },
+      "bounds": { "floor": 16, "ceiling": 40000, "outputBudget": 10000 },
+      "nextSize": 62
+    },
+    {
+      "kind": "step",
+      "why": "growth stops at the ceiling",
+      "size": 30000,
+      "outcome": { "sizeFailed": false, "outputTokens": 10 },
+      "bounds": { "floor": 96, "ceiling": 40000, "outputBudget": 10000 },
+      "nextSize": 40000
+    },
+    {
+      "kind": "step",
+      "why": "shrinking stops at the floor",
+      "size": 121,
+      "outcome": { "sizeFailed": true },
+      "bounds": { "floor": 96, "ceiling": 40000, "outputBudget": 10000 },
+      "nextSize": 96
+    },
+    {
+      "kind": "step",
+      "why": "a size outside the bounds, as a cursor written under another budget may carry, is brought inside them even where it holds",
+      "size": 50000,
+      "outcome": { "sizeFailed": false },
+      "bounds": { "floor": 96, "ceiling": 40000, "outputBudget": 10000 },
+      "nextSize": 40000
+    },
+    {
+      "kind": "step",
+      "why": "with no output budget there is nothing to measure a count against: the size holds",
+      "size": 6000,
+      "outcome": { "sizeFailed": false, "outputTokens": 0 },
+      "bounds": { "floor": 96, "ceiling": 40000, "outputBudget": 0 },
+      "nextSize": 6000
+    },
+
+    {
+      "kind": "walk",
+      "why": "a text within the opening size is one piece, and one call",
+      "text": "a123456789b12345",
+      "budget": { "size": 5, "overlap": 1, "floor": 2, "ceiling": 20, "outputBudget": 100 },
+      "outcomes": [
+        { "sizeFailed": false, "outputTokens": 1 }
+      ],
+      "pieces": [
+        { "at": 0, "to": 16, "size": 5, "next": 16 }
+      ],
+      "completes": true
+    },
+    {
+      "kind": "walk",
+      "why": "an empty text asks nothing",
+      "text": "",
+      "budget": { "size": 5, "overlap": 1, "floor": 2, "ceiling": 20, "outputBudget": 100 },
+      "outcomes": [],
+      "pieces": [],
+      "completes": true
+    },
+    {
+      "kind": "walk",
+      "why": "a provider that counts nothing holds the opening size from end to end, each piece starting one overlap before the last one ended",
+      "text": "a123456789b123456789c123456789d123456789e123456789f123456789",
+      "budget": { "size": 5, "overlap": 1, "floor": 2, "ceiling": 20, "outputBudget": 100 },
+      "outcomes": [
+        { "sizeFailed": false },
+        { "sizeFailed": false },
+        { "sizeFailed": false },
+        { "sizeFailed": false }
+      ],
+      "pieces": [
+        { "at": 0, "to": 20, "size": 5, "next": 16 },
+        { "at": 16, "to": 36, "size": 5, "next": 32 },
+        { "at": 32, "to": 52, "size": 5, "next": 48 },
+        { "at": 48, "to": 60, "size": 5, "next": 60 }
+      ],
+      "completes": true
+    },
+    {
+      "kind": "walk",
+      "why": "each piece that leaves the output budget unused grows the next: 5, then 7, then 10",
+      "text": "a123456789b123456789c123456789d123456789e123456789f123456789",
+      "budget": { "size": 5, "overlap": 1, "floor": 2, "ceiling": 20, "outputBudget": 100 },
+      "outcomes": [
+        { "sizeFailed": false, "outputTokens": 10 },
+        { "sizeFailed": false, "outputTokens": 10 },
+        { "sizeFailed": false, "outputTokens": 10 }
+      ],
+      "pieces": [
+        { "at": 0, "to": 20, "size": 5, "next": 16 },
+        { "at": 16, "to": 44, "size": 7, "next": 40 },
+        { "at": 40, "to": 60, "size": 10, "next": 60 }
+      ],
+      "completes": true
+    },
+    {
+      "kind": "walk",
+      "why": "a piece near the budget's edge eases the next off, a size failure shrinks it again, the floor stops the shrinking, and a piece inside the band holds: 10, 7, 4, then 3 to the end",
+      "text": "a123456789b123456789c123456789d123456789e123456789f123456789g123456789h123456789i123456789j123456789",
+      "budget": { "size": 10, "overlap": 1, "floor": 3, "ceiling": 20, "outputBudget": 100 },
+      "outcomes": [
+        { "sizeFailed": false, "outputTokens": 90 },
+        { "sizeFailed": true },
+        { "sizeFailed": true, "outputTokens": 5 },
+        { "sizeFailed": false, "outputTokens": 60 },
+        { "sizeFailed": false, "outputTokens": 60 },
+        { "sizeFailed": false, "outputTokens": 60 }
+      ],
+      "pieces": [
+        { "at": 0, "to": 40, "size": 10, "next": 36 },
+        { "at": 36, "to": 64, "size": 7, "next": 60 },
+        { "at": 60, "to": 76, "size": 4, "next": 72 },
+        { "at": 72, "to": 84, "size": 3, "next": 80 },
+        { "at": 80, "to": 92, "size": 3, "next": 88 },
+        { "at": 88, "to": 100, "size": 3, "next": 100 }
+      ],
+      "completes": true
+    },
+    {
+      "kind": "walk",
+      "why": "a resumed unit starts where its cursor stands, one shrink step under the cursor's size (14 gives 9), neither at the opening size nor at the size that died, and adapts from there as any walk does",
+      "text": "a123456789b123456789c123456789d123456789e123456789f123456789g123456789h123456789i123456789j123456789",
+      "budget": { "size": 10, "overlap": 1, "floor": 3, "ceiling": 20, "outputBudget": 100 },
+      "resume": { "next": 36, "size": 14, "found": 4, "emitted": 3, "errors": 1 },
+      "outcomes": [
+        { "sizeFailed": false, "outputTokens": 10 },
+        { "sizeFailed": false, "outputTokens": 10 }
+      ],
+      "pieces": [
+        { "at": 36, "to": 72, "size": 9, "next": 68 },
+        { "at": 68, "to": 100, "size": 13, "next": 100 }
+      ],
+      "completes": true
+    },
+    {
+      "kind": "walk",
+      "why": "a cursor at the end of the text is a unit that finished its last piece and died before it could say so: resuming it asks nothing",
+      "text": "a123456789b123456789c123456789d123456789e123456789f123456789g123456789h123456789i123456789j123456789",
+      "budget": { "size": 10, "overlap": 1, "floor": 3, "ceiling": 20, "outputBudget": 100 },
+      "resume": { "next": 100, "size": 10, "found": 9, "emitted": 9, "errors": 0 },
+      "outcomes": [],
+      "pieces": [],
+      "completes": true
+    },
+    {
+      "kind": "walk",
+      "why": "an overlap that would not move the walk forward is given up: the next piece starts where the last one ended",
+      "text": "a123456789b12345",
+      "budget": { "size": 2, "overlap": 2, "floor": 2, "ceiling": 20, "outputBudget": 100 },
+      "outcomes": [
+        { "sizeFailed": false },
+        { "sizeFailed": false }
+      ],
+      "pieces": [
+        { "at": 0, "to": 8, "size": 2, "next": 8 },
+        { "at": 8, "to": 16, "size": 2, "next": 16 }
+      ],
+      "completes": true
+    },
+    {
+      "kind": "walk",
+      "why": "a piece whose work fails stops the walk where it stands: nothing is cut past it, and the cursor still says what it said after the piece before",
+      "text": "a123456789b123456789c123456789d123456789e123456789f123456789",
+      "budget": { "size": 5, "overlap": 1, "floor": 2, "ceiling": 20, "outputBudget": 100 },
+      "outcomes": [
+        { "sizeFailed": false },
+        { "fails": true }
+      ],
+      "pieces": [
+        { "at": 0, "to": 20, "size": 5, "next": 16 },
+        { "at": 16, "to": 36, "size": 5, "next": 32 }
+      ],
+      "completes": false
+    },
+    {
+      "kind": "walk",
+      "why": "a text with characters outside the Basic Multilingual Plane is walked by its code points: sixty of them here, six being emoji, so four pieces at the opening size, and the walk ends where the fourth reaches the sixtieth, with no piece cut after it",
+      "text": "😀a23456789😀b23456789😀c23456789😀d23456789😀e23456789😀f23456789",
+      "budget": { "size": 5, "overlap": 1, "floor": 2, "ceiling": 20, "outputBudget": 100 },
+      "outcomes": [
+        { "sizeFailed": false },
+        { "sizeFailed": false },
+        { "sizeFailed": false },
+        { "sizeFailed": false }
+      ],
+      "pieces": [
+        { "at": 0, "to": 20, "size": 5, "next": 16 },
+        { "at": 16, "to": 36, "size": 5, "next": 32 },
+        { "at": 32, "to": 52, "size": 5, "next": 48 },
+        { "at": 48, "to": 60, "size": 5, "next": 60 }
+      ],
+      "completes": true
+    },
+    {
+      "kind": "walk",
+      "why": "a cursor in such a text stands at a count of code points: resumed at 36, one shrink step under the cursor's size, the unit is cut from the thirty-sixth code point and adapts from there",
+      "text": "😀a23456789😀b23456789😀c23456789😀d23456789😀e23456789😀f23456789😀g23456789😀h23456789😀i23456789😀j23456789",
+      "budget": { "size": 10, "overlap": 1, "floor": 3, "ceiling": 20, "outputBudget": 100 },
+      "resume": { "next": 36, "size": 14, "found": 4, "emitted": 3, "errors": 1 },
+      "outcomes": [
+        { "sizeFailed": false, "outputTokens": 10 },
+        { "sizeFailed": false, "outputTokens": 10 }
+      ],
+      "pieces": [
+        { "at": 36, "to": 72, "size": 9, "next": 68 },
+        { "at": 68, "to": 100, "size": 13, "next": 100 }
+      ],
+      "completes": true
+    },
+    {
+      "kind": "walk",
+      "why": "the end of such a text is its length in code points: a cursor at 60 in a text of sixty code points is a unit that finished, though the text is sixty-six UTF-16 code units long, and resuming it asks nothing",
+      "text": "😀a23456789😀b23456789😀c23456789😀d23456789😀e23456789😀f23456789",
+      "budget": { "size": 5, "overlap": 1, "floor": 2, "ceiling": 20, "outputBudget": 100 },
+      "resume": { "next": 60, "size": 5, "found": 9, "emitted": 9, "errors": 0 },
+      "outcomes": [],
+      "pieces": [],
+      "completes": true
+    },
+
+    {
+      "kind": "descent",
+      "why": "a reply that answers is accepted as it is: one call, nothing size-failed, and no count of output where the provider gave none",
+      "piece": "a123456789b123456789c123456789d123456789",
+      "size": 10,
+      "overlap": 1,
+      "replies": [
+        { "items": ["x", "y"] }
+      ],
+      "asked": [[0, 40]],
+      "result": { "items": ["x", "y"], "sizeFailed": false, "counted": [], "underReported": [] }
+    },
+    {
+      "kind": "descent",
+      "why": "what the provider counted, and the mentions the call priced, come back with the items",
+      "piece": "a123456789b123456789c123456789d123456789",
+      "size": 10,
+      "overlap": 1,
+      "replies": [
+        { "items": ["x"], "outputTokens": 30, "counted": 7 }
+      ],
+      "asked": [[0, 40]],
+      "result": { "items": ["x"], "sizeFailed": false, "outputTokens": 30, "counted": [7], "underReported": [] }
+    },
+    {
+      "kind": "descent",
+      "why": "a timeout is retried smaller: the piece is cut at half its size and each half-size piece asked in turn; the output counted is the sum over the calls that answered",
+      "piece": "a123456789b123456789c123456789d123456789",
+      "size": 10,
+      "overlap": 1,
+      "replies": [
+        { "fails": { "name": "InferenceTimeoutError" } },
+        { "items": ["p"], "outputTokens": 5 },
+        { "items": ["q"], "outputTokens": 6 },
+        { "items": [], "outputTokens": 1 }
+      ],
+      "asked": [[0, 40], [0, 20], [16, 36], [32, 40]],
+      "result": { "items": ["p", "q"], "sizeFailed": true, "outputTokens": 12, "counted": [], "underReported": [] }
+    },
+    {
+      "kind": "descent",
+      "why": "one answered call the provider did not count leaves the whole piece uncounted: a sum that is missing a call under-counts, and under-counting argues for growth",
+      "piece": "a123456789b123456789c123456789d123456789",
+      "size": 10,
+      "overlap": 1,
+      "replies": [
+        { "fails": { "name": "InferenceTimeoutError" } },
+        { "items": ["p"], "outputTokens": 5 },
+        { "items": ["q"] },
+        { "items": [], "outputTokens": 1 }
+      ],
+      "asked": [[0, 40], [0, 20], [16, 36], [32, 40]],
+      "result": { "items": ["p", "q"], "sizeFailed": true, "counted": [], "underReported": [] }
+    },
+    {
+      "kind": "descent",
+      "why": "a timeout at every size fails fast: the piece, its first half-size piece, that one's first quarter-size piece, and then the last failure is raised with no other piece tried",
+      "piece": "a123456789b123456789c123456789d123456789",
+      "size": 10,
+      "overlap": 1,
+      "replies": [
+        { "fails": { "name": "InferenceTimeoutError" } },
+        { "fails": { "name": "InferenceTimeoutError" } },
+        { "fails": { "name": "InferenceTimeoutError" } }
+      ],
+      "asked": [[0, 40], [0, 20], [0, 8]],
+      "raises": 2
+    },
+    {
+      "kind": "descent",
+      "why": "a model that finished and could not be read is retried smaller like a timeout, and a half-size piece that fails the same way descends once more; the pieces after it are still asked",
+      "piece": "a123456789b123456789c123456789d123456789",
+      "size": 10,
+      "overlap": 1,
+      "replies": [
+        { "fails": { "name": "StructuredReadError", "stopReason": "end_turn" } },
+        { "items": ["p"] },
+        { "fails": { "name": "StructuredReadError", "stopReason": "end_turn" } },
+        { "items": ["q"] },
+        { "items": [] },
+        { "items": [] },
+        { "items": ["r"] },
+        { "items": ["s"] }
+      ],
+      "asked": [[0, 40], [0, 20], [16, 36], [16, 24], [20, 28], [24, 32], [28, 36], [32, 40]],
+      "result": { "items": ["p", "q", "r", "s"], "sizeFailed": true, "counted": [], "underReported": [] }
+    },
+    {
+      "kind": "descent",
+      "why": "a piece already within half its size cannot be asked about any smaller: cutting it changes nothing, so the failure is raised after one call",
+      "piece": "a123456789",
+      "size": 10,
+      "overlap": 1,
+      "replies": [
+        { "fails": { "name": "InferenceTimeoutError" } }
+      ],
+      "asked": [[0, 10]],
+      "raises": 0
+    },
+    {
+      "kind": "descent",
+      "why": "a cut-off reply on a piece whose half size is not above 128 tokens cannot be honest overflow: the same piece is asked once more, and that answer stands",
+      "piece": "a123456789b123456789c123456789d123456789",
+      "size": 10,
+      "overlap": 1,
+      "replies": [
+        { "fails": { "name": "DeterministicJobError" } },
+        { "items": ["x"] }
+      ],
+      "asked": [[0, 40], [0, 40]],
+      "result": { "items": ["x"], "sizeFailed": true, "counted": [], "underReported": [] }
+    },
+    {
+      "kind": "descent",
+      "why": "cut off again on the second asking, the second failure is raised: once more is once",
+      "piece": "a123456789b123456789c123456789d123456789",
+      "size": 10,
+      "overlap": 1,
+      "replies": [
+        { "fails": { "name": "StructuredReadError", "stopReason": "max_tokens" } },
+        { "fails": { "name": "StructuredReadError", "stopReason": "max_tokens" } }
+      ],
+      "asked": [[0, 40], [0, 40]],
+      "raises": 1
+    },
+    {
+      "kind": "descent",
+      "why": "an unreadable reply with an unknown stop descends by size as a cut-off one does, but under the size floor it is not asked for again: there is nothing to salvage and the same call returns the same garbage",
+      "piece": "a123456789b123456789c123456789d123456789",
+      "size": 10,
+      "overlap": 1,
+      "replies": [
+        { "fails": { "name": "StructuredReadError", "stopReason": "unknown" } }
+      ],
+      "asked": [[0, 40]],
+      "raises": 0
+    },
+    {
+      "kind": "descent",
+      "why": "a yield collapse under the size floor is accepted with what it found, loudly: one hostile piece does not discard the unit, and asking again would return the same collapse",
+      "piece": "a123456789b123456789c123456789d123456789",
+      "size": 10,
+      "overlap": 1,
+      "replies": [
+        { "fails": { "name": "YieldCollapseError", "salvage": ["x"], "verdict": { "found": 1, "counted": 4, "pieceChars": 40 } } }
+      ],
+      "asked": [[0, 40]],
+      "result": {
+        "items": ["x"],
+        "sizeFailed": true,
+        "counted": [4],
+        "underReported": [
+          { "found": 1, "counted": 4, "pieceChars": 40 }
+        ]
+      }
+    },
+    {
+      "kind": "descent",
+      "why": "a failure that says nothing about size is raised at once",
+      "piece": "a123456789b123456789c123456789d123456789",
+      "size": 10,
+      "overlap": 1,
+      "replies": [
+        { "fails": { "name": "Error" } }
+      ],
+      "asked": [[0, 40]],
+      "raises": 0
+    },
+    {
+      "kind": "descent",
+      "why": "an unreadable reply with any other stop reason says nothing about size either",
+      "piece": "a123456789b123456789c123456789d123456789",
+      "size": 10,
+      "overlap": 1,
+      "replies": [
+        { "fails": { "name": "StructuredReadError", "stopReason": "stop_sequence" } }
+      ],
+      "asked": [[0, 40]],
+      "raises": 0
+    },
+    {
+      "kind": "descent",
+      "why": "a yield collapse above the size floor descends: what the flagged reply found and counted is discarded for what its half-size pieces find, each accepted piece reports its own count, and a half-size piece that collapses under the floor is accepted there",
+      "piece": "000abcdefg001abcdefg002abcdefg003abcdefg004abcdefg005abcdefg006abcdefg007abcdefg008abcdefg009abcdefg010abcdefg011abcdefg012abcdefg013abcdefg014abcdefg015abcdefg016abcdefg017abcdefg018abcdefg019abcdefg020abcdefg021abcdefg022abcdefg023abcdefg024abcdefg025abcdefg026abcdefg027abcdefg028abcdefg029abcdefg030abcdefg031abcdefg032abcdefg033abcdefg034abcdefg035abcdefg036abcdefg037abcdefg038abcdefg039abcdefg040abcdefg041abcdefg042abcdefg043abcdefg044abcdefg045abcdefg046abcdefg047abcdefg048abcdefg049abcdefg050abcdefg051abcdefg052abcdefg053abcdefg054abcdefg055abcdefg056abcdefg057abcdefg058abcdefg059abcdefg",
+      "size": 260,
+      "overlap": 16,
+      "replies": [
+        { "fails": { "name": "YieldCollapseError", "salvage": ["old"], "verdict": { "found": 1, "counted": 50, "pieceChars": 600 } } },
+        { "items": ["p", "q"], "outputTokens": 40, "counted": 5 },
+        { "fails": { "name": "YieldCollapseError", "salvage": ["r"], "verdict": { "found": 1, "counted": 3, "pieceChars": 144 } } }
+      ],
+      "asked": [[0, 600], [0, 520], [456, 600]],
+      "result": {
+        "items": ["p", "q", "r"],
+        "sizeFailed": true,
+        "outputTokens": 40,
+        "counted": [5, 3],
+        "underReported": [
+          { "found": 1, "counted": 3, "pieceChars": 144 }
+        ]
+      }
+    },
+    {
+      "kind": "descent",
+      "why": "half of 258 tokens is 129, the least half size above the floor: a cut-off reply descends",
+      "piece": "000abcdefg001abcdefg002abcdefg003abcdefg004abcdefg005abcdefg006abcdefg007abcdefg008abcdefg009abcdefg010abcdefg011abcdefg012abcdefg013abcdefg014abcdefg015abcdefg016abcdefg017abcdefg018abcdefg019abcdefg020abcdefg021abcdefg022abcdefg023abcdefg024abcdefg025abcdefg026abcdefg027abcdefg028abcdefg029abcdefg030abcdefg031abcdefg032abcdefg033abcdefg034abcdefg035abcdefg036abcdefg037abcdefg038abcdefg039abcdefg040abcdefg041abcdefg042abcdefg043abcdefg044abcdefg045abcdefg046abcdefg047abcdefg048abcdefg049abcdefg050abcdefg051abcdefg052abcdefg053abcdefg054abcdefg055abcdefg056abcdefg057abcdefg058abcdefg059abcdefg",
+      "size": 258,
+      "overlap": 16,
+      "replies": [
+        { "fails": { "name": "StructuredReadError", "stopReason": "max_tokens" } },
+        { "items": ["p"] },
+        { "items": ["q"] }
+      ],
+      "asked": [[0, 600], [0, 516], [452, 600]],
+      "result": { "items": ["p", "q"], "sizeFailed": true, "counted": [], "underReported": [] }
+    },
+    {
+      "kind": "descent",
+      "why": "half of 257 tokens is 128, which is the floor and not above it: the same piece is asked once more, though cutting it would have changed what is asked",
+      "piece": "000abcdefg001abcdefg002abcdefg003abcdefg004abcdefg005abcdefg006abcdefg007abcdefg008abcdefg009abcdefg010abcdefg011abcdefg012abcdefg013abcdefg014abcdefg015abcdefg016abcdefg017abcdefg018abcdefg019abcdefg020abcdefg021abcdefg022abcdefg023abcdefg024abcdefg025abcdefg026abcdefg027abcdefg028abcdefg029abcdefg030abcdefg031abcdefg032abcdefg033abcdefg034abcdefg035abcdefg036abcdefg037abcdefg038abcdefg039abcdefg040abcdefg041abcdefg042abcdefg043abcdefg044abcdefg045abcdefg046abcdefg047abcdefg048abcdefg049abcdefg050abcdefg051abcdefg052abcdefg053abcdefg054abcdefg055abcdefg056abcdefg057abcdefg058abcdefg059abcdefg",
+      "size": 257,
+      "overlap": 16,
+      "replies": [
+        { "fails": { "name": "StructuredReadError", "stopReason": "max_tokens" } },
+        { "items": ["p"] }
+      ],
+      "asked": [[0, 600], [0, 600]],
+      "result": { "items": ["p"], "sizeFailed": true, "counted": [], "underReported": [] }
+    },
+    {
+      "kind": "descent",
+      "why": "cut-off replies and an unknown stop descend by size, three levels down, where a timeout would have stopped at two: 1040 tokens, then 520, 260 and 130; at 130 the half size is under the floor, so a piece cut off there is asked once more; every piece set aside on the way down is then asked in its turn",
+      "piece": "000abcdefg001abcdefg002abcdefg003abcdefg004abcdefg005abcdefg006abcdefg007abcdefg008abcdefg009abcdefg010abcdefg011abcdefg012abcdefg013abcdefg014abcdefg015abcdefg016abcdefg017abcdefg018abcdefg019abcdefg020abcdefg021abcdefg022abcdefg023abcdefg024abcdefg025abcdefg026abcdefg027abcdefg028abcdefg029abcdefg030abcdefg031abcdefg032abcdefg033abcdefg034abcdefg035abcdefg036abcdefg037abcdefg038abcdefg039abcdefg040abcdefg041abcdefg042abcdefg043abcdefg044abcdefg045abcdefg046abcdefg047abcdefg048abcdefg049abcdefg050abcdefg051abcdefg052abcdefg053abcdefg054abcdefg055abcdefg056abcdefg057abcdefg058abcdefg059abcdefg060abcdefg061abcdefg062abcdefg063abcdefg064abcdefg065abcdefg066abcdefg067abcdefg068abcdefg069abcdefg070abcdefg071abcdefg072abcdefg073abcdefg074abcdefg075abcdefg076abcdefg077abcdefg078abcdefg079abcdefg080abcdefg081abcdefg082abcdefg083abcdefg084abcdefg085abcdefg086abcdefg087abcdefg088abcdefg089abcdefg090abcdefg091abcdefg092abcdefg093abcdefg094abcdefg095abcdefg096abcdefg097abcdefg098abcdefg099abcdefg100abcdefg101abcdefg102abcdefg103abcdefg104abcdefg105abcdefg106abcdefg107abcdefg108abcdefg109abcdefg110abcdefg111abcdefg112abcdefg113abcdefg114abcdefg115abcdefg116abcdefg117abcdefg118abcdefg119abcdefg120abcdefg121abcdefg122abcdefg123abcdefg124abcdefg125abcdefg126abcdefg127abcdefg128abcdefg129abcdefg130abcdefg131abcdefg132abcdefg133abcdefg134abcdefg135abcdefg136abcdefg137abcdefg138abcdefg139abcdefg140abcdefg141abcdefg142abcdefg143abcdefg144abcdefg145abcdefg146abcdefg147abcdefg148abcdefg149abcdefg150abcdefg151abcdefg152abcdefg153abcdefg154abcdefg155abcdefg156abcdefg157abcdefg158abcdefg159abcdefg160abcdefg161abcdefg162abcdefg163abcdefg164abcdefg165abcdefg166abcdefg167abcdefg168abcdefg169abcdefg170abcdefg171abcdefg172abcdefg173abcdefg174abcdefg175abcdefg176abcdefg177abcdefg178abcdefg179abcdefg180abcdefg181abcdefg182abcdefg183abcdefg184abcdefg185abcdefg186abcdefg187abcdefg188abcdefg189abcdefg190abcdefg191abcdefg192abcdefg193abcdefg194abcdefg195abcdefg196abcdefg197abcdefg198abcdefg199abcdefg200abcdefg201abcdefg202abcdefg203abcdefg204abcdefg205abcdefg206abcdefg207abcdefg208abcdefg209abcdefg",
+      "size": 1040,
+      "overlap": 16,
+      "replies": [
+        { "fails": { "name": "DeterministicJobError" } },
+        { "fails": { "name": "StructuredReadError", "stopReason": "max_tokens" } },
+        { "fails": { "name": "StructuredReadError", "stopReason": "unknown" } },
+        { "items": ["a"] },
+        { "fails": { "name": "StructuredReadError", "stopReason": "max_tokens" } },
+        { "items": ["b"] },
+        { "items": ["c"] },
+        { "items": ["d"] },
+        { "items": ["e"] },
+        { "items": ["f"] }
+      ],
+      "asked": [[0, 2100], [0, 2080], [0, 1040], [0, 520], [456, 976], [456, 976], [912, 1040], [976, 2016], [1952, 2080], [2016, 2100]],
+      "result": { "items": ["a", "b", "c", "d", "e", "f"], "sizeFailed": true, "counted": [], "underReported": [] }
+    },
+    {
+      "kind": "descent",
+      "why": "a piece with characters outside the plane is cut at half its size by its code points: forty of them, four being emoji, so the half-size pieces are from 0 to 20, from 16 to 36 and from 32 to 40",
+      "piece": "😀a23456789😀b23456789😀c23456789😀d23456789",
+      "size": 10,
+      "overlap": 1,
+      "replies": [
+        { "fails": { "name": "InferenceTimeoutError" } },
+        { "items": ["p"], "outputTokens": 5 },
+        { "items": ["q"], "outputTokens": 6 },
+        { "items": [], "outputTokens": 1 }
+      ],
+      "asked": [[0, 40], [0, 20], [16, 36], [32, 40]],
+      "result": { "items": ["p", "q"], "sizeFailed": true, "outputTokens": 12, "counted": [], "underReported": [] }
+    },
+    {
+      "kind": "descent",
+      "why": "whether a piece is already within half its size is a count of its code points: twenty of them are five tokens, the half of ten, so cutting changes nothing and the failure is raised after one call, though the piece is twenty-four UTF-16 code units, which would be six",
+      "piece": "😀a234😀b234😀c234😀d234",
+      "size": 10,
+      "overlap": 1,
+      "replies": [
+        { "fails": { "name": "InferenceTimeoutError" } }
+      ],
+      "asked": [[0, 20]],
+      "raises": 0
+    }
+  ]
+}

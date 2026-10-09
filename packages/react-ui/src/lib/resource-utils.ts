@@ -31,7 +31,7 @@ export function getResourceIcon(mediaType: string | undefined): string {
 /**
  * Check if a resource supports text-based AI detection features.
  *
- * Detection anchors on character-offset text selectors, so the gate is the
+ * Detection anchors on text selectors (offsets into a text), so the gate is the
  * registry's anchoring model: true exactly for the text-selector types
  * (markdown, plain, html, json). Registry misses (imported foreign types)
  * are not offered detection in the UI.

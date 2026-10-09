@@ -5,7 +5,7 @@
  */
 import { eventually } from './net';
 import type { OtlpReceiver } from './otlp';
-import { sdkTelemetry, spanPattern, telemetry, type Service, type Telemetry, type TelemetryRow } from './spec';
+import { sdkTelemetry, spanPattern, telemetry, type Telemetry, type TelemetryRow, type TelemetryService } from './spec';
 
 /** OTLP's span kinds, by the names the spec uses. */
 export const SPAN_KIND: Record<string, number> = { internal: 1, server: 2, client: 3, producer: 4, consumer: 5 };
@@ -22,7 +22,7 @@ export function expectedOn(rows: TelemetryRow[], plane?: string): TelemetryRow[]
  * carrying an attribute or value outside its row. Judged on everything the
  * receiver got, so run it after the cases that make the traffic.
  */
-export function outsideTheTable(otlp: OtlpReceiver, service: Service, plane?: string): Promise<string[]> {
+export function outsideTheTable(otlp: OtlpReceiver, service: TelemetryService, plane?: string): Promise<string[]> {
   return heldTo(otlp, telemetry(service), `the ${service}`, plane, true);
 }
 
@@ -32,9 +32,10 @@ export function outsideTheTable(otlp: OtlpReceiver, service: Service, plane?: st
  * its whole process, so anything it exports that no row names is a finding. A
  * driver's process is the SDK and whatever else the driver runs, so what no
  * row names is not the SDK's to answer for; what arrives under a row's name is.
+ * A driver that uses one `transport` alone is held to that transport's rows.
  */
-export function outsideTheSdkTable(otlp: OtlpReceiver): Promise<string[]> {
-  return heldTo(otlp, sdkTelemetry(), 'an SDK', undefined, false);
+export function outsideTheSdkTable(otlp: OtlpReceiver, transport?: string): Promise<string[]> {
+  return heldTo(otlp, sdkTelemetry(transport), 'an SDK', undefined, false);
 }
 
 async function heldTo(otlp: OtlpReceiver, { spans, metrics }: Telemetry, who: string, plane: string | undefined, whole: boolean): Promise<string[]> {

@@ -49,9 +49,20 @@ export interface CachedLine {
     /** PDF points, bottom-left origin — shared by every word on the line. */
     y: number;
     h: number;
-    /** `[x, width, start, end]` per word; offsets index `CachedAnchoredText.text`. */
+    /**
+     * `[x, width, start, end]` per word. `start` and `end` are the item's own:
+     * offsets into `CachedAnchoredText.text`, in code points.
+     */
     words: [number, number, number, number][];
 }
+
+/**
+ * The entry format. It says what an entry's numbers mean, so an entry of
+ * another version is a miss, like one under another stamp: `read()` does not
+ * take it, `list()` does not count it, and the reconcile planner's third drift
+ * class derives it again.
+ */
+const VERSION = 3;
 
 /**
  * The stored record: one extraction OUTCOME for the whole resource, not a
@@ -63,24 +74,21 @@ export interface CachedLine {
  * it reach storage would have forced every consumer — the transport, the
  * browser, a headless client — to reassemble pages it never asked to see.
  *
- * The `ocrConfidence` SUMMARY is stored (v2), so a hit answers with the
+ * The `ocrConfidence` SUMMARY is stored, so a hit answers with the
  * confidence the extraction reported. Per-word confidences are not stored:
  * the summary is the record's quality provenance; the word list is
  * operator log detail.
- *
- * v1 records (bare `{ text, lines }`, no provenance) read as misses under the
- * v2 prefix; the reconcile planner's third drift class re-derives them.
  */
 export type CachedAnchoredText =
     | ({
-        v: 2;
+        v: typeof VERSION;
         /** Engine + traineddata + our assembly code. A mismatch is a clean miss. */
         stamp: string;
         text: string;
         lines: CachedLine[];
     } & Omit<Extract<ExtractionOutcome, { kind: 'extracted' }>, 'kind' | 'text' | 'items'>)
     | ({
-        v: 2;
+        v: typeof VERSION;
         stamp: string;
     } & Omit<Extract<ExtractionOutcome, { kind: 'declined' }>, 'kind'>);
 
@@ -192,7 +200,7 @@ export interface AnchoredTextStore {
 
 /** Narrow a parsed entry, so a truncated or foreign file is a miss, not a crash. */
 function isCached(value: unknown): value is CachedAnchoredText {
-    if (!isObject(value) || value.v !== 2 || !isString(value.stamp)) return false;
+    if (!isObject(value) || value.v !== VERSION || !isString(value.stamp)) return false;
     if (isString(value.declined)) return true;
     if (!isString(value.text) || !isString(value.method) || !isArray(value.lines)) return false;
     return value.lines.every((line) =>
@@ -303,14 +311,14 @@ export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredT
             // Key order (`v`, `stamp`, first) is load-bearing: `list()` below
             // reads only a prefix of each file and matches the stamp there.
             const entry: CachedAnchoredText = outcome.kind === 'declined'
-                ? { v: 2, stamp: STAMP, declined: outcome.declined }
+                ? { v: VERSION, stamp: STAMP, declined: outcome.declined }
                 : (() => {
                     // `kind` is deliberately destructured OUT: persisting it
                     // would store a byte the branch already implies, and a
                     // stored-shape change here would outrun the release-derived
                     // STAMP.
                     const { kind: _kind, text, items, ...provenance } = outcome;
-                    return { v: 2, stamp: STAMP, text, lines: encodeLines(items), ...provenance };
+                    return { v: VERSION, stamp: STAMP, text, lines: encodeLines(items), ...provenance };
                 })();
             // Write-then-rename: a reader never observes a half-written entry,
             // and two writers racing on the same key both produce the same bytes.
@@ -339,7 +347,7 @@ export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredT
             // both are misses for `read()` too. Keys round-trip through
             // filenames unchanged because every real key is hex — the same
             // fact that makes `fileFor`'s guard a no-op for them.
-            const prefix = JSON.stringify({ v: 2, stamp: STAMP }).slice(0, -1) + ',';
+            const prefix = JSON.stringify({ v: VERSION, stamp: STAMP }).slice(0, -1) + ',';
             // The writer's stamp is stated before its entries are counted
             // present: a reconcile that re-derives nothing must still leave
             // readers able to hit. Best-effort here, as everything in list().

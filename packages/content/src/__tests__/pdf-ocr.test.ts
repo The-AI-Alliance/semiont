@@ -63,7 +63,7 @@ describe('class B — a fully scanned document', () => {
     });
 
     it('anchors every recovered word to a range that selects it', async () => {
-        // The offset invariant, end to end: `buildPdfAnnotation` slices the
+        // The offset invariant, end to end: `annotationOfSpan` slices the
         // text by these ranges and throws if the result does not contain the
         // match, so drift here surfaces as a failed annotation, not a nudged box.
         recognizesAs('RECOVERED FROM THE SCAN');

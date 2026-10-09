@@ -18,6 +18,8 @@
  *     `_trace?: { traceparent }` field).
  *   - `withTraceparent(carrier, fn)` — run `fn` with the incoming
  *     traceparent as the parent context.
+ *   - `withoutTrace(fn)` — run `fn` in no trace, so that what it starts
+ *     begins a trace of its own.
  *   - `getActiveTraceparent()` — read the active span's traceparent, for
  *     an outbound request's `traceparent` header.
  *   - `getLogTraceContext()` — active `trace_id` / `span_id` for log-line
@@ -41,6 +43,7 @@ import {
   isSpanContextValid,
   metrics,
   propagation,
+  ROOT_CONTEXT,
   SpanKind,
   SpanStatusCode,
   trace,
@@ -160,6 +163,17 @@ export function withTraceparent<T>(
   if (carrier.tracestate) carrierObj['tracestate'] = carrier.tracestate;
   const ctx = propagation.extract(context.active(), carrierObj);
   return context.with(ctx, fn);
+}
+
+/**
+ * Run `fn` in no trace: a span started inside it, and every continuation it
+ * registers, has no parent, whatever span is active where this is called. For
+ * work that is nobody's: a worker's claim, which belongs to no job, is made
+ * here even when the code that settled the job before it is inside that job's
+ * span.
+ */
+export function withoutTrace<T>(fn: () => T): T {
+  return context.with(ROOT_CONTEXT, fn);
 }
 
 // ── Actor handler convenience ──────────────────────────────────────────
@@ -301,7 +315,7 @@ function handlerDurationHistogram(): Histogram {
 function jobOutcomeCounter(): Counter {
   if (!_jobOutcomeCounter) {
     _jobOutcomeCounter = meter().createCounter('semiont.job.outcome', {
-      description: 'Worker job completions by type, motivation and outcome',
+      description: 'Worker jobs concluded, by type, motivation and outcome: completed, failed or cancelled',
     });
   }
   return _jobOutcomeCounter;
@@ -375,7 +389,7 @@ export function recordHandlerDuration(actor: string, channel: string, durationMs
  */
 export function recordJobOutcome(
   job: { jobType: string; motivation?: string },
-  outcome: 'completed' | 'failed',
+  outcome: 'completed' | 'failed' | 'cancelled',
   durationMs: number,
 ): void {
   const labels = {
@@ -602,7 +616,7 @@ function detectionTokensHistogram(): Histogram {
  *
  * The adapters already record provider/model/duration/tokens for every
  * inference call. What they cannot know is the detection shape around it:
- * which motivation asked, how big the piece was, how many annotations came
+ * which motivation asked, how many annotations came
  * back, how deep subdivision had descended, and whether this was the floor
  * re-roll. Those are the facts that distinguish a healthy call from an
  * expensive descent, and without them a slow detection run is one
@@ -618,7 +632,6 @@ function detectionTokensHistogram(): Histogram {
  */
 export function recordDetectionCall(opts: {
   label: string;
-  pieceChars: number;
   durationMs: number;
   items: number;
   depth: number;
@@ -657,10 +670,10 @@ function anchorOutcomeCounter(): Counter {
 /**
  * Record how one annotation got anchored.
  *
- * The selector-vs-source check is already a WRITE-TIME INVARIANT — both
- * `buildTextAnnotation` and `buildPdfAnnotation` throw on a selector that does
- * not match its source — so mechanical correctness is guaranteed rather than
- * sampled, and auditing it would measure a constant.
+ * The selector-vs-source check is already made AT WRITE TIME —
+ * `annotationOfSpan` refuses a span that does not match its source, of a text
+ * or of a PDF — so mechanical correctness is guaranteed rather than sampled,
+ * and auditing it would measure a constant.
  *
  * What is genuinely uncertain is which anchoring METHOD got there. An `exact`
  * the model quoted verbatim and that appears once is certain; one resolved by

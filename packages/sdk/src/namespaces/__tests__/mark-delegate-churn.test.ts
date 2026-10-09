@@ -133,8 +133,9 @@ describe('mark.delegate — frames that arrive before the job has its id', () =>
 
     await flush();
 
-    // Another job's end is not this one's; this one's frames are, in order.
-    expect(kinds).toEqual(['progress', 'complete']);
+    // The job's id first. Another job's end is not this one's; this one's
+    // frames are, in order.
+    expect(kinds).toEqual(['created', 'progress', 'complete']);
     expect(completed).toBe(true);
   });
 });

@@ -210,6 +210,32 @@ describe('MarkNamespace', () => {
     expect(progress.length).toBeGreaterThan(0);
   });
 
+  // The id is what `job.cancel` names, so a follower's caller has it before
+  // anything else of the job.
+  it("delegate() gives the job's id first, as the queue answered its creation, ahead of a frame it held", async () => {
+    const events: JobEvent[] = [];
+    const completed = new Promise<void>((resolve) => {
+      mark.delegate(RID, { motivation: 'linking', entityTypes: ['Person'] }).subscribe({
+        next: (e) => events.push(e),
+        complete: () => resolve(),
+      });
+    });
+
+    // Published before the creation is answered: held until the id is known.
+    eventBus.emit('job:report-progress', {
+      jobId: JID, resourceId: RID, _userId: UID, jobType: 'mark',
+      percentage: 10, progress: { percentage: 10 },
+    });
+    expect(events).toEqual([]);
+
+    await new Promise((r) => setTimeout(r, 10));
+    eventBus.emit('job:complete', { jobId: JID, resourceId: RID, _userId: UID, jobType: 'mark' });
+    await completed;
+
+    expect(events.map((e) => e.kind)).toEqual(['created', 'progress', 'complete']);
+    expect(events[0]).toEqual({ kind: 'created', data: { jobId: JID } });
+  });
+
   it('delegate() falls back to job polling when SSE is silent', async () => {
     vi.useFakeTimers();
     const bus = new EventBus();
@@ -344,32 +370,6 @@ describe('MarkNamespace', () => {
 
     bus.destroy();
     vi.useRealTimers();
-  });
-
-  // ── Cancelling ONE job ──────────────────────────────────────────────
-  // `cancelByType` takes every pending job of a type; a UI cancelling one running detection
-  // needs to say WHICH. The gateway targets by jobId — this is the client
-  // verb for it. Awaited, like its by-type sibling: the caller learns
-  // whether anything was cancelled.
-
-  it('cancel(jobId) targets one job and resolves the cancelled count', async () => {
-    const bus = new EventBus();
-    const mock = createMockTransport({
-      'job:cancel-requested': (reply) => reply('job:cancel-ok', { response: { cancelled: 1 } }),
-    });
-    const j = new JobNamespace(mock.transport, bus);
-
-    await expect(j.cancel(jobId('j-42'))).resolves.toBe(1);
-    expect(mock.emitSpy).toHaveBeenCalledWith(
-      'job:cancel-requested',
-      expect.objectContaining({ jobId: 'j-42' }),
-      expect.objectContaining({ correlationId: expect.any(String) }),
-    );
-    // Category-only cancellation is a different request; targeting must not
-    // smuggle a jobType in and cancel the user's other work.
-    const payload = mock.emitSpy.mock.calls.find(([ch]) => ch === 'job:cancel-requested')![1] as Record<string, unknown>;
-    expect(payload).not.toHaveProperty('jobType');
-    bus.destroy();
   });
 
   // ── A retryable failure is not the end ───────────────────────────────
@@ -646,20 +646,28 @@ describe('MatchNamespace', () => {
 // ── Yield ───────────────────────────────────────────────────────────────────
 
 describe('JobNamespace', () => {
-  it('cancelByType resolves with the cancelled count from job:cancel-ok', async () => {
+  // A cancellation says WHICH job. Awaited: the caller learns whether the
+  // queue acted on it.
+  it('cancel(jobId) targets one job and resolves with whether the queue acted on it', async () => {
+    const bus = new EventBus();
     const mock = createMockTransport({
-      'job:cancel-requested': (reply) => reply('job:cancel-ok', { response: { cancelled: 3 } }),
+      'job:cancel-requested': (reply) => reply('job:cancel-ok', { response: { cancelled: true } }),
     });
-    const job = new JobNamespace(mock.transport, new EventBus());
-    const count = await job.cancelByType('yield');
-    expect(count).toBe(3);
-    expect(mock.emitSpy).toHaveBeenCalledWith('job:cancel-requested', expect.objectContaining({ jobType: 'yield' }), expect.objectContaining({ correlationId: expect.any(String) }));
+    const j = new JobNamespace(mock.transport, bus);
+
+    await expect(j.cancel(jobId('j-42'))).resolves.toBe(true);
+    expect(mock.emitSpy).toHaveBeenCalledWith(
+      'job:cancel-requested',
+      { jobId: 'j-42' },
+      expect.objectContaining({ correlationId: expect.any(String) }),
+    );
+    bus.destroy();
   });
 
-  it('cancelByType REJECTS on job:cancel-failed (a queue error is not swallowed)', async () => {
+  it('cancel(jobId) REJECTS on job:cancel-failed (a queue error is not swallowed)', async () => {
     const mock = createMockTransport();
     const job = new JobNamespace(mock.transport, new EventBus());
-    const assertion = expect(job.cancelByType('mark')).rejects.toThrow(/queue down/);
+    const assertion = expect(job.cancel(jobId('j-42'))).rejects.toThrow(/queue down/);
     await new Promise((r) => setTimeout(r, 10));
     const cid = mock.emitSpy.mock.calls[0]?.[2]?.correlationId as string;
     mock.transportBus.emit('job:cancel-failed', { message: 'queue down' }, { correlationId: cid });

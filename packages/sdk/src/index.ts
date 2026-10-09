@@ -50,6 +50,7 @@ export {
 export {
   ClaimsObservable,
   JOB_CLAIM_CHANNELS,
+  JOB_COMMIT_CHANNELS,
   willRetryAfter,
   type ClaimOptions,
   type ClaimRefusal,
@@ -167,6 +168,15 @@ export {
   isStubReference,
   isTag,
 } from '@semiont/core';
+
+// The annotation builders. A worker finds the words its model quoted in a
+// text (`reconcile`), builds the annotation of the span (`annotationOfSpan`),
+// or of a resource as a whole (`annotationOfResource`), and commits it
+// (`job.commit`). A span that is not the text's is refused with a
+// `SpanRefusedError`. Every SDK has the three, and
+// specs/src/annotations/builder-cases.json holds them to one answer.
+export { annotationOfResource, annotationOfSpan, reconcile, SpanRefusedError } from '@semiont/core';
+export type { AnchorMethod, MatchQuality, QuotedText, ReconciledSpan, SpanRefusal, TextSpan } from '@semiont/core';
 
 // Session layer — per-KB sessions, app-level browser, storage adapter,
 // error surface, modal signals.

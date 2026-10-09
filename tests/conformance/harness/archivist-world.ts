@@ -475,7 +475,7 @@ export class ArchivistWorld {
       writeFileSync(join(this.dirs.anchoredTextDir, 'STAMP'), `${stamp}\n`);
       const path = join(this.dirs.anchoredTextDir, ...shardOf(checksum).split('/'), `${checksum}.json`);
       mkdirSync(dirname(path), { recursive: true });
-      const document = { v: 2, stamp, ...entry };
+      const document = { v: 3, stamp, ...entry };
       const validate = spec().component('AnchoredTextEntry');
       if (!validate(document)) throw new Error(`the suite's anchored-text entry is not an AnchoredTextEntry (${errorsOf(validate)})`);
       writeFileSync(path, JSON.stringify(document));
@@ -565,13 +565,17 @@ export function highlight(resourceId: string, exact: string, start: number): Rec
   };
 }
 
-/** An anchored-text entry's body for `text`, one word per line of the page. */
+/**
+ * An anchored-text entry's body for `text`, one word per line of the page.
+ * A word's offsets count code points, which is what iterating a string yields.
+ */
 export function anchoredEntry(text: string): Omit<ExtractedText, 'kind' | 'items'> & { lines: unknown[] } {
   const lines: unknown[] = [];
   let offset = 0;
   for (const [index, word] of text.split(' ').entries()) {
-    lines.push({ p: 1, y: 700 - index * 14, h: 12, words: [[72, word.length * 6, offset, offset + word.length]] });
-    offset += word.length + 1;
+    const codePoints = [...word].length;
+    lines.push({ p: 1, y: 700 - index * 14, h: 12, words: [[72, codePoints * 6, offset, offset + codePoints]] });
+    offset += codePoints + 1;
   }
   return { text, lines, method: 'ocr' };
 }

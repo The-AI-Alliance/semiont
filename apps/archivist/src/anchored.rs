@@ -89,7 +89,8 @@ fn valid_key(key: &str) -> bool {
 }
 
 /// The store's entry for content of this checksum, as an answer: a hit only
-/// under the stamp the writer states. Every miss is none.
+/// for an entry of version 3 under the stamp the writer states. Every miss is
+/// none. A word's offsets are the entry's, carried as they are stored.
 async fn read_entry(dir: &Path, checksum: &str) -> Option<Object> {
     if !valid_key(checksum) {
         return None;
@@ -106,7 +107,7 @@ async fn read_entry(dir: &Path, checksum: &str) -> Option<Object> {
     let Value::Object(mut entry) = serde_json::from_str(&text).ok()? else {
         return None;
     };
-    if entry.get("v") != Some(&json!(2))
+    if entry.get("v") != Some(&json!(3))
         || entry.get("stamp").and_then(Value::as_str) != Some(stated)
     {
         return None;

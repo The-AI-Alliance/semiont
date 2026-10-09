@@ -4,7 +4,8 @@
  *
  * `WORKER_CHANNELS` is the SDK's `JOB_CLAIM_CHANNELS` (the replies of its
  * claim, and the two broadcasts its claiming reads: `job:queued` and
- * `job:cancel-requested`) plus the awaited-reply derivation, and the
+ * `job:cancel-requested`) and `JOB_COMMIT_CHANNELS` (the replies a held
+ * job's commit awaits) plus the awaited-reply derivation, and the
  * transport is constructed with the union. Widened by `addChannels` calls at
  * their use sites instead, a widening can be deleted without any list getting
  * shorter, and every worker goes idle.
@@ -14,7 +15,7 @@ import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { replyChannelsFor } from '@semiont/core';
-import { JOB_CLAIM_CHANNELS } from '@semiont/sdk';
+import { JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS } from '@semiont/sdk';
 import {
   WORKER_CHANNELS,
   WORKER_AWAITED_OPERATIONS,
@@ -29,9 +30,10 @@ const sources = () =>
   WORKER_FILES.map((f) => ({ file: f, text: stripComments(readFileSync(join(SRC, f), 'utf-8')) }));
 
 describe('worker subscription manifest', () => {
-  it('WORKER_CHANNELS is what the claiming names UNION the awaited replies', () => {
+  it('WORKER_CHANNELS is what the claiming names UNION what a commit names UNION the awaited replies', () => {
     const expected = new Set<string>([
       ...JOB_CLAIM_CHANNELS,
+      ...JOB_COMMIT_CHANNELS,
       ...replyChannelsFor(WORKER_AWAITED_OPERATIONS),
     ]);
     expect(new Set<string>(WORKER_CHANNELS)).toEqual(expected);

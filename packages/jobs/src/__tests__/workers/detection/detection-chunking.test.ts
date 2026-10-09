@@ -85,6 +85,17 @@ describe('deriveDetectionBudget', () => {
       deriveDetectionBudget({ contextTokens: 300, maxOutputTokens: 300 }, 250, 1),
     ).toThrow(/window too small/i);
   });
+
+  it('refuses that window as deterministic: the same window refuses the same job on every attempt', () => {
+    let refusal: unknown;
+    try {
+      deriveDetectionBudget({ contextTokens: 300, maxOutputTokens: 300 }, 250, 1);
+    } catch (error) {
+      refusal = error;
+    }
+    expect(refusal).toBeInstanceOf(DeterministicJobError);
+    expect(classifyFailure(refusal)).toBe('deterministic');
+  });
 });
 
 // ── Duration bound ────────────────────────────────────────────────────
@@ -216,7 +227,7 @@ describe('deriveDetectionBudget — input never exceeds half the output budget',
 
 import { callChunkSubdividing, YieldCollapseError } from '../../../workers/detection/detection-chunking';
 import { InferenceTimeoutError } from '../../../workers/inference-call';
-import { DeterministicJobError } from '../../../failure-class';
+import { classifyFailure, DeterministicJobError } from '../../../failure-class';
 import { StructuredReadError } from '@semiont/inference';
 
 describe('callChunkSubdividing', () => {
@@ -640,7 +651,6 @@ describe('callChunkSubdividing telemetry', () => {
     expect(recordDetectionCallMock).toHaveBeenCalledTimes(1);
     expect(recordDetectionCallMock).toHaveBeenCalledWith(expect.objectContaining({
       label: 'highlight',
-      pieceChars: CHUNK.length,
       items: 2,
       depth: 0,
       reroll: false,

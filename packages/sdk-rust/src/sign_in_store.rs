@@ -33,6 +33,7 @@
 //! file states both of every sign-in, and nothing is made up for one.
 
 use crate::locked;
+use crate::rfc3339;
 use crate::session::{
     SCRIPT_CLIENT_ID, StoredSession, kb_of_session_key, text_claim, token_expiry,
 };
@@ -42,7 +43,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::SystemTime;
 
 include!(concat!(env!("OUT_DIR"), "/sign_in.rs"));
 
@@ -122,35 +123,6 @@ pub fn state_dir(
     })
 }
 
-/// A time as RFC 3339 in UTC, to the second.
-fn rfc3339(at: SystemTime) -> String {
-    let seconds = at
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |since| since.as_secs());
-    let (days, of_day) = (seconds / 86_400, seconds % 86_400);
-    // The civil date of a count of days since 1970-01-01, in the proleptic
-    // Gregorian calendar, by eras of 400 years that begin on a March 1st.
-    let shifted = days + 719_468;
-    let (era, day_of_era) = (shifted / 146_097, shifted % 146_097);
-    let year_of_era =
-        (day_of_era - day_of_era / 1_460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
-    let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
-    let shifted_month = (5 * day_of_year + 2) / 153;
-    let day = day_of_year - (153 * shifted_month + 2) / 5 + 1;
-    let month = if shifted_month < 10 {
-        shifted_month + 3
-    } else {
-        shifted_month - 9
-    };
-    let year = year_of_era + era * 400 + u64::from(month <= 2);
-    format!(
-        "{year:04}-{month:02}-{day:02}T{:02}:{:02}:{:02}Z",
-        of_day / 3_600,
-        of_day % 3_600 / 60,
-        of_day % 60
-    )
-}
-
 /// A member of the document as a sign-in. One that is not a sign-in is none.
 fn sign_in_of(member: &Value) -> Option<SignIn> {
     serde_json::from_value(member.clone()).ok()
@@ -189,8 +161,8 @@ fn entry_of(session: &StoredSession, email: String, issuer: String, now: SystemT
         token: session.access.clone(),
         refresh_token: Some(session.refresh.clone()),
         email,
-        obtained_at: rfc3339(now),
-        expires_at: token_expiry(&session.access).map(rfc3339),
+        obtained_at: rfc3339::to_the_second(now),
+        expires_at: token_expiry(&session.access).map(rfc3339::to_the_second),
         issuer,
         token_endpoint: session.token_endpoint.clone(),
         revocation_endpoint: session.revocation_endpoint.clone(),
@@ -412,20 +384,5 @@ impl SessionStorage for SignInStore {
     /// one renews.
     fn subscribe(&self, on_change: StorageChange) -> Option<StorageSubscription> {
         self.rest.subscribe(on_change)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::time::Duration;
-
-    #[test]
-    fn a_time_is_written_as_rfc_3339_in_utc() {
-        let at = |seconds: u64| rfc3339(UNIX_EPOCH + Duration::from_secs(seconds));
-        assert_eq!(at(0), "1970-01-01T00:00:00Z");
-        assert_eq!(at(951_782_400), "2000-02-29T00:00:00Z");
-        assert_eq!(at(1_790_869_830), "2026-10-01T15:50:30Z");
-        assert_eq!(at(4_102_444_799), "2099-12-31T23:59:59Z");
     }
 }

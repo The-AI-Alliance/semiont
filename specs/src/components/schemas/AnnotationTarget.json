@@ -1,6 +1,13 @@
 {
   "type": "object",
   "properties": {
+    "type": {
+      "type": "string",
+      "enum": [
+        "SpecificResource"
+      ],
+      "description": "Stated by the annotation of a span: the target is a part of its source, which the selector picks out. An annotation of a resource as a whole states none."
+    },
     "source": {
       "$ref": "./ResourceId.json",
       "description": "The id of the resource being annotated"

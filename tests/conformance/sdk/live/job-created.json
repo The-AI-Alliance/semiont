@@ -1,0 +1,150 @@
+{
+  "about": "a follower names its job before anything else of it: the queue's answer to job:create is its first event, ahead of a frame of the job that reached the client before the reply did",
+  "source": "docs/protocol/JOBS.md § Following a job",
+  "tier": "parity",
+  "steps": [
+    {
+      "backend": "listen",
+      "with": {
+        "channels": [
+          "job:create"
+        ]
+      }
+    },
+    {
+      "driver": "open",
+      "with": {
+        "timing": {
+          "busRequestTimeoutMs": 5000,
+          "invalidationWindowMs": 100,
+          "reconnectMs": 50,
+          "lazyRemoveMs": 50,
+          "lingerMs": 50,
+          "jobSilenceMs": 60000,
+          "jobStatusPollMs": 60000
+        }
+      }
+    },
+    {
+      "state": "open"
+    },
+    {
+      "driver": "markDelegate",
+      "with": {
+        "observer": "job",
+        "resource": {
+          "$var": "r1"
+        },
+        "params": {
+          "motivation": "highlighting"
+        }
+      }
+    },
+    {
+      "fetch": "job:create",
+      "payload": {
+        "jobType": "mark",
+        "resourceId": {
+          "$var": "r1"
+        },
+        "params": {
+          "motivation": "highlighting"
+        }
+      },
+      "as": "c1"
+    },
+    {
+      "backend": "emit",
+      "with": {
+        "channel": "job:report-progress",
+        "payload": {
+          "resourceId": {
+            "$var": "r1"
+          },
+          "jobId": "job-1",
+          "jobType": "mark",
+          "percentage": 10,
+          "progress": {
+            "percentage": 10
+          }
+        }
+      }
+    },
+    {
+      "backend": "emit",
+      "with": {
+        "channel": "job:created",
+        "correlationId": {
+          "$var": "c1"
+        },
+        "payload": {
+          "response": {
+            "jobId": "job-1"
+          }
+        }
+      }
+    },
+    {
+      "reaches": "job",
+      "state": {
+        "status": "ready",
+        "value": {
+          "kind": "created",
+          "data": {
+            "jobId": "job-1"
+          }
+        }
+      }
+    },
+    {
+      "reaches": "job",
+      "state": {
+        "status": "ready",
+        "value": {
+          "kind": "progress",
+          "data": {
+            "percentage": 10
+          }
+        }
+      }
+    },
+    {
+      "backend": "emit",
+      "with": {
+        "channel": "job:complete",
+        "payload": {
+          "resourceId": {
+            "$var": "r1"
+          },
+          "jobId": "job-1",
+          "jobType": "mark"
+        }
+      }
+    },
+    {
+      "reaches": "job",
+      "state": {
+        "status": "ready",
+        "value": {
+          "kind": "complete",
+          "data": {
+            "_userId": {
+              "$var": "_"
+            },
+            "resourceId": {
+              "$var": "r1"
+            },
+            "jobId": "job-1",
+            "jobType": "mark"
+          }
+        }
+      }
+    },
+    {
+      "completes": "job"
+    },
+    {
+      "quiet": 300
+    }
+  ]
+}

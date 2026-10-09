@@ -33,6 +33,11 @@ export interface ShellStateUnitOptions {
   onPanelChange?: (panel: ToolbarPanelType | null) => void;
 }
 
+/**
+ * @emits panel:open - Open a panel. Payload: { panel: string }
+ * @emits panel:close - Close the open panel. Payload: undefined
+ * @emits panel:toggle - Open a panel, or close it when it is the open one. Payload: { panel: string }
+ */
 export function createShellStateUnit(browser: SemiontBrowser, options?: ShellStateUnitOptions): ShellStateUnit {
   const subs: Subscription[] = [];
   const activePanel$ = new BehaviorSubject<ToolbarPanelType | null>(options?.initialPanel ?? null);

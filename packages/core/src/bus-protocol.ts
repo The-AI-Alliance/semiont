@@ -94,7 +94,6 @@ export type EventMap = {
   'yield:create': components['schemas']['YieldCreateCommand'];
   'yield:clone-persist': components['schemas']['YieldClonePersistCommand'];
   'yield:update': components['schemas']['YieldUpdateCommand'];
-  'yield:mv': components['schemas']['YieldMvCommand'];
   'yield:clone': void;
   'yield:clone-token-requested': components['schemas']['YieldCloneTokenRequest'];
   'yield:clone-resource-requested': components['schemas']['YieldCloneResourceRequest'];
@@ -107,7 +106,6 @@ export type EventMap = {
   'yield:clone-persist-failed': components['schemas']['CommandError'];
   'yield:update-ok': components['schemas']['YieldUpdateOk'];
   'yield:update-failed': components['schemas']['CommandError'];
-  'yield:move-failed': components['schemas']['YieldMoveFailed'];
   'yield:clone-token-generated': { response: components['schemas']['CloneResourceWithTokenResponse'] };
   'yield:clone-token-failed': components['schemas']['CommandError'];
   'yield:clone-resource-result': { response: components['schemas']['GetResourceByTokenResponse'] };
@@ -134,7 +132,6 @@ export type EventMap = {
 
   // Commands
   'mark:create-request': components['schemas']['MarkCreateRequest'];
-  'mark:create': components['schemas']['MarkCreateCommand'];
   'mark:delete': Refines<components['schemas']['MarkDeleteCommand'], MarkDeleteCommand>;
   'mark:update-body': Refines<components['schemas']['MarkUpdateBodyCommand'], MarkUpdateBodyCommand>;
   'mark:archive': components['schemas']['MarkArchiveCommand'];
@@ -358,10 +355,6 @@ export type EventMap = {
   'browse:annotation-history-result': components['schemas']['BrowseAnnotationHistoryResult'];
   'browse:annotation-history-failed': components['schemas']['CommandError'];
 
-  'browse:annotation-context-requested': components['schemas']['BrowseAnnotationContextRequest'];
-  'browse:annotation-context-result': { response: components['schemas']['AnnotationContextResponse'] };
-  'browse:annotation-context-failed': components['schemas']['CommandError'];
-
   'browse:entity-types-requested': components['schemas']['BrowseEntityTypesRequest'];
   'browse:entity-types-result': components['schemas']['BrowseEntityTypesResult'];
   'browse:entity-types-failed': components['schemas']['CommandError'];
@@ -446,9 +439,9 @@ export type EventMap = {
   'job:create-failed': components['schemas']['CommandError'];
   'job:claimed': components['schemas']['JobClaimedResult'];
   'job:claim-failed': components['schemas']['CommandError'];
-  // cancel-by-type confirmed-write reply: the count of *pending* jobs cancelled
-  // (running jobs finish — there's no worker-kill channel). Failure surfaces a
-  // queue error rather than being swallowed.
+  // confirmed-write reply to a cancellation: whether the queue acted on the job it
+  // named (a pending job is cancelled; a running one is left to its worker).
+  // Failure surfaces a queue error rather than being swallowed.
   'job:cancel-ok': { response: components['schemas']['JobCancelResult'] };
   'job:cancel-failed': components['schemas']['CommandError'];
 
@@ -588,7 +581,6 @@ export const CHANNEL_SCHEMAS = {
   'yield:create':                     'YieldCreateCommand',
   'yield:clone-persist':              'YieldClonePersistCommand',
   'yield:update':                     'YieldUpdateCommand',
-  'yield:mv':                         'YieldMvCommand',
   'yield:clone':                      null, // void
   'yield:clone-token-requested':      'YieldCloneTokenRequest',
   'yield:clone-resource-requested':   'YieldCloneResourceRequest',
@@ -599,7 +591,6 @@ export const CHANNEL_SCHEMAS = {
   'yield:clone-persist-failed':       null, // CommandError
   'yield:update-ok':                  'YieldUpdateOk',
   'yield:update-failed':              null, // CommandError
-  'yield:move-failed':                null, // { fromUri } & CommandError
   'yield:clone-token-generated':      null, // { response: CloneResourceWithTokenResponse }
   'yield:clone-token-failed':         null, // CommandError
   'yield:clone-resource-result':      null, // { response: GetResourceByTokenResponse }
@@ -618,7 +609,6 @@ export const CHANNEL_SCHEMAS = {
   'mark:archived':                    null,
   'mark:unarchived':                  null,
   'mark:create-request':              'MarkCreateRequest',
-  'mark:create':                      'MarkCreateCommand',
   'mark:delete':                      'MarkDeleteCommand',
   'mark:update-body':                 'MarkUpdateBodyCommand',
   'mark:archive':                     'MarkArchiveCommand',
@@ -716,9 +706,6 @@ export const CHANNEL_SCHEMAS = {
   'browse:annotation-history-requested': 'BrowseAnnotationHistoryRequest',
   'browse:annotation-history-result': 'BrowseAnnotationHistoryResult',
   'browse:annotation-history-failed': null,
-  'browse:annotation-context-requested': 'BrowseAnnotationContextRequest',
-  'browse:annotation-context-result': null, // { response: AnnotationContextResponse }
-  'browse:annotation-context-failed': null,
   'browse:entity-types-requested':    'BrowseEntityTypesRequest',
   'browse:entity-types-result':       'BrowseEntityTypesResult',
   'browse:entity-types-failed':       null,

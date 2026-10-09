@@ -15,6 +15,9 @@ export interface EntityTagsStateUnit extends StateUnit {
   addTag(): Promise<void>;
 }
 
+/**
+ * @emits frame:add-entity-type - Add the tag typed to the vocabulary. Payload: { tag: string }
+ */
 export function createEntityTagsStateUnit(
   session: SemiontSession,
   browse: ShellStateUnit,

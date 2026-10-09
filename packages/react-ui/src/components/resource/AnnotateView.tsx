@@ -1,21 +1,17 @@
 'use client';
 
 import type { ResourceId } from '@semiont/core';
-import { useRef, useEffect, useCallback } from 'react';
-import { capabilitiesOf } from '@semiont/core';
+import { useRef, useEffect, useCallback, useMemo } from 'react';
+import { capabilitiesOf, textOffsets } from '@semiont/core';
 import { ANNOTATORS } from '../../lib/annotation-registry';
+import { documentPositions } from '../../lib/codemirror-logic';
 import { buildTextSelectors, fallbackTextPosition } from '../../lib/text-selection-handler';
 import { defaultAnnotateRenderers, type AnnotateMediaRenderers } from './annotate-renderers';
 import { DownloadFileLink } from './DownloadFileLink';
-import type { EditorView } from '@codemirror/view';
+import { EditorView } from '@codemirror/view';
 import type { SemiontSession } from '@semiont/sdk';
 import { useSessionEventSubscriptions } from '../../hooks/useSessionEventSubscriptions';
 import { scrollAnnotationIntoView } from '../../lib/scroll-utils';
-
-// Type augmentation for custom DOM properties
-interface EnrichedHTMLElement extends HTMLElement {
-  __cmView?: EditorView;
-}
 import { AnnotateToolbar, type SelectionMotivation, type ClickAction, type ShapeType } from '../annotation/AnnotateToolbar';
 import type { AnnotationsCollection, AnnotationUIState } from '../../types/annotation-props';
 
@@ -52,7 +48,7 @@ interface Props {
 /**
  * View component for annotating resources with text selection and drawing
  *
- * @emits mark:requested - User requested to create annotation. Payload: { selector: Selector | Selector[], motivation: SelectionMotivation }
+ * @emits mark:requested - User requested to create annotation. Payload: { source: ResourceId, selector: Selector | Selector[], motivation: SelectionMotivation }
  * @subscribes beckon:hover - Annotation hovered. Payload: { annotationId: string | null }
  * @subscribes beckon:focus - Scroll to and highlight annotation, unless `resourceId` names a different resource. Payload: { annotationId: string, resourceId?: string }
  */
@@ -78,6 +74,12 @@ export function AnnotateView({
   const containerRef = useRef<HTMLDivElement>(null);
 
   const render = capabilitiesOf(mimeType)?.render ?? 'none';
+
+  // The content's conversions, made once for a content: an offset counts its
+  // code points, and a selection is found at a position in the editor's
+  // document, which counts UTF-16 code units and each line break as one.
+  const offsets = useMemo(() => textOffsets(content), [content]);
+  const positions = useMemo(() => documentPositions(content, offsets), [content, offsets]);
 
   const { highlights, references, assessments, comments, tags } = annotations;
 
@@ -170,37 +172,41 @@ export function AnnotateView({
       }
       clickedOnAnnotation = false;
 
+      if (!selectedMotivation) return;
+
       const range = selection.getRangeAt(0);
-      const text = selection.toString();
+      const view = EditorView.findFromDOM(container);
 
-      // Get the CodeMirror EditorView instance stored on the CodeMirror container
-      const cmContainer = container.querySelector('.codemirror-renderer');
-      const view = (cmContainer as EnrichedHTMLElement | null)?.__cmView;
+      let selected: { start: number; end: number } | null;
 
-      let start: number;
-      let end: number;
-
-      if (!view || !view.posAtDOM) {
-        // Fallback: try to find text in source (won't work for duplicates)
-        const pos = fallbackTextPosition(content, text);
-        if (!pos) return;
-        start = pos.start;
-        end = pos.end;
+      if (view) {
+        // A selection that begins or ends outside the editor's text is not a
+        // selection of the content.
+        if (!view.contentDOM.contains(range.startContainer) || !view.contentDOM.contains(range.endContainer)) return;
+        // CodeMirror's posAtDOM gives the position in its document of a DOM
+        // node/offset; both ends are asked, since the selection's own string
+        // is not the content's text between them (a line break of the
+        // document is the content's CRLF, and a widget's text is not content).
+        selected = {
+          start: positions.offsetAt(view.posAtDOM(range.startContainer, range.startOffset)),
+          end: positions.offsetAt(view.posAtDOM(range.endContainer, range.endOffset)),
+        };
       } else {
-        // CodeMirror's posAtDOM gives us the position in the document from a DOM node/offset
-        start = view.posAtDOM(range.startContainer, range.startOffset);
-        end = start + text.length;
+        // No editor (a host's own text renderer): where the content first has
+        // the selected text. For text the content has more than once, that
+        // may not be the place selected.
+        selected = fallbackTextPosition(content, offsets, selection.toString());
       }
 
-      if (start >= 0 && selectedMotivation) {
-        const selectors = buildTextSelectors(content, text, start, end);
-        if (!selectors) return;
+      if (!selected) return;
 
-        session?.client.mark.request(resourceUri, selectors, selectedMotivation);
+      const selectors = buildTextSelectors(content, offsets, selected.start, selected.end);
+      if (!selectors) return;
 
-        // Clear selection after creating annotation
-        selection.removeAllRanges();
-      }
+      session?.client.mark.request(resourceUri, selectors, selectedMotivation);
+
+      // Clear selection after creating annotation
+      selection.removeAllRanges();
     };
 
     container.addEventListener('mouseup', handleMouseUp);
@@ -210,7 +216,7 @@ export function AnnotateView({
       container.removeEventListener('mouseup', handleMouseUp);
       container.removeEventListener('mousedown', handleMouseDown);
     };
-  }, [selectedMotivation, content, resourceUri]);
+  }, [selectedMotivation, content, offsets, positions, resourceUri]);
 
   // One shell for every render mode; the registry supplies the content.
   // A `switch` per mode would repeat this wrapper, the toolbar block and the

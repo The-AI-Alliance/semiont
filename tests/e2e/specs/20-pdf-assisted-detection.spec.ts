@@ -10,16 +10,17 @@ import { openResourceByName } from '../fixtures/discover';
  * This proves the *AI-directed* detection pipeline runs end-to-end on a PDF —
  * the worker extracts the PDF's text layer (`prepareDetection` →
  * `extractPdfTextLayer`), the model detects spans over that text, and the
- * shared geometry tail (`buildPdfAnnotation`) anchors each span to PDF
+ * shared geometry tail (`annotationOfSpan`) anchors each span to PDF
  * viewrects (FragmentSelector, RFC 3778). Those render on the PDF canvas as
  * <rect>s in the same SVG overlay 14 asserts on, and survive a reload.
  *
  * Two motivations, the two detection body shapes #737 calls out:
  *   - commenting → a generated TextualBody (density-gated),
  *   - linking    → an entity-reference body (entity extraction).
- * Both anchor through `buildPdfAnnotation`, so both surface as <rect>s; the
- * per-body-shape detail is covered deterministically by the @semiont/jobs unit
- * suites (prepareDetection fan-out + build-pdf-annotation).
+ * Both anchor through `annotationOfSpan`, so both surface as <rect>s; the
+ * per-body-shape detail is covered deterministically by the unit suites
+ * (@semiont/jobs: the prepareDetection fan-out; @semiont/core:
+ * annotation-of-span).
  *
  * Seed dependency: `scripts/seed.ts` yields an `application/pdf` resource named
  * "Cellular Respiration PDF" — a ~346-word Concept-dense text-layer PDF. (The

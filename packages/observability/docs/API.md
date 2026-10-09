@@ -77,7 +77,7 @@ await withSpan(
 
 // Actor handler wrapper — used at each actor's bus subscriptions to standardize
 // span names across actors (Stower, Browser, Gatherer, Matcher, Smelter).
-await withActorSpan('stower', 'mark:create', () => handler(payload));
+await withActorSpan('stower', 'mark:create-request', () => handler(payload));
 ```
 
 ### Trace-context propagation
@@ -107,6 +107,19 @@ if (trace) {
 }
 ```
 
+Work that is nobody's to continue runs under `withoutTrace`: a span started inside it, and every continuation it registers, has no parent, whatever span is active where it is called. A worker's claim is made so, because it belongs to no job, and the code that settled the job before it is inside that job's span:
+
+```ts
+import { withoutTrace, withSpan } from '@semiont/observability';
+
+await withSpan('job', async () => {
+  // A child of `job`.
+  await withSpan('work', () => doTheWork());
+  // A trace of its own.
+  withoutTrace(() => void claimTheNextJob());
+});
+```
+
 ### Log correlation
 
 Add the active trace-id and span-id to every log line so log search and the trace UI link up:
@@ -130,8 +143,8 @@ import {
   recordInferenceUsage,
 } from '@semiont/observability';
 
-recordBusSent('mark:create', resourceId);  // channel, and the scope it was sent in
-recordHandlerDuration('stower', 'mark:create', durationMs);
+recordBusSent('mark:create-request', resourceId);  // channel, and the scope it was sent in
+recordHandlerDuration('stower', 'mark:create-request', durationMs);
 recordJobOutcome({ jobType: 'mark', motivation: 'linking' }, 'completed', durationMs);
 recordInferenceUsage({ provider: 'ollama', model: 'gemma3:27b', durationMs, outcome: 'success', inputTokens: 412, outputTokens: 87 });
 ```

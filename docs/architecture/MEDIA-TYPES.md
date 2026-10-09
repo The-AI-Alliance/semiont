@@ -70,16 +70,16 @@ The consequential one. It decides what an annotation can *point at*, and that
 choice is permanent for every annotation ever created against the type.
 
 - **`text-selector`** — characters are the anchor. An annotation carries a
-  `TextPositionSelector` and a `TextQuoteSelector`. Offsets are character
-  positions in the resource's decoded text — consumers apply selectors to the
-  decoded string, not raw bytes — so nothing has to be derived before
+  `TextPositionSelector` and a `TextQuoteSelector`. Offsets count Unicode code
+  points in the resource's decoded text — consumers apply selectors to the
+  decoded text, not raw bytes — so nothing has to be derived before
   annotating.
 - **`spatial`** — position is the anchor. Characters are drawn at coordinates
   rather than held at offsets, and the extracted text is a derived artifact that
   re-extraction could shift. So a PDF annotation carries a `FragmentSelector`
   (RFC 3778: `page=N&viewrect=…`, PDF points, origin bottom-left) and, when the
-  text is known, a `TextQuoteSelector`. **Never a `TextPositionSelector`** — a
-  character offset is not a durable anchor into a document whose text is
+  text is known, a `TextQuoteSelector`. **Never a `TextPositionSelector`** — an
+  offset is not a durable anchor into a document whose text is
   recovered rather than stored.
 - **`none`** — not annotatable.
 
@@ -228,8 +228,9 @@ interface AnchoredText { text: string; items: PdfTextItem[] }
 interface PdfTextItem { start; end; page; x; y; width; height }
 ```
 
-Text paired with the geometry that indexes it — `items[i]` says *"characters
-`start`..`end` of `text` are drawn at this rectangle on this page."* Two
+Text paired with the geometry that indexes it — `items[i]` says *"the text
+from `start` to `end` of `text`, two offsets counted in code points, is drawn
+at this rectangle on this page."* Two
 functions form an inverse pair over it:
 
 ```
@@ -278,8 +279,9 @@ with no text recovery at all, so the failure mode is "no improvement", never
 12. **Or AI detection.** `job:create` → a worker runs `prepareDetection`, which
     reads the stored artifact through `browse.resourceAnchoredText`, behind the
     same settle barrier the canvas waits on. A worker never extracts. The model
-    returns a verbatim quote; `locate()` turns that span into one
-    `FragmentSelector` per line; `buildPdfAnnotation` assembles the annotation.
+    returns a verbatim quote; `reconcile` finds it in the text, and
+    `annotationOfSpan` builds the annotation: `locate()` turns the span into
+    one `FragmentSelector` per line.
 
 ### How annotation events feed back
 
@@ -311,7 +313,7 @@ Reading the PDF flow against a simpler row shows what each declaration bought.
 **Markdown** (`text-selector`, `decode`) skips steps 3–8's derived artifact
 entirely. The text is the bytes, so there is nothing to recover, nothing to
 store, no barrier to wait on, and no restart hazard. An annotation carries
-character offsets directly. Steps 1–2, 9, and 13–14 are identical.
+offsets into the text directly. Steps 1–2, 9, and 13–14 are identical.
 
 **An image** (`spatial`, `none`) takes the geometry half and none of the text
 half. It is annotatable the moment the view exists, and a rectangle over it is
@@ -338,8 +340,8 @@ exists only during an interval.
 ### What carries over unchanged
 
 - **The artifact's shape.** `AnchoredText { text, items }` already says
-  *"characters `start`..`end` of `text` live at this position"* and is
-  deliberately indifferent to what "position" means. Character offsets, page
+  *"the text from `start` to `end` of `text` lives at this position"* and is
+  deliberately indifferent to what "position" means. Text offsets, page
   rects, time intervals, and time-plus-rect are four coordinate spaces over one
   structure. The type survives; only `PdfTextItem`'s field set is PDF-specific.
 - **The inverse pair.** `locate` (span → position, for a model that quoted text)

@@ -170,6 +170,9 @@ function ReauthPrompt({ t, onSubmit, onCancel, error, isSubmitting }: {
   );
 }
 
+/**
+ * @emits nav:push - Go to the knowledge base's home after a switch to another one. Payload: { path: '/know', reason: 'kb-switch' }
+ */
 export function KnowledgeBasePanel() {
   const pathname = usePathname();
   const { t: _t, i18n } = useTranslation();

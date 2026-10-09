@@ -4,7 +4,8 @@
 //! request's, which is the peer's own failure or a fact only this side knows;
 //! a followed job's, which failed for good or went silent; and the three
 //! together, as a caller meets them. Beside them, what makes a session
-//! unusable, and what keeps a person from being signed in.
+//! unusable, what keeps a person from being signed in, and why no annotation
+//! is built of a span.
 
 use crate::types::JobId;
 use serde_json::{Map, Value};
@@ -192,6 +193,15 @@ impl fmt::Display for IdentityUnverifiable {
 }
 
 impl std::error::Error for IdentityUnverifiable {}
+
+/// A refusal is the whole of the error: it reads as its code.
+impl fmt::Display for SpanRefusal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl std::error::Error for SpanRefusal {}
 
 /// What a caller meets: a request's own failure, the transport's failure to
 /// send it, or the failure of a job it was following.

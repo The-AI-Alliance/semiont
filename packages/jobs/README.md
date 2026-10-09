@@ -43,11 +43,13 @@ function describe(job: components['schemas']['JobRunning']): string {
 
 ## What a change must keep
 
-- **A worker holds nothing of the knowledge base.** It has no mount and no broker credential. It reaches the gateway with a URL and a token, reads a resource's bytes from the Archivist, and writes annotations by the awaited `mark:commit`, a batch per unit of work.
+- **A worker holds nothing of the knowledge base.** It has no mount and no broker credential. It reaches the gateway with a URL and a token, reads a resource's bytes there by its client's own call (`browse.resourceRepresentation`), and writes annotations by the held job's awaited commit (`job.commit`, which sends `mark:commit`), a batch per unit of work.
 - **A worker sees a job only as it is handed over.** It never reads the queue's storage. What it knows of a job is what `job:claimed` carried.
 - **A worker never says who asked.** A job's requester is the identity the gateway verified on `job:create`, recorded by the dispatcher. What the worker contributes is itself, as the software agent that generated the result.
 - **A processor is plain work.** It is given content, an inference client, the job's params and callbacks for progress and for committing a chunk. It fetches nothing and knows no transport.
+- **An offset counts Unicode code points.** A span's `start` and `end`, a cursor's `next` and every length worked out from them are counted so, as the wire states them, and never as a JavaScript string's positions, which are UTF-16 code units. A text's `TextOffsets` (`textOffsets`, `@semiont/core`) converts between the two: it is made once, where the text is first held, and handed on.
 - **One progress shape, and one result.** Every job reports the spec's `JobProgress`, and every `mark` job the spec's `MarkJobResult`, whatever its motivation: its counts (`JobDetectionResult`), or a decline.
+- **Every job stops for a cancellation.** A detection stops after the chunk it is on, which is committed and checkpointed first; a generation stops before it uploads. The request to the provider is not aborted, so the stop waits for the model's answer or the call's deadline. A cancelled job is settled with `job:cancel`, never as complete.
 - **Failure is bounded, classified and resumable.** Every inference call has a deadline and is truly cancelled. A failure caused by size subdivides the work in place. A retry resumes from the last checkpoint and skips what was committed. [Failure discipline](docs/FailureDiscipline.md) has the rules.
 
 Adding a job starts in the spec, not here: [Workers](docs/Workers.md#adding-a-job) lists the steps.

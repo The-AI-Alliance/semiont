@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { chunkText } from '../chunking';
+import { chunkText, cutChunk } from '../chunking';
+import { textOffsets } from '../text-offsets';
 
 describe('chunkText', () => {
   it('returns single chunk for short text', () => {
@@ -43,5 +44,22 @@ describe('chunkText', () => {
     const text = 'A'.repeat(40);
     const chunks = chunkText(text, { chunkSize: 10, overlap: 2 });
     expect(chunks).toHaveLength(1);
+  });
+});
+
+// `at` is an offset: it counts code points. The table (chunk-cases.json)
+// holds every cut of a walk; this holds the two ends of what `at` may be.
+describe('cutChunk', () => {
+  const config = { chunkSize: 5, overlap: 1 };
+
+  it('cut at the end of the text, by its code points, takes nothing and stays there', () => {
+    // Three code points, five units of a string.
+    expect(cutChunk('a😀😀', textOffsets('a😀😀'), 3, config)).toEqual({ piece: '', next: 3 });
+  });
+
+  it('refuses an `at` the text does not have', () => {
+    expect(() => cutChunk('a😀😀', textOffsets('a😀😀'), 4, config)).toThrow(RangeError);
+    expect(() => cutChunk('abc', textOffsets('abc'), -1, config)).toThrow(RangeError);
+    expect(() => cutChunk('abc', textOffsets('abc'), 1.5, config)).toThrow(RangeError);
   });
 });

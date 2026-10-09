@@ -25,9 +25,10 @@ export interface DelegatedVerb<C extends JobCompletion> {
  * Creates a job and follows it to its end: the one driver behind
  * `mark.delegate` and `yield.delegate`.
  *
- * It sends `job:create` with the description given, then gives the job's
- * `job:report-progress` / `job:complete` / `job:fail` frames as `JobEvent`s,
- * the status poll standing in for a frame the stream did not carry.
+ * It sends `job:create` with the description given, gives the queue's answer
+ * as the `created` event, then gives the job's `job:report-progress` /
+ * `job:complete` / `job:fail` frames as `JobEvent`s, the status poll standing
+ * in for a frame the stream did not carry.
  *
  * The three frames reach the client on the always-on global bridge: the
  * worker emits them to every client. Nothing here joins the resource's scope
@@ -47,11 +48,10 @@ export interface DelegatedVerb<C extends JobCompletion> {
  * `stallMs`, when given, is the ONE stall guard: armed at subscribe, armed
  * again on every event, cleared by any ending. It lives in this producer so
  * `await`, `.run()` and a state unit's drive all share it. Firing asks for
- * THAT job to be cancelled, by its id: a cancellation by type would end every
- * pending job of the type, whoever asked for it. A pending job is cancelled
- * outright; a running one is left to its worker. A job whose creation was
- * never answered has no id, and there is nothing to cancel. Then the stream
- * errors with `GenerationStallError`.
+ * the job to be cancelled: a pending job is cancelled outright; a running one
+ * is left to its worker. A job whose creation was never answered has no id,
+ * and there is nothing to cancel. Then the stream errors with
+ * `GenerationStallError`.
  */
 export function delegated<C extends JobCompletion>(
   transport: ITransport,
@@ -166,9 +166,13 @@ export function delegated<C extends JobCompletion>(
     armStall();
 
     busRequest(transport, 'job:create', job)
-      .then(({ jobId }) => {
+      .then((created) => {
+        const { jobId } = created;
         if (jobId && !done) {
           activeJobId = jobId;
+          // Before the frames held for it are let go: the job's id is the
+          // first thing its follower says.
+          subscriber.next({ kind: 'created', data: created });
           poll.heard(jobId);
           frames.started(jobId);
         }

@@ -22,7 +22,7 @@ import { usePendingCreation } from '../usePendingCreation';
 import { ResourceViewer } from '../../components/resource/ResourceViewer';
 
 vi.mock('../../components/CodeMirrorRenderer', () => ({
-  CodeMirrorRenderer: ({ content }: { content: string }) => <div className="codemirror-renderer">{content}</div>,
+  CodeMirrorRenderer: ({ content }: { content: string }) => <div className="semiont-codemirror">{content}</div>,
 }));
 vi.mock('react-markdown', () => ({ default: ({ children }: { children: string }) => <div>{children}</div> }));
 vi.mock('remark-gfm', () => ({ default: () => ({}) }));

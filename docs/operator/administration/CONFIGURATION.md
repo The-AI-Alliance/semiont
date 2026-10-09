@@ -283,7 +283,7 @@ The PostgreSQL in a stack is Keycloak's, and Semiont stores nothing in it ([Data
 A value may reference an environment variable as `${NAME}`, or `${NAME:-default}` to supply a default. Use them for secrets and for nothing the launcher places.
 
 - **`semiont start` refuses** when a `${NAME}` that something reads is set neither in your environment nor by a source registered with `semiont settings secret set`. A reference in another environment, or in a section no service reads, is not asked for.
-- **A service is handed only the variables in the sections it reads**, as [`sections.json`](../../../specs/src/service-config/sections.json) lists them. The Anthropic key reaches the librarian and the worker and no other service.
+- **A service is handed only the variables in the sections it reads**, as [`sections.json`](../../../specs/src/service-config/sections.json) lists them, and a service that reads a document only the variables its document names. The Anthropic key reaches the librarian and the worker and no other service.
 - **The launcher's own names cannot be referenced**: `NEO4J_PASSWORD`, `POSTGRES_PASSWORD`, `NATS_USER` and `NATS_PASSWORD` belong to the daemons it runs.
 
 The rule every resolver follows is specified in [`config-placeholders/cases.json`](../../../specs/src/config-placeholders/cases.json).
@@ -303,8 +303,8 @@ What a service reads from its environment is in [Secrets](../services/SECRETS.md
 
 No service reads the files in the repository directly:
 
-- **The librarian, the worker, the smelter and the weaver** each read a TOML file at `/home/semiont/.semiontconfig`. The launcher writes one per service from the selected config, with every address filled in.
-- **The gateway, the dispatcher and the archivist** each read a JSON document, at `/etc/semiont/gateway.json`, `/etc/semiont/dispatcher.json` and `/etc/semiont/archivist.json`, that the launcher writes from the config and from `.semiont/config`. Their schemas are [`GatewayConfig`](../../../specs/src/components/schemas/GatewayConfig.json), [`DispatcherConfig`](../../../specs/src/components/schemas/DispatcherConfig.json) and [`ArchivistConfig`](../../../specs/src/components/schemas/ArchivistConfig.json). A document names a credential by the variable that holds it, never by value.
+- **The librarian, the smelter and the weaver** each read a TOML file at `/home/semiont/.semiontconfig`. The launcher writes one per service from the selected config, with every address filled in.
+- **The gateway, the dispatcher, the archivist and the worker** each read a JSON document, at `/etc/semiont/gateway.json`, `/etc/semiont/dispatcher.json`, `/etc/semiont/archivist.json` and `/etc/semiont/worker.json`, that the launcher writes from the config and from `.semiont/config`. Their schemas are [`GatewayConfig`](../../../specs/src/components/schemas/GatewayConfig.json), [`DispatcherConfig`](../../../specs/src/components/schemas/DispatcherConfig.json), [`ArchivistConfig`](../../../specs/src/components/schemas/ArchivistConfig.json) and [`WorkerConfig`](../../../specs/src/components/schemas/WorkerConfig.json). A document names a credential by the variable that holds it, never by value. The worker's document lists the agents it works as, each with the jobs it claims: the launcher has already applied every `workers` fallback, so a worker started some other way is given the same document and reads no config of the knowledge base.
 
 On your own platform, these files are what you deliver ([Deployment](DEPLOYMENT.md#what-your-platform-provides)).
 
@@ -322,7 +322,9 @@ The launcher walks up from the current directory looking for `.semiont/`, as `gi
 | A section says `platform = "external"` and states no address | Add the address |
 | A section names a password for a daemon the launcher runs | Delete it. The launcher generates and keeps that password |
 | `[defaults] environment` is missing, or names an environment the file lacks | Set it to an environment the file defines |
-| A service finds no inference config for a worker or an actor | Add the binding; `[environments.<env>.workers.default.inference]` covers every job |
+| The start says the environment binds no job to a worker, and skips it | The stack runs with no worker, and no job is served. To run one, add a binding; `[environments.<env>.workers.default.inference]`, with a `type` and a `model`, covers every job. `semiont start --service worker` on such a config is refused, since it has nothing to serve |
+| A job is bound to a provider the environment has no section for, or to an Ollama with no address | Add `[environments.<env>.inference.<provider>]`, with a `baseURL` for an Ollama the launcher does not run |
+| A service finds no inference config for an actor | Add the binding under `[environments.<env>.make-meaning.actors]` or `[environments.<env>.actors]` |
 | A `${NAME}` is not set | Export it, or register its source with `semiont settings secret set NAME` |
 
 ## Related

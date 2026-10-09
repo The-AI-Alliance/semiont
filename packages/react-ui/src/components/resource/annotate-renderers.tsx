@@ -1,8 +1,8 @@
 'use client';
 
 import type { ResourceId } from '@semiont/core';
-import { lazy, Suspense, type ComponentType } from 'react';
-import type { Annotation } from '@semiont/core';
+import { lazy, Suspense, useMemo, type ComponentType } from 'react';
+import { textOffsets, type Annotation } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
 import { SvgDrawingCanvas } from '../image-annotation/SvgDrawingCanvas';
 import { CodeMirrorRenderer } from '../CodeMirrorRenderer';
@@ -76,8 +76,10 @@ export function TextAnnotateRenderer({
   generatingReferenceId,
 }: AnnotateMediaRendererProps) {
   // Segmentation is a text-rendering concern, derived here rather than
-  // threaded through the shared interface.
-  const segments = segmentTextWithAnnotations(content, annotations);
+  // threaded through the shared interface. The content's conversions are
+  // made once for a content, not once for each render.
+  const offsets = useMemo(() => textOffsets(content), [content]);
+  const segments = segmentTextWithAnnotations(content, offsets, annotations);
 
   return (
     <CodeMirrorRenderer

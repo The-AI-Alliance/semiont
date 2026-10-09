@@ -16,18 +16,32 @@ from aio import hurried, run, settle, soon
 from gateway_server import GatewayServer
 from issuer import AGENT, ALICE, ME, PENDING, SECRET, TOKEN, agent_token, issuer_of, minted, says, trusting
 from kb import answer, asked_for, knowing, recorded, refusing, silent
-from readme import a_first_program, a_person, a_worker, an_agent, content, live_queries, testing, the_bus, the_client
-from spec import PACKAGE, ROOT, JsonObject
+from readme import (
+    a_first_program,
+    a_person,
+    a_worker,
+    an_agent,
+    building_annotations,
+    content,
+    live_queries,
+    testing,
+    the_bus,
+    the_client,
+)
+from spec import PACKAGE, ROOT, SPEC, JsonObject, objects, read
 from tokens import token
 
+from semiont.annotations import QuotedText, target_selector
 from semiont.bus import reply_channels_for
-from semiont.claims import JOB_CLAIM_CHANNELS
+from semiont.claims import JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS
 from semiont.http import HttpTransport
 from semiont.identifiers import AnnotationId, ResourceId
+from semiont.identity import agent_address, agent_did
 from semiont.operations import JOB_CLAIM
 from semiont.sign_in_store import FILE_NAME, SignInStore, state_dir, this_system
 from semiont.testing import FaultyTransport, PutBinary, create_test_client
 from semiont.transport import Content, Frame
+from semiont.types import AgentSoftware, AnchoredText, FragmentSelector, PdfTextItem
 from semiont.watched import Variable
 
 README = (PACKAGE / "README.md").read_text(encoding="utf-8")
@@ -284,10 +298,10 @@ def test_the_client_annotates_over_the_doubles_and_over_http(capsys: pytest.Capt
     run(over_the_doubles())
     doubled = capsys.readouterr().out.splitlines()
     run(over_http())
-    # The same four things said, whichever transport the client is over.
+    # The same five things said, whichever transport the client is over.
     assert capsys.readouterr().out.splitlines() == doubled
-    described, half, done, reached = doubled
-    assert (described, half, reached) == ("A resource 9", "50.0", "1")
+    described, named, half, done, reached = doubled
+    assert (described, named, half, reached) == ("A resource 9", "to cancel it: job-1", "50.0", "1")
     assert done.startswith("found=3 persisted=2 ")
 
 
@@ -332,9 +346,15 @@ def test_an_agent_opens_its_stream_as_the_agent_its_service_account_was_exchange
     assert capsys.readouterr().out.splitlines() == ["open"]
 
 
-def test_a_worker_claims_as_its_agent_says_the_lifecycle_of_the_job_it_is_handed_and_claims_again(
+def test_a_worker_claims_as_its_agent_commits_a_highlight_it_built_says_the_job_s_lifecycle_and_claims_again(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    # The resource's first line is the span of the first case of the id table: the id it states is the highlight's.
+    stated = objects(read(SPEC / "annotations/id-cases.json")["cases"], "the id table's cases")[0]
+    assert (stated["resourceId"], stated["motivation"], stated["anchor"]) == ("res-1", "highlighting", "0:12:Ada Lovelace")
+    assert "body" not in stated
+    page = "Ada Lovelace\nwrote the first algorithm.\n"
+    did = agent_did("example.org", "ollama", "gemma3:4b")
     job: JsonObject = {
         "status": "running",
         "metadata": {
@@ -355,6 +375,15 @@ def test_a_worker_claims_as_its_agent_says_the_lifecycle_of_the_job_it_is_handed
             trusting(gateway)
             gateway.answers[TOKEN] = {"access_token": token(3600, 0)}
             gateway.scripted[("POST", AGENT)] = [agent_token(1)]
+            # Who the gateway says the agent's token is.
+            gateway.answers[ME] = {
+                "did": did,
+                "email": agent_address("example.org", "ollama", "gemma3:4b"),
+                "name": "ollama gemma3:4b",
+                "image": None,
+                "domain": "example.org",
+            }
+            gateway.stored["res-1"] = ("text/plain", page.encode())
             # The dispatcher: the first claim is handed a job, the second is refused, and no other is answered.
             answers: list[tuple[str, JsonObject]] = [
                 ("job:claimed", {"response": job}),
@@ -365,6 +394,13 @@ def test_a_worker_claims_as_its_agent_says_the_lifecycle_of_the_job_it_is_handed
                 if emit["channel"] == "job:claim" and answers:
                     channel, payload = answers.pop(0)
                     gateway.send(None, {"channel": channel, "payload": payload, "correlationId": emit["correlationId"]})
+                elif emit["channel"] == "mark:commit":
+                    # The record: it has the batch, and says so.
+                    batch = emit["payload"]
+                    assert isinstance(batch, dict)
+                    ids = [annotation["id"] for annotation in objects(batch["annotations"], "the batch's annotations")]
+                    held: JsonObject = {"response": {"persisted": len(ids), "annotationIds": ids}}
+                    gateway.send(None, {"channel": "mark:commit-ok", "payload": held, "correlationId": emit["correlationId"]})
 
             gateway.on_emit = dispatching
             working = asyncio.ensure_future(a_worker.work(gateway.origin, issuer_of(gateway), "my-worker", SECRET))
@@ -375,20 +411,41 @@ def test_a_worker_claims_as_its_agent_says_the_lifecycle_of_the_job_it_is_handed
             # Settling the job is an idle moment, and so the next claim: the one that is refused.
             await until("the worker's second claim", lambda: said().count("job:claim") == 2)
             await settle()
-            assert said() == ["job:claim", "job:start", "job:report-progress", "job:complete", "job:claim"]
-            claim, start, progress, complete, _ = gateway.emits
+            assert said() == ["job:claim", "job:start", "job:report-progress", "mark:commit", "job:complete", "job:claim"]
+            claim, start, progress, commit, complete, _ = gateway.emits
             assert claim["payload"] == {"accepts": [{"jobType": "mark", "params": {"motivation": "highlighting"}}]}
             # Every message of the lifecycle names the job and the attempt it is.
             identity: JsonObject = {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark", "attempt": 1}
             assert start["payload"] == identity
             assert progress["payload"] == {**identity, "percentage": 50, "progress": {"percentage": 50}}
-            assert complete["payload"] == {**identity, "result": {"found": 0, "persisted": 0}}
-            # It works as the agent, on a stream that names what claiming reads and nothing else.
+            # It commits the one highlight, for the job: of the first line, as the text has it, made by the agent it works as.
+            batch = commit["payload"]
+            assert isinstance(batch, dict)
+            assert (batch["resourceId"], batch["jobId"]) == ("res-1", "job-1")
+            (highlight,) = objects(batch["annotations"], "the batch's annotations")
+            assert (highlight["id"], highlight["motivation"]) == (stated["id"], "highlighting")
+            assert highlight["generator"] == {
+                "@type": "Software",
+                "@id": did,
+                "name": "ollama gemma3:4b",
+                "provider": "ollama",
+                "model": "gemma3:4b",
+            }
+            target = highlight["target"]
+            assert isinstance(target, dict)
+            assert target["source"] == "res-1"
+            assert target["selector"] == [
+                {"type": "TextPositionSelector", "start": 0, "end": 12},
+                {"type": "TextQuoteSelector", "exact": "Ada Lovelace", "suffix": "\nwrote the first algorithm.\n"},
+            ]
+            # And it reports what it proposed and what the record holds, established by the record's acknowledgement.
+            assert complete["payload"] == {**identity, "result": {"found": 1, "persisted": 1}, "durability": "acknowledged"}
+            # It works as the agent, on a stream that names what claiming and committing read and nothing else.
             (exchanged,) = gateway.of("POST", AGENT)
             assert exchanged.json() == {"provider": "ollama", "model": "gemma3:4b"}
             (subscribed,) = gateway.of("POST", "/bus/subscribe")
             assert subscribed.headers["authorization"] != exchanged.headers["authorization"]
-            assert subscribed.json()["global"] == list(JOB_CLAIM_CHANNELS)
+            assert subscribed.json()["global"] == [*JOB_CLAIM_CHANNELS, *JOB_COMMIT_CHANNELS]
 
             # Stopped while it holds nothing, it says nothing more.
             assert not working.done()
@@ -431,3 +488,38 @@ def test_a_person_signs_in_by_the_device_grant_once_and_is_that_person_from_then
 
 def test_testing_runs_the_test_it_shows() -> None:
     run(testing.a_title_is_its_resources_name_in_title_case())
+
+
+def test_building_annotations_builds_a_highlight_of_a_text_and_of_a_pdf_and_a_link_and_reads_each() -> None:
+    generator = AgentSoftware(type="Software", name="ollama gemma3:4b")
+    text = "Ada Lovelace\nwrote the first algorithm.\n"
+
+    # The model wrote the name in small letters: the highlight quotes it as the text has it.
+    highlight = building_annotations.highlight(text, QuotedText(exact="ada lovelace"), RESOURCE, generator)
+    assert highlight is not None
+    assert building_annotations.describe(highlight) == f"{highlight.id}: a highlight of 'Ada Lovelace' in res-1"
+    # Built again, it is the same annotation: its id is of what it is.
+    again = building_annotations.highlight(text, QuotedText(exact="Ada Lovelace"), RESOURCE, generator)
+    assert again is not None
+    assert again.id == highlight.id
+    # Words the text does not have are no highlight.
+    assert building_annotations.highlight(text, QuotedText(exact="Grace Hopper"), RESOURCE, generator) is None
+
+    anchored = AnchoredText(
+        text=text,
+        items=[
+            PdfTextItem(start=0, end=3, page=1, x=72, y=720, width=18, height=12),
+            PdfTextItem(start=4, end=12, page=1, x=94, y=720, width=48, height=12),
+        ],
+    )
+    of_a_pdf = building_annotations.highlight_of_a_pdf(anchored, QuotedText(exact="Ada Lovelace"), RESOURCE, generator)
+    assert of_a_pdf is not None
+    assert building_annotations.describe(of_a_pdf) == f"{of_a_pdf.id}: a highlight of 'Ada Lovelace' in res-1"
+    # One line of the page, so one rectangle: from the first item's left edge to the second's right.
+    selector = target_selector(of_a_pdf.target)
+    assert isinstance(selector, list)
+    assert [item.value for item in selector if isinstance(item, FragmentSelector)] == ["page=1&viewrect=72,720,70,12"]
+
+    link = building_annotations.link_to_what_was_generated(RESOURCE, ResourceId("res-2"), generator)
+    assert building_annotations.describe(link) == f"{link.id}: linking, from res-1 to res-2"
+    assert target_selector(link.target) is None

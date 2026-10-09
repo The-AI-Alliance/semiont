@@ -45,10 +45,12 @@ withDispatcher('job:report-progress', (world) => {
 });
 
 withDispatcher('job:checkpoint', (world) => {
-  it('records finished units, and a retry resumes with them', async () => {
+  it('records finished units, and a retry resumes with them; with no cursor stated, the record has none', async () => {
     const { worker, job, ref } = await world().running({ motivation: 'linking', entityTypes: ['Person', 'Place'] });
     await worker.checkpoint(job.metadata.id, ['Person']);
-    expect((await retried(world(), worker, job, ref)).completedUnits).toEqual(['Person']);
+    const metadata = await retried(world(), worker, job, ref);
+    expect(metadata.completedUnits).toEqual(['Person']);
+    expect('unitCursors' in metadata).toBe(false);
   });
 
   it('unions successive checkpoints', async () => {
@@ -59,7 +61,7 @@ withDispatcher('job:checkpoint', (world) => {
     expect([...(await retried(world(), worker, job, ref)).completedUnits!].sort()).toEqual(['Person', 'Place']);
   });
 
-  it('records a cursor for an unfinished unit without finishing it', async () => {
+  it('records a cursor for a unit without finishing it: a cursor never says a unit is finished', async () => {
     const { worker, job, ref } = await world().running({ motivation: 'linking', entityTypes: ['Person', 'Place'] });
     await worker.checkpoint(job.metadata.id, [], { Person: cursor(2) });
     const metadata = await retried(world(), worker, job, ref);
@@ -85,26 +87,44 @@ withDispatcher('job:checkpoint', (world) => {
     expect((await retried(world(), worker, job, ref)).unitCursors).toEqual({ Person: cursor(2), Place: cursor(7) });
   });
 
-  it('drops the cursor of a unit that finishes, and ignores a later cursor for it', async () => {
+  it('keeps the cursor of a unit that finishes, and merges a later cursor for it as any other: one further replaces it, one behind does not', async () => {
     const { worker, job, ref } = await world().running({ motivation: 'linking', entityTypes: ['Person', 'Place'] });
     await worker.checkpoint(job.metadata.id, [], { Person: cursor(2), Place: cursor(4) });
     await settle();
     await worker.checkpoint(job.metadata.id, ['Person']);
     await settle();
     await worker.checkpoint(job.metadata.id, [], { Person: cursor(9) });
+    await settle();
+    await worker.checkpoint(job.metadata.id, [], { Person: cursor(5, 99) });
     const metadata = await retried(world(), worker, job, ref);
     expect(metadata.completedUnits).toEqual(['Person']);
-    expect(metadata.unitCursors).toEqual({ Place: cursor(4) });
+    expect(metadata.unitCursors).toEqual({ Person: cursor(9), Place: cursor(4) });
   });
 
-  it('leaves no cursors at all once none remains', async () => {
+  it('keeps the cursor of a finished unit when it is the only cursor the record has', async () => {
     const { worker, job, ref } = await world().running({ motivation: 'linking', entityTypes: ['Person', 'Place'] });
     await worker.checkpoint(job.metadata.id, [], { Person: cursor(2) });
     await settle();
     await worker.checkpoint(job.metadata.id, ['Person']);
     const metadata = await retried(world(), worker, job, ref);
     expect(metadata.completedUnits).toEqual(['Person']);
-    expect('unitCursors' in metadata).toBe(false);
+    expect(metadata.unitCursors).toEqual({ Person: cursor(2) });
+  });
+
+  it('records a unit named finished with its cursor in one checkpoint, keeps that cursor across a later checkpoint, and hands it to the next claimant', async () => {
+    const { creator, worker, job, ref } = await world().running({ motivation: 'linking', entityTypes: ['Person', 'Place'] });
+    await worker.checkpoint(job.metadata.id, [], { Person: cursor(4) });
+    await settle();
+    await worker.checkpoint(job.metadata.id, ['Person'], { Person: cursor(9) });
+    await settle();
+    await worker.checkpoint(job.metadata.id, ['Person'], { Place: cursor(3) });
+    await settle();
+    await worker.fail(ref, 'interrupted');
+    await creator.until(job.metadata.id, 'the job to be re-queued', (s) => s.status === 'pending');
+    const next = await world().worker('next-claimant');
+    const metadata = (await next.claimed([filterOf(job)])).metadata;
+    expect(metadata.completedUnits).toEqual(['Person']);
+    expect(metadata.unitCursors).toEqual({ Person: cursor(9), Place: cursor(3) });
   });
 
   it('has no effect on a job that is not running', async () => {

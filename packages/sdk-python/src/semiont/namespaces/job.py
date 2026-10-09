@@ -14,7 +14,7 @@ from semiont.errors import BusRequestError
 from semiont.identifiers import JobId
 from semiont.namespaces.links import Links
 from semiont.operations import JOB_CANCEL_REQUESTED, JOB_STATUS_REQUESTED
-from semiont.timing import HELD_JOB_STALL_CHECK_MS, HELD_JOB_STALL_MS, JOB_CLAIM_TIMEOUT_MS
+from semiont.timing import HELD_JOB_STALL_CHECK_MS, HELD_JOB_STALL_MS, JOB_CLAIM_TIMEOUT_MS, MARK_COMMIT_TIMEOUT_MS
 from semiont.types import (
     JobCancelRequest,
     JobCompleteCommand,
@@ -24,7 +24,6 @@ from semiont.types import (
     JobReportProgressCommand,
     JobStatusRequest,
     JobStatusResponse,
-    JobType,
 )
 
 __all__ = ["JobNamespace"]
@@ -77,17 +76,14 @@ class JobNamespace:
                 raise BusRequestError("bus.timeout", f"Job polling timeout after {within_ms}ms")
             await asyncio.sleep(every_ms / 1000)
 
-    async def cancel_by_type(self, job_type: JobType) -> int:
-        """Cancel every pending job of one type: how many were cancelled. Running jobs are their workers' to stop."""
-        return await self._cancelled(JobCancelRequest(job_type=job_type))
-
-    async def cancel(self, job_id: JobId) -> int:
-        """Cancel one job: how many the queue acted on.
+    async def cancel(self, job_id: JobId) -> bool:
+        """Cancel one job: whether the queue acted on it.
 
         A pending job is cancelled outright. A running one is left to its
-        worker, so one means accepted, not stopped.
+        worker, so true means accepted, not stopped. False is a job the
+        queue does not know, or one already over.
         """
-        return await self._cancelled(JobCancelRequest(job_id=job_id))
+        return (await self._links.request(JOB_CANCEL_REQUESTED, JobCancelRequest(job_id=job_id))).response.cancelled
 
     def claim(
         self,
@@ -96,15 +92,17 @@ class JobNamespace:
         job_claim_timeout_ms: int = JOB_CLAIM_TIMEOUT_MS,
         held_job_stall_ms: int = HELD_JOB_STALL_MS,
         held_job_stall_check_ms: int = HELD_JOB_STALL_CHECK_MS,
+        mark_commit_timeout_ms: int = MARK_COMMIT_TIMEOUT_MS,
     ) -> Claims:
         """A worker's side: claim the jobs `accepts` describes, and hold one at a time.
 
         Claiming begins when the claims are first read, and each job they
-        hand out says its own lifecycle and settles once
-        (docs/protocol/WORKER-CONTRACT.md). The transport's stream must name
-        `semiont.claims.JOB_CLAIM_CHANNELS`. The three waits are the values
-        of specs/src/client/timing.json unless a caller that must not wait
-        them out states others.
+        hand out says its own lifecycle, commits its own annotations and
+        settles once (docs/protocol/WORKER-CONTRACT.md). The transport's
+        stream must name `semiont.claims.JOB_CLAIM_CHANNELS`, and
+        `semiont.claims.JOB_COMMIT_CHANNELS` for a worker that commits. The
+        four waits are the values of specs/src/client/timing.json unless a
+        caller that must not wait them out states others.
         """
         return Claims(
             self._links.wire,
@@ -113,11 +111,5 @@ class JobNamespace:
             job_claim_timeout_ms=job_claim_timeout_ms,
             held_job_stall_ms=held_job_stall_ms,
             held_job_stall_check_ms=held_job_stall_check_ms,
+            mark_commit_timeout_ms=mark_commit_timeout_ms,
         )
-
-    def cancel_request(self, job_type: JobType) -> None:
-        """Signal: the cancellation of every pending job of one type is wanted."""
-        self._links.signal(JOB_CANCEL_REQUESTED.request, JobCancelRequest(job_type=job_type))
-
-    async def _cancelled(self, request: JobCancelRequest) -> int:
-        return (await self._links.request(JOB_CANCEL_REQUESTED, request)).response.cancelled

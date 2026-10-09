@@ -22,7 +22,7 @@ The gateway and the dispatcher are Rust, and have a crate of their own for this.
 
 | Import | |
 |---|---|
-| `@semiont/observability` | Runs in Node and in a browser. Spans: `withSpan`, and `withActorSpan` for a bus handler. Trace context across the bus: `getActiveTraceparent`, `extractTraceparent`, `withTraceparent`. `getLogTraceContext`, for a log line. The metric recorders (`record…`) and the gauges a process registers (`register…Provider`) |
+| `@semiont/observability` | Runs in Node and in a browser. Spans: `withSpan`, and `withActorSpan` for a bus handler. Trace context across the bus: `getActiveTraceparent`, `extractTraceparent`, `withTraceparent`; and `withoutTrace`, for work that begins a trace of its own. `getLogTraceContext`, for a log line. The metric recorders (`record…`) and the gauges a process registers (`register…Provider`) |
 | `@semiont/observability/node` | `initObservabilityNode` and `shutdownObservabilityNode`: the tracer, the meter, the exporter and the context manager of a Node process |
 | `@semiont/observability/process-logger` | `createProcessLogger(component)`: a service's structured logger. Each line carries the trace and span that were active when it was written |
 

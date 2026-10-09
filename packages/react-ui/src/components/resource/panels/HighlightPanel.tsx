@@ -40,7 +40,7 @@ interface HighlightPanelProps {
 /**
  * Panel for managing highlight annotations with auto-creation
  *
- * @emits mark:create - Create new highlight annotation (auto-triggered). Payload: { motivation: 'highlighting', selector: Selector | Selector[], body: Body[] }
+ * @emits mark:submit - Create new highlight annotation (auto-triggered). Payload: MarkSubmitEvent with motivation 'highlighting' and no body
  * @subscribes browse:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function HighlightPanel({

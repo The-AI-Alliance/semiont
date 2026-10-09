@@ -683,11 +683,11 @@ const kbMountTarget = "/kb"
 // the KB's committed identity, the addresses, the issuer — mounted at the
 // path its image passes to `--config`. Resolved means no ${VAR} is left for
 // it to expand, so it is handed no *_HOST variable: not even the gateway-host
-// pair the Node services get (gatewayHostEnv), which leaves a
-// ${GATEWAY_HOST:-…} in its publicURL on its default (gatewayVars). What is
-// left is that document, the state mount its supervisor keeps its events on,
-// its secrets, and the user's variables (the document names its broker
-// credentials by variable).
+// pair the services that load the KB's config get (gatewayHostEnv), which
+// leaves a ${GATEWAY_HOST:-…} in its publicURL on its default (gatewayVars).
+// What is left is that document, the state mount its supervisor keeps its
+// events on, its secrets, and the user's variables (the document names its
+// broker credentials by variable).
 //
 // jwt is the token-signing key — gateway-only, deliberately not in
 // sidecarArgs: the sidecars present agent tokens the gateway minted and never
@@ -741,10 +741,11 @@ func superviseEnv() []string {
 	return []string{"--env", "SEMIONT_SUPERVISE=1"}
 }
 
-// sidecarArgs covers the three make-meaning sidecars (worker / smelter /
-// weaver) — identical in shape, differing only in name, port, and memory.
-func sidecarArgs(svc string, port int, stage, rt, addr string, clientSecret, version string, userEnv, otel []string, extra ...string) []string {
-	p := strconv.Itoa(port)
+// sidecarArgs covers the two sidecars that load a staged copy of the KB's
+// config (smelter / weaver) — identical in shape, differing only in name,
+// port, and memory.
+func sidecarArgs(svc string, stage, rt, addr string, clientSecret, version string, userEnv, otel []string, extra ...string) []string {
+	p := strconv.Itoa(semiontDescriptor(svc).ports[0].port)
 	a := []string{"run", "-d", "--name", "semiont-" + svc, // no --rm: see providedRunArgs
 		"--memory", semiontDescriptor(svc).mem, "--publish", p + ":" + p,
 		"--volume", stage + "/" + svc + ".toml:/home/semiont/.semiontconfig:ro"}
@@ -838,6 +839,32 @@ func dispatcherArgs(stage, rt, addr string, clientSecret, version string, userEn
 	return append(a, image("dispatcher", version))
 }
 
+// workerArgs: the worker claims jobs and calls the models. It mounts no piece
+// of the knowledge base and no state: the gateway is its route to the bus and
+// to a resource's bytes. It reads a resolved configuration document
+// (workerdoc.go) at the path its image passes to `--config`, so it is handed
+// no *_HOST variables and no copy of the KB's config: the document carries
+// every address already, and names the variable holding each provider's key
+// (workerNamedVars), which arrives among the user's. It keeps the issuer's
+// host entry, because it signs in at the issuer by name.
+func workerArgs(stage, rt, addr string, clientSecret, version string, userEnv, otel []string) []string {
+	port := strconv.Itoa(semiontDescriptor("worker").ports[0].port)
+	a := []string{"run", "-d", "--name", "semiont-worker", // no --rm: see providedRunArgs
+		"--memory", semiontDescriptor("worker").mem, "--publish", port + ":" + port,
+		"--volume", stage + "/" + workerDocumentFile + ":" + workerDocumentTarget + ":ro"}
+	a = append(a, userEnv...)
+	a = append(a, otel...)
+	a = append(a, identityHostArgs(rt, addr)...)
+	a = append(a,
+		// This process's own credential at the realm. It buys an agent token
+		// from the gateway; it is not the agent identity, which is per
+		// (provider, model) and named in the request.
+		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("worker"),
+		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
+	a = append(a, superviseEnv()...)
+	return append(a, image("worker", version))
+}
+
 // browserArgs: the Browser publishes on the chosen host port (default
 // 3000; the SPA server always listens on 3000 inside). The ONLY port a flag
 // may move — it's absent from the config and nothing in the stack dials it.
@@ -883,14 +910,14 @@ func pullArgs(rt, img string) []string {
 
 type sidecarSpec struct {
 	svc, label, noun string
-	port             int
 }
 
-// sidecarSpecs: the three make-meaning sidecars, in start order.
+// sidecarSpecs: the three make-meaning sidecars, in start order. Each one's
+// container, port and memory are its descriptor's.
 var sidecarSpecs = []sidecarSpec{
-	{"worker", "Worker pool", "Worker Pool", 24100},
-	{"smelter", "Smelter", "Smelter", 24101},
-	{"weaver", "Weaver", "Weaver", 24102},
+	{"worker", "Worker pool", "Worker Pool"},
+	{"smelter", "Smelter", "Smelter"},
+	{"weaver", "Weaver", "Weaver"},
 }
 
 // --- The real run ---

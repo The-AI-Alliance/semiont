@@ -1,5 +1,6 @@
 {
   "get": {
+    "operationId": "getResourceJsonLd",
     "summary": "A resource's linked-data description",
     "description": "The descriptor, its annotations, and the annotations elsewhere that reference it — what the gateway serves at its own `GET /resources/{id}/jsonld`.",
     "security": [

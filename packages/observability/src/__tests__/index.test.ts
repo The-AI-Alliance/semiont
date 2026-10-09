@@ -57,6 +57,7 @@ import {
   withActorSpan,
   withSpan,
   withTraceparent,
+  withoutTrace,
 } from '../index';
 
 const spanExporter = new InMemorySpanExporter();
@@ -224,6 +225,59 @@ describe('withTraceparent', () => {
   });
 });
 
+describe('withoutTrace', () => {
+  it('returns what fn returns', () => {
+    expect(withoutTrace(() => 'value')).toBe('value');
+  });
+
+  it('runs fn under no span, inside a span', async () => {
+    let outside: ReturnType<typeof getActiveTraceparent>;
+    let within: ReturnType<typeof getActiveTraceparent>;
+    await withSpan('unit.outer', () => {
+      outside = getActiveTraceparent();
+      within = withoutTrace(() => getActiveTraceparent());
+    });
+
+    expect(outside).toBeDefined();
+    expect(within).toBeUndefined();
+  });
+
+  it('begins a trace of its own for a span started inside it, and for what that span awaits', async () => {
+    let outer: string | undefined;
+    let inner: string | undefined;
+    let continued: string | undefined;
+    await withSpan('unit.outer', async () => {
+      outer = getActiveTraceparent()?.traceparent.split('-')[1];
+      await withoutTrace(() =>
+        withSpan('unit.apart', async () => {
+          inner = getActiveTraceparent()?.traceparent.split('-')[1];
+          await Promise.resolve();
+          continued = getActiveTraceparent()?.traceparent.split('-')[1];
+        }),
+      );
+    });
+
+    expect(inner).toBeDefined();
+    expect(inner).not.toBe(outer);
+    expect(continued).toBe(inner);
+    const apart = findSpan('unit.apart');
+    expect(apart).toBeDefined();
+    expect(apart?.parentSpanContext).toBeUndefined();
+  });
+
+  it('leaves the span it was called in active once it returns', async () => {
+    let before: string | undefined;
+    let after: string | undefined;
+    await withSpan('unit.outer', () => {
+      before = getActiveTraceparent()?.traceparent;
+      withoutTrace(() => undefined);
+      after = getActiveTraceparent()?.traceparent;
+    });
+
+    expect(after).toBe(before);
+  });
+});
+
 describe('withActorSpan', () => {
   it('wraps fn in an actor.<name>:<channel> span with attributes', async () => {
     await withActorSpan('Stower', 'yield:create', async () => {
@@ -353,6 +407,7 @@ describe('recordJobOutcome', () => {
   it('writes to both the outcome counter and duration histogram', async () => {
     recordJobOutcome({ jobType: 'mark', motivation: 'tagging' }, 'completed', 1500);
     recordJobOutcome({ jobType: 'yield' }, 'failed', 800);
+    recordJobOutcome({ jobType: 'mark', motivation: 'linking' }, 'cancelled', 300);
     await flushMetrics();
 
     const metricsByName = collectMetrics();
@@ -364,6 +419,7 @@ describe('recordJobOutcome', () => {
     const failed = outcomes!.find((d) => d.attributes['job.outcome'] === 'failed');
     expect(completed?.value).toBe(1);
     expect(failed?.value).toBe(1);
+    expect(outcomes!.find((d) => d.attributes['job.outcome'] === 'cancelled')?.value).toBe(1);
     // A mark job says its motivation in a label of its own; a yield job has none to say.
     expect(completed?.attributes).toMatchObject({ 'job.type': 'mark', 'job.motivation': 'tagging' });
     expect(failed?.attributes).toMatchObject({ 'job.type': 'yield' });
@@ -573,7 +629,6 @@ describe('recordAnchorOutcome', () => {
 describe('recordDetectionCall', () => {
   const base = {
     label: 'Person',
-    pieceChars: 4000,
     durationMs: 250,
     items: 3,
     depth: 0,

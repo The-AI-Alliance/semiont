@@ -62,7 +62,7 @@ func discoverIssuer(ctx context.Context, cli *semiont.ClientWithResponses, base 
 // trustedIssuer: the issuer a KB's resource metadata names — the gateway's
 // word, read before anything dials the issuer itself.
 func trustedIssuer(ctx context.Context, cli *semiont.ClientWithResponses, base string) (string, error) {
-	meta, err := cli.GetWellKnownOauthProtectedResourceWithResponse(ctx)
+	meta, err := cli.GetProtectedResourceMetadataWithResponse(ctx)
 	if err != nil {
 		return "", fmt.Errorf("gateway unreachable at %s: %w", base, err)
 	}

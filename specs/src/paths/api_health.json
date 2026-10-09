@@ -1,7 +1,8 @@
 {
   "get": {
+    "operationId": "getHealth",
     "summary": "Health Check",
-    "description": "Check if the API is operational. Served at both /api/health and /, so a person who types the host gets an answer rather than a 404.",
+    "description": "Check if the API is operational. GET / makes the same check.",
     "tags": [
       "System"
     ],

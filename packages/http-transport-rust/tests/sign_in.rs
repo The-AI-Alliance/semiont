@@ -2517,7 +2517,7 @@ async fn a_worker(
                 let result = JobDetectionResult::new(0, 0);
                 // A settle takes the job, so it cannot be settled twice. A
                 // job dropped unsettled is failed, and the queue retries it.
-                job.complete(result.into(), None).await?;
+                job.complete(result.into()).await?;
             }
             Ok(HeldJob::Yield(job)) => {
                 let never = JobFailure {

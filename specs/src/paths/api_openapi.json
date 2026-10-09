@@ -1,5 +1,6 @@
 {
   "get": {
+    "operationId": "getOpenApiDocument",
     "summary": "The OpenAPI document",
     "description": "This document, as the running gateway serves it: `info.version` is the running build's version, and `servers` names this gateway's public URL. Public.",
     "tags": [

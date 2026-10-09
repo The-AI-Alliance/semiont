@@ -125,6 +125,20 @@ describe('TOOLS', () => {
     }
   });
 
+  it('requires all of a selection: its offset and its length, whole numbers of at least zero, and its text, which is not empty', () => {
+    const selection: unknown = TOOLS.find((tool) => tool.name === 'mark_annotation')?.inputSchema.properties?.['selectionData'];
+
+    expect(selection).toMatchObject({
+      type: 'object',
+      properties: {
+        offset: { type: 'integer', minimum: 0 },
+        length: { type: 'integer', minimum: 0 },
+        text: { type: 'string', minLength: 1 },
+      },
+      required: ['offset', 'length', 'text'],
+    });
+  });
+
   it('gives every tool a description', () => {
     for (const tool of TOOLS) {
       expect(tool.description, tool.name).toBeTruthy();

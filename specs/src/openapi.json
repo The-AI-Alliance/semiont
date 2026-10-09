@@ -3,12 +3,24 @@
   "info": {
     "title": "Semiont API",
     "version": "0.1.0",
-    "description": "Semantic Knowledge Platform API"
+    "description": "Semantic Knowledge Platform API",
+    "license": {
+      "name": "Apache-2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0"
+    }
   },
   "servers": [
     {
-      "url": "http://localhost:4000",
-      "description": "API Server"
+      "url": "http://{host}:{port}",
+      "description": "A knowledge base's gateway, at the address its operator gives it.",
+      "variables": {
+        "host": {
+          "default": "localhost"
+        },
+        "port": {
+          "default": "4000"
+        }
+      }
     }
   ],
   "paths": {
@@ -16,7 +28,7 @@
       "$ref": "paths/api_health.json"
     },
     "/": {
-      "$ref": "paths/api_health.json"
+      "$ref": "paths/root.json"
     },
     "/api/openapi.json": {
       "$ref": "paths/api_openapi.json"
@@ -123,9 +135,6 @@
       "AnnotationBodyUpdatedPayload": {
         "$ref": "components/schemas/AnnotationBodyUpdatedPayload.json"
       },
-      "AnnotationContextResponse": {
-        "$ref": "components/schemas/AnnotationContextResponse.json"
-      },
       "AnnotationId": {
         "$ref": "components/schemas/AnnotationId.json"
       },
@@ -179,9 +188,6 @@
       },
       "BrowseAgentsResult": {
         "$ref": "components/schemas/BrowseAgentsResult.json"
-      },
-      "BrowseAnnotationContextRequest": {
-        "$ref": "components/schemas/BrowseAnnotationContextRequest.json"
       },
       "BrowseAnnotationHistoryRequest": {
         "$ref": "components/schemas/BrowseAnnotationHistoryRequest.json"
@@ -597,9 +603,6 @@
       "MarkDelegateRequestEvent": {
         "$ref": "components/schemas/MarkDelegateRequestEvent.json"
       },
-      "MarkCreateCommand": {
-        "$ref": "components/schemas/MarkCreateCommand.json"
-      },
       "MarkCreateOk": {
         "$ref": "components/schemas/MarkCreateOk.json"
       },
@@ -792,9 +795,6 @@
       "YieldClonePersistOk": {
         "$ref": "components/schemas/YieldClonePersistOk.json"
       },
-      "YieldMvCommand": {
-        "$ref": "components/schemas/YieldMvCommand.json"
-      },
       "YieldUpdateCommand": {
         "$ref": "components/schemas/YieldUpdateCommand.json"
       },
@@ -948,6 +948,12 @@
       "DispatcherConfig": {
         "$ref": "components/schemas/DispatcherConfig.json"
       },
+      "WorkerConfig": {
+        "$ref": "components/schemas/WorkerConfig.json"
+      },
+      "WorkerAgentConfig": {
+        "$ref": "components/schemas/WorkerAgentConfig.json"
+      },
       "DispatcherHealth": {
         "$ref": "components/schemas/DispatcherHealth.json"
       },
@@ -986,9 +992,6 @@
       },
       "ArchivistRosterRole": {
         "$ref": "components/schemas/ArchivistRosterRole.json"
-      },
-      "YieldMoveFailed": {
-        "$ref": "components/schemas/YieldMoveFailed.json"
       },
       "GatherFailed": {
         "$ref": "components/schemas/GatherFailed.json"

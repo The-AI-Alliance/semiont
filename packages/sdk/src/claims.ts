@@ -31,6 +31,24 @@
  * checkpoints, and it settles once: `complete`, `fail` and `cancel` each say
  * the outcome and release the job in one call, so a worker cannot say one
  * and forget the other.
+ *
+ * A HELD JOB COMMITS FOR ITSELF. `commit` sends a batch of annotations to the
+ * record, citing the job, and resolves once the batch is established: the
+ * record acknowledged it, or, when no acknowledgement came, answered that
+ * the batch's last annotation is on the resource. The job remembers the
+ * weakest of what its commits observed and states it when it settles, so a
+ * worker says neither which job a batch is for nor how its commits went.
+ *
+ * EACH JOB HAS A TRACE OF ITS OWN (WORKER-CONTRACT T1). A claim is made in no
+ * trace, whatever span is active where the idle moment came: the settle of
+ * the job before it runs inside that job's span, and a claim made there would
+ * put every later job in the first job's trace. The job a claim is answered
+ * with is handed to its reader in the trace its reply arrived in, which is
+ * the claim's own once the dispatcher has answered in it: so the span a
+ * worker opens around a job, and every message the job sends, continue the
+ * trace that began with its claim. The held job states that trace too
+ * (`trace`), as a value, for what is done for the job where the hand-over
+ * does not reach.
  */
 
 import { Observable, Subject, type Subscriber, type Subscription } from 'rxjs';
@@ -39,6 +57,7 @@ import {
   HELD_JOB_STALL_CHECK_MS,
   HELD_JOB_STALL_MS,
   JOB_CLAIM_TIMEOUT_MS,
+  MARK_COMMIT_TIMEOUT_MS,
   annotationId as makeAnnotationId,
   busRequest,
   isObject,
@@ -46,7 +65,8 @@ import {
   jobMatchesFilter,
   replyChannelsFor,
 } from '@semiont/core';
-import type { AnnotationId, BusRequestErrorCode, BusRequestPrimitive, EventMap, JobFilter, JobId, JobType, ResourceId, UnitCursor, components } from '@semiont/core';
+import type { Annotation, AnnotationId, BusOperationKey, BusRequestErrorCode, BusRequestPrimitive, EventMap, JobFilter, JobId, JobType, ResourceId, UnitCursor, components } from '@semiont/core';
+import { getActiveTraceparent, withTraceparent, withoutTrace, type TraceCarrier } from '@semiont/observability';
 
 /** The job a `job:claimed` reply carries, running under this worker: the spec's `JobRunning`. */
 type ClaimedJob = EventMap['job:claimed']['response'];
@@ -68,6 +88,34 @@ export const JOB_CLAIM_CHANNELS: readonly (keyof EventMap)[] = [
   'job:queued',
   'job:cancel-requested',
 ];
+
+/**
+ * The requests a commit makes: the commit, and the question it asks when the
+ * commit goes unacknowledged.
+ *
+ * The question is the read of ONE annotation, and not of a resource's list
+ * of them. Reply channels reach every stream that names them, and the list's
+ * replies are the frames of many megabytes a worker's stream exists to keep
+ * out; one annotation's frame is small.
+ */
+const COMMIT_OPERATIONS = ['mark:commit', 'browse:annotation-requested'] as const satisfies readonly BusOperationKey[];
+type CommitOperation = (typeof COMMIT_OPERATIONS)[number];
+
+/** What a worker's stream names for its commits: the replies of `mark:commit` and of the question it asks when one goes unacknowledged. */
+export const JOB_COMMIT_CHANNELS: readonly (keyof EventMap)[] = replyChannelsFor(COMMIT_OPERATIONS);
+
+/**
+ * How weak each observation of a commit is, as evidence that the batch is on
+ * the record. The two a commit is not established by are equally weak: one
+ * says the record answered that the annotation is not there, the other that
+ * nobody answered, and neither says more than the other.
+ */
+const WEAKNESS: Record<DurabilityEvidence, number> = {
+  acknowledged: 0,
+  'probe-confirmed': 1,
+  'probe-refused': 2,
+  'probe-unreachable': 2,
+};
 
 /**
  * Will this failure be put back in the queue for another attempt?
@@ -98,13 +146,15 @@ export interface ClaimOptions {
    */
   accepts: JobFilter[];
   /**
-   * `jobClaimTimeoutMs`, `heldJobStallMs` and `heldJobStallCheckMs` of
-   * specs/src/client/timing.json, for a caller that must not wait them out: a
-   * test, or the conformance driver. Absent, the table's values stand.
+   * `jobClaimTimeoutMs`, `heldJobStallMs`, `heldJobStallCheckMs` and
+   * `markCommitTimeoutMs` of specs/src/client/timing.json, for a caller that
+   * must not wait them out: a test, or the conformance driver. Absent, the
+   * table's values stand.
    */
   jobClaimTimeoutMs?: number;
   heldJobStallMs?: number;
   heldJobStallCheckMs?: number;
+  markCommitTimeoutMs?: number;
 }
 
 /**
@@ -150,18 +200,16 @@ export interface HeldJobStall {
   thresholdMs: number;
 }
 
-/** The checkpoint a worker states: the units finished, and how far each unit begun and not finished got. */
+/** The checkpoint a worker states: the units finished, and the furthest each unit begun got, a finished unit's cursor where it ended. */
 export interface JobCheckpoint {
   completedUnits: string[];
   unitCursors?: Record<string, UnitCursor>;
 }
 
-/** What a failure carries beside its error. */
+/** What a failure carries beside its error. What the job's commits observed is the held job's own to state. */
 export interface JobFailure extends Partial<JobCheckpoint> {
   /** The failure's class, when the worker knows it. */
   failureClass?: FailureClass;
-  /** What a commit established before the failure, when the failure came from one. */
-  durability?: DurabilityEvidence;
 }
 
 interface Held<T extends JobType, R> {
@@ -172,7 +220,7 @@ interface Held<T extends JobType, R> {
   readonly params: ClaimedJob['params'];
   /** The units earlier attempts finished. A worker does not do them again. Empty on a first attempt. */
   readonly completedUnits: readonly string[];
-  /** How far each unit begun and not finished got on an earlier attempt. Empty on a first attempt. */
+  /** The furthest each unit begun got on an earlier attempt, and what it had counted there: a finished unit's is where it ended. Empty on a first attempt. */
   readonly unitCursors: Readonly<Record<string, UnitCursor>>;
   readonly retryCount: number;
   readonly maxRetries: number;
@@ -180,6 +228,13 @@ interface Held<T extends JobType, R> {
   readonly attempt: number;
   /** The annotation the job is anchored to: the one a `yield` job's context is focused on. */
   readonly annotationId: AnnotationId | undefined;
+  /**
+   * The trace the job is run in: the W3C carrier of the trace its reply
+   * arrived in, or undefined for a reply that arrived in none. The job is
+   * handed to its reader in that trace already. This is the same trace as a
+   * value, for what is done for the job where that hand-over does not reach.
+   */
+  readonly trace: TraceCarrier | undefined;
   /** Aborted when a cancellation names this job. The work stops where it can, and the worker says `cancel`. */
   readonly cancelled: AbortSignal;
   /** Whether the job has been settled: completed, failed or cancelled. */
@@ -191,9 +246,15 @@ interface Held<T extends JobType, R> {
   progress(progress: JobProgress): Promise<void>;
   /** `job:checkpoint`: what a later attempt resumes from. Counts as activity. */
   checkpoint(checkpoint: JobCheckpoint): Promise<void>;
-  /** Settle: `job:complete`, with the result this job's verb reports. */
-  complete(result: R, established?: { durability?: DurabilityEvidence }): Promise<void>;
-  /** Settle: `job:fail`. It says whether the queue will retry, from the record's budget and the failure's class. */
+  /** `mark:commit` for this job: resolves once the batch is established. */
+  commit(resourceId: ResourceId, annotations: readonly Annotation[]): Promise<void>;
+  /** Settle: `job:complete`, with the result this job's verb reports, and how its commits were established. */
+  complete(result: R): Promise<void>;
+  /**
+   * Settle: `job:fail`. It says whether the queue will retry, from the
+   * record's budget and the failure's class, and what a commit that was not
+   * established observed.
+   */
   fail(error: string, failure?: JobFailure): Promise<void>;
   /** Settle: `job:cancel`, once the work has stopped for a cancellation. */
   cancel(reached?: Partial<JobCheckpoint>): Promise<void>;
@@ -235,6 +296,8 @@ interface Named<T extends JobType> {
 /** What a held job asks of the loop that claimed it. */
 interface Holder {
   emit<K extends keyof EventMap>(channel: K, payload: EventMap[K]): Promise<unknown>;
+  /** One of a commit's requests, awaited for `markCommitTimeoutMs`. It fails as `busRequest` fails. */
+  request<Op extends CommitOperation>(operation: Op, payload: EventMap[Op]): Promise<unknown>;
   /** The work showed it is alive. */
   active(): void;
   /** `job` is settled, and no longer held. */
@@ -251,14 +314,24 @@ class HeldJobOf<T extends JobType, R> implements Held<T, R> {
   readonly maxRetries: number;
   readonly attempt: number;
   readonly annotationId: AnnotationId | undefined;
+  readonly trace: TraceCarrier | undefined;
   readonly cancelled: AbortSignal;
   private readonly cancellation = new AbortController();
   private state: 'claimed' | 'begun' | 'settled' = 'claimed';
+  /**
+   * The weakest of what this job's commits observed, across every batch and
+   * every resource it committed on: the strongest thing still true of the
+   * job as a whole. None until a batch is committed, and never a default: a
+   * job that commits nothing states nothing.
+   */
+  private durability: DurabilityEvidence | undefined;
 
   constructor(
     readonly jobType: T,
     claimed: ClaimedJob,
     private readonly holder: Holder,
+    /** The trace the reply that carried `claimed` arrived in. */
+    trace: TraceCarrier | undefined,
     /** The completion this job's verb states, from what every lifecycle message carries and its result. */
     private readonly completion: (said: Named<T> & { attempt: number }, result: R) => EventMap['job:complete'],
   ) {
@@ -273,6 +346,7 @@ class HeldJobOf<T extends JobType, R> implements Held<T, R> {
     this.maxRetries = metadata.maxRetries;
     this.attempt = metadata.retryCount + 1;
     this.annotationId = anchorOf(jobType, params);
+    this.trace = trace;
     this.cancelled = this.cancellation.signal;
   }
 
@@ -328,8 +402,90 @@ class HeldJobOf<T extends JobType, R> implements Held<T, R> {
     await this.holder.emit('job:checkpoint', { jobId: this.jobId, ...checkpoint });
   }
 
-  complete(result: R, established: { durability?: DurabilityEvidence } = {}): Promise<void> {
-    return this.settle('job:complete', true, () => ({ ...this.completion(this.identity, result), ...established }));
+  /**
+   * Send a batch to the record and WAIT for the record to say it has it. The
+   * gateway taking the message says nothing of the record: a record that is
+   * down discards a batch the gateway accepted, and a job that counted the
+   * batch as done would report work that never landed.
+   *
+   * A commit the record does not acknowledge in time is not thereby lost. If
+   * the gateway goes down after the record appended the batch, the
+   * acknowledgement cannot be routed, and a job failed on that would be
+   * failed over annotations that are on the record. So the outcome follows
+   * what the record holds, and not the arrival of a message: the record is
+   * asked. A batch is never sent a second time to find out. That would double
+   * the work, and where the acknowledgement was lost because the gateway is
+   * down, the second commit would only time out as the first did.
+   *
+   * A commit that was not established fails as its unanswered request did,
+   * with that request's own failure. What was observed leaves by the job's
+   * settle, the one place it can still be told.
+   */
+  async commit(resourceId: ResourceId, annotations: readonly Annotation[]): Promise<void> {
+    this.unsettled('mark:commit');
+    const last = annotations.at(-1);
+    // A batch of no annotations is no commit: there is nothing to establish.
+    if (last === undefined) return;
+    try {
+      await this.holder.request('mark:commit', { resourceId, annotations: [...annotations], jobId: this.jobId });
+    } catch (error) {
+      // The record's refusal, and every other failure of the request, is the
+      // commit's failure as it is. Only an acknowledgement that did not
+      // arrive leaves what the record holds unknown.
+      if (!(error instanceof BusRequestError) || error.code !== 'bus.timeout') throw error;
+      const observed = await this.askWhetherRecorded(resourceId, last.id);
+      this.observe(observed);
+      if (observed !== 'probe-confirmed') throw error;
+      return;
+    }
+    this.observe('acknowledged');
+  }
+
+  /**
+   * Is the annotation on the resource? Asked of the LAST annotation of a
+   * batch nobody acknowledged, and that is enough: the record appends a batch
+   * in order and stops at the first annotation it cannot append
+   * (WORKER-CONTRACT A5), so the last being there says every one before it
+   * is. One question, where asking of each would be a round trip for each
+   * annotation.
+   *
+   * Every answer but the annotation fails the commit, and the asymmetry is
+   * deliberate. The record appends only the annotations it does not hold, so
+   * a job retried over a batch that had landed costs one more run of the
+   * batch's unit; a wrong "it is there" loses the batch silently, which is
+   * what the acknowledgement exists to prevent. A question nobody answered is
+   * neither yes nor no. It is said as its own observation, and it does not
+   * establish the commit.
+   */
+  private async askWhetherRecorded(resourceId: ResourceId, annotationId: AnnotationId): Promise<Exclude<DurabilityEvidence, 'acknowledged'>> {
+    try {
+      await this.holder.request('browse:annotation-requested', { resourceId, annotationId });
+      return 'probe-confirmed';
+    } catch (error) {
+      // A failure reply (`bus.rejected`) means the question was answered and
+      // the answer was not the annotation. That is not "the annotation is
+      // absent": a read that failed for its own reasons answers on the same
+      // channel. So the job says what was observed, and its reader judges.
+      // Anything else (`bus.timeout`, `bus.closed`) means nobody answered.
+      // Read from the code the error carries, never by its class: a second
+      // copy of @semiont/core anywhere in the tree makes a class check fail,
+      // and silently, so that a refusal is said as "nobody answered", the one
+      // distinction this observation exists to make.
+      const code = isObject(error) && isString(error.code) ? error.code : undefined;
+      return code === 'bus.rejected' ? 'probe-refused' : 'probe-unreachable';
+    }
+  }
+
+  /** Remember `evidence` if it is weaker than what is remembered. Of two equally weak, the first seen is kept. */
+  private observe(evidence: DurabilityEvidence): void {
+    if (this.durability === undefined || WEAKNESS[evidence] > WEAKNESS[this.durability]) this.durability = evidence;
+  }
+
+  complete(result: R): Promise<void> {
+    return this.settle('job:complete', true, () => ({
+      ...this.completion(this.identity, result),
+      ...(this.durability === undefined ? {} : { durability: this.durability }),
+    }));
   }
 
   fail(error: string, failure: JobFailure = {}): Promise<void> {
@@ -337,6 +493,10 @@ class HeldJobOf<T extends JobType, R> implements Held<T, R> {
       ...this.identity,
       error,
       ...failure,
+      // Stated only when a commit was not established: what is weaker than
+      // any observation that establishes one. Otherwise the failure says
+      // nothing of the job's commits.
+      ...(this.durability !== undefined && WEAKNESS[this.durability] > WEAKNESS['probe-confirmed'] ? { durability: this.durability } : {}),
       willRetry: willRetryAfter(this, failure.failureClass),
     }));
   }
@@ -365,19 +525,25 @@ class HeldJobOf<T extends JobType, R> implements Held<T, R> {
 }
 
 /**
- * Hold the job a claim was answered with, as its verb's. Undefined for a
+ * Hold the job a claim was answered with, as its verb's, in the trace its
+ * reply arrived in: `arrivedIn` has it by the job's id. Undefined for a
  * reply that names no job (WORKER-CONTRACT C9): read unguarded, one with no
  * `metadata` throws inside the loop, where no claim would ever follow, and
  * one with no id would be handed to the work as a job.
  */
-function heldJob(claimed: ClaimedJob, holder: Holder): HeldJobOf<'mark', MarkJobResult> | HeldJobOf<'yield', YieldJobResult> | undefined {
+function heldJob(
+  claimed: ClaimedJob,
+  holder: Holder,
+  arrivedIn: ReadonlyMap<string, TraceCarrier | undefined>,
+): HeldJobOf<'mark', MarkJobResult> | HeldJobOf<'yield', YieldJobResult> | undefined {
   const reply: unknown = claimed;
   if (!isObject(reply) || !isObject(reply['metadata']) || !isString(reply['metadata']['id']) || !isObject(reply['params'])) return undefined;
+  const trace = arrivedIn.get(reply['metadata']['id']);
   switch (reply['metadata']['type']) {
     case 'mark':
-      return new HeldJobOf('mark', claimed, holder, (said, result: MarkJobResult) => ({ ...said, result }));
+      return new HeldJobOf('mark', claimed, holder, trace, (said, result: MarkJobResult) => ({ ...said, result }));
     case 'yield':
-      return new HeldJobOf('yield', claimed, holder, (said, result: YieldJobResult) => ({ ...said, result }));
+      return new HeldJobOf('yield', claimed, holder, trace, (said, result: YieldJobResult) => ({ ...said, result }));
     default:
       return undefined;
   }
@@ -406,6 +572,16 @@ class ClaimLoop implements Holder {
   // arrived during it, honoured with exactly one more claim.
   private claimInFlight = false;
   private wakePending = false;
+  /**
+   * The trace each `job:claimed` that arrived during the claim in flight
+   * arrived in, by the job it names. A frame is delivered inside the span of
+   * its arrival, and the claim's answer is read after it, where that span is
+   * no longer active: so the trace is kept here, at the delivery, for the
+   * job that is held from the answer. By the job, because every worker's
+   * reply reaches a stream that names the channel, and a job is claimed by
+   * one.
+   */
+  private readonly arrivedIn = new Map<string, TraceCarrier | undefined>();
 
   // Epoch milliseconds here; ISO in a snapshot.
   private lastQueuedEventAt: number | null = null;
@@ -419,18 +595,24 @@ class ClaimLoop implements Holder {
   private readonly jobClaimTimeoutMs: number;
   private readonly heldJobStallMs: number;
   private readonly heldJobStallCheckMs: number;
+  private readonly markCommitTimeoutMs: number;
 
   constructor(private readonly bus: BusRequestPrimitive, options: ClaimOptions) {
     this.accepts = options.accepts;
     this.jobClaimTimeoutMs = options.jobClaimTimeoutMs ?? JOB_CLAIM_TIMEOUT_MS;
     this.heldJobStallMs = options.heldJobStallMs ?? HELD_JOB_STALL_MS;
     this.heldJobStallCheckMs = options.heldJobStallCheckMs ?? HELD_JOB_STALL_CHECK_MS;
+    this.markCommitTimeoutMs = options.markCommitTimeoutMs ?? MARK_COMMIT_TIMEOUT_MS;
   }
 
   // ── what a held job asks ─────────────────────────────────────────────────
 
   emit<K extends keyof EventMap>(channel: K, payload: EventMap[K]): Promise<unknown> {
     return this.bus.emit(channel, payload);
+  }
+
+  request<Op extends CommitOperation>(operation: Op, payload: EventMap[Op]): Promise<unknown> {
+    return busRequest(this.bus, operation, payload, this.markCommitTimeoutMs);
   }
 
   active(): void {
@@ -480,6 +662,13 @@ class ClaimLoop implements Holder {
       this.bus.stream('job:cancel-requested').subscribe((request) => {
         if (this.held !== null && request.jobId === this.held.jobId) this.held.signalCancellation();
       }),
+      // Read as it comes, and not as its channel types it: a reply that names
+      // no job is refused where the claim's answer is read (C9).
+      this.bus.stream('job:claimed').subscribe((reply) => {
+        const response: unknown = reply.response;
+        const metadata = isObject(response) ? response['metadata'] : undefined;
+        if (this.claimInFlight && isObject(metadata) && isString(metadata['id'])) this.arrivedIn.set(metadata['id'], getActiveTraceparent());
+      }),
     );
 
     // The stream opening again is an edge into `open` after the first
@@ -514,8 +703,10 @@ class ClaimLoop implements Holder {
     }
     this.claimInFlight = true;
     this.wakePending = false;
-    void this.claimNext().then((outcome) => {
+    // In no trace: the claim, and the reading of its answer.
+    withoutTrace(() => void this.claimNext().then((outcome) => {
       this.claimInFlight = false;
+      this.arrivedIn.clear();
       if (this.phase !== 'claiming') {
         // Answered after the worker stopped: the job is this worker's at the
         // dispatcher, and nobody here will run it.
@@ -530,7 +721,8 @@ class ClaimLoop implements Holder {
         // A wake-up that arrived during the claim is moot: the settle claims.
         this.wakePending = false;
         this.held = outcome.job;
-        this.reader?.next(outcome.job);
+        // In the trace its reply arrived in.
+        withTraceparent(outcome.job.trace, () => this.reader?.next(outcome.job));
         return;
       }
       if ('refused' in outcome) this.refused$.next(outcome.refused);
@@ -538,7 +730,7 @@ class ClaimLoop implements Holder {
         this.wakePending = false;
         this.pull();
       }
-    });
+    }));
   }
 
   private async claimNext(): Promise<ClaimOutcome> {
@@ -556,7 +748,7 @@ class ClaimLoop implements Holder {
       }
       return { refused: { code: null, message: error instanceof Error ? error.message : String(error) } };
     }
-    const job = heldJob(claimed, this);
+    const job = heldJob(claimed, this, this.arrivedIn);
     return job ? { job } : { refused: { code: null, message: 'job:claimed names no job: it has no job id, no job type or no parameters' } };
   }
 

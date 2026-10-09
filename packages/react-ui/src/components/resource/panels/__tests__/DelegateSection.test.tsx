@@ -305,7 +305,7 @@ describe('DelegateSection', () => {
   });
 
   describe('Event Emission', () => {
-    it('should emit annotate:detect-request event when detect button clicked', async () => {
+    it('should emit mark:delegate-request event when detect button clicked', async () => {
       const user = userEvent.setup();
       const detectionHandler = vi.fn();
 

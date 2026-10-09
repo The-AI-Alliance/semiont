@@ -31,8 +31,9 @@ function toPagePoint(px: number, py: number, placement: ImagePlacement): [number
 }
 
 /**
- * Map recognized words onto the page, shifting their character offsets by
- * `textOffset` — where this page's text begins in the assembled document.
+ * Map recognized words onto the page, shifting their offsets by `textOffset`:
+ * where this page's text begins in the assembled document, in code points as
+ * the words' own offsets are.
  */
 export function mapWordsToItems(
     words: OcrWord[],

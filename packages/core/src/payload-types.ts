@@ -38,7 +38,8 @@ export type MarkJobResult = components['schemas']['MarkJobResult'];
 export type YieldJobResult = components['schemas']['YieldJobResult'];
 
 /**
- * How far one unit of a job got, for a resume that starts mid-unit.
+ * The furthest one unit of a job got, and what it had counted there: where a
+ * resume takes an unfinished unit up, and where a finished unit ended.
  * Spec-owned: it crosses the wire on three job commands and is read back off
  * the claimed record's metadata, so the queue, the worker and the Go client
  * all have to mean the same `{ next, size }`.

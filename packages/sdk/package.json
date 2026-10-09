@@ -47,9 +47,13 @@
   "dependencies": {
     "@semiont/core": "*",
     "@semiont/http-transport": "*",
+    "@semiont/observability": "*",
     "rxjs": "^7.8.1"
   },
   "devDependencies": {
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/context-async-hooks": "^2.11.0",
+    "@opentelemetry/core": "^2.11.0",
     "@vitest/coverage-v8": "^4.1.11",
     "fast-check": "^4.10.0",
     "rollup": "^4.63.6",

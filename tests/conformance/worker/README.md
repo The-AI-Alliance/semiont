@@ -42,6 +42,20 @@ that:
   [`specs/src/errors/codes.json`](../../../specs/src/errors/codes.json) does
   not list.
 
+A case that states `telemetry` runs the worker exporting, as an SDK case does
+([sdk/README.md § A case](../sdk/README.md#a-case)), and once the driver has
+exited holds what it exported to the rows of
+[`specs/src/sdk-telemetry/telemetry.json`](../../../specs/src/sdk-telemetry/telemetry.json)
+for the bus, which is all a worker reaches. It also holds the worker to a
+trace of its own for each job, read from the trace each of its claims was
+sent under and from the spans its driver opened around the jobs it was
+handed. So it fails a worker that:
+
+- sends two claims in one trace, or a claim under no trace;
+- sends a claim in the trace of a span opened for a job that claim did not
+  hand over;
+- runs a job outside the trace of the claim that handed it over.
+
 ## The backend
 
 The gateway is the real one, on each signal plane. **No dispatcher runs.**
@@ -50,6 +64,12 @@ case tells it to: with a job, with `none-pending`, with a refusal, with a
 reply that names no job, or not at all. It announces jobs (`job:queued`) and
 asks for cancellations (`job:cancel-requested`) the same way. So a case can
 put a worker in front of an answer a correct dispatcher never gives.
+
+The gateway exports its telemetry, to a receiver nothing reads, because a
+gateway carries a trace from the frame it is sent to the frame it delivers
+only when it exports. The participant answers a claim in the trace of the
+claim, as a dispatcher does. So the reply that hands a job over reaches a
+worker that exports in the trace of the claim it answers.
 
 The worker signs in as an agent whose token carries the worker role.
 
@@ -62,12 +82,13 @@ worker observes written as it happens.
 
 | `op` | Arguments | `ok` |
 |---|---|---|
-| `open` | `baseUrl`, `token`, `timing` | `null`. The stream it opens names what a worker's stream names; a case states which channels those are |
+| `open` | `baseUrl`, `token`, `timing`, and `commits` when the worker will commit annotations | `null`. The stream it opens names what a worker's stream names, and with `commits` the reply channels a commit awaits as well; a case states which channels those are |
 | `close` | | `null`, once the worker has stopped: a job it holds is failed first, and the stream is closed after |
 | `claim` | `accepts`: the filters of the jobs the worker takes | `null`. The worker begins claiming, and claims from then on at every idle moment |
 | `start` | | `null`. The held job's `job:start` |
 | `progress` | `percentage`, and `message` when given | `null` |
 | `checkpoint` | `completedUnits`, `unitCursors` | `null` |
+| `commit` | `resourceId`, `annotations` | `null`, once the batch is established for the held job. It fails when the batch is not established or the record refuses it |
 | `complete` | `result` | `null`. The held job is settled |
 | `fail` | `error`, and `failureClass`, `completedUnits`, `unitCursors` when given | `null`. The held job is settled; the worker says whether it will be retried |
 | `cancel` | `completedUnits` when given | `null`. The held job is settled as cancelled |
@@ -84,14 +105,21 @@ It writes, as they happen, beside the transport's `state` and `error` lines:
 | `{"signalled": "<jobId>"}` | a cancellation of the held job was signalled to the work |
 | `{"stalled": "<jobId>"}` | the held job has stalled |
 
+**A driver runs each job in a span of its own**, as a worker's code does:
+`job:{jobType}`, carrying the job's id as `job.id`, opened where the job is
+handed to it and ended once it has settled the job. Everything it does for
+the job it does in that span. Started with `OTEL_EXPORTER_OTLP_ENDPOINT` in
+its environment, a driver exports its telemetry there over OTLP/HTTP, and has
+exported all of it by the time it exits.
+
 **The end of its input is not a stop.** When the suite is done with a driver
 it ends the driver's input, and the driver exits as a worker that is killed
 does: it says nothing more, of a job it holds or of anything else. Only
 `close` stops the worker. A case that ends with a job held therefore ends
 with no `job:fail`, and a driver that failed one there would fail the case.
 
-`open`'s `timing` overrides `jobClaimTimeoutMs`, `heldJobStallMs` and
-`heldJobStallCheckMs` of
+`open`'s `timing` overrides `jobClaimTimeoutMs`, `heldJobStallMs`,
+`heldJobStallCheckMs` and `markCommitTimeoutMs` of
 [`specs/src/client/timing.json`](../../../specs/src/client/timing.json)
 beside the transport's `reconnectMs`, `lazyRemoveMs` and `lingerMs`, so a
 case does not wait out ten seconds or fifteen minutes.
@@ -130,6 +158,12 @@ that is quiet has told the suite nothing the case has not read.
 | `vitals` | V1 |
 | `stall` | L2, V2 |
 | `stop-while-held` | L8 |
+| `commit-acknowledged` | A1, A4, A6 |
+| `commit-empty` | A4, A6 |
+| `commit-ack-lost` | A5, A6 |
+| `commit-probe-refused`, `commit-probe-unreachable` | A5, A6 |
+| `commit-refused` | A5, A6 |
+| `job-trace` | T1 |
 
 `npm run lint:transport-contract` holds the two to each other: every case is
 named by a rule of the contract, and a case's `source` names a section in
@@ -139,7 +173,7 @@ which a rule is held by it.
 
 | Rule | Why no case holds it |
 |---|---|
-| A1, A2, A3, committing annotations | No driver commits an annotation: building one is the work, which is the worker's own. What the record does with a commit is held by the [Archivist suite](../archivist/README.md). |
+| A2, A3, an annotation's `id` | The suite plays the record, so it cannot show what the record does with an `id`, or with none: that is held by the [Archivist suite](../archivist/README.md). And no driver builds an annotation: a case hands it one already made. |
 
 **For TypeScript, `handover` cannot fail by a fault in the worker.** Its
 transport reports no change of state when a stream hands over, so a worker is

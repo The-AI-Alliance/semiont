@@ -1,0 +1,10 @@
+Count every mention of: Person in the following text. Repeated mentions of the same entity count separately. Respond with only the number.
+
+Text:
+"""
+Ada Lovelace published the first program in 1843 — a method for computing Bernoulli numbers on the Analytical Engine.
+
+Charles Babbage designed the engine in London, but it was never built. Lovelace argued that the engine could manipulate symbols as well as numbers; nobody tested that claim for a century.
+
+The program was naïve by later standards, and London ignored it. London was wrong.
+"""

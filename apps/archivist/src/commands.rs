@@ -4,6 +4,15 @@
 use crate::archivist::{
     Archivist, CloneToken, Refusal, event, locked, primary_representation, text,
 };
+use semiont::channels::{
+    Channel, FrameAddEntityType, FrameAddTagSchema, FrameEntityTypeAdded, FrameTagSchemaAdded,
+    JobAssign, JobAssigned, JobComplete, JobCompleted, JobFailed, JobStart, JobStarted, MarkAdded,
+    MarkArchive, MarkArchived, MarkBodyUpdated, MarkCommit, MarkCreateRequest, MarkDelete,
+    MarkEntityTagAdded, MarkEntityTagRemoved, MarkRemoved, MarkUnarchive, MarkUnarchived,
+    MarkUpdateEntityTypes, PersonProfile, PersonProfiled, YieldCloneCreate, YieldClonePersist,
+    YieldCloneResourceRequested, YieldCloneTokenRequested, YieldCloned, YieldCreate, YieldCreated,
+    YieldUpdate, YieldUpdated,
+};
 use semiont::media_types::{AnchoringModel, capabilities_of};
 use semiont::roles::WORKER_ROLE;
 use semiont_archivist_record::agents::attribution;
@@ -53,9 +62,9 @@ fn requester_of(
     writer: &str,
 ) -> Result<String, Refusal> {
     let events = archivist.events(resource_id)?;
-    let assigned = events
-        .iter()
-        .find(|e| e.get("type") == Some(&json!("job:assigned")) && e["payload"]["jobId"] == job_id);
+    let assigned = events.iter().find(|e| {
+        e.get("type") == Some(&json!(JobAssigned::NAME)) && e["payload"]["jobId"] == job_id
+    });
     let Some(assigned) = assigned else {
         return Err(format!(
             "refused: cites job {job_id}, but this resource's log holds no assignment for it"
@@ -77,7 +86,7 @@ fn requester_of(
 
 /// `yield:create`: record a resource whose content is in the working tree.
 pub async fn yield_create(archivist: &Archivist, command: &Object) -> Answered {
-    const CHANNEL: &str = "yield:create";
+    const CHANNEL: &str = YieldCreate::NAME;
     let user = sender(CHANNEL, command)?;
     let job_id = text(command, "jobId");
     if holds_worker_role(command) && job_id.is_none() {
@@ -152,7 +161,7 @@ pub async fn yield_create(archivist: &Archivist, command: &Object) -> Answered {
         "wasAttributedTo".into(),
         Value::Array(derived.was_attributed_to),
     );
-    archivist.append(event("yield:created", Some(&resource_id), user, payload))?;
+    archivist.append(event(YieldCreated::NAME, Some(&resource_id), user, payload))?;
 
     // The new resource is linked from the annotation it was generated for.
     if let Some((resource, annotation)) = generated_from {
@@ -163,7 +172,7 @@ pub async fn yield_create(archivist: &Archivist, command: &Object) -> Answered {
             json!([{ "op": "add", "item": { "type": "SpecificResource", "source": resource_id, "purpose": "linking" } }]),
         );
         if let Err(refusal) =
-            archivist.append(event("mark:body-updated", Some(resource), user, link))
+            archivist.append(event(MarkBodyUpdated::NAME, Some(resource), user, link))
         {
             semiont_observability::logging::warn(
                 "A generated resource was not linked from its annotation",
@@ -206,13 +215,13 @@ async fn clone_persist_as(
         "wasAttributedTo".into(),
         Value::Array(derived.was_attributed_to),
     );
-    archivist.append(event("yield:cloned", Some(&resource_id), user, payload))?;
+    archivist.append(event(YieldCloned::NAME, Some(&resource_id), user, payload))?;
     Ok(resource_id)
 }
 
 /// `yield:clone-persist`.
 pub async fn yield_clone_persist(archivist: &Archivist, command: &Object) -> Answered {
-    const CHANNEL: &str = "yield:clone-persist";
+    const CHANNEL: &str = YieldClonePersist::NAME;
     let parent = required(CHANNEL, command, "parentResourceId")?.to_owned();
     let resource_id =
         clone_persist_as(archivist, CHANNEL, command, &parent, entity_types(command)).await?;
@@ -221,7 +230,7 @@ pub async fn yield_clone_persist(archivist: &Archivist, command: &Object) -> Ans
 
 /// `yield:update`: record new content for a resource.
 pub async fn yield_update(archivist: &Archivist, command: &Object) -> Answered {
-    const CHANNEL: &str = "yield:update";
+    const CHANNEL: &str = YieldUpdate::NAME;
     let user = sender(CHANNEL, command)?;
     let resource_id = required(CHANNEL, command, "resourceId")?;
     let uri = required(CHANNEL, command, "storageUri")?;
@@ -236,7 +245,7 @@ pub async fn yield_update(archivist: &Archivist, command: &Object) -> Answered {
         command.get("contentChecksum"),
     );
     carry(&mut payload, "contentByteSize", command.get("byteSize"));
-    archivist.append(event("yield:updated", Some(resource_id), user, payload))?;
+    archivist.append(event(YieldUpdated::NAME, Some(resource_id), user, payload))?;
     Ok(json!({ "resourceId": resource_id }))
 }
 
@@ -281,13 +290,13 @@ fn record_annotation(
     );
     let mut payload = Object::new();
     payload.insert("annotation".into(), Value::Object(recorded));
-    archivist.append(event("mark:added", Some(resource_id), user, payload))?;
+    archivist.append(event(MarkAdded::NAME, Some(resource_id), user, payload))?;
     Ok(())
 }
 
 /// `mark:create-request`: assemble an annotation from its parts and record it.
 pub async fn mark_create_request(archivist: &Archivist, command: &Object) -> Answered {
-    const CHANNEL: &str = "mark:create-request";
+    const CHANNEL: &str = MarkCreateRequest::NAME;
     let Some(user) = text(command, "_userId") else {
         return Err("_userId is required (injected by bus gateway)".into());
     };
@@ -329,20 +338,13 @@ pub async fn mark_create_request(archivist: &Archivist, command: &Object) -> Ans
     carry(&mut annotation, "body", request.get("body"));
     annotation.insert("created".into(), json!(now));
     annotation.insert("modified".into(), json!(now));
-    record_annotation(
-        archivist,
-        "mark:create",
-        resource_id,
-        user,
-        user,
-        &annotation,
-    )?;
+    record_annotation(archivist, CHANNEL, resource_id, user, user, &annotation)?;
     Ok(json!({ "annotationId": annotation_id }))
 }
 
 /// `mark:commit`: record a batch, each annotation once.
 pub async fn mark_commit(archivist: &Archivist, command: &Object) -> Answered {
-    const CHANNEL: &str = "mark:commit";
+    const CHANNEL: &str = MarkCommit::NAME;
     let user = sender(CHANNEL, command)?;
     let resource_id = required(CHANNEL, command, "resourceId")?;
     let annotations: Vec<&Object> = command
@@ -391,12 +393,12 @@ pub async fn mark_commit(archivist: &Archivist, command: &Object) -> Answered {
 
 /// `mark:delete`.
 pub async fn mark_delete(archivist: &Archivist, command: &Object) -> Answered {
-    const CHANNEL: &str = "mark:delete";
+    const CHANNEL: &str = MarkDelete::NAME;
     let user = sender(CHANNEL, command)?;
     let resource_id = required(CHANNEL, command, "resourceId")?;
     let mut payload = Object::new();
     carry(&mut payload, "annotationId", command.get("annotationId"));
-    archivist.append(event("mark:removed", Some(resource_id), user, payload))?;
+    archivist.append(event(MarkRemoved::NAME, Some(resource_id), user, payload))?;
     Ok(json!({ "annotationId": command.get("annotationId") }))
 }
 
@@ -409,31 +411,36 @@ pub async fn update_body(archivist: &Archivist, channel: &str, command: &Object)
     let mut payload = Object::new();
     carry(&mut payload, "annotationId", command.get("annotationId"));
     carry(&mut payload, "operations", command.get("operations"));
-    archivist.append(event("mark:body-updated", Some(resource_id), user, payload))?;
+    archivist.append(event(
+        MarkBodyUpdated::NAME,
+        Some(resource_id),
+        user,
+        payload,
+    ))?;
     Ok(json!({}))
 }
 
 /// `frame:add-entity-type`.
 pub async fn frame_add_entity_type(archivist: &Archivist, command: &Object) -> Answered {
-    let user = sender("frame:add-entity-type", command)?;
+    let user = sender(FrameAddEntityType::NAME, command)?;
     let mut payload = Object::new();
     carry(&mut payload, "entityType", command.get("tag"));
-    archivist.append(event("frame:entity-type-added", None, user, payload))?;
+    archivist.append(event(FrameEntityTypeAdded::NAME, None, user, payload))?;
     Ok(json!({}))
 }
 
 /// `frame:add-tag-schema`.
 pub async fn frame_add_tag_schema(archivist: &Archivist, command: &Object) -> Answered {
-    let user = sender("frame:add-tag-schema", command)?;
+    let user = sender(FrameAddTagSchema::NAME, command)?;
     let mut payload = Object::new();
     carry(&mut payload, "schema", command.get("schema"));
-    archivist.append(event("frame:tag-schema-added", None, user, payload))?;
+    archivist.append(event(FrameTagSchemaAdded::NAME, None, user, payload))?;
     Ok(json!({}))
 }
 
 /// `mark:archive`: remove the file the command names, and record the archive.
 pub async fn mark_archive(archivist: &Archivist, command: &Object) -> Answered {
-    const CHANNEL: &str = "mark:archive";
+    const CHANNEL: &str = MarkArchive::NAME;
     let user = sender(CHANNEL, command)?;
     let resource_id = required(CHANNEL, command, "resourceId")?;
     if let Some(uri) = text(command, "storageUri") {
@@ -444,7 +451,7 @@ pub async fn mark_archive(archivist: &Archivist, command: &Object) -> Answered {
         archivist.content.remove(uri, keep).await?;
     }
     archivist.append(event(
-        "mark:archived",
+        MarkArchived::NAME,
         Some(resource_id),
         user,
         Object::new(),
@@ -454,7 +461,7 @@ pub async fn mark_archive(archivist: &Archivist, command: &Object) -> Answered {
 
 /// `mark:unarchive`.
 pub async fn mark_unarchive(archivist: &Archivist, command: &Object) -> Answered {
-    const CHANNEL: &str = "mark:unarchive";
+    const CHANNEL: &str = MarkUnarchive::NAME;
     let user = sender(CHANNEL, command)?;
     let resource_id = required(CHANNEL, command, "resourceId")?;
     if let Some(uri) = text(command, "storageUri")
@@ -463,7 +470,7 @@ pub async fn mark_unarchive(archivist: &Archivist, command: &Object) -> Answered
         return Err(format!("Cannot unarchive: file not found at {uri}").into());
     }
     archivist.append(event(
-        "mark:unarchived",
+        MarkUnarchived::NAME,
         Some(resource_id),
         user,
         Object::new(),
@@ -473,7 +480,7 @@ pub async fn mark_unarchive(archivist: &Archivist, command: &Object) -> Answered
 
 /// `mark:update-entity-types`: add and remove what the two lists differ by.
 pub async fn mark_update_entity_types(archivist: &Archivist, command: &Object) -> Answered {
-    const CHANNEL: &str = "mark:update-entity-types";
+    const CHANNEL: &str = MarkUpdateEntityTypes::NAME;
     let user = sender(CHANNEL, command)?;
     let resource_id = required(CHANNEL, command, "resourceId")?;
     let list = |key: &str| -> Vec<Value> {
@@ -498,8 +505,8 @@ pub async fn mark_update_entity_types(archivist: &Archivist, command: &Object) -
         }
     }
     for (kind, types) in [
-        ("mark:entity-tag-added", added),
-        ("mark:entity-tag-removed", removed),
+        (MarkEntityTagAdded::NAME, added),
+        (MarkEntityTagRemoved::NAME, removed),
     ] {
         for entity_type in types {
             let mut payload = Object::new();
@@ -512,14 +519,14 @@ pub async fn mark_update_entity_types(archivist: &Archivist, command: &Object) -
 
 /// `person:profile`: record the sender's name, when it is new.
 pub async fn person_profile(archivist: &Archivist, command: &Object) -> Answered {
-    let user = sender("person:profile", command)?;
+    let user = sender(PersonProfile::NAME, command)?;
     let people = tokio::task::block_in_place(|| archivist.record().projections.people())?;
     if people.get(user).and_then(|profile| profile.get("name")) == command.get("name") {
         return Ok(json!({}));
     }
     let mut payload = Object::new();
     carry(&mut payload, "name", command.get("name"));
-    archivist.append(event("person:profiled", None, user, payload))?;
+    archivist.append(event(PersonProfiled::NAME, None, user, payload))?;
     Ok(json!({}))
 }
 
@@ -537,7 +544,7 @@ fn recorded_verb(
         .find(|event| {
             matches!(
                 event.get("type").and_then(Value::as_str),
-                Some("job:assigned" | "job:started")
+                Some(JobAssigned::NAME | JobStarted::NAME)
             ) && event["payload"].get("jobId") == Some(job_id)
         })
         .and_then(|event| event["payload"].get("jobType").cloned()))
@@ -552,7 +559,7 @@ fn recorded_verb(
 pub async fn job(archivist: &Archivist, channel: &str, command: &Object) -> Answered {
     let user = sender(channel, command)?;
     let resource_id = required(channel, command, "resourceId")?;
-    if channel == "job:complete"
+    if channel == JobComplete::NAME
         && let Some(job_id) = command.get("jobId")
         && let Some(recorded) = recorded_verb(archivist, resource_id, job_id)?
         && command.get("jobType") != Some(&recorded)
@@ -569,13 +576,13 @@ pub async fn job(archivist: &Archivist, channel: &str, command: &Object) -> Answ
         return Ok(json!({}));
     }
     let (kind, fields): (&str, &[&str]) = match channel {
-        "job:start" => ("job:started", &["jobId", "jobType", "annotationId"]),
-        "job:assign" => (
-            "job:assigned",
+        JobStart::NAME => (JobStarted::NAME, &["jobId", "jobType", "annotationId"]),
+        JobAssign::NAME => (
+            JobAssigned::NAME,
             &["jobId", "jobType", "resourceId", "holder", "requester"],
         ),
-        "job:complete" => (
-            "job:completed",
+        JobComplete::NAME => (
+            JobCompleted::NAME,
             &[
                 "jobId",
                 "jobType",
@@ -586,7 +593,7 @@ pub async fn job(archivist: &Archivist, channel: &str, command: &Object) -> Answ
             ],
         ),
         _ => (
-            "job:failed",
+            JobFailed::NAME,
             &[
                 "jobId",
                 "jobType",
@@ -632,7 +639,7 @@ fn token_of(archivist: &Archivist, token: &str) -> Result<(String, String), Refu
 
 /// `yield:clone-token-requested`.
 pub async fn clone_token(archivist: &Archivist, command: &Object) -> Answered {
-    let resource_id = required("yield:clone-token-requested", command, "resourceId")?;
+    let resource_id = required(YieldCloneTokenRequested::NAME, command, "resourceId")?;
     let Some(view) = archivist.held_view(resource_id)? else {
         return Err("Resource not found".into());
     };
@@ -667,7 +674,7 @@ pub async fn clone_token(archivist: &Archivist, command: &Object) -> Answered {
 
 /// `yield:clone-resource-requested`: the token stays valid.
 pub async fn clone_resource(archivist: &Archivist, command: &Object) -> Answered {
-    let token = required("yield:clone-resource-requested", command, "token")?;
+    let token = required(YieldCloneResourceRequested::NAME, command, "token")?;
     let (resource_id, expires_at) = token_of(archivist, token)?;
     let Some(view) = archivist.held_view(&resource_id)? else {
         return Err("Source resource not found".into());
@@ -677,7 +684,7 @@ pub async fn clone_resource(archivist: &Archivist, command: &Object) -> Answered
 
 /// `yield:clone-create`: spend a token on a copy.
 pub async fn clone_create(archivist: &Archivist, command: &Object) -> Answered {
-    const CHANNEL: &str = "yield:clone-create";
+    const CHANNEL: &str = YieldCloneCreate::NAME;
     let user = sender(CHANNEL, command)?;
     let token = required(CHANNEL, command, "token")?;
     let (source_id, _) = token_of(archivist, token)?;
@@ -698,7 +705,7 @@ pub async fn clone_create(archivist: &Archivist, command: &Object) -> Answered {
         .unwrap_or(false);
     if archive && source["resource"]["archived"] != true {
         archivist.append(event(
-            "mark:archived",
+            MarkArchived::NAME,
             Some(&source_id),
             user,
             Object::new(),

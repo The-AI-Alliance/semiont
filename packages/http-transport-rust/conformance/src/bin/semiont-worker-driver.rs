@@ -6,12 +6,22 @@
 //! It reaches the worker's surface only as a worker's author does: `job.claim`
 //! on the SDK's client, the claims it returns, and the held jobs they hand
 //! out.
+//!
+//! As a worker's code does, it runs each job it is handed in a span of its
+//! own, `job:{jobType}` carrying the job's id as `job.id`: opened in the
+//! trace the job states, where the job is handed to it, and ended once it has
+//! settled the job. Everything it does for the job it does in that span.
 
 use chrono::{DateTime, SecondsFormat, Utc};
-use semiont::claims::{ClaimOptions, ClaimTiming, Claims, HeldJob, JOB_CLAIM_CHANNELS, JobFailure};
+use opentelemetry::context::FutureExt;
+use opentelemetry::trace::{SpanKind, TraceContextExt, Tracer};
+use opentelemetry::{Context, KeyValue, global};
+use semiont::claims::{
+    ClaimOptions, ClaimTiming, Claims, HeldJob, JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, JobFailure,
+};
 use semiont::client::{ClientOptions, SemiontClient};
 use semiont::transport::{ConnectionState, ResourceHold, Transport};
-use semiont::types::{JobProgress, ResourceId};
+use semiont::types::{Annotation, JobProgress, ResourceId};
 use semiont_conformance_drivers::{
     Arguments, Driver, Ended, Running, count, failure, identifier, locked, object, say, serve,
     text, texts,
@@ -20,6 +30,7 @@ use semiont_http_transport::content::HttpContentTransport;
 use semiont_http_transport::transport::{HttpTransport, HttpTransportConfig, Timing};
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
+use std::future::Future;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
 use tokio::sync::watch;
@@ -38,8 +49,9 @@ struct Worker {
     /// A worker's timing, as `open` stated it.
     timing: Mutex<ClaimTiming>,
     claims: Mutex<Option<Arc<Claims>>>,
-    /// The job the worker holds, until an operation settles it.
-    held: tokio::sync::Mutex<Option<HeldJob>>,
+    /// The job the worker holds, until an operation settles it, and the
+    /// context in which the span it is run in is the current one.
+    held: tokio::sync::Mutex<Option<(HeldJob, Context)>>,
     holds: Mutex<Vec<ResourceHold>>,
     /// The state last reported, and the tasks that report what the worker
     /// observes.
@@ -63,6 +75,34 @@ fn optional<T: DeserializeOwned>(args: &Arguments, name: &str) -> Result<Option<
     args.get(name).map(|value| typed(value, name)).transpose()
 }
 
+/// Open the span `job` is run in, in the trace the job states, and answer
+/// the context in which it is the current span.
+fn span_of(job: &HeldJob) -> Context {
+    let trace = job.trace();
+    let within = semiont_telemetry::continued(
+        trace.map(|trace| trace.traceparent.as_str()),
+        trace.and_then(|trace| trace.tracestate.as_deref()),
+    );
+    let tracer = global::tracer("semiont-conformance-driver");
+    let span = tracer
+        .span_builder(format!("job:{}", job.job_type().as_str()))
+        .with_kind(SpanKind::Consumer)
+        .with_attributes([KeyValue::new("job.id", job.job_id().to_string())])
+        .start_with_context(&tracer, &within);
+    within.with_span(span)
+}
+
+/// Settle a job as `settle` does, in the job's span, and end the span once
+/// that is done, however it went.
+async fn settled(
+    span: Context,
+    settle: impl Future<Output = Result<(), Ended>>,
+) -> Result<Value, Ended> {
+    let outcome = settle.with_context(span.clone()).await;
+    span.span().end();
+    outcome.map(|()| Value::Null)
+}
+
 impl Worker {
     fn opened(&self) -> Result<Arc<Opened>, Ended> {
         locked(&self.opened)
@@ -76,8 +116,8 @@ impl Worker {
             .ok_or_else(|| Ended::Misuse("the worker is not claiming".to_owned()))
     }
 
-    /// The held job, taken to be settled.
-    async fn settling(&self) -> Result<HeldJob, Ended> {
+    /// The held job and its span, taken to be settled.
+    async fn settling(&self) -> Result<(HeldJob, Context), Ended> {
         self.held
             .lock()
             .await
@@ -113,6 +153,7 @@ impl Worker {
                 "jobClaimTimeoutMs" => worker.job_claim = ms(name)?,
                 "heldJobStallMs" => worker.held_job_stall = ms(name)?,
                 "heldJobStallCheckMs" => worker.held_job_stall_check = ms(name)?,
+                "markCommitTimeoutMs" => worker.mark_commit = ms(name)?,
                 other => {
                     return Err(Ended::Misuse(format!(
                         "this driver cannot override {other}"
@@ -120,20 +161,24 @@ impl Worker {
                 }
             }
         }
+        let commits = match args.get("commits") {
+            None => false,
+            Some(Value::Bool(commits)) => *commits,
+            Some(_) => return Err(Ended::Misuse("commits must be a boolean".to_owned())),
+        };
+        // What a worker's stream names for its claims, and for its commits
+        // when it will make any, and no more: this worker awaits nothing else.
+        let mut channels = JOB_CLAIM_CHANNELS.map(str::to_owned).to_vec();
+        if commits {
+            channels.extend(JOB_COMMIT_CHANNELS.map(str::to_owned));
+        }
         *locked(&self.timing) = worker;
         let (token, tokens) = watch::channel(Some(text(args, "token")?.to_owned()));
         let transport = HttpTransport::new(HttpTransportConfig {
             base_url: text(args, "baseUrl")?.to_owned(),
             token: tokens,
             refresher: None,
-            // What a worker's stream names for its claims, and no more: this
-            // worker awaits nothing else.
-            channels: Some(
-                JOB_CLAIM_CHANNELS
-                    .iter()
-                    .map(|&name| name.to_owned())
-                    .collect(),
-            ),
+            channels: Some(channels),
             http: reqwest::Client::new(),
             timing,
             bookmarks: None,
@@ -224,7 +269,8 @@ impl Worker {
                                 say(json!({ "signalled": job_id }));
                             }
                         });
-                        *driver.held.lock().await = Some(job);
+                        let span = span_of(&job);
+                        *driver.held.lock().await = Some((job, span));
                         say(json!({ "claimed": claimed }));
                     }
                     Err(refusal) => {
@@ -261,10 +307,10 @@ impl Worker {
             "claim" => self.claim(&args),
             "start" => {
                 let held = self.held.lock().await;
-                let job = held
+                let (job, span) = held
                     .as_ref()
                     .ok_or_else(|| Ended::Misuse("the worker holds no job".to_owned()))?;
-                job.start().await?;
+                job.start().with_context(span.clone()).await?;
                 Ok(Value::Null)
             }
             "progress" => {
@@ -279,10 +325,10 @@ impl Worker {
                     )
                 };
                 let held = self.held.lock().await;
-                let job = held
+                let (job, span) = held
                     .as_ref()
                     .ok_or_else(|| Ended::Misuse("the worker holds no job".to_owned()))?;
-                job.progress(progress).await?;
+                job.progress(progress).with_context(span.clone()).await?;
                 Ok(Value::Null)
             }
             "checkpoint" => {
@@ -291,10 +337,32 @@ impl Worker {
                     optional(&args, "unitCursors")?,
                 );
                 let held = self.held.lock().await;
-                let job = held
+                let (job, span) = held
                     .as_ref()
                     .ok_or_else(|| Ended::Misuse("the worker holds no job".to_owned()))?;
-                job.checkpoint(units, cursors).await?;
+                job.checkpoint(units, cursors)
+                    .with_context(span.clone())
+                    .await?;
+                Ok(Value::Null)
+            }
+            // The held job commits for itself: it cites its own id, and
+            // remembers what the commit observed for its settle. A case
+            // states an annotation as the wire carries one.
+            "commit" => {
+                let resource: ResourceId = identifier(&args, "resourceId")?;
+                let annotations: Vec<Annotation> = typed(
+                    args.get("annotations").ok_or_else(|| {
+                        Ended::Misuse("annotations must be a list of annotations".to_owned())
+                    })?,
+                    "annotations",
+                )?;
+                let held = self.held.lock().await;
+                let (job, span) = held
+                    .as_ref()
+                    .ok_or_else(|| Ended::Misuse("the worker holds no job".to_owned()))?;
+                job.commit(&resource, annotations)
+                    .with_context(span.clone())
+                    .await?;
                 Ok(Value::Null)
             }
             // A completion is its verb's, so the verb is matched before the
@@ -304,30 +372,33 @@ impl Worker {
                 let result = args
                     .get("result")
                     .ok_or_else(|| Ended::Misuse("result must be an object".to_owned()))?;
-                match self.settling().await? {
-                    HeldJob::Mark(job) => job.complete(typed(result, "result")?, None).await?,
-                    HeldJob::Yield(job) => job.complete(typed(result, "result")?, None).await?,
-                }
-                Ok(Value::Null)
+                let (job, span) = self.settling().await?;
+                settled(span, async {
+                    match job {
+                        HeldJob::Mark(job) => job.complete(typed(result, "result")?).await?,
+                        HeldJob::Yield(job) => job.complete(typed(result, "result")?).await?,
+                    }
+                    Ok(())
+                })
+                .await
             }
             "fail" => {
                 let failure = JobFailure {
                     failure_class: optional(&args, "failureClass")?,
                     completed_units: optional(&args, "completedUnits")?,
                     unit_cursors: optional(&args, "unitCursors")?,
-                    durability: None,
                 };
                 let error = text(&args, "error")?.to_owned();
-                self.settling().await?.fail(error, failure).await?;
-                Ok(Value::Null)
+                let (job, span) = self.settling().await?;
+                settled(span, async { Ok(job.fail(error, failure).await?) }).await
             }
             "cancel" => {
                 let (units, cursors) = (
                     optional(&args, "completedUnits")?,
                     optional(&args, "unitCursors")?,
                 );
-                self.settling().await?.cancel(units, cursors).await?;
-                Ok(Value::Null)
+                let (job, span) = self.settling().await?;
+                settled(span, async { Ok(job.cancel(units, cursors).await?) }).await
             }
             "vitals" => {
                 let vitals = self.claiming()?.vitals();
@@ -358,6 +429,7 @@ impl Driver for Worker {
         "start",
         "progress",
         "checkpoint",
+        "commit",
         "complete",
         "fail",
         "cancel",
@@ -378,10 +450,11 @@ impl Driver for Worker {
     /// The suite is done with this worker, and it ends as a worker that is
     /// killed ends: it says nothing more, of a job it holds or of anything
     /// else. A held job let go of here would be failed on its way out, which
-    /// only `close` may do, so it is kept and never dropped.
+    /// only `close` may do, so it is kept and never dropped; and neither is
+    /// its span, which would end, and be exported, as it was let go of.
     async fn finish(self: Arc<Self>) {
-        if let Some(job) = self.held.lock().await.take() {
-            std::mem::forget(job);
+        if let Some(held) = self.held.lock().await.take() {
+            std::mem::forget(held);
         }
         let opened = locked(&self.opened).clone();
         if let Some(opened) = opened {

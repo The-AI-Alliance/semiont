@@ -656,8 +656,8 @@ When something on the bus is silently not happening — a job-claim worker that 
 **Wire-level event logging.** Every event that crosses a transport boundary is logged as a single grep-friendly line on stdout / `console.debug`:
 
 ```
-[bus EMIT] mark:create [scope=res-abc] [cid=a89a670a] {annotation: ..., userId: ...}
-[bus RECV] mark:added  [scope=res-abc] [cid=a89a670a] {annotation: ..., ...}
+[bus EMIT] mark:create-request [scope=res-abc] [cid=a89a670a] {resourceId: ..., request: ...}
+[bus RECV] mark:added [scope=res-abc] [cid=a89a670a] {annotation: ..., ...}
 ```
 
 Toggle:

@@ -1,10 +1,10 @@
 {
   "type": "object",
-  "description": "What a cancel did, in the `response` of `job:cancel-ok`: how many jobs it cancelled. A pending job is cancelled outright; a running one is left to its worker, so for it the count means accepted, not stopped.",
+  "description": "What a cancel did, in the `response` of `job:cancel-ok`: whether the queue acted on the job it named. A pending job is cancelled outright; a running one is left to its worker, so for it true means accepted, not stopped.",
   "properties": {
     "cancelled": {
-      "type": "integer",
-      "description": "The number of jobs cancelled."
+      "type": "boolean",
+      "description": "True when the queue acted on the job; false when the job is unknown or already over."
     }
   },
   "required": [

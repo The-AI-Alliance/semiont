@@ -37,13 +37,13 @@ spec shows up as a diff someone reviews.
   requests and emits over `bus.Transport`. What a verb means is in the spec
   and the services behind the gateway, not in Go.
 - **`semiont yield --upload`** sends a file's bytes with the generated
-  `PostResourcesWithBodyWithResponse`, and `mediatypes.ForExtension` names the
+  `UploadResourceWithBodyWithResponse`, and `mediatypes.ForExtension` names the
   media type its extension stands for.
 - **`semiont login`** is an OAuth device grant at the knowledge base's issuer,
   which no generated operation covers. The client's part is to ask the
   knowledge base which issuer that is
-  (`GetWellKnownOauthProtectedResourceWithResponse`), and to check that the
-  gateway accepts the token it was issued (`GetApiUsersMeWithResponse`).
+  (`GetProtectedResourceMetadataWithResponse`), and to check that the
+  gateway accepts the token it was issued (`GetCurrentUserWithResponse`).
 - **Its tests** run the verbs against `bustest.Fake`, with no server.
 
 The launcher depends on this module through a `replace` directive on its

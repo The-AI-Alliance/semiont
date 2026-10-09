@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
+import { textOffsets } from '@semiont/core';
 import {
+  documentPositions,
   convertSegmentPositions,
   getAnnotationTooltip,
   getAnnotationDecorationMeta,
@@ -48,17 +50,21 @@ function makeSegment(start: number, end: number, annotation?: any): TextSegment 
 }
 
 describe('convertSegmentPositions', () => {
-  it('returns segments unchanged when content has no CRLF', () => {
+  /** Segments at offsets into `content`, placed in CodeMirror's document. */
+  const placed = (segments: TextSegment[], content: string): TextSegment[] =>
+    convertSegmentPositions(segments, documentPositions(content, textOffsets(content)));
+
+  it('leaves every position where it is when content has no CRLF', () => {
     const segments = [makeSegment(0, 5), makeSegment(10, 15)];
-    const result = convertSegmentPositions(segments, 'Hello world, this is a test');
-    expect(result).toBe(segments); // Same reference
+    const result = placed(segments, 'Hello world, this is a test');
+    expect(result).toEqual(segments);
   });
 
   it('adjusts positions for CRLF content', () => {
     // Content: "ab\r\ncd\r\nef" — CRLFs at positions 2 and 6
     const content = 'ab\r\ncd\r\nef';
     const segments = [makeSegment(4, 6), makeSegment(8, 10)];
-    const result = convertSegmentPositions(segments, content);
+    const result = placed(segments, content);
 
     // Position 4 has 1 CRLF before it (at pos 2) → 4-1=3
     expect(result[0]!.start).toBe(3);
@@ -73,7 +79,7 @@ describe('convertSegmentPositions', () => {
   it('handles position at start of content', () => {
     const content = '\r\nabc';
     const segments = [makeSegment(0, 2)];
-    const result = convertSegmentPositions(segments, content);
+    const result = placed(segments, content);
     // Position 0: no CRLFs before → 0
     expect(result[0]!.start).toBe(0);
     // Position 2: 1 CRLF at pos 0, which is < 2 → 2-1=1

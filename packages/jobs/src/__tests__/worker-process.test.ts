@@ -17,14 +17,17 @@
  * resource viewers filter the same global stream by `resourceId`.
  *
  * The worker runs on a `SemiontClient`. Tests use a fake client whose
- * transport captures bus emits and answers `mark:commit` and `job:claim`, a
- * `contentReads.getBinary` double for detection's byte read, and
+ * transport captures bus emits and answers `job:claim`, `mark:commit` and the
+ * question a held job asks of a commit nobody acknowledged
+ * (`browse:annotation-requested`), a
+ * `client.browse.resourceRepresentation` double for detection's byte read, and
  * `client.yield.resource` capturing the multipart upload for generation. No
  * raw `fetch` involved.
  *
  * The job a test runs is a REAL held job: the fake transport answers the
  * SDK's own `job.claim` with the record the test states, so what a held job
- * emits, and when it is settled, is the SDK's doing and not this file's.
+ * emits, how it commits, and when it is settled, is the SDK's doing and not
+ * this file's.
  *
  * On failure the outer wrapper (startWorkerProcess) fails the held job,
  * which emits `job:fail`; we exercise that by letting a processor throw
@@ -38,9 +41,8 @@ import { GEN_REQUIRED, minimalContext } from './fixtures/generation-fixtures';
 import type { UnitCheckpoint } from '../processors';
 import { Subject, BehaviorSubject, map } from 'rxjs';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { extractPdfTextLayer } from '@semiont/content';
 import { JobNamespace, type HeldJob, type SemiontClient } from '@semiont/sdk';
-import { BusRequestError, EventBus, HELD_JOB_STALL_CHECK_MS, HELD_JOB_STALL_MS, jobId, resourceId, userId, type EventMap, type ITransport, type UnitCursor } from '@semiont/core';
+import { EventBus, GENERATED_TEXT_ASKS_COUNT, HELD_JOB_STALL_CHECK_MS, HELD_JOB_STALL_MS, jobId, resourceId, userId, type EventMap, type ITransport, type TextOffsets, type UnitCursor } from '@semiont/core';
 import type { MarkMotivation } from '../types';
 import { recordJobOutcome, withSpan } from '@semiont/observability';
 import { handleJob, startWorkerProcess, type WorkerProcessConfig } from '../worker-process';
@@ -55,9 +57,6 @@ import {
 } from '../processors';
 
 // Mock the six processor entry points; keep every other export real.
-// `prepareDetection` imports `buildTextAnnotation`/`buildPdfAnnotation` from
-// this same module, so replacing it wholesale would leave those undefined —
-// spread the original and override only the processors.
 vi.mock('../processors', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../processors')>()),
   processHighlightJob:  vi.fn(),
@@ -75,30 +74,18 @@ vi.mock('@semiont/observability', async (importOriginal) => {
   return { ...actual, recordJobOutcome: vi.fn(actual.recordJobOutcome), withSpan: vi.fn(actual.withSpan) };
 });
 
-// Stub only `extractPdfTextLayer`, so generation's citation tests supply a
-// text layer without real PDF fixtures; everything else in @semiont/content
-// stays real. Detection's extracted-vs-declined decision is driven by the
-// session's `browse.resourceAnchoredText` double, not by this mock.
-vi.mock('@semiont/content', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@semiont/content')>();
-  return {
-    ...actual,
-    // PDF citation geometry: the worker re-anchors claims through the
-    // extracted text layer; tests supply it.
-    extractPdfTextLayer: vi.fn(),
-  };
-});
+// No `@semiont/content` mock: the worker extracts no PDF's text. Detection's
+// text, and the text of a PDF a generation has just yielded, both come from
+// the client's `browse.resourceAnchoredText` double.
 
 /**
- * Detection's byte read. Module-level so assertions can reach the spy while
- * `makeConfig` keeps its one-argument shape; `vi.clearAllMocks()` clears the
- * calls between tests but leaves this implementation in place.
- *
- * It hangs off the config rather than the session because detection reads
- * from the Archivist, not through the gateway. The bytes are inert — every
- * extractor these tests exercise is mocked per test.
+ * Detection's byte read: the client's own `browse.resourceRepresentation`,
+ * which reads on the gateway as the agent the worker is signed in as.
+ * Module-level so assertions can reach the spy; `vi.clearAllMocks()` clears
+ * the calls between tests but leaves this implementation in place. The bytes
+ * are inert — every extractor these tests exercise is mocked per test.
  */
-const getBinary = vi.fn(async () => ({ data: new ArrayBuffer(8), contentType: 'application/pdf' }));
+const resourceRepresentation = vi.fn(async (_rid: string) => ({ data: new ArrayBuffer(8), contentType: 'application/pdf' }));
 
 const RID = resourceId('res-abc');
 const JID = jobId('job-xyz');
@@ -145,7 +132,7 @@ function makeFakeWorker() {
    *   silent     never arrived, so nothing appended, nothing answered
    *   fail       refused, nothing appended
    *
-   * `ack-lost` and `silent` are indistinguishable to the worker's `busRequest`
+   * `ack-lost` and `silent` are indistinguishable to the commit's `busRequest`
    * — both are a `bus.timeout` — and they are opposite truths about the data.
    * Telling them apart is what the durability probe is for, so the fake must
    * be able to be each.
@@ -205,6 +192,22 @@ function makeFakeWorker() {
         });
       }
     }
+    // The durability probe: the question a held job asks of a commit nobody
+    // acknowledged. Answered from what the log actually holds — the only
+    // evidence that can separate a lost acknowledgement from a lost batch —
+    // and refused when the annotation is absent, as the real read is
+    // (`browse:annotation-failed`, "Annotation not found"). `probeSink` plays
+    // the read being UNANSWERABLE, which is a different fact from the read
+    // answering "no" — `bus.timeout` versus `bus.rejected`, and opposite
+    // epistemic states.
+    if (channel === 'browse:annotation-requested' && probeSink.mode === 'answer') {
+      const correlationId = envelope?.correlationId as string;
+      const hit = landed.find((a) => String(a.id) === String(payload.annotationId));
+      queueMicrotask(() => {
+        if (hit) replyStream('browse:annotation-result').next({ correlationId, payload: { response: { annotation: hit, resource: null, resolvedResource: null } } });
+        else replyStream('browse:annotation-failed').next({ correlationId, payload: { message: 'Annotation not found' } });
+      });
+    }
     return 1;
   });
   const transport = {
@@ -231,27 +234,11 @@ function makeFakeWorker() {
       resource: vi.fn((_rid: string) => ({
         fresh: async () => ({ representations: [{ mediaType: 'text/plain' }] }),
       })),
+      resourceRepresentation,
       // The Smelter's geometry consult. Only PDF tests take this path;
       // they override it. Default is a benign settled answer.
       resourceAnchoredText: vi.fn(async (_rid: string) => ({
         kind: 'extracted', text: 'the content', items: [], method: 'pdf-text-layer',
-      })),
-      // The durability probe. What the log actually holds — the only
-      // evidence that can separate a lost acknowledgement from a lost batch.
-      // Rejects when absent, as the real read does
-      // (`browse:annotation-failed`, "Annotation not found").
-      annotation: vi.fn((_rid: string, aid: string) => ({
-        fresh: async () => {
-          // `probeSink` plays the read being UNANSWERABLE, which is a
-          // different fact from the read answering "no" — `bus.timeout`
-          // versus `bus.rejected`, and opposite epistemic states.
-          if (probeSink.mode === 'unreachable') {
-            throw new BusRequestError('Bus request timed out after 30000ms on browse:annotation-result', 'bus.timeout');
-          }
-          const hit = landed.find((a) => String(a.id) === String(aid));
-          if (!hit) throw new BusRequestError('Annotation not found', 'bus.rejected');
-          return hit;
-        },
       })),
     },
     yield: {
@@ -312,7 +299,7 @@ async function handleHeld(
 
 /**
  * Stub a motivation processor: annotations leave through the awaited
- * chunk-commit callback (argument 5), the return carries only the result.
+ * chunk-commit callback (argument 8), the return carries only the result.
  */
 const emitting = (r: { annotations: unknown[]; result: unknown; unit?: string }) =>
   (async (...args: unknown[]) => {
@@ -320,7 +307,7 @@ const emitting = (r: { annotations: unknown[]; result: unknown; unit?: string })
     // `(a: unknown[]) => …` cast keeps compiling when the seam's arguments
     // change, and the omission surfaces only at runtime as
     // "Cannot read properties of undefined (reading 'unit')".
-    const onChunkComplete = args[5] as (a: unknown[], c: UnitCheckpoint) => Promise<void>;
+    const onChunkComplete = args[8] as (a: unknown[], c: UnitCheckpoint) => Promise<void>;
     await onChunkComplete(r.annotations, { unit: r.unit ?? 'highlighting', cursor: { next: 900, size: 220, found: 0, emitted: 0, errors: 0 } });
     return { result: r.result } as never;
   }) as never;
@@ -337,7 +324,6 @@ function makeConfig(client: SemiontClient): WorkerProcessConfig {
       provider: 'ollama',
       model: 'test',
     } as never,
-    contentReads: { getBinary },
     logger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn(function(this: any){ return this; }) } as never,
   };
 }
@@ -354,8 +340,8 @@ function makeJob(
   // Default: no retries budgeted, so a failure is terminal unless a test
   // says otherwise — `willRetry` on `job:fail` is read from this budget.
   budget: { retryCount: number; maxRetries: number } = { retryCount: 0, maxRetries: 0 },
-  /** Mid-unit resume positions from an earlier attempt. Empty is the
-   * first-attempt case every test but the resume ones want. */
+  /** The cursors an earlier attempt left, a finished unit's among them. Empty
+   * is the first-attempt case every test but the resume ones want. */
   unitCursors: Record<string, UnitCursor> = {},
 ): ClaimedJob {
   return {
@@ -405,7 +391,7 @@ describe('handleJob orchestration', () => {
       // The wire half of one rule: a progress event carries a code and typed
       // params, never prose. Dropping the argument is silent: every event
       // still flows, and the UI just has nothing to render.
-      vi.mocked(processHighlightJob).mockImplementation(async (_c, _i, _p, _b, onProgress) => {
+      vi.mocked(processHighlightJob).mockImplementation(async (_c, _o, _i, _p, _b, onProgress) => {
         onProgress(60, { code: 'creating-annotations', count: 2 });
         return { annotations: [], result: { found: 0, persisted: 0 } as never };
       });
@@ -783,14 +769,20 @@ describe('handleJob orchestration', () => {
 
       const commit = h.busEmits.find(e => e.channel === 'mark:commit');
       expect(commit, 'resource-focus generation mints a navigable source→derived reference').toBeDefined();
-      const ann = (commit!.payload as { annotations: Array<{ target: { selector?: unknown } }> }).annotations[0]!;
+      const ann = (commit!.payload as { annotations: Array<{ id: string; target: unknown }> }).annotations[0]!;
       expect(ann).toMatchObject({
         motivation: 'linking',
         target: { source: RID },
         body: { type: 'SpecificResource', source: 'new-res-42', purpose: 'linking' },
       });
-      // resource-level target — no selector
-      expect(ann.target.selector).toBeUndefined();
+      // resource-level target — the source, and nothing else
+      expect(ann.target).toEqual({ source: RID });
+      // A built annotation says when it was made, and nothing of a later change.
+      expect(ann).not.toHaveProperty('modified');
+      // Its id is what it is: the source, the motivation, the body, and the
+      // empty anchor of an annotation that is nowhere on its resource. Worked
+      // out from the rule of specs/src/annotations/id-cases.json, not minted.
+      expect(ann.id).toBe('HqYtoFYDSdBnYjtdoGcKY');
 
       expect(h.busEmits.map(e => e.channel)).toEqual(['job:start', 'mark:commit', 'job:complete']);
     });
@@ -798,8 +790,9 @@ describe('handleJob orchestration', () => {
     it('mints a linking annotation on the DERIVED resource for each resolved citation', async () => {
       // The processor resolved [[ctx-9]] into a claim-span citation; the worker
       // mints it after upload (only then is the derived resourceId known):
-      // target = the derived resource + position/quote selectors for the claim,
-      // body = SpecificResource → the cited source.
+      // built as any span of a text is: target = the derived resource +
+      // position/quote selectors for the claim, body = SpecificResource → the
+      // cited source.
       vi.mocked(processGenerationJob).mockResolvedValue({
         content: new TextEncoder().encode('Paris is the capital of France. It is large.'),
         title: 'Answer',
@@ -825,6 +818,7 @@ describe('handleJob orchestration', () => {
         annotation: {
           motivation: 'linking',
           target: {
+            type: 'SpecificResource',
             source: 'new-res-42',
             selector: [
               { type: 'TextPositionSelector', start: 0, end: 31 },
@@ -834,13 +828,19 @@ describe('handleJob orchestration', () => {
           body: { type: 'SpecificResource', source: 'ctx-9', purpose: 'linking' },
         },
       });
+      expect(markCreates[0]!.payload.annotation).not.toHaveProperty('modified');
+      // Its id is what it is, the claim's span on the new resource being its
+      // anchor (`0:31:Paris is the capital of France.`): worked out from the
+      // rule of specs/src/annotations/id-cases.json, not minted.
+      expect((markCreates[0]!.payload.annotation as { id: string }).id).toBe('WaceNfV_Xr3nk_nsyWepQ');
       expect(h.busEmits.map(e => e.channel)).toEqual(['job:start', 'mark:commit', 'job:complete']);
     });
 
     it('anchors PDF citations by page geometry — FragmentSelector, never TextPositionSelector', async () => {
       // The citation offsets index the Typst SOURCE; on a PDF they render
       // nothing — the silent wrong this test exists to prevent. The worker
-      // re-anchors each claim through the extracted text layer instead.
+      // re-anchors each claim through the PDF's anchored text instead, which
+      // it asks for as detection does: the Smelter's, for the new resource.
       vi.mocked(processGenerationJob).mockResolvedValue({
         content: new TextEncoder().encode('%PDF-FAKE'),
         title: 'Answer',
@@ -848,12 +848,13 @@ describe('handleJob orchestration', () => {
         citations: [{ resourceId: resourceId('ctx-9'), start: 0, end: 31, exact: 'Paris is the capital of France.' }],
         truncated: false,
       });
-      vi.mocked(extractPdfTextLayer).mockResolvedValue({
+      const h = makeFakeWorker();
+      vi.mocked(h.client.browse.resourceAnchoredText).mockResolvedValue({
+        kind: 'extracted',
         text: 'Paris is the capital of France. It is large.',
         items: [{ start: 0, end: 44, page: 1, x: 71, y: 746, width: 450, height: 11 }],
-        pages: [],
+        method: 'pdf-text-layer',
       } as never);
-      const h = makeFakeWorker();
 
       await handleHeld(
         h,
@@ -882,13 +883,15 @@ describe('handleJob orchestration', () => {
       expect(selectorTypes).toContain('TextQuoteSelector');
       expect(selectorTypes).not.toContain('TextPositionSelector');
       expect(payload.annotation.body).toMatchObject({ type: 'SpecificResource', source: 'ctx-9', purpose: 'linking' });
+      // Asked once, for the resource the job has just yielded.
+      expect(h.client.browse.resourceAnchoredText).toHaveBeenCalledExactlyOnceWith('new-res-42');
     });
 
-    it('a hyphenated claim mints with the RENDERED text as its quote — the source string would trip the containment invariant', async () => {
+    it('a hyphenated claim mints with the RENDERED text as its quote — the source string is not in the text the span covers', async () => {
       // The claim text comes from the Typst SOURCE; the rendered layer drops
       // the soft hyphen ("extraor" + "dinarily"). The quote selector must
       // carry what is actually under the rects — the rendered substring — or
-      // buildPdfAnnotation's invariant throws and fails the whole job even
+      // `annotationOfSpan` refuses the span and fails the whole job even
       // though findClaimSpan found the span.
       vi.mocked(processGenerationJob).mockResolvedValue({
         content: new TextEncoder().encode('%PDF-FAKE'),
@@ -897,12 +900,13 @@ describe('handleJob orchestration', () => {
         citations: [{ resourceId: resourceId('ctx-9'), start: 0, end: 27, exact: 'extraordinarily complicated' }],
         truncated: false,
       });
-      vi.mocked(extractPdfTextLayer).mockResolvedValue({
+      const h = makeFakeWorker();
+      vi.mocked(h.client.browse.resourceAnchoredText).mockResolvedValue({
+        kind: 'extracted',
         text: 'It is extraor \ndinarily complicated today.',
         items: [{ start: 0, end: 42, page: 1, x: 71, y: 764, width: 452, height: 11 }],
-        pages: [],
+        method: 'pdf-text-layer',
       } as never);
-      const h = makeFakeWorker();
 
       await handleHeld(
         h,
@@ -924,6 +928,137 @@ describe('handleJob orchestration', () => {
       }).annotation.target.selector;
       const quote = selector.find(s => s.type === 'TextQuoteSelector');
       expect(quote?.exact).toBe('extraor \ndinarily complicated');
+    });
+
+    it('a claim after a character outside the Basic Multilingual Plane is quoted by the text at its span, counted in code points', async () => {
+      // The span the search answers counts code points, as the text's items
+      // do: the emoji is one. The quote is the rendered text between those two
+      // offsets, which a string's own positions would take one unit early.
+      vi.mocked(processGenerationJob).mockResolvedValue({
+        content: new TextEncoder().encode('%PDF-FAKE'),
+        title: 'Answer',
+        format: 'application/pdf',
+        citations: [{ resourceId: resourceId('ctx-9'), start: 0, end: 31, exact: 'Paris is the capital of France.' }],
+        truncated: false,
+      });
+      const h = makeFakeWorker();
+      vi.mocked(h.client.browse.resourceAnchoredText).mockResolvedValue({
+        kind: 'extracted',
+        text: '📄 Paris is the capital of France. It is large.',
+        items: [
+          { start: 0, end: 1, page: 1, x: 50, y: 746, width: 12, height: 11 },
+          { start: 2, end: 33, page: 1, x: 71, y: 746, width: 310, height: 11 },
+          { start: 34, end: 46, page: 1, x: 390, y: 746, width: 120, height: 11 },
+        ],
+        method: 'pdf-text-layer',
+      } as never);
+
+      await handleHeld(
+        h,
+        makeConfig(h.client),
+        makeJob('yield', { context: minimalContext('annotation'), cite: true, outputMediaType: 'application/pdf' }),
+      );
+
+      const committed = h.busEmits
+        .filter(e => e.channel === 'mark:commit')
+        .flatMap(e => (e.payload as { annotations: Array<{ target: { selector: Array<{ type: string; exact?: string; value?: string }> } }> }).annotations);
+      expect(committed).toHaveLength(1);
+      const selector = committed[0]!.target.selector;
+      expect(selector.find(s => s.type === 'TextQuoteSelector')?.exact).toBe('Paris is the capital of France.');
+      // One line, the one item the span covers: neither the emoji's nor the next sentence's.
+      expect(selector.filter(s => s.type === 'FragmentSelector').map(s => s.value)).toEqual(['page=1&viewrect=71,746,310,11']);
+    });
+
+    // The Smelter has not derived the new PDF's text the moment it is
+    // yielded. The Archivist's answer already waits for the Smelter to say it
+    // has settled the content (`smelt:settled`), so the worker's part is to
+    // ask again, a bounded number of times, and never to fail the job: a
+    // retried generation would make the resource a second time.
+    const CITED_PDF: Awaited<ReturnType<typeof processGenerationJob>> = {
+      content: new TextEncoder().encode('%PDF-FAKE'),
+      title: 'Answer',
+      format: 'application/pdf',
+      citations: [{ resourceId: resourceId('ctx-9'), start: 0, end: 31, exact: 'Paris is the capital of France.' }],
+      truncated: false,
+    };
+    const PDF_TEXT = {
+      kind: 'extracted',
+      text: 'Paris is the capital of France. It is large.',
+      items: [{ start: 0, end: 44, page: 1, x: 71, y: 746, width: 450, height: 11 }],
+      method: 'pdf-text-layer',
+    };
+    const citationCommits = (h: ReturnType<typeof makeFakeWorker>) => h.busEmits
+      .filter((e) => e.channel === 'mark:commit' && (e.payload as { resourceId: string }).resourceId === 'new-res-42');
+    const runCitedPdf = (h: ReturnType<typeof makeFakeWorker>, config = makeConfig(h.client)) => handleHeld(
+      h, config,
+      makeJob('yield', { context: minimalContext('annotation'), cite: true, outputMediaType: 'application/pdf' }),
+    );
+
+    it('asks again when the new PDF\'s text is not there yet, and anchors on the answer that has it', async () => {
+      vi.mocked(processGenerationJob).mockResolvedValue(CITED_PDF);
+      const h = makeFakeWorker();
+      vi.mocked(h.client.browse.resourceAnchoredText)
+        .mockResolvedValueOnce({ kind: 'not-yet' } as never)
+        .mockResolvedValueOnce({ kind: 'not-yet' } as never)
+        .mockResolvedValue(PDF_TEXT as never);
+
+      await runCitedPdf(h);
+
+      expect(h.client.browse.resourceAnchoredText).toHaveBeenCalledTimes(3);
+      expect(citationCommits(h)).toHaveLength(1);
+      expect(h.settles()).toEqual(['job:complete']);
+    });
+
+    it('a generation whose PDF text never arrives completes with its resource, without its citations, and says so', async () => {
+      vi.mocked(processGenerationJob).mockResolvedValue(CITED_PDF);
+      const h = makeFakeWorker();
+      vi.mocked(h.client.browse.resourceAnchoredText).mockResolvedValue({ kind: 'not-yet' } as never);
+      const config = makeConfig(h.client);
+
+      await runCitedPdf(h, config);
+
+      expect(h.client.browse.resourceAnchoredText).toHaveBeenCalledTimes(GENERATED_TEXT_ASKS_COUNT);
+      expect(citationCommits(h)).toHaveLength(0);
+      expect(h.settles()).toEqual(['job:complete']);
+      const completed = h.busEmits.find((e) => e.channel === 'job:complete')!.payload as { result: { resourceId: string } };
+      expect(completed.result.resourceId).toBe('new-res-42');
+      expect(config.logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('PDF citations dropped'),
+        expect.objectContaining({ resourceId: 'new-res-42', citations: 1, reason: 'not-yet' }),
+      );
+    });
+
+    it.each([
+      ['the Smelter made no map of it', { kind: 'no-map' }, 'no-map'],
+      ['the Smelter declined it', { kind: 'declined', declined: 'encrypted' }, 'encrypted'],
+      ['the record does not know its content', { kind: 'unknown' }, 'unknown'],
+    ])('does not ask again when %s: the citations are dropped, naming why', async (_why, answer, reason) => {
+      vi.mocked(processGenerationJob).mockResolvedValue(CITED_PDF);
+      const h = makeFakeWorker();
+      vi.mocked(h.client.browse.resourceAnchoredText).mockResolvedValue(answer as never);
+      const config = makeConfig(h.client);
+
+      await runCitedPdf(h, config);
+
+      expect(h.client.browse.resourceAnchoredText).toHaveBeenCalledTimes(1);
+      expect(citationCommits(h)).toHaveLength(0);
+      expect(h.settles()).toEqual(['job:complete']);
+      expect(config.logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('PDF citations dropped'),
+        expect.objectContaining({ resourceId: 'new-res-42', citations: 1, reason }),
+      );
+    });
+
+    it('says something to whoever follows the job each time it asks again, so a wait is not read as a stall', async () => {
+      vi.mocked(processGenerationJob).mockResolvedValue(CITED_PDF);
+      const h = makeFakeWorker();
+      vi.mocked(h.client.browse.resourceAnchoredText)
+        .mockResolvedValueOnce({ kind: 'not-yet' } as never)
+        .mockResolvedValue(PDF_TEXT as never);
+
+      await runCitedPdf(h);
+
+      expect(h.busEmits.filter((e) => e.channel === 'job:report-progress')).toHaveLength(1);
     });
   });
 
@@ -967,7 +1102,7 @@ describe('handleJob orchestration', () => {
 
   // ── Every minting path is acknowledged ─────────────────────────────────────
   //
-  // A path that emits `mark:create` fire-and-forget can lose its output: the
+  // A path that emits its annotations fire-and-forget can lose its output: the
   // emit timeout (EMIT_TIMEOUT_MS) stops it HANGING, but an emit that
   // resolves means the gateway accepted the frame, not that the Stower
   // appended anything, so a down Archivist discards the output while the job
@@ -993,7 +1128,7 @@ describe('handleJob orchestration', () => {
     // Each case stubs its OWN processor. `vi.clearAllMocks()` clears calls but
     // KEEPS implementations, so without this the four detection cases would pass
     // on a `mockResolvedValue` leaked from an earlier test in the file — and an
-    // un-stubbed processor returns undefined, whose empty batch `commitAnnotations`
+    // un-stubbed processor returns undefined, whose empty batch `job.commit`
     // correctly skips, so the census would assert against a job that never
     // minted anything. A gate that only holds when its neighbours run first is
     // not a gate.
@@ -1047,8 +1182,6 @@ describe('handleJob orchestration', () => {
       await handleHeld(h, makeConfig(h.client), makeJob(jobType as never, coverage.exercise));
 
       const channels = h.busEmits.map(e => e.channel);
-      expect(channels, `${jobType} must not emit un-acknowledged mark:create`).not.toContain('mark:create');
-
       const commits = h.busEmits.filter(e => e.channel === 'mark:commit');
       expect(commits, `${jobType} must acknowledge every batch it mints`).toHaveLength(coverage.commits);
 
@@ -1118,6 +1251,17 @@ describe('handleJob orchestration', () => {
   // it on the resource's primary media type before reading any bytes, and
   // the job fails as a user error.
 
+  describe('detection\'s byte read', () => {
+    it('reads a text resource\'s bytes by the client\'s own call, naming the resource', async () => {
+      vi.mocked(processHighlightJob).mockImplementation(emitting({ annotations: [], result: { found: 0, persisted: 0 } }));
+      const h = makeFakeWorker();
+
+      await handleHeld(h, makeConfig(h.client), makeJob('highlighting'));
+
+      expect(resourceRepresentation).toHaveBeenCalledExactlyOnceWith(RID);
+    });
+  });
+
   describe('detection media-type gate', () => {
     it('fails a detection job on a binary resource before fetching content or calling the processor', async () => {
       const h = makeFakeWorker();
@@ -1129,16 +1273,16 @@ describe('handleJob orchestration', () => {
         handleHeld(h, makeConfig(h.client), makeJob('linking', { entityTypes: ['Person'] }))
       ).rejects.toThrow(/has no extractable text/);
 
-      expect(getBinary).not.toHaveBeenCalled();
+      expect(resourceRepresentation).not.toHaveBeenCalled();
       expect(processReferenceJob).not.toHaveBeenCalled();
       expect(h.busEmits.some(e => e.channel === 'job:complete')).toBe(false);
     });
 
     // All five detection motivations fan out to the PDF
-    // text-layer path. Geometry is shared (buildPdfAnnotation, covered in
-    // build-pdf-annotation.test.ts); this proves the dispatch routes every
+    // text-layer path. Geometry is shared (`annotationOfSpan`, covered in
+    // `@semiont/core`); this proves the dispatch routes every
     // motivation through 'pdf-text-layer' — feeding each processor the extracted
-    // layer text (arg 0) and a PDF-aware buildAnnotation (arg 3), never the
+    // layer text (arg 0), its conversions (arg 1) and a PDF-aware buildAnnotation (arg 4), never the
     // decoded-bytes path. `lastCall` closes over the concrete mock so each
     // processor's own arg tuple is read (their signatures differ).
     type PdfFanoutCase = {
@@ -1186,14 +1330,15 @@ describe('handleJob orchestration', () => {
       );
 
       // A PDF is geometry-bearing: its text comes from the CONSULT, not from
-      // fetching and re-extracting bytes here. getBinary must NOT run — a 39 MB
+      // fetching and re-extracting bytes here. The byte read must NOT run — a 39 MB
       // download whose bytes are discarded still downloads.
       expect(h.client.browse.resourceAnchoredText).toHaveBeenCalled();
-      expect(getBinary).not.toHaveBeenCalled();
+      expect(resourceRepresentation).not.toHaveBeenCalled();
       const call = lastCall();
       expect(call).toBeDefined();
       expect(call![0]).toBe('the quick brown fox'); // source.text — the consulted canonical text
-      expect(typeof call![3]).toBe('function');      // source.buildAnnotation — PDF-aware anchor
+      expect((call![1] as TextOffsets).length).toBe(19); // source.offsets — that text's own conversions
+      expect(typeof call![4]).toBe('function');      // source.buildAnnotation — PDF-aware anchor
       expect(h.busEmits.some(e => e.channel === 'job:complete')).toBe(true);
     });
 
@@ -1266,7 +1411,7 @@ describe('handleJob orchestration', () => {
         handleHeld(h, makeConfig(h.client), makeJob('commenting'))
       ).rejects.toThrow(/has no extractable text/);
 
-      expect(getBinary).not.toHaveBeenCalled();
+      expect(resourceRepresentation).not.toHaveBeenCalled();
     });
 
     it('proceeds for a registry-miss text subtype (RFC 2046 fallback)', async () => {
@@ -1381,7 +1526,7 @@ describe('startWorkerProcess', () => {
     let seenSignal: AbortSignal | undefined;
     let release: (() => void) | undefined;
     vi.mocked(processReferenceJob).mockImplementation(
-      async (_c, _cl, _p, _b, _pr, _l, _onUnit, signal) => {
+      async (_c, _o, _cl, _p, _b, _pr, _l, signal) => {
         seenSignal = signal;
         await new Promise<void>((r) => { release = r; });
         return { result: { found: 0, persisted: 0 } as never };
@@ -1561,7 +1706,8 @@ describe('startWorkerProcess', () => {
 // ── Checkpointed resume ───────────────────────────────────────────────
 // The worker owns durability: the chunk-commit callback is the effect (per
 // chunk), `onUnitComplete` the control state (per unit); completed unit names
-// ride job:fail, and a retried claim skips them.
+// ride job:fail with their cursors, and a retried claim skips them and counts
+// them.
 //
 // The commit is one acknowledged batch per chunk, not N fire-and-forget
 // creates: the unit may not count until its annotations are durably in the
@@ -1570,7 +1716,7 @@ describe('startWorkerProcess', () => {
 describe('linking — checkpointed resume', () => {
   it('commits once per unit, awaiting durability, with no post-run re-emission', async () => {
     vi.mocked(processReferenceJob).mockImplementation(
-      async (_content, _client, _params, _build, _progress, _logger, onUnitComplete, _signal, onChunkComplete) => {
+      async (_content, _offsets, _client, _params, _build, _progress, _logger, _signal, onUnitComplete, onChunkComplete) => {
         await onChunkComplete!([{ id: 'r1' }] as never, { unit: 'Person', cursor: { next: 900, size: 220, found: 0, emitted: 0, errors: 0 } });
         await onUnitComplete('Person');
         await onUnitComplete('Date'); // empty unit: nothing to commit, still checkpoints
@@ -1593,8 +1739,8 @@ describe('linking — checkpointed resume', () => {
       .toEqual([
         'job:start',
         // Two checkpoints per non-empty unit: one trailing the chunk's
-        // commit (the mid-unit cursor), one at the unit boundary (the unit is
-        // complete and drops its cursor).
+        // commit (the unit's cursor), one at the unit boundary (the unit is
+        // finished, and keeps its cursor).
         'mark:commit', 'job:checkpoint', 'job:checkpoint',  // Person (1 annotation)
         'job:checkpoint',                                    // Date (empty unit, no commit)
         'mark:commit', 'job:checkpoint', 'job:checkpoint',  // Location (2 annotations, ONE batch)
@@ -1618,16 +1764,17 @@ describe('linking — checkpointed resume', () => {
       ['Person', 'Date'],                  // Location's chunk committed
       ['Person', 'Date', 'Location'],      // Location complete
     ]);
-    // And the cursor appears while its unit is open, then goes ABSENT when the
-    // unit completes: "partway here" and "finished" are never both true, and
-    // absent is the honest encoding of "nothing is partway" — an empty object
-    // would claim units were tracked and none had progress.
+    // A unit's cursor appears with its first chunk and stays: the checkpoint
+    // that names the unit finished carries it, and so does every one after.
+    // Date, which this stand-in finishes with no chunk at all, has none.
+    const person = { next: 900, size: 220, found: 0, emitted: 0, errors: 0 };
+    const location = { next: 1_800, size: 330, found: 0, emitted: 0, errors: 0 };
     expect(checkpoints.map(c => c.unitCursors)).toEqual([
-      { Person: { next: 900, size: 220, found: 0, emitted: 0, errors: 0 } },
-      undefined,
-      undefined,
-      { Location: { next: 1_800, size: 330, found: 0, emitted: 0, errors: 0 } },
-      undefined,
+      { Person: person },
+      { Person: person },
+      { Person: person },
+      { Person: person, Location: location },
+      { Person: person, Location: location },
     ]);
     expect(h.settles().filter((how) => how !== 'job:fail')).toHaveLength(1);
   });
@@ -1640,7 +1787,7 @@ describe('linking — checkpointed resume', () => {
     let seen: unknown;
     vi.mocked(processReferenceJob).mockImplementation(
       (async (...args: unknown[]) => {
-        seen = args[9];
+        seen = args[10];
         return { result: { found: 0, persisted: 0 } } as never;
       }) as never,
     );
@@ -1661,7 +1808,7 @@ describe('linking — checkpointed resume', () => {
     let seen: unknown;
     vi.mocked(processHighlightJob).mockImplementation(
       (async (...args: unknown[]) => {
-        seen = args[6];
+        seen = args[9];
         return { result: { found: 0, persisted: 0 } } as never;
       }) as never,
     );
@@ -1676,54 +1823,120 @@ describe('linking — checkpointed resume', () => {
     expect(seen).toEqual(cursors);
   });
 
-  it('cancellation stops at a unit boundary: emits job:cancel with the checkpoint, not job:complete', async () => {
-    // The signal is aborted (a cancel was requested for this job). The real
-    // processReferenceJob breaks its loop at the next unit boundary; the mock
-    // commits one unit and returns. handleJobInner must then announce
-    // job:cancel — carrying the committed unit — instead of job:complete, so
-    // the queue moves the still-running job to cancelled/ rather than mark it
-    // done, and never fails it.
+  it('a linking job a cancellation stopped is settled with job:cancel, naming the units it finished, not job:complete', async () => {
+    // The real processReferenceJob stops after the chunk it is on and says
+    // which units it had finished; the mock commits one unit and says so.
+    // handleJobInner must then announce job:cancel — carrying that unit —
+    // instead of job:complete, so the queue moves the still-running job to
+    // cancelled/ rather than mark it done, and never fails it.
     vi.mocked(processReferenceJob).mockImplementation(
-      async (_content, _client, _params, _build, _progress, _logger, onUnitComplete, _signal, onChunkComplete) => {
+      async (_content, _offsets, _client, _params, _build, _progress, _logger, _signal, onUnitComplete, onChunkComplete) => {
         await onChunkComplete!([{ id: 'r1' }] as never, { unit: 'Person', cursor: { next: 900, size: 220, found: 0, emitted: 0, errors: 0 } });
         await onUnitComplete('Person');
-        return { result: { found: 1, persisted: 1 } as never };
+        return { cancelled: { completedUnits: ['Person'] } };
       },
     );
     const h = makeFakeWorker();
-    const controller = new AbortController();
-    controller.abort();
 
-    await handleHeld(
-      h,
-      makeConfig(h.client),
-      makeJob('linking', { entityTypes: ['Person', 'Location'] }),
-      new Map(),
-      controller.signal,
-    );
+    await handleHeld(h, makeConfig(h.client), makeJob('linking', { entityTypes: ['Person', 'Location'] }));
 
     const channels = h.busEmits.map(e => e.channel);
     expect(channels).toContain('job:cancel');
     expect(channels).not.toContain('job:complete');
     const cancel = h.busEmits.find(e => e.channel === 'job:cancel');
     expect((cancel!.payload as { completedUnits: string[] }).completedUnits).toEqual(['Person']);
-    expect(h.settles().filter((how) => how !== 'job:fail')).toHaveLength(1);
+    expect(h.settles()).toEqual(['job:cancel']);
+    expect(recordJobOutcome).toHaveBeenLastCalledWith({ jobType: 'mark', motivation: 'linking' }, 'cancelled', expect.any(Number));
   });
 
-  it('a retried claim skips checkpointed units — the processor never sees them', async () => {
+  it.each([
+    ['highlighting', processHighlightJob],
+    ['commenting', processCommentJob],
+    ['assessing', processAssessmentJob],
+    ['tagging', processTagJob],
+  ] as const)('a %s job a cancellation stopped is settled with job:cancel, and is handed the held job\'s signal to stop for', async (motivation, processor) => {
+    let seenSignal: unknown;
+    vi.mocked(processor).mockImplementation((async (...args: unknown[]) => {
+      seenSignal = args[7];
+      // Partway through its one unit: it names none.
+      return { cancelled: { completedUnits: [] } };
+    }) as never);
+    const h = makeFakeWorker();
+    const controller = new AbortController();
+    controller.abort();
+
+    await handleHeld(h, makeConfig(h.client), makeJob(motivation), new Map(), controller.signal);
+
+    // The signal the processor stops for is the held job's own: a cancellation naming the job has aborted it.
+    expect(seenSignal).toBeInstanceOf(AbortSignal);
+    expect((seenSignal as AbortSignal).aborted).toBe(true);
+    expect(h.settles()).toEqual(['job:cancel']);
+    // No unit finished, so the cancel states none.
+    expect(h.busEmits.find(e => e.channel === 'job:cancel')!.payload).not.toHaveProperty('completedUnits');
+    expect(recordJobOutcome).toHaveBeenLastCalledWith({ jobType: 'mark', motivation }, 'cancelled', expect.any(Number));
+  });
+
+  it('a yield job a cancellation stopped uploads nothing, commits nothing, and is settled with job:cancel', async () => {
+    let seenSignal: unknown;
+    vi.mocked(processGenerationJob).mockImplementation((async (...args: unknown[]) => {
+      seenSignal = args[4];
+      return { cancelled: true };
+    }) as never);
+    const h = makeFakeWorker();
+    const controller = new AbortController();
+    controller.abort();
+
+    await handleHeld(h, makeConfig(h.client), makeJob('yield', { context: minimalContext('resource') }), new Map(), controller.signal);
+
+    expect((seenSignal as AbortSignal).aborted).toBe(true);
+    expect(h.yieldResourceCalls).toEqual([]);
+    expect(h.busEmits.map(e => e.channel)).toEqual(['job:start', 'job:cancel']);
+    expect(recordJobOutcome).toHaveBeenLastCalledWith({ jobType: 'yield' }, 'cancelled', expect.any(Number));
+  });
+
+  it('a retried claim hands the processor the whole job and the units earlier attempts finished: it skips them, and counts them', async () => {
     vi.mocked(processReferenceJob).mockImplementation(
       async () => ({ result: { found: 0, persisted: 0 } as never }),
     );
     const h = makeFakeWorker();
+    const cursors = { Person: { next: 4_000, size: 560, found: 7, emitted: 6, errors: 1 } };
 
     await handleHeld(
       h,
       makeConfig(h.client),
-      makeJob('linking', { entityTypes: ['Person', 'Date', 'Location'] }, ['Person', 'Date']),
+      makeJob('linking', { entityTypes: ['Person', 'Date', 'Location'] }, ['Person', 'Date'], { retryCount: 1, maxRetries: 3 }, cursors),
     );
 
-    const params = vi.mocked(processReferenceJob).mock.calls[0]![2] as { entityTypes: unknown[] };
-    expect(params.entityTypes.map(String)).toEqual(['Location']);
+    const call = vi.mocked(processReferenceJob).mock.calls[0]!;
+    expect((call[3] as { entityTypes: unknown[] }).entityTypes.map(String)).toEqual(['Person', 'Date', 'Location']);
+    expect(call[10]).toEqual(cursors);
+    expect(call[11]).toEqual(['Person', 'Date']);
+  });
+
+  it('a resumed job\'s checkpoints carry the cursors it was claimed with, each until this attempt moves that unit', async () => {
+    vi.mocked(processReferenceJob).mockImplementation(
+      async (_content, _offsets, _client, _params, _build, _progress, _logger, _signal, onUnitComplete, onChunkComplete) => {
+        await onChunkComplete!([{ id: 'r1' }] as never, { unit: 'Location', cursor: { next: 900, size: 220, found: 3, emitted: 2, errors: 0 } });
+        // Date stood at the end of the text when the job was claimed: named finished with no chunk asked.
+        await onUnitComplete('Date');
+        return { result: { found: 0, persisted: 0 } as never };
+      },
+    );
+    const h = makeFakeWorker();
+    const person = { next: 4_000, size: 560, found: 7, emitted: 6, errors: 1 };
+    const date = { next: 4_000, size: 560, found: 1, emitted: 1, errors: 0 };
+    const location = { next: 300, size: 560, found: 1, emitted: 1, errors: 0 };
+
+    await handleHeld(
+      h,
+      makeConfig(h.client),
+      makeJob('linking', { entityTypes: ['Person', 'Date', 'Location'] }, ['Person'], { retryCount: 1, maxRetries: 3 }, { Person: person, Date: date, Location: location }),
+    );
+
+    expect(h.busEmits.filter(e => e.channel === 'job:checkpoint').map(e => e.payload)).toEqual([
+      { jobId: JID, completedUnits: [], unitCursors: { Person: person, Date: date, Location: { next: 900, size: 220, found: 3, emitted: 2, errors: 0 } } },
+      { jobId: JID, completedUnits: ['Date'], unitCursors: { Person: person, Date: date, Location: { next: 900, size: 220, found: 3, emitted: 2, errors: 0 } } },
+    ]);
   });
 });
 
@@ -1733,7 +1946,7 @@ describe('startWorkerProcess — job:fail carries the checkpoint', () => {
     // Two units commit, then the third stalls — the failure payload must
     // name what completed so the retry can skip it.
     vi.mocked(processReferenceJob).mockImplementation(
-      async (_content, _client, _params, _build, _progress, _logger, onUnitComplete, _signal, onChunkComplete) => {
+      async (_content, _offsets, _client, _params, _build, _progress, _logger, _signal, onUnitComplete, onChunkComplete) => {
         await onChunkComplete!([{ id: 'a1' }] as never, { unit: 'Person', cursor: { next: 900, size: 220, found: 0, emitted: 0, errors: 0 } });
         await onUnitComplete('Person');
         await onUnitComplete('Date');
@@ -1753,6 +1966,8 @@ describe('startWorkerProcess — job:fail carries the checkpoint', () => {
       jobId: JID,
       error: 'Location stalled',
       completedUnits: ['Person', 'Date'],
+      // A finished unit's cursor goes with it.
+      unitCursors: { Person: { next: 900, size: 220, found: 0, emitted: 0, errors: 0 } },
     });
 
   });
@@ -1801,7 +2016,7 @@ describe('a lost acknowledgement is not a lost batch', () => {
   beforeEach(() => { vi.useFakeTimers(); });
   afterEach(() => { vi.useRealTimers(); });
 
-  /** Drive `handleJob` past `MARK_COMMIT_TIMEOUT_MS` without waiting a real minute. */
+  /** Drive `handleJob` past a commit's wait (`markCommitTimeoutMs`) without waiting a real minute. */
   async function runPastCommitTimeout(h: ReturnType<typeof makeFakeWorker>) {
     vi.mocked(processHighlightJob).mockImplementation(emitting({
       annotations: [{ id: 'a1' }, { id: 'a2' }] as never,
@@ -1918,9 +2133,11 @@ describe('the record says HOW durability was established', () => {
     setup(h);
     startWorkerProcess(makeConfig(h.client));
     h.offer(makeJob('highlighting'));
-    // Past the commit's 60 s bound on the fake clock; advanceTimersByTimeAsync
-    // flushes the detached promise chain startWorkerProcess runs the job on.
-    await vi.advanceTimersByTimeAsync(61_000);
+    // Past the commit's 60 s bound on the fake clock, and past the 60 s more
+    // it waits for an answer to its question when nobody gives one;
+    // advanceTimersByTimeAsync flushes the detached promise chain
+    // startWorkerProcess runs the job on.
+    await vi.advanceTimersByTimeAsync(121_000);
 
     return h.busEmits.find((e) => e.channel === 'job:fail')?.payload as Record<string, unknown> | undefined;
   }
@@ -1998,8 +2215,8 @@ describe('every event says which attempt produced it', () => {
 
   it('progress and the terminal event both carry the attempt number', async () => {
     vi.mocked(processHighlightJob).mockImplementation((async (...args: unknown[]) => {
-      const onProgress = args[4] as (p: number, m: unknown) => void;
-      const onChunkComplete = args[5] as (a: unknown[], c: UnitCheckpoint) => Promise<void>;
+      const onProgress = args[5] as (p: number, m: unknown) => void;
+      const onChunkComplete = args[8] as (a: unknown[], c: UnitCheckpoint) => Promise<void>;
       onProgress(60, { code: 'creating-annotations', count: 1 });
       await onChunkComplete([{ id: 'a1' }], { unit: 'highlighting', cursor: { next: 900, size: 220, found: 0, emitted: 0, errors: 0 } });
       return { result: { found: 1, persisted: 1 } } as never;

@@ -524,6 +524,68 @@ jobs:
         env:
           CI: true
 
+  # The Worker service, held to docs/protocol/WORKER-SERVICE.md: the process a
+  # worker image runs, behind a real gateway, with the suite playing the
+  # dispatcher, the record, the Smelter and its provider.
+  worker-service-conformance:
+    name: Worker Service Conformance
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Install the pinned Rust toolchain
+        run: |
+          rustup toolchain install
+
+      # The workspace's release build, shared with Gateway Conformance.
+      - name: Cache cargo
+        uses: actions/cache@v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-gateway-release-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-gateway-release-
+
+      - name: Build the gateway
+        run: cargo build --release --locked -p semiont-gateway
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            tests/conformance/package-lock.json
+
+      # The suite starts the built Worker service, `@semiont/jobs` and every
+      # package it runs on, as a worker image does.
+      - name: Install dependencies
+        run: |
+          npm ci --include=optional
+          npm run build:packages
+
+      # The suite's setup looks for a broker on PATH, as every suite's does.
+      - name: Install nats-server
+        run: |
+          NATS_VERSION=v2.14.0
+          curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
+          sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
+          nats-server --version
+
+      - name: Run the worker-service conformance suite
+        run: |
+          cd tests/conformance
+          npm ci
+          npm run test:worker-service
+        env:
+          CI: true
+
   # The Python SDK: both type checkers, strict, on the oldest Python it
   # supports, where a newer one would let through what that one refuses; its
   # tests on every Python it supports. tests/refusals is checked with the rest:

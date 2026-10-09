@@ -14,13 +14,6 @@ import type { Selector } from './payload-types';
 import type { Annotation } from './annotation-types';
 import type { ResourceId } from './identifiers';
 
-// Re-export selector utilities (canonical location is annotation-assembly)
-export {
-  getTextPositionSelector,
-  getSvgSelector,
-  getFragmentSelector,
-  validateSvgMarkup,
-} from './annotation-assembly';
 type HighlightAnnotation = Annotation;
 type ReferenceAnnotation = Annotation;
 type TextPositionSelector = components['schemas']['TextPositionSelector'];
@@ -30,6 +23,39 @@ type FragmentSelector = components['schemas']['FragmentSelector'];
 
 // Re-export selector types for convenience
 export type { TextPositionSelector, TextQuoteSelector, SvgSelector, FragmentSelector, Selector };
+
+/**
+ * Get TextPositionSelector from a selector (single or array)
+ */
+export function getTextPositionSelector(selector: Selector | Selector[] | undefined): TextPositionSelector | null {
+  if (!selector) return null;
+  const selectors = Array.isArray(selector) ? selector : [selector];
+  const found = selectors.find(s => s.type === 'TextPositionSelector');
+  if (!found) return null;
+  return found.type === 'TextPositionSelector' ? found : null;
+}
+
+/**
+ * Get SvgSelector from a selector (single or array)
+ */
+export function getSvgSelector(selector: Selector | Selector[] | undefined): SvgSelector | null {
+  if (!selector) return null;
+  const selectors = Array.isArray(selector) ? selector : [selector];
+  const found = selectors.find(s => s.type === 'SvgSelector');
+  if (!found) return null;
+  return found.type === 'SvgSelector' ? found : null;
+}
+
+/**
+ * Get FragmentSelector from a selector (single or array)
+ */
+export function getFragmentSelector(selector: Selector | Selector[] | undefined): FragmentSelector | null {
+  if (!selector) return null;
+  const selectors = Array.isArray(selector) ? selector : [selector];
+  const found = selectors.find(s => s.type === 'FragmentSelector');
+  if (!found) return null;
+  return found.type === 'FragmentSelector' ? found : null;
+}
 
 /** A body's items: none when there is no body, the one when it is a single item, each when it is a list. */
 function bodyItems(body: Annotation['body']) {
@@ -189,7 +215,7 @@ export function getTagSchemaId(annotation: Annotation): string | undefined {
  * Get the exact text from a selector (single or array)
  *
  * When selector is an array, tries to find a TextQuoteSelector (which has exact text).
- * TextPositionSelector does not have exact text, only character offsets.
+ * TextPositionSelector does not have exact text, only offsets, in code points.
  * Handles undefined selector (when target is a string IRI with no selector)
  */
 export function getExactText(selector: Selector | Selector[] | undefined): string {

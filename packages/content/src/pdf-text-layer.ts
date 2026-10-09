@@ -35,8 +35,8 @@ export interface PdfPageInfo {
     pageNumber: number;
     widthPt: number;
     heightPt: number;
-    textStart: number;  // Char offset in `PdfTextLayer.text` (inclusive)
-    textEnd: number;    // Char offset in `PdfTextLayer.text` (exclusive)
+    textStart: number;  // Offset in `PdfTextLayer.text`, in code points as an item's are (inclusive)
+    textEnd: number;    // Offset in `PdfTextLayer.text`, in code points (exclusive)
     /**
      * Whether this page carries text-showing operators. False means the page
      * is scanned: its characters exist only as pixels, so reading it needs
@@ -50,7 +50,7 @@ export interface PdfPageInfo {
 /**
  * The full extracted text layer for a PDF.
  * `text` is the reading-order concatenation across all pages.
- * Each `item` is one text run carrying its character range into `text` plus PDF-point geometry.
+ * Each `item` is one text run carrying its range of `text`, in code points, plus PDF-point geometry.
  */
 export interface PdfTextLayer extends AnchoredText {
     pages: PdfPageInfo[];

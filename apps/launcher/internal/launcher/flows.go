@@ -190,6 +190,9 @@ func flowFullStart(x executor, fc flowCtx) int {
 		x.note("SEMIONT_VERSION=local — using locally-built :local images (no pull)")
 	} else {
 		for _, svc := range stackServices {
+			if !fc.plan.runs(svc) {
+				continue
+			}
 			if !x.pull(image(svc, fc.version)) {
 				return 1
 			}
@@ -277,6 +280,10 @@ func flowFullStart(x executor, fc flowCtx) int {
 	// weaver the graph stays empty and every gather 404s at the
 	// buildKnowledgeGraph barrier.
 	for _, sc := range sidecarSpecs {
+		if sc.svc == "worker" && !fc.plan.runs("worker") {
+			flowNoWorker(x, fc, sc.noun)
+			continue
+		}
 		if code := flowSidecar(x, fc, sc, addr, stage, otel); code != 0 {
 			return code
 		}
@@ -570,13 +577,14 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 	return 0
 }
 
-// saasBase reconstructs the https origin from a SaaS role plan. Port 443 is
-// the real world; any other port is a test or proxy endpoint, spoken plainly.
-func saasBase(rp rolePlan) string {
-	if rp.Port == 443 {
-		return "https://" + rp.Address
+// saasBase reconstructs the https origin from a SaaS provider's address
+// (remoteProviderAddress). Port 443 is the real world; any other port is a
+// test or proxy endpoint, spoken plainly.
+func saasBase(host string, port int) string {
+	if port == 443 {
+		return "https://" + host
 	}
-	return fmt.Sprintf("http://%s:%d", rp.Address, rp.Port)
+	return fmt.Sprintf("http://%s:%d", host, port)
 }
 
 // envValue digs VAR=value out of the resolved user env.
@@ -638,7 +646,7 @@ func flowInferenceRole(x executor, fc flowCtx, addr string) int {
 					x.say(sayFail, "%v", err)
 					return 1
 				}
-				x.verifyRemoteModels("inference", saasBase(rp), key, servedBy(rp.Models, "anthropic"))
+				x.verifyRemoteModels("inference", saasBase(rp.Address, rp.Port), key, servedBy(rp.Models, "anthropic"))
 			}
 			return 0
 		}
@@ -762,7 +770,20 @@ func flowGateway(x executor, fc flowCtx, addr, stage string, otel []string) int 
 	return 0
 }
 
+// flowNoWorker: the worker's place in a full start of an environment that
+// binds it no job (workerPlan). Nothing is launched: the start says why,
+// naming the section that binds one, and records the role as not here — which
+// is how status, logs and stop read a stack without it.
+func flowNoWorker(x executor, fc flowCtx, noun string) {
+	section := workerBindingSection(fc.plan.EnvName)
+	x.banner(noun)
+	x.say(sayLog, "worker — the environment binds no job to a worker; skipping %s", x.dim("(add "+section+" to run one)"))
+	x.note("worker: the environment binds no job to a worker — nothing to launch (add %s to run one)", section)
+	x.record("worker", "", "", providedNone, "", "")
+}
+
 func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage string, otel []string) int {
+	spec := semiontDescriptor(sc.svc)
 	x.banner(startBanner(fc, sc.noun))
 	// The Smelter derives the anchored-text artifacts, so it HOLDS the store
 	// rather than reaching it over the content transport — and it owns the
@@ -785,18 +806,25 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage string, ote
 	if !ok {
 		return 1
 	}
-	args := sidecarArgs(sc.svc, sc.port, stage, x.rtName(), addr, clientSecret, fc.version, fc.envFor(sc.svc), otel, extra...)
+	// The worker reads a configuration document; the Smelter and the Weaver
+	// load a staged copy of the KB's config.
+	var args []string
+	if sc.svc == "worker" {
+		args = workerArgs(stage, x.rtName(), addr, clientSecret, fc.version, fc.envFor(sc.svc), otel)
+	} else {
+		args = sidecarArgs(sc.svc, stage, x.rtName(), addr, clientSecret, fc.version, fc.envFor(sc.svc), otel, extra...)
+	}
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "%s failed to start.", sc.label)
 		return 1
 	}
-	d, ok := x.waitHTTP(sc.label, semiontDescriptor(sc.svc).container, healthEndpoint(sc.svc, driverSemiont, fc.plan), 30)
+	d, ok := x.waitHTTP(sc.label, spec.container, healthEndpoint(sc.svc, driverSemiont, fc.plan), 30)
 	if !ok {
-		x.dumpLogs(semiontDescriptor(sc.svc).container, sc.svc)
+		x.dumpLogs(spec.container, sc.svc)
 		return 1
 	}
-	x.say(sayOK, "%s healthy (http://localhost:%d) %s", sc.label, sc.port, x.dim("("+took(d)+")"))
+	x.say(sayOK, "%s healthy (http://localhost:%d) %s", sc.label, spec.ports[0].port, x.dim("("+took(d)+")"))
 	x.record(sc.svc, id, image(sc.svc, fc.version), providedLauncher, healthEndpoint(sc.svc, driverSemiont, fc.plan), driverSemiont)
 	return 0
 }
@@ -910,19 +938,15 @@ func flowOneService(x executor, fc flowCtx) int {
 		return 1
 	}
 	svc := fc.opts.service
-	if fc.plan != nil {
-		if rp, ok := fc.plan.Roles[svc]; ok {
-			switch rp.Presence {
-			case presenceExternal:
-				x.say(sayWarn, "%s is externally provided per %s (%s:%d); nothing to launch.", svc, fc.configFile, rp.Address, rp.Port)
-				x.note("%s: externally provided at %s:%d — verify reachability, launch nothing", svc, rp.Address, rp.Port)
-				return 0
-			case presenceAbsent:
-				x.say(sayWarn, "%s is not referenced by %s; nothing to launch.", svc, fc.configFile)
-				x.note("%s: not referenced by the config — nothing to launch", svc)
-				return 0
-			}
+	if rp, nothing := nothingToLaunch(fc.plan, svc); nothing {
+		if rp.Presence == presenceExternal {
+			x.say(sayWarn, "%s is externally provided per %s (%s:%d); nothing to launch.", svc, fc.configFile, rp.Address, rp.Port)
+			x.note("%s: externally provided at %s:%d — verify reachability, launch nothing", svc, rp.Address, rp.Port)
+			return 0
 		}
+		x.say(sayWarn, "%s is not referenced by %s; nothing to launch.", svc, fc.configFile)
+		x.note("%s: not referenced by the config — nothing to launch", svc)
+		return 0
 	}
 
 	// browser is handled entirely by flowBrowser (its own stop/port/pull) —
@@ -1064,9 +1088,26 @@ func flowOneService(x executor, fc flowCtx) int {
 	return 0
 }
 
+// nothingToLaunch: whether `start --service svc` is a no-op — a dependency the
+// config hands to somebody else, or does not reference. ONE decider for the
+// flow's gate and the summary that follows it. Never one of Semiont's own
+// services: a worker the environment binds no job is refused, where its
+// document is written (workerAgents), not passed over.
+func nothingToLaunch(plan *launchPlan, svc string) (rolePlan, bool) {
+	if plan == nil {
+		return rolePlan{}, false
+	}
+	rp, planned := plan.Roles[svc]
+	if !planned || rp.Driver == driverSemiont {
+		return rolePlan{}, false
+	}
+	return rp, rp.Presence == presenceExternal || rp.Presence == presenceAbsent
+}
+
 // servicePortNeeds: one service's must-be-free ports. Claims follow the
 // plan for config-owned ports (dependency roles, gateway); the static role
-// table covers only the launcher-fiat ports (sidecars, browser, traces).
+// table covers only the launcher-fiat ports (sidecars, browser, traces),
+// which the plan carries no port for.
 func servicePortNeeds(svc string, plan *launchPlan, opts startOptions) []portNeed {
 	ports := stackPortNeeds(svc)
 	switch {
@@ -1075,7 +1116,7 @@ func servicePortNeeds(svc string, plan *launchPlan, opts startOptions) []portNee
 	case svc == "gateway" && plan != nil:
 		ports = []portNeed{{plan.GatewayPort, "Gateway"}}
 	case plan != nil:
-		if rp, ok := plan.Roles[svc]; ok && rp.Presence == presenceLauncher {
+		if rp, ok := plan.Roles[svc]; ok && rp.Presence == presenceLauncher && rp.Port != 0 {
 			spec := descriptorFor(svc, rp.Driver)
 			ports = append(append([]portNeed{}, spec.auxPorts...), portNeed{rp.Port, spec.portLabel})
 		}

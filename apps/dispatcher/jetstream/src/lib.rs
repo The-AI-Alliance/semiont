@@ -148,7 +148,6 @@ struct Inner {
     client: async_nats::Client,
     context: jetstream::Context,
     kv: kv::Store,
-    stream: stream::Stream,
     held: Mutex<HashMap<String, Held>>,
     last_progress_write: Mutex<HashMap<String, Instant>>,
     announce: UnboundedSender<JobQueuedEvent>,
@@ -234,7 +233,6 @@ impl JetStreamQueue {
             client,
             context,
             kv,
-            stream,
             held: Mutex::new(HashMap::new()),
             last_progress_write: Mutex::new(HashMap::new()),
             announce,
@@ -840,48 +838,6 @@ impl JobQueue for JetStreamQueue {
                 _ => Transition::Keep(()),
             })
             .await
-    }
-
-    async fn cancel_pending_jobs(&self, job_type: JobType) -> Result<u64, QueueError> {
-        let mut cancelled = 0;
-        for id in self.inner.all_keys().await? {
-            let Some(record) = self.inner.scan(&id).await? else {
-                continue;
-            };
-            let Job::Pending(job) = &record.job else {
-                continue;
-            };
-            if job.metadata.r#type != job_type {
-                continue;
-            }
-            let done = self
-                .inner
-                .cas(&id, false, |record| match &record.job {
-                    Job::Pending(job) if job.metadata.r#type == job_type => Transition::Write(
-                        Box::new(Job::Cancelled(JobCancelled {
-                            status: JobCancelledStatus::Cancelled,
-                            metadata: job.metadata.clone(),
-                            params: job.params.clone(),
-                            started_at: None,
-                            completed_at: now(),
-                        })),
-                        true,
-                    ),
-                    _ => Transition::Keep(false),
-                })
-                .await?;
-            if done {
-                cancelled += 1;
-                self.inner.settle(&id, AckKind::Term).await;
-            }
-        }
-        self.inner
-            .stream
-            .purge()
-            .filter(subject(job_type))
-            .await
-            .map_err(|e| failed("purging a job type's deliveries", e))?;
-        Ok(cancelled)
     }
 
     async fn cancel_job(&self, id: &JobId) -> Result<bool, QueueError> {

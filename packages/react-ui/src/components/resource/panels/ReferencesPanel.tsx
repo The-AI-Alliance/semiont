@@ -9,7 +9,7 @@ import type { RouteBuilder, LinkComponentProps } from '../../../contexts/Routing
 import { DelegateShell } from './DelegateShell';
 import { ItemFoundLog } from '../../ItemFoundLog';
 import { ReferenceEntry } from './ReferenceEntry';
-import type { components, ResourceId, Selector } from '@semiont/core';
+import type { components, JobId, ResourceId, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
 import { PanelHeader } from './PanelHeader';
 import './ReferencesPanel.css';
@@ -54,6 +54,12 @@ interface Props {
   annotations?: Annotation[];
   isDelegating: boolean;
   progress: JobProgress | null;
+  /**
+   * The id of the delegated job (`mark.jobId$`): what the cancel control
+   * names. Null until the queue has answered the job's creation and once the
+   * job is over, and then there is no control.
+   */
+  jobId: JobId | null;
   annotateMode?: boolean;
   Link: React.ComponentType<LinkComponentProps>;
   routes: RouteBuilder;
@@ -93,9 +99,11 @@ interface Props {
 /**
  * Panel for managing reference annotations with entity type annotation
  *
- * @emits annotate:detect-request - Start reference annotation. Payload: { motivation: 'linking', options: { entityTypes: string[], includeDescriptiveReferences: boolean } }
- * @emits mark:create - Create new reference annotation. Payload: { motivation: 'linking', selector: Selector | Selector[], body: Body[] }
+ * @emits mark:delegate-request - Start reference annotation. Payload: MarkDelegateRequestEvent, its params those of a 'linking' job: entityTypes, includeDescriptiveReferences, language, sourceLanguage
+ * @emits mark:submit - Create new reference annotation. Payload: MarkSubmitEvent with motivation 'linking', and the chosen entity types as a TextualBody when any are chosen
  * @emits mark:cancel-pending - Cancel pending reference annotation. Payload: undefined
+ * @emits mark:progress-dismiss - Dismiss the reference annotation progress display. Payload: undefined
+ * @emits job:cancel-requested - Cancel the delegated reference job, by its id: pending, it is cancelled; running, the worker that holds it stops its work and settles it as cancelled. Payload: { jobId: JobId }
  * @subscribes browse:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function ReferencesPanel({
@@ -105,6 +113,7 @@ export function ReferencesPanel({
   annotations = [],
   isDelegating,
   progress,
+  jobId,
   annotateMode = true,
   Link,
   routes,
@@ -376,7 +385,13 @@ export function ReferencesPanel({
             isDelegating={isDelegating}
             progress={progress}
             progressProps={{
-              onCancel: () => session?.client.job.cancelRequest('mark'),
+              ...(jobId ? {
+                onCancel: () => {
+                  session?.client.job.cancel(jobId).catch((error: unknown) => {
+                    console.error(`Failed to cancel job ${jobId}:`, error);
+                  });
+                },
+              } : {}),
               onDismiss: () => session?.client.mark.dismissProgress(),
               translations: delegateProgressTranslations(ta, {
                 found: (count: number) => t('found', { count }),

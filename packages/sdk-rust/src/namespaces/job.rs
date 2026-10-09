@@ -10,10 +10,9 @@ use crate::claims::{ClaimOptions, Claims};
 use crate::client::Links;
 use crate::errors::{BusRequestError, BusRequestErrorCode, SemiontError};
 use crate::event_bus::BusFrames;
-use crate::transport::Envelope;
 use crate::types::JobId;
 use crate::types::{
-    JobCancelRequest, JobStatusRequest, JobStatusResponse, JobStatusResponseStatus, JobType,
+    JobCancelRequest, JobStatusRequest, JobStatusResponse, JobStatusResponseStatus,
 };
 use std::time::Duration;
 use tokio::time::Instant;
@@ -90,49 +89,25 @@ impl JobNamespace {
         }
     }
 
-    /// Cancel every pending job of a type: how many were cancelled. Running
-    /// jobs are their workers' to stop.
-    pub async fn cancel_by_type(&self, job_type: JobType) -> Result<i64, SemiontError> {
-        self.cancelled(JobCancelRequest {
-            job_id: None,
-            job_type: Some(job_type),
-        })
-        .await
-    }
-
-    /// Cancel one job: how many the queue acted on. A pending job is
-    /// cancelled outright; a running one is left to its worker, so one means
-    /// accepted, not stopped.
-    pub async fn cancel(&self, job_id: &JobId) -> Result<i64, SemiontError> {
-        self.cancelled(JobCancelRequest {
-            job_id: Some(job_id.clone()),
-            job_type: None,
-        })
-        .await
+    /// Cancel one job: whether the queue acted on it. A pending job is
+    /// cancelled outright; a running one is left to its worker, so true
+    /// means accepted, not stopped. False is a job the queue does not know,
+    /// or one already over.
+    pub async fn cancel(&self, job_id: &JobId) -> Result<bool, SemiontError> {
+        let request = JobCancelRequest {
+            job_id: job_id.clone(),
+        };
+        let answer = self.links.request::<JobCancelRequested>(&request).await?;
+        Ok(answer.response.cancelled)
     }
 
     /// A worker's side: claim the jobs `options.accepts` describes, and hold
     /// one at a time. Claiming begins when the claims are first read, and each
-    /// job they hand out says its own lifecycle and settles once
-    /// (docs/protocol/WORKER-CONTRACT.md). The transport's stream must name
-    /// `claims::JOB_CLAIM_CHANNELS`.
+    /// job they hand out says its own lifecycle, commits its own annotations
+    /// and settles once (docs/protocol/WORKER-CONTRACT.md). The transport's
+    /// stream must name `claims::JOB_CLAIM_CHANNELS`, and
+    /// `claims::JOB_COMMIT_CHANNELS` for a worker that commits.
     pub fn claim(&self, options: ClaimOptions) -> Claims {
         Claims::new(self.links.wire.clone(), options)
-    }
-
-    /// Signal: the cancellation of every pending job of a type is wanted.
-    pub fn cancel_request(&self, job_type: JobType) {
-        self.links.signal::<JobCancelRequested>(
-            &JobCancelRequest {
-                job_id: None,
-                job_type: Some(job_type),
-            },
-            Envelope::default(),
-        );
-    }
-
-    async fn cancelled(&self, request: JobCancelRequest) -> Result<i64, SemiontError> {
-        let answer = self.links.request::<JobCancelRequested>(&request).await?;
-        Ok(answer.response.cancelled)
     }
 }

@@ -111,7 +111,7 @@ func Login(args []string) int {
 	// identifier disagree, and storing the token would only defer that error
 	// to the first verb.
 	ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
-	me, err := cli.GetApiUsersMeWithResponse(ctx, Bearer(tr.AccessToken))
+	me, err := cli.GetCurrentUserWithResponse(ctx, Bearer(tr.AccessToken))
 	cancel()
 	if err != nil {
 		u.Fail("Gateway unreachable at %s: %v", base, err)

@@ -16,6 +16,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { MockInferenceClient } from '@semiont/inference';
 import type { GatheredContext, Logger } from '@semiont/core';
 import { generateResourceFromTopic } from '../resource-generation';
+import { classifyFailure, DeterministicJobError } from '../../../failure-class';
 import { annotationId, resourceId } from '@semiont/core';
 
 type AnnotationFocus = Extract<GatheredContext['focus'], { kind: 'annotation' }>;
@@ -579,6 +580,32 @@ describe('generateResourceFromTopic', () => {
       expect(prompt).toContain('X'.repeat(240));
       expect(prompt).not.toContain(long);
     });
+
+    it('cuts a long passage at 240 code points, and never inside a character', async () => {
+      client.setResponses(['# X\n\nbody']);
+      // The 240th code point is an emoji, which is two UTF-16 code units of a string.
+      const straddling = 'X'.repeat(239) + '😀'.repeat(10);
+      // 300 emoji are 300 code points and 600 code units.
+      const emoji = '🎉'.repeat(300);
+
+      await generateResourceFromTopic(
+        'Topic', [], client, LOGGER, undefined, undefined,
+        makeContext({
+          semanticContext: [
+            { text: straddling, resourceId: resourceId('r'), resourceName: 'Source r', score: 0.95 },
+            { text: emoji, resourceId: resourceId('r'), resourceName: 'Source r', score: 0.90 },
+          ],
+        }),
+      );
+
+      const prompt = promptArg();
+      expect(prompt).toContain(`${'X'.repeat(239)}😀`);
+      expect(prompt).not.toContain(`${'X'.repeat(239)}😀😀`);
+      expect(prompt).toContain('🎉'.repeat(240));
+      expect(prompt).not.toContain('🎉'.repeat(241));
+      // No half of a pair is left in the prompt.
+      expect(Array.from(prompt).every((codePoint) => codePoint.length === 2 || !/[\ud800-\udfff]/.test(codePoint))).toBe(true);
+    });
   });
 
   // ── Inline citations — the cite instruction asks the model to emit [[<id>]]
@@ -763,6 +790,26 @@ describe('generateResourceFromTopic', () => {
       expect(prompt).toContain('MAIN-CONTENT-BODY');
       expect(prompt).toContain('RELATED-CONTENT-BODY');
       expect(prompt).not.toContain('Annotation motivation');
+    });
+
+    it('carries the first 4,000 code points of the resource\'s content, and of each related one', async () => {
+      client.setResponses(['# X\n\nbody']);
+      // Each is 4,001 code points, and 8,002 UTF-16 code units of a string.
+      const context: GatheredContext = {
+        focus: {
+          kind: 'resource',
+          resource: testSourceResource,
+          content: { main: '🎉'.repeat(4001), related: { r2: '😀'.repeat(4001) } },
+        },
+        graph: buildGraph(),
+        metadata: {},
+      };
+
+      await generateResourceFromTopic('Topic', [], client, LOGGER, undefined, undefined, context);
+
+      const prompt = promptArg();
+      expect(prompt).toContain(`\n${'🎉'.repeat(4000)}\n`);
+      expect(prompt).toContain(`\n${'😀'.repeat(4000)}\n`);
     });
 
     it('omits resource sections that are absent (omit-empty)', async () => {
@@ -965,6 +1012,47 @@ describe('generateResourceFromTopic', () => {
       expect(prompt).not.toMatch(/markdown/i);
       expect(prompt).not.toContain('# Title');
       expect(prompt).toMatch(/plain text/i);
+    });
+  });
+
+  describe('a prompt and a length over the model\'s window', () => {
+    /** A model with one window for prompt and reply, of `contextTokens`: its reply ceiling is its window. */
+    const shared = (contextTokens: number) => new MockInferenceClient(['The answer.'], undefined, { contextTokens, maxOutputTokens: contextTokens });
+
+    it('is refused as deterministic, and the model is not asked', async () => {
+      const client = shared(600);
+
+      const refusal = await generateResourceFromTopic('Topic', [], client, LOGGER, undefined, undefined, undefined, undefined, 590)
+        .then(() => undefined, (error: unknown) => error);
+
+      // The prompt is over ten tokens, and 590 more are asked for: over 600 together, on every attempt.
+      expect(refusal).toBeInstanceOf(DeterministicJobError);
+      expect(classifyFailure(refusal)).toBe('deterministic');
+      expect(String((refusal as Error).message)).toContain('600');
+      expect(client.calls).toEqual([]);
+    });
+
+    it('is asked for when the two exactly fill the window', async () => {
+      const probe = shared(1_000_000);
+      await generateResourceFromTopic('Topic', [], probe, LOGGER, undefined, undefined, undefined, undefined, 100);
+      // Four code points to a token, rounded up: what the worker reckons the prompt at.
+      const promptTokens = Math.ceil(Array.from(probe.calls[0]!.prompt).length / 4);
+
+      const fits = shared(promptTokens + 100);
+      await generateResourceFromTopic('Topic', [], fits, LOGGER, undefined, undefined, undefined, undefined, 100);
+      expect(fits.calls).toHaveLength(1);
+
+      const over = shared(promptTokens + 99);
+      await expect(generateResourceFromTopic('Topic', [], over, LOGGER, undefined, undefined, undefined, undefined, 100)).rejects.toBeInstanceOf(DeterministicJobError);
+      expect(over.calls).toEqual([]);
+    });
+
+    it('is left to a provider whose reply ceiling is its own: that provider refuses what it will not take', async () => {
+      const client = new MockInferenceClient(['The answer.'], undefined, { contextTokens: 600, maxOutputTokens: 64 });
+
+      await generateResourceFromTopic('Topic', [], client, LOGGER, undefined, undefined, undefined, undefined, 590);
+
+      expect(client.calls).toHaveLength(1);
     });
   });
 });

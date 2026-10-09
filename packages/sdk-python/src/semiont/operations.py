@@ -22,7 +22,6 @@ __all__ = [
     "BROWSE_AGENTS_REQUESTED",
     "BROWSE_ANCHORED_TEXT_REQUESTED",
     "BROWSE_ANNOTATIONS_REQUESTED",
-    "BROWSE_ANNOTATION_CONTEXT_REQUESTED",
     "BROWSE_ANNOTATION_HISTORY_REQUESTED",
     "BROWSE_ANNOTATION_REQUESTED",
     "BROWSE_DIRECTORY_REQUESTED",
@@ -127,11 +126,6 @@ BROWSE_DIRECTORY_REQUESTED: Final = Operation(
     request=channels.BROWSE_DIRECTORY_REQUESTED,
     result=channels.BROWSE_DIRECTORY_RESULT,
     failure=channels.BROWSE_DIRECTORY_FAILED,
-)
-BROWSE_ANNOTATION_CONTEXT_REQUESTED: Final = Operation(
-    request=channels.BROWSE_ANNOTATION_CONTEXT_REQUESTED,
-    result=channels.BROWSE_ANNOTATION_CONTEXT_RESULT,
-    failure=channels.BROWSE_ANNOTATION_CONTEXT_FAILED,
 )
 FRAME_ADD_ENTITY_TYPE: Final = Operation(
     request=channels.FRAME_ADD_ENTITY_TYPE,
@@ -295,7 +289,6 @@ OPERATIONS: Final[Mapping[str, AnyOperation]] = MappingProxyType(
         "browse:agents-requested": BROWSE_AGENTS_REQUESTED,
         "browse:kb-requested": BROWSE_KB_REQUESTED,
         "browse:directory-requested": BROWSE_DIRECTORY_REQUESTED,
-        "browse:annotation-context-requested": BROWSE_ANNOTATION_CONTEXT_REQUESTED,
         "frame:add-entity-type": FRAME_ADD_ENTITY_TYPE,
         "frame:add-tag-schema": FRAME_ADD_TAG_SCHEMA,
         "gather:requested": GATHER_REQUESTED,

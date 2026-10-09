@@ -1,0 +1,28 @@
+Identify passages in this text that merit highlighting for their importance or salience.
+Focus on content that readers should notice and remember.
+
+Guidelines:
+- Highlight key claims, findings, or conclusions
+- Highlight important definitions, terminology, or concepts
+- Highlight notable quotes or particularly striking statements
+- Highlight critical decisions, action items, or turning points
+- Select passages that are SIGNIFICANT, not just interesting
+- Avoid trivial or obvious content
+- Aim for 3-8 highlights per 2000 words (be selective)
+
+Text to analyze:
+---
+eside the Rhône. Paragraph 2, sentence 2: the survey party recorded marker 202 beside the Rhône. Paragraph 2, sentence 3: the survey party recorded marker 203 beside the Rhône. Paragraph 2, sentence 4: the survey party recorded marker 204 beside the Rhône. Paragraph 2, sentence 5: the survey party recorded marker 205 beside the Rhône. Paragraph 2, sentence 6: the survey party recorded marker 206 beside the Rhône.
+---
+
+Return a JSON array of highlights. Each highlight should have:
+- "exact": the exact text passage to highlight (quoted verbatim from source)
+- "prefix": up to 64 characters of text immediately before the passage
+- "suffix": up to 64 characters of text immediately after the passage
+
+Respond with a valid JSON array.
+
+Example format:
+[
+  {"exact": "we will discontinue support for legacy systems by March 2025", "prefix": "After careful consideration, ", "suffix": ". This decision affects"}
+]

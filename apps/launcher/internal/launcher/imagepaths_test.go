@@ -132,6 +132,7 @@ func TestConfigDocumentsAreWhereTheImagesLook(t *testing.T) {
 		{"gateway", gatewayDocumentTarget},
 		{"dispatcher", dispatcherDocumentTarget},
 		{"archivist", archivistDocumentTarget},
+		{"worker", workerDocumentTarget},
 	} {
 		if named := commandConfigPath(t, "..", "..", "..", c.service, "Dockerfile"); named != c.mounts {
 			t.Errorf("the %s image passes --config %q, the launcher mounts onto %q", c.service, named, c.mounts)
@@ -158,9 +159,9 @@ func TestExactlyOneContainerMountsTheKB(t *testing.T) {
 		"gateway":   gatewayArgs("/stage", "container", "1.2.3.4", "secret", "jwt", "v", 4000, nil, nil),
 		"archivist": archivistArgs(kbRoot, "/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
 		"librarian": librarianArgs("/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
-		"worker":    sidecarArgs("worker", 24100, "/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
-		"smelter":   sidecarArgs("smelter", 24101, "/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
-		"weaver":    sidecarArgs("weaver", 24102, "/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
+		"worker":    workerArgs("/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
+		"smelter":   sidecarArgs("smelter", "/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
+		"weaver":    sidecarArgs("weaver", "/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
 	}
 
 	var mounters []string
@@ -222,10 +223,12 @@ func TestArchivistRunsUnderTheSupervisor(t *testing.T) {
 // launcher portNeed). They can't be derived across three languages, so this
 // gate keeps them agreeing. The Archivist's main has no constant: it listens
 // where its configuration document says, which the launcher writes from the
-// portNeed.
+// portNeed. The dispatcher and the worker listen where theirs say too, and
+// their images are held to the port those documents carry
+// (TestDispatcherDocumentIsWhereTheImageLooks,
+// TestWorkerDocumentIsWhereTheImageLooks).
 func TestServiceHealthPortsAgreeAcrossAllHomes(t *testing.T) {
 	mains := map[string]string{
-		"worker":    filepath.Join("..", "..", "..", "..", "packages", "jobs", "src", "worker-main.ts"),
 		"smelter":   filepath.Join("..", "..", "..", "..", "packages", "make-meaning", "src", "smelter-main.ts"),
 		"weaver":    filepath.Join("..", "..", "..", "..", "packages", "make-meaning", "src", "weaver-main.ts"),
 		"archivist": "",
@@ -268,8 +271,8 @@ func TestServiceHealthPortsAgreeAcrossAllHomes(t *testing.T) {
 }
 
 // The census row above proves the image and the constant agree; this proves
-// the gateway is actually mounted there — and that no sidecar is, since theirs
-// is TOML at ~/.semiontconfig.
+// the gateway is actually mounted there — and that no other service is: each
+// mounts its own document onto its own path.
 func TestGatewayDocumentMountsOntoItsOwnPath(t *testing.T) {
 	want := ":" + gatewayDocumentTarget + ":ro"
 	if args := strings.Join(gatewayArgs("/stage", "container", "1.2.3.4", "secret", "jwt", "v", 4000, nil, nil), " "); !strings.Contains(args, want) {
@@ -277,7 +280,7 @@ func TestGatewayDocumentMountsOntoItsOwnPath(t *testing.T) {
 	}
 	for name, args := range map[string][]string{
 		"archivist": archivistArgs("/kb", "/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
-		"worker":    sidecarArgs("worker", 24100, "/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
+		"worker":    workerArgs("/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
 	} {
 		if strings.Contains(strings.Join(args, " "), gatewayDocumentTarget) {
 			t.Errorf("%s mounts the gateway's document path", name)

@@ -1,0 +1,26 @@
+{
+  "get": {
+    "operationId": "getHealthAtRoot",
+    "summary": "Health Check at the root",
+    "description": "The check GET /api/health makes, served at / so a person who types the host gets an answer rather than a 404.",
+    "tags": [
+      "System"
+    ],
+    "responses": {
+      "200": {
+        "description": "Health status of the API",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/HealthResponse.json"
+            }
+          }
+        }
+      },
+      "500": {
+        "$ref": "../components/responses/InternalError.json"
+      }
+    },
+    "security": []
+  }
+}

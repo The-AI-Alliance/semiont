@@ -1,0 +1,225 @@
+{
+  "$comment": "How Semiont's worker cuts a text into chunks, as every implementation of that worker must cut it. The worker cuts a text into the pieces it sends a model one at a time, and where the next cut starts is what a job's cursor records, so two implementations of it that cut differently cannot take up each other's work. The cutting is that worker's own choice: no SDK has it, and a worker of another kind cuts a text as it likes. TypeScript (packages/core: estimateTokens, cutChunk, chunkText) runs every case and fails on a difference; an implementation of the worker in another language runs the same file. THE RULE. Every offset and every length here counts Unicode code points: `at` and `next`, a text's length, the 4 x chunkSize of a window and the 4 x overlap. A text's `estimatedTokens` is its length in code points divided by four, rounded up. A `chunking` is two numbers of tokens, `chunkSize` and `overlap`; `defaults` is the chunking used when none is given. A cut made at the offset `at` takes a `piece` of the text and says where the `next` cut starts. Its window ends at `at` + 4 x chunkSize, or at the end of the text if that comes first. When the window ends where the text does, the cut is there. Otherwise the cut is moved back to a boundary: the first of these three kinds that has one starting at or before the window's end and after the window's middle, which is `at` + 2 x chunkSize (after it, not at it). A blank line, the last \"\\n\\n\": the cut is where it starts. Else the end of a sentence, the last full stop followed by a space: the cut is after the full stop. Else the last space (U+0020 only): the cut is where it is. With none of them, the cut is at the window's end. A boundary that starts exactly at the window's end counts, so a piece cut after a full stop there is one code point longer than the window. The `piece` is the text from `at` to the cut, with the white space at both its ends removed. `next` is the length of the text when the cut is at its end; otherwise it is the cut less 4 x overlap, unless that is not after `at`, when it is the cut itself. A text's `chunks` are: none, for the empty text; the text itself, whole and untrimmed, when its estimatedTokens is no more than chunkSize; otherwise the pieces of the cuts made from 0, each at the `next` of the one before, until a cut's `next` is the length of the text, leaving out every piece that is empty. READING A CASE. Every case states `text`, its `estimatedTokens`, a `chunking`, the `chunks` of the text under it, and `cuts`: each a cut of the text under that chunking, made on its own at `at`, with the `piece` and `next` it answers. In every case the cuts are the walk from 0. White space is what Unicode gives the White_Space property; no case rests on U+0085 or U+FEFF, about which the trimming an implementation is born with disagrees. What an offset counts is held by a table of its own, specs/src/text/offset-cases.json; some texts here have a character outside the Basic Multilingual Plane, which is one code point and two UTF-16 code units, so that a count of code units fails them. Add a case here before changing an implementation.",
+  "defaults": { "chunkSize": 512, "overlap": 64 },
+  "cases": [
+    {
+      "why": "the empty text has no tokens, no chunks, and nothing to cut",
+      "text": "",
+      "estimatedTokens": 0,
+      "chunking": { "chunkSize": 5, "overlap": 1 },
+      "chunks": [],
+      "cuts": []
+    },
+    {
+      "why": "a text within one chunk is that chunk, whole and untrimmed; a cut of the same text trims it, and ends the walk",
+      "text": "  short text \n",
+      "estimatedTokens": 4,
+      "chunking": { "chunkSize": 5, "overlap": 1 },
+      "chunks": ["  short text \n"],
+      "cuts": [
+        { "at": 0, "piece": "short text", "next": 14 }
+      ]
+    },
+    {
+      "why": "twenty characters are five tokens, exactly a chunk of five: still one chunk",
+      "text": "abcdefghijklmnopqrst",
+      "estimatedTokens": 5,
+      "chunking": { "chunkSize": 5, "overlap": 1 },
+      "chunks": ["abcdefghijklmnopqrst"],
+      "cuts": [
+        { "at": 0, "piece": "abcdefghijklmnopqrst", "next": 20 }
+      ]
+    },
+    {
+      "why": "one character more is six tokens, rounded up, and two chunks: with no boundary the cut is at the window's end, and the next starts an overlap of four characters back",
+      "text": "abcdefghijklmnopqrstu",
+      "estimatedTokens": 6,
+      "chunking": { "chunkSize": 5, "overlap": 1 },
+      "chunks": ["abcdefghijklmnopqrst", "qrstu"],
+      "cuts": [
+        { "at": 0, "piece": "abcdefghijklmnopqrst", "next": 16 },
+        { "at": 16, "piece": "qrstu", "next": 21 }
+      ]
+    },
+    {
+      "why": "a blank line after the middle of the window is where the cut goes, though a sentence end and a space lie nearer the window's end; the later cuts find that blank line behind their middle and take a sentence end, then a space",
+      "text": "Alpha beta.\n\nGamma. Delta epsilon zeta.",
+      "estimatedTokens": 10,
+      "chunking": { "chunkSize": 5, "overlap": 1 },
+      "chunks": ["Alpha beta.", "eta.\n\nGamma.", "mma. Delta epsilon", "ilon zeta."],
+      "cuts": [
+        { "at": 0, "piece": "Alpha beta.", "next": 7 },
+        { "at": 7, "piece": "eta.\n\nGamma.", "next": 15 },
+        { "at": 15, "piece": "mma. Delta epsilon", "next": 29 },
+        { "at": 29, "piece": "ilon zeta.", "next": 39 }
+      ]
+    },
+    {
+      "why": "a blank line before the middle of the window does not count: the cut goes after the full stop of the last sentence end, and the piece keeps the full stop",
+      "text": "Intro.\n\nOne two. Three four five six.",
+      "estimatedTokens": 10,
+      "chunking": { "chunkSize": 5, "overlap": 1 },
+      "chunks": ["Intro.\n\nOne two.", "two. Three four five", "five six."],
+      "cuts": [
+        { "at": 0, "piece": "Intro.\n\nOne two.", "next": 12 },
+        { "at": 12, "piece": "two. Three four five", "next": 28 },
+        { "at": 28, "piece": "five six.", "next": 37 }
+      ]
+    },
+    {
+      "why": "a sentence end before the middle of the window does not count either: the cut goes at the last space",
+      "text": "One. Two three four five six seven.",
+      "estimatedTokens": 9,
+      "chunking": { "chunkSize": 5, "overlap": 1 },
+      "chunks": ["One. Two three four", "four five six seven."],
+      "cuts": [
+        { "at": 0, "piece": "One. Two three four", "next": 15 },
+        { "at": 15, "piece": "four five six seven.", "next": 35 }
+      ]
+    },
+    {
+      "why": "a space before the middle does not count, and one newline is neither a blank line nor a space: the cut is at the window's end, inside a word",
+      "text": "ab cdefghijklm\nopqrstuvwxyz",
+      "estimatedTokens": 7,
+      "chunking": { "chunkSize": 5, "overlap": 1 },
+      "chunks": ["ab cdefghijklm\nopqrs", "pqrstuvwxyz"],
+      "cuts": [
+        { "at": 0, "piece": "ab cdefghijklm\nopqrs", "next": 16 },
+        { "at": 16, "piece": "pqrstuvwxyz", "next": 27 }
+      ]
+    },
+    {
+      "why": "a boundary exactly at the middle of the window is not after it: the blank line at 10 is passed over",
+      "text": "abcdefghij\n\nklmnopqrstuvwxyz",
+      "estimatedTokens": 7,
+      "chunking": { "chunkSize": 5, "overlap": 1 },
+      "chunks": ["abcdefghij\n\nklmnopqr", "opqrstuvwxyz"],
+      "cuts": [
+        { "at": 0, "piece": "abcdefghij\n\nklmnopqr", "next": 16 },
+        { "at": 16, "piece": "opqrstuvwxyz", "next": 28 }
+      ]
+    },
+    {
+      "why": "a sentence end whose full stop is exactly at the window's end counts: the cut is after it, at 21, and the piece is 21 characters",
+      "text": "abcdefghijklmnopqrst. vwxyz",
+      "estimatedTokens": 7,
+      "chunking": { "chunkSize": 5, "overlap": 1 },
+      "chunks": ["abcdefghijklmnopqrst.", "rst. vwxyz"],
+      "cuts": [
+        { "at": 0, "piece": "abcdefghijklmnopqrst.", "next": 17 },
+        { "at": 17, "piece": "rst. vwxyz", "next": 27 }
+      ]
+    },
+    {
+      "why": "a blank line that starts inside the window and ends outside it counts: the cut is at 19, where it starts, so the next cut starts at 15 and not at 16",
+      "text": "abcdefghijklmnopqrs\n\nuvwxyz",
+      "estimatedTokens": 7,
+      "chunking": { "chunkSize": 5, "overlap": 1 },
+      "chunks": ["abcdefghijklmnopqrs", "pqrs\n\nuvwxyz"],
+      "cuts": [
+        { "at": 0, "piece": "abcdefghijklmnopqrs", "next": 15 },
+        { "at": 15, "piece": "pqrs\n\nuvwxyz", "next": 27 }
+      ]
+    },
+    {
+      "why": "an overlap that would put the next cut back where this one started is not taken: the cut at the space at 12, less an overlap of twelve characters, is 0, so the next cut starts at 12",
+      "text": "abcdefghijkl mnopqrstuvwxyz",
+      "estimatedTokens": 7,
+      "chunking": { "chunkSize": 5, "overlap": 3 },
+      "chunks": ["abcdefghijkl", "mnopqrstuvwxyz"],
+      "cuts": [
+        { "at": 0, "piece": "abcdefghijkl", "next": 12 },
+        { "at": 12, "piece": "mnopqrstuvwxyz", "next": 27 }
+      ]
+    },
+    {
+      "why": "a piece that is all white space is empty once trimmed: the cut is still made and the walk goes on from its `next`, but it is no chunk; with no overlap each cut starts where the last one ended",
+      "text": "abcdefghijklmnopqrst                              end",
+      "estimatedTokens": 14,
+      "chunking": { "chunkSize": 5, "overlap": 0 },
+      "chunks": ["abcdefghijklmnopqrst", "end"],
+      "cuts": [
+        { "at": 0, "piece": "abcdefghijklmnopqrst", "next": 20 },
+        { "at": 20, "piece": "", "next": 40 },
+        { "at": 40, "piece": "end", "next": 53 }
+      ]
+    },
+    {
+      "why": "an ideographic space (U+3000) is white space and is trimmed from the end of a piece, but it is not a space to cut at: a text with no U+0020 is cut at the window's end; and twelve characters of three bytes each are three tokens, not nine",
+      "text": "世界你好世界你　好世界你",
+      "estimatedTokens": 3,
+      "chunking": { "chunkSize": 2, "overlap": 0 },
+      "chunks": ["世界你好世界你", "好世界你"],
+      "cuts": [
+        { "at": 0, "piece": "世界你好世界你", "next": 8 },
+        { "at": 8, "piece": "好世界你", "next": 12 }
+      ]
+    },
+    {
+      "why": "a combining mark is a code point of its own: an e and the acute accent after it (U+0301) are two, so this text is five code points and two tokens where the same word with a single accented letter would be four and one",
+      "text": "café",
+      "estimatedTokens": 2,
+      "chunking": { "chunkSize": 5, "overlap": 1 },
+      "chunks": ["café"],
+      "cuts": [
+        { "at": 0, "piece": "café", "next": 5 }
+      ]
+    },
+    {
+      "why": "a character outside the Basic Multilingual Plane is one code point: four of them, fifteen letters and a space are twenty code points and five tokens, so the text is one chunk, whole and untrimmed; a count of UTF-16 code units makes them twenty-four and six tokens, and cuts the text",
+      "text": "😀😀😀😀abcdefghijklmno ",
+      "estimatedTokens": 5,
+      "chunking": { "chunkSize": 5, "overlap": 1 },
+      "chunks": ["😀😀😀😀abcdefghijklmno "],
+      "cuts": [
+        { "at": 0, "piece": "😀😀😀😀abcdefghijklmno", "next": 20 }
+      ]
+    },
+    {
+      "why": "a window of twenty code points that ends just after such a character takes the whole of it, since a cut is between two code points and never inside one; and the last cut's `next` is the text's twenty-six code points",
+      "text": "abcdefghijklmnopqrs😀uvwxyz",
+      "estimatedTokens": 7,
+      "chunking": { "chunkSize": 5, "overlap": 1 },
+      "chunks": ["abcdefghijklmnopqrs😀", "qrs😀uvwxyz"],
+      "cuts": [
+        { "at": 0, "piece": "abcdefghijklmnopqrs😀", "next": 16 },
+        { "at": 16, "piece": "qrs😀uvwxyz", "next": 26 }
+      ]
+    },
+    {
+      "why": "a walk through a text with three such characters: the blank line is at 13 and the first cut's `next` is 9, the sentence ends at 22, the last space is at 39, and every one of them is a count of code points, as are the window's twenty and its middle",
+      "text": "🎉 Alpha beta.\n\n𝑥 Gamma. Delta 😀 epsilon zeta.",
+      "estimatedTokens": 12,
+      "chunking": { "chunkSize": 5, "overlap": 1 },
+      "chunks": ["🎉 Alpha beta.", "eta.\n\n𝑥 Gamma.", "mma. Delta 😀 epsilon", "ilon zeta."],
+      "cuts": [
+        { "at": 0, "piece": "🎉 Alpha beta.", "next": 9 },
+        { "at": 9, "piece": "eta.\n\n𝑥 Gamma.", "next": 19 },
+        { "at": 19, "piece": "mma. Delta 😀 epsilon", "next": 35 },
+        { "at": 35, "piece": "ilon zeta.", "next": 45 }
+      ]
+    },
+    {
+      "why": "a sentence end exactly at the middle of the window is not after it either: the full stop at 10 is passed over, and the cut is at the last space, 17",
+      "text": "abcdefghij. lmnop rstuvwxyz",
+      "estimatedTokens": 7,
+      "chunking": { "chunkSize": 5, "overlap": 1 },
+      "chunks": ["abcdefghij. lmnop", "mnop rstuvwxyz"],
+      "cuts": [
+        { "at": 0, "piece": "abcdefghij. lmnop", "next": 13 },
+        { "at": 13, "piece": "mnop rstuvwxyz", "next": 27 }
+      ]
+    },
+    {
+      "why": "nor is a space exactly at the middle of the window: the space at 10 is passed over, and with no other boundary the cut is at the window's end, 20",
+      "text": "abcdefghij lmnopqrstuvwxyz",
+      "estimatedTokens": 7,
+      "chunking": { "chunkSize": 5, "overlap": 1 },
+      "chunks": ["abcdefghij lmnopqrst", "qrstuvwxyz"],
+      "cuts": [
+        { "at": 0, "piece": "abcdefghij lmnopqrst", "next": 16 },
+        { "at": 16, "piece": "qrstuvwxyz", "next": 26 }
+      ]
+    }
+  ]
+}

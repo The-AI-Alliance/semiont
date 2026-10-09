@@ -116,6 +116,7 @@ fn asked(transport: &FaultyTransport, channel: &str) -> usize {
 fn kinds<C>(seen: &[Result<JobEvent<C>, SemiontError>]) -> Vec<String> {
     seen.iter()
         .map(|item| match item {
+            Ok(JobEvent::Created(created)) => format!("created {}", created.job_id),
             Ok(JobEvent::Progress(progress)) => format!("progress {}", progress.percentage),
             Ok(JobEvent::Failed(_)) => "failed".to_owned(),
             Ok(JobEvent::Complete(_)) => "complete".to_owned(),
@@ -138,7 +139,10 @@ async fn a_job_reports_its_progress_and_ends_with_its_completion() {
     say(&client, "job:complete", "job-1", json!({}));
 
     let seen = ended(following).await;
-    assert_eq!(kinds(&seen), ["progress 25", "progress 75", "complete"]);
+    assert_eq!(
+        kinds(&seen),
+        ["created job-1", "progress 25", "progress 75", "complete"]
+    );
 }
 
 #[tokio::test(start_paused = true)]
@@ -218,7 +222,10 @@ async fn a_completion_frame_of_another_verb_ends_the_follower_and_not_as_a_faile
         say(&client, "job:complete", "job-1", more);
 
         let seen = ended(following).await;
-        assert_eq!(kinds(&seen), ["progress 25", "error error"]);
+        assert_eq!(
+            kinds(&seen),
+            ["created job-1", "progress 25", "error error"]
+        );
         let Some(Err(SemiontError::Transport(error))) = seen.last() else {
             panic!(
                 "a transport error was expected, not {:?}",
@@ -245,7 +252,10 @@ async fn a_completion_frame_of_another_verb_ends_the_follower_and_not_as_a_faile
         "job-1",
         json!({ "result": { "found": 4, "persisted": 3 } }),
     );
-    assert_eq!(kinds(&ended(following).await), ["error error"]);
+    assert_eq!(
+        kinds(&ended(following).await),
+        ["created job-1", "error error"]
+    );
 }
 
 /// The status does not type its result by verb. A completion learned from it
@@ -261,7 +271,7 @@ async fn a_completion_learned_from_the_status_is_read_as_the_verbs_or_ends_the_f
     };
 
     let seen = learned(json!({ "result": { "found": 4, "persisted": 3, "errors": 1 } })).await;
-    assert_eq!(kinds(&seen), ["complete"]);
+    assert_eq!(kinds(&seen), ["created job-1", "complete"]);
     let Some(Ok(JobEvent::Complete(done))) = seen.last() else {
         panic!("a completion was expected");
     };
@@ -273,7 +283,7 @@ async fn a_completion_learned_from_the_status_is_read_as_the_verbs_or_ends_the_f
         }))
     );
     let seen = learned(json!({ "result": { "declined": true, "reason": "empty" } })).await;
-    assert_eq!(kinds(&seen), ["complete"]);
+    assert_eq!(kinds(&seen), ["created job-1", "complete"]);
 
     for (why, answer) in [
         (
@@ -287,7 +297,7 @@ async fn a_completion_learned_from_the_status_is_read_as_the_verbs_or_ends_the_f
         ),
     ] {
         let seen = learned(answer).await;
-        assert_eq!(kinds(&seen), ["error error"], "{why}");
+        assert_eq!(kinds(&seen), ["created job-1", "error error"], "{why}");
         let Some(Err(SemiontError::Transport(error))) = seen.last() else {
             panic!("{why}: a transport error was expected");
         };
@@ -374,6 +384,27 @@ async fn a_delegated_job_is_created_with_the_parameters_it_was_given_its_motivat
     );
 }
 
+/// The id is what `job.cancel` names, so it is the first thing a follower
+/// gives: the queue's answer to the job's creation, as it was sent.
+#[tokio::test(start_paused = true)]
+async fn a_job_is_named_before_anything_else_of_it_is_given() {
+    let (client, _transport) = world();
+    let following = collected(highlighting(&client));
+    settle().await;
+    say(&client, "job:complete", "job-1", json!({}));
+
+    let seen = ended(following).await;
+    let first = seen
+        .first()
+        .expect("an event")
+        .as_ref()
+        .expect("no failure");
+    assert_eq!(
+        serde_json::to_value(first).expect("an event is JSON"),
+        json!({ "kind": "created", "data": { "jobId": "job-1" } })
+    );
+}
+
 #[tokio::test(start_paused = true)]
 async fn frames_that_arrive_before_the_jobs_id_is_known_are_kept() {
     // The reply that names the job is a second behind the job's own frames.
@@ -388,7 +419,7 @@ async fn frames_that_arrive_before_the_jobs_id_is_known_are_kept() {
     say(&client, "job:complete", "job-1", json!({}));
 
     let seen = ended(following).await;
-    assert_eq!(kinds(&seen), ["progress 40", "complete"]);
+    assert_eq!(kinds(&seen), ["created job-1", "progress 40", "complete"]);
 }
 
 #[tokio::test(start_paused = true)]
@@ -405,14 +436,14 @@ async fn a_silent_job_is_asked_for_its_status_until_its_status_is_an_end() {
     assert_eq!(asked(&transport, "job:status-requested"), 0);
 
     let seen = ended(following).await;
-    assert_eq!(kinds(&seen), ["complete"]);
+    assert_eq!(kinds(&seen), ["created job-1", "complete"]);
     assert_eq!(asked(&transport, "job:status-requested"), 2);
     let took = started.elapsed();
     assert!(
         took >= JOB_SILENCE + JOB_STATUS_POLL && took < JOB_SILENCE + JOB_STATUS_POLL * 2,
         "the first ask comes after the silence and the second a poll later, not {took:?}"
     );
-    match &seen[0] {
+    match &seen[1] {
         // What the stream did not carry, from the status: which says what the
         // job was, and the follower knows what it was about.
         Ok(JobEvent::Complete(complete)) => {
@@ -447,8 +478,8 @@ async fn a_status_of_failed_ends_the_follower_as_a_failed_job() {
     );
     let seen = ended(collected(highlighting(&client))).await;
 
-    assert_eq!(kinds(&seen), ["error job.failed"]);
-    match &seen[0] {
+    assert_eq!(kinds(&seen), ["created job-1", "error job.failed"]);
+    match &seen[1] {
         Err(SemiontError::Job(failure)) => {
             assert_eq!(failure.message, "the worker gave up");
             assert_eq!(failure.job_id.as_deref(), Some("job-1"));
@@ -476,7 +507,10 @@ async fn a_failure_the_queue_will_retry_is_reported_and_followed_past() {
     say(&client, "job:report-progress", "job-1", progress(60.0));
     say(&client, "job:complete", "job-1", json!({}));
     let seen = ended(following).await;
-    assert_eq!(kinds(&seen), ["failed", "progress 60", "complete"]);
+    assert_eq!(
+        kinds(&seen),
+        ["created job-1", "failed", "progress 60", "complete"]
+    );
 }
 
 #[tokio::test(start_paused = true)]
@@ -490,9 +524,9 @@ async fn a_failure_that_is_final_ends_the_follower_and_one_that_does_not_say_is_
         say(&client, "job:fail", "job-1", Value::Object(failure));
 
         let seen = ended(following).await;
-        assert_eq!(kinds(&seen), ["error job.failed"]);
+        assert_eq!(kinds(&seen), ["created job-1", "error job.failed"]);
         assert_eq!(
-            seen[0].as_ref().expect_err("a failure").to_string(),
+            seen[1].as_ref().expect_err("a failure").to_string(),
             "the budget is spent"
         );
     }
@@ -511,7 +545,7 @@ async fn a_reader_that_fell_behind_asks_at_once_for_what_it_missed() {
         say(&client, "job:report-progress", "job-2", progress(1.0));
     }
     let seen = ended(following).await;
-    assert_eq!(kinds(&seen), ["complete"]);
+    assert_eq!(kinds(&seen), ["created job-1", "complete"]);
     assert!(
         started.elapsed() < JOB_SILENCE,
         "it asks without waiting out the silence"
@@ -560,13 +594,16 @@ async fn a_generation_that_says_nothing_is_cancelled_and_given_up_on() {
     );
 
     let seen = ended(following).await;
-    assert_eq!(kinds(&seen), ["progress 5", "error job.stalled"]);
+    assert_eq!(
+        kinds(&seen),
+        ["created job-1", "progress 5", "error job.stalled"]
+    );
     let took = started.elapsed();
     assert!(
         took >= Duration::from_secs(8) && took < Duration::from_secs(9),
         "five seconds after the last frame, not {took:?}"
     );
-    match &seen[1] {
+    match &seen[2] {
         Err(SemiontError::Job(stalled)) => assert_eq!(stalled.job_id.as_deref(), Some("job-1")),
         other => panic!("a stalled job was expected, not {other:?}"),
     }
@@ -605,8 +642,8 @@ async fn a_status_of_cancelled_ends_the_follower_as_a_cancelled_job() {
     transport.queue_reply("job:status-requested", [status("cancelled", json!({}))]);
     let seen = ended(collected(highlighting(&client))).await;
 
-    assert_eq!(kinds(&seen), ["error job.cancelled"]);
-    match &seen[0] {
+    assert_eq!(kinds(&seen), ["created job-1", "error job.cancelled"]);
+    match &seen[1] {
         Err(SemiontError::Job(cancelled)) => {
             assert_eq!(cancelled.message, "The job was cancelled");
             assert_eq!(cancelled.job_id.as_deref(), Some("job-1"));
@@ -647,7 +684,10 @@ async fn a_generations_setback_starts_its_stall_deadline_again_and_is_followed_p
     assert_eq!(asked(&transport, "job:status-requested"), 0);
 
     let seen = ended(following).await;
-    assert_eq!(kinds(&seen), ["failed", "error job.stalled"]);
+    assert_eq!(
+        kinds(&seen),
+        ["created job-1", "failed", "error job.stalled"]
+    );
     let took = started.elapsed();
     assert!(
         took >= Duration::from_secs(8) && took < Duration::from_secs(9),
@@ -670,7 +710,7 @@ async fn a_generation_that_ends_in_time_is_not_cancelled() {
         Envelope::default(),
     );
     let seen = ended(following).await;
-    assert_eq!(kinds(&seen), ["complete"]);
+    assert_eq!(kinds(&seen), ["created job-1", "complete"]);
 
     tokio::time::sleep(Duration::from_secs(60)).await;
     assert_eq!(asked(&transport, "job:cancel-requested"), 0);

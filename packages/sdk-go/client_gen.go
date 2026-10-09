@@ -24,6 +24,51 @@ const (
 	MediaTokenScopes = "mediaToken.Scopes"
 )
 
+// Defines values for AgentOrganizationType.
+const (
+	Organization AgentOrganizationType = "Organization"
+)
+
+// Valid indicates whether the value is a known member of the AgentOrganizationType enum.
+func (e AgentOrganizationType) Valid() bool {
+	switch e {
+	case Organization:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentPersonType.
+const (
+	Person AgentPersonType = "Person"
+)
+
+// Valid indicates whether the value is a known member of the AgentPersonType enum.
+func (e AgentPersonType) Valid() bool {
+	switch e {
+	case Person:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentSoftwareType.
+const (
+	Software AgentSoftwareType = "Software"
+)
+
+// Valid indicates whether the value is a known member of the AgentSoftwareType enum.
+func (e AgentSoftwareType) Valid() bool {
+	switch e {
+	case Software:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AnchoredTextAbsentKind.
 const (
 	NoMap   AnchoredTextAbsentKind = "no-map"
@@ -71,13 +116,13 @@ func (e AnchoredTextDeclinedEntryDeclined) Valid() bool {
 
 // Defines values for AnchoredTextDeclinedEntryV.
 const (
-	AnchoredTextDeclinedEntryVN2 AnchoredTextDeclinedEntryV = 2
+	AnchoredTextDeclinedEntryVN3 AnchoredTextDeclinedEntryV = 3
 )
 
 // Valid indicates whether the value is a known member of the AnchoredTextDeclinedEntryV enum.
 func (e AnchoredTextDeclinedEntryV) Valid() bool {
 	switch e {
-	case AnchoredTextDeclinedEntryVN2:
+	case AnchoredTextDeclinedEntryVN3:
 		return true
 	default:
 		return false
@@ -146,13 +191,13 @@ func (e AnchoredTextExtractedEntryPdfClass) Valid() bool {
 
 // Defines values for AnchoredTextExtractedEntryV.
 const (
-	AnchoredTextExtractedEntryVN2 AnchoredTextExtractedEntryV = 2
+	AnchoredTextExtractedEntryVN3 AnchoredTextExtractedEntryV = 3
 )
 
 // Valid indicates whether the value is a known member of the AnchoredTextExtractedEntryV enum.
 func (e AnchoredTextExtractedEntryV) Valid() bool {
 	switch e {
-	case AnchoredTextExtractedEntryVN2:
+	case AnchoredTextExtractedEntryVN3:
 		return true
 	default:
 		return false
@@ -183,6 +228,21 @@ const (
 func (e AnnotationType) Valid() bool {
 	switch e {
 	case AnnotationTypeAnnotation:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AnnotationTargetType.
+const (
+	AnnotationTargetTypeSpecificResource AnnotationTargetType = "SpecificResource"
+)
+
+// Valid indicates whether the value is a known member of the AnnotationTargetType enum.
+func (e AnnotationTargetType) Valid() bool {
+	switch e {
+	case AnnotationTargetTypeSpecificResource:
 		return true
 	default:
 		return false
@@ -1971,30 +2031,6 @@ func (e YieldJobQueuedEventJobType) Valid() bool {
 	}
 }
 
-// Defines values for YieldMoveFailedCode.
-const (
-	YieldMoveFailedCodeNonePending     YieldMoveFailedCode = "none-pending"
-	YieldMoveFailedCodeNotFound        YieldMoveFailedCode = "not-found"
-	YieldMoveFailedCodePeerUnavailable YieldMoveFailedCode = "peer-unavailable"
-	YieldMoveFailedCodeUnauthorized    YieldMoveFailedCode = "unauthorized"
-)
-
-// Valid indicates whether the value is a known member of the YieldMoveFailedCode enum.
-func (e YieldMoveFailedCode) Valid() bool {
-	switch e {
-	case YieldMoveFailedCodeNonePending:
-		return true
-	case YieldMoveFailedCodeNotFound:
-		return true
-	case YieldMoveFailedCodePeerUnavailable:
-		return true
-	case YieldMoveFailedCodeUnauthorized:
-		return true
-	default:
-		return false
-	}
-}
-
 // Agent Web Annotation / W3C PROV Agent. Discriminated by @type — Person, Organization, or Software (named member schemas: AgentPerson, AgentOrganization, AgentSoftware). Software peers are first-class participants, not a sub-class of Person.
 type Agent struct {
 	union json.RawMessage
@@ -2003,20 +2039,23 @@ type Agent struct {
 // AgentOrganization An organization — the Organization branch of Agent.
 type AgentOrganization struct {
 	Id                   *string                `json:"@id,omitempty"`
-	Type                 string                 `json:"@type"`
+	Type                 AgentOrganizationType  `json:"@type"`
 	Homepage             *string                `json:"homepage,omitempty"`
 	Name                 string                 `json:"name"`
 	AdditionalProperties map[string]interface{} `json:"-"`
 }
 
+// AgentOrganizationType defines model for AgentOrganization.Type.
+type AgentOrganizationType string
+
 // AgentPerson A human participant — the Person branch of Agent.
 type AgentPerson struct {
 	// Id DID-shaped identifier (e.g. did:web:host:users:email%40host)
-	Id        *string `json:"@id,omitempty"`
-	Type      string  `json:"@type"`
-	Email     *string `json:"email,omitempty"`
-	EmailSha1 *string `json:"email_sha1,omitempty"`
-	Homepage  *string `json:"homepage,omitempty"`
+	Id        *string         `json:"@id,omitempty"`
+	Type      AgentPersonType `json:"@type"`
+	Email     *string         `json:"email,omitempty"`
+	EmailSha1 *string         `json:"email_sha1,omitempty"`
+	Homepage  *string         `json:"homepage,omitempty"`
 
 	// Name Display name. ABSENT until resolved: a Person is identified by `@id` and nothing else, and what they are called is recorded once per change on the knowledge base's own log and filled in when a record is read. An artifact therefore never freezes a name, which is what lets a correction reach every artifact its subject ever wrote. Absent also means genuinely unknown — a DID this knowledge base has no profile for.
 	Name                 *string                `json:"name,omitempty"`
@@ -2024,11 +2063,14 @@ type AgentPerson struct {
 	AdditionalProperties map[string]interface{} `json:"-"`
 }
 
+// AgentPersonType defines model for AgentPerson.Type.
+type AgentPersonType string
+
 // AgentSoftware A software peer (an inference model acting as a first-class participant) — the Software branch of Agent. Carries structured provider + model.
 type AgentSoftware struct {
 	// Id DID-shaped identifier (e.g. did:web:host:agents:provider:model)
-	Id   *string `json:"@id,omitempty"`
-	Type string  `json:"@type"`
+	Id   *string           `json:"@id,omitempty"`
+	Type AgentSoftwareType `json:"@type"`
 
 	// Model Model identifier (e.g. gemma2:27b, claude-3-5-sonnet)
 	Model *string `json:"model,omitempty"`
@@ -2043,6 +2085,9 @@ type AgentSoftware struct {
 	Provider             *string                `json:"provider,omitempty"`
 	AdditionalProperties map[string]interface{} `json:"-"`
 }
+
+// AgentSoftwareType defines model for AgentSoftware.Type.
+type AgentSoftwareType string
 
 // AgentTokenRequest The (provider, model) the agent token is issued for: together they name the agent.
 type AgentTokenRequest struct {
@@ -2062,7 +2107,7 @@ type AgentTokenResponse struct {
 	Token string `json:"token"`
 }
 
-// AnchoredText Text paired with the geometry that indexes it — the minimum needed to turn a character range into a selection, or a rectangle into a quote. Whole-resource: a producer iterates page by page, but every consumer wants one map.
+// AnchoredText Text paired with the geometry that indexes it — the minimum needed to turn a range of the text, two offsets counted in Unicode code points, into a selection, or a rectangle into a quote. Whole-resource: a producer iterates page by page, but every consumer wants one map.
 type AnchoredText struct {
 	// Items Positioned runs indexing `text`, roughly one per word.
 	Items []PdfTextItem `json:"items"`
@@ -2136,7 +2181,7 @@ type AnchoredTextExtractedEntry struct {
 		// P The page, counted from 1.
 		P int `json:"p"`
 
-		// Words Each word as `[x, width, start, end]`: its horizontal position and width in PDF points, and the offsets of its text in `text`.
+		// Words Each word as `[x, width, start, end]`: its horizontal position and width in PDF points, and the offsets of its text in `text`, which are whole numbers of Unicode code points from the start of `text`.
 		Words [][]float32 `json:"words"`
 
 		// Y The line's vertical position in PDF points, from the bottom of the page.
@@ -2275,19 +2320,6 @@ type AnnotationBodyUpdatedPayload_Operations_Item struct {
 	union json.RawMessage
 }
 
-// AnnotationContextResponse defines model for AnnotationContextResponse.
-type AnnotationContextResponse struct {
-	Annotation Annotation `json:"annotation"`
-	Context    struct {
-		After    *string `json:"after,omitempty"`
-		Before   *string `json:"before,omitempty"`
-		Selected string  `json:"selected"`
-	} `json:"context"`
-
-	// Resource Metadata about a resource (1:1 with its URI). JSON-LD subject is @id. Link to concrete bytes via representations.
-	Resource ResourceDescriptor `json:"resource"`
-}
-
 // AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
 type AnnotationId = string
 
@@ -2312,7 +2344,13 @@ type AnnotationTarget struct {
 
 	// Source A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
 	Source ResourceId `json:"source"`
+
+	// Type Stated by the annotation of a span: the target is a part of its source, which the selector picks out. An annotation of a resource as a whole states none.
+	Type *AnnotationTargetType `json:"type,omitempty"`
 }
+
+// AnnotationTargetType Stated by the annotation of a span: the target is a part of its source, which the selector picks out. An annotation of a resource as a whole states none.
+type AnnotationTargetType string
 
 // ArchivistConfig Everything the Archivist reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the Archivist. The launcher writes it for the Archivist it starts, from the environment the knowledge base's config selects, and the Archivist reads it from the path its `--config` flag names (its image passes `/etc/semiont/archivist.json`). Started without `--config`, or with a path that names no file, the Archivist refuses to start and says which. No secret is a value here. What the knowledge base says of itself is not here either: its name, its `[site] domain` and its `[git] sync` are read from the committed `.semiont/config` of the tree at `root`. The Archivist's other inputs are the environment variables specs/src/service-environment/variables.json lists for it. A document that does not validate is refused at boot, naming each failing field.
 type ArchivistConfig struct {
@@ -2623,17 +2661,6 @@ type BrowseAnchoredTextResult struct {
 	//
 	// Flat, one discriminant: every member carries `kind`, rather than nesting an outcome inside a status envelope and giving the wire two `kind` fields at different depths.
 	Response AnchoredTextAnswer `json:"response"`
-}
-
-// BrowseAnnotationContextRequest Request to get contextual text around an annotation
-type BrowseAnnotationContextRequest struct {
-	// AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
-	AnnotationId  AnnotationId `json:"annotationId"`
-	ContextAfter  *int         `json:"contextAfter,omitempty"`
-	ContextBefore *int         `json:"contextBefore,omitempty"`
-
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
-	ResourceId ResourceId `json:"resourceId"`
 }
 
 // BrowseAnnotationHistoryRequest Request to browse the history of an annotation
@@ -3971,7 +3998,7 @@ type JobAssignedPayload struct {
 	ResourceId ResourceId `json:"resourceId"`
 }
 
-// JobCancelCommand A worker's confirmation that it has cooperatively stopped a running job at a unit boundary — the queue moves the job to cancelled/. Distinct from JobCancelRequest (the client→worker REQUEST to stop): this is the worker announcing it did, so the running job is never yanked to cancelled/ out from under a live worker (the roach-motel race).
+// JobCancelCommand A worker's settling of a running job it holds whose work it has stopped for a cancellation — the queue moves the job to cancelled/. Distinct from JobCancelRequest (the client→worker REQUEST to stop): this is the worker announcing it did, so the running job is never yanked to cancelled/ out from under a live worker (the roach-motel race).
 type JobCancelCommand struct {
 	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
 	UnderscoreUserId *UserId `json:"_userId,omitempty"`
@@ -3979,7 +4006,7 @@ type JobCancelCommand struct {
 	// AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
 	AnnotationId *AnnotationId `json:"annotationId,omitempty"`
 
-	// CompletedUnits Entity-type units whose annotations were fully emitted before cancellation. Recorded on the cancelled job's metadata so the work already done stays visible.
+	// CompletedUnits The units the worker had finished when it stopped. Recorded on the cancelled job's metadata so the work already done stays visible.
 	CompletedUnits *[]string `json:"completedUnits,omitempty"`
 
 	// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
@@ -3991,23 +4018,20 @@ type JobCancelCommand struct {
 	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
 	ResourceId ResourceId `json:"resourceId"`
 
-	// UnitCursors How far each in-progress unit got, keyed by unit — the grain `completedUnits` cannot express. A unit appearing here is NOT complete; a unit in `completedUnits` is skipped whole whatever cursor it last carried. Merged monotonically per unit: a stale snapshot must never move a cursor backward.
+	// UnitCursors The furthest each unit begun got, keyed by unit, with what it had counted there — the grain `completedUnits` cannot express. A unit named in `completedUnits` is stated here too, by the cursor it ended at: a later attempt skips it whole and counts it by that cursor. A cursor never says a unit is finished; only `completedUnits` does. Merged monotonically per unit, finished or not: a stale snapshot must never move a cursor backward.
 	UnitCursors *map[string]UnitCursor `json:"unitCursors,omitempty"`
 }
 
-// JobCancelRequest Request to cancel a job. Target one running or pending job by `jobId`, or every pending job of one `jobType`. A `jobId`-targeted request that names a RUNNING job is honoured cooperatively by the owning worker, which stops at its next unit boundary and emits JobCancelCommand — the queue is never made to yank a running job out from under a live worker.
+// JobCancelRequest Request to cancel one job, named by its id. A pending job is cancelled immediately by the dispatcher. A running job is cancelled only by the worker that holds it: the worker stops its work and settles the job with `job:cancel` (JobCancelCommand). The queue is never made to yank a running job out from under a live worker.
 type JobCancelRequest struct {
 	// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
-	JobId *JobId `json:"jobId,omitempty"`
-
-	// JobType What a job does, as the verb that asks for it: `mark` annotates a resource, `yield` makes one. A job description is its `jobType` and the parameters that verb takes; a `mark` job's parameters state its motivation.
-	JobType *JobType `json:"jobType,omitempty"`
+	JobId JobId `json:"jobId"`
 }
 
-// JobCancelResult What a cancel did, in the `response` of `job:cancel-ok`: how many jobs it cancelled. A pending job is cancelled outright; a running one is left to its worker, so for it the count means accepted, not stopped.
+// JobCancelResult What a cancel did, in the `response` of `job:cancel-ok`: whether the queue acted on the job it named. A pending job is cancelled outright; a running one is left to its worker, so for it true means accepted, not stopped.
 type JobCancelResult struct {
-	// Cancelled The number of jobs cancelled.
-	Cancelled int `json:"cancelled"`
+	// Cancelled True when the queue acted on the job; false when the job is unknown or already over.
+	Cancelled bool `json:"cancelled"`
 }
 
 // JobCancelled A job cancelled before it concluded.
@@ -4040,7 +4064,7 @@ type JobCheckpointCommand struct {
 	// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
 	JobId JobId `json:"jobId"`
 
-	// UnitCursors How far each in-progress unit got, keyed by unit — the grain `completedUnits` cannot express. A unit appearing here is NOT complete; a unit in `completedUnits` is skipped whole whatever cursor it last carried. Merged monotonically per unit: a stale snapshot must never move a cursor backward.
+	// UnitCursors The furthest each unit begun got, keyed by unit, with what it had counted there — the grain `completedUnits` cannot express. A unit named in `completedUnits` is stated here too, by the cursor it ended at: a later attempt skips it whole and counts it by that cursor. A cursor never says a unit is finished; only `completedUnits` does. Merged monotonically per unit, finished or not: a stale snapshot must never move a cursor backward.
 	UnitCursors *map[string]UnitCursor `json:"unitCursors,omitempty"`
 }
 
@@ -4196,7 +4220,7 @@ type JobFailCommand struct {
 	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
 	ResourceId ResourceId `json:"resourceId"`
 
-	// UnitCursors How far each in-progress unit got, keyed by unit — the grain `completedUnits` cannot express. A unit appearing here is NOT complete; a unit in `completedUnits` is skipped whole whatever cursor it last carried. Merged monotonically per unit: a stale snapshot must never move a cursor backward.
+	// UnitCursors The furthest each unit begun got, keyed by unit, with what it had counted there — the grain `completedUnits` cannot express. A unit named in `completedUnits` is stated here too, by the cursor it ended at: a later attempt skips it whole and counts it by that cursor. A cursor never says a unit is finished; only `completedUnits` does. Merged monotonically per unit, finished or not: a stale snapshot must never move a cursor backward.
 	UnitCursors *map[string]UnitCursor `json:"unitCursors,omitempty"`
 
 	// WillRetry Whether the queue will re-queue this job for another attempt. Computed by the worker from the SAME predicate the queue applies at failJob (one decision site, `willRetryAfter` in @semiont/jobs) using the retry budget carried on the claimed record. FALSE (or absent) means this failure is TERMINAL: a client's job-watch stream ends here. TRUE means the work continues on a fresh attempt — the failure is an event, not the end, and a stream that terminated on it would report a recovering run as a failed one.
@@ -4288,7 +4312,7 @@ type JobMetadata struct {
 	// Type What a job does, as the verb that asks for it: `mark` annotates a resource, `yield` makes one. A job description is its `jobType` and the parameters that verb takes; a `mark` job's parameters state its motivation.
 	Type JobType `json:"type"`
 
-	// UnitCursors How far each unfinished unit got, keyed by unit.
+	// UnitCursors The furthest each unit begun got, keyed by unit, with what it had counted there. A finished unit keeps its cursor: where it ended, and its final counts.
 	UnitCursors *map[string]UnitCursor `json:"unitCursors,omitempty"`
 
 	// UserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
@@ -4744,7 +4768,7 @@ type MarkArchiveCommand struct {
 	StorageUri *string `json:"storageUri,omitempty"`
 }
 
-// MarkCommitCommand Bus command to persist a detection unit's annotations as one acknowledged batch. Unlike mark:create, which is fire-and-forget and resolves when the bus accepts it, this command is answered only after every annotation is in the event log — so a worker can gate unit completion on durability rather than on emission. The batch is the unit: a partial commit is reported as a failure, and the worker retries the whole unit, which is safe because annotation ids are deterministic: content-addressed, so re-emitting one is a no-op.
+// MarkCommitCommand Bus command to persist a detection unit's annotations as one acknowledged batch. It is answered only after every annotation is in the event log, so a worker can gate unit completion on durability rather than on emission. The batch is the unit: a partial commit is reported as a failure, and the worker retries the whole unit, which is safe because annotation ids are deterministic: content-addressed, so re-emitting one is a no-op.
 type MarkCommitCommand struct {
 	// UnderscoreRoles The emitter's capabilities (the token's `roles`), injected by the /bus/emit gateway. Clients do not set this. An emitter carrying the worker role must cite the job this batch fulfils in `jobId`; the Stower refuses the batch otherwise.
 	UnderscoreRoles *[]string `json:"_roles,omitempty"`
@@ -4772,16 +4796,6 @@ type MarkCommitOk struct {
 		// Persisted Annotations the command named that are durable in the event log. Equals the batch size on success, on a first commit and on a retry alike — the commit appends only what the resource does not already hold, so a wholly-redundant retry has still succeeded and says so. Not an append tally: a caller must never have to read a 0 as 'all good'.
 		Persisted int `json:"persisted"`
 	} `json:"response"`
-}
-
-// MarkCreateCommand Bus command to create an annotation on a resource. The annotation carries body, target and, when software wrote it, a generator naming the emitter itself; `creator` and `wasAttributedTo` are derived by the knowledge base from the verified emitter, and a payload carrying `creator` is refused.
-type MarkCreateCommand struct {
-	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
-	UnderscoreUserId *UserId    `json:"_userId,omitempty"`
-	Annotation       Annotation `json:"annotation"`
-
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
-	ResourceId ResourceId `json:"resourceId"`
 }
 
 // MarkCreateOk Success reply after creating an annotation, matched to the originating command by correlationId.
@@ -5073,15 +5087,15 @@ type Motivation string
 
 // PdfTextItem One positioned text run. Coordinates are PDF points with the origin at the bottom-left of the page, Y increasing upward; the flip to canvas pixels happens in the browser.
 type PdfTextItem struct {
-	// End Char offset into AnchoredText.text, exclusive.
-	End    float32 `json:"end"`
+	// End Offset into AnchoredText.text, in Unicode code points from its start, exclusive.
+	End    int     `json:"end"`
 	Height float32 `json:"height"`
 
 	// Page 1-indexed page number.
 	Page float32 `json:"page"`
 
-	// Start Char offset into AnchoredText.text, inclusive.
-	Start float32 `json:"start"`
+	// Start Offset into AnchoredText.text, in Unicode code points from its start, inclusive.
+	Start int     `json:"start"`
 	Width float32 `json:"width"`
 	X     float32 `json:"x"`
 	Y     float32 `json:"y"`
@@ -5788,7 +5802,7 @@ type SelectionData struct {
 	// ConformsTo Specification the fragment selector conforms to
 	ConformsTo *string `json:"conformsTo,omitempty"`
 
-	// End End character offset
+	// End Offset into the resource's decoded text, exactly as decoded, in Unicode code points from its start: just past where the selected text ends.
 	End int `json:"end"`
 
 	// Exact The exact selected text
@@ -5800,7 +5814,7 @@ type SelectionData struct {
 	// Prefix Text before the selection (for disambiguation)
 	Prefix *string `json:"prefix,omitempty"`
 
-	// Start Start character offset
+	// Start Offset into the resource's decoded text, exactly as decoded, in Unicode code points from its start: where the selected text starts.
 	Start int `json:"start"`
 
 	// Suffix Text after the selection (for disambiguation)
@@ -6029,11 +6043,11 @@ type TaggingJobParamsMotivation string
 
 // TextPositionSelector defines model for TextPositionSelector.
 type TextPositionSelector struct {
-	// End Character offset from resource start
-	End float32 `json:"end"`
+	// End Offset into the resource's decoded text, exactly as decoded, in Unicode code points from its start: just past where the selected text ends.
+	End int `json:"end"`
 
-	// Start Character offset from resource start
-	Start float32                  `json:"start"`
+	// Start Offset into the resource's decoded text, exactly as decoded, in Unicode code points from its start: where the selected text starts.
+	Start int                      `json:"start"`
 	Type  TextPositionSelectorType `json:"type"`
 }
 
@@ -6070,7 +6084,7 @@ type TextualBody struct {
 // TextualBodyType defines model for TextualBody.Type.
 type TextualBodyType string
 
-// UnitCursor How far a single unit got, for a resume that starts mid-unit rather than redoing it. A unit is an entity type for a linking job, a category for a tagging job, and the job's own motivation for every other — which is why a unit-grain checkpoint alone is too coarse: those three have exactly one unit, so nothing could be recorded until the whole document was done.
+// UnitCursor The furthest a single unit got, and what it had counted when it got there. A unit left partway is resumed from its cursor rather than redone. A finished unit keeps its cursor: `next` at the length of the text, `size` the size its last piece was cut at, and its final `found`, `emitted` and `errors`, so that an attempt that skips the unit still counts it. A cursor never says a unit is finished, wherever it stands: `completedUnits` does. A unit is an entity type for a linking job, a category for a tagging job, and the job's own motivation for every other — which is why a unit-grain checkpoint alone is too coarse: those three have exactly one unit, so nothing could be recorded until the whole document was done.
 //
 // MERGE IS MONOTONE PER UNIT, not a union. `completedUnits` is a set and converges under concurrent snapshots because a set only grows; a cursor converges only if a stale snapshot can never move it backward.
 //
@@ -6085,7 +6099,7 @@ type UnitCursor struct {
 	// Found Items detection has returned for this unit through the last committed chunk — the numerator a resumed attempt continues from rather than restarting at zero. Counts what the model reported, before dedupe.
 	Found int `json:"found"`
 
-	// Next Characters consumed once the last COMMITTED chunk completed — the resume position. Deliberately the chunk's `next`, never its `at`: the checkpoint must not lead the log, so it records where a chunk that is already durable ended, not where the in-flight one began. Recording `at` would make a resume re-run the chunk it already paid for.
+	// Next Unicode code points of the text consumed once the last COMMITTED chunk completed — the resume position, and the length of the text for a unit whose last chunk it was. Deliberately the chunk's `next`, never its `at`: the checkpoint must not lead the log, so it records where a chunk that is already durable ended, not where the in-flight one began. Recording `at` would make a resume re-run the chunk it already paid for.
 	Next int `json:"next"`
 
 	// Size The token size that last committed chunk was cut at — the calibration the attempt paid for over the chunks before it. A resume seeds from this and then takes ONE adaptive step, as if the last outcome were a failure, which it was: the job died. Seeding alone would re-cut the failing piece identically; opening at the default would discard the calibration.
@@ -6141,6 +6155,45 @@ type WeaveRebuildCommand struct {
 
 	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
 	ResourceId *ResourceId `json:"resourceId,omitempty"`
+}
+
+// WorkerAgentConfig One agent a worker works as: who it is, the jobs it claims, and where its provider is reached.
+type WorkerAgentConfig struct {
+	// Accepts The jobs this agent serves, as a claim names them (`job:claim`): the worker claims with these filters and no other.
+	Accepts []JobFilter `json:"accepts"`
+
+	// Agent The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+	Agent ArchivistRosterRole `json:"agent"`
+
+	// ApiKeyEnv The environment variable holding the provider's API key, when the provider requires one.
+	ApiKeyEnv *string `json:"apiKeyEnv,omitempty"`
+
+	// BaseUrl The address the provider's API is reached at.
+	BaseUrl string `json:"baseUrl"`
+}
+
+// WorkerConfig Everything a worker reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the worker. The launcher writes it for the worker it starts, from the environment the knowledge base's config selects, and the worker reads it from the path its `--config` flag names (its image passes `/etc/semiont/worker.json`). Whoever starts a worker another way writes the same document: this schema is the contract, and a worker needs no launcher. Started without `--config`, or with a path that names no file, the worker refuses to start and says which. No secret is a value here: a provider's key is named by the environment variable that holds it, and the worker's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` in its environment. A document that does not validate is refused at boot, naming each failing field.
+type WorkerConfig struct {
+	// Agents The agents this worker works as. Each is an inference provider and a model, and the jobs that pair serves. The worker signs in once as each, and claims that agent's jobs for it. Every fallback the knowledge base's config allows is already applied, so a job no agent here accepts is not claimed by this worker.
+	Agents []WorkerAgentConfig `json:"agents"`
+
+	// GatewayUrl The URL the worker reaches the gateway at: its route to the bus and to a resource's bytes, and the only address of the knowledge base it holds.
+	GatewayUrl string `json:"gatewayUrl"`
+
+	// Identity The issuer the worker's service account signs in at.
+	Identity struct {
+		// Issuer The issuer URL, exactly as tokens carry it in `iss`.
+		Issuer string `json:"issuer"`
+	} `json:"identity"`
+
+	// LogFormat How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON.
+	LogFormat LogFormat `json:"logFormat"`
+
+	// LogLevel How much a service logs: the least severe level it writes, from error, the most severe, to debug.
+	LogLevel LogLevel `json:"logLevel"`
+
+	// Port The port the worker answers `/health` on.
+	Port int `json:"port"`
 }
 
 // YieldCloneCreateCommand Bus command to create a cloned resource from a clone token. Bytes are stored by the upload path BEFORE this command is emitted, because bytes travel over HTTP and never over the bus — the command carries the storage coordinates, never content.
@@ -6344,32 +6397,6 @@ type YieldJobResult struct {
 	union json.RawMessage
 }
 
-// YieldMoveFailed defines model for YieldMoveFailed.
-type YieldMoveFailed struct {
-	// Code Machine-readable failure class, for consumers that must BRANCH on why a command failed rather than log it. Optional and deliberately sparse: absent means 'no class declared', and every existing failure stays that way. An enum rather than a free string so the vocabulary has an owner — an unconstrained code is a mirror with no gate, and adding one should be a deliberate spec change. `message` remains the human-readable text and is unaffected. Members: `peer-unavailable` — the channel this command was sent on has no subscriber, i.e. the service that answers it has not connected yet. Transient by nature (a peer still starting), which is what distinguishes it from a refusal: retrying is the correct response. `not-found` — the resource this command addressed does not exist in this knowledge base. A verdict, not a symptom: it is emitted only where the answer comes from the event store, which is the system of record, and never from a projection that may merely be lagging. Deterministic, so unlike `peer-unavailable` retrying is pointless — and consumers may act destructively on it (the SDK deletes a restored tab). Absence is not denial: a future 'exists, but not for you' must travel as its own code, never as this one. `unauthorized` — that code: the caller is authenticated but not permitted to do what it asked. A verdict about the CALLER, not the resource, so retrying under the same credential cannot succeed and a consumer must never spin on it; emitted by `job:claim` for a caller whose token carries no worker role. `none-pending` — a declined claim, not an error: the queue holds no pending job of the requested types. Nothing went wrong; the one code a consumer PARKS on, meaning 'nothing to do until a wake-up'. Emitted by `job:claim` only. A `job:claim` refusal carrying neither is unclassified — a malformed record or a missing injection — and a consumer treats it as 'log it, assume nothing'.
-	Code *YieldMoveFailedCode `json:"code,omitempty"`
-
-	// Details Optional additional context (stack trace, field name, etc.)
-	Details *string `json:"details,omitempty"`
-
-	// FromUri The storage URI the resource was to be moved from.
-	FromUri string `json:"fromUri"`
-
-	// Message Human-readable error message
-	Message string `json:"message"`
-}
-
-// YieldMoveFailedCode Machine-readable failure class, for consumers that must BRANCH on why a command failed rather than log it. Optional and deliberately sparse: absent means 'no class declared', and every existing failure stays that way. An enum rather than a free string so the vocabulary has an owner — an unconstrained code is a mirror with no gate, and adding one should be a deliberate spec change. `message` remains the human-readable text and is unaffected. Members: `peer-unavailable` — the channel this command was sent on has no subscriber, i.e. the service that answers it has not connected yet. Transient by nature (a peer still starting), which is what distinguishes it from a refusal: retrying is the correct response. `not-found` — the resource this command addressed does not exist in this knowledge base. A verdict, not a symptom: it is emitted only where the answer comes from the event store, which is the system of record, and never from a projection that may merely be lagging. Deterministic, so unlike `peer-unavailable` retrying is pointless — and consumers may act destructively on it (the SDK deletes a restored tab). Absence is not denial: a future 'exists, but not for you' must travel as its own code, never as this one. `unauthorized` — that code: the caller is authenticated but not permitted to do what it asked. A verdict about the CALLER, not the resource, so retrying under the same credential cannot succeed and a consumer must never spin on it; emitted by `job:claim` for a caller whose token carries no worker role. `none-pending` — a declined claim, not an error: the queue holds no pending job of the requested types. Nothing went wrong; the one code a consumer PARKS on, meaning 'nothing to do until a wake-up'. Emitted by `job:claim` only. A `job:claim` refusal carrying neither is unclassified — a malformed record or a missing injection — and a consumer treats it as 'log it, assume nothing'.
-type YieldMoveFailedCode string
-
-// YieldMvCommand Bus command to move (rename) a yielded resource.
-type YieldMvCommand struct {
-	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
-	UnderscoreUserId *UserId `json:"_userId,omitempty"`
-	FromUri          string  `json:"fromUri"`
-	ToUri            string  `json:"toUri"`
-}
-
 // YieldUpdateCommand Bus command to update a yielded resource's storage content.
 type YieldUpdateCommand struct {
 	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
@@ -6411,20 +6438,20 @@ type TooManyRequests = LimitRefusal
 // Unauthorized The body of every error the gateway answers, whatever the status and whatever the route — including a path it does not serve.
 type Unauthorized = ErrorResponse
 
-// PostApiTokensAgentJSONRequestBody defines body for PostApiTokensAgent for application/json ContentType.
-type PostApiTokensAgentJSONRequestBody = AgentTokenRequest
+// ExchangeAgentTokenJSONRequestBody defines body for ExchangeAgentToken for application/json ContentType.
+type ExchangeAgentTokenJSONRequestBody = AgentTokenRequest
 
-// PostApiTokensMediaJSONRequestBody defines body for PostApiTokensMedia for application/json ContentType.
-type PostApiTokensMediaJSONRequestBody = MediaTokenRequest
+// CreateMediaTokenJSONRequestBody defines body for CreateMediaToken for application/json ContentType.
+type CreateMediaTokenJSONRequestBody = MediaTokenRequest
 
-// PostBusEmitJSONRequestBody defines body for PostBusEmit for application/json ContentType.
-type PostBusEmitJSONRequestBody = BusEmitRequest
+// EmitOnBusJSONRequestBody defines body for EmitOnBus for application/json ContentType.
+type EmitOnBusJSONRequestBody = BusEmitRequest
 
-// PostBusSubscribeJSONRequestBody defines body for PostBusSubscribe for application/json ContentType.
-type PostBusSubscribeJSONRequestBody = BusSubscribeRequest
+// SubscribeToBusJSONRequestBody defines body for SubscribeToBus for application/json ContentType.
+type SubscribeToBusJSONRequestBody = BusSubscribeRequest
 
-// PostResourcesMultipartRequestBody defines body for PostResources for multipart/form-data ContentType.
-type PostResourcesMultipartRequestBody = ResourceUpload
+// UploadResourceMultipartRequestBody defines body for UploadResource for multipart/form-data ContentType.
+type UploadResourceMultipartRequestBody = ResourceUpload
 
 // Getter for additional properties for AgentOrganization. Returns the specified
 // element and whether it was found
@@ -13318,59 +13345,59 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 
 // The interface specification for the client above.
 type ClientInterface interface {
-	// Get request
-	Get(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetHealthAtRoot request
+	GetHealthAtRoot(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetWellKnownOauthProtectedResource request
-	GetWellKnownOauthProtectedResource(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetProtectedResourceMetadata request
+	GetProtectedResourceMetadata(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetApiHealth request
-	GetApiHealth(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetHealth request
+	GetHealth(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetApiOpenapiJson request
-	GetApiOpenapiJson(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetOpenApiDocument request
+	GetOpenApiDocument(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetApiResourcesId request
-	GetApiResourcesId(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetResourceRepresentationWithMediaToken request
+	GetResourceRepresentationWithMediaToken(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetApiStatus request
-	GetApiStatus(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetStatus request
+	GetStatus(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// PostApiTokensAgentWithBody request with any body
-	PostApiTokensAgentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// ExchangeAgentTokenWithBody request with any body
+	ExchangeAgentTokenWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	PostApiTokensAgent(ctx context.Context, body PostApiTokensAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	ExchangeAgentToken(ctx context.Context, body ExchangeAgentTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// PostApiTokensMediaWithBody request with any body
-	PostApiTokensMediaWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// CreateMediaTokenWithBody request with any body
+	CreateMediaTokenWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	PostApiTokensMedia(ctx context.Context, body PostApiTokensMediaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	CreateMediaToken(ctx context.Context, body CreateMediaTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetApiUsersMe request
-	GetApiUsersMe(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetCurrentUser request
+	GetCurrentUser(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// PostBusEmitWithBody request with any body
-	PostBusEmitWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// EmitOnBusWithBody request with any body
+	EmitOnBusWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	PostBusEmit(ctx context.Context, body PostBusEmitJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	EmitOnBus(ctx context.Context, body EmitOnBusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// PostBusSubscribeWithBody request with any body
-	PostBusSubscribeWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// SubscribeToBusWithBody request with any body
+	SubscribeToBusWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	PostBusSubscribe(ctx context.Context, body PostBusSubscribeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	SubscribeToBus(ctx context.Context, body SubscribeToBusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// PostResourcesWithBody request with any body
-	PostResourcesWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// UploadResourceWithBody request with any body
+	UploadResourceWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetResourcesId request
-	GetResourcesId(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetResourceRepresentation request
+	GetResourceRepresentation(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetResourcesIdJsonld request
-	GetResourcesIdJsonld(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetResourceJsonLd request
+	GetResourceJsonLd(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
-func (c *Client) Get(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetRequest(c.Server)
+func (c *Client) GetHealthAtRoot(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetHealthAtRootRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -13381,8 +13408,8 @@ func (c *Client) Get(ctx context.Context, reqEditors ...RequestEditorFn) (*http.
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetWellKnownOauthProtectedResource(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetWellKnownOauthProtectedResourceRequest(c.Server)
+func (c *Client) GetProtectedResourceMetadata(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetProtectedResourceMetadataRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -13393,8 +13420,8 @@ func (c *Client) GetWellKnownOauthProtectedResource(ctx context.Context, reqEdit
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetApiHealth(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetApiHealthRequest(c.Server)
+func (c *Client) GetHealth(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetHealthRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -13405,8 +13432,8 @@ func (c *Client) GetApiHealth(ctx context.Context, reqEditors ...RequestEditorFn
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetApiOpenapiJson(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetApiOpenapiJsonRequest(c.Server)
+func (c *Client) GetOpenApiDocument(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetOpenApiDocumentRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -13417,8 +13444,8 @@ func (c *Client) GetApiOpenapiJson(ctx context.Context, reqEditors ...RequestEdi
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetApiResourcesId(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetApiResourcesIdRequest(c.Server, id)
+func (c *Client) GetResourceRepresentationWithMediaToken(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetResourceRepresentationWithMediaTokenRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -13429,8 +13456,8 @@ func (c *Client) GetApiResourcesId(ctx context.Context, id ResourceId, reqEditor
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetApiStatus(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetApiStatusRequest(c.Server)
+func (c *Client) GetStatus(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetStatusRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -13441,8 +13468,8 @@ func (c *Client) GetApiStatus(ctx context.Context, reqEditors ...RequestEditorFn
 	return c.Client.Do(req)
 }
 
-func (c *Client) PostApiTokensAgentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiTokensAgentRequestWithBody(c.Server, contentType, body)
+func (c *Client) ExchangeAgentTokenWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewExchangeAgentTokenRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -13453,8 +13480,8 @@ func (c *Client) PostApiTokensAgentWithBody(ctx context.Context, contentType str
 	return c.Client.Do(req)
 }
 
-func (c *Client) PostApiTokensAgent(ctx context.Context, body PostApiTokensAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiTokensAgentRequest(c.Server, body)
+func (c *Client) ExchangeAgentToken(ctx context.Context, body ExchangeAgentTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewExchangeAgentTokenRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -13465,8 +13492,8 @@ func (c *Client) PostApiTokensAgent(ctx context.Context, body PostApiTokensAgent
 	return c.Client.Do(req)
 }
 
-func (c *Client) PostApiTokensMediaWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiTokensMediaRequestWithBody(c.Server, contentType, body)
+func (c *Client) CreateMediaTokenWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateMediaTokenRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -13477,8 +13504,8 @@ func (c *Client) PostApiTokensMediaWithBody(ctx context.Context, contentType str
 	return c.Client.Do(req)
 }
 
-func (c *Client) PostApiTokensMedia(ctx context.Context, body PostApiTokensMediaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiTokensMediaRequest(c.Server, body)
+func (c *Client) CreateMediaToken(ctx context.Context, body CreateMediaTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateMediaTokenRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -13489,8 +13516,8 @@ func (c *Client) PostApiTokensMedia(ctx context.Context, body PostApiTokensMedia
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetApiUsersMe(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetApiUsersMeRequest(c.Server)
+func (c *Client) GetCurrentUser(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetCurrentUserRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -13501,8 +13528,8 @@ func (c *Client) GetApiUsersMe(ctx context.Context, reqEditors ...RequestEditorF
 	return c.Client.Do(req)
 }
 
-func (c *Client) PostBusEmitWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostBusEmitRequestWithBody(c.Server, contentType, body)
+func (c *Client) EmitOnBusWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEmitOnBusRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -13513,8 +13540,8 @@ func (c *Client) PostBusEmitWithBody(ctx context.Context, contentType string, bo
 	return c.Client.Do(req)
 }
 
-func (c *Client) PostBusEmit(ctx context.Context, body PostBusEmitJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostBusEmitRequest(c.Server, body)
+func (c *Client) EmitOnBus(ctx context.Context, body EmitOnBusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEmitOnBusRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -13525,8 +13552,8 @@ func (c *Client) PostBusEmit(ctx context.Context, body PostBusEmitJSONRequestBod
 	return c.Client.Do(req)
 }
 
-func (c *Client) PostBusSubscribeWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostBusSubscribeRequestWithBody(c.Server, contentType, body)
+func (c *Client) SubscribeToBusWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSubscribeToBusRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -13537,8 +13564,8 @@ func (c *Client) PostBusSubscribeWithBody(ctx context.Context, contentType strin
 	return c.Client.Do(req)
 }
 
-func (c *Client) PostBusSubscribe(ctx context.Context, body PostBusSubscribeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostBusSubscribeRequest(c.Server, body)
+func (c *Client) SubscribeToBus(ctx context.Context, body SubscribeToBusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSubscribeToBusRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -13549,8 +13576,8 @@ func (c *Client) PostBusSubscribe(ctx context.Context, body PostBusSubscribeJSON
 	return c.Client.Do(req)
 }
 
-func (c *Client) PostResourcesWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostResourcesRequestWithBody(c.Server, contentType, body)
+func (c *Client) UploadResourceWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUploadResourceRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -13561,8 +13588,8 @@ func (c *Client) PostResourcesWithBody(ctx context.Context, contentType string, 
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetResourcesId(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetResourcesIdRequest(c.Server, id)
+func (c *Client) GetResourceRepresentation(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetResourceRepresentationRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -13573,8 +13600,8 @@ func (c *Client) GetResourcesId(ctx context.Context, id ResourceId, reqEditors .
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetResourcesIdJsonld(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetResourcesIdJsonldRequest(c.Server, id)
+func (c *Client) GetResourceJsonLd(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetResourceJsonLdRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -13585,8 +13612,8 @@ func (c *Client) GetResourcesIdJsonld(ctx context.Context, id ResourceId, reqEdi
 	return c.Client.Do(req)
 }
 
-// NewGetRequest generates requests for Get
-func NewGetRequest(server string) (*http.Request, error) {
+// NewGetHealthAtRootRequest generates requests for GetHealthAtRoot
+func NewGetHealthAtRootRequest(server string) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -13612,8 +13639,8 @@ func NewGetRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
-// NewGetWellKnownOauthProtectedResourceRequest generates requests for GetWellKnownOauthProtectedResource
-func NewGetWellKnownOauthProtectedResourceRequest(server string) (*http.Request, error) {
+// NewGetProtectedResourceMetadataRequest generates requests for GetProtectedResourceMetadata
+func NewGetProtectedResourceMetadataRequest(server string) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -13639,8 +13666,8 @@ func NewGetWellKnownOauthProtectedResourceRequest(server string) (*http.Request,
 	return req, nil
 }
 
-// NewGetApiHealthRequest generates requests for GetApiHealth
-func NewGetApiHealthRequest(server string) (*http.Request, error) {
+// NewGetHealthRequest generates requests for GetHealth
+func NewGetHealthRequest(server string) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -13666,8 +13693,8 @@ func NewGetApiHealthRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
-// NewGetApiOpenapiJsonRequest generates requests for GetApiOpenapiJson
-func NewGetApiOpenapiJsonRequest(server string) (*http.Request, error) {
+// NewGetOpenApiDocumentRequest generates requests for GetOpenApiDocument
+func NewGetOpenApiDocumentRequest(server string) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -13693,8 +13720,8 @@ func NewGetApiOpenapiJsonRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
-// NewGetApiResourcesIdRequest generates requests for GetApiResourcesId
-func NewGetApiResourcesIdRequest(server string, id ResourceId) (*http.Request, error) {
+// NewGetResourceRepresentationWithMediaTokenRequest generates requests for GetResourceRepresentationWithMediaToken
+func NewGetResourceRepresentationWithMediaTokenRequest(server string, id ResourceId) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -13727,8 +13754,8 @@ func NewGetApiResourcesIdRequest(server string, id ResourceId) (*http.Request, e
 	return req, nil
 }
 
-// NewGetApiStatusRequest generates requests for GetApiStatus
-func NewGetApiStatusRequest(server string) (*http.Request, error) {
+// NewGetStatusRequest generates requests for GetStatus
+func NewGetStatusRequest(server string) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -13754,19 +13781,19 @@ func NewGetApiStatusRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
-// NewPostApiTokensAgentRequest calls the generic PostApiTokensAgent builder with application/json body
-func NewPostApiTokensAgentRequest(server string, body PostApiTokensAgentJSONRequestBody) (*http.Request, error) {
+// NewExchangeAgentTokenRequest calls the generic ExchangeAgentToken builder with application/json body
+func NewExchangeAgentTokenRequest(server string, body ExchangeAgentTokenJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewPostApiTokensAgentRequestWithBody(server, "application/json", bodyReader)
+	return NewExchangeAgentTokenRequestWithBody(server, "application/json", bodyReader)
 }
 
-// NewPostApiTokensAgentRequestWithBody generates requests for PostApiTokensAgent with any type of body
-func NewPostApiTokensAgentRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+// NewExchangeAgentTokenRequestWithBody generates requests for ExchangeAgentToken with any type of body
+func NewExchangeAgentTokenRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -13794,19 +13821,19 @@ func NewPostApiTokensAgentRequestWithBody(server string, contentType string, bod
 	return req, nil
 }
 
-// NewPostApiTokensMediaRequest calls the generic PostApiTokensMedia builder with application/json body
-func NewPostApiTokensMediaRequest(server string, body PostApiTokensMediaJSONRequestBody) (*http.Request, error) {
+// NewCreateMediaTokenRequest calls the generic CreateMediaToken builder with application/json body
+func NewCreateMediaTokenRequest(server string, body CreateMediaTokenJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewPostApiTokensMediaRequestWithBody(server, "application/json", bodyReader)
+	return NewCreateMediaTokenRequestWithBody(server, "application/json", bodyReader)
 }
 
-// NewPostApiTokensMediaRequestWithBody generates requests for PostApiTokensMedia with any type of body
-func NewPostApiTokensMediaRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+// NewCreateMediaTokenRequestWithBody generates requests for CreateMediaToken with any type of body
+func NewCreateMediaTokenRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -13834,8 +13861,8 @@ func NewPostApiTokensMediaRequestWithBody(server string, contentType string, bod
 	return req, nil
 }
 
-// NewGetApiUsersMeRequest generates requests for GetApiUsersMe
-func NewGetApiUsersMeRequest(server string) (*http.Request, error) {
+// NewGetCurrentUserRequest generates requests for GetCurrentUser
+func NewGetCurrentUserRequest(server string) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -13861,19 +13888,19 @@ func NewGetApiUsersMeRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
-// NewPostBusEmitRequest calls the generic PostBusEmit builder with application/json body
-func NewPostBusEmitRequest(server string, body PostBusEmitJSONRequestBody) (*http.Request, error) {
+// NewEmitOnBusRequest calls the generic EmitOnBus builder with application/json body
+func NewEmitOnBusRequest(server string, body EmitOnBusJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewPostBusEmitRequestWithBody(server, "application/json", bodyReader)
+	return NewEmitOnBusRequestWithBody(server, "application/json", bodyReader)
 }
 
-// NewPostBusEmitRequestWithBody generates requests for PostBusEmit with any type of body
-func NewPostBusEmitRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+// NewEmitOnBusRequestWithBody generates requests for EmitOnBus with any type of body
+func NewEmitOnBusRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -13901,19 +13928,19 @@ func NewPostBusEmitRequestWithBody(server string, contentType string, body io.Re
 	return req, nil
 }
 
-// NewPostBusSubscribeRequest calls the generic PostBusSubscribe builder with application/json body
-func NewPostBusSubscribeRequest(server string, body PostBusSubscribeJSONRequestBody) (*http.Request, error) {
+// NewSubscribeToBusRequest calls the generic SubscribeToBus builder with application/json body
+func NewSubscribeToBusRequest(server string, body SubscribeToBusJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewPostBusSubscribeRequestWithBody(server, "application/json", bodyReader)
+	return NewSubscribeToBusRequestWithBody(server, "application/json", bodyReader)
 }
 
-// NewPostBusSubscribeRequestWithBody generates requests for PostBusSubscribe with any type of body
-func NewPostBusSubscribeRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+// NewSubscribeToBusRequestWithBody generates requests for SubscribeToBus with any type of body
+func NewSubscribeToBusRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -13941,8 +13968,8 @@ func NewPostBusSubscribeRequestWithBody(server string, contentType string, body 
 	return req, nil
 }
 
-// NewPostResourcesRequestWithBody generates requests for PostResources with any type of body
-func NewPostResourcesRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+// NewUploadResourceRequestWithBody generates requests for UploadResource with any type of body
+func NewUploadResourceRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -13970,8 +13997,8 @@ func NewPostResourcesRequestWithBody(server string, contentType string, body io.
 	return req, nil
 }
 
-// NewGetResourcesIdRequest generates requests for GetResourcesId
-func NewGetResourcesIdRequest(server string, id ResourceId) (*http.Request, error) {
+// NewGetResourceRepresentationRequest generates requests for GetResourceRepresentation
+func NewGetResourceRepresentationRequest(server string, id ResourceId) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -14004,8 +14031,8 @@ func NewGetResourcesIdRequest(server string, id ResourceId) (*http.Request, erro
 	return req, nil
 }
 
-// NewGetResourcesIdJsonldRequest generates requests for GetResourcesIdJsonld
-func NewGetResourcesIdJsonldRequest(server string, id ResourceId) (*http.Request, error) {
+// NewGetResourceJsonLdRequest generates requests for GetResourceJsonLd
+func NewGetResourceJsonLdRequest(server string, id ResourceId) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -14081,58 +14108,58 @@ func WithBaseURL(baseURL string) ClientOption {
 
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
-	// GetWithResponse request
-	GetWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetResponse, error)
+	// GetHealthAtRootWithResponse request
+	GetHealthAtRootWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetHealthAtRootResponse, error)
 
-	// GetWellKnownOauthProtectedResourceWithResponse request
-	GetWellKnownOauthProtectedResourceWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetWellKnownOauthProtectedResourceResponse, error)
+	// GetProtectedResourceMetadataWithResponse request
+	GetProtectedResourceMetadataWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetProtectedResourceMetadataResponse, error)
 
-	// GetApiHealthWithResponse request
-	GetApiHealthWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiHealthResponse, error)
+	// GetHealthWithResponse request
+	GetHealthWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetHealthResponse, error)
 
-	// GetApiOpenapiJsonWithResponse request
-	GetApiOpenapiJsonWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiOpenapiJsonResponse, error)
+	// GetOpenApiDocumentWithResponse request
+	GetOpenApiDocumentWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetOpenApiDocumentResponse, error)
 
-	// GetApiResourcesIdWithResponse request
-	GetApiResourcesIdWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetApiResourcesIdResponse, error)
+	// GetResourceRepresentationWithMediaTokenWithResponse request
+	GetResourceRepresentationWithMediaTokenWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetResourceRepresentationWithMediaTokenResponse, error)
 
-	// GetApiStatusWithResponse request
-	GetApiStatusWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiStatusResponse, error)
+	// GetStatusWithResponse request
+	GetStatusWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetStatusResponse, error)
 
-	// PostApiTokensAgentWithBodyWithResponse request with any body
-	PostApiTokensAgentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiTokensAgentResponse, error)
+	// ExchangeAgentTokenWithBodyWithResponse request with any body
+	ExchangeAgentTokenWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ExchangeAgentTokenResponse, error)
 
-	PostApiTokensAgentWithResponse(ctx context.Context, body PostApiTokensAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiTokensAgentResponse, error)
+	ExchangeAgentTokenWithResponse(ctx context.Context, body ExchangeAgentTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*ExchangeAgentTokenResponse, error)
 
-	// PostApiTokensMediaWithBodyWithResponse request with any body
-	PostApiTokensMediaWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiTokensMediaResponse, error)
+	// CreateMediaTokenWithBodyWithResponse request with any body
+	CreateMediaTokenWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateMediaTokenResponse, error)
 
-	PostApiTokensMediaWithResponse(ctx context.Context, body PostApiTokensMediaJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiTokensMediaResponse, error)
+	CreateMediaTokenWithResponse(ctx context.Context, body CreateMediaTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateMediaTokenResponse, error)
 
-	// GetApiUsersMeWithResponse request
-	GetApiUsersMeWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiUsersMeResponse, error)
+	// GetCurrentUserWithResponse request
+	GetCurrentUserWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetCurrentUserResponse, error)
 
-	// PostBusEmitWithBodyWithResponse request with any body
-	PostBusEmitWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostBusEmitResponse, error)
+	// EmitOnBusWithBodyWithResponse request with any body
+	EmitOnBusWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EmitOnBusResponse, error)
 
-	PostBusEmitWithResponse(ctx context.Context, body PostBusEmitJSONRequestBody, reqEditors ...RequestEditorFn) (*PostBusEmitResponse, error)
+	EmitOnBusWithResponse(ctx context.Context, body EmitOnBusJSONRequestBody, reqEditors ...RequestEditorFn) (*EmitOnBusResponse, error)
 
-	// PostBusSubscribeWithBodyWithResponse request with any body
-	PostBusSubscribeWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostBusSubscribeResponse, error)
+	// SubscribeToBusWithBodyWithResponse request with any body
+	SubscribeToBusWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SubscribeToBusResponse, error)
 
-	PostBusSubscribeWithResponse(ctx context.Context, body PostBusSubscribeJSONRequestBody, reqEditors ...RequestEditorFn) (*PostBusSubscribeResponse, error)
+	SubscribeToBusWithResponse(ctx context.Context, body SubscribeToBusJSONRequestBody, reqEditors ...RequestEditorFn) (*SubscribeToBusResponse, error)
 
-	// PostResourcesWithBodyWithResponse request with any body
-	PostResourcesWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostResourcesResponse, error)
+	// UploadResourceWithBodyWithResponse request with any body
+	UploadResourceWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UploadResourceResponse, error)
 
-	// GetResourcesIdWithResponse request
-	GetResourcesIdWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetResourcesIdResponse, error)
+	// GetResourceRepresentationWithResponse request
+	GetResourceRepresentationWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetResourceRepresentationResponse, error)
 
-	// GetResourcesIdJsonldWithResponse request
-	GetResourcesIdJsonldWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetResourcesIdJsonldResponse, error)
+	// GetResourceJsonLdWithResponse request
+	GetResourceJsonLdWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetResourceJsonLdResponse, error)
 }
 
-type GetResponse struct {
+type GetHealthAtRootResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *HealthResponse
@@ -14140,7 +14167,7 @@ type GetResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r GetResponse) Status() string {
+func (r GetHealthAtRootResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -14148,14 +14175,14 @@ func (r GetResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetResponse) StatusCode() int {
+func (r GetHealthAtRootResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type GetWellKnownOauthProtectedResourceResponse struct {
+type GetProtectedResourceMetadataResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ProtectedResourceMetadata
@@ -14163,7 +14190,7 @@ type GetWellKnownOauthProtectedResourceResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r GetWellKnownOauthProtectedResourceResponse) Status() string {
+func (r GetProtectedResourceMetadataResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -14171,14 +14198,14 @@ func (r GetWellKnownOauthProtectedResourceResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetWellKnownOauthProtectedResourceResponse) StatusCode() int {
+func (r GetProtectedResourceMetadataResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type GetApiHealthResponse struct {
+type GetHealthResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *HealthResponse
@@ -14186,7 +14213,7 @@ type GetApiHealthResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r GetApiHealthResponse) Status() string {
+func (r GetHealthResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -14194,14 +14221,14 @@ func (r GetApiHealthResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetApiHealthResponse) StatusCode() int {
+func (r GetHealthResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type GetApiOpenapiJsonResponse struct {
+type GetOpenApiDocumentResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
@@ -14213,7 +14240,7 @@ type GetApiOpenapiJsonResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r GetApiOpenapiJsonResponse) Status() string {
+func (r GetOpenApiDocumentResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -14221,14 +14248,14 @@ func (r GetApiOpenapiJsonResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetApiOpenapiJsonResponse) StatusCode() int {
+func (r GetOpenApiDocumentResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type GetApiResourcesIdResponse struct {
+type GetResourceRepresentationWithMediaTokenResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON401      *Unauthorized
@@ -14238,7 +14265,7 @@ type GetApiResourcesIdResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r GetApiResourcesIdResponse) Status() string {
+func (r GetResourceRepresentationWithMediaTokenResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -14246,14 +14273,14 @@ func (r GetApiResourcesIdResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetApiResourcesIdResponse) StatusCode() int {
+func (r GetResourceRepresentationWithMediaTokenResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type GetApiStatusResponse struct {
+type GetStatusResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *StatusResponse
@@ -14262,7 +14289,7 @@ type GetApiStatusResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r GetApiStatusResponse) Status() string {
+func (r GetStatusResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -14270,14 +14297,14 @@ func (r GetApiStatusResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetApiStatusResponse) StatusCode() int {
+func (r GetStatusResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type PostApiTokensAgentResponse struct {
+type ExchangeAgentTokenResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *AgentTokenResponse
@@ -14288,7 +14315,7 @@ type PostApiTokensAgentResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r PostApiTokensAgentResponse) Status() string {
+func (r ExchangeAgentTokenResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -14296,14 +14323,14 @@ func (r PostApiTokensAgentResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r PostApiTokensAgentResponse) StatusCode() int {
+func (r ExchangeAgentTokenResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type PostApiTokensMediaResponse struct {
+type CreateMediaTokenResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *MediaTokenResponse
@@ -14314,7 +14341,7 @@ type PostApiTokensMediaResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r PostApiTokensMediaResponse) Status() string {
+func (r CreateMediaTokenResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -14322,14 +14349,14 @@ func (r PostApiTokensMediaResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r PostApiTokensMediaResponse) StatusCode() int {
+func (r CreateMediaTokenResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type GetApiUsersMeResponse struct {
+type GetCurrentUserResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *UserResponse
@@ -14338,7 +14365,7 @@ type GetApiUsersMeResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r GetApiUsersMeResponse) Status() string {
+func (r GetCurrentUserResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -14346,14 +14373,14 @@ func (r GetApiUsersMeResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetApiUsersMeResponse) StatusCode() int {
+func (r GetCurrentUserResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type PostBusEmitResponse struct {
+type EmitOnBusResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON202      *BusEmitAccepted
@@ -14367,7 +14394,7 @@ type PostBusEmitResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r PostBusEmitResponse) Status() string {
+func (r EmitOnBusResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -14375,14 +14402,14 @@ func (r PostBusEmitResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r PostBusEmitResponse) StatusCode() int {
+func (r EmitOnBusResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type PostBusSubscribeResponse struct {
+type SubscribeToBusResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON400      *ErrorResponse
@@ -14394,7 +14421,7 @@ type PostBusSubscribeResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r PostBusSubscribeResponse) Status() string {
+func (r SubscribeToBusResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -14402,14 +14429,14 @@ func (r PostBusSubscribeResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r PostBusSubscribeResponse) StatusCode() int {
+func (r SubscribeToBusResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type PostResourcesResponse struct {
+type UploadResourceResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON202      *CreateResourceResponse
@@ -14420,7 +14447,7 @@ type PostResourcesResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r PostResourcesResponse) Status() string {
+func (r UploadResourceResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -14428,14 +14455,14 @@ func (r PostResourcesResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r PostResourcesResponse) StatusCode() int {
+func (r UploadResourceResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type GetResourcesIdResponse struct {
+type GetResourceRepresentationResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON401      *Unauthorized
@@ -14445,7 +14472,7 @@ type GetResourcesIdResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r GetResourcesIdResponse) Status() string {
+func (r GetResourceRepresentationResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -14453,14 +14480,14 @@ func (r GetResourcesIdResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetResourcesIdResponse) StatusCode() int {
+func (r GetResourceRepresentationResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type GetResourcesIdJsonldResponse struct {
+type GetResourceJsonLdResponse struct {
 	Body                 []byte
 	HTTPResponse         *http.Response
 	ApplicationldJSON200 *GetResourceResponse
@@ -14471,7 +14498,7 @@ type GetResourcesIdJsonldResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r GetResourcesIdJsonldResponse) Status() string {
+func (r GetResourceJsonLdResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -14479,180 +14506,180 @@ func (r GetResourcesIdJsonldResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetResourcesIdJsonldResponse) StatusCode() int {
+func (r GetResourceJsonLdResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-// GetWithResponse request returning *GetResponse
-func (c *ClientWithResponses) GetWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetResponse, error) {
-	rsp, err := c.Get(ctx, reqEditors...)
+// GetHealthAtRootWithResponse request returning *GetHealthAtRootResponse
+func (c *ClientWithResponses) GetHealthAtRootWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetHealthAtRootResponse, error) {
+	rsp, err := c.GetHealthAtRoot(ctx, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetResponse(rsp)
+	return ParseGetHealthAtRootResponse(rsp)
 }
 
-// GetWellKnownOauthProtectedResourceWithResponse request returning *GetWellKnownOauthProtectedResourceResponse
-func (c *ClientWithResponses) GetWellKnownOauthProtectedResourceWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetWellKnownOauthProtectedResourceResponse, error) {
-	rsp, err := c.GetWellKnownOauthProtectedResource(ctx, reqEditors...)
+// GetProtectedResourceMetadataWithResponse request returning *GetProtectedResourceMetadataResponse
+func (c *ClientWithResponses) GetProtectedResourceMetadataWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetProtectedResourceMetadataResponse, error) {
+	rsp, err := c.GetProtectedResourceMetadata(ctx, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetWellKnownOauthProtectedResourceResponse(rsp)
+	return ParseGetProtectedResourceMetadataResponse(rsp)
 }
 
-// GetApiHealthWithResponse request returning *GetApiHealthResponse
-func (c *ClientWithResponses) GetApiHealthWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiHealthResponse, error) {
-	rsp, err := c.GetApiHealth(ctx, reqEditors...)
+// GetHealthWithResponse request returning *GetHealthResponse
+func (c *ClientWithResponses) GetHealthWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetHealthResponse, error) {
+	rsp, err := c.GetHealth(ctx, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetApiHealthResponse(rsp)
+	return ParseGetHealthResponse(rsp)
 }
 
-// GetApiOpenapiJsonWithResponse request returning *GetApiOpenapiJsonResponse
-func (c *ClientWithResponses) GetApiOpenapiJsonWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiOpenapiJsonResponse, error) {
-	rsp, err := c.GetApiOpenapiJson(ctx, reqEditors...)
+// GetOpenApiDocumentWithResponse request returning *GetOpenApiDocumentResponse
+func (c *ClientWithResponses) GetOpenApiDocumentWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetOpenApiDocumentResponse, error) {
+	rsp, err := c.GetOpenApiDocument(ctx, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetApiOpenapiJsonResponse(rsp)
+	return ParseGetOpenApiDocumentResponse(rsp)
 }
 
-// GetApiResourcesIdWithResponse request returning *GetApiResourcesIdResponse
-func (c *ClientWithResponses) GetApiResourcesIdWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetApiResourcesIdResponse, error) {
-	rsp, err := c.GetApiResourcesId(ctx, id, reqEditors...)
+// GetResourceRepresentationWithMediaTokenWithResponse request returning *GetResourceRepresentationWithMediaTokenResponse
+func (c *ClientWithResponses) GetResourceRepresentationWithMediaTokenWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetResourceRepresentationWithMediaTokenResponse, error) {
+	rsp, err := c.GetResourceRepresentationWithMediaToken(ctx, id, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetApiResourcesIdResponse(rsp)
+	return ParseGetResourceRepresentationWithMediaTokenResponse(rsp)
 }
 
-// GetApiStatusWithResponse request returning *GetApiStatusResponse
-func (c *ClientWithResponses) GetApiStatusWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiStatusResponse, error) {
-	rsp, err := c.GetApiStatus(ctx, reqEditors...)
+// GetStatusWithResponse request returning *GetStatusResponse
+func (c *ClientWithResponses) GetStatusWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetStatusResponse, error) {
+	rsp, err := c.GetStatus(ctx, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetApiStatusResponse(rsp)
+	return ParseGetStatusResponse(rsp)
 }
 
-// PostApiTokensAgentWithBodyWithResponse request with arbitrary body returning *PostApiTokensAgentResponse
-func (c *ClientWithResponses) PostApiTokensAgentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiTokensAgentResponse, error) {
-	rsp, err := c.PostApiTokensAgentWithBody(ctx, contentType, body, reqEditors...)
+// ExchangeAgentTokenWithBodyWithResponse request with arbitrary body returning *ExchangeAgentTokenResponse
+func (c *ClientWithResponses) ExchangeAgentTokenWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ExchangeAgentTokenResponse, error) {
+	rsp, err := c.ExchangeAgentTokenWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParsePostApiTokensAgentResponse(rsp)
+	return ParseExchangeAgentTokenResponse(rsp)
 }
 
-func (c *ClientWithResponses) PostApiTokensAgentWithResponse(ctx context.Context, body PostApiTokensAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiTokensAgentResponse, error) {
-	rsp, err := c.PostApiTokensAgent(ctx, body, reqEditors...)
+func (c *ClientWithResponses) ExchangeAgentTokenWithResponse(ctx context.Context, body ExchangeAgentTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*ExchangeAgentTokenResponse, error) {
+	rsp, err := c.ExchangeAgentToken(ctx, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParsePostApiTokensAgentResponse(rsp)
+	return ParseExchangeAgentTokenResponse(rsp)
 }
 
-// PostApiTokensMediaWithBodyWithResponse request with arbitrary body returning *PostApiTokensMediaResponse
-func (c *ClientWithResponses) PostApiTokensMediaWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiTokensMediaResponse, error) {
-	rsp, err := c.PostApiTokensMediaWithBody(ctx, contentType, body, reqEditors...)
+// CreateMediaTokenWithBodyWithResponse request with arbitrary body returning *CreateMediaTokenResponse
+func (c *ClientWithResponses) CreateMediaTokenWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateMediaTokenResponse, error) {
+	rsp, err := c.CreateMediaTokenWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParsePostApiTokensMediaResponse(rsp)
+	return ParseCreateMediaTokenResponse(rsp)
 }
 
-func (c *ClientWithResponses) PostApiTokensMediaWithResponse(ctx context.Context, body PostApiTokensMediaJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiTokensMediaResponse, error) {
-	rsp, err := c.PostApiTokensMedia(ctx, body, reqEditors...)
+func (c *ClientWithResponses) CreateMediaTokenWithResponse(ctx context.Context, body CreateMediaTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateMediaTokenResponse, error) {
+	rsp, err := c.CreateMediaToken(ctx, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParsePostApiTokensMediaResponse(rsp)
+	return ParseCreateMediaTokenResponse(rsp)
 }
 
-// GetApiUsersMeWithResponse request returning *GetApiUsersMeResponse
-func (c *ClientWithResponses) GetApiUsersMeWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiUsersMeResponse, error) {
-	rsp, err := c.GetApiUsersMe(ctx, reqEditors...)
+// GetCurrentUserWithResponse request returning *GetCurrentUserResponse
+func (c *ClientWithResponses) GetCurrentUserWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetCurrentUserResponse, error) {
+	rsp, err := c.GetCurrentUser(ctx, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetApiUsersMeResponse(rsp)
+	return ParseGetCurrentUserResponse(rsp)
 }
 
-// PostBusEmitWithBodyWithResponse request with arbitrary body returning *PostBusEmitResponse
-func (c *ClientWithResponses) PostBusEmitWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostBusEmitResponse, error) {
-	rsp, err := c.PostBusEmitWithBody(ctx, contentType, body, reqEditors...)
+// EmitOnBusWithBodyWithResponse request with arbitrary body returning *EmitOnBusResponse
+func (c *ClientWithResponses) EmitOnBusWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EmitOnBusResponse, error) {
+	rsp, err := c.EmitOnBusWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParsePostBusEmitResponse(rsp)
+	return ParseEmitOnBusResponse(rsp)
 }
 
-func (c *ClientWithResponses) PostBusEmitWithResponse(ctx context.Context, body PostBusEmitJSONRequestBody, reqEditors ...RequestEditorFn) (*PostBusEmitResponse, error) {
-	rsp, err := c.PostBusEmit(ctx, body, reqEditors...)
+func (c *ClientWithResponses) EmitOnBusWithResponse(ctx context.Context, body EmitOnBusJSONRequestBody, reqEditors ...RequestEditorFn) (*EmitOnBusResponse, error) {
+	rsp, err := c.EmitOnBus(ctx, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParsePostBusEmitResponse(rsp)
+	return ParseEmitOnBusResponse(rsp)
 }
 
-// PostBusSubscribeWithBodyWithResponse request with arbitrary body returning *PostBusSubscribeResponse
-func (c *ClientWithResponses) PostBusSubscribeWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostBusSubscribeResponse, error) {
-	rsp, err := c.PostBusSubscribeWithBody(ctx, contentType, body, reqEditors...)
+// SubscribeToBusWithBodyWithResponse request with arbitrary body returning *SubscribeToBusResponse
+func (c *ClientWithResponses) SubscribeToBusWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SubscribeToBusResponse, error) {
+	rsp, err := c.SubscribeToBusWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParsePostBusSubscribeResponse(rsp)
+	return ParseSubscribeToBusResponse(rsp)
 }
 
-func (c *ClientWithResponses) PostBusSubscribeWithResponse(ctx context.Context, body PostBusSubscribeJSONRequestBody, reqEditors ...RequestEditorFn) (*PostBusSubscribeResponse, error) {
-	rsp, err := c.PostBusSubscribe(ctx, body, reqEditors...)
+func (c *ClientWithResponses) SubscribeToBusWithResponse(ctx context.Context, body SubscribeToBusJSONRequestBody, reqEditors ...RequestEditorFn) (*SubscribeToBusResponse, error) {
+	rsp, err := c.SubscribeToBus(ctx, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParsePostBusSubscribeResponse(rsp)
+	return ParseSubscribeToBusResponse(rsp)
 }
 
-// PostResourcesWithBodyWithResponse request with arbitrary body returning *PostResourcesResponse
-func (c *ClientWithResponses) PostResourcesWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostResourcesResponse, error) {
-	rsp, err := c.PostResourcesWithBody(ctx, contentType, body, reqEditors...)
+// UploadResourceWithBodyWithResponse request with arbitrary body returning *UploadResourceResponse
+func (c *ClientWithResponses) UploadResourceWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UploadResourceResponse, error) {
+	rsp, err := c.UploadResourceWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParsePostResourcesResponse(rsp)
+	return ParseUploadResourceResponse(rsp)
 }
 
-// GetResourcesIdWithResponse request returning *GetResourcesIdResponse
-func (c *ClientWithResponses) GetResourcesIdWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetResourcesIdResponse, error) {
-	rsp, err := c.GetResourcesId(ctx, id, reqEditors...)
+// GetResourceRepresentationWithResponse request returning *GetResourceRepresentationResponse
+func (c *ClientWithResponses) GetResourceRepresentationWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetResourceRepresentationResponse, error) {
+	rsp, err := c.GetResourceRepresentation(ctx, id, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetResourcesIdResponse(rsp)
+	return ParseGetResourceRepresentationResponse(rsp)
 }
 
-// GetResourcesIdJsonldWithResponse request returning *GetResourcesIdJsonldResponse
-func (c *ClientWithResponses) GetResourcesIdJsonldWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetResourcesIdJsonldResponse, error) {
-	rsp, err := c.GetResourcesIdJsonld(ctx, id, reqEditors...)
+// GetResourceJsonLdWithResponse request returning *GetResourceJsonLdResponse
+func (c *ClientWithResponses) GetResourceJsonLdWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetResourceJsonLdResponse, error) {
+	rsp, err := c.GetResourceJsonLd(ctx, id, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetResourcesIdJsonldResponse(rsp)
+	return ParseGetResourceJsonLdResponse(rsp)
 }
 
-// ParseGetResponse parses an HTTP response from a GetWithResponse call
-func ParseGetResponse(rsp *http.Response) (*GetResponse, error) {
+// ParseGetHealthAtRootResponse parses an HTTP response from a GetHealthAtRootWithResponse call
+func ParseGetHealthAtRootResponse(rsp *http.Response) (*GetHealthAtRootResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetResponse{
+	response := &GetHealthAtRootResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -14677,15 +14704,15 @@ func ParseGetResponse(rsp *http.Response) (*GetResponse, error) {
 	return response, nil
 }
 
-// ParseGetWellKnownOauthProtectedResourceResponse parses an HTTP response from a GetWellKnownOauthProtectedResourceWithResponse call
-func ParseGetWellKnownOauthProtectedResourceResponse(rsp *http.Response) (*GetWellKnownOauthProtectedResourceResponse, error) {
+// ParseGetProtectedResourceMetadataResponse parses an HTTP response from a GetProtectedResourceMetadataWithResponse call
+func ParseGetProtectedResourceMetadataResponse(rsp *http.Response) (*GetProtectedResourceMetadataResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetWellKnownOauthProtectedResourceResponse{
+	response := &GetProtectedResourceMetadataResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -14710,15 +14737,15 @@ func ParseGetWellKnownOauthProtectedResourceResponse(rsp *http.Response) (*GetWe
 	return response, nil
 }
 
-// ParseGetApiHealthResponse parses an HTTP response from a GetApiHealthWithResponse call
-func ParseGetApiHealthResponse(rsp *http.Response) (*GetApiHealthResponse, error) {
+// ParseGetHealthResponse parses an HTTP response from a GetHealthWithResponse call
+func ParseGetHealthResponse(rsp *http.Response) (*GetHealthResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetApiHealthResponse{
+	response := &GetHealthResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -14743,15 +14770,15 @@ func ParseGetApiHealthResponse(rsp *http.Response) (*GetApiHealthResponse, error
 	return response, nil
 }
 
-// ParseGetApiOpenapiJsonResponse parses an HTTP response from a GetApiOpenapiJsonWithResponse call
-func ParseGetApiOpenapiJsonResponse(rsp *http.Response) (*GetApiOpenapiJsonResponse, error) {
+// ParseGetOpenApiDocumentResponse parses an HTTP response from a GetOpenApiDocumentWithResponse call
+func ParseGetOpenApiDocumentResponse(rsp *http.Response) (*GetOpenApiDocumentResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetApiOpenapiJsonResponse{
+	response := &GetOpenApiDocumentResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -14780,15 +14807,15 @@ func ParseGetApiOpenapiJsonResponse(rsp *http.Response) (*GetApiOpenapiJsonRespo
 	return response, nil
 }
 
-// ParseGetApiResourcesIdResponse parses an HTTP response from a GetApiResourcesIdWithResponse call
-func ParseGetApiResourcesIdResponse(rsp *http.Response) (*GetApiResourcesIdResponse, error) {
+// ParseGetResourceRepresentationWithMediaTokenResponse parses an HTTP response from a GetResourceRepresentationWithMediaTokenWithResponse call
+func ParseGetResourceRepresentationWithMediaTokenResponse(rsp *http.Response) (*GetResourceRepresentationWithMediaTokenResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetApiResourcesIdResponse{
+	response := &GetResourceRepresentationWithMediaTokenResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -14827,15 +14854,15 @@ func ParseGetApiResourcesIdResponse(rsp *http.Response) (*GetApiResourcesIdRespo
 	return response, nil
 }
 
-// ParseGetApiStatusResponse parses an HTTP response from a GetApiStatusWithResponse call
-func ParseGetApiStatusResponse(rsp *http.Response) (*GetApiStatusResponse, error) {
+// ParseGetStatusResponse parses an HTTP response from a GetStatusWithResponse call
+func ParseGetStatusResponse(rsp *http.Response) (*GetStatusResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetApiStatusResponse{
+	response := &GetStatusResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -14867,15 +14894,15 @@ func ParseGetApiStatusResponse(rsp *http.Response) (*GetApiStatusResponse, error
 	return response, nil
 }
 
-// ParsePostApiTokensAgentResponse parses an HTTP response from a PostApiTokensAgentWithResponse call
-func ParsePostApiTokensAgentResponse(rsp *http.Response) (*PostApiTokensAgentResponse, error) {
+// ParseExchangeAgentTokenResponse parses an HTTP response from a ExchangeAgentTokenWithResponse call
+func ParseExchangeAgentTokenResponse(rsp *http.Response) (*ExchangeAgentTokenResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &PostApiTokensAgentResponse{
+	response := &ExchangeAgentTokenResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -14921,15 +14948,15 @@ func ParsePostApiTokensAgentResponse(rsp *http.Response) (*PostApiTokensAgentRes
 	return response, nil
 }
 
-// ParsePostApiTokensMediaResponse parses an HTTP response from a PostApiTokensMediaWithResponse call
-func ParsePostApiTokensMediaResponse(rsp *http.Response) (*PostApiTokensMediaResponse, error) {
+// ParseCreateMediaTokenResponse parses an HTTP response from a CreateMediaTokenWithResponse call
+func ParseCreateMediaTokenResponse(rsp *http.Response) (*CreateMediaTokenResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &PostApiTokensMediaResponse{
+	response := &CreateMediaTokenResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -14975,15 +15002,15 @@ func ParsePostApiTokensMediaResponse(rsp *http.Response) (*PostApiTokensMediaRes
 	return response, nil
 }
 
-// ParseGetApiUsersMeResponse parses an HTTP response from a GetApiUsersMeWithResponse call
-func ParseGetApiUsersMeResponse(rsp *http.Response) (*GetApiUsersMeResponse, error) {
+// ParseGetCurrentUserResponse parses an HTTP response from a GetCurrentUserWithResponse call
+func ParseGetCurrentUserResponse(rsp *http.Response) (*GetCurrentUserResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetApiUsersMeResponse{
+	response := &GetCurrentUserResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -15015,15 +15042,15 @@ func ParseGetApiUsersMeResponse(rsp *http.Response) (*GetApiUsersMeResponse, err
 	return response, nil
 }
 
-// ParsePostBusEmitResponse parses an HTTP response from a PostBusEmitWithResponse call
-func ParsePostBusEmitResponse(rsp *http.Response) (*PostBusEmitResponse, error) {
+// ParseEmitOnBusResponse parses an HTTP response from a EmitOnBusWithResponse call
+func ParseEmitOnBusResponse(rsp *http.Response) (*EmitOnBusResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &PostBusEmitResponse{
+	response := &EmitOnBusResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -15090,15 +15117,15 @@ func ParsePostBusEmitResponse(rsp *http.Response) (*PostBusEmitResponse, error) 
 	return response, nil
 }
 
-// ParsePostBusSubscribeResponse parses an HTTP response from a PostBusSubscribeWithResponse call
-func ParsePostBusSubscribeResponse(rsp *http.Response) (*PostBusSubscribeResponse, error) {
+// ParseSubscribeToBusResponse parses an HTTP response from a SubscribeToBusWithResponse call
+func ParseSubscribeToBusResponse(rsp *http.Response) (*SubscribeToBusResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &PostBusSubscribeResponse{
+	response := &SubscribeToBusResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -15151,15 +15178,15 @@ func ParsePostBusSubscribeResponse(rsp *http.Response) (*PostBusSubscribeRespons
 	return response, nil
 }
 
-// ParsePostResourcesResponse parses an HTTP response from a PostResourcesWithResponse call
-func ParsePostResourcesResponse(rsp *http.Response) (*PostResourcesResponse, error) {
+// ParseUploadResourceResponse parses an HTTP response from a UploadResourceWithResponse call
+func ParseUploadResourceResponse(rsp *http.Response) (*UploadResourceResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &PostResourcesResponse{
+	response := &UploadResourceResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -15205,15 +15232,15 @@ func ParsePostResourcesResponse(rsp *http.Response) (*PostResourcesResponse, err
 	return response, nil
 }
 
-// ParseGetResourcesIdResponse parses an HTTP response from a GetResourcesIdWithResponse call
-func ParseGetResourcesIdResponse(rsp *http.Response) (*GetResourcesIdResponse, error) {
+// ParseGetResourceRepresentationResponse parses an HTTP response from a GetResourceRepresentationWithResponse call
+func ParseGetResourceRepresentationResponse(rsp *http.Response) (*GetResourceRepresentationResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetResourcesIdResponse{
+	response := &GetResourceRepresentationResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -15252,15 +15279,15 @@ func ParseGetResourcesIdResponse(rsp *http.Response) (*GetResourcesIdResponse, e
 	return response, nil
 }
 
-// ParseGetResourcesIdJsonldResponse parses an HTTP response from a GetResourcesIdJsonldWithResponse call
-func ParseGetResourcesIdJsonldResponse(rsp *http.Response) (*GetResourcesIdJsonldResponse, error) {
+// ParseGetResourceJsonLdResponse parses an HTTP response from a GetResourceJsonLdWithResponse call
+func ParseGetResourceJsonLdResponse(rsp *http.Response) (*GetResourceJsonLdResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetResourcesIdJsonldResponse{
+	response := &GetResourceJsonLdResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}

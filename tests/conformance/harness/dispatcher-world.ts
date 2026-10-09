@@ -84,12 +84,6 @@ function markMotivations(): Motivation[] {
   return Object.keys(params.schemas.MarkJobParams.discriminator.mapping) as Motivation[];
 }
 
-/** The types a job has. */
-function jobTypes(): JobType[] {
-  const schemas = spec().doc['components'] as { schemas: { JobType: { enum: JobType[] } } };
-  return schemas.schemas.JobType.enum;
-}
-
 /** Filters that between them take every job: one per motivation, and `yield`. */
 export function everyJob(): JobFilter[] {
   return [...markMotivations().map(marks), YIELDS];
@@ -184,9 +178,15 @@ export class BusClient {
     return { status: reply.status, text: reply.text };
   }
 
-  /** Create a job: a `mark` job names its resource and, in `params`, its motivation; a `yield` job names its context. */
-  create(jobType: JobType, params: Record<string, unknown>, resourceId?: string): Promise<Answer> {
-    return this.request('job:create', { jobType, params, ...(resourceId === undefined ? {} : { resourceId }) });
+  /**
+   * Create a job: a `mark` job names its resource and, in `params`, its
+   * motivation; a `yield` job names its context. The world keeps the id of a
+   * job that was admitted, to cancel it once its case is over.
+   */
+  async create(jobType: JobType, params: Record<string, unknown>, resourceId?: string): Promise<Answer> {
+    const answer = await this.request('job:create', { jobType, params, ...(resourceId === undefined ? {} : { resourceId }) });
+    if (answer.ok) this.world.unfinished.add((answer.payload['response'] as { jobId: string }).jobId);
+    return answer;
   }
 
   /** Create a job the dispatcher must admit, and answer its id. */
@@ -226,7 +226,7 @@ export class BusClient {
     });
   }
 
-  cancelRequest(request: { jobId?: string; jobType?: string }): Promise<Answer> {
+  cancelRequest(request: { jobId: string }): Promise<Answer> {
     return this.request('job:cancel-requested', request);
   }
 
@@ -259,6 +259,8 @@ export function refOf(job: RunningJob): JobRef {
 export class DispatcherWorld {
   /** How many times the Browser was asked each vocabulary read. */
   readonly browserReads = new Map<string, number>();
+  /** The jobs this world's cases created that are not known to be over. */
+  readonly unfinished = new Set<string>();
 
   private constructor(
     readonly world: World,
@@ -406,14 +408,18 @@ export class DispatcherWorld {
   }
 
   /**
-   * Cancel every pending job, type by type, so that no case's jobs are
-   * claimable by the next: a claim names jobs by what they are, not by id.
+   * Cancel every pending job a case of this world created, each by its id, so
+   * that no case's jobs are claimable by the next: a claim names jobs by what
+   * they are, not by id. A job the dispatcher did not act on is over, and is
+   * not asked about again; one it did act on may be running, and is asked
+   * about after every case until it is over.
    */
   async clearPending(): Promise<void> {
     const sweeper = await this.sidecar('sweeper');
-    for (const jobType of jobTypes()) {
-      const answer = await sweeper.cancelRequest({ jobType });
-      if (!answer.ok) throw new Error(`clearing the ${jobType} jobs was refused: ${JSON.stringify(answer.payload)}`);
+    for (const jobId of [...this.unfinished]) {
+      const answer = await sweeper.cancelRequest({ jobId });
+      if (!answer.ok) throw new Error(`cancelling ${jobId} was refused: ${JSON.stringify(answer.payload)}`);
+      if (!(answer.payload['response'] as { cancelled: boolean }).cancelled) this.unfinished.delete(jobId);
     }
   }
 

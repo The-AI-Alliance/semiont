@@ -53,12 +53,12 @@ ResourceViewer
 **Responsibilities**:
 
 - Routes to appropriate viewer based on MIME type category (`text`, `image`, `unsupported`)
-- Manages text selection for annotation creation using CodeMirror's `posAtDOM()` API
+- Manages text selection for annotation creation: CodeMirror's `posAtDOM()` gives each end's position in the editor's document, and `documentPositions()` its offset into the content
 - Emits `mark:requested` events with dual selectors (`TextPositionSelector` + `TextQuoteSelector`)
 - Subscribes to toolbar events and hover events via `useEventSubscriptions`
 - Pre-computes text segments via `segmentTextWithAnnotations()` (render-time anchoring)
 
-**Render-Time Anchoring**: `segmentTextWithAnnotations()` calls `anchorAnnotation()` from `@semiont/core`. Anchoring is **verbatim-only**: a `fast-path` when the stored offset already lands on the quote, otherwise an exact `indexOf(exact)` search disambiguated by prefix/suffix and (for repeated text) by position. When `exact` is not found verbatim, the renderer keeps the stored offset and flags the anchor low-confidence — it does **not** fuzzy-match. The fallback chain (normalized → case-insensitive → Levenshtein) lives at *write* time in `reconcileSelector`, which produces records whose two selectors already agree.
+**Render-Time Anchoring**: `segmentTextWithAnnotations()` calls `anchorAnnotation()` from `@semiont/core`. Anchoring is **verbatim-only**: a `fast-path` when the stored offset already lands on the quote, otherwise an exact `indexOf(exact)` search disambiguated by prefix/suffix and (for repeated text) by position. When `exact` is not found verbatim, the renderer keeps the stored offset and flags the anchor low-confidence — it does **not** fuzzy-match. The fallback chain (normalized → case-insensitive → Levenshtein) lives at *write* time in `reconcile`, which produces records whose two selectors already agree.
 
 ### BrowseView
 
@@ -103,7 +103,7 @@ Used by **AnnotateView only**. Renders source markdown with CodeMirror 6.
 content + annotations
 → segmentTextWithAnnotations() (verbatim render-time anchoring)
 → CodeMirrorRenderer
-→ convertSegmentPositions() (CRLF → LF binary search)
+→ convertSegmentPositions() (offsets into the content → positions in the editor's document)
 → StateField with incremental decoration updates
 → Widget decorations (reference resolution indicators)
 → Delegated event handlers (click, hover, widget interactions)
@@ -116,8 +116,8 @@ content + annotations
 → MemoizedMarkdown (renders once, memo'd)
 → DOM paint completes
 → buildSourceToRenderedMap() + buildTextNodeIndex()
-→ toOverlayAnnotations() + resolveAnnotationRanges()
-→ applyHighlights() (DOM Range overlay with data attributes)
+→ toOverlayAnnotations() + resolveAnnotationSpans() (offsets into the source → stretches of the rendered text)
+→ applyHighlights() (span overlay with data attributes)
 → Delegated event handlers (click, hover)
 ```
 
@@ -126,7 +126,8 @@ content + annotations
 ```text
 User selects text in AnnotateView
 → mouseup handler
-→ CodeMirror posAtDOM() for accurate source positions
+→ CodeMirror posAtDOM() for each end's position in the editor's document
+→ documentPositions().offsetAt() for its offset into the content
 → extractContext() for prefix/suffix
 → session.client.mark.request(
     resourceId,
@@ -151,22 +152,22 @@ Document → History:
 
 ### The Problem
 
-Annotations store positions in source markdown. Rendered HTML has different positions due to syntax characters (`#`, `**`, etc.) being consumed.
+Annotations store offsets into the source markdown: counts of Unicode code points from its start, exactly as decoded. What is displayed is counted differently. Rendered HTML has none of the syntax characters (`#`, `**`, etc.). And a JavaScript string, a DOM text node and CodeMirror's document are all indexed in UTF-16 code units, where a character outside the Basic Multilingual Plane is two.
 
 ### Solutions
 
-- **AnnotateView**: Displays source markdown directly — positions are 1:1. No mapping needed.
-- **BrowseView**: Uses `buildSourceToRenderedMap()` to compute a monotonic source→rendered position map by walking the markdown AST. Annotations are applied at rendered positions via DOM Ranges.
+- **AnnotateView**: Displays the source itself, so no character an offset counts is missing. `documentPositions()` converts between an offset and a position in the editor's document (below).
+- **BrowseView**: `buildSourceToRenderedMap()` aligns the source string with the rendered text, code unit by code unit, into a monotonic source→rendered position map. `resolveAnnotationSpans()` takes each annotation's two offsets into the source string, through the content's `textOffsets`, and looks them up in that map; `applyHighlights()` wraps those stretches of the rendered text in spans.
 
-### CRLF Handling
+### Offsets and the Editor's Document
 
-CodeMirror normalizes all line endings to LF. `convertSegmentPositions()` adjusts annotation positions from CRLF space to LF space using binary search over pre-computed CRLF positions.
+CodeMirror indexes its document in UTF-16 code units and holds every line break as one unit, where the content's CRLF is two code points. `documentPositions()` converts both ways, by binary search among the content's CRLFs and its characters outside the basic plane: `convertSegmentPositions()` places segments for display, and selection capture takes the editor's positions back to offsets.
 
 ## Performance
 
 - **Incremental decorations**: View created once, decorations updated via transactions
 - **Position-hint fast path**: `anchorAnnotation()` short-circuits when the stored `TextPositionSelector.start` already points at the exact quote text
-- **Binary search CRLF conversion**: O(log n) per segment instead of O(n)
+- **Binary search position conversion**: O(log n) per segment end, among the content's CRLFs and its characters outside the basic plane
 - **Annotation ID index**: O(1) click lookups via `Map<string, TextSegment>`
 - **Event delegation**: Container-level listeners instead of per-annotation/per-widget handlers
 - **Memoized markdown**: BrowseView's `MemoizedMarkdown` only re-renders when content changes
@@ -174,12 +175,13 @@ CodeMirror normalizes all line endings to LF. `convertSegmentPositions()` adjust
 ## Testing
 
 - Property-based tests verifying rendering axioms (see [ANNOTATION-RENDERING-PRINCIPLES.md](./ANNOTATION-RENDERING-PRINCIPLES.md))
-- `CodeMirrorRenderer.test.tsx` — CRLF position conversion, segment building
+- `codemirror-logic.test.ts` — segment placement in the editor's document, decoration and widget metadata
+- `code-point-offsets.test.ts`, `AnnotateView.code-point-offsets.test.tsx`, `BrowseView.code-point-offsets.test.tsx` — what an offset counts: selection capture and highlight placement after characters outside the basic plane, in CRLF documents, and across markdown syntax
 - `anchor-annotation.test.ts` — render-time anchoring strategies/confidence (verbatim-only)
 - `text-segmentation.test.ts` — strategy/confidence threading and the low-confidence affordance
 - `annotation-overlay.test.ts` — source→rendered mapping, overlay application, hover/click behavior
 - `BrowseView.test.tsx` — event delegation, annotation rendering, MIME routing
-- `fuzzy-anchor.test.ts` — write-time fuzzy matching used by `reconcileSelector` (normalized/case-insensitive/Levenshtein)
+- `fuzzy-anchor.test.ts` — write-time fuzzy matching used by `reconcile` (normalized/case-insensitive/Levenshtein)
 
 ## Related Documentation
 

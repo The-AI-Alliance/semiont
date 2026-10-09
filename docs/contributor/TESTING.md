@@ -12,7 +12,10 @@ How Semiont's test suites are organized, configured and run, and what CI gates o
 | Python | `packages/sdk-python` (`uv run pytest`) | The Python SDK: its transport, sign-in and session, its client, cache and live queries, the shared case tables, and the programs its README shows, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
 | Gateway conformance | [`tests/conformance/gateway`](../../tests/conformance/gateway/README.md) | A running gateway, black-box, against `specs/`: every declared operation, every response and stream message, and hand-written protocol cases, on both signal planes | A built gateway; `nats-server` 2.10 or later on `PATH` |
 | Dispatcher conformance | [`tests/conformance/dispatcher`](../../tests/conformance/dispatcher/README.md) | A running dispatcher, black-box, behind a real gateway on a real JetStream broker, against [JOBS.md](../protocol/JOBS.md) and every channel's schema | A built gateway and dispatcher; `nats-server` |
+| Archivist conformance | [`tests/conformance/archivist`](../../tests/conformance/archivist/README.md) | A running Archivist, black-box, on the bus through a real gateway, at its HTTP surface and in the files it keeps, against [ARCHIVIST.md](../protocol/ARCHIVIST.md) | A built gateway and Archivist; `git`; `nats-server` |
 | SDK conformance | [`tests/conformance/sdk`](../../tests/conformance/sdk/README.md) | Every SDK, through a driver, as a client of a real gateway: one corpus of cases, on the wire and in live queries | A built gateway and the Rust drivers; `@semiont/sdk` built; `uv` and Python 3.12 or later, for the Python drivers; `nats-server` |
+| Worker conformance | [`tests/conformance/worker`](../../tests/conformance/worker/README.md) | A worker written on each SDK, through a driver, with the suite playing the dispatcher, against [WORKER-CONTRACT.md](../protocol/WORKER-CONTRACT.md) | A built gateway and the Rust drivers; the packages built; `uv` and Python 3.12 or later, for the Python driver; `nats-server` |
+| Worker-service conformance | [`tests/conformance/worker-service`](../../tests/conformance/worker-service/README.md) | The Worker service as a running process, black-box, behind a real gateway, with the suite playing the dispatcher, the record, the Smelter and the model's provider, against [WORKER-SERVICE.md](../protocol/WORKER-SERVICE.md) | A built gateway; the packages built; `nats-server` |
 | End-to-end | [`tests/e2e`](../../tests/e2e/README.md) | The live Browser against a live gateway and knowledge base | A running stack and a user at its issuer |
 
 The conformance suites import nothing from what they check. One line per service and per SDK in [`harness/paths.ts`](../../tests/conformance/harness/paths.ts) names the implementation, so the same cases judge any implementation of the same spec.
@@ -72,7 +75,7 @@ Workspace suites run with nothing listening. CI's package matrix starts no datab
 
 ### How the conformance suites are configured
 
-[`tests/conformance/vitest.config.ts`](../../tests/conformance/vitest.config.ts) is its own config, not derived from the shared one. It holds three projects over one shared harness: `gateway`, `dispatcher` and `sdk`. It uses the `forks` pool with up to four workers, since each file boots its own gateways, issuer and broker, and a 60-second test timeout.
+[`tests/conformance/vitest.config.ts`](../../tests/conformance/vitest.config.ts) is its own config, not derived from the shared one. It holds six projects over one shared harness: `gateway`, `dispatcher`, `archivist`, `sdk`, `worker` and `worker-service`. It uses the `forks` pool with up to four workers, since each file boots its own gateways, issuer and broker, and a 60-second test timeout.
 
 Each gateway the suite starts gets a fresh temporary directory holding its `GatewayConfig` document, and an environment of `PATH` plus the variables the case sets, such as `JWT_SECRET` and `SEMIONT_OIDC_CLIENT_ID`. Nothing else from your shell reaches it.
 
@@ -116,16 +119,16 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
 
-`cargo test` checks the crates from inside. What the gateway and the dispatcher do as running services is the conformance suites' to check.
+`cargo test` checks the crates from inside. What the gateway, the dispatcher and the Archivist do as running services is the conformance suites' to check.
 
 ### The conformance suites
 
 ```bash
-cargo build --release -p semiont-gateway -p semiont-dispatcher -p semiont-conformance-drivers
+cargo build --release -p semiont-gateway -p semiont-dispatcher -p semiont-archivist -p semiont-conformance-drivers
 npm run build:packages
 cd tests/conformance
 npm ci
-npm run test:gateway        # or test:dispatcher, test:sdk; npm test runs all three
+npm run test:gateway        # or test:dispatcher, test:archivist, test:sdk, test:worker, test:worker-service; npm test runs all six
 ```
 
 Each script typechecks the cases first. What each suite checks is in its README, linked in the table above, and the gateway's is also described in [apps/gateway/docs/TESTING.md](../../apps/gateway/docs/TESTING.md).
@@ -298,7 +301,10 @@ Excluded from coverage: what the shared config excludes (see [One shared Vitest 
 | `test-gateway` | `cargo fmt --check`, `clippy -D warnings` and `cargo test` for the Rust workspace; which crates may depend on which; the published crates' set and version, and each packaged and built from its packaged form (`cargo publish --dry-run`); the licence policy for the crates each image links |
 | `gateway-conformance` | Builds the gateway and runs the conformance suite's `gateway` project |
 | `dispatcher-conformance` | Builds the gateway and the dispatcher and runs the `dispatcher` project |
+| `archivist-conformance` | Builds the gateway and the Archivist and runs the `archivist` project |
 | `sdk-conformance` | Builds the gateway, the Rust drivers and `@semiont/sdk`, installs the Python SDK's locked environment, and runs the `sdk` project |
+| `worker-conformance` | Builds the gateway, the Rust drivers and the packages, installs the Python SDK's locked environment, and runs the `worker` project |
+| `worker-service-conformance` | Builds the gateway and the packages and runs the `worker-service` project |
 | `test-sdk-python` | `mypy` and `pyright`, each as Linux and as Windows, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `packages/sdk-python`; the distributions a release uploads are built and checked |
 | `test-sdk-python-windows` | The Python SDK's sign-in store and state directory tests, on Windows |
 | `test-comprehensive` | The Browser suite again, after a full package build |

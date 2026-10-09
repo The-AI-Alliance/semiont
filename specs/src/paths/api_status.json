@@ -1,5 +1,6 @@
 {
   "get": {
+    "operationId": "getStatus",
     "summary": "Get Service Status",
     "description": "Get service status and feature availability",
     "tags": [

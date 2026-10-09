@@ -10,10 +10,30 @@
  */
 
 import { describe, it, expect, beforeAll, vi } from 'vitest';
+import { recordAnchorOutcome } from '@semiont/observability';
 import { AnnotationDetection } from '../../workers/annotation-detection';
 import { MockInferenceClient, type InferenceClient } from '@semiont/inference';
 import { DeterministicJobError } from '../../failure-class';
-import type { TagSchema } from '@semiont/core';
+import type { Logger, TagSchema } from '@semiont/core';
+import { textOffsets } from '@semiont/core';
+
+const LOGGER: Logger = {
+  debug: () => {},
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+  child: () => LOGGER,
+};
+
+/** No detection here is cancelled unless its test says so. */
+const NEVER = new AbortController().signal;
+
+// Real telemetry, watched: how many times an anchoring is counted is asserted
+// below, and everything else in the module runs as it does in the worker.
+vi.mock('@semiont/observability', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@semiont/observability')>();
+  return { ...actual, recordAnchorOutcome: vi.fn(actual.recordAnchorOutcome) };
+});
 
 // Test schema — supplied directly to detectTags (the dispatcher resolves
 // schemaId → schema before the worker sees the job).
@@ -58,9 +78,9 @@ describe('AnnotationDetection', () => {
       ])]);
 
       const result = await AnnotationDetection.detectHighlights(
-        testContent,
+        testContent, textOffsets(testContent),
         mockClient
-      );
+      , LOGGER, NEVER);
 
       expect(result).toHaveLength(2);
       expect(result[0].exact).toBe('Climate change');
@@ -78,8 +98,8 @@ describe('AnnotationDetection', () => {
       ])]);
 
       const result = await AnnotationDetection.detectHighlights(
-        testContent,
-        mockClient,
+        testContent, textOffsets(testContent),
+        mockClient, LOGGER, NEVER,
         'Focus on scientific terms'
       );
 
@@ -96,8 +116,8 @@ describe('AnnotationDetection', () => {
       ])]);
 
       const result = await AnnotationDetection.detectHighlights(
-        testContent,
-        mockClient,
+        testContent, textOffsets(testContent),
+        mockClient, LOGGER, NEVER,
         undefined,
         5  // density
       );
@@ -115,9 +135,9 @@ describe('AnnotationDetection', () => {
       ])]);
 
       const result = await AnnotationDetection.detectHighlights(
-        testContent,
+        testContent, textOffsets(testContent),
         mockClient
-      );
+      , LOGGER, NEVER);
 
       expect(result[0]).toHaveProperty('start');
       expect(result[0]).toHaveProperty('end');
@@ -128,9 +148,9 @@ describe('AnnotationDetection', () => {
       mockClient.setResponses([JSON.stringify([])]);
 
       const result = await AnnotationDetection.detectHighlights(
-        testContent,
+        testContent, textOffsets(testContent),
         mockClient
-      );
+      , LOGGER, NEVER);
 
       expect(result).toEqual([]);
     });
@@ -150,9 +170,9 @@ describe('AnnotationDetection', () => {
       ])]);
 
       const result = await AnnotationDetection.detectComments(
-        testContent,
+        testContent, textOffsets(testContent),
         mockClient
-      );
+      , LOGGER, NEVER);
 
       expect(result).toHaveLength(1);
       expect(result[0].comment).toBeDefined();
@@ -172,9 +192,9 @@ describe('AnnotationDetection', () => {
       ])]);
 
       const result = await AnnotationDetection.detectComments(
-        testContent,
+        testContent, textOffsets(testContent),
         mockClient
-      );
+      , LOGGER, NEVER);
 
       expect(result[0]).toHaveProperty('comment');
       expect(result[0]).toHaveProperty('exact');
@@ -196,8 +216,8 @@ describe('AnnotationDetection', () => {
 
       // Test with high density
       const result = await AnnotationDetection.detectComments(
-        testContent,
-        mockClient,
+        testContent, textOffsets(testContent),
+        mockClient, LOGGER, NEVER,
         undefined,
         undefined,
         10  // high density
@@ -221,9 +241,9 @@ describe('AnnotationDetection', () => {
       ])]);
 
       const result = await AnnotationDetection.detectAssessments(
-        testContent,
+        testContent, textOffsets(testContent),
         mockClient
-      );
+      , LOGGER, NEVER);
 
       expect(result).toHaveLength(1);
       expect(result[0].assessment).toBeDefined();
@@ -243,9 +263,9 @@ describe('AnnotationDetection', () => {
       ])]);
 
       const result = await AnnotationDetection.detectAssessments(
-        testContent,
+        testContent, textOffsets(testContent),
         mockClient
-      );
+      , LOGGER, NEVER);
 
       expect(result[0]).toHaveProperty('assessment');
       expect(result[0]).toHaveProperty('exact');
@@ -265,8 +285,8 @@ describe('AnnotationDetection', () => {
       ])]);
 
       const result = await AnnotationDetection.detectTags(
-        testContent,
-        mockClient,
+        testContent, textOffsets(testContent),
+        mockClient, LOGGER, NEVER,
         IMRAD_SCHEMA,
         'introduction'
       );
@@ -285,8 +305,8 @@ describe('AnnotationDetection', () => {
       ])]);
 
       const result = await AnnotationDetection.detectTags(
-        testContent,
-        mockClient,
+        testContent, textOffsets(testContent),
+        mockClient, LOGGER, NEVER,
         IMRAD_SCHEMA,
         'methods'
       );
@@ -295,6 +315,30 @@ describe('AnnotationDetection', () => {
       result.forEach(tag => {
         expect(tag.category).toBe('methods');
       });
+    });
+
+    it('anchors each tag once: it is counted once, and one that is nowhere in the text is said once', async () => {
+      mockClient.setResponses([JSON.stringify([
+        { exact: 'Rising global temperatures' },
+        { exact: 'XYZNOTPRESENTANYWHEREZYX' },
+      ])]);
+      const said = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn() };
+      const chunks: Array<{ matches: unknown[]; dropped: number }> = [];
+      vi.mocked(recordAnchorOutcome).mockClear();
+
+      const result = await AnnotationDetection.detectTags(
+        testContent, textOffsets(testContent), mockClient, said, NEVER, IMRAD_SCHEMA, 'methods', undefined, undefined, undefined,
+        async (matches, _cursor, dropped) => { chunks.push({ matches, dropped }); },
+      );
+
+      const anchored = { category: 'methods', exact: 'Rising global temperatures', start: 71, end: 97 };
+      expect(chunks).toEqual([{ matches: [expect.objectContaining(anchored)], dropped: 1 }]);
+      // What it returns is what it handed over, chunk by chunk.
+      expect(result).toEqual(chunks[0]!.matches);
+      // One anchoring of the tag the text has: one count of how it was anchored.
+      expect(vi.mocked(recordAnchorOutcome).mock.calls).toEqual([['tag', 'unique-match']]);
+      // And one line for the tag it has not.
+      expect(said.warn.mock.calls).toEqual([['Proposal dropped — text not found in source', { motivation: 'tagging', category: 'methods', text: 'XYZNOTPRESENTANYWHEREZYX' }]]);
     });
 
     it('should return unique tags', async () => {
@@ -307,8 +351,8 @@ describe('AnnotationDetection', () => {
       ])]);
 
       const result = await AnnotationDetection.detectTags(
-        testContent,
-        mockClient,
+        testContent, textOffsets(testContent),
+        mockClient, LOGGER, NEVER,
         IMRAD_SCHEMA,
         'results'
       );
@@ -325,8 +369,8 @@ describe('AnnotationDetection', () => {
       // validation surface.
       await expect(
         AnnotationDetection.detectTags(
-          testContent,
-          mockClient,
+          testContent, textOffsets(testContent),
+          mockClient, LOGGER, NEVER,
           IMRAD_SCHEMA,
           'invalid-category'
         )
@@ -343,9 +387,9 @@ describe('AnnotationDetection', () => {
 
       await expect(
         AnnotationDetection.detectComments(
-          testContent,
+          testContent, textOffsets(testContent),
           errorClient
-        )
+        , LOGGER, NEVER)
       ).rejects.toThrow('AI service unavailable');
     });
 
@@ -355,7 +399,7 @@ describe('AnnotationDetection', () => {
       mockClient.setResponses(['invalid json']);
 
       await expect(
-        AnnotationDetection.detectHighlights(testContent, mockClient)
+        AnnotationDetection.detectHighlights(testContent, textOffsets(testContent), mockClient, LOGGER, NEVER)
       ).rejects.toThrow();
     });
 
@@ -368,7 +412,7 @@ describe('AnnotationDetection', () => {
         ['max_tokens'],
       );
 
-      const pending = AnnotationDetection.detectHighlights(testContent, mockClient);
+      const pending = AnnotationDetection.detectHighlights(testContent, textOffsets(testContent), mockClient, LOGGER, NEVER);
       await expect(pending).rejects.toThrow(/truncat/i);
       // Deterministic class pinned on BOTH detection paths — see the matching
       // pin in entity-extractor.test.ts.
@@ -382,8 +426,8 @@ describe('AnnotationDetection', () => {
       mockClient.setResponses([JSON.stringify([])]);
 
       const result = await AnnotationDetection.detectComments(
-        testContent,
-        mockClient,
+        testContent, textOffsets(testContent),
+        mockClient, LOGGER, NEVER,
         customInstructions
       );
 
@@ -395,8 +439,8 @@ describe('AnnotationDetection', () => {
       mockClient.setResponses([JSON.stringify([])]);
 
       const result = await AnnotationDetection.detectComments(
-        testContent,
-        mockClient,
+        testContent, textOffsets(testContent),
+        mockClient, LOGGER, NEVER,
         undefined,
         'academic'  // tone
       );
@@ -409,8 +453,8 @@ describe('AnnotationDetection', () => {
       mockClient.setResponses([JSON.stringify([])]);
 
       const result = await AnnotationDetection.detectHighlights(
-        testContent,
-        mockClient,
+        testContent, textOffsets(testContent),
+        mockClient, LOGGER, NEVER,
         undefined,
         15  // density
       );
@@ -442,7 +486,7 @@ describe('AnnotationDetection', () => {
         SMALL_SHARED_LIMITS,
       );
 
-      const result = await AnnotationDetection.detectHighlights(bigContent, client);
+      const result = await AnnotationDetection.detectHighlights(bigContent, textOffsets(bigContent), client, LOGGER, NEVER);
 
       expect(client.calls.length).toBeGreaterThan(1);
       expect(result.some(h => h.exact === 'ALPHASPAN')).toBe(true);
@@ -461,7 +505,7 @@ describe('AnnotationDetection', () => {
         const emitted: string[][] = [];
 
         await AnnotationDetection.detectHighlights(
-          bigContent, client, undefined, undefined, undefined, undefined, undefined,
+          bigContent, textOffsets(bigContent), client, LOGGER, NEVER, undefined, undefined, undefined, undefined, undefined,
           async (matches) => { emitted.push(matches.map((m) => m.exact)); },
         );
 
@@ -486,7 +530,7 @@ describe('AnnotationDetection', () => {
         const emitted: any[] = [];
 
         await AnnotationDetection.detectTags(
-          bigContent, client, IMRAD_SCHEMA, 'introduction', undefined, undefined, undefined,
+          bigContent, textOffsets(bigContent), client, LOGGER, NEVER, IMRAD_SCHEMA, 'introduction', undefined, undefined, undefined,
           async (matches) => { emitted.push(...matches); },
         );
 
@@ -509,7 +553,7 @@ describe('AnnotationDetection', () => {
 
         await expect(
           AnnotationDetection.detectHighlights(
-            bigContent, client, undefined, undefined, undefined, undefined, undefined,
+            bigContent, textOffsets(bigContent), client, LOGGER, NEVER, undefined, undefined, undefined, undefined, undefined,
             async () => { throw new Error('mark:commit failed: sink down'); },
           ),
         ).rejects.toThrow(/sink down/);
@@ -523,7 +567,7 @@ describe('AnnotationDetection', () => {
         SMALL_SHARED_LIMITS,
       );
 
-      const result = await AnnotationDetection.detectHighlights(bigContent, client);
+      const result = await AnnotationDetection.detectHighlights(bigContent, textOffsets(bigContent), client, LOGGER, NEVER);
 
       const gamma = result.find(h => h.exact === 'GAMMASPAN');
       expect(gamma).toBeDefined();
@@ -539,7 +583,7 @@ describe('AnnotationDetection', () => {
         SMALL_SHARED_LIMITS,
       );
 
-      const pending = AnnotationDetection.detectHighlights(bigContent, client);
+      const pending = AnnotationDetection.detectHighlights(bigContent, textOffsets(bigContent), client, LOGGER, NEVER);
       await expect(pending).rejects.toThrow(/truncat/i);
       await expect(pending).rejects.toBeInstanceOf(DeterministicJobError);
     });
@@ -547,7 +591,7 @@ describe('AnnotationDetection', () => {
     it('makes one call with a derived (non-literal) output budget when content fits', async () => {
       const client = new MockInferenceClient([highlight('Climate change')]); // generous default limits
 
-      await AnnotationDetection.detectHighlights(testContent, client);
+      await AnnotationDetection.detectHighlights(testContent, textOffsets(testContent), client, LOGGER, NEVER);
 
       expect(client.calls.length).toBe(1);
       // No hand-tuned literal: the budget comes from limits().
@@ -559,7 +603,7 @@ describe('AnnotationDetection', () => {
       const client = new MockInferenceClient([highlight('ALPHASPAN')], undefined, SMALL_SHARED_LIMITS);
       const onChunk = vi.fn();
 
-      await AnnotationDetection.detectHighlights(bigContent, client, undefined, undefined, undefined, onChunk);
+      await AnnotationDetection.detectHighlights(bigContent, textOffsets(bigContent), client, LOGGER, NEVER, undefined, undefined, undefined, onChunk);
 
       const totalChunks = client.calls.length;
       expect(totalChunks).toBeGreaterThan(1);
@@ -577,6 +621,26 @@ describe('AnnotationDetection', () => {
         expect(total).toBe(bigContent.length);
         previous = consumed;
       });
+    });
+
+    it('asks about no chunk after the one a cancellation arrived on, and reports no boundary after it', async () => {
+      const client = new MockInferenceClient([highlight('ALPHASPAN'), highlight('GAMMASPAN')], undefined, SMALL_SHARED_LIMITS);
+      const controller = new AbortController();
+      const onActivity = vi.fn();
+      const emitted: unknown[][] = [];
+
+      await AnnotationDetection.detectHighlights(bigContent, textOffsets(bigContent), client, LOGGER, controller.signal, undefined, undefined, undefined, onActivity, undefined,
+        async (matches) => {
+          emitted.push(matches);
+          // The cancellation arrives while the first chunk's matches are being committed.
+          controller.abort();
+        });
+
+      // The chunk in hand was handed over; the model was not asked about the next, though text remained.
+      expect(client.calls).toHaveLength(1);
+      expect(emitted).toHaveLength(1);
+      // Where the next chunk would start is not reported: the job has stopped.
+      expect(onActivity).not.toHaveBeenCalled();
     });
 
     // ── adaptive sizing, end to end ────────────────────────────────────────
@@ -614,7 +678,7 @@ describe('AnnotationDetection', () => {
       it('grows the chunk once measured output shows the budget going unused', async () => {
         const { client, promptChars } = sizingClient({ inputTokens: 400, outputTokens: 60 });
 
-        await AnnotationDetection.detectHighlights(longContent, client);
+        await AnnotationDetection.detectHighlights(longContent, textOffsets(longContent), client, LOGGER, NEVER);
 
         expect(promptChars.length).toBeGreaterThan(2);
         expect(promptChars[1]!).toBeGreaterThan(promptChars[0]! * 1.2);
@@ -624,7 +688,7 @@ describe('AnnotationDetection', () => {
       it('eases the chunk down once measured output nears the budget', async () => {
         const { client, promptChars } = sizingClient({ inputTokens: 400, outputTokens: 1_150 });
 
-        await AnnotationDetection.detectHighlights(longContent, client);
+        await AnnotationDetection.detectHighlights(longContent, textOffsets(longContent), client, LOGGER, NEVER);
 
         expect(promptChars.length).toBeGreaterThan(2);
         expect(promptChars[1]!).toBeLessThan(promptChars[0]! * 0.85);
@@ -634,7 +698,7 @@ describe('AnnotationDetection', () => {
         // Absent is not zero — see the identical case on the reference path.
         const { client, promptChars } = sizingClient();
 
-        await AnnotationDetection.detectHighlights(longContent, client);
+        await AnnotationDetection.detectHighlights(longContent, textOffsets(longContent), client, LOGGER, NEVER);
 
         expect(promptChars.length).toBeGreaterThan(2);
         const steady = promptChars.slice(0, -1);
@@ -676,7 +740,7 @@ describe('AnnotationDetection', () => {
         const at = 30_000;
 
         await AnnotationDetection.detectHighlights(
-          longContent, client, undefined, undefined, undefined, undefined,
+          longContent, textOffsets(longContent), client, LOGGER, NEVER, undefined, undefined, undefined, undefined,
           { next: at, size: 600, found: 0, emitted: 0, errors: 0 },
         );
 
@@ -688,7 +752,7 @@ describe('AnnotationDetection', () => {
       it('reads the whole document when there is no checkpoint', async () => {
         const { client, prompts } = promptRecordingClient();
 
-        await AnnotationDetection.detectHighlights(longContent, client);
+        await AnnotationDetection.detectHighlights(longContent, textOffsets(longContent), client, LOGGER, NEVER);
 
         expect(prompts[0]).toContain('OPENING_MARKER');
       });
@@ -703,7 +767,7 @@ describe('AnnotationDetection', () => {
         undefined,
         SMALL_SHARED_LIMITS,
       );
-      const comments = await AnnotationDetection.detectComments(bigContent, commentsClient);
+      const comments = await AnnotationDetection.detectComments(bigContent, textOffsets(bigContent), commentsClient, LOGGER, NEVER);
       expect(commentsClient.calls.length).toBeGreaterThan(1);
       expect(comments.some(c => c.exact === 'GAMMASPAN')).toBe(true);
 
@@ -715,7 +779,7 @@ describe('AnnotationDetection', () => {
         undefined,
         SMALL_SHARED_LIMITS,
       );
-      const assessments = await AnnotationDetection.detectAssessments(bigContent, assessClient);
+      const assessments = await AnnotationDetection.detectAssessments(bigContent, textOffsets(bigContent), assessClient, LOGGER, NEVER);
       expect(assessClient.calls.length).toBeGreaterThan(1);
       expect(assessments.some(a => a.exact === 'GAMMASPAN')).toBe(true);
     });
@@ -739,7 +803,7 @@ describe('AnnotationDetection', () => {
 
         const activity: Array<[number, number]> = [];
         const pending = AnnotationDetection.detectHighlights(
-          testContent, client, undefined, undefined, undefined,
+          testContent, textOffsets(testContent), client, LOGGER, NEVER, undefined, undefined, undefined,
           (consumed, total) => activity.push([consumed, total]),
         );
 
@@ -766,7 +830,7 @@ describe('AnnotationDetection', () => {
       );
 
       const result = await AnnotationDetection.detectTags(
-        bigContent, client, IMRAD_SCHEMA, 'introduction',
+        bigContent, textOffsets(bigContent), client, LOGGER, NEVER, IMRAD_SCHEMA, 'introduction',
       );
 
       expect(client.calls.length).toBeGreaterThan(1);
@@ -779,7 +843,7 @@ describe('AnnotationDetection', () => {
 describe('temperature', () => {
   it('every motivation detects at temperature 0 — one constant, no per-motivation tuning', async () => {
     const client = new MockInferenceClient(['[]']);
-    await AnnotationDetection.detectHighlights('Some content here.', client as unknown as InferenceClient);
+    await AnnotationDetection.detectHighlights('Some content here.', textOffsets('Some content here.'), client as unknown as InferenceClient, LOGGER, NEVER);
     expect(client.calls[0]!.temperature).toBe(0);
   });
 });

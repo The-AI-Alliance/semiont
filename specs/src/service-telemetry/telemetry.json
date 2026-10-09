@@ -1,11 +1,16 @@
 {
-  "$comment": "The telemetry each Semiont service exports over OTLP, in any language: every span and metric, the services that export it, its kind, and the attributes it carries. A service exports the rows that list it and no others. Each service's conformance suite holds it to this table from outside, in both directions: every span and metric its observability cases receive must be a row listing the service, of the listed kind, carrying only listed attribute keys (and, where a row lists values, only those values); and every row listing it whose `when` is `export` or `traffic` must arrive, with every attribute not marked `only`. `when`: `export` — whenever export is on; `traffic` — once the service's observability cases' traffic has run; `supervised` — only under the supervisor (SUPERVISE_EVENTS and SUPERVISE_NAME set), checked by the environment cases; `fatal` — only on a fatal error, which no case causes. `planes`, where given, names the only signal planes a gateway row arrives on. `sdk` names the services that reach the bus through an SDK, and for each the SDK transports it uses: such a service also exports the rows specs/src/sdk-telemetry/telemetry.json lists for those transports, and its suite holds it to both tables as one. In a span name, `{channel}` is the bus channel. `{jobType}` is the job's type. Span kinds are OTLP's; a metric's `instrument` is `counter` (a monotonic sum), `up-down counter` (a non-monotonic sum), `gauge` or `histogram`. The worker's rows are stated ahead of its suite: no conformance suite holds a worker to them yet.",
+  "$comment": "The telemetry each Semiont service exports over OTLP, in any language: every span and metric, the services that export it, its kind, and the attributes it carries. A service exports the rows that list it and no others. Each service's conformance suite holds it to this table from outside, in both directions: every span and metric its observability cases receive must be a row listing the service, of the listed kind, carrying only listed attribute keys (and, where a row lists values, only those values); and every row listing it whose `when` is `export` or `traffic` must arrive, with every attribute not marked `only`. `when`: `export` — whenever export is on; `traffic` — once the service's observability cases' traffic has run; `supervised` — only under the supervisor (SUPERVISE_EVENTS and SUPERVISE_NAME set), checked by the environment cases; `fatal` — only on a fatal error, which no case causes. `planes`, where given, names the only signal planes a gateway row arrives on. `sdk` names the services that reach the bus through an SDK, and for each the SDK transports it uses, or, of a transport it uses part of, the rows it exports, by name: such a service also exports the rows specs/src/sdk-telemetry/telemetry.json lists for those transports, and those rows, and its suite holds it to both tables as one. In a span name, `{channel}` is the bus channel. `{jobType}` is the job's type. Span kinds are OTLP's; a metric's `instrument` is `counter` (a monotonic sum), `up-down counter` (a non-monotonic sum), `gauge` or `histogram`.",
   "sdk": {
     "dispatcher": [
       "bus"
     ],
     "archivist": [
       "bus"
+    ],
+    "worker": [
+      "bus",
+      "content.put",
+      "content.get"
     ]
   },
   "spans": [
@@ -170,6 +175,71 @@
           "key": "resource.id"
         }
       ]
+    },
+    {
+      "name": "detection:prepare",
+      "services": [
+        "worker"
+      ],
+      "kind": "internal",
+      "when": "traffic",
+      "meaning": "A mark job's reading of its resource: the description's media type, and the text read by it.",
+      "attributes": [
+        {
+          "key": "resource.id"
+        },
+        {
+          "key": "media.type"
+        }
+      ]
+    },
+    {
+      "name": "inference:structured",
+      "services": [
+        "worker"
+      ],
+      "kind": "internal",
+      "when": "traffic",
+      "meaning": "One generation a worker asked of its provider for an array of objects, from the request to its answer or its time bound.",
+      "attributes": [
+        {
+          "key": "inference.provider",
+          "values": [
+            "anthropic",
+            "ollama"
+          ]
+        },
+        {
+          "key": "inference.model"
+        },
+        {
+          "key": "inference.max_tokens"
+        }
+      ]
+    },
+    {
+      "name": "inference:text",
+      "services": [
+        "worker"
+      ],
+      "kind": "internal",
+      "when": "traffic",
+      "meaning": "One generation a worker asked of its provider for text, from the request to its answer or its time bound.",
+      "attributes": [
+        {
+          "key": "inference.provider",
+          "values": [
+            "anthropic",
+            "ollama"
+          ]
+        },
+        {
+          "key": "inference.model"
+        },
+        {
+          "key": "inference.max_tokens"
+        }
+      ]
     }
   ],
   "metrics": [
@@ -309,7 +379,8 @@
       "services": [
         "gateway",
         "dispatcher",
-        "archivist"
+        "archivist",
+        "worker"
       ],
       "instrument": "gauge",
       "when": "export",
@@ -321,7 +392,8 @@
       "services": [
         "gateway",
         "dispatcher",
-        "archivist"
+        "archivist",
+        "worker"
       ],
       "instrument": "gauge",
       "when": "export",
@@ -342,7 +414,8 @@
       "services": [
         "gateway",
         "dispatcher",
-        "archivist"
+        "archivist",
+        "worker"
       ],
       "instrument": "gauge",
       "when": "export",
@@ -364,7 +437,8 @@
       "services": [
         "gateway",
         "dispatcher",
-        "archivist"
+        "archivist",
+        "worker"
       ],
       "instrument": "gauge",
       "when": "supervised",
@@ -376,7 +450,8 @@
       "services": [
         "gateway",
         "dispatcher",
-        "archivist"
+        "archivist",
+        "worker"
       ],
       "instrument": "counter",
       "when": "fatal",
@@ -490,7 +565,8 @@
           "key": "job.outcome",
           "values": [
             "completed",
-            "failed"
+            "failed",
+            "cancelled"
           ]
         }
       ]
@@ -526,7 +602,293 @@
           "key": "job.outcome",
           "values": [
             "completed",
-            "failed"
+            "failed",
+            "cancelled"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "semiont.inference.calls",
+      "services": [
+        "worker"
+      ],
+      "instrument": "counter",
+      "when": "traffic",
+      "meaning": "The generations a worker asked of its providers, by how each ended.",
+      "attributes": [
+        {
+          "key": "inference.provider",
+          "values": [
+            "anthropic",
+            "ollama"
+          ]
+        },
+        {
+          "key": "inference.model"
+        },
+        {
+          "key": "inference.outcome",
+          "values": [
+            "success",
+            "error"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "semiont.inference.duration",
+      "services": [
+        "worker"
+      ],
+      "instrument": "histogram",
+      "when": "traffic",
+      "meaning": "How long each generation took, in milliseconds, the failing ones too.",
+      "attributes": [
+        {
+          "key": "inference.provider",
+          "values": [
+            "anthropic",
+            "ollama"
+          ]
+        },
+        {
+          "key": "inference.model"
+        },
+        {
+          "key": "inference.outcome",
+          "values": [
+            "success",
+            "error"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "semiont.inference.tokens",
+      "services": [
+        "worker"
+      ],
+      "instrument": "counter",
+      "when": "traffic",
+      "meaning": "The tokens a provider reported for a generation, read and written. A generation whose provider reports none adds nothing.",
+      "attributes": [
+        {
+          "key": "inference.provider",
+          "values": [
+            "anthropic",
+            "ollama"
+          ]
+        },
+        {
+          "key": "inference.model"
+        },
+        {
+          "key": "inference.direction",
+          "values": [
+            "input",
+            "output"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "semiont.detection.calls",
+      "services": [
+        "worker"
+      ],
+      "instrument": "counter",
+      "when": "traffic",
+      "meaning": "The generations a mark job made, by what asked, how each ended, how many times its piece had been halved, and whether it was the second asking of a piece too small to halve.",
+      "attributes": [
+        {
+          "key": "detection.label",
+          "values": [
+            "highlight",
+            "comment",
+            "assessment",
+            "tag",
+            "reference"
+          ]
+        },
+        {
+          "key": "detection.outcome",
+          "values": [
+            "success",
+            "truncated",
+            "timeout",
+            "collapsed",
+            "error"
+          ]
+        },
+        {
+          "key": "detection.depth"
+        },
+        {
+          "key": "detection.reroll",
+          "values": [
+            "true",
+            "false"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "semiont.detection.call.duration",
+      "services": [
+        "worker"
+      ],
+      "instrument": "histogram",
+      "when": "traffic",
+      "meaning": "How long each of those generations took, in milliseconds, the failing ones too.",
+      "attributes": [
+        {
+          "key": "detection.label",
+          "values": [
+            "highlight",
+            "comment",
+            "assessment",
+            "tag",
+            "reference"
+          ]
+        },
+        {
+          "key": "detection.outcome",
+          "values": [
+            "success",
+            "truncated",
+            "timeout",
+            "collapsed",
+            "error"
+          ]
+        },
+        {
+          "key": "detection.depth"
+        },
+        {
+          "key": "detection.reroll",
+          "values": [
+            "true",
+            "false"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "semiont.detection.call.items",
+      "services": [
+        "worker"
+      ],
+      "instrument": "histogram",
+      "when": "traffic",
+      "meaning": "The proposals each of those generations returned; none, for one that failed.",
+      "attributes": [
+        {
+          "key": "detection.label",
+          "values": [
+            "highlight",
+            "comment",
+            "assessment",
+            "tag",
+            "reference"
+          ]
+        },
+        {
+          "key": "detection.outcome",
+          "values": [
+            "success",
+            "truncated",
+            "timeout",
+            "collapsed",
+            "error"
+          ]
+        },
+        {
+          "key": "detection.depth"
+        },
+        {
+          "key": "detection.reroll",
+          "values": [
+            "true",
+            "false"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "semiont.detection.call.tokens",
+      "services": [
+        "worker"
+      ],
+      "instrument": "histogram",
+      "when": "traffic",
+      "meaning": "The tokens a provider reported for each of those generations, read and written. A generation whose provider reports none adds nothing.",
+      "attributes": [
+        {
+          "key": "detection.label",
+          "values": [
+            "highlight",
+            "comment",
+            "assessment",
+            "tag",
+            "reference"
+          ]
+        },
+        {
+          "key": "detection.outcome",
+          "values": [
+            "success",
+            "truncated",
+            "timeout",
+            "collapsed",
+            "error"
+          ]
+        },
+        {
+          "key": "detection.depth"
+        },
+        {
+          "key": "detection.reroll",
+          "values": [
+            "true",
+            "false"
+          ]
+        },
+        {
+          "key": "detection.direction",
+          "values": [
+            "input",
+            "output"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "semiont.detection.anchors",
+      "services": [
+        "worker"
+      ],
+      "instrument": "counter",
+      "when": "traffic",
+      "meaning": "The spans a mark job anchored in its text, by how each was found.",
+      "attributes": [
+        {
+          "key": "detection.label",
+          "values": [
+            "highlight",
+            "comment",
+            "assessment",
+            "tag",
+            "reference"
+          ]
+        },
+        {
+          "key": "anchor.method",
+          "values": [
+            "unique-match",
+            "context-recovered",
+            "first-of-many",
+            "fuzzy-match"
           ]
         }
       ]

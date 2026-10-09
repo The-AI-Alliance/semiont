@@ -144,6 +144,24 @@ eachPlane('content', (world) => {
     expect(read?.claims?.['azp']).toBe(GATEWAY_CLIENT);
   });
 
+  it('the pipe serves a worker\'s agent the stored bytes, as it serves a person', async () => {
+    const id = `res-${randomUUID()}`;
+    world().archivist.resources.set(id, { storageUri: `file://${id}`, mediaType: 'text/markdown' });
+    world().archivist.content.set(`file://${id}`, EVERY_BYTE);
+    const worker = await world().agent('ollama', 'reading-model', [SERVICE_ROLE, WORKER_ROLE]);
+
+    const reply = await call(world().origin, 'GET', `/resources/${id}`, { token: worker.token });
+    expect(reply.status, reply.text).toBe(200);
+    expect(nonConformance('get', '/resources/{id}', reply)).toEqual([]);
+    expect(reply.bytes.equals(EVERY_BYTE)).toBe(true);
+    expect(reply.headers.get('content-type')).toBe('text/markdown');
+
+    // The Archivist is asked by the gateway, as itself: the worker shows the
+    // Archivist nothing, and needs no address for it.
+    const read = world().archivist.calls.findLast((c) => c.path === `/resources/${id}/content`);
+    expect(read?.claims?.['azp']).toBe(GATEWAY_CLIENT);
+  });
+
   it('the media alias serves the same bytes to a bearer or to the resource\'s media token', async () => {
     const id = `res-${randomUUID()}`;
     world().archivist.resources.set(id, { storageUri: `file://${id}`, mediaType: 'application/pdf' });

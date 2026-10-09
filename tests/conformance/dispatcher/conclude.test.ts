@@ -166,4 +166,17 @@ withDispatcher('job:fail', (world) => {
     await creator.until(job.metadata.id, 'the job to be re-queued', (s) => s.status === 'pending');
     expect((await worker.claimed([marks('linking')])).metadata.unitCursors).toEqual({ Person: cursor });
   });
+
+  it('carries into the retry the cursor of a unit the failure names finished, and keeps the one a checkpoint left for a unit finished before', async () => {
+    const { creator, worker, job, ref } = await world().running({ motivation: 'linking', entityTypes: ['Person', 'Place'] });
+    const person = { next: 9, size: 10, found: 5, emitted: 4, errors: 1 };
+    const place = { next: 9, size: 7, found: 2, emitted: 2, errors: 0 };
+    await worker.checkpoint(job.metadata.id, ['Person'], { Person: person });
+    await settle();
+    await worker.fail(ref, 'interrupted', { completedUnits: ['Place'], unitCursors: { Place: place } });
+    await creator.until(job.metadata.id, 'the job to be re-queued', (s) => s.status === 'pending');
+    const retried = await worker.claimed([marks('linking')]);
+    expect([...retried.metadata.completedUnits!].sort()).toEqual(['Person', 'Place']);
+    expect(retried.metadata.unitCursors).toEqual({ Person: person, Place: place });
+  });
 });

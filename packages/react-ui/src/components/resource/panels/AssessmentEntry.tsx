@@ -69,6 +69,9 @@ function getAssessmentText(annotation: Annotation): string | null {
   return null;
 }
 
+/**
+ * @emits browse:click - This entry clicked. Payload: { annotationId: string }
+ */
 export function AssessmentEntry({
   session,
   assessment,

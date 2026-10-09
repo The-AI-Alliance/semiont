@@ -10,7 +10,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Logger } from '@semiont/core';
-import { JOB_CLAIM_CHANNELS } from '@semiont/sdk';
+import { JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS } from '@semiont/sdk';
 import { startAgentWorker, buildHealthPayload, WORKER_CHANNELS, WORKER_AWAITED_OPERATIONS, WORKER_ANSWERED_OPERATIONS, type AgentGroup, type AgentVitals } from '../worker-runtime';
 import { startWorkerProcess } from '../worker-process';
 import type { InferenceClient } from '@semiont/inference';
@@ -57,7 +57,7 @@ const noopLogger = {
 
 function makeGroup(): AgentGroup {
   return {
-    inference: { type: 'anthropic', model: 'claude-haiku-4-5' },
+    agent: { provider: 'anthropic', model: 'claude-haiku-4-5' },
     serves: [{ jobType: 'mark', params: { motivation: 'linking' } }, { jobType: 'yield' }],
     client: {} as InferenceClient, // never invoked — worker-process is mocked
   };
@@ -117,7 +117,6 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
       group: makeGroup(),
       gatewayBaseUrl: DIAL_URL,
       credential: CREDENTIAL,
-      contentReads: { getBinary: vi.fn() },
       reportsLimitsOf: [],
       logger: noopLogger,
     });
@@ -145,7 +144,6 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
       group: makeGroup(),
       gatewayBaseUrl: DIAL_URL,
       credential: CREDENTIAL,
-      contentReads: { getBinary: vi.fn() },
       reportsLimitsOf: [],
       logger: noopLogger,
     });
@@ -179,7 +177,6 @@ describe('worker-runtime — health vitals', () => {
       group: makeGroup(),
       gatewayBaseUrl: DIAL_URL,
       credential: CREDENTIAL,
-      contentReads: { getBinary: vi.fn() },
       reportsLimitsOf: [],
       logger: noopLogger,
     });
@@ -228,8 +225,9 @@ describe('worker-runtime — narrowed SSE subscription', () => {
     // An explicit pin, deliberately: growing a worker's subscription set must
     // stay a conscious edit to a literal list — that is the OOM protection.
     // The list names what the SDK's claiming names (`JOB_CLAIM_CHANNELS`:
-    // its replies, and the two broadcasts it reads) as well as the reply
-    // channels of what the worker itself awaits.
+    // its replies, and the two broadcasts it reads) and what a held job's
+    // commit names (`JOB_COMMIT_CHANNELS`) as well as the reply channels of
+    // what the worker itself awaits.
     expect([...WORKER_CHANNELS].sort()).toEqual([
       // Canonical-geometry consult replies — the pair without which every
       // PDF detection job fails.
@@ -244,10 +242,9 @@ describe('worker-runtime — narrowed SSE subscription', () => {
       'browse:resource-result',
       'job:claim-failed',
       'job:claimed',
-      // The durability ack. A worker that awaits a commit but does not
-      // subscribe its replies fails fast with `bus.unsubscribed` on the first
-      // unit — which is why this pin and WORKER_AWAITED_OPERATIONS move
-      // together.
+      // The durability ack. A worker whose held jobs commit but whose stream
+      // does not name the commit's replies fails fast with `bus.unsubscribed`
+      // on the first unit.
       'mark:commit-failed',
       'mark:commit-ok',
       // Declared broadcasts. Cooperative cancellation of the ACTIVE job:
@@ -261,22 +258,22 @@ describe('worker-runtime — narrowed SSE subscription', () => {
     ].sort());
   });
 
-  it('every worker channel is an awaited reply or one the claiming names — the manifest cannot drift', async () => {
+  it('every worker channel is an awaited reply, one the claiming names or one a commit names — the manifest cannot drift', async () => {
     // The set cannot drift from the registry, with the one legitimate
     // widening named. `job:cancel-requested` is NOT in BRIDGED_CHANNELS: it
     // is an operation request channel, so a plain "must be bridged" check
     // would reject exactly what the worker means to consume. Anything
-    // outside both sets is drift.
+    // outside the three sets is drift.
     const { BRIDGED_CHANNELS, replyChannelsFor } = await import('@semiont/core');
-    const replies = new Set<string>(replyChannelsFor(WORKER_AWAITED_OPERATIONS));
+    const replies = new Set<string>([...replyChannelsFor(WORKER_AWAITED_OPERATIONS), ...JOB_COMMIT_CHANNELS]);
     const declared = new Set<string>(JOB_CLAIM_CHANNELS);
     for (const channel of WORKER_CHANNELS) {
       expect(
         replies.has(channel) || declared.has(channel),
-        `${channel} is neither an awaited reply nor one the claiming names`,
+        `${channel} is neither an awaited reply, nor one the claiming names, nor one a commit names`,
       ).toBe(true);
     }
-    // The replies half must be registry-bridged.
+    // The replies half must be registry-bridged: the worker's own awaits, and a commit's.
     for (const channel of replies) expect(BRIDGED_CHANNELS).toContain(channel);
   });
 
@@ -310,7 +307,6 @@ describe('worker-runtime — one agent reports the pool\'s limits', () => {
         group: makeGroup(),
         gatewayBaseUrl: DIAL_URL,
         credential: CREDENTIAL,
-        contentReads: { getBinary: vi.fn() },
         reportsLimitsOf,
         logger: noopLogger,
       });

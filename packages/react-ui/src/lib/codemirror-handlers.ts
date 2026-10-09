@@ -15,6 +15,8 @@ import type { TextSegment } from './codemirror-logic';
  * Looks up the segment by annotation ID, then emits browse:click.
  *
  * @returns true if the click was handled (an annotation was clicked), false otherwise
+ *
+ * @emits browse:click - The annotation clicked. Payload: { annotationId: string }
  */
 export function handleAnnotationClick(
   target: HTMLElement,
@@ -77,6 +79,9 @@ export function handleWidgetClick(target: HTMLElement): WidgetClickResult {
 
 /**
  * Dispatch a widget click result to the session bus
+ *
+ * @emits browse:resource-open - Open the resource a resolved reference's widget names. Payload: { resourceId: string }
+ * @emits browse:click - The annotation whose widget was clicked. Payload: { annotationId: string }
  */
 export function dispatchWidgetClick(result: WidgetClickResult, session: SemiontSession): void {
   if (!result.handled) return;

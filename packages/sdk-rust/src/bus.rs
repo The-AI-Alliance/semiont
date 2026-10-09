@@ -66,6 +66,17 @@ pub struct Operation {
     pub failure: &'static str,
 }
 
+impl Operation {
+    /// The operation `R` is the request of.
+    pub(crate) const fn of<R: Request>() -> Operation {
+        Operation {
+            request: R::NAME,
+            result: <R::Result as Channel>::NAME,
+            failure: <R::Failure as Channel>::NAME,
+        }
+    }
+}
+
 include!(concat!(env!("OUT_DIR"), "/operations.rs"));
 
 /// The operation `request` is the request of, as the registry declares it.
@@ -438,15 +449,24 @@ impl Bus {
         payload: &R::Payload,
         within: Duration,
     ) -> Result<<R::Result as Channel>::Payload, SemiontError> {
-        let operation = Operation {
-            request: R::NAME,
-            result: <R::Result as Channel>::NAME,
-            failure: <R::Failure as Channel>::NAME,
-        };
+        Ok(self.result::<R>(payload, within).await?.payload)
+    }
+
+    /// A request, as far as the frame that answers it on its result channel:
+    /// its payload, and what came beside it, the trace it arrived in among
+    /// it. It fails as `request` does. The crate's own: a worker's claim
+    /// reads the trace its reply arrived in.
+    pub(crate) async fn result<R: Request>(
+        &self,
+        payload: &R::Payload,
+        within: Duration,
+    ) -> Result<Delivered<R::Result>, SemiontError> {
         let result = self
-            .result_of(&operation, payload_of(payload)?, within)
+            .result_of(&Operation::of::<R>(), payload_of(payload)?, within)
             .await?;
-        decoded::<R::Result>(result.payload)
-            .map_err(|why| TransportError::without_response(why, TransportErrorCode::Error).into())
+        delivered::<R::Result>(result).map_err(|undecodable| {
+            TransportError::without_response(undecodable.to_string(), TransportErrorCode::Error)
+                .into()
+        })
     }
 }
