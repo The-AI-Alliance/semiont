@@ -1,7 +1,7 @@
 /**
  * OCR page assembly — text and word offsets, built together.
  *
- * The offsets are the risky part: `buildPdfAnnotation` slices the assembled
+ * The offsets are the risky part: `annotationOfSpan` slices the assembled
  * text between a match's overlapping items and THROWS unless that substring
  * contains the match, so an off-by-one here surfaces as a failed annotation
  * rather than a slightly wrong box. That cannot be tested through a synthetic

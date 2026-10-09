@@ -279,8 +279,9 @@ with no text recovery at all, so the failure mode is "no improvement", never
 12. **Or AI detection.** `job:create` → a worker runs `prepareDetection`, which
     reads the stored artifact through `browse.resourceAnchoredText`, behind the
     same settle barrier the canvas waits on. A worker never extracts. The model
-    returns a verbatim quote; `locate()` turns that span into one
-    `FragmentSelector` per line; `buildPdfAnnotation` assembles the annotation.
+    returns a verbatim quote; `reconcile` finds it in the text, and
+    `annotationOfSpan` builds the annotation: `locate()` turns the span into
+    one `FragmentSelector` per line.
 
 ### How annotation events feed back
 

@@ -1,21 +1,19 @@
 /**
- * The reconciling of a quoted span, held to
- * specs/src/annotations/reconcile-cases.json: the table every worker runs, so
- * that what a model quoted lands on the same span of the text whoever
- * reconciles it.
+ * `reconcile`, held to specs/src/annotations/reconcile-cases.json: the table
+ * every SDK's `reconcile` runs, so that what a model quoted lands on the same
+ * span of the text whoever reconciles it.
  */
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { reconcileSelector, type LlmSelectorInput, type ReconciledSelector } from '../text-context';
-import { textOffsets } from '../text-offsets';
+import { reconcile, type QuotedText, type ReconciledSpan } from '../annotation-builders';
 
 interface Case {
   why: string;
   text: string;
-  quoted: LlmSelectorInput;
+  quoted: QuotedText;
   /** `null` when the span is refused. */
-  reconciled: ReconciledSelector | null;
+  reconciled: ReconciledSpan | null;
 }
 
 const table: { cases: Case[] } = JSON.parse(
@@ -29,7 +27,7 @@ describe('reconciling a quoted span (specs/src/annotations/reconcile-cases.json)
 
   for (const { why, text, quoted, reconciled } of table.cases) {
     it(why, () => {
-      expect(reconcileSelector(text, textOffsets(text), quoted)).toStrictEqual(reconciled);
+      expect(reconcile(text, quoted)).toStrictEqual(reconciled);
     });
   }
 });

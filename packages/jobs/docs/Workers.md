@@ -109,7 +109,7 @@ the cursor rather than re-running the job. And it never sees a user identity: an
 states what produced it, and who *requested* it is derived by the knowledge base from the job
 the commit cites.
 
-`ProcessorResult<R>` is `{ result: R }`, or `{ cancelled: { completedUnits } }` for a job a cancellation stopped. The annotations a processor commits are W3C Web Annotation objects shaped by the `buildAnnotation` closure it is handed — `buildTextAnnotation` for text, `buildPdfAnnotation` for geometry-bearing media. Both builders enforce write-time invariants, so a mis-anchored selector throws loudly instead of corrupting the KB: the span's `start` and `end` are two whole numbers inside the text, and its `prefix` and `suffix` are what the text has on either side; the text builder also holds the text from `start` to `end` to be `exact`, and the PDF builder the text its rectangles cover to contain it ([`builder-cases.json`](../../../specs/src/annotations/builder-cases.json)).
+`ProcessorResult<R>` is `{ result: R }`, or `{ cancelled: { completedUnits } }` for a job a cancellation stopped. The annotations a processor commits are W3C Web Annotation objects shaped by the `buildAnnotation` closure it is handed — `annotationOfSpan` (`@semiont/core`, and every SDK), over the text for text and over the PDF's anchored text for geometry-bearing media. The builder refuses a span that is not the text's, so a mis-anchored selector throws loudly (a `SpanRefusedError`, whose `code` names the refusal) instead of corrupting the KB: the span's `start` and `end` are two whole numbers inside the text, and its `prefix` and `suffix` are what the text has on either side; for a text the text from `start` to `end` is `exact`, and for a PDF the text its rectangles cover has `exact` in it ([`builder-cases.json`](../../../specs/src/annotations/builder-cases.json)).
 
 Generation is the odd one out — it produces *content*, not annotations:
 
@@ -193,7 +193,7 @@ type Held = HeldMarkParams<'describing'>;   // DescribingJobParams & { resourceI
 
 ### 2. Write the processor
 
-In `src/processors.ts`, add a function that takes content + inference + params, commits what it produces through `onChunkComplete`, and returns `{ result }`, or `{ cancelled }` when a cancellation stopped it. Shape each annotation with the `buildAnnotation` closure it is handed (never `buildTextAnnotation` directly — the closure is what carries this worker's `generator` and the media-appropriate selector), dedupe with `makeSpanDeduper()`, and put detection logic in `AnnotationDetection`:
+In `src/processors.ts`, add a function that takes content + inference + params, commits what it produces through `onChunkComplete`, and returns `{ result }`, or `{ cancelled }` when a cancellation stopped it. Shape each annotation with the `buildAnnotation` closure it is handed (never `annotationOfSpan` directly — the closure is what carries this worker's `generator` and the media-appropriate text), dedupe with `makeSpanDeduper()`, and put detection logic in `AnnotationDetection`:
 
 ```typescript
 export async function processDescribeJob(
@@ -336,11 +336,11 @@ The message vocabulary is the spec's `JobProgressMessage`; each client renders t
 
 ## Testing a Processor
 
-Because processors are pure, you test them with no bus, no session, and no queue. Mock `AnnotationDetection` (the LLM call), feed in content that actually contains your spans (the `buildTextAnnotation` invariant checks that the text from `start` to `end` is `exact`), and assert on the committed annotations and the `onProgress` calls:
+Because processors are pure, you test them with no bus, no session, and no queue. Mock `AnnotationDetection` (the LLM call), feed in content that actually contains your spans (`annotationOfSpan` refuses a span whose text from `start` to `end` is not `exact`), and assert on the committed annotations and the `onProgress` calls:
 
 ```typescript
 import { describe, it, expect, vi } from 'vitest';
-import { resourceId, textOffsets, type Annotation, type components } from '@semiont/core';
+import { annotationOfSpan, resourceId, textOffsets, type Annotation, type components } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 
 type Agent = components['schemas']['Agent'];
@@ -350,7 +350,7 @@ vi.mock('../workers/annotation-detection', () => ({
 }));
 
 import { AnnotationDetection } from '../workers/annotation-detection';
-import { processDescribeJob, buildTextAnnotation } from '../processors';
+import { processDescribeJob } from '../processors';
 
 const RID = resourceId('res-test');
 const GENERATOR: Agent = {
@@ -375,7 +375,7 @@ describe('processDescribeJob', () => {
     const committed: Annotation[] = [];
     const { result } = await processDescribeJob(
       content, offsets, inferenceClient, { motivation: 'describing', resourceId: RID },
-      (motivation, match, body) => buildTextAnnotation(content, offsets, RID, GENERATOR, motivation, match, body),
+      (motivation, span, body) => annotationOfSpan({ text: content, resourceId: RID, generator: GENERATOR, motivation, span, body }),
       progress,
       async (annotations) => { committed.push(...annotations); },
     );

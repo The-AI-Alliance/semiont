@@ -13,7 +13,8 @@
 //! manages (`discovery`); when a failure is worth another attempt; whether a
 //! job is one a claim takes (`job_filter`); a worker's side of the job queue:
 //! its claims, the jobs it holds and whether a failed one is retried
-//! (`claims`);
+//! (`claims`); the readers of an annotation, and the builders of the ones a
+//! worker commits (`annotations`);
 //! how a knowledge base names its principals and the realm's roles; and the
 //! bus log. It does no HTTP and links no telemetry:
 //! `semiont-http-transport` carries it over a gateway.
@@ -41,6 +42,7 @@ pub mod namespaces;
 pub mod refresh;
 pub mod resume;
 pub mod retry;
+mod rfc3339;
 pub mod roles;
 pub mod running;
 pub mod session;
@@ -50,6 +52,7 @@ pub mod state_unit;
 pub mod storage;
 #[cfg(feature = "testing")]
 pub mod testing;
+mod text_offsets;
 pub mod timing;
 pub mod transport;
 pub mod types;

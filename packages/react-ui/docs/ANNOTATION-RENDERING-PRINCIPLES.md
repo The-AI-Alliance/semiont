@@ -125,14 +125,14 @@ Markdown elements must render as their semantic HTML equivalents with proper sty
 
 The renderer trusts the stored selector and re-anchors only on a verbatim quote match. It never fuzzy-matches at render time.
 
-**Rationale:** The event log is the system of record. An annotation's `TextPositionSelector` and `TextQuoteSelector` are written to agree — `reconcileSelector` plus the `buildTextAnnotation` no-overlap invariant guarantee the content's text from offset `start` to offset `end` is `exact` at write time. The only legitimate render-time discrepancy is *positional drift*: content shifted above the span after the annotation was written, so the offset is stale but the exact text still exists byte-identical. Re-anchoring to that verbatim match is the W3C-intended use of `TextQuoteSelector`, and is safe because it demands identical text — no judgment call.
+**Rationale:** The event log is the system of record. An annotation's `TextPositionSelector` and `TextQuoteSelector` are written to agree — `reconcile` finds the span, and `annotationOfSpan` refuses one whose text from offset `start` to offset `end` is not `exact`, at write time. The only legitimate render-time discrepancy is *positional drift*: content shifted above the span after the annotation was written, so the offset is stale but the exact text still exists byte-identical. Re-anchoring to that verbatim match is the W3C-intended use of `TextQuoteSelector`, and is safe because it demands identical text — no judgment call.
 
 **What the renderer does** (`anchorAnnotation` in `@semiont/core`):
 - `fast-path` — the stored offset already lands on `exact`.
 - `unique-occurrence` / `context-disambiguated` / `position-tiebreaker` — `exact` is found verbatim; prefix/suffix and (for repeated text) position pick the occurrence.
 - `position-fallback` — `exact` is not found verbatim; render at the stored offset and flag low-confidence.
 
-**What it does not do:** fuzzy / normalized / Levenshtein recovery. A non-verbatim mismatch means the content representation diverged or the record is wrong — both upstream concerns, fixed at the source (canonical content, or re-running detection), not papered over at render. Fuzzy matching lives only at write time in `reconcileSelector`.
+**What it does not do:** fuzzy / normalized / Levenshtein recovery. A non-verbatim mismatch means the content representation diverged or the record is wrong — both upstream concerns, fixed at the source (canonical content, or re-running detection), not papered over at render. Fuzzy matching lives only at write time in `reconcile`.
 
 **Affordance:** every anchor carries a `strategy` and `confidence`. Anything below `confidence: 'high'` gets the `.annotation-low-confidence` class (dotted underline), a hover tooltip naming the strategy, and a one-shot `console.warn`, so corpus-wide anchor drift surfaces instead of staying invisible.
 

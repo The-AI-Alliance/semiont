@@ -15,54 +15,26 @@ import { DEFAULT_MAX_TOKENS, generateResourceFromTopic } from './workers/generat
 import { compileTypst, MAX_COMPILE_REPAIRS } from './workers/generation/typst-compiler';
 import { withinByteBudget, MAX_PDF_BYTES } from '@semiont/content';
 import { resolveCitationTokens, collectCitableIds, type GenerationCitation } from './workers/generation/citation-resolver';
-import { annotationIdFor } from '@semiont/event-sourcing';
-import { GENERATABLE_MEDIA_TYPES, type Annotation, type GenerationJobParams, type Logger, type ResourceId, type SupportedMediaType, type components, type JobDetectionResult, type UnitCursor } from '@semiont/core';
-import { reconcileSelector, createFragmentSelector, locate, textOffsets, type ReconciledSelector, type AnchoredText, type TextOffsets } from '@semiont/core';
+import { GENERATABLE_MEDIA_TYPES, type Annotation, type GenerationJobParams, type Logger, type SupportedMediaType, type components, type JobDetectionResult, type UnitCursor } from '@semiont/core';
+import { reconcile, type TextOffsets, type TextSpan } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import type { HeldMarkParams } from './types';
 import { DeterministicJobError } from './failure-class';
 import { noteAnchor } from './workers/detection/anchor-audit';
 import { runBounded } from './workers/detection/bounded-concurrency';
 
-type Agent = components['schemas']['Agent'];
-
-/** A detected span — offsets into the extracted `.text`, in code points, plus optional context. */
-export type SpanMatch = { exact: string; start: number; end: number; prefix?: string; suffix?: string };
-
 /**
- * The span half of an annotation's identity. Annotation ids are
- * content-addressed — hashed from the resource, motivation, anchor and body —
- * so re-emitting an annotation from a retry or a resumed unit is a no-op; this
- * is the anchor.
- *
- * Shared by both builders because the span IS the same fact in both — the PDF
- * path additionally persists geometry for it, but that geometry is derived
- * from these offsets, so hashing it too would add no distinguishing power and
- * would make an id depend on a layout the text path cannot reproduce.
- *
- * `exact` is included, not just the offsets: after a content update the same
- * offsets cover different text, and that is a different annotation.
- *
- * The offsets count code points, as the stored selector's do, so the id of a
- * span is the same whichever language's worker found it.
- *
- * An annotation of a resource as a whole has no span, and its anchor is the
- * empty string (specs/src/annotations/builder-cases.json).
- */
-export function spanAnchor(match: Pick<SpanMatch, 'start' | 'end' | 'exact'>): string {
-  return `${match.start}:${match.end}:${match.exact}`;
-}
-
-/**
- * Turn a detected span into a stored annotation. The media type, resource, and
- * attribution context are closed over by the caller (see `prepareDetection`);
- * the detection processor supplies only the motivation, the span, and any
- * motivation-specific body. This is the single axis that varies by media type,
- * so the detection processors themselves stay media-agnostic.
+ * Turn a detected span into a stored annotation: `annotationOfSpan`
+ * (`@semiont/core`), with the text or the PDF's anchored text, the resource
+ * and the generator closed over by the caller (see `prepareDetection`). The
+ * detection processor supplies only the motivation, the span (its offsets
+ * into the text the model was asked about, in code points), and any
+ * motivation-specific body. This is the single axis that varies by media
+ * type, so the detection processors themselves stay media-agnostic.
  */
 export type BuildAnnotation = (
   motivation: Motivation,
-  match: SpanMatch,
+  span: TextSpan,
   body?: Annotation['body'],
 ) => Annotation;
 
@@ -121,21 +93,6 @@ function stoppedAt(unit: string, next: number, offsets: TextOffsets): { cancelle
 }
 
 /**
- * Strip the audit-only fields (`anchorMethod`, `llmOffsets`, `matchQuality`)
- * off a `ReconciledSelector` so the rest is shaped like a match input for
- * `buildTextAnnotation`. The audit info belongs in logs, not in storage.
- */
-function toMatch(r: ReconciledSelector): SpanMatch {
-  return {
-    exact: r.exact,
-    start: r.start,
-    end: r.end,
-    ...(r.prefix !== undefined ? { prefix: r.prefix } : {}),
-    ...(r.suffix !== undefined ? { suffix: r.suffix } : {}),
-  };
-}
-
-/**
  * Identity key for a built annotation: motivation + anchored span + body.
  * Two annotations with the same key are the same event written twice.
  */
@@ -169,7 +126,7 @@ function annotationDedupeKey(ann: Record<string, unknown>): string {
  *
  * Two things produce such repeats. Adjacent chunks overlap, so the same span
  * arrives twice. And each LLM-emitted span is reconciled independently (no
- * cross-entry coordination), with `reconcileSelector`'s `first-of-many`
+ * cross-entry coordination), with `reconcile`'s `first-of-many`
  * fallback anchoring every undisambiguated entry at the *same* first
  * occurrence — so a phrase repeated in non-distinctive context yields several
  * entries on one span.
@@ -194,239 +151,6 @@ function makeSpanDeduper(): (annotations: Annotation[]) => Annotation[] {
       out.push(ann);
     }
     return out;
-  };
-}
-
-/** Which builder a write-time check speaks for. */
-type Builder = 'buildTextAnnotation' | 'buildPdfAnnotation';
-
-/**
- * The text from one offset to another. Both are offsets of the text (whole
- * numbers from 0 to its length in code points), the first no greater than the
- * second: `offsets.indexAt` throws at anything else.
- */
-function between(text: string, offsets: TextOffsets, from: number, to: number): string {
-  return text.slice(offsets.indexAt(from), offsets.indexAt(to));
-}
-
-/**
- * Refuse a span that is no span of the text: one given backwards, one that
- * runs past the end, one that starts below zero, one stated in fractions.
- * Whatever words lie between its two numbers, it names no stretch of the
- * text, and an annotation built on it would state offsets that anchor nothing.
- */
-function assertSpanOfText(builder: Builder, offsets: TextOffsets, match: Pick<SpanMatch, 'start' | 'end'>, resourceId: ResourceId, motivation: Motivation): void {
-  const { start, end } = match;
-  if (Number.isInteger(start) && Number.isInteger(end) && 0 <= start && start <= end && end <= offsets.length) return;
-  throw new Error(
-    `${builder} invariant: offsets ${start} to ${end} are not a span of a text of ${offsets.length} code points, ` +
-      `for resource ${resourceId}, motivation ${motivation}`,
-  );
-}
-
-/**
- * Refuse a prefix or a suffix that is not what the text has on that side of
- * the span: as many code points of it as the prefix or suffix has itself, or
- * all there are if fewer. `match` is a span of the text (`assertSpanOfText`).
- */
-function assertContextOfSpan(builder: Builder, text: string, offsets: TextOffsets, match: SpanMatch, resourceId: ResourceId, motivation: Motivation): void {
-  if (match.prefix !== undefined) {
-    const from = Math.max(0, match.start - textOffsets(match.prefix).length);
-    if (between(text, offsets, from, match.start) !== match.prefix) {
-      throw new Error(
-        `${builder} invariant: the prefix is not the text just before offset ${match.start} ` +
-          `for resource ${resourceId}, motivation ${motivation}`,
-      );
-    }
-  }
-  if (match.suffix !== undefined) {
-    const to = Math.min(offsets.length, match.end + textOffsets(match.suffix).length);
-    if (between(text, offsets, match.end, to) !== match.suffix) {
-      throw new Error(
-        `${builder} invariant: the suffix is not the text just after offset ${match.end} ` +
-          `for resource ${resourceId}, motivation ${motivation}`,
-      );
-    }
-  }
-}
-
-/**
- * `offsets` is the content's own (`textOffsets(content)`), made once where the
- * content is first held. `match.start` and `match.end` are offsets: they count
- * code points, and so does the length of a prefix or a suffix checked here.
- */
-export function buildTextAnnotation(
-  content: string,
-  offsets: TextOffsets,
-  resourceId: ResourceId,
-  generator: Agent,
-  motivation: Motivation,
-  match: SpanMatch,
-  // Body may be a single AnnotationBody object or a non-empty array of
-  // them, OR omitted entirely. W3C treats body as optional; annotations
-  // whose motivation alone conveys meaning (highlighting) legitimately
-  // skip it. Every other motivation passes something; the
-  // processor that calls this makes the choice per-motivation.
-  body?: Annotation['body'],
-) {
-  // Write-time invariant. Every selector that reaches storage must be
-  // internally consistent with the source content. If a worker bypasses
-  // `reconcileSelector` or a future change introduces overlap, the
-  // throw fires loudly here instead of corrupting the KB.
-  assertSpanOfText('buildTextAnnotation', offsets, match, resourceId, motivation);
-  if (between(content, offsets, match.start, match.end) !== match.exact) {
-    throw new Error(
-      `buildTextAnnotation invariant: the text from offset ${match.start} to offset ${match.end}, which count code points, is not exact ` +
-        `for resource ${resourceId}, motivation ${motivation}`,
-    );
-  }
-  assertContextOfSpan('buildTextAnnotation', content, offsets, match, resourceId, motivation);
-
-  // The worker says WHAT produced this — `generator`, which carries the
-  // model's parameters — and nothing about who asked. `creator` and
-  // `wasAttributedTo` are derived by the Stower from the cited job's own
-  // events; a payload carrying them is refused.
-  return {
-    '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-    'type': 'Annotation' as const,
-    'id': annotationIdFor({ resourceId: resourceId as string, motivation, anchor: spanAnchor(match), body }),
-    motivation,
-    generator,
-    created: new Date().toISOString(),
-    target: {
-      type: 'SpecificResource' as const,
-      source: resourceId,
-      selector: [
-        { type: 'TextPositionSelector' as const, start: match.start, end: match.end },
-        {
-          type: 'TextQuoteSelector' as const,
-          exact: match.exact,
-          ...(match.prefix && { prefix: match.prefix }),
-          ...(match.suffix && { suffix: match.suffix }),
-        },
-      ],
-    },
-    ...(body !== undefined ? { body } : {}),
-  };
-}
-
-/**
- * PDF sibling of `buildTextAnnotation`. The model returns the same
- * `{ exact, start, end, prefix?, suffix? }` match over the extracted text
- * layer's `text`; geometry comes from the layer, never the model.
- *
- * `target.selector` = one `FragmentSelector` per line (`locate` unions the
- * overlapping text-layer items into per-line viewrects) plus a
- * `TextQuoteSelector` anchor. No `TextPositionSelector`: the extracted text
- * layer is a derived artifact, not the stored content, so its offsets are
- * not a durable anchor.
- *
- * `offsets` is the anchored text's own (`textOffsets(anchored.text)`), made
- * once where that text is first held. The match's offsets and the items' count
- * its code points.
- *
- * **And the `id` is hashed over exactly those offsets** — `annotationIdFor` gets
- * `spanAnchor(match)`, i.e. `${start}:${end}:${exact}`. That is worth stating
- * plainly, because it sits in tension with the paragraph above: identity here
- * depends on something the annotation refuses to store, on the grounds that it is
- * not durable. The consequence is not a corrupt write but an invisible one — an
- * extraction that moved would re-identify the same visual span, and the two
- * annotations would agree in every stored field (same rects, same quoted text) and
- * differ only in `id`, so every dedupe layer would correctly let both through.
- *
- * It is left as it is on evidence, not by oversight. The offsets come from a
- * derivation cached per content checksum and gated by a stamp that a release of
- * `@semiont/content`, the PDF engine or its traineddata busts by design; measured
- * across the caret-reachable engine move (pdfjs 6.2.108 → 6.3.289) over 1,192 pages
- * of real documents, they do not move, and `pdf-offset-stability.test.ts` in
- * `@semiont/content` fails if they ever do. The OCR path is unmeasured, and a
- * scanned document takes its whole text from there. If that gate ever fires, this
- * is the line to revisit: hashing the DURABLE anchor instead (page geometry plus
- * `exact`) makes identity depend only on what the annotation carries — at the cost
- * of one round of new ids for every PDF annotation minted afterwards.
- *
- * Write-time invariant (geometry <-> text): geometry is item-level (word runs),
- * so the covered items' text must *contain* `exact` (whitespace-normalized) —
- * containment, not reconstruction. An empty cover (no overlapping items -> no
- * rects) also fails. Throws loudly, naming the resource + motivation, rather
- * than persisting geometry that doesn't back the quoted text.
- *
- * The span is held to the anchored text first, and its prefix and suffix
- * after, exactly as a text span is held to its text: the quote this writes is
- * what re-anchoring reads, on a PDF as on a text.
- */
-export function buildPdfAnnotation(
-  anchored: AnchoredText,
-  offsets: TextOffsets,
-  resourceId: ResourceId,
-  generator: Agent,
-  motivation: Motivation,
-  match: SpanMatch,
-  body?: Annotation['body'],
-) {
-  assertSpanOfText('buildPdfAnnotation', offsets, match, resourceId, motivation);
-
-  // `locate` returns both the per-line rects and the overlap items it found;
-  // reuse `overlap` for the containment check rather than re-scanning layer.items.
-  const { rects, overlap } = locate(anchored, match.start, match.end);
-
-  const coveredText = overlap.length
-    ? between(
-        anchored.text,
-        offsets,
-        Math.min(...overlap.map((i) => i.start)),
-        Math.max(...overlap.map((i) => i.end)),
-      )
-    : '';
-  const normalize = (s: string) => s.replace(/\s+/g, ' ').trim();
-  // Two distinct failures, reported distinctly. Merged, both printed "covered
-  // text does not contain exact" — which sends anyone debugging an empty cover
-  // to inspect text matching that never ran. Same class deliberately: both stay
-  // plain `Error`, so `classifyFailure` leaves them unrecognized and therefore
-  // retryable (classification is one-sided — only KNOWN-deterministic failures
-  // skip the budget). No rects LOOKS deterministic, but the stored map is keyed
-  // by content checksum, so a retry after the bytes change reads a different
-  // map and can legitimately succeed.
-  if (rects.length === 0) {
-    throw new Error(
-      `buildPdfAnnotation invariant: no rects located for offsets ${match.start}-${match.end} ` +
-        `for resource ${resourceId}, motivation ${motivation}`,
-    );
-  }
-  if (!normalize(coveredText).includes(normalize(match.exact))) {
-    throw new Error(
-      `buildPdfAnnotation invariant: covered text does not contain exact ` +
-        `for resource ${resourceId}, motivation ${motivation}`,
-    );
-  }
-  assertContextOfSpan('buildPdfAnnotation', anchored.text, offsets, match, resourceId, motivation);
-
-  // As for the text builder: `generator` only; attribution is derived downstream.
-  return {
-    '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-    'type': 'Annotation' as const,
-    'id': annotationIdFor({ resourceId: resourceId as string, motivation, anchor: spanAnchor(match), body }),
-    motivation,
-    generator,
-    created: new Date().toISOString(),
-    target: {
-      type: 'SpecificResource' as const,
-      source: resourceId,
-      selector: [
-        ...rects.map((coord) => ({
-          type: 'FragmentSelector' as const,
-          conformsTo: 'http://tools.ietf.org/rfc/rfc3778' as const,
-          value: createFragmentSelector(coord),
-        })),
-        {
-          type: 'TextQuoteSelector' as const,
-          exact: match.exact,
-          ...(match.prefix && { prefix: match.prefix }),
-          ...(match.suffix && { suffix: match.suffix }),
-        },
-      ],
-    },
-    ...(body !== undefined ? { body } : {}),
   };
 }
 
@@ -857,7 +581,7 @@ export async function processReferenceJob(
         // made nothing: it is counted with those whose text is nowhere.
         let chunkErrors = dropped;
         for (const entity of chunkEntities) {
-          const reconciled = reconcileSelector(content, offsets, {
+          const reconciled = reconcile(content, {
             exact: entity.exact,
             ...(entity.prefix !== undefined ? { prefix: entity.prefix } : {}),
             ...(entity.suffix !== undefined ? { suffix: entity.suffix } : {}),
@@ -871,7 +595,7 @@ export async function processReferenceJob(
             continue;
           }
           noteAnchor('reference', entity.exact, reconciled.anchorMethod, logger);
-          built.push(buildAnnotation('linking', toMatch(reconciled), unresolvedBody));
+          built.push(buildAnnotation('linking', reconciled, unresolvedBody));
         }
         const fresh = dedupe(built);
         // What this chunk makes true ONCE IT IS DURABLE. Computed before the

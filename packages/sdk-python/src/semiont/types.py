@@ -4979,6 +4979,12 @@ class AnnotationTarget(WireModel, frozen=True):
     W3C Web Annotation target object - source is required, selector is optional
     """
 
+    type: Annotated[
+        Literal["SpecificResource"] | None,
+        Field(
+            description="Stated by the annotation of a span: the target is a part of its source, which the selector picks out. An annotation of a resource as a whole states none."
+        ),
+    ] = None
     source: Annotated[ResourceId, Field(description="The id of the resource being annotated")]
     selector: Annotated[
         AnnotationSelector | None,

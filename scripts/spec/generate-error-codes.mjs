@@ -30,7 +30,7 @@ function refuse(message) {
   process.exit(1);
 }
 
-const { table, busCodes, busByWire, unrecognized, transportCodes, byStatus, ranges, unclassified, jobCodes, sessionCodes, signInCodes, kbIdentityCodes } =
+const { table, busCodes, busByWire, unrecognized, transportCodes, byStatus, ranges, unclassified, jobCodes, sessionCodes, signInCodes, kbIdentityCodes, spanRefusalCodes } =
   readErrorCodes(TABLE, COMMAND_ERROR, refuse);
 
 // ── render ──────────────────────────────────────────────────────────────
@@ -69,9 +69,10 @@ ${ranges.map((entry) => `  if (status >= ${entry.statusFrom}) return ${JSON.stri
 ${union('JobErrorCode', table.job, jobCodes)}
 ${union('SemiontSessionErrorCode', table.session, sessionCodes)}
 ${union('SignInErrorCode', table.signIn, signInCodes)}
-${union('IdentityUnverifiableReason', table.kbIdentity, kbIdentityCodes)}`,
+${union('IdentityUnverifiableReason', table.kbIdentity, kbIdentityCodes)}
+${union('SpanRefusal', table.spanRefusal, spanRefusalCodes)}`,
 );
 
 console.log(
-  `generated ${busCodes.length} bus-request, ${transportCodes.length} transport, ${jobCodes.length} job, ${sessionCodes.length} session, ${signInCodes.length} sign-in and ${kbIdentityCodes.length} identity error codes → ${OUT}`,
+  `generated ${busCodes.length} bus-request, ${transportCodes.length} transport, ${jobCodes.length} job, ${sessionCodes.length} session, ${signInCodes.length} sign-in, ${kbIdentityCodes.length} identity and ${spanRefusalCodes.length} span-refusal error codes → ${OUT}`,
 );

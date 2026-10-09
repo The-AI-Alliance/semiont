@@ -17,13 +17,10 @@ import {
   getAnnotationExactText,
   getTextQuoteSelector,
   extractBoundingBox,
-} from '../web-annotation-utils';
-import {
   getTextPositionSelector,
   getSvgSelector,
   getFragmentSelector,
-  validateSvgMarkup,
-} from '../annotation-assembly';
+} from '../web-annotation-utils';
 
 import type { Annotation } from '../annotation-types';
 
@@ -233,28 +230,6 @@ describe('getFragmentSelector', () => {
 
   test('returns null for undefined', () => {
     expect(getFragmentSelector(undefined)).toBeNull();
-  });
-});
-
-describe('validateSvgMarkup', () => {
-  test('accepts valid SVG', () => {
-    const svg = '<svg xmlns="http://www.w3.org/2000/svg"><rect x="0" y="0" width="10" height="10"/></svg>';
-    expect(validateSvgMarkup(svg)).toBeNull();
-  });
-
-  test('rejects SVG without xmlns', () => {
-    const svg = '<svg><rect x="0" y="0" width="10" height="10"/></svg>';
-    expect(validateSvgMarkup(svg)).toContain('xmlns');
-  });
-
-  test('rejects SVG without closing tag', () => {
-    const svg = '<svg xmlns="http://www.w3.org/2000/svg"><rect x="0" y="0" width="10" height="10"/>';
-    expect(validateSvgMarkup(svg)).toContain('opening and closing tags');
-  });
-
-  test('rejects SVG without shape', () => {
-    const svg = '<svg xmlns="http://www.w3.org/2000/svg"><text>Hi</text></svg>';
-    expect(validateSvgMarkup(svg)).toContain('shape element');
   });
 });
 

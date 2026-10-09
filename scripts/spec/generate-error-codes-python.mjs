@@ -33,7 +33,7 @@ function refuse(message) {
   process.exit(1);
 }
 
-const { table, busCodes, busByWire, unrecognized, transportCodes, byStatus, ranges, unclassified, jobCodes, sessionCodes, signInCodes, kbIdentityCodes } =
+const { table, busCodes, busByWire, unrecognized, transportCodes, byStatus, ranges, unclassified, jobCodes, sessionCodes, signInCodes, kbIdentityCodes, spanRefusalCodes } =
   readErrorCodes(TABLE, COMMAND_ERROR, refuse);
 
 const vocabularies = [
@@ -43,6 +43,7 @@ const vocabularies = [
   ['SemiontSessionErrorCode', table.session, sessionCodes],
   ['SignInErrorCode', table.signIn, signInCodes],
   ['IdentityUnverifiableReason', table.kbIdentity, kbIdentityCodes],
+  ['SpanRefusal', table.spanRefusal, spanRefusalCodes],
 ];
 
 /** A vocabulary as a `Literal` union, and the same codes as a tuple to iterate. */

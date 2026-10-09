@@ -6,14 +6,13 @@
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/event-sourcing.svg)](https://www.npmjs.com/package/@semiont/event-sourcing)
 [![License](https://img.shields.io/npm/l/@semiont/event-sourcing.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-What a reader of a knowledge base's record needs: the materialized view of a resource, and the id an annotation is recorded under.
+What a reader of a knowledge base's record needs: the materialized view of a resource.
 
 The record itself is the [Archivist](../../docs/protocol/ARCHIVIST.md)'s. It appends every change to an event log in the knowledge base's working tree and materializes a view of each resource's current state. This package reads those views; it writes nothing.
 
 ## Who uses it
 
 - **The Librarian**, in [`@semiont/make-meaning`](../make-meaning/README.md), reads views with `FilesystemViewStorage` from the state tree the Archivist writes.
-- **[`@semiont/jobs`](../jobs/README.md)** uses `annotationIdFor`, so that the same annotation made twice has one id.
 
 **Building an application?** You do not need this package. An application reads a resource through [`@semiont/sdk`](../sdk/README.md) (`browse.resource`, `browse.events`), and writes by using the verbs.
 
@@ -24,12 +23,11 @@ The record itself is the [Archivist](../../docs/protocol/ARCHIVIST.md)'s. It app
 | `FilesystemViewStorage` | Reads a resource's view from `<resourcesDir>/<ab>/<cd>/<resourceId>.json` |
 | `ViewStorage` | The read it implements: `get(resourceId)` |
 | `ResourceView` | A view: the resource's descriptor, its annotations, and the sequence of the last event applied. The spec's `ResourceView` |
-| `annotationIdFor`, `AnnotationIdentity` | An annotation's id, from what makes it that annotation |
 
 ## Example
 
 ```typescript
-import { FilesystemViewStorage, annotationIdFor } from '@semiont/event-sourcing';
+import { FilesystemViewStorage } from '@semiont/event-sourcing';
 import { SemiontState } from '@semiont/core/node';
 import { resourceId } from '@semiont/core';
 
@@ -40,12 +38,6 @@ const view = await views.get(resourceId('doc-123'));
 if (view) {
   console.log(view.resource.name, view.annotations.annotations.length, view.lastSequence);
 }
-
-const id = annotationIdFor({
-  resourceId: 'doc-123',
-  motivation: 'highlighting',
-  anchor: '0:5:Hello',
-});
 ```
 
 ## What a change must keep
@@ -54,11 +46,10 @@ const id = annotationIdFor({
 - **A missing view is `null`.** So is a file that does not parse, which is logged. Anything else throws.
 - **An id becomes a file name only after it is checked.** `get` refuses a string that is not a `ResourceId`, so `..` never reaches the path.
 - **The view's shape is the spec's.** `ResourceView` is generated from the schema the Archivist writes to, in [`@semiont/core`](../core/README.md).
-- **An annotation's id is its content.** `annotationIdFor` hashes the resource, the motivation, the anchor and the body. Nothing about when or by whom it was emitted is an input, so emitting it again gives the same id.
 
 ## Documentation
 
-- [API reference](docs/API.md): reading a view, and annotation ids.
+- [API reference](docs/API.md): reading a view.
 - [The Archivist](../../docs/protocol/ARCHIVIST.md): where each file of the record is, and how each event changes the views.
 
 ## License

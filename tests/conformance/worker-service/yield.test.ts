@@ -11,7 +11,7 @@ import { SPEC_SOURCE } from '../harness/paths';
 import { WORKER_ROLE } from '../harness/roles';
 import { errorsOf, spec } from '../harness/spec';
 import { eachWorkerService, type RunningJob, type WorkerServiceWorld } from '../harness/worker-service-world';
-import { annotationIdOf, expectGenerations, expectProgress, generation, identity, report, settled, TEXT } from './support';
+import { annotationIdOf, expectGenerations, expectProgress, generation, identity, report, settled, TEXT, textAnnotation, withoutCreated } from './support';
 
 const SOURCE = 'res-ws-yield-source';
 /** The source's description, as the context a job is handed carries it. */
@@ -28,13 +28,6 @@ function yieldJob(w: WorkerServiceWorld, name: string, request: Record<string, u
   const validate = spec().component('GenerationJobParams');
   expect(validate(params), errorsOf(validate)).toBe(true);
   return w.queued(`job-ws-${name}`, 'yield', params);
-}
-
-/** An annotation a generation committed, with the members that are the worker's own to make (when it was made) taken away. */
-function made(annotation: unknown): Record<string, unknown> {
-  const { created, modified, ...rest } = annotation as Record<string, unknown>;
-  for (const at of [created, modified]) expect(typeof at === 'string' && new Date(at).toISOString() === at, `an instant: ${String(at)}`).toBe(true);
-  return rest;
 }
 
 /** What the first case asks for: the request whose prompt is kept as `yield-markdown`. */
@@ -103,9 +96,9 @@ eachWorkerService('a yield job', (world) => {
     const yielded = upload.resourceId;
 
     const commits = served.payloads('mark:commit');
-    // First, on the source: a link to what was made of it, anchored to the whole resource, and so nowhere on it.
+    // First, on the source: a link to what was made of it, an annotation of the resource as a whole, and so anchored nowhere on it.
     const linked = { type: 'SpecificResource', source: yielded, purpose: 'linking' };
-    expect({ ...commits[0], annotations: (commits[0]!['annotations'] as unknown[]).map(made) }).toEqual({
+    expect({ ...commits[0], annotations: withoutCreated(commits[0]!['annotations']) }).toEqual({
       resourceId: SOURCE,
       jobId: job.metadata.id,
       annotations: [
@@ -120,18 +113,12 @@ eachWorkerService('a yield job', (world) => {
         },
       ],
     });
-    // Then, on what was made: each cited claim, linked to the resource it cites. The claim is the sentence before the mark.
+    // Then, on what was made: each cited claim, linked to the resource it cites. The claim is the sentence before the mark,
+    // and its annotation is a span's as a detection's is: a position and a quote of its words, with no context.
     const cited = { type: 'SpecificResource', source: SOURCE, purpose: 'linking' };
-    const citation = (start: number, end: number, exact: string) => ({
-      '@context': 'http://www.w3.org/ns/anno.jsonld',
-      type: 'Annotation',
-      id: annotationIdOf(yielded, 'linking', `${start}:${end}:${exact}`, cited),
-      motivation: 'linking',
-      generator: w.generator(),
-      target: { source: yielded, selector: [{ type: 'TextPositionSelector', start, end }, { type: 'TextQuoteSelector', exact }] },
-      body: { type: 'SpecificResource', source: SOURCE, purpose: 'linking' },
-    });
-    expect({ ...commits[1], annotations: (commits[1]!['annotations'] as unknown[]).map(made) }).toEqual({
+    const citation = (start: number, end: number, exact: string) =>
+      textAnnotation(w.generator(), yielded, 'linking', annotationIdOf(yielded, 'linking', `${start}:${end}:${exact}`, cited), { start, end, exact }, cited);
+    expect({ ...commits[1], annotations: withoutCreated(commits[1]!['annotations']) }).toEqual({
       resourceId: yielded,
       jobId: job.metadata.id,
       annotations: [citation(0, 49, 'Ada Lovelace published the first program in 1843.'), citation(50, 96, 'Charles Babbage designed the engine in London.')],

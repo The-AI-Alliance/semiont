@@ -59,7 +59,6 @@ graph BT
     mcp --> api
 
     jobs --> sdk
-    jobs --> event
     jobs --> api
     jobs --> content
     jobs --> inference

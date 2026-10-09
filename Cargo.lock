@@ -2124,6 +2124,7 @@ dependencies = [
  "opentelemetry",
  "percent-encoding",
  "proptest",
+ "ring",
  "semiont",
  "semiont-codegen",
  "serde",

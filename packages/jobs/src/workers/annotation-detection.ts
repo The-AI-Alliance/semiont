@@ -152,7 +152,7 @@ export class AnnotationDetection {
       client, content, offsets, logger, signal,
       (chunk) => MotivationPrompts.buildCommentPrompt(chunk, instructions, tone, density, language, sourceLanguage),
       'comment', COMMENT_ELEMENT_SCHEMA,
-      (items) => MotivationParsers.parseComments(items, content, offsets, logger),
+      (items) => MotivationParsers.parseComments(items, content, logger),
       onActivity,
       resume,
       onChunkResults,
@@ -185,7 +185,7 @@ export class AnnotationDetection {
       client, content, offsets, logger, signal,
       (chunk) => MotivationPrompts.buildHighlightPrompt(chunk, instructions, density, sourceLanguage),
       'highlight', HIGHLIGHT_ELEMENT_SCHEMA,
-      (items) => MotivationParsers.parseHighlights(items, content, offsets, logger),
+      (items) => MotivationParsers.parseHighlights(items, content, logger),
       onActivity,
       resume,
       onChunkResults,
@@ -220,7 +220,7 @@ export class AnnotationDetection {
       client, content, offsets, logger, signal,
       (chunk) => MotivationPrompts.buildAssessmentPrompt(chunk, instructions, tone, density, language, sourceLanguage),
       'assessment', ASSESSMENT_ELEMENT_SCHEMA,
-      (items) => MotivationParsers.parseAssessments(items, content, offsets, logger),
+      (items) => MotivationParsers.parseAssessments(items, content, logger),
       onActivity,
       resume,
       onChunkResults,
@@ -275,7 +275,7 @@ export class AnnotationDetection {
       // Each proposal is anchored once, against the whole document, as the
       // other three motivations' are: what the loop returns is what it handed
       // over, chunk by chunk.
-      (items) => MotivationParsers.validateTagOffsets(MotivationParsers.parseTags(items, logger), content, offsets, category, logger),
+      (items) => MotivationParsers.validateTagOffsets(MotivationParsers.parseTags(items, logger), content, category, logger),
       onActivity,
       resume,
       onChunkResults,

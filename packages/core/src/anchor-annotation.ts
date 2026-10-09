@@ -2,9 +2,9 @@
  * Anchor a W3C Web Annotation to its rendered text.
  *
  * Render-time cleverness is deliberately limited to **verbatim** quote
- * matching. The annotation's two selectors are written to agree (the
- * write-side `reconcileSelector` + `buildTextAnnotation` invariant
- * guarantee the text from `start` to `end` is `exact`). At render time the
+ * matching. The annotation's two selectors are written to agree (on the
+ * write side `reconcile` finds the span, and `annotationOfSpan` refuses one
+ * whose text from `start` to `end` is not `exact`). At render time the
  * only legitimate discrepancy is *positional drift*: the document grew or
  * shrank above the span after the annotation was written, so the offset is
  * stale but the exact text still exists, byte-identical, elsewhere. That is

@@ -25,6 +25,7 @@ def test_each_vocabulary_is_its_table_s_codes_as_a_type_and_as_a_tuple() -> None
         "session": (error_codes.SemiontSessionErrorCode, error_codes.SEMIONT_SESSION_ERROR_CODES),
         "signIn": (error_codes.SignInErrorCode, error_codes.SIGN_IN_ERROR_CODES),
         "kbIdentity": (error_codes.IdentityUnverifiableReason, error_codes.IDENTITY_UNVERIFIABLE_REASONS),
+        "spanRefusal": (error_codes.SpanRefusal, error_codes.SPAN_REFUSALS),
     }
     assert set(vocabularies) == {name for name in CODES if name != "$comment"}
     for name, (union, listed) in vocabularies.items():

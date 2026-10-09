@@ -42,7 +42,7 @@ describe('locate', () => {
         expect(canvasY).toBeCloseTo(EXPECTED_CANVAS_Y);
     });
 
-    // The content→core handoff that buildPdfAnnotation depends on:
+    // The content→core handoff that `annotationOfSpan` depends on:
     // locate() emits PDF-point geometry, the core viewrect codec serializes it to
     // an RFC 3778 page=N&viewrect=... value and reads it back unchanged.
     it('round-trips locate() geometry through the core viewrect codec', async () => {

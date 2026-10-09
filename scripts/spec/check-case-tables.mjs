@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 // lint:spec-case-tables — the case tables that state what a worker does to a
-// text and to a model's reply, and the runner each must have.
+// text and to a model's reply, and the runners each must have.
 //
 // A rule that lives only in one implementation's code is that
 // implementation's. These tables are the rules a worker in any language is
-// held to: the TypeScript worker runs them today, and a worker written in
-// another language runs the same files.
+// held to. What an SDK gives a worker's author (what an offset counts, the
+// reconciling of a quote, the locating of a span of a PDF, the builders, the
+// id, the readers) is run by the TypeScript, Rust and Python SDKs, each
+// through its own code. What Semiont's worker alone does is run by that
+// worker.
 //
 // It fails when:
 //   - a table listed here does not exist, is not JSON, states no `$comment`
@@ -20,11 +23,11 @@
 //     from a count of UTF-16 code units or of bytes, so a table without one
 //     holds its rule to no count. These are every table here but one: what an
 //     offset counts, the chunker, the reconciling of a quote, the locating of
-//     a span of a PDF, the builder, the id (whose anchor states a span's
+//     a span of a PDF, the builders, the id (whose anchor states a span's
 //     offsets), the chunk plan, the citations, and the reading of a reply
 //     (whose items state where each passage is, and how long a piece was).
-//     The table of failure classes counts nothing and states no offset, and
-//     is held to nothing about its characters.
+//     The readers' table and the table of failure classes count nothing and
+//     state no offset, and are held to nothing about their characters.
 //
 // It reads the source files, so it cannot pass on a stale bundle.
 
@@ -35,26 +38,75 @@ import { fileURLToPath } from 'node:url';
 const REPO = resolve(fileURLToPath(import.meta.url), '../../..');
 
 /** Where these tables live. Every `*-cases.json` in one of them is listed below. */
-const DIRECTORIES = ['specs/src/text', 'specs/src/worker'];
+const DIRECTORIES = ['specs/src/text', 'specs/src/annotations', 'specs/src/worker'];
 
 /**
- * Each table, and the files that run it. `specs/src/annotations/` holds a
- * table of another census as well (the readers', `lint:client-surface`'s), so
- * its tables are listed here by name and the directory is not swept.
+ * Each table, and the files that run it.
  *
  * `countsCodePoints` marks a table whose rule counts or states an offset: it
  * must have a character outside the basic plane.
  */
 const TABLES = [
   // What a text offset counts.
-  { table: 'specs/src/text/offset-cases.json', runners: ['packages/core/src/__tests__/offset-cases.test.ts', 'packages/react-ui/src/lib/__tests__/code-point-offsets.test.ts'], countsCodePoints: true },
-  // What every worker does to a text.
-  { table: 'specs/src/text/chunk-cases.json', runners: ['packages/core/src/__tests__/chunk-cases.test.ts'], countsCodePoints: true },
-  { table: 'specs/src/annotations/reconcile-cases.json', runners: ['packages/core/src/__tests__/reconcile-cases.test.ts'], countsCodePoints: true },
-  { table: 'specs/src/annotations/pdf-locate-cases.json', runners: ['packages/core/src/__tests__/pdf-locate-cases.test.ts'], countsCodePoints: true },
-  { table: 'specs/src/annotations/builder-cases.json', runners: ['packages/jobs/src/__tests__/builder-cases.test.ts'], countsCodePoints: true },
-  { table: 'specs/src/annotations/id-cases.json', runners: ['packages/jobs/src/__tests__/id-cases.test.ts'], countsCodePoints: true },
+  {
+    table: 'specs/src/text/offset-cases.json',
+    runners: [
+      'packages/core/src/__tests__/offset-cases.test.ts',
+      'packages/react-ui/src/lib/__tests__/code-point-offsets.test.ts',
+      'packages/sdk-rust/src/text_offsets.rs',
+      'packages/sdk-python/tests/test_offsets.py',
+    ],
+    countsCodePoints: true,
+  },
+  // What an SDK gives a worker's author.
+  {
+    table: 'specs/src/annotations/reconcile-cases.json',
+    runners: [
+      'packages/core/src/__tests__/reconcile-cases.test.ts',
+      'packages/sdk-rust/tests/reconcile_cases.rs',
+      'packages/sdk-python/tests/test_reconcile.py',
+    ],
+    countsCodePoints: true,
+  },
+  {
+    table: 'specs/src/annotations/pdf-locate-cases.json',
+    runners: [
+      'packages/core/src/__tests__/pdf-locate-cases.test.ts',
+      'packages/sdk-rust/src/annotations/locate.rs',
+      'packages/sdk-python/tests/test_pdf_locate.py',
+    ],
+    countsCodePoints: true,
+  },
+  {
+    table: 'specs/src/annotations/builder-cases.json',
+    runners: [
+      'packages/core/src/__tests__/builder-cases.test.ts',
+      'packages/sdk/src/__tests__/annotation-builders.test.ts',
+      'packages/sdk-rust/tests/builder_cases.rs',
+      'packages/sdk-python/tests/test_annotation_builders.py',
+    ],
+    countsCodePoints: true,
+  },
+  {
+    table: 'specs/src/annotations/id-cases.json',
+    runners: [
+      'packages/core/src/__tests__/id-cases.test.ts',
+      'packages/sdk-rust/src/annotations/id.rs',
+      'packages/sdk-python/tests/test_annotation_ids.py',
+    ],
+    countsCodePoints: true,
+  },
+  {
+    table: 'specs/src/annotations/reader-cases.json',
+    runners: [
+      'packages/core/src/__tests__/annotation-reader-cases.test.ts',
+      'packages/sdk/src/__tests__/annotation-readers.test.ts',
+      'packages/sdk-rust/tests/annotation_reader_cases.rs',
+      'packages/sdk-python/tests/test_annotations.py',
+    ],
+  },
   // What Semiont's worker alone does.
+  { table: 'specs/src/text/chunk-cases.json', runners: ['packages/core/src/__tests__/chunk-cases.test.ts'], countsCodePoints: true },
   { table: 'specs/src/worker/chunk-plan-cases.json', runners: ['packages/jobs/src/__tests__/chunk-plan-cases.test.ts'], countsCodePoints: true },
   { table: 'specs/src/worker/parser-cases.json', runners: ['packages/jobs/src/__tests__/parser-cases.test.ts'], countsCodePoints: true },
   { table: 'specs/src/worker/citation-cases.json', runners: ['packages/jobs/src/__tests__/citation-cases.test.ts'], countsCodePoints: true },
@@ -115,4 +167,4 @@ if (failures.length > 0) {
   for (const message of failures) console.error(`✗ ${message}`);
   process.exit(1);
 }
-console.log(`✓ ${TABLES.length} case tables exist, each run by the runner it is listed with`);
+console.log(`✓ ${TABLES.length} case tables exist, each run by the runners it is listed with`);

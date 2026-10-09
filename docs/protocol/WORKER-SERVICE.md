@@ -299,8 +299,13 @@ job is one unit for each of its `categories`.
   `motivation`, the agent as `generator` ([G4](#agents)), `created`, a
   `target` of `type` `SpecificResource` with the resource as `source` and the
   span's `selector`, and the `body` of its kind, when its kind has one. It
-  states no `creator`: who asked for the job is the record's to say.
-  *Held by `worker-service/highlighting`.*
+  states no `creator`: who asked for the job is the record's to say. It
+  states no `modified`: `created` is the moment it was built, and what
+  becomes of it afterwards is the record's to say too. It is the annotation
+  of a span that
+  [`builder-cases.json`](../../specs/src/annotations/builder-cases.json)
+  states, as every SDK's `annotationOfSpan` builds one.
+  *Held by `worker-service/highlighting`, `specs/src/annotations/builder-cases.json`.*
 - **D12.** Its `id` is what the annotation is, hashed
   ([WORKER-CONTRACT A2](./WORKER-CONTRACT.md#committing-annotations)): the
   first 21 characters of the base64url SHA-256 of the canonical JSON of
@@ -655,8 +660,13 @@ focused on a resource or on an annotation.
   its `prompt` as `generationPrompt`, its `language` and its `entityTypes`.
   *Held by `worker-service/yield`.*
 - **Y6.** A job focused on a resource then commits, on that resource, one
-  annotation that links it to what was made: `motivation` `linking`, a
-  `target` that is the source with no selector, and a body of `type`
+  annotation that links it to what was made. It is an annotation of the
+  resource as a whole, as
+  [`builder-cases.json`](../../specs/src/annotations/builder-cases.json)
+  states one and every SDK's `annotationOfResource` builds it: `@context`,
+  `type`, the agent as `generator` and `created` as [D11](#the-annotation)
+  states them, and no `modified`; `motivation` `linking`; a `target` that is
+  the source as its `source` and nothing else; and a body of `type`
   `SpecificResource`, `source` the new resource and `purpose` `linking`. Its
   `id` is derived as [D12](#the-annotation) derives one, from the source, its
   motivation, its body, and the empty string as its `anchor`: it is anchored
@@ -665,12 +675,15 @@ focused on a resource or on an annotation.
   lifecycle message of the job names it as `annotationId`.
   *Held by `worker-service/yield`.*
 - **Y7.** The citations are committed on the new resource, as one batch: each
-  an annotation of `motivation` `linking`, its `target` the claim (a
-  `TextPositionSelector` and a `TextQuoteSelector` of its `exact`, offsets in
-  the document as uploaded, in code points), and its body of `type`
-  `SpecificResource`, `source` the cited resource and `purpose` `linking`.
-  Its `id` is derived as [D12](#the-annotation) derives one, from the new
-  resource, its motivation, its body, and the claim's `anchor`.
+  the annotation of a span, as [D11](#the-annotation) states one, of
+  `motivation` `linking`. Its `target` is of `type` `SpecificResource`, with
+  the new resource as `source` and the claim as `selector`: a
+  `TextPositionSelector` and a `TextQuoteSelector` of its `exact`, with no
+  `prefix` and no `suffix`, offsets in the document as uploaded, in code
+  points. Its body is of `type` `SpecificResource`, `source` the cited
+  resource and `purpose` `linking`. Its `id` is derived as
+  [D12](#the-annotation) derives one, from the new resource, its motivation,
+  its body, and the claim's `anchor`.
   *Held by `worker-service/yield`.*
 - **Y8.** A `yield` job reports `generating-resource` at 5, `creating-resource`
   at 95 and `complete-generated`, with `truncated`, at 100. Its result is the

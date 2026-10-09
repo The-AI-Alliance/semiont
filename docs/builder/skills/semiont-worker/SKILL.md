@@ -136,16 +136,43 @@ A worker reads the resource through the same client as any script: `client.brows
 
 It writes annotations by committing them for the job it holds: `job.commit(resourceId, annotations)`. That is `mark:commit`: one batch, answered only when every annotation is in the event log, and citing the job it fulfils. The knowledge base derives who the annotations are for from that job, so the batch says what produced them (`generator`) and never who asked. A batch that names a `creator` is refused, and so is one from a worker that cites no job.
 
-```typescript
-import type { Annotation, HeldJob } from '@semiont/sdk';
+The SDK builds what a worker commits, with three functions:
 
-/** Resolves once the record has the batch. A batch of none sends nothing. */
-async function write(job: HeldJob, annotations: Annotation[]): Promise<void> {
+- `reconcile(text, quoted)` finds the words a model quoted in the text. A model is asked for no offsets, and what it says of where its words stand is never trusted: `quoted` is its `exact` words, and maybe the `prefix` and `suffix` it says stand around them. The answer is a span of the text (`start`, `end`, the text's own `exact`, `prefix` and `suffix`, and `anchorMethod`, how it was found), or `null` when the words are nowhere in the text.
+- `annotationOfSpan({ text, resourceId, generator, motivation, span, body })` builds the annotation of a span: its selectors, the `generator`, the `body` if the motivation has one, and an `id` derived from what the annotation is, so that committing a batch again after a retry changes nothing. For a PDF, give it the resource's anchored text as `anchored` in place of `text` (the `text` and `items` of the `extracted` answer of `client.browse.resourceAnchoredText`), and the span is anchored by where it is on the page. A span that is not the text's is refused: it throws a `SpanRefusedError`, whose `code` names the refusal.
+- `annotationOfResource({ resourceId, motivation, generator, body })` builds an annotation of a resource as a whole, with no selector: a link from a source to what was made from it.
+
+`reconcile` is one way to find a model's words in a text, with its own tolerance for a misquote: a worker that finds spans another way gives `annotationOfSpan` its own span (`start`, `end` and `exact`). The builders make nothing a hand-written payload could not, so nothing a knowledge base relies on rests on them.
+
+```typescript
+import { annotationOfSpan, reconcile, type Annotation, type HeldMarkJob, type QuotedText } from '@semiont/sdk';
+import type { components } from '@semiont/core';
+
+/**
+ * Record the passages a model quoted of a text, as highlights. Resolves once
+ * the record has the batch, with how many annotations it holds. A batch of
+ * none sends nothing.
+ */
+async function recordHighlights(
+  job: HeldMarkJob,
+  generator: components['schemas']['Agent'],
+  text: string,
+  quoted: QuotedText[],
+): Promise<number> {
+  const annotations: Annotation[] = [];
+  for (const words of quoted) {
+    // Where the text has the words: a span of the text's own, or nothing.
+    const span = reconcile(text, words);
+    if (span) annotations.push(annotationOfSpan({ text, resourceId: job.resourceId, generator, motivation: 'highlighting', span }));
+  }
   await job.commit(job.resourceId, annotations);
+  return annotations.length;
 }
 ```
 
-The commit waits for the record's acknowledgement. When none comes it asks the record whether the batch landed, and fails only if that cannot be established. When the job settles, it says how its commits were established; the worker states none of that itself. The worker's stream must name `JOB_COMMIT_CHANNELS`, as the sign-in above does. Give each annotation a deterministic id, so that committing a batch again after a retry changes nothing. `buildTextAnnotation` in [`packages/jobs/src/processors.ts`](../../../../packages/jobs/src/processors.ts) is how Semiont's worker builds one.
+`generator` is the agent the worker signed in as: `didToAgent(agent.did)`, from `@semiont/core`.
+
+The commit waits for the record's acknowledgement. When none comes it asks the record whether the batch landed, and fails only if that cannot be established. When the job settles, it says how its commits were established; the worker states none of that itself. The worker's stream must name `JOB_COMMIT_CHANNELS`, as the sign-in above does.
 
 `@semiont/jobs` also exports the processors Semiont's worker runs: `processHighlightJob`, `processCommentJob`, `processAssessmentJob`, `processReferenceJob`, `processTagJob` and `processGenerationJob`. Each takes the text, an inference client, the job's params and callbacks for progress and for committing each chunk, and returns the job's result. Use them to serve a job with a different model and the same logic. Their signatures are in [the workers guide](../../../../packages/jobs/docs/Workers.md#built-in-jobs).
 
@@ -153,10 +180,11 @@ The commit waits for the record's acknowledgement. When none comes it asks the r
 
 ```typescript
 import {
-  HttpContentTransport, HttpTransport, JOB_CLAIM_CHANNELS, SemiontClient,
-  discoverIssuer, startAgentSession, type HeldMarkJob, type HttpEndpoint,
+  HttpContentTransport, HttpTransport, JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, SemiontClient,
+  annotationOfSpan, discoverIssuer, reconcile, startAgentSession,
+  type Annotation, type HeldMarkJob, type HttpEndpoint, type QuotedText,
 } from '@semiont/sdk';
-import { baseUrl } from '@semiont/core';
+import { baseUrl, didToAgent, type components } from '@semiont/core';
 
 const gatewayUrl = process.env.SEMIONT_API_URL ?? 'http://localhost:4000';
 const url = new URL(gatewayUrl);
@@ -167,11 +195,33 @@ const endpoint: HttpEndpoint = {
   protocol: url.protocol === 'https:' ? 'https' : 'http',
 };
 
-/** Your work: read the resource, find the passages, commit them. */
-async function highlight(client: SemiontClient, job: HeldMarkJob): Promise<{ found: number; persisted: number }> {
+/**
+ * Your model: the passages of a text worth a highlight, each as the words it
+ * quotes. This stand-in quotes the first sentence; put your model's call here.
+ */
+async function passagesOf(text: string): Promise<QuotedText[]> {
+  const sentence = /[^.!?]+[.!?]/.exec(text)?.[0].trim();
+  return sentence ? [{ exact: sentence }] : [];
+}
+
+/** Your work: read the resource, ask the model, and commit each passage where the text has it. */
+async function highlight(
+  client: SemiontClient,
+  job: HeldMarkJob,
+  generator: components['schemas']['Agent'],
+): Promise<{ found: number; persisted: number }> {
   const text = await client.browse.resourceContent(job.resourceId);
-  console.log(`job ${job.jobId}: ${text.length} characters to read`);
-  return { found: 0, persisted: 0 };
+  const quoted = await passagesOf(text);
+
+  const annotations: Annotation[] = [];
+  for (const words of quoted) {
+    // Where the text has the words: a span of the text's own, or nothing.
+    const span = reconcile(text, words);
+    if (span) annotations.push(annotationOfSpan({ text, resourceId: job.resourceId, generator, motivation: 'highlighting', span }));
+  }
+  // Resolves once the record has the batch.
+  await job.commit(job.resourceId, annotations);
+  return { found: quoted.length, persisted: annotations.length };
 }
 
 async function main(): Promise<void> {
@@ -190,13 +240,16 @@ async function main(): Promise<void> {
     logger: console,
   });
   console.log(`working as ${agent.did}`);
+  // What its annotations say made them.
+  const generator = didToAgent(agent.did);
 
-  // This worker awaits nothing but its claims, so its stream names nothing else.
+  // What this worker's stream names: what claiming reads, and what a commit
+  // of annotations awaits. It awaits nothing else, so it names nothing else.
   const transport = new HttpTransport({
     baseUrl: baseUrl(gatewayUrl),
     token$: agent.token$,
     tokenRefresher: agent.refresh,
-    channels: JOB_CLAIM_CHANNELS,
+    channels: [...JOB_CLAIM_CHANNELS, ...JOB_COMMIT_CHANNELS],
   });
   const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
 
@@ -223,7 +276,7 @@ async function main(): Promise<void> {
         }
         await job.start();
         try {
-          const { found, persisted } = await highlight(client, job);
+          const { found, persisted } = await highlight(client, job, generator);
           await job.complete({ found, persisted });
         } catch (err) {
           if (job.settled) throw err;
@@ -346,16 +399,37 @@ What differs from TypeScript is what the language gives:
 The Python SDK is one package, `semiont`. `AgentToken`, held with `async with`, does both steps of [who a worker is](#who-a-worker-is), and keeps the agent's token fresh until its block is left.
 
 ```python
-from semiont.claims import JOB_CLAIM_CHANNELS, ClaimRefusal, HeldMarkJob, HeldYieldJob
+from semiont.annotations import QuotedText, annotation_of_span, reconcile
+from semiont.claims import JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, ClaimRefusal, HeldMarkJob, HeldYieldJob
 from semiont.client import SemiontClient
 from semiont.http import AgentToken, Credential, HttpTransport, ServiceToken
-from semiont.types import JobDetectionResult, JobProgress, MarkJobFilter, MarkJobFilterParams
+from semiont.identifiers import AnnotationId
+from semiont.identity import agent_name
+from semiont.types import Agent, AgentSoftware, Annotation, JobDetectionResult, JobProgress, MarkJobFilter, MarkJobFilterParams
+
+PROVIDER, MODEL = "ollama", "gemma3:4b"
 
 
-async def highlight(job: HeldMarkJob) -> JobDetectionResult:
-    """Your work: read the resource, find the passages, commit them."""
+async def passages(text: str) -> list[QuotedText]:
+    """Your model: the passages of a text it would highlight, each as the words it quoted. This one quotes the first line."""
+    return [QuotedText(exact=text.partition("\n")[0])]
+
+
+async def highlight(client: SemiontClient[HttpTransport], job: HeldMarkJob, generator: Agent) -> JobDetectionResult:
+    """Your work: read the resource, have its passages quoted, and commit a highlight of each one the text has."""
+    text = await client.browse.resource_content(job.resource_id)
+    quoted = await passages(text)
     await job.progress(JobProgress(percentage=50))
-    return JobDetectionResult(found=0, persisted=0)
+    highlights: dict[AnnotationId, Annotation] = {}
+    for quote in quoted:
+        # What a model quotes is not trusted: it is found in the text, as the text has it, or it is dropped.
+        span = reconcile(text, quote)
+        if span is not None:
+            built = annotation_of_span(text, span, resource_id=job.resource_id, motivation="highlighting", generator=generator)
+            # An annotation's id is worked out from what it is, so a passage quoted twice is one annotation.
+            highlights[built.id] = built
+    await job.commit(job.resource_id, list(highlights.values()))
+    return JobDetectionResult(found=len(quoted), persisted=len(highlights))
 
 
 async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
@@ -363,13 +437,18 @@ async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
     service = ServiceToken(Credential(issuer=issuer, client_id=client_id, client_secret=secret))
     accepts = [MarkJobFilter(job_type="mark", params=MarkJobFilterParams(motivation="highlighting"))]
     async with (
-        AgentToken(gateway, provider="ollama", model="gemma3:4b", service=service) as agent,
-        # Its stream names what claiming reads. This worker awaits nothing else, so it names nothing else.
-        HttpTransport(gateway, token=agent.token, refresher=agent.refresh, channels=JOB_CLAIM_CHANNELS) as transport,
+        AgentToken(gateway, provider=PROVIDER, model=MODEL, service=service) as agent,
+        # Its stream names what claiming and committing read. This worker awaits nothing else, so it names nothing else.
+        HttpTransport(
+            gateway, token=agent.token, refresher=agent.refresh, channels=(*JOB_CLAIM_CHANNELS, *JOB_COMMIT_CHANNELS)
+        ) as transport,
         SemiontClient(transport, transport.content, transport) as client,
         # Leaving this block stops the worker: a job it still holds is failed first, and the queue retries it.
         client.job.claim(accepts) as claims,
     ):
+        # What made the annotations it commits: the agent the gateway says this token is.
+        me = await transport.get_current_user()
+        generator = AgentSoftware(type="Software", id=me.did, name=agent_name(PROVIDER, MODEL), provider=PROVIDER, model=MODEL)
         # Each job the worker comes to hold, one at a time. The next is claimed when this one settles.
         async for handed in claims:
             match handed:
@@ -385,7 +464,7 @@ async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
                     async with handed as job:
                         await job.start()
                         try:
-                            result = await highlight(job)
+                            result = await highlight(client, job, generator)
                         except Exception as error:
                             await job.fail(str(error))
                         else:

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GEN_REQUIRED } from './fixtures/generation-fixtures';
-import { resourceId, entityType, textOffsets } from '@semiont/core';
+import { annotationOfSpan, resourceId, entityType, textOffsets } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import type { components, TagSchema, GatheredContext, Logger, Annotation, TextOffsets } from '@semiont/core';
 
@@ -45,14 +45,12 @@ vi.mock('../workers/generation/typst-compiler', async (importOriginal) => ({
   compileTypst: vi.fn(),
 }));
 
-// No `@semiont/event-sourcing` mock: annotation ids are content-addressed, so
-// the real function is deterministic, and a mock would hide the identity
-// these builders compute — which is the thing worth exercising.
-
-// No `@semiont/core` mock — these tests exercise the real `reconcileSelector`
-// against synthetic content. The processor's `buildTextAnnotation` invariant
-// runs `content.substring(start, end) === exact`, so the test content has
-// to actually contain the entities we feed in.
+// No `@semiont/core` mock: annotation ids are content-addressed, so the real
+// builders are deterministic, and a mock would hide the identity they compute
+// — which is the thing worth exercising. These tests exercise the real
+// `reconcile` against synthetic content, and `annotationOfSpan` refuses a
+// span whose text is not its `exact`, so the test content has to actually
+// contain the entities we feed in.
 
 import { AnnotationDetection } from '../workers/annotation-detection';
 import { extractEntities } from '../workers/detection/entity-extractor';
@@ -68,8 +66,6 @@ import {
   processTagJob,
   processGenerationJob,
   assertWithinOutputBudget,
-  buildTextAnnotation,
-  buildPdfAnnotation,
   type BuildAnnotation,
   type GeneratedArtifact,
   type ProcessorResult,
@@ -85,17 +81,17 @@ const GENERATOR: Agent = {
 };
 
 // The detection processors take a media-agnostic `buildAnnotation`; for
-// these text-detection tests it is `buildTextAnnotation` curried with the
-// resource + attribution context. Attribution shape is exercised through
-// this closure.
+// these text-detection tests it is `annotationOfSpan` over the text, with the
+// resource + attribution context closed over. Attribution shape is exercised
+// through this closure.
 const textBuild = (content: string): BuildAnnotation =>
-  (motivation, match, body) => buildTextAnnotation(content, textOffsets(content), RID, GENERATOR, motivation, match, body);
+  (motivation, span, body) => annotationOfSpan({ text: content, resourceId: RID, generator: GENERATOR, motivation, span, body });
 
 // Synthetic two-line text layer — "alpha beta" / "gamma delta" — for the PDF
 // path. `.text` is what a PDF processor detects over; `pdfBuild` anchors each
-// detected span via `buildPdfAnnotation` (FragmentSelector viewrects, no
-// TextPositionSelector), the media-appropriate builder `prepareDetection`
-// hands a `pdf-text-layer` job.
+// detected span via `annotationOfSpan` over the anchored text (FragmentSelector
+// viewrects, no TextPositionSelector), the media-appropriate builder
+// `prepareDetection` hands a `pdf-text-layer` job.
 const PDF_LAYER: PdfTextLayer = {
   pages: [{ pageNumber: 1, widthPt: 612, heightPt: 792, textStart: 0, textEnd: 22, hasTextLayer: true }],
   text: 'alpha beta\ngamma delta',
@@ -108,7 +104,7 @@ const PDF_LAYER: PdfTextLayer = {
   fields: [],
 };
 const pdfBuild = (layer: PdfTextLayer): BuildAnnotation =>
-  (motivation, match, body) => buildPdfAnnotation(layer, textOffsets(layer.text), RID, GENERATOR, motivation, match, body);
+  (motivation, span, body) => annotationOfSpan({ anchored: layer, resourceId: RID, generator: GENERATOR, motivation, span, body });
 
 // The concurrency the fake provider advertises — detection reads it off the
 // client (a real provider hard-codes its own), so tests set it here.
@@ -179,8 +175,8 @@ describe('processHighlightJob', () => {
   });
 
   it('produces highlighting annotations and reports progress', async () => {
-    // Content must actually contain the highlighted substrings — the
-    // buildTextAnnotation invariant verifies content[start, end] === exact.
+    // Content must actually contain the highlighted substrings —
+    // `annotationOfSpan` refuses a span whose text is not its `exact`.
     const content = 'important text and the critical part is here.';
     vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(inOneChunk([
       { exact: 'important', start: 0, end: 9 },
@@ -463,7 +459,7 @@ describe('processReferenceJob', () => {
   });
 
   it('counts errors when reconciliation drops an entity (text not in source)', async () => {
-    // 'good' is in the content; 'BADTEXT' is not — reconcileSelector drops
+    // 'good' is in the content; 'BADTEXT' is not — `reconcile` drops
     // the second entity, the processor counts an error.
     vi.mocked(extractEntities).mockImplementation(inOneChunk([
       { exact: 'good', start: 0, end: 4, entityType: 'Thing' } as any,
@@ -1318,15 +1314,15 @@ describe('locale threading', () => {
   });
 });
 
-// ─── Layer 3: write-time invariant in buildTextAnnotation ───────────────
+// ─── Layer 3: the builder refuses a span that is not the text's ─────────
 //
 // The detection mocks here bypass the per-motivation parsers (which run
-// `reconcileSelector` internally) and feed Match objects straight to the
+// `reconcile` internally) and feed Match objects straight to the
 // processor. That's exactly the path a bug or a future refactor that
-// dropped reconciliation would create — the invariant in
-// `buildTextAnnotation` must fail loudly in that case.
+// dropped reconciliation would create — `annotationOfSpan` must refuse
+// loudly in that case, and the job fail of it.
 
-describe('buildTextAnnotation invariant', () => {
+describe('a span that is not the text\'s fails the job', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('throws when the text from start to end is not exact, saying its offsets count code points', async () => {
@@ -1344,7 +1340,7 @@ describe('buildTextAnnotation invariant', () => {
         vi.fn(), LOGGER, NEVER,
         async () => {},
       ),
-    ).rejects.toThrow(/buildTextAnnotation invariant: the text from offset 0 to offset 9, which count code points, is not exact/);
+    ).rejects.toThrow(/annotationOfSpan refused a span \(exact-mismatch\): the text from offset 0 to offset 9, which count code points, is not exact/);
   });
 
   it('throws when prefix does not align with content adjacent to start', async () => {
@@ -1363,7 +1359,7 @@ describe('buildTextAnnotation invariant', () => {
         vi.fn(), LOGGER, NEVER,
         async () => {},
       ),
-    ).rejects.toThrow(/buildTextAnnotation invariant: the prefix is not the text just before offset 6/);
+    ).rejects.toThrow(/annotationOfSpan refused a span \(prefix-mismatch\): the prefix is not the text just before offset 6/);
   });
 
   it('throws when suffix does not align with content adjacent to end', async () => {
@@ -1381,7 +1377,7 @@ describe('buildTextAnnotation invariant', () => {
         vi.fn(), LOGGER, NEVER,
         async () => {},
       ),
-    ).rejects.toThrow(/buildTextAnnotation invariant: the suffix is not the text just after offset 10/);
+    ).rejects.toThrow(/annotationOfSpan refused a span \(suffix-mismatch\): the suffix is not the text just after offset 10/);
   });
 
   it('error message names the resource id and motivation', async () => {
@@ -1407,12 +1403,12 @@ describe('buildTextAnnotation invariant', () => {
 //
 // Per-motivation integration tests that feed synthetic LLM JSON responses
 // with deliberately-bad offsets through the real
-// `MotivationParsers` / `extractEntities` / `reconcileSelector` chain
+// `MotivationParsers` / `extractEntities` / `reconcile` chain
 // and assert the stored annotations satisfy the no-overlap invariant.
-// These tests do NOT mock `@semiont/core`, so `reconcileSelector` runs
+// These tests do NOT mock `@semiont/core`, so `reconcile` runs
 // for real against the test content.
 
-describe('Layer 2: worker-parser integration via real reconcileSelector', () => {
+describe('Layer 2: worker-parser integration via real reconcile', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('highlight: no offsets in LLM response, reconciler anchors via unique-match', async () => {
@@ -1421,7 +1417,7 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
       const text = args[0] as string;
       const { MotivationParsers } = await import('../workers/detection/motivation-parsers');
       const fake = [{ exact: 'important' }];
-      const { matches: parsed } = MotivationParsers.parseHighlights(fake, text, textOffsets(text), LOGGER);
+      const { matches: parsed } = MotivationParsers.parseHighlights(fake, text, LOGGER);
       const cb = args[args.length - 1];
       if (typeof cb === 'function') await (cb as (x: unknown[], cursor: unknown, dropped: number) => Promise<void>)(parsed as never, { next: (args[1] as TextOffsets).length, size: 1 }, 0);
       return parsed;
@@ -1458,7 +1454,7 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
         },
       ];
       // detectTags delivers only ANCHORED matches; the stand-in does too.
-      const { matches: parsed } = MotivationParsers.validateTagOffsets(MotivationParsers.parseTags(fake, LOGGER), text, textOffsets(text), 'Issue', LOGGER);
+      const { matches: parsed } = MotivationParsers.validateTagOffsets(MotivationParsers.parseTags(fake, LOGGER), text, 'Issue', LOGGER);
       const cb = args[args.length - 1];
       if (typeof cb === 'function') await (cb as (x: unknown[], cursor: unknown, dropped: number) => Promise<void>)(parsed as never, { next: (args[1] as TextOffsets).length, size: 1 }, 0);
       return parsed;
@@ -1526,7 +1522,7 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
       const fake = [
         { exact: 'foo', prefix: 'IRRELEVANT_PREFIX', suffix: 'IRRELEVANT_SUFFIX', comment: 'one of them' },
       ];
-      const { matches: parsed } = MotivationParsers.parseComments(fake, text, textOffsets(text), LOGGER);
+      const { matches: parsed } = MotivationParsers.parseComments(fake, text, LOGGER);
       const cb = args[args.length - 1];
       if (typeof cb === 'function') await (cb as (x: unknown[], cursor: unknown, dropped: number) => Promise<void>)(parsed as never, { next: (args[1] as TextOffsets).length, size: 1 }, 0);
       return parsed;
@@ -1555,7 +1551,7 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
       const fake = [
         { exact: 'foo', prefix: 'Y ', suffix: ' Z', comment: 'middle one' },
       ];
-      const { matches: parsed } = MotivationParsers.parseComments(fake, text, textOffsets(text), LOGGER);
+      const { matches: parsed } = MotivationParsers.parseComments(fake, text, LOGGER);
       const cb = args[args.length - 1];
       if (typeof cb === 'function') await (cb as (x: unknown[], cursor: unknown, dropped: number) => Promise<void>)(parsed as never, { next: (args[1] as TextOffsets).length, size: 1 }, 0);
       return parsed;
@@ -1579,7 +1575,7 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
 // ─── De-dupe: the collapse must not produce duplicate events ────────────
 //
 // Multiple LLM entries for a repeated phrase, reconciled independently,
-// can all land on the same span via reconcileSelector's first-of-many
+// can all land on the same span via `reconcile`'s first-of-many
 // fallback. The span deduper (one decider for every processor)
 // collapses identical events (same motivation + span + body) to one,
 // while keeping same-span/different-body annotations distinct.

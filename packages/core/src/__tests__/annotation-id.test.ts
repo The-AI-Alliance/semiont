@@ -1,14 +1,12 @@
 /**
  * Annotation identity is content-addressed.
  *
- * Every job-recovery path re-runs work that may already have
- * persisted: the janitor re-queues an orphaned job, a checkpoint resumes a
- * partially-completed unit, a retry repeats a failed one. While ids were
- * `nanoid(21)` each of those minted duplicates — one janitor-recovered job was
- * heading for ~1,516 of them before it was killed, and a hand-built `TYPES`
- * list worked around it.
+ * Every job-recovery path re-runs work that may already have persisted: the
+ * janitor re-queues an orphaned job, a checkpoint resumes a
+ * partially-completed unit, a retry repeats a failed one. An id minted at
+ * random would make each of those a duplicate.
  *
- * Content-addressing was chosen over emission-time skip-if-equivalent because
+ * Content-addressing is chosen over emission-time skip-if-equivalent because
  * the latter is circular with acknowledged persistence: a read-before-write
  * consults the projection, and a unit waits for its commit to be acknowledged
  * precisely because that sink can be down. So it fails exactly
@@ -18,10 +16,13 @@
  * the same thing about the same span of the same resource. Anything that would
  * make them legitimately distinct must be an input; anything about WHEN or
  * BY WHOM they were emitted must not be, or recovery stops deduplicating.
+ *
+ * specs/src/annotations/id-cases.json holds the rule itself, in
+ * `id-cases.test.ts`.
  */
 
 import { describe, it, expect } from 'vitest';
-import { annotationIdFor } from '../identifier-utils';
+import { annotationIdFor } from '../annotation-id';
 
 const base = {
   resourceId: 'res-1',
@@ -92,19 +93,14 @@ describe('annotationIdFor — content-addressed annotation identity', () => {
     expect(ids.size).toBe(1);
   });
 
-  // ── shape, inherited from the nanoid contract this replaces ───────────
-  //
-  // `identifier-utils.test.ts` is deleted rather than adapted: its central
-  // case asserted that two calls produce DIFFERENT ids, which is precisely the
-  // contract content-addressing reverses. Its two surviving assertions live here.
+  // ── shape ─────────────────────────────────────────────────────────────
 
   it('produces a URL-safe id — it lands in an annotation URI path segment', () => {
     expect(annotationIdFor(base)).toMatch(/^[A-Za-z0-9_-]+$/);
   });
 
-  it('is a BARE id of the same length nanoid(21) produced', () => {
-    // Same length so nothing downstream that sized a column or a URI around it
-    // changes; bare so it cannot be mistaken for the URI it gets embedded in.
+  it('is a BARE id of 21 characters', () => {
+    // Bare so it cannot be mistaken for the URI it gets embedded in.
     const id = annotationIdFor(base);
     expect(id.length).toBe(21);
     expect(id).not.toContain('://');

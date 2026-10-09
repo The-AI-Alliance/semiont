@@ -9,10 +9,9 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { entityType, resourceId, textOffsets, type Annotation, type Logger } from '@semiont/core';
+import { annotationOfSpan, entityType, resourceId, textOffsets, type Annotation, type Logger } from '@semiont/core';
 import type { ElementSchema, InferenceClient, InferenceResponse, StructuredResponse } from '@semiont/inference';
 import {
-  buildTextAnnotation,
   processCommentJob,
   processHighlightJob,
   processReferenceJob,
@@ -73,11 +72,9 @@ function scripted(contextTokens: number, answers: unknown[][]): InferenceClient 
 /** Sixty sentences, each with two emoji: 2,330 code points, 2,450 UTF-16 code units. */
 const LONG = Array.from({ length: 60 }, (_, i) => `😀 Sentence ${i + 1} of the survey 🎉 is here.`).join(' ');
 
-/** A text builder for `text`, as a job is handed one: the text's conversions are made once. */
-const textBuild = (text: string): BuildAnnotation => {
-  const offsets = textOffsets(text);
-  return (motivation, match, body) => buildTextAnnotation(text, offsets, RID, GENERATOR, motivation, match, body);
-};
+/** A text builder for `text`, as a job is handed one. */
+const textBuild = (text: string): BuildAnnotation =>
+  (motivation, span, body) => annotationOfSpan({ text, resourceId: RID, generator: GENERATOR, motivation, span, body });
 
 describe('a job over a long text with characters outside the Basic Multilingual Plane', () => {
   it('is that many code points, and fewer than its string is long', () => {

@@ -232,8 +232,8 @@ async fn create(shared: Arc<Shared>, submission: MarkSubmitEvent) {
         .annotation(CreateAnnotationRequest {
             motivation: submission.motivation,
             target: AnnotationTarget {
-                source: shared.resource_id.clone(),
                 selector: Some(submission.selector),
+                ..AnnotationTarget::new(shared.resource_id.clone())
             },
             body: submission.body,
         })

@@ -1,12 +1,12 @@
 /**
  * The id of an annotation, held to specs/src/annotations/id-cases.json: the
- * table every worker runs, so that the same annotation has the same id
+ * table every SDK's builders run, so that the same annotation has the same id
  * whoever makes it, and making it again writes nothing new.
  */
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { annotationIdFor, type AnnotationIdentity } from '@semiont/event-sourcing';
+import { annotationIdFor, type AnnotationIdentity } from '../annotation-id';
 
 interface Case extends AnnotationIdentity {
   why: string;

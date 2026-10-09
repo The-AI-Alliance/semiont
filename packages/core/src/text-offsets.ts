@@ -91,6 +91,15 @@ export function textOffsets(text: string): TextOffsets {
 }
 
 /**
+ * The text from one offset to another. `offsets` is the text's own, and each
+ * of the two is an offset of the text, the first no greater than the second:
+ * `indexAt` throws at a number that is no offset of the text.
+ */
+export function between(text: string, offsets: TextOffsets, start: number, end: number): string {
+  return text.slice(offsets.indexAt(start), offsets.indexAt(end));
+}
+
+/**
  * Every place `text` has `words`, as the offset each starts at, in the text's
  * order. Places may overlap. `offsets` is the text's own.
  *

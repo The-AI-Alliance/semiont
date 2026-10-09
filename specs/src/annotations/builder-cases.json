@@ -1,9 +1,10 @@
 {
-  "$comment": "The annotation a worker commits, whole, as every implementation must build it. What a job leaves in the knowledge base is these annotations, so two workers that build them differently leave different records of the same work. TypeScript (packages/jobs: buildTextAnnotation and buildPdfAnnotation; packages/core: assembleAnnotation) runs every case and fails on a difference; a worker written in another language runs the same file. `cases` BUILD the annotation of a span found in a resource's text. A case gives `text` when the resource is a text, or `anchored`, a PDF's anchored text as pdf-locate-cases.json describes it, when it is a PDF. With it come the `resourceId`; the `generator`, which says what made the annotation; the `motivation`; the `span`, which is its `start` and `end`, the `exact` words, and maybe the `prefix` and `suffix` (as reconcile-cases.json reconciles one), `start` and `end` being offsets, which count the text's Unicode code points; and maybe a `body`, one body or a list of them. The answer is the `annotation`, or `refused` and which refusal. EVERY BUILT ANNOTATION has `@context` \"http://www.w3.org/ns/anno.jsonld\" and `type` \"Annotation\"; the `motivation`; the `generator` as given; the `body` as given, and no `body` member when none was; a `target` whose `type` is \"SpecificResource\", whose `source` is the resource id and whose `selector` is a list; and an `id` derived as id-cases.json says from the resource id, the motivation, the body if there is one, and this anchor: the span's `start` in decimal, a colon, its `end` in decimal, a colon, and its `exact`. The anchor is made the same way for a text and for a PDF. An annotation of a resource as a whole has no span, and its anchor is the empty string: the link a worker commits from a resource to the one it generated from it is such an annotation. Nothing in the annotation says who asked for it: that is derived where the annotation is recorded. The last selector is a TextQuoteSelector with the span's `exact`, and with its `prefix` and its `suffix` when they are given and not empty. A SPAN IS CHECKED before anything is built, and the first check that fails is the refusal. Its `start` and `end` must be two whole numbers, with `start` at least 0, `end` at least `start`, and `end` at most the length in code points of the text (for a PDF, of the anchored text): a span given backwards, one that runs past the end, one that starts below zero and one stated in fractions are each refused (`span-out-of-range`), whatever words lie between. FOR A TEXT the selector before the quote is a TextPositionSelector with the span's `start` and `end`. The annotation is then refused if the text from `start` to `end` is not `exact` (`exact-mismatch`); or a prefix is given and is not the text just before `start`, as many code points of it as the prefix has, or all there are if fewer (`prefix-mismatch`); or a suffix is given and is not the text just after `end`, in the same way (`suffix-mismatch`). FOR A PDF there is no TextPositionSelector. The span is located as pdf-locate-cases.json says, and before the quote comes one FragmentSelector for each rectangle, in their order, with `conformsTo` \"http://tools.ietf.org/rfc/rfc3778\" and the rectangle's fragment as its `value`. The annotation is then refused if the span is located nowhere (`nothing-located`), or if `exact` is not in the covered text (`exact-not-covered`): the covered text is the anchored text from the least `start` to the greatest `end` of the items the span overlaps, and both it and `exact` have every run of white space made one space, and the white space at their ends dropped, before the one is looked for in the other. Its prefix and its suffix are then checked against the anchored text exactly as a text span's are against its text, with the same two refusals. `requests` ASSEMBLE an annotation that is not of a found span: the edge from a resource to one generated from it, and a citation in a generated text. A case gives a `request`, which is a `motivation`, a `target` and maybe a `body`, and maybe a `generator`. The `annotation` has `@context` and `type` as above; the request's `motivation` and `target` as given; its `body` as given, and no `body` member when none was; and the `generator` if one was given. `bodies` is the body as a list: empty when there is none, of one when it is a single body, the list itself when it is a list. The request is refused if its target has an SvgSelector whose `value` does not have the text xmlns=\"http://www.w3.org/2000/svg\" in it (`svg-no-namespace`), or does not have both `<svg` and `</svg>` (`svg-no-element`), or has none of `<rect`, `<circle`, `<ellipse`, `<polygon`, `<polyline`, `<path` and `<line` (`svg-no-shape`), the first of these that fails being the refusal; or, its selectors passing, if it states no motivation (`no-motivation`). `unstated` names, for `cases` and for `requests`, the members every annotation of that kind has and no case can state: `created`, the moment it was built, an RFC 3339 date-time in UTC to the millisecond; and for an assembled annotation also `modified`, which is that same moment, and its `id`: assembling mints one, and a worker that commits the annotation first gives it the id of what it is, derived as a built annotation's is from the `source` of its target, its motivation, its body and its anchor, which for a citation is its position and words as a span's is, and for the link is the empty string. A runner checks that each is there and compares everything else. White space is what Unicode gives the White_Space property; no case rests on U+0085 or U+FEFF, about which implementations disagree. What an offset counts is stated in a table of its own (specs/src/text/offset-cases.json): code points, and so does every length here. The cases whose text has a character outside the Basic Multilingual Plane are the ones that tell that count from a count of UTF-16 code units. Add a case here before changing an implementation.",
+  "$comment": "The annotation a worker commits, whole, as every implementation must build it. What a job leaves in the knowledge base is these annotations, so two workers that build them differently leave different records of the same work. TypeScript (@semiont/core, re-exported by @semiont/sdk), Rust (semiont::annotations) and Python (semiont.annotations) each run every case and fail on a difference: `annotationOfSpan` runs `cases`, and `annotationOfResource` runs `resources`. `cases` BUILD the annotation of a span found in a resource's text. A case gives `text` when the resource is a text, or `anchored`, a PDF's anchored text as pdf-locate-cases.json describes it, when it is a PDF. With it come the `resourceId`; the `generator`, which says what made the annotation; the `motivation`; the `span`, which is its `start` and `end`, the `exact` words, and maybe the `prefix` and `suffix` (as reconcile-cases.json reconciles one), `start` and `end` being offsets, which count the text's Unicode code points; and maybe a `body`, one body or a list of them. The answer is the `annotation`, or `refused` and which refusal. EVERY BUILT ANNOTATION has `@context` \"http://www.w3.org/ns/anno.jsonld\" and `type` \"Annotation\"; the `motivation`; the `generator` as given; the `body` as given, and no `body` member when none was; a `target` whose `type` is \"SpecificResource\", whose `source` is the resource id and whose `selector` is a list; and an `id` derived as id-cases.json says from the resource id, the motivation, the body if there is one, and this anchor: the span's `start` in decimal, a colon, its `end` in decimal, a colon, and its `exact`. The anchor is made the same way for a text and for a PDF. An annotation of a resource as a whole has no span, and its anchor is the empty string: the link a worker commits from a resource to the one it generated from it is such an annotation. Nothing in the annotation says who asked for it: that is derived where the annotation is recorded. The last selector is a TextQuoteSelector with the span's `exact`, and with its `prefix` and its `suffix` when they are given and not empty. A SPAN IS CHECKED before anything is built, and the first check that fails is the refusal. Its `start` and `end` must be two whole numbers, with `start` at least 0, `end` at least `start`, and `end` at most the length in code points of the text (for a PDF, of the anchored text): a span given backwards, one that runs past the end, one that starts below zero and one stated in fractions are each refused (`span-out-of-range`), whatever words lie between. FOR A TEXT the selector before the quote is a TextPositionSelector with the span's `start` and `end`. The annotation is then refused if the text from `start` to `end` is not `exact` (`exact-mismatch`); or a prefix is given and is not the text just before `start`, as many code points of it as the prefix has, or all there are if fewer (`prefix-mismatch`); or a suffix is given and is not the text just after `end`, in the same way (`suffix-mismatch`). FOR A PDF there is no TextPositionSelector. The span is located as pdf-locate-cases.json says, and before the quote comes one FragmentSelector for each rectangle, in their order, with `conformsTo` \"http://tools.ietf.org/rfc/rfc3778\" and the rectangle's fragment as its `value`. The annotation is then refused if the span is located nowhere (`nothing-located`), or if `exact` is not in the covered text (`exact-not-covered`): the covered text is the anchored text from the least `start` to the greatest `end` of the items the span overlaps, and both it and `exact` have every run of white space made one space, and the white space at their ends dropped, before the one is looked for in the other. Its prefix and its suffix are then checked against the anchored text exactly as a text span's are against its text, with the same two refusals. `resources` BUILD an annotation of a resource as a whole, which has no span: the link from a resource to the one generated from it is one. A case gives the `resourceId`, the `motivation`, and maybe a `generator` and a `body`. The `annotation` has `@context` and `type` as above; the `motivation`; the `generator` if one was given; the `body` as given, and no `body` member when none was; a `target` that is the resource's id as its `source`, and nothing else; and an `id` derived as id-cases.json says, with the anchor the empty string. `builders` names what builds: `reconcile`, which finds the words a model quoted in a text and is held by reconcile-cases.json; `annotationOfSpan`, which `cases` hold; and `annotationOfResource`, which `resources` hold. Every SDK has the three, each spelled in its own convention (`annotationOfSpan` is annotation_of_span), and no other builder. `unstated` names, for `cases` and for `resources`, the member every built annotation has and no case can state: `created`, the moment it was built, an RFC 3339 date-time in UTC to the millisecond. A runner checks that each is there and compares everything else. White space is what Unicode gives the White_Space property; no case rests on U+0085 or U+FEFF, about which implementations disagree. What an offset counts is stated in a table of its own (specs/src/text/offset-cases.json): code points, and so does every length here. The cases whose text has a character outside the Basic Multilingual Plane are the ones that tell that count from a count of UTF-16 code units. Add a case here before changing an implementation.",
   "unstated": {
     "cases": ["created"],
-    "requests": ["id", "created", "modified"]
+    "resources": ["created"]
   },
+  "builders": ["reconcile", "annotationOfSpan", "annotationOfResource"],
   "cases": [
     {
       "why": "a highlight of a text: no body, a position and a quote, and the id of the anchor `0:12:Ada Lovelace` (the first case of id-cases.json)",
@@ -654,164 +655,68 @@
       }
     }
   ],
-  "requests": [
+  "resources": [
     {
-      "why": "the edge from a resource to the one generated from it: a link whose target is the whole resource, with no selector; the target is carried as given, and nothing is added to it",
-      "request": {
+      "why": "the link from a resource to the one generated from it: its target is the resource and nothing else, and its id is the id of that resource, motivation and body with the anchor the empty string",
+      "resourceId": "res-1",
+      "motivation": "linking",
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "body": { "type": "SpecificResource", "source": "res-2", "purpose": "linking" },
+      "annotation": {
+        "@context": "http://www.w3.org/ns/anno.jsonld",
+        "type": "Annotation",
+        "id": "xdaSX40cMJa46S2JHwFtC",
         "motivation": "linking",
+        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
         "target": { "source": "res-1" },
         "body": { "type": "SpecificResource", "source": "res-2", "purpose": "linking" }
-      },
+      }
+    },
+    {
+      "why": "a body that is a list is carried as that list; with no generator given the annotation has none",
+      "resourceId": "res-1",
+      "motivation": "tagging",
+      "body": [
+        { "type": "TextualBody", "value": "Person", "purpose": "tagging" },
+        { "type": "TextualBody", "value": "people-v1", "purpose": "classifying" }
+      ],
+      "annotation": {
+        "@context": "http://www.w3.org/ns/anno.jsonld",
+        "type": "Annotation",
+        "id": "ccRy_oB48bnFAt_H-QOFJ",
+        "motivation": "tagging",
+        "target": { "source": "res-1" },
+        "body": [
+          { "type": "TextualBody", "value": "Person", "purpose": "tagging" },
+          { "type": "TextualBody", "value": "people-v1", "purpose": "classifying" }
+        ]
+      }
+    },
+    {
+      "why": "with no body given the annotation has no `body` member, and three members go into its id",
+      "resourceId": "res-1",
+      "motivation": "highlighting",
       "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "annotation": {
         "@context": "http://www.w3.org/ns/anno.jsonld",
         "type": "Annotation",
-        "motivation": "linking",
-        "target": { "source": "res-1" },
-        "body": { "type": "SpecificResource", "source": "res-2", "purpose": "linking" },
-        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" }
-      },
-      "bodies": [
-        { "type": "SpecificResource", "source": "res-2", "purpose": "linking" }
-      ]
-    },
-    {
-      "why": "a citation in a generated text: the claim's position and words on the new resource, and a body naming the resource cited; with no generator given the annotation has none",
-      "request": {
-        "motivation": "linking",
-        "target": {
-          "source": "res-2",
-          "selector": [
-            { "type": "TextPositionSelector", "start": 13, "end": 38 },
-            { "type": "TextQuoteSelector", "exact": "wrote the first algorithm" }
-          ]
-        },
-        "body": { "type": "SpecificResource", "source": "res-1", "purpose": "linking" }
-      },
-      "annotation": {
-        "@context": "http://www.w3.org/ns/anno.jsonld",
-        "type": "Annotation",
-        "motivation": "linking",
-        "target": {
-          "source": "res-2",
-          "selector": [
-            { "type": "TextPositionSelector", "start": 13, "end": 38 },
-            { "type": "TextQuoteSelector", "exact": "wrote the first algorithm" }
-          ]
-        },
-        "body": { "type": "SpecificResource", "source": "res-1", "purpose": "linking" }
-      },
-      "bodies": [
-        { "type": "SpecificResource", "source": "res-1", "purpose": "linking" }
-      ]
-    },
-    {
-      "why": "a request with no body: the annotation has none and `bodies` is empty; a selector given alone, not in a list, is carried alone",
-      "request": {
+        "id": "EqaovAwF9KTh47GpsGdT9",
         "motivation": "highlighting",
-        "target": {
-          "source": "res-1",
-          "selector": { "type": "TextPositionSelector", "start": 0, "end": 12 }
-        }
-      },
-      "annotation": {
-        "@context": "http://www.w3.org/ns/anno.jsonld",
-        "type": "Annotation",
-        "motivation": "highlighting",
-        "target": {
-          "source": "res-1",
-          "selector": { "type": "TextPositionSelector", "start": 0, "end": 12 }
-        }
-      },
-      "bodies": []
-    },
-    {
-      "why": "a body that is a list is carried as that list, and is `bodies`",
-      "request": {
-        "motivation": "tagging",
-        "target": { "source": "res-1" },
-        "body": [
-          { "type": "TextualBody", "value": "Person", "purpose": "tagging" },
-          { "type": "TextualBody", "value": "people-v1", "purpose": "classifying" }
-        ]
-      },
-      "annotation": {
-        "@context": "http://www.w3.org/ns/anno.jsonld",
-        "type": "Annotation",
-        "motivation": "tagging",
-        "target": { "source": "res-1" },
-        "body": [
-          { "type": "TextualBody", "value": "Person", "purpose": "tagging" },
-          { "type": "TextualBody", "value": "people-v1", "purpose": "classifying" }
-        ]
-      },
-      "bodies": [
-        { "type": "TextualBody", "value": "Person", "purpose": "tagging" },
-        { "type": "TextualBody", "value": "people-v1", "purpose": "classifying" }
-      ]
-    },
-    {
-      "why": "a target with an SvgSelector whose markup has the namespace, the element and a shape is assembled like any other",
-      "request": {
-        "motivation": "highlighting",
-        "target": {
-          "source": "res-1",
-          "selector": { "type": "SvgSelector", "value": "<svg xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"10\" y=\"10\" width=\"50\" height=\"20\"/></svg>" }
-        }
-      },
-      "annotation": {
-        "@context": "http://www.w3.org/ns/anno.jsonld",
-        "type": "Annotation",
-        "motivation": "highlighting",
-        "target": {
-          "source": "res-1",
-          "selector": { "type": "SvgSelector", "value": "<svg xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"10\" y=\"10\" width=\"50\" height=\"20\"/></svg>" }
-        }
-      },
-      "bodies": []
-    },
-    {
-      "why": "SVG markup without the SVG namespace is refused",
-      "request": {
-        "motivation": "highlighting",
-        "target": {
-          "source": "res-1",
-          "selector": { "type": "SvgSelector", "value": "<svg><rect x=\"10\" y=\"10\" width=\"50\" height=\"20\"/></svg>" }
-        }
-      },
-      "refused": "svg-no-namespace"
-    },
-    {
-      "why": "SVG markup that is not closed is refused; and an SvgSelector is looked for among a list of selectors too",
-      "request": {
-        "motivation": "highlighting",
-        "target": {
-          "source": "res-1",
-          "selector": [
-            { "type": "TextQuoteSelector", "exact": "Ada Lovelace" },
-            { "type": "SvgSelector", "value": "<svg xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"10\" y=\"10\" width=\"50\" height=\"20\"/>" }
-          ]
-        }
-      },
-      "refused": "svg-no-element"
-    },
-    {
-      "why": "SVG markup that draws no shape is refused: text is not one",
-      "request": {
-        "motivation": "highlighting",
-        "target": {
-          "source": "res-1",
-          "selector": { "type": "SvgSelector", "value": "<svg xmlns=\"http://www.w3.org/2000/svg\"><text x=\"10\" y=\"10\">Ada</text></svg>" }
-        }
-      },
-      "refused": "svg-no-shape"
-    },
-    {
-      "why": "a request that states no motivation is refused",
-      "request": {
+        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
         "target": { "source": "res-1" }
-      },
-      "refused": "no-motivation"
+      }
+    },
+    {
+      "why": "neither a body nor a generator: the annotation is its context, its type, its id, its motivation and its target",
+      "resourceId": "res-7",
+      "motivation": "assessing",
+      "annotation": {
+        "@context": "http://www.w3.org/ns/anno.jsonld",
+        "type": "Annotation",
+        "id": "_7b1fkq1dFOuoXWcTVZV0",
+        "motivation": "assessing",
+        "target": { "source": "res-7" }
+      }
     }
   ]
 }

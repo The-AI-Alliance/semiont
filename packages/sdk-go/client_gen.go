@@ -234,6 +234,21 @@ func (e AnnotationType) Valid() bool {
 	}
 }
 
+// Defines values for AnnotationTargetType.
+const (
+	AnnotationTargetTypeSpecificResource AnnotationTargetType = "SpecificResource"
+)
+
+// Valid indicates whether the value is a known member of the AnnotationTargetType enum.
+func (e AnnotationTargetType) Valid() bool {
+	switch e {
+	case AnnotationTargetTypeSpecificResource:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ArchivistHealthStatus.
 const (
 	ArchivistHealthStatusOk ArchivistHealthStatus = "ok"
@@ -2329,7 +2344,13 @@ type AnnotationTarget struct {
 
 	// Source A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
 	Source ResourceId `json:"source"`
+
+	// Type Stated by the annotation of a span: the target is a part of its source, which the selector picks out. An annotation of a resource as a whole states none.
+	Type *AnnotationTargetType `json:"type,omitempty"`
 }
+
+// AnnotationTargetType Stated by the annotation of a span: the target is a part of its source, which the selector picks out. An annotation of a resource as a whole states none.
+type AnnotationTargetType string
 
 // ArchivistConfig Everything the Archivist reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the Archivist. The launcher writes it for the Archivist it starts, from the environment the knowledge base's config selects, and the Archivist reads it from the path its `--config` flag names (its image passes `/etc/semiont/archivist.json`). Started without `--config`, or with a path that names no file, the Archivist refuses to start and says which. No secret is a value here. What the knowledge base says of itself is not here either: its name, its `[site] domain` and its `[git] sync` are read from the committed `.semiont/config` of the tree at `root`. The Archivist's other inputs are the environment variables specs/src/service-environment/variables.json lists for it. A document that does not validate is refused at boot, naming each failing field.
 type ArchivistConfig struct {

@@ -55,12 +55,12 @@ A TextPositionSelector offset counts the Unicode code points of the text as it w
 ```typescript
 // ❌ WRONG - Uses UTF-8 for ISO-8859-1 document
 const wrongText = new TextDecoder('utf-8').decode(buffer);
-const sel = reconcileSelector(wrongText, textOffsets(wrongText), { exact: 'café' });
+const span = reconcile(wrongText, { exact: 'café' });
 // Offsets will be INCORRECT because character positions don't match the worker
 
 // ✅ RIGHT - Uses charset from mediaType
 const rightText = decodeWithCharset(buffer, mediaType);
-const sel = reconcileSelector(rightText, textOffsets(rightText), { exact: 'café' });
+const span = reconcile(rightText, { exact: 'café' });
 // Offsets will be CORRECT
 ```
 
@@ -110,33 +110,32 @@ const { prefix, suffix } = extractContext(content, start, end);
 - Extends to word boundaries (avoids cutting words)
 - Returns `undefined` for prefix/suffix at document boundaries
 
-### Reconcile LLM-Emitted Selectors
+### Reconcile What a Model Quoted
 
-The LLM does not supply offsets — it supplies `exact` (a verbatim substring) plus optional prefix/suffix context. `reconcileSelector` computes `start`/`end` by searching the source, producing a selector whose offsets (in code points) are provably consistent with the source content. It takes the content's `textOffsets`, which a caller with several proposals over one content makes once:
+The LLM does not supply offsets — it supplies `exact` (a verbatim substring) plus optional prefix/suffix context. `reconcile` computes `start`/`end` by searching the source, producing a span whose offsets (in code points) are provably consistent with the source content. The content is a plain string:
 
 ```typescript
-import { reconcileSelector, textOffsets } from '@semiont/core';
+import { reconcile } from '@semiont/core';
 
 const content = "The quick brown fox jumps over the lazy dog.";
-const offsets = textOffsets(content);
 
-const result = reconcileSelector(content, offsets, {
+const span = reconcile(content, {
   exact: "The quick",
 });
 
-if (!result) {
+if (span) {
+  console.log({
+    start: span.start,
+    end: span.end,
+    exact: span.exact,        // always a substring of source
+    prefix: span.prefix,      // extracted from source, never carried from LLM
+    suffix: span.suffix,      // extracted from source, never carried from LLM
+    anchorMethod: span.anchorMethod, // 'unique-match' | 'context-recovered' | 'fuzzy-match' | 'first-of-many'
+  });
+} else {
   // The LLM emitted text that doesn't appear in the source.
-  // Caller filters; the helper doesn't decide.
+  // Caller filters; `reconcile` doesn't decide.
 }
-
-console.log({
-  start: result.start,
-  end: result.end,
-  exact: result.exact,        // always a substring of source
-  prefix: result.prefix,      // extracted from source, never carried from LLM
-  suffix: result.suffix,      // extracted from source, never carried from LLM
-  anchorMethod: result.anchorMethod, // 'unique-match' | 'context-recovered' | 'fuzzy-match' | 'first-of-many'
-});
 ```
 
 **Anchor methods:**
@@ -151,11 +150,58 @@ The `fuzzy` search allows one edit (a code point inserted, deleted or replaced) 
 
 Returns `null` when `exact` is empty or only white space, or is text that doesn't appear in source. [`specs/src/annotations/reconcile-cases.json`](../../../specs/src/annotations/reconcile-cases.json) holds the rule, as cases.
 
-**Use Case:** Worker-side annotation construction. The selector returned by `reconcileSelector` is the only shape that passes the no-overlap invariant in `buildTextAnnotation` at write time.
+**Use Case:** Worker-side annotation construction. The span `reconcile` returns is what `annotationOfSpan` takes.
+
+### Build the Annotation
+
+`annotationOfSpan` builds the annotation of a span: its selectors, its `id`, and the body and `generator` as given. `annotationOfResource` builds an annotation of a resource as a whole, with no selector. Each annotation's `id` is derived from what it is (the resource, the motivation, the body and where the span is), so building it again builds the same id.
+
+```typescript
+import { annotationOfResource, annotationOfSpan, didToAgent, reconcile, resourceId, SpanRefusedError } from '@semiont/core';
+
+const content = "The quick brown fox jumps over the lazy dog.";
+const generator = didToAgent('did:web:kb.example:agents:ollama:gemma3');
+
+const span = reconcile(content, { exact: "brown fox" });
+if (span) {
+  const highlight = annotationOfSpan({
+    text: content,
+    resourceId: resourceId('doc-123'),
+    generator,
+    motivation: 'highlighting',
+    span,
+  });
+}
+
+// A span that is not the text's is refused, and the error's `code` names the refusal.
+try {
+  annotationOfSpan({
+    text: content,
+    resourceId: resourceId('doc-123'),
+    generator,
+    motivation: 'highlighting',
+    span: { start: 4, end: 9, exact: 'brown' },
+  });
+} catch (error) {
+  if (error instanceof SpanRefusedError) console.log(error.code); // 'exact-mismatch'
+}
+
+// The link from a resource to one generated from it: an annotation of the whole resource.
+const link = annotationOfResource({
+  resourceId: resourceId('doc-123'),
+  motivation: 'linking',
+  generator,
+  body: { type: 'SpecificResource', source: resourceId('doc-456'), purpose: 'linking' },
+});
+```
+
+For a PDF, give `annotationOfSpan` the PDF's `anchored` text in place of `text`: the annotation has one `FragmentSelector` for each line the span is on, and no `TextPositionSelector`.
+
+**Refusals** (`SpanRefusal`): `span-out-of-range`, `exact-mismatch`, `prefix-mismatch`, `suffix-mismatch`, and for a PDF `nothing-located` and `exact-not-covered`. [`specs/src/annotations/builder-cases.json`](../../../specs/src/annotations/builder-cases.json) holds the rule, as cases.
 
 ## Render-Time Anchoring
 
-`anchorAnnotation` is the renderer's counterpart to `reconcileSelector`. It is **verbatim-only**: it re-anchors on an exact `TextQuoteSelector` match and otherwise renders at the stored offset, flagged — it never fuzzy-matches at render time. The stored selectors are written to agree, so the only legitimate render-time discrepancy is *positional drift* (content shifted above the span). Position is a locality signal used to break ties among verbatim occurrences when context isn't unique. The position given and the anchor answered are offsets, in code points. It takes the content's `textOffsets`, which a renderer with several annotations of one content makes once.
+`anchorAnnotation` is the renderer's counterpart to `reconcile`. It is **verbatim-only**: it re-anchors on an exact `TextQuoteSelector` match and otherwise renders at the stored offset, flagged — it never fuzzy-matches at render time. The stored selectors are written to agree, so the only legitimate render-time discrepancy is *positional drift* (content shifted above the span). Position is a locality signal used to break ties among verbatim occurrences when context isn't unique. The position given and the anchor answered are offsets, in code points. It takes the content's `textOffsets`, which a renderer with several annotations of one content makes once.
 
 ```typescript
 import { anchorAnnotation, textOffsets } from '@semiont/core';
@@ -188,7 +234,7 @@ console.log(anchor);
 - `position-tiebreaker` — multiple verbatim candidates; position chose closest.
 - `position-fallback` — exact not found verbatim (or no quote); raw stored offset used, flagged low-confidence for upstream correction.
 
-**Use Case:** Renderer-side anchoring. The returned `strategy` and `confidence` let the UI flag low-confidence anchors with a visual affordance. Fuzzy/normalized recovery is deliberately *not* here — it lives at write time in `reconcileSelector`.
+**Use Case:** Renderer-side anchoring. The returned `strategy` and `confidence` let the UI flag low-confidence anchors with a visual affordance. Fuzzy/normalized recovery is deliberately *not* here — it lives at write time in `reconcile`.
 
 ## SVG Utilities
 

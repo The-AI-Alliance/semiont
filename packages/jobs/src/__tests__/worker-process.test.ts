@@ -57,9 +57,6 @@ import {
 } from '../processors';
 
 // Mock the six processor entry points; keep every other export real.
-// `prepareDetection` imports `buildTextAnnotation`/`buildPdfAnnotation` from
-// this same module, so replacing it wholesale would leave those undefined —
-// spread the original and override only the processors.
 vi.mock('../processors', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../processors')>()),
   processHighlightJob:  vi.fn(),
@@ -772,14 +769,16 @@ describe('handleJob orchestration', () => {
 
       const commit = h.busEmits.find(e => e.channel === 'mark:commit');
       expect(commit, 'resource-focus generation mints a navigable source→derived reference').toBeDefined();
-      const ann = (commit!.payload as { annotations: Array<{ id: string; target: { selector?: unknown } }> }).annotations[0]!;
+      const ann = (commit!.payload as { annotations: Array<{ id: string; target: unknown }> }).annotations[0]!;
       expect(ann).toMatchObject({
         motivation: 'linking',
         target: { source: RID },
         body: { type: 'SpecificResource', source: 'new-res-42', purpose: 'linking' },
       });
-      // resource-level target — no selector
-      expect(ann.target.selector).toBeUndefined();
+      // resource-level target — the source, and nothing else
+      expect(ann.target).toEqual({ source: RID });
+      // A built annotation says when it was made, and nothing of a later change.
+      expect(ann).not.toHaveProperty('modified');
       // Its id is what it is: the source, the motivation, the body, and the
       // empty anchor of an annotation that is nowhere on its resource. Worked
       // out from the rule of specs/src/annotations/id-cases.json, not minted.
@@ -791,8 +790,9 @@ describe('handleJob orchestration', () => {
     it('mints a linking annotation on the DERIVED resource for each resolved citation', async () => {
       // The processor resolved [[ctx-9]] into a claim-span citation; the worker
       // mints it after upload (only then is the derived resourceId known):
-      // target = the derived resource + position/quote selectors for the claim,
-      // body = SpecificResource → the cited source.
+      // built as any span of a text is: target = the derived resource +
+      // position/quote selectors for the claim, body = SpecificResource → the
+      // cited source.
       vi.mocked(processGenerationJob).mockResolvedValue({
         content: new TextEncoder().encode('Paris is the capital of France. It is large.'),
         title: 'Answer',
@@ -818,6 +818,7 @@ describe('handleJob orchestration', () => {
         annotation: {
           motivation: 'linking',
           target: {
+            type: 'SpecificResource',
             source: 'new-res-42',
             selector: [
               { type: 'TextPositionSelector', start: 0, end: 31 },
@@ -827,6 +828,7 @@ describe('handleJob orchestration', () => {
           body: { type: 'SpecificResource', source: 'ctx-9', purpose: 'linking' },
         },
       });
+      expect(markCreates[0]!.payload.annotation).not.toHaveProperty('modified');
       // Its id is what it is, the claim's span on the new resource being its
       // anchor (`0:31:Paris is the capital of France.`): worked out from the
       // rule of specs/src/annotations/id-cases.json, not minted.
@@ -885,11 +887,11 @@ describe('handleJob orchestration', () => {
       expect(h.client.browse.resourceAnchoredText).toHaveBeenCalledExactlyOnceWith('new-res-42');
     });
 
-    it('a hyphenated claim mints with the RENDERED text as its quote — the source string would trip the containment invariant', async () => {
+    it('a hyphenated claim mints with the RENDERED text as its quote — the source string is not in the text the span covers', async () => {
       // The claim text comes from the Typst SOURCE; the rendered layer drops
       // the soft hyphen ("extraor" + "dinarily"). The quote selector must
       // carry what is actually under the rects — the rendered substring — or
-      // buildPdfAnnotation's invariant throws and fails the whole job even
+      // `annotationOfSpan` refuses the span and fails the whole job even
       // though findClaimSpan found the span.
       vi.mocked(processGenerationJob).mockResolvedValue({
         content: new TextEncoder().encode('%PDF-FAKE'),
@@ -1277,8 +1279,8 @@ describe('handleJob orchestration', () => {
     });
 
     // All five detection motivations fan out to the PDF
-    // text-layer path. Geometry is shared (buildPdfAnnotation, covered in
-    // build-pdf-annotation.test.ts); this proves the dispatch routes every
+    // text-layer path. Geometry is shared (`annotationOfSpan`, covered in
+    // `@semiont/core`); this proves the dispatch routes every
     // motivation through 'pdf-text-layer' — feeding each processor the extracted
     // layer text (arg 0), its conversions (arg 1) and a PDF-aware buildAnnotation (arg 4), never the
     // decoded-bytes path. `lastCall` closes over the concrete mock so each

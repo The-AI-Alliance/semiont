@@ -50,7 +50,7 @@ textUnder(anchored, rect)    → string    a person drew a box; find its text
 
 **`locate` serves AI detection.** A model returns `{ exact, start, end }` over the
 extracted text, `start` and `end` being offsets in code points like the items'
-own; `buildPdfAnnotation` turns that span into one `FragmentSelector` per line,
+own; `annotationOfSpan` turns that span into one `FragmentSelector` per line,
 plus a `TextQuoteSelector` carrying the quote.
 
 **`textUnder` serves manual annotation.** The canvas hands it the rectangle the
@@ -159,7 +159,7 @@ bytes, hence the checksum, which the Smelter reads as a content change.
 | Storing one | `@semiont/content` — `anchored-text-store.ts` |
 | Publishing at ingest | `@semiont/make-meaning` — `smelter.ts` |
 | Serving one, with the barrier | `@semiont/make-meaning` — `archivist/read-anchored-text.ts` |
-| Detection's geometry tail | `@semiont/jobs` — `buildPdfAnnotation` |
+| Detection's geometry tail | `@semiont/core` — `annotationOfSpan`, in `annotation-builders.ts` |
 | The canvas | `@semiont/react-ui` — `PdfAnnotationCanvas.tsx` |
 
 `@semiont/core` holds what *reasons over* a map; `@semiont/content` holds what

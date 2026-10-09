@@ -49,7 +49,7 @@ export function assertNotTruncated(response: { stopReason: string }, label: stri
 }
 
 /**
- * `reconcileSelector` disambiguates a span with up to 64 code points of prefix
+ * `reconcile` disambiguates a span with up to 64 code points of prefix
  * and 64 of suffix (the annotation-selector schema). Overlap must let a span
  * sitting at a chunk boundary carry that context — plus a span allowance of
  * the same order — into the adjacent chunk. Schema-derived, not tuned.

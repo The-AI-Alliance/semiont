@@ -164,7 +164,7 @@ has the call, and what follows is what that call does.
   anchored, its body) and from nothing about the attempt, and a job that is
   retried or resumed commits the same annotations under the same ids. An
   `id` made afresh on each attempt records every annotation again.
-  *Held by `tests/conformance/archivist/annotations.test.ts`, `packages/jobs/src/__tests__/annotation-idempotence.test.ts`.*
+  *Held by `tests/conformance/archivist/annotations.test.ts`, `packages/core/src/__tests__/annotation-of-span.test.ts`.*
 - **A3.** An annotation committed with no `id` is not recorded.
   *Held by no case.*
 - **A4.** A commit is established when the record acknowledges it

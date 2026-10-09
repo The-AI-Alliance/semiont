@@ -157,8 +157,8 @@ const SAME_LINE_THRESHOLD_PT = 2;
  * records one bounding rectangle per line as a PdfCoordinate.
  *
  * Returns both the per-line `rects` and the `overlap` items they were computed
- * from — so a caller that also needs the covered text (e.g. buildPdfAnnotation's
- * geometry↔text containment invariant) reuses this single `items` scan
+ * from — so a caller that also needs the covered text (`annotationOfSpan`,
+ * which holds a PDF's span to the text its rectangles cover) reuses this single `items` scan
  * instead of re-filtering. Both arrays are empty if no item overlaps the span:
  * an empty span (`start` equal to `end`) overlaps none, wherever it falls.
  */
@@ -249,7 +249,7 @@ export function textUnder(anchored: AnchoredText, rect: PdfCoordinate): string {
     // join(' ') would emit "aga in" for a single word. When runs are NOT
     // adjacent the rectangle missed the text between them, so substitute a
     // space rather than splicing in words the box does not cover. (Slicing
-    // first-offset..last-offset the way buildPdfAnnotation does is safe there
+    // first-offset..last-offset the way `annotationOfSpan` does is safe there
     // — it only feeds a containment check — but here the result is the stored
     // quote, and on a two-column page it would swallow half of each column.)
     let quoted = between(covered[0].start, covered[0].end);

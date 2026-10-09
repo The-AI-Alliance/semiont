@@ -24,6 +24,8 @@ encoding_rs = { workspace = true, optional = true }
 futures-core.workspace = true
 percent-encoding.workspace = true
 proptest = { workspace = true, optional = true }
+# The SHA-256 an annotation's id is derived with.
+ring.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 tokio = { workspace = true, features = ["sync", "time", "macros", "rt"] }

@@ -1,7 +1,7 @@
 import type { ResourceId, components, AnchoredTextAnswer, IContentTransport, TextOffsets } from '@semiont/core';
-import { textSourceOf, yieldsGeometryOf, decodeRepresentation, textOffsets } from '@semiont/core';
+import { annotationOfSpan, textSourceOf, yieldsGeometryOf, decodeRepresentation, textOffsets } from '@semiont/core';
 import type { ExtractionDecline } from '@semiont/content';
-import { buildTextAnnotation, buildPdfAnnotation, type BuildAnnotation } from '../../processors';
+import type { BuildAnnotation } from '../../processors';
 import { DeterministicJobError } from '../../failure-class';
 
 type Agent = components['schemas']['Agent'];
@@ -17,8 +17,8 @@ type Agent = components['schemas']['Agent'];
  *
  * `offsets` is the text's conversions between its offsets, which count code
  * points, and its string's positions. They are made here, once, where the
- * text is first held, and every function of the job that cuts, searches or
- * slices the text is handed them.
+ * text is first held, and every function of the job that cuts the text is
+ * handed them.
  */
 export type DetectionSource =
   | { text: string; offsets: TextOffsets; buildAnnotation: BuildAnnotation }
@@ -112,12 +112,11 @@ export async function prepareDetection(
       case 'extracted': {
         if (!answer.text.trim()) return { declined: 'empty' };
         const anchored = { text: answer.text, items: answer.items ?? [] };
-        const offsets = textOffsets(answer.text);
         return {
           text: answer.text,
-          offsets,
-          buildAnnotation: (motivation, match, body) =>
-            buildPdfAnnotation(anchored, offsets, resourceId, generator, motivation, match, body),
+          offsets: textOffsets(answer.text),
+          buildAnnotation: (motivation, span, body) =>
+            annotationOfSpan({ anchored, resourceId, generator, motivation, span, body }),
         };
       }
       // The Smelter's own decline (encrypted, corrupt) — passed through by name.
@@ -160,11 +159,10 @@ export async function prepareDetection(
   const text = decodeRepresentation(Buffer.from(data), mediaType);
   if (!text.trim()) return { declined: 'empty' };
 
-  const offsets = textOffsets(text);
   return {
     text,
-    offsets,
-    buildAnnotation: (motivation, match, body) =>
-      buildTextAnnotation(text, offsets, resourceId, generator, motivation, match, body),
+    offsets: textOffsets(text),
+    buildAnnotation: (motivation, span, body) =>
+      annotationOfSpan({ text, resourceId, generator, motivation, span, body }),
   };
 }

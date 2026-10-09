@@ -8,7 +8,7 @@ import { assertNotTruncated, callChunkSubdividing, deriveDetectionBudget, runAda
  *
  * The LLM emits `exact` (verbatim text span), `entityType`, and optional
  * `prefix` / `suffix` context for disambiguation. Offsets are not asked
- * for — `reconcileSelector` computes them by anchoring `exact` against
+ * for — `reconcile` computes them by anchoring `exact` against
  * the source content in the calling processor.
  */
 export interface ExtractedEntity {
@@ -30,7 +30,7 @@ export interface ExtractedEntity {
  * `prefix`/`suffix` are deliberately NOT in `required`: with all four
  * required, models return `"prefix": ""` instead of omitting the key,
  * turning "sometimes absent" into "always present, sometimes empty" — an
- * anchoring-path change avoided at the source here; `reconcileSelector` also
+ * anchoring-path change avoided at the source here; `reconcile` also
  * treats an empty hint as an absent one.
  */
 const ENTITY_ELEMENT_SCHEMA: ElementSchema = {
@@ -243,7 +243,7 @@ Find direct mentions only (names, proper nouns). Do not include pronouns or desc
     : '';
 
   // The LLM is asked for `exact`, `prefix`, and `suffix` — no character
-  // offsets. Offsets get computed by `reconcileSelector` against the
+  // offsets. Offsets get computed by `reconcile` against the
   // source content. Asking the model for offsets wastes tokens and
   // encourages it to fabricate where it shouldn't.
   const buildPrompt = (text: string): string => `Identify entity references in the following text. Look for mentions of: ${entityTypesDescription}.

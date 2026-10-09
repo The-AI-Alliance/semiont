@@ -22,9 +22,9 @@ import type { PdfTextItem } from '@semiont/core';
 // with an `AnchoredTextStore`, which this worker does not have.
 // The `readRepresentation` assertions below prove "the worker did not OCR"
 // observably: no bytes fetched is no derivation possible.
-// No `@semiont/event-sourcing` mock: annotation ids are content-addressed, so
-// the real function is deterministic, and a mock would hide the identity
-// these builders compute — which is the thing worth exercising.
+// No `@semiont/core` mock: annotation ids are content-addressed, so the real
+// builder is deterministic, and a mock would hide the identity it computes —
+// which is the thing worth exercising.
 
 import { prepareDetection, type ReadRepresentation } from '../workers/detection/prepare-detection';
 
@@ -93,7 +93,7 @@ describe('prepareDetection', () => {
     const sels = selectors(ann);
     expect(sels.find((s) => s.type === 'TextPositionSelector')).toMatchObject({ start: 0, end: 5 });
     expect(sels.some((s) => s.type === 'TextQuoteSelector')).toBe(true);
-    expect(() => source.buildAnnotation('highlighting', { exact: 'zzz', start: 0, end: 3 })).toThrow(/invariant/);
+    expect(() => source.buildAnnotation('highlighting', { exact: 'zzz', start: 0, end: 3 })).toThrow(expect.objectContaining({ code: 'exact-mismatch' }));
   });
 
   it('text: a span after a character outside the Basic Multilingual Plane is anchored at a count of code points', async () => {
@@ -107,7 +107,7 @@ describe('prepareDetection', () => {
 
     const ann = source.buildAnnotation('highlighting', { exact: 'Ada Lovelace', start: 2, end: 14 }) as Record<string, unknown>;
     expect(selectors(ann).find((s) => s.type === 'TextPositionSelector')).toEqual({ type: 'TextPositionSelector', start: 2, end: 14 });
-    expect(() => source.buildAnnotation('highlighting', { exact: 'Ada Lovelace', start: 3, end: 15 })).toThrow(/invariant/);
+    expect(() => source.buildAnnotation('highlighting', { exact: 'Ada Lovelace', start: 3, end: 15 })).toThrow(expect.objectContaining({ code: 'exact-mismatch' }));
   });
 
   it("declines 'empty' when a decoded non-geometry resource yields nothing to detect over", async () => {

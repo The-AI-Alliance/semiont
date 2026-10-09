@@ -39,23 +39,6 @@ It throws a `TypeError` for a string that is not a `ResourceId`, and rethrows an
 
 How each event changes a view is in [the Archivist's protocol](../../../docs/protocol/ARCHIVIST.md#how-each-event-changes-the-views).
 
-## Annotation ids
-
-```typescript
-import { annotationIdFor } from '@semiont/event-sourcing';
-
-const id = annotationIdFor({
-  resourceId: 'doc-123',
-  motivation: 'commenting',
-  anchor: '0:5:Hello',
-  body: { type: 'TextualBody', value: 'A greeting', purpose: 'commenting' },
-});
-```
-
-The id is 21 base64url characters of the SHA-256 of the canonical JSON of those four inputs. Object keys are sorted at every depth and array order is kept. `body` is hashed whenever there is one, so two comments on one span are two annotations.
-
-`anchor` is a string the caller renders from the span. The guarantee that making an annotation again gives the same id holds as far as that string is stable.
-
 ## Event types
 
 The events a knowledge base records are [`@semiont/core`](../../core/README.md)'s `PersistedEvent` catalogue, generated from the bus registry. `PERSISTED_EVENT_TYPES` is the list at run time.

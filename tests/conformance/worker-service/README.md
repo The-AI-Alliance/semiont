@@ -70,10 +70,9 @@ is held to `JobClaimedResult`, and a Smelter's answer to
   three `options` and the `format`) and the order the requests arrive in.
 - **Annotations** are compared whole: `id`, selectors, body and `generator`,
   in the batches they were committed in. `created` must be an instant and is
-  otherwise the service's own, and so is the `modified` of the annotations a
-  `yield` job commits. Those annotations are on, or point at, a resource the
-  case learns of only as it runs, so a case works their ids out from what
-  they are, by the rule of
+  otherwise the service's own. The annotations a `yield` job commits are on,
+  or point at, a resource the case learns of only as it runs, so a case works
+  their ids out from what they are, by the rule of
   [`id-cases.json`](../../../specs/src/annotations/id-cases.json).
 - **Messages a service waits on** (the claim, `job:start`, the read of the
   description and of the bytes, each commit and each checkpoint, the settle,

@@ -121,7 +121,9 @@ Pure functions for building and reading W3C Annotations:
 
 ```typescript
 import {
-  assembleAnnotation,
+  reconcile,
+  annotationOfSpan,
+  annotationOfResource,
   getBodySource,
   getTargetSelector,
   getExactText,
@@ -265,7 +267,7 @@ if (isDefined(value)) {
 - **Locales** — `LOCALES`, `getLocaleInfo`, `formatLocaleDisplay`, …
 - **Media types** — `MEDIA_TYPES` capability registry keyed by the spec's `SupportedMediaType` enum (render / anchoring / text source / authorable per type), generated from `specs/src/media-types/registry.json`, with `capabilitiesOf`, `textSourceOf`, `mediaTypeForExtension`, `baseMediaType`, …
 - **Text encoding** — `extractCharset`, `decodeWithCharset`
-- **Text context** — `extractContext`, `reconcileSelector`
+- **Text context** — `extractContext`
 - **SVG** — `createRectangleSvg`, `parseSvgSelector`, `scaleSvgToNative`, …
 - **IDs** — `generateUuid`
 

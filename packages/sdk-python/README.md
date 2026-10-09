@@ -359,16 +359,37 @@ motivation, or the `yield` jobs. What it returns hands out the jobs the worker
 comes to hold, one at a time, and a held job says its own lifecycle.
 
 ```python
-from semiont.claims import JOB_CLAIM_CHANNELS, ClaimRefusal, HeldMarkJob, HeldYieldJob
+from semiont.annotations import QuotedText, annotation_of_span, reconcile
+from semiont.claims import JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, ClaimRefusal, HeldMarkJob, HeldYieldJob
 from semiont.client import SemiontClient
 from semiont.http import AgentToken, Credential, HttpTransport, ServiceToken
-from semiont.types import JobDetectionResult, JobProgress, MarkJobFilter, MarkJobFilterParams
+from semiont.identifiers import AnnotationId
+from semiont.identity import agent_name
+from semiont.types import Agent, AgentSoftware, Annotation, JobDetectionResult, JobProgress, MarkJobFilter, MarkJobFilterParams
+
+PROVIDER, MODEL = "ollama", "gemma3:4b"
 
 
-async def highlight(job: HeldMarkJob) -> JobDetectionResult:
-    """Your work: read the resource, find the passages, commit them."""
+async def passages(text: str) -> list[QuotedText]:
+    """Your model: the passages of a text it would highlight, each as the words it quoted. This one quotes the first line."""
+    return [QuotedText(exact=text.partition("\n")[0])]
+
+
+async def highlight(client: SemiontClient[HttpTransport], job: HeldMarkJob, generator: Agent) -> JobDetectionResult:
+    """Your work: read the resource, have its passages quoted, and commit a highlight of each one the text has."""
+    text = await client.browse.resource_content(job.resource_id)
+    quoted = await passages(text)
     await job.progress(JobProgress(percentage=50))
-    return JobDetectionResult(found=0, persisted=0)
+    highlights: dict[AnnotationId, Annotation] = {}
+    for quote in quoted:
+        # What a model quotes is not trusted: it is found in the text, as the text has it, or it is dropped.
+        span = reconcile(text, quote)
+        if span is not None:
+            built = annotation_of_span(text, span, resource_id=job.resource_id, motivation="highlighting", generator=generator)
+            # An annotation's id is worked out from what it is, so a passage quoted twice is one annotation.
+            highlights[built.id] = built
+    await job.commit(job.resource_id, list(highlights.values()))
+    return JobDetectionResult(found=len(quoted), persisted=len(highlights))
 
 
 async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
@@ -376,13 +397,18 @@ async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
     service = ServiceToken(Credential(issuer=issuer, client_id=client_id, client_secret=secret))
     accepts = [MarkJobFilter(job_type="mark", params=MarkJobFilterParams(motivation="highlighting"))]
     async with (
-        AgentToken(gateway, provider="ollama", model="gemma3:4b", service=service) as agent,
-        # Its stream names what claiming reads. This worker awaits nothing else, so it names nothing else.
-        HttpTransport(gateway, token=agent.token, refresher=agent.refresh, channels=JOB_CLAIM_CHANNELS) as transport,
+        AgentToken(gateway, provider=PROVIDER, model=MODEL, service=service) as agent,
+        # Its stream names what claiming and committing read. This worker awaits nothing else, so it names nothing else.
+        HttpTransport(
+            gateway, token=agent.token, refresher=agent.refresh, channels=(*JOB_CLAIM_CHANNELS, *JOB_COMMIT_CHANNELS)
+        ) as transport,
         SemiontClient(transport, transport.content, transport) as client,
         # Leaving this block stops the worker: a job it still holds is failed first, and the queue retries it.
         client.job.claim(accepts) as claims,
     ):
+        # What made the annotations it commits: the agent the gateway says this token is.
+        me = await transport.get_current_user()
+        generator = AgentSoftware(type="Software", id=me.did, name=agent_name(PROVIDER, MODEL), provider=PROVIDER, model=MODEL)
         # Each job the worker comes to hold, one at a time. The next is claimed when this one settles.
         async for handed in claims:
             match handed:
@@ -398,7 +424,7 @@ async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
                     async with handed as job:
                         await job.start()
                         try:
-                            result = await highlight(job)
+                            result = await highlight(client, job, generator)
                         except Exception as error:
                             await job.fail(str(error))
                         else:
@@ -414,6 +440,10 @@ async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
   whatever else it awaits. The announcements that wake an idle worker reach
   only a stream that names them, so a client whose stream does not is refused
   at its first claim, as `bus.unsubscribed`.
+- **It builds what it commits** with `reconcile` and `annotation_of_span`:
+  [Building annotations](#building-annotations) says what each does. The
+  `generator` an annotation states is the agent the worker works as, whose
+  DID is what the gateway says its token is.
 - **A held job commits for itself**: `await job.commit(resource_id, annotations)`
   sends the batch as `mark:commit`, citing the job, and returns once the
   record has it. When no acknowledgement arrives it asks whether the batch's
@@ -457,6 +487,104 @@ async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
 
 What a worker promises the dispatcher is [the worker contract][worker-contract],
 and [its conformance suite][worker-conformance] holds this package to it.
+
+## Building annotations
+
+What a worker commits is annotations, and `semiont.annotations` builds them.
+It has three builders, the same three in every Semiont SDK, so that a
+highlight recorded by a worker in Python is the annotation a worker in
+TypeScript or in Rust records, with the same id.
+
+| Function | What it does |
+|---|---|
+| `reconcile(text, quoted)` | Finds the words a model quoted in a text. `quoted` is a `QuotedText`: the words (`exact`) and, when the model gave them, the words just before and just after (`prefix`, `suffix`). It answers a `ReconciledSpan`, or `None` when the text does not have the words |
+| `annotation_of_span(text, span, resource_id=…, motivation=…, generator=…, body=…)` | Builds the annotation of a span of a text, or of a PDF's anchored text: its selectors and its id, with the generator and the body as given. A span that is not the text's raises `SpanRefusedError` |
+| `annotation_of_resource(resource_id, motivation=…, generator=…, body=…)` | Builds an annotation of a resource as a whole, which has no selector. The link from a resource to one generated from it is one |
+
+```python
+from semiont.annotations import (
+    QuotedText,
+    annotation_exact_text,
+    annotation_of_resource,
+    annotation_of_span,
+    body_source,
+    is_highlight,
+    reconcile,
+    target_source,
+)
+from semiont.identifiers import ResourceId
+from semiont.types import Agent, AnchoredText, Annotation, SpecificResource
+
+
+def highlight(text: str, quoted: QuotedText, resource: ResourceId, generator: Agent) -> Annotation | None:
+    """A highlight of the words a model quoted, or nothing when the text does not have them."""
+    span = reconcile(text, quoted)  # where the words are, as the text has them, with the text's own context
+    if span is None:
+        return None
+    return annotation_of_span(text, span, resource_id=resource, motivation="highlighting", generator=generator)
+
+
+def highlight_of_a_pdf(anchored: AnchoredText, quoted: QuotedText, resource: ResourceId, generator: Agent) -> Annotation | None:
+    """The same of a PDF: the words are found in its anchored text, and selected by rectangles on its pages."""
+    span = reconcile(anchored.text, quoted)
+    if span is None:
+        return None
+    return annotation_of_span(anchored, span, resource_id=resource, motivation="highlighting", generator=generator)
+
+
+def link_to_what_was_generated(source: ResourceId, generated: ResourceId, generator: Agent) -> Annotation:
+    """The link from a resource to one generated from it: an annotation of the resource as a whole."""
+    names_it = SpecificResource(type="SpecificResource", source=generated, purpose="linking")
+    return annotation_of_resource(source, motivation="linking", generator=generator, body=names_it)
+
+
+def describe(annotation: Annotation) -> str:
+    """What an annotation says, read without narrowing its target, its selector or its body by hand."""
+    on = target_source(annotation.target)
+    if is_highlight(annotation):
+        return f"{annotation.id}: a highlight of {annotation_exact_text(annotation)!r} in {on}"
+    return f"{annotation.id}: {annotation.motivation}, from {on} to {body_source(annotation.body)}"
+```
+
+- **Nothing a model says is trusted.** `reconcile` looks for the quoted words
+  as they are. When the text does not have them so, it looks without regard
+  to white space and to the form of quotation marks and dashes, then without
+  regard to letter case, then for the nearest stretch within one edit for
+  each twenty characters of the quote. Where the text has the words in more
+  than one place, the model's prefix and suffix choose among them.
+- **A span is the text's own.** A `ReconciledSpan` has where the words are
+  (`start`, `end`), the words as the text has them (`exact`), what the text
+  has on either side (`prefix`, `suffix`), and how it was found
+  (`anchor_method`, and `match_quality` for a looser search). It is a
+  `TextSpan`, and goes to `annotation_of_span` as it is.
+- **`reconcile` is one way to find a model's words**, with its own tolerance
+  for a misquote. A worker that finds its spans another way gives
+  `annotation_of_span` a `TextSpan` it made itself.
+- **The builders make nothing a hand-written annotation could not**, so
+  nothing a knowledge base relies on rests on them.
+- **An offset counts Unicode code points**, which is what a `str` is indexed
+  by: `text[span.start:span.end]` is `span.exact`.
+- **A span is checked before anything is built.** One that is not the
+  text's raises `SpanRefusedError`, and its `code` says which of six refusals
+  it is: `span-out-of-range`, `exact-mismatch`, `prefix-mismatch`,
+  `suffix-mismatch`, and for a PDF `nothing-located` and `exact-not-covered`.
+  A span `reconcile` found in a text is not refused for that text.
+- **A PDF is annotated through its anchored text**, which
+  `client.browse.resource_anchored_text` answers. The words are found in its
+  `text`, and the annotation selects them by a rectangle for each line they
+  touch, and by their quote.
+- **An annotation's id is worked out from what it is**: its resource, its
+  motivation, its span and its body. Building the same annotation again gives
+  the same id, and committing it again changes nothing, so a job that is run
+  a second time writes no annotation twice.
+- **The readers read any annotation**, built here or answered by a knowledge
+  base, whatever shape its target, its selector and its body take:
+  `target_source`, `annotation_exact_text`, `body_source`, `is_highlight` and
+  the rest.
+
+The rules are case tables that every SDK runs:
+[`reconcile-cases.json`][reconcile-cases], [`builder-cases.json`][builder-cases]
+and [`id-cases.json`][id-cases].
 
 ## Testing what is built on it
 
@@ -666,7 +794,7 @@ holds either for as long as its `with` block lasts.
 | `semiont.client` | `SemiontClient`, and the timing it keeps to |
 | `semiont.namespaces` | The methods of each namespace; and in `semiont.namespaces.follow`, `Delegation[C]`, what a delegated job returns, with the events of a job |
 | `semiont.running`, `semiont.cached` | `Running[T]` and `Cached[T]`: what long-running operations and queries return |
-| `semiont.annotations` | The readers of an annotation: the resource it is on and the one it links to, the text it quotes, its entity types, its tag, and what kind it is, whatever shape its target, its selector and its body take |
+| `semiont.annotations` | The readers of an annotation: the resource it is on and the one it links to, the text it quotes, its entity types, its tag, and what kind it is, whatever shape its target, its selector and its body take. And the builders of one: `reconcile`, `annotation_of_span` and `annotation_of_resource`, with `QuotedText`, `TextSpan`, `ReconciledSpan` and `SpanRefusedError` |
 | `semiont.claims`, `semiont.job_filter` | `Claims`, what `job.claim` returns, with the jobs a worker holds, the channels its stream names and the retry rule; and whether a job matches a filter |
 | `semiont.cache`, `semiont.refresh`, `semiont.resume` | The cache queries answer from and its three states, which queries each event asks again, and where a stream resumes after a restart |
 | `semiont.storage` | Where a client keeps what must outlive it: `SessionStorage`, and `MemoryStorage` |
@@ -723,6 +851,9 @@ Apache-2.0. See [LICENSE][license].
 [refresh]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/client/refresh.json
 [codes]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/errors/codes.json
 [session-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/session/cases.json
+[reconcile-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/annotations/reconcile-cases.json
+[builder-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/annotations/builder-cases.json
+[id-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/annotations/id-cases.json
 [sign-in-store]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/sign-in-store/README.md
 [telemetry]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/sdk-telemetry/telemetry.json
 [package]: https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk-python

@@ -670,10 +670,10 @@ function anchorOutcomeCounter(): Counter {
 /**
  * Record how one annotation got anchored.
  *
- * The selector-vs-source check is already a WRITE-TIME INVARIANT — both
- * `buildTextAnnotation` and `buildPdfAnnotation` throw on a selector that does
- * not match its source — so mechanical correctness is guaranteed rather than
- * sampled, and auditing it would measure a constant.
+ * The selector-vs-source check is already made AT WRITE TIME —
+ * `annotationOfSpan` refuses a span that does not match its source, of a text
+ * or of a PDF — so mechanical correctness is guaranteed rather than sampled,
+ * and auditing it would measure a constant.
  *
  * What is genuinely uncertain is which anchoring METHOD got there. An `exact`
  * the model quoted verbatim and that appears once is certain; one resolved by

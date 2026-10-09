@@ -1,5 +1,5 @@
 {
-  "$comment": "Where a quoted span is in a text, as every implementation must answer it. A model asked to mark a text quotes it: the words (`exact`), and maybe some of what comes before and after them (`prefix`, `suffix`). None of that is trusted. It is reconciled against the text into a position and a quote that are the text's own, or it is refused, and only what is reconciled is built into an annotation. TypeScript (packages/core: reconcileSelector) runs every case and fails on a difference; a worker written in another language runs the same file. READING A CASE. `text` is the real text, `quoted` what the model said, and `reconciled` the answer: `null` when the span is refused, otherwise `start` and `end` (offsets, which count Unicode code points from the start of the text: the span is the code points from `start` up to but not including `end`), `exact` (the text between them, never the model's spelling of it), `prefix` and `suffix` (taken from the text as CONTEXT says, each left out when there is nothing to take), `anchorMethod` (how the place was found) and, only when that is `fuzzy-match`, `matchQuality` (which of the three looser searches found it). THE RULE. An `exact` that is empty, or only white space, is refused. A prefix or a suffix the model gave is a hint; one that is empty, or only white space, is none. A place is a span of the text. It fits the prefix when the text just before it ends with the prefix, or when the prefix, with the white space at its two ends removed, is anywhere in the code points before the place: as many of them as the prefix has, and at least 32. It fits the suffix when the text just after it starts with the suffix, or when the suffix, trimmed the same way, is anywhere in the code points after the place: as many as the suffix has, and at least 32. Find every place the text has `exact`, character for character; places may overlap one another. Exactly one place: it is the span, `unique-match`, whatever the model's prefix and suffix say. More than one: if there is a hint, the span is the first place, in the text's order, that fits every hint given, `context-recovered`; with no hint, or no place that fits, the span is the first place, `first-of-many`. No place at all: three looser searches are tried in this order, and the first that finds a span answers `fuzzy-match` with its own name as `matchQuality`. The first two find places, which may overlap, and the span is chosen among them as it is among the places the text has `exact`: the first place that fits every hint given, and the first place of all when there is no hint or none fits; the answer does not say which. (1) `normalized`. Normalize the text and `exact` alike: every run of white space becomes one space, the single quotation marks U+2018 and U+2019 become an apostrophe, the double ones U+201C and U+201D become a straight double quote, an em dash U+2014 becomes two hyphens and an en dash U+2013 one, and white space at the two ends is dropped. A place is where the normalized text has the normalized `exact`. It starts at the character of the text that its first character came from, and ends just after the character of the text that its last came from: white space the text has after the match is no part of it. (2) `case-insensitive`. Lower-case the text and `exact` by Unicode's own rule, of no particular language, each as a whole: a capital sigma that ends a word becomes the final one. A place is where the lower-cased text has the lower-cased `exact`, and it is a span of the text, not of the lower-cased text. A character may lower-case to more than one code point (U+0130, a capital I with a dot, becomes two), so the place starts at the character of the text that its first code point came from and ends just after the character that its last came from, and need not have as many code points as `exact`. A match that begins or ends between the code points one character became takes that character whole. (3) `fuzzy`. The hints play no part. The allowance is a twentieth of the number of code points in `exact`, rounded down, with no minimum: an `exact` of fewer than twenty code points has none, and is found by what comes before this search or refused. Compare `exact` with every stretch of the text, of whatever length, by edit distance: the least number of single code points inserted, deleted or replaced that turns one into the other. A stretch within the allowance is at most the allowance longer or shorter than `exact`, and need not have as many code points. The span is the stretch at the least distance, provided that distance is within the allowance. Of several at the least distance it is the first in the text; of those that begin at the same place, the one nearest `exact` in length; and of two as near, the shorter. If no stretch is within the allowance, the span is refused. CONTEXT. The `prefix` is the 64 code points of the text before the span, or all of them if there are fewer. If it would begin part of the way through a word it is lengthened backwards a code point at a time, by at most 32 more, until the character before it is a boundary or the text begins. The `suffix` is the 64 code points after the span, or all there are, lengthened forwards in the same way until the character after it is a boundary or the text ends. A boundary is white space or one of these eighteen and nothing else: . , ; : ! ? ' \" ( ) [ ] { } < > / \\ (so not a hyphen, and not a curly quotation mark). White space is what Unicode gives the White_Space property; no case rests on U+0085 or U+FEFF, about which implementations disagree. Code points are compared as they are, with no Unicode normalization: a letter followed by a combining mark is not the one accented letter. What an offset counts is held by a table of its own, specs/src/text/offset-cases.json; some texts here have a character outside the Basic Multilingual Plane, which is one code point and two UTF-16 code units, so that a count of code units fails them. Add a case here before changing an implementation.",
+  "$comment": "Where a quoted span is in a text, as every implementation must answer it. A model asked to mark a text quotes it: the words (`exact`), and maybe some of what comes before and after them (`prefix`, `suffix`). None of that is trusted. It is reconciled against the text into a position and a quote that are the text's own, or it is refused, and only what is reconciled is built into an annotation. It is what `reconcile` does, one of the three annotation builders (builder-cases.json): TypeScript (@semiont/core, re-exported by @semiont/sdk), Rust (semiont::annotations) and Python (semiont.annotations) each run every case and fail on a difference. READING A CASE. `text` is the real text, `quoted` what the model said, and `reconciled` the answer: `null` when the span is refused, otherwise `start` and `end` (offsets, which count Unicode code points from the start of the text: the span is the code points from `start` up to but not including `end`), `exact` (the text between them, never the model's spelling of it), `prefix` and `suffix` (taken from the text as CONTEXT says, each left out when there is nothing to take), `anchorMethod` (how the place was found) and, only when that is `fuzzy-match`, `matchQuality` (which of the three looser searches found it). THE RULE. An `exact` that is empty, or only white space, is refused. A prefix or a suffix the model gave is a hint; one that is empty, or only white space, is none. A place is a span of the text. It fits the prefix when the text just before it ends with the prefix, or when the prefix, with the white space at its two ends removed, is anywhere in the code points before the place: as many of them as the prefix has, and at least 32. It fits the suffix when the text just after it starts with the suffix, or when the suffix, trimmed the same way, is anywhere in the code points after the place: as many as the suffix has, and at least 32. Find every place the text has `exact`, character for character; places may overlap one another. Exactly one place: it is the span, `unique-match`, whatever the model's prefix and suffix say. More than one: if there is a hint, the span is the first place, in the text's order, that fits every hint given, `context-recovered`; with no hint, or no place that fits, the span is the first place, `first-of-many`. No place at all: three looser searches are tried in this order, and the first that finds a span answers `fuzzy-match` with its own name as `matchQuality`. The first two find places, which may overlap, and the span is chosen among them as it is among the places the text has `exact`: the first place that fits every hint given, and the first place of all when there is no hint or none fits; the answer does not say which. (1) `normalized`. Normalize the text and `exact` alike: every run of white space becomes one space, the single quotation marks U+2018 and U+2019 become an apostrophe, the double ones U+201C and U+201D become a straight double quote, an em dash U+2014 becomes two hyphens and an en dash U+2013 one, and white space at the two ends is dropped. A place is where the normalized text has the normalized `exact`. It starts at the character of the text that its first character came from, and ends just after the character of the text that its last came from: white space the text has after the match is no part of it. (2) `case-insensitive`. Lower-case the text and `exact` by Unicode's own rule, of no particular language, each as a whole: a capital sigma that ends a word becomes the final one. A place is where the lower-cased text has the lower-cased `exact`, and it is a span of the text, not of the lower-cased text. A character may lower-case to more than one code point (U+0130, a capital I with a dot, becomes two), so the place starts at the character of the text that its first code point came from and ends just after the character that its last came from, and need not have as many code points as `exact`. A match that begins or ends between the code points one character became takes that character whole. (3) `fuzzy`. The hints play no part. The allowance is a twentieth of the number of code points in `exact`, rounded down, with no minimum: an `exact` of fewer than twenty code points has none, and is found by what comes before this search or refused. Compare `exact` with every stretch of the text, of whatever length, by edit distance: the least number of single code points inserted, deleted or replaced that turns one into the other. A stretch within the allowance is at most the allowance longer or shorter than `exact`, and need not have as many code points. The span is the stretch at the least distance, provided that distance is within the allowance. Of several at the least distance it is the first in the text; of those that begin at the same place, the one nearest `exact` in length; and of two as near, the shorter. If no stretch is within the allowance, the span is refused. CONTEXT. The `prefix` is the 64 code points of the text before the span, or all of them if there are fewer. If it would begin part of the way through a word it is lengthened backwards a code point at a time, by at most 32 more, until the character before it is a boundary or the text begins. The `suffix` is the 64 code points after the span, or all there are, lengthened forwards in the same way until the character after it is a boundary or the text ends. A boundary is white space or one of these eighteen and nothing else: . , ; : ! ? ' \" ( ) [ ] { } < > / \\ (so not a hyphen, and not a curly quotation mark). White space is what Unicode gives the White_Space property; no case rests on U+0085 or U+FEFF, about which implementations disagree. Code points are compared as they are, with no Unicode normalization: a letter followed by a combining mark is not the one accented letter. What an offset counts is held by a table of its own, specs/src/text/offset-cases.json; some texts here have a character outside the Basic Multilingual Plane, which is one code point and two UTF-16 code units, so that a count of code units fails them. Add a case here before changing an implementation.",
   "cases": [
     {
       "why": "words the text has once are the span, and the context is the text's: all of it on either side when there are fewer than 64 characters",
@@ -913,6 +913,206 @@
         "suffix": " \n\n",
         "anchorMethod": "fuzzy-match",
         "matchQuality": "normalized"
+      }
+    },
+    {
+      "why": "a suffix of 64 characters is looked for in the 64 after each place, not in 32: only so can it tell the second `Paris` from the others, whose first 32 characters after are the same",
+      "text": "Paris, the city on the river Seine in the north of France, in spring. Paris, the city on the river Seine in the north of France, in autumn. Paris, the city on the river Seine in the north of France, in winter.",
+      "quoted": { "exact": "Paris", "suffix": ", the city on the river Seine in the north of France, in autumn." },
+      "reconciled": {
+        "start": 70,
+        "end": 75,
+        "exact": "Paris",
+        "prefix": " the city on the river Seine in the north of France, in spring. ",
+        "suffix": ", the city on the river Seine in the north of France, in autumn.",
+        "anchorMethod": "context-recovered"
+      }
+    },
+    {
+      "why": "a suffix given with a space after it that the text does not have there does not start the text after any place, but trimmed it is among the 32 characters after the second, and that fits",
+      "text": "Paris is very large today. Paris, it is said, was Roman. Paris is old.",
+      "quoted": { "exact": "Paris", "suffix": "was Roman " },
+      "reconciled": {
+        "start": 27,
+        "end": 32,
+        "exact": "Paris",
+        "prefix": "Paris is very large today. ",
+        "suffix": ", it is said, was Roman. Paris is old.",
+        "anchorMethod": "context-recovered"
+      }
+    },
+    {
+      "why": "the single quotation marks are apostrophes once normalized: the text has U+2018 and U+2019 where the model wrote the plain mark, three times, and the quote that is kept has the text's own marks",
+      "text": "He called it ‘the engine’ and it wasn’t built.",
+      "quoted": { "exact": "'the engine' and it wasn't" },
+      "reconciled": {
+        "start": 13,
+        "end": 39,
+        "exact": "‘the engine’ and it wasn’t",
+        "prefix": "He called it ",
+        "suffix": " built.",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "normalized"
+      }
+    },
+    {
+      "why": "it is the same the other way about: the model wrote U+2018 and U+2019, the text has the plain apostrophe",
+      "text": "It's Ada's 'engine', isn't it?",
+      "quoted": { "exact": "Ada’s ‘engine’" },
+      "reconciled": {
+        "start": 5,
+        "end": 19,
+        "exact": "Ada's 'engine'",
+        "prefix": "It's ",
+        "suffix": ", isn't it?",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "normalized"
+      }
+    },
+    {
+      "why": "a run of white space is one space in the quote as it is in the text: the model wrote two spaces, and a line break and a tab, where the text has one space each",
+      "text": "The quick brown fox jumps.",
+      "quoted": { "exact": "quick  brown\n\tfox" },
+      "reconciled": {
+        "start": 4,
+        "end": 19,
+        "exact": "quick brown fox",
+        "prefix": "The ",
+        "suffix": " jumps.",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "normalized"
+      }
+    },
+    {
+      "why": "an en dash the model wrote is one hyphen, as one the text has is: the text has the hyphen",
+      "text": "See pages 10-12 of the report.",
+      "quoted": { "exact": "pages 10–12" },
+      "reconciled": {
+        "start": 4,
+        "end": 15,
+        "exact": "pages 10-12",
+        "prefix": "See ",
+        "suffix": " of the report.",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "normalized"
+      }
+    },
+    {
+      "why": "white space at the two ends of the quote is dropped before it is looked for: the model began with a space and ended with a line break, the text has a full stop after the words, and the span is the words alone",
+      "text": "Ada wrote the notes.",
+      "quoted": { "exact": " wrote the notes\n" },
+      "reconciled": {
+        "start": 4,
+        "end": 19,
+        "exact": "wrote the notes",
+        "prefix": "Ada ",
+        "suffix": ".",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "normalized"
+      }
+    },
+    {
+      "why": "a comma and an exclamation mark are boundaries: 64 characters back lands inside `westward` and the prefix is lengthened back to the mark before it, not through it to `north`; 64 on lands inside `eastward` and the suffix is lengthened to the mark after it, not through it to `south`",
+      "text": "north,westward the surveyors walked by the old canal that morning and at noon they sat down on the towpath wall to eat and later turned eastward!south",
+      "quoted": { "exact": "noon" },
+      "reconciled": {
+        "start": 73,
+        "end": 77,
+        "exact": "noon",
+        "prefix": "westward the surveyors walked by the old canal that morning and at ",
+        "suffix": " they sat down on the towpath wall to eat and later turned eastward",
+        "anchorMethod": "unique-match"
+      }
+    },
+    {
+      "why": "a question mark and an apostrophe are boundaries: 64 characters back lands inside `westward` and the prefix is lengthened back to the mark before it, not through it to `north`; 64 on lands inside `eastward` and the suffix is lengthened to the mark after it, not through it to `south`",
+      "text": "north?westward the surveyors walked by the old canal that morning and at noon they sat down on the towpath wall to eat and later turned eastward'south",
+      "quoted": { "exact": "noon" },
+      "reconciled": {
+        "start": 73,
+        "end": 77,
+        "exact": "noon",
+        "prefix": "westward the surveyors walked by the old canal that morning and at ",
+        "suffix": " they sat down on the towpath wall to eat and later turned eastward",
+        "anchorMethod": "unique-match"
+      }
+    },
+    {
+      "why": "a double quotation mark and an opening parenthesis are boundaries: 64 characters back lands inside `westward` and the prefix is lengthened back to the mark before it, not through it to `north`; 64 on lands inside `eastward` and the suffix is lengthened to the mark after it, not through it to `south`",
+      "text": "north\"westward the surveyors walked by the old canal that morning and at noon they sat down on the towpath wall to eat and later turned eastward(south",
+      "quoted": { "exact": "noon" },
+      "reconciled": {
+        "start": 73,
+        "end": 77,
+        "exact": "noon",
+        "prefix": "westward the surveyors walked by the old canal that morning and at ",
+        "suffix": " they sat down on the towpath wall to eat and later turned eastward",
+        "anchorMethod": "unique-match"
+      }
+    },
+    {
+      "why": "a closing parenthesis and an opening square bracket are boundaries: 64 characters back lands inside `westward` and the prefix is lengthened back to the mark before it, not through it to `north`; 64 on lands inside `eastward` and the suffix is lengthened to the mark after it, not through it to `south`",
+      "text": "north)westward the surveyors walked by the old canal that morning and at noon they sat down on the towpath wall to eat and later turned eastward[south",
+      "quoted": { "exact": "noon" },
+      "reconciled": {
+        "start": 73,
+        "end": 77,
+        "exact": "noon",
+        "prefix": "westward the surveyors walked by the old canal that morning and at ",
+        "suffix": " they sat down on the towpath wall to eat and later turned eastward",
+        "anchorMethod": "unique-match"
+      }
+    },
+    {
+      "why": "a closing square bracket and an opening brace are boundaries: 64 characters back lands inside `westward` and the prefix is lengthened back to the mark before it, not through it to `north`; 64 on lands inside `eastward` and the suffix is lengthened to the mark after it, not through it to `south`",
+      "text": "north]westward the surveyors walked by the old canal that morning and at noon they sat down on the towpath wall to eat and later turned eastward{south",
+      "quoted": { "exact": "noon" },
+      "reconciled": {
+        "start": 73,
+        "end": 77,
+        "exact": "noon",
+        "prefix": "westward the surveyors walked by the old canal that morning and at ",
+        "suffix": " they sat down on the towpath wall to eat and later turned eastward",
+        "anchorMethod": "unique-match"
+      }
+    },
+    {
+      "why": "a closing brace and a less-than sign are boundaries: 64 characters back lands inside `westward` and the prefix is lengthened back to the mark before it, not through it to `north`; 64 on lands inside `eastward` and the suffix is lengthened to the mark after it, not through it to `south`",
+      "text": "north}westward the surveyors walked by the old canal that morning and at noon they sat down on the towpath wall to eat and later turned eastward<south",
+      "quoted": { "exact": "noon" },
+      "reconciled": {
+        "start": 73,
+        "end": 77,
+        "exact": "noon",
+        "prefix": "westward the surveyors walked by the old canal that morning and at ",
+        "suffix": " they sat down on the towpath wall to eat and later turned eastward",
+        "anchorMethod": "unique-match"
+      }
+    },
+    {
+      "why": "a greater-than sign and a backslash are boundaries: 64 characters back lands inside `westward` and the prefix is lengthened back to the mark before it, not through it to `north`; 64 on lands inside `eastward` and the suffix is lengthened to the mark after it, not through it to `south`",
+      "text": "north>westward the surveyors walked by the old canal that morning and at noon they sat down on the towpath wall to eat and later turned eastward\\south",
+      "quoted": { "exact": "noon" },
+      "reconciled": {
+        "start": 73,
+        "end": 77,
+        "exact": "noon",
+        "prefix": "westward the surveyors walked by the old canal that morning and at ",
+        "suffix": " they sat down on the towpath wall to eat and later turned eastward",
+        "anchorMethod": "unique-match"
+      }
+    },
+    {
+      "why": "a prefix is trimmed too before it is looked for among the characters before a place: given with a line break after it that the text does not have there, it is among the 32 before the second place once trimmed, and that fits",
+      "text": "Paris is very large today. It was Roman, they say, Paris. And then again Paris is old.",
+      "quoted": { "exact": "Paris", "prefix": "was Roman\n" },
+      "reconciled": {
+        "start": 51,
+        "end": 56,
+        "exact": "Paris",
+        "prefix": "Paris is very large today. It was Roman, they say, ",
+        "suffix": ". And then again Paris is old.",
+        "anchorMethod": "context-recovered"
       }
     }
   ]

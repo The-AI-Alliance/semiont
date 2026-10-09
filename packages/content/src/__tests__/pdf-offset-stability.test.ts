@@ -2,7 +2,7 @@
  * The text layer's offsets are PINNED, because something downstream identifies
  * annotations by them.
  *
- * `buildPdfAnnotation` stores no `TextPositionSelector` — it holds page geometry
+ * `annotationOfSpan` stores no `TextPositionSelector` for a PDF — it holds page geometry
  * and the quoted text, on the stated grounds that the extracted text layer is a
  * derived artifact whose char offsets are not a durable anchor. But the id it
  * mints is content-addressed over `${start}:${end}:${exact}`, i.e. over exactly

@@ -171,6 +171,13 @@ returns hands out the jobs the worker comes to hold, one at a time, and a held j
 own lifecycle.
 
 ```ts
+import { annotationOfSpan, reconcile, type Annotation, type QuotedText } from '@semiont/sdk';
+import { didToAgent } from '@semiont/core';
+
+/** Your model: the passages of a text worth a highlight, each as the words it quotes. */
+declare function passagesOf(text: string): Promise<QuotedText[]>;
+
+const generator = didToAgent(agent.did);                      // what its annotations say made them
 const claims = client.job.claim({
   accepts: [{ jobType: 'mark', params: { motivation: 'highlighting' } }],
 });
@@ -179,8 +186,16 @@ claims.subscribe(async (job) => {
   // A completion is its verb's, so the verb is checked before `complete` is called.
   if (job.jobType !== 'mark') return job.fail(`this worker runs no ${job.jobType} job`);
   await job.start();
-  await job.progress({ percentage: 50 });
-  await job.complete({ found: 0, persisted: 0 });             // settles: the next job is claimed
+  const text = await client.browse.resourceContent(job.resourceId);
+  const quoted = await passagesOf(text);
+
+  const annotations: Annotation[] = [];
+  for (const words of quoted) {
+    const span = reconcile(text, words);                      // where the text has the words, or null
+    if (span) annotations.push(annotationOfSpan({ text, resourceId: job.resourceId, generator, motivation: 'highlighting', span }));
+  }
+  await job.commit(job.resourceId, annotations);              // resolves once the record has them
+  await job.complete({ found: quoted.length, persisted: annotations.length });   // settles: the next job is claimed
 });
 ```
 
@@ -188,6 +203,18 @@ claims.subscribe(async (job) => {
   agent its work is attributed to: `startAgentSession` does both, and keeps the token fresh.
 - **Its stream names `JOB_CLAIM_CHANNELS`**, and the reply channels of whatever else it
   awaits. A client whose stream does not is refused at once, as `bus.unsubscribed`.
+- **The SDK builds what a worker commits.** `reconcile(text, quoted)` finds the words a model
+  quoted in a text: a span of the text's own, with its offsets, or `null` when they are
+  nowhere in it. `annotationOfSpan` builds the annotation of a span (its selectors, its
+  `generator`, its `body` if it has one), with an id derived from what the annotation is, so
+  that committing it again after a retry writes nothing new; given a PDF's `anchored` text in
+  place of `text`, it anchors the span by where it is on the page. A span that is not the
+  text's throws a `SpanRefusedError`, whose `code` names the refusal.
+  `annotationOfResource` builds an annotation of a resource as a whole, with no selector.
+  `reconcile` is one way to find a model's words in a text, with its own tolerance for a
+  misquote: a worker that finds spans another way gives `annotationOfSpan` its own span. The
+  builders make nothing a hand-written payload could not, so nothing a knowledge base relies
+  on rests on them.
 - **A held job commits for itself**: `job.commit(resourceId, annotations)` sends the batch
   as `mark:commit`, citing the job, and resolves once the record has it. When no
   acknowledgement arrives it asks whether the batch's last annotation is on the resource,
@@ -227,6 +254,11 @@ is what a worker promises the dispatcher.
   annotation whose target is an id or an object, whose selector is one or a list, and whose
   body is absent, one item or a list, so a script checks none of that itself. One table,
   `specs/src/annotations/reader-cases.json`, holds every SDK's readers to the same answers.
+- **Annotation builders** — `reconcile`, `annotationOfSpan` and `annotationOfResource` turn
+  the words a model quoted into annotations to commit: where the text has the words, the
+  selectors of the span, and an id derived from what the annotation is. Every SDK has the
+  three, and `specs/src/annotations/builder-cases.json` and `reconcile-cases.json` hold them
+  to the same answers.
 - **A worker's side of the job queue** — `job.claim`, the held jobs it hands out,
   `startAgentSession` for a worker's sign-in, and `JOB_CLAIM_CHANNELS` and
   `JOB_COMMIT_CHANNELS` for its stream.

@@ -92,7 +92,7 @@ const annotationDecorationsField = StateField.define<DecorationSet>({
 
 ### Anchor Strategy & Confidence
 
-`segmentTextWithAnnotations()` anchors each annotation via `anchorAnnotation` (from `@semiont/core`), and each segment carries the `strategy` and `confidence` that placed it (see [Utilities.md](../../core/docs/Utilities.md#render-time-anchoring)). Anchoring is **verbatim-only**: it re-anchors on an exact `TextQuoteSelector` match (recovering positional drift) and otherwise renders at the stored `TextPositionSelector` offset, flagged. It never fuzzy-matches at render time — fuzzy reconciliation happens once, at write time, in `reconcileSelector`.
+`segmentTextWithAnnotations()` anchors each annotation via `anchorAnnotation` (from `@semiont/core`), and each segment carries the `strategy` and `confidence` that placed it (see [Utilities.md](../../core/docs/Utilities.md#render-time-anchoring)). Anchoring is **verbatim-only**: it re-anchors on an exact `TextQuoteSelector` match (recovering positional drift) and otherwise renders at the stored `TextPositionSelector` offset, flagged. It never fuzzy-matches at render time — fuzzy reconciliation happens once, at write time, in `reconcile`.
 
 The decoration layer surfaces the classification:
 

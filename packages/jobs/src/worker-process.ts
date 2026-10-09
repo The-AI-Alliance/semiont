@@ -19,11 +19,10 @@
 
 import { isHeldMark, type MarkMotivation } from './types';
 import type { ClaimsObservable, HeldJob, SemiontClient } from '@semiont/sdk';
-import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, findClaimSpan, textOffsets, capabilitiesOf, jobMatchesFilter, MARK_MOTIVATIONS, GENERATED_TEXT_ASKS_COUNT, type JobFilter, type ResourceId } from '@semiont/core';
+import { isGenerationJobParams, getPrimaryMediaType, annotationOfResource, annotationOfSpan, decodeRepresentation, findClaimSpan, textOffsets, capabilitiesOf, jobMatchesFilter, MARK_MOTIVATIONS, GENERATED_TEXT_ASKS_COUNT, type JobFilter, type ResourceId } from '@semiont/core';
 
 import type { InferenceClient } from '@semiont/inference';
-import type { Logger, components, AssembledAnnotation, Annotation, AnchoredText, JobDetectionResult, TextOffsets, UnitCursor } from '@semiont/core';
-import { annotationIdFor } from '@semiont/event-sourcing';
+import type { Logger, components, Annotation, AnchoredText, JobDetectionResult, TextOffsets, UnitCursor } from '@semiont/core';
 import { prepareDetection } from './workers/detection/prepare-detection';
 import { classifyFailure, DeterministicJobError } from './failure-class';
 import { SpanKind, recordJobOutcome, withSpan } from '@semiont/observability';
@@ -34,8 +33,6 @@ import {
   processReferenceJob,
   processTagJob,
   processGenerationJob,
-  buildPdfAnnotation,
-  spanAnchor,
   type OnProgress,
   type BuildAnnotation,
   type ProcessorResult,
@@ -626,12 +623,14 @@ async function handleJobInner(
     // via `sourceAnnotationId` on the upload above.
     //
     // Its id is what it is, as every annotation a worker commits has: a
-    // retried job that makes the same link commits it under the same id. It
-    // is anchored nowhere on the source, so its anchor is the empty string.
+    // retried job that makes the same link commits it under the same id.
     if (!genReferenceId) {
-      const body = { type: 'SpecificResource' as const, source: newResourceId, purpose: 'linking' as const };
-      const { annotation } = assembleAnnotation({ motivation: 'linking', target: { source: resourceId }, body }, generator);
-      const provenanceRef = { ...annotation, id: annotationIdFor({ resourceId, motivation: 'linking', anchor: '', body }) };
+      const provenanceRef = annotationOfResource({
+        resourceId,
+        motivation: 'linking',
+        generator,
+        body: { type: 'SpecificResource', source: newResourceId, purpose: 'linking' },
+      });
       await job.commit(resourceId, [provenanceRef]);
     }
 
@@ -641,18 +640,20 @@ async function handleJobInner(
     //
     // Anchoring branches on the artifact's anchoring model. Text formats
     // anchor by offset into the DECODED text, in code points — consumers apply
-    // selectors to the decoded text, not raw bytes. A PDF anchors by PAGE
-    // GEOMETRY: the citation's offsets count the Typst SOURCE and would
-    // render nothing, so each claim is re-found in the artifact's own text
-    // (two-stage search — strict, then break-aware for hyphenation) and
-    // located to rects. That text is the Smelter's (`generatedPdfText`). A
-    // claim the search cannot find is dropped LOUDLY, never minted wrong,
-    // and so is every claim of a PDF whose text is not to be had.
+    // selectors to the decoded text, not raw bytes — so each claim is built as
+    // a span of the artifact's text, decoded as a detection over the resource
+    // decodes it. A PDF anchors by PAGE GEOMETRY: the citation's offsets count
+    // the Typst SOURCE and would render nothing, so each claim is re-found in
+    // the artifact's own text (two-stage search — strict, then break-aware for
+    // hyphenation) and located to rects. That text is the Smelter's
+    // (`generatedPdfText`). A claim the search cannot find is dropped LOUDLY,
+    // never minted wrong, and so is every claim of a PDF whose text is not to
+    // be had.
     // Collected, then committed once: the citations all land on the DERIVED
     // resource, so they are one batch keyed by `newResourceId` — a different
     // resource from the provenance edge above, which is why they cannot share
     // a commit.
-    const citationRefs: AssembledAnnotation['annotation'][] = [];
+    const citationRefs: Annotation[] = [];
     if (genResult.format === 'application/pdf' && genResult.citations.length > 0) {
       const anchored = await generatedPdfText(
         client,
@@ -668,8 +669,8 @@ async function handleJobInner(
         // The text's conversions, made once for every claim looked for in it.
         const offsets = textOffsets(anchored.text);
         for (const citation of genResult.citations) {
-          const span = findClaimSpan(anchored, offsets, citation.exact);
-          if (!span) {
+          const claim = findClaimSpan(anchored, offsets, citation.exact);
+          if (!claim) {
             config.logger.warn('PDF citation dropped — claim not found in the rendered text', {
               jobId, resourceId: newResourceId, citedResourceId: citation.resourceId,
               exactPreview: citation.exact.slice(0, 80),
@@ -677,41 +678,32 @@ async function handleJobInner(
             continue;
           }
           // The quote must be the RENDERED substring, not the source claim:
-          // hyphenation drops characters, so the source string can fail
-          // buildPdfAnnotation's containment invariant even though the span
-          // was found — and W3C-wise the quote should be the text actually
-          // under the rects, which is what re-anchoring will see.
-          const citationRef = buildPdfAnnotation(
+          // hyphenation drops characters, so the source string can be absent
+          // from the text the span covers, which `annotationOfSpan` refuses,
+          // even though the span was found — and W3C-wise the quote should be
+          // the text actually under the rects, which is what re-anchoring
+          // will see.
+          citationRefs.push(annotationOfSpan({
             anchored,
-            offsets,
-            newResourceId,
+            resourceId: newResourceId,
             generator,
-            'linking',
-            { exact: anchored.text.slice(offsets.indexAt(span.start), offsets.indexAt(span.end)), start: span.start, end: span.end },
-            { type: 'SpecificResource', source: citation.resourceId, purpose: 'linking' },
-          );
-          citationRefs.push(citationRef);
+            motivation: 'linking',
+            span: { start: claim.start, end: claim.end, exact: anchored.text.slice(offsets.indexAt(claim.start), offsets.indexAt(claim.end)) },
+            body: { type: 'SpecificResource', source: citation.resourceId, purpose: 'linking' },
+          }));
         }
       }
-    } else {
+    } else if (genResult.citations.length > 0) {
+      const text = decodeRepresentation(Buffer.from(genResult.content), genResult.format);
       for (const citation of genResult.citations) {
-        const body = { type: 'SpecificResource' as const, source: citation.resourceId, purpose: 'linking' as const };
-        const { annotation } = assembleAnnotation(
-          {
-            motivation: 'linking',
-            target: {
-              source: newResourceId,
-              selector: [
-                { type: 'TextPositionSelector', start: citation.start, end: citation.end },
-                { type: 'TextQuoteSelector', exact: citation.exact },
-              ],
-            },
-            body,
-          },
+        citationRefs.push(annotationOfSpan({
+          text,
+          resourceId: newResourceId,
           generator,
-        );
-        // The id of what it is: the claim's span on the new resource, and the resource it cites.
-        citationRefs.push({ ...annotation, id: annotationIdFor({ resourceId: newResourceId, motivation: 'linking', anchor: spanAnchor(citation), body }) });
+          motivation: 'linking',
+          span: { start: citation.start, end: citation.end, exact: citation.exact },
+          body: { type: 'SpecificResource', source: citation.resourceId, purpose: 'linking' },
+        }));
       }
     }
 

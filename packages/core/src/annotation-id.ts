@@ -1,9 +1,15 @@
 /**
- * Identifier utilities for event sourcing
+ * The id of an annotation a builder makes: worked out from what the
+ * annotation is, never minted. specs/src/annotations/id-cases.json holds the
+ * rule, for this and for every other implementation.
+ *
+ * The builders (`annotation-builders.ts`) are its callers, and no one else
+ * is: it is no part of what `@semiont/core` or `@semiont/sdk` exports.
  */
 
-import { createHash } from 'crypto';
-import { annotationId, type AnnotationId } from '@semiont/core';
+import { base64url } from './base64url';
+import { annotationId, type AnnotationId } from './identifiers';
+import { sha256 } from './sha256';
 
 /** The identity of an annotation — everything that makes it that annotation
  *  and nothing else: the inputs its content-addressed id is hashed from. */
@@ -13,11 +19,12 @@ export interface AnnotationIdentity {
   /** W3C motivation: two motivations on one span are two annotations. */
   motivation: string;
   /**
-   * The span, rendered by whichever builder anchored it. Deliberately a
+   * The span, rendered by the builder that anchored it. Deliberately a
    * caller-supplied STRING rather than a structured span: text anchors by
    * character offset and PDF by page geometry, so there is no shape both
    * share, and inventing one here would be a third home for a fact the
-   * builders already own.
+   * builders already own. An annotation of a resource as a whole is anchored
+   * nowhere on it, and its anchor is the empty string.
    */
   anchor: string;
   /**
@@ -85,19 +92,19 @@ function canonical(value: unknown): string {
  * 21 base64url characters of a SHA-256: ~126 bits, which is far more than a
  * per-resource span space needs.
  *
- * ## The no-op guarantee is conditional on `anchor`, and callers differ
+ * ## The no-op guarantee is conditional on `anchor`, and the two kinds of span differ
  *
  * "Re-emitting is a no-op" holds exactly as far as `anchor` is stable, and that
- * is the CALLER's property, not this function's. The two detection builders do
- * not have it equally:
+ * is the builder's property, not this function's. `annotationOfSpan` does not
+ * have it equally for its two kinds of span:
  *
- * - **Text** (`buildTextAnnotation`) passes `${start}:${end}:${exact}` and the
+ * - **A span of a text** is anchored as `${start}:${end}:${exact}` and the
  *   annotation STORES those offsets in a `TextPositionSelector`. Identity depends
  *   only on fields the annotation carries, so the guarantee is unconditional and
  *   any reader can verify it after the fact.
- * - **PDF** (`buildPdfAnnotation`) passes the same shape, but the offsets come
- *   from a text layer *derived* per attempt and are deliberately NOT stored — the
- *   annotation carries page geometry and the quoted text instead. There the
+ * - **A span of a PDF's anchored text** is anchored the same way, but the offsets
+ *   come from a text layer *derived* per attempt and are deliberately NOT stored —
+ *   the annotation carries page geometry and the quoted text instead. There the
  *   guarantee holds only while that derivation is stable, and a reader holding two
  *   annotations cannot tell whether they disagree because they are different facts
  *   or because the text layer moved: every stored field would be identical.
@@ -118,6 +125,6 @@ export function annotationIdFor(identity: AnnotationIdentity): AnnotationId {
     anchor: identity.anchor,
     ...(identity.body !== undefined ? { body: identity.body } : {}),
   });
-  const digest = createHash('sha256').update(material, 'utf8').digest('base64url');
+  const digest = base64url(sha256(new TextEncoder().encode(material)));
   return annotationId(digest.slice(0, 21));
 }

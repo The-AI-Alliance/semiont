@@ -15,15 +15,16 @@ import {
   RETRY_RULES,
   SCRIPT_CLIENT_ID,
   SIGN_IN_SCOPE,
+  base64url,
   baseUrl,
   isObject,
   isString,
   retryWithBackoff,
+  sha256,
 } from '@semiont/core';
 import type { SignInErrorCode } from '@semiont/core';
 import type { HttpEndpoint } from './knowledge-base';
 import type { SessionStorage } from './session-storage';
-import { sha256 } from './sha256';
 import { getStoredSession, kbGatewayUrl, setStoredSession } from './storage';
 
 // All of `crypto` this module may use: what a browser gives every page.
@@ -117,12 +118,6 @@ export async function discoverIssuer(target: HttpEndpoint): Promise<IssuerEndpoi
 }
 
 // ---------- PKCE ----------
-
-function base64url(bytes: Uint8Array): string {
-  let binary = '';
-  for (const b of bytes) binary += String.fromCharCode(b);
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
 
 function randomUrlSafe(bytes: number): string {
   const buffer = new Uint8Array(bytes);

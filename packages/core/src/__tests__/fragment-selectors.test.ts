@@ -6,7 +6,7 @@
 
 import { describe, test, expect } from 'vitest';
 import * as fc from 'fast-check';
-import { getFragmentSelector } from '../annotation-assembly';
+import { getFragmentSelector } from '../web-annotation-utils';
 
 // Arbitrary generators for different selector types
 const fragmentSelectorArb = fc.record({

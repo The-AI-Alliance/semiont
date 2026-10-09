@@ -58,7 +58,7 @@ ResourceViewer
 - Subscribes to toolbar events and hover events via `useEventSubscriptions`
 - Pre-computes text segments via `segmentTextWithAnnotations()` (render-time anchoring)
 
-**Render-Time Anchoring**: `segmentTextWithAnnotations()` calls `anchorAnnotation()` from `@semiont/core`. Anchoring is **verbatim-only**: a `fast-path` when the stored offset already lands on the quote, otherwise an exact `indexOf(exact)` search disambiguated by prefix/suffix and (for repeated text) by position. When `exact` is not found verbatim, the renderer keeps the stored offset and flags the anchor low-confidence — it does **not** fuzzy-match. The fallback chain (normalized → case-insensitive → Levenshtein) lives at *write* time in `reconcileSelector`, which produces records whose two selectors already agree.
+**Render-Time Anchoring**: `segmentTextWithAnnotations()` calls `anchorAnnotation()` from `@semiont/core`. Anchoring is **verbatim-only**: a `fast-path` when the stored offset already lands on the quote, otherwise an exact `indexOf(exact)` search disambiguated by prefix/suffix and (for repeated text) by position. When `exact` is not found verbatim, the renderer keeps the stored offset and flags the anchor low-confidence — it does **not** fuzzy-match. The fallback chain (normalized → case-insensitive → Levenshtein) lives at *write* time in `reconcile`, which produces records whose two selectors already agree.
 
 ### BrowseView
 
@@ -181,7 +181,7 @@ CodeMirror indexes its document in UTF-16 code units and holds every line break 
 - `text-segmentation.test.ts` — strategy/confidence threading and the low-confidence affordance
 - `annotation-overlay.test.ts` — source→rendered mapping, overlay application, hover/click behavior
 - `BrowseView.test.tsx` — event delegation, annotation rendering, MIME routing
-- `fuzzy-anchor.test.ts` — write-time fuzzy matching used by `reconcileSelector` (normalized/case-insensitive/Levenshtein)
+- `fuzzy-anchor.test.ts` — write-time fuzzy matching used by `reconcile` (normalized/case-insensitive/Levenshtein)
 
 ## Related Documentation
 

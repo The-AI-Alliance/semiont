@@ -248,6 +248,61 @@ A worker signs in as an agent, which is the transport crate's to do, so a
 whole worker is shown, compiled and run, in
 [the transport's README](../http-transport-rust/README.md#a-daemon).
 
+What a worker does with a job it holds is its own. One that marks a text
+asks a model what to mark, and the model quotes the text. `annotations` turns
+what it quoted into annotations, and the job commits them. Here `job` is a
+`mark` job the worker holds, `text` the text of its resource, `quoted` what a
+model quoted of it, and `generator` the agent the worker signed in as.
+
+```rust
+job.start().await?;
+let resource_id = job.resource_id().clone();
+
+// The words a model quoted are found in the text, or they are not in it:
+// only what is found is built. A span is the text's own, and its offsets
+// count code points.
+let mut highlights = Vec::new();
+for quote in quoted {
+    let Some(found) = reconcile(text, quote) else {
+        continue;
+    };
+    highlights.push(annotation_of_span(
+        Spanned::Text(text),
+        &found.span,
+        &resource_id,
+        Motivation::Highlighting,
+        generator,
+        None,
+    )?);
+}
+
+// The job commits what was built, and says what became of the work.
+let result = JobDetectionResult::new(quoted.len() as u64, highlights.len() as u64);
+job.commit(&resource_id, highlights).await?;
+job.complete(result.into()).await?;
+```
+
+| Function | What it does |
+|---|---|
+| `reconcile(text, &quoted)` | Finds the words a model quoted in a text. `quoted` is a `QuotedText`: the `exact` words, and maybe the `prefix` and `suffix` the model says stand around them. The answer is `Some(ReconciledSpan)`, the `span` the words are (`start`, `end`, `exact`, and the text's own `prefix` and `suffix`) and the `anchor_method` that found it, or `None`. Words the text does not have character for character are looked for without regard to white space and the forms of quotation marks and dashes, then without regard to letter case, then within a twentieth of their length in edits. |
+| `annotation_of_span(spanned, &span, &resource_id, motivation, &generator, body)` | Builds the annotation of a span: its selectors, its id, and the body and generator as given. `spanned` is `Spanned::Text(&text)`, or `Spanned::Pdf(&anchored)` for a PDF's `AnchoredText`, whose annotation states a rectangle for each line the span touches. A span that is not the text's is an `Err` of an `errors::SpanRefusal`, which displays as its code: `span-out-of-range`, `exact-mismatch`, `prefix-mismatch`, `suffix-mismatch`, `nothing-located`, `exact-not-covered`. |
+| `annotation_of_resource(&resource_id, motivation, generator, body)` | Builds an annotation of a resource as a whole, with no selector: the link from a source to what was generated from it is one. |
+
+`reconcile` is one way to find a model's words in a text, with its own
+tolerance for a misquote. A worker that finds its spans another way gives
+`annotation_of_span` a `TextSpan` of its own. The builders make nothing a
+payload written by hand could not, so nothing a knowledge base relies on
+rests on them.
+
+An annotation's id is derived from what the annotation is: its resource, its
+motivation, its body and where it is. A worker that builds the same
+annotation again, on a retry or after another worker's attempt, gives it the
+same id, and committing it a second time changes nothing. An offset counts
+Unicode code points from the start of the text, as the wire's do, and the
+text is given as the `&str` it is. The tables under
+[`specs/src/annotations`](../../specs/src/annotations) hold every SDK's
+builders to the same answers.
+
 - **Its stream names `JOB_CLAIM_CHANNELS`**, and the reply channels of
   whatever else it awaits. The announcements that wake an idle worker reach
   only a stream that names them, so a client whose stream does not is handed
@@ -495,7 +550,7 @@ Each module is documented on [docs.rs](https://docs.rs/semiont).
 | `types` | The protocol's types, generated from the spec when the crate is built: the ids, and every request, response and event |
 | `channels` | The bus's channels, one type each, naming its payload. A channel the protocol does not have, or a payload that is not that channel's, does not compile. Each is `Scoped`, carried by a resource's scope, or `Unscoped`. |
 | `errors`, `timing`, `retry` | The failure codes, the deadlines and the retry rules every Semiont SDK shares |
-| `annotations` | The readers of an annotation: the resource it is on and the one it links to, the text it quotes, its entity types, its tag, and what kind it is. Its target is an id or an object, its selector one or a list, its body absent, one item or a list, and these read each. [`reader-cases.json`](../../specs/src/annotations/reader-cases.json) holds every SDK's readers to the same answers. |
+| `annotations` | The readers of an annotation: the resource it is on and the one it links to, the text it quotes, its entity types, its tag, and what kind it is. Its target is an id or an object, its selector one or a list, its body absent, one item or a list, and these read each. [`reader-cases.json`](../../specs/src/annotations/reader-cases.json) holds every SDK's readers to the same answers. And the builders of one, which [a worker](#a-worker) uses: `reconcile`, `annotation_of_span` and `annotation_of_resource`, held by [`reconcile-cases.json`](../../specs/src/annotations/reconcile-cases.json) and [`builder-cases.json`](../../specs/src/annotations/builder-cases.json). |
 | `claims`, `job_filter` | A worker's side of the job queue: its claims, the jobs it holds, whether a failed job is retried, and whether a job is one a claim takes. What a worker promises is the [worker contract](../../docs/protocol/WORKER-CONTRACT.md) |
 | `session` | `SemiontSession`, `SemiontBrowser`, `SessionFactory`, `SessionSignals` |
 | `storage`, `sign_in_store` | Where a client keeps what must outlive it, and the sign-ins `semiont login` keeps |

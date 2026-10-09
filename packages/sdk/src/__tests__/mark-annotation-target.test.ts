@@ -3,8 +3,8 @@
  * *selector-less* (whole-resource) target into `mark:create-request` unchanged.
  *
  * A selector is optional in the schema (`CreateAnnotationRequest` `$ref`s
- * `AnnotationTarget`) and in core assembly (`assembleAnnotation` accepts a target
- * with no selector). `mark.annotation` itself has no selector logic — it only reads
+ * `AnnotationTarget`), and a builder makes an annotation with none
+ * (`annotationOfResource`). `mark.annotation` itself has no selector logic — it only reads
  * `target.source` for routing and forwards `request` verbatim — so this is a
  * behavioral PIN that the optional selector holds on the SDK emit path: no selector
  * injected, none required. It also pins that a *selectored* target passes through

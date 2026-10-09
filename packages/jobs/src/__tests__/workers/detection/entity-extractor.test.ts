@@ -69,7 +69,7 @@ describe('extractEntities', () => {
 
   it('preserves prefix/suffix context for downstream reconciliation', async () => {
     // The extractor is offset-free; prefix/suffix carry locality context
-    // for the downstream reconcileSelector to disambiguate.
+    // for the downstream `reconcile` to disambiguate.
     const mockResponse = [
       {
         exact: 'Alice',
@@ -124,10 +124,10 @@ describe('extractEntities', () => {
     expect(onActivity).not.toHaveBeenCalled();
   });
 
-  it('passes LLM output through verbatim — downstream reconcileSelector decides which entities survive', async () => {
+  it('passes LLM output through verbatim — downstream reconcile decides which entities survive', async () => {
     // `extractEntities` neither filters nor carries offsets.
     // It returns everything the LLM emitted with the required field
-    // types; the processor calls `reconcileSelector` per entity and
+    // types; the processor calls `reconcile` per entity and
     // drops the ones whose `exact` isn't in the source.
     const text = 'Alice went to Paris.';
     const mockResponse = [

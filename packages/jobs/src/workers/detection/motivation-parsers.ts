@@ -3,17 +3,15 @@
  *
  * Static methods that validate the model's already-parsed elements for each
  * motivation type and anchor each span in the document: the model emits no
- * offsets, `reconcileSelector` computes them. A match's `start` and `end`
- * count code points; `offsets`, wherever it is taken, is the content's own
- * conversions (`textOffsets(content)`), made once where the content is first
- * held.
+ * offsets, `reconcile` computes them. A match's `start` and `end` count code
+ * points.
  *
  * What a parser has to say of a reply (how many of its elements were
  * proposals, each proposal it could not anchor) it says to the `logger` it is
  * handed: a worker writes nothing that is not a log line.
  */
 
-import { reconcileSelector, isObject, isString, type Logger, type TextOffsets } from '@semiont/core';
+import { reconcile, isObject, isString, type Logger } from '@semiont/core';
 import type { ElementSchema } from '@semiont/inference';
 import { noteAnchor } from './anchor-audit';
 
@@ -29,7 +27,7 @@ import { noteAnchor } from './anchor-audit';
 // and nothing verifies they agree — adjacency is the drift guard.
 // `prefix`/`suffix` stay OUT of `required` deliberately: requiring them turns
 // "sometimes absent" into "always present, sometimes empty" (measured), an
-// anchoring-path change avoided at the source here; `reconcileSelector` also
+// anchoring-path change avoided at the source here; `reconcile` also
 // treats an empty hint as an absent one.
 
 /**
@@ -150,7 +148,7 @@ export class MotivationParsers {
    * @param content - Original content to validate offsets against
    * @returns The comments anchored in the content, and how many were not
    */
-  static parseComments(parsed: unknown[], content: string, offsets: TextOffsets, logger: Logger): Anchored<CommentMatch> {
+  static parseComments(parsed: unknown[], content: string, logger: Logger): Anchored<CommentMatch> {
 
     const valid = parsed.filter((c): c is { exact: string; prefix?: string; suffix?: string; comment: string } =>
       isObject(c) &&
@@ -163,7 +161,7 @@ export class MotivationParsers {
 
     const validatedComments: CommentMatch[] = [];
     for (const comment of valid) {
-      const reconciled = reconcileSelector(content, offsets, {
+      const reconciled = reconcile(content, {
         exact: comment.exact,
         ...(typeof comment.prefix === 'string' ? { prefix: comment.prefix } : {}),
         ...(typeof comment.suffix === 'string' ? { suffix: comment.suffix } : {}),
@@ -193,7 +191,7 @@ export class MotivationParsers {
    * @param content - Original content to validate offsets against
    * @returns The highlights anchored in the content, and how many were not
    */
-  static parseHighlights(parsed: unknown[], content: string, offsets: TextOffsets, logger: Logger): Anchored<HighlightMatch> {
+  static parseHighlights(parsed: unknown[], content: string, logger: Logger): Anchored<HighlightMatch> {
 
     const highlights = parsed.filter((h): h is { exact: string; prefix?: string; suffix?: string } =>
       isObject(h) && isString(h.exact)
@@ -201,7 +199,7 @@ export class MotivationParsers {
 
     const validatedHighlights: HighlightMatch[] = [];
     for (const highlight of highlights) {
-      const reconciled = reconcileSelector(content, offsets, {
+      const reconciled = reconcile(content, {
         exact: highlight.exact,
         ...(typeof highlight.prefix === 'string' ? { prefix: highlight.prefix } : {}),
         ...(typeof highlight.suffix === 'string' ? { suffix: highlight.suffix } : {}),
@@ -230,7 +228,7 @@ export class MotivationParsers {
    * @param content - Original content to validate offsets against
    * @returns The assessments anchored in the content, and how many were not
    */
-  static parseAssessments(parsed: unknown[], content: string, offsets: TextOffsets, logger: Logger): Anchored<AssessmentMatch> {
+  static parseAssessments(parsed: unknown[], content: string, logger: Logger): Anchored<AssessmentMatch> {
 
     // A blank assessment says nothing, as a blank comment says nothing: its
     // element is no proposal.
@@ -243,7 +241,7 @@ export class MotivationParsers {
 
     const validatedAssessments: AssessmentMatch[] = [];
     for (const assessment of assessments) {
-      const reconciled = reconcileSelector(content, offsets, {
+      const reconciled = reconcile(content, {
         exact: assessment.exact,
         ...(typeof assessment.prefix === 'string' ? { prefix: assessment.prefix } : {}),
         ...(typeof assessment.suffix === 'string' ? { suffix: assessment.suffix } : {}),
@@ -292,13 +290,12 @@ export class MotivationParsers {
   static validateTagOffsets(
     tags: RawTagInput[],
     content: string,
-    offsets: TextOffsets,
     category: string,
     logger: Logger,
   ): Anchored<TagMatch> {
     const validatedTags: TagMatch[] = [];
     for (const tag of tags) {
-      const reconciled = reconcileSelector(content, offsets, {
+      const reconciled = reconcile(content, {
         exact: tag.exact,
         ...(typeof tag.prefix === 'string' ? { prefix: tag.prefix } : {}),
         ...(typeof tag.suffix === 'string' ? { suffix: tag.suffix } : {}),

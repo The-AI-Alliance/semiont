@@ -155,7 +155,7 @@ describe('anchorAnnotation — no fuzzy recovery at render time', () => {
   it('does NOT fuzzy-match a near-miss; falls back to stored offset, flagged', () => {
     // 'helo world' isn't verbatim in the content. The renderer must not
     // guess — it renders at the stored offset and flags low-confidence.
-    // (The write-side reconcileSelector is where fuzzy recovery belongs.)
+    // (The write-side `reconcile` is where fuzzy recovery belongs.)
     const content = 'The quick hello world appears here.';
     const result = anchorAnnotation(content, textOffsets(content), {
       position: { start: 4, end: 14 },

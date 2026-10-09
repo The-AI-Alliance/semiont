@@ -90,7 +90,7 @@ describe('textUnder', () => {
       .toBe('again');
   });
 
-  // The over-inclusion trap. buildPdfAnnotation slices text from the first
+  // The over-inclusion trap. `annotationOfSpan` slices text from the first
   // covered offset to the last, which is safe there because the result only
   // feeds a containment check. Here the result IS the stored quote, so the
   // uncovered text between two covered runs must not be pulled in.

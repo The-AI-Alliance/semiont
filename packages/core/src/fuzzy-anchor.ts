@@ -218,8 +218,8 @@ function spanOf(map: readonly number[], at: number, length: number): { start: nu
  * multi-strategy search: the strictest of the looser searches that finds it
  * at all answers, with every place it finds it.
  *
- * The search `reconcileSelector` (write-time) falls back on, having looked
- * for the text as it is.
+ * The search `reconcile` (write-time) falls back on, having looked for the
+ * text as it is.
  *
  * @param content - Full text content to search within
  * @param searchText - The text to find

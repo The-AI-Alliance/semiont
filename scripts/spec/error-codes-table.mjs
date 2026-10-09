@@ -95,5 +95,8 @@ export function readErrorCodes(tablePath, commandErrorPath, refuse) {
   const signInCodes = codesOf('signIn', table.signIn);
   const kbIdentityCodes = codesOf('kbIdentity', table.kbIdentity);
 
-  return { table, busCodes, busByWire, unrecognized, transportCodes, byStatus, ranges, unclassified, jobCodes, sessionCodes, signInCodes, kbIdentityCodes };
+  // ── why an annotation builder refused a span ────────────────────────────
+  const spanRefusalCodes = codesOf('spanRefusal', table.spanRefusal);
+
+  return { table, busCodes, busByWire, unrecognized, transportCodes, byStatus, ranges, unclassified, jobCodes, sessionCodes, signInCodes, kbIdentityCodes, spanRefusalCodes };
 }
