@@ -19,6 +19,8 @@ import { useTranslations } from '../../contexts/TranslationContext';
  * PermissionDeniedModal): reads the active `SessionSignals`, dismiss
  * acknowledges. Like them it is fully translated — new strings go through
  * the census gate.
+ *
+ * @emits panel:open - Open the knowledge-base panel. Payload: { panel: 'knowledge-base' }
  */
 export function KbIdentityConflictModal() {
   const t = useTranslations('KbIdentityConflictModal');

@@ -27,6 +27,10 @@ interface ReferenceEntryProps {
   ref?: Ref<HTMLDivElement>;
 }
 
+/**
+ * @emits browse:click - This entry clicked. Payload: { annotationId: string }
+ * @emits bind:initiate - Start resolving this reference. Payload: BindInitiateCommand
+ */
 export function ReferenceEntry({
   session,
   reference,

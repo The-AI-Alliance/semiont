@@ -35,6 +35,9 @@ function formatRelativeTime(isoString: string): string {
   return date.toLocaleDateString();
 }
 
+/**
+ * @emits browse:click - This entry clicked. Payload: { annotationId: string }
+ */
 export function CommentEntry({
   session,
   comment,

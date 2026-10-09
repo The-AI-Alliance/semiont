@@ -71,6 +71,10 @@ interface PdfPageViewProps {
  * away IS the memory release — no eviction bookkeeping, no object-URL revoke.
  * The drag lives here too because it needs this page's display dimensions and
  * this page's text; a drag can no more span pages than a rectangle can.
+ *
+ * @emits browse:click - Annotation clicked on the page. Payload: { annotationId: string, anchorRect?: AnchorRect }
+ * @emits mark:requested - New annotation drawn on the page. Payload: { source: ResourceId, selector: [FragmentSelector, TextQuoteSelector?], motivation: SelectionMotivation }
+ * @emits beckon:hover - Annotation hovered or unhovered. Payload: { annotationId: string | null }
  */
 export function PdfPageView({
   doc,

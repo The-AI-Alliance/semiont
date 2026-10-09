@@ -20,6 +20,9 @@ interface TagEntryProps {
   ref?: Ref<HTMLDivElement>;
 }
 
+/**
+ * @emits browse:click - This entry clicked. Payload: { annotationId: string }
+ */
 export function TagEntry({
   session,
   tag,

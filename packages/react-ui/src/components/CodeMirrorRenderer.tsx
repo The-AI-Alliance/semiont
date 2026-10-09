@@ -170,6 +170,9 @@ const widgetDecorationsField = StateField.define<DecorationSet>({
   provide: field => EditorView.decorations.from(field)
 });
 
+/**
+ * @emits beckon:hover - Annotation in the text hovered or unhovered. Payload: { annotationId: string | null }
+ */
 export function CodeMirrorRenderer({
   content,
   segments = [],

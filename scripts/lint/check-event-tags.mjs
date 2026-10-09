@@ -18,8 +18,8 @@
  *   - writes in braces a member the channel's payload does not have, leaves
  *     out one it requires, or marks optional one it requires.
  *
- * And when a file that carries such a tag sends on a channel it has no
- * `@emits` tag for. What a file sends on is read from it as written: an emit
+ * And when a file sends on a channel it has no `@emits` tag for, whether or
+ * not it carries any tag. What a file sends on is read from it as written: an emit
  * of its own, `.emit('<channel>', …)`, and a call of a method of the SDK's
  * client, `client.<namespace>.<method>(…)`. Which channel a method sends on
  * is read from the SDK (packages/sdk/src/namespaces), from the method's own
@@ -31,10 +31,10 @@
  * `browse:click` carries `anchorRect?` beside its schema.
  *
  * What is held is the names of a payload's members, not their types. A tag
- * that states no payload is held to its channel alone. A file with no tag
- * documents no events and is held to nothing; a send made through anything
- * but the client's own namespaces, a state unit's or a child component's, is
- * not read; and nothing holds a tag to a send, or a subscription to a tag.
+ * that states no payload is held to its channel alone. A send made through
+ * anything but the client's own namespaces, a state unit's or a child
+ * component's, is not read; nor is one a client method makes outside its own
+ * body. And nothing holds a tag to a send, or a subscription to a tag.
  *
  * Scanned: the TypeScript of packages/react-ui and apps/browser, comments
  * included, since a tag is one. Not scanned: tests.
@@ -180,7 +180,6 @@ const files = repositoryFiles(ROOT).filter((file) => SCANNED.some((prefix) => fi
 for (const file of files) {
   const text = readFileSync(resolve(ROOT, file), 'utf8');
   const found = tagsOf(text);
-  if (found.length === 0) continue;
 
   const documented = new Set(found.filter((tag) => tag.kind === 'emits').map((tag) => tag.channel));
   const code = withoutComments(text);
@@ -228,4 +227,4 @@ if (failures.length > 0) {
   for (const message of failures) console.error(`✗ ${message}`);
   process.exit(1);
 }
-console.log(`✓ lint:event-tags — ${tags} tags name channels the registry declares, each payload one states is its channel's, and a file that carries one tags every channel it sends on`);
+console.log(`✓ lint:event-tags — ${tags} tags name channels the registry declares, each payload one states is its channel's, and every file tags each channel it sends on`);

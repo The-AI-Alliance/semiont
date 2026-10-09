@@ -21,6 +21,8 @@ import type { SemiontBrowser } from '@semiont/sdk';
  * Emits on the bus rather than taking a `ShellStateUnit`, because that is all
  * `openPanel` does and every unit mirrors the bus — so this needs no unit of its
  * own, and the layout does not have to construct one it would otherwise not use.
+ *
+ * @emits panel:open - Open the knowledge-base panel on the transition to signed in. Payload: { panel: 'knowledge-base' }
  */
 export function useKbPanelOnLogin(signedIn: boolean, browser: SemiontBrowser): void {
   const wasSignedIn = useRef(false);
