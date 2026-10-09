@@ -27,7 +27,11 @@ import { createInferenceClient } from '@semiont/inference';
 import { createServer } from 'http';
 import { createProcessLogger } from '@semiont/observability/process-logger';
 
-/** What the worker will not start on, said once on stderr as every service says it. */
+/**
+ * What ends the worker before it is up, said once on stderr as every service
+ * says it: what it will not start on, and what it could not start with (a
+ * sign-in the issuer refuses, a port it cannot listen on).
+ */
 function refuse(error: unknown): never {
   process.stderr.write(`[fatal] ${error instanceof Error ? error.message : String(error)}\n`);
   process.exit(1);
@@ -97,7 +101,8 @@ async function main() {
   );
 
   const health = createServer((req, res) => {
-    if (req.url === '/health') {
+    // The path, without its query string; and GET alone.
+    if (req.method === 'GET' && req.url?.split('?', 1)[0] === '/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(buildHealthPayload(workers)));
     } else {
@@ -105,6 +110,7 @@ async function main() {
       res.end();
     }
   });
+  health.once('error', (error) => refuse(new Error(`Cannot listen on port ${config.port}: ${error.message}`)));
   health.listen(config.port, () => {
     logger.info('Health endpoint ready', { port: config.port });
   });
@@ -120,7 +126,4 @@ async function main() {
   process.on('SIGINT', shutdown);
 }
 
-main().catch((error) => {
-  logger.error('Fatal', { error: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : undefined });
-  process.exit(1);
-});
+main().catch(refuse);

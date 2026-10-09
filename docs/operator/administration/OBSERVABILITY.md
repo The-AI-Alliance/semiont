@@ -209,7 +209,7 @@ Librarian, the Smelter, the Weaver and the worker.
 |------------------------------|------------------|---------------------------------------------------------|-----------------------------------------------|
 | `semiont.bus.sent`           | counter          | `bus.channel`, and `bus.scope` on a scoped emit         | Every transport `emit` (`HttpTransport`): an emit a client sent |
 | `semiont.handler.duration`   | histogram        | `actor`, `bus.channel`                                  | Every actor handler (Stower / Gatherer / Matcher / Browser / Smelter) |
-| `semiont.job.outcome`        | counter          | `job.type` (`mark` / `yield`), `job.motivation` on a `mark` job, `job.outcome` (`completed` / `failed`) | Worker `handleJob`                       |
+| `semiont.job.outcome`        | counter          | `job.type` (`mark` / `yield`), `job.motivation` on a `mark` job, `job.outcome` (`completed` / `failed` / `cancelled`) | Worker `handleJob`                       |
 | `semiont.job.duration`       | histogram        | `job.type`, `job.motivation` on a `mark` job, `job.outcome` | Worker `handleJob`                            |
 | `semiont.inference.calls`    | counter          | `inference.provider`, `inference.model`, `inference.outcome` | Anthropic + Ollama clients               |
 | `semiont.inference.tokens`   | counter          | `inference.provider`, `inference.model`, `inference.direction` (`input`/`output`) | Anthropic + Ollama (when usage exposed) |

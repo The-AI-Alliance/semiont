@@ -44,7 +44,7 @@ import { nextChunkSize, type CallOutcome, type SizingBounds } from './chunk-size
  */
 export function assertNotTruncated(response: { stopReason: string }, label: string, at: number, totalChars: number, outputBudget: number): void {
   if (response.stopReason === 'max_tokens') {
-    throw new DeterministicJobError(`${label} response truncated (max_tokens) at character ${at} of ${totalChars} despite the derived output budget of ${outputBudget} tokens — failing the job rather than under-reporting annotations.`);
+    throw new DeterministicJobError(`${label} response truncated (max_tokens) on the piece at offset ${at} of a text of ${totalChars} code points, despite the derived output budget of ${outputBudget} tokens — failing the job rather than under-reporting annotations.`);
   }
 }
 
@@ -160,8 +160,9 @@ export interface DetectionBudget {
  *   ONE call asks for: output demand scales with it, so the allocation
  *   divides by it. The per-type loop passes 1; a future multi-type batch
  *   passes its batch size.
- * @throws when the window is too small to hold the scaffold plus a useful
- *   chunk — fail-loud, same family as the truncation and window guards.
+ * @throws a `DeterministicJobError` when the window is too small to hold the
+ *   scaffold plus a useful chunk: the same window refuses the same job on
+ *   every attempt, so no retry is spent on it.
  */
 export function deriveDetectionBudget(
   limits: InferenceLimits,
@@ -242,7 +243,7 @@ export function deriveDetectionBudget(
   inputBudget = Math.min(inputBudget, Math.floor(outputBudget / (2 * typesPerCall)));
 
   if (inputBudget <= OVERLAP_TOKENS) {
-    throw new Error(
+    throw new DeterministicJobError(
       `Inference window too small for detection: context ${contextTokens} tokens minus scaffold ${scaffoldTokens} leaves an input budget of ${inputBudget} (need > ${OVERLAP_TOKENS}). Use a model with a larger context window or reduce the prompt scaffold.`,
     );
   }
@@ -312,6 +313,12 @@ export interface AdaptiveChunk {
  * code points, which is less than its string's length when it has a character
  * outside the Basic Multilingual Plane.
  *
+ * `signal` is the held job's cancellation. The walk looks at it before each
+ * cut and cuts nothing once it is aborted: the chunk in hand was awaited to
+ * its end first, commit and checkpoint included, so a cancelled job stops
+ * between chunks and never inside one. The walk returns as it does at the end
+ * of the text; a caller tells the two apart by the signal.
+ *
  * `resume` restarts a unit an earlier attempt left partway — the durable
  * per-chunk checkpoint, spent. Both halves of it matter and they are spent
  * differently: the position is taken as given, while the size is seeded and
@@ -325,6 +332,7 @@ export async function runAdaptiveChunks(
   text: string,
   offsets: TextOffsets,
   budget: DetectionBudget,
+  signal: AbortSignal,
   onChunk: (chunk: AdaptiveChunk) => Promise<CallOutcome>,
   resume?: UnitCursor,
 ): Promise<void> {
@@ -333,7 +341,11 @@ export async function runAdaptiveChunks(
     ? nextChunkSize({ truncated: true }, resume.size, budget.bounds)
     : budget.chunking.chunkSize;
 
-  while (at < offsets.length) {
+  // The one place a detection checks for a cancellation. A cancellation that
+  // arrives while a chunk is with the model does not abort the request to the
+  // provider: the call runs to its answer, or to its own ten-minute bound, and
+  // the job stops here afterwards.
+  while (at < offsets.length && !signal.aborted) {
     const { piece, next } = cutChunk(text, offsets, at, { chunkSize: size, overlap: budget.chunking.overlap });
     const outcome = await onChunk({ piece, size, at, next, totalChars: offsets.length });
     at = next;
@@ -468,7 +480,6 @@ export async function callChunkSubdividing<T>(
   // only place `depth` and `reroll` exist, so it is the only place a complete
   // record can be written.
   async function recorded(piece: string, depth: number, reroll: boolean): Promise<ChunkCallResult<T>> {
-    const pieceChars = textOffsets(piece).length;
     const start = performance.now();
     try {
       const result = await call(piece);
@@ -478,7 +489,7 @@ export async function callChunkSubdividing<T>(
         outputTokens += result.usage.outputTokens;
       }
       recordDetectionCall({
-        label, pieceChars, durationMs: performance.now() - start,
+        label, durationMs: performance.now() - start,
         items: result.items.length, depth, reroll, outcome: 'success',
         ...(result.usage ? { inputTokens: result.usage.inputTokens, outputTokens: result.usage.outputTokens } : {}),
       });
@@ -489,7 +500,7 @@ export async function callChunkSubdividing<T>(
       // A failed call still cost its input and its wall time — the descent's
       // price is invisible without it.
       recordDetectionCall({
-        label, pieceChars, durationMs: performance.now() - start,
+        label, durationMs: performance.now() - start,
         items: 0, depth, reroll, outcome: outcomeOf(error),
       });
       throw error;

@@ -16,6 +16,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { MockInferenceClient } from '@semiont/inference';
 import type { GatheredContext, Logger } from '@semiont/core';
 import { generateResourceFromTopic } from '../resource-generation';
+import { classifyFailure, DeterministicJobError } from '../../../failure-class';
 import { annotationId, resourceId } from '@semiont/core';
 
 type AnnotationFocus = Extract<GatheredContext['focus'], { kind: 'annotation' }>;
@@ -1011,6 +1012,47 @@ describe('generateResourceFromTopic', () => {
       expect(prompt).not.toMatch(/markdown/i);
       expect(prompt).not.toContain('# Title');
       expect(prompt).toMatch(/plain text/i);
+    });
+  });
+
+  describe('a prompt and a length over the model\'s window', () => {
+    /** A model with one window for prompt and reply, of `contextTokens`: its reply ceiling is its window. */
+    const shared = (contextTokens: number) => new MockInferenceClient(['The answer.'], undefined, { contextTokens, maxOutputTokens: contextTokens });
+
+    it('is refused as deterministic, and the model is not asked', async () => {
+      const client = shared(600);
+
+      const refusal = await generateResourceFromTopic('Topic', [], client, LOGGER, undefined, undefined, undefined, undefined, 590)
+        .then(() => undefined, (error: unknown) => error);
+
+      // The prompt is over ten tokens, and 590 more are asked for: over 600 together, on every attempt.
+      expect(refusal).toBeInstanceOf(DeterministicJobError);
+      expect(classifyFailure(refusal)).toBe('deterministic');
+      expect(String((refusal as Error).message)).toContain('600');
+      expect(client.calls).toEqual([]);
+    });
+
+    it('is asked for when the two exactly fill the window', async () => {
+      const probe = shared(1_000_000);
+      await generateResourceFromTopic('Topic', [], probe, LOGGER, undefined, undefined, undefined, undefined, 100);
+      // Four code points to a token, rounded up: what the worker reckons the prompt at.
+      const promptTokens = Math.ceil(Array.from(probe.calls[0]!.prompt).length / 4);
+
+      const fits = shared(promptTokens + 100);
+      await generateResourceFromTopic('Topic', [], fits, LOGGER, undefined, undefined, undefined, undefined, 100);
+      expect(fits.calls).toHaveLength(1);
+
+      const over = shared(promptTokens + 99);
+      await expect(generateResourceFromTopic('Topic', [], over, LOGGER, undefined, undefined, undefined, undefined, 100)).rejects.toBeInstanceOf(DeterministicJobError);
+      expect(over.calls).toEqual([]);
+    });
+
+    it('is left to a provider whose reply ceiling is its own: that provider refuses what it will not take', async () => {
+      const client = new MockInferenceClient(['The answer.'], undefined, { contextTokens: 600, maxOutputTokens: 64 });
+
+      await generateResourceFromTopic('Topic', [], client, LOGGER, undefined, undefined, undefined, undefined, 590);
+
+      expect(client.calls).toHaveLength(1);
     });
   });
 });

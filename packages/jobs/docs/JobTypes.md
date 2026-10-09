@@ -99,7 +99,7 @@ The three tallies ride each unit's cursor, so a job that resumes reports the who
 | `annotation` | `focus.annotation.id` | Uploads with `sourceAnnotationId`, and the Stower binds that reference to the new resource |
 | `resource` | `undefined` | Makes a reference from the source to the new resource |
 
-**The result is built after the upload.** `processGenerationJob` returns the content, its title and format, the citations and `truncated`. The worker uploads the content, which gives the resource its id, and only then states `JobGenerationResult` on `job:complete`.
+**The result is built after the upload.** `processGenerationJob` returns the content, its title and format, the citations and `truncated`, or says a cancellation stopped it, and then nothing is uploaded. The worker uploads the content, which gives the resource its id, and only then states `JobGenerationResult` on `job:complete`.
 
 **A cut-off result says so.** `truncated` is true when the model stopped at the `maxTokens` ceiling. It is required on the result and on the final progress report.
 

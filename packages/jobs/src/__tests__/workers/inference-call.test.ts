@@ -326,7 +326,8 @@ describe('bounded inference calls', () => {
     const generateStructured = vi.fn(never);
     const client = clientWith({ generateStructured });
 
-    const pending = AnnotationDetection.detectHighlights('some content', textOffsets('some content'), client);
+    const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn() };
+    const pending = AnnotationDetection.detectHighlights('some content', textOffsets('some content'), client, logger, new AbortController().signal);
     const assertion = expect(pending).rejects.toThrow(/timed out/);
     // Content this small cannot SHRINK, and under the no-shrink floor an
     // unshrinkable piece never "descends" into identical re-runs — the first

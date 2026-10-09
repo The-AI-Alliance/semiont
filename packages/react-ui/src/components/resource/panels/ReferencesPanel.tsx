@@ -103,7 +103,7 @@ interface Props {
  * @emits mark:submit - Create new reference annotation. Payload: MarkSubmitEvent with motivation 'linking', and the chosen entity types as a TextualBody when any are chosen
  * @emits mark:cancel-pending - Cancel pending reference annotation. Payload: undefined
  * @emits mark:progress-dismiss - Dismiss the reference annotation progress display. Payload: undefined
- * @emits job:cancel-requested - Cancel the delegated reference job, by its id: pending, it is cancelled; running, its worker stops at its next unit boundary. Payload: { jobId: JobId }
+ * @emits job:cancel-requested - Cancel the delegated reference job, by its id: pending, it is cancelled; running, the worker that holds it stops its work and settles it as cancelled. Payload: { jobId: JobId }
  * @subscribes browse:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function ReferencesPanel({

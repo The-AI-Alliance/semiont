@@ -302,7 +302,7 @@ async function handleHeld(
 
 /**
  * Stub a motivation processor: annotations leave through the awaited
- * chunk-commit callback (argument 6), the return carries only the result.
+ * chunk-commit callback (argument 8), the return carries only the result.
  */
 const emitting = (r: { annotations: unknown[]; result: unknown; unit?: string }) =>
   (async (...args: unknown[]) => {
@@ -310,7 +310,7 @@ const emitting = (r: { annotations: unknown[]; result: unknown; unit?: string })
     // `(a: unknown[]) => …` cast keeps compiling when the seam's arguments
     // change, and the omission surfaces only at runtime as
     // "Cannot read properties of undefined (reading 'unit')".
-    const onChunkComplete = args[6] as (a: unknown[], c: UnitCheckpoint) => Promise<void>;
+    const onChunkComplete = args[8] as (a: unknown[], c: UnitCheckpoint) => Promise<void>;
     await onChunkComplete(r.annotations, { unit: r.unit ?? 'highlighting', cursor: { next: 900, size: 220, found: 0, emitted: 0, errors: 0 } });
     return { result: r.result } as never;
   }) as never;
@@ -772,7 +772,7 @@ describe('handleJob orchestration', () => {
 
       const commit = h.busEmits.find(e => e.channel === 'mark:commit');
       expect(commit, 'resource-focus generation mints a navigable source→derived reference').toBeDefined();
-      const ann = (commit!.payload as { annotations: Array<{ target: { selector?: unknown } }> }).annotations[0]!;
+      const ann = (commit!.payload as { annotations: Array<{ id: string; target: { selector?: unknown } }> }).annotations[0]!;
       expect(ann).toMatchObject({
         motivation: 'linking',
         target: { source: RID },
@@ -780,6 +780,10 @@ describe('handleJob orchestration', () => {
       });
       // resource-level target — no selector
       expect(ann.target.selector).toBeUndefined();
+      // Its id is what it is: the source, the motivation, the body, and the
+      // empty anchor of an annotation that is nowhere on its resource. Worked
+      // out from the rule of specs/src/annotations/id-cases.json, not minted.
+      expect(ann.id).toBe('HqYtoFYDSdBnYjtdoGcKY');
 
       expect(h.busEmits.map(e => e.channel)).toEqual(['job:start', 'mark:commit', 'job:complete']);
     });
@@ -823,6 +827,10 @@ describe('handleJob orchestration', () => {
           body: { type: 'SpecificResource', source: 'ctx-9', purpose: 'linking' },
         },
       });
+      // Its id is what it is, the claim's span on the new resource being its
+      // anchor (`0:31:Paris is the capital of France.`): worked out from the
+      // rule of specs/src/annotations/id-cases.json, not minted.
+      expect((markCreates[0]!.payload.annotation as { id: string }).id).toBe('WaceNfV_Xr3nk_nsyWepQ');
       expect(h.busEmits.map(e => e.channel)).toEqual(['job:start', 'mark:commit', 'job:complete']);
     });
 
@@ -1516,7 +1524,7 @@ describe('startWorkerProcess', () => {
     let seenSignal: AbortSignal | undefined;
     let release: (() => void) | undefined;
     vi.mocked(processReferenceJob).mockImplementation(
-      async (_c, _o, _cl, _p, _b, _pr, _l, _onUnit, signal) => {
+      async (_c, _o, _cl, _p, _b, _pr, _l, signal) => {
         seenSignal = signal;
         await new Promise<void>((r) => { release = r; });
         return { result: { found: 0, persisted: 0 } as never };
@@ -1705,7 +1713,7 @@ describe('startWorkerProcess', () => {
 describe('linking — checkpointed resume', () => {
   it('commits once per unit, awaiting durability, with no post-run re-emission', async () => {
     vi.mocked(processReferenceJob).mockImplementation(
-      async (_content, _offsets, _client, _params, _build, _progress, _logger, onUnitComplete, _signal, onChunkComplete) => {
+      async (_content, _offsets, _client, _params, _build, _progress, _logger, _signal, onUnitComplete, onChunkComplete) => {
         await onChunkComplete!([{ id: 'r1' }] as never, { unit: 'Person', cursor: { next: 900, size: 220, found: 0, emitted: 0, errors: 0 } });
         await onUnitComplete('Person');
         await onUnitComplete('Date'); // empty unit: nothing to commit, still checkpoints
@@ -1796,7 +1804,7 @@ describe('linking — checkpointed resume', () => {
     let seen: unknown;
     vi.mocked(processHighlightJob).mockImplementation(
       (async (...args: unknown[]) => {
-        seen = args[7];
+        seen = args[9];
         return { result: { found: 0, persisted: 0 } } as never;
       }) as never,
     );
@@ -1811,38 +1819,75 @@ describe('linking — checkpointed resume', () => {
     expect(seen).toEqual(cursors);
   });
 
-  it('cancellation stops at a unit boundary: emits job:cancel with the checkpoint, not job:complete', async () => {
-    // The signal is aborted (a cancel was requested for this job). The real
-    // processReferenceJob breaks its loop at the next unit boundary; the mock
-    // commits one unit and returns. handleJobInner must then announce
-    // job:cancel — carrying the committed unit — instead of job:complete, so
-    // the queue moves the still-running job to cancelled/ rather than mark it
-    // done, and never fails it.
+  it('a linking job a cancellation stopped is settled with job:cancel, naming the units it finished, not job:complete', async () => {
+    // The real processReferenceJob stops after the chunk it is on and says
+    // which units it had finished; the mock commits one unit and says so.
+    // handleJobInner must then announce job:cancel — carrying that unit —
+    // instead of job:complete, so the queue moves the still-running job to
+    // cancelled/ rather than mark it done, and never fails it.
     vi.mocked(processReferenceJob).mockImplementation(
-      async (_content, _offsets, _client, _params, _build, _progress, _logger, onUnitComplete, _signal, onChunkComplete) => {
+      async (_content, _offsets, _client, _params, _build, _progress, _logger, _signal, onUnitComplete, onChunkComplete) => {
         await onChunkComplete!([{ id: 'r1' }] as never, { unit: 'Person', cursor: { next: 900, size: 220, found: 0, emitted: 0, errors: 0 } });
         await onUnitComplete('Person');
-        return { result: { found: 1, persisted: 1 } as never };
+        return { cancelled: { completedUnits: ['Person'] } };
       },
     );
     const h = makeFakeWorker();
-    const controller = new AbortController();
-    controller.abort();
 
-    await handleHeld(
-      h,
-      makeConfig(h.client),
-      makeJob('linking', { entityTypes: ['Person', 'Location'] }),
-      new Map(),
-      controller.signal,
-    );
+    await handleHeld(h, makeConfig(h.client), makeJob('linking', { entityTypes: ['Person', 'Location'] }));
 
     const channels = h.busEmits.map(e => e.channel);
     expect(channels).toContain('job:cancel');
     expect(channels).not.toContain('job:complete');
     const cancel = h.busEmits.find(e => e.channel === 'job:cancel');
     expect((cancel!.payload as { completedUnits: string[] }).completedUnits).toEqual(['Person']);
-    expect(h.settles().filter((how) => how !== 'job:fail')).toHaveLength(1);
+    expect(h.settles()).toEqual(['job:cancel']);
+    expect(recordJobOutcome).toHaveBeenLastCalledWith({ jobType: 'mark', motivation: 'linking' }, 'cancelled', expect.any(Number));
+  });
+
+  it.each([
+    ['highlighting', processHighlightJob],
+    ['commenting', processCommentJob],
+    ['assessing', processAssessmentJob],
+    ['tagging', processTagJob],
+  ] as const)('a %s job a cancellation stopped is settled with job:cancel, and is handed the held job\'s signal to stop for', async (motivation, processor) => {
+    let seenSignal: unknown;
+    vi.mocked(processor).mockImplementation((async (...args: unknown[]) => {
+      seenSignal = args[7];
+      // Partway through its one unit: it names none.
+      return { cancelled: { completedUnits: [] } };
+    }) as never);
+    const h = makeFakeWorker();
+    const controller = new AbortController();
+    controller.abort();
+
+    await handleHeld(h, makeConfig(h.client), makeJob(motivation), new Map(), controller.signal);
+
+    // The signal the processor stops for is the held job's own: a cancellation naming the job has aborted it.
+    expect(seenSignal).toBeInstanceOf(AbortSignal);
+    expect((seenSignal as AbortSignal).aborted).toBe(true);
+    expect(h.settles()).toEqual(['job:cancel']);
+    // No unit finished, so the cancel states none.
+    expect(h.busEmits.find(e => e.channel === 'job:cancel')!.payload).not.toHaveProperty('completedUnits');
+    expect(recordJobOutcome).toHaveBeenLastCalledWith({ jobType: 'mark', motivation }, 'cancelled', expect.any(Number));
+  });
+
+  it('a yield job a cancellation stopped uploads nothing, commits nothing, and is settled with job:cancel', async () => {
+    let seenSignal: unknown;
+    vi.mocked(processGenerationJob).mockImplementation((async (...args: unknown[]) => {
+      seenSignal = args[4];
+      return { cancelled: true };
+    }) as never);
+    const h = makeFakeWorker();
+    const controller = new AbortController();
+    controller.abort();
+
+    await handleHeld(h, makeConfig(h.client), makeJob('yield', { context: minimalContext('resource') }), new Map(), controller.signal);
+
+    expect((seenSignal as AbortSignal).aborted).toBe(true);
+    expect(h.yieldResourceCalls).toEqual([]);
+    expect(h.busEmits.map(e => e.channel)).toEqual(['job:start', 'job:cancel']);
+    expect(recordJobOutcome).toHaveBeenLastCalledWith({ jobType: 'yield' }, 'cancelled', expect.any(Number));
   });
 
   it('a retried claim skips checkpointed units — the processor never sees them', async () => {
@@ -1868,7 +1913,7 @@ describe('startWorkerProcess — job:fail carries the checkpoint', () => {
     // Two units commit, then the third stalls — the failure payload must
     // name what completed so the retry can skip it.
     vi.mocked(processReferenceJob).mockImplementation(
-      async (_content, _offsets, _client, _params, _build, _progress, _logger, onUnitComplete, _signal, onChunkComplete) => {
+      async (_content, _offsets, _client, _params, _build, _progress, _logger, _signal, onUnitComplete, onChunkComplete) => {
         await onChunkComplete!([{ id: 'a1' }] as never, { unit: 'Person', cursor: { next: 900, size: 220, found: 0, emitted: 0, errors: 0 } });
         await onUnitComplete('Person');
         await onUnitComplete('Date');
@@ -2136,7 +2181,7 @@ describe('every event says which attempt produced it', () => {
   it('progress and the terminal event both carry the attempt number', async () => {
     vi.mocked(processHighlightJob).mockImplementation((async (...args: unknown[]) => {
       const onProgress = args[5] as (p: number, m: unknown) => void;
-      const onChunkComplete = args[6] as (a: unknown[], c: UnitCheckpoint) => Promise<void>;
+      const onChunkComplete = args[8] as (a: unknown[], c: UnitCheckpoint) => Promise<void>;
       onProgress(60, { code: 'creating-annotations', count: 1 });
       await onChunkComplete([{ id: 'a1' }], { unit: 'highlighting', cursor: { next: 900, size: 220, found: 0, emitted: 0, errors: 0 } });
       return { result: { found: 1, persisted: 1 } } as never;

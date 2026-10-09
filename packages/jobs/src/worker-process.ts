@@ -22,7 +22,8 @@ import type { ClaimsObservable, HeldJob, SemiontClient } from '@semiont/sdk';
 import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, findClaimSpan, textOffsets, capabilitiesOf, jobMatchesFilter, MARK_MOTIVATIONS, GENERATED_TEXT_ASKS_COUNT, type JobFilter, type ResourceId } from '@semiont/core';
 
 import type { InferenceClient } from '@semiont/inference';
-import type { Logger, components, AssembledAnnotation, Annotation, AnchoredText, TextOffsets, UnitCursor } from '@semiont/core';
+import type { Logger, components, AssembledAnnotation, Annotation, AnchoredText, JobDetectionResult, TextOffsets, UnitCursor } from '@semiont/core';
+import { annotationIdFor } from '@semiont/event-sourcing';
 import { prepareDetection } from './workers/detection/prepare-detection';
 import { classifyFailure, DeterministicJobError } from './failure-class';
 import { SpanKind, recordJobOutcome, withSpan } from '@semiont/observability';
@@ -34,8 +35,10 @@ import {
   processTagJob,
   processGenerationJob,
   buildPdfAnnotation,
+  spanAnchor,
   type OnProgress,
   type BuildAnnotation,
+  type ProcessorResult,
   type UnitCheckpoint,
 } from './processors';
 
@@ -210,13 +213,13 @@ export function startWorkerProcess(config: WorkerProcessConfig): ClaimsObservabl
     next: (job) => {
       logger.info('Processing job', { jobId: job.jobId, type: job.jobType, resourceId: job.resourceId });
       // Cooperative cancellation: a cancellation that names the held job
-      // aborts its signal; the reference loop stops at its next unit boundary
-      // and the job moves to cancelled/ carrying its checkpoint — no worker
-      // kill. A pending job's cancel is handled by the dispatcher; a running
-      // job's must be cooperative, or it would be yanked out from under a
-      // live worker (the roach-motel race).
+      // aborts its signal; the job stops at its next stopping place (a
+      // detection after the chunk it is on, a generation before it uploads)
+      // and moves to cancelled/ — no worker kill. A pending job's cancel is
+      // handled by the dispatcher; a running job's must be cooperative, or it
+      // would be yanked out from under a live worker (the roach-motel race).
       job.cancelled.addEventListener('abort', () => {
-        logger.info('Cancel requested for active job — stopping at next unit boundary', { jobId: job.jobId });
+        logger.info('Cancel requested for active job — stopping at its next stopping place', { jobId: job.jobId });
       }, { once: true });
       handleJob(config, job, completedUnitsByJob, unitCursorsByJob)
         .catch(async (error: unknown) => {
@@ -282,9 +285,9 @@ export async function handleJob(
 ): Promise<void> {
   const start = performance.now();
   const motivation = motivationOf(job);
-  let outcome: 'completed' | 'failed' = 'completed';
+  let outcome: 'completed' | 'failed' | 'cancelled' = 'failed';
   try {
-    return await withSpan(
+    outcome = await withSpan(
       `job:${job.jobType}`,
       () => handleJobInner(config, job, completedUnitsByJob, unitCursorsByJob),
       {
@@ -297,9 +300,6 @@ export async function handleJob(
         },
       },
     );
-  } catch (err) {
-    outcome = 'failed';
-    throw err;
   } finally {
     recordJobOutcome({ jobType: job.jobType, ...(motivation ? { motivation } : {}) }, outcome, performance.now() - start);
   }
@@ -310,7 +310,7 @@ async function handleJobInner(
   job: HeldJob,
   completedUnitsByJob: Map<string, string[]>,
   unitCursorsByJob: Map<string, Record<string, UnitCursor>> = new Map(),
-): Promise<void> {
+): Promise<'completed' | 'cancelled'> {
   const { client, inferenceClient, generator } = config;
   // Who asked for the job is not among what the worker holds: it cites the
   // job, and the Stower derives the requester from the dispatcher's record of
@@ -318,8 +318,8 @@ async function handleJobInner(
   const { jobId, jobType, resourceId, params } = job;
   // What this job is, as a claim or a config section names it, for a message.
   const what = jobType === 'mark' ? `mark (${motivationOf(job) ?? 'no motivation'})` : jobType;
-  // Aborted when a cancellation names this job; the reference loop stops at
-  // its next unit boundary and the job moves to cancelled/.
+  // Aborted when a cancellation names this job; the job stops at its next
+  // stopping place and moves to cancelled/.
   const signal = job.cancelled;
 
   // ── Job lifecycle signaling ───────────────────────────────────────────
@@ -403,7 +403,7 @@ async function handleJobInner(
       // empty) — the resource legitimately has nothing to detect over. A clean
       // completion carrying the reason, not a failure.
       await job.complete({ declined: true, reason: source.declined });
-      return;
+      return 'completed';
     }
     ready = source;
   }
@@ -448,9 +448,25 @@ async function handleJobInner(
     });
   };
 
+  /**
+   * Settle a detection as it ended. One that a cancellation stopped is
+   * announced as cancelled, so the queue moves the (still-running) job to
+   * cancelled/ — never yanked out from under this worker — naming the units
+   * it did finish. A cancel is a clean terminal, not a failure.
+   */
+  const settle = async (held: Extract<HeldJob, { jobType: 'mark' }>, ended: ProcessorResult<JobDetectionResult>): Promise<'completed' | 'cancelled'> => {
+    if ('cancelled' in ended) {
+      const { completedUnits } = ended.cancelled;
+      await held.cancel(completedUnits.length > 0 ? { completedUnits } : {});
+      return 'cancelled';
+    }
+    await held.complete(ended.result);
+    return 'completed';
+  };
+
   if (job.jobType === 'mark' && isHeldMark(params, 'highlighting')) {
-    const { result } = await processHighlightJob(
-      ready!.text, ready!.offsets, inferenceClient, params, ready!.buildAnnotation, onProgress,
+    return settle(job, await processHighlightJob(
+      ready!.text, ready!.offsets, inferenceClient, params, ready!.buildAnnotation, onProgress, config.logger, signal,
       // The durability write, per chunk, awaited; folds into the terminal
       // durability evidence like every commit, and carries the unit's cursor.
       commitChunk,
@@ -458,32 +474,29 @@ async function handleJobInner(
       // a partway unit resumes at its offset instead of the top. Empty on a
       // first attempt.
       job.unitCursors,
-    );
-    await job.complete(result);
+    ));
 
   } else if (job.jobType === 'mark' && isHeldMark(params, 'commenting')) {
-    const { result } = await processCommentJob(
-      ready!.text, ready!.offsets, inferenceClient, params, ready!.buildAnnotation, onProgress,
+    return settle(job, await processCommentJob(
+      ready!.text, ready!.offsets, inferenceClient, params, ready!.buildAnnotation, onProgress, config.logger, signal,
       // The durability write, per chunk, awaited; folds into the terminal
       // durability evidence like every commit, and carries the unit's cursor.
       commitChunk,
       // …and the other direction: where an earlier attempt left each unit.
       // Empty on a first attempt.
       job.unitCursors,
-    );
-    await job.complete(result);
+    ));
 
   } else if (job.jobType === 'mark' && isHeldMark(params, 'assessing')) {
-    const { result } = await processAssessmentJob(
-      ready!.text, ready!.offsets, inferenceClient, params, ready!.buildAnnotation, onProgress,
+    return settle(job, await processAssessmentJob(
+      ready!.text, ready!.offsets, inferenceClient, params, ready!.buildAnnotation, onProgress, config.logger, signal,
       // The durability write, per chunk, awaited; folds into the terminal
       // durability evidence like every commit, and carries the unit's cursor.
       commitChunk,
       // …and the other direction: where an earlier attempt left each unit.
       // Empty on a first attempt.
       job.unitCursors,
-    );
-    await job.complete(result);
+    ));
 
   } else if (job.jobType === 'mark' && isHeldMark(params, 'linking')) {
     // Checkpointed resume. A retried claim skips the units earlier attempts
@@ -500,8 +513,8 @@ async function handleJobInner(
     const committed: string[] = [];
     completedUnitsByJob.set(job.jobId, committed);
 
-    const { result } = await processReferenceJob(
-      ready!.text, ready!.offsets, inferenceClient, remaining, ready!.buildAnnotation, onProgress, config.logger,
+    return settle(job, await processReferenceJob(
+      ready!.text, ready!.offsets, inferenceClient, remaining, ready!.buildAnnotation, onProgress, config.logger, signal,
       async (unit) => {
         // By the time this fires, every chunk of the unit has committed
         // through the awaited callback below — the checkpoint trails the log,
@@ -521,36 +534,24 @@ async function handleJobInner(
           ...(unitCursors.size > 0 ? { unitCursors: Object.fromEntries(unitCursors) } : {}),
         });
       },
-      signal,
       // The durability write, per chunk, awaited; folds into the terminal
       // durability evidence like every commit, and carries the unit's cursor.
       commitChunk,
       // …and the other direction: where an earlier attempt left each unit.
       // Empty on a first attempt.
       job.unitCursors,
-    );
-    // Cooperative cancellation: the loop stopped because a cancel was
-    // requested for this job. Announce it so the queue moves the
-    // (still-running) job to cancelled/ — never yanked out from under this
-    // worker — carrying the units it did finish (already checkpointed above).
-    // A cancel is a clean terminal, not a failure.
-    if (signal.aborted) {
-      await job.cancel(committed.length > 0 ? { completedUnits: [...committed] } : {});
-      return;
-    }
-    await job.complete(result);
+    ));
 
   } else if (job.jobType === 'mark' && isHeldMark(params, 'tagging')) {
-    const { result } = await processTagJob(
-      ready!.text, ready!.offsets, inferenceClient, params, ready!.buildAnnotation, onProgress,
+    return settle(job, await processTagJob(
+      ready!.text, ready!.offsets, inferenceClient, params, ready!.buildAnnotation, onProgress, config.logger, signal,
       // The durability write, per chunk, awaited; folds into the terminal
       // durability evidence like every commit, and carries the unit's cursor.
       commitChunk,
       // …and the other direction: where an earlier attempt left each unit.
       // Empty on a first attempt.
       job.unitCursors,
-    );
-    await job.complete(result);
+    ));
 
   } else if (job.jobType === 'yield') {
     // Trust-boundary narrowing: params crossed the wire as untyped JSON. The
@@ -563,8 +564,14 @@ async function handleJobInner(
       );
     }
     const genResult = await processGenerationJob(
-      inferenceClient, job.params, onProgress, config.logger,
+      inferenceClient, job.params, onProgress, config.logger, signal,
     );
+    // Cancelled by the time its model had answered: nothing is uploaded,
+    // nothing is committed. Past this point the job runs to its end.
+    if ('cancelled' in genResult) {
+      await job.cancel({});
+      return 'cancelled';
+    }
 
     // Content never travels on the bus. Upload via the http-transport's
     // `client.yield.resource()` — same serializer the /know/compose
@@ -617,15 +624,14 @@ async function handleJobInner(
     // edge, targeting the whole source resource (resource-level, no selector).
     // Annotation-focus generation instead auto-binds the triggering reference
     // via `sourceAnnotationId` on the upload above.
+    //
+    // Its id is what it is, as every annotation a worker commits has: a
+    // retried job that makes the same link commits it under the same id. It
+    // is anchored nowhere on the source, so its anchor is the empty string.
     if (!genReferenceId) {
-      const { annotation: provenanceRef } = assembleAnnotation(
-        {
-          motivation: 'linking',
-          target: { source: resourceId },
-          body: { type: 'SpecificResource', source: newResourceId, purpose: 'linking' },
-        },
-        generator,
-      );
+      const body = { type: 'SpecificResource' as const, source: newResourceId, purpose: 'linking' as const };
+      const { annotation } = assembleAnnotation({ motivation: 'linking', target: { source: resourceId }, body }, generator);
+      const provenanceRef = { ...annotation, id: annotationIdFor({ resourceId, motivation: 'linking', anchor: '', body }) };
       await job.commit(resourceId, [provenanceRef]);
     }
 
@@ -689,7 +695,8 @@ async function handleJobInner(
       }
     } else {
       for (const citation of genResult.citations) {
-        const { annotation: citationRef } = assembleAnnotation(
+        const body = { type: 'SpecificResource' as const, source: citation.resourceId, purpose: 'linking' as const };
+        const { annotation } = assembleAnnotation(
           {
             motivation: 'linking',
             target: {
@@ -699,17 +706,19 @@ async function handleJobInner(
                 { type: 'TextQuoteSelector', exact: citation.exact },
               ],
             },
-            body: { type: 'SpecificResource', source: citation.resourceId, purpose: 'linking' },
+            body,
           },
           generator,
         );
-        citationRefs.push(citationRef);
+        // The id of what it is: the claim's span on the new resource, and the resource it cites.
+        citationRefs.push({ ...annotation, id: annotationIdFor({ resourceId: newResourceId, motivation: 'linking', anchor: spanAnchor(citation), body }) });
       }
     }
 
     await job.commit(newResourceId, citationRefs);
 
     await job.complete({ resourceId: newResourceId, resourceName: genResult.title, truncated: genResult.truncated });
+    return 'completed';
 
   } else {
     // A job this worker claims and cannot run: a tagging job handed over

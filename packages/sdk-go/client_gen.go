@@ -3977,7 +3977,7 @@ type JobAssignedPayload struct {
 	ResourceId ResourceId `json:"resourceId"`
 }
 
-// JobCancelCommand A worker's confirmation that it has cooperatively stopped a running job at a unit boundary — the queue moves the job to cancelled/. Distinct from JobCancelRequest (the client→worker REQUEST to stop): this is the worker announcing it did, so the running job is never yanked to cancelled/ out from under a live worker (the roach-motel race).
+// JobCancelCommand A worker's settling of a running job it holds whose work it has stopped for a cancellation — the queue moves the job to cancelled/. Distinct from JobCancelRequest (the client→worker REQUEST to stop): this is the worker announcing it did, so the running job is never yanked to cancelled/ out from under a live worker (the roach-motel race).
 type JobCancelCommand struct {
 	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
 	UnderscoreUserId *UserId `json:"_userId,omitempty"`
@@ -3985,7 +3985,7 @@ type JobCancelCommand struct {
 	// AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
 	AnnotationId *AnnotationId `json:"annotationId,omitempty"`
 
-	// CompletedUnits Entity-type units whose annotations were fully emitted before cancellation. Recorded on the cancelled job's metadata so the work already done stays visible.
+	// CompletedUnits The units the worker had finished when it stopped. Recorded on the cancelled job's metadata so the work already done stays visible.
 	CompletedUnits *[]string `json:"completedUnits,omitempty"`
 
 	// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
@@ -4001,7 +4001,7 @@ type JobCancelCommand struct {
 	UnitCursors *map[string]UnitCursor `json:"unitCursors,omitempty"`
 }
 
-// JobCancelRequest Request to cancel one job, named by its id. A pending job is cancelled immediately by the dispatcher. A running job is cancelled cooperatively by the worker that holds it, which stops at its next unit boundary and emits JobCancelCommand: the queue is never made to yank a running job out from under a live worker.
+// JobCancelRequest Request to cancel one job, named by its id. A pending job is cancelled immediately by the dispatcher. A running job is cancelled only by the worker that holds it: the worker stops its work and settles the job with `job:cancel` (JobCancelCommand). The queue is never made to yank a running job out from under a live worker.
 type JobCancelRequest struct {
 	// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
 	JobId JobId `json:"jobId"`

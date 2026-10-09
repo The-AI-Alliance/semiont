@@ -5,9 +5,10 @@
  * text, or Typst source (which the worker compiles to PDF), by `outputMediaType`.
  */
 
-import { getLocaleEnglishName, deriveViews, textOffsets } from '@semiont/core';
+import { estimateTokens, getLocaleEnglishName, deriveViews, textOffsets } from '@semiont/core';
 import type { GatheredContext, Logger, SupportedMediaType } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
+import { DeterministicJobError } from '../../failure-class';
 import { boundedGenerateWithMetadata } from '../inference-call';
 
 
@@ -344,6 +345,18 @@ ${formatRequirements}`;
       content: content
     };
   };
+
+  // A provider whose reply ceiling is its context window has one window for
+  // prompt and reply. A prompt and a length that are together over it fit on
+  // no attempt: the job fails without asking, and skips the retry budget. A
+  // provider with a reply ceiling of its own refuses what it will not take.
+  const limits = await client.limits();
+  const promptTokens = estimateTokens(prompt);
+  if (limits.maxOutputTokens >= limits.contextTokens && promptTokens + finalMaxTokens > limits.contextTokens) {
+    throw new DeterministicJobError(
+      `The prompt (~${promptTokens} tokens) and the ${finalMaxTokens} tokens asked for are together over the context window of '${client.modelId}' (${limits.contextTokens} tokens)`,
+    );
+  }
 
   logger.debug('Sending prompt to inference', {
     promptLength: prompt.length,

@@ -73,6 +73,20 @@ eachWorkerService('a job that fails', (world) => {
     expect(w.ollama.generations).toEqual([]);
   });
 
+  it('fails as deterministic, having asked for no generation, when its model\'s window leaves a piece 64 tokens or fewer', async () => {
+    const w = world();
+    // 461 tokens, less the 267 of the prompt around the text, leave 194: a third is 64, one overlap, and a piece of it reads nothing new.
+    w.ollama.show = { contextLength: 461 };
+    const { job, failure, sequence } = await failed(w, 'window-too-small', []);
+    const { error, ...rest } = failure;
+    expect(rest).toEqual({ ...identity(job), failureClass: 'deterministic', willRetry: false });
+    expect(String(error)).toContain('461');
+    // It learned its model's window, and asked the model nothing.
+    expect(w.ollama.shows).toEqual([{ model: w.agents[0]!.model }]);
+    expect(w.ollama.generations).toEqual([]);
+    expect(sequence).toEqual(['emit job:claim', 'emit job:start', 'emit browse:resource-requested', `GET /resources/${String(job.params.resourceId)}`, 'emit job:fail', 'emit job:claim']);
+  });
+
   it.each([
     ['is not JSON', 'I found three passages worth highlighting.'],
     ['is JSON and not an array', '{"highlights":[{"exact":"the first program"}]}'],

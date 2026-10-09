@@ -69,8 +69,8 @@ export class JobNamespace implements IJobNamespace {
   /**
    * Cancel ONE job by id. Resolves with whether the queue acted on it: a
    * PENDING job is cancelled outright; a RUNNING one is left to its worker,
-   * which stops cooperatively at the next unit boundary and keeps its
-   * checkpoint, so `true` means "accepted", not "already stopped". `false` is
+   * which stops its work and settles the job with `job:cancel`, so `true`
+   * means "accepted", not "already stopped". `false` is
    * a job the queue does not know, or one already over. Rejects on a queue
    * failure.
    */

@@ -50,12 +50,19 @@ const ENTITY_ELEMENT_SCHEMA: ElementSchema = {
  * or truncate the way the extraction's array can. */
 const COUNT_MAX_TOKENS = 16;
 
-/** The count answer, read as its leading integer. "Respond with only the
- * number" is the prompt's contract, but a model that pads it ("There are 50")
- * still yields its verdict; anything with no integer yields none. */
+/**
+ * The count answer, read as the first whole number in it. "Respond with only
+ * the number" is the prompt's contract, but a model that pads it ("There are
+ * 50") still yields its verdict; anything with no digit yields none.
+ *
+ * The number is read through its thousands separators: a run of one to three
+ * digits followed by groups of a comma and exactly three digits is one number
+ * (`1,234` is 1234). Read as its first group it would be 1, and a count of 1
+ * hides every collapse.
+ */
 function parseCount(text: string): number | undefined {
-  const m = text.trim().match(/\d+/);
-  return m ? Number(m[0]) : undefined;
+  const m = /\d{1,3}(?:,\d{3})+(?!\d)|\d+/.exec(text);
+  return m ? Number(m[0].replaceAll(',', '')) : undefined;
 }
 
 /**
@@ -112,7 +119,7 @@ ${piece}
     // better), the floor accepts it (better than nothing, and every span is
     // write-time-verified).
     throw new YieldCollapseError(
-      `Extraction found ${items.length} entities where a count call reports ~${counted} mentions (band ×${YIELD_COLLAPSE_BAND}) on a ${pieceChars}-char chunk — silent yield collapse: deterministic — a same-size retry returns the identical under-report.`,
+      `Extraction found ${items.length} entities where a count call reports ~${counted} mentions (band ×${YIELD_COLLAPSE_BAND}) on a chunk of ${pieceChars} code points — silent yield collapse: deterministic — a same-size retry returns the identical under-report.`,
       [...items],
       { found: items.length, counted, pieceChars },
     );
@@ -137,6 +144,8 @@ ${piece}
  * @param logger - Logger for entity-extraction diagnostics (parse failures,
  *   anchor decisions, drops). Required so dropped/filtered entities never
  *   disappear silently.
+ * @param signal - The held job's cancellation: the walk stops between chunks
+ *   once it is aborted, and from then nothing more is reported.
  * @param sourceLanguage - BCP-47 tag for the source content's language
  * @param onActivity - Invoked with (consumedChars, totalChars) whenever the
  *   extraction is demonstrably alive: at each chunk boundary (the cursor
@@ -157,6 +166,7 @@ export async function extractEntities(
   client: InferenceClient,
   includeDescriptiveReferences: boolean,
   logger: Logger,
+  signal: AbortSignal,
   sourceLanguage?: string,
   onActivity?: (consumedChars: number, totalChars: number) => void,
   /** A floor-accepted piece's evidence, as it is accepted. */
@@ -180,8 +190,12 @@ export async function extractEntities(
    * with the results rather than reported separately so the two cannot drift:
    * a caller that records the position without durably committing the
    * annotations would checkpoint ahead of the log.
+   *
+   * `dropped` is how many mentions of this chunk were of an entity type that
+   * was not asked for: the model proposed them, they are no items, and a job
+   * counts them.
    */
-  onChunkResults?: (items: ExtractedEntity[], cursor: ChunkCursor) => Promise<void>,
+  onChunkResults?: (items: ExtractedEntity[], cursor: ChunkCursor, dropped: number) => Promise<void>,
 ): Promise<ExtractedEntity[]> {
 
   // Format entity types for the prompt
@@ -193,6 +207,7 @@ export async function extractEntities(
       ? `${et.type} (examples: ${et.examples.slice(0, 3).join(', ')})`
       : et.type;
   }).join(', ');
+  const askedFor = new Set(entityTypes.map((et) => (typeof et === 'string' ? et : et.type)));
 
   // Build prompt with optional support for anaphoric/cataphoric references
   // Anaphora: references that point backward (e.g., "John arrived. He was tired.")
@@ -277,7 +292,7 @@ Example output:
   });
 
   const collected: ExtractedEntity[] = [];
-  await runAdaptiveChunks(exact, offsets, budget, async ({ piece: chunk, size, at, next, totalChars }) => {
+  await runAdaptiveChunks(exact, offsets, budget, signal, async ({ piece: chunk, size, at, next, totalChars }) => {
     // The structured surface returns parsed elements or THROWS — an
     // unreadable model response is a job failure, never a silent []. A
     // size-shaped failure (duration bound, truncation) subdivides in place
@@ -326,27 +341,37 @@ Example output:
     );
 
     const fromChunk: ExtractedEntity[] = [];
+    let dropped = 0;
     for (const e of items) {
       // No dedupe here: overlap duplicates from adjacent chunks pass through
       // to the caller's decider — the single dedupe point.
-      if (isObject(e) && isString(e.exact) && isString(e.entityType)) {
-        fromChunk.push({
-          exact: e.exact,
-          entityType: e.entityType,
-          ...(isString(e.prefix) ? { prefix: e.prefix } : {}),
-          ...(isString(e.suffix) ? { suffix: e.suffix } : {}),
-        });
-      } else {
+      if (!(isObject(e) && isString(e.exact) && isString(e.entityType))) {
         logger.debug('Dropped malformed LLM entity', { entity: e });
+        continue;
       }
+      // A mention of a type nobody asked for is not one of the type that was:
+      // it makes no annotation, and it is counted rather than passed off as
+      // the type asked for.
+      if (!askedFor.has(e.entityType)) {
+        logger.warn('Mention dropped — not of an entity type that was asked for', { text: e.exact, entityType: e.entityType });
+        dropped += 1;
+        continue;
+      }
+      fromChunk.push({
+        exact: e.exact,
+        entityType: e.entityType,
+        ...(isString(e.prefix) ? { prefix: e.prefix } : {}),
+        ...(isString(e.suffix) ? { suffix: e.suffix } : {}),
+      });
     }
     collected.push(...fromChunk);
-    await onChunkResults?.(fromChunk, { next, size });
+    await onChunkResults?.(fromChunk, { next, size }, dropped);
 
     // Chunk boundary: the cursor advances (real progress). Only when text
     // remains — the final cut has no boundary after it, and the caller reports
-    // the unit's completion itself.
-    if (next < totalChars) onActivity?.(next, totalChars);
+    // the unit's completion itself — and only while the job goes on: a
+    // cancelled job has stopped with this chunk's checkpoint.
+    if (next < totalChars && !signal.aborted) onActivity?.(next, totalChars);
     return outcome;
   }, resume);
 

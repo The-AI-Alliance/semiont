@@ -1,20 +1,20 @@
 /**
  * A `mark` job of motivation `assessing`, end to end (WORKER-SERVICE.md
  * § Detection, § The five kinds of mark job): asked with a tone and no
- * instructions, and answered with the same assessment twice.
+ * instructions, and answered with the same assessment twice and a blank one.
  */
 import { expect, it } from 'vitest';
 import { eachWorkerService } from '../harness/worker-service-world';
 import { expectGenerations, expectProgress, FORMATS, generation, identity, markJob, report, settled, TEXT, textAnnotation, withoutCreated } from './support';
 
 eachWorkerService('an assessing job', (world) => {
-  it('asks as its tone says, and commits one annotation for a span and an assessment proposed twice', async () => {
+  it('asks as its tone says, commits one annotation for a span and an assessment proposed twice, and takes a blank assessment for no proposal', async () => {
     const w = world();
     const agent = w.agents[0]!;
     const job = markJob(w, 'assessing', { motivation: 'assessing', tone: 'critical' });
     const resourceId = String(job.params.resourceId);
     const proposed = { exact: 'nobody tested that claim for a century', assessment: 'The text gives no source for this.' };
-    w.ollama.script({ response: JSON.stringify([proposed, proposed]) });
+    w.ollama.script({ response: JSON.stringify([proposed, proposed, { exact: 'London was wrong.', assessment: ' ' }]) });
     const served = await w.start();
     const completion = await settled(served, job);
 
@@ -64,7 +64,7 @@ eachWorkerService('an assessing job', (world) => {
       report(job, 60, { code: 'creating-annotations', count: 1 }, asked),
       report(job, 100, { code: 'complete-created', count: 1, motivation: 'assessing' }, asked),
     ]);
-    // Two proposed, one recorded: the second is the first again.
+    // Two proposed, one recorded: the second is the first again, and the one with nothing to say is not counted.
     expect(completion).toEqual({ ...identity(job), result: { found: 2, persisted: 1 }, durability: 'acknowledged' });
   });
 });

@@ -42,9 +42,10 @@ const table: {
 
 /** How this implementation words each refusal the table names. */
 const REFUSALS = new Map<string, RegExp>([
-  ['exact-mismatch', /buildTextAnnotation invariant: content\.substring/],
-  ['prefix-mismatch', /buildTextAnnotation invariant: content prefix-slice/],
-  ['suffix-mismatch', /buildTextAnnotation invariant: content suffix-slice/],
+  ['span-out-of-range', /invariant: offsets .+ are not a span of a text of \d+ code points/],
+  ['exact-mismatch', /buildTextAnnotation invariant: the text from offset \d+ to offset \d+, which count code points, is not exact/],
+  ['prefix-mismatch', /invariant: the prefix is not the text just before offset \d+/],
+  ['suffix-mismatch', /invariant: the suffix is not the text just after offset \d+/],
   ['nothing-located', /buildPdfAnnotation invariant: no rects located/],
   ['exact-not-covered', /buildPdfAnnotation invariant: covered text does not contain exact/],
   ['svg-no-namespace', /Invalid SVG markup: SVG must include xmlns/],

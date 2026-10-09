@@ -43,6 +43,18 @@ describe('annotationIdFor — content-addressed annotation identity', () => {
     expect(annotationIdFor(reordered)).toBe(annotationIdFor(base));
   });
 
+  it('orders the names of a body by code point, not by UTF-16 code unit', () => {
+    // The case of specs/src/annotations/id-cases.json whose two names tell the
+    // orders apart: U+FF5A comes before U+1F600, whose first UTF-16 unit is
+    // the lesser. Ordered by unit the id is 2VS31GK5k_0lv4Pz-ei7o.
+    expect(annotationIdFor({
+      resourceId: 'res-1',
+      motivation: 'commenting',
+      anchor: '0:12:Ada Lovelace',
+      body: { type: 'TextualBody', value: 'an author', '😀': 1, 'ｚ': 2 },
+    })).toBe('ezkXvdosD9657eaaCQKLh');
+  });
+
   // ── what must make two annotations DIFFERENT ──────────────────────────
 
   it('distinguishes different resources', () => {

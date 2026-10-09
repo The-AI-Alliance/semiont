@@ -77,8 +77,11 @@ holds the count.
   that refuses to start has asked nothing of the issuer, the gateway or a
   provider.
   *Held by `worker-service/boot`.*
-- **B6.** A service whose sign-in the issuer refuses exits with status 1, and
-  its health never answers.
+- **B6.** Whatever ends a service with status 1 before its health answers is
+  said as the refusals above are: one line on stderr that begins `[fatal] `
+  and says why. A service whose sign-in the issuer refuses ends so, and so
+  does one that cannot listen on its `port`; the health of neither ever
+  answers. Nothing either writes carries the secret.
   *Held by `worker-service/boot`.*
 
 ## Agents
@@ -124,8 +127,10 @@ agents of one service work at once.
   itself ([WORKER-CONTRACT V1](./WORKER-CONTRACT.md#liveness)):
   `lastQueuedEventAt`, `lastClaimAt`, `lastFinishedAt` and `lastActivityAt`,
   each an instant or `null`; `activeJob`, `null` or the held job's `jobId`,
-  `type` and `since`; and `jobsCompleted`. Any other path is answered `404`
-  with no body.
+  `type` and `since`; and `jobsCompleted`. The path is matched without its
+  query string: `GET /health?probe=1` is answered as `GET /health` is. A
+  request of any other path, and a request of `/health` by any other method,
+  is answered `404` with no body.
   *Held by `worker-service/started`.*
 
 ## Limits
@@ -205,10 +210,12 @@ job is one unit for each of its `categories`.
   floor(available / 3)`; `output = available − input`. When `output` is over
   9000, `input` becomes `floor(input × 9000 / output)` and `output` becomes
   9000. Then `input` is the lesser of itself and `floor(output / 2)`. An
-  `input` of 64 or less fails the job. `num_predict` is `output`. With `P` the
+  `input` of 64 or less fails the job as deterministic, with nothing asked of
+  the model: the window is too small, and is as small on every attempt.
+  `num_predict` is `output`. With `P` the
   tokens of the whole prompt, `num_ctx` is the lesser of `C` and `P +
   num_predict + ceil(P × 0.2) + 64`.
-  *Held by `worker-service/highlighting`, `worker-service/chunks`, `worker-service/prompts`, `worker-service/code-points`.*
+  *Held by `worker-service/highlighting`, `worker-service/chunks`, `worker-service/prompts`, `worker-service/code-points`, `worker-service/failures`.*
 
 ### Pieces
 
@@ -247,10 +254,26 @@ job is one unit for each of its `categories`.
   `exact` in the whole text. Found once, the span is there. Found more than
   once, it is the first occurrence whose surroundings carry the model's
   `prefix` and `suffix`, and the first occurrence of all when none does or the
-  model gave neither. A proposal that is not an object with a string `exact`,
-  and the other members its kind requires, is no proposal: it is neither
-  committed nor counted.
-  *Held by `worker-service/highlighting`, `worker-service/linking`, `worker-service/commenting`.*
+  model gave neither. A `prefix` or `suffix` that is empty or only white space
+  is not given. Found nowhere, `exact` is looked for again, three ways in
+  turn: without regard to white space or to the form of quotation marks and
+  dashes; without regard to letter case; and as the stretch of the text the
+  fewest edits from it. The first two may find several places, and the
+  model's `prefix` and `suffix` choose among them as they do among
+  occurrences. For the third an edit is one code point inserted, deleted or
+  replaced, and the most allowed is one for every twenty code points of
+  `exact`, rounded down, with no minimum: an `exact` of fewer than twenty code
+  points is allowed none. The stretch may be longer or shorter than `exact`
+  by as much as is allowed, and of several the fewest edits away it is the
+  first in the text; of those that begin at the same place, the one nearest
+  `exact` in length, and of two as near the shorter. The span is the text's
+  own words, never the model's spelling of them. An `exact` that is empty or
+  only white space, or that none of these finds, is no span: the proposal
+  makes no annotation, and is counted in the job's `found` and in its `errors`
+  ([D15](#committing-and-where-a-job-stands)). A proposal that is not an
+  object with a string `exact`, and the other members its kind requires, is
+  no proposal: it is neither committed nor counted.
+  *Held by `worker-service/highlighting`, `worker-service/linking`, `worker-service/commenting`, `worker-service/anchoring`, `specs/src/annotations/reconcile-cases.json`.*
 - **D9.** A span on text is anchored by two selectors: a
   `TextPositionSelector`, the offsets of its first code point and of the one
   after its last; and a `TextQuoteSelector`, its `exact`, with `prefix` and
@@ -287,8 +310,9 @@ job is one unit for each of its `categories`.
   `resourceId`, `motivation`, `anchor` and, when the annotation has one,
   `body`. `anchor` is `<start>:<end>:<exact>`, the span's offsets in the text
   the model was asked about, in code points, for a PDF as for any other.
-  Canonical JSON has the members of every object in order of their names,
-  arrays in their own order, and no white space.
+  Canonical JSON has the members of every object in order of their names by
+  code point, arrays in their own order, and no white space
+  ([`id-cases.json`](../../specs/src/annotations/id-cases.json)).
   *Held by `worker-service/highlighting`, `worker-service/commenting`, `worker-service/assessing`, `worker-service/linking`, `worker-service/tagging`, `worker-service/pdf`, `worker-service/code-points`.*
 
 ### Committing, and where a job stands
@@ -311,11 +335,13 @@ job is one unit for each of its `categories`.
   *Held by `worker-service/linking`, `worker-service/tagging`.*
 - **D15.** A `mark` job's result is its counts. `found` is the proposals the
   model made; `persisted`, the annotations committed; `errors`, the proposals
-  whose text is nowhere in the resource, stated only when there are any. A
+  that made no annotation, stated only when there are any: those whose text
+  is nowhere in the resource and, in a linking job, those of another entity
+  type than the one asked for ([K4](#the-five-kinds-of-mark-job)). A
   tagging job adds `byCategory`, the annotations committed for each category
   that has any. The completion states how the job's commits were established
   ([WORKER-CONTRACT A6](./WORKER-CONTRACT.md#committing-annotations)).
-  *Held by `worker-service/highlighting`, `worker-service/tagging`.*
+  *Held by `worker-service/highlighting`, `worker-service/tagging`, `worker-service/linking`.*
 
 ### Progress
 
@@ -374,8 +400,9 @@ A job's `sourceLanguage` is said in the prompt by its English name; so is the
   *Held by `worker-service/commenting`, `worker-service/prompts`.*
 - **K3.** An **assessing** job asks for the same and an `assessment`, `exact`
   and `assessment` required. Its prompt follows the job's `instructions`,
-  `tone` and `density`, or asks for assessments that evaluate. An assessment's
-  body is one `TextualBody`, not a list: the assessment as `value`, `purpose`
+  `tone` and `density`, or asks for assessments that evaluate. A proposal
+  whose assessment is blank is no proposal. An assessment's body is one
+  `TextualBody`, not a list: the assessment as `value`, `purpose`
   `assessing`, `format` `text/plain`, and `language` as for a comment.
   *Held by `worker-service/assessing`, `worker-service/prompts`.*
 - **K4.** A **linking** job takes its entity types one at a time, in the
@@ -384,7 +411,10 @@ A job's `sourceLanguage` is said in the prompt by its English name; so is the
   with the first two required, asking for names only unless the job has
   `includeDescriptiveReferences`; and a count of the mentions in the same
   piece, a prompt with no `format`, a `num_predict` of 16, and an answer read
-  as the first whole number in it. A reference's body is a list of one
+  as the first whole number in it, through its thousands separators (`1,234`
+  is 1234). A mention whose `entityType` is not, character for character, the
+  type being asked for makes no annotation, and is counted in the job's
+  `found` and `errors`. A reference's body is a list of one
   `TextualBody`: the entity type as `value`, `purpose` `tagging`, `format`
   `text/plain`, and `language` as for a comment.
   *Held by `worker-service/linking`, `worker-service/prompts`.*
@@ -517,15 +547,42 @@ deterministic, so that no attempt is spent on them again.
 
 ## Cancellation
 
-- **Q1.** A linking job stops for a cancellation
-  ([WORKER-CONTRACT X1](./WORKER-CONTRACT.md#cancellation)) between entity
-  types. The type it is on is finished, committed and checkpointed; no other
-  is begun; and the job is settled with `job:cancel`, naming the types it
-  finished in `completedUnits`.
+Every job stops for a cancellation that names it
+([WORKER-CONTRACT X1](./WORKER-CONTRACT.md#cancellation)): at its next
+stopping place, and not at once.
+
+- **Q1.** A `mark` job, of any motivation, stops after the piece it is on.
+  That piece's batch is committed and checkpointed as any piece's is
+  ([D13](#committing-and-where-a-job-stands), and
+  [D14](#committing-and-where-a-job-stands) where it is the last piece of a
+  linking job's entity type); no other piece is asked about; and the job is
+  settled with `job:cancel`. A job that is on no piece when the cancellation
+  arrives asks about none.
   *Held by `worker-service/cancel`.*
-- **Q2.** A job of any other motivation, and a `yield` job, does not stop for
-  a cancellation. It runs to its end and is settled as it would have been.
-  *Held by no case.*
+- **Q2.** `job:cancel` names, in `completedUnits`, the units the job had
+  finished, and states none when it had finished none. A unit it was partway
+  through is not named. A job with nothing left to do but settle when the
+  cancellation arrives is settled with `job:cancel` all the same, every unit
+  named: a job cancelled on the last piece of its last unit, of whatever
+  motivation.
+  *Held by `worker-service/cancel`.*
+- **Q3.** A `yield` job stops before it uploads. When the cancellation has
+  arrived by the time its model has answered, nothing is uploaded, nothing is
+  committed, and the job is settled with `job:cancel`. Once the upload has
+  been sent the job runs to its end and is settled as it would have been.
+  *Held by `worker-service/cancel`.*
+- **Q4.** A cancellation does not interrupt a generation that is under way:
+  the request to the provider is not ended, and the job stops at the next of
+  the places above. So a cancelled job holds its agent, and its provider goes
+  on working on an answer nobody will use, until the model answers or the
+  ten-minute bound of [F9](#failures) ends the request. A cancellation can
+  take that long to take effect.
+  *Held by `worker-service/cancel`.*
+- **Q5.** A cancelled job reports no completion: no `complete-created` and no
+  `complete-generated`. Once it has stopped it makes no progress report at
+  all: a `mark` job, none after the checkpoint of the piece it stopped on; a
+  `yield` job, none after its model has answered.
+  *Held by `worker-service/cancel`.*
 
 ## Generation
 
@@ -536,14 +593,17 @@ focused on a resource or on an annotation.
 
 - **Y1.** A job for an `outputMediaType` the
   [media-type registry](../../specs/src/media-types/registry.json) does not
-  mark `generatable` fails before anything is asked of the model. With none
-  stated, the job writes `text/markdown`.
+  mark `generatable` fails as deterministic, before anything is asked of the
+  model. With none stated, the job writes `text/markdown`.
   *Held by `worker-service/yield`.*
 - **Y2.** A generation to a text format is one request ([D1](#the-request))
   with no `format`: `temperature` is the job's, or `0.7`; `num_predict` is
   the job's `maxTokens`, or `500`; and `num_ctx` is as [D3](#the-request)
   works it out. The prompt is made of the job's `title`, `prompt`,
-  `entityTypes`, languages, `structure` and `cite`, and of its context.
+  `entityTypes`, languages, `structure` and `cite`, and of its context. A job
+  whose prompt and `num_predict` are together over the model's
+  `contextTokens`, in tokens as [D3](#the-request) counts them, fails as
+  deterministic, and the generation is not asked for.
   *Held by `worker-service/yield`.*
 - **Y3.** What the model answers is the document, less the white space at its
   ends and a code fence around it. When the model was cut off (`done_reason`
@@ -552,10 +612,10 @@ focused on a resource or on an annotation.
 - **Y4.** With `cite`, the model is asked to mark each claim with the id of
   its source, `[[<id>]]`. The marks are taken out of the document, each with
   the spaces and tabs before it. A mark whose id the context showed makes a
-  citation of the claim before it: the text that ends at the mark, and begins
-  after the last full stop, question mark, exclamation mark or line end ahead
-  of the claim's own last character, less the white space it begins with. A
-  mark whose id the context did not show makes none.
+  citation of the claim before it: the sentence that ends at the mark, with
+  its closing marks and without the white space around it, as
+  [`citation-cases.json`](../../specs/src/worker/citation-cases.json) states
+  a claim. A mark whose id the context did not show makes none.
   *Held by `worker-service/yield`.*
 - **Y5.** The document is uploaded to the gateway, `POST /resources`, as the
   job's `title` in `name`, its media type in `format`, at the job's
@@ -566,16 +626,20 @@ focused on a resource or on an annotation.
 - **Y6.** A job focused on a resource then commits, on that resource, one
   annotation that links it to what was made: `motivation` `linking`, a
   `target` that is the source with no selector, and a body of `type`
-  `SpecificResource`, `source` the new resource and `purpose` `linking`. A
-  job focused on an annotation commits no such link: its upload states that
-  annotation as `sourceAnnotationId`, and every lifecycle message of the job
-  names it as `annotationId`.
+  `SpecificResource`, `source` the new resource and `purpose` `linking`. Its
+  `id` is derived as [D12](#the-annotation) derives one, from the source, its
+  motivation, its body, and the empty string as its `anchor`: it is anchored
+  nowhere on the source. A job focused on an annotation commits no such link:
+  its upload states that annotation as `sourceAnnotationId`, and every
+  lifecycle message of the job names it as `annotationId`.
   *Held by `worker-service/yield`.*
 - **Y7.** The citations are committed on the new resource, as one batch: each
   an annotation of `motivation` `linking`, its `target` the claim (a
   `TextPositionSelector` and a `TextQuoteSelector` of its `exact`, offsets in
   the document as uploaded, in code points), and its body of `type`
   `SpecificResource`, `source` the cited resource and `purpose` `linking`.
+  Its `id` is derived as [D12](#the-annotation) derives one, from the new
+  resource, its motivation, its body, and the claim's `anchor`.
   *Held by `worker-service/yield`.*
 - **Y8.** A `yield` job reports `generating-resource` at 5, `creating-resource`
   at 95 and `complete-generated`, with `truncated`, at 100. Its result is the
@@ -599,7 +663,8 @@ focused on a resource or on an annotation.
 - **T2.** A job is a `job:{jobType}` span, from the claim that handed it over
   to its settle, and is counted (`semiont.job.outcome`) and timed
   (`semiont.job.duration`) by its type, its motivation when it is a `mark`
-  job, and how it ended: `completed`, a declined job among them, or `failed`.
+  job, and how it ended: `completed`, a declined job among them, `failed`, or
+  `cancelled`.
   *Held by `worker-service/telemetry`.*
 
 ## Environment
@@ -652,6 +717,16 @@ other, beyond the standard variables an OpenTelemetry SDK reads on its own.
   logs, and in which form, are its document's `logLevel` and `logFormat`.
   *Held by `worker-service/environment`.*
 
+## Output
+
+- **O1.** Every line a service that has started writes is a log line, on
+  stdout, in the form its document's `logFormat` names
+  ([`LogFormat`](../../specs/src/components/schemas/LogFormat.json)): what it
+  reads of a model's answer and what it cannot anchor are log lines like any
+  other. It writes nothing to stderr. Beside its log it writes only what
+  [E5, E6 and E9](#environment) have it write.
+  *Held by `worker-service/output`.*
+
 ## Stopping
 
 - **P1.** On `SIGTERM` or `SIGINT` a service that holds no job says nothing
@@ -676,41 +751,11 @@ other, beyond the standard variables an OpenTelemetry SDK reads on its own.
 Behaviour that is a defect. Each is described as it happens; none is a rule,
 and no case pins it.
 
-- **A short span that is not in the text is anchored anyway.** A proposal
-  whose `exact` is nowhere in the text is looked for again, loosely: without
-  regard to case or white space, and then as the stretch of the text within
-  five edits of it, or within a twentieth of its length if that is more. Any
-  stretch is within five edits of a span of five code points or fewer, so such
-  a span is always found, on text that has nothing to do with it, and is
-  committed there rather than counted in `errors`.
-- **The annotations a `yield` job commits have ids made afresh.** The link of
-  [Y6](#generation) and the citations of [Y7](#generation) are given a random
-  id each, against
-  [WORKER-CONTRACT A2](./WORKER-CONTRACT.md#committing-annotations).
 - **A resumed linking job does not count the types an earlier attempt
   finished.** Its result's `found` and `persisted`, and the `total` of its
   progress, are of the types this attempt ran.
-- **A cancelled linking job reports that it completed.** It makes its
-  `complete-created` report at 100 before it says `job:cancel`.
-- **A linking job cancelled on its last entity type is settled as cancelled**
-  with every type finished and committed.
-- **A `yield` job for a format the service does not generate fails with no
-  class,** and so is retried if its budget allows, to the same end.
-- **A failure after the service has read its document is not said as the
-  refusals of [Configuration](#configuration) are.** A sign-in the issuer
-  refuses is written to stdout as a log line, with no `[fatal]` line on
-  stderr.
 - **A job's trace is not its own.** The claim a worker makes when it settles
   a job, and the job that claim hands over, are made inside the settled job's
   span, or, after a failure, inside what that span was made in. So every job
   an agent runs after its first is in its first job's trace, and no job's
   span continues the trace of the `job:claimed` that handed it over.
-- **`/health` is matched as text.** A request with a query string is answered
-  `404`, and a request of any method is answered as `GET` is.
-- **Not every line the service writes is a log line.** Under `logFormat`
-  `json`, what it reads of a model's answer (how many proposals were well
-  formed, each one it could not anchor) is written as plain text among the
-  JSON.
-- **A job that cannot fit its model's window fails with no class.** A window
-  too small for the prompt and a piece, and a prompt and budget together over
-  the window, are each retried, if the budget allows, to the same end.

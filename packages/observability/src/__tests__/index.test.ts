@@ -353,6 +353,7 @@ describe('recordJobOutcome', () => {
   it('writes to both the outcome counter and duration histogram', async () => {
     recordJobOutcome({ jobType: 'mark', motivation: 'tagging' }, 'completed', 1500);
     recordJobOutcome({ jobType: 'yield' }, 'failed', 800);
+    recordJobOutcome({ jobType: 'mark', motivation: 'linking' }, 'cancelled', 300);
     await flushMetrics();
 
     const metricsByName = collectMetrics();
@@ -364,6 +365,7 @@ describe('recordJobOutcome', () => {
     const failed = outcomes!.find((d) => d.attributes['job.outcome'] === 'failed');
     expect(completed?.value).toBe(1);
     expect(failed?.value).toBe(1);
+    expect(outcomes!.find((d) => d.attributes['job.outcome'] === 'cancelled')?.value).toBe(1);
     // A mark job says its motivation in a label of its own; a yield job has none to say.
     expect(completed?.attributes).toMatchObject({ 'job.type': 'mark', 'job.motivation': 'tagging' });
     expect(failed?.attributes).toMatchObject({ 'job.type': 'yield' });
@@ -573,7 +575,6 @@ describe('recordAnchorOutcome', () => {
 describe('recordDetectionCall', () => {
   const base = {
     label: 'Person',
-    pieceChars: 4000,
     durationMs: 250,
     items: 3,
     depth: 0,

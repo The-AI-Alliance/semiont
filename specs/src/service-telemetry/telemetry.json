@@ -565,7 +565,8 @@
           "key": "job.outcome",
           "values": [
             "completed",
-            "failed"
+            "failed",
+            "cancelled"
           ]
         }
       ]
@@ -601,7 +602,8 @@
           "key": "job.outcome",
           "values": [
             "completed",
-            "failed"
+            "failed",
+            "cancelled"
           ]
         }
       ]

@@ -11,9 +11,17 @@
  * reconciliation against the full document.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { MotivationParsers } from '../../../workers/detection/motivation-parsers';
-import { textOffsets } from '@semiont/core';
+import { textOffsets, type Logger } from '@semiont/core';
+
+const LOGGER: Logger = {
+  debug: () => {},
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+  child: () => LOGGER,
+};
 
 // No `@semiont/core` mock — the real `reconcileSelector` runs against the
 // synthetic test content. Tests that exercise hallucinated text (offsets
@@ -27,7 +35,7 @@ describe('MotivationParsers', () => {
     it('should parse valid comment elements', () => {
       const { matches: result, dropped } = MotivationParsers.parseComments(
         [{ exact: 'Alice', start: 0, end: 5, comment: 'This is a test comment' }],
-        testContent, textOffsets(testContent),
+        testContent, textOffsets(testContent), LOGGER,
       );
 
       expect(result).toHaveLength(1);
@@ -49,7 +57,7 @@ describe('MotivationParsers', () => {
           { exact: 'Alice', comment: 'Valid comment' },
           { exact: 'XYZNOTPRESENTANYWHEREZYX', comment: 'This will be filtered' },
         ],
-        testContent, textOffsets(testContent),
+        testContent, textOffsets(testContent), LOGGER,
       );
 
       expect(result).toHaveLength(1);
@@ -61,7 +69,7 @@ describe('MotivationParsers', () => {
     it('should filter out comments with empty comment text', () => {
       const { matches: result, dropped } = MotivationParsers.parseComments(
         [{ exact: 'Alice', start: 0, end: 5, comment: '' }],
-        testContent, textOffsets(testContent),
+        testContent, textOffsets(testContent), LOGGER,
       );
 
       expect(result).toHaveLength(0);
@@ -76,7 +84,7 @@ describe('MotivationParsers', () => {
           { exact: 42, comment: 'exact is not a string' },
           { exact: 'Alice', comment: 'the only valid element' },
         ],
-        testContent, textOffsets(testContent),
+        testContent, textOffsets(testContent), LOGGER,
       );
 
       expect(result).toHaveLength(1);
@@ -85,7 +93,7 @@ describe('MotivationParsers', () => {
     });
 
     it('passes an empty element list through as a success with no matches', () => {
-      expect(MotivationParsers.parseComments([], testContent, textOffsets(testContent))).toEqual({ matches: [], dropped: 0 });
+      expect(MotivationParsers.parseComments([], testContent, textOffsets(testContent), LOGGER)).toEqual({ matches: [], dropped: 0 });
     });
   });
 
@@ -93,7 +101,7 @@ describe('MotivationParsers', () => {
     it('should parse valid highlight elements', () => {
       const { matches: result, dropped } = MotivationParsers.parseHighlights(
         [{ exact: 'Bob', start: 21, end: 24 }],
-        testContent, textOffsets(testContent),
+        testContent, textOffsets(testContent), LOGGER,
       );
 
       expect(result).toHaveLength(1);
@@ -104,7 +112,7 @@ describe('MotivationParsers', () => {
     it('should filter out invalid highlights', () => {
       const { matches: result, dropped } = MotivationParsers.parseHighlights(
         [{ exact: 'Alice' }, { exact: 'XYZNOTPRESENTANYWHEREZYX' }],
-        testContent, textOffsets(testContent),
+        testContent, textOffsets(testContent), LOGGER,
       );
 
       expect(result).toHaveLength(1);
@@ -114,7 +122,7 @@ describe('MotivationParsers', () => {
     });
 
     it('passes an empty element list through as a success with no matches', () => {
-      expect(MotivationParsers.parseHighlights([], testContent, textOffsets(testContent))).toEqual({ matches: [], dropped: 0 });
+      expect(MotivationParsers.parseHighlights([], testContent, textOffsets(testContent), LOGGER)).toEqual({ matches: [], dropped: 0 });
     });
   });
 
@@ -122,7 +130,7 @@ describe('MotivationParsers', () => {
     it('should parse valid assessment elements', () => {
       const { matches: result, dropped } = MotivationParsers.parseAssessments(
         [{ exact: 'Alice', start: 0, end: 5, assessment: 'This is an assessment' }],
-        testContent, textOffsets(testContent),
+        testContent, textOffsets(testContent), LOGGER,
       );
 
       expect(result).toHaveLength(1);
@@ -141,7 +149,7 @@ describe('MotivationParsers', () => {
           { exact: 'Bob', assessment: 'Valid' },
           { exact: 'XYZNOTPRESENTANYWHEREZYX', assessment: 'Will be filtered' },
         ],
-        testContent, textOffsets(testContent),
+        testContent, textOffsets(testContent), LOGGER,
       );
 
       expect(result).toHaveLength(1);
@@ -154,21 +162,23 @@ describe('MotivationParsers', () => {
   describe('parseTags', () => {
     it('should parse valid tag elements without validation', () => {
       const result = MotivationParsers.parseTags(
-        [{ exact: 'Alice went to Paris', start: 0, end: 19 }],
+        [{ exact: 'Alice went to Paris', start: 0, end: 19 }], LOGGER,
       );
 
       expect(result).toHaveLength(1);
       expect(result[0]).toMatchObject({ exact: 'Alice went to Paris', start: 0, end: 19 });
     });
 
-    it('should filter out tags with empty exact text', () => {
-      const result = MotivationParsers.parseTags([{ exact: '', start: 0, end: 0 }]);
+    it('reads a tag with an empty exact as a proposal, as every motivation does: anchoring counts it', () => {
+      const proposed = MotivationParsers.parseTags([{ exact: '' }], LOGGER);
 
-      expect(result).toHaveLength(0);
+      expect(proposed).toEqual([{ exact: '' }]);
+      // It is anchored nowhere, and counted there.
+      expect(MotivationParsers.validateTagOffsets(proposed, testContent, textOffsets(testContent), 'Issue', LOGGER)).toEqual({ matches: [], dropped: 1 });
     });
 
     it('passes an empty element list through as a success with no matches', () => {
-      expect(MotivationParsers.parseTags([])).toEqual([]);
+      expect(MotivationParsers.parseTags([], LOGGER)).toEqual([]);
     });
   });
 
@@ -182,7 +192,7 @@ describe('MotivationParsers', () => {
         }
       ];
 
-      const { matches: result, dropped } = MotivationParsers.validateTagOffsets(tags, testContent, textOffsets(testContent), 'Issue');
+      const { matches: result, dropped } = MotivationParsers.validateTagOffsets(tags, testContent, textOffsets(testContent), 'Issue', LOGGER);
 
       expect(result).toHaveLength(1);
       expect(dropped).toBe(0);
@@ -205,7 +215,7 @@ describe('MotivationParsers', () => {
         { exact: 'XYZNOTPRESENTANYWHEREZYX' },
       ];
 
-      const { matches: result, dropped } = MotivationParsers.validateTagOffsets(tags, testContent, textOffsets(testContent), 'Rule');
+      const { matches: result, dropped } = MotivationParsers.validateTagOffsets(tags, testContent, textOffsets(testContent), 'Rule', LOGGER);
 
       expect(result).toHaveLength(1);
       // The one that was proposed and could not be anchored is counted, not lost.
@@ -215,10 +225,42 @@ describe('MotivationParsers', () => {
     });
 
     it('should handle empty tag array', () => {
-      const { matches: result, dropped } = MotivationParsers.validateTagOffsets([], testContent, textOffsets(testContent), 'Application');
+      const { matches: result, dropped } = MotivationParsers.validateTagOffsets([], testContent, textOffsets(testContent), 'Application', LOGGER);
 
       expect(result).toEqual([]);
       expect(dropped).toBe(0);
+    });
+  });
+
+  describe('what a parser says of a reply', () => {
+    it('goes to its logger, every word of it: nothing is written to the console', () => {
+      const said = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn() };
+      const written = [vi.spyOn(console, 'log'), vi.spyOn(console, 'warn'), vi.spyOn(console, 'error'), vi.spyOn(console, 'info'), vi.spyOn(console, 'debug')];
+      const nowhere = 'XYZNOTPRESENTANYWHEREZYX';
+      const offsets = textOffsets(testContent);
+
+      // One proposal in the text and one nowhere in it, for each kind; and for the kinds that say how many elements were proposals, that.
+      MotivationParsers.parseHighlights([{ exact: 'Alice' }, { exact: nowhere }], testContent, offsets, said);
+      MotivationParsers.parseComments([{ exact: 'Alice', comment: 'c' }, { exact: nowhere, comment: 'c' }], testContent, offsets, said);
+      MotivationParsers.parseAssessments([{ exact: 'Alice', assessment: 'a' }, { exact: nowhere, assessment: 'a' }], testContent, offsets, said);
+      MotivationParsers.validateTagOffsets(MotivationParsers.parseTags([{ exact: 'Alice' }, { exact: nowhere }], said), testContent, offsets, 'Rule', said);
+
+      for (const spy of written) {
+        expect(spy).not.toHaveBeenCalled();
+        spy.mockRestore();
+      }
+      // Each proposal that could not be anchored is a warning, with the motivation and the text.
+      expect(said.warn.mock.calls.map(([message, meta]) => [message, (meta as { motivation: string; text: string }).motivation, (meta as { text: string }).text])).toEqual([
+        ['Proposal dropped — text not found in source', 'highlighting', nowhere],
+        ['Proposal dropped — text not found in source', 'commenting', nowhere],
+        ['Proposal dropped — text not found in source', 'assessing', nowhere],
+        ['Proposal dropped — text not found in source', 'tagging', nowhere],
+      ]);
+      // How many elements of a reply were proposals is said for the two kinds that pass elements over for more than their shape.
+      expect(said.debug.mock.calls.map(([, meta]) => meta)).toEqual([
+        { motivation: 'commenting', proposals: 2, elements: 2 },
+        { motivation: 'tagging', proposals: 2, elements: 2 },
+      ]);
     });
   });
 });

@@ -57,7 +57,7 @@ interface BudgetCase {
   scaffoldTokens: number;
   typesPerCall: number;
   budget?: Budget;
-  refused?: true;
+  refused?: FailureDescription;
 }
 
 interface StepCase {
@@ -149,8 +149,15 @@ function failureOf(described: FailureDescription): Error {
 
 function runBudget(c: BudgetCase): void {
   const derive = () => deriveDetectionBudget(c.limits, c.scaffoldTokens, c.typesPerCall);
-  if (c.refused === true) {
-    expect(derive).toThrow();
+  if (c.refused !== undefined) {
+    let failure: unknown;
+    try {
+      derive();
+    } catch (error) {
+      failure = error;
+    }
+    // A refusal is described as the table of failure classes describes one: by the kind of failure it is.
+    expect(failure instanceof Error ? { name: failure.name } : failure).toEqual(c.refused);
     return;
   }
   const derived = derive();
@@ -179,6 +186,8 @@ async function runWalk(c: WalkCase): Promise<void> {
     c.text,
     offsets,
     toDetectionBudget(c.budget),
+    // No walk of the table is cancelled: what a cancellation does to one is the worker's own tests'.
+    new AbortController().signal,
     async (chunk) => {
       handed.push(chunk);
       const scripted = c.outcomes[answered];

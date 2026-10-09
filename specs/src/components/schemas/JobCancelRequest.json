@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "description": "Request to cancel one job, named by its id. A pending job is cancelled immediately by the dispatcher. A running job is cancelled cooperatively by the worker that holds it, which stops at its next unit boundary and emits JobCancelCommand: the queue is never made to yank a running job out from under a live worker.",
+  "description": "Request to cancel one job, named by its id. A pending job is cancelled immediately by the dispatcher. A running job is cancelled only by the worker that holds it: the worker stops its work and settles the job with `job:cancel` (JobCancelCommand). The queue is never made to yank a running job out from under a live worker.",
   "properties": {
     "jobId": {
       "$ref": "./JobId.json"

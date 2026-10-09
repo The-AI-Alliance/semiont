@@ -17,6 +17,7 @@ import {
   processHighlightJob,
   processReferenceJob,
   type BuildAnnotation,
+  type ProcessorResult,
   type UnitCheckpoint,
 } from '../processors';
 
@@ -30,6 +31,15 @@ const LOGGER: Logger = {
   error: () => {},
   child: () => LOGGER,
 };
+
+/** No job here is cancelled. */
+const NEVER = new AbortController().signal;
+
+/** What a processor that ran to its end returned. */
+function ran<R>(outcome: ProcessorResult<R>): { result: R } {
+  if ('cancelled' in outcome) throw new Error('the processor was stopped by a cancellation');
+  return outcome;
+}
 
 /** A text's code points, one to an element: what an offset counts. */
 const codePoints = (text: string): string[] => Array.from(text);
@@ -81,11 +91,11 @@ describe('a job over a long text with characters outside the Basic Multilingual 
     const cursors: number[] = [];
     const progress: Array<[number, string]> = [];
 
-    const { result } = await processHighlightJob(
+    const { result } = ran(await processHighlightJob(
       LONG, textOffsets(LONG), client, { motivation: 'highlighting', resourceId: RID }, textBuild(LONG),
-      (percentage, message) => { progress.push([percentage, message.code]); },
+      (percentage, message) => { progress.push([percentage, message.code]); }, LOGGER, NEVER,
       async (_annotations: Annotation[], checkpoint: UnitCheckpoint) => { cursors.push(checkpoint.cursor.next); },
-    );
+    ));
 
     // One request for each piece, and none for an empty one past the end.
     expect(client.prompts.length).toBe(3);
@@ -109,12 +119,12 @@ describe('a job over a long text with characters outside the Basic Multilingual 
     const client = scripted(1200, []);
     const cursors: number[] = [];
 
-    const { result } = await processHighlightJob(
+    const { result } = ran(await processHighlightJob(
       LONG, textOffsets(LONG), client, { motivation: 'highlighting', resourceId: RID }, textBuild(LONG),
-      () => {},
+      () => {}, LOGGER, NEVER,
       async (_annotations: Annotation[], checkpoint: UnitCheckpoint) => { cursors.push(checkpoint.cursor.next); },
       { highlighting: { next: 2400, size: 311, found: 7, emitted: 5, errors: 1 } },
-    );
+    ));
 
     expect(client.prompts).toEqual([]);
     expect(cursors).toEqual([]);
@@ -126,11 +136,11 @@ describe('a job over a long text with characters outside the Basic Multilingual 
     const client = scripted(1200, [[{ exact }], [{ exact }], []]);
     const committed: Annotation[] = [];
 
-    const { result } = await processHighlightJob(
+    const { result } = ran(await processHighlightJob(
       LONG, textOffsets(LONG), client, { motivation: 'highlighting', resourceId: RID }, textBuild(LONG),
-      () => {},
+      () => {}, LOGGER, NEVER,
       async (annotations: Annotation[]) => { committed.push(...annotations); },
-    );
+    ));
 
     // Two pieces proposed it; it is one annotation.
     expect(result).toEqual({ found: 2, persisted: 1 });
@@ -152,11 +162,11 @@ describe('a job over a short text with a character outside the Basic Multilingua
     const client = scripted(8192, [[{ exact: 'London', comment: 'A city.' }]]);
     const committed: Annotation[] = [];
 
-    await processCommentJob(
+    ran(await processCommentJob(
       TEXT, textOffsets(TEXT), client, { motivation: 'commenting', resourceId: RID }, textBuild(TEXT),
-      () => {},
+      () => {}, LOGGER, NEVER,
       async (annotations: Annotation[]) => { committed.push(...annotations); },
-    );
+    ));
 
     expect(committed.length).toBe(1);
     expect((committed[0]!.target as { selector: unknown[] }).selector).toEqual([
@@ -170,11 +180,11 @@ describe('a job over a short text with a character outside the Basic Multilingua
     const committed: Annotation[] = [];
     const cursors: number[] = [];
 
-    const { result } = await processReferenceJob(
+    const { result } = ran(await processReferenceJob(
       TEXT, textOffsets(TEXT), client, { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Person')] }, textBuild(TEXT),
-      () => {}, LOGGER, async () => {}, undefined,
+      () => {}, LOGGER, NEVER, async () => {},
       async (annotations: Annotation[], checkpoint: UnitCheckpoint) => { committed.push(...annotations); cursors.push(checkpoint.cursor.next); },
-    );
+    ));
 
     expect(result).toEqual({ found: 1, persisted: 1 });
     expect((committed[0]!.target as { selector: unknown[] }).selector).toEqual([

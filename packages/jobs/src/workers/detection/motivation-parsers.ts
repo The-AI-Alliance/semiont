@@ -8,11 +8,12 @@
  * conversions (`textOffsets(content)`), made once where the content is first
  * held.
  *
- * NOTE: These are static utility methods without logger access.
- * Console statements kept for debugging - consider adding logger parameter in future.
+ * What a parser has to say of a reply (how many of its elements were
+ * proposals, each proposal it could not anchor) it says to the `logger` it is
+ * handed: a worker writes nothing that is not a log line.
  */
 
-import { reconcileSelector, isObject, isString, type AnchorMethod, type TextOffsets } from '@semiont/core';
+import { reconcileSelector, isObject, isString, type Logger, type TextOffsets } from '@semiont/core';
 import type { ElementSchema } from '@semiont/inference';
 import { noteAnchor } from './anchor-audit';
 
@@ -149,7 +150,7 @@ export class MotivationParsers {
    * @param content - Original content to validate offsets against
    * @returns The comments anchored in the content, and how many were not
    */
-  static parseComments(parsed: unknown[], content: string, offsets: TextOffsets): Anchored<CommentMatch> {
+  static parseComments(parsed: unknown[], content: string, offsets: TextOffsets, logger: Logger): Anchored<CommentMatch> {
 
     const valid = parsed.filter((c): c is { exact: string; prefix?: string; suffix?: string; comment: string } =>
       isObject(c) &&
@@ -158,7 +159,7 @@ export class MotivationParsers {
       c.comment.trim().length > 0
     );
 
-    console.log(`[MotivationParsers] Parsed ${valid.length} valid comments from ${parsed.length} total`);
+    logger.debug('Read the proposals of a reply', { motivation: 'commenting', proposals: valid.length, elements: parsed.length });
 
     const validatedComments: CommentMatch[] = [];
     for (const comment of valid) {
@@ -168,10 +169,10 @@ export class MotivationParsers {
         ...(typeof comment.suffix === 'string' ? { suffix: comment.suffix } : {}),
       });
       if (!reconciled) {
-        console.warn(`[MotivationParsers] Dropped hallucinated comment "${comment.exact}"`);
+        logger.warn('Proposal dropped — text not found in source', { motivation: 'commenting', text: comment.exact });
         continue;
       }
-      logAnchorMethod('comment', comment.exact, reconciled.anchorMethod);
+      noteAnchor('comment', comment.exact, reconciled.anchorMethod, logger);
       validatedComments.push({
         comment: comment.comment,
         exact: reconciled.exact,
@@ -192,7 +193,7 @@ export class MotivationParsers {
    * @param content - Original content to validate offsets against
    * @returns The highlights anchored in the content, and how many were not
    */
-  static parseHighlights(parsed: unknown[], content: string, offsets: TextOffsets): Anchored<HighlightMatch> {
+  static parseHighlights(parsed: unknown[], content: string, offsets: TextOffsets, logger: Logger): Anchored<HighlightMatch> {
 
     const highlights = parsed.filter((h): h is { exact: string; prefix?: string; suffix?: string } =>
       isObject(h) && isString(h.exact)
@@ -206,10 +207,10 @@ export class MotivationParsers {
         ...(typeof highlight.suffix === 'string' ? { suffix: highlight.suffix } : {}),
       });
       if (!reconciled) {
-        console.warn(`[MotivationParsers] Dropped hallucinated highlight "${highlight.exact}"`);
+        logger.warn('Proposal dropped — text not found in source', { motivation: 'highlighting', text: highlight.exact });
         continue;
       }
-      logAnchorMethod('highlight', highlight.exact, reconciled.anchorMethod);
+      noteAnchor('highlight', highlight.exact, reconciled.anchorMethod, logger);
       validatedHighlights.push({
         exact: reconciled.exact,
         start: reconciled.start,
@@ -229,10 +230,15 @@ export class MotivationParsers {
    * @param content - Original content to validate offsets against
    * @returns The assessments anchored in the content, and how many were not
    */
-  static parseAssessments(parsed: unknown[], content: string, offsets: TextOffsets): Anchored<AssessmentMatch> {
+  static parseAssessments(parsed: unknown[], content: string, offsets: TextOffsets, logger: Logger): Anchored<AssessmentMatch> {
 
+    // A blank assessment says nothing, as a blank comment says nothing: its
+    // element is no proposal.
     const assessments = parsed.filter((a): a is { exact: string; prefix?: string; suffix?: string; assessment: string } =>
-      isObject(a) && isString(a.exact) && isString(a.assessment)
+      isObject(a) &&
+      isString(a.exact) &&
+      isString(a.assessment) &&
+      a.assessment.trim().length > 0
     );
 
     const validatedAssessments: AssessmentMatch[] = [];
@@ -243,10 +249,10 @@ export class MotivationParsers {
         ...(typeof assessment.suffix === 'string' ? { suffix: assessment.suffix } : {}),
       });
       if (!reconciled) {
-        console.warn(`[MotivationParsers] Dropped hallucinated assessment "${assessment.exact}"`);
+        logger.warn('Proposal dropped — text not found in source', { motivation: 'assessing', text: assessment.exact });
         continue;
       }
-      logAnchorMethod('assessment', assessment.exact, reconciled.anchorMethod);
+      noteAnchor('assessment', assessment.exact, reconciled.anchorMethod, logger);
       validatedAssessments.push({
         assessment: assessment.assessment,
         exact: reconciled.exact,
@@ -263,17 +269,19 @@ export class MotivationParsers {
   /**
    * Validate structured tag elements into raw, pre-reconciliation tag inputs.
    * Reconciliation happens in `validateTagOffsets`, which adds `start`/`end`
-   * by anchoring `exact` against the source content.
+   * by anchoring `exact` against the source content. An `exact` of no
+   * characters is a proposal like any other, as it is for every motivation:
+   * it is anchored nowhere, and counted there.
    *
    * @param parsed - Already-parsed elements from the structured surface
    */
-  static parseTags(parsed: unknown[]): RawTagInput[] {
+  static parseTags(parsed: unknown[], logger: Logger): RawTagInput[] {
 
     const valid = parsed.filter((t): t is RawTagInput =>
-      isObject(t) && isString(t.exact) && t.exact.trim().length > 0
+      isObject(t) && isString(t.exact)
     );
 
-    console.log(`[MotivationParsers] Parsed ${valid.length} valid tags from ${parsed.length} total`);
+    logger.debug('Read the proposals of a reply', { motivation: 'tagging', proposals: valid.length, elements: parsed.length });
 
     return valid;
   }
@@ -285,7 +293,8 @@ export class MotivationParsers {
     tags: RawTagInput[],
     content: string,
     offsets: TextOffsets,
-    category: string
+    category: string,
+    logger: Logger,
   ): Anchored<TagMatch> {
     const validatedTags: TagMatch[] = [];
     for (const tag of tags) {
@@ -295,10 +304,10 @@ export class MotivationParsers {
         ...(typeof tag.suffix === 'string' ? { suffix: tag.suffix } : {}),
       });
       if (!reconciled) {
-        console.warn(`[MotivationParsers] Dropped hallucinated tag "${tag.exact}" for category "${category}"`);
+        logger.warn('Proposal dropped — text not found in source', { motivation: 'tagging', category, text: tag.exact });
         continue;
       }
-      logAnchorMethod('tag', tag.exact, reconciled.anchorMethod);
+      noteAnchor('tag', tag.exact, reconciled.anchorMethod, logger);
       validatedTags.push({
         category,
         exact: reconciled.exact,
@@ -317,13 +326,4 @@ export interface RawTagInput {
   exact: string;
   prefix?: string;
   suffix?: string;
-}
-
-/**
- * Audit one anchor-method classification. Forwards to the single decider
- * shared with the reference path (`anchor-audit.ts`) — which methods count as
- * risky is one judgement, made there.
- */
-function logAnchorMethod(motivation: string, exact: string, anchorMethod: AnchorMethod): void {
-  noteAnchor(motivation, exact, anchorMethod);
 }

@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "description": "A worker's confirmation that it has cooperatively stopped a running job at a unit boundary \u2014 the queue moves the job to cancelled/. Distinct from JobCancelRequest (the client\u2192worker REQUEST to stop): this is the worker announcing it did, so the running job is never yanked to cancelled/ out from under a live worker (the roach-motel race).",
+  "description": "A worker's settling of a running job it holds whose work it has stopped for a cancellation \u2014 the queue moves the job to cancelled/. Distinct from JobCancelRequest (the client\u2192worker REQUEST to stop): this is the worker announcing it did, so the running job is never yanked to cancelled/ out from under a live worker (the roach-motel race).",
   "properties": {
     "_userId": {
       "$ref": "./UserId.json",
@@ -24,7 +24,7 @@
       "items": {
         "type": "string"
       },
-      "description": "Entity-type units whose annotations were fully emitted before cancellation. Recorded on the cancelled job's metadata so the work already done stays visible."
+      "description": "The units the worker had finished when it stopped. Recorded on the cancelled job's metadata so the work already done stays visible."
     },
     "unitCursors": {
       "type": "object",

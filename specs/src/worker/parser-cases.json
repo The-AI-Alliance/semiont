@@ -1,11 +1,5 @@
 {
-  "$comment": "How a worker reads a model's reply into the items it goes on to anchor and store, as every worker must read it: the four motivations whose reply is a list of passages (highlighting, commenting, assessing, tagging) and the mentions of an entity type (linking). A case is one piece of work: the whole `text` is asked about in one call (the stand-in provider's limits are wide enough that the text is a single piece: 1,000,000 tokens of context and of reply, at 3,600,000,000 output tokens an hour), the provider answers with `reply`, and the worker either hands on what it `read` or is `refused` with a failure, described as specs/src/worker/failure-class-cases.json describes one. `calls` is how many times the model was asked for items. Prompts are not held here. THE STAND-IN PROVIDER answers every call for items with `reply`. `reply.text` is the reply's text; `reply.elements`, where the reply is a JSON array, are that array's elements, and the reply's text is their JSON. The provider reads the text as every provider does: text that is JSON and an array hands over the array's elements with `stopReason`; any other text (not JSON, JSON that is not an array, no text at all) is a StructuredReadError carrying `stopReason`, and never an empty array, because finding nothing is an answer and reading nothing is not. The provider verifies yield exactly when the case states `count`, and then answers every count call with `count.text`, or fails it where `count.fails`. READING. A reply whose stop reason is max_tokens is refused with a DeterministicJobError even when it reads as an array: an array cut off part-way is still an array, and would under-report in silence. A reply that was cut off (that failure, or a StructuredReadError whose stop reason is max_tokens) is asked for once more, the text here being too small to split, and is refused when it fails again; any other unreadable reply is refused at once (what becomes of a larger piece is specs/src/worker/chunk-plan-cases.json's, kind `descent`). Of a reply that is read, each element is judged alone, and an element that is not as its motivation requires is passed over and not counted: it must be a JSON object (not an array, not null) whose `exact` is a string; for commenting its `comment` must be a string that is not blank; for assessing its `assessment` must be a string; for tagging its `exact` must not be blank; for linking its `entityType` must be a string. `prefix` and `suffix` are read only when they are strings, and nothing else an element carries is read, offsets the model was never asked for among it. A passage proposed twice is read twice: repeats are removed where annotations are made, not here. THE FOUR MOTIVATIONS. Each passage is anchored in the whole `text` by the rule of specs/src/annotations/reconcile-cases.json, the element's `prefix` and `suffix` serving only to choose between occurrences. An item is the passage as the text has it: `exact`, `start` and `end` (offsets, which count the text's Unicode code points, as specs/src/text/offset-cases.json states the count), and the text's own `prefix` and `suffix` (never the model's), with the `comment` or `assessment` as written, or the `category` the tagging call was for. Every passage here occurs once, in a text shorter than a prefix may be, so its prefix is all the text before it and its suffix all the text after it, each absent where there is none. `dropped` counts the passages that could not be anchored: the model proposed them, and a job counts them as errors. LINKING. An item is the mention as the model wrote it (`exact`, `entityType`, `prefix`, `suffix`), not yet anchored: whether the text holds it is settled afterwards. Where the provider verifies yield, a reply that was read is followed by a count call, which asks how many mentions the piece holds. The count is the first run of the digits 0 to 9 in the count's reply. A count call that fails, or a reply with no digit, switches the check off for the piece, and nothing is counted. Otherwise, when twice the number of elements in the reply is less than the count, the reply is a yield collapse (a YieldCollapseError: the same call returns the same under-report, so only a smaller piece can do better). A text too small to split is accepted with what was found, and its `found`, `counted` and `pieceChars` (the piece's length, in code points) are reported in `underReported`. `counted` lists the count of each piece whose items were accepted, and `countCalls` is how many count calls were made. TypeScript runs every case in packages/jobs (src/__tests__/parser-cases.test.ts) through AnnotationDetection and extractEntities; a worker in another language runs the same file. Add a case here before changing an implementation.",
-  "defects": [
-    "A blank `assessment` is accepted where a blank `comment` is passed over.",
-    "An `exact` of no characters is counted as a passage that could not be anchored for highlighting, commenting and assessing, and is passed over uncounted for tagging.",
-    "The `entityType` of a mention is never compared with the entity type that was asked for, and the annotation made from the mention is given the type asked for.",
-    "A count written with a thousands separator is read as its first group of digits (1,234 as 1), which hides a collapse."
-  ],
+  "$comment": "How a worker reads a model's reply into the items it goes on to anchor and store, as every worker must read it: the four motivations whose reply is a list of passages (highlighting, commenting, assessing, tagging) and the mentions of an entity type (linking). A case is one piece of work: the whole `text` is asked about in one call (the stand-in provider's limits are wide enough that the text is a single piece: 1,000,000 tokens of context and of reply, at 3,600,000,000 output tokens an hour), the provider answers with `reply`, and the worker either hands on what it `read` or is `refused` with a failure, described as specs/src/worker/failure-class-cases.json describes one. `calls` is how many times the model was asked for items. Prompts are not held here. THE STAND-IN PROVIDER answers every call for items with `reply`. `reply.text` is the reply's text; `reply.elements`, where the reply is a JSON array, are that array's elements, and the reply's text is their JSON. The provider reads the text as every provider does: text that is JSON and an array hands over the array's elements with `stopReason`; any other text (not JSON, JSON that is not an array, no text at all) is a StructuredReadError carrying `stopReason`, and never an empty array, because finding nothing is an answer and reading nothing is not. The provider verifies yield exactly when the case states `count`, and then answers every count call with `count.text`, or fails it where `count.fails`. READING. A reply whose stop reason is max_tokens is refused with a DeterministicJobError even when it reads as an array: an array cut off part-way is still an array, and would under-report in silence. A reply that was cut off (that failure, or a StructuredReadError whose stop reason is max_tokens) is asked for once more, the text here being too small to split, and is refused when it fails again; any other unreadable reply is refused at once (what becomes of a larger piece is specs/src/worker/chunk-plan-cases.json's, kind `descent`). Of a reply that is read, each element is judged alone, and an element that is not as its motivation requires is passed over and not counted: it must be a JSON object (not an array, not null) whose `exact` is a string; for commenting its `comment` must be a string that is not blank, which is one of no characters or of white space only; for assessing its `assessment` must be a string that is not blank; for linking its `entityType` must be a string. `prefix` and `suffix` are read only when they are strings, and nothing else an element carries is read, offsets the model was never asked for among it. A passage proposed twice is read twice: repeats are removed where annotations are made, not here. THE FOUR MOTIVATIONS. Each passage is anchored in the whole `text` by the rule of specs/src/annotations/reconcile-cases.json, the element's `prefix` and `suffix` serving only to choose between occurrences. An item is the passage as the text has it: `exact`, `start` and `end` (offsets, which count the text's Unicode code points, as specs/src/text/offset-cases.json states the count), and the text's own `prefix` and `suffix` (never the model's), with the `comment` or `assessment` as written, or the `category` the tagging call was for. Every passage here occurs once, in a text shorter than a prefix may be, so its prefix is all the text before it and its suffix all the text after it, each absent where there is none. `dropped` counts the passages that could not be anchored: the model proposed them, and a job counts them as errors. An `exact` of no characters, or of white space only, is such a passage, for every motivation alike: it is anchored nowhere, and is counted. LINKING. An item is the mention as the model wrote it (`exact`, `entityType`, `prefix`, `suffix`), not yet anchored: whether the text holds it is settled afterwards. A mention whose `entityType` is not, character for character, the `entityType` the call asked for is no item: `dropped` counts those, and a job counts each as it counts a passage that could not be anchored. Where the provider verifies yield, a reply that was read is followed by a count call, which asks how many mentions the piece holds. The count is the first run of the digits 0 to 9 in the count's reply, read through thousands separators: where that run is of one to three digits and is followed by one or more groups of a comma and exactly three digits, the last group not followed by a digit, the groups are part of the number (`1,234` is 1234, where `3, 4` is 3 and `1,23` is 1). A count call that fails, or a reply with no digit, switches the check off for the piece, and nothing is counted. Otherwise, when twice the number of elements in the reply is less than the count, the reply is a yield collapse (a YieldCollapseError: the same call returns the same under-report, so only a smaller piece can do better). A text too small to split is accepted with what was found, and its `found`, `counted` and `pieceChars` (the piece's length, in code points) are reported in `underReported`. `counted` lists the count of each piece whose items were accepted, and `countCalls` is how many count calls were made. TypeScript runs every case in packages/jobs (src/__tests__/parser-cases.test.ts) through AnnotationDetection and extractEntities; a worker in another language runs the same file. Add a case here before changing an implementation.",
   "cases": [
     {
       "why": "a highlight is the passage alone: where it stands, and the text either side of it, are the text's own",
@@ -237,12 +231,13 @@
       }
     },
     {
-      "why": "a tag on a blank passage is passed over and not counted, one on a passage the text does not hold is counted as dropped, and a category the model names is not read",
+      "why": "a tag on a passage of no characters, or of white space only, is counted as dropped, as one on a passage the text does not hold is, and a category the model names is not read",
       "motivation": "tagging",
       "text": "Alice went to Paris. Bob stayed home.",
       "category": "Rule",
       "reply": {
         "elements": [
+          { "exact": "" },
           { "exact": "  " },
           { "exact": "Carol flew to Rome and never came back again." },
           { "exact": "Paris", "category": "Other" }
@@ -254,7 +249,7 @@
         "items": [
           { "exact": "Paris", "start": 14, "end": 19, "prefix": "Alice went to ", "suffix": ". Bob stayed home.", "category": "Rule" }
         ],
-        "dropped": 1
+        "dropped": 3
       }
     },
     {
@@ -334,6 +329,7 @@
         "items": [
           { "exact": "Bob", "entityType": "Person", "prefix": "Paris. ", "suffix": " stayed" }
         ],
+        "dropped": 0,
         "counted": [],
         "underReported": []
       }
@@ -355,6 +351,7 @@
         "items": [
           { "exact": "Carol", "entityType": "Person" }
         ],
+        "dropped": 0,
         "counted": [],
         "underReported": []
       }
@@ -382,6 +379,7 @@
         "items": [
           { "exact": "Alice", "entityType": "Person" }
         ],
+        "dropped": 0,
         "counted": [],
         "underReported": []
       }
@@ -422,6 +420,7 @@
           { "exact": "Alice", "entityType": "Person" },
           { "exact": "Bob", "entityType": "Person" }
         ],
+        "dropped": 0,
         "counted": [3],
         "underReported": []
       }
@@ -446,6 +445,7 @@
           { "exact": "Alice", "entityType": "Person" },
           { "exact": "Bob", "entityType": "Person" }
         ],
+        "dropped": 0,
         "counted": [4],
         "underReported": []
       }
@@ -470,6 +470,7 @@
           { "exact": "Alice", "entityType": "Person" },
           { "exact": "Bob", "entityType": "Person" }
         ],
+        "dropped": 0,
         "counted": [5],
         "underReported": [
           { "found": 2, "counted": 5, "pieceChars": 37 }
@@ -496,6 +497,7 @@
           { "exact": "Alice", "entityType": "Person" },
           { "exact": "Bob", "entityType": "Person" }
         ],
+        "dropped": 0,
         "counted": [5],
         "underReported": [
           { "found": 2, "counted": 5, "pieceChars": 39 }
@@ -522,6 +524,7 @@
           { "exact": "Alice", "entityType": "Person" },
           { "exact": "Bob", "entityType": "Person" }
         ],
+        "dropped": 0,
         "counted": [3],
         "underReported": []
       }
@@ -544,6 +547,7 @@
         "items": [
           { "exact": "Alice", "entityType": "Person" }
         ],
+        "dropped": 0,
         "counted": [],
         "underReported": []
       }
@@ -566,6 +570,7 @@
         "items": [
           { "exact": "Alice", "entityType": "Person" }
         ],
+        "dropped": 0,
         "counted": [],
         "underReported": []
       }
@@ -584,7 +589,146 @@
       "countCalls": 1,
       "read": {
         "items": [],
+        "dropped": 0,
         "counted": [0],
+        "underReported": []
+      }
+    },
+    {
+      "why": "an assessment that is empty or blank says nothing, as a blank comment says nothing: its element is passed over and not counted",
+      "motivation": "assessing",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "reply": {
+        "elements": [
+          { "exact": "Alice", "assessment": "" },
+          { "exact": "Paris", "assessment": " \t" },
+          { "exact": "Bob", "assessment": "He stayed." }
+        ],
+        "stopReason": "end_turn"
+      },
+      "calls": 1,
+      "read": {
+        "items": [
+          { "exact": "Bob", "start": 21, "end": 24, "prefix": "Alice went to Paris. ", "suffix": " stayed home.", "assessment": "He stayed." }
+        ],
+        "dropped": 0
+      }
+    },
+    {
+      "why": "a highlight of a passage of no characters is counted as dropped, as a tag on one is: every motivation counts it the same way",
+      "motivation": "highlighting",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "reply": {
+        "elements": [
+          { "exact": "" },
+          { "exact": "Bob" }
+        ],
+        "stopReason": "end_turn"
+      },
+      "calls": 1,
+      "read": {
+        "items": [
+          { "exact": "Bob", "start": 21, "end": 24, "prefix": "Alice went to Paris. ", "suffix": " stayed home." }
+        ],
+        "dropped": 1
+      }
+    },
+    {
+      "why": "a mention of another entity type than the one asked for is no item, and is counted as dropped: `Place` is not what was asked for, and neither is `person`, which is not `Person` character for character",
+      "motivation": "linking",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "entityType": "Person",
+      "reply": {
+        "elements": [
+          { "exact": "Alice", "entityType": "Person" },
+          { "exact": "Paris", "entityType": "Place" },
+          { "exact": "Bob", "entityType": "person" }
+        ],
+        "stopReason": "end_turn"
+      },
+      "calls": 1,
+      "countCalls": 0,
+      "read": {
+        "items": [
+          { "exact": "Alice", "entityType": "Person" }
+        ],
+        "dropped": 2,
+        "counted": [],
+        "underReported": []
+      }
+    },
+    {
+      "why": "a count written with a thousands separator is read whole: 1,234 is 1234 and not 1, so two found is a collapse, kept as under-reported where the text is too small to split",
+      "motivation": "linking",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "entityType": "Person",
+      "reply": {
+        "elements": [
+          { "exact": "Alice", "entityType": "Person" },
+          { "exact": "Bob", "entityType": "Person" }
+        ],
+        "stopReason": "end_turn"
+      },
+      "count": { "text": "1,234" },
+      "calls": 1,
+      "countCalls": 1,
+      "read": {
+        "items": [
+          { "exact": "Alice", "entityType": "Person" },
+          { "exact": "Bob", "entityType": "Person" }
+        ],
+        "dropped": 0,
+        "counted": [1234],
+        "underReported": [
+          { "found": 2, "counted": 1234, "pieceChars": 37 }
+        ]
+      }
+    },
+    {
+      "why": "a comma that is not followed by three digits separates no thousands: the count is the run before it",
+      "motivation": "linking",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "entityType": "Person",
+      "reply": {
+        "elements": [
+          { "exact": "Alice", "entityType": "Person" },
+          { "exact": "Bob", "entityType": "Person" }
+        ],
+        "stopReason": "end_turn"
+      },
+      "count": { "text": "3, 4 at most" },
+      "calls": 1,
+      "countCalls": 1,
+      "read": {
+        "items": [
+          { "exact": "Alice", "entityType": "Person" },
+          { "exact": "Bob", "entityType": "Person" }
+        ],
+        "dropped": 0,
+        "counted": [3],
+        "underReported": []
+      }
+    },
+    {
+      "why": "a digit is one of 0 to 9: a number written in other digits is no count, and the check is off for the piece",
+      "motivation": "linking",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "entityType": "Person",
+      "reply": {
+        "elements": [
+          { "exact": "Alice", "entityType": "Person" }
+        ],
+        "stopReason": "end_turn"
+      },
+      "count": { "text": "٣" },
+      "calls": 1,
+      "countCalls": 1,
+      "read": {
+        "items": [
+          { "exact": "Alice", "entityType": "Person" }
+        ],
+        "dropped": 0,
+        "counted": [],
         "underReported": []
       }
     }

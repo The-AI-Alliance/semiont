@@ -22,8 +22,10 @@ describe('noteAnchor', () => {
   beforeEach(() => recordAnchorOutcomeMock.mockClear());
 
   it('counts the CLEAN anchors too — without them the degraded count has no denominator', () => {
-    noteAnchor('reference', 'Paris', 'unique-match');
+    const logger = { warn: vi.fn(), info: vi.fn(), debug: vi.fn(), error: vi.fn() };
+    noteAnchor('reference', 'Paris', 'unique-match', logger as never);
     expect(recordAnchorOutcomeMock).toHaveBeenCalledWith('reference', 'unique-match');
+    expect(logger.warn).not.toHaveBeenCalled();
   });
 
   it('counts a degraded anchor and warns about it', () => {

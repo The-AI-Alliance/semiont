@@ -38,16 +38,33 @@ export interface AnnotationIdentity {
 }
 
 /**
- * Canonical JSON: object keys sorted at every depth, so a body built by one
- * code path hashes the same as an equivalent body built by another. Array
- * order is preserved — it is meaningful (a tagging body is [category, schema]).
+ * The order of two names by code point, which is the order the id's rule
+ * states (specs/src/annotations/id-cases.json). A string compares by UTF-16
+ * code unit, and that is another order: it puts a name with a character
+ * outside the Basic Multilingual Plane before one with a character from
+ * U+E000 to U+FFFF.
+ */
+function byCodePoint(a: string, b: string): number {
+  const [left, right] = [Array.from(a), Array.from(b)];
+  for (let i = 0; i < left.length && i < right.length; i++) {
+    const difference = left[i]!.codePointAt(0)! - right[i]!.codePointAt(0)!;
+    if (difference !== 0) return difference;
+  }
+  return left.length - right.length;
+}
+
+/**
+ * Canonical JSON: an object's members in the order of their names by code
+ * point, at every depth, so a body built by one code path hashes the same as
+ * an equivalent body built by another, in any language. Array order is
+ * preserved — it is meaningful (a tagging body is [category, schema]).
  */
 function canonical(value: unknown): string {
   if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null';
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
   const entries = Object.entries(value as Record<string, unknown>)
     .filter(([, v]) => v !== undefined)
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    .sort(([a], [b]) => byCodePoint(a, b));
   return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonical(v)}`).join(',')}}`;
 }
 

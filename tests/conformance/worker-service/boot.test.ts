@@ -4,6 +4,7 @@
  * variables of its service account, and the provider keys the document names.
  */
 import { randomUUID } from 'node:crypto';
+import { createServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
@@ -143,11 +144,31 @@ eachWorkerService("the worker's boot", (world) => {
     expect(dialled(world())).toEqual(before);
   });
 
-  it('exits 1, having served nothing, when the issuer refuses its service account', async () => {
+  it('exits 1, having served nothing, when the issuer refuses its service account, saying why once on stderr', async () => {
     const refusal = await world().refused({ env: { ...world().env, SEMIONT_OIDC_CLIENT_SECRET: 'not-the-secret' } });
     expect(refusal.code).toBe(1);
+    const said = fatal(refusal.stderr);
+    expect(said).toHaveLength(1);
+    expect(said[0]!.length).toBeGreaterThan('[fatal] '.length);
     expect(refusal.output).not.toContain('not-the-secret');
     expect(world().claims).toEqual([]);
+  });
+
+  it('exits 1 when it cannot listen on its port, saying why once on stderr', async () => {
+    // The port is taken: something else listens on it, and answers nobody.
+    const holder = createServer((socket) => socket.destroy());
+    await new Promise<void>((resolve) => holder.listen(0, resolve));
+    try {
+      const settings: WorkerSettings = { ...(await world().launch()).settings, port: (holder.address() as AddressInfo).port };
+      const refusal = await world().refused({ settings });
+      expect(refusal.code).toBe(1);
+      const said = fatal(refusal.stderr);
+      expect(said).toHaveLength(1);
+      expect(said[0]).toContain(String(settings.port));
+      expect(refusal.output).not.toContain(world().env.SEMIONT_OIDC_CLIENT_SECRET!);
+    } finally {
+      await new Promise((resolve) => holder.close(resolve));
+    }
   });
 
   it('takes the path of its document joined to the flag by an equals sign', async () => {

@@ -1134,7 +1134,7 @@ class GraphResourceNode(WireModel, frozen=True):
 
 class JobCancelRequest(WireModel, frozen=True):
     """
-    Request to cancel one job, named by its id. A pending job is cancelled immediately by the dispatcher. A running job is cancelled cooperatively by the worker that holds it, which stops at its next unit boundary and emits JobCancelCommand: the queue is never made to yank a running job out from under a live worker.
+    Request to cancel one job, named by its id. A pending job is cancelled immediately by the dispatcher. A running job is cancelled only by the worker that holds it: the worker stops its work and settles the job with `job:cancel` (JobCancelCommand). The queue is never made to yank a running job out from under a live worker.
     """
 
     job_id: Annotated[JobId, Field(alias="jobId")]
@@ -3717,7 +3717,7 @@ class InferenceLimitsResult(WireModel, frozen=True):
 
 class JobCancelCommand(WireModel, frozen=True):
     """
-    A worker's confirmation that it has cooperatively stopped a running job at a unit boundary — the queue moves the job to cancelled/. Distinct from JobCancelRequest (the client→worker REQUEST to stop): this is the worker announcing it did, so the running job is never yanked to cancelled/ out from under a live worker (the roach-motel race).
+    A worker's settling of a running job it holds whose work it has stopped for a cancellation — the queue moves the job to cancelled/. Distinct from JobCancelRequest (the client→worker REQUEST to stop): this is the worker announcing it did, so the running job is never yanked to cancelled/ out from under a live worker (the roach-motel race).
     """
 
     user_id: Annotated[
@@ -3741,7 +3741,7 @@ class JobCancelCommand(WireModel, frozen=True):
         list[str] | None,
         Field(
             alias="completedUnits",
-            description="Entity-type units whose annotations were fully emitted before cancellation. Recorded on the cancelled job's metadata so the work already done stays visible.",
+            description="The units the worker had finished when it stopped. Recorded on the cancelled job's metadata so the work already done stays visible.",
         ),
     ] = None
     unit_cursors: Annotated[

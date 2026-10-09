@@ -3,12 +3,43 @@
  * prompts kept beside them, the shape of a request to the provider, and the
  * reading of a job's messages off a worker's transcript.
  */
+import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect } from 'vitest';
 import type { RecordedGeneration } from '../harness/ollama';
 import { sortedProgress, type RunningJob, type Served, type WorkerServiceWorld } from '../harness/worker-service-world';
+
+/** The members of every object in order of their names by code point, at every depth; arrays in their own order; no white space. */
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+  if (typeof value === 'object' && value !== null) {
+    const byCodePoint = (a: string, b: string): number => {
+      const [x, y] = [Array.from(a), Array.from(b)];
+      for (let i = 0; i < Math.min(x.length, y.length); i++) {
+        const difference = x[i]!.codePointAt(0)! - y[i]!.codePointAt(0)!;
+        if (difference !== 0) return difference;
+      }
+      return x.length - y.length;
+    };
+    const members = Object.entries(value).sort(([a], [b]) => byCodePoint(a, b));
+    return `{${members.map(([name, member]) => `${JSON.stringify(name)}:${canonical(member)}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+/**
+ * The id of an annotation, derived from what it is as
+ * specs/src/annotations/id-cases.json states: for an annotation whose resource
+ * a case learns only as it runs, and so cannot state its id beforehand. `body`
+ * is left out for an annotation that has none. worker-service/yield.test.ts
+ * holds this to every case of that table.
+ */
+export function annotationIdOf(resourceId: string, motivation: string, anchor: string, body?: unknown): string {
+  const identity = { resourceId, motivation, anchor, ...(body === undefined ? {} : { body }) };
+  return createHash('sha256').update(canonical(identity), 'utf8').digest('base64url').slice(0, 21);
+}
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -135,6 +166,22 @@ export async function settled(served: Served, job: RunningJob, channel: 'job:com
   const claimsBefore = served.emits().findIndex((e) => e.channel === channel && e.payload['jobId'] === job.metadata.id);
   await served.proxy.until('the claim after the settle', () => (served.emits().slice(claimsBefore + 1).some((e) => e.channel === 'job:claim' && e.status !== undefined) ? true : undefined), 20_000);
   return settle.payload;
+}
+
+/**
+ * Ask for `job` to be cancelled, as the gateway relays a cancellation to
+ * every worker, and wait until the worker has had it. Its stream carries
+ * frames in the order they were sent, so the worker's answer to a request
+ * sent after the cancellation (its limits, which its first agent answers)
+ * says the cancellation has arrived.
+ */
+export async function cancelRequested(world: WorkerServiceWorld, job: RunningJob): Promise<void> {
+  const listener = await world.listen(['job:limits-result', 'job:limits-failed']);
+  await world.emit('job:cancel-requested', { jobId: job.metadata.id });
+  const correlationId = randomUUID();
+  const reply = await world.world.emit(listener.token, { channel: 'job:limits-requested', payload: {}, correlationId, clientId: listener.clientId });
+  expect(reply.status).toBe(202);
+  await listener.stream.next('the answer that follows the cancellation', (m) => m.frame?.correlationId === correlationId, 15_000);
 }
 
 /** A text resource about `text`, and a `mark` job on it, queued for the worker's next claim that takes it. */

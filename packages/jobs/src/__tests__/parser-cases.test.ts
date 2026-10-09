@@ -63,6 +63,9 @@ const LOGGER: Logger = {
   child: () => LOGGER,
 };
 
+/** No reading of the table is cancelled. */
+const NEVER = new AbortController().signal;
+
 /** The reply's text: stated, or the JSON of the elements the table states. */
 function replyText(reply: Reply): string {
   if (reply.text !== undefined) return reply.text;
@@ -123,7 +126,7 @@ const READERS: Record<Motivation, (c: Case, client: InferenceClient) => Promise<
   highlighting: async (c, client) => {
     const pieces: Read[] = [];
     await AnnotationDetection.detectHighlights(
-      c.text, textOffsets(c.text), client, undefined, undefined, undefined, undefined, undefined,
+      c.text, textOffsets(c.text), client, LOGGER, NEVER, undefined, undefined, undefined, undefined, undefined,
       async (items, _cursor, dropped) => { pieces.push({ items, dropped }); },
     );
     return onePiece(pieces);
@@ -131,7 +134,7 @@ const READERS: Record<Motivation, (c: Case, client: InferenceClient) => Promise<
   commenting: async (c, client) => {
     const pieces: Read[] = [];
     await AnnotationDetection.detectComments(
-      c.text, textOffsets(c.text), client, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+      c.text, textOffsets(c.text), client, LOGGER, NEVER, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
       async (items, _cursor, dropped) => { pieces.push({ items, dropped }); },
     );
     return onePiece(pieces);
@@ -139,7 +142,7 @@ const READERS: Record<Motivation, (c: Case, client: InferenceClient) => Promise<
   assessing: async (c, client) => {
     const pieces: Read[] = [];
     await AnnotationDetection.detectAssessments(
-      c.text, textOffsets(c.text), client, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+      c.text, textOffsets(c.text), client, LOGGER, NEVER, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
       async (items, _cursor, dropped) => { pieces.push({ items, dropped }); },
     );
     return onePiece(pieces);
@@ -148,23 +151,23 @@ const READERS: Record<Motivation, (c: Case, client: InferenceClient) => Promise<
     const category = stated(c.category, 'category');
     const pieces: Read[] = [];
     await AnnotationDetection.detectTags(
-      c.text, textOffsets(c.text), client, schemaOf(category), category, undefined, undefined, undefined,
+      c.text, textOffsets(c.text), client, LOGGER, NEVER, schemaOf(category), category, undefined, undefined, undefined,
       async (items, _cursor, dropped) => { pieces.push({ items, dropped }); },
     );
     return onePiece(pieces);
   },
   linking: async (c, client) => {
-    const pieces: unknown[][] = [];
+    const pieces: Array<{ items: unknown[]; dropped: number }> = [];
     const counted: number[] = [];
     const underReported: unknown[] = [];
     await extractEntities(
-      c.text, textOffsets(c.text), [stated(c.entityType, 'entityType')], client, false, LOGGER, undefined, undefined,
+      c.text, textOffsets(c.text), [stated(c.entityType, 'entityType')], client, false, LOGGER, NEVER, undefined, undefined,
       (verdict) => { underReported.push(verdict); },
       (count) => { counted.push(count); },
       undefined,
-      async (items) => { pieces.push(items); },
+      async (items, _cursor, dropped) => { pieces.push({ items, dropped }); },
     );
-    return { items: onePiece(pieces), counted, underReported };
+    return { ...onePiece(pieces), counted, underReported };
   },
 };
 

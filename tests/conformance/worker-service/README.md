@@ -70,8 +70,11 @@ is held to `JobClaimedResult`, and a Smelter's answer to
   three `options` and the `format`) and the order the requests arrive in.
 - **Annotations** are compared whole: `id`, selectors, body and `generator`,
   in the batches they were committed in. `created` must be an instant and is
-  otherwise the service's own. So are the `id` and `modified` of the
-  annotations a `yield` job commits.
+  otherwise the service's own, and so is the `modified` of the annotations a
+  `yield` job commits. Those annotations are on, or point at, a resource the
+  case learns of only as it runs, so a case works their ids out from what
+  they are, by the rule of
+  [`id-cases.json`](../../../specs/src/annotations/id-cases.json).
 - **Messages a service waits on** (the claim, `job:start`, the read of the
   description and of the bytes, each commit and each checkpoint, the settle,
   the next claim) are compared in the order the gateway received them.
@@ -79,6 +82,10 @@ is held to `JobClaimedResult`, and a Smelter's answer to
   often as it was made, in no order. A service does not wait for the gateway
   to take one before it goes on, so where they fall among the other messages
   is not fixed.
+- **A cancellation** is asked for while the provider's answer is held, and
+  the answer is let go only when the service has had the cancellation: its
+  stream carries frames in the order they were sent, so its answer to a
+  request sent after the cancellation says the cancellation has arrived.
 - **Text** in most fixtures is of the Basic Multilingual Plane, with
   characters outside ASCII ahead of most spans: an offset counted in bytes
   fails. The texts of `code-points` have characters outside that plane ahead
@@ -95,20 +102,22 @@ is held to `JobClaimedResult`, and a Smelter's answer to
 | `highlighting` | `highlighting.test.ts` | J1, J2, D1 to D3, D8, D9, D11 to D13, D15 to D17, K1 |
 | `commenting` | `commenting.test.ts` | D8, D9, D12, D17, K2 |
 | `assessing` | `assessing.test.ts` | D5, D12, D17, K3 |
-| `linking` | `linking.test.ts` | D8, D12, D14, D18, K4, K5 |
+| `linking` | `linking.test.ts` | D8, D12, D14, D15, D18, K4, K5 |
 | `tagging` | `tagging.test.ts` | D9, D12, D14, D15, D19, K7 |
+| `anchoring` | `anchoring.test.ts` | D8 |
 | `prompts` | `prompts.test.ts` | D2, D3, K1 to K4, K7 |
 | `chunks` | `chunks.test.ts` | D3 to D6, D13, D17 |
 | `code-points` | `code-points.test.ts` | D3 to D5, D9, D12, D13, D17 |
 | `pdf` | `pdf.test.ts` | J2, D10, D12, N1, N2, N4, N5 |
 | `declines` | `declines.test.ts` | J2, N1, N3, N6 to N8 |
-| `failures` | `failures.test.ts` | F1 to F5, F8 |
+| `failures` | `failures.test.ts` | D3, F1 to F5, F8 |
 | `halved` | `halved.test.ts` | F6 |
 | `resume` | `resume.test.ts` | U1 to U3 |
-| `cancel` | `cancel.test.ts` | Q1 |
+| `cancel` | `cancel.test.ts` | Q1 to Q5 |
 | `yield` | `yield.test.ts` | J3, Y1 to Y8 |
 | `telemetry` | `telemetry.test.ts` | T1, T2 |
 | `environment` | `environment.test.ts` | E1 to E11 |
+| `output` | `output.test.ts` | O1 |
 | `stop` | `stop.test.ts` | P1 to P3 |
 
 `npm run lint:transport-contract` holds the two to each other: every case a
@@ -124,7 +133,6 @@ rule names exists, and every case is named by a rule.
 | M4, F9, P4: the clocks | 1.5 seconds for a provider's limits, ten minutes for a generation, fifteen minutes for a stalled job. A service takes them from no document a case could shorten |
 | D7, the size of a piece following the provider's usage | On a model whose window is shared, as the stand-in's is, the ceiling of a piece is where it opens unless the window is far over what any fixture fills |
 | F7 and K6, a piece asked again in halves for another reason than a cut-off answer | Not written: `halved.test.ts` holds the halving itself |
-| Q2, a job that does not stop for a cancellation | Whether that is to be kept is not settled, so no case pins it |
 | The commit whose acknowledgement is lost | [WORKER-CONTRACT A5](../../../docs/protocol/WORKER-CONTRACT.md#committing-annotations), held by the worker suite: a service waits a minute for an acknowledgement |
 
 Behaviour WORKER-SERVICE.md lists as a known defect is not pinned by any

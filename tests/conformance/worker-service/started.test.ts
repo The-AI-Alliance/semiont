@@ -112,6 +112,24 @@ eachWorkerService('a started worker', (world) => {
     }
   });
 
+  it('matches /health without its query string, and answers it by GET alone', async () => {
+    const w = world();
+    const { served } = await twoAgents(w);
+    const plain = await served.process.http('GET', '/health');
+    for (const path of ['/health?probe=1', '/health?']) {
+      const reply = await served.process.http('GET', path);
+      expect(reply.status, path).toBe(200);
+      expect(reply.json, path).toEqual(plain.json);
+    }
+    // A query string is no part of another path either.
+    expect((await served.process.http('GET', '/healthz?probe=1')).status).toBe(404);
+    for (const method of ['POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS']) {
+      const reply = await served.process.http(method, '/health');
+      expect(reply.status, method).toBe(404);
+      expect(reply.text, method).toBe('');
+    }
+  });
+
   it('says in /health when an agent heard an announcement, the job it holds, and the jobs it has completed', async () => {
     const w = world();
     const agent = w.agents[0]!;

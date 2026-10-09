@@ -212,12 +212,14 @@ export class WorkerServiceWorld {
    * `claim` answers a claim with a refusal. `handAnyJob` answers a claim with
    * the next job whatever the claim's filters: what no dispatcher does.
    * `commit` runs when a batch arrives and before it is acknowledged, and may
-   * refuse it with a reason.
+   * refuse it with a reason. `described` runs when a resource's description
+   * is asked for and before it is answered.
    */
   hooks: {
     claim?: () => { code?: string; message: string } | undefined;
     handAnyJob?: boolean;
     commit?: (commit: Commit) => Promise<{ refuse: string } | undefined> | { refuse: string } | undefined;
+    described?: (resourceId: string) => Promise<void>;
   } = {};
 
   private readonly served: Served[] = [];
@@ -395,6 +397,7 @@ export class WorkerServiceWorld {
       }
       case 'browse:resource-requested': {
         this.descriptorReads.push(resourceId);
+        await this.hooks.described?.(resourceId);
         const resource = this.descriptors.get(resourceId);
         if (!resource) return { channel: 'browse:resource-failed', payload: { code: 'not-found', message: `Resource not found: ${resourceId}` } };
         return { channel: 'browse:resource-result', payload: { response: { resource, annotations: [], entityReferences: [] } } };

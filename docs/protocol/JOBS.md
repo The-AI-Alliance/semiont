@@ -518,9 +518,11 @@ then retried or failed. `job:cancel` does not merge its checkpoint.
 
 **A running job is cancelled only by its worker.** `job:cancel-requested` naming a running job
 changes nothing in the queue and replies `cancelled: true`. Workers may subscribe to
-`job:cancel-requested` too, as the first-party worker does; a worker holding the named job may stop at
-a unit boundary and confirm with `job:cancel`, which moves the job to `cancelled`. A worker that does not stop finishes the job, which then ends
-`complete` or `failed` as usual. (The first-party worker stops only linking jobs.)
+`job:cancel-requested` too, as the first-party worker does; a worker holding the named job may stop
+and confirm with `job:cancel`, which moves the job to `cancelled`. A worker that does not stop finishes the job, which then ends
+`complete` or `failed` as usual. The first-party worker stops every job, at the job's next stopping
+place and not at once: it does not interrupt a generation that is under way
+([WORKER-SERVICE.md § Cancellation](./WORKER-SERVICE.md#cancellation)).
 
 ## Retries
 

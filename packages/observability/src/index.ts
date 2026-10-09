@@ -301,7 +301,7 @@ function handlerDurationHistogram(): Histogram {
 function jobOutcomeCounter(): Counter {
   if (!_jobOutcomeCounter) {
     _jobOutcomeCounter = meter().createCounter('semiont.job.outcome', {
-      description: 'Worker job completions by type, motivation and outcome',
+      description: 'Worker jobs concluded, by type, motivation and outcome: completed, failed or cancelled',
     });
   }
   return _jobOutcomeCounter;
@@ -375,7 +375,7 @@ export function recordHandlerDuration(actor: string, channel: string, durationMs
  */
 export function recordJobOutcome(
   job: { jobType: string; motivation?: string },
-  outcome: 'completed' | 'failed',
+  outcome: 'completed' | 'failed' | 'cancelled',
   durationMs: number,
 ): void {
   const labels = {
@@ -602,7 +602,7 @@ function detectionTokensHistogram(): Histogram {
  *
  * The adapters already record provider/model/duration/tokens for every
  * inference call. What they cannot know is the detection shape around it:
- * which motivation asked, how big the piece was, how many annotations came
+ * which motivation asked, how many annotations came
  * back, how deep subdivision had descended, and whether this was the floor
  * re-roll. Those are the facts that distinguish a healthy call from an
  * expensive descent, and without them a slow detection run is one
@@ -618,7 +618,6 @@ function detectionTokensHistogram(): Histogram {
  */
 export function recordDetectionCall(opts: {
   label: string;
-  pieceChars: number;
   durationMs: number;
   items: number;
   depth: number;

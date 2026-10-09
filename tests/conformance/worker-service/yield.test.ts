@@ -4,11 +4,14 @@
  * commits from the source to what it made, the citations it commits on what
  * it made, and its completion.
  */
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, it } from 'vitest';
+import { SPEC_SOURCE } from '../harness/paths';
 import { WORKER_ROLE } from '../harness/roles';
 import { errorsOf, spec } from '../harness/spec';
 import { eachWorkerService, type RunningJob, type WorkerServiceWorld } from '../harness/worker-service-world';
-import { expectGenerations, expectProgress, generation, identity, report, settled, TEXT } from './support';
+import { annotationIdOf, expectGenerations, expectProgress, generation, identity, report, settled, TEXT } from './support';
 
 const SOURCE = 'res-ws-yield-source';
 /** The source's description, as the context a job is handed carries it. */
@@ -27,35 +30,41 @@ function yieldJob(w: WorkerServiceWorld, name: string, request: Record<string, u
   return w.queued(`job-ws-${name}`, 'yield', params);
 }
 
-/** An annotation a generation committed, with the members that are the worker's own to make (its id, and when) taken away. */
+/** An annotation a generation committed, with the members that are the worker's own to make (when it was made) taken away. */
 function made(annotation: unknown): Record<string, unknown> {
-  const { id, created, modified, ...rest } = annotation as Record<string, unknown>;
-  expect(typeof id === 'string' && id.length > 0, `id: ${String(id)}`).toBe(true);
+  const { created, modified, ...rest } = annotation as Record<string, unknown>;
   for (const at of [created, modified]) expect(typeof at === 'string' && new Date(at).toISOString() === at, `an instant: ${String(at)}`).toBe(true);
   return rest;
 }
+
+/** What the first case asks for: the request whose prompt is kept as `yield-markdown`. */
+const REQUEST = {
+  title: 'The Analytical Engine',
+  storageUri: 'file://generated/analytical-engine.md',
+  prompt: 'Write three sentences.',
+  entityTypes: ['Person'],
+  language: 'en',
+  sourceLanguage: 'en',
+  temperature: 0.2,
+  maxTokens: 300,
+  structure: 'prose',
+  cite: true,
+};
+
+// The ids the cases below work out are worked out by the table's rule: the suite's own reckoning is held to every case of it.
+it('works out the id of an annotation as specs/src/annotations/id-cases.json states it, case for case', () => {
+  const table = JSON.parse(readFileSync(join(SPEC_SOURCE, 'annotations/id-cases.json'), 'utf8')) as { cases: Array<{ resourceId: string; motivation: string; anchor: string; body?: unknown; id: string }> };
+  expect(table.cases.length).toBeGreaterThan(0);
+  for (const { resourceId, motivation, anchor, body, id } of table.cases) {
+    expect(annotationIdOf(resourceId, motivation, anchor, body), JSON.stringify({ resourceId, motivation, anchor })).toBe(id);
+  }
+});
 
 eachWorkerService('a yield job', (world) => {
   it('generates from the gathered context, uploads what the model wrote less its citation marks, links it from its source, and cites its sources on it', async () => {
     const w = world();
     const agent = w.agents[0]!;
-    const job = yieldJob(
-      w,
-      'yield',
-      {
-        title: 'The Analytical Engine',
-        storageUri: 'file://generated/analytical-engine.md',
-        prompt: 'Write three sentences.',
-        entityTypes: ['Person'],
-        language: 'en',
-        sourceLanguage: 'en',
-        temperature: 0.2,
-        maxTokens: 300,
-        structure: 'prose',
-        cite: true,
-      },
-      { kind: 'resource', resource: SOURCE_DESCRIPTOR, content: { main: TEXT, related: {} } },
-    );
+    const job = yieldJob(w, 'yield', REQUEST, { kind: 'resource', resource: SOURCE_DESCRIPTOR, content: { main: TEXT, related: {} } });
     w.ollama.script({
       // Two claims cited to the source, one with a space before its mark and one without; and one cited to a resource the context never showed.
       response:
@@ -94,7 +103,8 @@ eachWorkerService('a yield job', (world) => {
     const yielded = upload.resourceId;
 
     const commits = served.payloads('mark:commit');
-    // First, on the source: a link to what was made of it, anchored to the whole resource.
+    // First, on the source: a link to what was made of it, anchored to the whole resource, and so nowhere on it.
+    const linked = { type: 'SpecificResource', source: yielded, purpose: 'linking' };
     expect({ ...commits[0], annotations: (commits[0]!['annotations'] as unknown[]).map(made) }).toEqual({
       resourceId: SOURCE,
       jobId: job.metadata.id,
@@ -102,6 +112,7 @@ eachWorkerService('a yield job', (world) => {
         {
           '@context': 'http://www.w3.org/ns/anno.jsonld',
           type: 'Annotation',
+          id: annotationIdOf(SOURCE, 'linking', '', linked),
           motivation: 'linking',
           generator: w.generator(),
           target: { source: SOURCE },
@@ -110,9 +121,11 @@ eachWorkerService('a yield job', (world) => {
       ],
     });
     // Then, on what was made: each cited claim, linked to the resource it cites. The claim is the sentence before the mark.
+    const cited = { type: 'SpecificResource', source: SOURCE, purpose: 'linking' };
     const citation = (start: number, end: number, exact: string) => ({
       '@context': 'http://www.w3.org/ns/anno.jsonld',
       type: 'Annotation',
+      id: annotationIdOf(yielded, 'linking', `${start}:${end}:${exact}`, cited),
       motivation: 'linking',
       generator: w.generator(),
       target: { source: yielded, selector: [{ type: 'TextPositionSelector', start, end }, { type: 'TextQuoteSelector', exact }] },
@@ -182,17 +195,47 @@ eachWorkerService('a yield job', (world) => {
     expect(completion).toEqual({ ...anchored, result: { resourceId: upload.resourceId, resourceName: 'Charles Babbage', truncated: true } });
   });
 
-  it('fails, having asked its model nothing and uploaded nothing, a job for a format it does not generate', async () => {
+  it('fails as deterministic, having asked its model nothing and uploaded nothing, a job for a format it does not generate', async () => {
     const w = world();
     const job = yieldJob(w, 'yield-html', { title: 'A page', storageUri: 'file://generated/page.html', outputMediaType: 'text/html' }, { kind: 'resource', resource: SOURCE_DESCRIPTOR });
     const served = await w.start();
     const failure = await settled(served, job, 'job:fail');
 
-    expect(String(failure['error'])).toContain('text/html');
-    expect(failure['jobType']).toBe('yield');
+    const { error, ...rest } = failure;
+    expect(String(error)).toContain('text/html');
+    // No attempt changes what the service generates: none is spent on it again.
+    expect(rest).toEqual({ ...identity(job), failureClass: 'deterministic', willRetry: false });
     expect(w.ollama.shows).toEqual([]);
     expect(w.ollama.generations).toEqual([]);
     expect(w.world.archivist.uploads).toEqual([]);
     expect(served.sequence()).toEqual(['emit job:claim', 'emit job:start', 'emit job:fail', 'emit job:claim']);
+  });
+
+  it('fails as deterministic, having asked for no generation, a job whose prompt and length are together over its model\'s window', async () => {
+    const w = world();
+    // The prompt kept as `yield-markdown` is 295 tokens, and the job asks for 300 more: 595, one over this window.
+    w.ollama.show = { contextLength: 594 };
+    const job = yieldJob(w, 'yield-over-the-window', REQUEST, { kind: 'resource', resource: SOURCE_DESCRIPTOR, content: { main: TEXT, related: {} } });
+    const served = await w.start();
+    const failure = await settled(served, job, 'job:fail');
+
+    const { error, ...rest } = failure;
+    expect(rest).toEqual({ ...identity(job), failureClass: 'deterministic', willRetry: false });
+    expect(String(error)).toContain('594');
+    expect(w.ollama.shows).toEqual([{ model: w.agents[0]!.model }]);
+    expect(w.ollama.generations).toEqual([]);
+    expect(w.world.archivist.uploads).toEqual([]);
+    expect(served.sequence()).toEqual(['emit job:claim', 'emit job:start', 'emit job:fail', 'emit job:claim']);
+  });
+
+  it('asks for the generation of a job whose prompt and length exactly fill its model\'s window', async () => {
+    const w = world();
+    const agent = w.agents[0]!;
+    w.ollama.show = { contextLength: 595 };
+    const job = yieldJob(w, 'yield-fills-the-window', REQUEST, { kind: 'resource', resource: SOURCE_DESCRIPTOR, content: { main: TEXT, related: {} } });
+    w.ollama.script({ response: 'It was never built.' });
+    const served = await w.start();
+    await settled(served, job);
+    expectGenerations(w.ollama.generations, [generation(agent.model, 'yield-markdown', { num_predict: 300, num_ctx: 595, temperature: 0.2 })]);
   });
 });

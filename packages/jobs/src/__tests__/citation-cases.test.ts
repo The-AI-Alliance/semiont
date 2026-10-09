@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { isObject, isString, type GatheredContext, type Logger } from '@semiont/core';
-import { collectContextResourceIds, resolveCitationTokens } from '../workers/generation/citation-resolver';
+import { collectCitableIds, resolveCitationTokens } from '../workers/generation/citation-resolver';
 
 interface Citation {
   resourceId: string;
@@ -21,6 +21,7 @@ interface Case {
   why: string;
   text: string;
   contextResourceIds: string[];
+  contextAnnotationIds: string[];
   resolved: { text: string; citations: Citation[] };
   dropped: string[];
 }
@@ -29,6 +30,7 @@ interface ContextCase {
   why: string;
   context: GatheredContext | null;
   resourceIds: string[];
+  annotationIds: string[];
 }
 
 const table: { cases: Case[]; contexts: ContextCase[] } = JSON.parse(
@@ -56,18 +58,23 @@ describe('the citation resolver (specs/src/worker/citation-cases.json)', () => {
     expect(table.contexts.length).toBeGreaterThan(0);
   });
 
-  for (const { why, text, contextResourceIds, resolved, dropped } of table.cases) {
+  for (const { why, text, contextResourceIds, contextAnnotationIds, resolved, dropped } of table.cases) {
     it(why, () => {
       const { logger, warned } = warningLogger();
-      const { content, citations } = resolveCitationTokens(text, new Set(contextResourceIds), logger);
+      const citable = { resourceIds: new Set(contextResourceIds), annotationIds: new Set(contextAnnotationIds) };
+      const { content, citations } = resolveCitationTokens(text, citable, logger);
       expect({ text: content, citations }).toEqual(resolved);
       expect(warned).toEqual(dropped);
     });
   }
 
-  for (const { why, context, resourceIds } of table.contexts) {
+  for (const { why, context, resourceIds, annotationIds } of table.contexts) {
     it(why, () => {
-      expect([...collectContextResourceIds(context ?? undefined)].sort()).toEqual([...resourceIds].sort());
+      const citable = collectCitableIds(context ?? undefined);
+      expect({ resourceIds: [...citable.resourceIds].sort(), annotationIds: [...citable.annotationIds].sort() }).toEqual({
+        resourceIds: [...resourceIds].sort(),
+        annotationIds: [...annotationIds].sort(),
+      });
     });
   }
 });

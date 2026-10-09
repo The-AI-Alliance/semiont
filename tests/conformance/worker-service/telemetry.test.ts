@@ -49,9 +49,9 @@ function yieldJob(w: WorkerServiceWorld): RunningJob {
 
 /**
  * One job of each motivation, a generation, and each way a job ends that a
- * case can make: failed by its provider, declined, cut off twice, and kept
- * though its count says it missed mentions. They are queued in this order and
- * run one at a time.
+ * case can make: failed by its provider, declined, cut off twice, kept though
+ * its count says it missed mentions, and cancelled. They are queued in this
+ * order and run one at a time.
  */
 async function traffic(w: WorkerServiceWorld): Promise<{ served: Served; jobs: Record<string, RunningJob> }> {
   const jobs: Record<string, RunningJob> = {
@@ -65,6 +65,12 @@ async function traffic(w: WorkerServiceWorld): Promise<{ served: Served; jobs: R
     declined: markJob(w, 'telemetry-declined', { motivation: 'highlighting' }, {}, ' \n'),
     cutOff: markJob(w, 'telemetry-cut-off', { motivation: 'highlighting' }),
     underReported: markJob(w, 'telemetry-under-reported', { motivation: 'linking', entityTypes: ['Place'] }),
+    cancelled: markJob(w, 'telemetry-cancelled', { motivation: 'linking', entityTypes: ['Person', 'Place'] }),
+  };
+  // The last job is cancelled while its first entity type's batch is being committed.
+  w.hooks.commit = async (commit) => {
+    if (commit.jobId === jobs['cancelled']!.metadata.id) await w.emit('job:cancel-requested', { jobId: jobs['cancelled']!.metadata.id });
+    return undefined;
   };
   const cutOff = { response: JSON.stringify([{ exact: 'the first program' }]), doneReason: 'length' };
   w.ollama.script(
@@ -90,6 +96,9 @@ async function traffic(w: WorkerServiceWorld): Promise<{ served: Served; jobs: R
     // One place found where the count says nine: the piece cannot be cut smaller, so what was found is kept.
     { response: JSON.stringify([{ exact: 'London', entityType: 'Place', prefix: 'engine in ' }]) },
     { response: '9' },
+    // The cancelled job's first entity type: its second is never asked for.
+    { response: JSON.stringify([{ exact: 'Charles Babbage', entityType: 'Person' }]) },
+    { response: '1' },
   );
   const served = await w.start({ env: { OTEL_EXPORTER_OTLP_ENDPOINT: otlp().endpoint, OTEL_METRIC_EXPORT_INTERVAL: '500', OTEL_BSP_SCHEDULE_DELAY: '100' } });
   for (const name of ['highlighting', 'commenting', 'assessing', 'linking', 'tagging', 'yield']) await settled(served, jobs[name]!);
@@ -97,6 +106,7 @@ async function traffic(w: WorkerServiceWorld): Promise<{ served: Served; jobs: R
   await settled(served, jobs['declined']!);
   await settled(served, jobs['cutOff']!, 'job:fail');
   await settled(served, jobs['underReported']!);
+  await settled(served, jobs['cancelled']!, 'job:cancel');
 
   // And one request it answers.
   const listener = await w.listen(['job:limits-result', 'job:limits-failed']);
@@ -157,13 +167,13 @@ eachWorkerService('what a worker exports', (world) => {
       expect(span.attributes).toEqual({ ...attributes, 'job.id': job.metadata.id, 'resource.id': job.params.resourceId });
     }
 
-    // Its jobs counted and timed by how they ended: seven completed, the declined one among them, and two failed.
+    // Its jobs counted and timed by how they ended: seven completed, the declined one among them, two failed, and one cancelled.
     for (const metric of ['semiont.job.outcome', 'semiont.job.duration']) {
-      const seen = await eventually(`${metric} with both outcomes and every motivation`, 15_000, () => {
+      const seen = await eventually(`${metric} with every outcome and every motivation`, 15_000, () => {
         const got = otlp().metrics.get(metricName(metric));
-        return got && got.attributes.get('job.outcome')?.size === 2 && got.attributes.get('job.motivation')?.size === 5 && got.attributes.get('job.type')?.size === 2 ? got : undefined;
+        return got && got.attributes.get('job.outcome')?.size === 3 && got.attributes.get('job.motivation')?.size === 5 && got.attributes.get('job.type')?.size === 2 ? got : undefined;
       });
-      expect([...seen.attributes.get('job.outcome')!].sort()).toEqual(['completed', 'failed']);
+      expect([...seen.attributes.get('job.outcome')!].sort()).toEqual(['cancelled', 'completed', 'failed']);
     }
 
     // What the provider said it read and wrote, counted as it said it.
