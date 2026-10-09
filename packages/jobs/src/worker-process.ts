@@ -19,10 +19,10 @@
 
 import { isHeldMark, type MarkMotivation } from './types';
 import type { ClaimsObservable, HeldJob, SemiontClient } from '@semiont/sdk';
-import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, findClaimSpan, capabilitiesOf, jobMatchesFilter, MARK_MOTIVATIONS, GENERATED_TEXT_ASKS_COUNT, type JobFilter, type ResourceId } from '@semiont/core';
+import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, findClaimSpan, textOffsets, capabilitiesOf, jobMatchesFilter, MARK_MOTIVATIONS, GENERATED_TEXT_ASKS_COUNT, type JobFilter, type ResourceId } from '@semiont/core';
 
 import type { InferenceClient } from '@semiont/inference';
-import type { Logger, components, AssembledAnnotation, Annotation, AnchoredText, UnitCursor } from '@semiont/core';
+import type { Logger, components, AssembledAnnotation, Annotation, AnchoredText, TextOffsets, UnitCursor } from '@semiont/core';
 import { prepareDetection } from './workers/detection/prepare-detection';
 import { classifyFailure, DeterministicJobError } from './failure-class';
 import { SpanKind, recordJobOutcome, withSpan } from '@semiont/observability';
@@ -358,7 +358,7 @@ async function handleJobInner(
   // extraction *failed* — encrypted, corrupt, a scan OCR could not read —
   // declines cleanly and completes the job saying which. Generation reads the
   // annotation in its params, not the source bytes, so it is not prepared here.
-  let ready: { text: string; buildAnnotation: BuildAnnotation } | null = null;
+  let ready: { text: string; offsets: TextOffsets; buildAnnotation: BuildAnnotation } | null = null;
   if (job.jobType === 'mark') {
     const descriptor = await client.browse.resource(resourceId).fresh();
     const mediaType = getPrimaryMediaType(descriptor);
@@ -450,7 +450,7 @@ async function handleJobInner(
 
   if (job.jobType === 'mark' && isHeldMark(params, 'highlighting')) {
     const { result } = await processHighlightJob(
-      ready!.text, inferenceClient, params, ready!.buildAnnotation, onProgress,
+      ready!.text, ready!.offsets, inferenceClient, params, ready!.buildAnnotation, onProgress,
       // The durability write, per chunk, awaited; folds into the terminal
       // durability evidence like every commit, and carries the unit's cursor.
       commitChunk,
@@ -463,7 +463,7 @@ async function handleJobInner(
 
   } else if (job.jobType === 'mark' && isHeldMark(params, 'commenting')) {
     const { result } = await processCommentJob(
-      ready!.text, inferenceClient, params, ready!.buildAnnotation, onProgress,
+      ready!.text, ready!.offsets, inferenceClient, params, ready!.buildAnnotation, onProgress,
       // The durability write, per chunk, awaited; folds into the terminal
       // durability evidence like every commit, and carries the unit's cursor.
       commitChunk,
@@ -475,7 +475,7 @@ async function handleJobInner(
 
   } else if (job.jobType === 'mark' && isHeldMark(params, 'assessing')) {
     const { result } = await processAssessmentJob(
-      ready!.text, inferenceClient, params, ready!.buildAnnotation, onProgress,
+      ready!.text, ready!.offsets, inferenceClient, params, ready!.buildAnnotation, onProgress,
       // The durability write, per chunk, awaited; folds into the terminal
       // durability evidence like every commit, and carries the unit's cursor.
       commitChunk,
@@ -501,7 +501,7 @@ async function handleJobInner(
     completedUnitsByJob.set(job.jobId, committed);
 
     const { result } = await processReferenceJob(
-      ready!.text, inferenceClient, remaining, ready!.buildAnnotation, onProgress, config.logger,
+      ready!.text, ready!.offsets, inferenceClient, remaining, ready!.buildAnnotation, onProgress, config.logger,
       async (unit) => {
         // By the time this fires, every chunk of the unit has committed
         // through the awaited callback below — the checkpoint trails the log,
@@ -542,7 +542,7 @@ async function handleJobInner(
 
   } else if (job.jobType === 'mark' && isHeldMark(params, 'tagging')) {
     const { result } = await processTagJob(
-      ready!.text, inferenceClient, params, ready!.buildAnnotation, onProgress,
+      ready!.text, ready!.offsets, inferenceClient, params, ready!.buildAnnotation, onProgress,
       // The durability write, per chunk, awaited; folds into the terminal
       // durability evidence like every commit, and carries the unit's cursor.
       commitChunk,
@@ -634,9 +634,9 @@ async function handleJobInner(
     // source — so citations are first-class references like any other.
     //
     // Anchoring branches on the artifact's anchoring model. Text formats
-    // anchor by character offset into the DECODED text — consumers apply
-    // selectors to the decoded string, not raw bytes. A PDF anchors by PAGE
-    // GEOMETRY: the citation's offsets index the Typst SOURCE and would
+    // anchor by offset into the DECODED text, in code points — consumers apply
+    // selectors to the decoded text, not raw bytes. A PDF anchors by PAGE
+    // GEOMETRY: the citation's offsets count the Typst SOURCE and would
     // render nothing, so each claim is re-found in the artifact's own text
     // (two-stage search — strict, then break-aware for hyphenation) and
     // located to rects. That text is the Smelter's (`generatedPdfText`). A
@@ -659,8 +659,10 @@ async function handleJobInner(
           jobId, resourceId: newResourceId, citations: genResult.citations.length, reason: anchored.absent,
         });
       } else {
+        // The text's conversions, made once for every claim looked for in it.
+        const offsets = textOffsets(anchored.text);
         for (const citation of genResult.citations) {
-          const span = findClaimSpan(anchored, citation.exact);
+          const span = findClaimSpan(anchored, offsets, citation.exact);
           if (!span) {
             config.logger.warn('PDF citation dropped — claim not found in the rendered text', {
               jobId, resourceId: newResourceId, citedResourceId: citation.resourceId,
@@ -675,10 +677,11 @@ async function handleJobInner(
           // under the rects, which is what re-anchoring will see.
           const citationRef = buildPdfAnnotation(
             anchored,
+            offsets,
             newResourceId,
             generator,
             'linking',
-            { exact: anchored.text.slice(span.start, span.end), start: span.start, end: span.end },
+            { exact: anchored.text.slice(offsets.indexAt(span.start), offsets.indexAt(span.end)), start: span.start, end: span.end },
             { type: 'SpecificResource', source: citation.resourceId, purpose: 'linking' },
           );
           citationRefs.push(citationRef);

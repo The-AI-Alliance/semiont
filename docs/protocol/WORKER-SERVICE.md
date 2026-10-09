@@ -27,11 +27,16 @@ Behaviour that is a defect is not stated as a rule anywhere below. It is
 listed under [Known defects](#known-defects), and no case pins it.
 
 **What this document does not cover.** A job on a provider other than Ollama;
-a `yield` job to PDF, and so the citations of a generated PDF; and what an
-offset counts in a text with a character outside the Basic Multilingual Plane.
-Within that plane a character, a code point and a UTF-16 code unit are one,
-and every rule below that states an offset or a length holds whichever is
-counted.
+and a `yield` job to PDF, and so the citations of a generated PDF.
+
+**What an offset counts.** An offset into a text counts Unicode code points
+from the start of the text, exactly as it was decoded
+([W3C-SELECTORS.md](./W3C-SELECTORS.md)), and so does every length a rule below
+states: the size of a piece, a cursor, the context around a span, the tokens
+of a prompt. A character outside the Basic Multilingual Plane is one code
+point, where a string of UTF-16 code units has two for it.
+[`specs/src/text/offset-cases.json`](../../specs/src/text/offset-cases.json)
+holds the count.
 
 ## Configuration
 
@@ -194,7 +199,7 @@ job is one unit for each of its `categories`.
   piece of the text.
   *Held by `worker-service/highlighting`, `worker-service/prompts`.*
 - **D3.** The token budget is worked out from the model's window and the
-  prompt, and from nothing about the text. A text of `n` characters is
+  prompt, and from nothing about the text. A text of `n` code points is
   `ceil(n / 4)` tokens. With `C` the model's `contextTokens` and `S` the
   tokens of the prompt around an empty text: `available = C − S`; `input =
   floor(available / 3)`; `output = available − input`. When `output` is over
@@ -203,28 +208,28 @@ job is one unit for each of its `categories`.
   `input` of 64 or less fails the job. `num_predict` is `output`. With `P` the
   tokens of the whole prompt, `num_ctx` is the lesser of `C` and `P +
   num_predict + ceil(P × 0.2) + 64`.
-  *Held by `worker-service/highlighting`, `worker-service/chunks`, `worker-service/prompts`.*
+  *Held by `worker-service/highlighting`, `worker-service/chunks`, `worker-service/prompts`, `worker-service/code-points`.*
 
 ### Pieces
 
 - **D4.** The text is asked about a piece at a time. A piece is at most `size
-  × 4` characters, and `size` opens at `input`. Cut from `at`, a piece ends at
+  × 4` code points, and `size` opens at `input`. Cut from `at`, a piece ends at
   `at + size × 4` or the end of the text, whichever comes first. When that is
   short of the end of the text, the piece is ended earlier: at the last
   paragraph break (two line ends) at or before it, or failing that just after
   the last full stop followed by a space, or failing that at the last space.
-  A break counts only when it is more than `size × 2` characters past `at`,
+  A break counts only when it is more than `size × 2` code points past `at`,
   and with none that does the piece is not shortened. The prompt carries the
   piece with the white space at its ends taken off. The next piece starts 256
-  characters before this one ended, so that a span at the cut is seen whole by
+  code points before this one ended, so that a span at the cut is seen whole by
   one of the two, or where this one ended when that would be no further on
   than this one started. A piece that reaches the end of the text is the last.
-  *Held by `worker-service/chunks`.*
+  *Held by `worker-service/chunks`, `worker-service/code-points`.*
 - **D5.** A span two pieces both see is one annotation. Two proposals alike in
   motivation, place and body are counted twice as found and committed once:
   within a job for highlighting, commenting, assessing and tagging, and within
   an entity type for linking.
-  *Held by `worker-service/chunks`, `worker-service/assessing`.*
+  *Held by `worker-service/chunks`, `worker-service/assessing`, `worker-service/code-points`.*
 - **D6.** `size` holds from piece to piece when the provider reports no token
   usage.
   *Held by `worker-service/chunks`.*
@@ -247,14 +252,14 @@ job is one unit for each of its `categories`.
   committed nor counted.
   *Held by `worker-service/highlighting`, `worker-service/linking`, `worker-service/commenting`.*
 - **D9.** A span on text is anchored by two selectors: a
-  `TextPositionSelector`, the offsets of its first character and of the one
+  `TextPositionSelector`, the offsets of its first code point and of the one
   after its last; and a `TextQuoteSelector`, its `exact`, with `prefix` and
-  `suffix`. Those two are the text's own and never the model's: the 64
-  characters before the span and the 64 after, each extended by up to 32 more
+  `suffix`. Those two are the text's own and never the model's: the 64 code
+  points before the span and the 64 after, each extended by up to 32 more
   until the character beyond is white space or one of ``. , ; : ! ? ' " ( )
   [ ] { } < > / \``. A span at the start of the text has no `prefix`, and one
   at its end no `suffix`.
-  *Held by `worker-service/highlighting`, `worker-service/commenting`, `worker-service/tagging`.*
+  *Held by `worker-service/highlighting`, `worker-service/commenting`, `worker-service/tagging`, `worker-service/code-points`.*
 - **D10.** A span of a PDF is anchored by where its text is on the page, and
   by no offset: one `FragmentSelector` for each line it is on, top line first,
   `conformsTo` `http://tools.ietf.org/rfc/rfc3778`, with the value
@@ -263,7 +268,7 @@ job is one unit for each of its `categories`.
   of the text its page and rectangle. Runs of one page whose `y` is within 2
   points of the line's first run are one line. A line's rectangle spans the
   runs the span touches, a run the span covers only part of counted in
-  proportion to the characters covered; its `y` is the lowest of the runs',
+  proportion to the code points covered; its `y` is the lowest of the runs',
   and its height reaches the highest top.
   *Held by `worker-service/pdf`.*
 
@@ -281,10 +286,10 @@ job is one unit for each of its `categories`.
   first 21 characters of the base64url SHA-256 of the canonical JSON of
   `resourceId`, `motivation`, `anchor` and, when the annotation has one,
   `body`. `anchor` is `<start>:<end>:<exact>`, the span's offsets in the text
-  the model was asked about, for a PDF as for any other. Canonical JSON has
-  the members of every object in order of their names, arrays in their own
-  order, and no white space.
-  *Held by `worker-service/highlighting`, `worker-service/commenting`, `worker-service/assessing`, `worker-service/linking`, `worker-service/tagging`, `worker-service/pdf`.*
+  the model was asked about, in code points, for a PDF as for any other.
+  Canonical JSON has the members of every object in order of their names,
+  arrays in their own order, and no white space.
+  *Held by `worker-service/highlighting`, `worker-service/commenting`, `worker-service/assessing`, `worker-service/linking`, `worker-service/tagging`, `worker-service/pdf`, `worker-service/code-points`.*
 
 ### Committing, and where a job stands
 
@@ -294,11 +299,11 @@ job is one unit for each of its `categories`.
   proposed them. Once the batch is established the service emits
   `job:checkpoint`, with the cursor of every unit begun and not named as
   finished. A unit's cursor is `next`, the offset its next piece starts at, or
-  the length of the text after its last; `size`, the size its last piece was
-  cut at; and its `found`, `emitted` and `errors` so far. Only then is the
+  the length of the text after its last, in code points; `size`, the size its
+  last piece was cut at; and its `found`, `emitted` and `errors` so far. Only then is the
   next piece asked about. A piece with nothing to commit
   commits nothing and is checkpointed all the same.
-  *Held by `worker-service/highlighting`, `worker-service/chunks`.*
+  *Held by `worker-service/highlighting`, `worker-service/chunks`, `worker-service/code-points`.*
 - **D14.** A linking job's checkpoints also state its finished entity types,
   in `completedUnits`: when a type's last batch is established, a checkpoint
   names the type as finished and no longer carries its cursor. The units of a
@@ -324,11 +329,12 @@ job is one unit for each of its `categories`.
 - **D17.** A highlighting, commenting or assessing job reports `loading` at
   10 and `analyzing` at 30; after each piece, `creating-annotations` at 60
   with the count of annotations made so far, and, when text remains, `analyzing` at `30
-  + round(30 × next / length)`; and at the end `complete-created` at 100 with
-  the count and the motivation. Every report repeats what the job was asked
+  + round(30 × next / length)`, the cursor's `next` over the text's length,
+  both in code points; and at the end `complete-created` at 100 with the count
+  and the motivation. Every report repeats what the job was asked
   with, as `requestParams`: its `instructions`, its `tone` and its `density`,
   those it has, in that order.
-  *Held by `worker-service/highlighting`, `worker-service/chunks`, `worker-service/commenting`, `worker-service/assessing`.*
+  *Held by `worker-service/highlighting`, `worker-service/chunks`, `worker-service/commenting`, `worker-service/assessing`, `worker-service/code-points`.*
 - **D18.** A linking job reports `loading` at 10, and then
   `detecting-entities`, naming the entity type, at `20 + round(60 × finished /
   types)`: when a type is begun, when its mentions have been counted, when a
@@ -568,8 +574,8 @@ focused on a resource or on an annotation.
 - **Y7.** The citations are committed on the new resource, as one batch: each
   an annotation of `motivation` `linking`, its `target` the claim (a
   `TextPositionSelector` and a `TextQuoteSelector` of its `exact`, offsets in
-  the document as uploaded), and its body of `type` `SpecificResource`,
-  `source` the cited resource and `purpose` `linking`.
+  the document as uploaded, in code points), and its body of `type`
+  `SpecificResource`, `source` the cited resource and `purpose` `linking`.
   *Held by `worker-service/yield`.*
 - **Y8.** A `yield` job reports `generating-resource` at 5, `creating-resource`
   at 95 and `complete-generated`, with `truncated`, at 100. Its result is the
@@ -674,7 +680,7 @@ and no case pins it.
   whose `exact` is nowhere in the text is looked for again, loosely: without
   regard to case or white space, and then as the stretch of the text within
   five edits of it, or within a twentieth of its length if that is more. Any
-  stretch is within five edits of a span of five characters or fewer, so such
+  stretch is within five edits of a span of five code points or fewer, so such
   a span is always found, on text that has nothing to do with it, and is
   committed there rather than counted in `errors`.
 - **The annotations a `yield` job commits have ids made afresh.** The link of

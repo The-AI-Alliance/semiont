@@ -1,5 +1,5 @@
 {
-  "$comment": "The annotation a worker commits, whole, as every implementation must build it. What a job leaves in the knowledge base is these annotations, so two workers that build them differently leave different records of the same work. TypeScript (packages/jobs: buildTextAnnotation and buildPdfAnnotation; packages/core: assembleAnnotation) runs every case and fails on a difference; a worker written in another language runs the same file. `cases` BUILD the annotation of a span found in a resource's text. A case gives `text` when the resource is a text, or `anchored`, a PDF's anchored text as pdf-locate-cases.json describes it, when it is a PDF. With it come the `resourceId`; the `generator`, which says what made the annotation; the `motivation`; the `span`, which is its `start` and `end`, the `exact` words, and maybe the `prefix` and `suffix` (as reconcile-cases.json reconciles one); and maybe a `body`, one body or a list of them. The answer is the `annotation`, or `refused` and which refusal. EVERY BUILT ANNOTATION has `@context` \"http://www.w3.org/ns/anno.jsonld\" and `type` \"Annotation\"; the `motivation`; the `generator` as given; the `body` as given, and no `body` member when none was; a `target` whose `type` is \"SpecificResource\", whose `source` is the resource id and whose `selector` is a list; and an `id` derived as id-cases.json says from the resource id, the motivation, the body if there is one, and this anchor: the span's `start` in decimal, a colon, its `end` in decimal, a colon, and its `exact`. The anchor is made the same way for a text and for a PDF. Nothing in the annotation says who asked for it: that is derived where the annotation is recorded. The last selector is a TextQuoteSelector with the span's `exact`, and with its `prefix` and its `suffix` when they are given and not empty. FOR A TEXT the selector before it is a TextPositionSelector with the span's `start` and `end`. The span is checked against the text first, and the annotation is refused if the text from `start` to `end` is not `exact` (`exact-mismatch`); or a prefix is given and is not the text just before `start`, as many characters of it as the prefix has, or all there are if fewer (`prefix-mismatch`); or a suffix is given and is not the text just after `end`, in the same way (`suffix-mismatch`). FOR A PDF there is no TextPositionSelector. The span is located as pdf-locate-cases.json says, and before the quote comes one FragmentSelector for each rectangle, in their order, with `conformsTo` \"http://tools.ietf.org/rfc/rfc3778\" and the rectangle's fragment as its `value`. The annotation is refused if the span is located nowhere (`nothing-located`), or if `exact` is not in the covered text (`exact-not-covered`): the covered text is the anchored text from the least `start` to the greatest `end` of the items the span overlaps, and both it and `exact` have every run of white space made one space, and the white space at their ends dropped, before the one is looked for in the other. `requests` ASSEMBLE an annotation that is not of a found span: the edge from a resource to one generated from it, and a citation in a generated text. A case gives a `request`, which is a `motivation`, a `target` and maybe a `body`, and maybe a `generator`. The `annotation` has `@context` and `type` as above; the request's `motivation` and `target` as given; its `body` as given, and no `body` member when none was; and the `generator` if one was given. `bodies` is the body as a list: empty when there is none, of one when it is a single body, the list itself when it is a list. The request is refused if its target has an SvgSelector whose `value` does not have the text xmlns=\"http://www.w3.org/2000/svg\" in it (`svg-no-namespace`), or does not have both `<svg` and `</svg>` (`svg-no-element`), or has none of `<rect`, `<circle`, `<ellipse`, `<polygon`, `<polyline`, `<path` and `<line` (`svg-no-shape`), the first of these that fails being the refusal; or, its selectors passing, if it states no motivation (`no-motivation`). `unstated` names, for `cases` and for `requests`, the members every annotation of that kind has and no case can state: `created`, the moment it was built, an RFC 3339 date-time in UTC to the millisecond; and for an assembled annotation also `modified`, which is that same moment, and its `id`, which is not derived but newly minted each time. A runner checks that each is there and compares everything else. White space is what Unicode gives the White_Space property; no case rests on U+0085 or U+FEFF, about which implementations disagree. What an offset counts is stated in a table of its own; every text here is of the Basic Multilingual Plane, where it makes no difference. `defects` says what today's rule does that is a mistake: no case states any of it, and an implementation is not held to it. Add a case here before changing an implementation.",
+  "$comment": "The annotation a worker commits, whole, as every implementation must build it. What a job leaves in the knowledge base is these annotations, so two workers that build them differently leave different records of the same work. TypeScript (packages/jobs: buildTextAnnotation and buildPdfAnnotation; packages/core: assembleAnnotation) runs every case and fails on a difference; a worker written in another language runs the same file. `cases` BUILD the annotation of a span found in a resource's text. A case gives `text` when the resource is a text, or `anchored`, a PDF's anchored text as pdf-locate-cases.json describes it, when it is a PDF. With it come the `resourceId`; the `generator`, which says what made the annotation; the `motivation`; the `span`, which is its `start` and `end`, the `exact` words, and maybe the `prefix` and `suffix` (as reconcile-cases.json reconciles one), `start` and `end` being offsets, which count the text's Unicode code points; and maybe a `body`, one body or a list of them. The answer is the `annotation`, or `refused` and which refusal. EVERY BUILT ANNOTATION has `@context` \"http://www.w3.org/ns/anno.jsonld\" and `type` \"Annotation\"; the `motivation`; the `generator` as given; the `body` as given, and no `body` member when none was; a `target` whose `type` is \"SpecificResource\", whose `source` is the resource id and whose `selector` is a list; and an `id` derived as id-cases.json says from the resource id, the motivation, the body if there is one, and this anchor: the span's `start` in decimal, a colon, its `end` in decimal, a colon, and its `exact`. The anchor is made the same way for a text and for a PDF. Nothing in the annotation says who asked for it: that is derived where the annotation is recorded. The last selector is a TextQuoteSelector with the span's `exact`, and with its `prefix` and its `suffix` when they are given and not empty. FOR A TEXT the selector before it is a TextPositionSelector with the span's `start` and `end`. The span is checked against the text first, and the annotation is refused if the text from `start` to `end` is not `exact` (`exact-mismatch`); or a prefix is given and is not the text just before `start`, as many code points of it as the prefix has, or all there are if fewer (`prefix-mismatch`); or a suffix is given and is not the text just after `end`, in the same way (`suffix-mismatch`). FOR A PDF there is no TextPositionSelector. The span is located as pdf-locate-cases.json says, and before the quote comes one FragmentSelector for each rectangle, in their order, with `conformsTo` \"http://tools.ietf.org/rfc/rfc3778\" and the rectangle's fragment as its `value`. The annotation is refused if the span is located nowhere (`nothing-located`), or if `exact` is not in the covered text (`exact-not-covered`): the covered text is the anchored text from the least `start` to the greatest `end` of the items the span overlaps, and both it and `exact` have every run of white space made one space, and the white space at their ends dropped, before the one is looked for in the other. `requests` ASSEMBLE an annotation that is not of a found span: the edge from a resource to one generated from it, and a citation in a generated text. A case gives a `request`, which is a `motivation`, a `target` and maybe a `body`, and maybe a `generator`. The `annotation` has `@context` and `type` as above; the request's `motivation` and `target` as given; its `body` as given, and no `body` member when none was; and the `generator` if one was given. `bodies` is the body as a list: empty when there is none, of one when it is a single body, the list itself when it is a list. The request is refused if its target has an SvgSelector whose `value` does not have the text xmlns=\"http://www.w3.org/2000/svg\" in it (`svg-no-namespace`), or does not have both `<svg` and `</svg>` (`svg-no-element`), or has none of `<rect`, `<circle`, `<ellipse`, `<polygon`, `<polyline`, `<path` and `<line` (`svg-no-shape`), the first of these that fails being the refusal; or, its selectors passing, if it states no motivation (`no-motivation`). `unstated` names, for `cases` and for `requests`, the members every annotation of that kind has and no case can state: `created`, the moment it was built, an RFC 3339 date-time in UTC to the millisecond; and for an assembled annotation also `modified`, which is that same moment, and its `id`, which is not derived but newly minted each time. A runner checks that each is there and compares everything else. White space is what Unicode gives the White_Space property; no case rests on U+0085 or U+FEFF, about which implementations disagree. What an offset counts is stated in a table of its own (specs/src/text/offset-cases.json): code points, and so does every length here. The cases whose text has a character outside the Basic Multilingual Plane are the ones that tell that count from a count of UTF-16 code units. `defects` says what today's rule does that is a mistake: no case states any of it, and an implementation is not held to it. Add a case here before changing an implementation.",
   "defects": [
     "The check of a text span reads the text between its two offsets whichever of them is the greater, and takes an offset past the end of the text for the end: a span given backwards, or one that runs past the end, is built when the words happen to be `exact`.",
     "A PDF span's `prefix` and `suffix` are written into the annotation without being checked against the anchored text."
@@ -152,6 +152,122 @@
       "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "highlighting",
       "span": { "start": 29, "end": 38, "exact": "algorithm", "suffix": ". The end" },
+      "refused": "suffix-mismatch"
+    },
+    {
+      "why": "a span after a character outside the Basic Multilingual Plane: its offsets count code points, so `Ada Lovelace` is from 2 to 14, the emoji before it being one; and the id is of the anchor `2:14:Ada Lovelace`",
+      "text": "😀 Ada Lovelace wrote the first algorithm.",
+      "resourceId": "res-1",
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "motivation": "highlighting",
+      "span": { "start": 2, "end": 14, "exact": "Ada Lovelace" },
+      "annotation": {
+        "@context": "http://www.w3.org/ns/anno.jsonld",
+        "type": "Annotation",
+        "id": "KxmaWULQ3qhFn7N21Bk5r",
+        "motivation": "highlighting",
+        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+        "target": {
+          "type": "SpecificResource",
+          "source": "res-1",
+          "selector": [
+            { "type": "TextPositionSelector", "start": 2, "end": 14 },
+            { "type": "TextQuoteSelector", "exact": "Ada Lovelace" }
+          ]
+        }
+      }
+    },
+    {
+      "why": "the same words stated where a count of UTF-16 code units would put them, from 3 to 15, are not the words the text has there: refused",
+      "text": "😀 Ada Lovelace wrote the first algorithm.",
+      "resourceId": "res-1",
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "motivation": "highlighting",
+      "span": { "start": 3, "end": 15, "exact": "Ada Lovelace" },
+      "refused": "exact-mismatch"
+    },
+    {
+      "why": "a span that is itself of characters outside the plane is two code points long, and they are written into the quote and the anchor as themselves",
+      "text": "😀 said 𝑥𝑦 holds",
+      "resourceId": "res-1",
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "motivation": "commenting",
+      "span": { "start": 7, "end": 9, "exact": "𝑥𝑦", "prefix": "😀 said ", "suffix": " holds" },
+      "body": [
+        { "type": "TextualBody", "value": "a product 🎉", "purpose": "commenting", "format": "text/plain" }
+      ],
+      "annotation": {
+        "@context": "http://www.w3.org/ns/anno.jsonld",
+        "type": "Annotation",
+        "id": "EC6ecBvKDj4WZEcB_2k2z",
+        "motivation": "commenting",
+        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+        "target": {
+          "type": "SpecificResource",
+          "source": "res-1",
+          "selector": [
+            { "type": "TextPositionSelector", "start": 7, "end": 9 },
+            { "type": "TextQuoteSelector", "exact": "𝑥𝑦", "prefix": "😀 said ", "suffix": " holds" }
+          ]
+        },
+        "body": [
+          { "type": "TextualBody", "value": "a product 🎉", "purpose": "commenting", "format": "text/plain" }
+        ]
+      }
+    },
+    {
+      "why": "a prefix is as many code points of the text as it has itself: nine, of which two are emoji, and the text before them is no part of it",
+      "text": "Intro. Rated 🎉🎉 good, then 😀 bad. Outro.",
+      "resourceId": "res-1",
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "motivation": "highlighting",
+      "span": { "start": 16, "end": 20, "exact": "good", "prefix": "Rated 🎉🎉 " },
+      "annotation": {
+        "@context": "http://www.w3.org/ns/anno.jsonld",
+        "type": "Annotation",
+        "id": "qEMILkz17tkjk3SmlwRU_",
+        "motivation": "highlighting",
+        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+        "target": {
+          "type": "SpecificResource",
+          "source": "res-1",
+          "selector": [
+            { "type": "TextPositionSelector", "start": 16, "end": 20 },
+            { "type": "TextQuoteSelector", "exact": "good", "prefix": "Rated 🎉🎉 " }
+          ]
+        }
+      }
+    },
+    {
+      "why": "a suffix is counted the same way: eight code points, the emoji one of them, and the text after them is no part of it",
+      "text": "Intro. Rated 🎉🎉 good, then 😀 bad. Outro.",
+      "resourceId": "res-1",
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "motivation": "highlighting",
+      "span": { "start": 16, "end": 20, "exact": "good", "suffix": ", then 😀" },
+      "annotation": {
+        "@context": "http://www.w3.org/ns/anno.jsonld",
+        "type": "Annotation",
+        "id": "qEMILkz17tkjk3SmlwRU_",
+        "motivation": "highlighting",
+        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+        "target": {
+          "type": "SpecificResource",
+          "source": "res-1",
+          "selector": [
+            { "type": "TextPositionSelector", "start": 16, "end": 20 },
+            { "type": "TextQuoteSelector", "exact": "good", "suffix": ", then 😀" }
+          ]
+        }
+      }
+    },
+    {
+      "why": "a suffix longer than all the text there is after the span cannot be that text, where the text is shorter in code points than a string of it is in UTF-16 code units",
+      "text": "😀 Ada Lovelace wrote the first algorithm.",
+      "resourceId": "res-1",
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "motivation": "highlighting",
+      "span": { "start": 31, "end": 40, "exact": "algorithm", "suffix": ". The end" },
       "refused": "suffix-mismatch"
     },
     {
@@ -321,6 +437,79 @@
       "motivation": "highlighting",
       "span": { "start": 0, "end": 5, "exact": "gamma" },
       "refused": "exact-not-covered"
+    },
+    {
+      "why": "a highlight of a PDF whose text has an emoji before the span: the items count code points, so `beta` is the item from 8 to 12 and the covered text is that word",
+      "anchored": {
+        "text": "😀 alpha beta\ngamma 𝑥 delta",
+        "items": [
+          { "start": 0, "end": 1, "page": 1, "x": 60, "y": 720, "width": 10, "height": 12 },
+          { "start": 2, "end": 7, "page": 1, "x": 72, "y": 720, "width": 40, "height": 12 },
+          { "start": 8, "end": 12, "page": 1, "x": 118, "y": 720, "width": 34, "height": 12 },
+          { "start": 13, "end": 18, "page": 1, "x": 72, "y": 700, "width": 45, "height": 12 },
+          { "start": 19, "end": 20, "page": 1, "x": 121, "y": 700, "width": 8, "height": 12 },
+          { "start": 21, "end": 26, "page": 1, "x": 133, "y": 700, "width": 42, "height": 12 }
+        ]
+      },
+      "resourceId": "res-1",
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "motivation": "highlighting",
+      "span": { "start": 8, "end": 12, "exact": "beta" },
+      "annotation": {
+        "@context": "http://www.w3.org/ns/anno.jsonld",
+        "type": "Annotation",
+        "id": "DYs4fnZVhO9IPwCRFg2hG",
+        "motivation": "highlighting",
+        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+        "target": {
+          "type": "SpecificResource",
+          "source": "res-1",
+          "selector": [
+            { "type": "FragmentSelector", "conformsTo": "http://tools.ietf.org/rfc/rfc3778", "value": "page=1&viewrect=118,720,34,12" },
+            { "type": "TextQuoteSelector", "exact": "beta" }
+          ]
+        }
+      }
+    },
+    {
+      "why": "a PDF span over two lines with a character outside the plane inside it: the covered text runs from the least `start` to the greatest `end` of the items it overlaps, in code points",
+      "anchored": {
+        "text": "😀 alpha beta\ngamma 𝑥 delta",
+        "items": [
+          { "start": 0, "end": 1, "page": 1, "x": 60, "y": 720, "width": 10, "height": 12 },
+          { "start": 2, "end": 7, "page": 1, "x": 72, "y": 720, "width": 40, "height": 12 },
+          { "start": 8, "end": 12, "page": 1, "x": 118, "y": 720, "width": 34, "height": 12 },
+          { "start": 13, "end": 18, "page": 1, "x": 72, "y": 700, "width": 45, "height": 12 },
+          { "start": 19, "end": 20, "page": 1, "x": 121, "y": 700, "width": 8, "height": 12 },
+          { "start": 21, "end": 26, "page": 1, "x": 133, "y": 700, "width": 42, "height": 12 }
+        ]
+      },
+      "resourceId": "res-1",
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "motivation": "commenting",
+      "span": { "start": 8, "end": 20, "exact": "beta\ngamma 𝑥", "prefix": "alpha ", "suffix": " delta" },
+      "body": [
+        { "type": "TextualBody", "value": "a note", "purpose": "commenting", "format": "text/plain" }
+      ],
+      "annotation": {
+        "@context": "http://www.w3.org/ns/anno.jsonld",
+        "type": "Annotation",
+        "id": "Fe453bZz37I_t1ZATKfiq",
+        "motivation": "commenting",
+        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+        "target": {
+          "type": "SpecificResource",
+          "source": "res-1",
+          "selector": [
+            { "type": "FragmentSelector", "conformsTo": "http://tools.ietf.org/rfc/rfc3778", "value": "page=1&viewrect=118,720,34,12" },
+            { "type": "FragmentSelector", "conformsTo": "http://tools.ietf.org/rfc/rfc3778", "value": "page=1&viewrect=72,700,57,12" },
+            { "type": "TextQuoteSelector", "exact": "beta\ngamma 𝑥", "prefix": "alpha ", "suffix": " delta" }
+          ]
+        },
+        "body": [
+          { "type": "TextualBody", "value": "a note", "purpose": "commenting", "format": "text/plain" }
+        ]
+      }
     }
   ],
   "requests": [

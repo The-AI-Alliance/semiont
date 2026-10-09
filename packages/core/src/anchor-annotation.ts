@@ -87,14 +87,16 @@ export const POSITION_WEIGHT_MAX = 5;
  * renderer is about to display. Verbatim-only — see the module doc.
  *
  * `selectors.position` is given as offsets and the anchor is answered as
- * offsets, both in code points.
+ * offsets, both in code points. `offsets` is the content's own
+ * (`textOffsets(content)`): a renderer with several annotations of one
+ * content makes it once.
  */
 export function anchorAnnotation(
   content: string,
+  offsets: TextOffsets,
   selectors: AnchorSelectors,
 ): RenderedAnchor | null {
   const { position, quote } = selectors;
-  const offsets = textOffsets(content);
 
   // No quote selector. Position is the only signal; use it verbatim if
   // present and in-range, otherwise the annotation has no anchor.

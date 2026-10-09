@@ -42,28 +42,21 @@ export function estimateTokens(text: string): number {
 /**
  * One chunk, cut from `at`, plus where the next one starts.
  *
- * `at` and `next` are offsets: they count code points from the start of
- * `text`. An `at` the text does not have is a RangeError.
+ * `offsets` is the text's own (`textOffsets(text)`): a walk of one text makes
+ * it once and hands it to every cut. `at` and `next` are offsets: they count
+ * code points from the start of `text`. An `at` the text does not have is a
+ * RangeError.
  *
  * The boundary rule lives HERE and `chunkText` loops over it, so a caller that
  * must cut lazily — sizing chunk N+1 from what chunk N produced — shares the
  * exact boundary logic instead of restating it. From any `at` before the end
  * of the text `next` is further on, so a walk that stops at the end
- * terminates. The end is the text's length in code points
- * (`textOffsets(text).length`), which is less than its string's length when
- * it has a character outside the Basic Multilingual Plane; a cut made at the
- * end takes nothing and answers the end again.
+ * terminates. The end is the text's length in code points (`offsets.length`),
+ * which is less than its string's length when it has a character outside the
+ * Basic Multilingual Plane; a cut made at the end takes nothing and answers
+ * the end again.
  */
 export function cutChunk(
-  text: string,
-  at: number,
-  config: ChunkingConfig = DEFAULT_CHUNKING_CONFIG,
-): { piece: string; next: number } {
-  return cut(text, textOffsets(text), at, config);
-}
-
-/** `cutChunk`, given the text's conversions: a walk of one text makes them once. */
-function cut(
   text: string,
   offsets: TextOffsets,
   at: number,
@@ -132,7 +125,7 @@ export function chunkText(text: string, config: ChunkingConfig = DEFAULT_CHUNKIN
   let start = 0;
 
   while (start < offsets.length) {
-    const { piece, next } = cut(text, offsets, start, config);
+    const { piece, next } = cutChunk(text, offsets, start, config);
     chunks.push(piece);
     start = next;
   }

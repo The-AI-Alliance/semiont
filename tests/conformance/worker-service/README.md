@@ -79,9 +79,11 @@ is held to `JobClaimedResult`, and a Smelter's answer to
   often as it was made, in no order. A service does not wait for the gateway
   to take one before it goes on, so where they fall among the other messages
   is not fixed.
-- **Text** in every fixture is of the Basic Multilingual Plane, with
+- **Text** in most fixtures is of the Basic Multilingual Plane, with
   characters outside ASCII ahead of most spans: an offset counted in bytes
-  fails, and nothing depends on what an offset counts beyond that plane.
+  fails. The texts of `code-points` have characters outside that plane ahead
+  of their spans, inside them, and throughout the pieces of a long text: an
+  offset or a length counted in UTF-16 code units fails.
 
 ## The cases
 
@@ -97,6 +99,7 @@ is held to `JobClaimedResult`, and a Smelter's answer to
 | `tagging` | `tagging.test.ts` | D9, D12, D14, D15, D19, K7 |
 | `prompts` | `prompts.test.ts` | D2, D3, K1 to K4, K7 |
 | `chunks` | `chunks.test.ts` | D3 to D6, D13, D17 |
+| `code-points` | `code-points.test.ts` | D3 to D5, D9, D12, D13, D17 |
 | `pdf` | `pdf.test.ts` | J2, D10, D12, N1, N2, N4, N5 |
 | `declines` | `declines.test.ts` | J2, N1, N3, N6 to N8 |
 | `failures` | `failures.test.ts` | F1 to F5, F8 |

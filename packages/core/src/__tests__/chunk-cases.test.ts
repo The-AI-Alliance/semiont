@@ -6,6 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { DEFAULT_CHUNKING_CONFIG, chunkText, cutChunk, estimateTokens, type ChunkingConfig } from '../chunking';
+import { textOffsets } from '../text-offsets';
 
 interface Cut {
   at: number;
@@ -40,7 +41,7 @@ describe('the chunker (specs/src/text/chunk-cases.json)', () => {
       expect(estimateTokens(text), 'estimatedTokens').toBe(estimatedTokens);
       expect(chunkText(text, chunking), 'chunks').toStrictEqual(chunks);
       for (const { at, piece, next } of cuts) {
-        expect(cutChunk(text, at, chunking), `the cut at ${at}`).toStrictEqual({ piece, next });
+        expect(cutChunk(text, textOffsets(text), at, chunking), `the cut at ${at}`).toStrictEqual({ piece, next });
       }
     });
   }

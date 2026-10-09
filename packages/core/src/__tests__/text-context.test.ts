@@ -1,5 +1,6 @@
 import { describe, test, it, expect } from 'vitest';
 import { extractContext, reconcileSelector, type ReconciledSelector } from '../text-context';
+import { textOffsets } from '../text-offsets';
 
 describe('extractContext', () => {
   test('extracts prefix and suffix', () => {
@@ -38,7 +39,7 @@ describe('extractContext', () => {
 describe('reconcileSelector — unique-match', () => {
   it('anchors when exact appears once in content', () => {
     const content = 'The United States Congress passed the bill yesterday.';
-    const result = reconcileSelector(content, { exact: 'United States' });
+    const result = reconcileSelector(content, textOffsets(content), { exact: 'United States' });
     expect(result).toMatchObject<Partial<ReconciledSelector>>({
       start: 4,
       end: 17,
@@ -51,7 +52,7 @@ describe('reconcileSelector — unique-match', () => {
 
   it('does not carry LLM-emitted prefix/suffix into the result', () => {
     const content = 'The United States Congress passed the bill yesterday.';
-    const result = reconcileSelector(content, {
+    const result = reconcileSelector(content, textOffsets(content), {
       exact: 'United States',
       prefix: 'NOT THE SOURCE PREFIX',
       suffix: 'NOT THE SOURCE SUFFIX',
@@ -67,7 +68,7 @@ describe('reconcileSelector — context-recovered', () => {
     'Section A: the parties agree to terms. Section B: the parties agree to conditions. Section C: the parties agree to schedule.';
 
   it('uses LLM-emitted prefix to pick the correct occurrence', () => {
-    const result = reconcileSelector(content, {
+    const result = reconcileSelector(content, textOffsets(content), {
       exact: 'the parties agree',
       prefix: 'Section B: ',
     });
@@ -77,7 +78,7 @@ describe('reconcileSelector — context-recovered', () => {
   });
 
   it('uses LLM-emitted suffix to pick the correct occurrence', () => {
-    const result = reconcileSelector(content, {
+    const result = reconcileSelector(content, textOffsets(content), {
       exact: 'the parties agree',
       suffix: ' to schedule',
     });
@@ -106,7 +107,7 @@ describe('reconcileSelector — context-recovered', () => {
     const llmPrefix = before.slice(-64);
     expect(llmPrefix.length).toBe(64);
 
-    const result = reconcileSelector(content, { exact: place, prefix: llmPrefix });
+    const result = reconcileSelector(content, textOffsets(content), { exact: place, prefix: llmPrefix });
     const secondPos = content.indexOf(place, content.indexOf(place) + 1);
     expect(result?.start).toBe(secondPos);
     expect(result?.anchorMethod).toBe('context-recovered');
@@ -116,14 +117,14 @@ describe('reconcileSelector — context-recovered', () => {
 describe('reconcileSelector — first-of-many', () => {
   it('falls back to first occurrence when context does not disambiguate', () => {
     const content = 'foo foo foo';
-    const result = reconcileSelector(content, { exact: 'foo' });
+    const result = reconcileSelector(content, textOffsets(content), { exact: 'foo' });
     expect(result?.start).toBe(0);
     expect(result?.anchorMethod).toBe('first-of-many');
   });
 
   it('flags first-of-many when LLM context was provided but none matched', () => {
     const content = 'foo foo foo';
-    const result = reconcileSelector(content, {
+    const result = reconcileSelector(content, textOffsets(content), {
       exact: 'foo',
       prefix: 'PREFIX_NOT_IN_CONTENT',
       suffix: 'SUFFIX_NOT_IN_CONTENT',
@@ -136,7 +137,7 @@ describe('reconcileSelector — first-of-many', () => {
 describe('reconcileSelector — fuzzy-match', () => {
   it('recovers via case-insensitive search when verbatim fails', () => {
     const content = 'The United States Congress passed the bill yesterday.';
-    const result = reconcileSelector(content, { exact: 'united states' });
+    const result = reconcileSelector(content, textOffsets(content), { exact: 'united states' });
     expect(result).toMatchObject<Partial<ReconciledSelector>>({
       start: 4,
       end: 17,
@@ -155,7 +156,7 @@ describe('reconcileSelector — fuzzy-match', () => {
     // (smart quotes), not the LLM's. A char-by-char offset walk lands on 16.
     const exact = 'The question for decision to "any person" today';
     const content = `Kenison, C.J.\nThe question for decision to “any person” today and more.`;
-    const result = reconcileSelector(content, { exact });
+    const result = reconcileSelector(content, textOffsets(content), { exact });
     expect(result).not.toBeNull();
     expect(result!.start).toBe(14);
     expect(result!.anchorMethod).toBe('fuzzy-match');
@@ -169,14 +170,14 @@ describe('reconcileSelector — fuzzy-match', () => {
 describe('reconcileSelector — dropped (null)', () => {
   it('returns null when exact is not present anywhere', () => {
     const content = 'The quick brown fox jumps over the lazy dog.';
-    const result = reconcileSelector(content, {
+    const result = reconcileSelector(content, textOffsets(content), {
       exact: 'Nonexistent Text That Does Not Appear',
     });
     expect(result).toBeNull();
   });
 
   it('returns null for empty exact', () => {
-    expect(reconcileSelector('Some content', { exact: '' })).toBeNull();
+    expect(reconcileSelector('Some content', textOffsets('Some content'), { exact: '' })).toBeNull();
   });
 });
 
@@ -186,13 +187,13 @@ describe('reconcileSelector — no-overlap invariant on output', () => {
   const content = 'Kenison, C.J.\nThe question for decision by this appeal.';
 
   it('content.substring(start, end) === exact for unique-match', () => {
-    const result = reconcileSelector(content, { exact: 'The question for decision' });
+    const result = reconcileSelector(content, textOffsets(content), { exact: 'The question for decision' });
     expect(result).not.toBeNull();
     expect(content.substring(result!.start, result!.end)).toBe(result!.exact);
   });
 
   it('content.substring(start - prefix.length, start) === prefix when prefix present', () => {
-    const result = reconcileSelector(content, { exact: 'The question for decision' });
+    const result = reconcileSelector(content, textOffsets(content), { exact: 'The question for decision' });
     expect(result).not.toBeNull();
     if (result!.prefix !== undefined) {
       expect(content.substring(result!.start - result!.prefix.length, result!.start)).toBe(result!.prefix);
@@ -200,7 +201,7 @@ describe('reconcileSelector — no-overlap invariant on output', () => {
   });
 
   it('content.substring(end, end + suffix.length) === suffix when suffix present', () => {
-    const result = reconcileSelector(content, { exact: 'The question for decision' });
+    const result = reconcileSelector(content, textOffsets(content), { exact: 'The question for decision' });
     expect(result).not.toBeNull();
     if (result!.suffix !== undefined) {
       expect(content.substring(result!.end, result!.end + result!.suffix.length)).toBe(result!.suffix);
@@ -211,7 +212,7 @@ describe('reconcileSelector — no-overlap invariant on output', () => {
     const exact = 'target substring';
     const content = `prefix garbage ${exact} suffix garbage`;
     const truePos = content.indexOf(exact);
-    const result = reconcileSelector(content, { exact });
+    const result = reconcileSelector(content, textOffsets(content), { exact });
     expect(result).not.toBeNull();
     expect(result!.start).toBe(truePos);
     expect(content.substring(result!.start, result!.end)).toBe(result!.exact);
@@ -231,7 +232,7 @@ describe('reconcileSelector — LLM prefix/suffix never leak into output', () =>
     // overlap disappears.
     const exact = 'The question for decision';
     const content = `Kenison, C.J.\n${exact} by this appeal.`;
-    const result = reconcileSelector(content, {
+    const result = reconcileSelector(content, textOffsets(content), {
       exact,
       prefix: 'Kenison, C.J.\nTh', // overlapping with start of exact
       suffix: ' by this appeal.',
@@ -248,7 +249,7 @@ describe('reconcileSelector — LLM prefix/suffix never leak into output', () =>
 
 describe('reconcileSelector — charset handling', () => {
   const checkRoundTrip = (content: string, exact: string) => {
-    const r = reconcileSelector(content, { exact });
+    const r = reconcileSelector(content, textOffsets(content), { exact });
     expect(r).not.toBeNull();
     expect(content.substring(r!.start, r!.end)).toBe(r!.exact);
     return r!;
@@ -283,7 +284,7 @@ describe('reconcileSelector — charset handling', () => {
   test('anchors correctly in multibyte content even without offsets', () => {
     const content = 'Prelude with 世界 then the Person appears here';
     const truePersonStart = content.indexOf('Person');
-    const r = reconcileSelector(content, { exact: 'Person' });
+    const r = reconcileSelector(content, textOffsets(content), { exact: 'Person' });
     expect(r).not.toBeNull();
     expect(r!.start).toBe(truePersonStart);
     expect(r!.end).toBe(truePersonStart + 'Person'.length);
@@ -304,8 +305,8 @@ describe('reconcileSelector — empty hint ≡ absent hint', () => {
   it('multi-occurrence: empty-string hints fall back to first-of-many, exactly like absent hints', () => {
     const content = 'X foo Y foo Z foo W';
 
-    const absent = reconcileSelector(content, { exact: 'foo' });
-    const empties = reconcileSelector(content, { exact: 'foo', prefix: '', suffix: '' });
+    const absent = reconcileSelector(content, textOffsets(content), { exact: 'foo' });
+    const empties = reconcileSelector(content, textOffsets(content), { exact: 'foo', prefix: '', suffix: '' });
 
     expect(absent).not.toBeNull();
     expect(empties).toEqual(absent);
@@ -315,8 +316,8 @@ describe('reconcileSelector — empty hint ≡ absent hint', () => {
   it('unique occurrence: empty-string hints change nothing', () => {
     const content = 'Alice went to Paris.';
 
-    const absent = reconcileSelector(content, { exact: 'Paris' });
-    const empties = reconcileSelector(content, { exact: 'Paris', prefix: '', suffix: '' });
+    const absent = reconcileSelector(content, textOffsets(content), { exact: 'Paris' });
+    const empties = reconcileSelector(content, textOffsets(content), { exact: 'Paris', prefix: '', suffix: '' });
 
     expect(empties).toEqual(absent);
     expect(empties!.anchorMethod).toBe('unique-match');

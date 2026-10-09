@@ -16,7 +16,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
  * The text the short jobs are about: three paragraphs, 391 characters, every
  * one of the Basic Multilingual Plane. It has a dash and an accented letter
  * ahead of most of its spans, so an offset counted in bytes is not an offset
- * counted in characters; one name three times, so a span must be told from
+ * counted in code points; one name three times, so a span must be told from
  * its repeats; and a final line end, which a prompt does not carry.
  */
 export const TEXT =

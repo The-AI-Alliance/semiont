@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GEN_REQUIRED } from './fixtures/generation-fixtures';
-import { resourceId, entityType } from '@semiont/core';
+import { resourceId, entityType, textOffsets } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import type { components, TagSchema, GatheredContext, Logger, Annotation } from '@semiont/core';
 
@@ -86,7 +86,7 @@ const GENERATOR: Agent = {
 // resource + attribution context. Attribution shape is exercised through
 // this closure.
 const textBuild = (content: string): BuildAnnotation =>
-  (motivation, match, body) => buildTextAnnotation(content, RID, GENERATOR, motivation, match, body);
+  (motivation, match, body) => buildTextAnnotation(content, textOffsets(content), RID, GENERATOR, motivation, match, body);
 
 // Synthetic two-line text layer — "alpha beta" / "gamma delta" — for the PDF
 // path. `.text` is what a PDF processor detects over; `pdfBuild` anchors each
@@ -105,7 +105,7 @@ const PDF_LAYER: PdfTextLayer = {
   fields: [],
 };
 const pdfBuild = (layer: PdfTextLayer): BuildAnnotation =>
-  (motivation, match, body) => buildPdfAnnotation(layer, RID, GENERATOR, motivation, match, body);
+  (motivation, match, body) => buildPdfAnnotation(layer, textOffsets(layer.text), RID, GENERATOR, motivation, match, body);
 
 // The concurrency the fake provider advertises — detection reads it off the
 // client (a real provider hard-codes its own), so tests set it here.
@@ -162,7 +162,7 @@ describe('processHighlightJob', () => {
 
     const progress = vi.fn();
     const result = await collected((onChunkComplete) => processHighlightJob(
-      content,
+      content, textOffsets(content),
       makeInferenceClient(),
       { motivation: 'highlighting', resourceId: RID, density: 5 },
       textBuild(content),
@@ -197,7 +197,7 @@ describe('processHighlightJob', () => {
     ]));
 
     const result = await collected((onChunkComplete) => processHighlightJob(
-      content,
+      content, textOffsets(content),
       makeInferenceClient(),
       { motivation: 'highlighting', resourceId: RID, density: 5 },
       textBuild(content),
@@ -221,7 +221,7 @@ describe('processHighlightJob', () => {
     ]));
 
     const result = await collected((onChunkComplete) => processHighlightJob(
-      content,
+      content, textOffsets(content),
       makeInferenceClient(),
       { motivation: 'highlighting', resourceId: RID, density: 5 },
       pdfBuild(PDF_LAYER),
@@ -246,7 +246,7 @@ describe('processCommentJob', () => {
     ]));
 
     const result = await collected((onChunkComplete) => processCommentJob(
-      'passage here',
+      'passage here', textOffsets('passage here'),
       makeInferenceClient(),
       { motivation: 'commenting', resourceId: RID, density: 3 },
       textBuild('passage here'),
@@ -273,7 +273,7 @@ describe('processAssessmentJob', () => {
     ]));
 
     const result = await collected((onChunkComplete) => processAssessmentJob(
-      'claim made',
+      'claim made', textOffsets('claim made'),
       makeInferenceClient(),
       { motivation: 'assessing', resourceId: RID, density: 3 },
       textBuild('claim made'),
@@ -305,7 +305,7 @@ describe('processReferenceJob', () => {
     const progress = vi.fn();
     const committed: unknown[] = [];
     const outcome = await processReferenceJob(
-      'Paris and Berlin',
+      'Paris and Berlin', textOffsets('Paris and Berlin'),
       makeInferenceClient(),
       { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Location')] },
       textBuild('Paris and Berlin'),
@@ -340,7 +340,7 @@ describe('processReferenceJob', () => {
   it('runs multiple entity types and commits each exactly once', async () => {
     // Each type returns its own entity (verbatim in the content so anchoring holds).
     const content = 'Paris and Ada and Sony are here.';
-    vi.mocked(extractEntities).mockImplementation(async (_c, types, _cl, _i, _l, _sl, _act, _verdicts, _counts, _resume, onChunkResults) => {
+    vi.mocked(extractEntities).mockImplementation(async (_c, _o, types, _cl, _i, _l, _sl, _act, _verdicts, _counts, _resume, onChunkResults) => {
       const t = String(types[0]);
       const map: Record<string, any> = {
         Location: [{ exact: 'Paris', entityType: 'Location' }],
@@ -354,7 +354,7 @@ describe('processReferenceJob', () => {
 
     const units: string[] = [];
     const outcome = await processReferenceJob(
-      content, makeInferenceClient(),
+      content, textOffsets(content), makeInferenceClient(),
       { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Location'), entityType('Person'), entityType('Organization')] },
       textBuild(content), vi.fn(), LOGGER,
       async (unit) => { units.push(unit); },
@@ -378,7 +378,7 @@ describe('processReferenceJob', () => {
     // More types than the bound, so the cap must actually clamp.
     const many = Array.from({ length: TEST_MAX_CONCURRENCY + 4 }, (_, i) => entityType(`T${i}`));
     await processReferenceJob(
-      content, makeInferenceClient(),
+      content, textOffsets(content), makeInferenceClient(),
       { motivation: 'linking', resourceId: RID, entityTypes: many },
       textBuild(content), vi.fn(), LOGGER, async () => {},
     );
@@ -402,7 +402,7 @@ describe('processReferenceJob', () => {
     const ollamaShaped = { generateText: vi.fn(), maxConcurrency: 1 } as unknown as InferenceClient;
 
     await processReferenceJob(
-      content, ollamaShaped,
+      content, textOffsets(content), ollamaShaped,
       { motivation: 'linking', resourceId: RID, entityTypes: [entityType('A'), entityType('B'), entityType('C'), entityType('D')] },
       textBuild(content), vi.fn(), LOGGER, async () => {},
     );
@@ -413,7 +413,7 @@ describe('processReferenceJob', () => {
   it('reports each unit once even when types finish OUT OF ORDER', async () => {
     const content = 'Paris and Ada are here.';
     // Location resolves slowly, Person fast — completion order reversed.
-    vi.mocked(extractEntities).mockImplementation(async (_c, types, _cl, _i, _l, _sl, _act, _verdicts, _counts, _resume, onChunkResults) => {
+    vi.mocked(extractEntities).mockImplementation(async (_c, _o, types, _cl, _i, _l, _sl, _act, _verdicts, _counts, _resume, onChunkResults) => {
       const t = String(types[0]);
       const items = t === 'Location'
         ? (await new Promise((r) => setTimeout(r, 20)), [{ exact: 'Paris', entityType: 'Location' }])
@@ -424,7 +424,7 @@ describe('processReferenceJob', () => {
 
     const progress = vi.fn();
     const outcome = await processReferenceJob(
-      content, makeInferenceClient(),
+      content, textOffsets(content), makeInferenceClient(),
       { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Location'), entityType('Person')] },
       textBuild(content), progress, LOGGER, async () => {},
     );
@@ -446,7 +446,7 @@ describe('processReferenceJob', () => {
 
     const committed: unknown[] = [];
     const outcome = await processReferenceJob(
-      'good stuff',
+      'good stuff', textOffsets('good stuff'),
       makeInferenceClient(),
       { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Thing')] },
       textBuild('good stuff'),
@@ -468,7 +468,7 @@ describe('processReferenceJob', () => {
 
     const onUnitComplete = vi.fn(async () => {});
     const outcome = await processReferenceJob(
-      'content',
+      'content', textOffsets('content'),
       makeInferenceClient(),
       { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Location')] },
       textBuild('content'),
@@ -511,7 +511,7 @@ describe('processReferenceJob — unit completion gates on the commit', () => {
     const onProgress = vi.fn();
 
     await processReferenceJob(
-      'Paris and Berlin',
+      'Paris and Berlin', textOffsets('Paris and Berlin'),
       makeInferenceClient(),
       { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Location')] },
       textBuild('Paris and Berlin'),
@@ -538,7 +538,7 @@ describe('processReferenceJob — unit completion gates on the commit', () => {
     const onChunkComplete = vi.fn(async () => { throw new Error('mark:commit failed: sink down'); });
 
     await expect(processReferenceJob(
-      'Paris and Berlin',
+      'Paris and Berlin', textOffsets('Paris and Berlin'),
       makeInferenceClient(),
       { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Location')] },
       textBuild('Paris and Berlin'),
@@ -568,14 +568,14 @@ describe('processReferenceJob — unit completion gates on the commit', () => {
 
     // First pass fails at the chunk commit.
     await expect(processReferenceJob(
-      'Paris and Berlin', makeInferenceClient(),
+      'Paris and Berlin', textOffsets('Paris and Berlin'), makeInferenceClient(),
       { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Location')] },
       textBuild('Paris and Berlin'), vi.fn(), LOGGER, async () => {}, undefined, onChunkComplete,
     )).rejects.toThrow();
 
     // The retry — the whole unit again; the log dedupes by id.
     const outcome = await processReferenceJob(
-      'Paris and Berlin', makeInferenceClient(),
+      'Paris and Berlin', textOffsets('Paris and Berlin'), makeInferenceClient(),
       { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Location')] },
       textBuild('Paris and Berlin'), vi.fn(), LOGGER, async () => {}, undefined, onChunkComplete,
     );
@@ -599,7 +599,7 @@ describe('processTagJob', () => {
       ]));
 
     const result = await collected((onChunkComplete) => processTagJob(
-      'foo bar baz',
+      'foo bar baz', textOffsets('foo bar baz'),
       makeInferenceClient(),
       { motivation: 'tagging', resourceId: RID, schemaId: SCHEMA_1.id, schema: SCHEMA_1, categories: ['catA', 'catB'] },
       textBuild('foo bar baz'),
@@ -1012,11 +1012,11 @@ describe('annotation attribution composition', () => {
 
     const referenceCommitted: unknown[] = [];
     const sources = await Promise.all([
-      collected((onChunkComplete) => processCommentJob('x', makeInferenceClient(), { motivation: 'commenting', resourceId: RID, density: 1 }, textBuild('x'), vi.fn(), onChunkComplete)),
-      collected((onChunkComplete) => processAssessmentJob('x', makeInferenceClient(), { motivation: 'assessing', resourceId: RID, density: 1 }, textBuild('x'), vi.fn(), onChunkComplete)),
-      processReferenceJob('x', makeInferenceClient(), { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Person')] }, textBuild('x'), vi.fn(), LOGGER,
+      collected((onChunkComplete) => processCommentJob('x', textOffsets('x'), makeInferenceClient(), { motivation: 'commenting', resourceId: RID, density: 1 }, textBuild('x'), vi.fn(), onChunkComplete)),
+      collected((onChunkComplete) => processAssessmentJob('x', textOffsets('x'), makeInferenceClient(), { motivation: 'assessing', resourceId: RID, density: 1 }, textBuild('x'), vi.fn(), onChunkComplete)),
+      processReferenceJob('x', textOffsets('x'), makeInferenceClient(), { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Person')] }, textBuild('x'), vi.fn(), LOGGER,
         async () => {}, undefined, async (annotations) => { referenceCommitted.push(...annotations); }),
-      collected((onChunkComplete) => processTagJob('x', makeInferenceClient(), { motivation: 'tagging', resourceId: RID, schema: 'schema-1', categories: ['c'], sourceLanguage: 'en' } as never, textBuild('x'), vi.fn(), onChunkComplete)),
+      collected((onChunkComplete) => processTagJob('x', textOffsets('x'), makeInferenceClient(), { motivation: 'tagging', resourceId: RID, schema: 'schema-1', categories: ['c'], sourceLanguage: 'en' } as never, textBuild('x'), vi.fn(), onChunkComplete)),
     ]);
 
     const firstAnnotations = [
@@ -1057,7 +1057,7 @@ describe('locale threading', () => {
       ]));
 
       const result = await collected((onChunkComplete) => processCommentJob(
-        'passage here',
+        'passage here', textOffsets('passage here'),
         makeInferenceClient(),
         { motivation: 'commenting', resourceId: RID, language: 'fr' },
         textBuild('passage here'),
@@ -1074,7 +1074,7 @@ describe('locale threading', () => {
       ]));
 
       const result = await collected((onChunkComplete) => processAssessmentJob(
-        'claim made',
+        'claim made', textOffsets('claim made'),
         makeInferenceClient(),
         { motivation: 'assessing', resourceId: RID, language: 'fr' },
         textBuild('claim made'),
@@ -1092,7 +1092,7 @@ describe('locale threading', () => {
 
       const committed: unknown[] = [];
       await processReferenceJob(
-        'Paris',
+        'Paris', textOffsets('Paris'),
         makeInferenceClient(),
         { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Location')], language: 'fr' },
         textBuild('Paris'),
@@ -1116,7 +1116,7 @@ describe('locale threading', () => {
       ]));
 
       const result = await collected((onChunkComplete) => processTagJob(
-        'foo bar',
+        'foo bar', textOffsets('foo bar'),
         makeInferenceClient(),
         { motivation: 'tagging', resourceId: RID, schemaId: SCHEMA_1.id, schema: SCHEMA_1, categories: ['Issue'], language: 'de' },
         textBuild('foo bar'),
@@ -1136,7 +1136,7 @@ describe('locale threading', () => {
       ]));
 
       const result = await collected((onChunkComplete) => processCommentJob(
-        'passage here',
+        'passage here', textOffsets('passage here'),
         makeInferenceClient(),
         { motivation: 'commenting', resourceId: RID },
         textBuild('passage here'),
@@ -1153,14 +1153,16 @@ describe('locale threading', () => {
     it('forwards sourceLanguage to detectHighlights', async () => {
       vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(inOneChunk([]));
       const client = makeInferenceClient();
+      const offsets = textOffsets('content');
 
       await collected((onChunkComplete) => processHighlightJob(
-        'content', client,
+        'content', offsets, client,
         { motivation: 'highlighting', resourceId: RID, sourceLanguage: 'fr' },
         textBuild('content'), vi.fn(), onChunkComplete));
 
+      // The content's conversions are handed on as they were given, not made again.
       expect(AnnotationDetection.detectHighlights).toHaveBeenCalledWith(
-        'content', client, undefined, undefined, 'fr',
+        'content', offsets, client, undefined, undefined, 'fr',
         expect.any(Function), // chunk-boundary progress heartbeat
         undefined,            // resume cursor — absent on a first attempt
         expect.any(Function), // chunk-results emission
@@ -1170,14 +1172,15 @@ describe('locale threading', () => {
     it('forwards sourceLanguage and language to detectComments', async () => {
       vi.mocked(AnnotationDetection.detectComments).mockImplementation(inOneChunk([]));
       const client = makeInferenceClient();
+      const offsets = textOffsets('content');
 
       await collected((onChunkComplete) => processCommentJob(
-        'content', client,
+        'content', offsets, client,
         { motivation: 'commenting', resourceId: RID, language: 'de', sourceLanguage: 'fr' },
         textBuild('content'), vi.fn(), onChunkComplete));
 
       expect(AnnotationDetection.detectComments).toHaveBeenCalledWith(
-        'content', client, undefined, undefined, undefined, 'de', 'fr',
+        'content', offsets, client, undefined, undefined, undefined, 'de', 'fr',
         expect.any(Function), // chunk-boundary progress heartbeat
         undefined,            // resume cursor — absent on a first attempt
         expect.any(Function), // chunk-results emission
@@ -1187,14 +1190,15 @@ describe('locale threading', () => {
     it('forwards sourceLanguage and language to detectAssessments', async () => {
       vi.mocked(AnnotationDetection.detectAssessments).mockImplementation(inOneChunk([]));
       const client = makeInferenceClient();
+      const offsets = textOffsets('content');
 
       await collected((onChunkComplete) => processAssessmentJob(
-        'content', client,
+        'content', offsets, client,
         { motivation: 'assessing', resourceId: RID, language: 'es', sourceLanguage: 'pt' },
         textBuild('content'), vi.fn(), onChunkComplete));
 
       expect(AnnotationDetection.detectAssessments).toHaveBeenCalledWith(
-        'content', client, undefined, undefined, undefined, 'es', 'pt',
+        'content', offsets, client, undefined, undefined, undefined, 'es', 'pt',
         expect.any(Function), // chunk-boundary progress heartbeat
         undefined,            // resume cursor — absent on a first attempt
         expect.any(Function), // chunk-results emission
@@ -1204,16 +1208,17 @@ describe('locale threading', () => {
     it('forwards sourceLanguage to extractEntities for reference detection', async () => {
       vi.mocked(extractEntities).mockImplementation(inOneChunk([]));
       const client = makeInferenceClient();
+      const offsets = textOffsets('content');
 
       await processReferenceJob(
-        'content', client,
+        'content', offsets, client,
         { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Location')], sourceLanguage: 'fr' },
         textBuild('content'), vi.fn(),
         LOGGER, async () => {},
       );
 
       expect(extractEntities).toHaveBeenCalledWith(
-        'content', ['Location'], client, false, LOGGER, 'fr',
+        'content', offsets, ['Location'], client, false, LOGGER, 'fr',
         expect.any(Function), // chunk-boundary progress heartbeat
         expect.any(Function), // under-report verdicts
         expect.any(Function), // accepted-piece counts
@@ -1225,16 +1230,17 @@ describe('locale threading', () => {
     it('forwards sourceLanguage to detectTags', async () => {
       vi.mocked(AnnotationDetection.detectTags).mockImplementation(inOneChunk([]));
       const client = makeInferenceClient();
+      const offsets = textOffsets('content');
 
       await collected((onChunkComplete) => processTagJob(
-        'content', client,
+        'content', offsets, client,
         { motivation: 'tagging', resourceId: RID, schemaId: SCHEMA_1.id, schema: SCHEMA_1, categories: ['Issue'], sourceLanguage: 'fr' },
         textBuild('content'), vi.fn(), onChunkComplete));
 
       // The worker receives the full schema (resolved by the dispatcher),
       // not a schemaId.
       expect(AnnotationDetection.detectTags).toHaveBeenCalledWith(
-        'content', client, SCHEMA_1, 'Issue', 'fr',
+        'content', offsets, client, SCHEMA_1, 'Issue', 'fr',
         expect.any(Function), // chunk-boundary progress heartbeat
         undefined,            // resume cursor — absent on a first attempt
         expect.any(Function), // chunk-results emission
@@ -1244,12 +1250,13 @@ describe('locale threading', () => {
     it('passes undefined sourceLanguage when caller omits it', async () => {
       vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(inOneChunk([]));
       const client = makeInferenceClient();
+      const offsets = textOffsets('content');
 
       await collected((onChunkComplete) => processHighlightJob(
-        'content', client, { motivation: 'highlighting', resourceId: RID }, textBuild('content'), vi.fn(), onChunkComplete));
+        'content', offsets, client, { motivation: 'highlighting', resourceId: RID }, textBuild('content'), vi.fn(), onChunkComplete));
 
       expect(AnnotationDetection.detectHighlights).toHaveBeenCalledWith(
-        'content', client, undefined, undefined, undefined,
+        'content', offsets, client, undefined, undefined, undefined,
         expect.any(Function), // chunk-boundary progress heartbeat
         undefined,            // resume cursor — absent on a first attempt
         expect.any(Function), // chunk-results emission
@@ -1306,7 +1313,7 @@ describe('buildTextAnnotation invariant', () => {
 
     await expect(
       processHighlightJob(
-        'the quick brown fox',
+        'the quick brown fox', textOffsets('the quick brown fox'),
         makeInferenceClient(),
         { motivation: 'highlighting', resourceId: RID, density: 5 },
         textBuild('the quick brown fox'),
@@ -1325,7 +1332,7 @@ describe('buildTextAnnotation invariant', () => {
 
     await expect(
       processHighlightJob(
-        content,
+        content, textOffsets(content),
         makeInferenceClient(),
         { motivation: 'highlighting', resourceId: RID, density: 5 },
         textBuild(content),
@@ -1343,7 +1350,7 @@ describe('buildTextAnnotation invariant', () => {
 
     await expect(
       processHighlightJob(
-        content,
+        content, textOffsets(content),
         makeInferenceClient(),
         { motivation: 'highlighting', resourceId: RID, density: 5 },
         textBuild(content),
@@ -1360,7 +1367,7 @@ describe('buildTextAnnotation invariant', () => {
 
     await expect(
       processHighlightJob(
-        'short',
+        'short', textOffsets('short'),
         makeInferenceClient(),
         { motivation: 'highlighting', resourceId: RID, density: 5 },
         textBuild('short'),
@@ -1389,14 +1396,14 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
       const text = args[0] as string;
       const { MotivationParsers } = await import('../workers/detection/motivation-parsers');
       const fake = [{ exact: 'important' }];
-      const { matches: parsed } = MotivationParsers.parseHighlights(fake, text);
+      const { matches: parsed } = MotivationParsers.parseHighlights(fake, text, textOffsets(text));
       const cb = args[args.length - 1];
       if (typeof cb === 'function') await (cb as (x: unknown[]) => Promise<void>)(parsed as never);
       return parsed;
     }) as never);
 
     const result = await collected((onChunkComplete) => processHighlightJob(
-      content,
+      content, textOffsets(content),
       makeInferenceClient(),
       { motivation: 'highlighting', resourceId: RID, density: 5 },
       textBuild(content),
@@ -1426,14 +1433,14 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
         },
       ];
       // detectTags delivers only ANCHORED matches; the stand-in does too.
-      const { matches: parsed } = MotivationParsers.validateTagOffsets(MotivationParsers.parseTags(fake), text, 'Issue');
+      const { matches: parsed } = MotivationParsers.validateTagOffsets(MotivationParsers.parseTags(fake), text, textOffsets(text), 'Issue');
       const cb = args[args.length - 1];
       if (typeof cb === 'function') await (cb as (x: unknown[]) => Promise<void>)(parsed as never);
       return parsed;
     }) as never);
 
     const result = await collected((onChunkComplete) => processTagJob(
-      content,
+      content, textOffsets(content),
       makeInferenceClient(),
       { motivation: 'tagging', resourceId: RID, schemaId: SCHEMA_1.id, schema: SCHEMA_1, categories: ['Issue'] },
       textBuild(content),
@@ -1459,7 +1466,7 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
 
     const committed: unknown[] = [];
     const outcome = await processReferenceJob(
-      'Alice went to Paris.',
+      'Alice went to Paris.', textOffsets('Alice went to Paris.'),
       makeInferenceClient(),
       { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Person')] },
       textBuild('Alice went to Paris.'),
@@ -1495,14 +1502,14 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
       const fake = [
         { exact: 'foo', prefix: 'IRRELEVANT_PREFIX', suffix: 'IRRELEVANT_SUFFIX', comment: 'one of them' },
       ];
-      const { matches: parsed } = MotivationParsers.parseComments(fake, text);
+      const { matches: parsed } = MotivationParsers.parseComments(fake, text, textOffsets(text));
       const cb = args[args.length - 1];
       if (typeof cb === 'function') await (cb as (x: unknown[]) => Promise<void>)(parsed as never);
       return parsed;
     }) as never);
 
     const result = await collected((onChunkComplete) => processCommentJob(
-      content,
+      content, textOffsets(content),
       makeInferenceClient(),
       { motivation: 'commenting', resourceId: RID, density: 3 },
       textBuild(content),
@@ -1524,14 +1531,14 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
       const fake = [
         { exact: 'foo', prefix: 'Y ', suffix: ' Z', comment: 'middle one' },
       ];
-      const { matches: parsed } = MotivationParsers.parseComments(fake, text);
+      const { matches: parsed } = MotivationParsers.parseComments(fake, text, textOffsets(text));
       const cb = args[args.length - 1];
       if (typeof cb === 'function') await (cb as (x: unknown[]) => Promise<void>)(parsed as never);
       return parsed;
     }) as never);
 
     const result = await collected((onChunkComplete) => processCommentJob(
-      content,
+      content, textOffsets(content),
       makeInferenceClient(),
       { motivation: 'commenting', resourceId: RID, density: 3 },
       textBuild(content),
@@ -1567,7 +1574,7 @@ describe('annotation de-duplication', () => {
 
     const committed: unknown[] = [];
     const outcome = await processReferenceJob(
-      'A trip to Paris.',
+      'A trip to Paris.', textOffsets('A trip to Paris.'),
       makeInferenceClient(),
       { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Location')] },
       textBuild('A trip to Paris.'),
@@ -1594,7 +1601,7 @@ describe('annotation de-duplication', () => {
 
     const committed: unknown[] = [];
     const outcome = await processReferenceJob(
-      'The metal Mercury is dense.',
+      'The metal Mercury is dense.', textOffsets('The metal Mercury is dense.'),
       makeInferenceClient(),
       { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Planet'), entityType('Element')] },
       textBuild('The metal Mercury is dense.'),
@@ -1619,7 +1626,7 @@ describe('annotation de-duplication', () => {
     ]));
 
     const result = await collected((onChunkComplete) => processHighlightJob(
-      content,
+      content, textOffsets(content),
       makeInferenceClient(),
       { motivation: 'highlighting', resourceId: RID, density: 5 },
       textBuild(content),
@@ -1638,7 +1645,7 @@ describe('annotation de-duplication', () => {
     ]));
 
     const result = await collected((onChunkComplete) => processTagJob(
-      content,
+      content, textOffsets(content),
       makeInferenceClient(),
       { motivation: 'tagging', resourceId: RID, schemaId: SCHEMA_1.id, schema: SCHEMA_1, categories: ['Issue'] },
       textBuild(content),
@@ -1681,7 +1688,7 @@ describe('progress messages are codes, not prose', () => {
 
     const progress = vi.fn();
     await collected((onChunkComplete) => processHighlightJob(
-      content, makeInferenceClient(), { motivation: 'highlighting', resourceId: RID, density: 5 },
+      content, textOffsets(content), makeInferenceClient(), { motivation: 'highlighting', resourceId: RID, density: 5 },
       textBuild(content), progress, onChunkComplete));
 
     const messages = messagesFrom(progress);
@@ -1700,7 +1707,7 @@ describe('progress messages are codes, not prose', () => {
 
     const progress = vi.fn();
     await processReferenceJob(
-      'Paris', makeInferenceClient(),
+      'Paris', textOffsets('Paris'), makeInferenceClient(),
       { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Location')] },
       textBuild('Paris'), progress, LOGGER, async () => {},
     );
@@ -1720,7 +1727,7 @@ describe('progress messages are codes, not prose', () => {
 
     const progress = vi.fn();
     await collected((onChunkComplete) => processTagJob(
-      content, makeInferenceClient(),
+      content, textOffsets(content), makeInferenceClient(),
       { motivation: 'tagging', resourceId: RID, schemaId: SCHEMA_1.id, schema: SCHEMA_1, categories: ['Issue'] },
       textBuild(content), progress, onChunkComplete));
 
@@ -1747,9 +1754,9 @@ describe('progress messages are codes, not prose', () => {
     ]));
 
     const progress = vi.fn();
-    await collected((onChunkComplete) => processHighlightJob(content, makeInferenceClient(), { motivation: 'highlighting', resourceId: RID }, textBuild(content), progress, onChunkComplete));
-    await collected((onChunkComplete) => processCommentJob(content, makeInferenceClient(), { motivation: 'commenting', resourceId: RID }, textBuild(content), progress, onChunkComplete));
-    await collected((onChunkComplete) => processAssessmentJob(content, makeInferenceClient(), { motivation: 'assessing', resourceId: RID }, textBuild(content), progress, onChunkComplete));
+    await collected((onChunkComplete) => processHighlightJob(content, textOffsets(content), makeInferenceClient(), { motivation: 'highlighting', resourceId: RID }, textBuild(content), progress, onChunkComplete));
+    await collected((onChunkComplete) => processCommentJob(content, textOffsets(content), makeInferenceClient(), { motivation: 'commenting', resourceId: RID }, textBuild(content), progress, onChunkComplete));
+    await collected((onChunkComplete) => processAssessmentJob(content, textOffsets(content), makeInferenceClient(), { motivation: 'assessing', resourceId: RID }, textBuild(content), progress, onChunkComplete));
 
     const messages = messagesFrom(progress);
     expect(messages.length).toBeGreaterThan(6);
@@ -1778,7 +1785,7 @@ describe('request parameters ride every event', () => {
 
     const progress = vi.fn();
     await collected((onChunkComplete) => processCommentJob(
-      content, makeInferenceClient(),
+      content, textOffsets(content), makeInferenceClient(),
       { motivation: 'commenting', resourceId: RID, instructions: 'Focus on methodology', tone: 'scholarly', density: 5 },
       textBuild(content), progress, onChunkComplete));
 
@@ -1803,7 +1810,7 @@ describe('request parameters ride every event', () => {
 
     const progress = vi.fn();
     await collected((onChunkComplete) => processHighlightJob(
-      content, makeInferenceClient(),
+      content, textOffsets(content), makeInferenceClient(),
       { motivation: 'highlighting', resourceId: RID, instructions: '  Mark the Führer-era citations  ' },
       textBuild(content), progress, onChunkComplete));
 
@@ -1821,7 +1828,7 @@ describe('request parameters ride every event', () => {
 
     const progress = vi.fn();
     await collected((onChunkComplete) => processAssessmentJob(
-      content, makeInferenceClient(), { motivation: 'assessing', resourceId: RID }, textBuild(content), progress, onChunkComplete));
+      content, textOffsets(content), makeInferenceClient(), { motivation: 'assessing', resourceId: RID }, textBuild(content), progress, onChunkComplete));
 
     for (const extra of extrasFrom(progress)) {
       expect(extra?.requestParams).toBeUndefined();
@@ -1835,7 +1842,7 @@ describe('request parameters ride every event', () => {
 
     const progress = vi.fn();
     await processReferenceJob(
-      'Paris', makeInferenceClient(),
+      'Paris', textOffsets('Paris'), makeInferenceClient(),
       { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Location')] },
       textBuild('Paris'), progress, LOGGER, async () => {},
     );
@@ -1865,7 +1872,7 @@ describe('what is in flight is reported one way', () => {
 
     const progress = vi.fn();
     await processReferenceJob(
-      'Paris', makeInferenceClient(),
+      'Paris', textOffsets('Paris'), makeInferenceClient(),
       { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Location'), entityType('Person')] },
       textBuild('Paris'), progress, LOGGER, async () => {},
     );
@@ -1889,7 +1896,7 @@ describe('what is in flight is reported one way', () => {
 
     const progress = vi.fn();
     await collected((onChunkComplete) => processTagJob(
-      content, makeInferenceClient(),
+      content, textOffsets(content), makeInferenceClient(),
       { motivation: 'tagging', resourceId: RID, schemaId: SCHEMA_1.id, schema: SCHEMA_1, categories: ['Issue', 'Holding'] },
       textBuild(content), progress, onChunkComplete));
 
@@ -1909,7 +1916,7 @@ describe('what is in flight is reported one way', () => {
     ]));
     const progress = vi.fn();
     await processReferenceJob(
-      'Paris', makeInferenceClient(),
+      'Paris', textOffsets('Paris'), makeInferenceClient(),
       { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Location')] },
       textBuild('Paris'), progress, LOGGER, async () => {},
     );
@@ -1930,7 +1937,7 @@ describe('processReferenceJob — unit commits', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('checkpoints each completed unit — including empty ones — and stops at the failing unit', async () => {
-    vi.mocked(extractEntities).mockImplementation(async (_c, types, _cl, _i, _l, _sl, _act, _verdicts, _counts, _resume, onChunkResults) => {
+    vi.mocked(extractEntities).mockImplementation(async (_c, _o, types, _cl, _i, _l, _sl, _act, _verdicts, _counts, _resume, onChunkResults) => {
       const t = String(types[0]);
       if (t === 'Person') {
         const items = [{ exact: 'Greeley', start: 0, end: 7, entityType: 'Person' }];
@@ -1948,7 +1955,7 @@ describe('processReferenceJob — unit commits', () => {
 
     await expect(
       processReferenceJob(
-        'Greeley went west',
+        'Greeley went west', textOffsets('Greeley went west'),
         makeInferenceClient(),
         { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Person'), entityType('Date'), entityType('Location')] },
         textBuild('Greeley went west'),
@@ -1976,7 +1983,7 @@ describe('processReferenceJob — unit commits', () => {
 
     await expect(
       processReferenceJob(
-        'Greeley went west',
+        'Greeley went west', textOffsets('Greeley went west'),
         makeInferenceClient(),
         { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Person')] },
         textBuild('Greeley went west'),
@@ -2000,7 +2007,7 @@ describe('processReferenceJob — unit commits', () => {
 
     const seen: unknown[][] = [];
     const outcome = await processReferenceJob(
-      'Greeley went west',
+      'Greeley went west', textOffsets('Greeley went west'),
       makeInferenceClient(),
       { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Person')] },
       textBuild('Greeley went west'),
@@ -2031,7 +2038,7 @@ describe('chunk-grain emission — processors', () => {
   it('processHighlightJob commits each chunk as it lands, not one batch at the end', async () => {
     // Two chunks: the mocked loop hands each to the processor in turn.
     vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(
-      async (_c, _cl, _i, _d, _sl, _onActivity, _resume, onChunkResults) => {
+      async (_c, _o, _cl, _i, _d, _sl, _onActivity, _resume, onChunkResults) => {
         await onChunkResults!([at('important')] as never, { next: 1_000, size: 250 }, 0);
         await onChunkResults!([at('critical')] as never, { next: 2_000, size: 250 }, 0);
         return [at('important'), at('critical')] as never;
@@ -2040,7 +2047,7 @@ describe('chunk-grain emission — processors', () => {
     const committed: string[][] = [];
 
     await processHighlightJob(
-      content, makeInferenceClient(), { motivation: 'highlighting', resourceId: RID, density: 5 },
+      content, textOffsets(content), makeInferenceClient(), { motivation: 'highlighting', resourceId: RID, density: 5 },
       textBuild(content), vi.fn(),
       async (anns) => { committed.push(anns.map((a: any) => a.target.selector[1].exact)); },
     );
@@ -2050,7 +2057,7 @@ describe('chunk-grain emission — processors', () => {
 
   it('an overlap duplicate spanning two chunks is committed ONCE', async () => {
     vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(
-      async (_c, _cl, _i, _d, _sl, _onActivity, _resume, onChunkResults) => {
+      async (_c, _o, _cl, _i, _d, _sl, _onActivity, _resume, onChunkResults) => {
         await onChunkResults!([at('important')] as never, { next: 1_000, size: 250 }, 0);
         await onChunkResults!([at('important'), at('critical')] as never, { next: 2_000, size: 250 }, 0);
         return [] as never;
@@ -2059,7 +2066,7 @@ describe('chunk-grain emission — processors', () => {
     const committed: string[] = [];
 
     const { result } = await processHighlightJob(
-      content, makeInferenceClient(), { motivation: 'highlighting', resourceId: RID, density: 5 },
+      content, textOffsets(content), makeInferenceClient(), { motivation: 'highlighting', resourceId: RID, density: 5 },
       textBuild(content), vi.fn(),
       async (anns) => { committed.push(...anns.map((a: any) => a.target.selector[1].exact)); },
     );
@@ -2071,7 +2078,7 @@ describe('chunk-grain emission — processors', () => {
 
   it('processReferenceJob emits per chunk; onUnitComplete is the checkpoint, carrying no annotations', async () => {
     vi.mocked(extractEntities).mockImplementation(
-      async (_c, _t, _cl, _i, _l, _sl, _onActivity, _verdicts, _counts, _resume, onChunkResults) => {
+      async (_c, _o, _t, _cl, _i, _l, _sl, _onActivity, _verdicts, _counts, _resume, onChunkResults) => {
         await onChunkResults!([{ exact: 'important', entityType: 'Person' }] as never, { next: 1_000, size: 250 });
         await onChunkResults!([{ exact: 'critical', entityType: 'Person' }] as never, { next: 2_000, size: 250 });
         return [] as never;
@@ -2081,7 +2088,7 @@ describe('chunk-grain emission — processors', () => {
     const checkpoints: unknown[][] = [];
 
     await processReferenceJob(
-      content, makeInferenceClient(), { motivation: 'linking', resourceId: RID, entityTypes: ['Person'] } as never,
+      content, textOffsets(content), makeInferenceClient(), { motivation: 'linking', resourceId: RID, entityTypes: ['Person'] } as never,
       textBuild(content), vi.fn(), LOGGER,
       (...args: unknown[]) => { checkpoints.push(args); return Promise.resolve(); },
       undefined,
@@ -2104,8 +2111,8 @@ describe('under-report verdicts on the terminal surface', () => {
 
   it('a floor-accepted piece surfaces on the unit entry and the result aggregate', async () => {
     vi.mocked(extractEntities).mockImplementation(async (...args: unknown[]) => {
-      const onUnderReport = args[7] as (v: unknown) => void;
-      const onChunkResults = args[10] as (i: unknown[]) => Promise<void>;
+      const onUnderReport = args[8] as (v: unknown) => void;
+      const onChunkResults = args[11] as (i: unknown[]) => Promise<void>;
       onUnderReport({ found: 1, counted: 4, pieceChars: 530 });
       await onChunkResults([{ exact: 'Paris', entityType: 'Location' }]);
       return [] as never;
@@ -2113,7 +2120,7 @@ describe('under-report verdicts on the terminal surface', () => {
     const progress = vi.fn();
 
     const outcome = await processReferenceJob(
-      content, makeInferenceClient(),
+      content, textOffsets(content), makeInferenceClient(),
       { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Location')] },
       textBuild(content), progress, LOGGER, async () => {}, undefined, async () => {},
     );
@@ -2139,7 +2146,7 @@ describe('under-report verdicts on the terminal surface', () => {
   describe('resumed tallies', () => {
     it('seeds the unit counters from the checkpoint so the result covers the whole document', async () => {
       vi.mocked(extractEntities).mockImplementation((async (...args: unknown[]) => {
-        await (args[10] as (i: unknown[], c: unknown) => Promise<void>)(
+        await (args[11] as (i: unknown[], c: unknown) => Promise<void>)(
           [{ exact: 'Paris', entityType: 'Location' }],
           { next: 9_000, size: 250, found: 0, emitted: 0, errors: 0 },
         );
@@ -2147,7 +2154,7 @@ describe('under-report verdicts on the terminal surface', () => {
       }) as never);
 
       const outcome = await processReferenceJob(
-        content, makeInferenceClient(),
+        content, textOffsets(content), makeInferenceClient(),
         { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Location')] },
         textBuild(content), vi.fn(), LOGGER, async () => {}, undefined, async () => {},
         // An earlier attempt already found 20 and committed 18 for this unit.
@@ -2161,7 +2168,7 @@ describe('under-report verdicts on the terminal surface', () => {
 
     it('starts at zero for a unit with no checkpoint — a first attempt is unchanged', async () => {
       vi.mocked(extractEntities).mockImplementation((async (...args: unknown[]) => {
-        await (args[10] as (i: unknown[], c: unknown) => Promise<void>)(
+        await (args[11] as (i: unknown[], c: unknown) => Promise<void>)(
           [{ exact: 'Paris', entityType: 'Location' }],
           { next: 9_000, size: 250, found: 0, emitted: 0, errors: 0 },
         );
@@ -2169,7 +2176,7 @@ describe('under-report verdicts on the terminal surface', () => {
       }) as never);
 
       const outcome = await processReferenceJob(
-        content, makeInferenceClient(),
+        content, textOffsets(content), makeInferenceClient(),
         { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Location')] },
         textBuild(content), vi.fn(), LOGGER, async () => {}, undefined, async () => {});
 
@@ -2183,7 +2190,7 @@ describe('under-report verdicts on the terminal surface', () => {
       // share would reset the count every time the job died.
       const seen: unknown[] = [];
       vi.mocked(extractEntities).mockImplementation((async (...args: unknown[]) => {
-        await (args[10] as (i: unknown[], c: unknown) => Promise<void>)(
+        await (args[11] as (i: unknown[], c: unknown) => Promise<void>)(
           [{ exact: 'Paris', entityType: 'Location' }],
           { next: 9_000, size: 250, found: 0, emitted: 0, errors: 0 },
         );
@@ -2191,7 +2198,7 @@ describe('under-report verdicts on the terminal surface', () => {
       }) as never);
 
       await processReferenceJob(
-        content, makeInferenceClient(),
+        content, textOffsets(content), makeInferenceClient(),
         { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Location')] },
         textBuild(content), vi.fn(), LOGGER, async () => {}, undefined,
         async (_a, checkpoint) => { seen.push(checkpoint.cursor); },
@@ -2215,14 +2222,14 @@ describe('under-report verdicts on the terminal surface', () => {
     it('processHighlightJob hands its motivation\'s cursor to the detector', async () => {
       let seen: unknown;
       vi.mocked(AnnotationDetection.detectHighlights).mockImplementation((async (...args: unknown[]) => {
-        seen = args[6];
+        seen = args[7];
         const cb = args[args.length - 1];
         if (typeof cb === 'function') await (cb as (m: unknown[], c: unknown) => Promise<void>)([], { next: 1, size: 1 });
         return [] as never;
       }) as never);
 
       await collected((onChunkComplete) => processHighlightJob(
-        'content', makeInferenceClient(), { motivation: 'highlighting', resourceId: RID },
+        'content', textOffsets('content'), makeInferenceClient(), { motivation: 'highlighting', resourceId: RID },
         textBuild('content'), vi.fn(), onChunkComplete,
         { highlighting: { next: 8_000, size: 400, found: 0, emitted: 0, errors: 0 } },
       ));
@@ -2236,13 +2243,13 @@ describe('under-report verdicts on the terminal surface', () => {
       // characters into the wrong place, with no error anywhere.
       const byType = new Map<string, unknown>();
       vi.mocked(extractEntities).mockImplementation((async (...args: unknown[]) => {
-        byType.set(String((args[1] as string[])[0]), args[9]);
-        await (args[10] as (i: unknown[], c: unknown) => Promise<void>)([], { next: 1, size: 1 });
+        byType.set(String((args[2] as string[])[0]), args[10]);
+        await (args[11] as (i: unknown[], c: unknown) => Promise<void>)([], { next: 1, size: 1 });
         return [] as never;
       }) as never);
 
       await processReferenceJob(
-        'content', makeInferenceClient(),
+        'content', textOffsets('content'), makeInferenceClient(),
         { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Person'), entityType('Location')] },
         textBuild('content'), vi.fn(), LOGGER, async () => {}, undefined, async () => {},
         { Person: { next: 12_400, size: 560, found: 0, emitted: 0, errors: 0 }, Location: { next: 300, size: 900, found: 0, emitted: 0, errors: 0 } },
@@ -2257,14 +2264,14 @@ describe('under-report verdicts on the terminal surface', () => {
       // so a single 'tagging' key would give every category one shared cursor.
       const byCategory = new Map<string, unknown>();
       vi.mocked(AnnotationDetection.detectTags).mockImplementation((async (...args: unknown[]) => {
-        byCategory.set(String(args[3]), args[6]);
+        byCategory.set(String(args[4]), args[7]);
         const cb = args[args.length - 1];
         if (typeof cb === 'function') await (cb as (m: unknown[], c: unknown) => Promise<void>)([], { next: 1, size: 1 });
         return [] as never;
       }) as never);
 
       await processTagJob(
-        'content', makeInferenceClient(),
+        'content', textOffsets('content'), makeInferenceClient(),
         { motivation: 'tagging', resourceId: RID, schemaId: SCHEMA_1.id, schema: SCHEMA_1, categories: ['catA', 'catB'] } as never,
         textBuild('content'), vi.fn(), async () => {},
         { catA: { next: 4_000, size: 300, found: 0, emitted: 0, errors: 0 }, catB: { next: 9_000, size: 700, found: 0, emitted: 0, errors: 0 } },
@@ -2277,16 +2284,16 @@ describe('under-report verdicts on the terminal surface', () => {
 
   it('two flagged pieces in one unit fold into one summary', async () => {
     vi.mocked(extractEntities).mockImplementation(async (...args: unknown[]) => {
-      const onUnderReport = args[7] as (v: unknown) => void;
+      const onUnderReport = args[8] as (v: unknown) => void;
       onUnderReport({ found: 1, counted: 4, pieceChars: 530 });
       onUnderReport({ found: 2, counted: 9, pieceChars: 610 });
-      await (args[10] as (i: unknown[]) => Promise<void>)([]);
+      await (args[11] as (i: unknown[]) => Promise<void>)([]);
       return [] as never;
     });
     const progress = vi.fn();
 
     const outcome = await processReferenceJob(
-      content, makeInferenceClient(),
+      content, textOffsets(content), makeInferenceClient(),
       { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Location')] },
       textBuild(content), progress, LOGGER, async () => {}, undefined, async () => {},
     );
@@ -2303,7 +2310,7 @@ describe('under-report verdicts on the terminal surface', () => {
     const progress = vi.fn();
 
     const outcome = await processReferenceJob(
-      content, makeInferenceClient(),
+      content, textOffsets(content), makeInferenceClient(),
       { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Location')] },
       textBuild(content), progress, LOGGER, async () => {}, undefined, async () => {},
     );
@@ -2317,7 +2324,7 @@ describe('under-report verdicts on the terminal surface', () => {
     // No verifier runs there; the vocabulary must not leak into their results.
     vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(inOneChunk([]));
     const { result } = await collected((cb) => processHighlightJob(
-      content, makeInferenceClient(), { motivation: 'highlighting', resourceId: RID, density: 5 },
+      content, textOffsets(content), makeInferenceClient(), { motivation: 'highlighting', resourceId: RID, density: 5 },
       textBuild(content), vi.fn(), cb));
     expect('underReportedPieces' in (result as unknown as Record<string, unknown>)).toBe(false);
   });
@@ -2333,8 +2340,8 @@ describe('entitiesExpected on the progress surface', () => {
 
   it('accumulates count-verifier expectations across chunks and units', async () => {
     vi.mocked(extractEntities).mockImplementation(async (...args: unknown[]) => {
-      const onCounted = args[8] as (c: number) => void;
-      const onChunkResults = args[10] as (i: unknown[]) => Promise<void>;
+      const onCounted = args[9] as (c: number) => void;
+      const onChunkResults = args[11] as (i: unknown[]) => Promise<void>;
       onCounted(4);
       await onChunkResults([{ exact: 'Paris', entityType: 'Location' }]);
       onCounted(3);
@@ -2344,7 +2351,7 @@ describe('entitiesExpected on the progress surface', () => {
     const progress = vi.fn();
 
     await processReferenceJob(
-      content, makeInferenceClient(),
+      content, textOffsets(content), makeInferenceClient(),
       { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Location')] },
       textBuild(content), progress, LOGGER, async () => {}, undefined, async () => {},
     );
@@ -2363,8 +2370,8 @@ describe('entitiesExpected on the progress surface', () => {
     // single-type run reads "0 of ~37" throughout, annotations painting all
     // the while. Found and emitted must move as chunks COMMIT.
     vi.mocked(extractEntities).mockImplementation(async (...args: unknown[]) => {
-      const onCounted = args[8] as (c: number) => void;
-      const onChunkResults = args[10] as (i: unknown[]) => Promise<void>;
+      const onCounted = args[9] as (c: number) => void;
+      const onChunkResults = args[11] as (i: unknown[]) => Promise<void>;
       onCounted(4);
       await onChunkResults([{ exact: 'Paris', entityType: 'Location' }]);
       onCounted(3);
@@ -2374,7 +2381,7 @@ describe('entitiesExpected on the progress surface', () => {
     const progress = vi.fn();
 
     await processReferenceJob(
-      content, makeInferenceClient(),
+      content, textOffsets(content), makeInferenceClient(),
       { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Location')] },
       textBuild(content), progress, LOGGER, async () => {}, undefined, async () => {},
     );
@@ -2393,7 +2400,7 @@ describe('entitiesExpected on the progress surface', () => {
     const progress = vi.fn();
 
     await processReferenceJob(
-      content, makeInferenceClient(),
+      content, textOffsets(content), makeInferenceClient(),
       { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Location')] },
       textBuild(content), progress, LOGGER, async () => {}, undefined, async () => {},
     );
@@ -2422,7 +2429,7 @@ describe('re-running a unit emits the SAME annotation ids', () => {
       ent('Ada Lovelace'), ent('Charles Babbage'),
     ] as never));
     await processReferenceJob(
-      content, makeInferenceClient(),
+      content, textOffsets(content), makeInferenceClient(),
       { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Person')] },
       textBuild(content), vi.fn(), LOGGER, async () => {}, undefined,
       async (anns: any[]) => { committed.push(...anns.map((a) => String(a.id))); },
@@ -2446,7 +2453,7 @@ describe('re-running a unit emits the SAME annotation ids', () => {
       const got: string[] = [];
       vi.mocked(extractEntities).mockImplementation(inOneChunk([ent('Ada Lovelace')] as never));
       await processReferenceJob(
-        content, makeInferenceClient(),
+        content, textOffsets(content), makeInferenceClient(),
         { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Person')], ...(language ? { language } : {}) },
         textBuild(content), vi.fn(), LOGGER, async () => {}, undefined,
         async (anns: any[]) => { got.push(...anns.map((a) => String(a.id))); },
@@ -2490,22 +2497,22 @@ describe('found, persisted and errors mean one thing in every path', () => {
     {
       name: 'highlighting',
       arm: (kept: string[], dropped: number) => vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(inChunk(kept.map(span), dropped)),
-      job: (onChunk: never, resume?: never) => processHighlightJob(content, makeInferenceClient(), { motivation: 'highlighting', resourceId: RID }, textBuild(content), vi.fn(), onChunk, resume),
+      job: (onChunk: never, resume?: never) => processHighlightJob(content, textOffsets(content), makeInferenceClient(), { motivation: 'highlighting', resourceId: RID }, textBuild(content), vi.fn(), onChunk, resume),
     },
     {
       name: 'commenting',
       arm: (kept: string[], dropped: number) => vi.mocked(AnnotationDetection.detectComments).mockImplementation(inChunk(kept.map((e) => ({ ...span(e), comment: `on ${e}` })), dropped)),
-      job: (onChunk: never, resume?: never) => processCommentJob(content, makeInferenceClient(), { motivation: 'commenting', resourceId: RID }, textBuild(content), vi.fn(), onChunk, resume),
+      job: (onChunk: never, resume?: never) => processCommentJob(content, textOffsets(content), makeInferenceClient(), { motivation: 'commenting', resourceId: RID }, textBuild(content), vi.fn(), onChunk, resume),
     },
     {
       name: 'assessing',
       arm: (kept: string[], dropped: number) => vi.mocked(AnnotationDetection.detectAssessments).mockImplementation(inChunk(kept.map((e) => ({ ...span(e), assessment: `of ${e}` })), dropped)),
-      job: (onChunk: never, resume?: never) => processAssessmentJob(content, makeInferenceClient(), { motivation: 'assessing', resourceId: RID }, textBuild(content), vi.fn(), onChunk, resume),
+      job: (onChunk: never, resume?: never) => processAssessmentJob(content, textOffsets(content), makeInferenceClient(), { motivation: 'assessing', resourceId: RID }, textBuild(content), vi.fn(), onChunk, resume),
     },
     {
       name: 'catA',
       arm: (kept: string[], dropped: number) => vi.mocked(AnnotationDetection.detectTags).mockImplementation(inChunk(kept.map((e) => ({ ...span(e), category: 'catA' })), dropped)),
-      job: (onChunk: never, resume?: never) => processTagJob(content, makeInferenceClient(), { motivation: 'tagging', resourceId: RID, schemaId: SCHEMA_1.id, schema: SCHEMA_1, categories: ['catA'] }, textBuild(content), vi.fn(), onChunk, resume),
+      job: (onChunk: never, resume?: never) => processTagJob(content, textOffsets(content), makeInferenceClient(), { motivation: 'tagging', resourceId: RID, schemaId: SCHEMA_1.id, schema: SCHEMA_1, categories: ['catA'] }, textBuild(content), vi.fn(), onChunk, resume),
     },
   ] as const;
 
@@ -2537,7 +2544,7 @@ describe('found, persisted and errors mean one thing in every path', () => {
     vi.mocked(extractEntities).mockImplementation(inChunk([ent('alpha'), ent('not in the text'), ent('gamma')], 0));
     const checkpoints: Checkpoint[] = [];
     const first = await processReferenceJob(
-      content, makeInferenceClient(), { motivation: 'linking', resourceId: RID, entityTypes: ['Person'] },
+      content, textOffsets(content), makeInferenceClient(), { motivation: 'linking', resourceId: RID, entityTypes: ['Person'] },
       textBuild(content), vi.fn(), LOGGER, async () => {}, undefined,
       async (_batch, checkpoint) => { checkpoints.push(checkpoint as Checkpoint); },
     );
@@ -2546,7 +2553,7 @@ describe('found, persisted and errors mean one thing in every path', () => {
 
     vi.mocked(extractEntities).mockImplementation(inChunk([ent('delta'), ent('nor this')], 0));
     const resumed = await processReferenceJob(
-      content, makeInferenceClient(), { motivation: 'linking', resourceId: RID, entityTypes: ['Person'] },
+      content, textOffsets(content), makeInferenceClient(), { motivation: 'linking', resourceId: RID, entityTypes: ['Person'] },
       textBuild(content), vi.fn(), LOGGER, async () => {}, undefined, async () => {},
       { Person: { next: 11, size: 500, found: 3, emitted: 2, errors: 1 } },
     );

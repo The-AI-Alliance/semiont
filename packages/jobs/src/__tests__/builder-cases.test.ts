@@ -7,7 +7,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { assembleAnnotation, resourceId, type AnchoredText, type Annotation, type components } from '@semiont/core';
+import { assembleAnnotation, resourceId, type AnchoredText, type Annotation, type components, textOffsets } from '@semiont/core';
 import { buildPdfAnnotation, buildTextAnnotation, type Motivation, type SpanMatch } from '../processors';
 
 type Agent = components['schemas']['Agent'];
@@ -79,8 +79,8 @@ describe('the annotation a worker commits (specs/src/annotations/builder-cases.j
     it(built.why, () => {
       const build = () =>
         'text' in built
-          ? buildTextAnnotation(built.text, resourceId(built.resourceId), built.generator, built.motivation, built.span, built.body)
-          : buildPdfAnnotation(built.anchored, resourceId(built.resourceId), built.generator, built.motivation, built.span, built.body);
+          ? buildTextAnnotation(built.text, textOffsets(built.text), resourceId(built.resourceId), built.generator, built.motivation, built.span, built.body)
+          : buildPdfAnnotation(built.anchored, textOffsets(built.anchored.text), resourceId(built.resourceId), built.generator, built.motivation, built.span, built.body);
 
       if ('refused' in built) {
         expect(build).toThrow(refusal(built.refused));

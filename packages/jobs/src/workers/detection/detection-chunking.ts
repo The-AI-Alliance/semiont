@@ -23,7 +23,7 @@
  *   []. Large documents chunk; that is the fix, not a cost.
  */
 
-import { chunkText, cutChunk, type ChunkingConfig, type Logger, type UnitCursor } from '@semiont/core';
+import { chunkText, cutChunk, textOffsets, type ChunkingConfig, type Logger, type TextOffsets, type UnitCursor } from '@semiont/core';
 import { StructuredReadError, type InferenceLimits, type TokenUsage } from '@semiont/inference';
 import { recordDetectionCall } from '@semiont/observability';
 import { DeterministicJobError } from '../../failure-class';
@@ -49,18 +49,18 @@ export function assertNotTruncated(response: { stopReason: string }, label: stri
 }
 
 /**
- * `reconcileSelector` disambiguates a span with up to 64 chars of prefix and
- * 64 of suffix (the annotation-selector schema). Overlap must let a span
+ * `reconcileSelector` disambiguates a span with up to 64 code points of prefix
+ * and 64 of suffix (the annotation-selector schema). Overlap must let a span
  * sitting at a chunk boundary carry that context — plus a span allowance of
  * the same order — into the adjacent chunk. Schema-derived, not tuned.
  */
-const SELECTOR_CONTEXT_CHARS = 64;
-const OVERLAP_CHARS =
-  SELECTOR_CONTEXT_CHARS + // prefix
-  SELECTOR_CONTEXT_CHARS + // suffix
-  2 * SELECTOR_CONTEXT_CHARS; // span allowance
-/** ~4 chars/token — the same heuristic `estimateTokens`/`chunkText` use. */
-const OVERLAP_TOKENS = Math.ceil(OVERLAP_CHARS / 4);
+const SELECTOR_CONTEXT_CODE_POINTS = 64;
+const OVERLAP_CODE_POINTS =
+  SELECTOR_CONTEXT_CODE_POINTS + // prefix
+  SELECTOR_CONTEXT_CODE_POINTS + // suffix
+  2 * SELECTOR_CONTEXT_CODE_POINTS; // span allowance
+/** Four code points to a token — the same heuristic `estimateTokens`/`chunkText` use. */
+const OVERLAP_TOKENS = Math.ceil(OVERLAP_CODE_POINTS / 4);
 
 /**
  * One temperature for every detection call. Detection copies spans verbatim
@@ -106,6 +106,7 @@ export const YIELD_COLLAPSE_BAND = 2;
 export interface UnderReportedPiece {
   found: number;
   counted: number;
+  /** The piece's length, in code points. */
   pieceChars: number;
 }
 
@@ -276,18 +277,19 @@ export type ChunkCursor = Pick<UnitCursor, 'next' | 'size'>;
 /** One chunk handed out by `runAdaptiveChunks`, with the cursor either side of
  * it. `at`/`next` over `totalChars` is exact progress — and the identity a
  * resume checkpoint records, which a variable boundary forces (an ordinal
- * cannot name a chunk whose size is decided while the job runs). */
+ * cannot name a chunk whose size is decided while the job runs). All three
+ * are offsets: they count the document's code points. */
 export interface AdaptiveChunk {
   piece: string;
   /** The token size this piece was cut at. Hand it to `callChunkSubdividing`:
    * a descent halves from the size that actually failed, not from the size the
    * run opened at, which adaptivity has long since left behind. */
   size: number;
-  /** Characters consumed BEFORE this chunk — the in-flight liveness position. */
+  /** The offset this chunk starts at — the in-flight liveness position. */
   at: number;
-  /** Characters consumed once this chunk completes — the boundary position. */
+  /** The offset the next chunk starts at — the boundary position. */
   next: number;
-  /** The document's length. */
+  /** The document's length, in code points. */
   totalChars: number;
 }
 
@@ -305,6 +307,11 @@ export interface AdaptiveChunk {
  * a throw stops the walk where it stands rather than advancing past unprocessed
  * text.
  *
+ * `offsets` is the text's own (`textOffsets(text)`), made once where the text
+ * is first held. The walk is over offsets: it ends at the text's length in
+ * code points, which is less than its string's length when it has a character
+ * outside the Basic Multilingual Plane.
+ *
  * `resume` restarts a unit an earlier attempt left partway — the durable
  * per-chunk checkpoint, spent. Both halves of it matter and they are spent
  * differently: the position is taken as given, while the size is seeded and
@@ -316,6 +323,7 @@ export interface AdaptiveChunk {
  */
 export async function runAdaptiveChunks(
   text: string,
+  offsets: TextOffsets,
   budget: DetectionBudget,
   onChunk: (chunk: AdaptiveChunk) => Promise<CallOutcome>,
   resume?: UnitCursor,
@@ -325,9 +333,9 @@ export async function runAdaptiveChunks(
     ? nextChunkSize({ truncated: true }, resume.size, budget.bounds)
     : budget.chunking.chunkSize;
 
-  while (at < text.length) {
-    const { piece, next } = cutChunk(text, at, { chunkSize: size, overlap: budget.chunking.overlap });
-    const outcome = await onChunk({ piece, size, at, next, totalChars: text.length });
+  while (at < offsets.length) {
+    const { piece, next } = cutChunk(text, offsets, at, { chunkSize: size, overlap: budget.chunking.overlap });
+    const outcome = await onChunk({ piece, size, at, next, totalChars: offsets.length });
     at = next;
     size = nextChunkSize(outcome, size, budget.bounds);
   }
@@ -460,6 +468,7 @@ export async function callChunkSubdividing<T>(
   // only place `depth` and `reroll` exist, so it is the only place a complete
   // record can be written.
   async function recorded(piece: string, depth: number, reroll: boolean): Promise<ChunkCallResult<T>> {
+    const pieceChars = textOffsets(piece).length;
     const start = performance.now();
     try {
       const result = await call(piece);
@@ -469,7 +478,7 @@ export async function callChunkSubdividing<T>(
         outputTokens += result.usage.outputTokens;
       }
       recordDetectionCall({
-        label, pieceChars: piece.length, durationMs: performance.now() - start,
+        label, pieceChars, durationMs: performance.now() - start,
         items: result.items.length, depth, reroll, outcome: 'success',
         ...(result.usage ? { inputTokens: result.usage.inputTokens, outputTokens: result.usage.outputTokens } : {}),
       });
@@ -480,7 +489,7 @@ export async function callChunkSubdividing<T>(
       // A failed call still cost its input and its wall time — the descent's
       // price is invisible without it.
       recordDetectionCall({
-        label, pieceChars: piece.length, durationMs: performance.now() - start,
+        label, pieceChars, durationMs: performance.now() - start,
         items: 0, depth, reroll, outcome: outcomeOf(error),
       });
       throw error;
@@ -526,7 +535,7 @@ export async function callChunkSubdividing<T>(
         // deterministic, a same-size retry changes nothing.
         if (error instanceof YieldCollapseError) {
           logger?.warn('Floor-size piece still flagged as collapsed — accepting its under-reported salvage and continuing', {
-            pieceChars: piece.length,
+            pieceChars: textOffsets(piece).length,
             salvaged: error.salvage.length,
             error: error.message,
           });
@@ -539,14 +548,14 @@ export async function callChunkSubdividing<T>(
         // re-roll; a second truncation propagates. Timeouts get no re-roll.
         if (!truncation(error)) throw error;
         logger?.warn('Floor-size piece truncated — re-rolling once before giving up', {
-          pieceChars: piece.length,
+          pieceChars: textOffsets(piece).length,
           error: error instanceof Error ? error.message : String(error),
         });
         return (await recorded(piece, depth, true)).items;
       }
       logger?.warn('Chunk call failed at a size-shaped bound — subdividing and retrying smaller', {
         depth: depth + 1,
-        pieceChars: piece.length,
+        pieceChars: textOffsets(piece).length,
         nextChunkSizeTokens: half,
         error: error instanceof Error ? error.message : String(error),
       });

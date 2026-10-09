@@ -151,7 +151,7 @@ that fails answers the same way, with `isError` set.
 
 | Tool | Required | Optional |
 |---|---|---|
-| `mark_annotation` — create a highlight annotation, with each of `entityTypes` as a tagging body | `resourceId`, `selectionData` (`{offset, length, text}`) | `entityTypes` |
+| `mark_annotation` — create a highlight annotation, with each of `entityTypes` as a tagging body | `resourceId`, `selectionData` (`{offset, length, text}`, the offset and the length in Unicode code points) | `entityTypes` |
 | `mark_delegate` — delegated annotation: have the worker detect entity references | `resourceId`, `entityTypes` (at least one) | `language`, `sourceLanguage` |
 
 `language` is a BCP-47 tag for what the LLM writes (stamped on `TextualBody.language`); `sourceLanguage` describes the source resource and feeds the prompt.

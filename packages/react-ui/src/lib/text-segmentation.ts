@@ -9,7 +9,7 @@
  */
 
 import { getTextPositionSelector, getTextQuoteSelector, getTargetSelector } from '@semiont/core';
-import { anchorAnnotation, type AnchorStrategy, type AnchorConfidence } from '@semiont/core';
+import { anchorAnnotation, textOffsets, type AnchorStrategy, type AnchorConfidence } from '@semiont/core';
 import type { TextSegment } from './codemirror-logic';
 
 import type { Annotation } from '@semiont/core';
@@ -46,6 +46,9 @@ export function segmentTextWithAnnotations(content: string, annotations: Annotat
     return [{ exact: '', start: 0, end: 0 }];
   }
 
+  // The content's conversions, made once for every annotation anchored in it.
+  const offsets = textOffsets(content);
+
   const normalizedAnnotations = annotations
     .map(ann => {
       const targetSelector = getTargetSelector(ann.target);
@@ -54,6 +57,7 @@ export function segmentTextWithAnnotations(content: string, annotations: Annotat
 
       const anchor = anchorAnnotation(
         content,
+        offsets,
         {
           ...(posSelector ? { position: { start: posSelector.start, end: posSelector.end } } : {}),
           ...(quoteSelector

@@ -6,13 +6,14 @@ import {
   POSITION_WEIGHT_MAX,
   type RenderedAnchor,
 } from '../anchor-annotation';
+import { textOffsets } from '../text-offsets';
 
 // ─── Layer 1: per-strategy unit tests ─────────────────────────────────────
 
 describe('anchorAnnotation — fast-path', () => {
   it('returns the verified position when content[start..end] === exact', () => {
     const content = 'Kenison, C.J.\nThe question for decision';
-    const result = anchorAnnotation(content, {
+    const result = anchorAnnotation(content, textOffsets(content), {
       position: { start: 14, end: 39 },
       quote: { exact: 'The question for decision' },
     });
@@ -26,7 +27,7 @@ describe('anchorAnnotation — fast-path', () => {
 
   it('does not take the fast path when content[start] does not begin exact', () => {
     const content = 'Kenison, C.J.\nThe question for decision';
-    const result = anchorAnnotation(content, {
+    const result = anchorAnnotation(content, textOffsets(content), {
       position: { start: 16, end: 41 }, // off-by-two; substring is "e question for decision   " etc.
       quote: { exact: 'The question for decision' },
     });
@@ -44,7 +45,7 @@ describe('anchorAnnotation — fast-path', () => {
 describe('anchorAnnotation — unique-occurrence', () => {
   it('returns the single occurrence regardless of position hint', () => {
     const content = 'aaa BBB ccc';
-    const result = anchorAnnotation(content, {
+    const result = anchorAnnotation(content, textOffsets(content), {
       position: { start: 0, end: 3 },
       quote: { exact: 'BBB' },
     });
@@ -58,7 +59,7 @@ describe('anchorAnnotation — unique-occurrence', () => {
 
   it('returns the single occurrence even with no position selector', () => {
     const content = 'aaa BBB ccc';
-    const result = anchorAnnotation(content, { quote: { exact: 'BBB' } });
+    const result = anchorAnnotation(content, textOffsets(content), { quote: { exact: 'BBB' } });
     expect(result).toEqual<RenderedAnchor>({
       start: 4,
       end: 7,
@@ -73,7 +74,7 @@ describe('anchorAnnotation — context-disambiguated', () => {
     'Section A: the parties agree to terms. Section B: the parties agree to conditions. Section C: the parties agree to schedule.';
 
   it('high confidence when both prefix and suffix align exactly with one candidate', () => {
-    const result = anchorAnnotation(content, {
+    const result = anchorAnnotation(content, textOffsets(content), {
       quote: {
         exact: 'the parties agree',
         prefix: 'Section B: ',
@@ -90,7 +91,7 @@ describe('anchorAnnotation — context-disambiguated', () => {
   });
 
   it('matches with prefix-only when suffix is missing', () => {
-    const result = anchorAnnotation(content, {
+    const result = anchorAnnotation(content, textOffsets(content), {
       quote: { exact: 'the parties agree', prefix: 'Section C: ' },
     });
     const candidateC = content.indexOf('Section C: ') + 'Section C: '.length;
@@ -100,7 +101,7 @@ describe('anchorAnnotation — context-disambiguated', () => {
   });
 
   it('matches with suffix-only when prefix is missing', () => {
-    const result = anchorAnnotation(content, {
+    const result = anchorAnnotation(content, textOffsets(content), {
       quote: { exact: 'the parties agree', suffix: ' to schedule' },
     });
     const candidateC = content.indexOf('Section C: ') + 'Section C: '.length;
@@ -115,7 +116,7 @@ describe('anchorAnnotation — position-tiebreaker', () => {
     const content = 'X foo Y foo Z foo W';
     // foo positions: 2, 8, 14
     const hint = 8;
-    const result = anchorAnnotation(content, {
+    const result = anchorAnnotation(content, textOffsets(content), {
       position: { start: hint, end: hint + 3 },
       quote: { exact: 'foo' },
     });
@@ -127,7 +128,7 @@ describe('anchorAnnotation — position-tiebreaker', () => {
   it('picks the closest candidate when the hint is not exactly on any occurrence', () => {
     const content = 'X foo Y foo Z foo W';
     // foo at positions 2, 8, 14. Hint at 10 → closest is 8.
-    const result = anchorAnnotation(content, {
+    const result = anchorAnnotation(content, textOffsets(content), {
       position: { start: 10, end: 13 },
       quote: { exact: 'foo' },
     });
@@ -140,7 +141,7 @@ describe('anchorAnnotation — position-tiebreaker', () => {
     // Build content where 'foo' appears twice, very far apart, hint is far from both.
     const gap = 'x'.repeat(POSITION_WINDOW * 3);
     const content = `foo${gap}foo`;
-    const result = anchorAnnotation(content, {
+    const result = anchorAnnotation(content, textOffsets(content), {
       // No position hint at all → no signal, first occurrence wins.
       quote: { exact: 'foo' },
     });
@@ -156,7 +157,7 @@ describe('anchorAnnotation — no fuzzy recovery at render time', () => {
     // guess — it renders at the stored offset and flags low-confidence.
     // (The write-side reconcileSelector is where fuzzy recovery belongs.)
     const content = 'The quick hello world appears here.';
-    const result = anchorAnnotation(content, {
+    const result = anchorAnnotation(content, textOffsets(content), {
       position: { start: 4, end: 14 },
       quote: { exact: 'helo world' },
     });
@@ -168,7 +169,7 @@ describe('anchorAnnotation — no fuzzy recovery at render time', () => {
 
   it('does NOT case-fold a quote that differs only by case', () => {
     const content = 'The Quick Hello World appears here.';
-    const result = anchorAnnotation(content, {
+    const result = anchorAnnotation(content, textOffsets(content), {
       position: { start: 10, end: 21 },
       quote: { exact: 'hello world' },
     });
@@ -182,7 +183,7 @@ describe('anchorAnnotation — no fuzzy recovery at render time', () => {
     // of record) and flags it — correction is an upstream concern (re-emit a
     // corrected annotation event).
     const content = 'Kenison, C.J.\nThe question to “any person” today.';
-    const result = anchorAnnotation(content, {
+    const result = anchorAnnotation(content, textOffsets(content), {
       position: { start: 16, end: 40 },
       quote: { exact: 'The question to "any person"' },
     });
@@ -195,7 +196,7 @@ describe('anchorAnnotation — no fuzzy recovery at render time', () => {
 describe('anchorAnnotation — position-fallback', () => {
   it('uses position when no quote selector is given', () => {
     const content = 'some content';
-    const result = anchorAnnotation(content, {
+    const result = anchorAnnotation(content, textOffsets(content), {
       position: { start: 5, end: 12 },
     });
     expect(result).toEqual<RenderedAnchor>({
@@ -207,18 +208,18 @@ describe('anchorAnnotation — position-fallback', () => {
   });
 
   it('returns null when neither selector is usable', () => {
-    expect(anchorAnnotation('content', {})).toBeNull();
-    expect(anchorAnnotation('', { quote: { exact: 'anything' } })).toBeNull();
+    expect(anchorAnnotation('content', textOffsets('content'), {})).toBeNull();
+    expect(anchorAnnotation('', textOffsets(''), { quote: { exact: 'anything' } })).toBeNull();
   });
 
   it('returns null when position is given but out of range and no quote', () => {
-    expect(anchorAnnotation('hi', { position: { start: 5, end: 10 } })).toBeNull();
-    expect(anchorAnnotation('hi', { position: { start: 0, end: 0 } })).toBeNull();
+    expect(anchorAnnotation('hi', textOffsets('hi'), { position: { start: 5, end: 10 } })).toBeNull();
+    expect(anchorAnnotation('hi', textOffsets('hi'), { position: { start: 0, end: 0 } })).toBeNull();
   });
 
   it('returns null when exact is not found verbatim and the stored offset is out of range', () => {
     const content = 'short';
-    const result = anchorAnnotation(content, {
+    const result = anchorAnnotation(content, textOffsets(content), {
       position: { start: 50, end: 60 },
       quote: { exact: 'ZZZNEVERAPPEARSZZZ' },
     });
@@ -227,7 +228,7 @@ describe('anchorAnnotation — position-fallback', () => {
 
   it('falls back to raw position when exact is not found but offset is valid', () => {
     const content = 'this content has nothing matching the request';
-    const result = anchorAnnotation(content, {
+    const result = anchorAnnotation(content, textOffsets(content), {
       position: { start: 5, end: 12 },
       quote: { exact: 'ZZZNEVERAPPEARSZZZ' },
     });
@@ -246,7 +247,7 @@ describe('anchorAnnotation — cross-cutting', () => {
     // recovery case: re-anchor to the verbatim match, high confidence.
     const exact = 'The question for decision';
     const content = `Kenison, C.J.\n${exact} by this appeal`;
-    const result = anchorAnnotation(content, {
+    const result = anchorAnnotation(content, textOffsets(content), {
       position: { start: 16, end: 16 + exact.length },
       quote: {
         exact,
@@ -262,7 +263,7 @@ describe('anchorAnnotation — cross-cutting', () => {
 
   it('returned start/end always satisfy content.substring(start, end) === exact when exact is found', () => {
     const content = 'alpha beta gamma delta beta epsilon';
-    const result = anchorAnnotation(content, { quote: { exact: 'beta' } });
+    const result = anchorAnnotation(content, textOffsets(content), { quote: { exact: 'beta' } });
     expect(result).not.toBeNull();
     expect(content.substring(result!.start, result!.end)).toBe('beta');
   });
@@ -273,7 +274,7 @@ describe('anchorAnnotation — cross-cutting', () => {
     const truePos = content.indexOf(exact);
     for (const shift of [-10, -5, -1, 0, 1, 5, 10]) {
       const hint = truePos + shift;
-      const result = anchorAnnotation(content, {
+      const result = anchorAnnotation(content, textOffsets(content), {
         position: { start: hint, end: hint + exact.length },
         quote: { exact },
       });
@@ -297,7 +298,7 @@ describe('anchorAnnotation — calibration', () => {
     const content = `${nearNoContext} ${filler}${farContext}`;
     const nearTargetPos = content.indexOf('target'); // = 2
     const hint = nearTargetPos - 2; // = 0 — substring(0, 6) is "  targ", not "target"
-    const result = anchorAnnotation(content, {
+    const result = anchorAnnotation(content, textOffsets(content), {
       position: { start: hint, end: hint + 'target'.length },
       quote: {
         exact: 'target',
@@ -316,7 +317,7 @@ describe('anchorAnnotation — calibration', () => {
     const filler = 'x'.repeat(3000);
     const content = `target ${filler} target`;
     const hint = 0; // near the first occurrence
-    const result = anchorAnnotation(content, {
+    const result = anchorAnnotation(content, textOffsets(content), {
       position: { start: hint, end: hint + 'target'.length },
       quote: { exact: 'target' },
     });
@@ -335,7 +336,7 @@ describe('anchorAnnotation — calibration', () => {
     // and both are well outside the position window, so both score 0 on
     // position. With no context, the deterministic tie-break is first-of.
     const hint = Math.floor((leftPos + rightPos) / 2);
-    const result = anchorAnnotation(content, {
+    const result = anchorAnnotation(content, textOffsets(content), {
       position: { start: hint, end: hint + 'target'.length },
       quote: { exact: 'target' },
     });
@@ -361,7 +362,7 @@ describe('anchorAnnotation — calibration', () => {
 describe('anchorAnnotation — offsets count code points', () => {
   it('fast-path: a stored position after such a character is taken as an offset', () => {
     const content = '😀 The question for decision';
-    const result = anchorAnnotation(content, {
+    const result = anchorAnnotation(content, textOffsets(content), {
       position: { start: 2, end: 27 },
       quote: { exact: 'The question for decision' },
     });
@@ -369,7 +370,7 @@ describe('anchorAnnotation — offsets count code points', () => {
   });
 
   it('unique-occurrence: the anchor answered is offsets', () => {
-    expect(anchorAnnotation('aaa 😀 BBB ccc', { quote: { exact: 'BBB' } })).toEqual<RenderedAnchor>({
+    expect(anchorAnnotation('aaa 😀 BBB ccc', textOffsets('aaa 😀 BBB ccc'), { quote: { exact: 'BBB' } })).toEqual<RenderedAnchor>({
       start: 6,
       end: 9,
       strategy: 'unique-occurrence',
@@ -378,7 +379,7 @@ describe('anchorAnnotation — offsets count code points', () => {
   });
 
   it('a quote that holds such a character is as long as its code points', () => {
-    expect(anchorAnnotation('x 𝑥𝑦 z', { quote: { exact: '𝑥𝑦' } })).toEqual<RenderedAnchor>({
+    expect(anchorAnnotation('x 𝑥𝑦 z', textOffsets('x 𝑥𝑦 z'), { quote: { exact: '𝑥𝑦' } })).toEqual<RenderedAnchor>({
       start: 2,
       end: 4,
       strategy: 'unique-occurrence',
@@ -388,7 +389,7 @@ describe('anchorAnnotation — offsets count code points', () => {
 
   it('context-disambiguated: the occurrence the context picks is answered as offsets', () => {
     const content = '😀 Section A: the parties agree to terms. 😀 Section B: the parties agree to conditions.';
-    const result = anchorAnnotation(content, {
+    const result = anchorAnnotation(content, textOffsets(content), {
       quote: { exact: 'the parties agree', prefix: 'Section B: ', suffix: ' to conditions' },
     });
     expect(result).toEqual<RenderedAnchor>({
@@ -405,7 +406,7 @@ describe('anchorAnnotation — offsets count code points', () => {
     // the second nearer. Counted in a string's units the second is 1403 away,
     // outside the window, and the first would win.
     const content = `foo${'😀'.repeat(1000)}foo`;
-    const result = anchorAnnotation(content, {
+    const result = anchorAnnotation(content, textOffsets(content), {
       position: { start: 600, end: 603 },
       quote: { exact: 'foo' },
     });
@@ -421,14 +422,14 @@ describe('anchorAnnotation — offsets count code points', () => {
   it('position-fallback: a position is in the text when it is within its code points', () => {
     // Seven code points, ten units of a string.
     const content = '😀😀😀 abc';
-    expect(anchorAnnotation(content, { position: { start: 4, end: 7 } })).toEqual<RenderedAnchor>({
+    expect(anchorAnnotation(content, textOffsets(content), { position: { start: 4, end: 7 } })).toEqual<RenderedAnchor>({
       start: 4,
       end: 7,
       strategy: 'position-fallback',
       confidence: 'low',
     });
-    expect(anchorAnnotation(content, { position: { start: 8, end: 10 } })).toBeNull();
-    expect(anchorAnnotation(content, { position: { start: 8, end: 10 }, quote: { exact: 'zzz' } })).toBeNull();
+    expect(anchorAnnotation(content, textOffsets(content), { position: { start: 8, end: 10 } })).toBeNull();
+    expect(anchorAnnotation(content, textOffsets(content), { position: { start: 8, end: 10 }, quote: { exact: 'zzz' } })).toBeNull();
   });
 
   // A stored context is looked for, loosely, in as many code points beside
@@ -441,7 +442,7 @@ describe('anchorAnnotation — offsets count code points', () => {
 
   it('a stored prefix is looked for in as many code points before an occurrence as it has', () => {
     const content = `The bound holds. For ${FORMULA}, it also holds.`;
-    expect(anchorAnnotation(content, { quote: { exact: 'holds', prefix: `${FORMULA} ` } })).toEqual<RenderedAnchor>({
+    expect(anchorAnnotation(content, textOffsets(content), { quote: { exact: 'holds', prefix: `${FORMULA} ` } })).toEqual<RenderedAnchor>({
       start: 10,
       end: 15,
       strategy: 'position-tiebreaker',
@@ -451,7 +452,7 @@ describe('anchorAnnotation — offsets count code points', () => {
 
   it('a stored suffix is looked for in as many code points after an occurrence as it has', () => {
     const content = `It holds. It also holds for ${FORMULA}.`;
-    expect(anchorAnnotation(content, { quote: { exact: 'holds', suffix: ` ${FORMULA}` } })).toEqual<RenderedAnchor>({
+    expect(anchorAnnotation(content, textOffsets(content), { quote: { exact: 'holds', suffix: ` ${FORMULA}` } })).toEqual<RenderedAnchor>({
       start: 3,
       end: 8,
       strategy: 'position-tiebreaker',
@@ -462,7 +463,7 @@ describe('anchorAnnotation — offsets count code points', () => {
   it('a position that is no offset of the text takes no fast path, and is no error', () => {
     // 0.5 is between no two characters. The quote is still found, and the
     // position still says which occurrence is nearer.
-    const result = anchorAnnotation('abc abc', {
+    const result = anchorAnnotation('abc abc', textOffsets('abc abc'), {
       position: { start: 0.5, end: 3.5 },
       quote: { exact: 'abc' },
     });

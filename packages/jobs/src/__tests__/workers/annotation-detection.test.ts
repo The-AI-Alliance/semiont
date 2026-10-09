@@ -14,6 +14,7 @@ import { AnnotationDetection } from '../../workers/annotation-detection';
 import { MockInferenceClient, type InferenceClient } from '@semiont/inference';
 import { DeterministicJobError } from '../../failure-class';
 import type { TagSchema } from '@semiont/core';
+import { textOffsets } from '@semiont/core';
 
 // Test schema — supplied directly to detectTags (the dispatcher resolves
 // schemaId → schema before the worker sees the job).
@@ -58,7 +59,7 @@ describe('AnnotationDetection', () => {
       ])]);
 
       const result = await AnnotationDetection.detectHighlights(
-        testContent,
+        testContent, textOffsets(testContent),
         mockClient
       );
 
@@ -78,7 +79,7 @@ describe('AnnotationDetection', () => {
       ])]);
 
       const result = await AnnotationDetection.detectHighlights(
-        testContent,
+        testContent, textOffsets(testContent),
         mockClient,
         'Focus on scientific terms'
       );
@@ -96,7 +97,7 @@ describe('AnnotationDetection', () => {
       ])]);
 
       const result = await AnnotationDetection.detectHighlights(
-        testContent,
+        testContent, textOffsets(testContent),
         mockClient,
         undefined,
         5  // density
@@ -115,7 +116,7 @@ describe('AnnotationDetection', () => {
       ])]);
 
       const result = await AnnotationDetection.detectHighlights(
-        testContent,
+        testContent, textOffsets(testContent),
         mockClient
       );
 
@@ -128,7 +129,7 @@ describe('AnnotationDetection', () => {
       mockClient.setResponses([JSON.stringify([])]);
 
       const result = await AnnotationDetection.detectHighlights(
-        testContent,
+        testContent, textOffsets(testContent),
         mockClient
       );
 
@@ -150,7 +151,7 @@ describe('AnnotationDetection', () => {
       ])]);
 
       const result = await AnnotationDetection.detectComments(
-        testContent,
+        testContent, textOffsets(testContent),
         mockClient
       );
 
@@ -172,7 +173,7 @@ describe('AnnotationDetection', () => {
       ])]);
 
       const result = await AnnotationDetection.detectComments(
-        testContent,
+        testContent, textOffsets(testContent),
         mockClient
       );
 
@@ -196,7 +197,7 @@ describe('AnnotationDetection', () => {
 
       // Test with high density
       const result = await AnnotationDetection.detectComments(
-        testContent,
+        testContent, textOffsets(testContent),
         mockClient,
         undefined,
         undefined,
@@ -221,7 +222,7 @@ describe('AnnotationDetection', () => {
       ])]);
 
       const result = await AnnotationDetection.detectAssessments(
-        testContent,
+        testContent, textOffsets(testContent),
         mockClient
       );
 
@@ -243,7 +244,7 @@ describe('AnnotationDetection', () => {
       ])]);
 
       const result = await AnnotationDetection.detectAssessments(
-        testContent,
+        testContent, textOffsets(testContent),
         mockClient
       );
 
@@ -265,7 +266,7 @@ describe('AnnotationDetection', () => {
       ])]);
 
       const result = await AnnotationDetection.detectTags(
-        testContent,
+        testContent, textOffsets(testContent),
         mockClient,
         IMRAD_SCHEMA,
         'introduction'
@@ -285,7 +286,7 @@ describe('AnnotationDetection', () => {
       ])]);
 
       const result = await AnnotationDetection.detectTags(
-        testContent,
+        testContent, textOffsets(testContent),
         mockClient,
         IMRAD_SCHEMA,
         'methods'
@@ -307,7 +308,7 @@ describe('AnnotationDetection', () => {
       ])]);
 
       const result = await AnnotationDetection.detectTags(
-        testContent,
+        testContent, textOffsets(testContent),
         mockClient,
         IMRAD_SCHEMA,
         'results'
@@ -325,7 +326,7 @@ describe('AnnotationDetection', () => {
       // validation surface.
       await expect(
         AnnotationDetection.detectTags(
-          testContent,
+          testContent, textOffsets(testContent),
           mockClient,
           IMRAD_SCHEMA,
           'invalid-category'
@@ -343,7 +344,7 @@ describe('AnnotationDetection', () => {
 
       await expect(
         AnnotationDetection.detectComments(
-          testContent,
+          testContent, textOffsets(testContent),
           errorClient
         )
       ).rejects.toThrow('AI service unavailable');
@@ -355,7 +356,7 @@ describe('AnnotationDetection', () => {
       mockClient.setResponses(['invalid json']);
 
       await expect(
-        AnnotationDetection.detectHighlights(testContent, mockClient)
+        AnnotationDetection.detectHighlights(testContent, textOffsets(testContent), mockClient)
       ).rejects.toThrow();
     });
 
@@ -368,7 +369,7 @@ describe('AnnotationDetection', () => {
         ['max_tokens'],
       );
 
-      const pending = AnnotationDetection.detectHighlights(testContent, mockClient);
+      const pending = AnnotationDetection.detectHighlights(testContent, textOffsets(testContent), mockClient);
       await expect(pending).rejects.toThrow(/truncat/i);
       // Deterministic class pinned on BOTH detection paths — see the matching
       // pin in entity-extractor.test.ts.
@@ -382,7 +383,7 @@ describe('AnnotationDetection', () => {
       mockClient.setResponses([JSON.stringify([])]);
 
       const result = await AnnotationDetection.detectComments(
-        testContent,
+        testContent, textOffsets(testContent),
         mockClient,
         customInstructions
       );
@@ -395,7 +396,7 @@ describe('AnnotationDetection', () => {
       mockClient.setResponses([JSON.stringify([])]);
 
       const result = await AnnotationDetection.detectComments(
-        testContent,
+        testContent, textOffsets(testContent),
         mockClient,
         undefined,
         'academic'  // tone
@@ -409,7 +410,7 @@ describe('AnnotationDetection', () => {
       mockClient.setResponses([JSON.stringify([])]);
 
       const result = await AnnotationDetection.detectHighlights(
-        testContent,
+        testContent, textOffsets(testContent),
         mockClient,
         undefined,
         15  // density
@@ -442,7 +443,7 @@ describe('AnnotationDetection', () => {
         SMALL_SHARED_LIMITS,
       );
 
-      const result = await AnnotationDetection.detectHighlights(bigContent, client);
+      const result = await AnnotationDetection.detectHighlights(bigContent, textOffsets(bigContent), client);
 
       expect(client.calls.length).toBeGreaterThan(1);
       expect(result.some(h => h.exact === 'ALPHASPAN')).toBe(true);
@@ -461,7 +462,7 @@ describe('AnnotationDetection', () => {
         const emitted: string[][] = [];
 
         await AnnotationDetection.detectHighlights(
-          bigContent, client, undefined, undefined, undefined, undefined, undefined,
+          bigContent, textOffsets(bigContent), client, undefined, undefined, undefined, undefined, undefined,
           async (matches) => { emitted.push(matches.map((m) => m.exact)); },
         );
 
@@ -486,7 +487,7 @@ describe('AnnotationDetection', () => {
         const emitted: any[] = [];
 
         await AnnotationDetection.detectTags(
-          bigContent, client, IMRAD_SCHEMA, 'introduction', undefined, undefined, undefined,
+          bigContent, textOffsets(bigContent), client, IMRAD_SCHEMA, 'introduction', undefined, undefined, undefined,
           async (matches) => { emitted.push(...matches); },
         );
 
@@ -509,7 +510,7 @@ describe('AnnotationDetection', () => {
 
         await expect(
           AnnotationDetection.detectHighlights(
-            bigContent, client, undefined, undefined, undefined, undefined, undefined,
+            bigContent, textOffsets(bigContent), client, undefined, undefined, undefined, undefined, undefined,
             async () => { throw new Error('mark:commit failed: sink down'); },
           ),
         ).rejects.toThrow(/sink down/);
@@ -523,7 +524,7 @@ describe('AnnotationDetection', () => {
         SMALL_SHARED_LIMITS,
       );
 
-      const result = await AnnotationDetection.detectHighlights(bigContent, client);
+      const result = await AnnotationDetection.detectHighlights(bigContent, textOffsets(bigContent), client);
 
       const gamma = result.find(h => h.exact === 'GAMMASPAN');
       expect(gamma).toBeDefined();
@@ -539,7 +540,7 @@ describe('AnnotationDetection', () => {
         SMALL_SHARED_LIMITS,
       );
 
-      const pending = AnnotationDetection.detectHighlights(bigContent, client);
+      const pending = AnnotationDetection.detectHighlights(bigContent, textOffsets(bigContent), client);
       await expect(pending).rejects.toThrow(/truncat/i);
       await expect(pending).rejects.toBeInstanceOf(DeterministicJobError);
     });
@@ -547,7 +548,7 @@ describe('AnnotationDetection', () => {
     it('makes one call with a derived (non-literal) output budget when content fits', async () => {
       const client = new MockInferenceClient([highlight('Climate change')]); // generous default limits
 
-      await AnnotationDetection.detectHighlights(testContent, client);
+      await AnnotationDetection.detectHighlights(testContent, textOffsets(testContent), client);
 
       expect(client.calls.length).toBe(1);
       // No hand-tuned literal: the budget comes from limits().
@@ -559,7 +560,7 @@ describe('AnnotationDetection', () => {
       const client = new MockInferenceClient([highlight('ALPHASPAN')], undefined, SMALL_SHARED_LIMITS);
       const onChunk = vi.fn();
 
-      await AnnotationDetection.detectHighlights(bigContent, client, undefined, undefined, undefined, onChunk);
+      await AnnotationDetection.detectHighlights(bigContent, textOffsets(bigContent), client, undefined, undefined, undefined, onChunk);
 
       const totalChunks = client.calls.length;
       expect(totalChunks).toBeGreaterThan(1);
@@ -614,7 +615,7 @@ describe('AnnotationDetection', () => {
       it('grows the chunk once measured output shows the budget going unused', async () => {
         const { client, promptChars } = sizingClient({ inputTokens: 400, outputTokens: 60 });
 
-        await AnnotationDetection.detectHighlights(longContent, client);
+        await AnnotationDetection.detectHighlights(longContent, textOffsets(longContent), client);
 
         expect(promptChars.length).toBeGreaterThan(2);
         expect(promptChars[1]!).toBeGreaterThan(promptChars[0]! * 1.2);
@@ -624,7 +625,7 @@ describe('AnnotationDetection', () => {
       it('eases the chunk down once measured output nears the budget', async () => {
         const { client, promptChars } = sizingClient({ inputTokens: 400, outputTokens: 1_150 });
 
-        await AnnotationDetection.detectHighlights(longContent, client);
+        await AnnotationDetection.detectHighlights(longContent, textOffsets(longContent), client);
 
         expect(promptChars.length).toBeGreaterThan(2);
         expect(promptChars[1]!).toBeLessThan(promptChars[0]! * 0.85);
@@ -634,7 +635,7 @@ describe('AnnotationDetection', () => {
         // Absent is not zero — see the identical case on the reference path.
         const { client, promptChars } = sizingClient();
 
-        await AnnotationDetection.detectHighlights(longContent, client);
+        await AnnotationDetection.detectHighlights(longContent, textOffsets(longContent), client);
 
         expect(promptChars.length).toBeGreaterThan(2);
         const steady = promptChars.slice(0, -1);
@@ -676,7 +677,7 @@ describe('AnnotationDetection', () => {
         const at = 30_000;
 
         await AnnotationDetection.detectHighlights(
-          longContent, client, undefined, undefined, undefined, undefined,
+          longContent, textOffsets(longContent), client, undefined, undefined, undefined, undefined,
           { next: at, size: 600, found: 0, emitted: 0, errors: 0 },
         );
 
@@ -688,7 +689,7 @@ describe('AnnotationDetection', () => {
       it('reads the whole document when there is no checkpoint', async () => {
         const { client, prompts } = promptRecordingClient();
 
-        await AnnotationDetection.detectHighlights(longContent, client);
+        await AnnotationDetection.detectHighlights(longContent, textOffsets(longContent), client);
 
         expect(prompts[0]).toContain('OPENING_MARKER');
       });
@@ -703,7 +704,7 @@ describe('AnnotationDetection', () => {
         undefined,
         SMALL_SHARED_LIMITS,
       );
-      const comments = await AnnotationDetection.detectComments(bigContent, commentsClient);
+      const comments = await AnnotationDetection.detectComments(bigContent, textOffsets(bigContent), commentsClient);
       expect(commentsClient.calls.length).toBeGreaterThan(1);
       expect(comments.some(c => c.exact === 'GAMMASPAN')).toBe(true);
 
@@ -715,7 +716,7 @@ describe('AnnotationDetection', () => {
         undefined,
         SMALL_SHARED_LIMITS,
       );
-      const assessments = await AnnotationDetection.detectAssessments(bigContent, assessClient);
+      const assessments = await AnnotationDetection.detectAssessments(bigContent, textOffsets(bigContent), assessClient);
       expect(assessClient.calls.length).toBeGreaterThan(1);
       expect(assessments.some(a => a.exact === 'GAMMASPAN')).toBe(true);
     });
@@ -739,7 +740,7 @@ describe('AnnotationDetection', () => {
 
         const activity: Array<[number, number]> = [];
         const pending = AnnotationDetection.detectHighlights(
-          testContent, client, undefined, undefined, undefined,
+          testContent, textOffsets(testContent), client, undefined, undefined, undefined,
           (consumed, total) => activity.push([consumed, total]),
         );
 
@@ -766,7 +767,7 @@ describe('AnnotationDetection', () => {
       );
 
       const result = await AnnotationDetection.detectTags(
-        bigContent, client, IMRAD_SCHEMA, 'introduction',
+        bigContent, textOffsets(bigContent), client, IMRAD_SCHEMA, 'introduction',
       );
 
       expect(client.calls.length).toBeGreaterThan(1);
@@ -779,7 +780,7 @@ describe('AnnotationDetection', () => {
 describe('temperature', () => {
   it('every motivation detects at temperature 0 — one constant, no per-motivation tuning', async () => {
     const client = new MockInferenceClient(['[]']);
-    await AnnotationDetection.detectHighlights('Some content here.', client as unknown as InferenceClient);
+    await AnnotationDetection.detectHighlights('Some content here.', textOffsets('Some content here.'), client as unknown as InferenceClient);
     expect(client.calls[0]!.temperature).toBe(0);
   });
 });

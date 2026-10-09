@@ -22,6 +22,7 @@ import {
 } from '../../../workers/detection/detection-chunking';
 import { nextChunkSize, type CallOutcome } from '../../../workers/detection/chunk-size-controller';
 import type { UnitCursor } from '@semiont/core';
+import { textOffsets } from '@semiont/core';
 
 /** Ollama shape — a shared window, the config the live gate runs on. No
  * published output rate, so the assumed-floor duration bound applies, exactly
@@ -50,7 +51,7 @@ async function run(
 ) {
   const seen: AdaptiveChunk[] = [];
   const budget = budgetFor(typesPerCall);
-  await runAdaptiveChunks(text, budget, async (chunk) => {
+  await runAdaptiveChunks(text, textOffsets(text), budget, async (chunk) => {
     seen.push(chunk);
     return outcome(chunk, budget.outputBudget);
   }, resume);
@@ -219,7 +220,7 @@ describe('runAdaptiveChunks', () => {
     // an unprocessed chunk would checkpoint a lie.
     const seen: AdaptiveChunk[] = [];
     const budget = budgetFor();
-    await expect(runAdaptiveChunks(prose(600), budget, async (chunk) => {
+    await expect(runAdaptiveChunks(prose(600), textOffsets(prose(600)), budget, async (chunk) => {
       seen.push(chunk);
       if (seen.length === 2) throw new Error('chunk 2 failed');
       return sparse(budget.outputBudget);

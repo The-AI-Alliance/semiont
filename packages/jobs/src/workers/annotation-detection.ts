@@ -7,11 +7,12 @@
  * 3. Parse and validate results using MotivationParsers
  *
  * All methods take content as a string parameter — the worker process
- * fetches it and hands it in.
+ * fetches it and hands it in, with its conversions (`textOffsets(content)`),
+ * which are made once where the content is first held.
  */
 
 import type { ElementSchema, InferenceClient } from '@semiont/inference';
-import { estimateTokens, type UnitCursor } from '@semiont/core';
+import { estimateTokens, type TextOffsets, type UnitCursor } from '@semiont/core';
 import { boundedGenerateStructured } from './inference-call';
 import { assertNotTruncated, callChunkSubdividing, deriveDetectionBudget, runAdaptiveChunks, type ChunkCursor, DETECTION_TEMPERATURE } from './detection/detection-chunking';
 import { MotivationPrompts } from './detection/motivation-prompts';
@@ -35,19 +36,23 @@ import type { TagSchema } from '@semiont/core';
  * Budgets derive from the provider's actual limits plus the measured prompt
  * scaffold (`buildPrompt('')`) — no literals. The prompt receives one chunk;
  * `parse` reconciles against the FULL document (the callers close over it),
- * so offsets index into the whole resource with no re-anchoring arithmetic.
+ * so offsets count the whole resource's code points with no re-anchoring
+ * arithmetic.
  * Overlap duplicates pass through — the processor's span-keyed seen-set is
  * the single dedupe point.
  *
  * `onActivity` fires whenever the detection is demonstrably alive: at each
  * chunk boundary (the count advances) AND periodically while one inference
- * call is in flight (the count repeats — liveness, not progress). Progress is
+ * call is in flight (the count repeats — liveness, not progress). Its two
+ * numbers are offsets: where the walk stands and the content's length, in
+ * code points. Progress is
  * the worker's liveness heartbeat AND the client's inter-emission timeout
  * signal, so a silent single-chunk run kills a healthy job.
  */
 async function detectInChunks<T>(
   client: InferenceClient,
   content: string,
+  offsets: TextOffsets,
   buildPrompt: (chunk: string) => string,
   motivation: string,
   elementSchema: ElementSchema,
@@ -77,7 +82,7 @@ async function detectInChunks<T>(
   const { outputBudget } = budget;
 
   const collected: T[] = [];
-  await runAdaptiveChunks(content, budget, async ({ piece: chunk, size, at, next, totalChars }) => {
+  await runAdaptiveChunks(content, offsets, budget, async ({ piece: chunk, size, at, next, totalChars }) => {
     // Structured surface: parsed elements or a throw — an unreadable model
     // response fails the job rather than reading as an empty detection. A
     // size-shaped failure (duration bound, truncation) subdivides in place
@@ -120,6 +125,7 @@ export class AnnotationDetection {
    */
   static async detectComments(
     content: string,
+    offsets: TextOffsets,
     client: InferenceClient,
     instructions?: string,
     tone?: string,
@@ -133,10 +139,10 @@ export class AnnotationDetection {
     onChunkResults?: (matches: CommentMatch[], cursor: ChunkCursor, dropped: number) => Promise<void>,
   ): Promise<CommentMatch[]> {
     return detectInChunks(
-      client, content,
+      client, content, offsets,
       (chunk) => MotivationPrompts.buildCommentPrompt(chunk, instructions, tone, density, language, sourceLanguage),
       'comment', COMMENT_ELEMENT_SCHEMA,
-      (items) => MotivationParsers.parseComments(items, content),
+      (items) => MotivationParsers.parseComments(items, content, offsets),
       onActivity,
       resume,
       onChunkResults,
@@ -152,6 +158,7 @@ export class AnnotationDetection {
    */
   static async detectHighlights(
     content: string,
+    offsets: TextOffsets,
     client: InferenceClient,
     instructions?: string,
     density?: number,
@@ -163,10 +170,10 @@ export class AnnotationDetection {
     onChunkResults?: (matches: HighlightMatch[], cursor: ChunkCursor, dropped: number) => Promise<void>,
   ): Promise<HighlightMatch[]> {
     return detectInChunks(
-      client, content,
+      client, content, offsets,
       (chunk) => MotivationPrompts.buildHighlightPrompt(chunk, instructions, density, sourceLanguage),
       'highlight', HIGHLIGHT_ELEMENT_SCHEMA,
-      (items) => MotivationParsers.parseHighlights(items, content),
+      (items) => MotivationParsers.parseHighlights(items, content, offsets),
       onActivity,
       resume,
       onChunkResults,
@@ -182,6 +189,7 @@ export class AnnotationDetection {
    */
   static async detectAssessments(
     content: string,
+    offsets: TextOffsets,
     client: InferenceClient,
     instructions?: string,
     tone?: string,
@@ -195,10 +203,10 @@ export class AnnotationDetection {
     onChunkResults?: (matches: AssessmentMatch[], cursor: ChunkCursor, dropped: number) => Promise<void>,
   ): Promise<AssessmentMatch[]> {
     return detectInChunks(
-      client, content,
+      client, content, offsets,
       (chunk) => MotivationPrompts.buildAssessmentPrompt(chunk, instructions, tone, density, language, sourceLanguage),
       'assessment', ASSESSMENT_ELEMENT_SCHEMA,
-      (items) => MotivationParsers.parseAssessments(items, content),
+      (items) => MotivationParsers.parseAssessments(items, content, offsets),
       onActivity,
       resume,
       onChunkResults,
@@ -219,6 +227,7 @@ export class AnnotationDetection {
    */
   static async detectTags(
     content: string,
+    offsets: TextOffsets,
     client: InferenceClient,
     schema: TagSchema,
     category: string,
@@ -241,7 +250,7 @@ export class AnnotationDetection {
 
     // Parse per chunk; anchor once against the full document afterward.
     const parsedTags = await detectInChunks(
-      client, content,
+      client, content, offsets,
       (chunk) => MotivationPrompts.buildTagPrompt(
         chunk,
         category,
@@ -259,11 +268,11 @@ export class AnnotationDetection {
       resume,
       onChunkResults
         ? async (raw, cursor) => {
-            const { matches, dropped } = MotivationParsers.validateTagOffsets(raw, content, category);
+            const { matches, dropped } = MotivationParsers.validateTagOffsets(raw, content, offsets, category);
             await onChunkResults(matches, cursor, dropped);
           }
         : undefined,
     );
-    return MotivationParsers.validateTagOffsets(parsedTags, content, category).matches;
+    return MotivationParsers.validateTagOffsets(parsedTags, content, offsets, category).matches;
   }
 }

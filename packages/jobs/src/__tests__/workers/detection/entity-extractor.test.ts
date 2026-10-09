@@ -10,6 +10,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { MockInferenceClient, type InferenceClient } from '@semiont/inference';
 import { extractEntities } from '../../../workers/detection/entity-extractor';
 import { DeterministicJobError } from '../../../failure-class';
+import { textOffsets } from '@semiont/core';
 
 // Create mock client directly
 const mockInferenceClient = new MockInferenceClient(['[]']);
@@ -30,7 +31,7 @@ describe('extractEntities', () => {
 
     mockInferenceClient.setResponses([JSON.stringify(mockResponse)]);
 
-    const result = await extractEntities(text, ['Person', 'Location'], mockInferenceClient, false, LOGGER);
+    const result = await extractEntities(text, textOffsets(text), ['Person', 'Location'], mockInferenceClient, false, LOGGER);
 
     expect(result).toHaveLength(2);
     expect(result[0]).toEqual({
@@ -50,7 +51,7 @@ describe('extractEntities', () => {
   it('should handle empty text', async () => {
     mockInferenceClient.setResponses(['[]']);
 
-    const result = await extractEntities('', ['Person'], mockInferenceClient, false, LOGGER);
+    const result = await extractEntities('', textOffsets(''), ['Person'], mockInferenceClient, false, LOGGER);
 
     expect(result).toEqual([]);
   });
@@ -58,7 +59,7 @@ describe('extractEntities', () => {
   it('should handle no entities found', async () => {
     mockInferenceClient.setResponses(['[]']);
 
-    const result = await extractEntities('The sky is blue', ['Person'], mockInferenceClient, false, LOGGER);
+    const result = await extractEntities('The sky is blue', textOffsets('The sky is blue'), ['Person'], mockInferenceClient, false, LOGGER);
 
     expect(result).toEqual([]);
   });
@@ -77,7 +78,7 @@ describe('extractEntities', () => {
 
     mockInferenceClient.setResponses([JSON.stringify(mockResponse)]);
 
-    const result = await extractEntities('Alice went to Paris. Alice loves Paris.', ['Person'], mockInferenceClient, false, LOGGER);
+    const result = await extractEntities('Alice went to Paris. Alice loves Paris.', textOffsets('Alice went to Paris. Alice loves Paris.'), ['Person'], mockInferenceClient, false, LOGGER);
 
     expect(result).toHaveLength(1);
     expect(result[0]).toEqual({
@@ -101,7 +102,7 @@ describe('extractEntities', () => {
 
     mockInferenceClient.setResponses([JSON.stringify(mockResponse)]);
 
-    const result = await extractEntities(text, ['Person'], mockInferenceClient, false, LOGGER);
+    const result = await extractEntities(text, textOffsets(text), ['Person'], mockInferenceClient, false, LOGGER);
 
     expect(result).toHaveLength(2);
     expect(result[0].exact).toBe('Alice');
@@ -124,7 +125,7 @@ describe('extractEntities', () => {
     // burns the retry budget re-issuing a guaranteed-to-truncate request
     // (the annotation-detection path already does this and the two must not
     // diverge).
-    const pending = extractEntities(text, ['Person'], mockInferenceClient, false, LOGGER);
+    const pending = extractEntities(text, textOffsets(text), ['Person'], mockInferenceClient, false, LOGGER);
     await expect(pending).rejects.toThrow(/truncat/i);
     await expect(pending).rejects.toBeInstanceOf(DeterministicJobError);
   });
@@ -143,7 +144,7 @@ describe('extractEntities', () => {
     mockInferenceClient.setResponses([JSON.stringify(mockResponse)]);
 
     const result = await extractEntities(
-      text,
+      text, textOffsets(text),
       [{ type: 'Organization', examples: ['Apple', 'Google', 'Microsoft'] }],
       mockInferenceClient,
       false,
@@ -176,7 +177,7 @@ describe('extractEntities', () => {
 
     mockInferenceClient.setResponses([JSON.stringify(mockResponse)]);
 
-    const result = await extractEntities(text, ['Person'], mockInferenceClient, true, LOGGER);
+    const result = await extractEntities(text, textOffsets(text), ['Person'], mockInferenceClient, true, LOGGER);
 
     expect(result).toHaveLength(2);
     expect(result[0].exact).toBe('Marie Curie');
@@ -192,7 +193,7 @@ describe('extractEntities', () => {
     mockInferenceClient.setResponses(['This is not JSON']);
 
     await expect(
-      extractEntities('Alice went to Paris.', ['Person'], mockInferenceClient, false, LOGGER),
+      extractEntities('Alice went to Paris.', textOffsets('Alice went to Paris.'), ['Person'], mockInferenceClient, false, LOGGER),
     ).rejects.toThrow(/could not be read/i);
   });
 
@@ -205,7 +206,7 @@ describe('extractEntities', () => {
       mockInferenceClient.setResponses(['[]']);
       mockInferenceClient.reset();
       await extractEntities(
-        'Marie Curie a découvert le radium.', ['Person'], mockInferenceClient,
+        'Marie Curie a découvert le radium.', textOffsets('Marie Curie a découvert le radium.'), ['Person'], mockInferenceClient,
         false, LOGGER, 'fr',
       );
       const sentPrompt = mockInferenceClient.calls[0]?.prompt ?? '';
@@ -215,7 +216,7 @@ describe('extractEntities', () => {
     it('omits source-language guidance when not provided', async () => {
       mockInferenceClient.setResponses(['[]']);
       mockInferenceClient.reset();
-      await extractEntities('Alice went to Paris.', ['Person'], mockInferenceClient, false, LOGGER);
+      await extractEntities('Alice went to Paris.', textOffsets('Alice went to Paris.'), ['Person'], mockInferenceClient, false, LOGGER);
       const sentPrompt = mockInferenceClient.calls[0]?.prompt ?? '';
       expect(sentPrompt).not.toContain('Source text language:');
     });
@@ -224,7 +225,7 @@ describe('extractEntities', () => {
       mockInferenceClient.setResponses(['[]']);
       mockInferenceClient.reset();
       await extractEntities(
-        'Some text', ['Person'], mockInferenceClient,
+        'Some text', textOffsets('Some text'), ['Person'], mockInferenceClient,
         false, LOGGER, 'xx',
       );
       const sentPrompt = mockInferenceClient.calls[0]?.prompt ?? '';
@@ -253,7 +254,7 @@ describe('extractEntities', () => {
     it('splits oversized content into multiple calls that together cover the whole document', async () => {
       const client = new MockInferenceClient([entity('AAA'), entity('BBB')], undefined, SMALL_SHARED_LIMITS);
 
-      const result = await extractEntities(bigText, ['Person'], client, false, LOGGER);
+      const result = await extractEntities(bigText, textOffsets(bigText), ['Person'], client, false, LOGGER);
 
       expect(client.calls.length).toBeGreaterThan(1);
       // First chunk must not carry the tail of the document…
@@ -276,7 +277,7 @@ describe('extractEntities', () => {
         SMALL_SHARED_LIMITS,
       );
 
-      const pending = extractEntities(bigText, ['Person'], client, false, LOGGER);
+      const pending = extractEntities(bigText, textOffsets(bigText), ['Person'], client, false, LOGGER);
       await expect(pending).rejects.toThrow(/truncat/i);
       await expect(pending).rejects.toBeInstanceOf(DeterministicJobError);
     });
@@ -284,7 +285,7 @@ describe('extractEntities', () => {
     it('passes duplicate entities from adjacent chunks through — dedupe stays in the processor', async () => {
       const client = new MockInferenceClient([entity('Alice'), entity('Alice')], undefined, SMALL_SHARED_LIMITS);
 
-      const result = await extractEntities(bigText, ['Person'], client, false, LOGGER);
+      const result = await extractEntities(bigText, textOffsets(bigText), ['Person'], client, false, LOGGER);
 
       expect(result.filter(e => e.exact === 'Alice').length).toBeGreaterThanOrEqual(2);
     });
@@ -293,7 +294,7 @@ describe('extractEntities', () => {
       const client = new MockInferenceClient([entity('AAA')], undefined, SMALL_SHARED_LIMITS);
       const onChunk = vi.fn();
 
-      await extractEntities(bigText, ['Person'], client, false, LOGGER, undefined, onChunk);
+      await extractEntities(bigText, textOffsets(bigText), ['Person'], client, false, LOGGER, undefined, onChunk);
 
       const totalChunks = client.calls.length;
       expect(totalChunks).toBeGreaterThan(1);
@@ -340,7 +341,7 @@ describe('extractEntities', () => {
         const emitted: string[][] = [];
 
         await extractEntities(
-          bigText, ['Person'], client, false, LOGGER, undefined, undefined, undefined, undefined, undefined,
+          bigText, textOffsets(bigText), ['Person'], client, false, LOGGER, undefined, undefined, undefined, undefined, undefined,
           async (items) => { order.push(`emit:${emitted.length}`); emitted.push(items.map((e) => e.exact)); },
         );
 
@@ -362,7 +363,7 @@ describe('extractEntities', () => {
 
         await expect(
           extractEntities(
-            bigText, ['Person'], client, false, LOGGER, undefined, undefined, undefined, undefined, undefined,
+            bigText, textOffsets(bigText), ['Person'], client, false, LOGGER, undefined, undefined, undefined, undefined, undefined,
             async () => { throw new Error('mark:commit failed: sink down'); },
           ),
         ).rejects.toThrow(/sink down/);
@@ -393,7 +394,7 @@ describe('extractEntities', () => {
       } as unknown as InferenceClient;
 
       await expect(
-        extractEntities(bigText, ['Person'], client, false, LOGGER),
+        extractEntities(bigText, textOffsets(bigText), ['Person'], client, false, LOGGER),
       ).rejects.toThrow(/could not be read/i);
     });
 
@@ -420,7 +421,7 @@ describe('extractEntities', () => {
         const content = 'Alice went to Paris.';
         // Small content → exactly one chunk → zero boundary events.
         const pending = extractEntities(
-          content, ['Person'], client, false, LOGGER, undefined,
+          content, textOffsets(content), ['Person'], client, false, LOGGER, undefined,
           (consumed, total) => activity.push([consumed, total]),
         );
 
@@ -478,7 +479,7 @@ describe('extractEntities', () => {
         // 60 of a 1200-token budget — 5%, far under `growBelow`.
         const { client, promptChars } = sizingClient({ inputTokens: 400, outputTokens: 60 });
 
-        await extractEntities(longText, ['Person'], client, false, LOGGER);
+        await extractEntities(longText, textOffsets(longText), ['Person'], client, false, LOGGER);
 
         expect(promptChars.length).toBeGreaterThan(2);
         expect(promptChars[1]!).toBeGreaterThan(promptChars[0]! * 1.2);
@@ -493,7 +494,7 @@ describe('extractEntities', () => {
         // indistinguishable from a static one.
         const { client, promptChars } = sizingClient();
 
-        await extractEntities(longText, ['Person'], client, false, LOGGER);
+        await extractEntities(longText, textOffsets(longText), ['Person'], client, false, LOGGER);
 
         expect(promptChars.length).toBeGreaterThan(2);
         const steady = promptChars.slice(0, -1);
@@ -503,7 +504,7 @@ describe('extractEntities', () => {
       it('eases the chunk down once measured output nears the budget', async () => {
         const { client, promptChars } = sizingClient({ inputTokens: 400, outputTokens: 1_150 });
 
-        await extractEntities(longText, ['Person'], client, false, LOGGER);
+        await extractEntities(longText, textOffsets(longText), ['Person'], client, false, LOGGER);
 
         expect(promptChars.length).toBeGreaterThan(2);
         expect(promptChars[1]!).toBeLessThan(promptChars[0]! * 0.85);
@@ -542,7 +543,7 @@ describe('extractEntities', () => {
         const at = 30_000;
 
         await extractEntities(
-          longText, ['Person'], client, false, LOGGER, undefined, undefined, undefined, undefined,
+          longText, textOffsets(longText), ['Person'], client, false, LOGGER, undefined, undefined, undefined, undefined,
           { next: at, size: 600, found: 0, emitted: 0, errors: 0 },
         );
 
@@ -555,7 +556,7 @@ describe('extractEntities', () => {
       it('reads the whole document when there is no checkpoint', async () => {
         const { client, prompts } = promptRecordingClient();
 
-        await extractEntities(longText, ['Person'], client, false, LOGGER);
+        await extractEntities(longText, textOffsets(longText), ['Person'], client, false, LOGGER);
 
         expect(prompts[0]).toContain('OPENING_MARKER');
       });
@@ -566,7 +567,7 @@ describe('extractEntities', () => {
         const { client, prompts } = promptRecordingClient();
 
         await extractEntities(
-          longText, ['Person'], client, false, LOGGER, undefined, undefined, undefined, undefined,
+          longText, textOffsets(longText), ['Person'], client, false, LOGGER, undefined, undefined, undefined, undefined,
           { next: longText.length, size: 600, found: 0, emitted: 0, errors: 0 },
         );
 
@@ -578,7 +579,7 @@ describe('extractEntities', () => {
       const client = new MockInferenceClient([entity('Alice')]); // generous default limits
       const onChunk = vi.fn();
 
-      const result = await extractEntities('Alice went to Paris.', ['Person'], client, false, LOGGER, undefined, onChunk);
+      const result = await extractEntities('Alice went to Paris.', textOffsets('Alice went to Paris.'), ['Person'], client, false, LOGGER, undefined, onChunk);
 
       expect(client.calls.length).toBe(1);
       expect(onChunk).not.toHaveBeenCalled();
@@ -592,7 +593,7 @@ describe('temperature', () => {
     // Enumeration copies spans verbatim; determinism buys reproducible
     // re-runs and was measured equal to hotter settings on consistency.
     const client = new MockInferenceClient(['[]']);
-    await extractEntities('Alice went to Paris.', ['Person'], client as unknown as InferenceClient, false, LOGGER);
+    await extractEntities('Alice went to Paris.', textOffsets('Alice went to Paris.'), ['Person'], client as unknown as InferenceClient, false, LOGGER);
     expect(client.calls[0]!.temperature).toBe(0);
   });
 });
@@ -628,7 +629,7 @@ describe('extractEntities — count-verifier', () => {
     const items = Array.from({ length: 12 }, () => ({ exact: 'Alice', entityType: 'Person' }));
     const client = verifyingClient(items, '15');
 
-    const result = await extractEntities(TEXT, ['Person'], client as never, false, LOGGER);
+    const result = await extractEntities(TEXT, textOffsets(TEXT), ['Person'], client as never, false, LOGGER);
 
     expect(result).toHaveLength(12);
     expect(client.generateTextWithMetadata).toHaveBeenCalled();
@@ -644,7 +645,7 @@ describe('extractEntities — count-verifier', () => {
     const items = [{ exact: 'Alice', entityType: 'Person' }];
     const client = verifyingClient(items, '50');
 
-    const result = await extractEntities(TEXT, ['Person'], client as never, false, LOGGER);
+    const result = await extractEntities(TEXT, textOffsets(TEXT), ['Person'], client as never, false, LOGGER);
 
     expect(result).toEqual([{ exact: 'Alice', entityType: 'Person' }]);
     expect(client.generateStructured.mock.calls.length).toBe(1);
@@ -658,7 +659,7 @@ describe('extractEntities — count-verifier', () => {
     const items = [{ exact: 'Alice', entityType: 'Person' }];
     const client = { ...verifyingClient(items, '999'), verifyDetectionYield: false };
 
-    const result = await extractEntities(TEXT, ['Person'], client as never, false, LOGGER);
+    const result = await extractEntities(TEXT, textOffsets(TEXT), ['Person'], client as never, false, LOGGER);
 
     expect(result).toHaveLength(1);
     expect(client.generateTextWithMetadata).not.toHaveBeenCalled();
@@ -669,7 +670,7 @@ describe('extractEntities — count-verifier', () => {
     const client = verifyingClient(items, '15');
     client.limits = vi.fn(async () => ({ contextTokens: 200_000, maxOutputTokens: 64_000, outputTokensPerHour: 128_000 }));
 
-    const result = await extractEntities(TEXT, ['Person'], client as never, false, LOGGER);
+    const result = await extractEntities(TEXT, textOffsets(TEXT), ['Person'], client as never, false, LOGGER);
 
     expect(result).toHaveLength(12);
     expect(client.generateTextWithMetadata).toHaveBeenCalled();
@@ -681,7 +682,7 @@ describe('extractEntities — count-verifier', () => {
     const items = [{ exact: 'Alice', entityType: 'Person' }];
     const client = verifyingClient(items, 'I cannot count');
 
-    const result = await extractEntities(TEXT, ['Person'], client as never, false, LOGGER);
+    const result = await extractEntities(TEXT, textOffsets(TEXT), ['Person'], client as never, false, LOGGER);
 
     expect(result).toHaveLength(1);
   });

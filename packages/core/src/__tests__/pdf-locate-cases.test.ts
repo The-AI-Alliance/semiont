@@ -10,6 +10,7 @@ import { readFileSync } from 'node:fs';
 import { locate, type AnchoredText, type PdfTextItem } from '../pdf-anchoring';
 import { createFragmentSelector, type PdfCoordinate } from '../pdf-coordinates';
 import { findClaimSpan } from '../pdf-citation-search';
+import { textOffsets } from '../text-offsets';
 
 interface Span {
   start: number;
@@ -55,7 +56,7 @@ describe('locating a span of a PDF (specs/src/annotations/pdf-locate-cases.json)
 
   for (const { why, text, claim, span } of table.claims) {
     it(why, () => {
-      expect(findClaimSpan({ text, items: [] }, claim)).toStrictEqual(span);
+      expect(findClaimSpan({ text, items: [] }, textOffsets(text), claim)).toStrictEqual(span);
     });
   }
 });

@@ -3,13 +3,16 @@
  *
  * Static methods that validate the model's already-parsed elements for each
  * motivation type and anchor each span in the document: the model emits no
- * offsets, `reconcileSelector` computes them.
+ * offsets, `reconcileSelector` computes them. A match's `start` and `end`
+ * count code points; `offsets`, wherever it is taken, is the content's own
+ * conversions (`textOffsets(content)`), made once where the content is first
+ * held.
  *
  * NOTE: These are static utility methods without logger access.
  * Console statements kept for debugging - consider adding logger parameter in future.
  */
 
-import { reconcileSelector, isObject, isString, type AnchorMethod } from '@semiont/core';
+import { reconcileSelector, isObject, isString, type AnchorMethod, type TextOffsets } from '@semiont/core';
 import type { ElementSchema } from '@semiont/inference';
 import { noteAnchor } from './anchor-audit';
 
@@ -146,7 +149,7 @@ export class MotivationParsers {
    * @param content - Original content to validate offsets against
    * @returns The comments anchored in the content, and how many were not
    */
-  static parseComments(parsed: unknown[], content: string): Anchored<CommentMatch> {
+  static parseComments(parsed: unknown[], content: string, offsets: TextOffsets): Anchored<CommentMatch> {
 
     const valid = parsed.filter((c): c is { exact: string; prefix?: string; suffix?: string; comment: string } =>
       isObject(c) &&
@@ -159,7 +162,7 @@ export class MotivationParsers {
 
     const validatedComments: CommentMatch[] = [];
     for (const comment of valid) {
-      const reconciled = reconcileSelector(content, {
+      const reconciled = reconcileSelector(content, offsets, {
         exact: comment.exact,
         ...(typeof comment.prefix === 'string' ? { prefix: comment.prefix } : {}),
         ...(typeof comment.suffix === 'string' ? { suffix: comment.suffix } : {}),
@@ -189,7 +192,7 @@ export class MotivationParsers {
    * @param content - Original content to validate offsets against
    * @returns The highlights anchored in the content, and how many were not
    */
-  static parseHighlights(parsed: unknown[], content: string): Anchored<HighlightMatch> {
+  static parseHighlights(parsed: unknown[], content: string, offsets: TextOffsets): Anchored<HighlightMatch> {
 
     const highlights = parsed.filter((h): h is { exact: string; prefix?: string; suffix?: string } =>
       isObject(h) && isString(h.exact)
@@ -197,7 +200,7 @@ export class MotivationParsers {
 
     const validatedHighlights: HighlightMatch[] = [];
     for (const highlight of highlights) {
-      const reconciled = reconcileSelector(content, {
+      const reconciled = reconcileSelector(content, offsets, {
         exact: highlight.exact,
         ...(typeof highlight.prefix === 'string' ? { prefix: highlight.prefix } : {}),
         ...(typeof highlight.suffix === 'string' ? { suffix: highlight.suffix } : {}),
@@ -226,7 +229,7 @@ export class MotivationParsers {
    * @param content - Original content to validate offsets against
    * @returns The assessments anchored in the content, and how many were not
    */
-  static parseAssessments(parsed: unknown[], content: string): Anchored<AssessmentMatch> {
+  static parseAssessments(parsed: unknown[], content: string, offsets: TextOffsets): Anchored<AssessmentMatch> {
 
     const assessments = parsed.filter((a): a is { exact: string; prefix?: string; suffix?: string; assessment: string } =>
       isObject(a) && isString(a.exact) && isString(a.assessment)
@@ -234,7 +237,7 @@ export class MotivationParsers {
 
     const validatedAssessments: AssessmentMatch[] = [];
     for (const assessment of assessments) {
-      const reconciled = reconcileSelector(content, {
+      const reconciled = reconcileSelector(content, offsets, {
         exact: assessment.exact,
         ...(typeof assessment.prefix === 'string' ? { prefix: assessment.prefix } : {}),
         ...(typeof assessment.suffix === 'string' ? { suffix: assessment.suffix } : {}),
@@ -281,11 +284,12 @@ export class MotivationParsers {
   static validateTagOffsets(
     tags: RawTagInput[],
     content: string,
+    offsets: TextOffsets,
     category: string
   ): Anchored<TagMatch> {
     const validatedTags: TagMatch[] = [];
     for (const tag of tags) {
-      const reconciled = reconcileSelector(content, {
+      const reconciled = reconcileSelector(content, offsets, {
         exact: tag.exact,
         ...(typeof tag.prefix === 'string' ? { prefix: tag.prefix } : {}),
         ...(typeof tag.suffix === 'string' ? { suffix: tag.suffix } : {}),

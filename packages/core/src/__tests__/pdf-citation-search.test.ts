@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { findClaimSpan } from '../pdf-citation-search';
 import { locate, type AnchoredText } from '../pdf-anchoring';
+import { textOffsets } from '../text-offsets';
 
 /**
  * The two-stage citation search over a generated PDF's text layer.
@@ -27,7 +28,7 @@ describe('findClaimSpan', () => {
   it('finds a claim within a single line (strict)', () => {
     const anchored = anchoredWith('The quick brown fox jumps over the lazy dog.');
 
-    const span = findClaimSpan(anchored, 'brown fox jumps');
+    const span = findClaimSpan(anchored, textOffsets(anchored.text), 'brown fox jumps');
 
     expect(span).not.toBeNull();
     expect(anchored.text.slice(span!.start, span!.end)).toBe('brown fox jumps');
@@ -37,7 +38,7 @@ describe('findClaimSpan', () => {
     // anchorRuns joins runs with " \n": a raw indexOf misses.
     const anchored = anchoredWith('The quick brown \nfox jumps high.');
 
-    const span = findClaimSpan(anchored, 'brown fox');
+    const span = findClaimSpan(anchored, textOffsets(anchored.text), 'brown fox');
 
     expect(span).not.toBeNull();
     expect(anchored.text.slice(span!.start, span!.end)).toBe('brown \nfox');
@@ -48,18 +49,18 @@ describe('findClaimSpan', () => {
     // Plain normalization yields "extraor dinarily" — a strict miss.
     const anchored = anchoredWith('It is extraor \ndinarily complicated today.');
 
-    const span = findClaimSpan(anchored, 'extraordinarily complicated');
+    const span = findClaimSpan(anchored, textOffsets(anchored.text), 'extraordinarily complicated');
 
     expect(span).not.toBeNull();
     expect(anchored.text.slice(span!.start, span!.end)).toBe('extraor \ndinarily complicated');
   });
 
   it('never treats ordinary spaces as wildcards — "abc" must not match "a b c"', () => {
-    expect(findClaimSpan(anchoredWith('x a b c y'), 'abc')).toBeNull();
+    expect(findClaimSpan(anchoredWith('x a b c y'), textOffsets(anchoredWith('x a b c y').text), 'abc')).toBeNull();
   });
 
   it('returns null on a genuine miss', () => {
-    expect(findClaimSpan(anchoredWith('Entirely unrelated text.'), 'quantum entanglement')).toBeNull();
+    expect(findClaimSpan(anchoredWith('Entirely unrelated text.'), textOffsets(anchoredWith('Entirely unrelated text.').text), 'quantum entanglement')).toBeNull();
   });
 
   // A string compares code units, and would find half of a pair inside a
@@ -67,11 +68,11 @@ describe('findClaimSpan', () => {
   // such a claim there, character for character, and the place has no offset.
   it('does not find a claim that begins with half of a pair inside a character (strict)', () => {
     expect('a😀bc'.indexOf('\ude00bc')).toBe(2);
-    expect(findClaimSpan(anchoredWith('a😀bc'), '\ude00bc')).toBeNull();
+    expect(findClaimSpan(anchoredWith('a😀bc'), textOffsets(anchoredWith('a😀bc').text), '\ude00bc')).toBeNull();
   });
 
   it('nor one that only the break-aware search could find there', () => {
-    expect(findClaimSpan(anchoredWith('a😀b\nc'), '\ude00bc')).toBeNull();
+    expect(findClaimSpan(anchoredWith('a😀b\nc'), textOffsets(anchoredWith('a😀b\nc').text), '\ude00bc')).toBeNull();
   });
 });
 

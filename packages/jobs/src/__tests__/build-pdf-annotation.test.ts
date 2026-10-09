@@ -5,7 +5,7 @@
  * geometry<->text containment invariant.
  */
 import { describe, it, expect } from 'vitest';
-import { resourceId, type components } from '@semiont/core';
+import { resourceId, type components, textOffsets } from '@semiont/core';
 import type { PdfTextLayer } from '@semiont/content';
 
 // No `@semiont/event-sourcing` mock: annotation ids are content-addressed, so
@@ -96,15 +96,15 @@ describe('a PDF annotation is identified by offsets it does not carry', () => {
   const shifted = { exact: 'gamma', start: 12, end: 17 };
 
   it('mints a DIFFERENT id for the same span when the extraction shifts by one character', () => {
-    const a = buildPdfAnnotation(LAYER, RID, GENERATOR, 'highlighting', span);
-    const b = buildPdfAnnotation(SHIFTED_LAYER, RID, GENERATOR, 'highlighting', shifted);
+    const a = buildPdfAnnotation(LAYER, textOffsets(LAYER.text), RID, GENERATOR, 'highlighting', span);
+    const b = buildPdfAnnotation(SHIFTED_LAYER, textOffsets(SHIFTED_LAYER.text), RID, GENERATOR, 'highlighting', shifted);
 
     expect(a.id).not.toBe(b.id);
   });
 
   it('…while every field it actually STORES is identical — which is why the drift has no signature', () => {
-    const a = buildPdfAnnotation(LAYER, RID, GENERATOR, 'highlighting', span);
-    const b = buildPdfAnnotation(SHIFTED_LAYER, RID, GENERATOR, 'highlighting', shifted);
+    const a = buildPdfAnnotation(LAYER, textOffsets(LAYER.text), RID, GENERATOR, 'highlighting', span);
+    const b = buildPdfAnnotation(SHIFTED_LAYER, textOffsets(SHIFTED_LAYER.text), RID, GENERATOR, 'highlighting', shifted);
 
     // Geometry: same page, same rectangle — the span did not move on the page.
     expect(frags(b)).toEqual(frags(a));
@@ -121,7 +121,7 @@ describe('a PDF annotation is identified by offsets it does not carry', () => {
 
 describe('buildPdfAnnotation (geometry tail)', () => {
   it('single-line span -> one FragmentSelector + a TextQuoteSelector, and no TextPositionSelector', () => {
-    const ann = buildPdfAnnotation(LAYER, RID, GENERATOR, 'highlighting',
+    const ann = buildPdfAnnotation(LAYER, textOffsets(LAYER.text), RID, GENERATOR, 'highlighting',
       { exact: 'alpha beta', start: 0, end: 10 });
     const s = sels(ann);
     expect(frags(ann)).toHaveLength(1);
@@ -133,7 +133,7 @@ describe('buildPdfAnnotation (geometry tail)', () => {
   });
 
   it('multi-line span -> one FragmentSelector per line (2), each a distinct viewrect', () => {
-    const ann = buildPdfAnnotation(LAYER, RID, GENERATOR, 'highlighting',
+    const ann = buildPdfAnnotation(LAYER, textOffsets(LAYER.text), RID, GENERATOR, 'highlighting',
       { exact: 'beta\ngamma', start: 6, end: 16 });
     const f = frags(ann);
     expect(f).toHaveLength(2);
@@ -141,7 +141,7 @@ describe('buildPdfAnnotation (geometry tail)', () => {
   });
 
   it('TextQuoteSelector carries exact + optional prefix/suffix', () => {
-    const ann = buildPdfAnnotation(LAYER, RID, GENERATOR, 'highlighting',
+    const ann = buildPdfAnnotation(LAYER, textOffsets(LAYER.text), RID, GENERATOR, 'highlighting',
       { exact: 'beta', start: 6, end: 10, prefix: 'alpha ', suffix: '\ngamma' });
     const tq = sels(ann).find(s => s.type === 'TextQuoteSelector');
     expect(tq?.exact).toBe('beta');
@@ -150,20 +150,20 @@ describe('buildPdfAnnotation (geometry tail)', () => {
   });
 
   it('invariant: throws when the covered text does not contain exact', () => {
-    expect(() => buildPdfAnnotation(LAYER, RID, GENERATOR, 'highlighting',
+    expect(() => buildPdfAnnotation(LAYER, textOffsets(LAYER.text), RID, GENERATOR, 'highlighting',
       { exact: 'zzz not present', start: 0, end: 5 })).toThrow(/covered text does not contain exact/);
   });
 
   it('invariant: whitespace-normalized containment tolerates layer spacing (space vs newline)', () => {
     // `exact` uses a single space where the layer text has a line break.
-    const ann = buildPdfAnnotation(LAYER, RID, GENERATOR, 'highlighting',
+    const ann = buildPdfAnnotation(LAYER, textOffsets(LAYER.text), RID, GENERATOR, 'highlighting',
       { exact: 'beta gamma', start: 6, end: 16 });
     expect(frags(ann).length).toBeGreaterThanOrEqual(1);
   });
 
   it('attaches a body when provided (e.g. commenting)', () => {
     const body = { type: 'TextualBody' as const, value: 'a note', format: 'text/plain' };
-    const ann = buildPdfAnnotation(LAYER, RID, GENERATOR, 'commenting',
+    const ann = buildPdfAnnotation(LAYER, textOffsets(LAYER.text), RID, GENERATOR, 'commenting',
       { exact: 'alpha', start: 0, end: 5 }, body);
     expect((ann as Record<string, unknown>).body).toEqual(body);
   });
@@ -173,7 +173,7 @@ describe('buildPdfAnnotation (geometry tail)', () => {
     // TextualBody (the SpecificResource target is appended later, at bind). The
     // geometry tail is identical to highlighting; only motivation + body differ.
     const body = { type: 'TextualBody' as const, value: 'Person', purpose: 'tagging' as const, format: 'text/plain' };
-    const ann = buildPdfAnnotation(LAYER, RID, GENERATOR, 'linking',
+    const ann = buildPdfAnnotation(LAYER, textOffsets(LAYER.text), RID, GENERATOR, 'linking',
       { exact: 'gamma delta', start: 11, end: 22 }, body);
     expect(ann.motivation).toBe('linking');
     expect((ann as Record<string, unknown>).body).toEqual(body);
@@ -189,7 +189,7 @@ describe('buildPdfAnnotation (geometry tail)', () => {
       { type: 'TextualBody' as const, value: 'Rule',   purpose: 'tagging' as const,    format: 'text/plain' },
       { type: 'TextualBody' as const, value: 'a note', purpose: 'commenting' as const, format: 'text/plain' },
     ];
-    const ann = buildPdfAnnotation(LAYER, RID, GENERATOR, 'tagging',
+    const ann = buildPdfAnnotation(LAYER, textOffsets(LAYER.text), RID, GENERATOR, 'tagging',
       { exact: 'alpha', start: 0, end: 5 }, body);
     expect((ann as Record<string, unknown>).body).toEqual(body);
     expect(Array.isArray((ann as Record<string, unknown>).body)).toBe(true);
@@ -197,7 +197,7 @@ describe('buildPdfAnnotation (geometry tail)', () => {
 
   it('cross-page: a span straddling a page break yields one FragmentSelector per page', () => {
     // "beta\ngamma" (chars 6..16) — beta on page 1, gamma on page 2.
-    const ann = buildPdfAnnotation(CROSS_PAGE_LAYER, RID, GENERATOR, 'highlighting',
+    const ann = buildPdfAnnotation(CROSS_PAGE_LAYER, textOffsets(CROSS_PAGE_LAYER.text), RID, GENERATOR, 'highlighting',
       { exact: 'beta\ngamma', start: 6, end: 16 });
     const f = frags(ann);
     expect(f).toHaveLength(2);

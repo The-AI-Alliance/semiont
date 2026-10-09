@@ -1144,7 +1144,7 @@ class UnitCursor(WireModel, frozen=True):
     next: Annotated[
         int,
         Field(
-            description="Characters consumed once the last COMMITTED chunk completed — the resume position. Deliberately the chunk's `next`, never its `at`: the checkpoint must not lead the log, so it records where a chunk that is already durable ended, not where the in-flight one began. Recording `at` would make a resume re-run the chunk it already paid for.",
+            description="Unicode code points of the text consumed once the last COMMITTED chunk completed — the resume position. Deliberately the chunk's `next`, never its `at`: the checkpoint must not lead the log, so it records where a chunk that is already durable ended, not where the in-flight one began. Recording `at` would make a resume re-run the chunk it already paid for.",
             ge=0,
         ),
     ]
@@ -1843,8 +1843,20 @@ class TagSchemaAddedPayload(WireModel, frozen=True):
 
 class TextPositionSelector(WireModel, frozen=True):
     type: Literal["TextPositionSelector"]
-    start: Annotated[float, Field(description="Character offset from resource start")]
-    end: Annotated[float, Field(description="Character offset from resource start")]
+    start: Annotated[
+        int,
+        Field(
+            description="Offset into the resource's decoded text, exactly as decoded, in Unicode code points from its start: where the selected text starts.",
+            ge=0,
+        ),
+    ]
+    end: Annotated[
+        int,
+        Field(
+            description="Offset into the resource's decoded text, exactly as decoded, in Unicode code points from its start: just past where the selected text ends.",
+            ge=0,
+        ),
+    ]
 
 
 class TextQuoteSelector(WireModel, frozen=True):
@@ -3472,7 +3484,7 @@ class BrowsePanelOpenEvent(WireModel, frozen=True):
 
 class AnchoredText(WireModel, frozen=True):
     """
-    Text paired with the geometry that indexes it — the minimum needed to turn a character range into a selection, or a rectangle into a quote. Whole-resource: a producer iterates page by page, but every consumer wants one map.
+    Text paired with the geometry that indexes it — the minimum needed to turn a range of the text, two offsets counted in Unicode code points, into a selection, or a rectangle into a quote. Whole-resource: a producer iterates page by page, but every consumer wants one map.
     """
 
     text: Annotated[str, Field(description="Reading-order text of the whole resource.")]

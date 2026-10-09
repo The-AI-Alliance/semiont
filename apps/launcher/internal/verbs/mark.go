@@ -28,7 +28,8 @@ Annotate a resource. A selector says WHERE, a body says WHAT.
 
 Selector (one of):
   --quote <text>        Select this exact text (add --prefix/--suffix for context)
-  --start <n> --end <n> Select by character position
+  --start <n> --end <n> Select by position: offsets in Unicode code points from
+                        the start of the resource's text, from <start> up to <end>
   (none)                Annotate the whole resource
 
 Body:
@@ -355,7 +356,7 @@ func Mark(args []string) int {
 		}
 	case start >= 0:
 		if err := one.FromTextPositionSelector(semiont.TextPositionSelector{
-			Start: float32(start), End: float32(end),
+			Start: start, End: end,
 		}); err != nil {
 			return markBuildFail(err)
 		}

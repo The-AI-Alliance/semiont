@@ -17,7 +17,10 @@ export interface GenerationCitation {
   resourceId: ResourceId;
   /** The contributing annotation, when the cited excerpt was annotation-derived. */
   annotationId?: string;
-  /** Claim span in the FINAL (token-stripped) content; substring(start, end) === exact. */
+  /**
+   * The claim's span in the FINAL (token-stripped) content, as two offsets:
+   * they count its code points, and the text between them is `exact`.
+   */
   start: number;
   end: number;
   exact: string;
@@ -53,7 +56,10 @@ export function resolveCitationTokens(
   logger: Logger,
 ): { content: string; citations: GenerationCitation[] } {
   const citations: GenerationCitation[] = [];
-  let clean = '';
+  // The resolved content, a code point to an element: a position in it is an
+  // offset, and a claim's span is counted as the wire states one.
+  const clean: string[] = [];
+  /** Where `content` has been read to: its string's position, just past the last token. */
   let last = 0;
 
   for (const match of content.matchAll(CITATION_TOKEN)) {
@@ -63,7 +69,7 @@ export function resolveCitationTokens(
 
     // Append the text before the token, dropping the whitespace run immediately
     // preceding it so stripping never leaves a dangling space.
-    clean += content.slice(last, match.index).replace(/[ \t]+$/, '');
+    for (const codePoint of content.slice(last, match.index).replace(/[ \t]+$/, '')) clean.push(codePoint);
     last = match.index! + token.length;
 
     if (!isResourceId(citedResourceId) || !validResourceIds.has(citedResourceId)) {
@@ -85,7 +91,7 @@ export function resolveCitationTokens(
       }
     }
     while (start < end && /\s/.test(clean[start]!)) start++;
-    const exact = clean.slice(start, end);
+    const exact = clean.slice(start, end).join('');
     if (exact.length === 0) {
       logger.warn('Citation token has no preceding claim text — dropped', {
         resourceId: citedResourceId,
@@ -102,6 +108,5 @@ export function resolveCitationTokens(
     });
   }
 
-  clean += content.slice(last);
-  return { content: clean, citations };
+  return { content: clean.join('') + content.slice(last), citations };
 }

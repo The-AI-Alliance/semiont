@@ -28,6 +28,7 @@ import {
   type SizingBounds,
 } from '../workers/detection/chunk-size-controller';
 import { InferenceTimeoutError } from '../workers/inference-call';
+import { textOffsets } from '@semiont/core';
 
 interface Budget {
   size: number;
@@ -169,11 +170,14 @@ function runStep(c: StepCase): void {
 }
 
 async function runWalk(c: WalkCase): Promise<void> {
+  // The table's positions are offsets: they count the text's code points, as its length does.
+  const offsets = textOffsets(c.text);
   const handed: AdaptiveChunk[] = [];
   const failure = new Error('the piece fails, as the table scripts');
   let answered = 0;
   const walk = runAdaptiveChunks(
     c.text,
+    offsets,
     toDetectionBudget(c.budget),
     async (chunk) => {
       handed.push(chunk);
@@ -190,7 +194,7 @@ async function runWalk(c: WalkCase): Promise<void> {
   else await expect(walk).rejects.toBe(failure);
 
   expect(handed).toEqual(
-    c.pieces.map(({ at, to, size, next }) => ({ piece: c.text.slice(at, to), size, at, next, totalChars: c.text.length })),
+    c.pieces.map(({ at, to, size, next }) => ({ piece: c.text.slice(offsets.indexAt(at), offsets.indexAt(to)), size, at, next, totalChars: offsets.length })),
   );
   expect(answered).toBe(c.outcomes.length);
 }
@@ -238,7 +242,9 @@ async function runDescent(c: DescentCase): Promise<void> {
     }).toEqual(c.result);
   }
 
-  expect(asked).toEqual(c.asked.map(([from, to]) => c.piece.slice(from, to)));
+  // A span of the piece is two offsets: they count its code points.
+  const offsets = textOffsets(c.piece);
+  expect(asked).toEqual(c.asked.map(([from, to]) => c.piece.slice(offsets.indexAt(from), offsets.indexAt(to))));
   expect(asked.length).toBe(c.replies.length);
 }
 

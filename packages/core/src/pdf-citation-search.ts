@@ -22,7 +22,7 @@
  * a wrong one — only a failure into an unlikely mismatch.
  */
 import type { AnchoredText } from './pdf-anchoring';
-import { occurrencesOf, textOffsets } from './text-offsets';
+import { occurrencesOf, textOffsets, type TextOffsets } from './text-offsets';
 
 /** Distinct break marker — deliberately not a space (spaces are never wildcards). */
 const BREAK_MARKER = '';
@@ -38,9 +38,13 @@ const escapeRegExp = (ch: string): string => ch.replace(/[.*+?^${}()|[\]\\]/g, '
  * `start` and `end` are offsets into `anchored.text`: they count code points,
  * as its items' own offsets do, and are a string's positions only in a text
  * with no character outside the Basic Multilingual Plane.
+ *
+ * `offsets` is that text's own (`textOffsets(anchored.text)`): a caller with
+ * several claims to find in one text makes it once.
  */
 export function findClaimSpan(
   anchored: AnchoredText,
+  offsets: TextOffsets,
   exact: string,
 ): { start: number; end: number } | null {
   const needle = exact.replace(/\s+/g, ' ').trim();
@@ -84,7 +88,6 @@ export function findClaimSpan(
   const pattern = [...needle].map(escapeRegExp).join(BREAK_GAP);
   const match = new RegExp(pattern, 'u').exec(marker);
   if (match) {
-    const offsets = textOffsets(anchored.text);
     return { start: offsets.offsetAt(match.index), end: offsets.offsetAt(match.index + match[0].length) };
   }
 

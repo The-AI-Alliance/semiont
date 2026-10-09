@@ -18,14 +18,13 @@
 //     the basic plane. An offset counts code points, and so does every length
 //     such a rule states; only a text with such a character tells that count
 //     from a count of UTF-16 code units or of bytes, so a table without one
-//     holds its rule to no count. These are the tables `packages/core` runs:
-//     what an offset counts, the chunker, the reconciling of a quote, and the
-//     locating of a span of a PDF;
-//   - a table the TypeScript worker (`packages/jobs`) runs has such a
-//     character: the builder's, the id's, the chunk plan's, the citation's,
-//     the parser's and the failure classes'. That worker takes an offset for
-//     a position in a string, so these tables stay true only on texts where
-//     the two are the same number.
+//     holds its rule to no count. These are every table here but one: what an
+//     offset counts, the chunker, the reconciling of a quote, the locating of
+//     a span of a PDF, the builder, the id (whose anchor states a span's
+//     offsets), the chunk plan, the citations, and the reading of a reply
+//     (whose items state where each passage is, and how long a piece was).
+//     The table of failure classes counts nothing and states no offset, and
+//     is held to nothing about its characters.
 //
 // It reads the source files, so it cannot pass on a stale bundle.
 
@@ -43,9 +42,8 @@ const DIRECTORIES = ['specs/src/text', 'specs/src/worker'];
  * table of another census as well (the readers', `lint:client-surface`'s), so
  * its tables are listed here by name and the directory is not swept.
  *
- * `countsCodePoints` marks a table whose rule counts or states an offset and
- * whose runner counts code points: it must have a character outside the basic
- * plane. A table without the mark must have none.
+ * `countsCodePoints` marks a table whose rule counts or states an offset: it
+ * must have a character outside the basic plane.
  */
 const TABLES = [
   // What a text offset counts.
@@ -54,12 +52,12 @@ const TABLES = [
   { table: 'specs/src/text/chunk-cases.json', runners: ['packages/core/src/__tests__/chunk-cases.test.ts'], countsCodePoints: true },
   { table: 'specs/src/annotations/reconcile-cases.json', runners: ['packages/core/src/__tests__/reconcile-cases.test.ts'], countsCodePoints: true },
   { table: 'specs/src/annotations/pdf-locate-cases.json', runners: ['packages/core/src/__tests__/pdf-locate-cases.test.ts'], countsCodePoints: true },
-  { table: 'specs/src/annotations/builder-cases.json', runners: ['packages/jobs/src/__tests__/builder-cases.test.ts'] },
-  { table: 'specs/src/annotations/id-cases.json', runners: ['packages/jobs/src/__tests__/id-cases.test.ts'] },
+  { table: 'specs/src/annotations/builder-cases.json', runners: ['packages/jobs/src/__tests__/builder-cases.test.ts'], countsCodePoints: true },
+  { table: 'specs/src/annotations/id-cases.json', runners: ['packages/jobs/src/__tests__/id-cases.test.ts'], countsCodePoints: true },
   // What Semiont's worker alone does.
-  { table: 'specs/src/worker/chunk-plan-cases.json', runners: ['packages/jobs/src/__tests__/chunk-plan-cases.test.ts'] },
-  { table: 'specs/src/worker/parser-cases.json', runners: ['packages/jobs/src/__tests__/parser-cases.test.ts'] },
-  { table: 'specs/src/worker/citation-cases.json', runners: ['packages/jobs/src/__tests__/citation-cases.test.ts'] },
+  { table: 'specs/src/worker/chunk-plan-cases.json', runners: ['packages/jobs/src/__tests__/chunk-plan-cases.test.ts'], countsCodePoints: true },
+  { table: 'specs/src/worker/parser-cases.json', runners: ['packages/jobs/src/__tests__/parser-cases.test.ts'], countsCodePoints: true },
+  { table: 'specs/src/worker/citation-cases.json', runners: ['packages/jobs/src/__tests__/citation-cases.test.ts'], countsCodePoints: true },
   { table: 'specs/src/worker/failure-class-cases.json', runners: ['packages/jobs/src/__tests__/failure-class-cases.test.ts'] },
 ];
 
@@ -90,9 +88,6 @@ for (const { table, runners, countsCodePoints = false } of TABLES) {
   }
   if (countsCodePoints && !OUTSIDE_THE_BASIC_PLANE.test(text)) {
     fail(`${table} has no character outside the basic plane: its rule counts or states an offset, and it tells a count of code points from no other`);
-  }
-  if (!countsCodePoints && OUTSIDE_THE_BASIC_PLANE.test(text)) {
-    fail(`${table} has a character outside the basic plane: its runner takes an offset for a position in a string, and the two differ after such a character`);
   }
   for (const runner of runners) {
     const runnerPath = resolve(REPO, runner);

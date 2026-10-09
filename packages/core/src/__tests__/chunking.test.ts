@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { chunkText, cutChunk } from '../chunking';
+import { textOffsets } from '../text-offsets';
 
 describe('chunkText', () => {
   it('returns single chunk for short text', () => {
@@ -53,12 +54,12 @@ describe('cutChunk', () => {
 
   it('cut at the end of the text, by its code points, takes nothing and stays there', () => {
     // Three code points, five units of a string.
-    expect(cutChunk('a😀😀', 3, config)).toEqual({ piece: '', next: 3 });
+    expect(cutChunk('a😀😀', textOffsets('a😀😀'), 3, config)).toEqual({ piece: '', next: 3 });
   });
 
   it('refuses an `at` the text does not have', () => {
-    expect(() => cutChunk('a😀😀', 4, config)).toThrow(RangeError);
-    expect(() => cutChunk('abc', -1, config)).toThrow(RangeError);
-    expect(() => cutChunk('abc', 1.5, config)).toThrow(RangeError);
+    expect(() => cutChunk('a😀😀', textOffsets('a😀😀'), 4, config)).toThrow(RangeError);
+    expect(() => cutChunk('abc', textOffsets('abc'), -1, config)).toThrow(RangeError);
+    expect(() => cutChunk('abc', textOffsets('abc'), 1.5, config)).toThrow(RangeError);
   });
 });

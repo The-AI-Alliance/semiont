@@ -55,12 +55,12 @@ A TextPositionSelector offset counts the Unicode code points of the text as it w
 ```typescript
 // ❌ WRONG - Uses UTF-8 for ISO-8859-1 document
 const wrongText = new TextDecoder('utf-8').decode(buffer);
-const sel = reconcileSelector(wrongText, { exact: 'café' });
+const sel = reconcileSelector(wrongText, textOffsets(wrongText), { exact: 'café' });
 // Offsets will be INCORRECT because character positions don't match the worker
 
 // ✅ RIGHT - Uses charset from mediaType
 const rightText = decodeWithCharset(buffer, mediaType);
-const sel = reconcileSelector(rightText, { exact: 'café' });
+const sel = reconcileSelector(rightText, textOffsets(rightText), { exact: 'café' });
 // Offsets will be CORRECT
 ```
 
@@ -112,14 +112,15 @@ const { prefix, suffix } = extractContext(content, start, end);
 
 ### Reconcile LLM-Emitted Selectors
 
-The LLM does not supply offsets — it supplies `exact` (a verbatim substring) plus optional prefix/suffix context. `reconcileSelector` computes `start`/`end` by searching the source, producing a selector whose offsets (in code points) are provably consistent with the source content:
+The LLM does not supply offsets — it supplies `exact` (a verbatim substring) plus optional prefix/suffix context. `reconcileSelector` computes `start`/`end` by searching the source, producing a selector whose offsets (in code points) are provably consistent with the source content. It takes the content's `textOffsets`, which a caller with several proposals over one content makes once:
 
 ```typescript
-import { reconcileSelector } from '@semiont/core';
+import { reconcileSelector, textOffsets } from '@semiont/core';
 
 const content = "The quick brown fox jumps over the lazy dog.";
+const offsets = textOffsets(content);
 
-const result = reconcileSelector(content, {
+const result = reconcileSelector(content, offsets, {
   exact: "The quick",
 });
 
@@ -150,16 +151,17 @@ Returns `null` only when the LLM emitted text that doesn't appear in source at a
 
 ## Render-Time Anchoring
 
-`anchorAnnotation` is the renderer's counterpart to `reconcileSelector`. It is **verbatim-only**: it re-anchors on an exact `TextQuoteSelector` match and otherwise renders at the stored offset, flagged — it never fuzzy-matches at render time. The stored selectors are written to agree, so the only legitimate render-time discrepancy is *positional drift* (content shifted above the span). Position is a locality signal used to break ties among verbatim occurrences when context isn't unique. The position given and the anchor answered are offsets, in code points.
+`anchorAnnotation` is the renderer's counterpart to `reconcileSelector`. It is **verbatim-only**: it re-anchors on an exact `TextQuoteSelector` match and otherwise renders at the stored offset, flagged — it never fuzzy-matches at render time. The stored selectors are written to agree, so the only legitimate render-time discrepancy is *positional drift* (content shifted above the span). Position is a locality signal used to break ties among verbatim occurrences when context isn't unique. The position given and the anchor answered are offsets, in code points. It takes the content's `textOffsets`, which a renderer with several annotations of one content makes once.
 
 ```typescript
-import { anchorAnnotation } from '@semiont/core';
+import { anchorAnnotation, textOffsets } from '@semiont/core';
 
 const content = "Section A: the parties agree. Section B: the parties agree.";
+const offsets = textOffsets(content);
 
 // The stored offset is stale (off by one); the verbatim quote + prefix
 // still resolve the intended occurrence.
-const anchor = anchorAnnotation(content, {
+const anchor = anchorAnnotation(content, offsets, {
   position: { start: 40, end: 57 },
   quote: {
     exact: "the parties agree",

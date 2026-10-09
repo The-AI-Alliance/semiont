@@ -31,6 +31,7 @@ import {
   INFERENCE_TIMEOUT_MS,
 } from '../../workers/inference-call';
 import { AnnotationDetection } from '../../workers/annotation-detection';
+import { textOffsets } from '@semiont/core';
 
 const never = () => new Promise<never>(() => {});
 
@@ -325,7 +326,7 @@ describe('bounded inference calls', () => {
     const generateStructured = vi.fn(never);
     const client = clientWith({ generateStructured });
 
-    const pending = AnnotationDetection.detectHighlights('some content', client);
+    const pending = AnnotationDetection.detectHighlights('some content', textOffsets('some content'), client);
     const assertion = expect(pending).rejects.toThrow(/timed out/);
     // Content this small cannot SHRINK, and under the no-shrink floor an
     // unshrinkable piece never "descends" into identical re-runs — the first

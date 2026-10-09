@@ -1,5 +1,5 @@
 {
-  "$comment": "How a worker reads a model's reply into the items it goes on to anchor and store, as every worker must read it: the four motivations whose reply is a list of passages (highlighting, commenting, assessing, tagging) and the mentions of an entity type (linking). A case is one piece of work: the whole `text` is asked about in one call (the stand-in provider's limits are wide enough that the text is a single piece: 1,000,000 tokens of context and of reply, at 3,600,000,000 output tokens an hour), the provider answers with `reply`, and the worker either hands on what it `read` or is `refused` with a failure, described as specs/src/worker/failure-class-cases.json describes one. `calls` is how many times the model was asked for items. Prompts are not held here. THE STAND-IN PROVIDER answers every call for items with `reply`. `reply.text` is the reply's text; `reply.elements`, where the reply is a JSON array, are that array's elements, and the reply's text is their JSON. The provider reads the text as every provider does: text that is JSON and an array hands over the array's elements with `stopReason`; any other text (not JSON, JSON that is not an array, no text at all) is a StructuredReadError carrying `stopReason`, and never an empty array, because finding nothing is an answer and reading nothing is not. The provider verifies yield exactly when the case states `count`, and then answers every count call with `count.text`, or fails it where `count.fails`. READING. A reply whose stop reason is max_tokens is refused with a DeterministicJobError even when it reads as an array: an array cut off part-way is still an array, and would under-report in silence. A reply that was cut off (that failure, or a StructuredReadError whose stop reason is max_tokens) is asked for once more, the text here being too small to split, and is refused when it fails again; any other unreadable reply is refused at once (what becomes of a larger piece is specs/src/worker/chunk-plan-cases.json's, kind `descent`). Of a reply that is read, each element is judged alone, and an element that is not as its motivation requires is passed over and not counted: it must be a JSON object (not an array, not null) whose `exact` is a string; for commenting its `comment` must be a string that is not blank; for assessing its `assessment` must be a string; for tagging its `exact` must not be blank; for linking its `entityType` must be a string. `prefix` and `suffix` are read only when they are strings, and nothing else an element carries is read, offsets the model was never asked for among it. A passage proposed twice is read twice: repeats are removed where annotations are made, not here. THE FOUR MOTIVATIONS. Each passage is anchored in the whole `text` by the rule of specs/src/annotations/reconcile-cases.json, the element's `prefix` and `suffix` serving only to choose between occurrences. An item is the passage as the text has it: `exact`, `start`, `end`, and the text's own `prefix` and `suffix` (never the model's), with the `comment` or `assessment` as written, or the `category` the tagging call was for. Every passage here occurs once, in a text shorter than a prefix may be, so its prefix is all the text before it and its suffix all the text after it, each absent where there is none. `dropped` counts the passages that could not be anchored: the model proposed them, and a job counts them as errors. LINKING. An item is the mention as the model wrote it (`exact`, `entityType`, `prefix`, `suffix`), not yet anchored: whether the text holds it is settled afterwards. Where the provider verifies yield, a reply that was read is followed by a count call, which asks how many mentions the piece holds. The count is the first run of the digits 0 to 9 in the count's reply. A count call that fails, or a reply with no digit, switches the check off for the piece, and nothing is counted. Otherwise, when twice the number of elements in the reply is less than the count, the reply is a yield collapse (a YieldCollapseError: the same call returns the same under-report, so only a smaller piece can do better). A text too small to split is accepted with what was found, and its `found`, `counted` and `pieceChars` (the piece's length) are reported in `underReported`. `counted` lists the count of each piece whose items were accepted, and `countCalls` is how many count calls were made. TypeScript runs every case in packages/jobs (src/__tests__/parser-cases.test.ts) through AnnotationDetection and extractEntities; a worker in another language runs the same file. Add a case here before changing an implementation.",
+  "$comment": "How a worker reads a model's reply into the items it goes on to anchor and store, as every worker must read it: the four motivations whose reply is a list of passages (highlighting, commenting, assessing, tagging) and the mentions of an entity type (linking). A case is one piece of work: the whole `text` is asked about in one call (the stand-in provider's limits are wide enough that the text is a single piece: 1,000,000 tokens of context and of reply, at 3,600,000,000 output tokens an hour), the provider answers with `reply`, and the worker either hands on what it `read` or is `refused` with a failure, described as specs/src/worker/failure-class-cases.json describes one. `calls` is how many times the model was asked for items. Prompts are not held here. THE STAND-IN PROVIDER answers every call for items with `reply`. `reply.text` is the reply's text; `reply.elements`, where the reply is a JSON array, are that array's elements, and the reply's text is their JSON. The provider reads the text as every provider does: text that is JSON and an array hands over the array's elements with `stopReason`; any other text (not JSON, JSON that is not an array, no text at all) is a StructuredReadError carrying `stopReason`, and never an empty array, because finding nothing is an answer and reading nothing is not. The provider verifies yield exactly when the case states `count`, and then answers every count call with `count.text`, or fails it where `count.fails`. READING. A reply whose stop reason is max_tokens is refused with a DeterministicJobError even when it reads as an array: an array cut off part-way is still an array, and would under-report in silence. A reply that was cut off (that failure, or a StructuredReadError whose stop reason is max_tokens) is asked for once more, the text here being too small to split, and is refused when it fails again; any other unreadable reply is refused at once (what becomes of a larger piece is specs/src/worker/chunk-plan-cases.json's, kind `descent`). Of a reply that is read, each element is judged alone, and an element that is not as its motivation requires is passed over and not counted: it must be a JSON object (not an array, not null) whose `exact` is a string; for commenting its `comment` must be a string that is not blank; for assessing its `assessment` must be a string; for tagging its `exact` must not be blank; for linking its `entityType` must be a string. `prefix` and `suffix` are read only when they are strings, and nothing else an element carries is read, offsets the model was never asked for among it. A passage proposed twice is read twice: repeats are removed where annotations are made, not here. THE FOUR MOTIVATIONS. Each passage is anchored in the whole `text` by the rule of specs/src/annotations/reconcile-cases.json, the element's `prefix` and `suffix` serving only to choose between occurrences. An item is the passage as the text has it: `exact`, `start` and `end` (offsets, which count the text's Unicode code points, as specs/src/text/offset-cases.json states the count), and the text's own `prefix` and `suffix` (never the model's), with the `comment` or `assessment` as written, or the `category` the tagging call was for. Every passage here occurs once, in a text shorter than a prefix may be, so its prefix is all the text before it and its suffix all the text after it, each absent where there is none. `dropped` counts the passages that could not be anchored: the model proposed them, and a job counts them as errors. LINKING. An item is the mention as the model wrote it (`exact`, `entityType`, `prefix`, `suffix`), not yet anchored: whether the text holds it is settled afterwards. Where the provider verifies yield, a reply that was read is followed by a count call, which asks how many mentions the piece holds. The count is the first run of the digits 0 to 9 in the count's reply. A count call that fails, or a reply with no digit, switches the check off for the piece, and nothing is counted. Otherwise, when twice the number of elements in the reply is less than the count, the reply is a yield collapse (a YieldCollapseError: the same call returns the same under-report, so only a smaller piece can do better). A text too small to split is accepted with what was found, and its `found`, `counted` and `pieceChars` (the piece's length, in code points) are reported in `underReported`. `counted` lists the count of each piece whose items were accepted, and `countCalls` is how many count calls were made. TypeScript runs every case in packages/jobs (src/__tests__/parser-cases.test.ts) through AnnotationDetection and extractEntities; a worker in another language runs the same file. Add a case here before changing an implementation.",
   "defects": [
     "A blank `assessment` is accepted where a blank `comment` is passed over.",
     "An `exact` of no characters is counted as a passage that could not be anchored for highlighting, commenting and assessing, and is passed over uncounted for tagging.",
@@ -21,6 +21,24 @@
       "read": {
         "items": [
           { "exact": "Bob", "start": 21, "end": 24, "prefix": "Alice went to Paris. ", "suffix": " stayed home." }
+        ],
+        "dropped": 0
+      }
+    },
+    {
+      "why": "a passage after a character outside the Basic Multilingual Plane is anchored at a count of code points: `Paris` is from 16 to 21, the emoji before it being one, and the emoji is in its prefix as itself",
+      "motivation": "highlighting",
+      "text": "😀 Alice went to Paris. Bob stayed home.",
+      "reply": {
+        "elements": [
+          { "exact": "Paris" }
+        ],
+        "stopReason": "end_turn"
+      },
+      "calls": 1,
+      "read": {
+        "items": [
+          { "exact": "Paris", "start": 16, "end": 21, "prefix": "😀 Alice went to ", "suffix": ". Bob stayed home." }
         ],
         "dropped": 0
       }
@@ -455,6 +473,32 @@
         "counted": [5],
         "underReported": [
           { "found": 2, "counted": 5, "pieceChars": 37 }
+        ]
+      }
+    },
+    {
+      "why": "the length of a piece reported as under-reported is its length in code points: 39 here, the emoji being one, where the text is 40 UTF-16 code units",
+      "motivation": "linking",
+      "text": "😀 Alice went to Paris. Bob stayed home.",
+      "entityType": "Person",
+      "reply": {
+        "elements": [
+          { "exact": "Alice", "entityType": "Person" },
+          { "exact": "Bob", "entityType": "Person" }
+        ],
+        "stopReason": "end_turn"
+      },
+      "count": { "text": "5" },
+      "calls": 1,
+      "countCalls": 1,
+      "read": {
+        "items": [
+          { "exact": "Alice", "entityType": "Person" },
+          { "exact": "Bob", "entityType": "Person" }
+        ],
+        "counted": [5],
+        "underReported": [
+          { "found": 2, "counted": 5, "pieceChars": 39 }
         ]
       }
     },

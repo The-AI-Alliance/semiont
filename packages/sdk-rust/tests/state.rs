@@ -1217,7 +1217,7 @@ async fn mark_carries_a_selector_of_several_as_it_was_given() {
     let (client, _transport) = world();
     let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
     let several = json!([
-        { "type": "TextPositionSelector", "start": 3.0, "end": 8.0 },
+        { "type": "TextPositionSelector", "start": 3, "end": 8 },
         { "type": "TextQuoteSelector", "exact": "hello", "prefix": "oh ", "suffix": " there" },
         { "type": "SvgSelector", "value": "<svg/>" },
         { "type": "FragmentSelector", "value": "page=2", "conformsTo": "http://tools.ietf.org/rfc/rfc3778" },

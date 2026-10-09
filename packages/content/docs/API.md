@@ -113,7 +113,7 @@ if (layer === null) {
 
 ### locate
 
-Finds bounding rectangles for a character span `[start, end)` of `layer.text`. Exported by `@semiont/core`. Returns `rects`, one `PdfCoordinate` per line of text covered by the span (possibly across pages), and `overlap`, the text items they were computed from; both are empty if no text items overlap the span.
+Finds bounding rectangles for a span `[start, end)` of `layer.text`, two offsets counted in Unicode code points. Exported by `@semiont/core`. Returns `rects`, one `PdfCoordinate` per line of text covered by the span (possibly across pages), and `overlap`, the text items they were computed from; both are empty if no text items overlap the span.
 
 ```typescript
 import { locate } from '@semiont/core';

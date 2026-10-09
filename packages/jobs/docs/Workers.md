@@ -85,6 +85,7 @@ The highlighting, commenting, assessing and tagging processors share one signatu
 ```typescript sketch
 process<X>Job(
   content: string,            // prepared by the worker process, not the processor
+  offsets: TextOffsets,       // the content's conversions (`textOffsets(content)`), made once with it
   inferenceClient: InferenceClient,
   params: HeldMarkParams<M>,         // that motivation's params, with what the dispatcher adds
   buildAnnotation: BuildAnnotation,  // (motivation, match, body?) => Annotation; carries the generator
@@ -96,13 +97,15 @@ process<X>Job(
 
 `processReferenceJob` runs several units (entity types) concurrently, so after `onProgress` it takes `logger`, an `onUnitComplete(entityType)` checkpoint callback, and an abort `signal`, then the optional `onChunkComplete` and `resumeCursors`.
 
+**Every offset counts Unicode code points**: a span's `start` and `end`, a cursor's `next`, and every length worked out from them, as the wire states them ([W3C-SELECTORS.md](../../../docs/protocol/W3C-SELECTORS.md#textpositionselector)). A JavaScript string is indexed in UTF-16 code units, which is another count after the first character outside the Basic Multilingual Plane, so nothing here takes an offset for a string's position. `offsets` is the content's `TextOffsets`, which converts between the two: it is made once, where the content is first held (`prepareDetection`), and handed to every function that cuts, searches or slices the content.
+
 Two things a processor does **not** do. It never returns annotations for the caller to write —
 each chunk is committed through `onChunkComplete` as it is produced, so a retry resumes from
 the cursor rather than re-running the job. And it never sees a user identity: an annotation
 states what produced it, and who *requested* it is derived by the knowledge base from the job
 the commit cites.
 
-`ProcessorResult<R>` is `{ result: R }`. The annotations a processor commits are W3C Web Annotation objects shaped by the `buildAnnotation` closure it is handed — `buildTextAnnotation` for text, `buildPdfAnnotation` for geometry-bearing media. The text builder enforces a write-time invariant (`content.substring(start, end) === exact`) so a mis-anchored selector throws loudly instead of corrupting the KB.
+`ProcessorResult<R>` is `{ result: R }`. The annotations a processor commits are W3C Web Annotation objects shaped by the `buildAnnotation` closure it is handed — `buildTextAnnotation` for text, `buildPdfAnnotation` for geometry-bearing media. The text builder enforces a write-time invariant (the text from `start` to `end` is `exact`) so a mis-anchored selector throws loudly instead of corrupting the KB.
 
 Generation is the odd one out — it produces *content*, not annotations:
 
@@ -190,6 +193,7 @@ In `src/processors.ts`, add a function that takes content + inference + params, 
 ```typescript
 export async function processDescribeJob(
   content: string,
+  offsets: TextOffsets,
   inferenceClient: InferenceClient,
   params: HeldMarkParams<'describing'>,
   buildAnnotation: BuildAnnotation,
@@ -209,7 +213,7 @@ export async function processDescribeJob(
   let errors = prior?.errors ?? 0;
 
   await AnnotationDetection.detectDescriptions(
-    content, inferenceClient, params.instructions, params.language, params.sourceLanguage, undefined, prior,
+    content, offsets, inferenceClient, params.instructions, params.language, params.sourceLanguage, undefined, prior,
     // Each chunk: the spans anchored in the text, and how many proposed ones were not.
     async (matches, cursor, dropped) => {
       found += matches.length + dropped;
@@ -238,12 +242,12 @@ Then export it from `src/index.ts` next to the other `process*Job` functions.
 
 ### 3. Add a dispatch branch
 
-In `src/worker-process.ts`, add a branch to `handleJobInner`. `isHeldMark` says the job is this one and narrows its params. The branch hands the processor the prepared text, the `buildAnnotation` closure and `commitChunk` — the shared durability write, which commits a chunk and then records its cursor, in that order — and reports completion only after it returns:
+In `src/worker-process.ts`, add a branch to `handleJobInner`. `isHeldMark` says the job is this one and narrows its params. The branch hands the processor the prepared text, its `offsets`, the `buildAnnotation` closure and `commitChunk` — the shared durability write, which commits a chunk and then records its cursor, in that order — and reports completion only after it returns:
 
 ```typescript
 } else if (job.jobType === 'mark' && isHeldMark(params, 'describing')) {
   const { result } = await processDescribeJob(
-    ready!.text, inferenceClient, params,
+    ready!.text, ready!.offsets, inferenceClient, params,
     ready!.buildAnnotation, onProgress,
     // The durability write, per chunk, awaited. `commitChunk` calls
     // `job.commit(resourceId, annotations)` — the batch CITES the job, which
@@ -313,11 +317,11 @@ The message vocabulary is the spec's `JobProgressMessage`; each client renders t
 
 ## Testing a Processor
 
-Because processors are pure, you test them with no bus, no session, and no queue. Mock `AnnotationDetection` (the LLM call), feed in content that actually contains your spans (the `buildTextAnnotation` invariant checks `content.substring(start, end) === exact`), and assert on the committed annotations and the `onProgress` calls:
+Because processors are pure, you test them with no bus, no session, and no queue. Mock `AnnotationDetection` (the LLM call), feed in content that actually contains your spans (the `buildTextAnnotation` invariant checks that the text from `start` to `end` is `exact`), and assert on the committed annotations and the `onProgress` calls:
 
 ```typescript
 import { describe, it, expect, vi } from 'vitest';
-import { resourceId, type Annotation, type components } from '@semiont/core';
+import { resourceId, textOffsets, type Annotation, type components } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 
 type Agent = components['schemas']['Agent'];
@@ -340,18 +344,19 @@ const inferenceClient = { generateText: vi.fn() } as unknown as InferenceClient;
 describe('processDescribeJob', () => {
   it('produces describing annotations, counts what was proposed, and reports progress', async () => {
     const content = 'an important passage worth describing.';
+    const offsets = textOffsets(content);
     // One chunk: one span anchored in the text, and one proposed that was not.
     vi.mocked(AnnotationDetection.detectDescriptions).mockImplementation(async (...args) => {
       const onChunk = args[args.length - 1] as (m: unknown[], cursor: { next: number; size: number }, dropped: number) => Promise<void>;
-      await onChunk([{ exact: 'important passage', start: 3, end: 20, description: 'a key point' }], { next: content.length, size: 500 }, 1);
+      await onChunk([{ exact: 'important passage', start: 3, end: 20, description: 'a key point' }], { next: offsets.length, size: 500 }, 1);
       return [];
     });
 
     const progress = vi.fn();
     const committed: Annotation[] = [];
     const { result } = await processDescribeJob(
-      content, inferenceClient, { motivation: 'describing', resourceId: RID },
-      (motivation, match, body) => buildTextAnnotation(content, RID, GENERATOR, motivation, match, body),
+      content, offsets, inferenceClient, { motivation: 'describing', resourceId: RID },
+      (motivation, match, body) => buildTextAnnotation(content, offsets, RID, GENERATOR, motivation, match, body),
       progress,
       async (annotations) => { committed.push(...annotations); },
     );

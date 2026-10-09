@@ -17,7 +17,7 @@ import { withinByteBudget, MAX_PDF_BYTES } from '@semiont/content';
 import { resolveCitationTokens, collectContextResourceIds, type GenerationCitation } from './workers/generation/citation-resolver';
 import { annotationIdFor } from '@semiont/event-sourcing';
 import { GENERATABLE_MEDIA_TYPES, type Annotation, type GenerationJobParams, type Logger, type ResourceId, type SupportedMediaType, type components, type JobDetectionResult, type UnitCursor } from '@semiont/core';
-import { reconcileSelector, createFragmentSelector, locate, type ReconciledSelector, type AnchoredText } from '@semiont/core';
+import { reconcileSelector, createFragmentSelector, locate, textOffsets, type ReconciledSelector, type AnchoredText, type TextOffsets } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import type { HeldMarkParams } from './types';
 import { noteAnchor } from './workers/detection/anchor-audit';
@@ -25,7 +25,7 @@ import { runBounded } from './workers/detection/bounded-concurrency';
 
 type Agent = components['schemas']['Agent'];
 
-/** A detected span — offsets into the extracted `.text`, plus optional context. */
+/** A detected span — offsets into the extracted `.text`, in code points, plus optional context. */
 export type SpanMatch = { exact: string; start: number; end: number; prefix?: string; suffix?: string };
 
 /**
@@ -41,6 +41,9 @@ export type SpanMatch = { exact: string; start: number; end: number; prefix?: st
  *
  * `exact` is included, not just the offsets: after a content update the same
  * offsets cover different text, and that is a different annotation.
+ *
+ * The offsets count code points, as the stored selector's do, so the id of a
+ * span is the same whichever language's worker found it.
  */
 function spanAnchor(match: Pick<SpanMatch, 'start' | 'end' | 'exact'>): string {
   return `${match.start}:${match.end}:${match.exact}`;
@@ -128,7 +131,7 @@ function annotationDedupeKey(ann: Record<string, unknown>): string {
   const selectors = Array.isArray(target?.selector) ? target.selector : [];
   const pos = selectors.find((s) => s.type === 'TextPositionSelector');
   // Anchor identity is media-specific. Text annotations carry a
-  // TextPositionSelector (durable char offsets). PDF annotations have none —
+  // TextPositionSelector (durable offsets). PDF annotations have none —
   // their anchor is the per-line FragmentSelector viewrect geometry plus the
   // TextQuoteSelector text. Keying only on TextPositionSelector would collapse
   // every PDF annotation sharing a motivation+body onto one (its offsets fall
@@ -179,8 +182,25 @@ function makeSpanDeduper(): (annotations: Annotation[]) => Annotation[] {
   };
 }
 
+/**
+ * The text between two offsets, read as a string's own `substring` reads two
+ * positions: it starts at the lesser whichever is given first, an offset past
+ * the end of the text is its end, and one below zero is its start.
+ */
+function textBetween(content: string, offsets: TextOffsets, from: number, to: number): string {
+  const within = (offset: number): number => Math.min(Math.max(offset, 0), offsets.length);
+  const [start, end] = from <= to ? [within(from), within(to)] : [within(to), within(from)];
+  return content.substring(offsets.indexAt(start), offsets.indexAt(end));
+}
+
+/**
+ * `offsets` is the content's own (`textOffsets(content)`), made once where the
+ * content is first held. `match.start` and `match.end` are offsets: they count
+ * code points, and so does the length of a prefix or a suffix checked here.
+ */
 export function buildTextAnnotation(
   content: string,
+  offsets: TextOffsets,
   resourceId: ResourceId,
   generator: Agent,
   motivation: Motivation,
@@ -196,14 +216,14 @@ export function buildTextAnnotation(
   // internally consistent with the source content. If a worker bypasses
   // `reconcileSelector` or a future change introduces overlap, the
   // throw fires loudly here instead of corrupting the KB.
-  if (content.substring(match.start, match.end) !== match.exact) {
+  if (textBetween(content, offsets, match.start, match.end) !== match.exact) {
     throw new Error(
       `buildTextAnnotation invariant: content.substring(${match.start}, ${match.end}) !== exact ` +
         `for resource ${resourceId}, motivation ${motivation}`,
     );
   }
   if (match.prefix !== undefined) {
-    const actualPrefix = content.substring(Math.max(0, match.start - match.prefix.length), match.start);
+    const actualPrefix = textBetween(content, offsets, match.start - textOffsets(match.prefix).length, match.start);
     if (actualPrefix !== match.prefix) {
       throw new Error(
         `buildTextAnnotation invariant: content prefix-slice !== prefix ` +
@@ -212,7 +232,7 @@ export function buildTextAnnotation(
     }
   }
   if (match.suffix !== undefined) {
-    const actualSuffix = content.substring(match.end, Math.min(content.length, match.end + match.suffix.length));
+    const actualSuffix = textBetween(content, offsets, match.end, match.end + textOffsets(match.suffix).length);
     if (actualSuffix !== match.suffix) {
       throw new Error(
         `buildTextAnnotation invariant: content suffix-slice !== suffix ` +
@@ -257,8 +277,12 @@ export function buildTextAnnotation(
  * `target.selector` = one `FragmentSelector` per line (`locate` unions the
  * overlapping text-layer items into per-line viewrects) plus a
  * `TextQuoteSelector` anchor. No `TextPositionSelector`: the extracted text
- * layer is a derived artifact, not the stored content, so its char offsets are
+ * layer is a derived artifact, not the stored content, so its offsets are
  * not a durable anchor.
+ *
+ * `offsets` is the anchored text's own (`textOffsets(anchored.text)`), made
+ * once where that text is first held. The match's offsets and the items' count
+ * its code points.
  *
  * **And the `id` is hashed over exactly those offsets** — `annotationIdFor` gets
  * `spanAnchor(match)`, i.e. `${start}:${end}:${exact}`. That is worth stating
@@ -288,6 +312,7 @@ export function buildTextAnnotation(
  */
 export function buildPdfAnnotation(
   anchored: AnchoredText,
+  offsets: TextOffsets,
   resourceId: ResourceId,
   generator: Agent,
   motivation: Motivation,
@@ -299,7 +324,9 @@ export function buildPdfAnnotation(
   const { rects, overlap } = locate(anchored, match.start, match.end);
 
   const coveredText = overlap.length
-    ? anchored.text.substring(
+    ? textBetween(
+        anchored.text,
+        offsets,
         Math.min(...overlap.map((i) => i.start)),
         Math.max(...overlap.map((i) => i.end)),
       )
@@ -381,6 +408,8 @@ export interface UnitCheckpoint {
 
 export async function processHighlightJob(
   content: string,
+  /** The content's own conversions (`textOffsets(content)`), made once where the content is first held. */
+  offsets: TextOffsets,
   inferenceClient: InferenceClient,
   params: HeldMarkParams<'highlighting'>,
   buildAnnotation: BuildAnnotation,
@@ -406,8 +435,9 @@ export async function processHighlightJob(
   let created = prior?.emitted ?? 0;
   let errors = prior?.errors ?? 0;
   await AnnotationDetection.detectHighlights(
-    content, inferenceClient, params.instructions, params.density, params.sourceLanguage,
-    // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band.
+    content, offsets, inferenceClient, params.instructions, params.density, params.sourceLanguage,
+    // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band. Both are
+    // offsets: how far through the content, of its length, in code points.
     (consumedChars, totalChars) => onProgress(30 + Math.round((consumedChars / totalChars) * 30), { code: 'analyzing' }, echo),
     resumeCursors?.['highlighting'],
     async (matches, cursor, dropped) => {
@@ -458,6 +488,8 @@ function detectionEcho(p: {
 
 export async function processCommentJob(
   content: string,
+  /** The content's own conversions (`textOffsets(content)`), made once where the content is first held. */
+  offsets: TextOffsets,
   inferenceClient: InferenceClient,
   params: HeldMarkParams<'commenting'>,
   buildAnnotation: BuildAnnotation,
@@ -487,9 +519,10 @@ export async function processCommentJob(
   let created = prior?.emitted ?? 0;
   let errors = prior?.errors ?? 0;
   await AnnotationDetection.detectComments(
-    content, inferenceClient, params.instructions, params.tone, params.density,
+    content, offsets, inferenceClient, params.instructions, params.tone, params.density,
     params.language, params.sourceLanguage,
-    // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band.
+    // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band. Both are
+    // offsets: how far through the content, of its length, in code points.
     (consumedChars, totalChars) => onProgress(30 + Math.round((consumedChars / totalChars) * 30), { code: 'analyzing' }, echo),
     resumeCursors?.['commenting'],
     async (comments, cursor, dropped) => {
@@ -517,6 +550,8 @@ export async function processCommentJob(
 
 export async function processAssessmentJob(
   content: string,
+  /** The content's own conversions (`textOffsets(content)`), made once where the content is first held. */
+  offsets: TextOffsets,
   inferenceClient: InferenceClient,
   params: HeldMarkParams<'assessing'>,
   buildAnnotation: BuildAnnotation,
@@ -543,9 +578,10 @@ export async function processAssessmentJob(
   let created = prior?.emitted ?? 0;
   let errors = prior?.errors ?? 0;
   await AnnotationDetection.detectAssessments(
-    content, inferenceClient, params.instructions, params.tone, params.density,
+    content, offsets, inferenceClient, params.instructions, params.tone, params.density,
     params.language, params.sourceLanguage,
-    // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band.
+    // Liveness (chunk boundaries + in-flight heartbeat): 30–60 band. Both are
+    // offsets: how far through the content, of its length, in code points.
     (consumedChars, totalChars) => onProgress(30 + Math.round((consumedChars / totalChars) * 30), { code: 'analyzing' }, echo),
     resumeCursors?.['assessing'],
     async (assessments, cursor, dropped) => {
@@ -585,6 +621,8 @@ export async function processAssessmentJob(
  */
 export async function processReferenceJob(
   content: string,
+  /** The content's own conversions (`textOffsets(content)`), made once where the content is first held. */
+  offsets: TextOffsets,
   inferenceClient: InferenceClient,
   params: HeldMarkParams<'linking'>,
   buildAnnotation: BuildAnnotation,
@@ -688,7 +726,7 @@ export async function processReferenceJob(
     // What remains unknown at the unit's end: floor-accepted pieces, folded.
     let underReported: { pieces: number; found: number; counted: number } | undefined;
     await extractEntities(
-      content, [entityTypeName], inferenceClient, params.includeDescriptiveReferences ?? false, logger,
+      content, offsets, [entityTypeName], inferenceClient, params.includeDescriptiveReferences ?? false, logger,
       params.sourceLanguage,
       // Liveness heartbeat: fires at chunk boundaries and every ~15 s while a
       // call is in flight, so a long single-chunk call is not silent. It
@@ -712,7 +750,7 @@ export async function processReferenceJob(
         const built: Annotation[] = [];
         let chunkErrors = 0;
         for (const entity of chunkEntities) {
-          const reconciled = reconcileSelector(content, {
+          const reconciled = reconcileSelector(content, offsets, {
             exact: entity.exact,
             ...(entity.prefix !== undefined ? { prefix: entity.prefix } : {}),
             ...(entity.suffix !== undefined ? { suffix: entity.suffix } : {}),
@@ -790,6 +828,8 @@ export async function processReferenceJob(
 
 export async function processTagJob(
   content: string,
+  /** The content's own conversions (`textOffsets(content)`), made once where the content is first held. */
+  offsets: TextOffsets,
   inferenceClient: InferenceClient,
   params: HeldMarkParams<'tagging'>,
   buildAnnotation: BuildAnnotation,
@@ -844,7 +884,7 @@ export async function processTagJob(
     let categoryCreated = priorCategory?.emitted ?? 0;
     let categoryErrors = priorCategory?.errors ?? 0;
     await AnnotationDetection.detectTags(
-      content, inferenceClient, params.schema, category, params.sourceLanguage,
+      content, offsets, inferenceClient, params.schema, category, params.sourceLanguage,
       // Liveness (chunk boundaries + in-flight heartbeat): this category's
       // slice of the 30–60 band.
       (consumedChars, totalChars) => onProgress(
@@ -945,8 +985,8 @@ export async function processGenerationJob(
     // Under `cite`, [[<id>]] tokens are stripped from the SOURCE before every
     // compile — they must never render into the artifact. The citations carry
     // the claim text; the worker re-anchors it by page geometry after
-    // extraction. Offsets in these citations index the Typst source and
-    // are NOT used for PDF anchoring.
+    // extraction. Offsets in these citations count the Typst source's code
+    // points and are NOT used for PDF anchoring.
     const validIds = params.cite === true ? collectContextResourceIds(params.context) : null;
 
     let generated = await generateResourceFromTopic(
@@ -1060,7 +1100,7 @@ export async function processGenerationJob(
 
   // The artifact is bytes; text is an encoding of them. One shape for every
   // output media type, so a string can never travel mislabeled as a binary
-  // format. Citation offsets index the decoded text.
+  // format. Citation offsets count the decoded text's code points.
   const artifact = new TextEncoder().encode(content);
   assertWithinOutputBudget(artifact.byteLength);
 

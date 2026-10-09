@@ -1,5 +1,5 @@
 {
-  "$comment": "How a worker resolves the citations in a text it generated under `cite`, as every worker must resolve them. The model was asked to follow each claim with a token naming the source it rests on: `[[<resourceId>]]`, or `[[<resourceId>/<annotationId>]]` where the passage it read came from an annotation. A token is transport, never content: every token is taken out of the text, and each that names a resource the context really held becomes a citation of the claim before it. The rule: a token is `[[`, an id, optionally `/` and a second id, then `]]`, where an id is one or more characters none of which is white space, `[`, `]` or `/`; anything else in double brackets is no token and stays in the text. Tokens are taken left to right. For each, the text since the token before it is kept, less any run of spaces and tabs (not line ends) at its end, and the token itself is left out; the text after the last token is kept as it is. A token whose first id is not a ResourceId (specs/src/identifiers/kinds.json), or is not one of `contextResourceIds`, is dropped: what a model invents is never linked. Otherwise its claim is looked for in the text as resolved so far, whose length is the claim's `end`. Looking back from the character before the last one (the last is taken to be the claim's own closing mark), the nearest `.`, `!`, `?` or line feed closes the sentence before; the claim starts after it, or at 0 where there is none, and then past any white space. A claim of no characters is no claim, and its token is dropped. `start` and `end` are positions in the resolved text, `exact` is the text between them, and `annotationId` is the token's second id where it had one. `dropped` lists the first id of each dropped token, in order: the worker logs a warning for each. `contexts` holds which ids a gathered context makes citable (`resourceIds`, a set): its focus resource (for a focus that is an annotation, the resource the annotation is in), every node of its graph that is a resource, the resource of every semantically similar passage, and every key of a resource focus's related content; none at all where there is no context. TypeScript runs every case in packages/jobs (src/__tests__/citation-cases.test.ts) against resolveCitationTokens and collectContextResourceIds; a worker in another language runs the same file. Add a case here before changing an implementation.",
+  "$comment": "How a worker resolves the citations in a text it generated under `cite`, as every worker must resolve them. The model was asked to follow each claim with a token naming the source it rests on: `[[<resourceId>]]`, or `[[<resourceId>/<annotationId>]]` where the passage it read came from an annotation. A token is transport, never content: every token is taken out of the text, and each that names a resource the context really held becomes a citation of the claim before it. The rule: a token is `[[`, an id, optionally `/` and a second id, then `]]`, where an id is one or more characters none of which is white space, `[`, `]` or `/`; anything else in double brackets is no token and stays in the text. Tokens are taken left to right. For each, the text since the token before it is kept, less any run of spaces and tabs (not line ends) at its end, and the token itself is left out; the text after the last token is kept as it is. A token whose first id is not a ResourceId (specs/src/identifiers/kinds.json), or is not one of `contextResourceIds`, is dropped: what a model invents is never linked. Otherwise its claim is looked for in the text as resolved so far, whose length is the claim's `end`. A character here is a Unicode code point, one outside the Basic Multilingual Plane being one character, and a length is a count of them. Looking back from the character before the last one (the last is taken to be the claim's own closing mark), the nearest `.`, `!`, `?` or line feed closes the sentence before; the claim starts after it, or at 0 where there is none, and then past any white space. A claim of no characters is no claim, and its token is dropped. `start` and `end` are offsets in the resolved text, counting its code points (specs/src/text/offset-cases.json), `exact` is the text between them, and `annotationId` is the token's second id where it had one. `dropped` lists the first id of each dropped token, in order: the worker logs a warning for each. `contexts` holds which ids a gathered context makes citable (`resourceIds`, a set): its focus resource (for a focus that is an annotation, the resource the annotation is in), every node of its graph that is a resource, the resource of every semantically similar passage, and every key of a resource focus's related content; none at all where there is no context. TypeScript runs every case in packages/jobs (src/__tests__/citation-cases.test.ts) against resolveCitationTokens and collectContextResourceIds; a worker in another language runs the same file. Add a case here before changing an implementation.",
   "defects": [
     "A claim's closing mark is taken to be one character. A claim that ends in two (an ellipsis, `?!`, a full stop inside a closing quotation mark or bracket) is cited as its last character alone.",
     "A full stop inside a number or after an abbreviation is read as the close of a sentence, and the claim starts after it.",
@@ -173,6 +173,30 @@
         "text": "Caf\u00e9 ouvert. Th\u00e9 servi.",
         "citations": [
           { "resourceId": "r1", "start": 13, "end": 23, "exact": "Th\u00e9 servi." }
+        ]
+      },
+      "dropped": []
+    },
+    {
+      "why": "positions count the text's code points, not its UTF-16 code units: a claim after an emoji starts at 10 and ends at 22, the emoji in it being one, where a count of code units would say 11 and 24",
+      "text": "🎉 Opened. Thé 😀 servi. [[r1]]",
+      "contextResourceIds": ["r1"],
+      "resolved": {
+        "text": "🎉 Opened. Thé 😀 servi.",
+        "citations": [
+          { "resourceId": "r1", "start": 10, "end": 22, "exact": "Thé 😀 servi." }
+        ]
+      },
+      "dropped": []
+    },
+    {
+      "why": "a claim whose last character is outside the Basic Multilingual Plane ends one past it, at 10, and that character is the one taken for its closing mark: the look back begins at the character before it",
+      "text": "One. Two 😀[[r1]]",
+      "contextResourceIds": ["r1"],
+      "resolved": {
+        "text": "One. Two 😀",
+        "citations": [
+          { "resourceId": "r1", "start": 5, "end": 10, "exact": "Two 😀" }
         ]
       },
       "dropped": []

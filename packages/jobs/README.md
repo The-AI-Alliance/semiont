@@ -47,6 +47,7 @@ function describe(job: components['schemas']['JobRunning']): string {
 - **A worker sees a job only as it is handed over.** It never reads the queue's storage. What it knows of a job is what `job:claimed` carried.
 - **A worker never says who asked.** A job's requester is the identity the gateway verified on `job:create`, recorded by the dispatcher. What the worker contributes is itself, as the software agent that generated the result.
 - **A processor is plain work.** It is given content, an inference client, the job's params and callbacks for progress and for committing a chunk. It fetches nothing and knows no transport.
+- **An offset counts Unicode code points.** A span's `start` and `end`, a cursor's `next` and every length worked out from them are counted so, as the wire states them, and never as a JavaScript string's positions, which are UTF-16 code units. A text's `TextOffsets` (`textOffsets`, `@semiont/core`) converts between the two: it is made once, where the text is first held, and handed on.
 - **One progress shape, and one result.** Every job reports the spec's `JobProgress`, and every `mark` job the spec's `MarkJobResult`, whatever its motivation: its counts (`JobDetectionResult`), or a decline.
 - **Failure is bounded, classified and resumable.** Every inference call has a deadline and is truly cancelled. A failure caused by size subdivides the work in place. A retry resumes from the last checkpoint and skips what was committed. [Failure discipline](docs/FailureDiscipline.md) has the rules.
 

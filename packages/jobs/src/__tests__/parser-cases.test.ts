@@ -7,7 +7,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { isObject, isString, type Logger, type TagSchema } from '@semiont/core';
+import { isObject, isString, type Logger, type TagSchema, textOffsets } from '@semiont/core';
 import { MockInferenceClient, type ElementSchema, type InferenceClient } from '@semiont/inference';
 import { AnnotationDetection } from '../workers/annotation-detection';
 import { extractEntities } from '../workers/detection/entity-extractor';
@@ -123,7 +123,7 @@ const READERS: Record<Motivation, (c: Case, client: InferenceClient) => Promise<
   highlighting: async (c, client) => {
     const pieces: Read[] = [];
     await AnnotationDetection.detectHighlights(
-      c.text, client, undefined, undefined, undefined, undefined, undefined,
+      c.text, textOffsets(c.text), client, undefined, undefined, undefined, undefined, undefined,
       async (items, _cursor, dropped) => { pieces.push({ items, dropped }); },
     );
     return onePiece(pieces);
@@ -131,7 +131,7 @@ const READERS: Record<Motivation, (c: Case, client: InferenceClient) => Promise<
   commenting: async (c, client) => {
     const pieces: Read[] = [];
     await AnnotationDetection.detectComments(
-      c.text, client, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+      c.text, textOffsets(c.text), client, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
       async (items, _cursor, dropped) => { pieces.push({ items, dropped }); },
     );
     return onePiece(pieces);
@@ -139,7 +139,7 @@ const READERS: Record<Motivation, (c: Case, client: InferenceClient) => Promise<
   assessing: async (c, client) => {
     const pieces: Read[] = [];
     await AnnotationDetection.detectAssessments(
-      c.text, client, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+      c.text, textOffsets(c.text), client, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
       async (items, _cursor, dropped) => { pieces.push({ items, dropped }); },
     );
     return onePiece(pieces);
@@ -148,7 +148,7 @@ const READERS: Record<Motivation, (c: Case, client: InferenceClient) => Promise<
     const category = stated(c.category, 'category');
     const pieces: Read[] = [];
     await AnnotationDetection.detectTags(
-      c.text, client, schemaOf(category), category, undefined, undefined, undefined,
+      c.text, textOffsets(c.text), client, schemaOf(category), category, undefined, undefined, undefined,
       async (items, _cursor, dropped) => { pieces.push({ items, dropped }); },
     );
     return onePiece(pieces);
@@ -158,7 +158,7 @@ const READERS: Record<Motivation, (c: Case, client: InferenceClient) => Promise<
     const counted: number[] = [];
     const underReported: unknown[] = [];
     await extractEntities(
-      c.text, [stated(c.entityType, 'entityType')], client, false, LOGGER, undefined, undefined,
+      c.text, textOffsets(c.text), [stated(c.entityType, 'entityType')], client, false, LOGGER, undefined, undefined,
       (verdict) => { underReported.push(verdict); },
       (count) => { counted.push(count); },
       undefined,

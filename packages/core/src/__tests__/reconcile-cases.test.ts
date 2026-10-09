@@ -8,6 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { reconcileSelector, type LlmSelectorInput, type ReconciledSelector } from '../text-context';
+import { textOffsets } from '../text-offsets';
 
 interface Case {
   why: string;
@@ -28,7 +29,7 @@ describe('reconciling a quoted span (specs/src/annotations/reconcile-cases.json)
 
   for (const { why, text, quoted, reconciled } of table.cases) {
     it(why, () => {
-      expect(reconcileSelector(text, quoted)).toStrictEqual(reconciled);
+      expect(reconcileSelector(text, textOffsets(text), quoted)).toStrictEqual(reconciled);
     });
   }
 });

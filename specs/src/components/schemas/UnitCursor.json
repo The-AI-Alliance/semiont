@@ -5,7 +5,7 @@
     "next": {
       "type": "integer",
       "minimum": 0,
-      "description": "Characters consumed once the last COMMITTED chunk completed \u2014 the resume position. Deliberately the chunk's `next`, never its `at`: the checkpoint must not lead the log, so it records where a chunk that is already durable ended, not where the in-flight one began. Recording `at` would make a resume re-run the chunk it already paid for."
+      "description": "Unicode code points of the text consumed once the last COMMITTED chunk completed \u2014 the resume position. Deliberately the chunk's `next`, never its `at`: the checkpoint must not lead the log, so it records where a chunk that is already durable ended, not where the in-flight one began. Recording `at` would make a resume re-run the chunk it already paid for."
     },
     "size": {
       "type": "integer",

@@ -96,6 +96,20 @@ describe('prepareDetection', () => {
     expect(() => source.buildAnnotation('highlighting', { exact: 'zzz', start: 0, end: 3 })).toThrow(/invariant/);
   });
 
+  it('text: a span after a character outside the Basic Multilingual Plane is anchored at a count of code points', async () => {
+    // The emoji is one code point and two units of a string: `Ada Lovelace`
+    // is from 2 to 14, and a string's own positions would say 3 to 15.
+    const { reads } = fakeReads('😀 Ada Lovelace wrote the first algorithm.');
+    const { consult } = fakeConsult();
+
+    const source = await prepareDetection('text/markdown', reads, RID, GENERATOR, consult);
+    if ('declined' in source) throw new Error(`unexpected decline: ${source.declined}`);
+
+    const ann = source.buildAnnotation('highlighting', { exact: 'Ada Lovelace', start: 2, end: 14 }) as Record<string, unknown>;
+    expect(selectors(ann).find((s) => s.type === 'TextPositionSelector')).toEqual({ type: 'TextPositionSelector', start: 2, end: 14 });
+    expect(() => source.buildAnnotation('highlighting', { exact: 'Ada Lovelace', start: 3, end: 15 })).toThrow(/invariant/);
+  });
+
   it("declines 'empty' when a decoded non-geometry resource yields nothing to detect over", async () => {
     const { reads } = fakeReads('   \n  ');
     const { consult } = fakeConsult();
@@ -125,6 +139,26 @@ describe('prepareDetection', () => {
     expect(sels.find((s) => s.type === 'FragmentSelector')?.value).toMatch(/^page=1&viewrect=/);
     expect(sels.some((s) => s.type === 'TextPositionSelector')).toBe(false);
     expect(sels.some((s) => s.type === 'TextQuoteSelector')).toBe(true);
+  });
+
+  it('PDF: items and a span after a character outside the Basic Multilingual Plane count code points', async () => {
+    // `beta` is the item from 8 to 12: the emoji before it is one code point.
+    const text = '😀 alpha beta\ngamma delta';
+    const items: PdfTextItem[] = [
+      { start: 0,  end: 1,  page: 1, x: 60,  y: 720, width: 10, height: 12 },
+      { start: 2,  end: 7,  page: 1, x: 72,  y: 720, width: 40, height: 12 },
+      { start: 8,  end: 12, page: 1, x: 118, y: 720, width: 34, height: 12 },
+      { start: 13, end: 18, page: 1, x: 72,  y: 700, width: 45, height: 12 },
+      { start: 19, end: 24, page: 1, x: 125, y: 700, width: 42, height: 12 },
+    ];
+    const { reads } = fakeReads();
+    const { consult } = fakeConsult({ kind: 'extracted', text, items, method: 'pdf-text-layer' });
+
+    const source = await prepareDetection('application/pdf', reads, RID, GENERATOR, consult);
+    if ('declined' in source) throw new Error(`unexpected decline: ${source.declined}`);
+
+    const ann = source.buildAnnotation('highlighting', { exact: 'beta', start: 8, end: 12 }) as Record<string, unknown>;
+    expect(selectors(ann).filter((s) => s.type === 'FragmentSelector').map((s) => s.value)).toEqual(['page=1&viewrect=118,720,34,12']);
   });
 
   it('a class A PDF takes the consult path too — the rule is yieldsGeometryOf, not "is it a scan"', async () => {

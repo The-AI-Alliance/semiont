@@ -162,17 +162,20 @@ function contextOf(
  * verbatim from the LLM. `start` and `end` are offsets: they count code
  * points from the start of `content`.
  *
+ * `offsets` is the content's own (`textOffsets(content)`): a caller with
+ * several proposals over one content makes it once.
+ *
  * Returns `null` if `exact` cannot be found anywhere in the content,
  * even via fuzzy match. Callers filter null and log the drop.
  */
 export function reconcileSelector(
   content: string,
+  offsets: TextOffsets,
   llm: LlmSelectorInput,
 ): ReconciledSelector | null {
   const { exact, prefix: llmPrefix, suffix: llmSuffix } = llm;
   if (!exact) return null;
 
-  const offsets = textOffsets(content);
   // How many code points `exact` is: a place it is found at ends this far on.
   const length = textOffsets(exact).length;
 

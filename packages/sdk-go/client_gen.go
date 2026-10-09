@@ -2038,7 +2038,7 @@ type AgentTokenResponse struct {
 	Token string `json:"token"`
 }
 
-// AnchoredText Text paired with the geometry that indexes it — the minimum needed to turn a character range into a selection, or a rectangle into a quote. Whole-resource: a producer iterates page by page, but every consumer wants one map.
+// AnchoredText Text paired with the geometry that indexes it — the minimum needed to turn a range of the text, two offsets counted in Unicode code points, into a selection, or a rectangle into a quote. Whole-resource: a producer iterates page by page, but every consumer wants one map.
 type AnchoredText struct {
 	// Items Positioned runs indexing `text`, roughly one per word.
 	Items []PdfTextItem `json:"items"`
@@ -5971,11 +5971,11 @@ type TaggingJobParamsMotivation string
 
 // TextPositionSelector defines model for TextPositionSelector.
 type TextPositionSelector struct {
-	// End Character offset from resource start
-	End float32 `json:"end"`
+	// End Offset into the resource's decoded text, exactly as decoded, in Unicode code points from its start: just past where the selected text ends.
+	End int `json:"end"`
 
-	// Start Character offset from resource start
-	Start float32                  `json:"start"`
+	// Start Offset into the resource's decoded text, exactly as decoded, in Unicode code points from its start: where the selected text starts.
+	Start int                      `json:"start"`
 	Type  TextPositionSelectorType `json:"type"`
 }
 
@@ -6027,7 +6027,7 @@ type UnitCursor struct {
 	// Found Items detection has returned for this unit through the last committed chunk — the numerator a resumed attempt continues from rather than restarting at zero. Counts what the model reported, before dedupe.
 	Found int `json:"found"`
 
-	// Next Characters consumed once the last COMMITTED chunk completed — the resume position. Deliberately the chunk's `next`, never its `at`: the checkpoint must not lead the log, so it records where a chunk that is already durable ended, not where the in-flight one began. Recording `at` would make a resume re-run the chunk it already paid for.
+	// Next Unicode code points of the text consumed once the last COMMITTED chunk completed — the resume position. Deliberately the chunk's `next`, never its `at`: the checkpoint must not lead the log, so it records where a chunk that is already durable ended, not where the in-flight one began. Recording `at` would make a resume re-run the chunk it already paid for.
 	Next int `json:"next"`
 
 	// Size The token size that last committed chunk was cut at — the calibration the attempt paid for over the chunks before it. A resume seeds from this and then takes ONE adaptive step, as if the last outcome were a failure, which it was: the job died. Seeding alone would re-cut the failing piece identically; opening at the default would discard the calibration.

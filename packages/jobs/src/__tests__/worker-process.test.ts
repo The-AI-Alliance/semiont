@@ -42,7 +42,7 @@ import type { UnitCheckpoint } from '../processors';
 import { Subject, BehaviorSubject, map } from 'rxjs';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { JobNamespace, type HeldJob, type SemiontClient } from '@semiont/sdk';
-import { EventBus, GENERATED_TEXT_ASKS_COUNT, HELD_JOB_STALL_CHECK_MS, HELD_JOB_STALL_MS, jobId, resourceId, userId, type EventMap, type ITransport, type UnitCursor } from '@semiont/core';
+import { EventBus, GENERATED_TEXT_ASKS_COUNT, HELD_JOB_STALL_CHECK_MS, HELD_JOB_STALL_MS, jobId, resourceId, userId, type EventMap, type ITransport, type TextOffsets, type UnitCursor } from '@semiont/core';
 import type { MarkMotivation } from '../types';
 import { recordJobOutcome, withSpan } from '@semiont/observability';
 import { handleJob, startWorkerProcess, type WorkerProcessConfig } from '../worker-process';
@@ -302,7 +302,7 @@ async function handleHeld(
 
 /**
  * Stub a motivation processor: annotations leave through the awaited
- * chunk-commit callback (argument 5), the return carries only the result.
+ * chunk-commit callback (argument 6), the return carries only the result.
  */
 const emitting = (r: { annotations: unknown[]; result: unknown; unit?: string }) =>
   (async (...args: unknown[]) => {
@@ -310,7 +310,7 @@ const emitting = (r: { annotations: unknown[]; result: unknown; unit?: string })
     // `(a: unknown[]) => …` cast keeps compiling when the seam's arguments
     // change, and the omission surfaces only at runtime as
     // "Cannot read properties of undefined (reading 'unit')".
-    const onChunkComplete = args[5] as (a: unknown[], c: UnitCheckpoint) => Promise<void>;
+    const onChunkComplete = args[6] as (a: unknown[], c: UnitCheckpoint) => Promise<void>;
     await onChunkComplete(r.annotations, { unit: r.unit ?? 'highlighting', cursor: { next: 900, size: 220, found: 0, emitted: 0, errors: 0 } });
     return { result: r.result } as never;
   }) as never;
@@ -394,7 +394,7 @@ describe('handleJob orchestration', () => {
       // The wire half of one rule: a progress event carries a code and typed
       // params, never prose. Dropping the argument is silent: every event
       // still flows, and the UI just has nothing to render.
-      vi.mocked(processHighlightJob).mockImplementation(async (_c, _i, _p, _b, onProgress) => {
+      vi.mocked(processHighlightJob).mockImplementation(async (_c, _o, _i, _p, _b, onProgress) => {
         onProgress(60, { code: 'creating-annotations', count: 2 });
         return { annotations: [], result: { found: 0, persisted: 0 } as never };
       });
@@ -920,6 +920,45 @@ describe('handleJob orchestration', () => {
       expect(quote?.exact).toBe('extraor \ndinarily complicated');
     });
 
+    it('a claim after a character outside the Basic Multilingual Plane is quoted by the text at its span, counted in code points', async () => {
+      // The span the search answers counts code points, as the text's items
+      // do: the emoji is one. The quote is the rendered text between those two
+      // offsets, which a string's own positions would take one unit early.
+      vi.mocked(processGenerationJob).mockResolvedValue({
+        content: new TextEncoder().encode('%PDF-FAKE'),
+        title: 'Answer',
+        format: 'application/pdf',
+        citations: [{ resourceId: resourceId('ctx-9'), start: 0, end: 31, exact: 'Paris is the capital of France.' }],
+        truncated: false,
+      });
+      const h = makeFakeWorker();
+      vi.mocked(h.client.browse.resourceAnchoredText).mockResolvedValue({
+        kind: 'extracted',
+        text: '📄 Paris is the capital of France. It is large.',
+        items: [
+          { start: 0, end: 1, page: 1, x: 50, y: 746, width: 12, height: 11 },
+          { start: 2, end: 33, page: 1, x: 71, y: 746, width: 310, height: 11 },
+          { start: 34, end: 46, page: 1, x: 390, y: 746, width: 120, height: 11 },
+        ],
+        method: 'pdf-text-layer',
+      } as never);
+
+      await handleHeld(
+        h,
+        makeConfig(h.client),
+        makeJob('yield', { context: minimalContext('annotation'), cite: true, outputMediaType: 'application/pdf' }),
+      );
+
+      const committed = h.busEmits
+        .filter(e => e.channel === 'mark:commit')
+        .flatMap(e => (e.payload as { annotations: Array<{ target: { selector: Array<{ type: string; exact?: string; value?: string }> } }> }).annotations);
+      expect(committed).toHaveLength(1);
+      const selector = committed[0]!.target.selector;
+      expect(selector.find(s => s.type === 'TextQuoteSelector')?.exact).toBe('Paris is the capital of France.');
+      // One line, the one item the span covers: neither the emoji's nor the next sentence's.
+      expect(selector.filter(s => s.type === 'FragmentSelector').map(s => s.value)).toEqual(['page=1&viewrect=71,746,310,11']);
+    });
+
     // The Smelter has not derived the new PDF's text the moment it is
     // yielded. The Archivist's answer already waits for the Smelter to say it
     // has settled the content (`smelt:settled`), so the worker's part is to
@@ -1233,7 +1272,7 @@ describe('handleJob orchestration', () => {
     // text-layer path. Geometry is shared (buildPdfAnnotation, covered in
     // build-pdf-annotation.test.ts); this proves the dispatch routes every
     // motivation through 'pdf-text-layer' — feeding each processor the extracted
-    // layer text (arg 0) and a PDF-aware buildAnnotation (arg 3), never the
+    // layer text (arg 0), its conversions (arg 1) and a PDF-aware buildAnnotation (arg 4), never the
     // decoded-bytes path. `lastCall` closes over the concrete mock so each
     // processor's own arg tuple is read (their signatures differ).
     type PdfFanoutCase = {
@@ -1288,7 +1327,8 @@ describe('handleJob orchestration', () => {
       const call = lastCall();
       expect(call).toBeDefined();
       expect(call![0]).toBe('the quick brown fox'); // source.text — the consulted canonical text
-      expect(typeof call![3]).toBe('function');      // source.buildAnnotation — PDF-aware anchor
+      expect((call![1] as TextOffsets).length).toBe(19); // source.offsets — that text's own conversions
+      expect(typeof call![4]).toBe('function');      // source.buildAnnotation — PDF-aware anchor
       expect(h.busEmits.some(e => e.channel === 'job:complete')).toBe(true);
     });
 
@@ -1476,7 +1516,7 @@ describe('startWorkerProcess', () => {
     let seenSignal: AbortSignal | undefined;
     let release: (() => void) | undefined;
     vi.mocked(processReferenceJob).mockImplementation(
-      async (_c, _cl, _p, _b, _pr, _l, _onUnit, signal) => {
+      async (_c, _o, _cl, _p, _b, _pr, _l, _onUnit, signal) => {
         seenSignal = signal;
         await new Promise<void>((r) => { release = r; });
         return { result: { found: 0, persisted: 0 } as never };
@@ -1665,7 +1705,7 @@ describe('startWorkerProcess', () => {
 describe('linking — checkpointed resume', () => {
   it('commits once per unit, awaiting durability, with no post-run re-emission', async () => {
     vi.mocked(processReferenceJob).mockImplementation(
-      async (_content, _client, _params, _build, _progress, _logger, onUnitComplete, _signal, onChunkComplete) => {
+      async (_content, _offsets, _client, _params, _build, _progress, _logger, onUnitComplete, _signal, onChunkComplete) => {
         await onChunkComplete!([{ id: 'r1' }] as never, { unit: 'Person', cursor: { next: 900, size: 220, found: 0, emitted: 0, errors: 0 } });
         await onUnitComplete('Person');
         await onUnitComplete('Date'); // empty unit: nothing to commit, still checkpoints
@@ -1735,7 +1775,7 @@ describe('linking — checkpointed resume', () => {
     let seen: unknown;
     vi.mocked(processReferenceJob).mockImplementation(
       (async (...args: unknown[]) => {
-        seen = args[9];
+        seen = args[10];
         return { result: { found: 0, persisted: 0 } } as never;
       }) as never,
     );
@@ -1756,7 +1796,7 @@ describe('linking — checkpointed resume', () => {
     let seen: unknown;
     vi.mocked(processHighlightJob).mockImplementation(
       (async (...args: unknown[]) => {
-        seen = args[6];
+        seen = args[7];
         return { result: { found: 0, persisted: 0 } } as never;
       }) as never,
     );
@@ -1779,7 +1819,7 @@ describe('linking — checkpointed resume', () => {
     // the queue moves the still-running job to cancelled/ rather than mark it
     // done, and never fails it.
     vi.mocked(processReferenceJob).mockImplementation(
-      async (_content, _client, _params, _build, _progress, _logger, onUnitComplete, _signal, onChunkComplete) => {
+      async (_content, _offsets, _client, _params, _build, _progress, _logger, onUnitComplete, _signal, onChunkComplete) => {
         await onChunkComplete!([{ id: 'r1' }] as never, { unit: 'Person', cursor: { next: 900, size: 220, found: 0, emitted: 0, errors: 0 } });
         await onUnitComplete('Person');
         return { result: { found: 1, persisted: 1 } as never };
@@ -1817,7 +1857,7 @@ describe('linking — checkpointed resume', () => {
       makeJob('linking', { entityTypes: ['Person', 'Date', 'Location'] }, ['Person', 'Date']),
     );
 
-    const params = vi.mocked(processReferenceJob).mock.calls[0]![2] as { entityTypes: unknown[] };
+    const params = vi.mocked(processReferenceJob).mock.calls[0]![3] as { entityTypes: unknown[] };
     expect(params.entityTypes.map(String)).toEqual(['Location']);
   });
 });
@@ -1828,7 +1868,7 @@ describe('startWorkerProcess — job:fail carries the checkpoint', () => {
     // Two units commit, then the third stalls — the failure payload must
     // name what completed so the retry can skip it.
     vi.mocked(processReferenceJob).mockImplementation(
-      async (_content, _client, _params, _build, _progress, _logger, onUnitComplete, _signal, onChunkComplete) => {
+      async (_content, _offsets, _client, _params, _build, _progress, _logger, onUnitComplete, _signal, onChunkComplete) => {
         await onChunkComplete!([{ id: 'a1' }] as never, { unit: 'Person', cursor: { next: 900, size: 220, found: 0, emitted: 0, errors: 0 } });
         await onUnitComplete('Person');
         await onUnitComplete('Date');
@@ -2095,8 +2135,8 @@ describe('every event says which attempt produced it', () => {
 
   it('progress and the terminal event both carry the attempt number', async () => {
     vi.mocked(processHighlightJob).mockImplementation((async (...args: unknown[]) => {
-      const onProgress = args[4] as (p: number, m: unknown) => void;
-      const onChunkComplete = args[5] as (a: unknown[], c: UnitCheckpoint) => Promise<void>;
+      const onProgress = args[5] as (p: number, m: unknown) => void;
+      const onChunkComplete = args[6] as (a: unknown[], c: UnitCheckpoint) => Promise<void>;
       onProgress(60, { code: 'creating-annotations', count: 1 });
       await onChunkComplete([{ id: 'a1' }], { unit: 'highlighting', cursor: { next: 900, size: 220, found: 0, emitted: 0, errors: 0 } });
       return { result: { found: 1, persisted: 1 } } as never;

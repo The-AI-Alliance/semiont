@@ -8,12 +8,14 @@
       ]
     },
     "start": {
-      "type": "number",
-      "description": "Character offset from resource start"
+      "type": "integer",
+      "minimum": 0,
+      "description": "Offset into the resource's decoded text, exactly as decoded, in Unicode code points from its start: where the selected text starts."
     },
     "end": {
-      "type": "number",
-      "description": "Character offset from resource start"
+      "type": "integer",
+      "minimum": 0,
+      "description": "Offset into the resource's decoded text, exactly as decoded, in Unicode code points from its start: just past where the selected text ends."
     }
   },
   "required": [

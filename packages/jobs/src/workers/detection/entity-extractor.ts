@@ -1,5 +1,5 @@
 import type { ElementSchema, InferenceClient } from '@semiont/inference';
-import { estimateTokens, getLocaleEnglishName, isObject, isString, type Logger, type UnitCursor } from '@semiont/core';
+import { estimateTokens, getLocaleEnglishName, isObject, isString, textOffsets, type Logger, type TextOffsets, type UnitCursor } from '@semiont/core';
 import { boundedGenerateStructured, boundedGenerateWithMetadata } from '../inference-call';
 import { assertNotTruncated, callChunkSubdividing, deriveDetectionBudget, runAdaptiveChunks, type ChunkCursor, DETECTION_TEMPERATURE, YIELD_COLLAPSE_BAND, YieldCollapseError, type UnderReportedPiece } from './detection-chunking';
 
@@ -91,19 +91,20 @@ Text:
 ${piece}
 """`;
 
+  const pieceChars = textOffsets(piece).length;
   let counted: number | undefined;
   try {
     const response = await boundedGenerateWithMetadata(client, prompt, COUNT_MAX_TOKENS, DETECTION_TEMPERATURE, undefined, logger);
     counted = parseCount(response.text);
   } catch (err) {
     logger.warn('Count-verifier call failed — yield check skipped for this chunk', {
-      pieceChars: piece.length,
+      pieceChars,
       error: err instanceof Error ? err.message : String(err),
     });
     return undefined;
   }
   if (counted === undefined) {
-    logger.warn('Count-verifier answer carried no number — yield check skipped for this chunk', { pieceChars: piece.length });
+    logger.warn('Count-verifier answer carried no number — yield check skipped for this chunk', { pieceChars });
     return undefined;
   }
   if (items.length * YIELD_COLLAPSE_BAND < counted) {
@@ -111,9 +112,9 @@ ${piece}
     // better), the floor accepts it (better than nothing, and every span is
     // write-time-verified).
     throw new YieldCollapseError(
-      `Extraction found ${items.length} entities where a count call reports ~${counted} mentions (band ×${YIELD_COLLAPSE_BAND}) on a ${piece.length}-char chunk — silent yield collapse: deterministic — a same-size retry returns the identical under-report.`,
+      `Extraction found ${items.length} entities where a count call reports ~${counted} mentions (band ×${YIELD_COLLAPSE_BAND}) on a ${pieceChars}-char chunk — silent yield collapse: deterministic — a same-size retry returns the identical under-report.`,
       [...items],
-      { found: items.length, counted, pieceChars: piece.length },
+      { found: items.length, counted, pieceChars },
     );
   }
   return counted;
@@ -128,6 +129,8 @@ ${piece}
  * analyzes non-English source correctly. There's no body-locale parameter.
  *
  * @param exact - The text to analyze
+ * @param offsets - The text's own conversions (`textOffsets(exact)`), made
+ *   once where the text is first held
  * @param entityTypes - Array of entity types to detect (optionally with examples)
  * @param client - Inference client for AI operations
  * @param includeDescriptiveReferences - Include anaphoric/cataphoric references
@@ -138,8 +141,8 @@ ${piece}
  * @param onActivity - Invoked with (consumedChars, totalChars) whenever the
  *   extraction is demonstrably alive: at each chunk boundary (the cursor
  *   advances) AND periodically while a single inference call is in flight
- *   (the position repeats — liveness, not progress). Characters, not chunk
- *   ordinals: chunk sizing is decided as the run goes, so there is no chunk
+ *   (the position repeats — liveness, not progress). Offsets, in code
+ *   points, not chunk ordinals: chunk sizing is decided as the run goes, so there is no chunk
  *   total to divide by — and the cursor is the more honest numerator anyway,
  *   since boundary-seeking makes chunks unequal. The caller MUST forward
  *   this to its progress channel: progress is the worker's liveness
@@ -149,6 +152,7 @@ ${piece}
  */
 export async function extractEntities(
   exact: string,
+  offsets: TextOffsets,
   entityTypes: string[] | { type: string; examples?: string[] }[],
   client: InferenceClient,
   includeDescriptiveReferences: boolean,
@@ -263,7 +267,7 @@ Example output:
 
   logger.debug('Sending entity extraction request', {
     entityTypes: entityTypesDescription,
-    chars: exact.length,
+    chars: offsets.length,
     // The size the run OPENS at, and how far measured yield may move it. The
     // chunk COUNT is deliberately absent: with sizing decided as the run goes,
     // there is no honest total until the cursor reaches the end.
@@ -273,7 +277,7 @@ Example output:
   });
 
   const collected: ExtractedEntity[] = [];
-  await runAdaptiveChunks(exact, budget, async ({ piece: chunk, size, at, next, totalChars }) => {
+  await runAdaptiveChunks(exact, offsets, budget, async ({ piece: chunk, size, at, next, totalChars }) => {
     // The structured surface returns parsed elements or THROWS — an
     // unreadable model response is a job failure, never a silent []. A
     // size-shaped failure (duration bound, truncation) subdivides in place
@@ -296,7 +300,7 @@ Example output:
           at,
           totalChars,
           chunkSizeTokens: size,
-          pieceChars: piece.length,
+          pieceChars: textOffsets(piece).length,
           items: response.items.length,
         });
 
