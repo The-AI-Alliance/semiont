@@ -10,7 +10,6 @@ operation's reply:
     async for frame in bus.frames(BECKON_FOCUS): ...        # frame.payload is that channel's
     async with bus.frames(MARK_ADDED, resource) as added: ...  # a resource's channel, read for it
     created = await bus.request(MARK_CREATE_REQUEST, command)
-    answer = await bus.result(MARK_CREATE_REQUEST, command)  # answer.payload, and answer.trace beside it
 
 **By name** (`request`, and the transport's own `emit` and `frames`), a
 channel is the registry's name and a payload a JSON object: for what relays
@@ -278,19 +277,21 @@ class Bus:
         Raises as `request` does, and `TransportError` when the result that
         came is not the operation's.
         """
-        return (await self.result(operation, payload, timeout_ms=timeout_ms)).payload
+        return (await answer_of(self.transport, operation, payload, timeout_ms)).payload
 
-    async def result[Q: WireModel, R: WireModel, F: WireModel](
-        self, operation: Operation[Q, R, F], payload: Q, *, timeout_ms: int = BUS_REQUEST_TIMEOUT_MS
-    ) -> Delivered[R]:
-        """Send `payload` as the request of `operation`, and wait up to `timeout_ms` for the frame that answers it.
 
-        The frame is the one on the operation's result channel: its payload,
-        and what came beside it, the trace it arrived in among it. Raises as
-        `request` does.
-        """
-        reply = await _result_of(self.transport, operation, operation.request.encode(payload), timeout_ms)
-        try:
-            return _delivered(operation.result, reply)
-        except ValidationError as error:
-            raise TransportError("error", f"a payload on {operation.result.name} is not that channel's: {error}") from error
+async def answer_of[Q: WireModel, R: WireModel, F: WireModel](
+    transport: Transport, operation: Operation[Q, R, F], payload: Q, timeout_ms: int
+) -> Delivered[R]:
+    """A request by type, as far as the frame that answers it on its result channel: its payload, and what came beside it.
+
+    The package's own, and no part of what this module offers: it is not in
+    `__all__`. A worker's claim reads the trace its reply arrived in. Raises
+    as `request` does, and `TransportError` when the result that came is not
+    the operation's.
+    """
+    reply = await _result_of(transport, operation, operation.request.encode(payload), timeout_ms)
+    try:
+        return _delivered(operation.result, reply)
+    except ValidationError as error:
+        raise TransportError("error", f"a payload on {operation.result.name} is not that channel's: {error}") from error

@@ -13,9 +13,7 @@
 //!
 //! Every method comes twice. By type (`emit`, `stream`, `request`), the
 //! channel is a type of `crate::channels` and the payload is that channel's
-//! own, so a wrong payload for a channel does not compile. `result` is a
-//! request by type too, answered with the whole frame of its result: the
-//! payload, and what came beside it.
+//! own, so a wrong payload for a channel does not compile:
 //!
 //! ```
 //! # use semiont::bus::Bus;
@@ -454,11 +452,11 @@ impl Bus {
         Ok(self.result::<R>(payload, within).await?.payload)
     }
 
-    /// Send `payload` as the request of the operation `R` and wait up to
-    /// `within` for the frame that answers it on its result channel: its
-    /// payload, and what came beside it, the trace it arrived in among it.
-    /// It fails as `request` does.
-    pub async fn result<R: Request>(
+    /// A request, as far as the frame that answers it on its result channel:
+    /// its payload, and what came beside it, the trace it arrived in among
+    /// it. It fails as `request` does. The crate's own: a worker's claim
+    /// reads the trace its reply arrived in.
+    pub(crate) async fn result<R: Request>(
         &self,
         payload: &R::Payload,
         within: Duration,

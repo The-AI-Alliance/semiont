@@ -70,7 +70,7 @@ from typing import Final, Literal, Self, assert_never, final
 from pydantic import JsonValue, TypeAdapter
 
 from semiont import telemetry
-from semiont.bus import Bus, reply_channels_for, request
+from semiont.bus import Bus, answer_of, reply_channels_for, request
 from semiont.channel import Operation
 from semiont.channels import (
     JOB_CANCEL,
@@ -846,7 +846,9 @@ class Claims:
         parameters.
         """
         try:
-            answer = await self._wire.result(JOB_CLAIM, JobClaimCommand(accepts=list(self._accepts)), timeout_ms=self._job_claim_timeout_ms)
+            answer = await answer_of(
+                self._wire.transport, JOB_CLAIM, JobClaimCommand(accepts=list(self._accepts)), self._job_claim_timeout_ms
+            )
         except BusRequestError as refused:
             if refused.code == "bus.none-pending":
                 return None
