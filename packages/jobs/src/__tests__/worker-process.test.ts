@@ -343,8 +343,8 @@ function makeJob(
   // Default: no retries budgeted, so a failure is terminal unless a test
   // says otherwise — `willRetry` on `job:fail` is read from this budget.
   budget: { retryCount: number; maxRetries: number } = { retryCount: 0, maxRetries: 0 },
-  /** Mid-unit resume positions from an earlier attempt. Empty is the
-   * first-attempt case every test but the resume ones want. */
+  /** The cursors an earlier attempt left, a finished unit's among them. Empty
+   * is the first-attempt case every test but the resume ones want. */
   unitCursors: Record<string, UnitCursor> = {},
 ): ClaimedJob {
   return {
@@ -1704,7 +1704,8 @@ describe('startWorkerProcess', () => {
 // ── Checkpointed resume ───────────────────────────────────────────────
 // The worker owns durability: the chunk-commit callback is the effect (per
 // chunk), `onUnitComplete` the control state (per unit); completed unit names
-// ride job:fail, and a retried claim skips them.
+// ride job:fail with their cursors, and a retried claim skips them and counts
+// them.
 //
 // The commit is one acknowledged batch per chunk, not N fire-and-forget
 // creates: the unit may not count until its annotations are durably in the
@@ -1736,8 +1737,8 @@ describe('linking — checkpointed resume', () => {
       .toEqual([
         'job:start',
         // Two checkpoints per non-empty unit: one trailing the chunk's
-        // commit (the mid-unit cursor), one at the unit boundary (the unit is
-        // complete and drops its cursor).
+        // commit (the unit's cursor), one at the unit boundary (the unit is
+        // finished, and keeps its cursor).
         'mark:commit', 'job:checkpoint', 'job:checkpoint',  // Person (1 annotation)
         'job:checkpoint',                                    // Date (empty unit, no commit)
         'mark:commit', 'job:checkpoint', 'job:checkpoint',  // Location (2 annotations, ONE batch)
@@ -1761,16 +1762,17 @@ describe('linking — checkpointed resume', () => {
       ['Person', 'Date'],                  // Location's chunk committed
       ['Person', 'Date', 'Location'],      // Location complete
     ]);
-    // And the cursor appears while its unit is open, then goes ABSENT when the
-    // unit completes: "partway here" and "finished" are never both true, and
-    // absent is the honest encoding of "nothing is partway" — an empty object
-    // would claim units were tracked and none had progress.
+    // A unit's cursor appears with its first chunk and stays: the checkpoint
+    // that names the unit finished carries it, and so does every one after.
+    // Date, which this stand-in finishes with no chunk at all, has none.
+    const person = { next: 900, size: 220, found: 0, emitted: 0, errors: 0 };
+    const location = { next: 1_800, size: 330, found: 0, emitted: 0, errors: 0 };
     expect(checkpoints.map(c => c.unitCursors)).toEqual([
-      { Person: { next: 900, size: 220, found: 0, emitted: 0, errors: 0 } },
-      undefined,
-      undefined,
-      { Location: { next: 1_800, size: 330, found: 0, emitted: 0, errors: 0 } },
-      undefined,
+      { Person: person },
+      { Person: person },
+      { Person: person },
+      { Person: person, Location: location },
+      { Person: person, Location: location },
     ]);
     expect(h.settles().filter((how) => how !== 'job:fail')).toHaveLength(1);
   });
@@ -1890,20 +1892,49 @@ describe('linking — checkpointed resume', () => {
     expect(recordJobOutcome).toHaveBeenLastCalledWith({ jobType: 'yield' }, 'cancelled', expect.any(Number));
   });
 
-  it('a retried claim skips checkpointed units — the processor never sees them', async () => {
+  it('a retried claim hands the processor the whole job and the units earlier attempts finished: it skips them, and counts them', async () => {
     vi.mocked(processReferenceJob).mockImplementation(
       async () => ({ result: { found: 0, persisted: 0 } as never }),
     );
     const h = makeFakeWorker();
+    const cursors = { Person: { next: 4_000, size: 560, found: 7, emitted: 6, errors: 1 } };
 
     await handleHeld(
       h,
       makeConfig(h.client),
-      makeJob('linking', { entityTypes: ['Person', 'Date', 'Location'] }, ['Person', 'Date']),
+      makeJob('linking', { entityTypes: ['Person', 'Date', 'Location'] }, ['Person', 'Date'], { retryCount: 1, maxRetries: 3 }, cursors),
     );
 
-    const params = vi.mocked(processReferenceJob).mock.calls[0]![3] as { entityTypes: unknown[] };
-    expect(params.entityTypes.map(String)).toEqual(['Location']);
+    const call = vi.mocked(processReferenceJob).mock.calls[0]!;
+    expect((call[3] as { entityTypes: unknown[] }).entityTypes.map(String)).toEqual(['Person', 'Date', 'Location']);
+    expect(call[10]).toEqual(cursors);
+    expect(call[11]).toEqual(['Person', 'Date']);
+  });
+
+  it('a resumed job\'s checkpoints carry the cursors it was claimed with, each until this attempt moves that unit', async () => {
+    vi.mocked(processReferenceJob).mockImplementation(
+      async (_content, _offsets, _client, _params, _build, _progress, _logger, _signal, onUnitComplete, onChunkComplete) => {
+        await onChunkComplete!([{ id: 'r1' }] as never, { unit: 'Location', cursor: { next: 900, size: 220, found: 3, emitted: 2, errors: 0 } });
+        // Date stood at the end of the text when the job was claimed: named finished with no chunk asked.
+        await onUnitComplete('Date');
+        return { result: { found: 0, persisted: 0 } as never };
+      },
+    );
+    const h = makeFakeWorker();
+    const person = { next: 4_000, size: 560, found: 7, emitted: 6, errors: 1 };
+    const date = { next: 4_000, size: 560, found: 1, emitted: 1, errors: 0 };
+    const location = { next: 300, size: 560, found: 1, emitted: 1, errors: 0 };
+
+    await handleHeld(
+      h,
+      makeConfig(h.client),
+      makeJob('linking', { entityTypes: ['Person', 'Date', 'Location'] }, ['Person'], { retryCount: 1, maxRetries: 3 }, { Person: person, Date: date, Location: location }),
+    );
+
+    expect(h.busEmits.filter(e => e.channel === 'job:checkpoint').map(e => e.payload)).toEqual([
+      { jobId: JID, completedUnits: [], unitCursors: { Person: person, Date: date, Location: { next: 900, size: 220, found: 3, emitted: 2, errors: 0 } } },
+      { jobId: JID, completedUnits: ['Date'], unitCursors: { Person: person, Date: date, Location: { next: 900, size: 220, found: 3, emitted: 2, errors: 0 } } },
+    ]);
   });
 });
 
@@ -1933,6 +1964,8 @@ describe('startWorkerProcess — job:fail carries the checkpoint', () => {
       jobId: JID,
       error: 'Location stalled',
       completedUnits: ['Person', 'Date'],
+      // A finished unit's cursor goes with it.
+      unitCursors: { Person: { next: 900, size: 220, found: 0, emitted: 0, errors: 0 } },
     });
 
   });

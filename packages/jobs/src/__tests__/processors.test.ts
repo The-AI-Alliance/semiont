@@ -2159,9 +2159,124 @@ describe('under-report verdicts on the terminal surface', () => {
   // reported only the chunks it happened to run would under-state it (19
   // where the document yields 25). The tallies ride the checkpoint precisely
   // so a resumed attempt can continue the count instead of restarting it.
-  // Units an earlier attempt COMPLETED carry no cursor, so their counts are
-  // missing from the total — the same gap at coarser grain.
+  // A unit an earlier attempt finished keeps its cursor, where it ended, and
+  // is counted by it.
   describe('resumed tallies', () => {
+    /** The reports of where a linking job stands, in order: each one's percentage and what it states. */
+    const standing = (progress: ReturnType<typeof vi.fn>) => progress.mock.calls
+      .filter((call) => (call[1] as { code: string }).code === 'detecting-entities')
+      .map((call) => ({ percentage: call[0] as number, ...(call[2] as Record<string, unknown>) }));
+
+    /** A stand-in extractor that says which types it was asked for, and finds Paris in one chunk. */
+    const findingParis = (asked: string[]) => (async (...args: unknown[]) => {
+      asked.push(String((args[2] as string[])[0]));
+      await entityChunk(args)([{ exact: 'Paris', entityType: 'Location' }]);
+      return [] as never;
+    }) as never;
+
+    it('counts a unit an earlier attempt finished by its cursor, from the first report, and does not run it again', async () => {
+      const asked: string[] = [];
+      vi.mocked(extractEntities).mockImplementation(findingParis(asked));
+      const progress = vi.fn();
+      const finished: string[] = [];
+
+      const outcome = ran(await processReferenceJob(
+        content, textOffsets(content), makeInferenceClient(),
+        { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Person'), entityType('Location')] },
+        textBuild(content), progress, LOGGER, NEVER, async (unit) => { finished.push(unit); }, async () => {},
+        // Person ended at the end of the text: twenty proposed, eighteen recorded, one that made nothing.
+        { Person: { next: textOffsets(content).length, size: 250, found: 20, emitted: 18, errors: 1 } },
+        ['Person'],
+      ));
+
+      expect(asked).toEqual(['Location']);
+      expect(finished).toEqual(['Location']);
+      expect(outcome.result).toEqual({ found: 21, persisted: 19, errors: 1 });
+
+      const person = { value: 'Person', foundCount: 20, persistedCount: 18 };
+      const location = { value: 'Location', foundCount: 1, persistedCount: 1 };
+      const requestParams = [{ label: 'entity-types', value: 'Person, Location' }];
+      const reports = standing(progress);
+      // Both types are the job's, and one of them is finished before this attempt asks anything.
+      expect(reports[0]).toEqual({
+        percentage: 50, current: { kind: 'entity-type', value: 'Location' },
+        processed: 1, total: 2, entitiesFound: 20, entitiesEmitted: 18, completedItems: [person], requestParams,
+      });
+      expect(reports.at(-1)).toEqual({
+        percentage: 80, current: { kind: 'entity-type', value: 'Location' },
+        processed: 2, total: 2, entitiesFound: 21, entitiesEmitted: 19, completedItems: [person, location], requestParams,
+      });
+      expect(progress.mock.calls.at(-1)).toEqual([
+        100, { code: 'complete-created', count: 19, motivation: 'linking' }, { completedItems: [person, location], requestParams },
+      ]);
+    });
+
+    it('does not run a finished unit the record gives no cursor for, and counts nothing for it', async () => {
+      const asked: string[] = [];
+      vi.mocked(extractEntities).mockImplementation(findingParis(asked));
+      const progress = vi.fn();
+
+      const outcome = ran(await processReferenceJob(
+        content, textOffsets(content), makeInferenceClient(),
+        { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Person'), entityType('Location')] },
+        textBuild(content), progress, LOGGER, NEVER, async () => {}, async () => {},
+        {},
+        ['Person'],
+      ));
+
+      expect(asked).toEqual(['Location']);
+      expect(outcome.result).toEqual({ found: 1, persisted: 1 });
+      const reports = standing(progress);
+      // Among the finished, by number; nothing says what it found, so it is not listed.
+      expect(reports[0]).toMatchObject({ percentage: 50, processed: 1, total: 2, entitiesFound: 0, entitiesEmitted: 0, completedItems: [] });
+      expect(reports.at(-1)).toMatchObject({ percentage: 80, processed: 2, total: 2, completedItems: [{ value: 'Location', foundCount: 1, persistedCount: 1 }] });
+    });
+
+    it('asks about nothing when every unit was finished, and reports the whole job from the cursors', async () => {
+      vi.mocked(extractEntities).mockImplementation(findingParis([]));
+      const progress = vi.fn();
+
+      const outcome = ran(await processReferenceJob(
+        content, textOffsets(content), makeInferenceClient(),
+        { motivation: 'linking', resourceId: RID, entityTypes: [entityType('Person'), entityType('Location')] },
+        textBuild(content), progress, LOGGER, NEVER, async () => {}, async () => {},
+        {
+          Person: { next: textOffsets(content).length, size: 250, found: 20, emitted: 18, errors: 1 },
+          Location: { next: textOffsets(content).length, size: 250, found: 3, emitted: 3, errors: 0 },
+        },
+        ['Location', 'Person'],
+      ));
+
+      expect(extractEntities).not.toHaveBeenCalled();
+      expect(outcome.result).toEqual({ found: 23, persisted: 21, errors: 1 });
+      // The finished types are listed in the job's order, not the record's.
+      expect(progress.mock.calls.at(-1)![2]).toMatchObject({
+        completedItems: [{ value: 'Person', foundCount: 20, persistedCount: 18 }, { value: 'Location', foundCount: 3, persistedCount: 3 }],
+      });
+    });
+
+    it('a tagging job counts by category what an earlier attempt committed for it', async () => {
+      const length = textOffsets(content).length;
+      vi.mocked(AnnotationDetection.detectTags).mockImplementation((async (...args: unknown[]) => {
+        // As the walk does: a category whose cursor is at the end of the text is asked nothing.
+        const resume = args[9] as { next: number } | undefined;
+        if (resume !== undefined && resume.next >= length) return [] as never;
+        const onChunk = args[args.length - 1] as (matches: unknown[], cursor: unknown, dropped: number) => Promise<void>;
+        await onChunk([{ exact: 'Paris', start: 0, end: 5, category: String(args[6]) }], { next: length, size: 1 }, 0);
+        return [] as never;
+      }) as never);
+
+      const outcome = ran(await processTagJob(
+        content, textOffsets(content), makeInferenceClient(),
+        { motivation: 'tagging', resourceId: RID, schemaId: SCHEMA_1.id, schema: SCHEMA_1, categories: ['catA', 'catB'] },
+        textBuild(content), vi.fn(), LOGGER, NEVER, async () => {},
+        // catA was walked to the end of the text: three proposed, two recorded, one that made nothing.
+        { catA: { next: length, size: 300, found: 3, emitted: 2, errors: 1 } },
+      ));
+
+      expect(outcome.result).toEqual({ found: 4, persisted: 3, errors: 1, byCategory: { catA: 2, catB: 1 } });
+    });
+
     it('seeds the unit counters from the checkpoint so the result covers the whole document', async () => {
       vi.mocked(extractEntities).mockImplementation((async (...args: unknown[]) => {
         await entityChunk(args)(

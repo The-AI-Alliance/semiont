@@ -180,8 +180,9 @@ export function startWorkerProcess(config: WorkerProcessConfig): ClaimsObservabl
   // and the catch below (which reads it); cleared on every terminal outcome.
   const completedUnitsByJob = new Map<string, string[]>();
 
-  // The mid-unit half of the same checkpoint: the cursor each unfinished unit
-  // reached. Kept beside `completedUnitsByJob` and for the same reason:
+  // The other half of the same checkpoint: the cursor of each unit the job
+  // has begun, a finished unit's among them. Kept beside
+  // `completedUnitsByJob` and for the same reason:
   // `job:fail` is the clean-failure path, and without this a job that dies
   // partway through its only unit reports a checkpoint that says nothing
   // happened.
@@ -240,9 +241,10 @@ export function startWorkerProcess(config: WorkerProcessConfig): ClaimsObservabl
           // job made one: that is the held job's own to say.
           await job.fail(message, {
             ...(completedUnits && completedUnits.length > 0 ? { completedUnits } : {}),
-            // Where each unfinished unit got to. Absent rather than `{}` when
-            // nothing was reached: an empty object would claim units were
-            // tracked and none progressed.
+            // Where each unit the job has begun got to, as its last
+            // checkpoint stated it. Absent rather than `{}` when this attempt
+            // stated none: an empty object would claim units were tracked and
+            // none progressed.
             ...(unitCursors && Object.keys(unitCursors).length > 0 ? { unitCursors } : {}),
             ...(failureClass !== undefined ? { failureClass } : {}),
           });
@@ -279,7 +281,7 @@ export async function handleJob(
   // (checkpointed resume); standalone callers may omit it — a fresh map
   // changes no behavior, only discards the checkpoint on return.
   completedUnitsByJob: Map<string, string[]> = new Map(),
-  // The mid-unit half of the checkpoint, same sharing rule as
+  // The cursors' half of the checkpoint, same sharing rule as
   // `completedUnitsByJob`: filled here, read by the failure path.
   unitCursorsByJob: Map<string, Record<string, UnitCursor>> = new Map(),
 ): Promise<void> {
@@ -420,12 +422,14 @@ async function handleJobInner(
   };
 
   /**
-   * Per-unit resume positions for THIS attempt, reported on every checkpoint
-   * and carried onto a terminal failure. In-memory only: the durable copy is
-   * the queue's, merged monotonically, because two checkpoints can be in
-   * flight and the older can land last.
+   * The cursor of every unit the job has begun, reported on every checkpoint
+   * and carried onto a failure: each as the job was claimed with it, until
+   * this attempt commits a chunk of that unit. A finished unit keeps its
+   * cursor, where it ended, which is what a later attempt counts it by.
+   * In-memory only: the durable copy is the queue's, merged monotonically,
+   * because two checkpoints can be in flight and the older can land last.
    */
-  const unitCursors = new Map<string, UnitCursor>();
+  const unitCursors = new Map<string, UnitCursor>(Object.entries(job.unitCursors));
 
   /**
    * Commit a chunk's annotations, then record where that leaves its unit.
@@ -499,22 +503,18 @@ async function handleJobInner(
     ));
 
   } else if (job.jobType === 'mark' && isHeldMark(params, 'linking')) {
-    // Checkpointed resume. A retried claim skips the units earlier attempts
-    // completed; every remaining unit commits chunk by chunk through
+    // Checkpointed resume. The processor is handed the whole job and the
+    // units earlier attempts finished: it skips those, and counts them by the
+    // cursors they ended at. Every other unit commits chunk by chunk through
     // `commitChunk`, and the unit callback checkpoints it once its last chunk
     // has committed — the awaited commits ARE the acceptance that lets the
     // unit count as complete, and the accumulator feeds the job:fail payload
     // if a later unit dies.
-    const skip = new Set(job.completedUnits);
-    const remaining = {
-      ...params,
-      entityTypes: params.entityTypes.filter((t) => !skip.has(String(t))),
-    };
     const committed: string[] = [];
     completedUnitsByJob.set(job.jobId, committed);
 
     return settle(job, await processReferenceJob(
-      ready!.text, ready!.offsets, inferenceClient, remaining, ready!.buildAnnotation, onProgress, config.logger, signal,
+      ready!.text, ready!.offsets, inferenceClient, params, ready!.buildAnnotation, onProgress, config.logger, signal,
       async (unit) => {
         // By the time this fires, every chunk of the unit has committed
         // through the awaited callback below — the checkpoint trails the log,
@@ -524,10 +524,9 @@ async function handleJobInner(
         // unit failing mid-stream never reaches here; its landed chunks
         // re-commit on retry into a log that dedupes by id.
         committed.push(unit);
-        // The unit is done, so it is no longer partway: dropping it keeps the
-        // reported payload consistent with what the queue stores, which treats
-        // the two sets as disjoint.
-        unitCursors.delete(unit);
+        // The unit is finished, and keeps its cursor: the checkpoint that
+        // names it carries where it ended and what it counted, and the queue
+        // keeps both.
         unitCursorsByJob.set(job.jobId, Object.fromEntries(unitCursors));
         await job.checkpoint({
           completedUnits: [...committed],
@@ -537,9 +536,10 @@ async function handleJobInner(
       // The durability write, per chunk, awaited; folds into the terminal
       // durability evidence like every commit, and carries the unit's cursor.
       commitChunk,
-      // …and the other direction: where an earlier attempt left each unit.
-      // Empty on a first attempt.
+      // …and the other direction: where an earlier attempt left each unit,
+      // and the units it finished. Empty on a first attempt.
       job.unitCursors,
+      job.completedUnits,
     ));
 
   } else if (job.jobType === 'mark' && isHeldMark(params, 'tagging')) {

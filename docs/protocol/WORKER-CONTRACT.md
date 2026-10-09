@@ -94,9 +94,15 @@ matches one of them, or with `none-pending`.
 - **R2.** `metadata.completedUnits` and `metadata.unitCursors` are the
   checkpoint earlier attempts left, and a worker resumes from them: a
   finished unit is not done again, and an unfinished one continues from its
-  cursor. Absent, each reads as none. A worker reads them as the dispatcher
-  states them and repairs nothing; what the dispatcher keeps of a checkpoint
-  is [JOBS.md § Checkpoints](./JOBS.md#checkpoints).
+  cursor. `completedUnits` is what says a unit is finished, and a cursor
+  never says so: `unitCursors` holds the furthest each unit begun got, with
+  what it had counted there, and a finished unit's is where it ended. So a
+  worker that does not do a finished unit again can still count it, by that
+  cursor. Absent, each reads as none; a finished unit the record holds no
+  cursor for is not done again, and nothing says what it counted. A worker
+  reads them as the dispatcher states them and repairs nothing; what the
+  dispatcher keeps of a checkpoint is
+  [JOBS.md § Checkpoints](./JOBS.md#checkpoints).
   *Held by `worker/checkpoint-read`, `dispatcher/progress.test.ts`.*
 
 ## The lifecycle
@@ -108,14 +114,18 @@ matches one of them, or with `none-pending`.
 - **L2.** While it works a worker may emit `job:report-progress` and
   `job:checkpoint`, any number of each. A progress report carries what
   `job:start` carried. A checkpoint carries `jobId`, the units finished, and
-  a cursor for each unit begun and not finished. Each one emitted counts as
-  activity ([Liveness](#liveness)).
+  a cursor for each unit begun. A checkpoint that names a unit finished
+  carries that unit's cursor, where it ended: the dispatcher keeps it
+  ([JOBS.md § Checkpoints](./JOBS.md#checkpoints)), and it is what a later
+  attempt counts the unit by. Each one emitted counts as activity
+  ([Liveness](#liveness)).
   *Held by `worker/lifecycle`, `worker/stall`.*
 - **L3.** A worker settles each job it claimed exactly once, with one of
   `job:complete`, `job:fail` or `job:cancel`.
   *Held by `worker/lifecycle`.*
 - **L4.** `job:fail` carries the error; the failure's class, when the worker
-  knows it; the checkpoint, when there is one; and `willRetry`, which is
+  knows it; the checkpoint, when there is one, as a `job:checkpoint` states
+  one ([L2](#the-lifecycle)); and `willRetry`, which is
   what [`retry-cases.json`](../../specs/src/jobs/retry-cases.json) answers
   for the claimed record's retry budget and that class. The dispatcher
   applies the same table, so a follower told `willRetry` is told what the

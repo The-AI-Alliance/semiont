@@ -3997,7 +3997,7 @@ type JobCancelCommand struct {
 	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
 	ResourceId ResourceId `json:"resourceId"`
 
-	// UnitCursors How far each in-progress unit got, keyed by unit — the grain `completedUnits` cannot express. A unit appearing here is NOT complete; a unit in `completedUnits` is skipped whole whatever cursor it last carried. Merged monotonically per unit: a stale snapshot must never move a cursor backward.
+	// UnitCursors The furthest each unit begun got, keyed by unit, with what it had counted there — the grain `completedUnits` cannot express. A unit named in `completedUnits` is stated here too, by the cursor it ended at: a later attempt skips it whole and counts it by that cursor. A cursor never says a unit is finished; only `completedUnits` does. Merged monotonically per unit, finished or not: a stale snapshot must never move a cursor backward.
 	UnitCursors *map[string]UnitCursor `json:"unitCursors,omitempty"`
 }
 
@@ -4043,7 +4043,7 @@ type JobCheckpointCommand struct {
 	// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
 	JobId JobId `json:"jobId"`
 
-	// UnitCursors How far each in-progress unit got, keyed by unit — the grain `completedUnits` cannot express. A unit appearing here is NOT complete; a unit in `completedUnits` is skipped whole whatever cursor it last carried. Merged monotonically per unit: a stale snapshot must never move a cursor backward.
+	// UnitCursors The furthest each unit begun got, keyed by unit, with what it had counted there — the grain `completedUnits` cannot express. A unit named in `completedUnits` is stated here too, by the cursor it ended at: a later attempt skips it whole and counts it by that cursor. A cursor never says a unit is finished; only `completedUnits` does. Merged monotonically per unit, finished or not: a stale snapshot must never move a cursor backward.
 	UnitCursors *map[string]UnitCursor `json:"unitCursors,omitempty"`
 }
 
@@ -4199,7 +4199,7 @@ type JobFailCommand struct {
 	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
 	ResourceId ResourceId `json:"resourceId"`
 
-	// UnitCursors How far each in-progress unit got, keyed by unit — the grain `completedUnits` cannot express. A unit appearing here is NOT complete; a unit in `completedUnits` is skipped whole whatever cursor it last carried. Merged monotonically per unit: a stale snapshot must never move a cursor backward.
+	// UnitCursors The furthest each unit begun got, keyed by unit, with what it had counted there — the grain `completedUnits` cannot express. A unit named in `completedUnits` is stated here too, by the cursor it ended at: a later attempt skips it whole and counts it by that cursor. A cursor never says a unit is finished; only `completedUnits` does. Merged monotonically per unit, finished or not: a stale snapshot must never move a cursor backward.
 	UnitCursors *map[string]UnitCursor `json:"unitCursors,omitempty"`
 
 	// WillRetry Whether the queue will re-queue this job for another attempt. Computed by the worker from the SAME predicate the queue applies at failJob (one decision site, `willRetryAfter` in @semiont/jobs) using the retry budget carried on the claimed record. FALSE (or absent) means this failure is TERMINAL: a client's job-watch stream ends here. TRUE means the work continues on a fresh attempt — the failure is an event, not the end, and a stream that terminated on it would report a recovering run as a failed one.
@@ -4291,7 +4291,7 @@ type JobMetadata struct {
 	// Type What a job does, as the verb that asks for it: `mark` annotates a resource, `yield` makes one. A job description is its `jobType` and the parameters that verb takes; a `mark` job's parameters state its motivation.
 	Type JobType `json:"type"`
 
-	// UnitCursors How far each unfinished unit got, keyed by unit.
+	// UnitCursors The furthest each unit begun got, keyed by unit, with what it had counted there. A finished unit keeps its cursor: where it ended, and its final counts.
 	UnitCursors *map[string]UnitCursor `json:"unitCursors,omitempty"`
 
 	// UserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
@@ -6063,7 +6063,7 @@ type TextualBody struct {
 // TextualBodyType defines model for TextualBody.Type.
 type TextualBodyType string
 
-// UnitCursor How far a single unit got, for a resume that starts mid-unit rather than redoing it. A unit is an entity type for a linking job, a category for a tagging job, and the job's own motivation for every other — which is why a unit-grain checkpoint alone is too coarse: those three have exactly one unit, so nothing could be recorded until the whole document was done.
+// UnitCursor The furthest a single unit got, and what it had counted when it got there. A unit left partway is resumed from its cursor rather than redone. A finished unit keeps its cursor: `next` at the length of the text, `size` the size its last piece was cut at, and its final `found`, `emitted` and `errors`, so that an attempt that skips the unit still counts it. A cursor never says a unit is finished, wherever it stands: `completedUnits` does. A unit is an entity type for a linking job, a category for a tagging job, and the job's own motivation for every other — which is why a unit-grain checkpoint alone is too coarse: those three have exactly one unit, so nothing could be recorded until the whole document was done.
 //
 // MERGE IS MONOTONE PER UNIT, not a union. `completedUnits` is a set and converges under concurrent snapshots because a set only grows; a cursor converges only if a stale snapshot can never move it backward.
 //
@@ -6078,7 +6078,7 @@ type UnitCursor struct {
 	// Found Items detection has returned for this unit through the last committed chunk — the numerator a resumed attempt continues from rather than restarting at zero. Counts what the model reported, before dedupe.
 	Found int `json:"found"`
 
-	// Next Unicode code points of the text consumed once the last COMMITTED chunk completed — the resume position. Deliberately the chunk's `next`, never its `at`: the checkpoint must not lead the log, so it records where a chunk that is already durable ended, not where the in-flight one began. Recording `at` would make a resume re-run the chunk it already paid for.
+	// Next Unicode code points of the text consumed once the last COMMITTED chunk completed — the resume position, and the length of the text for a unit whose last chunk it was. Deliberately the chunk's `next`, never its `at`: the checkpoint must not lead the log, so it records where a chunk that is already durable ended, not where the in-flight one began. Recording `at` would make a resume re-run the chunk it already paid for.
 	Next int `json:"next"`
 
 	// Size The token size that last committed chunk was cut at — the calibration the attempt paid for over the chunks before it. A resume seeds from this and then takes ONE adaptive step, as if the last outcome were a failure, which it was: the job died. Seeding alone would re-cut the failing piece identically; opening at the default would discard the calibration.

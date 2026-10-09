@@ -727,10 +727,13 @@ export async function processReferenceJob(
   onUnitComplete: (entityType: string) => Promise<void>,
   /** This chunk's novel annotations, awaited: the durability write. */
   onChunkComplete: (annotations: Annotation[], checkpoint: UnitCheckpoint) => Promise<void>,
-  /** Where earlier attempts left each entity-type unit. A unit absent here
-   * starts at the top; units already COMPLETE never reach this function at
-   * all, the caller having filtered them out. */
+  /** Where earlier attempts left each entity-type unit: the furthest it got,
+   * and what it had counted there. A unit absent here starts at the top. A
+   * finished unit's is where it ended. */
   resumeCursors?: Record<string, UnitCursor>,
+  /** The entity types earlier attempts finished, as the claimed record names
+   * them. They are not asked about again, and are counted by their cursors. */
+  completedUnits?: readonly string[],
 ): Promise<ProcessorResult<JobDetectionResult>> {
   // Cancelled before it began: nothing is asked, and nothing is reported.
   if (signal.aborted) return { cancelled: { completedUnits: [] } };
@@ -740,11 +743,9 @@ export async function processReferenceJob(
   const completedItems: CompletedItem[] = [];
   /** The units this attempt finished, in the order they finished: what a cancellation names. */
   const finishedUnits: string[] = [];
-  // Seeded with what earlier attempts already counted for the units this
-  // attempt is RESUMING. Units that completed earlier carry no cursor — they
-  // are filtered out before this function sees them — so their share is
-  // missing from the job total: a known gap at unit grain, left whole rather
-  // than silently half-fixed here.
+  // Seeded with what earlier attempts counted. A cursor is held for every
+  // unit the job has begun, the units it finished among them, so the totals
+  // are the whole job's from the first report.
   let totalFound = Object.values(resumeCursors ?? {}).reduce((n, c) => n + c.found, 0);
   let totalEmitted = Object.values(resumeCursors ?? {}).reduce((n, c) => n + c.emitted, 0);
   let errors = Object.values(resumeCursors ?? {}).reduce((n, c) => n + c.errors, 0);
@@ -768,7 +769,17 @@ export async function processReferenceJob(
   // read-modify-write straddles an await), so no locking is needed. Progress is
   // "M of N done" rather than "on type i": concurrent types finish out of
   // order, and `completedItems` tolerates that.
-  let completed = 0;
+  //
+  // The types an earlier attempt finished are the job's all the same: they are
+  // among the finished from the first report, in the job's order, each with
+  // what its cursor counted. One the record holds no cursor for is finished,
+  // and nothing says what it found: it is not listed.
+  const finishedEarlier = entityTypeNames.filter((name) => completedUnits?.includes(name));
+  for (const name of finishedEarlier) {
+    const ended = resumeCursors?.[name];
+    if (ended) completedItems.push({ value: name, foundCount: ended.found, persistedCount: ended.emitted });
+  }
+  let completed = finishedEarlier.length;
   const total = entityTypeNames.length;
 
   const emitTypeProgress = (entityTypeName: string): void => {
@@ -788,7 +799,7 @@ export async function processReferenceJob(
   // Concurrency is the PROVIDER's capability, not a flat constant: a hosted
   // API parallelizes, a local single-model server does not. Reading it
   // from the client is what makes the same code correct on both.
-  await runBounded(entityTypeNames, inferenceClient.maxConcurrency, async (entityTypeName) => {
+  await runBounded(entityTypeNames.filter((name) => !finishedEarlier.includes(name)), inferenceClient.maxConcurrency, async (entityTypeName) => {
     if (!entityTypeName) return;
     // Cooperative cancellation: once aborted, a pending type is skipped when
     // its turn comes, and a type in flight stops after the chunk it is on.
@@ -997,6 +1008,10 @@ export async function processTagJob(
     let categoryFound = priorCategory?.found ?? 0;
     let categoryCreated = priorCategory?.emitted ?? 0;
     let categoryErrors = priorCategory?.errors ?? 0;
+    // What earlier attempts committed for this category is in the count by
+    // category, as it is in `created`. Set once: a category the job names
+    // twice is walked twice, and its cursor counted once.
+    if (categoryCreated > 0) byCategory[category] ??= categoryCreated;
     /** Where the category's walk stands: the offset its next chunk starts at. */
     let categoryNext = priorCategory?.next ?? 0;
     await AnnotationDetection.detectTags(

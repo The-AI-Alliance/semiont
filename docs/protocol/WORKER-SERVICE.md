@@ -23,9 +23,6 @@ rule marked "Held by no case" is one nothing checks.
 `npm run lint:transport-contract` fails when a case named here does not exist,
 and when a case of the suite is named by no rule.
 
-Behaviour that is a defect is not stated as a rule anywhere below. It is
-listed under [Known defects](#known-defects), and no case pins it.
-
 **What this document does not cover.** A job on a provider other than Ollama;
 and a `yield` job to PDF, and so the citations of a generated PDF.
 
@@ -321,27 +318,38 @@ job is one unit for each of its `categories`.
   the held job ([WORKER-CONTRACT A1, A4 to
   A6](./WORKER-CONTRACT.md#committing-annotations)), in the order the model
   proposed them. Once the batch is established the service emits
-  `job:checkpoint`, with the cursor of every unit begun and not named as
-  finished. A unit's cursor is `next`, the offset its next piece starts at, or
-  the length of the text after its last, in code points; `size`, the size its
-  last piece was cut at; and its `found`, `emitted` and `errors` so far. Only then is the
-  next piece asked about. A piece with nothing to commit
+  `job:checkpoint`, with the cursor of every unit the job has begun, finished
+  or not: each as the job was claimed with it
+  ([WORKER-CONTRACT R2](./WORKER-CONTRACT.md#the-claimed-record)), until this
+  attempt establishes a batch of that unit, and from then where this attempt
+  has taken it. A unit's cursor is `next`, the offset its next piece starts at,
+  or the length of the text after its last, in code points; `size`, the size
+  its last piece was cut at; and its `found`, `emitted` and `errors` so far.
+  Only then is the next piece asked about. A piece with nothing to commit
   commits nothing and is checkpointed all the same.
-  *Held by `worker-service/highlighting`, `worker-service/chunks`, `worker-service/code-points`.*
-- **D14.** A linking job's checkpoints also state its finished entity types,
-  in `completedUnits`: when a type's last batch is established, a checkpoint
-  names the type as finished and no longer carries its cursor. The units of a
-  job of any other motivation are never named as finished.
-  *Held by `worker-service/linking`, `worker-service/tagging`.*
+  *Held by `worker-service/highlighting`, `worker-service/chunks`, `worker-service/code-points`, `worker-service/linking`, `worker-service/resume`.*
+- **D14.** A linking job's checkpoints also state the entity types this
+  attempt has finished, in `completedUnits`: when a type's last batch is
+  established, a checkpoint names the type as finished, and carries its
+  cursor still, as every checkpoint after it does. A finished type's cursor is
+  where the type ended: `next` at the length of the text, and its final
+  counts. The units of a job of any other motivation are never named as
+  finished in a checkpoint. One whose cursor stands at the length of the text
+  has nothing left to ask about, and is counted by that cursor as any unit is
+  ([U1](#resuming)).
+  *Held by `worker-service/linking`, `worker-service/tagging`, `worker-service/resume`.*
 - **D15.** A `mark` job's result is its counts. `found` is the proposals the
   model made; `persisted`, the annotations committed; `errors`, the proposals
   that made no annotation, stated only when there are any: those whose text
   is nowhere in the resource and, in a linking job, those of another entity
   type than the one asked for ([K4](#the-five-kinds-of-mark-job)). A
   tagging job adds `byCategory`, the annotations committed for each category
-  that has any. The completion states how the job's commits were established
+  that has any. The counts are the whole job's, over every attempt: a unit an
+  earlier attempt finished, or left partway, is counted by its cursor
+  ([U1 and U2](#resuming)). The completion states how the job's commits were
+  established
   ([WORKER-CONTRACT A6](./WORKER-CONTRACT.md#committing-annotations)).
-  *Held by `worker-service/highlighting`, `worker-service/tagging`, `worker-service/linking`.*
+  *Held by `worker-service/highlighting`, `worker-service/tagging`, `worker-service/linking`, `worker-service/resume`.*
 
 ### Progress
 
@@ -370,8 +378,12 @@ job is one unit for each of its `categories`.
   `persistedCount`), and the job's `entitiesFound`, `entitiesEmitted` and,
   once any count has been made, `entitiesExpected`. It ends with
   `complete-created` at 100. Every report carries `requestParams`: the entity
-  types, as one string.
-  *Held by `worker-service/linking`.*
+  types, as one string. The types are every entity type of the job, and the
+  finished are those of every attempt: `total` and `requestParams` are of the
+  whole job, and a type an earlier attempt finished is among the finished
+  from the first report, in `processed`, `completedItems`, `entitiesFound` and
+  `entitiesEmitted` ([U2](#resuming)).
+  *Held by `worker-service/linking`, `worker-service/resume`.*
 - **D19.** A tagging job reports `loading` at 10 and `analyzing-tags` at 30;
   for each category, `analyzing-tags` at `30 + round(30 × index / categories)`
   with the category, its index and the categories finished; after each piece,
@@ -486,10 +498,12 @@ deterministic, so that no attempt is spent on them again.
   the claimed record's budget and that class make it. After it the service
   claims again.
   *Held by `worker-service/failures`.*
-- **F2.** A failure carries the job's checkpoint as far as it got: the
-  cursor of each unit that is partway, in `unitCursors`, and a linking job's
-  finished types, in `completedUnits`. A job that had established nothing
-  carries neither.
+- **F2.** A failure carries the checkpoint the job last stated
+  ([D13 and D14](#committing-and-where-a-job-stands)): the cursor of each
+  unit the job has begun, in `unitCursors`, a finished type's among them, and
+  the entity types this attempt of a linking job finished, in
+  `completedUnits`. A job that had established nothing on this attempt carries
+  neither.
   *Held by `worker-service/failures`.*
 - **F3.** A failure of the provider has no class: a request the provider
   refuses, whatever the status; a connection that ends unanswered; and limits
@@ -536,10 +550,26 @@ deterministic, so that no attempt is spent on them again.
   unit up at the cursor's `next`: nothing before it is asked about again. Its
   first piece is cut at seven tenths of the cursor's `size`, held within the
   bounds of [D7](#pieces). The unit's counts begin at the cursor's, so the
-  job's result and its progress are the whole text's.
+  job's result and its progress are the whole text's. A unit whose cursor
+  stands at the length of the text has nothing left: no piece of it is asked
+  about, and it is counted by its cursor. A linking job names such an entity
+  type finished when it comes to it, in a checkpoint that carries that cursor
+  ([D14](#committing-and-where-a-job-stands)).
   *Held by `worker-service/resume`.*
 - **U2.** A linking job claimed with finished entity types does not do them
-  again: it asks only for the others.
+  again: it asks only for the others, and counts every type. A finished type
+  is counted by the cursor the claimed record holds for it: its `found`,
+  `emitted` and `errors` are in the job's result, and in `entitiesFound` and
+  `entitiesEmitted` from the first report. The type is among the finished
+  from the first report: in `processed`, and in `completedItems`, ahead of the
+  types this attempt finishes and in the job's order, with its cursor's
+  `found` and `emitted` as its `foundCount` and `persistedCount`. A finished
+  type the record holds no cursor for is not done again either, and counts
+  nothing: it is in `processed`, it is not in `completedItems`, and it adds
+  nothing to the job's counts. What a cursor does not carry is this attempt's
+  alone: `entitiesExpected`, a type's `underReported` and the result's
+  `underReportedPieces` ([K5](#the-five-kinds-of-mark-job)) are of the pieces
+  this attempt asked about.
   *Held by `worker-service/resume`.*
 - **U3.** Every lifecycle message of a resumed job states its attempt: the
   claimed record's `retryCount` and one.
@@ -561,10 +591,11 @@ stopping place, and not at once.
   *Held by `worker-service/cancel`.*
 - **Q2.** `job:cancel` names, in `completedUnits`, the units the job had
   finished, and states none when it had finished none. A unit it was partway
-  through is not named. A job with nothing left to do but settle when the
-  cancellation arrives is settled with `job:cancel` all the same, every unit
-  named: a job cancelled on the last piece of its last unit, of whatever
-  motivation.
+  through is not named, and neither is an entity type the record a linking
+  job was claimed with already names as finished. A job with nothing left to
+  do but settle when the cancellation arrives is settled with `job:cancel`
+  all the same, every unit named: a job cancelled on the last piece of its
+  last unit, of whatever motivation.
   *Held by `worker-service/cancel`.*
 - **Q3.** A `yield` job stops before it uploads. When the cancellation has
   arrived by the time its model has answered, nothing is uploaded, nothing is
@@ -749,12 +780,3 @@ other, beyond the standard variables an OpenTelemetry SDK reads on its own.
   ([WORKER-CONTRACT V2](./WORKER-CONTRACT.md#liveness)) ends the service: it
   exits with status 1.
   *Held by no case.*
-
-## Known defects
-
-Behaviour that is a defect. Each is described as it happens; none is a rule,
-and no case pins it.
-
-- **A resumed linking job does not count the types an earlier attempt
-  finished.** Its result's `found` and `persisted`, and the `total` of its
-  progress, are of the types this attempt ran.

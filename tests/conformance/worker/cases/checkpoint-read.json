@@ -1,9 +1,9 @@
 {
-  "about": "a claimed record's finished units and cursors are the checkpoint earlier attempts left, and a worker holds them as the record states them",
+  "about": "a claimed record's finished units and cursors are the checkpoint earlier attempts left, a finished unit's cursor among them, and a worker holds them as the record states them",
   "source": "docs/protocol/WORKER-CONTRACT.md § The claimed record",
   "steps": [
     {"let": {"accepts": [{"jobType": "mark", "params": {"motivation": "highlighting"}}]}},
-    {"let": {"cursors": {"Place": {"next": 1200, "size": 800, "found": 4, "emitted": 3, "errors": 1}}}},
+    {"let": {"cursors": {"Person": {"next": 5000, "size": 900, "found": 9, "emitted": 7, "errors": 2}, "Place": {"next": 1200, "size": 800, "found": 4, "emitted": 3, "errors": 1}}}},
     {"let": {"job": {"status": "running", "metadata": {"id": "job-1", "type": "mark", "userId": {"$var": "client"}, "created": "2026-01-01T00:00:00.000Z", "retryCount": 2, "maxRetries": 3, "completedUnits": ["Person"], "unitCursors": {"$var": "cursors"}}, "params": {"resourceId": {"$var": "r1"}, "motivation": "highlighting"}, "startedAt": "2026-01-01T00:00:01.000Z", "progress": {}}}},
     {"backend": "listen", "with": {"channels": ["job:claim"]}},
     {"driver": "open", "with": {"timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},

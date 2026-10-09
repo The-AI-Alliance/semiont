@@ -17,8 +17,8 @@
     {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "job:start", "payload": {"resourceId": {"$var": "r1"}, "jobId": "job-1", "jobType": "mark", "attempt": 1}, "clientId": {"$var": "clientId"}}},
     {"driver": "progress", "with": {"percentage": 40}},
     {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "job:report-progress", "payload": {"resourceId": {"$var": "r1"}, "jobId": "job-1", "jobType": "mark", "attempt": 1, "percentage": 40, "progress": {"percentage": 40}}, "clientId": {"$var": "clientId"}}},
-    {"driver": "checkpoint", "with": {"completedUnits": ["Person"], "unitCursors": {"Place": {"next": 1200, "size": 800, "found": 4, "emitted": 3, "errors": 0}}}},
-    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "job:checkpoint", "payload": {"jobId": "job-1", "completedUnits": ["Person"], "unitCursors": {"Place": {"next": 1200, "size": 800, "found": 4, "emitted": 3, "errors": 0}}}, "clientId": {"$var": "clientId"}}},
+    {"driver": "checkpoint", "with": {"completedUnits": ["Person"], "unitCursors": {"Person": {"next": 5000, "size": 900, "found": 9, "emitted": 7, "errors": 2}, "Place": {"next": 1200, "size": 800, "found": 4, "emitted": 3, "errors": 0}}}},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "job:checkpoint", "payload": {"jobId": "job-1", "completedUnits": ["Person"], "unitCursors": {"Person": {"next": 5000, "size": 900, "found": 9, "emitted": 7, "errors": 2}, "Place": {"next": 1200, "size": 800, "found": 4, "emitted": 3, "errors": 0}}}, "clientId": {"$var": "clientId"}}},
     {"driver": "complete", "with": {"result": {"found": 9, "persisted": 7}}},
     {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "job:complete", "payload": {"resourceId": {"$var": "r1"}, "jobId": "job-1", "jobType": "mark", "attempt": 1, "result": {"found": 9, "persisted": 7}}, "clientId": {"$var": "clientId"}}},
 

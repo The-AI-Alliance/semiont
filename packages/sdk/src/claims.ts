@@ -198,7 +198,7 @@ export interface HeldJobStall {
   thresholdMs: number;
 }
 
-/** The checkpoint a worker states: the units finished, and how far each unit begun and not finished got. */
+/** The checkpoint a worker states: the units finished, and the furthest each unit begun got, a finished unit's cursor where it ended. */
 export interface JobCheckpoint {
   completedUnits: string[];
   unitCursors?: Record<string, UnitCursor>;
@@ -218,7 +218,7 @@ interface Held<T extends JobType, R> {
   readonly params: ClaimedJob['params'];
   /** The units earlier attempts finished. A worker does not do them again. Empty on a first attempt. */
   readonly completedUnits: readonly string[];
-  /** How far each unit begun and not finished got on an earlier attempt. Empty on a first attempt. */
+  /** The furthest each unit begun got on an earlier attempt, and what it had counted there: a finished unit's is where it ended. Empty on a first attempt. */
   readonly unitCursors: Readonly<Record<string, UnitCursor>>;
   readonly retryCount: number;
   readonly maxRetries: number;

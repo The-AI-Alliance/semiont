@@ -1142,7 +1142,7 @@ class JobCancelRequest(WireModel, frozen=True):
 
 class UnitCursor(WireModel, frozen=True):
     """
-    How far a single unit got, for a resume that starts mid-unit rather than redoing it. A unit is an entity type for a linking job, a category for a tagging job, and the job's own motivation for every other — which is why a unit-grain checkpoint alone is too coarse: those three have exactly one unit, so nothing could be recorded until the whole document was done.
+    The furthest a single unit got, and what it had counted when it got there. A unit left partway is resumed from its cursor rather than redone. A finished unit keeps its cursor: `next` at the length of the text, `size` the size its last piece was cut at, and its final `found`, `emitted` and `errors`, so that an attempt that skips the unit still counts it. A cursor never says a unit is finished, wherever it stands: `completedUnits` does. A unit is an entity type for a linking job, a category for a tagging job, and the job's own motivation for every other — which is why a unit-grain checkpoint alone is too coarse: those three have exactly one unit, so nothing could be recorded until the whole document was done.
 
     MERGE IS MONOTONE PER UNIT, not a union. `completedUnits` is a set and converges under concurrent snapshots because a set only grows; a cursor converges only if a stale snapshot can never move it backward.
 
@@ -1152,7 +1152,7 @@ class UnitCursor(WireModel, frozen=True):
     next: Annotated[
         int,
         Field(
-            description="Unicode code points of the text consumed once the last COMMITTED chunk completed — the resume position. Deliberately the chunk's `next`, never its `at`: the checkpoint must not lead the log, so it records where a chunk that is already durable ended, not where the in-flight one began. Recording `at` would make a resume re-run the chunk it already paid for.",
+            description="Unicode code points of the text consumed once the last COMMITTED chunk completed — the resume position, and the length of the text for a unit whose last chunk it was. Deliberately the chunk's `next`, never its `at`: the checkpoint must not lead the log, so it records where a chunk that is already durable ended, not where the in-flight one began. Recording `at` would make a resume re-run the chunk it already paid for.",
             ge=0,
         ),
     ]
@@ -2313,7 +2313,7 @@ class JobMetadata(WireModel, frozen=True, extra="forbid"):
         dict[str, UnitCursor] | None,
         Field(
             alias="unitCursors",
-            description="How far each unfinished unit got, keyed by unit.",
+            description="The furthest each unit begun got, keyed by unit, with what it had counted there. A finished unit keeps its cursor: where it ended, and its final counts.",
         ),
     ] = None
 
@@ -3748,7 +3748,7 @@ class JobCancelCommand(WireModel, frozen=True):
         dict[str, UnitCursor] | None,
         Field(
             alias="unitCursors",
-            description="How far each in-progress unit got, keyed by unit — the grain `completedUnits` cannot express. A unit appearing here is NOT complete; a unit in `completedUnits` is skipped whole whatever cursor it last carried. Merged monotonically per unit: a stale snapshot must never move a cursor backward.",
+            description="The furthest each unit begun got, keyed by unit, with what it had counted there — the grain `completedUnits` cannot express. A unit named in `completedUnits` is stated here too, by the cursor it ended at: a later attempt skips it whole and counts it by that cursor. A cursor never says a unit is finished; only `completedUnits` does. Merged monotonically per unit, finished or not: a stale snapshot must never move a cursor backward.",
         ),
     ] = None
 
@@ -3844,7 +3844,7 @@ class JobFailCommand(WireModel, frozen=True):
         dict[str, UnitCursor] | None,
         Field(
             alias="unitCursors",
-            description="How far each in-progress unit got, keyed by unit — the grain `completedUnits` cannot express. A unit appearing here is NOT complete; a unit in `completedUnits` is skipped whole whatever cursor it last carried. Merged monotonically per unit: a stale snapshot must never move a cursor backward.",
+            description="The furthest each unit begun got, keyed by unit, with what it had counted there — the grain `completedUnits` cannot express. A unit named in `completedUnits` is stated here too, by the cursor it ended at: a later attempt skips it whole and counts it by that cursor. A cursor never says a unit is finished; only `completedUnits` does. Merged monotonically per unit, finished or not: a stale snapshot must never move a cursor backward.",
         ),
     ] = None
     failure_class: Annotated[FailureClass | None, Field(alias="failureClass")] = None
@@ -3882,7 +3882,7 @@ class JobCheckpointCommand(WireModel, frozen=True):
         dict[str, UnitCursor] | None,
         Field(
             alias="unitCursors",
-            description="How far each in-progress unit got, keyed by unit — the grain `completedUnits` cannot express. A unit appearing here is NOT complete; a unit in `completedUnits` is skipped whole whatever cursor it last carried. Merged monotonically per unit: a stale snapshot must never move a cursor backward.",
+            description="The furthest each unit begun got, keyed by unit, with what it had counted there — the grain `completedUnits` cannot express. A unit named in `completedUnits` is stated here too, by the cursor it ended at: a later attempt skips it whole and counts it by that cursor. A cursor never says a unit is finished; only `completedUnits` does. Merged monotonically per unit, finished or not: a stale snapshot must never move a cursor backward.",
         ),
     ] = None
 

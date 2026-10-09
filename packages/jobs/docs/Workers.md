@@ -97,7 +97,7 @@ process<X>Job(
 ): Promise<ProcessorResult<JobDetectionResult>>  // `{ result }`: found, persisted, errors; or `{ cancelled }`
 ```
 
-`processReferenceJob` runs several units (entity types) concurrently, so between `signal` and `onChunkComplete` it takes an `onUnitComplete(entityType)` checkpoint callback.
+`processReferenceJob` runs several units (entity types) concurrently, so between `signal` and `onChunkComplete` it takes an `onUnitComplete(entityType)` checkpoint callback. After `resumeCursors` it takes `completedUnits`, the entity types earlier attempts finished: it does not ask about them again, and counts each by its cursor.
 
 **Every job stops for a cancellation**, at its next stopping place and not at once ([WORKER-SERVICE.md § Cancellation](../../../docs/protocol/WORKER-SERVICE.md#cancellation)). A detection stops after the chunk it is on: that chunk is committed and checkpointed, no other is cut, nothing more is reported, and the processor returns `{ cancelled: { completedUnits } }`, the units it had finished. A generation stops once its model has answered, before anything is uploaded. The request to the provider is not aborted when a cancellation arrives, so a cancelled job holds its agent until the model answers or the call's ten-minute bound ends it.
 
@@ -156,7 +156,7 @@ The held job says the lifecycle and commits the annotations, and `handleJobInner
 - `job:report-progress` — driven by the processor's `onProgress` callback. The dispatcher stores it as the running job's `progress` and the UI renders it; Stower ignores it.
 - `mark:commit` — one **awaited batch per unit of work**: `{ resourceId, annotations, jobId }`, sent by `job.commit(resourceId, annotations)`, which cites the job itself. This is a `busRequest`, not a fire-and-forget emit — it resolves only after the Stower has appended every annotation to the event log, and only then does the unit count as complete. A job type that minted annotations without waiting for this acknowledgement would silently lose them whenever the persistence sink was down; a census test (`worker-process.test.ts`, "no job type persists without an acknowledgement") fails on any job type that tries.
 - `browse:annotation-requested` — only when a commit is not acknowledged within `markCommitTimeoutMs`: the held job asks whether the batch's last annotation is on the resource. Answered with it, the commit is established, since a lost acknowledgement is not a lost batch. Otherwise `job.commit` rejects with the failure of its unanswered `mark:commit`, and the job fails.
-- `job:checkpoint` — after each committed chunk, carrying the completed units and each unfinished unit's cursor, so a crashed worker's retry resumes instead of re-paying.
+- `job:checkpoint` — after each committed chunk, carrying the units this attempt completed and the cursor of each unit the job has begun, a finished unit's among them, so a crashed worker's retry resumes instead of re-paying and still counts the whole job.
 - `job:complete` — once, with the processor's `result`, **after** the final commit resolved. The held job adds `durability`: the weakest of how its commits were established, `acknowledged` or `probe-confirmed`. A job that committed nothing states none.
 - `job:fail` — on error, with the message, the `failureClass`, and `willRetry`. When a commit was not established the held job adds `durability`, what that commit observed: `probe-refused` or `probe-unreachable`.
 

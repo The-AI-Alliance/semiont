@@ -102,7 +102,7 @@ is held to `JobClaimedResult`, and a Smelter's answer to
 | `highlighting` | `highlighting.test.ts` | J1, J2, D1 to D3, D8, D9, D11 to D13, D15 to D17, K1 |
 | `commenting` | `commenting.test.ts` | D8, D9, D12, D17, K2 |
 | `assessing` | `assessing.test.ts` | D5, D12, D17, K3 |
-| `linking` | `linking.test.ts` | D8, D12, D14, D15, D18, K4, K5 |
+| `linking` | `linking.test.ts` | D8, D12 to D15, D18, K4, K5 |
 | `tagging` | `tagging.test.ts` | D9, D12, D14, D15, D19, K7 |
 | `anchoring` | `anchoring.test.ts` | D8 |
 | `prompts` | `prompts.test.ts` | D2, D3, K1 to K4, K7 |
@@ -112,7 +112,7 @@ is held to `JobClaimedResult`, and a Smelter's answer to
 | `declines` | `declines.test.ts` | J2, N1, N3, N6 to N8 |
 | `failures` | `failures.test.ts` | D3, F1 to F5, F8 |
 | `halved` | `halved.test.ts` | F6 |
-| `resume` | `resume.test.ts` | U1 to U3 |
+| `resume` | `resume.test.ts` | D13 to D15, D18, U1 to U3 |
 | `cancel` | `cancel.test.ts` | Q1 to Q5 |
 | `yield` | `yield.test.ts` | J3, Y1 to Y8 |
 | `telemetry` | `telemetry.test.ts` | T1, T2 |
@@ -134,9 +134,6 @@ rule names exists, and every case is named by a rule.
 | D7, the size of a piece following the provider's usage | On a model whose window is shared, as the stand-in's is, the ceiling of a piece is where it opens unless the window is far over what any fixture fills |
 | F7 and K6, a piece asked again in halves for another reason than a cut-off answer | Not written: `halved.test.ts` holds the halving itself |
 | The commit whose acknowledgement is lost | [WORKER-CONTRACT A5](../../../docs/protocol/WORKER-CONTRACT.md#committing-annotations), held by the worker suite: a service waits a minute for an acknowledgement |
-
-Behaviour WORKER-SERVICE.md lists as a known defect is not pinned by any
-case.
 
 ## Adding an implementation
 

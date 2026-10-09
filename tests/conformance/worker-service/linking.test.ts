@@ -133,13 +133,13 @@ eachWorkerService('a linking job', (world) => {
       },
     ]);
 
-    // A unit's cursor while it is partway, and the unit among the finished once its last batch is on the record.
+    // A unit's cursor from its first batch, and the unit among the finished once its last batch is on the record. A finished unit keeps its cursor: every checkpoint after carries it.
     const cursor = (found: number) => ({ next: TEXT.length, size: CHUNK_SIZE, found, emitted: found, errors: 0 });
     expect(served.payloads('job:checkpoint')).toEqual([
       { jobId: job.metadata.id, completedUnits: [], unitCursors: { Person: cursor(2) } },
-      { jobId: job.metadata.id, completedUnits: ['Person'] },
-      { jobId: job.metadata.id, completedUnits: ['Person'], unitCursors: { Place: cursor(3) } },
-      { jobId: job.metadata.id, completedUnits: ['Person', 'Place'] },
+      { jobId: job.metadata.id, completedUnits: ['Person'], unitCursors: { Person: cursor(2) } },
+      { jobId: job.metadata.id, completedUnits: ['Person'], unitCursors: { Person: cursor(2), Place: cursor(3) } },
+      { jobId: job.metadata.id, completedUnits: ['Person', 'Place'], unitCursors: { Person: cursor(2), Place: cursor(3) } },
     ]);
 
     const requestParams = [{ label: 'entity-types', value: 'Person, Place' }];
@@ -205,9 +205,10 @@ eachWorkerService('a linking job', (world) => {
         ),
       ],
     ]);
+    const person = { next: TEXT.length, size: CHUNK_SIZE, found: 3, emitted: 1, errors: 2 };
     expect(served.payloads('job:checkpoint')).toEqual([
-      { jobId: job.metadata.id, completedUnits: [], unitCursors: { Person: { next: TEXT.length, size: CHUNK_SIZE, found: 3, emitted: 1, errors: 2 } } },
-      { jobId: job.metadata.id, completedUnits: ['Person'] },
+      { jobId: job.metadata.id, completedUnits: [], unitCursors: { Person: person } },
+      { jobId: job.metadata.id, completedUnits: ['Person'], unitCursors: { Person: person } },
     ]);
     // Three proposed, one recorded, two that made nothing.
     expect(completion).toEqual({ ...identity(job), result: { found: 3, persisted: 1, errors: 2 }, durability: 'acknowledged' });

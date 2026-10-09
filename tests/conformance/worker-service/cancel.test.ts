@@ -258,10 +258,10 @@ eachWorkerService('a job that is cancelled', (world) => {
         ),
       ],
     ]);
-    // The piece was the type's last: its cursor is said, and then the type among the finished, as for any type.
+    // The piece was the type's last: its cursor is said, and then the type among the finished with its cursor still, as for any type.
     expect(served.payloads('job:checkpoint')).toEqual([
       { jobId: job.metadata.id, completedUnits: [], unitCursors: { Person: { next: TEXT.length, size: 2658, found: 1, emitted: 1, errors: 0 } } },
-      { jobId: job.metadata.id, completedUnits: ['Person'] },
+      { jobId: job.metadata.id, completedUnits: ['Person'], unitCursors: { Person: { next: TEXT.length, size: 2658, found: 1, emitted: 1, errors: 0 } } },
     ]);
     expect(served.sequence()).toEqual(stoppedAfterOnePiece(resourceId, 2));
     // Nothing was left to do but settle, and it is settled as cancelled all the same.
@@ -289,11 +289,11 @@ eachWorkerService('a job that is cancelled', (world) => {
 
     // The second type was never asked for.
     expect(w.ollama.generations).toHaveLength(2);
-    // What the first type found is on the record, and the type is checkpointed as finished.
+    // What the first type found is on the record, and the type is checkpointed as finished, with the cursor it ended at.
     expect(w.commits.map((c) => c.annotations.length)).toEqual([1]);
     expect(served.payloads('job:checkpoint')).toEqual([
       { jobId: job.metadata.id, completedUnits: [], unitCursors: { Person: { next: TEXT.length, size: 2658, found: 1, emitted: 1, errors: 0 } } },
-      { jobId: job.metadata.id, completedUnits: ['Person'] },
+      { jobId: job.metadata.id, completedUnits: ['Person'], unitCursors: { Person: { next: TEXT.length, size: 2658, found: 1, emitted: 1, errors: 0 } } },
     ]);
     expect(served.sequence()).toEqual(stoppedAfterOnePiece(resourceId, 2, false));
     // A cancel names the job and what it finished, and states no attempt.
@@ -301,6 +301,36 @@ eachWorkerService('a job that is cancelled', (world) => {
     expect(served.progress(job.metadata.id).filter((p) => (p['progress'] as { message: { code: string } }).message.code === 'complete-created')).toEqual([]);
     expect(served.emits('job:complete')).toEqual([]);
     expect(served.emits('job:fail')).toEqual([]);
+  });
+
+  it('names on its cancel the entity type this attempt finished, and not one the record it was claimed with already names', async () => {
+    const w = world();
+    // An earlier attempt finished Person. This one is cancelled as the last batch of Place is committed.
+    const person = { next: TEXT.length, size: 2658, found: 2, emitted: 2, errors: 0 };
+    const job = markJob(w, 'cancel-resumed', { motivation: 'linking', entityTypes: ['Person', 'Place'] }, { retryCount: 1, completedUnits: ['Person'], unitCursors: { Person: person } });
+    const resourceId = String(job.params.resourceId);
+    w.ollama.script({ response: JSON.stringify([{ exact: 'London', entityType: 'Place', prefix: 'engine in ', suffix: ', but' }]) }, { response: '1' });
+    let asked = false;
+    w.hooks.commit = async () => {
+      if (!asked) {
+        asked = true;
+        await w.emit('job:cancel-requested', { jobId: job.metadata.id });
+      }
+      return undefined;
+    };
+    const served = await w.start();
+    const cancel = await settled(served, job, 'job:cancel');
+
+    expect(w.ollama.generations).toHaveLength(2);
+    expect(w.commits.map((c) => c.annotations.length)).toEqual([1]);
+    const place = { next: TEXT.length, size: 2658, found: 1, emitted: 1, errors: 0 };
+    expect(served.payloads('job:checkpoint')).toEqual([
+      { jobId: job.metadata.id, completedUnits: [], unitCursors: { Person: person, Place: place } },
+      { jobId: job.metadata.id, completedUnits: ['Place'], unitCursors: { Person: person, Place: place } },
+    ]);
+    expect(served.sequence()).toEqual(stoppedAfterOnePiece(resourceId, 2, false));
+    expect(cancel).toEqual({ resourceId, jobId: job.metadata.id, jobType: 'mark', completedUnits: ['Place'] });
+    expect(served.emits('job:complete')).toEqual([]);
   });
 
   it('settles as cancelled a highlighting job cancelled on its only piece, with its one unit named', async () => {

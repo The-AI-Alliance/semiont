@@ -78,7 +78,7 @@ A job is one record, keyed by its id.
 | `metadata.retryCount` | always | attempts re-queued so far; `0` at admission |
 | `metadata.maxRetries` | always | the retry budget: `0` for a `yield` job, `1` for a `mark` job |
 | `metadata.completedUnits` | after a checkpoint | units finished by any attempt ([Checkpoints](#checkpoints)) |
-| `metadata.unitCursors` | after a checkpoint that leaves a cursor | how far each unfinished unit got |
+| `metadata.unitCursors` | after a checkpoint that states a cursor | the furthest each unit begun got, and what it had counted there ([Checkpoints](#checkpoints)) |
 | `params` | always | the job's params as the dispatcher holds them ([Admission](#jobcreate)) |
 | `startedAt` | `running`, `complete`, `failed`; `cancelled` when cancelled while running | ISO-8601 time of the claim |
 | `progress` | `running` | the last recorded progress report; `{}` at the claim |
@@ -497,16 +497,24 @@ It has two parts, merged differently ([`checkpoint.rs`](../../apps/dispatcher/ha
 
 - **`completedUnits` is a set, merged by union.** A unit is an entity type for a linking job, a
   category for a tagging job, and the job's own motivation for every other `mark` job. A unit
-  once recorded stays recorded.
+  once recorded stays recorded. `completedUnits` is what says a unit is finished: a cursor never
+  says so, wherever it stands.
 - **`unitCursors` is merged monotonically per unit.** A cursor
-  ([`UnitCursor`](../../specs/src/components/schemas/UnitCursor.json)) says how far an unfinished
-  unit got. For each unit, the incoming cursor replaces the stored one only when its `next` is
-  strictly greater; otherwise the stored one stays. A cursor is replaced whole — `next`, `size`,
-  `found`, `emitted` and `errors` are one observation and never mixed across two cursors — so a
-  checkpoint arriving late never moves a unit backward.
-- **A finished unit has no cursor.** After the union, every cursor for a unit in `completedUnits` is
-  dropped, and incoming cursors for such units are ignored. When no cursor remains, `unitCursors` is
-  removed from the record.
+  ([`UnitCursor`](../../specs/src/components/schemas/UnitCursor.json)) is the furthest a unit got,
+  and what it had counted when it got there. For each unit, the incoming cursor replaces the stored
+  one only when its `next` is strictly greater; otherwise the stored one stays. A cursor is replaced
+  whole — `next`, `size`, `found`, `emitted` and `errors` are one observation and never mixed across
+  two cursors — so a checkpoint arriving late never moves a unit backward.
+- **A finished unit keeps its cursor.** `unitCursors` holds a cursor for every unit a checkpoint has
+  stated one for, finished or not, and the merge is one rule for every unit: nothing is dropped
+  because a unit is in `completedUnits`, and an incoming cursor for a finished unit is merged as any
+  other is. A worker that names a unit finished states that unit's cursor in the same checkpoint
+  ([WORKER-CONTRACT L2](./WORKER-CONTRACT.md#the-lifecycle)): where the unit ended, `next` at the
+  length of the text and `size` the size its last piece was cut at, with its final `found`,
+  `emitted` and `errors`. A later attempt skips the unit and counts it by that cursor. The
+  dispatcher reads nothing of a cursor but its `next`, and does not hold a finished unit to having
+  one: a unit named finished with no cursor stated is recorded as finished, with none.
+  `unitCursors` is absent from a record no checkpoint has stated a cursor for.
 
 The same merge applies to `job:checkpoint` and to the checkpoint on a `job:fail`, whether the job is
 then retried or failed. `job:cancel` does not merge its checkpoint.

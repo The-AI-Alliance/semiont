@@ -31,7 +31,7 @@
       "additionalProperties": {
         "$ref": "./UnitCursor.json"
       },
-      "description": "How far each in-progress unit got, keyed by unit \u2014 the grain `completedUnits` cannot express. A unit appearing here is NOT complete; a unit in `completedUnits` is skipped whole whatever cursor it last carried. Merged monotonically per unit: a stale snapshot must never move a cursor backward."
+      "description": "The furthest each unit begun got, keyed by unit, with what it had counted there \u2014 the grain `completedUnits` cannot express. A unit named in `completedUnits` is stated here too, by the cursor it ended at: a later attempt skips it whole and counts it by that cursor. A cursor never says a unit is finished; only `completedUnits` does. Merged monotonically per unit, finished or not: a stale snapshot must never move a cursor backward."
     }
   },
   "required": [

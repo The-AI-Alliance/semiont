@@ -71,7 +71,7 @@ pub struct Stats {
     pub cancelled: u64,
 }
 
-/// A checkpoint: units finished, and how far unfinished ones got.
+/// A checkpoint: units finished, and the furthest each unit begun got.
 #[derive(Debug, Clone, Default)]
 pub struct Checkpoint {
     pub completed_units: Vec<String>,

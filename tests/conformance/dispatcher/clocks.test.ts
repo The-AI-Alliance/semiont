@@ -52,11 +52,13 @@ withDispatcher('the re-announce tick and the dead-worker sweep', (world) => {
 
   it('keeps the checkpoint of a job it re-queues', async () => {
     const { creator, worker, job } = await world().running({ motivation: 'linking', entityTypes: ['Person', 'Place'] });
+    const ended = { next: 9, size: 5, found: 4, emitted: 4, errors: 0 };
     const cursor = { next: 2, size: 5, found: 3, emitted: 2, errors: 1 };
-    await worker.checkpoint(job.metadata.id, ['Person'], { Place: cursor });
+    await worker.checkpoint(job.metadata.id, ['Person'], { Person: ended, Place: cursor });
     await creator.until(job.metadata.id, 'the sweep to re-queue the job', (s) => s.status === 'pending', 10_000);
     const retried = await worker.claimed([marks('linking')]);
-    expect(retried.metadata).toMatchObject({ completedUnits: ['Person'], unitCursors: { Place: cursor } });
+    expect(retried.metadata.completedUnits).toEqual(['Person']);
+    expect(retried.metadata.unitCursors).toEqual({ Person: ended, Place: cursor });
     await worker.complete(refOf(retried));
   });
 }, { timing: { tickMs: TICK, staleRunningMs: STALE, progressWriteIntervalMs: 100 } });

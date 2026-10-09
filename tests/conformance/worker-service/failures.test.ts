@@ -8,7 +8,7 @@
 import { expect, it } from 'vitest';
 import type { ScriptedGeneration } from '../harness/ollama';
 import { eachWorkerService, type RunningJob, type WorkerServiceWorld } from '../harness/worker-service-world';
-import { expectGenerations, expectProgress, FORMATS, generation, identity, LONG_TEXT, markJob, report, settled, SMALL_CONTEXT_LENGTH } from './support';
+import { expectGenerations, expectProgress, FORMATS, generation, identity, LONG_TEXT, markJob, report, settled, SMALL_CONTEXT_LENGTH, TEXT } from './support';
 
 const HIGHLIGHT_REQUEST = { num_predict: 5284, num_ctx: 5785, temperature: 0 };
 
@@ -154,7 +154,7 @@ eachWorkerService('a job that fails', (world) => {
     ]);
   });
 
-  it('carries on its failure the units it had finished', async () => {
+  it('carries on its failure the units it had finished, each with the cursor it ended at', async () => {
     const w = world();
     const job = markJob(w, 'failed-unit', { motivation: 'linking', entityTypes: ['Person', 'Place'] });
     w.ollama.script({ response: JSON.stringify([{ exact: 'Ada Lovelace', entityType: 'Person' }]) }, { response: '1' }, { status: 500, body: '{"error":"overloaded"}' });
@@ -163,7 +163,7 @@ eachWorkerService('a job that fails', (world) => {
 
     expect(w.commits).toHaveLength(1);
     const { error, ...rest } = failure;
-    expect(rest).toEqual({ ...identity(job), completedUnits: ['Person'], willRetry: true });
+    expect(rest).toEqual({ ...identity(job), completedUnits: ['Person'], unitCursors: { Person: { next: TEXT.length, size: 2658, found: 1, emitted: 1, errors: 0 } }, willRetry: true });
     expect(String(error)).toContain('500');
   });
 

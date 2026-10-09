@@ -19,7 +19,7 @@ A job is asked for with its `jobType` and the parameters that type takes. `jobTy
 
 A `mark` job's params state its motivation, and each motivation takes its own params and no others (`MarkJobParams`): the gateway refuses a `job:create` that gives a job a parameter it does not take. A `yield` job's are `GenerationJobParams`.
 
-A unit is the grain a job checkpoints at. Its name is the key of `unitCursors`, and a finished one is listed in `completedUnits`.
+A unit is the grain a job checkpoints at. Its name is the key of `unitCursors`, and a finished one is listed in `completedUnits` and keeps its cursor.
 
 ## What a worker is handed
 
@@ -30,8 +30,8 @@ A worker only ever holds a job that is running: the spec's `JobRunning`, in the 
 | `id`, `type`, `created` | The job, its `jobType`, and when it was created |
 | `userId` | Who asked for it: the DID the gateway verified on `job:create`. It is the only identity a job carries |
 | `retryCount`, `maxRetries` | The dispatcher sets `maxRetries` when it admits the job: 1 for a `mark` job, 0 for a `yield` job |
-| `completedUnits` | The units whose annotations are all committed. A retry skips them |
-| `unitCursors` | How far each unfinished unit got, with the unit's tallies. A retry resumes each from there |
+| `completedUnits` | The units whose annotations are all committed. A retry skips them, and counts each by its cursor |
+| `unitCursors` | The furthest each unit begun got, with the unit's tallies. A retry resumes an unfinished unit from there; a finished unit's is where it ended |
 
 A worker never states who asked. The dispatcher records `userId` as the requester when it accepts a claim, and the knowledge base attributes a write that cites the job from that record.
 
