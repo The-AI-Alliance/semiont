@@ -731,7 +731,7 @@
           "member": "refused",
           "absent": {
             "rust": "`next` answers a `Result`, and a claim that was refused is its `Err`: it is handed out where a job would be.",
-            "python": "The claims are iterated, and a claim that was refused is handed out where a job would be, as a `ClaimRefusal`: `match` tells the two apart."
+            "python": "The claims are iterated with `async for`, and an exception raised into the loop would end it; a claim that was refused does not end a worker's claims, so it is handed out where a job would be, as a `ClaimRefusal`."
           }
         },
         { "member": "stalled" },
