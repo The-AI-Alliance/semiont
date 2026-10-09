@@ -16,7 +16,7 @@ import { ResourceViewer } from '../ResourceViewer';
 
 // Render the real content so jsdom text selection can target it.
 vi.mock('../../CodeMirrorRenderer', () => ({
-  CodeMirrorRenderer: ({ content }: { content: string }) => <div className="codemirror-renderer">{content}</div>,
+  CodeMirrorRenderer: ({ content }: { content: string }) => <div className="semiont-codemirror">{content}</div>,
 }));
 vi.mock('../../image-annotation/SvgDrawingCanvas', () => ({ SvgDrawingCanvas: () => <div>svg-mock</div> }));
 vi.mock('../../pdf-annotation/PdfAnnotationCanvas.client', () => ({ PdfAnnotationCanvas: () => <div>pdf-mock</div> }));

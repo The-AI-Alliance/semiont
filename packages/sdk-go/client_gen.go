@@ -5727,7 +5727,7 @@ type SelectionData struct {
 	// ConformsTo Specification the fragment selector conforms to
 	ConformsTo *string `json:"conformsTo,omitempty"`
 
-	// End End character offset
+	// End Offset into the resource's decoded text, exactly as decoded, in Unicode code points from its start: just past where the selected text ends.
 	End int `json:"end"`
 
 	// Exact The exact selected text
@@ -5739,7 +5739,7 @@ type SelectionData struct {
 	// Prefix Text before the selection (for disambiguation)
 	Prefix *string `json:"prefix,omitempty"`
 
-	// Start Start character offset
+	// Start Offset into the resource's decoded text, exactly as decoded, in Unicode code points from its start: where the selected text starts.
 	Start int `json:"start"`
 
 	// Suffix Text after the selection (for disambiguation)

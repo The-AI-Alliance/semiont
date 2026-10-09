@@ -22,7 +22,7 @@ export type SelectorType = 'fragment' | 'svg' | 'text';
  * anchored medium draws what its renderer can carry — rectangles only for
  * PDF (FragmentSelector, RFC 3778 viewrect; circle and polygon would need an
  * SvgSelector, which loses page context), all three for images (SvgSelector).
- * Everything else draws nothing — text media anchor by character offsets and
+ * Everything else draws nothing — text media anchor by offsets into their text and
  * no selector there can carry a shape, and storage-tier rows are not
  * annotated at all.
  *
@@ -70,7 +70,7 @@ export function isShapeSupported(
  * spatial + image render → SvgSelector.
  *
  * Everything else answers 'text' — text media because they genuinely anchor
- * by character offset, storage-tier rows and registry misses because
+ * by offset into their text, storage-tier rows and registry misses because
  * `SelectorType` has no "not annotatable" member. That catch-all is harmless
  * rather than a claim: `getSupportedShapes` offers those types no shapes, and
  * the write path refuses them outright.

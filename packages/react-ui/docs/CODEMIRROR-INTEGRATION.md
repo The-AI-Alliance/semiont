@@ -6,11 +6,11 @@
 
 ## Why CodeMirror?
 
-Annotations are stored as character positions in source markdown. When markdown is rendered to HTML, positions change (e.g., `# Title` becomes `<h1>Title</h1>`). CodeMirror solves this by displaying the source text directly:
+Annotations are stored as offsets into the source markdown, counted in Unicode code points from its start. When markdown is rendered to HTML, the text an offset points into is no longer there (e.g., `# Title` becomes `<h1>Title</h1>`). CodeMirror displays the source text itself:
 
-- Source positions = display positions (perfect 1:1 mapping)
-- No position transformation needed
-- 100% accurate annotation placement
+- Every character of the source is displayed, in order: no markdown syntax comes between an offset and what is shown
+- An offset becomes a position in the editor's document by one conversion of count (see [Offsets and Document Positions](#offsets-and-document-positions))
+- A selection is read back by the same conversion, so it is recorded where the reader made it
 
 ## CodeMirrorRenderer
 
@@ -31,7 +31,7 @@ The component creates a CodeMirror instance once on mount and updates it increme
 AnnotateView's text renderer (`TextAnnotateRenderer`, `src/components/resource/annotate-renderers.tsx`) mounts it along these lines:
 
 ```tsx
-declare const segments: TextSegment[];          // segmentTextWithAnnotations(content, annotations)
+declare const segments: TextSegment[];          // segmentTextWithAnnotations(content, textOffsets(content), annotations)
 declare const sparkleAnnotationIds: Set<string>;
 declare const getTargetResourceName: (resourceId: string) => string | undefined;
 
@@ -102,41 +102,27 @@ The decoration layer surfaces the classification:
 
 A clean `fast-path` / `unique-occurrence` anchor is silent; anything else is the visible signal of worker/renderer anchor drift.
 
-### CRLF Position Conversion
+### Offsets and Document Positions
 
-CodeMirror normalizes all line endings to LF. Annotations store positions in original content (which may have CRLF). `convertSegmentPositions()` (`src/lib/codemirror-logic.ts`) adjusts using binary search:
+A segment's `start` and `end`, like a `TextPositionSelector`'s, are offsets into the content: they count its Unicode code points, exactly as decoded. The editor's document counts differently in two ways:
 
-```typescript
-function convertSegmentPositions(segments: TextSegment[], content: string): TextSegment[] {
-  if (!content.includes('\r\n')) return segments;
+- it is indexed in UTF-16 code units, where a character outside the Basic Multilingual Plane (an emoji, a mathematical letter, some CJK) is two;
+- it holds every line break as one unit, whatever the content ends its lines with, where the content's CRLF is two code points.
 
-  // Find all CRLF positions (sorted by construction)
-  const crlfPositions: number[] = [];
-  for (let i = 0; i < content.length - 1; i++) {
-    if (content[i] === '\r' && content[i + 1] === '\n') {
-      crlfPositions.push(i);
-    }
-  }
+`documentPositions(content, offsets)` (`src/lib/codemirror-logic.ts`) is the one place the two counts meet, in both directions. `offsets` is the content's `textOffsets(content)` from `@semiont/core`, made once for a content.
 
-  // Binary search: count CRLFs before position in O(log n)
-  const convertPosition = (pos: number): number => {
-    let lo = 0;
-    let hi = crlfPositions.length;
-    while (lo < hi) {
-      const mid = (lo + hi) >>> 1;
-      if (crlfPositions[mid]! < pos) lo = mid + 1;
-      else hi = mid;
-    }
-    return pos - lo;
-  };
+- `positionAt(offset)` is display: `convertSegmentPositions(segments, positions)` places each segment in the document before the decorations are built.
+- `offsetAt(position)` is capture: `AnnotateView` takes each end of a selection from `posAtDOM()`'s position to an offset.
 
-  return segments.map(seg => ({
-    ...seg,
-    start: convertPosition(seg.start),
-    end: convertPosition(seg.end)
-  }));
-}
-```
+In the content `😀 𝑥 one\r\ntwo`, the word `two` is at:
+
+| | start | end |
+|---|---|---|
+| offset into the content (code points) | 9 | 12 |
+| position in the JavaScript string (UTF-16 code units) | 11 | 14 |
+| position in the editor's document | 10 | 13 |
+
+Each lookup is a binary search among the content's CRLFs and its characters outside the basic plane. A content with neither converts by identity.
 
 ### Event Delegation
 
@@ -165,21 +151,23 @@ When `hoveredAnnotationId` changes, the component:
 AnnotateView provides:
 
 - **Text segmentation**: its text renderer, `TextAnnotateRenderer`, calls `segmentTextWithAnnotations()`, which anchors each annotation via `anchorAnnotation` (from `@semiont/core`) — verbatim-only, carrying a `strategy`/`confidence` onto each segment
-- **Position calculation**: `CodeMirror.posAtDOM()` converts DOM selection to source positions
+- **Selection capture**: `EditorView.posAtDOM()` gives the position in the editor's document of each end of the DOM selection, and `documentPositions(...).offsetAt()` its offset into the content. The quote is the content's own text between the two offsets
 - **Annotation creation**: `session.client.mark.request(...)` emits `mark:requested` with dual selectors (`TextPositionSelector` + `TextQuoteSelector` with prefix/suffix context)
 - **MIME routing**: `defaultAnnotateRenderers` (overridable through the `renderers` prop) routes to `CodeMirrorRenderer` (text), `PdfAnnotationCanvas` (PDF), or `SvgDrawingCanvas` (image)
 
 ## Performance Optimizations
 
-- **Binary search CRLF conversion**: O(log n) per segment
+- **Binary search position conversion**: O(log n) per segment end, among the content's CRLFs and its characters outside the basic plane; both lists are built once for a content
 - **Annotation ID index**: `Map<string, TextSegment>` for O(1) click lookups
-- **Position-hint fast path**: `anchorAnnotation()` short-circuits when `content.substring(start, start + exact.length) === exact` — the stored offset already lands on the quote, so no occurrence search runs
+- **Position-hint fast path**: `anchorAnnotation()` short-circuits when the content's text at the stored offset is `exact` — the stored offset already lands on the quote, so no occurrence search runs
 - **Event delegation**: Container-level listeners replace per-annotation and per-widget handlers
 - **Incremental decorations**: View created once, decorations updated via transactions
 
 ## Testing
 
-- `apps/browser/src/components/__tests__/CodeMirrorRenderer.test.tsx` — CRLF position conversion, segment building
+- `packages/react-ui/src/lib/__tests__/codemirror-logic.test.ts` — segment placement in the editor's document, decoration and widget metadata
+- `packages/react-ui/src/lib/__tests__/code-point-offsets.test.ts` — offsets against string and document positions: the offset table (`specs/src/text/offset-cases.json`) through the selection builder and the segmenter, and `documentPositions` both ways
+- `packages/react-ui/src/components/resource/__tests__/AnnotateView.code-point-offsets.test.tsx` — with the real editor mounted: a selection recorded at its offsets, and a stored selector lighting its words, after characters outside the basic plane and in CRLF documents
 - `packages/core/src/__tests__/anchor-annotation.test.ts` — render-time anchoring strategies and confidence (verbatim-only)
 - `packages/react-ui/src/lib/__tests__/text-segmentation.test.ts` — strategy/confidence threading, low-confidence class, once-per-annotation warning
 - `packages/react-ui/src/components/resource/__tests__/BrowseView.test.tsx` — event delegation integration

@@ -47,7 +47,7 @@ const DIRECTORIES = ['specs/src/text', 'specs/src/worker'];
  */
 const TABLES = [
   // What a text offset counts.
-  { table: 'specs/src/text/offset-cases.json', runners: ['packages/core/src/__tests__/offset-cases.test.ts'], countsCodePoints: true },
+  { table: 'specs/src/text/offset-cases.json', runners: ['packages/core/src/__tests__/offset-cases.test.ts', 'packages/react-ui/src/lib/__tests__/code-point-offsets.test.ts'], countsCodePoints: true },
   // What every worker does to a text.
   { table: 'specs/src/text/chunk-cases.json', runners: ['packages/core/src/__tests__/chunk-cases.test.ts'], countsCodePoints: true },
   { table: 'specs/src/annotations/reconcile-cases.json', runners: ['packages/core/src/__tests__/reconcile-cases.test.ts'], countsCodePoints: true },

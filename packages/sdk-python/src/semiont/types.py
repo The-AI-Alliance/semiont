@@ -1595,8 +1595,20 @@ class SelectionData(WireModel, frozen=True):
     """
 
     exact: Annotated[str, Field(description="The exact selected text")]
-    start: Annotated[int, Field(description="Start character offset")]
-    end: Annotated[int, Field(description="End character offset")]
+    start: Annotated[
+        int,
+        Field(
+            description="Offset into the resource's decoded text, exactly as decoded, in Unicode code points from its start: where the selected text starts.",
+            ge=0,
+        ),
+    ]
+    end: Annotated[
+        int,
+        Field(
+            description="Offset into the resource's decoded text, exactly as decoded, in Unicode code points from its start: just past where the selected text ends.",
+            ge=0,
+        ),
+    ]
     svg_selector: Annotated[
         str | None,
         Field(

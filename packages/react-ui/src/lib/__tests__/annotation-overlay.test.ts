@@ -2,13 +2,14 @@
  * Tests for annotation-overlay.ts — the DOM-based annotation rendering layer.
  *
  * These tests use jsdom's TreeWalker API to verify:
- * - Source→rendered offset mapping (markdown syntax stripping)
+ * - Source→rendered position mapping (markdown syntax stripping)
  * - Text node index construction
- * - Annotation offset-span resolution from W3C offsets
+ * - Resolution of W3C offsets to stretches of the rendered text
  * - Highlight span application (including overlap geometry) and cleanup
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
+import { textOffsets } from '@semiont/core';
 import {
   buildSourceToRenderedMap,
   buildTextNodeIndex,
@@ -48,7 +49,7 @@ function makeAnnotation(overrides: Partial<OverlayAnnotation> & { id: string; of
 function overlay(source: string, container: HTMLElement, annotations: OverlayAnnotation[]): void {
   const offsetMap = buildSourceToRenderedMap(source, container);
   const textNodeIndex = buildTextNodeIndex(container);
-  applyHighlights(resolveAnnotationSpans(annotations, offsetMap), textNodeIndex);
+  applyHighlights(resolveAnnotationSpans(annotations, textOffsets(source), offsetMap), textNodeIndex);
 }
 
 // ─── buildSourceToRenderedMap ────────────────────────────────────────────────
@@ -210,7 +211,7 @@ describe('resolveAnnotationSpans', () => {
       makeAnnotation({ id: 'ann-1', offset: 0, length: 4, exact: 'Zeus' }),
     ];
 
-    const spans = resolveAnnotationSpans(annotations, offsetMap);
+    const spans = resolveAnnotationSpans(annotations, textOffsets(source), offsetMap);
 
     expect(spans.length).toBe(1);
     expect(spans[0]!.start).toBe(0);
@@ -229,7 +230,7 @@ describe('resolveAnnotationSpans', () => {
       makeAnnotation({ id: 'ann-1', offset: 6, length: 4, exact: 'Zeus' }),
     ];
 
-    const spans = resolveAnnotationSpans(annotations, offsetMap);
+    const spans = resolveAnnotationSpans(annotations, textOffsets(source), offsetMap);
 
     expect(spans.length).toBe(1);
     // Rendered: "The Zeus ruled." — "Zeus" at 4-8
@@ -249,7 +250,7 @@ describe('resolveAnnotationSpans', () => {
       makeAnnotation({ id: 'ann-2', offset: 9, length: 4, exact: 'Hera' }),
     ];
 
-    const spans = resolveAnnotationSpans(annotations, offsetMap);
+    const spans = resolveAnnotationSpans(annotations, textOffsets(source), offsetMap);
 
     expect(spans.length).toBe(2);
     expect(spans[0]!.start).toBe(0);
@@ -269,7 +270,7 @@ describe('resolveAnnotationSpans', () => {
       makeAnnotation({ id: 'ann-1', offset: 100, length: 4, exact: 'nope' }),
     ];
 
-    const spans = resolveAnnotationSpans(annotations, offsetMap);
+    const spans = resolveAnnotationSpans(annotations, textOffsets(source), offsetMap);
 
     expect(spans.length).toBe(0);
 
@@ -283,6 +284,7 @@ describe('resolveAnnotationSpans', () => {
 
     const spans = resolveAnnotationSpans(
       [makeAnnotation({ id: 'ann-1', offset: 2, length: 0 })],
+      textOffsets(source),
       offsetMap,
     );
 

@@ -37,59 +37,6 @@ export interface AnnotationHandlers {
 }
 
 /**
- * UI-level parameters for annotation creation.
- * Works for both text selections and image shapes.
- * Used by annotation UI components before converting to AnnotationManager params.
- */
-export interface UICreateAnnotationParams {
-  /** The motivation for creating this annotation */
-  motivation: import('@semiont/react-ui').SelectionMotivation;
-
-  /** Selector information - text, SVG, or fragment */
-  selector: {
-    /** Selector type */
-    type: 'TextQuoteSelector' | 'SvgSelector' | 'FragmentSelector';
-
-    /** For TextQuoteSelector: the exact text selected */
-    exact?: string;
-
-    /** For TextQuoteSelector: context before selection */
-    prefix?: string;
-
-    /** For TextQuoteSelector: context after selection */
-    suffix?: string;
-
-    /** For TextPositionSelector: start position in document */
-    start?: number;
-
-    /** For TextPositionSelector: end position in document */
-    end?: number;
-
-    /** For SvgSelector: the SVG shape string */
-    value?: string;
-
-    /** For FragmentSelector: conformsTo URI (RFC 3778 for PDF) */
-    conformsTo?: string;
-  };
-
-  /** Optional position for popup placement (text: near selection, image: shape center) */
-  position?: { x: number; y: number };
-}
-
-/**
- * Unified creation handler for new annotations.
- * Works for both text and image annotations.
- *
- * Behavior by motivation:
- * - highlighting/assessing: Creates annotation immediately
- * - commenting: Creates annotation, then opens Comment Panel
- * - linking: Shows Quick Reference popup FIRST, creates when user confirms
- */
-export interface AnnotationCreationHandler {
-  onCreate?: (params: UICreateAnnotationParams) => void | Promise<void> | Promise<Annotation | undefined>;
-}
-
-/**
  * UI state for annotation toolbar and interactions.
  * Groups multiple UI state props into a single object.
  */
