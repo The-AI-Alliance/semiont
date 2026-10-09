@@ -403,15 +403,12 @@ describe('ReferencesPanel Component', () => {
 
     it('the control of a running job asks for that job to be cancelled, by its id', async () => {
       const cancelSpy = vi.spyOn(session.client.job, 'cancel').mockResolvedValue(1);
-      const cancelByTypeSpy = vi.spyOn(session.client.job, 'cancelByType').mockResolvedValue(0);
       renderWithEventBus(
         <ReferencesPanel {...panelProps()} isDelegating={true} jobId={jobId('job-1')} progress={{ percentage: 0, completedItems: [] }} />,
       );
 
       await userEvent.click(screen.getByTestId('semiont-delegate-control'));
       expect(cancelSpy).toHaveBeenCalledExactlyOnceWith('job-1');
-      // The pending mark jobs of the knowledge base are not this job.
-      expect(cancelByTypeSpy).not.toHaveBeenCalled();
     });
 
     it('a running job the queue has not named yet has no cancel control', () => {

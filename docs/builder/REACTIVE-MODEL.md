@@ -233,7 +233,6 @@ The authority for this list is [`specs/src/client/surface.json`](../../specs/src
 - `match.requestSearch`
 - `yield.clone`
 - `beckon.hover`, `beckon.sparkle`
-- `job.cancelRequest`
 
 These coordinate one client's own interface: nothing is awaited, and nothing reaches another participant. One signal does cross the wire: `browse.resourceViewed` tells the knowledge base's other clients that this viewer arrived at a resource. To drive *other* participants' viewers, use the wire drives below.
 

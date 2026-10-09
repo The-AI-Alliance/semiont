@@ -237,10 +237,8 @@ const METHODS: &[(&str, &[&str])] = &[
             "fail",
             "status",
             "pollUntilComplete",
-            "cancelByType",
             "cancel",
             "claim",
-            "cancelRequest",
         ],
     ),
     ("auth", &["me", "mediaToken", "protectedResourceMetadata"]),
@@ -544,12 +542,10 @@ fn call(world: &World, namespace: &str, method: &str, args: Args) {
                 |_| {}
             ))
         }
-        ("job", "cancelByType") => go!(client.job.cancel_by_type(args.typed("jobType"))),
         ("job", "cancel") => {
             let job_id = args.text("jobId");
             go!(client.job.cancel(&as_id(&job_id)))
         }
-        ("job", "cancelRequest") => client.job.cancel_request(args.typed("jobType")),
         ("job", "claim") => {
             let options: Value = args.typed("options");
             let accepts = serde_json::from_value(options["accepts"].clone())

@@ -24,7 +24,6 @@ from semiont.types import (
     JobReportProgressCommand,
     JobStatusRequest,
     JobStatusResponse,
-    JobType,
 )
 
 __all__ = ["JobNamespace"]
@@ -77,17 +76,14 @@ class JobNamespace:
                 raise BusRequestError("bus.timeout", f"Job polling timeout after {within_ms}ms")
             await asyncio.sleep(every_ms / 1000)
 
-    async def cancel_by_type(self, job_type: JobType) -> int:
-        """Cancel every pending job of one type: how many were cancelled. Running jobs are their workers' to stop."""
-        return await self._cancelled(JobCancelRequest(job_type=job_type))
-
     async def cancel(self, job_id: JobId) -> int:
         """Cancel one job: how many the queue acted on.
 
         A pending job is cancelled outright. A running one is left to its
-        worker, so one means accepted, not stopped.
+        worker, so one means accepted, not stopped. The request names the
+        job and nothing else.
         """
-        return await self._cancelled(JobCancelRequest(job_id=job_id))
+        return (await self._links.request(JOB_CANCEL_REQUESTED, JobCancelRequest(job_id=job_id))).response.cancelled
 
     def claim(
         self,
@@ -117,10 +113,3 @@ class JobNamespace:
             held_job_stall_check_ms=held_job_stall_check_ms,
             mark_commit_timeout_ms=mark_commit_timeout_ms,
         )
-
-    def cancel_request(self, job_type: JobType) -> None:
-        """Signal: the cancellation of every pending job of one type is wanted."""
-        self._links.signal(JOB_CANCEL_REQUESTED.request, JobCancelRequest(job_type=job_type))
-
-    async def _cancelled(self, request: JobCancelRequest) -> int:
-        return (await self._links.request(JOB_CANCEL_REQUESTED, request)).response.cancelled

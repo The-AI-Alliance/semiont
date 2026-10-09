@@ -12,7 +12,6 @@ import type { EventMap } from '@semiont/core';
 import { BeckonNamespace } from '../beckon';
 import { BindNamespace } from '../bind';
 import { BrowseNamespace } from '../browse';
-import { JobNamespace } from '../job';
 import { MarkNamespace } from '../mark';
 import { MatchNamespace } from '../match';
 import { YieldNamespace } from '../yield';
@@ -318,20 +317,6 @@ describe('UI signal wrappers', () => {
       match.requestSearch(payload, 'corr-1');
 
       expect(spy).toHaveBeenCalledExactlyOnceWith('match:search-requested', payload, { correlationId: 'corr-1' });
-    });
-  });
-
-  describe('job.cancelRequest', () => {
-    it('emits job:cancel-requested with the given jobType (local bus)', () => {
-      const bus = new EventBus();
-      const spy = busSpy(bus, 'job:cancel-requested');
-      const job = new JobNamespace(makeMockTransport(), bus);
-
-      job.cancelRequest('mark');
-
-      expect(spy).toHaveBeenCalledExactlyOnceWith('job:cancel-requested', {
-        jobType: 'mark',
-      });
     });
   });
 

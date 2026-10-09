@@ -337,12 +337,9 @@ describe('ResourceInfoPanel Component', () => {
           generationProgress={{ percentage: 40, message: { code: 'generating-resource' } }} />
       );
       const cancelSpy = vi.spyOn(client.job, 'cancel').mockResolvedValue(1);
-      const cancelByTypeSpy = vi.spyOn(client.job, 'cancelByType').mockResolvedValue(0);
 
       fireEvent.click(screen.getByTestId('semiont-delegate-control'));
       expect(cancelSpy).toHaveBeenCalledExactlyOnceWith('job-1');
-      // The pending yield jobs of the knowledge base are not this job.
-      expect(cancelByTypeSpy).not.toHaveBeenCalled();
     });
 
     it('a running generation the queue has not named yet has no cancel control', () => {

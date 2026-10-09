@@ -47,7 +47,6 @@ from semiont.types import (
     GatheredContext,
     GenerationJobParams,
     JobFilter,
-    JobType,
     MarkJobParams,
     MarkSubmitEvent,
     MatchSearchRequest,
@@ -77,7 +76,6 @@ _MOTIVATION = TypeAdapter[Motivation](Motivation)
 _SELECTOR = TypeAdapter[AnnotationSelector](AnnotationSelector)
 _OPERATIONS = TypeAdapter[list[BindBodyOperation]](list[BindBodyOperation])
 _SORT = TypeAdapter[BrowseDirectoryRequestSort](BrowseDirectoryRequestSort)
-_JOB_TYPE = TypeAdapter[JobType](JobType)
 _FILTERS = TypeAdapter[list[JobFilter]](list[JobFilter])
 _MARK_PARAMS = TypeAdapter[MarkJobParams](MarkJobParams)
 _NAMES = TypeAdapter[list[str]](list[str])
@@ -318,9 +316,7 @@ CALLS: Final[dict[tuple[str, str], Callable[[Client, Args], Awaitable[object] | 
     ("beckon", "sparkle"): lambda client, args: client.beckon.sparkle(aid(args)),
     ("job", "status"): lambda client, args: client.job.status(JobId(text(args["jobId"], "jobId"))),
     ("job", "pollUntilComplete"): polled,
-    ("job", "cancelByType"): lambda client, args: client.job.cancel_by_type(_JOB_TYPE.validate_python(args["jobType"])),
     ("job", "cancel"): lambda client, args: client.job.cancel(JobId(text(args["jobId"], "jobId"))),
-    ("job", "cancelRequest"): lambda client, args: client.job.cancel_request(_JOB_TYPE.validate_python(args["jobType"])),
     ("job", "claim"): claimed,
     ("auth", "me"): lambda client, _: client.auth.me(),
     ("auth", "mediaToken"): lambda client, args: client.auth.media_token(rid(args)),
@@ -518,7 +514,7 @@ def test_a_method_does_what_its_row_says(case: tuple[str, str, JsonObject, JsonO
 
 def test_the_table_and_this_sdk_list_the_same_methods() -> None:
     assert sorted({(namespace, method) for namespace, method, _, _ in CASES}) == sorted([*CALLS, *EVENTS])
-    assert len(CALLS) + len(EVENTS) == 71
+    assert len(CALLS) + len(EVENTS) == 69
     shapes = TABLE["shapes"]
     assert isinstance(shapes, dict)
     assert set(shapes) == {"promise", "stream", "delegation", "upload", "cache", "signal", "count", "events", "claims"}

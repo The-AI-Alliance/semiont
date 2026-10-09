@@ -79,10 +79,6 @@ async def a_mark_job_read_for_the_resource_it_made(client: Client, resource: Res
         the_resource_made(reported)  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]
 
 
-async def a_type_of_job_the_vocabulary_lacks(client: Client) -> None:
-    await client.job.cancel_by_type("annotation")  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]
-
-
 async def an_order_no_directory_is_listed_in(client: Client) -> None:
     await client.browse.files("docs", sort="size")  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]
 

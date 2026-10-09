@@ -1,5 +1,5 @@
 import type { Observable } from 'rxjs';
-import type { EventBus, EventMap, JobId, JobType, components } from '@semiont/core';
+import type { EventBus, EventMap, JobId, components } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
 import { busRequest, BusRequestError } from '@semiont/core';
 import { ClaimsObservable, type ClaimOptions } from '../claims';
@@ -66,27 +66,13 @@ export class JobNamespace implements IJobNamespace {
     }
   }
 
-  async cancelByType(jobType: JobType): Promise<number> {
-    // Confirmed write: cancels all PENDING jobs of the type (running jobs finish:
-    // only `cancel(jobId)` stops one) and resolves with the count. Rejects on a
-    // queue failure instead of swallowing it.
-    const { cancelled } = await busRequest(
-      this.transport,
-      'job:cancel-requested',
-      { jobType },
-    );
-    return cancelled;
-  }
-
   /**
-   * Cancel ONE job by id. Awaited like its by-type
-   * sibling `cancelByType`, and resolves with what the queue did: a PENDING
-   * job is cancelled outright; a RUNNING one is left to its worker, which
-   * stops cooperatively at the next unit boundary and keeps its checkpoint
-   * — so `1` means "accepted", not "already stopped".
+   * Cancel ONE job by id. Resolves with what the queue did: a PENDING job is
+   * cancelled outright; a RUNNING one is left to its worker, which stops
+   * cooperatively at the next unit boundary and keeps its checkpoint, so `1`
+   * means "accepted", not "already stopped". Rejects on a queue failure.
    *
-   * Deliberately carries no `jobType`: targeting one job must not be able to
-   * take the caller's other work with it.
+   * The request names the job and nothing else.
    */
   async cancel(jobId: JobId): Promise<number> {
     const { cancelled } = await busRequest(
@@ -99,11 +85,5 @@ export class JobNamespace implements IJobNamespace {
 
   claim(options: ClaimOptions): ClaimsObservable {
     return new ClaimsObservable(this.transport, options);
-  }
-
-  cancelRequest(jobType: JobType): void {
-    // Local emit: a progress widget's cancel control fires this. Nothing in the
-    // SDK subscribes to it; the call that cancels is `cancelByType`.
-    this.bus.emit('job:cancel-requested', { jobType });
   }
 }
