@@ -3953,10 +3953,10 @@ type JobCancelRequest struct {
 	JobId JobId `json:"jobId"`
 }
 
-// JobCancelResult What a cancel did, in the `response` of `job:cancel-ok`: whether the queue acted on the job it named, as a count. A pending job is cancelled outright; a running one is left to its worker, so for it the count means accepted, not stopped.
+// JobCancelResult What a cancel did, in the `response` of `job:cancel-ok`: whether the queue acted on the job it named. A pending job is cancelled outright; a running one is left to its worker, so for it true means accepted, not stopped.
 type JobCancelResult struct {
-	// Cancelled 1 when the queue acted on the job; 0 when the job is unknown or already over.
-	Cancelled int `json:"cancelled"`
+	// Cancelled True when the queue acted on the job; false when the job is unknown or already over.
+	Cancelled bool `json:"cancelled"`
 }
 
 // JobCancelled A job cancelled before it concluded.

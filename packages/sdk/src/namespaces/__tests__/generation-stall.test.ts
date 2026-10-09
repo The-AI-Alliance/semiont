@@ -65,7 +65,7 @@ function harness() {
   const { transport, emitSpy } = createMockTransport({
     'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
     'job:status-requested': () => ({ resultChannel: 'job:status-result', response: { status: 'running' } }),
-    'job:cancel-requested': () => ({ resultChannel: 'job:cancel-ok', response: { cancelled: 1 } }),
+    'job:cancel-requested': () => ({ resultChannel: 'job:cancel-ok', response: { cancelled: true } }),
   });
   const y = new YieldNamespace(transport, bus, makeMockContent());
   return { y, bus, emitSpy };

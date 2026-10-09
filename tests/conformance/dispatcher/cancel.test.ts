@@ -6,20 +6,20 @@
 import { expect, it } from 'vitest';
 import { everyJob, generation, resourceIdOf, settle, withDispatcher } from '../harness/dispatcher-world';
 
-const cancelled = (answer: { payload: Record<string, unknown> }) => (answer.payload['response'] as { cancelled: number }).cancelled;
+const cancelled = (answer: { payload: Record<string, unknown> }) => (answer.payload['response'] as { cancelled: boolean }).cancelled;
 
 withDispatcher('job:cancel-requested', (world) => {
-  it('answers 0 for a job it does not know', async () => {
+  it('answers false for a job it does not know', async () => {
     const person = await world().person('canceller');
     const unknown = await person.cancelRequest({ jobId: 'job-00000000000000000000000000000000' });
     expect(unknown.channel).toBe('job:cancel-ok');
-    expect(cancelled(unknown)).toBe(0);
+    expect(cancelled(unknown)).toBe(false);
   });
 
-  it('cancels a pending job named by id: counted, recorded, and never claimable after', async () => {
+  it('cancels a pending job named by id: answered true, recorded, and never claimable after', async () => {
     const creator = await world().person('creator');
     const jobId = await creator.created('mark', { motivation: 'highlighting' }, resourceIdOf());
-    expect(cancelled(await creator.cancelRequest({ jobId }))).toBe(1);
+    expect(cancelled(await creator.cancelRequest({ jobId }))).toBe(true);
     const status = await creator.statusOf(jobId);
     expect(status.status).toBe('cancelled');
     expect(status.completedAt).toBeDefined();
@@ -27,18 +27,18 @@ withDispatcher('job:cancel-requested', (world) => {
     expect((await (await world().worker('late')).claim(everyJob())).payload['code']).toBe('none-pending');
   });
 
-  it('leaves a running job named by id to its worker, and counts it', async () => {
+  it('leaves a running job named by id to its worker, and answers true: it is accepted, not stopped', async () => {
     const { creator, job } = await world().running({ motivation: 'commenting' });
-    expect(cancelled(await creator.cancelRequest({ jobId: job.metadata.id }))).toBe(1);
+    expect(cancelled(await creator.cancelRequest({ jobId: job.metadata.id }))).toBe(true);
     await settle();
     expect((await creator.statusOf(job.metadata.id)).status).toBe('running');
   });
 
-  it('answers 0 for a finished job, and leaves it as it was', async () => {
+  it('answers false for a finished job, and leaves it as it was', async () => {
     const { creator, worker, job, ref } = await world().running();
     await worker.complete(ref, { found: 0, persisted: 0 });
     await creator.until(job.metadata.id, 'the job to complete', (s) => s.status === 'complete');
-    expect(cancelled(await creator.cancelRequest({ jobId: job.metadata.id }))).toBe(0);
+    expect(cancelled(await creator.cancelRequest({ jobId: job.metadata.id }))).toBe(false);
     expect((await creator.statusOf(job.metadata.id)).status).toBe('complete');
   });
 
@@ -47,7 +47,7 @@ withDispatcher('job:cancel-requested', (world) => {
     const named = await creator.created('mark', { motivation: 'highlighting' }, resourceIdOf());
     const alike = await creator.created('mark', { motivation: 'highlighting' }, resourceIdOf());
     const yielding = await creator.created('yield', generation(resourceIdOf()));
-    expect(cancelled(await creator.cancelRequest({ jobId: named }))).toBe(1);
+    expect(cancelled(await creator.cancelRequest({ jobId: named }))).toBe(true);
     expect((await creator.statusOf(named)).status).toBe('cancelled');
     expect((await creator.statusOf(alike)).status).toBe('pending');
     expect((await creator.statusOf(yielding)).status).toBe('pending');

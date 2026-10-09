@@ -343,12 +343,14 @@ refuses it at its door.
 
 | The job named | Effect | `cancelled` |
 |---|---|---|
-| no such job | none | `0` |
-| `pending` | cancelled now | `1`, or `0` if it left `pending` first |
-| `running` | none by the dispatcher; left to its worker ([Cancellation](#cancellation)) | `1` |
-| terminal | none | `0` |
+| no such job | none | `false` |
+| `pending` | cancelled now | `true`, or `false` if it left `pending` first |
+| `running` | none by the dispatcher; left to its worker ([Cancellation](#cancellation)) | `true` |
+| terminal | none | `false` |
 
-**Reply:** `job:cancel-ok` with `{ response: { cancelled } }`. A store error is
+**Reply:** `job:cancel-ok` with `{ response: { cancelled } }`
+([`JobCancelResult`](../../specs/src/components/schemas/JobCancelResult.json)): whether the
+dispatcher acted on the job, which for a running one means accepted, not stopped. A store error is
 `job:cancel-failed` with the store's message and no code.
 
 ### `job:cancel`
@@ -515,7 +517,7 @@ then retried or failed. `job:cancel` does not merge its checkpoint.
 `job:cancel`.
 
 **A running job is cancelled only by its worker.** `job:cancel-requested` naming a running job
-changes nothing in the queue and replies `cancelled: 1`. Workers may subscribe to
+changes nothing in the queue and replies `cancelled: true`. Workers may subscribe to
 `job:cancel-requested` too, as the first-party worker does; a worker holding the named job may stop at
 a unit boundary and confirm with `job:cancel`, which moves the job to `cancelled`. A worker that does not stop finishes the job, which then ends
 `complete` or `failed` as usual. (The first-party worker stops only linking jobs.)

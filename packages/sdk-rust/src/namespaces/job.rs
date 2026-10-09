@@ -89,10 +89,11 @@ impl JobNamespace {
         }
     }
 
-    /// Cancel one job: how many the queue acted on. A pending job is
-    /// cancelled outright; a running one is left to its worker, so one means
-    /// accepted, not stopped.
-    pub async fn cancel(&self, job_id: &JobId) -> Result<i64, SemiontError> {
+    /// Cancel one job: whether the queue acted on it. A pending job is
+    /// cancelled outright; a running one is left to its worker, so true
+    /// means accepted, not stopped. False is a job the queue does not know,
+    /// or one already over.
+    pub async fn cancel(&self, job_id: &JobId) -> Result<bool, SemiontError> {
         let request = JobCancelRequest {
             job_id: job_id.clone(),
         };

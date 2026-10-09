@@ -67,12 +67,14 @@ export class JobNamespace implements IJobNamespace {
   }
 
   /**
-   * Cancel ONE job by id. Resolves with what the queue did: a PENDING job is
-   * cancelled outright; a RUNNING one is left to its worker, which stops
-   * cooperatively at the next unit boundary and keeps its checkpoint, so `1`
-   * means "accepted", not "already stopped". Rejects on a queue failure.
+   * Cancel ONE job by id. Resolves with whether the queue acted on it: a
+   * PENDING job is cancelled outright; a RUNNING one is left to its worker,
+   * which stops cooperatively at the next unit boundary and keeps its
+   * checkpoint, so `true` means "accepted", not "already stopped". `false` is
+   * a job the queue does not know, or one already over. Rejects on a queue
+   * failure.
    */
-  async cancel(jobId: JobId): Promise<number> {
+  async cancel(jobId: JobId): Promise<boolean> {
     const { cancelled } = await busRequest(
       this.transport,
       'job:cancel-requested',

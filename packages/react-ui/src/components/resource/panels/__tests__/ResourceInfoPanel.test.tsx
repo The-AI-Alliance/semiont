@@ -336,7 +336,7 @@ describe('ResourceInfoPanel Component', () => {
           generationJobId={jobId('job-1')}
           generationProgress={{ percentage: 40, message: { code: 'generating-resource' } }} />
       );
-      const cancelSpy = vi.spyOn(client.job, 'cancel').mockResolvedValue(1);
+      const cancelSpy = vi.spyOn(client.job, 'cancel').mockResolvedValue(true);
 
       fireEvent.click(screen.getByTestId('semiont-delegate-control'));
       expect(cancelSpy).toHaveBeenCalledExactlyOnceWith('job-1');

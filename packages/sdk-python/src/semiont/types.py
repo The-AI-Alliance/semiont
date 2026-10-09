@@ -2665,12 +2665,12 @@ class ResourceErrorEvent(WireModel, frozen=True):
 
 class JobCancelResult(WireModel, frozen=True):
     """
-    What a cancel did, in the `response` of `job:cancel-ok`: whether the queue acted on the job it named, as a count. A pending job is cancelled outright; a running one is left to its worker, so for it the count means accepted, not stopped.
+    What a cancel did, in the `response` of `job:cancel-ok`: whether the queue acted on the job it named. A pending job is cancelled outright; a running one is left to its worker, so for it true means accepted, not stopped.
     """
 
     cancelled: Annotated[
-        int,
-        Field(description="1 when the queue acted on the job; 0 when the job is unknown or already over."),
+        bool,
+        Field(description="True when the queue acted on the job; false when the job is unknown or already over."),
     ]
 
 

@@ -43,7 +43,7 @@ const delegating = (cancel: ReturnType<typeof vi.fn>, motivation: PanelProps['de
 
 describe('UnifiedAnnotationsPanel: the delegated job', () => {
   it("gives a linking job's id to the references panel, whose control cancels that job", () => {
-    const cancel = vi.fn().mockResolvedValue(1);
+    const cancel = vi.fn().mockResolvedValue(true);
     renderInEnglish(<UnifiedAnnotationsPanel {...delegating(cancel, 'linking')} />);
 
     fireEvent.click(screen.getByTestId('semiont-delegate-control'));
@@ -51,7 +51,7 @@ describe('UnifiedAnnotationsPanel: the delegated job', () => {
   });
 
   it("shows the references panel no control for another motivation's job", () => {
-    const cancel = vi.fn().mockResolvedValue(1);
+    const cancel = vi.fn().mockResolvedValue(true);
     renderInEnglish(<UnifiedAnnotationsPanel {...delegating(cancel, 'highlighting')} />);
 
     expect(screen.queryByTestId('semiont-delegate-control')).toBeNull();

@@ -646,16 +646,16 @@ describe('MatchNamespace', () => {
 // ── Yield ───────────────────────────────────────────────────────────────────
 
 describe('JobNamespace', () => {
-  // A cancellation says WHICH job. Awaited: the caller learns whether
-  // anything was cancelled.
-  it('cancel(jobId) targets one job and resolves the cancelled count', async () => {
+  // A cancellation says WHICH job. Awaited: the caller learns whether the
+  // queue acted on it.
+  it('cancel(jobId) targets one job and resolves with whether the queue acted on it', async () => {
     const bus = new EventBus();
     const mock = createMockTransport({
-      'job:cancel-requested': (reply) => reply('job:cancel-ok', { response: { cancelled: 1 } }),
+      'job:cancel-requested': (reply) => reply('job:cancel-ok', { response: { cancelled: true } }),
     });
     const j = new JobNamespace(mock.transport, bus);
 
-    await expect(j.cancel(jobId('j-42'))).resolves.toBe(1);
+    await expect(j.cancel(jobId('j-42'))).resolves.toBe(true);
     expect(mock.emitSpy).toHaveBeenCalledWith(
       'job:cancel-requested',
       { jobId: 'j-42' },

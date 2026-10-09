@@ -146,7 +146,7 @@
         },
         "payload": {
           "response": {
-            "cancelled": 1
+            "cancelled": true
           }
         }
       }

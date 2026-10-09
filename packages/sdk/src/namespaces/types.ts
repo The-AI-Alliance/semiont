@@ -472,8 +472,8 @@ export interface JobNamespace {
 
   status(jobId: JobId): Promise<JobStatusResponse>;
   pollUntilComplete(jobId: JobId, options?: { interval?: number; timeout?: number; onProgress?: (status: JobStatusResponse) => void }): Promise<JobStatusResponse>;
-  /** Cancel ONE job by id; resolves with the count the queue acted on. */
-  cancel(jobId: JobId): Promise<number>;
+  /** Cancel ONE job by id; resolves with whether the queue acted on it. */
+  cancel(jobId: JobId): Promise<boolean>;
 
   /**
    * A worker's side: claim the jobs `options.accepts` describes, and hold one

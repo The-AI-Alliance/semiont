@@ -76,11 +76,12 @@ class JobNamespace:
                 raise BusRequestError("bus.timeout", f"Job polling timeout after {within_ms}ms")
             await asyncio.sleep(every_ms / 1000)
 
-    async def cancel(self, job_id: JobId) -> int:
-        """Cancel one job: how many the queue acted on.
+    async def cancel(self, job_id: JobId) -> bool:
+        """Cancel one job: whether the queue acted on it.
 
         A pending job is cancelled outright. A running one is left to its
-        worker, so one means accepted, not stopped.
+        worker, so true means accepted, not stopped. False is a job the
+        queue does not know, or one already over.
         """
         return (await self._links.request(JOB_CANCEL_REQUESTED, JobCancelRequest(job_id=job_id))).response.cancelled
 

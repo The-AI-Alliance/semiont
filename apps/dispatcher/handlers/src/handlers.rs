@@ -360,7 +360,7 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
     }
 
     async fn cancel_requested(&self, payload: Value, correlation_id: Option<String>) -> Vec<Reply> {
-        let answer = |cancelled: Result<u64, String>| {
+        let answer = |cancelled: Result<bool, String>| {
             let (channel, payload) = match cancelled {
                 Ok(cancelled) => (
                     <<JobCancelRequested as Request>::Result as Channel>::NAME,
@@ -395,19 +395,19 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
         answer(cancelled)
     }
 
-    /// A pending job is cancelled now; a running one is its worker's to stop.
-    async fn cancel_one(&self, id: &JobId) -> Result<u64, String> {
+    /// Whether the queue acted on the job: a pending job is cancelled now; a
+    /// running one is its worker's to stop, which is accepted and not stopped.
+    async fn cancel_one(&self, id: &JobId) -> Result<bool, String> {
         let cancelled = match self.queue.get_job(id).await.map_err(|e| e.0)? {
-            None => 0,
-            Some(Job::Pending(_)) => u64::from(self.queue.cancel_job(id).await.map_err(|e| e.0)?),
+            Some(Job::Pending(_)) => self.queue.cancel_job(id).await.map_err(|e| e.0)?,
             Some(Job::Running(_)) => {
                 logging::info(
                     "Cancel of running job delegated to its worker",
                     fields(json!({ "jobId": id.as_str() })),
                 );
-                1
+                true
             }
-            Some(_) => 0,
+            Some(_) | None => false,
         };
         logging::info(
             "Cancel requested",

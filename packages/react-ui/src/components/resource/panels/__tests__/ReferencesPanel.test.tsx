@@ -402,7 +402,7 @@ describe('ReferencesPanel Component', () => {
     });
 
     it('the control of a running job asks for that job to be cancelled, by its id', async () => {
-      const cancelSpy = vi.spyOn(session.client.job, 'cancel').mockResolvedValue(1);
+      const cancelSpy = vi.spyOn(session.client.job, 'cancel').mockResolvedValue(true);
       renderWithEventBus(
         <ReferencesPanel {...panelProps()} isDelegating={true} jobId={jobId('job-1')} progress={{ percentage: 0, completedItems: [] }} />,
       );

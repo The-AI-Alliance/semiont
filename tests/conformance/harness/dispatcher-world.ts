@@ -419,7 +419,7 @@ export class DispatcherWorld {
     for (const jobId of [...this.unfinished]) {
       const answer = await sweeper.cancelRequest({ jobId });
       if (!answer.ok) throw new Error(`cancelling ${jobId} was refused: ${JSON.stringify(answer.payload)}`);
-      if ((answer.payload['response'] as { cancelled: number }).cancelled === 0) this.unfinished.delete(jobId);
+      if (!(answer.payload['response'] as { cancelled: boolean }).cancelled) this.unfinished.delete(jobId);
     }
   }
 
