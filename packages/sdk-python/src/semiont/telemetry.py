@@ -7,7 +7,8 @@ received, a span for each upload and each read, and a count of the emits sent.
 
 Trace context crosses the wire as W3C's `traceparent` and `tracestate`. A
 request carries the context it was made in. A frame brings the context it was
-sent under, and the span that marks its arrival continues that trace.
+sent under, and the span that marks its arrival continues that trace. What is
+nobody's to continue is done `untraced`, and begins a trace of its own.
 """
 
 from collections.abc import Generator, Mapping
@@ -15,14 +16,14 @@ from contextlib import AbstractContextManager, contextmanager
 from typing import Final, assert_never
 
 from opentelemetry import metrics, trace
-from opentelemetry.context import Context
+from opentelemetry.context import Context, attach, detach
 from opentelemetry.trace import SpanKind
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
 from semiont.telemetry_table import BUS_EMIT, BUS_RECV, CONTENT_GET, CONTENT_GET_GRAPH, CONTENT_PUT, SEMIONT_BUS_SENT, SpanKindName, SpanRow
 from semiont.transport import TraceContext
 
-__all__ = ["active", "emitting", "getting", "getting_graph", "putting", "received", "trace_headers"]
+__all__ = ["active", "emitting", "getting", "getting_graph", "putting", "received", "trace_headers", "untraced"]
 
 _SCOPE: Final = "semiont"
 _TRACER: Final = trace.get_tracer(_SCOPE)
@@ -73,6 +74,21 @@ def active() -> TraceContext | None:
     carrier = trace_headers()
     traceparent = carrier.get("traceparent")
     return None if traceparent is None else TraceContext(traceparent=traceparent, tracestate=carrier.get("tracestate") or None)
+
+
+@contextmanager
+def untraced() -> Generator[None]:
+    """Hold no trace: what is done while this is held has no parent, whatever span is current around it.
+
+    For work that is nobody's: a worker's claim, which belongs to no job, is
+    made here even when the task that makes it began inside the span of the
+    job settled before it.
+    """
+    held = attach(Context())
+    try:
+        yield
+    finally:
+        detach(held)
 
 
 def emitting(channel: str, scope: str | None) -> AbstractContextManager[None]:

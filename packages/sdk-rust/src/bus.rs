@@ -13,7 +13,9 @@
 //!
 //! Every method comes twice. By type (`emit`, `stream`, `request`), the
 //! channel is a type of `crate::channels` and the payload is that channel's
-//! own, so a wrong payload for a channel does not compile:
+//! own, so a wrong payload for a channel does not compile. `result` is a
+//! request by type too, answered with the whole frame of its result: the
+//! payload, and what came beside it.
 //!
 //! ```
 //! # use semiont::bus::Bus;
@@ -449,10 +451,24 @@ impl Bus {
         payload: &R::Payload,
         within: Duration,
     ) -> Result<<R::Result as Channel>::Payload, SemiontError> {
+        Ok(self.result::<R>(payload, within).await?.payload)
+    }
+
+    /// Send `payload` as the request of the operation `R` and wait up to
+    /// `within` for the frame that answers it on its result channel: its
+    /// payload, and what came beside it, the trace it arrived in among it.
+    /// It fails as `request` does.
+    pub async fn result<R: Request>(
+        &self,
+        payload: &R::Payload,
+        within: Duration,
+    ) -> Result<Delivered<R::Result>, SemiontError> {
         let result = self
             .result_of(&Operation::of::<R>(), payload_of(payload)?, within)
             .await?;
-        decoded::<R::Result>(result.payload)
-            .map_err(|why| TransportError::without_response(why, TransportErrorCode::Error).into())
+        delivered::<R::Result>(result).map_err(|undecodable| {
+            TransportError::without_response(undecodable.to_string(), TransportErrorCode::Error)
+                .into()
+        })
     }
 }

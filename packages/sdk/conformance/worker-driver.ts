@@ -8,10 +8,17 @@
  * what `@semiont/sdk` and `@semiont/core` export: `job.claim`, the claims it
  * returns, and the held jobs they hand out. Node runs this file as it is
  * (types stripped); `npm run typecheck:conformance` is its type check.
+ *
+ * As a worker's code does, it runs each job it is handed in a span of its
+ * own, `job:{jobType}` carrying the job's id as `job.id`: opened where the
+ * job is handed to it, and ended once it has settled the job. Everything it
+ * does for the job it does in that span.
  */
 import { createInterface } from 'node:readline';
 import { BehaviorSubject } from 'rxjs';
 import { SemiontError, accessToken, baseUrl, resourceId, type AccessToken, type JobFilter } from '@semiont/core';
+import { SpanKind, getActiveTraceparent, withSpan, withTraceparent, type TraceCarrier } from '@semiont/observability';
+import { initObservabilityNode, shutdownObservabilityNode } from '@semiont/observability/node';
 import {
   HttpContentTransport,
   HttpTransport,
@@ -71,6 +78,8 @@ let timing: Arguments = {};
 let claims: ClaimsObservable | undefined;
 /** The job the worker last came to hold, as its claims handed it out. */
 let held: HeldJob | undefined;
+/** The span the held job is run in: its trace, for what is done in it, and what ends it. */
+let span: { trace: TraceCarrier | undefined; end: () => void } | undefined;
 
 function opened(): SemiontClient {
   if (!client) throw new Misuse('no transport is open');
@@ -85,6 +94,22 @@ function claiming(): ClaimsObservable {
 function holding(): HeldJob {
   if (!held) throw new Misuse('the worker has held no job');
   return held;
+}
+
+/** Do `work` for the held job: in the job's span. */
+function working<T>(work: (job: HeldJob) => T): T {
+  const job = holding();
+  return withTraceparent(span?.trace, () => work(job));
+}
+
+/** Settle the held job, and end its span once that is done, however it went. */
+async function settling(settle: (job: HeldJob) => Promise<void>): Promise<void> {
+  const ending = span;
+  try {
+    await working(settle);
+  } finally {
+    ending?.end();
+  }
 }
 
 /** The checkpoint an operation states, when it states one. */
@@ -151,6 +176,14 @@ const operations: Record<string, (args: Arguments) => Promise<unknown> | unknown
     worker.subscribe({
       next: (job) => {
         held = job;
+        // Opened here, where the claims hand the job over, and held open until the job is settled.
+        void withSpan(
+          `job:${job.jobType}`,
+          () => new Promise<void>((end) => {
+            span = { trace: getActiveTraceparent(), end };
+          }),
+          { kind: SpanKind.CONSUMER, attrs: { 'job.id': job.jobId } },
+        );
         job.cancelled.addEventListener('abort', () => say({ signalled: job.jobId }), { once: true });
         say({ claimed: { jobId: job.jobId, jobType: job.jobType, resourceId: job.resourceId, params: job.params, completedUnits: job.completedUnits, unitCursors: job.unitCursors, retryCount: job.retryCount, maxRetries: job.maxRetries } });
       },
@@ -159,20 +192,20 @@ const operations: Record<string, (args: Arguments) => Promise<unknown> | unknown
   },
 
   async start() {
-    await holding().start();
+    await working((job) => job.start());
   },
 
   async progress(args) {
     const percentage = count(args, 'percentage');
     // A case states a progress message as the wire carries one.
     const message = args['message'] === undefined ? undefined : (object(args, 'message') as Parameters<HeldJob['progress']>[0]['message']);
-    await holding().progress({ percentage, ...(message === undefined ? {} : { message }) });
+    await working((job) => job.progress({ percentage, ...(message === undefined ? {} : { message }) }));
   },
 
   async checkpoint(args) {
     const { completedUnits, unitCursors } = checkpoint(args);
     if (completedUnits === undefined) throw new Misuse('a checkpoint states the units finished');
-    await holding().checkpoint({ completedUnits, ...(unitCursors === undefined ? {} : { unitCursors }) });
+    await working((job) => job.checkpoint({ completedUnits, ...(unitCursors === undefined ? {} : { unitCursors }) }));
   },
 
   // The held job commits for itself: it cites its own id, and remembers what
@@ -181,28 +214,31 @@ const operations: Record<string, (args: Arguments) => Promise<unknown> | unknown
     const annotations = args['annotations'];
     if (!Array.isArray(annotations)) throw new Misuse('annotations must be a list of annotations');
     // A case states an annotation as the wire carries one; the gateway holds the commit to the schema.
-    await holding().commit(resourceId(text(args, 'resourceId')), annotations as Parameters<HeldJob['commit']>[1]);
+    const resource = resourceId(text(args, 'resourceId'));
+    await working((job) => job.commit(resource, annotations as Parameters<HeldJob['commit']>[1]));
   },
 
   // A completion is its verb's, so the verb is narrowed before the result is
   // given. A case states a result as the wire carries one, and the gateway
   // refuses one that is the other verb's.
   async complete(args) {
-    const job = holding();
     const result = object(args, 'result');
-    if (job.jobType === 'mark') await job.complete(result as Parameters<HeldMarkJob['complete']>[0]);
-    else await job.complete(result as Parameters<HeldYieldJob['complete']>[0]);
+    await settling((job) =>
+      job.jobType === 'mark' ? job.complete(result as Parameters<HeldMarkJob['complete']>[0]) : job.complete(result as Parameters<HeldYieldJob['complete']>[0]),
+    );
   },
 
   async fail(args) {
     const failureClass = args['failureClass'] === undefined ? undefined : text(args, 'failureClass');
     if (failureClass !== undefined && failureClass !== 'transient' && failureClass !== 'deterministic') throw new Misuse('failureClass is transient or deterministic');
     const said: JobFailure = { ...checkpoint(args), ...(failureClass === undefined ? {} : { failureClass }) };
-    await holding().fail(text(args, 'error'), said);
+    const error = text(args, 'error');
+    await settling((job) => job.fail(error, said));
   },
 
   async cancel(args) {
-    await holding().cancel(checkpoint(args));
+    const reached = checkpoint(args);
+    await settling((job) => job.cancel(reached));
   },
 
   vitals() {
@@ -229,12 +265,16 @@ async function run(line: string): Promise<void> {
   }
 }
 
+// Exports only when the suite names an OTLP endpoint in the environment.
+initObservabilityNode({ serviceName: 'semiont-conformance-driver' });
+
 const lines = createInterface({ input: process.stdin });
 lines.on('line', (line) => void run(line));
 // The suite is done with this worker. It ends as a process that is killed
 // ends: it says nothing more, of a job it holds or of anything else.
 lines.on('close', () => {
   client?.dispose();
-  process.exit(0);
+  // Whatever it had not exported yet goes out before it exits.
+  void shutdownObservabilityNode().finally(() => process.exit(0));
 });
 say({ ready: true });

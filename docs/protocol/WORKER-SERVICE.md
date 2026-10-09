@@ -681,7 +681,11 @@ other, beyond the standard variables an OpenTelemetry SDK reads on its own.
   no span or metric anywhere.
   *Held by `worker-service/environment`.*
 - **E2.** Every message a job sends is in the job's trace: its `bus.emit`
-  spans share the trace of the job's own span.
+  spans share the trace of the job's own span. Each job's trace is its own
+  ([WORKER-CONTRACT T1](./WORKER-CONTRACT.md#traces)): the job's span
+  continues the trace of the `job:claimed` that handed it over, the second
+  job an agent runs is not in the trace of its first, and the claim an agent
+  makes when it settles a job is not in that job's trace.
   *Held by `worker-service/environment`.*
 - **E3.** `OTEL_SERVICE_NAME` is the `service.name` its spans and metrics
   carry; `semiont-worker` when unset.
@@ -754,8 +758,3 @@ and no case pins it.
 - **A resumed linking job does not count the types an earlier attempt
   finished.** Its result's `found` and `persisted`, and the `total` of its
   progress, are of the types this attempt ran.
-- **A job's trace is not its own.** The claim a worker makes when it settles
-  a job, and the job that claim hands over, are made inside the settled job's
-  span, or, after a failure, inside what that span was made in. So every job
-  an agent runs after its first is in its first job's trace, and no job's
-  span continues the trace of the `job:claimed` that handed it over.

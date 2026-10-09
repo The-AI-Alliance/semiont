@@ -36,6 +36,14 @@ last annotation is on the resource. The job remembers the weakest of what its
 commits observed and states it when it settles, so a worker says neither
 which job a batch is for nor how its commits went.
 
+EACH JOB HAS A TRACE OF ITS OWN (WORKER-CONTRACT T1). A claim is made in no
+trace, whatever span is current where the idle moment came: the settle of the
+job before it runs inside that job's span, and a claim made there would be in
+that job's trace. A held job states the trace its reply arrived in (`trace`),
+which is the claim's own once the dispatcher has answered in it: a worker
+opens its span for the job in that trace, so the span, and every message the
+job sends from inside it, continue the trace that began with the claim.
+
     async with client.job.claim(accepts) as claims:
         async for handed in claims:
             if isinstance(handed, ClaimRefusal):
@@ -61,6 +69,7 @@ from typing import Final, Literal, Self, assert_never, final
 
 from pydantic import JsonValue, TypeAdapter
 
+from semiont import telemetry
 from semiont.bus import Bus, reply_channels_for, request
 from semiont.channel import Operation
 from semiont.channels import (
@@ -81,7 +90,7 @@ from semiont.job_filter import job_matches_filter
 from semiont.model import WireModel, written
 from semiont.operations import BROWSE_ANNOTATION_REQUESTED, JOB_CLAIM, MARK_COMMIT
 from semiont.timing import HELD_JOB_STALL_CHECK_MS, HELD_JOB_STALL_MS, JOB_CLAIM_TIMEOUT_MS, MARK_COMMIT_TIMEOUT_MS
-from semiont.transport import Frame
+from semiont.transport import Frame, TraceContext
 from semiont.types import (
     Annotation,
     BrowseAnnotationRequest,
@@ -277,9 +286,11 @@ class _Holder:
 class _Held:
     """What a held job is, whatever its verb."""
 
-    def __init__(self, holder: _Holder, claimed: JobRunning, cancelled: Variable[bool]) -> None:
+    def __init__(self, holder: _Holder, claimed: JobRunning, cancelled: Variable[bool], trace: TraceContext | None) -> None:
         metadata, params = claimed.metadata, claimed.params
         self._holder: Final = holder
+        self.trace: Final = trace
+        """The trace the job is run in: the one its reply arrived in. Nothing for a reply that arrived in none."""
         self.job_id: Final = metadata.id
         self.resource_id: Final[ResourceId] = params.resource_id
         self.params: Final[JobParams] = params
@@ -799,29 +810,32 @@ class Claims:
         self._claim_in_flight = self._run(self._claim())
 
     async def _claim(self) -> None:
-        handed = await self._claim_next()
-        self._claiming = False
-        if self._stopped:
-            # Answered after the worker stopped: the job is this worker's at
-            # the dispatcher, and nobody here will run it.
+        # In no trace: the claim, and the reading of its answer. The task
+        # this runs in began in whatever span was current at the idle moment.
+        with telemetry.untraced():
+            handed = await self._claim_next()
+            self._claiming = False
+            if self._stopped:
+                # Answered after the worker stopped: the job is this worker's at
+                # the dispatcher, and nobody here will run it.
+                if isinstance(handed, HeldMarkJob | HeldYieldJob):
+                    await _fail_for(handed, _STOPPED_WHILE_HELD)
+                return
             if isinstance(handed, HeldMarkJob | HeldYieldJob):
-                await _fail_for(handed, _STOPPED_WHILE_HELD)
-            return
-        if isinstance(handed, HeldMarkJob | HeldYieldJob):
-            self._active()
-            self._last_claim_at = self._last_activity_at
-            self._held_since = self._last_activity_at
-            self._stall_reported = False
-            # A wake-up that arrived during the claim is moot: the settle claims.
-            self._wake_pending = False
-            self._held = handed
-            self._handed.put_nowait(handed)
-            return
-        if handed is not None:
-            self._handed.put_nowait(handed)
-        if self._wake_pending:
-            self._wake_pending = False
-            self._pull()
+                self._active()
+                self._last_claim_at = self._last_activity_at
+                self._held_since = self._last_activity_at
+                self._stall_reported = False
+                # A wake-up that arrived during the claim is moot: the settle claims.
+                self._wake_pending = False
+                self._held = handed
+                self._handed.put_nowait(handed)
+                return
+            if handed is not None:
+                self._handed.put_nowait(handed)
+            if self._wake_pending:
+                self._wake_pending = False
+                self._pull()
 
     async def _claim_next(self) -> HeldJob | ClaimRefusal | None:
         """Ask once: the job claimed, the refusal, or nothing when nothing is pending.
@@ -832,19 +846,18 @@ class Claims:
         parameters.
         """
         try:
-            claimed = (
-                await self._wire.request(JOB_CLAIM, JobClaimCommand(accepts=list(self._accepts)), timeout_ms=self._job_claim_timeout_ms)
-            ).response
+            answer = await self._wire.result(JOB_CLAIM, JobClaimCommand(accepts=list(self._accepts)), timeout_ms=self._job_claim_timeout_ms)
         except BusRequestError as refused:
             if refused.code == "bus.none-pending":
                 return None
             return ClaimRefusal(code=refused.code, message=refused.message)
         except SemiontError as error:
             return ClaimRefusal(code=None, message=error.message)
+        claimed = answer.payload.response
         self._cancelling = Variable[bool](False)
         if claimed.metadata.type == "mark":
-            return HeldMarkJob(self._holder, claimed, self._cancelling)
-        return HeldYieldJob(self._holder, claimed, self._cancelling)
+            return HeldMarkJob(self._holder, claimed, self._cancelling, answer.trace)
+        return HeldYieldJob(self._holder, claimed, self._cancelling, answer.trace)
 
     def _end(self) -> None:
         """Nothing more is claimed or handed out, and what watched for an idle moment stops watching."""

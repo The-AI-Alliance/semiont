@@ -107,6 +107,19 @@ if (trace) {
 }
 ```
 
+Work that is nobody's to continue runs under `withoutTrace`: a span started inside it, and every continuation it registers, has no parent, whatever span is active where it is called. A worker's claim is made so, because it belongs to no job, and the code that settled the job before it is inside that job's span:
+
+```ts
+import { withoutTrace, withSpan } from '@semiont/observability';
+
+await withSpan('job', async () => {
+  // A child of `job`.
+  await withSpan('work', () => doTheWork());
+  // A trace of its own.
+  withoutTrace(() => void claimTheNextJob());
+});
+```
+
 ### Log correlation
 
 Add the active trace-id and span-id to every log line so log search and the trace UI link up:

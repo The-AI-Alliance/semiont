@@ -440,6 +440,11 @@ async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
 - **A cancellation is signalled.** `job.cancelled` becomes true when a
   cancellation names the held job: the work stops where it can, and says
   `await job.cancel()`.
+- **Each job has a trace of its own.** A claim is made in no trace, whatever
+  span the job before it was settled in. `job.trace` is the trace the job's
+  reply arrived in, which is its claim's: a worker that exports telemetry
+  opens its span for the job in that trace, and what the job sends from
+  inside the span continues it.
 - **`claims.vitals()`** is what the worker can say of itself: when it last
   heard an announcement, claimed, was active and settled, the job it holds,
   and how many it has completed. **`claims.stalled`** tells of a held job that
@@ -645,6 +650,7 @@ the application it runs in installs a provider. With one, it exports what
 SDK does: a span for each frame sent and each received, a span for each upload
 and each read, and a count of the emits sent. A request carries the trace it
 is made in, and a frame continues the trace it was sent under (`frame.trace`).
+A job a worker holds states the trace it is run in (`job.trace`).
 
 ## What is in the package
 

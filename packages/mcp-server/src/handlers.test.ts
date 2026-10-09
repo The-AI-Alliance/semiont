@@ -156,20 +156,65 @@ describe('markAnnotation', () => {
     expect(text(result)).toBe('Annotation created: anno-new');
   });
 
-  it('falls back to a zero-length empty selection and no body', async () => {
+  it('gives the annotation no body when no entity types are stated', async () => {
     const { client, mark } = createStub();
 
-    await markAnnotation(client, { resourceId: 'res-iliad' });
+    await markAnnotation(client, { resourceId: 'res-iliad', selectionData: { offset: 10, length: 8, text: 'Achilles' } });
+
+    expect(mark.annotation).toHaveBeenCalledWith(expect.objectContaining({ body: [] }));
+  });
+
+  it('takes an offset of zero and a length of zero as stated', async () => {
+    const { client, mark } = createStub();
+
+    await markAnnotation(client, { resourceId: 'res-iliad', selectionData: { offset: 0, length: 0, text: 'S' } });
 
     expect(mark.annotation).toHaveBeenCalledWith(expect.objectContaining({
       target: expect.objectContaining({
         selector: [
           { type: 'TextPositionSelector', start: 0, end: 0 },
-          { type: 'TextQuoteSelector', exact: '' },
+          { type: 'TextQuoteSelector', exact: 'S' },
         ],
       }),
-      body: [],
     }));
+  });
+
+  it('refuses a call that states no selection, naming all of it, and sends nothing', async () => {
+    const { client, mark } = createStub();
+
+    for (const selectionData of [undefined, null, 'Achilles', [10, 8, 'Achilles']]) {
+      await expect(markAnnotation(client, { resourceId: 'res-iliad', selectionData }))
+        .rejects.toThrow('selectionData.offset, selectionData.length, selectionData.text are required');
+    }
+    expect(mark.annotation).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ length: 8, text: 'Achilles' }, 'selectionData.offset is required'],
+    [{ offset: 10, text: 'Achilles' }, 'selectionData.length is required'],
+    [{ offset: 10, length: 8 }, 'selectionData.text is required'],
+    [{ text: 'Achilles' }, 'selectionData.offset, selectionData.length are required'],
+    [{}, 'selectionData.offset, selectionData.length, selectionData.text are required'],
+  ])('refuses the selection %j, naming what it leaves out, and sends nothing', async (selectionData, refusal) => {
+    const { client, mark } = createStub();
+
+    await expect(markAnnotation(client, { resourceId: 'res-iliad', selectionData })).rejects.toThrow(refusal);
+    expect(mark.annotation).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ offset: -1, length: 8, text: 'Achilles' }, 'selectionData.offset must be a whole number of at least zero'],
+    [{ offset: 1.5, length: 8, text: 'Achilles' }, 'selectionData.offset must be a whole number of at least zero'],
+    [{ offset: '10', length: 8, text: 'Achilles' }, 'selectionData.offset must be a whole number of at least zero'],
+    [{ offset: 10, length: -8, text: 'Achilles' }, 'selectionData.length must be a whole number of at least zero'],
+    [{ offset: 10, length: Number.NaN, text: 'Achilles' }, 'selectionData.length must be a whole number of at least zero'],
+    [{ offset: 10, length: 8, text: '' }, 'selectionData.text must be a string that is not empty'],
+    [{ offset: 10, length: 8, text: 8 }, 'selectionData.text must be a string that is not empty'],
+  ])('refuses the selection %j, which cannot be one, and sends nothing', async (selectionData, refusal) => {
+    const { client, mark } = createStub();
+
+    await expect(markAnnotation(client, { resourceId: 'res-iliad', selectionData })).rejects.toThrow(refusal);
+    expect(mark.annotation).not.toHaveBeenCalled();
   });
 });
 
@@ -361,14 +406,26 @@ describe('yieldResource', () => {
     expect(yieldNamespace.resource.mock.calls[0]![0]).toMatchObject({ format: 'text/markdown', entityTypes: [] });
   });
 
-  it('uploads an empty file when no content is given', async () => {
+  it('uploads an empty file when the content stated is empty', async () => {
     const { client, yield: yieldNamespace } = createStub();
 
-    await yieldResource(client, { name: 'Empty', storageUri: 'file://docs/empty.md' });
+    await yieldResource(client, { name: 'Empty', content: '', storageUri: 'file://docs/empty.md' });
 
     const input = yieldNamespace.resource.mock.calls[0]![0];
     if (!(input.file instanceof File)) throw new Error('expected a File upload');
     expect(await input.file.text()).toBe('');
+  });
+
+  it.each([
+    [{ name: 'Empty', storageUri: 'file://docs/empty.md' }, 'content is required'],
+    [{ content: 'hello', storageUri: 'file://docs/empty.md' }, 'name is required'],
+    [{ storageUri: 'file://docs/empty.md' }, 'name, content are required'],
+    [{ name: 7, content: ['hello'], storageUri: 'file://docs/empty.md' }, 'name, content are required'],
+  ])('refuses the call %j, naming what it leaves out, and uploads nothing', async (args, refusal) => {
+    const { client, yield: yieldNamespace } = createStub();
+
+    await expect(yieldResource(client, args)).rejects.toThrow(refusal);
+    expect(yieldNamespace.resource).not.toHaveBeenCalled();
   });
 });
 
@@ -508,6 +565,20 @@ describe('callTool', () => {
 
     expect(result.isError).toBe(true);
     expect(text(result)).toBe('Error: Unknown tool: semiont_hello');
+  });
+
+  it('answers a call that leaves out what its tool requires with an error result that names it', async () => {
+    const { client, mark, yield: yieldNamespace } = createStub();
+
+    const unselected = await callTool(client, 'mark_annotation', { resourceId: 'res-iliad', selectionData: { offset: 3 } });
+    expect(unselected.isError).toBe(true);
+    expect(text(unselected)).toBe('Error: selectionData.length, selectionData.text are required');
+    expect(mark.annotation).not.toHaveBeenCalled();
+
+    const empty = await callTool(client, 'yield_resource', { name: 'Notes', storageUri: 'file://docs/notes.md' });
+    expect(empty.isError).toBe(true);
+    expect(text(empty)).toBe('Error: content is required');
+    expect(yieldNamespace.resource).not.toHaveBeenCalled();
   });
 
   it('turns a handler failure into an error result rather than throwing', async () => {

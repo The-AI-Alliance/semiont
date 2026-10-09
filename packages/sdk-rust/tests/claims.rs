@@ -8,6 +8,9 @@
 //! nothing pending, and the stand-in record answers each commit and each
 //! question a commit asks.
 
+use opentelemetry::Context;
+use opentelemetry::context::FutureExt;
+use opentelemetry::trace::{SpanContext, SpanId, TraceContextExt, TraceFlags, TraceId, TraceState};
 use semiont::bus::reply_channels_for;
 use semiont::claims::{
     ClaimOptions, ClaimRefusal, ClaimTiming, Claims, HeldJob, JOB_CLAIM_CHANNELS,
@@ -16,7 +19,7 @@ use semiont::claims::{
 use semiont::client::SemiontClient;
 use semiont::errors::{BusRequestError, BusRequestErrorCode, SemiontError};
 use semiont::testing::{FaultAction, FaultyTransport, TestClientOptions, create_test_client};
-use semiont::transport::{ConnectionState, Frame};
+use semiont::transport::{ConnectionState, Frame, TraceCarrier};
 use semiont::types::DurabilityEvidence::{
     Acknowledged, ProbeConfirmed, ProbeRefused, ProbeUnreachable,
 };
@@ -43,6 +46,31 @@ struct Queue {
     commit_refused: Mutex<Option<Value>>,
     /// The failure the record answers a question with.
     question_failed: Mutex<Option<Value>>,
+    /// Each request that reached the gateway, in order: its operation, and
+    /// the trace it was made in, which is none for one made in none.
+    made_in: Mutex<Vec<(String, Option<String>)>>,
+}
+
+/// The context of code inside a span of the trace `digit` names, as a
+/// worker's code is inside the span it opened for a job.
+fn in_span(digit: char) -> Context {
+    let hex = |length: usize| digit.to_string().repeat(length);
+    Context::new().with_remote_span_context(SpanContext::new(
+        TraceId::from_hex(&hex(32)).expect("a trace id"),
+        SpanId::from_hex(&hex(16)).expect("a span id"),
+        TraceFlags::SAMPLED,
+        false,
+        TraceState::default(),
+    ))
+}
+
+/// The trace of the span that is current where this is called: what a
+/// transport puts on what it sends.
+fn current_trace() -> Option<String> {
+    let context = Context::current();
+    let span = context.span();
+    let within = span.span_context();
+    within.is_valid().then(|| within.trace_id().to_string())
 }
 
 struct World {
@@ -114,23 +142,32 @@ fn world_meeting(schedule: Vec<FaultAction>) -> World {
         }
     });
     let deciding = queue.clone();
-    transport.refuse_when(move |operation, _| match operation {
-        "job:claim" => {
-            if let Some(refusal) = deciding.refusals.lock().expect("the queue").pop_front() {
-                return Some(refusal);
+    transport.refuse_when(move |operation, _| {
+        // Asked as the request is sent, so where the request is made is
+        // where this runs.
+        deciding
+            .made_in
+            .lock()
+            .expect("the queue")
+            .push((operation.to_owned(), current_trace()));
+        match operation {
+            "job:claim" => {
+                if let Some(refusal) = deciding.refusals.lock().expect("the queue").pop_front() {
+                    return Some(refusal);
+                }
+                deciding
+                    .offered
+                    .lock()
+                    .expect("the queue")
+                    .is_empty()
+                    .then(|| json!({ "message": "No pending job matches", "code": "none-pending" }))
             }
-            deciding
-                .offered
-                .lock()
-                .expect("the queue")
-                .is_empty()
-                .then(|| json!({ "message": "No pending job matches", "code": "none-pending" }))
+            "mark:commit" => deciding.commit_refused.lock().expect("the record").clone(),
+            "browse:annotation-requested" => {
+                deciding.question_failed.lock().expect("the record").clone()
+            }
+            _ => None,
         }
-        "mark:commit" => deciding.commit_refused.lock().expect("the record").clone(),
-        "browse:annotation-requested" => {
-            deciding.question_failed.lock().expect("the record").clone()
-        }
-        _ => None,
     });
     let client = create_test_client(TestClientOptions {
         transport: Some(transport.clone()),
@@ -239,6 +276,19 @@ impl World {
     /// Every `job:claim` sent so far.
     fn claimed(&self) -> Vec<Value> {
         self.sent("job:claim")
+    }
+
+    /// The trace each request of `operation` was made in, in order: none
+    /// for one made in none.
+    fn made_in(&self, operation: &str) -> Vec<Option<String>> {
+        self.queue
+            .made_in
+            .lock()
+            .expect("the queue")
+            .iter()
+            .filter(|(made, _)| made == operation)
+            .map(|(_, trace)| trace.clone())
+            .collect()
     }
 
     fn sent(&self, channel: &str) -> Vec<Value> {
@@ -1695,4 +1745,121 @@ async fn an_idle_worker_is_never_stalled() {
 
     tokio::time::sleep(Duration::from_secs(5)).await;
     assert_eq!(*stalled.borrow(), None);
+}
+
+// ── Each job has a trace of its own (WORKER-CONTRACT T1) ────────────────
+
+#[tokio::test(start_paused = true)]
+async fn a_claim_is_made_in_no_trace_whatever_span_the_job_before_it_was_settled_in() {
+    let w = world();
+    for id in ["job-1", "job-2", "job-3"] {
+        w.offer(running(id, "mark", json!({}), json!({})));
+    }
+    let claims = w.claims(everything());
+
+    // A worker's code does what it does for a job inside the span it opened
+    // for it: a commit, which is the job's own request, and the settle.
+    let first = held(&claims).await;
+    first
+        .commit(&resource("res-1"), vec![annotation("ann-1")])
+        .with_context(in_span('7'))
+        .await
+        .expect("established");
+    finish(first).with_context(in_span('7')).await;
+    let second = held(&claims).await;
+    second
+        .fail("kaboom", JobFailure::default())
+        .with_context(in_span('8'))
+        .await
+        .expect("the failure is sent");
+    let third = held(&claims).await;
+    third
+        .cancel(None, None)
+        .with_context(in_span('9'))
+        .await
+        .expect("the cancel is sent");
+    turn().await;
+
+    assert_eq!(
+        w.made_in("mark:commit"),
+        [Some("7".repeat(32))],
+        "a request made inside a span is seen in that span's trace"
+    );
+    assert_eq!(w.made_in("job:claim"), [None, None, None, None]);
+}
+
+#[tokio::test(start_paused = true)]
+async fn the_first_claim_and_one_an_announcement_wakes_are_made_in_no_trace() {
+    let w = world();
+    let claims = Arc::new(w.claims(vec![mark("tagging")]));
+
+    // The claims are first read inside a span.
+    let reading = tokio::spawn({
+        let claims = claims.clone();
+        async move { held(&claims).await }.with_context(in_span('9'))
+    });
+    turn().await;
+    assert_eq!(
+        w.made_in("job:claim"),
+        [None],
+        "the first claim, answered with nothing pending"
+    );
+
+    w.offer(running(
+        "job-1",
+        "mark",
+        json!({}),
+        json!({ "motivation": "tagging" }),
+    ));
+    w.relay("job:queued", queued("tagging"));
+    finish(reading.await.expect("the reader"))
+        .with_context(in_span('7'))
+        .await;
+    turn().await;
+    assert_eq!(
+        w.made_in("job:claim"),
+        [None, None, None],
+        "the claim the announcement woke, and the one the settle made"
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_held_job_states_the_trace_its_reply_arrived_in_and_none_when_it_arrived_in_none() {
+    // The first claim's own answer is lost on the wire, and the test answers
+    // it by hand.
+    let w = world_meeting(vec![
+        FaultAction::DropReply,
+        FaultAction::Deliver,
+        FaultAction::Deliver,
+    ]);
+    let claims = Arc::new(w.claims(everything()));
+    let reading = tokio::spawn({
+        let claims = claims.clone();
+        async move { held(&claims).await }
+    });
+    turn().await;
+    let claim = w.requested("job:claim").remove(0);
+    let arrived_in = TraceCarrier {
+        traceparent: "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01".to_owned(),
+        tracestate: Some("vendor=value".to_owned()),
+    };
+    w.transport.deliver(Frame {
+        channel: "job:claimed".to_owned(),
+        payload: object(json!({ "response": running("job-1", "mark", json!({}), json!({})) })),
+        correlation_id: claim.correlation_id,
+        scope: None,
+        trace: Some(arrived_in.clone()),
+    });
+    let first = reading.await.expect("the reader");
+    assert_eq!(first.trace(), Some(&arrived_in));
+
+    w.offer(running("job-2", "mark", json!({}), json!({})));
+    finish(first).with_context(in_span('7')).await;
+    let second = held(&claims).await;
+    assert_eq!(
+        second.trace(),
+        None,
+        "its reply arrived in no trace: it is not in that of the job settled before it"
+    );
+    finish(second).await;
 }

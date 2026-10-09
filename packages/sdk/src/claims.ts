@@ -38,6 +38,15 @@
  * the batch's last annotation is on the resource. The job remembers the
  * weakest of what its commits observed and states it when it settles, so a
  * worker says neither which job a batch is for nor how its commits went.
+ *
+ * EACH JOB HAS A TRACE OF ITS OWN (WORKER-CONTRACT T1). A claim is made in no
+ * trace, whatever span is active where the idle moment came: the settle of
+ * the job before it runs inside that job's span, and a claim made there would
+ * put every later job in the first job's trace. The job a claim is answered
+ * with is handed to its reader in the trace its reply arrived in, which is
+ * the claim's own once the dispatcher has answered in it: so the span a
+ * worker opens around a job, and every message the job sends, continue the
+ * trace that began with its claim.
  */
 
 import { Observable, Subject, type Subscriber, type Subscription } from 'rxjs';
@@ -55,6 +64,7 @@ import {
   replyChannelsFor,
 } from '@semiont/core';
 import type { Annotation, AnnotationId, BusOperationKey, BusRequestErrorCode, BusRequestPrimitive, EventMap, JobFilter, JobId, JobType, ResourceId, UnitCursor, components } from '@semiont/core';
+import { getActiveTraceparent, withTraceparent, withoutTrace, type TraceCarrier } from '@semiont/observability';
 
 /** The job a `job:claimed` reply carries, running under this worker: the spec's `JobRunning`. */
 type ClaimedJob = EventMap['job:claimed']['response'];
@@ -543,6 +553,15 @@ class ClaimLoop implements Holder {
   // arrived during it, honoured with exactly one more claim.
   private claimInFlight = false;
   private wakePending = false;
+  /**
+   * The trace each `job:claimed` that arrived during the claim in flight
+   * arrived in, by the job it names. A frame is delivered inside the span of
+   * its arrival, and the claim's answer is read after it, where that span is
+   * no longer active: so the trace is kept here, at the delivery, for the
+   * hand-over. By the job, because every worker's reply reaches a stream that
+   * names the channel, and a job is claimed by one.
+   */
+  private readonly arrivedIn = new Map<string, TraceCarrier | undefined>();
 
   // Epoch milliseconds here; ISO in a snapshot.
   private lastQueuedEventAt: number | null = null;
@@ -623,6 +642,13 @@ class ClaimLoop implements Holder {
       this.bus.stream('job:cancel-requested').subscribe((request) => {
         if (this.held !== null && request.jobId === this.held.jobId) this.held.signalCancellation();
       }),
+      // Read as it comes, and not as its channel types it: a reply that names
+      // no job is refused where the claim's answer is read (C9).
+      this.bus.stream('job:claimed').subscribe((reply) => {
+        const response: unknown = reply.response;
+        const metadata = isObject(response) ? response['metadata'] : undefined;
+        if (this.claimInFlight && isObject(metadata) && isString(metadata['id'])) this.arrivedIn.set(metadata['id'], getActiveTraceparent());
+      }),
     );
 
     // The stream opening again is an edge into `open` after the first
@@ -657,8 +683,11 @@ class ClaimLoop implements Holder {
     }
     this.claimInFlight = true;
     this.wakePending = false;
-    void this.claimNext().then((outcome) => {
+    // In no trace: the claim, and the reading of its answer.
+    withoutTrace(() => void this.claimNext().then((outcome) => {
       this.claimInFlight = false;
+      const arrivedIn = 'job' in outcome ? this.arrivedIn.get(outcome.job.jobId) : undefined;
+      this.arrivedIn.clear();
       if (this.phase !== 'claiming') {
         // Answered after the worker stopped: the job is this worker's at the
         // dispatcher, and nobody here will run it.
@@ -673,7 +702,8 @@ class ClaimLoop implements Holder {
         // A wake-up that arrived during the claim is moot: the settle claims.
         this.wakePending = false;
         this.held = outcome.job;
-        this.reader?.next(outcome.job);
+        // In the trace its reply arrived in.
+        withTraceparent(arrivedIn, () => this.reader?.next(outcome.job));
         return;
       }
       if ('refused' in outcome) this.refused$.next(outcome.refused);
@@ -681,7 +711,7 @@ class ClaimLoop implements Holder {
         this.wakePending = false;
         this.pull();
       }
-    });
+    }));
   }
 
   private async claimNext(): Promise<ClaimOutcome> {

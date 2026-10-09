@@ -14,8 +14,12 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { describe, it, expect, expectTypeOf, beforeEach, vi } from 'vitest';
+import { afterAll, beforeAll, describe, it, expect, expectTypeOf, beforeEach, vi } from 'vitest';
 import { BehaviorSubject } from 'rxjs';
+import { context, propagation } from '@opentelemetry/api';
+import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
+import { W3CTraceContextPropagator } from '@opentelemetry/core';
+import { getActiveTraceparent, withTraceparent } from '@semiont/observability';
 import type { Annotation, BusRequestPrimitive } from '@semiont/core';
 import { BusRequestError, EventBus, type BusEnvelope, type ConnectionState, type EventMap, annotationId, jobId as makeJobId, userId, resourceId } from '@semiont/core';
 import { ClaimsObservable, JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, willRetryAfter, type ClaimOptions, type ClaimRefusal, type HeldJob, type HeldJobStall, type HeldMarkJob, type HeldYieldJob, type JobFailure } from '../claims';
@@ -56,7 +60,8 @@ function runningJob(id: string, metadata: Partial<ClaimedJob['metadata']> = {}, 
 
 function fakeBus(initialState: ConnectionState = 'open') {
   // A correlated union, so `channel` narrows `payload` at every read site.
-  type Emitted = { [K in keyof EventMap]: { channel: K; payload: EventMap[K]; envelope: BusEnvelope | undefined } }[keyof EventMap];
+  // `trace` is the W3C `traceparent` of the span the emit was made in, when it was made in one.
+  type Emitted = { [K in keyof EventMap]: { channel: K; payload: EventMap[K]; envelope: BusEnvelope | undefined; trace: string | undefined } }[keyof EventMap];
   const emits: Emitted[] = [];
   const eventBus = new EventBus();
   const state$ = new BehaviorSubject<ConnectionState>(initialState);
@@ -83,7 +88,7 @@ function fakeBus(initialState: ConnectionState = 'open') {
     emit: vi.fn(async <K extends keyof EventMap>(channel: K, payload: EventMap[K], envelope?: BusEnvelope) => {
       // The pair is this call's own two arguments; the assertion is what buys
       // narrowing at every read site.
-      const emitted = { channel, payload, envelope } as Emitted;
+      const emitted = { channel, payload, envelope, trace: getActiveTraceparent()?.traceparent } as Emitted;
       emits.push(emitted);
       if (failing.has(channel)) throw thrown.get(channel) ?? new Error(`the gateway did not take ${channel}`);
       const correlationId = envelope?.correlationId;
@@ -129,6 +134,12 @@ function fakeBus(initialState: ConnectionState = 'open') {
       return e.payload as EventMap['job:claim'];
     },
     claimCidAt: cid,
+    /** The trace claim `i` was made in: undefined for one made in none. */
+    claimTraceAt: (i: number): string | undefined => {
+      const e = claims()[i];
+      if (!e) throw new Error(`no job:claim at index ${i} (${claims().length} emitted)`);
+      return e.trace;
+    },
     /** Every `mark:commit` sent so far, in order. */
     commits,
     /** Every `browse:annotation-requested` sent so far, in order: what an unacknowledged commit asks. */
@@ -1169,6 +1180,145 @@ describe('job.claim — a held job that shows no activity is stalled', () => {
 
     expect(stalls).toEqual([]);
     subscription.unsubscribe();
+  });
+});
+
+// WORKER-CONTRACT T1. A trace crosses an await only where a context manager
+// is installed, and is read as a `traceparent` only where a propagator is: a
+// process that exports installs both, and so does this block, for as long as
+// it runs. A frame is delivered inside the span of its arrival, which is what
+// `inTrace` stands in for; so is a span of the worker's own code.
+describe('job.claim — each job has a trace of its own', () => {
+  const trace = (digit: number) => `00-${String(digit).repeat(32)}-${String(digit).repeat(16)}-01`;
+  const inTrace = <T>(traceparent: string, work: () => T): T => withTraceparent({ traceparent }, work);
+  let h: ReturnType<typeof fakeBus>;
+
+  beforeAll(() => {
+    context.setGlobalContextManager(new AsyncLocalStorageContextManager().enable());
+    propagation.setGlobalPropagator(new W3CTraceContextPropagator());
+  });
+  afterAll(() => {
+    propagation.disable();
+    context.disable();
+  });
+  beforeEach(() => {
+    h = fakeBus();
+  });
+
+  /** Read a worker's claims, keeping each job it is handed and the trace it was handed over in. */
+  function readingTraces() {
+    const claims = new ClaimsObservable(h.bus, { accepts: EVERYTHING });
+    const held: HeldJob[] = [];
+    const handedIn: Array<string | undefined> = [];
+    const subscription = claims.subscribe((job) => {
+      held.push(job);
+      handedIn.push(getActiveTraceparent()?.traceparent);
+    });
+    return { held, handedIn, subscription };
+  }
+
+  it('makes its first claim in no trace, whatever span its claims are first read in', () => {
+    const r = inTrace(trace(9), () => readingTraces());
+
+    expect(h.claims()).toHaveLength(1);
+    expect(h.claimTraceAt(0)).toBeUndefined();
+
+    r.subscription.unsubscribe();
+  });
+
+  it('hands a job over in the trace of the reply that carried it', async () => {
+    const r = readingTraces();
+
+    inTrace(trace(1), () => h.grant(0, 'j1'));
+    await tick();
+
+    expect(r.handedIn).toEqual([trace(1)]);
+    r.subscription.unsubscribe();
+  });
+
+  it('claims from no span of the job it settled, and hands the next job over in its own reply\'s trace', async () => {
+    const r = readingTraces();
+    inTrace(trace(1), () => h.grant(0, 'j1'));
+    await tick();
+
+    // The worker's code settles the job inside a span of its own for it.
+    await inTrace(trace(7), () => finish(r.held[0]!));
+    expect(h.claims()).toHaveLength(2);
+    expect(h.claimTraceAt(1)).toBeUndefined();
+
+    inTrace(trace(2), () => h.grant(1, 'j2'));
+    await tick();
+    expect(r.held.map((job) => job.jobId)).toEqual(['j1', 'j2']);
+    expect(r.handedIn).toEqual([trace(1), trace(2)]);
+
+    r.subscription.unsubscribe();
+  });
+
+  it('claims from no span of a job it failed, or cancelled', async () => {
+    const r = readingTraces();
+    h.grant(0, 'j1');
+    await tick();
+
+    await inTrace(trace(7), () => r.held[0]!.fail('kaboom'));
+    expect(h.claimTraceAt(1)).toBeUndefined();
+
+    h.grant(1, 'j2');
+    await tick();
+    await inTrace(trace(8), () => r.held[1]!.cancel());
+    expect(h.claimTraceAt(2)).toBeUndefined();
+
+    r.subscription.unsubscribe();
+  });
+
+  it('hands a job whose reply arrived in no trace over in none: not in that of the job settled before it', async () => {
+    const r = readingTraces();
+    inTrace(trace(1), () => h.grant(0, 'j1'));
+    await tick();
+    await inTrace(trace(7), () => finish(r.held[0]!));
+
+    h.grant(1, 'j2');
+    await tick();
+
+    expect(r.handedIn).toEqual([trace(1), undefined]);
+    r.subscription.unsubscribe();
+  });
+
+  it('hands a job over in its own reply\'s trace when another worker\'s reply arrives beside it', async () => {
+    const r = readingTraces();
+
+    inTrace(trace(3), () => h.pushEvent('job:claimed', { response: runningJob('theirs') }, 'another-workers-claim'));
+    inTrace(trace(1), () => h.grant(0, 'j1'));
+    inTrace(trace(4), () => h.pushEvent('job:claimed', { response: runningJob('theirs-too') }, 'another-workers-claim'));
+    await tick();
+
+    expect(r.held.map((job) => job.jobId)).toEqual(['j1']);
+    expect(r.handedIn).toEqual([trace(1)]);
+    r.subscription.unsubscribe();
+  });
+
+  it('makes the claim an announcement wakes in no trace: not in that of the announcement', async () => {
+    const r = readingTraces();
+    h.decline(0);
+    await tick();
+
+    inTrace(trace(5), () => h.pushEvent('job:queued', queued('yield')));
+
+    expect(h.claims()).toHaveLength(2);
+    expect(h.claimTraceAt(1)).toBeUndefined();
+    r.subscription.unsubscribe();
+  });
+
+  it('makes the claim a reopened stream causes in no trace', async () => {
+    const r = readingTraces();
+    h.decline(0);
+    await tick();
+
+    h.state$.next('reconnecting');
+    inTrace(trace(6), () => h.state$.next('open'));
+
+    expect(h.claims()).toHaveLength(2);
+    expect(h.claimTraceAt(1)).toBeUndefined();
+    r.subscription.unsubscribe();
   });
 });
 

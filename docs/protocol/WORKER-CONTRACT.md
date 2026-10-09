@@ -31,7 +31,8 @@ A worker does three things, and this document is about those three: it
 **live** while it holds one. The work itself (reading a resource, calling a
 model, deciding what to annotate) is the worker's own and is not specified
 here, except for one thing every worker that commits annotations must do
-([Committing annotations](#committing-annotations)).
+([Committing annotations](#committing-annotations)), and for the trace a
+worker that exports telemetry runs a job in ([Traces](#traces)).
 
 ## The stream
 
@@ -210,3 +211,25 @@ worker stops.
   it runs. A worker too wedged to look is caught by the dispatcher's own
   sweep of running jobs ([JOBS.md § Periodic work](./JOBS.md#periodic-work)).
   *Held by `worker/stall`.*
+
+## Traces
+
+A worker that exports telemetry sends each message in the trace of the work
+that sent it, and receives each frame in the trace it was sent under
+([`specs/src/sdk-telemetry/telemetry.json`](../../specs/src/sdk-telemetry/telemetry.json)).
+A dispatcher that exports answers a claim in the trace of the claim
+([`dispatcher/environment.test.ts`](../../tests/conformance/dispatcher/environment.test.ts)).
+
+- **T1.** A claim begins a trace of its own: it is in the trace of no job
+  the worker held before it. Whatever a worker's code was doing when it
+  settled a job, the claim the SDK makes next starts from no span of that
+  job. The job a claim hands over is run in the trace of that claim:
+  what reads `job:claimed` and gives the job to the worker's code does so in
+  the context of the reply that carried it, so a worker's span for the job
+  continues that trace. So each job a worker runs has a trace of its own: its
+  claim, the reply that handed it over, the worker's span for it, and every
+  message the job sends. Where a language carries no context from the code
+  that hands a job over to the code that is handed it, the held job states the
+  trace its reply arrived in, and the worker's code opens its span in that
+  trace.
+  *Held by `worker/job-trace`.*

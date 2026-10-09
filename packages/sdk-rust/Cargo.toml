@@ -32,6 +32,8 @@ uuid = { workspace = true, features = ["v4"] }
 
 [dev-dependencies]
 base64.workspace = true
+# The claims tests read the trace a claim is made in, as a transport would.
+opentelemetry = { workspace = true, features = ["trace"] }
 # This crate's own tests use its testing surface, and read text in every charset.
 semiont = { path = ".", features = ["testing", "charsets"] }
 # The multi-threaded runtime is for the tests that hold a unit to the order it hears things in.

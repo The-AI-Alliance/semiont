@@ -197,6 +197,10 @@ claims.subscribe(async (job) => {
 - **A held job settles once**: `complete`, `fail` or `cancel`. Each says the outcome and
   lets the job go, and the worker claims the next. `claims.stop()` fails a job still held,
   so the queue runs it again at once.
+- **Each job has a trace of its own.** A claim is made in no trace, whatever span the job
+  before it was settled in, and a job is handed over in the trace its reply arrived in,
+  which is its claim's: the span a worker that exports telemetry opens around a job, and
+  what the job sends from inside it, continue that trace.
 
 The [`semiont-worker` skill](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/skills/semiont-worker/SKILL.md)
 is a whole worker, sign-in to shutdown, and

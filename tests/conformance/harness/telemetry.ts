@@ -32,9 +32,10 @@ export function outsideTheTable(otlp: OtlpReceiver, service: TelemetryService, p
  * its whole process, so anything it exports that no row names is a finding. A
  * driver's process is the SDK and whatever else the driver runs, so what no
  * row names is not the SDK's to answer for; what arrives under a row's name is.
+ * A driver that uses one `transport` alone is held to that transport's rows.
  */
-export function outsideTheSdkTable(otlp: OtlpReceiver): Promise<string[]> {
-  return heldTo(otlp, sdkTelemetry(), 'an SDK', undefined, false);
+export function outsideTheSdkTable(otlp: OtlpReceiver, transport?: string): Promise<string[]> {
+  return heldTo(otlp, sdkTelemetry(transport), 'an SDK', undefined, false);
 }
 
 async function heldTo(otlp: OtlpReceiver, { spans, metrics }: Telemetry, who: string, plane: string | undefined, whole: boolean): Promise<string[]> {

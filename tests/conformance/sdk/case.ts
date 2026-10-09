@@ -26,8 +26,8 @@ import { Ajv } from 'ajv';
 import { storedEvent } from '../harness/archivist';
 import { startClientProxy, type ClientProxy, type ProxiedRequest } from '../harness/client-proxy';
 import type { Plane } from '../harness/gateway';
-import { nonConformance, type Reply } from '../harness/http';
-import { startOtlp } from '../harness/otlp';
+import { call, nonConformance, type Reply } from '../harness/http';
+import { startOtlp, type OtlpReceiver } from '../harness/otlp';
 import { SPEC_SOURCE } from '../harness/paths';
 import { SERVICE_ROLE, WORKER_ROLE } from '../harness/roles';
 import { errorsOf, registry, spec, type Method } from '../harness/spec';
@@ -92,7 +92,10 @@ interface CaseDocument {
   planes?: Plane[];
   /** A live case's tier: what every live layer does, or what one at full parity does. */
   tier?: 'fleet' | 'parity';
-  /** Run the client exporting, and hold what it exported to the SDK telemetry table. */
+  /**
+   * Run the client exporting, and hold what it exported to the SDK telemetry
+   * table; a worker's is also held to a trace of its own for each job it ran.
+   */
   telemetry?: true;
   steps: Step[];
 }
@@ -206,6 +209,8 @@ class Run {
   private readonly named = new Map<string, ProxiedRequest>();
   /** For each channel the client listens to, the proxy's clock when it began. */
   private readonly listening = new Map<string, number>();
+  /** In a worker case: each job the backend handed over, with the correlation id of the claim it answered. */
+  private readonly handedOver: Array<{ jobId: string; correlationId: string }> = [];
 
   constructor(
     private readonly layer: Layer,
@@ -574,7 +579,11 @@ class Run {
       if (strays.length > 0) throw new Error(`backend ${directive} does not take ${strays.join(', ')}`);
     };
     const emit = async (body: Record<string, unknown>): Promise<void> => {
-      const reply = await this.world.emit(this.participant.token, { ...body, clientId: this.participant.clientId });
+      const reply = await call(this.world.origin, 'POST', '/bus/emit', {
+        token: this.participant.token,
+        json: { ...body, clientId: this.participant.clientId },
+        headers: this.traceAnswered(body['correlationId']),
+      });
       if (reply.status !== 202) throw new Error(`the gateway refused the backend's emit: ${reply.status} ${reply.text}`);
     };
 
@@ -593,6 +602,11 @@ class Run {
         const scope = optionalText('scope');
         const correlationId = optionalText('correlationId');
         await emit({ channel: text('channel'), payload: args['payload'], ...(scope === undefined ? {} : { scope }), ...(correlationId === undefined ? {} : { correlationId }) });
+        const response = args['payload']['response'];
+        const metadata = isObject(response) ? response['metadata'] : undefined;
+        if (text('channel') === 'job:claimed' && correlationId !== undefined && isObject(metadata) && typeof metadata['id'] === 'string') {
+          this.handedOver.push({ jobId: metadata['id'], correlationId });
+        }
         return;
       }
       case 'record': {
@@ -679,6 +693,67 @@ class Run {
       default:
         throw new Error(`no backend directive ${directive}`);
     }
+  }
+
+  /**
+   * The trace a reply is sent in: that of the client's request it answers,
+   * the one that carried `correlationId`, as a service answers in the trace
+   * of what it answers. None for an emit that answers nothing, or a request
+   * sent under no trace.
+   */
+  private traceAnswered(correlationId: unknown): Record<string, string> {
+    const asked = this.emits().find((record) => isObject(record.json) && record.json['correlationId'] === correlationId);
+    const carried: Record<string, string> = {};
+    if (correlationId === undefined || !asked) return carried;
+    for (const name of ['traceparent', 'tracestate']) {
+      const value = asked.headers[name];
+      if (typeof value === 'string') carried[name] = value;
+    }
+    return carried;
+  }
+
+  /**
+   * What a worker that exported did against WORKER-CONTRACT T1, read from the
+   * trace each of its claims was sent under and from the spans it exported
+   * that carry a `job.id`: those its driver, standing in for a worker's code,
+   * opened around each job it was handed.
+   */
+  traces(otlp: OtlpReceiver): string[] {
+    const against: string[] = [];
+    const claims = this.emits().flatMap((record) => {
+      if (!isObject(record.json) || record.json['channel'] !== 'job:claim') return [];
+      const sentUnder = record.headers['traceparent'];
+      return [{ correlationId: record.json['correlationId'], trace: typeof sentUnder === 'string' ? sentUnder.split('-')[1] : undefined }];
+    });
+    const spans = otlp.spans.flatMap((span) => (typeof span.attributes['job.id'] === 'string' ? [{ jobId: span.attributes['job.id'], trace: span.traceId, name: span.name }] : []));
+    for (const [index, claim] of claims.entries()) {
+      const nth = `claim ${index + 1}`;
+      if (claim.trace === undefined) {
+        against.push(`sent ${nth} under no trace`);
+        continue;
+      }
+      const earlier = claims.findIndex((other) => other.trace === claim.trace);
+      if (earlier < index) against.push(`sent ${nth} in the trace of claim ${earlier + 1}`);
+      const handed = this.handedOver.find((job) => job.correlationId === claim.correlationId)?.jobId;
+      for (const span of spans) {
+        if (span.jobId !== handed && span.trace === claim.trace) against.push(`sent ${nth} in the trace of its ${span.name} span for ${span.jobId}, a job that claim did not hand over`);
+      }
+    }
+    // A span is exported once it has ended, and a driver ends a job's when it has settled the job.
+    const settled = new Set(this.emits().flatMap((record) => {
+      if (!isObject(record.json) || !isObject(record.json['payload'])) return [];
+      return ['job:complete', 'job:fail', 'job:cancel'].includes(String(record.json['channel'])) ? [record.json['payload']['jobId']] : [];
+    }));
+    for (const { jobId, correlationId } of this.handedOver) {
+      const claim = claims.find((sent) => sent.correlationId === correlationId);
+      if (!claim) throw new Error(`the backend handed ${jobId} over in answer to no claim the worker sent`);
+      const own = spans.filter((span) => span.jobId === jobId);
+      if (own.length === 0 && settled.has(jobId)) against.push(`exported no span carrying job.id ${jobId}: a driver runs each job it is handed in a span that carries it`);
+      for (const span of own) {
+        if (span.trace !== claim.trace) against.push(`ran ${jobId} in a ${span.name} span of the trace ${span.trace}, not of the trace of the claim that handed it over (${claim.trace ?? 'none'})`);
+      }
+    }
+    return against;
   }
 
   // ── what every case is held to ───────────────────────────────────────────
@@ -817,8 +892,11 @@ export async function runCase(world: World, command: readonly string[], kase: Ca
     run.finish();
     if (otlp) {
       at = kase.steps.length + 1;
-      const outside = await outsideTheSdkTable(otlp);
+      // A worker reaches the bus and nothing else, so it is held to the bus's rows.
+      const outside = await outsideTheSdkTable(otlp, layer === 'worker' ? 'bus' : undefined);
       if (outside.length > 0) throw new Error(`the client exported ${outside.join('; ')}`);
+      const against = layer === 'worker' ? run.traces(otlp) : [];
+      if (against.length > 0) throw new Error(`each job a worker runs has a trace of its own, and this worker ${against.join('; ')}`);
     }
   } catch (error) {
     const where = at < kase.steps.length ? `step ${at + 1} ${JSON.stringify(kase.steps[at])}` : at === kase.steps.length ? 'the end of the case' : 'what it exported';

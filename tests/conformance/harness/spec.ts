@@ -385,9 +385,18 @@ export function telemetry(service: TelemetryService): Telemetry {
   return { spans: of(own.spans, sdk.spans), metrics: of(own.metrics, sdk.metrics) };
 }
 
-/** The telemetry an SDK's transports export (sdk-telemetry/telemetry.json). */
-export function sdkTelemetry(): Telemetry {
-  return telemetryTables().sdk;
+/**
+ * The telemetry an SDK's transports export (sdk-telemetry/telemetry.json):
+ * every row, or, for a client that uses one transport alone, that
+ * transport's rows.
+ */
+export function sdkTelemetry(transport?: string): Telemetry {
+  const { sdk } = telemetryTables();
+  if (transport === undefined) return sdk;
+  const of = (rows: SdkRow[]): SdkRow[] => rows.filter((r) => r.transport === transport);
+  const rows = { spans: of(sdk.spans), metrics: of(sdk.metrics) };
+  if (rows.spans.length + rows.metrics.length === 0) throw new Error(`${SDK_TABLE} lists no row for the transport ${transport}`);
+  return rows;
 }
 
 /** What an exported span name looks like for a row: `{channel}` stands for any channel, `{jobType}` for any job type. */

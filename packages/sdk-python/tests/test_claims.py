@@ -11,12 +11,15 @@ a filter, and whether a failed job is retried.
 
 import asyncio
 from collections import deque
-from collections.abc import AsyncGenerator, Mapping, Sequence
-from contextlib import asynccontextmanager
+from collections.abc import AsyncGenerator, Generator, Mapping, Sequence
+from contextlib import asynccontextmanager, contextmanager
 from typing import Final
 
 import pytest
 from aio import hurried, pass_time, run, soon, turns
+from opentelemetry import context as otel_context
+from opentelemetry import trace as otel_trace
+from opentelemetry.trace import NonRecordingSpan, SpanContext, TraceFlags
 from pydantic import BaseModel, Field, JsonValue, TypeAdapter
 from spec import SPEC, JsonObject, objects, read, text
 
@@ -46,7 +49,7 @@ from semiont.testing import (
     StubGateway,
 )
 from semiont.timing import MARK_COMMIT_TIMEOUT_MS
-from semiont.transport import Frame
+from semiont.transport import Frame, TraceContext
 from semiont.types import (
     Annotation,
     DurabilityEvidence,
@@ -148,6 +151,8 @@ class World:
         """Whether the record refuses each commit, where it would acknowledge it."""
         self.asked_of: Final[dict[str, JsonObject]] = {}
         """The failure the record answers a question about an annotation with, by the annotation's id."""
+        self.claimed_in: Final[list[str | None]] = []
+        """The trace each claim was made in, in order: its id, or nothing for a claim made in none."""
         self.transport: Final = FaultyTransport(wire, make_response=self._answer, channels=channels)
         self.transport.refuse_when(self._refusal)
         self.client: Final = SemiontClient(self.transport, InMemoryContent(), StubGateway())
@@ -155,6 +160,9 @@ class World:
     def _refusal(self, operation: str, payload: Mapping[str, JsonValue]) -> JsonObject | None:
         match operation:
             case "job:claim":
+                # Asked as the claim is sent, so where the claim is made is where this runs.
+                made_in = otel_trace.get_current_span().get_span_context()
+                self.claimed_in.append(f"{made_in.trace_id:032x}" if made_in.is_valid else None)
                 if self.refusals:
                     return self.refusals.popleft()
                 return None if self.offered else {"message": "No pending job matches", "code": "none-pending"}
@@ -200,6 +208,21 @@ class World:
     async def over(self) -> None:
         await self.client.close()
         await self.transport.close()
+
+
+@contextmanager
+def in_span(digit: int) -> Generator[None]:
+    """Be inside a span of the trace `digit` names, as a worker's code is inside the span it opened for a job."""
+    span = NonRecordingSpan(
+        SpanContext(
+            trace_id=int(str(digit) * 32, 16), span_id=int(str(digit) * 16, 16), is_remote=False, trace_flags=TraceFlags(TraceFlags.SAMPLED)
+        )
+    )
+    token = otel_context.attach(otel_trace.set_span_in_context(span))
+    try:
+        yield
+    finally:
+        otel_context.detach(token)
 
 
 async def held(claims: Claims) -> HeldJob:
@@ -1020,6 +1043,76 @@ def test_vitals_say_what_the_worker_holds_and_has_done_and_a_silent_held_job_is_
             done = claims.vitals()
             assert (done.active_job, done.jobs_completed) == (None, 1)
             assert done.last_finished_at is not None
+        await w.over()
+
+    run(scenario())
+
+
+# ── Each job has a trace of its own (WORKER-CONTRACT T1) ────────
+
+
+def test_a_claim_is_made_in_no_trace_whatever_span_the_job_before_it_was_settled_in() -> None:
+    async def scenario() -> None:
+        w = World()
+        w.offered.extend(running(job_id) for job_id in ("job-1", "job-2", "job-3"))
+        async with w.client.job.claim(EVERYTHING) as claims:
+            first = await held(claims)
+            # A worker's code settles each job inside the span it opened for it.
+            with in_span(7):
+                await finish(first)
+            second = await held(claims)
+            with in_span(8):
+                await second.fail("kaboom")
+            third = await held(claims)
+            with in_span(9):
+                await third.cancel()
+            await turns()
+            assert w.claimed_in == [None, None, None, None]
+        await w.over()
+
+    run(scenario())
+
+
+def test_the_first_claim_and_one_an_announcement_wakes_are_made_in_no_trace_whatever_span_the_claims_are_first_read_in() -> None:
+    async def scenario() -> None:
+        w = World()
+        async with w.client.job.claim(TAGGING) as claims:
+            with in_span(9):
+                reading = asyncio.ensure_future(held(claims))
+                await turns()
+            assert w.claimed_in == [None], "the first claim, answered with nothing pending"
+
+            w.offered.append(running("job-1", params={"motivation": "tagging"}))
+            w.relay("job:queued", queued("tagging"))
+            await finish(await reading)
+            await turns()
+            assert w.claimed_in == [None, None, None], "the claim the announcement woke, and the one the settle made"
+        await w.over()
+
+    run(scenario())
+
+
+def test_a_held_job_states_the_trace_its_reply_arrived_in_and_none_when_it_arrived_in_none() -> None:
+    async def scenario() -> None:
+        # The first claim's own answer is lost on the wire, and the test answers it by hand.
+        w = World(wire=[DropReply(), Deliver(), Deliver()])
+        arrived_in = TraceContext(traceparent="00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01", tracestate="vendor=value")
+        async with w.client.job.claim(EVERYTHING) as claims:
+            reading = asyncio.ensure_future(held(claims))
+            await turns()
+            (claim,) = w.requested("job:claim")
+            w.transport.deliver(
+                Frame(channel="job:claimed", payload={"response": running("job-1")}, correlation_id=claim.correlation_id, trace=arrived_in)
+            )
+            first = await reading
+            assert first.trace == arrived_in
+
+            w.offered.append(running("job-2"))
+            with in_span(7):
+                await finish(first)
+            second = await held(claims)
+            assert second.trace is None, "its reply arrived in no trace: it is not in that of the job settled before it"
+            await finish(second)
         await w.over()
 
     run(scenario())

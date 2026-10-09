@@ -42,6 +42,20 @@ that:
   [`specs/src/errors/codes.json`](../../../specs/src/errors/codes.json) does
   not list.
 
+A case that states `telemetry` runs the worker exporting, as an SDK case does
+([sdk/README.md § A case](../sdk/README.md#a-case)), and once the driver has
+exited holds what it exported to the rows of
+[`specs/src/sdk-telemetry/telemetry.json`](../../../specs/src/sdk-telemetry/telemetry.json)
+for the bus, which is all a worker reaches. It also holds the worker to a
+trace of its own for each job, read from the trace each of its claims was
+sent under and from the spans its driver opened around the jobs it was
+handed. So it fails a worker that:
+
+- sends two claims in one trace, or a claim under no trace;
+- sends a claim in the trace of a span opened for a job that claim did not
+  hand over;
+- runs a job outside the trace of the claim that handed it over.
+
 ## The backend
 
 The gateway is the real one, on each signal plane. **No dispatcher runs.**
@@ -50,6 +64,12 @@ case tells it to: with a job, with `none-pending`, with a refusal, with a
 reply that names no job, or not at all. It announces jobs (`job:queued`) and
 asks for cancellations (`job:cancel-requested`) the same way. So a case can
 put a worker in front of an answer a correct dispatcher never gives.
+
+The gateway exports its telemetry, to a receiver nothing reads, because a
+gateway carries a trace from the frame it is sent to the frame it delivers
+only when it exports. The participant answers a claim in the trace of the
+claim, as a dispatcher does. So the reply that hands a job over reaches a
+worker that exports in the trace of the claim it answers.
 
 The worker signs in as an agent whose token carries the worker role.
 
@@ -84,6 +104,13 @@ It writes, as they happen, beside the transport's `state` and `error` lines:
 | `{"refused": {"code": "...", "detail": "..."}}` | a claim was refused; `code` is absent when the worker refused the reply itself |
 | `{"signalled": "<jobId>"}` | a cancellation of the held job was signalled to the work |
 | `{"stalled": "<jobId>"}` | the held job has stalled |
+
+**A driver runs each job in a span of its own**, as a worker's code does:
+`job:{jobType}`, carrying the job's id as `job.id`, opened where the job is
+handed to it and ended once it has settled the job. Everything it does for
+the job it does in that span. Started with `OTEL_EXPORTER_OTLP_ENDPOINT` in
+its environment, a driver exports its telemetry there over OTLP/HTTP, and has
+exported all of it by the time it exits.
 
 **The end of its input is not a stop.** When the suite is done with a driver
 it ends the driver's input, and the driver exits as a worker that is killed
@@ -136,6 +163,7 @@ that is quiet has told the suite nothing the case has not read.
 | `commit-ack-lost` | A5, A6 |
 | `commit-probe-refused`, `commit-probe-unreachable` | A5, A6 |
 | `commit-refused` | A5, A6 |
+| `job-trace` | T1 |
 
 `npm run lint:transport-contract` holds the two to each other: every case is
 named by a rule of the contract, and a case's `source` names a section in

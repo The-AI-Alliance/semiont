@@ -43,6 +43,14 @@
 //! read. So a cancellation reaches the held job, a stall is looked for, and
 //! every announcement is stamped, while whoever holds the job is busy with
 //! the work and reads nothing.
+//!
+//! EACH JOB HAS A TRACE OF ITS OWN (WORKER-CONTRACT T1). A claim is made on
+//! the claiming's own task, where no span of the worker's is current: so it
+//! is in no trace, whatever span the job before it was settled in. A held
+//! job states the trace its reply arrived in (`trace`), which is the claim's
+//! own once the dispatcher has answered in it: a worker opens its span for
+//! the job in that trace, so the span, and every message the job sends from
+//! inside it, continue the trace that began with the claim.
 
 use crate::bus::{Bus, Operation, payload_of};
 use crate::channels::{
@@ -53,7 +61,7 @@ use crate::errors::{BusRequestErrorCode, SemiontError, TransportError, Transport
 use crate::job_filter::job_matches_filter;
 use crate::locked;
 use crate::timing::{HELD_JOB_STALL, HELD_JOB_STALL_CHECK, JOB_CLAIM_TIMEOUT, MARK_COMMIT_TIMEOUT};
-use crate::transport::{ConnectionState, Envelope};
+use crate::transport::{ConnectionState, Envelope, TraceCarrier};
 use crate::types::{
     Annotation, AnnotationId, BrowseAnnotationRequest, DurabilityEvidence, FailureClass,
     JobCancelCommand, JobCheckpointCommand, JobClaimCommand, JobCompleteCommand, JobFailCommand,
@@ -258,6 +266,8 @@ struct Holding {
     attempt: i64,
     annotation_id: Option<AnnotationId>,
     budget: JobMetadata,
+    /// The trace the reply that handed the job over arrived in.
+    trace: Option<TraceCarrier>,
     /// Settled once, by whoever is first: the handle, the worker's stop, or
     /// the handle's drop.
     settled: AtomicBool,
@@ -650,6 +660,12 @@ impl<V> Held<V> {
         self.core.holding.annotation_id.as_ref()
     }
 
+    /// The trace the job is run in: the one its reply arrived in. `None` for
+    /// a reply that arrived in none.
+    pub fn trace(&self) -> Option<&TraceCarrier> {
+        self.core.holding.trace.as_ref()
+    }
+
     /// Whether a cancellation has named this job: the current answer, and
     /// the change to it. The work stops where it can, and the worker says
     /// `cancel`.
@@ -933,6 +949,10 @@ impl HeldJob {
         either!(self, job => job.annotation_id())
     }
 
+    pub fn trace(&self) -> Option<&TraceCarrier> {
+        either!(self, job => job.trace())
+    }
+
     pub fn cancelled(&self) -> watch::Receiver<bool> {
         either!(self, job => job.cancelled())
     }
@@ -992,8 +1012,13 @@ fn anchor_of(job_type: JobType, params: &JobParams) -> Option<AnnotationId> {
     focus.get("annotation")?.get("id")?.as_str()?.parse().ok()
 }
 
-/// Hold the job a claim was answered with, as its verb's.
-fn held(inner: &Arc<Inner>, claimed: JobRunning) -> (Arc<Holding>, HeldJob) {
+/// Hold the job a claim was answered with, as its verb's, in the `trace`
+/// its reply arrived in.
+fn held(
+    inner: &Arc<Inner>,
+    claimed: JobRunning,
+    trace: Option<TraceCarrier>,
+) -> (Arc<Holding>, HeldJob) {
     let JobRunning {
         metadata, params, ..
     } = claimed;
@@ -1005,6 +1030,7 @@ fn held(inner: &Arc<Inner>, claimed: JobRunning) -> (Arc<Holding>, HeldJob) {
             .unwrap_or(i64::MAX)
             .saturating_add(1),
         annotation_id: anchor_of(metadata.r#type, &params),
+        trace,
         settled: AtomicBool::new(false),
         cancelled: watch::channel(false).0,
         durability: Mutex::new(None),
@@ -1048,11 +1074,11 @@ async fn claim_next(inner: Arc<Inner>) -> ClaimOutcome {
     let claim = JobClaimCommand::new(inner.accepts.clone());
     match inner
         .wire
-        .request::<JobClaim>(&claim, inner.timing.job_claim)
+        .result::<JobClaim>(&claim, inner.timing.job_claim)
         .await
     {
         Ok(claimed) => {
-            let (holding, job) = held(&inner, claimed.response);
+            let (holding, job) = held(&inner, claimed.payload.response, claimed.trace);
             ClaimOutcome::Job(holding, Box::new(job))
         }
         Err(SemiontError::Bus(refused)) if refused.code == BusRequestErrorCode::NonePending => {

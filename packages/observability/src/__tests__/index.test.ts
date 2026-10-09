@@ -57,6 +57,7 @@ import {
   withActorSpan,
   withSpan,
   withTraceparent,
+  withoutTrace,
 } from '../index';
 
 const spanExporter = new InMemorySpanExporter();
@@ -221,6 +222,59 @@ describe('withTraceparent', () => {
       });
     });
     expect(observed?.tracestate).toBe('vendor=value');
+  });
+});
+
+describe('withoutTrace', () => {
+  it('returns what fn returns', () => {
+    expect(withoutTrace(() => 'value')).toBe('value');
+  });
+
+  it('runs fn under no span, inside a span', async () => {
+    let outside: ReturnType<typeof getActiveTraceparent>;
+    let within: ReturnType<typeof getActiveTraceparent>;
+    await withSpan('unit.outer', () => {
+      outside = getActiveTraceparent();
+      within = withoutTrace(() => getActiveTraceparent());
+    });
+
+    expect(outside).toBeDefined();
+    expect(within).toBeUndefined();
+  });
+
+  it('begins a trace of its own for a span started inside it, and for what that span awaits', async () => {
+    let outer: string | undefined;
+    let inner: string | undefined;
+    let continued: string | undefined;
+    await withSpan('unit.outer', async () => {
+      outer = getActiveTraceparent()?.traceparent.split('-')[1];
+      await withoutTrace(() =>
+        withSpan('unit.apart', async () => {
+          inner = getActiveTraceparent()?.traceparent.split('-')[1];
+          await Promise.resolve();
+          continued = getActiveTraceparent()?.traceparent.split('-')[1];
+        }),
+      );
+    });
+
+    expect(inner).toBeDefined();
+    expect(inner).not.toBe(outer);
+    expect(continued).toBe(inner);
+    const apart = findSpan('unit.apart');
+    expect(apart).toBeDefined();
+    expect(apart?.parentSpanContext).toBeUndefined();
+  });
+
+  it('leaves the span it was called in active once it returns', async () => {
+    let before: string | undefined;
+    let after: string | undefined;
+    await withSpan('unit.outer', () => {
+      before = getActiveTraceparent()?.traceparent;
+      withoutTrace(() => undefined);
+      after = getActiveTraceparent()?.traceparent;
+    });
+
+    expect(after).toBe(before);
   });
 });
 

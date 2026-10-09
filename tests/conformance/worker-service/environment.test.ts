@@ -96,6 +96,48 @@ eachWorkerService("the worker's environment", (world) => {
     );
   });
 
+  it('with OTEL_EXPORTER_OTLP_ENDPOINT, each job an agent runs has a trace of its own: its span continues the trace of the job:claimed that handed it over, the second job is not in the trace of the first, and the claim made when a job is settled is not in that job\'s trace', async () => {
+    const w = world();
+    const jobs = [markJob(w, 'traced-first', { motivation: 'highlighting' }), markJob(w, 'traced-second', { motivation: 'highlighting' })];
+    w.ollama.script({ response: JSON.stringify([{ exact: 'the first program' }]) }, { response: JSON.stringify([{ exact: 'Charles Babbage' }]) });
+    await withEnv(
+      w,
+      (otlp) => ({ OTEL_EXPORTER_OTLP_ENDPOINT: otlp.endpoint, OTEL_BSP_SCHEDULE_DELAY: '100' }),
+      async (served, otlp) => {
+        // One agent runs both, one after the other.
+        for (const job of jobs) await settled(served, job);
+        const traces: string[] = [];
+        for (const job of jobs) {
+          const held = await eventually(`the span of ${job.metadata.id}`, 10_000, () => otlp.spans.find((s) => s.attributes['job.id'] === job.metadata.id));
+          traces.push(held.traceId);
+        }
+        expect(traces[1], 'the second job is in the trace of the first').not.toBe(traces[0]);
+
+        /** The traces of the two spans `which` finds: one for each job. */
+        const tracesOf = async (what: string, which: (span: ReceivedSpan) => boolean): Promise<string[]> => {
+          const found = await eventually(`the two ${what}`, 10_000, () => {
+            const spans = otlp.spans.filter(which);
+            return spans.length >= 2 ? spans : undefined;
+          });
+          return found.map((span) => span.traceId).sort();
+        };
+        // Each job sends one of each of these, and nothing else on their channels: each job's is in its own trace.
+        for (const channel of ['job:start', 'browse:resource-requested', 'mark:commit', 'job:checkpoint', 'job:complete']) {
+          expect(await tracesOf(`${channel} it sent`, sent(channel)), channel).toEqual([...traces].sort());
+        }
+        // Each job was handed over by one job:claimed, and is run in the trace that reply arrived in.
+        expect(await tracesOf('job:claimed it received', got('job:claimed'))).toEqual([...traces].sort());
+        // It claimed when it started and when it settled each job. The suite's gateway does not export, so no reply
+        // brings a claim's trace back to the worker: a claim in a job's trace here was made inside that job's span.
+        const claims = await eventually(`the three ${CLAIM} it sent`, 10_000, () => {
+          const spans = otlp.spans.filter(sent(CLAIM));
+          return spans.length >= 3 ? spans : undefined;
+        });
+        expect(claims.filter((claim) => traces.includes(claim.traceId))).toEqual([]);
+      },
+    );
+  });
+
   it('without OTEL_EXPORTER_OTLP_ENDPOINT or OTEL_CONSOLE_EXPORTER, exports nothing and writes no span or metric', async () => {
     await withEnv(
       world(),

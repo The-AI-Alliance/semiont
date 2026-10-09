@@ -284,6 +284,12 @@ whole worker is shown, compiled and run, in
 - **A cancellation is signalled.** `job.cancelled()` turns true when a
   cancellation names the held job: the work stops where it can, and says
   `job.cancel(..)`.
+- **Each job has a trace of its own.** A claim is made on the claiming's own
+  task, in no trace, whatever span the job before it was settled in.
+  `job.trace()` is the trace the job's reply arrived in, which is its
+  claim's: a worker that exports telemetry runs the job in that trace
+  (`semiont_telemetry::continuing(job.trace(), ..)`), and what the job sends
+  continues it.
 - **`claims.vitals()`** is what the worker can say of itself: when it last
   heard an announcement, claimed, was active and settled, the job it holds,
   and how many it has completed. **`claims.stalled()`** tells of a held job

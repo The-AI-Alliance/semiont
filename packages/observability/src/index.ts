@@ -18,6 +18,8 @@
  *     `_trace?: { traceparent }` field).
  *   - `withTraceparent(carrier, fn)` — run `fn` with the incoming
  *     traceparent as the parent context.
+ *   - `withoutTrace(fn)` — run `fn` in no trace, so that what it starts
+ *     begins a trace of its own.
  *   - `getActiveTraceparent()` — read the active span's traceparent, for
  *     an outbound request's `traceparent` header.
  *   - `getLogTraceContext()` — active `trace_id` / `span_id` for log-line
@@ -41,6 +43,7 @@ import {
   isSpanContextValid,
   metrics,
   propagation,
+  ROOT_CONTEXT,
   SpanKind,
   SpanStatusCode,
   trace,
@@ -160,6 +163,17 @@ export function withTraceparent<T>(
   if (carrier.tracestate) carrierObj['tracestate'] = carrier.tracestate;
   const ctx = propagation.extract(context.active(), carrierObj);
   return context.with(ctx, fn);
+}
+
+/**
+ * Run `fn` in no trace: a span started inside it, and every continuation it
+ * registers, has no parent, whatever span is active where this is called. For
+ * work that is nobody's: a worker's claim, which belongs to no job, is made
+ * here even when the code that settled the job before it is inside that job's
+ * span.
+ */
+export function withoutTrace<T>(fn: () => T): T {
+  return context.with(ROOT_CONTEXT, fn);
 }
 
 // ── Actor handler convenience ──────────────────────────────────────────
