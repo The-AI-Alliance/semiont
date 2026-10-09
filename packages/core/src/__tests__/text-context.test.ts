@@ -295,10 +295,9 @@ describe('reconcileSelector — charset handling', () => {
 describe('reconcileSelector — empty hint ≡ absent hint', () => {
   // Structured generation can deliver `prefix: ""` where a free-text reply
   // omits the key: with hint properties in `required`, models emit empty
-  // strings — and even as optionals a model may volunteer them. The
-  // multi-occurrence logic treats a falsy hint as "no hint" at both decision
-  // points (`if (llmPrefix || llmSuffix)` and `!llmPrefix || …`); this pin
-  // keeps that equivalence load-bearing.
+  // strings — and even as optionals a model may volunteer them. A hint that
+  // is empty, or only white space, is no hint, wherever a hint chooses among
+  // several places; this pin keeps that equivalence load-bearing.
   // Structured generation relies on it, and any rewrite of the
   // disambiguation (a nearest-to-offset-hint choice, say) inherits this
   // contract: '' must never be treated as a real, failing hint.

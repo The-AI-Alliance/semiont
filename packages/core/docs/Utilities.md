@@ -142,10 +142,14 @@ console.log({
 **Anchor methods:**
 - `unique-match` — Exact appears once; re-anchored unambiguously.
 - `context-recovered` — Multiple occurrences; LLM-emitted prefix/suffix picked one.
-- `fuzzy-match` — Exact not found verbatim; recovered via case/whitespace/Levenshtein.
+- `fuzzy-match` — Exact not found verbatim; recovered by a looser search, which `matchQuality` names: `normalized` (white space, quotation marks and dashes), `case-insensitive`, or `fuzzy` (edit distance). Of several places the first two find, the LLM-emitted prefix/suffix picks one, and the first is taken when it picks none.
 - `first-of-many` — Multiple occurrences, no usable context; risky fallback flagged for audit.
 
-Returns `null` only when the LLM emitted text that doesn't appear in source at all.
+A prefix or suffix that is empty, or only white space, is no context.
+
+The `fuzzy` search allows one edit (a code point inserted, deleted or replaced) for every twenty code points of `exact`, rounded down, with no minimum: an `exact` of fewer than twenty code points is found by the searches before it or not at all. The span it answers is the source's own, and may be longer or shorter than `exact`.
+
+Returns `null` when `exact` is empty or only white space, or is text that doesn't appear in source. [`specs/src/annotations/reconcile-cases.json`](../../../specs/src/annotations/reconcile-cases.json) holds the rule, as cases.
 
 **Use Case:** Worker-side annotation construction. The selector returned by `reconcileSelector` is the only shape that passes the no-overlap invariant in `buildTextAnnotation` at write time.
 
@@ -185,24 +189,6 @@ console.log(anchor);
 - `position-fallback` — exact not found verbatim (or no quote); raw stored offset used, flagged low-confidence for upstream correction.
 
 **Use Case:** Renderer-side anchoring. The returned `strategy` and `confidence` let the UI flag low-confidence anchors with a visual affordance. Fuzzy/normalized recovery is deliberately *not* here — it lives at write time in `reconcileSelector`.
-
-### Verify Position
-
-Validate that a position, two offsets in code points, correctly points to expected text:
-
-```typescript
-import { verifyPosition } from '@semiont/core';
-
-const content = "Hello World";
-
-// Verify a known position
-const isValid = verifyPosition(content, { start: 6, end: 11 }, "World");
-// Returns: true
-
-// Check for corruption
-const isValid2 = verifyPosition(content, { start: 0, end: 5 }, "World");
-// Returns: false (position points to "Hello", not "World")
-```
 
 ## SVG Utilities
 

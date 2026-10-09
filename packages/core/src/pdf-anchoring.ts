@@ -159,13 +159,17 @@ const SAME_LINE_THRESHOLD_PT = 2;
  * Returns both the per-line `rects` and the `overlap` items they were computed
  * from — so a caller that also needs the covered text (e.g. buildPdfAnnotation's
  * geometry↔text containment invariant) reuses this single `items` scan
- * instead of re-filtering. Both arrays are empty if no item overlaps the span.
+ * instead of re-filtering. Both arrays are empty if no item overlaps the span:
+ * an empty span (`start` equal to `end`) overlaps none, wherever it falls.
  */
 export function locate(
     anchored: AnchoredText,
     start: number,
     end: number
 ): { rects: PdfCoordinate[]; overlap: PdfTextItem[] } {
+    // An empty span has no character for an item to hold, inside one as between two.
+    if (start === end) return { rects: [], overlap: [] };
+
     const overlap: PdfTextItem[] = anchored.items.filter(
         item => item.start < end && item.end > start
     );

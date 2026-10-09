@@ -94,6 +94,12 @@ describe('locate', () => {
     expect(locate(LAYER, 5, 5).overlap).toHaveLength(0);
   });
 
+  it('locates an empty span nowhere, inside a run as at the edge of one', () => {
+    expect(locate(LAYER, 3, 3)).toEqual({ rects: [], overlap: [] });
+    expect(locate(LAYER, 0, 0)).toEqual({ rects: [], overlap: [] });
+    expect(locate(LAYER, 17, 17)).toEqual({ rects: [], overlap: [] });
+  });
+
   describe('line grouping tolerates a baseline that is not perfectly flat', () => {
     // Runs on one typeset line rarely share an exact y. Within the threshold
     // they are one line; past it they are two — which is what stops a slightly

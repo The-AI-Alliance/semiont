@@ -16,7 +16,8 @@ import { textOffsets } from '../text-offsets';
  *      plain line breaks (" \n" collapses to " ").
  *   2. BREAK-AWARE — only on a strict miss. The line break becomes a distinct
  *      marker that may be absorbed in any inter-character gap; ordinary
- *      spaces are NEVER wildcards.
+ *      spaces are NEVER wildcards. A space of the claim is one space of the
+ *      text, or one break where the line is broken between two words.
  *
  * The ordering is the safety property: the permissive matcher runs only where
  * the strict one already failed, so it can never turn a working citation into
@@ -53,6 +54,18 @@ describe('findClaimSpan', () => {
 
     expect(span).not.toBeNull();
     expect(anchored.text.slice(span!.start, span!.end)).toBe('extraor \ndinarily complicated');
+  });
+
+  it('finds a hyphenated claim across a line broken between two words with no space beside the break', () => {
+    // The second break is between two words, with no space beside it. The
+    // strict stage has already missed (the hyphenation), so the break-aware
+    // one takes the bare break for the claim's space.
+    const anchored = anchoredWith('It is extraor \ndinarily complicated\ntoday.');
+
+    const span = findClaimSpan(anchored, textOffsets(anchored.text), 'extraordinarily complicated today');
+
+    expect(span).not.toBeNull();
+    expect(anchored.text.slice(span!.start, span!.end)).toBe('extraor \ndinarily complicated\ntoday');
   });
 
   it('never treats ordinary spaces as wildcards — "abc" must not match "a b c"', () => {

@@ -32,7 +32,7 @@ describe('the chunker (specs/src/text/chunk-cases.json)', () => {
     expect(table.cases.length).toBeGreaterThan(0);
   });
 
-  it('chunks by the table\'s defaults when no chunking is given', () => {
+  it('exports the table\'s defaults as DEFAULT_CHUNKING_CONFIG', () => {
     expect(DEFAULT_CHUNKING_CONFIG).toStrictEqual(table.defaults);
   });
 

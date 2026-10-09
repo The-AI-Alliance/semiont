@@ -301,9 +301,8 @@ export {
   normalizeText,
   buildContentCache,
   findBestTextMatch,
-  verifyPosition,
 } from './fuzzy-anchor';
-export type { TextPosition, MatchQuality, ContentCache } from './fuzzy-anchor';
+export type { MatchQuality, ContentCache } from './fuzzy-anchor';
 
 // Render-time anchoring (combines position + quote selectors with scoring)
 export {

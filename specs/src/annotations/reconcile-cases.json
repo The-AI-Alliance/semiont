@@ -1,14 +1,5 @@
 {
-  "$comment": "Where a quoted span is in a text, as every implementation must answer it. A model asked to mark a text quotes it: the words (`exact`), and maybe some of what comes before and after them (`prefix`, `suffix`). None of that is trusted. It is reconciled against the text into a position and a quote that are the text's own, or it is refused, and only what is reconciled is built into an annotation. TypeScript (packages/core: reconcileSelector) runs every case and fails on a difference; a worker written in another language runs the same file. READING A CASE. `text` is the real text, `quoted` what the model said, and `reconciled` the answer: `null` when the span is refused, otherwise `start` and `end` (offsets, which count Unicode code points from the start of the text: the span is the code points from `start` up to but not including `end`), `exact` (the text between them, never the model's spelling of it), `prefix` and `suffix` (taken from the text as CONTEXT says, each left out when there is nothing to take), `anchorMethod` (how the place was found) and, only when that is `fuzzy-match`, `matchQuality` (which of the three looser searches found it). THE RULE. An empty `exact` is refused. Otherwise find every place the text has `exact`, character for character; places may overlap one another. Exactly one place: it is the span, `unique-match`, whatever the model's prefix and suffix say. More than one: a prefix or a suffix the model gave is a hint, and an empty one is none. If there is a hint, the span is the first place, in the text's order, that fits every hint given, `context-recovered`. A place fits the prefix when the text just before it ends with the prefix, or when the prefix, with the white space at its two ends removed, is anywhere in the code points before the place: as many of them as the prefix has, and at least 32. It fits the suffix when the text just after it starts with the suffix, or when the suffix, trimmed the same way, is anywhere in the code points after the place: as many as the suffix has, and at least 32. With no hint, or no place that fits, the span is the first place, `first-of-many`. No place at all: three looser searches are tried in this order, the hints playing no part, and the first that finds a span answers `fuzzy-match` with its own name as `matchQuality`. (1) `normalized`. Normalize the text and `exact` alike: every run of white space becomes one space, the single quotation marks U+2018 and U+2019 become an apostrophe, the double ones U+201C and U+201D become a straight double quote, an em dash U+2014 becomes two hyphens and an en dash U+2013 one, and white space at the two ends is dropped. Take the first place the normalized text has the normalized `exact`. The span starts at the character of the text that the first matched character came from, and ends at the character that the one after the match came from, a run of white space counting as its first character; when nothing comes after the match, it ends just after the last character of the text that is not white space. (2) `case-insensitive`. Lower-case the text and `exact` by Unicode's own rule, of no particular language, and take the first place the one has the other; the span starts there and has as many code points as `exact`. (3) `fuzzy`. Compare `exact` with every stretch of the text that has as many code points as it has, by edit distance: the least number of single code points inserted, deleted or replaced that turns one into the other. The span is the stretch at the least distance, the first of them if several share it, provided that distance is within the allowance: a twentieth of the number of code points in `exact`, rounded down, and never less than 5. If no stretch is within it, or the text is shorter than `exact`, the span is refused. CONTEXT. The `prefix` is the 64 code points of the text before the span, or all of them if there are fewer. If it would begin part of the way through a word it is lengthened backwards a code point at a time, by at most 32 more, until the character before it is a boundary or the text begins. The `suffix` is the 64 code points after the span, or all there are, lengthened forwards in the same way until the character after it is a boundary or the text ends. A boundary is white space or one of these eighteen and nothing else: . , ; : ! ? ' \" ( ) [ ] { } < > / \\ (so not a hyphen, and not a curly quotation mark). White space is what Unicode gives the White_Space property; no case rests on U+0085 or U+FEFF, about which implementations disagree. Code points are compared as they are, with no Unicode normalization: a letter followed by a combining mark is not the one accented letter. What an offset counts is held by a table of its own, specs/src/text/offset-cases.json; some texts here have a character outside the Basic Multilingual Plane, which is one code point and two UTF-16 code units, so that a count of code units fails them. `defects` says what today's rule does that is a mistake: no case states any of it, and an implementation is not held to it. Add a case here before changing an implementation.",
-  "defects": [
-    "The allowance of the `fuzzy` search is never less than 5, however short `exact` is. For an `exact` of five code points or fewer every stretch of its length is within the allowance, so one that is nowhere in the text is anchored to the nearest stretch of that length instead of being refused.",
-    "The `fuzzy` search looks only at stretches exactly as long as `exact`. An `exact` that has dropped or added a code point is anchored to a span that is a code point out at one end.",
-    "The `case-insensitive` search finds a position in the lower-cased text and uses it as a position in the text. Where lower-casing changes how many code points come before the match (U+0130, a capital I with a dot, becomes two) the span is displaced.",
-    "A `normalized` match with nothing after it ends its span at the very end of the text, not after the last character that is not white space: white space the text ends with is taken into `exact`.",
-    "A hint that is only white space is trimmed to nothing, and nothing is found everywhere: the first place is answered as `context-recovered` though no context recovered it.",
-    "An `exact` that is only white space and is not in the text normalizes to nothing, which is found at the start of the normalized text: the answer is an empty span, not a refusal.",
-    "The hints are not consulted once `exact` is not in the text character for character: of several places a looser search could take, it takes the first, even when a prefix or a suffix says which was meant."
-  ],
+  "$comment": "Where a quoted span is in a text, as every implementation must answer it. A model asked to mark a text quotes it: the words (`exact`), and maybe some of what comes before and after them (`prefix`, `suffix`). None of that is trusted. It is reconciled against the text into a position and a quote that are the text's own, or it is refused, and only what is reconciled is built into an annotation. TypeScript (packages/core: reconcileSelector) runs every case and fails on a difference; a worker written in another language runs the same file. READING A CASE. `text` is the real text, `quoted` what the model said, and `reconciled` the answer: `null` when the span is refused, otherwise `start` and `end` (offsets, which count Unicode code points from the start of the text: the span is the code points from `start` up to but not including `end`), `exact` (the text between them, never the model's spelling of it), `prefix` and `suffix` (taken from the text as CONTEXT says, each left out when there is nothing to take), `anchorMethod` (how the place was found) and, only when that is `fuzzy-match`, `matchQuality` (which of the three looser searches found it). THE RULE. An `exact` that is empty, or only white space, is refused. A prefix or a suffix the model gave is a hint; one that is empty, or only white space, is none. A place is a span of the text. It fits the prefix when the text just before it ends with the prefix, or when the prefix, with the white space at its two ends removed, is anywhere in the code points before the place: as many of them as the prefix has, and at least 32. It fits the suffix when the text just after it starts with the suffix, or when the suffix, trimmed the same way, is anywhere in the code points after the place: as many as the suffix has, and at least 32. Find every place the text has `exact`, character for character; places may overlap one another. Exactly one place: it is the span, `unique-match`, whatever the model's prefix and suffix say. More than one: if there is a hint, the span is the first place, in the text's order, that fits every hint given, `context-recovered`; with no hint, or no place that fits, the span is the first place, `first-of-many`. No place at all: three looser searches are tried in this order, and the first that finds a span answers `fuzzy-match` with its own name as `matchQuality`. The first two find places, which may overlap, and the span is chosen among them as it is among the places the text has `exact`: the first place that fits every hint given, and the first place of all when there is no hint or none fits; the answer does not say which. (1) `normalized`. Normalize the text and `exact` alike: every run of white space becomes one space, the single quotation marks U+2018 and U+2019 become an apostrophe, the double ones U+201C and U+201D become a straight double quote, an em dash U+2014 becomes two hyphens and an en dash U+2013 one, and white space at the two ends is dropped. A place is where the normalized text has the normalized `exact`. It starts at the character of the text that its first character came from, and ends just after the character of the text that its last came from: white space the text has after the match is no part of it. (2) `case-insensitive`. Lower-case the text and `exact` by Unicode's own rule, of no particular language, each as a whole: a capital sigma that ends a word becomes the final one. A place is where the lower-cased text has the lower-cased `exact`, and it is a span of the text, not of the lower-cased text. A character may lower-case to more than one code point (U+0130, a capital I with a dot, becomes two), so the place starts at the character of the text that its first code point came from and ends just after the character that its last came from, and need not have as many code points as `exact`. A match that begins or ends between the code points one character became takes that character whole. (3) `fuzzy`. The hints play no part. The allowance is a twentieth of the number of code points in `exact`, rounded down, with no minimum: an `exact` of fewer than twenty code points has none, and is found by what comes before this search or refused. Compare `exact` with every stretch of the text, of whatever length, by edit distance: the least number of single code points inserted, deleted or replaced that turns one into the other. A stretch within the allowance is at most the allowance longer or shorter than `exact`, and need not have as many code points. The span is the stretch at the least distance, provided that distance is within the allowance. Of several at the least distance it is the first in the text; of those that begin at the same place, the one nearest `exact` in length; and of two as near, the shorter. If no stretch is within the allowance, the span is refused. CONTEXT. The `prefix` is the 64 code points of the text before the span, or all of them if there are fewer. If it would begin part of the way through a word it is lengthened backwards a code point at a time, by at most 32 more, until the character before it is a boundary or the text begins. The `suffix` is the 64 code points after the span, or all there are, lengthened forwards in the same way until the character after it is a boundary or the text ends. A boundary is white space or one of these eighteen and nothing else: . , ; : ! ? ' \" ( ) [ ] { } < > / \\ (so not a hyphen, and not a curly quotation mark). White space is what Unicode gives the White_Space property; no case rests on U+0085 or U+FEFF, about which implementations disagree. Code points are compared as they are, with no Unicode normalization: a letter followed by a combining mark is not the one accented letter. What an offset counts is held by a table of its own, specs/src/text/offset-cases.json; some texts here have a character outside the Basic Multilingual Plane, which is one code point and two UTF-16 code units, so that a count of code units fails them. Add a case here before changing an implementation.",
   "cases": [
     {
       "why": "words the text has once are the span, and the context is the text's: all of it on either side when there are fewer than 64 characters",
@@ -216,6 +207,32 @@
       }
     },
     {
+      "why": "a hint that is only white space is no hint either: a prefix of one space would fit every place, and the answer says that none was chosen by its context",
+      "text": "X foo Y foo Z foo W",
+      "quoted": { "exact": "foo", "prefix": " " },
+      "reconciled": {
+        "start": 2,
+        "end": 5,
+        "exact": "foo",
+        "prefix": "X ",
+        "suffix": " Y foo Z foo W",
+        "anchorMethod": "first-of-many"
+      }
+    },
+    {
+      "why": "nor is it a hint that fits no place: beside a prefix of only white space, the suffix alone picks the third",
+      "text": "Section A: the parties agree to terms. Section B: the parties agree to conditions. Section C: the parties agree to schedule.",
+      "quoted": { "exact": "the parties agree", "prefix": "\n\t", "suffix": " to schedule" },
+      "reconciled": {
+        "start": 94,
+        "end": 111,
+        "exact": "the parties agree",
+        "prefix": "to terms. Section B: the parties agree to conditions. Section C: ",
+        "suffix": " to schedule.",
+        "anchorMethod": "context-recovered"
+      }
+    },
+    {
       "why": "places may overlap: `ana` is in `banana` twice, at 1 and at 3, so it is one of many and not unique",
       "text": "banana",
       "quoted": { "exact": "ana" },
@@ -232,6 +249,18 @@
       "why": "an empty quote is refused",
       "text": "Some content",
       "quoted": { "exact": "" },
+      "reconciled": null
+    },
+    {
+      "why": "a quote that is only white space is refused too: it is no words to find",
+      "text": "Some content",
+      "quoted": { "exact": " \n\t " },
+      "reconciled": null
+    },
+    {
+      "why": "and it is refused where the text has it, character for character: the one space between the two words is not a span to mark",
+      "text": "Hello World",
+      "quoted": { "exact": " " },
       "reconciled": null
     },
     {
@@ -304,6 +333,76 @@
       }
     },
     {
+      "why": "white space the text has after the match is no part of the span: it ends just after the closing mark, the last character the match came from, and the white space the text ends with is its suffix",
+      "text": "They called it the “Great War”  \n",
+      "quoted": { "exact": "the \"Great War\"" },
+      "reconciled": {
+        "start": 15,
+        "end": 30,
+        "exact": "the “Great War”",
+        "prefix": "They called it ",
+        "suffix": "  \n",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "normalized"
+      }
+    },
+    {
+      "why": "the model ended with one hyphen where the text has an em dash, which normalizes to two: the dash the match ends in is in the span whole, and the span does not stop at the space before it",
+      "text": "The years 1914–1918 — the war — changed everything.",
+      "quoted": { "exact": "the war -" },
+      "reconciled": {
+        "start": 22,
+        "end": 31,
+        "exact": "the war —",
+        "prefix": "The years 1914–1918 — ",
+        "suffix": " changed everything.",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "normalized"
+      }
+    },
+    {
+      "why": "a hint chooses among the places a looser search finds, as it does among the places the text has `exact`: the text has two spaces where the model wrote one, in three places, and the model's prefix picks the second",
+      "text": "Section A: the  parties agree to terms. Section B: the  parties agree to conditions. Section C: the  parties agree to schedule.",
+      "quoted": { "exact": "the parties agree", "prefix": "Section B: " },
+      "reconciled": {
+        "start": 51,
+        "end": 69,
+        "exact": "the  parties agree",
+        "prefix": "Section A: the  parties agree to terms. Section B: ",
+        "suffix": " to conditions. Section C: the  parties agree to schedule.",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "normalized"
+      }
+    },
+    {
+      "why": "a suffix is looked for after the place as the text has it, which here is a code point longer than the model's words: it picks the third",
+      "text": "Section A: the  parties agree to terms. Section B: the  parties agree to conditions. Section C: the  parties agree to schedule.",
+      "quoted": { "exact": "the parties agree", "suffix": " to schedule" },
+      "reconciled": {
+        "start": 96,
+        "end": 114,
+        "exact": "the  parties agree",
+        "prefix": "to terms. Section B: the  parties agree to conditions. Section C: ",
+        "suffix": " to schedule.",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "normalized"
+      }
+    },
+    {
+      "why": "a hint that fits none of the places a looser search finds chooses none: the span is the first of them",
+      "text": "Section A: the  parties agree to terms. Section B: the  parties agree to conditions. Section C: the  parties agree to schedule.",
+      "quoted": { "exact": "the parties agree", "prefix": "Section D: " },
+      "reconciled": {
+        "start": 11,
+        "end": 29,
+        "exact": "the  parties agree",
+        "prefix": "Section A: ",
+        "suffix": " to terms. Section B: the  parties agree to conditions. Section C",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "normalized"
+      }
+    },
+    {
       "why": "the model lower-cased the words: found without regard to case, and the quote that is kept is the text's",
       "text": "The United States Congress passed the bill yesterday.",
       "quoted": { "exact": "united states" },
@@ -332,7 +431,91 @@
       }
     },
     {
-      "why": "one wrong letter (`Vienma`): no search by spelling finds it, and the stretch one replacement away does",
+      "why": "the text and the quote are each lower-cased whole, not a character at a time: the capital sigma that ends a word becomes the final sigma, which is what the model wrote",
+      "text": "Η ΟΔΟΣ ΕΡΜΟΥ είναι κεντρική.",
+      "quoted": { "exact": "οδος ερμου" },
+      "reconciled": {
+        "start": 2,
+        "end": 12,
+        "exact": "ΟΔΟΣ ΕΡΜΟΥ",
+        "prefix": "Η ",
+        "suffix": " είναι κεντρική.",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "case-insensitive"
+      }
+    },
+    {
+      "why": "the place is a position in the text, not in the lower-cased text: the capital I with a dot before it (U+0130) lower-cases to two code points, and the span is not a code point further on for that",
+      "text": "İstanbul and ANKARA are cities.",
+      "quoted": { "exact": "ankara" },
+      "reconciled": {
+        "start": 13,
+        "end": 19,
+        "exact": "ANKARA",
+        "prefix": "İstanbul and ",
+        "suffix": " are cities.",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "case-insensitive"
+      }
+    },
+    {
+      "why": "nor is the span as long as the quote where lower-casing changes the count inside it: the model's nine code points, an i and a combining dot (U+0307) the first two, are eight of the text",
+      "text": "They met in İSTANBUL in May.",
+      "quoted": { "exact": "i\u0307stanbul" },
+      "reconciled": {
+        "start": 12,
+        "end": 20,
+        "exact": "İSTANBUL",
+        "prefix": "They met in ",
+        "suffix": " in May.",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "case-insensitive"
+      }
+    },
+    {
+      "why": "a match that ends between the two code points a character became takes that character whole: the model's plain i is the first of the two that the capital I with a dot (U+0130) lower-cases to, and the span ends after that letter",
+      "text": "They took a TAKSİ to the airport.",
+      "quoted": { "exact": "taksi" },
+      "reconciled": {
+        "start": 12,
+        "end": 17,
+        "exact": "TAKSİ",
+        "prefix": "They took a ",
+        "suffix": " to the airport.",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "case-insensitive"
+      }
+    },
+    {
+      "why": "so does one that begins between them: a quote that begins with the combining dot (U+0307), the second of the two, starts at the letter",
+      "text": "They met in İSTANBUL in May.",
+      "quoted": { "exact": "\u0307stanbul" },
+      "reconciled": {
+        "start": 12,
+        "end": 20,
+        "exact": "İSTANBUL",
+        "prefix": "They met in ",
+        "suffix": " in May.",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "case-insensitive"
+      }
+    },
+    {
+      "why": "a hint chooses among the places found without regard to case too: the model's suffix picks the third",
+      "text": "Section A: The Parties Agree to terms. Section B: The Parties Agree to conditions. Section C: The Parties Agree to schedule.",
+      "quoted": { "exact": "the parties agree", "suffix": " to schedule" },
+      "reconciled": {
+        "start": 94,
+        "end": 111,
+        "exact": "The Parties Agree",
+        "prefix": "to terms. Section B: The Parties Agree to conditions. Section C: ",
+        "suffix": " to schedule.",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "case-insensitive"
+      }
+    },
+    {
+      "why": "one wrong letter (`Vienma`) in a quote of 29 code points, which allow one edit: no search by spelling finds it, and the stretch one replacement away does",
       "text": "The treaty was signed in Vienna on the ninth of June.",
       "quoted": { "exact": "signed in Vienma on the ninth" },
       "reconciled": {
@@ -346,23 +529,35 @@
       }
     },
     {
-      "why": "five wrong letters in 37 are within the allowance of 5",
+      "why": "twenty code points are the fewest that allow an edit: one wrong letter in a quote of twenty is found",
       "text": "The treaty was signed in Vienna on the ninth of June.",
-      "quoted": { "exact": "sigmed im Viemma om the ninth of June" },
+      "quoted": { "exact": "was signed in Vienma" },
       "reconciled": {
-        "start": 15,
-        "end": 52,
-        "exact": "signed in Vienna on the ninth of June",
-        "prefix": "The treaty was ",
-        "suffix": ".",
+        "start": 11,
+        "end": 31,
+        "exact": "was signed in Vienna",
+        "prefix": "The treaty ",
+        "suffix": " on the ninth of June.",
         "anchorMethod": "fuzzy-match",
         "matchQuality": "fuzzy"
       }
     },
     {
-      "why": "six are not: the nearest stretch is 6 away, and the span is refused",
+      "why": "nineteen allow none: the same wrong letter in a quote of nineteen is refused, though a stretch of the text is one replacement away",
       "text": "The treaty was signed in Vienna on the ninth of June.",
-      "quoted": { "exact": "sigmed im Viemma om the minth of June" },
+      "quoted": { "exact": "signed in Vienma on" },
+      "reconciled": null
+    },
+    {
+      "why": "the allowance has no minimum: a quote of 37 code points is allowed a twentieth of them, rounded down, which is 1, and five wrong letters are refused",
+      "text": "The treaty was signed in Vienna on the ninth of June.",
+      "quoted": { "exact": "sigmed im Viemma om the ninth of June" },
+      "reconciled": null
+    },
+    {
+      "why": "a short quote that is nowhere in the text is refused, not anchored to whichever stretch of its length is nearest",
+      "text": "The quick brown fox jumps over the lazy dog.",
+      "quoted": { "exact": "zebra" },
       "reconciled": null
     },
     {
@@ -387,40 +582,122 @@
     },
     {
       "why": "two stretches are each one letter away (`cat` at 5, `bat` at 34): the first of them is the span",
-      "text": "Then the cat sat on the mat while the bat sat on the hat.",
-      "quoted": { "exact": "the rat sat on the" },
+      "text": "Then the cat sat on the mat while the bat sat on the mat.",
+      "quoted": { "exact": "the rat sat on the mat" },
       "reconciled": {
         "start": 5,
-        "end": 23,
-        "exact": "the cat sat on the",
+        "end": 27,
+        "exact": "the cat sat on the mat",
         "prefix": "Then ",
-        "suffix": " mat while the bat sat on the hat.",
+        "suffix": " while the bat sat on the mat.",
         "anchorMethod": "fuzzy-match",
         "matchQuality": "fuzzy"
       }
     },
     {
-      "why": "the nearest stretch is the span, not the first within the allowance: the stretch at 11 is 3 away, the one at 40 is 1 away",
-      "text": "They wrote colour and flavour; we write color and flavor.",
-      "quoted": { "exact": "colox and flavor" },
+      "why": "the hints play no part in this search: the model's prefix is before the second of those two stretches, and the span is still the first",
+      "text": "Then the cat sat on the mat while the bat sat on the mat.",
+      "quoted": { "exact": "the rat sat on the mat", "prefix": "while " },
       "reconciled": {
-        "start": 40,
-        "end": 56,
-        "exact": "color and flavor",
-        "prefix": "They wrote colour and flavour; we write ",
+        "start": 5,
+        "end": 27,
+        "exact": "the cat sat on the mat",
+        "prefix": "Then ",
+        "suffix": " while the bat sat on the mat.",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "fuzzy"
+      }
+    },
+    {
+      "why": "of the nearest stretches that begin at the same place, the one nearest the quote in length is the span: the model wrote the last letter wrong (`nintx`), which is one edit from the 28 code points without that letter and one from the 29 with the text's letter in its place, and the quote is 29",
+      "text": "The treaty was signed in Vienna on the ninth of June.",
+      "quoted": { "exact": "signed in Vienna on the nintx" },
+      "reconciled": {
+        "start": 15,
+        "end": 44,
+        "exact": "signed in Vienna on the ninth",
+        "prefix": "The treaty was ",
+        "suffix": " of June.",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "fuzzy"
+      }
+    },
+    {
+      "why": "and of two as near, the shorter: `baana` is one edit from `bana` and one from `banana`, a code point shorter than the quote and a code point longer, and two from `banan`, which is as long as it",
+      "text": "They sold the last ripe banana at the market.",
+      "quoted": { "exact": "sold the last ripe baana" },
+      "reconciled": {
+        "start": 5,
+        "end": 28,
+        "exact": "sold the last ripe bana",
+        "prefix": "They ",
+        "suffix": "na at the market.",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "fuzzy"
+      }
+    },
+    {
+      "why": "the nearest stretch is the span, not the first within the allowance: a quote of 45 code points is allowed 2, the stretch at 6 is 2 away and the one at 59 is 1 away",
+      "text": "Then: the colour and flavor of the wine were praised. Now: the color and flavor of the wine were praised.",
+      "quoted": { "exact": "the colox and flavor of the wine were praised" },
+      "reconciled": {
+        "start": 59,
+        "end": 104,
+        "exact": "the color and flavor of the wine were praised",
+        "prefix": "Then: the colour and flavor of the wine were praised. Now: ",
         "suffix": ".",
         "anchorMethod": "fuzzy-match",
         "matchQuality": "fuzzy"
       }
     },
     {
-      "why": "a text shorter than the quote has no stretch to compare: refused",
+      "why": "the model dropped a letter (`Viena`): the stretch one edit away is a code point longer than the quote, and it is the span, the words the text really has",
+      "text": "The treaty was signed in Vienna on the ninth of June.",
+      "quoted": { "exact": "signed in Viena on the ninth" },
+      "reconciled": {
+        "start": 15,
+        "end": 44,
+        "exact": "signed in Vienna on the ninth",
+        "prefix": "The treaty was ",
+        "suffix": " of June.",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "fuzzy"
+      }
+    },
+    {
+      "why": "the model added a letter (`Viennna`): the stretch one edit away is a code point shorter than the quote",
+      "text": "The treaty was signed in Vienna on the ninth of June.",
+      "quoted": { "exact": "signed in Viennna on the ninth" },
+      "reconciled": {
+        "start": 15,
+        "end": 44,
+        "exact": "signed in Vienna on the ninth",
+        "prefix": "The treaty was ",
+        "suffix": " of June.",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "fuzzy"
+      }
+    },
+    {
+      "why": "a text may be shorter than the quote, by no more than the allowance: here the whole text is the stretch, one edit away, and the span has neither prefix nor suffix",
+      "text": "signed in Vienna on the ninth",
+      "quoted": { "exact": "signed in Viennna on the ninth" },
+      "reconciled": {
+        "start": 0,
+        "end": 29,
+        "exact": "signed in Vienna on the ninth",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "fuzzy"
+      }
+    },
+    {
+      "why": "a text shorter than the quote by more than the allowance has no stretch near enough: refused",
       "text": "A short note.",
       "quoted": { "exact": "a considerably longer quotation" },
       "reconciled": null
     },
     {
-      "why": "words that are nowhere in the text, and nothing like any stretch of it (the nearest is 31 away), are refused",
+      "why": "words that are nowhere in the text, and nothing like any stretch of it (the nearest, of whatever length, is 27 away), are refused",
       "text": "The quick brown fox jumps over the lazy dog.",
       "quoted": { "exact": "Nonexistent Text That Does Not Appear" },
       "reconciled": null
@@ -519,27 +796,27 @@
       }
     },
     {
-      "why": "an edit is of one code point, and a stretch is as long as `exact` in code points: the model wrote the common form (U+5409) of a character the text has in a rare one (U+20BB7, outside the Basic Multilingual Plane), which is one replacement in a stretch of six",
-      "text": "𠮷野家の牛丼を食べた。",
-      "quoted": { "exact": "吉野家の牛丼" },
+      "why": "an edit is of one code point: the model wrote the common form (U+5409) of a character the text has in a rare one (U+20BB7, outside the Basic Multilingual Plane), which is one replacement in a quote of 21, and 21 allow one",
+      "text": "昨日の夜は友達と一緒に𠮷野家の牛丼を食べた。",
+      "quoted": { "exact": "昨日の夜は友達と一緒に吉野家の牛丼を食べた" },
       "reconciled": {
         "start": 0,
-        "end": 6,
-        "exact": "𠮷野家の牛丼",
-        "suffix": "を食べた。",
+        "end": 21,
+        "exact": "昨日の夜は友達と一緒に𠮷野家の牛丼を食べた",
+        "suffix": "。",
         "anchorMethod": "fuzzy-match",
         "matchQuality": "fuzzy"
       }
     },
     {
-      "why": "a quote that holds such a character is compared with stretches of as many code points as it has: nine here, and the first is one replacement away",
-      "text": "the 😀 cat sat",
-      "quoted": { "exact": "the 😀 bat" },
+      "why": "a quote that holds such a character is as long as its code points: 24 here, which allow one edit, and the first stretch of the text is one replacement away",
+      "text": "the 😀 cat sat on the mat today",
+      "quoted": { "exact": "the 😀 bat sat on the mat" },
       "reconciled": {
         "start": 0,
-        "end": 9,
-        "exact": "the 😀 cat",
-        "suffix": " sat",
+        "end": 24,
+        "exact": "the 😀 cat sat on the mat",
+        "suffix": " today",
         "anchorMethod": "fuzzy-match",
         "matchQuality": "fuzzy"
       }
@@ -575,6 +852,68 @@
       "text": "The council resolved that the bridge over the river should be rebuilt in stone before the winter 🌨 and that the cost should be met from the harbour dues of the year.",
       "quoted": { "exact": "the bridgx over the rivxr should be rxbuilt in stonx before the wintxr 🌨 and that the cxst should be met from the harbo" },
       "reconciled": null
+    },
+    {
+      "why": "the allowance is counted in code points at its least as at its greatest: this quote is 19 of them, which allow none, and its one wrong letter is refused, though it is 20 UTF-16 code units, which would allow one",
+      "text": "Then the 🦊 jumped over a log and ran.",
+      "quoted": { "exact": "🦊 jumped ovex a log" },
+      "reconciled": null
+    },
+    {
+      "why": "a stretch longer than the quote is longer in code points: the model dropped a letter (`lzy`) from words that begin with a character outside the Basic Multilingual Plane, after another, and the span is the 26 code points the text has",
+      "text": "🎉 The 🦊 jumped over the lazy dog and ran.",
+      "quoted": { "exact": "🦊 jumped over the lzy dog" },
+      "reconciled": {
+        "start": 6,
+        "end": 32,
+        "exact": "🦊 jumped over the lazy dog",
+        "prefix": "🎉 The ",
+        "suffix": " and ran.",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "fuzzy"
+      }
+    },
+    {
+      "why": "such a character that the model dropped is one code point, and so one edit: the span takes it in",
+      "text": "Then the 😀 cat sat on the mat.",
+      "quoted": { "exact": "the  cat sat on the mat" },
+      "reconciled": {
+        "start": 5,
+        "end": 29,
+        "exact": "the 😀 cat sat on the mat",
+        "prefix": "Then ",
+        "suffix": ".",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "fuzzy"
+      }
+    },
+    {
+      "why": "a span found without regard to case, after a capital I with a dot and two characters outside the Basic Multilingual Plane, and beginning with one of them: every one is a single code point of the text, whatever it is lower-cased or in UTF-16",
+      "text": "🎉 İstanbul and 🦊 ANKARA are cities.",
+      "quoted": { "exact": "🦊 ankara" },
+      "reconciled": {
+        "start": 15,
+        "end": 23,
+        "exact": "🦊 ANKARA",
+        "prefix": "🎉 İstanbul and ",
+        "suffix": " are cities.",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "case-insensitive"
+      }
+    },
+    {
+      "why": "a span found by normalizing that ends with such a character ends just after it, and the white space the text ends with is its suffix",
+      "text": "🎉 Result: “done” 🦊 \n\n",
+      "quoted": { "exact": "\"done\" 🦊" },
+      "reconciled": {
+        "start": 10,
+        "end": 18,
+        "exact": "“done” 🦊",
+        "prefix": "🎉 Result: ",
+        "suffix": " \n\n",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "normalized"
+      }
     }
   ]
 }

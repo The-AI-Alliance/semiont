@@ -15,7 +15,9 @@
  *      marker character that may be absorbed in any inter-character gap, with
  *      an optional space on either side (anchorRuns emits a space *then* the
  *      newline). Ordinary spaces are NEVER wildcards, so "abc" cannot match
- *      "a b c" — only a real break is absorbable.
+ *      "a b c" — only a real break is absorbable. A space of the claim is one
+ *      space of the text or one break: a line broken between two words with
+ *      no space beside the break is found as one broken inside a word is.
  *
  * The ordering is the safety property: the permissive matcher runs only where
  * the strict one already failed, so it can never turn a working citation into
@@ -29,6 +31,9 @@ const BREAK_MARKER = '';
 
 /** Optional-break gap: the marker, with an optional space on either side. */
 const BREAK_GAP = `(?: ?${BREAK_MARKER} ?)?`;
+
+/** A space of the claim: one space of the text, or the marker of a line broken where the space would be. */
+const SPACE_OR_BREAK = `(?: |${BREAK_MARKER})`;
 
 const escapeRegExp = (ch: string): string => ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -85,7 +90,7 @@ export function findClaimSpan(
   // a code point at a time (`u`), as it is built: a match is never inside a
   // character.
   const marker = anchored.text.replace(/\n/g, BREAK_MARKER);
-  const pattern = [...needle].map(escapeRegExp).join(BREAK_GAP);
+  const pattern = [...needle].map((ch) => (ch === ' ' ? SPACE_OR_BREAK : escapeRegExp(ch))).join(BREAK_GAP);
   const match = new RegExp(pattern, 'u').exec(marker);
   if (match) {
     return { start: offsets.offsetAt(match.index), end: offsets.offsetAt(match.index + match[0].length) };

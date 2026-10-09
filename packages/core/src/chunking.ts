@@ -114,7 +114,7 @@ export function cutChunk(
  * boundaries, then word boundaries. Each chunk overlaps with the previous
  * by `overlap` tokens worth of text.
  */
-export function chunkText(text: string, config: ChunkingConfig = DEFAULT_CHUNKING_CONFIG): string[] {
+export function chunkText(text: string, config: ChunkingConfig): string[] {
   const offsets = textOffsets(text);
   if (offsets.length === 0) return [];
   if (tokensIn(offsets.length) <= config.chunkSize) {

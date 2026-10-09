@@ -21,8 +21,9 @@
  * The shared helper extracts both from source at the corrected position,
  * so the no-overlap invariant holds by construction.
  *
- * Returns `null` when the LLM emitted text that doesn't appear in the
- * source. Callers filter; the helper doesn't decide for them.
+ * Returns `null` when the LLM emitted nothing but white space, or text that
+ * doesn't appear in the source. Callers filter; the helper doesn't decide for
+ * them.
  *
  * @see https://www.w3.org/TR/annotation-model/#text-quote-selector
  */
@@ -41,7 +42,7 @@ export type AnchorMethod =
   | 'unique-match'
   /** Multiple occurrences; LLM-emitted prefix/suffix picked one. */
   | 'context-recovered'
-  /** Exact text not found verbatim; fuzzy match recovered it. */
+  /** Exact text not found verbatim; a looser search recovered it, `matchQuality` naming which. */
   | 'fuzzy-match'
   /** Multiple occurrences, no context disambiguated — risky fallback. */
   | 'first-of-many';
@@ -70,11 +71,17 @@ export interface LlmSelectorInput {
   suffix?: string;
 }
 
+/** A span of the source, as two offsets: from `start` up to but not including `end`. */
+interface Place {
+  start: number;
+  end: number;
+}
+
 // Code points, all three.
 const CONTEXT_LENGTH = 64;
 const MAX_EXTENSION = 32;
 // Minimum window of source text compared against an LLM-emitted prefix/suffix
-// when disambiguating multiple occurrences. The actual window grows to the
+// when choosing among several places. The actual window grows to the
 // length of the LLM's prefix/suffix when that's longer — the prompts invite
 // up to 64 code points, and a fixed window of 32 can't `endsWith`/`includes`
 // a string of 64, which would silently defeat disambiguation for exactly the
@@ -84,18 +91,9 @@ const DISAMBIGUATION_MIN_WINDOW = 32;
 /** What a context is not lengthened past: white space, or one of eighteen marks. */
 const BOUNDARY = /[\s.,;:!?'"()\[\]{}<>\/\\]/;
 
-/**
- * The text between two offsets. An offset past the end of the text is its
- * end, as a string's own `substring` has it: `findBestTextMatch` can answer a
- * span that runs past the end, since its case-insensitive search takes a
- * position in the lower-cased text for one in the text, and past the end
- * there is nothing.
- */
+/** The text between two offsets. */
 function between(content: string, offsets: TextOffsets, start: number, end: number): string {
-  return content.substring(
-    offsets.indexAt(Math.min(start, offsets.length)),
-    offsets.indexAt(Math.min(end, offsets.length)),
-  );
+  return content.substring(offsets.indexAt(start), offsets.indexAt(end));
 }
 
 /**
@@ -132,9 +130,7 @@ function contextOf(
     let prefixStart = Math.max(0, start - CONTEXT_LENGTH);
     let extensionCount = 0;
     while (prefixStart > 0 && extensionCount < MAX_EXTENSION) {
-      // The character before the prefix: none, when that is past the end of the text.
-      const char = between(content, offsets, prefixStart - 1, prefixStart);
-      if (!char || BOUNDARY.test(char)) break;
+      if (BOUNDARY.test(between(content, offsets, prefixStart - 1, prefixStart))) break;
       prefixStart--;
       extensionCount++;
     }
@@ -156,95 +152,96 @@ function contextOf(
 }
 
 /**
- * Reconcile LLM-emitted offsets against the source. Returns a selector
+ * Reconcile what the LLM quoted against the source. Returns a selector
  * whose `start`/`end` are verified to bracket `exact` in `content`, and
- * whose `prefix`/`suffix` are extracted from source — never carried
+ * whose `exact`/`prefix`/`suffix` are extracted from source — never carried
  * verbatim from the LLM. `start` and `end` are offsets: they count code
  * points from the start of `content`.
  *
  * `offsets` is the content's own (`textOffsets(content)`): a caller with
  * several proposals over one content makes it once.
  *
- * Returns `null` if `exact` cannot be found anywhere in the content,
- * even via fuzzy match. Callers filter null and log the drop.
+ * Returns `null` if `exact` is empty or only white space, or cannot be found
+ * anywhere in the content, even via fuzzy match. Callers filter null and log
+ * the drop.
  */
 export function reconcileSelector(
   content: string,
   offsets: TextOffsets,
   llm: LlmSelectorInput,
 ): ReconciledSelector | null {
-  const { exact, prefix: llmPrefix, suffix: llmSuffix } = llm;
-  if (!exact) return null;
+  const { exact } = llm;
+  // Nothing, or only white space, is no words to find.
+  if (exact.trim() === '') return null;
 
-  // How many code points `exact` is: a place it is found at ends this far on.
-  const length = textOffsets(exact).length;
+  /** What the LLM said stands beside `exact`, when that is more than white space: a hint of where. */
+  const hint = (given: string | undefined): string | undefined =>
+    given === undefined || given.trim() === '' ? undefined : given;
+  const prefixHint = hint(llm.prefix);
+  const suffixHint = hint(llm.suffix);
 
-  /** The selector for `exact` found at the offset `start`. */
-  const foundAt = (start: number, anchorMethod: AnchorMethod): ReconciledSelector => {
-    const end = start + length;
+  // Size the comparison window to the hint (with a floor), so a prefix of 64
+  // code points is matched against at least 64 of source — a fixed smaller
+  // window can't `endsWith`/`includes` a longer LLM string.
+  const prefixWindow = Math.max(DISAMBIGUATION_MIN_WINDOW, prefixHint === undefined ? 0 : textOffsets(prefixHint).length);
+  const suffixWindow = Math.max(DISAMBIGUATION_MIN_WINDOW, suffixHint === undefined ? 0 : textOffsets(suffixHint).length);
+
+  /** Whether the source around a place carries every hint given. */
+  const fits = ({ start, end }: Place): boolean => {
+    const before = between(content, offsets, Math.max(0, start - prefixWindow), start);
+    const after = between(content, offsets, end, Math.min(offsets.length, end + suffixWindow));
+    const prefixOk = prefixHint === undefined || before.endsWith(prefixHint) || before.includes(prefixHint.trim());
+    const suffixOk = suffixHint === undefined || after.startsWith(suffixHint) || after.includes(suffixHint.trim());
+    return prefixOk && suffixOk;
+  };
+
+  /** The first of several places that the hints pick: none when no hint was given, or no place fits. */
+  const hinted = (places: Place[]): Place | undefined =>
+    prefixHint === undefined && suffixHint === undefined ? undefined : places.find(fits);
+
+  /** A place as a selector has it: its text and its context are the source's own. */
+  const quoteAt = ({ start, end }: Place): Pick<ReconciledSelector, 'start' | 'end' | 'exact' | 'prefix' | 'suffix'> => {
     const ctx = contextOf(content, offsets, start, end);
     return {
       start,
       end,
-      exact,
+      // The source's text, not the LLM's version — the LLM may have emitted
+      // slightly different characters (smart vs straight quotes, etc.) and
+      // we store what's verifiable.
+      exact: between(content, offsets, start, end),
       ...(ctx.prefix !== undefined ? { prefix: ctx.prefix } : {}),
       ...(ctx.suffix !== undefined ? { suffix: ctx.suffix } : {}),
-      anchorMethod,
     };
   };
 
-  // Find all verbatim occurrences.
-  const occurrences = occurrencesOf(content, offsets, exact);
+  // Find all verbatim occurrences: a place each, as long as `exact` is in code points.
+  const length = textOffsets(exact).length;
+  const occurrences: Place[] = occurrencesOf(content, offsets, exact).map((start) => ({ start, end: start + length }));
 
   if (occurrences.length === 1) {
-    return foundAt(occurrences[0]!, 'unique-match');
+    return { ...quoteAt(occurrences[0]!), anchorMethod: 'unique-match' };
   }
 
   if (occurrences.length > 1) {
-    // Disambiguate via LLM-emitted prefix/suffix when present. Size the
-    // comparison window to the LLM's prefix/suffix (with a floor), so a
-    // prefix of 64 code points is matched against at least 64 of source — a
-    // fixed smaller window can't `endsWith`/`includes` a longer LLM string.
-    if (llmPrefix || llmSuffix) {
-      const prefixWindow = Math.max(DISAMBIGUATION_MIN_WINDOW, llmPrefix === undefined ? 0 : textOffsets(llmPrefix).length);
-      const suffixWindow = Math.max(DISAMBIGUATION_MIN_WINDOW, llmSuffix === undefined ? 0 : textOffsets(llmSuffix).length);
-      for (const pos of occurrences) {
-        const candPrefix = between(content, offsets, Math.max(0, pos - prefixWindow), pos);
-        const candSuffix = between(content, offsets, pos + length, pos + length + suffixWindow);
-        const prefixOk = !llmPrefix || candPrefix.endsWith(llmPrefix) || candPrefix.includes(llmPrefix.trim());
-        const suffixOk = !llmSuffix || candSuffix.startsWith(llmSuffix) || candSuffix.includes(llmSuffix.trim());
-        if (prefixOk && suffixOk) {
-          return foundAt(pos, 'context-recovered');
-        }
-      }
-    }
+    const chosen = hinted(occurrences);
+    if (chosen !== undefined) return { ...quoteAt(chosen), anchorMethod: 'context-recovered' };
 
     // No context match. Fall back to the first occurrence and flag for
     // audit. Without an LLM-emitted locality hint there's no better
     // signal at this stage; `first-of-many` callers should log loudly so
     // operators can correct misanchored annotations.
-    return foundAt(occurrences[0]!, 'first-of-many');
+    return { ...quoteAt(occurrences[0]!), anchorMethod: 'first-of-many' };
   }
 
-  // No verbatim occurrences. Try fuzzy match (case-insensitive,
-  // whitespace-normalized, Levenshtein with 5% tolerance). No position
-  // hint to bias the search — fuzzy match scans content globally.
-  const cache = buildContentCache(content, offsets);
-  const fuzzy = findBestTextMatch(content, exact, undefined, cache);
-  if (!fuzzy) return null;
-
-  const actual = between(content, offsets, fuzzy.start, fuzzy.end);
-  const ctx = contextOf(content, offsets, fuzzy.start, fuzzy.end);
+  // No verbatim occurrences. Try the looser searches (whitespace-normalized,
+  // case-insensitive, edit distance within 5% of the length). Of several
+  // places one of them finds, the hints choose as they do among verbatim
+  // ones, and the first is taken when they choose none.
+  const found = findBestTextMatch(content, exact, buildContentCache(content));
+  if (!found) return null;
   return {
-    start: fuzzy.start,
-    end: fuzzy.end,
-    // Use the actual source text, not the LLM's version — the LLM may
-    // have emitted slightly different characters (smart vs straight
-    // quotes, etc.) and we store what's verifiable.
-    exact: actual,
-    ...(ctx.prefix !== undefined ? { prefix: ctx.prefix } : {}),
-    ...(ctx.suffix !== undefined ? { suffix: ctx.suffix } : {}),
+    ...quoteAt(hinted(found.places) ?? found.places[0]!),
     anchorMethod: 'fuzzy-match',
-    matchQuality: fuzzy.matchQuality,
+    matchQuality: found.matchQuality,
   };
 }
