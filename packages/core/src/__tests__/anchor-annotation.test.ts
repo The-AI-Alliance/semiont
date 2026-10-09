@@ -351,3 +351,121 @@ describe('anchorAnnotation — calibration', () => {
     expect(CONTEXT_FULL_WEIGHT).toBeGreaterThan(POSITION_WEIGHT_MAX);
   });
 });
+
+// ─── What a position counts ──────────────────────────────────────────────
+
+// A selector's `start` and `end`, and the anchor answered, are offsets: they
+// count code points. A string counts a character outside the Basic
+// Multilingual Plane as two, so after one an offset and a string's own
+// position differ.
+describe('anchorAnnotation — offsets count code points', () => {
+  it('fast-path: a stored position after such a character is taken as an offset', () => {
+    const content = '😀 The question for decision';
+    const result = anchorAnnotation(content, {
+      position: { start: 2, end: 27 },
+      quote: { exact: 'The question for decision' },
+    });
+    expect(result).toEqual<RenderedAnchor>({ start: 2, end: 27, strategy: 'fast-path', confidence: 'high' });
+  });
+
+  it('unique-occurrence: the anchor answered is offsets', () => {
+    expect(anchorAnnotation('aaa 😀 BBB ccc', { quote: { exact: 'BBB' } })).toEqual<RenderedAnchor>({
+      start: 6,
+      end: 9,
+      strategy: 'unique-occurrence',
+      confidence: 'high',
+    });
+  });
+
+  it('a quote that holds such a character is as long as its code points', () => {
+    expect(anchorAnnotation('x 𝑥𝑦 z', { quote: { exact: '𝑥𝑦' } })).toEqual<RenderedAnchor>({
+      start: 2,
+      end: 4,
+      strategy: 'unique-occurrence',
+      confidence: 'high',
+    });
+  });
+
+  it('context-disambiguated: the occurrence the context picks is answered as offsets', () => {
+    const content = '😀 Section A: the parties agree to terms. 😀 Section B: the parties agree to conditions.';
+    const result = anchorAnnotation(content, {
+      quote: { exact: 'the parties agree', prefix: 'Section B: ', suffix: ' to conditions' },
+    });
+    expect(result).toEqual<RenderedAnchor>({
+      start: 54,
+      end: 71,
+      strategy: 'context-disambiguated',
+      confidence: 'high',
+    });
+  });
+
+  it('position-tiebreaker: the window is of code points', () => {
+    // Two occurrences, at offsets 0 and 1003. The hint, 600, is 403 code
+    // points from the second and 600 from the first: both inside the window,
+    // the second nearer. Counted in a string's units the second is 1403 away,
+    // outside the window, and the first would win.
+    const content = `foo${'😀'.repeat(1000)}foo`;
+    const result = anchorAnnotation(content, {
+      position: { start: 600, end: 603 },
+      quote: { exact: 'foo' },
+    });
+    expect(POSITION_WINDOW).toBe(1024);
+    expect(result).toEqual<RenderedAnchor>({
+      start: 1003,
+      end: 1006,
+      strategy: 'position-tiebreaker',
+      confidence: 'medium',
+    });
+  });
+
+  it('position-fallback: a position is in the text when it is within its code points', () => {
+    // Seven code points, ten units of a string.
+    const content = '😀😀😀 abc';
+    expect(anchorAnnotation(content, { position: { start: 4, end: 7 } })).toEqual<RenderedAnchor>({
+      start: 4,
+      end: 7,
+      strategy: 'position-fallback',
+      confidence: 'low',
+    });
+    expect(anchorAnnotation(content, { position: { start: 8, end: 10 } })).toBeNull();
+    expect(anchorAnnotation(content, { position: { start: 8, end: 10 }, quote: { exact: 'zzz' } })).toBeNull();
+  });
+
+  // A stored context is looked for, loosely, in as many code points beside
+  // an occurrence as the context itself has. This one is 34, twelve of them
+  // outside the Basic Multilingual Plane, and has a space the content does
+  // not have there: the 34 code points beside the second occurrence reach
+  // only part of it, so it tells the occurrences apart no better than no
+  // context does. The 46 units a string counts would reach all of it.
+  const FORMULA = '𝑔(𝑥) = 𝑎𝑥𝑥 + 𝑏𝑥𝑦 + 𝑐𝑦𝑦 with 𝑎 > 0';
+
+  it('a stored prefix is looked for in as many code points before an occurrence as it has', () => {
+    const content = `The bound holds. For ${FORMULA}, it also holds.`;
+    expect(anchorAnnotation(content, { quote: { exact: 'holds', prefix: `${FORMULA} ` } })).toEqual<RenderedAnchor>({
+      start: 10,
+      end: 15,
+      strategy: 'position-tiebreaker',
+      confidence: 'low',
+    });
+  });
+
+  it('a stored suffix is looked for in as many code points after an occurrence as it has', () => {
+    const content = `It holds. It also holds for ${FORMULA}.`;
+    expect(anchorAnnotation(content, { quote: { exact: 'holds', suffix: ` ${FORMULA}` } })).toEqual<RenderedAnchor>({
+      start: 3,
+      end: 8,
+      strategy: 'position-tiebreaker',
+      confidence: 'low',
+    });
+  });
+
+  it('a position that is no offset of the text takes no fast path, and is no error', () => {
+    // 0.5 is between no two characters. The quote is still found, and the
+    // position still says which occurrence is nearer.
+    const result = anchorAnnotation('abc abc', {
+      position: { start: 0.5, end: 3.5 },
+      quote: { exact: 'abc' },
+    });
+    expect(result).toEqual<RenderedAnchor>({ start: 0, end: 3, strategy: 'position-tiebreaker', confidence: 'medium' });
+  });
+});

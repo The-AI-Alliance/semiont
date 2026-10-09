@@ -6,8 +6,8 @@ machine-readable text still gets annotated.
 An annotation is an event over an immutable resource. It never edits the
 resource, so the only thing tying it to a place in that resource is its
 **selector**. What can serve as a selector depends entirely on what the resource
-offers a reader: a Markdown file offers character offsets; a scanned page offers
-nothing at all until something recovers it.
+offers a reader: a Markdown file offers offsets into its text, counted in code
+points; a scanned page offers nothing at all until something recovers it.
 
 This doc is the pipeline that closes that gap.
 
@@ -20,14 +20,16 @@ interface AnchoredText { text: string; items: PdfTextItem[] }
 interface PdfTextItem { start; end; page; x; y; width; height }
 ```
 
-Text, paired with the geometry that indexes it. `items[i]` says *"characters
-`start`..`end` of `text` are drawn at this rectangle on this page"*.
+Text, paired with the geometry that indexes it. `items[i]` says *"code points
+`start`..`end` of `text` are drawn at this rectangle on this page"*: `start` and
+`end` are offsets, which count Unicode code points from the start of `text`, as
+every text offset does.
 
 **Only the coordinate space varies by medium.** The shape does not:
 
 | Medium | Coordinates | Producer |
 |---|---|---|
-| text / markdown | character offsets | decode |
+| text / markdown | code-point offsets | decode |
 | PDF, born-digital | page + rect | text layer |
 | PDF / image, scanned | page + rect | OCR |
 | PDF, Semiont-generated | page + rect | authored at generation |
@@ -47,8 +49,9 @@ textUnder(anchored, rect)    → string    a person drew a box; find its text
 ```
 
 **`locate` serves AI detection.** A model returns `{ exact, start, end }` over the
-extracted text; `buildPdfAnnotation` turns that span into one `FragmentSelector`
-per line, plus a `TextQuoteSelector` carrying the quote.
+extracted text, `start` and `end` being offsets in code points like the items'
+own; `buildPdfAnnotation` turns that span into one `FragmentSelector` per line,
+plus a `TextQuoteSelector` carrying the quote.
 
 **`textUnder` serves manual annotation.** The canvas hands it the rectangle the
 user dragged, and the answer becomes the `TextQuoteSelector` on an otherwise

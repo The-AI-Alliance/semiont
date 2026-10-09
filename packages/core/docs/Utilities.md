@@ -50,7 +50,7 @@ const text3 = decodeWithCharset(buffer3.buffer, 'text/plain; charset=windows-125
 
 **Why This Matters:**
 
-When creating annotations, the worker calculates TextPositionSelector offsets in the **original character space**. The Browser must decode content using the **same charset** to ensure offsets align correctly.
+A TextPositionSelector offset counts the Unicode code points of the text as it was decoded, in the **original character space**. The Browser must decode content using the **same charset** as the worker that calculated the offsets, or they count into another text.
 
 ```typescript
 // ❌ WRONG - Uses UTF-8 for ISO-8859-1 document
@@ -76,6 +76,19 @@ const sel = reconcileSelector(rightText, { exact: 'café' });
 
 Utilities for extracting prefix/suffix context around text selections and validating AI-generated annotation offsets.
 
+Every `start` and `end` here is an **offset**: it counts Unicode code points from the start of the text, as a W3C TextPositionSelector does. A JavaScript string is indexed in UTF-16 code units, where a character outside the Basic Multilingual Plane (an emoji, a mathematical letter, some CJK) is two, so the two counts differ after the first such character. `textOffsets` converts, once for a text:
+
+```typescript
+import { textOffsets } from '@semiont/core';
+
+const content = "a😀 brown fox";
+const offsets = textOffsets(content);
+
+offsets.offsetAt(content.indexOf("brown")); // 3: the offset of a position in the string
+content.slice(offsets.indexAt(3), offsets.indexAt(8)); // "brown": the positions of two offsets
+offsets.length; // 12: the text's length in code points
+```
+
 ### Extract Context
 
 Extract prefix and suffix context for W3C TextQuoteSelector:
@@ -84,8 +97,8 @@ Extract prefix and suffix context for W3C TextQuoteSelector:
 import { extractContext } from '@semiont/core';
 
 const content = "The United States Congress passed the bill.";
-const start = 4;   // "United"
-const end = 17;    // "States"
+const start = 4;   // the offset of "United"
+const end = 17;    // the offset just after "States"
 
 const { prefix, suffix } = extractContext(content, start, end);
 // prefix: "The "
@@ -93,13 +106,13 @@ const { prefix, suffix } = extractContext(content, start, end);
 ```
 
 **Features:**
-- Extracts up to 64 characters before and after
+- Extracts up to 64 code points before and after
 - Extends to word boundaries (avoids cutting words)
 - Returns `undefined` for prefix/suffix at document boundaries
 
 ### Reconcile LLM-Emitted Selectors
 
-The LLM does not supply offsets — it supplies `exact` (a verbatim substring) plus optional prefix/suffix context. `reconcileSelector` computes `start`/`end` by searching the source, producing a selector whose offsets are provably consistent with the source content:
+The LLM does not supply offsets — it supplies `exact` (a verbatim substring) plus optional prefix/suffix context. `reconcileSelector` computes `start`/`end` by searching the source, producing a selector whose offsets (in code points) are provably consistent with the source content:
 
 ```typescript
 import { reconcileSelector } from '@semiont/core';
@@ -137,7 +150,7 @@ Returns `null` only when the LLM emitted text that doesn't appear in source at a
 
 ## Render-Time Anchoring
 
-`anchorAnnotation` is the renderer's counterpart to `reconcileSelector`. It is **verbatim-only**: it re-anchors on an exact `TextQuoteSelector` match and otherwise renders at the stored offset, flagged — it never fuzzy-matches at render time. The stored selectors are written to agree, so the only legitimate render-time discrepancy is *positional drift* (content shifted above the span). Position is a locality signal used to break ties among verbatim occurrences when context isn't unique.
+`anchorAnnotation` is the renderer's counterpart to `reconcileSelector`. It is **verbatim-only**: it re-anchors on an exact `TextQuoteSelector` match and otherwise renders at the stored offset, flagged — it never fuzzy-matches at render time. The stored selectors are written to agree, so the only legitimate render-time discrepancy is *positional drift* (content shifted above the span). Position is a locality signal used to break ties among verbatim occurrences when context isn't unique. The position given and the anchor answered are offsets, in code points.
 
 ```typescript
 import { anchorAnnotation } from '@semiont/core';
@@ -173,7 +186,7 @@ console.log(anchor);
 
 ### Verify Position
 
-Validate that a position correctly points to expected text:
+Validate that a position, two offsets in code points, correctly points to expected text:
 
 ```typescript
 import { verifyPosition } from '@semiont/core';

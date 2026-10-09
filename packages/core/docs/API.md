@@ -173,8 +173,16 @@ import {
   normalizeText,
   buildContentCache,
   findBestTextMatch,
+  textOffsets,
 } from '@semiont/core';
 ```
+
+Every position these take or answer is an **offset**: it counts Unicode code
+points from the start of the text, as a `TextPositionSelector` does. A
+JavaScript string is indexed in UTF-16 code units, where a character outside
+the Basic Multilingual Plane is two, so a caller that slices a string or hands
+a position to something that indexes one converts with `textOffsets(text)`:
+`indexAt(offset)` going in, `offsetAt(index)` coming out.
 
 ## PDF anchoring
 
@@ -187,7 +195,8 @@ because it carries pdf.js, Tesseract and `node:fs`.
 ```typescript
 import { locate, textUnder, anchorRuns, isTextRun, type AnchoredText } from '@semiont/core';
 
-// A model quoted text; find its geometry. One rect per line.
+// A model quoted text; find its geometry. One rect per line. The span is two
+// offsets into anchored.text, in code points, as each item's start and end are.
 const { rects } = locate(anchored, match.start, match.end);
 
 // A person drew a box; find its text. '' when it covers no words.

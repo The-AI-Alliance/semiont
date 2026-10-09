@@ -61,6 +61,18 @@ describe('findClaimSpan', () => {
   it('returns null on a genuine miss', () => {
     expect(findClaimSpan(anchoredWith('Entirely unrelated text.'), 'quantum entanglement')).toBeNull();
   });
+
+  // A string compares code units, and would find half of a pair inside a
+  // character outside the Basic Multilingual Plane. The text does not have
+  // such a claim there, character for character, and the place has no offset.
+  it('does not find a claim that begins with half of a pair inside a character (strict)', () => {
+    expect('a😀bc'.indexOf('\ude00bc')).toBe(2);
+    expect(findClaimSpan(anchoredWith('a😀bc'), '\ude00bc')).toBeNull();
+  });
+
+  it('nor one that only the break-aware search could find there', () => {
+    expect(findClaimSpan(anchoredWith('a😀b\nc'), '\ude00bc')).toBeNull();
+  });
 });
 
 describe('locate — proportional boundary narrowing', () => {

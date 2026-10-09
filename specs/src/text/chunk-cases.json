@@ -1,5 +1,5 @@
 {
-  "$comment": "How a text is cut into chunks, as every implementation must cut it. A worker cuts a text into the pieces it sends a model one at a time, and where the next cut starts is what a job's cursor records, so two workers that cut differently cannot take up each other's work. TypeScript (packages/core: estimateTokens, cutChunk, chunkText) runs every case and fails on a difference; a worker written in another language runs the same file. THE RULE. A text's `estimatedTokens` is its length in characters divided by four, rounded up. A `chunking` is two numbers of tokens, `chunkSize` and `overlap`; `defaults` is the chunking used when none is given. A cut made at the offset `at` takes a `piece` of the text and says where the `next` cut starts. Its window ends at `at` + 4 x chunkSize, or at the end of the text if that comes first. When the window ends where the text does, the cut is there. Otherwise the cut is moved back to a boundary: the first of these three kinds that has one starting at or before the window's end and after the window's middle, which is `at` + 2 x chunkSize (after it, not at it). A blank line, the last \"\\n\\n\": the cut is where it starts. Else the end of a sentence, the last full stop followed by a space: the cut is after the full stop. Else the last space (U+0020 only): the cut is where it is. With none of them, the cut is at the window's end. A boundary that starts exactly at the window's end counts, so a piece cut after a full stop there is one character longer than the window. The `piece` is the text from `at` to the cut, with the white space at both its ends removed. `next` is the length of the text when the cut is at its end; otherwise it is the cut less 4 x overlap, unless that is not after `at`, when it is the cut itself. A text's `chunks` are: none, for the empty text; the text itself, whole and untrimmed, when its estimatedTokens is no more than chunkSize; otherwise the pieces of the cuts made from 0, each at the `next` of the one before, until a cut's `next` is the length of the text, leaving out every piece that is empty. READING A CASE. Every case states `text`, its `estimatedTokens`, a `chunking`, the `chunks` of the text under it, and `cuts`: each a cut of the text under that chunking, made on its own at `at`, with the `piece` and `next` it answers. In every case the cuts are the walk from 0. White space is what Unicode gives the White_Space property; no case rests on U+0085 or U+FEFF, about which the trimming an implementation is born with disagrees. What an offset counts is stated in a table of its own; every text here is of the Basic Multilingual Plane, where it makes no difference. Add a case here before changing an implementation.",
+  "$comment": "How a text is cut into chunks, as every implementation must cut it. A worker cuts a text into the pieces it sends a model one at a time, and where the next cut starts is what a job's cursor records, so two workers that cut differently cannot take up each other's work. TypeScript (packages/core: estimateTokens, cutChunk, chunkText) runs every case and fails on a difference; a worker written in another language runs the same file. THE RULE. Every offset and every length here counts Unicode code points: `at` and `next`, a text's length, the 4 x chunkSize of a window and the 4 x overlap. A text's `estimatedTokens` is its length in code points divided by four, rounded up. A `chunking` is two numbers of tokens, `chunkSize` and `overlap`; `defaults` is the chunking used when none is given. A cut made at the offset `at` takes a `piece` of the text and says where the `next` cut starts. Its window ends at `at` + 4 x chunkSize, or at the end of the text if that comes first. When the window ends where the text does, the cut is there. Otherwise the cut is moved back to a boundary: the first of these three kinds that has one starting at or before the window's end and after the window's middle, which is `at` + 2 x chunkSize (after it, not at it). A blank line, the last \"\\n\\n\": the cut is where it starts. Else the end of a sentence, the last full stop followed by a space: the cut is after the full stop. Else the last space (U+0020 only): the cut is where it is. With none of them, the cut is at the window's end. A boundary that starts exactly at the window's end counts, so a piece cut after a full stop there is one code point longer than the window. The `piece` is the text from `at` to the cut, with the white space at both its ends removed. `next` is the length of the text when the cut is at its end; otherwise it is the cut less 4 x overlap, unless that is not after `at`, when it is the cut itself. A text's `chunks` are: none, for the empty text; the text itself, whole and untrimmed, when its estimatedTokens is no more than chunkSize; otherwise the pieces of the cuts made from 0, each at the `next` of the one before, until a cut's `next` is the length of the text, leaving out every piece that is empty. READING A CASE. Every case states `text`, its `estimatedTokens`, a `chunking`, the `chunks` of the text under it, and `cuts`: each a cut of the text under that chunking, made on its own at `at`, with the `piece` and `next` it answers. In every case the cuts are the walk from 0. White space is what Unicode gives the White_Space property; no case rests on U+0085 or U+FEFF, about which the trimming an implementation is born with disagrees. What an offset counts is held by a table of its own, specs/src/text/offset-cases.json; some texts here have a character outside the Basic Multilingual Plane, which is one code point and two UTF-16 code units, so that a count of code units fails them. Add a case here before changing an implementation.",
   "defaults": { "chunkSize": 512, "overlap": 64 },
   "cases": [
     {
@@ -156,13 +156,47 @@
       ]
     },
     {
-      "why": "a combining mark is a character of its own: an e and the acute accent after it (U+0301) are two, so this text is five characters and two tokens where the same word with a single accented letter would be four and one",
+      "why": "a combining mark is a code point of its own: an e and the acute accent after it (U+0301) are two, so this text is five code points and two tokens where the same word with a single accented letter would be four and one",
       "text": "café",
       "estimatedTokens": 2,
       "chunking": { "chunkSize": 5, "overlap": 1 },
       "chunks": ["café"],
       "cuts": [
         { "at": 0, "piece": "café", "next": 5 }
+      ]
+    },
+    {
+      "why": "a character outside the Basic Multilingual Plane is one code point: four of them, fifteen letters and a space are twenty code points and five tokens, so the text is one chunk, whole and untrimmed; a count of UTF-16 code units makes them twenty-four and six tokens, and cuts the text",
+      "text": "😀😀😀😀abcdefghijklmno ",
+      "estimatedTokens": 5,
+      "chunking": { "chunkSize": 5, "overlap": 1 },
+      "chunks": ["😀😀😀😀abcdefghijklmno "],
+      "cuts": [
+        { "at": 0, "piece": "😀😀😀😀abcdefghijklmno", "next": 20 }
+      ]
+    },
+    {
+      "why": "a window of twenty code points that ends just after such a character takes the whole of it, since a cut is between two code points and never inside one; and the last cut's `next` is the text's twenty-six code points",
+      "text": "abcdefghijklmnopqrs😀uvwxyz",
+      "estimatedTokens": 7,
+      "chunking": { "chunkSize": 5, "overlap": 1 },
+      "chunks": ["abcdefghijklmnopqrs😀", "qrs😀uvwxyz"],
+      "cuts": [
+        { "at": 0, "piece": "abcdefghijklmnopqrs😀", "next": 16 },
+        { "at": 16, "piece": "qrs😀uvwxyz", "next": 26 }
+      ]
+    },
+    {
+      "why": "a walk through a text with three such characters: the blank line is at 13 and the first cut's `next` is 9, the sentence ends at 22, the last space is at 39, and every one of them is a count of code points, as are the window's twenty and its middle",
+      "text": "🎉 Alpha beta.\n\n𝑥 Gamma. Delta 😀 epsilon zeta.",
+      "estimatedTokens": 12,
+      "chunking": { "chunkSize": 5, "overlap": 1 },
+      "chunks": ["🎉 Alpha beta.", "eta.\n\n𝑥 Gamma.", "mma. Delta 😀 epsilon", "ilon zeta."],
+      "cuts": [
+        { "at": 0, "piece": "🎉 Alpha beta.", "next": 9 },
+        { "at": 9, "piece": "eta.\n\n𝑥 Gamma.", "next": 19 },
+        { "at": 19, "piece": "mma. Delta 😀 epsilon", "next": 35 },
+        { "at": 35, "piece": "ilon zeta.", "next": 45 }
       ]
     }
   ]

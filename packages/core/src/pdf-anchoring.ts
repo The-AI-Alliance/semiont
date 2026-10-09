@@ -2,10 +2,13 @@
  * Text ↔ geometry anchoring for PDFs.
  *
  * Two directions over the same pairing of text and the runs that index it:
- * `locate` turns a character span into rectangles (an annotation the model
- * produced by quoting text), `textUnder` turns a rectangle into characters (an
+ * `locate` turns a span of the text into rectangles (an annotation the model
+ * produced by quoting text), `textUnder` turns a rectangle into text (an
  * annotation a person produced by dragging a box). They are inverses and live
  * together deliberately.
+ *
+ * A span, like an item's `start` and `end`, is two offsets: they count
+ * Unicode code points from the start of the text.
  *
  * This is pure arithmetic over plain data, so it sits here beside
  * `PdfCoordinate` and the viewrect codec rather than in `@semiont/content`:
@@ -146,6 +149,10 @@ const SAME_LINE_THRESHOLD_PT = 2;
  * Locates bounding rectangles for a span of text in an AnchoredText
  * (single-line or multi-line).
  *
+ * `start` and `end` are offsets into `anchored.text`, in code points, as the
+ * items' own are. Nothing here reads the text, so nothing is converted: the
+ * arithmetic is on offsets throughout.
+ *
  * Finds all overlapping items [start, end), groups them by page and line, and
  * records one bounding rectangle per line as a PdfCoordinate.
  *
@@ -171,20 +178,21 @@ export function locate(
     for (const [page, pageItems] of pages) {
         const lines = groupItemsByLine(pageItems, SAME_LINE_THRESHOLD_PT);
         // Compute one bounding rectangle per line and add it to rects.
-        // Boundary items that extend past [start, end) are clipped by character
-        // fraction: renderers like Typst emit ONE item per line, so without
+        // Boundary items that extend past [start, end) are clipped by the
+        // fraction of their code points the span takes: renderers like Typst
+        // emit ONE item per line, so without
         // clipping a mid-line phrase would bound the whole line. Proportional
         // interpolation is the measured fallback — exact glyph metrics need
         // the operator-list route, an open refinement, and can replace this
         // arithmetic without changing the shape.
         for (const lineItems of lines) {
             const edges = lineItems.map(i => {
-                const chars = i.end - i.start;
-                const left = i.start < start && chars > 0
-                    ? i.x + i.width * ((start - i.start) / chars)
+                const codePoints = i.end - i.start;
+                const left = i.start < start && codePoints > 0
+                    ? i.x + i.width * ((start - i.start) / codePoints)
                     : i.x;
-                const right = i.end > end && chars > 0
-                    ? i.x + i.width * ((end - i.start) / chars)
+                const right = i.end > end && codePoints > 0
+                    ? i.x + i.width * ((end - i.start) / codePoints)
                     : i.x + i.width;
                 return { left, right };
             });
@@ -213,6 +221,9 @@ export function locate(
  * inherits the extractor's known column-major ordering on multi-column pages
  * rather than answering it a second, different way.
  *
+ * An item's `start` and `end` count code points, so the text of each run is
+ * read out of the string through the text's conversions.
+ *
  * Returns `''` when nothing is covered — over an image, over whitespace, or
  * over a scanned page with no text layer. Callers must then emit no
  * `TextQuoteSelector` at all: an empty quote would assert the box was drawn
@@ -224,6 +235,11 @@ export function textUnder(anchored: AnchoredText, rect: PdfCoordinate): string {
         .sort((a, b) => a.start - b.start);
     if (covered.length === 0) return '';
 
+    const offsets = textOffsets(anchored.text);
+    /** The text between two offsets. */
+    const between = (start: number, end: number): string =>
+        anchored.text.slice(offsets.indexAt(start), offsets.indexAt(end));
+
     // Join with the document's own separator when the runs are adjacent in
     // `text` — pdf.js splits words at kerning and font changes, so a blanket
     // join(' ') would emit "aga in" for a single word. When runs are NOT
@@ -232,16 +248,13 @@ export function textUnder(anchored: AnchoredText, rect: PdfCoordinate): string {
     // first-offset..last-offset the way buildPdfAnnotation does is safe there
     // — it only feeds a containment check — but here the result is the stored
     // quote, and on a two-column page it would swallow half of each column.)
-    let quoted = slice(anchored, covered[0]);
+    let quoted = between(covered[0].start, covered[0].end);
     for (let i = 1; i < covered.length; i++) {
-        const gap = anchored.text.slice(covered[i - 1].end, covered[i].start);
-        quoted += (gap.trim() === '' ? gap : ' ') + slice(anchored, covered[i]);
+        const gap = between(covered[i - 1].end, covered[i].start);
+        quoted += (gap.trim() === '' ? gap : ' ') + between(covered[i].start, covered[i].end);
     }
     return quoted.trim();
 }
-
-const slice = (anchored: AnchoredText, item: PdfTextItem): string =>
-    anchored.text.slice(item.start, item.end);
 
 /**
  * Fraction of a run's own area a rectangle must overlap for the run to count

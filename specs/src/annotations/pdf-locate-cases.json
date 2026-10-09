@@ -1,5 +1,5 @@
 {
-  "$comment": "Where a span of a PDF's text is on its pages, as every implementation must answer it. An annotation of a PDF is anchored by rectangles on its pages, not by offsets, so a worker that has found a span of the PDF's text must locate it; and a worker that cites a claim in a PDF it has made must first find the claim again in the text as it was rendered. TypeScript (packages/core: locate, createFragmentSelector, findClaimSpan) runs every case and fails on a difference; a worker written in another language runs the same file. ANCHORED TEXT is a `text` and its `items`. An item says which characters of the text it is (`start` up to but not including `end`), the `page` it is on (the first page is 1) and its box there: `x`, `y`, `width`, `height` in PDF points, measured from the bottom-left corner of the page, `y` growing upward. `cases` LOCATE a `span` of `anchored`. `overlapping` is the items the span overlaps, in the order `items` has them: an item overlaps when it starts before the span ends and ends after the span starts. `rects` is one rectangle for each line of each page the span touches. Take the overlapping items a page at a time, the pages in the order their first overlapping item comes in `items`. On a page, put the items in order, the greater `y` first (the top of the page) and among items of one `y` the lesser `x` first, and walk them: an item whose `y` is within 2 points of the `y` of the first item of the line being made joins that line (2 points exactly is within), and any other item begins a new line. A line's rectangle spans its items: its `x` is their least left edge, and its `width` their greatest right edge less that; its `y` is their least `y`, and its `height` their greatest `y` + `height` less that. An item's left edge is its `x` and its right edge its `x` + `width`, except where the span cuts the item: an item that starts before the span has its left edge at `x` + `width` x ((span's start - item's start) / the item's number of characters), and an item that ends after the span has its right edge at `x` + `width` x ((span's end - item's start) / the item's number of characters). A span that no item overlaps has no rectangles. `fragments` is the FragmentSelector value made from each rectangle, in the same order: `page=P&viewrect=X,Y,W,H` (RFC 3778), each number written as the shortest decimal that reads back as that number, a whole number with no point and no fraction part; a number so large or so small that it would be written with an exponent does not arise among a page's coordinates, and no case states one. `claims` FIND a `claim` in a `text`; `span` is where it is, or `null`. Collapse the claim: every run of white space becomes one space, and there is none at either end; an empty claim is not found. Strict first: collapse the text the same way and take the first place it has the collapsed claim; the span runs from the character of the text that the match's first character came from to just after the one its last character came from. Only when the strict search finds nothing, break-aware: take the first place in the text, as it is, where the collapsed claim's characters come in their order with nothing between one and the next, except that a line break (U+000A) may come between any two, with at most one space (U+0020) before it and at most one after it; the span runs from the first of those characters to just after the last. Every character of the claim is taken for itself, a space for exactly one space. If neither search finds it, the claim is not found. NUMBERS are IEEE 754 doubles. Every step of the arithmetic on the coordinates here comes out exact, whatever order the steps are taken in, so rectangles are compared for equality; a runner must read the numbers without loss. White space is what Unicode gives the White_Space property; no case rests on U+0085 or U+FEFF, about which implementations disagree. What an offset counts is stated in a table of its own; every text here is of the Basic Multilingual Plane, where it makes no difference. `defects` says what today's rule does that is a mistake: no case states any of it, and an implementation is not held to it. Add a case here before changing an implementation.",
+  "$comment": "Where a span of a PDF's text is on its pages, as every implementation must answer it. An annotation of a PDF is anchored by rectangles on its pages, not by offsets, so a worker that has found a span of the PDF's text must locate it; and a worker that cites a claim in a PDF it has made must first find the claim again in the text as it was rendered. TypeScript (packages/core: locate, createFragmentSelector, findClaimSpan) runs every case and fails on a difference; a worker written in another language runs the same file. ANCHORED TEXT is a `text` and its `items`. An item says which code points of the text it is (`start` up to but not including `end`, offsets that count Unicode code points from the start of the text), the `page` it is on (the first page is 1) and its box there: `x`, `y`, `width`, `height` in PDF points, measured from the bottom-left corner of the page, `y` growing upward. `cases` LOCATE a `span` of `anchored`, whose `start` and `end` are offsets of the same kind. `overlapping` is the items the span overlaps, in the order `items` has them: an item overlaps when it starts before the span ends and ends after the span starts. `rects` is one rectangle for each line of each page the span touches. Take the overlapping items a page at a time, the pages in the order their first overlapping item comes in `items`. On a page, put the items in order, the greater `y` first (the top of the page) and among items of one `y` the lesser `x` first, and walk them: an item whose `y` is within 2 points of the `y` of the first item of the line being made joins that line (2 points exactly is within), and any other item begins a new line. A line's rectangle spans its items: its `x` is their least left edge, and its `width` their greatest right edge less that; its `y` is their least `y`, and its `height` their greatest `y` + `height` less that. An item's left edge is its `x` and its right edge its `x` + `width`, except where the span cuts the item: an item that starts before the span has its left edge at `x` + `width` x ((span's start - item's start) / the item's number of code points), and an item that ends after the span has its right edge at `x` + `width` x ((span's end - item's start) / the item's number of code points). A span that no item overlaps has no rectangles. `fragments` is the FragmentSelector value made from each rectangle, in the same order: `page=P&viewrect=X,Y,W,H` (RFC 3778), each number written as the shortest decimal that reads back as that number, a whole number with no point and no fraction part; a number so large or so small that it would be written with an exponent does not arise among a page's coordinates, and no case states one. `claims` FIND a `claim` in a `text`; `span` is where it is, as two offsets, or `null`. Collapse the claim: every run of white space becomes one space, and there is none at either end; an empty claim is not found. Strict first: collapse the text the same way and take the first place it has the collapsed claim; the span runs from the character of the text that the match's first character came from to just after the one its last character came from. Only when the strict search finds nothing, break-aware: take the first place in the text, as it is, where the collapsed claim's characters come in their order with nothing between one and the next, except that a line break (U+000A) may come between any two, with at most one space (U+0020) before it and at most one after it; the span runs from the first of those characters to just after the last. Every character of the claim is taken for itself, a space for exactly one space. If neither search finds it, the claim is not found. NUMBERS are IEEE 754 doubles. Every step of the arithmetic on the coordinates here comes out exact, whatever order the steps are taken in, so rectangles are compared for equality; a runner must read the numbers without loss. White space is what Unicode gives the White_Space property; no case rests on U+0085 or U+FEFF, about which implementations disagree. What an offset counts is held by a table of its own, specs/src/text/offset-cases.json; some texts here have a character outside the Basic Multilingual Plane, which is one code point and two UTF-16 code units, so that a count of code units fails them. `defects` says what today's rule does that is a mistake: no case states any of it, and an implementation is not held to it. Add a case here before changing an implementation.",
   "defects": [
     "An empty span (its start equal to its end) that falls inside an item overlaps that item and is located as a rectangle of no width; the same empty span between two items is located nowhere.",
     "The break-aware search takes a space of the claim for a space of the text only. Where the text breaks a line between two words with no space beside the break, and the claim is hyphenated somewhere else so that the strict search has already failed, the claim is not found."
@@ -258,6 +258,25 @@
         { "page": 1, "x": 72.3, "y": 700.44, "width": 30, "height": 12 }
       ],
       "fragments": ["page=1&viewrect=72.3,700.44,30,12"]
+    },
+    {
+      "why": "an item's offsets and its number of code points are counted in code points: the first item is four mathematical letters, each outside the Basic Multilingual Plane, and a span that starts after two of them cuts it at half its width, not at a quarter as its eight UTF-16 code units would",
+      "anchored": {
+        "text": "𝑎𝑏𝑐𝑑 efgh",
+        "items": [
+          { "start": 0, "end": 4, "page": 1, "x": 100, "y": 700, "width": 80, "height": 10 },
+          { "start": 5, "end": 9, "page": 1, "x": 184, "y": 700, "width": 80, "height": 10 }
+        ]
+      },
+      "span": { "start": 2, "end": 7 },
+      "overlapping": [
+        { "start": 0, "end": 4, "page": 1, "x": 100, "y": 700, "width": 80, "height": 10 },
+        { "start": 5, "end": 9, "page": 1, "x": 184, "y": 700, "width": 80, "height": 10 }
+      ],
+      "rects": [
+        { "page": 1, "x": 140, "y": 700, "width": 84, "height": 10 }
+      ],
+      "fragments": ["page=1&viewrect=140,700,84,10"]
     }
   ],
   "claims": [
@@ -344,6 +363,30 @@
       "text": "Some text.",
       "claim": " \n\t ",
       "span": null
+    },
+    {
+      "why": "a character outside the Basic Multilingual Plane is one code point: the claim after it starts at 12, where a count of UTF-16 code units says 13",
+      "text": "🎉 The quick brown fox jumps over the lazy dog.",
+      "claim": "brown fox jumps",
+      "span": { "start": 12, "end": 27 }
+    },
+    {
+      "why": "a claim that ends with such a character ends just after it, five code points on from its start",
+      "text": "We see 🎉 now.",
+      "claim": "see 🎉",
+      "span": { "start": 3, "end": 8 }
+    },
+    {
+      "why": "the strict search over a line break, after such a character: the span is counted in the text as it is, its code points and its white space alike",
+      "text": "Result 𝑥 holds: the quick brown \nfox jumps high.",
+      "claim": "brown fox",
+      "span": { "start": 26, "end": 36 }
+    },
+    {
+      "why": "the break-aware search, with one such character before the claim and one inside it: the span is in code points here too",
+      "text": "📄 It is extraor \ndinarily 𝑥-complicated today.",
+      "claim": "extraordinarily 𝑥-complicated",
+      "span": { "start": 8, "end": 39 }
     }
   ]
 }

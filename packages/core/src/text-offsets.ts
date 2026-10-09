@@ -8,10 +8,12 @@
  * Plane is two. The two counts agree until the first such character and
  * differ by one more after each.
  *
- * So an offset is converted exactly where it enters or leaves a string, and
- * nowhere else: code that searches, slices and measures a string goes on
- * doing so in the string's own positions. specs/src/text/offset-cases.json
- * holds the count, for this and for every other implementation.
+ * So arithmetic is done on offsets, and a length is a difference of two of
+ * them: every count a rule states is of code points. A string's own position
+ * is only ever the argument or the result of a call on the string (a slice, a
+ * search, a regular expression's index), and is converted there.
+ * specs/src/text/offset-cases.json holds the count, for this and for every
+ * other implementation.
  */
 
 /** A text's offsets and a string's positions, each given the other. */
@@ -26,6 +28,10 @@ export interface TextOffsets {
 
 const isHigh = (unit: number): boolean => unit >= 0xd800 && unit <= 0xdbff;
 const isLow = (unit: number): boolean => unit >= 0xdc00 && unit <= 0xdfff;
+
+/** Whether the string has, at `index`, the two units of one character outside the basic plane. */
+const isPairAt = (text: string, index: number): boolean =>
+  isHigh(text.charCodeAt(index)) && isLow(text.charCodeAt(index + 1));
 
 /** How many of `sorted` are less than `value`. */
 function countBelow(sorted: readonly number[], value: number): number {
@@ -52,7 +58,7 @@ export function textOffsets(text: string): TextOffsets {
   /** The position of each character outside the basic plane: of the first unit of its pair. */
   const pairs: number[] = [];
   for (let index = 0; index < text.length - 1; index++) {
-    if (isHigh(text.charCodeAt(index)) && isLow(text.charCodeAt(index + 1))) {
+    if (isPairAt(text, index)) {
       pairs.push(index);
       index++;
     }
@@ -82,4 +88,26 @@ export function textOffsets(text: string): TextOffsets {
       return offset + countBelow(pairOffsets, offset);
     },
   };
+}
+
+/**
+ * Every place `text` has `words`, as the offset each starts at, in the text's
+ * order. Places may overlap. `offsets` is the text's own.
+ *
+ * A string is searched by its code units, so a search for words that begin or
+ * end with half of a pair also finds them inside a character of the text. The
+ * text does not have those words there, character for character, and the
+ * position has no offset: it is no place.
+ */
+export function occurrencesOf(text: string, offsets: TextOffsets, words: string): number[] {
+  const places: number[] = [];
+  let index = text.indexOf(words);
+  while (index !== -1) {
+    const end = index + words.length;
+    if (!isPairAt(text, index - 1) && !isPairAt(text, end - 1)) places.push(offsets.offsetAt(index));
+    // Words of no length are found at the end of the text too, and a search
+    // from past the end finds them there again.
+    index = index < text.length ? text.indexOf(words, index + 1) : -1;
+  }
+  return places;
 }

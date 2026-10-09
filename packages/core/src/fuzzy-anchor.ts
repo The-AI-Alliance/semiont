@@ -4,9 +4,17 @@
  * Uses prefix/suffix context to disambiguate when the same text appears multiple times.
  * Implements fuzzy matching as specified in the W3C Web Annotation Data Model.
  *
+ * A position in a text is an offset: it counts Unicode code points from the
+ * start of the text, and so does every length a rule here states (the
+ * stretch a quote is compared with, its allowance, an edit). A string's own
+ * positions are converted with `textOffsets`, where the string is called.
+ *
  * @see https://www.w3.org/TR/annotation-model/#text-quote-selector
  */
 
+import { occurrencesOf, textOffsets, type TextOffsets } from './text-offsets';
+
+/** A span of a text, as two offsets: from `start` up to but not including `end`. */
 export interface TextPosition {
   start: number;
   end: number;
@@ -31,26 +39,28 @@ export function normalizeText(text: string): string {
 }
 
 /**
- * Calculate Levenshtein distance between two strings
- * Used for fuzzy matching when exact text doesn't match
+ * Calculate Levenshtein distance between `wanted` and the stretch of `text`
+ * that starts at `from` and is as long as it.
+ * Used for fuzzy matching when exact text doesn't match.
+ *
+ * Both are code points, one to an element, so an edit is of one code point.
  */
-function levenshteinDistance(str1: string, str2: string): number {
-  const len1 = str1.length;
-  const len2 = str2.length;
+function levenshteinDistance(wanted: readonly string[], text: readonly string[], from: number): number {
+  const length = wanted.length;
   const matrix: number[][] = [];
 
   // Initialize matrix
-  for (let i = 0; i <= len1; i++) {
+  for (let i = 0; i <= length; i++) {
     matrix[i] = [i];
   }
-  for (let j = 0; j <= len2; j++) {
+  for (let j = 0; j <= length; j++) {
     matrix[0]![j] = j;
   }
 
   // Fill matrix
-  for (let i = 1; i <= len1; i++) {
-    for (let j = 1; j <= len2; j++) {
-      const cost = str1[i - 1] === str2[j - 1] ? 0 : 1;
+  for (let i = 1; i <= length; i++) {
+    for (let j = 1; j <= length; j++) {
+      const cost = wanted[i - 1] === text[from + j - 1] ? 0 : 1;
       const deletion = matrix[i - 1]![j]! + 1;
       const insertion = matrix[i]![j - 1]! + 1;
       const substitution = matrix[i - 1]![j - 1]! + cost;
@@ -58,7 +68,7 @@ function levenshteinDistance(str1: string, str2: string): number {
     }
   }
 
-  return matrix[len1]![len2]!;
+  return matrix[length]![length]!;
 }
 
 /**
@@ -66,26 +76,35 @@ function levenshteinDistance(str1: string, str2: string): number {
  * Avoids recomputing normalizeText(content) and content.toLowerCase()
  * for every annotation when processing many annotations against the same content.
  *
- * `normalizedMap[i]` is the original-content index that normalized
- * character `i` came from. It has length `normalizedContent.length + 1`;
- * the final entry is `content.length` so a match that ends at the end of
- * the normalized string maps back to the end of the original. This map is
- * how `findBestTextMatch` recovers the *original* offset of a normalized
- * match — counting char-by-char with `normalizeText(singleChar)` is
- * wrong, because a lone whitespace char trims to `''` (contributing 0)
- * while in a full-string normalize it collapses to a single space
- * (contributing 1). That discrepancy shifts recovered offsets by the
- * number of whitespace runs before the match.
+ * `normalizedMap[i]` is the offset, in the original content, of the
+ * character that the code point at offset `i` of `normalizedContent` came
+ * from. It has an entry for each code point of `normalizedContent` and one
+ * more; the final entry is the content's length in code points, so a match
+ * that ends at the end of the normalized string maps back to the end of the
+ * original. This map is how `findBestTextMatch` recovers the *original*
+ * offset of a normalized match — counting char-by-char with
+ * `normalizeText(singleChar)` is wrong, because a lone whitespace char trims
+ * to `''` (contributing 0) while in a full-string normalize it collapses to a
+ * single space (contributing 1). That discrepancy shifts recovered offsets by
+ * the number of whitespace runs before the match.
  */
 export interface ContentCache {
+  /** The content's conversions between its offsets and its string's positions. */
+  offsets: TextOffsets;
   normalizedContent: string;
+  /** The normalized content's own conversions: it is another string. */
+  normalizedOffsets: TextOffsets;
   normalizedMap: number[];
   lowerContent: string;
+  /** The lower-cased content's own conversions: it is another string, of another length where lower-casing changes one. */
+  lowerOffsets: TextOffsets;
 }
 
 /**
- * Normalize text and, in the same pass, build a map from each normalized
- * character position back to the original-content index it came from.
+ * Normalize text and, in the same pass, build a map from each offset of the
+ * normalized text back to the offset, in the input, of the character it
+ * came from. Both count code points: the map has one entry for each code
+ * point of the normalized text, and one for its end.
  * The produced `normalized` string is identical to `normalizeText(input)`
  * — a test pins this equivalence so the two can't drift.
  */
@@ -94,8 +113,8 @@ export function normalizeTextWithMap(input: string): { normalized: string; map: 
   const map: number[] = [];
 
   // First pass mirrors normalizeText exactly, char by char, recording the
-  // origin index for every emitted normalized character.
-  let pendingWhitespaceStart = -1; // origin index of an open whitespace run, or -1
+  // origin offset for every emitted normalized character.
+  let pendingWhitespaceStart = -1; // origin offset of an open whitespace run, or -1
 
   const flushWhitespace = () => {
     if (pendingWhitespaceStart !== -1) {
@@ -110,24 +129,28 @@ export function normalizeTextWithMap(input: string): { normalized: string; map: 
     }
   };
 
-  for (let i = 0; i < input.length; i++) {
-    const ch = input[i]!;
+  // The offset of `ch`: how many code points of `input` are before it. A
+  // string is walked a code point at a time, so it is one more for each.
+  let offset = 0;
+  for (const ch of input) {
     if (/\s/.test(ch)) {
-      if (pendingWhitespaceStart === -1) pendingWhitespaceStart = i;
+      if (pendingWhitespaceStart === -1) pendingWhitespaceStart = offset;
+      offset++;
       continue;
     }
     flushWhitespace();
     if (ch === '‘' || ch === '’') {
-      normalized += "'"; map.push(i);
+      normalized += "'"; map.push(offset);
     } else if (ch === '“' || ch === '”') {
-      normalized += '"'; map.push(i);
+      normalized += '"'; map.push(offset);
     } else if (ch === '—') {
-      normalized += '--'; map.push(i); map.push(i);
+      normalized += '--'; map.push(offset); map.push(offset);
     } else if (ch === '–') {
-      normalized += '-'; map.push(i);
+      normalized += '-'; map.push(offset);
     } else {
-      normalized += ch; map.push(i);
+      normalized += ch; map.push(offset);
     }
+    offset++;
   }
   // A trailing whitespace run is dropped by trim — do not flush it.
 
@@ -135,34 +158,38 @@ export function normalizeTextWithMap(input: string): { normalized: string; map: 
   // trailing whitespace run; a leading run is dropped because flushWhitespace
   // only runs before a non-space char, so a run at the very start is never
   // emitted. Both ends match trim().
-  map.push(input.length); // sentinel: one past the last normalized char
+  map.push(offset); // sentinel: the input's length in code points, one past its last character
   return { normalized, map };
 }
 
 /**
- * Build a ContentCache for a given content string.
- * Call once per content, pass to findBestTextMatch/anchorAnnotation for all annotations.
+ * Build a ContentCache for a given content string, given the content's own
+ * conversions (`textOffsets(content)`).
+ * Call once per content, pass to findBestTextMatch for every search of it.
  */
-export function buildContentCache(content: string): ContentCache {
+export function buildContentCache(content: string, offsets: TextOffsets): ContentCache {
   const { normalized, map } = normalizeTextWithMap(content);
+  const lowerContent = content.toLowerCase();
   return {
+    offsets,
     normalizedContent: normalized,
+    normalizedOffsets: textOffsets(normalized),
     normalizedMap: map,
-    lowerContent: content.toLowerCase()
+    lowerContent,
+    lowerOffsets: textOffsets(lowerContent),
   };
 }
 
 /**
  * Find best match for text in content using multi-strategy search
  *
- * Shared core logic used by both anchorAnnotation (render-time) and
- * reconcileSelector (write-time).
+ * The search `reconcileSelector` (write-time) falls back on.
  *
  * @param content - Full text content to search within
  * @param searchText - The text to find
- * @param positionHint - Hint for where to search (TextPositionSelector.start)
- * @param cache - Pre-computed normalized/lowered content (from buildContentCache)
- * @returns Match with position and quality, or null if not found
+ * @param positionHint - Hint for where to search (TextPositionSelector.start): an offset, in code points
+ * @param cache - What is made once for the content (from buildContentCache)
+ * @returns Match with position, as two offsets in code points, and quality, or null if not found
  */
 export function findBestTextMatch(
   content: string,
@@ -170,29 +197,36 @@ export function findBestTextMatch(
   positionHint: number | undefined,
   cache: ContentCache
 ): { start: number; end: number; matchQuality: MatchQuality } | null {
-  const maxFuzzyDistance = Math.max(5, Math.floor(searchText.length * 0.05)); // 5% tolerance or min 5 chars
+  const { offsets } = cache;
+  // The search text a code point to an element: its length is a count of
+  // code points, and so is the stretch of content it is compared with.
+  const wanted = Array.from(searchText);
+  const windowSize = wanted.length;
+  const maxFuzzyDistance = Math.max(5, Math.floor(windowSize * 0.05)); // 5% tolerance or min 5 code points
 
   // Strategy 1: Exact match (case-sensitive, exact whitespace)
-  const exactIndex = content.indexOf(searchText);
-  if (exactIndex !== -1) {
+  const [exactStart] = occurrencesOf(content, offsets, searchText);
+  if (exactStart !== undefined) {
     return {
-      start: exactIndex,
-      end: exactIndex + searchText.length,
+      start: exactStart,
+      end: exactStart + windowSize,
       matchQuality: 'exact'
     };
   }
 
   // Strategy 2: Normalized match (handles whitespace/quote variations).
   // Map the normalized match position back to the original via the
-  // precomputed index map. The naive char-by-char re-normalize is wrong:
+  // precomputed offset map. The naive char-by-char re-normalize is wrong:
   // a lone whitespace char trims to '' (0-width) but collapses to a single
   // space (1-width) in a full normalize, so it under-counts by the number
   // of whitespace runs before the match, shifting the recovered offset.
   const normalizedSearch = normalizeText(searchText);
-  const normalizedIndex = cache.normalizedContent.indexOf(normalizedSearch);
-  if (normalizedIndex !== -1) {
-    const start = cache.normalizedMap[normalizedIndex] ?? 0;
-    const end = cache.normalizedMap[normalizedIndex + normalizedSearch.length] ?? content.length;
+  const [normalizedStart] = occurrencesOf(cache.normalizedContent, cache.normalizedOffsets, normalizedSearch);
+  if (normalizedStart !== undefined) {
+    // The map has an entry for every offset of the normalized content, its
+    // end included, so both of these are there.
+    const start = cache.normalizedMap[normalizedStart]!;
+    const end = cache.normalizedMap[normalizedStart + textOffsets(normalizedSearch).length]!;
     return {
       start,
       end,
@@ -200,38 +234,43 @@ export function findBestTextMatch(
     };
   }
 
-  // Strategy 3: Case-insensitive match
-  const lowerSearch = searchText.toLowerCase();
-  const caseInsensitiveIndex = cache.lowerContent.indexOf(lowerSearch);
-  if (caseInsensitiveIndex !== -1) {
+  // Strategy 3: Case-insensitive match. Where the lower-cased content has
+  // the words is taken for where the content has them: an offset in the one
+  // string, used as an offset in the other.
+  const [lowerStart] = occurrencesOf(cache.lowerContent, cache.lowerOffsets, searchText.toLowerCase());
+  if (lowerStart !== undefined) {
     return {
-      start: caseInsensitiveIndex,
-      end: caseInsensitiveIndex + searchText.length,
+      start: lowerStart,
+      end: lowerStart + windowSize,
       matchQuality: 'case-insensitive'
     };
   }
 
   // Strategy 4: Fuzzy match using Levenshtein distance with sliding window
   // Search near position hint if provided, otherwise search full content
-  const windowSize = searchText.length;
-  const searchRadius = Math.min(500, content.length);
+  const searchRadius = Math.min(500, offsets.length);
   const searchStart = positionHint !== undefined
     ? Math.max(0, positionHint - searchRadius)
     : 0;
   const searchEnd = positionHint !== undefined
-    ? Math.min(content.length, positionHint + searchRadius)
-    : content.length;
+    ? Math.min(offsets.length, positionHint + searchRadius)
+    : offsets.length;
+  // A hint past the end of the text leaves no stretch to search.
+  if (searchStart > searchEnd) return null;
+
+  // The stretch searched, a code point to an element: `stretch[i]` is the
+  // content's code point at the offset `searchStart + i`.
+  const stretch = Array.from(content.substring(offsets.indexAt(searchStart), offsets.indexAt(searchEnd)));
 
   let bestMatch: { start: number; distance: number } | null = null;
 
   // Scan through content with sliding window
-  for (let i = searchStart; i <= searchEnd - windowSize; i++) {
-    const candidate = content.substring(i, i + windowSize);
-    const distance = levenshteinDistance(searchText, candidate);
+  for (let i = 0; i <= stretch.length - windowSize; i++) {
+    const distance = levenshteinDistance(wanted, stretch, i);
 
     if (distance <= maxFuzzyDistance) {
       if (!bestMatch || distance < bestMatch.distance) {
-        bestMatch = { start: i, distance };
+        bestMatch = { start: searchStart + i, distance };
       }
     }
   }
@@ -250,12 +289,20 @@ export function findBestTextMatch(
 /**
  * Verify that a position correctly points to the exact text
  * Useful for debugging and validation
+ *
+ * The position is two offsets, in code points. One the text does not have
+ * (not a whole number, below zero, past the end, or ending before it starts)
+ * points at nothing.
  */
 export function verifyPosition(
   content: string,
   position: TextPosition,
   expectedExact: string
 ): boolean {
-  const actualText = content.substring(position.start, position.end);
+  const offsets = textOffsets(content);
+  const { start, end } = position;
+  if (!Number.isInteger(start) || !Number.isInteger(end)) return false;
+  if (start < 0 || end > offsets.length || start > end) return false;
+  const actualText = content.substring(offsets.indexAt(start), offsets.indexAt(end));
   return actualText === expectedExact;
 }

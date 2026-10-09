@@ -14,11 +14,18 @@
 //     it is said to run: a table nothing runs holds nothing;
 //   - a `*-cases.json` file sits in one of these directories and is not
 //     listed here, so a table cannot be added beside the others and go unrun;
-//   - a table's text has a character outside the basic plane. What a text
-//     offset counts is stated, and held, in one table of its own, the first
-//     below; the others stay true whichever count an implementation is on.
-//     That one table must have such a character, or it tells no two counts
-//     apart.
+//   - a table whose rule counts or states an offset has no character outside
+//     the basic plane. An offset counts code points, and so does every length
+//     such a rule states; only a text with such a character tells that count
+//     from a count of UTF-16 code units or of bytes, so a table without one
+//     holds its rule to no count. These are the tables `packages/core` runs:
+//     what an offset counts, the chunker, the reconciling of a quote, and the
+//     locating of a span of a PDF;
+//   - a table the TypeScript worker (`packages/jobs`) runs has such a
+//     character: the builder's, the id's, the chunk plan's, the citation's,
+//     the parser's and the failure classes'. That worker takes an offset for
+//     a position in a string, so these tables stay true only on texts where
+//     the two are the same number.
 //
 // It reads the source files, so it cannot pass on a stale bundle.
 
@@ -35,14 +42,18 @@ const DIRECTORIES = ['specs/src/text', 'specs/src/worker'];
  * Each table, and the files that run it. `specs/src/annotations/` holds a
  * table of another census as well (the readers', `lint:client-surface`'s), so
  * its tables are listed here by name and the directory is not swept.
+ *
+ * `countsCodePoints` marks a table whose rule counts or states an offset and
+ * whose runner counts code points: it must have a character outside the basic
+ * plane. A table without the mark must have none.
  */
 const TABLES = [
   // What a text offset counts.
   { table: 'specs/src/text/offset-cases.json', runners: ['packages/core/src/__tests__/offset-cases.test.ts'], countsCodePoints: true },
   // What every worker does to a text.
-  { table: 'specs/src/text/chunk-cases.json', runners: ['packages/core/src/__tests__/chunk-cases.test.ts'] },
-  { table: 'specs/src/annotations/reconcile-cases.json', runners: ['packages/core/src/__tests__/reconcile-cases.test.ts'] },
-  { table: 'specs/src/annotations/pdf-locate-cases.json', runners: ['packages/core/src/__tests__/pdf-locate-cases.test.ts'] },
+  { table: 'specs/src/text/chunk-cases.json', runners: ['packages/core/src/__tests__/chunk-cases.test.ts'], countsCodePoints: true },
+  { table: 'specs/src/annotations/reconcile-cases.json', runners: ['packages/core/src/__tests__/reconcile-cases.test.ts'], countsCodePoints: true },
+  { table: 'specs/src/annotations/pdf-locate-cases.json', runners: ['packages/core/src/__tests__/pdf-locate-cases.test.ts'], countsCodePoints: true },
   { table: 'specs/src/annotations/builder-cases.json', runners: ['packages/jobs/src/__tests__/builder-cases.test.ts'] },
   { table: 'specs/src/annotations/id-cases.json', runners: ['packages/jobs/src/__tests__/id-cases.test.ts'] },
   // What Semiont's worker alone does.
@@ -78,10 +89,10 @@ for (const { table, runners, countsCodePoints = false } of TABLES) {
     fail(`${table} has no cases`);
   }
   if (countsCodePoints && !OUTSIDE_THE_BASIC_PLANE.test(text)) {
-    fail(`${table} has no character outside the basic plane: it tells a count of code points from no other`);
+    fail(`${table} has no character outside the basic plane: its rule counts or states an offset, and it tells a count of code points from no other`);
   }
   if (!countsCodePoints && OUTSIDE_THE_BASIC_PLANE.test(text)) {
-    fail(`${table} has a character outside the basic plane: what an offset counts is held by its own table, and this one is not to depend on it`);
+    fail(`${table} has a character outside the basic plane: its runner takes an offset for a position in a string, and the two differ after such a character`);
   }
   for (const runner of runners) {
     const runnerPath = resolve(REPO, runner);

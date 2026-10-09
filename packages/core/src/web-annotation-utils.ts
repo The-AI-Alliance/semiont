@@ -189,7 +189,7 @@ export function getTagSchemaId(annotation: Annotation): string | undefined {
  * Get the exact text from a selector (single or array)
  *
  * When selector is an array, tries to find a TextQuoteSelector (which has exact text).
- * TextPositionSelector does not have exact text, only character offsets.
+ * TextPositionSelector does not have exact text, only offsets, in code points.
  * Handles undefined selector (when target is a string IRI with no selector)
  */
 export function getExactText(selector: Selector | Selector[] | undefined): string {
