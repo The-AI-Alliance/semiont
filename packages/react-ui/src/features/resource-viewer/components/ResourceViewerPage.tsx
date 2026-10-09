@@ -132,6 +132,7 @@ export interface ResourceViewerPageProps {
  * @emits nav:push - Navigate to a resource or filtered view
  * @emits beckon:sparkle - Trigger sparkle animation on an annotation
  * @emits bind:update-body - Update annotation body content
+ * @emits panel:open - Open a panel: the one the viewer asks for, or the annotations panel for a pending or newly generated annotation
  * @subscribes mark:archive - Archive the current resource
  * @subscribes mark:unarchive - Unarchive the current resource
  * @subscribes yield:clone - Clone the current resource

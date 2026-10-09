@@ -105,6 +105,8 @@ interface Props {
  * panel opening invokes the host's `onOpenPanel` callback — the host owns
  * the panel and any `panel:open` emission.
  *
+ * @emits mark:delete - Delete an annotation of this resource. Payload: MarkDeleteCommand
+ * @emits mark:delete-error - Report a delete that was refused. Payload: { resourceId: string, message: string }
  * @subscribes browse:click - An annotation was clicked — locally, or driven over
  *   the wire by another participant. Payload: { annotationId: string, anchorRect? };
  *   the motivation is derived from the annotation the id names, and an id this

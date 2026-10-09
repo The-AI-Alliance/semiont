@@ -18,13 +18,23 @@
  *   - writes in braces a member the channel's payload does not have, leaves
  *     out one it requires, or marks optional one it requires.
  *
+ * And when a file that carries such a tag sends on a channel it has no
+ * `@emits` tag for. What a file sends on is read from it as written: an emit
+ * of its own, `.emit('<channel>', …)`, and a call of a method of the SDK's
+ * client, `client.<namespace>.<method>(…)`. Which channel a method sends on
+ * is read from the SDK (packages/sdk/src/namespaces), from the method's own
+ * body: where it emits on the client's bus or its transport, or makes a
+ * request. A channel the registry calls a read needs no tag.
+ *
  * A payload's members are its schema's, those of the schema's `allOf` among
  * them, and the ones the registry's `tsRefinement` adds as `… & { … }`:
  * `browse:click` carries `anchorRect?` beside its schema.
  *
- * What is held is the names of a payload's members, not their types, and
- * what a tag says, not what its component does. A tag that states no payload
- * is held to its channel alone.
+ * What is held is the names of a payload's members, not their types. A tag
+ * that states no payload is held to its channel alone. A file with no tag
+ * documents no events and is held to nothing; a send made through anything
+ * but the client's own namespaces, a state unit's or a child component's, is
+ * not read; and nothing holds a tag to a send, or a subscription to a tag.
  *
  * Scanned: the TypeScript of packages/react-ui and apps/browser, comments
  * included, since a tag is one. Not scanned: tests.
@@ -33,10 +43,13 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { repositoryFiles } from './repository-files.mjs';
+import { withoutComments } from './source-text.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const REGISTRY = 'specs/src/bus/registry.json';
 const SCHEMAS = 'specs/src/components/schemas';
+const CLIENT = 'packages/sdk/src/client.ts';
+const NAMESPACES = 'packages/sdk/src/namespaces';
 const SCANNED = ['packages/react-ui/src/', 'apps/browser/src/'];
 const SOURCE = /\.(ts|tsx|mts|cts)$/;
 const TEST = /(^|\/)__tests__\/|\.(test|spec)\.[cm]?tsx?$/;
@@ -46,7 +59,8 @@ const fail = (message) => failures.push(message);
 
 const registry = JSON.parse(readFileSync(resolve(ROOT, REGISTRY), 'utf8'));
 const channels = new Map(registry.channels.map((channel) => [channel.channel, channel]));
-if (channels.size === 0) fail(`${REGISTRY} declares no channel: the check has lost what it reads`);
+const reads = new Set(registry.effect.reads);
+if (channels.size === 0 || reads.size === 0) fail(`${REGISTRY} declares no channel or no read: the check has lost what it reads`);
 
 /** The members of an object as written in braces or in a schema: each by its name, and whether it must be there. */
 function written(members) {
@@ -120,10 +134,66 @@ function tagsOf(text) {
   return tags;
 }
 
+/** Where the bracket that opens at `open` closes. */
+function closing(code, open) {
+  let depth = 0;
+  for (let at = open; at < code.length; at++) {
+    if ('([{'.includes(code[at])) depth++;
+    else if (')]}'.includes(code[at]) && --depth === 0) return at;
+  }
+  return -1;
+}
+
+const SEND = "(?:this\\.(?:bus|transport)\\.emit\\(|\\bbusRequest\\(\\s*(?:this\\.)?transport,)\\s*'([a-z]+:[a-z-]+)'";
+
+/**
+ * The channels each method of the SDK's client sends on, by `<namespace>.<method>`:
+ * the ones its own body names where it emits or makes a request.
+ */
+function sentByClient() {
+  const sent = new Map();
+  const namespaces = [...readFileSync(resolve(ROOT, CLIENT), 'utf8').matchAll(/^\s*public readonly (\w+): \w+Namespace\b/gm)].map((declared) => declared[1]);
+  if (namespaces.length === 0) fail(`${CLIENT} declares no namespace: the check has lost what it reads`);
+  for (const namespace of namespaces) {
+    const code = withoutComments(readFileSync(resolve(ROOT, NAMESPACES, `${namespace}.ts`), 'utf8'));
+    let read = 0;
+    for (const method of code.matchAll(/^  (?:async )?(?!constructor\b)(\w+)(?:<[^>]*>)?\(/gm)) {
+      // The body opens with the brace that ends the signature's line: a return type may hold braces of its own.
+      const opens = /\{[ \t]*\n/g;
+      opens.lastIndex = closing(code, method.index + method[0].length - 1);
+      const body = opens.exec(code)?.index ?? code.length;
+      const named = [...code.slice(body, closing(code, body) + 1).matchAll(new RegExp(SEND, 'g'))].map((site) => site[1]);
+      read += named.filter((channel) => !reads.has(channel)).length;
+      if (named.length > 0) sent.set(`${namespace}.${method[1]}`, new Set(named));
+    }
+    // A read may be made where no method's body names it: a constructor wires the fetch of a cached one.
+    const all = [...code.matchAll(new RegExp(SEND, 'g'))].filter((site) => !reads.has(site[1])).length;
+    if (read !== all) fail(`${NAMESPACES}/${namespace}.ts sends on a channel that is no read, outside the methods this check reads: it has lost what it reads`);
+  }
+  return sent;
+}
+const sentBy = sentByClient();
+if (sentBy.size === 0) fail(`no method of the SDK's client sends on a channel: the check has lost what it reads`);
+
 let tags = 0;
 const files = repositoryFiles(ROOT).filter((file) => SCANNED.some((prefix) => file.startsWith(prefix)) && SOURCE.test(file) && !TEST.test(file));
 for (const file of files) {
-  for (const { line, kind, channel, payload } of tagsOf(readFileSync(resolve(ROOT, file), 'utf8'))) {
+  const text = readFileSync(resolve(ROOT, file), 'utf8');
+  const found = tagsOf(text);
+  if (found.length === 0) continue;
+
+  const documented = new Set(found.filter((tag) => tag.kind === 'emits').map((tag) => tag.channel));
+  const code = withoutComments(text);
+  const sent = new Map();
+  for (const [, namespace, method] of code.matchAll(/\bclient\s*\??\.\s*(\w+)\s*\??\.\s*(\w+)\s*\(/g)) {
+    for (const channel of sentBy.get(`${namespace}.${method}`) ?? []) sent.set(channel, `client.${namespace}.${method}()`);
+  }
+  for (const [, channel] of code.matchAll(/\.emit\(\s*'([a-z]+:[a-z-]+)'/g)) sent.set(channel, 'an emit of its own');
+  for (const [channel, how] of sent) {
+    if (!reads.has(channel) && !documented.has(channel)) fail(`${file}: sends on ${channel}, through ${how}, and has no @emits tag for it`);
+  }
+
+  for (const { line, kind, channel, payload } of found) {
     tags++;
     const at = `${file}:${line} @${kind} ${channel}`;
     const declared = channels.get(channel);
@@ -158,4 +228,4 @@ if (failures.length > 0) {
   for (const message of failures) console.error(`✗ ${message}`);
   process.exit(1);
 }
-console.log(`✓ lint:event-tags — ${tags} tags name channels the registry declares, and each payload one states is its channel's`);
+console.log(`✓ lint:event-tags — ${tags} tags name channels the registry declares, each payload one states is its channel's, and a file that carries one tags every channel it sends on`);

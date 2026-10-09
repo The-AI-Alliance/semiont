@@ -56,6 +56,8 @@ interface Props {
  * @emits yield:clone - Clone this resource
  * @emits mark:unarchive - Unarchive this resource
  * @emits mark:archive - Archive this resource
+ * @emits browse:resource-open - Open a resource this panel links to, the generated one among them. Payload: { resourceId: string }
+ * @emits job:cancel-requested - Ask that the generation job be cancelled. Payload: { jobType: 'yield' }
  */
 export function ResourceInfoPanel({
   session,
