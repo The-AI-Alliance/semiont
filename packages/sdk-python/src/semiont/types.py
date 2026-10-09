@@ -796,8 +796,7 @@ class BusEmitRequest(WireModel, frozen=True):
     scope: Annotated[
         ResourceId | None,
         Field(
-            description="The resource scope of a resource-bound broadcast. Publishers of those broadcasts only; a command or request never carries one.",
-            min_length=1,
+            description="The resource scope of a resource-bound broadcast. Publishers of those broadcasts only; a command or request never carries one."
         ),
     ] = None
     client_id: Annotated[
@@ -4813,7 +4812,7 @@ class BrowseDirectoryResultResponse(WireModel, frozen=True):
 
 
 class BusSubscribeRequestScopedItem(WireModel, frozen=True, extra="forbid"):
-    scope: Annotated[ResourceId, Field(description="Resource scope (a resourceId).", min_length=1)]
+    scope: Annotated[ResourceId, Field(description="Resource scope (a resourceId).")]
     channels: Annotated[
         list[BusSubscribeRequestScopedItemChannelsItem],
         Field(description="Channels to subscribe within this scope.", min_length=1),
@@ -5428,7 +5427,7 @@ class Annotation(WireModel, frozen=True):
     target: Annotated[
         ResourceId | AnnotationTarget,
         Field(
-            description="W3C Web Annotation target - can be a simple IRI string (entire resource) or an object with source and optional selector (fragment)"
+            description="W3C Web Annotation target: the id of the resource annotated, when the whole of it is, or an object with source and optional selector (fragment)"
         ),
     ]
     body: Annotated[

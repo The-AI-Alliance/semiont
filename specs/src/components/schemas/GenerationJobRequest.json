@@ -40,7 +40,11 @@
       "description": "Output token budget forwarded to the model. Length never determines structure."
     },
     "outputMediaType": {
-      "$ref": "./SupportedMediaType.json",
+      "allOf": [
+        {
+          "$ref": "./SupportedMediaType.json"
+        }
+      ],
       "description": "Requested media type of the generated resource's content. Default `text/markdown` at the worker, which validates it against its supported output set and FAILS the job for anything it can't write — not a silent fallback."
     },
     "task": {

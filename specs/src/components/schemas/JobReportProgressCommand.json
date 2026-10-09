@@ -3,7 +3,7 @@
   "description": "Command to report progress on a job",
   "properties": {
     "_userId": {
-      "$ref": "./UserId.json",
+      "allOf": [{ "$ref": "./UserId.json" }],
       "description": "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this."
     },
     "resourceId": {
@@ -20,7 +20,7 @@
       "description": "Which attempt produced this event, 1-based (a first run is 1). ALWAYS present: the queue re-runs a failed job silently, so an operator reading progress or a terminal record has no other way to tell a re-run from a first run \u2014 and provider spend, already counted in semiont_inference_tokens_total, cannot be attributed to a repeated document without it. Stated rather than inferred from absence, because 'attempt 1' is a fact the emitter always knows."
     },
     "annotationId": {
-      "$ref": "./AnnotationId.json",
+      "allOf": [{ "$ref": "./AnnotationId.json" }],
       "description": "Annotation this job is attached to, when applicable. Lets the UI attach progress visuals to a specific annotation (e.g. a reference whose generation is running)."
     },
     "percentage": {

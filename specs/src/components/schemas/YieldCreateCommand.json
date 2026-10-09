@@ -3,7 +3,11 @@
   "description": "Bus command to create a yielded resource in the knowledge base.",
   "properties": {
     "_userId": {
-      "$ref": "./UserId.json",
+      "allOf": [
+        {
+          "$ref": "./UserId.json"
+        }
+      ],
       "description": "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this."
     },
     "_roles": {
@@ -14,7 +18,11 @@
       "description": "The emitter's capabilities (the token's `roles`), injected by the /bus/emit gateway. Clients do not set this. An emitter carrying the worker role must cite the job this resource fulfils in `jobId`; the Stower refuses the create otherwise."
     },
     "jobId": {
-      "$ref": "./JobId.json",
+      "allOf": [
+        {
+          "$ref": "./JobId.json"
+        }
+      ],
       "description": "The job this resource fulfils. Required when the emitter carries the worker role; absent for self-initiated work (a person, or an agent acting on its own). The knowledge base derives who requested this resource from the cited job's own events — the emitter never says who the work was for."
     },
     "name": {

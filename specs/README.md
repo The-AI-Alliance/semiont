@@ -194,11 +194,13 @@ The spec is kept as modular files, bundled with Redocly:
 
 [redocly.yaml](../redocly.yaml) states the rules `npm run openapi:lint` holds the two API documents to: Redocly's recommended set, with the changes the file gives its reasons for. The lint is one of the Lint Gates of the architecture workflow.
 
-Two forms the rules bear on:
+The forms the rules bear on:
 
 - **An operation** has an `operationId`, the name a generated client's method takes. A path item is one operation's, so a path that answers as another does has a path item of its own.
 - **A property that admits one value** states it as an `enum` of one. `const` is JSON Schema's and not OpenAPI 3.0's; the lint refuses it, and so does the Rust type generator.
 - **A reference that may be null** is `{ "nullable": true, "allOf": [{ "$ref": … }] }`. The validators and every SDK's type generator read it as the reference, or null.
+- **Something said of a reference** is `{ "allOf": [{ "$ref": … }], "description": … }`. OpenAPI 3.0 reads nothing beside a bare `$ref`, and the Go and Rust generators hold to that, so a description written there reaches neither. Two kinds of reference are never wrapped, and `npm run lint:spec-reference-forms` holds both: a member of a `oneOf` stays a bare `$ref`, with what would be said of it said of the `oneOf` (the Go client names a union's accessors by a wrapped member's position); and a reference to a schema that has a `discriminator` stays a bare `$ref` with its description beside it (openapi-typescript takes the discriminator's property out of a wrapped one), named in [.redocly.lint-ignore.yaml](../.redocly.lint-ignore.yaml).
+- **An operation documents a refusal**, a response in the 400s. The five that take no credential and no parameter have none to document, and [.redocly.lint-ignore.yaml](../.redocly.lint-ignore.yaml) names them.
 
 Bundling takes no configuration: a schema is kept in the bundle because `components` lists it.
 

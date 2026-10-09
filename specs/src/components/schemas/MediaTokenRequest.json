@@ -2,7 +2,11 @@
   "type": "object",
   "properties": {
     "resourceId": {
-      "$ref": "./ResourceId.json",
+      "allOf": [
+        {
+          "$ref": "./ResourceId.json"
+        }
+      ],
       "description": "The resource ID to generate a media token for"
     }
   },

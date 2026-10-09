@@ -3,14 +3,22 @@
   "description": "What the dispatcher records about a job beside its parameters. `completedUnits` and `unitCursors` appear once a worker has checkpointed. `retryCount` counts the times the queue has put the job back to pending after a failure it classes as transient.",
   "properties": {
     "id": {
-      "$ref": "./JobId.json",
+      "allOf": [
+        {
+          "$ref": "./JobId.json"
+        }
+      ],
       "description": "The job's id: `job-` followed by a version 4 UUID written as 32 lowercase hex digits, without dashes."
     },
     "type": {
       "$ref": "./JobType.json"
     },
     "userId": {
-      "$ref": "./UserId.json",
+      "allOf": [
+        {
+          "$ref": "./UserId.json"
+        }
+      ],
       "description": "The DID of the principal whose `job:create` created the job."
     },
     "created": {

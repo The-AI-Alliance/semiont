@@ -1,8 +1,7 @@
 {
   "oneOf": [
     {
-      "$ref": "./AnnotationBody.json",
-      "description": "Single body (TextualBody or SpecificResource)"
+      "$ref": "./AnnotationBody.json"
     },
     {
       "type": "array",

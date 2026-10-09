@@ -6,7 +6,11 @@
       "$ref": "./ResourceId.json"
     },
     "schema": {
-      "$ref": "./TagSchema.json",
+      "allOf": [
+        {
+          "$ref": "./TagSchema.json"
+        }
+      ],
       "description": "The tag schema a tagging job's `schemaId` names, as the knowledge base registered it when the job was created. On a tagging job, and on no other."
     }
   },

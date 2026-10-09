@@ -42,6 +42,7 @@
     "lint:spec-identifiers": "node scripts/spec/check-identifiers.mjs",
     "lint:spec-case-tables": "node scripts/spec/check-case-tables.mjs",
     "lint:spec-channel-rosters": "node scripts/spec/check-channel-rosters.mjs",
+    "lint:spec-reference-forms": "node scripts/spec/check-reference-forms.mjs",
     "lint:service-environment": "node scripts/lint/check-service-environment.mjs",
     "lint:rust-images": "node scripts/lint/check-rust-images.mjs",
     "lint:rust-toolchain": "node scripts/lint/check-rust-toolchain.mjs",

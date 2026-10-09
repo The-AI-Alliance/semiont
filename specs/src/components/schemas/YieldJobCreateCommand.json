@@ -3,7 +3,11 @@
   "description": "Create a `yield` job: make a resource from a gathered context. It names no resource of its own: the job is about the resource its context focuses on, which the Dispatcher reads from `params.context.focus`.",
   "properties": {
     "_userId": {
-      "$ref": "./UserId.json",
+      "allOf": [
+        {
+          "$ref": "./UserId.json"
+        }
+      ],
       "description": "The emitter's verified DID, injected by the gateway. Clients do not set this."
     },
     "_roles": {

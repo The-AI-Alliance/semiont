@@ -8,7 +8,11 @@
       "type": "object",
       "properties": {
         "annotationId": {
-          "$ref": "./AnnotationId.json",
+          "allOf": [
+            {
+              "$ref": "./AnnotationId.json"
+            }
+          ],
           "description": "The annotation the gather was asked for."
         }
       },

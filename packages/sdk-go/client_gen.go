@@ -2100,7 +2100,7 @@ type AgentTokenRequest struct {
 
 // AgentTokenResponse The agent token and the DID it names.
 type AgentTokenResponse struct {
-	// Did The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// Did DID of the software-agent identity the token is acting as
 	Did UserId `json:"did"`
 
 	// Token Bearer JWT for subsequent authenticated requests
@@ -2231,7 +2231,7 @@ type Annotation struct {
 	// Context W3C Web Annotation JSON-LD context
 	Context AnnotationContext `json:"@context"`
 
-	// Body What an annotation's `body` holds: one body, or a non-empty list of them. There is no empty list: an annotation with nothing to say has no `body`.
+	// Body W3C Web Annotation body. Optional per the W3C spec — annotations whose motivation alone is meaningful (highlighting) legitimately omit it. Present values are either a single body or a non-empty array of bodies; there is no empty array.
 	Body *AnnotationBodies `json:"body,omitempty"`
 
 	// Created When the annotation was MADE — the authoring moment, carried from the event that created it. Not when a projection happened to write it: a store that rebuilds from the log must preserve this value, never restamp it.
@@ -2250,7 +2250,7 @@ type Annotation struct {
 	// Motivation Semiont-supported W3C Web Annotation motivations - https://www.w3.org/TR/annotation-vocab/#motivation
 	Motivation Motivation `json:"motivation"`
 
-	// Target W3C Web Annotation target - can be a simple IRI string (entire resource) or an object with source and optional selector (fragment)
+	// Target W3C Web Annotation target: the id of the resource annotated, when the whole of it is, or an object with source and optional selector (fragment)
 	Target Annotation_Target `json:"target"`
 
 	// Type W3C Annotation type
@@ -2271,7 +2271,7 @@ type Annotation_Generator struct {
 	union json.RawMessage
 }
 
-// Annotation_Target W3C Web Annotation target - can be a simple IRI string (entire resource) or an object with source and optional selector (fragment)
+// Annotation_Target W3C Web Annotation target: the id of the resource annotated, when the whole of it is, or an object with source and optional selector (fragment)
 type Annotation_Target struct {
 	union json.RawMessage
 }
@@ -2339,10 +2339,10 @@ type AnnotationSelector1 = []Selector
 
 // AnnotationTarget W3C Web Annotation target object - source is required, selector is optional
 type AnnotationTarget struct {
-	// Selector What a target's `selector` holds: one W3C selector, or several of the same segment.
+	// Selector Optional selector to identify a specific segment of the source resource
 	Selector *AnnotationSelector `json:"selector,omitempty"`
 
-	// Source A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// Source The id of the resource being annotated
 	Source ResourceId `json:"source"`
 
 	// Type Stated by the annotation of a span: the target is a part of its source, which the selector picks out. An annotation of a resource as a whole states none.
@@ -2499,7 +2499,7 @@ type AttributedEvent struct {
 	// Payload Event-type-specific payload
 	Payload map[string]interface{} `json:"payload"`
 
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// ResourceId Resource this event affects (absent for system events)
 	ResourceId *ResourceId `json:"resourceId,omitempty"`
 
 	// Timestamp When the event occurred
@@ -2508,7 +2508,7 @@ type AttributedEvent struct {
 	// Type Event type (flow verb name, e.g. mark:added)
 	Type string `json:"type"`
 
-	// UserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UserId DID of the user who triggered the event
 	UserId UserId `json:"userId"`
 
 	// Version Event schema version
@@ -2520,7 +2520,7 @@ type BeckonFocusEvent struct {
 	// AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
 	AnnotationId *AnnotationId `json:"annotationId,omitempty"`
 
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// ResourceId Guard: the resource this focus applies to. A viewer showing a different resource ignores the event. Never causes navigation.
 	ResourceId *ResourceId `json:"resourceId,omitempty"`
 }
 
@@ -2558,7 +2558,7 @@ type BindBodyUpdated = map[string]interface{}
 
 // BindInitiateCommand Command payload sent on the bind:initiate bus channel to start a bind flow.
 type BindInitiateCommand struct {
-	// AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
+	// AnnotationId Branded AnnotationId of the annotation being bound
 	AnnotationId AnnotationId `json:"annotationId"`
 
 	// DefaultTitle Default title for the bound annotation
@@ -2567,22 +2567,22 @@ type BindInitiateCommand struct {
 	// EntityTypes Entity types to associate with the annotation
 	EntityTypes []string `json:"entityTypes"`
 
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// ResourceId Branded ResourceId of the resource being bound to
 	ResourceId ResourceId `json:"resourceId"`
 }
 
 // BindUpdateBodyCommand Command payload sent on the bind:update-body bus channel to modify annotation bodies.
 type BindUpdateBodyCommand struct {
-	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
 	UnderscoreUserId *UserId `json:"_userId,omitempty"`
 
-	// AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
+	// AnnotationId Branded AnnotationId of the annotation whose body is being updated
 	AnnotationId AnnotationId `json:"annotationId"`
 
 	// Operations Ordered body-list edits to apply.
 	Operations []BindBodyOperation `json:"operations"`
 
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// ResourceId Branded ResourceId of the resource the annotation belongs to
 	ResourceId ResourceId `json:"resourceId"`
 }
 
@@ -2900,7 +2900,7 @@ type BusEmitRequest struct {
 	// Payload The channel's payload, validated against the schema its registry entry names. `_userId` and `_roles` are the gateway's to write: whatever a caller puts there is replaced.
 	Payload map[string]interface{} `json:"payload"`
 
-	// Scope A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// Scope The resource scope of a resource-bound broadcast. Publishers of those broadcasts only; a command or request never carries one.
 	Scope *ResourceId `json:"scope,omitempty"`
 }
 
@@ -2931,7 +2931,7 @@ type BusFrame struct {
 	// Payload The channel's payload. A replayed persisted event is the stored event itself, whose `metadata.sequenceNumber` the message id carries.
 	Payload map[string]interface{} `json:"payload"`
 
-	// Scope A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// Scope The resource scope the frame was published on. Present exactly when it arrived through a `scoped` entry of the subscription.
 	Scope *ResourceId `json:"scope,omitempty"`
 }
 
@@ -2952,7 +2952,7 @@ type BusResumeGap struct {
 	// Reason `unparseable-last-event-id`: the watermark is not a PersistedEventId. `scope-mismatch`: it names another scope. `retention-exceeded`: the record no longer holds the events after it (what it still holds is replayed first). `query-error`: the record could not be read.
 	Reason BusResumeGapReason `json:"reason"`
 
-	// Scope A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// Scope The scope of the subscription entry whose watermark failed.
 	Scope ResourceId `json:"scope"`
 }
 
@@ -2983,7 +2983,7 @@ type BusSubscribeRequest struct {
 		// LastEventId This scope's last-seen PersistedEventId. The gateway replays this scope's persisted events after it — those on the entry's channels — before the live tail, and writes a scoped `bus:resume-gap` (BusResumeGap) when it cannot cover the gap.
 		LastEventId *string `json:"lastEventId,omitempty"`
 
-		// Scope A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+		// Scope Resource scope (a resourceId).
 		Scope ResourceId `json:"scope"`
 	} `json:"scoped,omitempty"`
 }
@@ -3065,7 +3065,7 @@ type ContextualSummaryResponse struct {
 
 // CreateAnnotationRequest defines model for CreateAnnotationRequest.
 type CreateAnnotationRequest struct {
-	// Body What an annotation's `body` holds: one body, or a non-empty list of them. There is no empty list: an annotation with nothing to say has no `body`.
+	// Body Optional body. Omit for annotations whose motivation alone is meaningful (highlighting) or whose user-supplied content is empty. Shape matches Annotation.body.
 	Body *AnnotationBodies `json:"body,omitempty"`
 
 	// Motivation Semiont-supported W3C Web Annotation motivations - https://www.w3.org/TR/annotation-vocab/#motivation
@@ -3077,7 +3077,7 @@ type CreateAnnotationRequest struct {
 
 // CreateResourceResponse The id of the resource an upload created. The Archivist answers it (200) once it has stored the bytes and recorded the resource, and the gateway forwards it (202), so the id is the one the record minted and its creation event is persisted. What remains asynchronous is downstream projection: graph, views and vectors settle afterwards.
 type CreateResourceResponse struct {
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// ResourceId The id of the newly created resource, as the record minted it.
 	ResourceId ResourceId `json:"resourceId"`
 }
 
@@ -3216,6 +3216,7 @@ type DurabilityEvidence string
 
 // EnrichedResourceEvent defines model for EnrichedResourceEvent.
 type EnrichedResourceEvent struct {
+	// Annotation Populated for events that mutate an annotation (mark:added, mark:body-updated, mark:removed). Carries the post-materialization annotation as it exists in the view, so subscribers can update local caches in-place without refetching. Absent for events that don't touch annotations.
 	Annotation *Annotation `json:"annotation,omitempty"`
 
 	// Id Unique event ID (UUID)
@@ -3227,7 +3228,7 @@ type EnrichedResourceEvent struct {
 	// Payload Event-type-specific payload
 	Payload map[string]interface{} `json:"payload"`
 
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// ResourceId Resource this event affects (absent for system events)
 	ResourceId *ResourceId `json:"resourceId,omitempty"`
 
 	// Timestamp When the event occurred
@@ -3236,7 +3237,7 @@ type EnrichedResourceEvent struct {
 	// Type Event type (flow verb name, e.g. mark:added)
 	Type string `json:"type"`
 
-	// UserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UserId DID of the user who triggered the event
 	UserId UserId `json:"userId"`
 
 	// Version Event schema version
@@ -3364,7 +3365,7 @@ type FileEntry struct {
 	// Path Path relative to project root
 	Path string `json:"path"`
 
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// ResourceId Resource ID (only when tracked is true)
 	ResourceId *ResourceId `json:"resourceId,omitempty"`
 
 	// Size File size in bytes
@@ -3393,14 +3394,14 @@ type FragmentSelectorType string
 
 // FrameAddEntityTypeCommand Bus command to add a new entity type to the KB's vocabulary. Carried on the `frame:add-entity-type` channel — Frame is the schema-layer flow that owns vocabulary writes.
 type FrameAddEntityTypeCommand struct {
-	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
 	UnderscoreUserId *UserId `json:"_userId,omitempty"`
 	Tag              string  `json:"tag"`
 }
 
 // FrameAddTagSchemaCommand Bus command to register a tag schema with the KB's runtime registry. Carried on the `frame:add-tag-schema` channel — Frame is the schema-layer flow that owns vocabulary writes. Most-recent registration of a given `schema.id` wins; the projection reflects the latest content. Identical re-registrations are silent; differing content overwrites and logs a warning.
 type FrameAddTagSchemaCommand struct {
-	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
 	UnderscoreUserId *UserId `json:"_userId,omitempty"`
 
 	// Schema A structural-analysis schema (e.g. legal-irac, scientific-imrad, argument-toulmin). Defines a methodology framework as an id, name, description, domain hint, and an ordered list of categories. KBs and their skills register schemas with the runtime registry via `frame.addTagSchema(...)` at session start.
@@ -3470,10 +3471,10 @@ type GatewayConfigSignalType string
 
 // GatherAnnotationComplete Completion payload emitted on the gather:annotation-complete bus channel when annotation context gathering finishes.
 type GatherAnnotationComplete struct {
-	// AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
+	// AnnotationId Branded AnnotationId of the annotation whose context was gathered
 	AnnotationId AnnotationId `json:"annotationId"`
 
-	// Response Context gathered for a gather.* call — consumed by yield.* (generation) and the matcher. A shared base (graph, semanticContext, metadata, inferredRelationshipSummary) plus a discriminated `focus` that names the anchor: an annotation or a whole resource.
+	// Response The gathered annotation context (unified GatheredContext, focus.kind:'annotation')
 	Response GatheredContext `json:"response"`
 }
 
@@ -3491,19 +3492,19 @@ type GatherAnnotationOptions struct {
 
 // GatherAnnotationRequest Request payload sent on the gather:requested bus channel to gather context for an annotation.
 type GatherAnnotationRequest struct {
-	// AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
+	// AnnotationId Branded AnnotationId of the annotation to gather context for
 	AnnotationId AnnotationId `json:"annotationId"`
 
 	// Options Optional configuration for an annotation-focus gather, which windows text around a mark. Distinct from the resource-focus options (depth / maxResources / includeContent / includeSummary), which traverse the resource graph.
 	Options *GatherAnnotationOptions `json:"options,omitempty"`
 
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// ResourceId Branded ResourceId of the resource the annotation belongs to
 	ResourceId ResourceId `json:"resourceId"`
 }
 
 // GatherFailed defines model for GatherFailed.
 type GatherFailed struct {
-	// AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
+	// AnnotationId The annotation the gather was asked for.
 	AnnotationId AnnotationId `json:"annotationId"`
 
 	// Code Machine-readable failure class, for consumers that must BRANCH on why a command failed rather than log it. Optional and deliberately sparse: absent means 'no class declared', and every existing failure stays that way. An enum rather than a free string so the vocabulary has an owner — an unconstrained code is a mirror with no gate, and adding one should be a deliberate spec change. `message` remains the human-readable text and is unaffected. Members: `peer-unavailable` — the channel this command was sent on has no subscriber, i.e. the service that answers it has not connected yet. Transient by nature (a peer still starting), which is what distinguishes it from a refusal: retrying is the correct response. `not-found` — the resource this command addressed does not exist in this knowledge base. A verdict, not a symptom: it is emitted only where the answer comes from the event store, which is the system of record, and never from a projection that may merely be lagging. Deterministic, so unlike `peer-unavailable` retrying is pointless — and consumers may act destructively on it (the SDK deletes a restored tab). Absence is not denial: a future 'exists, but not for you' must travel as its own code, never as this one. `unauthorized` — that code: the caller is authenticated but not permitted to do what it asked. A verdict about the CALLER, not the resource, so retrying under the same credential cannot succeed and a consumer must never spin on it; emitted by `job:claim` for a caller whose token carries no worker role. `none-pending` — a declined claim, not an error: the queue holds no pending job of the requested types. Nothing went wrong; the one code a consumer PARKS on, meaning 'nothing to do until a wake-up'. Emitted by `job:claim` only. A `job:claim` refusal carrying neither is unclassified — a malformed record or a missing injection — and a consumer treats it as 'log it, assume nothing'.
@@ -3534,10 +3535,10 @@ type GatherReferencedByResult struct {
 
 // GatherResourceComplete Completion payload emitted on the gather:resource-complete bus channel when resource context gathering finishes.
 type GatherResourceComplete struct {
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// ResourceId Branded ResourceId of the resource whose context was gathered
 	ResourceId ResourceId `json:"resourceId"`
 
-	// Response Context gathered for a gather.* call — consumed by yield.* (generation) and the matcher. A shared base (graph, semanticContext, metadata, inferredRelationshipSummary) plus a discriminated `focus` that names the anchor: an annotation or a whole resource.
+	// Response The gathered resource context (unified GatheredContext, focus.kind:'resource')
 	Response GatheredContext `json:"response"`
 }
 
@@ -3552,7 +3553,7 @@ type GatherResourceFailed struct {
 	// Message Human-readable error message
 	Message string `json:"message"`
 
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// ResourceId The resource the gather was asked for.
 	ResourceId ResourceId `json:"resourceId"`
 }
 
@@ -3579,7 +3580,7 @@ type GatherResourceRequest struct {
 		MaxResources int `json:"maxResources"`
 	} `json:"options"`
 
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// ResourceId Branded ResourceId of the resource to gather context for
 	ResourceId ResourceId `json:"resourceId"`
 }
 
@@ -3597,7 +3598,7 @@ type GatheredContext struct {
 	// Focus The gather anchor. Discriminated on `kind`.
 	Focus GatheredContext_Focus `json:"focus"`
 
-	// Graph Knowledge graph gathered for an LLM context — a shared backbone in which resources AND annotations are typed nodes, connected by typed (optionally bidirectional) edges. Flattened views the matcher/generation read (connections, citedBy, siblings) are derived from these nodes/edges.
+	// Graph Knowledge graph backbone — resources AND annotations as typed nodes. The flattened views (connections, citedBy, siblings) are derived from this.
 	Graph KnowledgeGraph `json:"graph"`
 
 	// InferredRelationshipSummary LLM-generated summary of the focal anchor's relationships in the knowledge graph
@@ -3630,6 +3631,7 @@ type GatheredContext struct {
 
 // GatheredContextFocus0 Annotation-anchored focus.
 type GatheredContextFocus0 struct {
+	// Annotation The annotation this context was gathered for
 	Annotation Annotation                `json:"annotation"`
 	Kind       GatheredContextFocus0Kind `json:"kind"`
 
@@ -3645,7 +3647,7 @@ type GatheredContextFocus0 struct {
 		Text string `json:"text"`
 	} `json:"selected,omitempty"`
 
-	// SourceResource Metadata about a resource (1:1 with its URI). JSON-LD subject is @id. Link to concrete bytes via representations.
+	// SourceResource The resource containing the annotation
 	SourceResource ResourceDescriptor `json:"sourceResource"`
 
 	// TargetContext Context about the annotation's link target. Dormant — produced/exposed but not yet consumed.
@@ -3654,7 +3656,7 @@ type GatheredContextFocus0 struct {
 		Summary *string `json:"summary,omitempty"`
 	} `json:"targetContext,omitempty"`
 
-	// TargetResource Metadata about a resource (1:1 with its URI). JSON-LD subject is @id. Link to concrete bytes via representations.
+	// TargetResource The resource the annotation links to, if it is a resolved reference. Dormant capability — produced/exposed but not yet consumed.
 	TargetResource *ResourceDescriptor `json:"targetResource,omitempty"`
 
 	// UserHint User-provided hint to supplement or replace the selected text for search and generation
@@ -3676,7 +3678,7 @@ type GatheredContextFocus1 struct {
 	} `json:"content,omitempty"`
 	Kind GatheredContextFocus1Kind `json:"kind"`
 
-	// Resource Metadata about a resource (1:1 with its URI). JSON-LD subject is @id. Link to concrete bytes via representations.
+	// Resource The resource this context was gathered for
 	Resource            ResourceDescriptor `json:"resource"`
 	SuggestedReferences *[]string          `json:"suggestedReferences,omitempty"`
 	Summary             *string            `json:"summary,omitempty"`
@@ -3695,7 +3697,7 @@ type GenerationJobParams struct {
 	// Cite Ask the model to cite: emit [[<id>]] transport tokens after each claim, using the ids the context embedding provides. The worker validates each id against the embedded context (unknown ids are dropped loudly), strips the tokens from the stored content, and mints W3C linking annotations on the derived resource.
 	Cite *bool `json:"cite,omitempty"`
 
-	// Context Context gathered for a gather.* call — consumed by yield.* (generation) and the matcher. A shared base (graph, semanticContext, metadata, inferredRelationshipSummary) plus a discriminated `focus` that names the anchor: an annotation or a whole resource.
+	// Context The gathered context that grounds the generation. Its `focus` names the anchor: the DISPATCHER derives the job's resourceId from it (resource focus → focus.resource; annotation focus → focus.sourceResource, with the worker auto-binding to focus.annotation) and REJECTS a caller-supplied id — the context is authoritative. Under `cite`, the ids its embedding carries are the only valid citation targets.
 	Context GatheredContext `json:"context"`
 
 	// EntityTypes Entity-type tags to stamp on the synthesized resource. Used both as a prompt bias for the generation worker and as the `entityTypes` set on the resulting resource.
@@ -3707,7 +3709,7 @@ type GenerationJobParams struct {
 	// MaxTokens Output token budget forwarded to the model. Length never determines structure.
 	MaxTokens *float32 `json:"maxTokens,omitempty"`
 
-	// OutputMediaType Base MIME types (no parameters) admitted by Semiont. Membership is the create/yield gate — every member is storable, nameable, and uploadable. What more the system can do with a type (render, annotate, extract text, author) is curated per type in @semiont/core's media-type registry, which is keyed by this enum.
+	// OutputMediaType Requested media type of the generated resource's content. Default `text/markdown` at the worker, which validates it against its supported output set and FAILS the job for anything it can't write — not a silent fallback.
 	OutputMediaType *SupportedMediaType `json:"outputMediaType,omitempty"`
 
 	// Prompt Refining instruction, composed with `task` (task = what, prompt = how).
@@ -3746,7 +3748,7 @@ type GenerationJobRequest struct {
 	// MaxTokens Output token budget forwarded to the model. Length never determines structure.
 	MaxTokens *float32 `json:"maxTokens,omitempty"`
 
-	// OutputMediaType Base MIME types (no parameters) admitted by Semiont. Membership is the create/yield gate — every member is storable, nameable, and uploadable. What more the system can do with a type (render, annotate, extract text, author) is curated per type in @semiont/core's media-type registry, which is keyed by this enum.
+	// OutputMediaType Requested media type of the generated resource's content. Default `text/markdown` at the worker, which validates it against its supported output set and FAILS the job for anything it can't write — not a silent fallback.
 	OutputMediaType *SupportedMediaType `json:"outputMediaType,omitempty"`
 
 	// Prompt Refining instruction, composed with `task` (task = what, prompt = how).
@@ -3817,7 +3819,7 @@ type GetEventsResponse struct {
 // GetReferencedByResponse defines model for GetReferencedByResponse.
 type GetReferencedByResponse struct {
 	ReferencedBy []struct {
-		// Id An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
+		// Id Reference annotation ID
 		Id AnnotationId `json:"id"`
 
 		// ResourceName Name of resource containing the reference
@@ -3828,7 +3830,7 @@ type GetReferencedByResponse struct {
 				Exact string `json:"exact"`
 			} `json:"selector"`
 
-			// Source A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+			// Source ID of resource containing the reference
 			Source ResourceId `json:"source"`
 		} `json:"target"`
 	} `json:"referencedBy"`
@@ -3867,7 +3869,7 @@ type GraphAnnotationNode struct {
 	// EntityTypes Entity types carried by the annotation
 	EntityTypes *[]string `json:"entityTypes,omitempty"`
 
-	// Id An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
+	// Id The AnnotationId — the same value as annotation.id
 	Id AnnotationId `json:"id"`
 
 	// Label The annotation's motivation, as a display label
@@ -3884,7 +3886,7 @@ type GraphResourceNode struct {
 	// EntityTypes Entity types on the resource
 	EntityTypes *[]string `json:"entityTypes,omitempty"`
 
-	// Id A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// Id The resource's ResourceId
 	Id ResourceId `json:"id"`
 
 	// Label The resource's display name — its raw id when the resource's view was missing at build time
@@ -3961,10 +3963,10 @@ type Job struct {
 
 // JobAssignCommand Bus command the dispatcher emits, under its own service identity, immediately after it accepts a job:claim — the correlated job:claimed reply is unchanged. The Stower persists it as job:assigned. It is the one fact only the dispatcher can vouch for: which holder took which job, and who requested it. A later write citing `jobId` is checked against the holder and its `creator` derived from the requester by reading the resource's own log, with nothing outside the record.
 type JobAssignCommand struct {
-	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UnderscoreUserId The dispatcher's service DID, injected by the /bus/emit gateway. Clients do not set this.
 	UnderscoreUserId *UserId `json:"_userId,omitempty"`
 
-	// Holder The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// Holder DID of the claimant whose claim was accepted — the `_userId` the gateway stamped on the job:claim, restated by the dispatcher.
 	Holder UserId `json:"holder"`
 
 	// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
@@ -3973,16 +3975,16 @@ type JobAssignCommand struct {
 	// JobType What a job does, as the verb that asks for it: `mark` annotates a resource, `yield` makes one. A job description is its `jobType` and the parameters that verb takes; a `mark` job's parameters state its motivation.
 	JobType JobType `json:"jobType"`
 
-	// Requester The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// Requester DID of the emitter of the job:create that produced this job — the `_userId` the gateway stamped on that create, restated by the dispatcher.
 	Requester UserId `json:"requester"`
 
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// ResourceId The job's resource — for a generation, the source it generates from. The assignment is persisted on this resource's log.
 	ResourceId ResourceId `json:"resourceId"`
 }
 
 // JobAssignedPayload Payload for job:assigned — the dispatcher's own record that it accepted a claim. Emitted by the dispatcher under its service identity after a successful job:claim (the correlated job:claimed reply is unchanged). This is the one fact only the dispatcher can vouch for: which holder took which job, and who requested it. The Stower persists it beside job:started so that a write citing `jobId` can be checked against the holder and its `creator` derived from the requester with no read outside the event log.
 type JobAssignedPayload struct {
-	// Holder The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// Holder DID of the emitter whose claim the dispatcher accepted. The bus stamped it on the job:claim as `_userId`; the dispatcher restates it here under its own identity.
 	Holder UserId `json:"holder"`
 
 	// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
@@ -3991,19 +3993,19 @@ type JobAssignedPayload struct {
 	// JobType What a job does, as the verb that asks for it: `mark` annotates a resource, `yield` makes one. A job description is its `jobType` and the parameters that verb takes; a `mark` job's parameters state its motivation.
 	JobType JobType `json:"jobType"`
 
-	// Requester The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// Requester DID of the emitter of the job:create that produced this job. The dispatcher restates the `_userId` the gateway stamped on that create.
 	Requester UserId `json:"requester"`
 
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// ResourceId The job's resource — for a generation, the source it generates from. Job events are scoped here.
 	ResourceId ResourceId `json:"resourceId"`
 }
 
 // JobCancelCommand A worker's settling of a running job it holds whose work it has stopped for a cancellation — the queue moves the job to cancelled/. Distinct from JobCancelRequest (the client→worker REQUEST to stop): this is the worker announcing it did, so the running job is never yanked to cancelled/ out from under a live worker (the roach-motel race).
 type JobCancelCommand struct {
-	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
 	UnderscoreUserId *UserId `json:"_userId,omitempty"`
 
-	// AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
+	// AnnotationId Annotation this job is attached to, when applicable. Lets the UI route cancellation feedback to a specific annotation.
 	AnnotationId *AnnotationId `json:"annotationId,omitempty"`
 
 	// CompletedUnits The units the worker had finished when it stopped. Recorded on the cancelled job's metadata so the work already done stays visible.
@@ -4055,7 +4057,7 @@ type JobCancelledStatus string
 
 // JobCheckpointCommand Command to persist a running job's completed-unit checkpoint AT unit completion. Distinct from JobFailCommand's checkpoint, which lands only on a clean failure: a worker that dies (crash/OOM/kill) never emits job:fail, so this durable, unthrottled write is what lets the janitor's stale-running recovery resume a dead worker's job rather than redo its finished units.
 type JobCheckpointCommand struct {
-	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
 	UnderscoreUserId *UserId `json:"_userId,omitempty"`
 
 	// CompletedUnits Entity-type units whose annotations have been fully emitted so far. Unioned into the running job's metadata checkpoint; a retry after recovery skips them.
@@ -4073,7 +4075,7 @@ type JobClaimCommand struct {
 	// UnderscoreRoles The claimant's capabilities (the token's `roles`), injected by the /bus/emit gateway. Clients do not set this. The dispatcher authorizes the claim by capability — it admits the claim only when this carries the worker role — so a claimant that is not a worker for this knowledge base is refused before the queue is consulted.
 	UnderscoreRoles *[]string `json:"_roles,omitempty"`
 
-	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UnderscoreUserId Authenticated claimant's DID, injected by the /bus/emit gateway. Clients do not set this. The dispatcher records it as the holder on job:assigned.
 	UnderscoreUserId *UserId `json:"_userId,omitempty"`
 
 	// Accepts The jobs this claim takes. A job is handed over when it matches any one of them.
@@ -4115,7 +4117,7 @@ type JobCompleteCommand struct {
 
 // JobCompletedPayload Payload for job:completed domain event
 type JobCompletedPayload struct {
-	// AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
+	// AnnotationId Annotation this job was attached to, when applicable
 	AnnotationId *AnnotationId `json:"annotationId,omitempty"`
 
 	// AnnotationUri For generation: URI of annotation that triggered generation
@@ -4139,7 +4141,7 @@ type JobCompletedPayload struct {
 	// Result Full result object for extensibility
 	Result *map[string]interface{} `json:"result,omitempty"`
 
-	// ResultResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// ResultResourceId For generation: ID of generated resource
 	ResultResourceId *ResourceId `json:"resultResourceId,omitempty"`
 	TotalSteps       *int        `json:"totalSteps,omitempty"`
 }
@@ -4192,10 +4194,10 @@ type JobDetectionResult struct {
 
 // JobFailCommand Command to mark a job as failed
 type JobFailCommand struct {
-	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
 	UnderscoreUserId *UserId `json:"_userId,omitempty"`
 
-	// AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
+	// AnnotationId Annotation this job is attached to, when applicable. Lets the UI route failure feedback (error toast, revert state) to a specific annotation.
 	AnnotationId *AnnotationId `json:"annotationId,omitempty"`
 
 	// Attempt Which attempt produced this event, 1-based (a first run is 1). ALWAYS present: the queue re-runs a failed job silently, so an operator reading progress or a terminal record has no other way to tell a re-run from a first run — and provider spend, already counted in semiont_inference_tokens_total, cannot be attributed to a repeated document without it. Stated rather than inferred from absence, because 'attempt 1' is a fact the emitter always knows.
@@ -4251,7 +4253,7 @@ type JobFailedStatus string
 
 // JobFailedPayload Payload for the job:failed domain event — a permanent fact of the resource, not operational state. It carries the judgments the worker COMPUTED, not just its message: at the log they are otherwise unrecoverable, the only remaining witness being a flattened English string.
 type JobFailedPayload struct {
-	// AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
+	// AnnotationId Annotation this job was attached to, when applicable
 	AnnotationId *AnnotationId `json:"annotationId,omitempty"`
 
 	// Attempt Which attempt produced this event, 1-based (a first run is 1). ALWAYS present: the queue re-runs a failed job silently, so an operator reading progress or a terminal record has no other way to tell a re-run from a first run — and provider spend, already counted in semiont_inference_tokens_total, cannot be attributed to a repeated document without it. Stated rather than inferred from absence, because 'attempt 1' is a fact the emitter always knows.
@@ -4281,7 +4283,7 @@ type JobFilter struct {
 
 // JobGenerationResult What a `yield` job reports when it has made its resource. The worker creates the resource first (the create round trip returns its id), then emits job:complete carrying it, so resourceId is always present on the wire.
 type JobGenerationResult struct {
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// ResourceId ID of the generated resource, obtained by the worker from the create round-trip before job:complete is emitted
 	ResourceId ResourceId `json:"resourceId"`
 
 	// ResourceName Name of the generated resource
@@ -4302,7 +4304,7 @@ type JobMetadata struct {
 	// Created When the job was created, as an ISO 8601 timestamp.
 	Created string `json:"created"`
 
-	// Id A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
+	// Id The job's id: `job-` followed by a version 4 UUID written as 32 lowercase hex digits, without dashes.
 	Id JobId `json:"id"`
 
 	// MaxRetries How many transient failures the queue retries: 0 for generation, whose re-run produces different content; 1 for every other type.
@@ -4315,7 +4317,7 @@ type JobMetadata struct {
 	// UnitCursors The furthest each unit begun got, keyed by unit, with what it had counted there. A finished unit keeps its cursor: where it ended, and its final counts.
 	UnitCursors *map[string]UnitCursor `json:"unitCursors,omitempty"`
 
-	// UserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UserId The DID of the principal whose `job:create` created the job.
 	UserId UserId `json:"userId"`
 }
 
@@ -4324,7 +4326,7 @@ type JobParams struct {
 	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
 	ResourceId ResourceId `json:"resourceId"`
 
-	// Schema A structural-analysis schema (e.g. legal-irac, scientific-imrad, argument-toulmin). Defines a methodology framework as an id, name, description, domain hint, and an ordered list of categories. KBs and their skills register schemas with the runtime registry via `frame.addTagSchema(...)` at session start.
+	// Schema The tag schema a tagging job's `schemaId` names, as the knowledge base registered it when the job was created. On a tagging job, and on no other.
 	Schema               *TagSchema             `json:"schema,omitempty"`
 	AdditionalProperties map[string]interface{} `json:"-"`
 }
@@ -4344,7 +4346,7 @@ type JobPendingStatus string
 
 // JobProgress Progress report from a running job. The required field is `percentage`; `message` carries the coded phase and the rest are optional job-shape fields. This is the single progress shape for every job type — annotation workers and generation alike. Terminality is signalled on `job:complete` / `job:fail`, not here. A flow that iterates a user-chosen list (entity types for references, categories for tags) reports its position as one `current`/`processed`/`total` triple, the same shape for both, so a client never needs to know which flow it is drawing.
 type JobProgress struct {
-	// AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
+	// AnnotationId Annotation this job is attached to, when applicable. Echoed inside JobProgress (in addition to the outer command envelope) so consumers that only see the inner progress object (e.g. what `yield.delegate` returns) can still route visual feedback to a specific annotation.
 	AnnotationId *AnnotationId `json:"annotationId,omitempty"`
 
 	// CompletedItems Per-item results for the items already finished, for the UI's completed log. Generic across flows for the same reason `current` is.
@@ -4440,7 +4442,7 @@ type JobProgressCompleteCreated struct {
 	// Count How many annotations were created
 	Count int `json:"count"`
 
-	// Motivation Semiont-supported W3C Web Annotation motivations - https://www.w3.org/TR/annotation-vocab/#motivation
+	// Motivation The motivation of the job, and so of what it created. A client words it in its own language.
 	Motivation Motivation `json:"motivation"`
 }
 
@@ -4536,10 +4538,10 @@ type JobRecord struct {
 
 // JobReportProgressCommand Command to report progress on a job
 type JobReportProgressCommand struct {
-	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
 	UnderscoreUserId *UserId `json:"_userId,omitempty"`
 
-	// AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
+	// AnnotationId Annotation this job is attached to, when applicable. Lets the UI attach progress visuals to a specific annotation (e.g. a reference whose generation is running).
 	AnnotationId *AnnotationId `json:"annotationId,omitempty"`
 
 	// Attempt Which attempt produced this event, 1-based (a first run is 1). ALWAYS present: the queue re-runs a failed job silently, so an operator reading progress or a terminal record has no other way to tell a re-run from a first run — and provider spend, already counted in semiont_inference_tokens_total, cannot be attributed to a repeated document without it. Stated rather than inferred from absence, because 'attempt 1' is a fact the emitter always knows.
@@ -4585,10 +4587,10 @@ type JobRunningStatus string
 
 // JobStartCommand Command to start a job
 type JobStartCommand struct {
-	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
 	UnderscoreUserId *UserId `json:"_userId,omitempty"`
 
-	// AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
+	// AnnotationId Annotation this job is attached to, when applicable. Set for annotation-scoped jobs like generation (from a specific reference). Unset for resource-scoped jobs like bulk reference/tag/highlight detection.
 	AnnotationId *AnnotationId `json:"annotationId,omitempty"`
 
 	// Attempt Which attempt produced this event, 1-based (a first run is 1). ALWAYS present: the queue re-runs a failed job silently, so an operator reading progress or a terminal record has no other way to tell a re-run from a first run — and provider spend, already counted in semiont_inference_tokens_total, cannot be attributed to a repeated document without it. Stated rather than inferred from absence, because 'attempt 1' is a fact the emitter always knows.
@@ -4606,7 +4608,7 @@ type JobStartCommand struct {
 
 // JobStartedPayload Payload for job:started domain event
 type JobStartedPayload struct {
-	// AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
+	// AnnotationId Annotation this job is attached to, when applicable
 	AnnotationId *AnnotationId `json:"annotationId,omitempty"`
 
 	// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
@@ -4757,7 +4759,7 @@ type LogLevel string
 
 // MarkArchiveCommand Bus command to archive a resource and optionally remove its file.
 type MarkArchiveCommand struct {
-	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
 	UnderscoreUserId *UserId `json:"_userId,omitempty"`
 	KeepFile         *bool   `json:"keepFile,omitempty"`
 
@@ -4773,16 +4775,16 @@ type MarkCommitCommand struct {
 	// UnderscoreRoles The emitter's capabilities (the token's `roles`), injected by the /bus/emit gateway. Clients do not set this. An emitter carrying the worker role must cite the job this batch fulfils in `jobId`; the Stower refuses the batch otherwise.
 	UnderscoreRoles *[]string `json:"_roles,omitempty"`
 
-	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
 	UnderscoreUserId *UserId `json:"_userId,omitempty"`
 
 	// Annotations The unit's annotations, already built with deterministic ids. Re-committing an identical batch is a no-op rather than a duplicate.
 	Annotations []Annotation `json:"annotations"`
 
-	// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
+	// JobId The job this batch fulfils. Required when the emitter carries the worker role; absent for self-initiated work (a person, or an agent acting on its own). The knowledge base derives who requested these annotations from the cited job's own events — the emitter never says who the work was for.
 	JobId *JobId `json:"jobId,omitempty"`
 
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// ResourceId Resource every annotation in this batch targets.
 	ResourceId ResourceId `json:"resourceId"`
 }
 
@@ -4826,13 +4828,13 @@ type MarkDelegateTimeoutEvent struct {
 	// Motivation Semiont-supported W3C Web Annotation motivations - https://www.w3.org/TR/annotation-vocab/#motivation
 	Motivation Motivation `json:"motivation"`
 
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// ResourceId The resource the job was delegated for.
 	ResourceId ResourceId `json:"resourceId"`
 }
 
 // MarkDeleteCommand Bus command to delete an annotation.
 type MarkDeleteCommand struct {
-	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
 	UnderscoreUserId *UserId `json:"_userId,omitempty"`
 
 	// AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
@@ -4853,7 +4855,7 @@ type MarkDeleteOk struct {
 
 // MarkJobCompleteCommand A `mark` job's worker says the job is complete, with what a `mark` job reports.
 type MarkJobCompleteCommand struct {
-	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
 	UnderscoreUserId *UserId `json:"_userId,omitempty"`
 
 	// Attempt Which attempt produced this event, 1-based (a first run is 1). ALWAYS present: the queue re-runs a failed job silently, so an operator reading progress or a terminal record has no other way to tell a re-run from a first run — and provider spend, already counted in semiont_inference_tokens_total, cannot be attributed to a repeated document without it. Stated rather than inferred from absence, because 'attempt 1' is a fact the emitter always knows.
@@ -4881,14 +4883,14 @@ type MarkJobCreateCommand struct {
 	// UnderscoreRoles The emitter's roles, injected by the gateway when it has any. Clients do not set this.
 	UnderscoreRoles *[]string `json:"_roles,omitempty"`
 
-	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UnderscoreUserId The emitter's verified DID, injected by the gateway. Clients do not set this.
 	UnderscoreUserId *UserId                     `json:"_userId,omitempty"`
 	JobType          MarkJobCreateCommandJobType `json:"jobType"`
 
 	// Params The parameters of a `mark` job, told apart by `motivation`. Each motivation takes its own parameters and no others: a parameter a job does not take is refused where the job is created.
 	Params MarkJobParams `json:"params"`
 
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// ResourceId The resource to annotate.
 	ResourceId ResourceId `json:"resourceId"`
 }
 
@@ -4921,10 +4923,10 @@ type MarkJobQueuedEvent struct {
 	// Params The parameters of a `mark` job, told apart by `motivation`. Each motivation takes its own parameters and no others: a parameter a job does not take is refused where the job is created.
 	Params MarkJobParams `json:"params"`
 
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// ResourceId The resource the job is about.
 	ResourceId ResourceId `json:"resourceId"`
 
-	// UserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UserId The DID of the principal whose `job:create` created the job.
 	UserId UserId `json:"userId"`
 }
 
@@ -4941,31 +4943,31 @@ type MarkRequestedEvent struct {
 	// Motivation Semiont-supported W3C Web Annotation motivations - https://www.w3.org/TR/annotation-vocab/#motivation
 	Motivation Motivation `json:"motivation"`
 
-	// Selector What a target's `selector` holds: one W3C selector, or several of the same segment.
+	// Selector One or more W3C selectors
 	Selector AnnotationSelector `json:"selector"`
 
-	// Source A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// Source The '@id' of the resource the mark belongs to (W3C target.source). Routes the event to the right viewer/state unit when a host mounts many viewers on one session.
 	Source ResourceId `json:"source"`
 }
 
 // MarkSubmitEvent Emitted when a mark is submitted with its annotation body
 type MarkSubmitEvent struct {
-	// Body What an annotation's `body` holds: one body, or a non-empty list of them. There is no empty list: an annotation with nothing to say has no `body`.
+	// Body Optional body. Omit for annotations whose motivation alone is meaningful (e.g. highlighting) or whose user-supplied content is empty (e.g. an assessing annotation saved without comment text). Shape matches Annotation.body.
 	Body *AnnotationBodies `json:"body,omitempty"`
 
 	// Motivation Semiont-supported W3C Web Annotation motivations - https://www.w3.org/TR/annotation-vocab/#motivation
 	Motivation Motivation `json:"motivation"`
 
-	// Selector What a target's `selector` holds: one W3C selector, or several of the same segment.
+	// Selector One or more W3C selectors
 	Selector AnnotationSelector `json:"selector"`
 
-	// Source A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// Source The '@id' of the resource the mark belongs to (W3C target.source). Routes the submit to the state unit bound to that resource — without it, N mounted units each create the annotation (N copies on N resources).
 	Source ResourceId `json:"source"`
 }
 
 // MarkUnarchiveCommand Bus command to unarchive a previously archived resource.
 type MarkUnarchiveCommand struct {
-	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
 	UnderscoreUserId *UserId `json:"_userId,omitempty"`
 
 	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
@@ -4977,7 +4979,7 @@ type MarkUnarchiveCommand struct {
 
 // MarkUpdateBodyCommand Bus command to update an annotation's body with patch operations.
 type MarkUpdateBodyCommand struct {
-	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
 	UnderscoreUserId *UserId `json:"_userId,omitempty"`
 
 	// AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
@@ -4995,7 +4997,7 @@ type MarkUpdateBodyCommand_Operations_Item struct {
 
 // MarkUpdateEntityTypesCommand Bus command to replace the entity types on a resource.
 type MarkUpdateEntityTypesCommand struct {
-	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
 	UnderscoreUserId   *UserId  `json:"_userId,omitempty"`
 	CurrentEntityTypes []string `json:"currentEntityTypes"`
 
@@ -5045,16 +5047,16 @@ type MatchSearchFailed struct {
 
 // MatchSearchRequest Request payload sent on the match:search-request bus channel to find candidate matches.
 type MatchSearchRequest struct {
-	// Context Context gathered for a gather.* call — consumed by yield.* (generation) and the matcher. A shared base (graph, semanticContext, metadata, inferredRelationshipSummary) plus a discriminated `focus` that names the anchor: an annotation or a whole resource.
+	// Context Gathered context for the reference annotation
 	Context GatheredContext `json:"context"`
 
 	// Limit Maximum number of candidate results to return
 	Limit *int `json:"limit,omitempty"`
 
-	// ReferenceId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
+	// ReferenceId Annotation ID of the reference to search candidates for
 	ReferenceId AnnotationId `json:"referenceId"`
 
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// ResourceId Resource ID the reference annotation belongs to. Used to scope result events on the EventBus so the events-stream delivers them to participants viewing this resource.
 	ResourceId ResourceId `json:"resourceId"`
 
 	// UseSemanticScoring Enable semantic similarity scoring in addition to keyword matching
@@ -5072,7 +5074,7 @@ type MatchSearchResult struct {
 
 // MediaTokenRequest defines model for MediaTokenRequest.
 type MediaTokenRequest struct {
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// ResourceId The resource ID to generate a media token for
 	ResourceId ResourceId `json:"resourceId"`
 }
 
@@ -5118,7 +5120,7 @@ type PersistedEventId = string
 
 // PersonProfileCommand Bus command the gateway emits when a person ACTS, carrying the display name it just verified on their token. The Stower persists it as person:profiled, and only when the name differs from the latest one recorded for that DID — so the log holds one line per name a subject has had, not one per act. A name is a fact ABOUT an identity, never part of the record of an act: no artifact carries it, and readers resolve it from the people projection. Emitted only for a person (an issuer token); an agent token never produces one, and neither does a request that merely reads.
 type PersonProfileCommand struct {
-	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UnderscoreUserId The person's DID, injected by the /bus/emit gateway from the verified token. Clients do not set this.
 	UnderscoreUserId *UserId `json:"_userId,omitempty"`
 
 	// Name The display name from the issuer's `name` claim, as verified on the token that carried this act. A token with no name produces no command at all — the issuer is where a name is set, and absence is recorded as absence.
@@ -5357,7 +5359,7 @@ type ResourceDescriptor struct {
 	// Context JSON-LD context; URI, object, or array of these.
 	Context ResourceDescriptor_Context `json:"@context"`
 
-	// Id A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// Id The id of the resource being described.
 	Id ResourceId `json:"@id"`
 
 	// Type Type(s) of the resource (IRIs/CURIEs via @context).
@@ -5403,10 +5405,10 @@ type ResourceDescriptor struct {
 	// SameAs Equivalent/authoritative references.
 	SameAs *[]string `json:"sameAs,omitempty"`
 
-	// SourceAnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
+	// SourceAnnotationId Application-specific: ID of annotation that triggered generation
 	SourceAnnotationId *AnnotationId `json:"sourceAnnotationId,omitempty"`
 
-	// SourceResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// SourceResourceId Application-specific: ID of source resource for clones/derivatives
 	SourceResourceId *ResourceId `json:"sourceResourceId,omitempty"`
 	Version          *string     `json:"version,omitempty"`
 
@@ -5532,7 +5534,7 @@ type ResourceErrorEvent struct {
 	// Message Human-readable error message.
 	Message string `json:"message"`
 
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// ResourceId The resource the command addressed.
 	ResourceId ResourceId `json:"resourceId"`
 }
 
@@ -5585,7 +5587,7 @@ type ResourceUpload struct {
 	// IsDraft 'true' or 'false' — whether the resource is a draft
 	IsDraft *string `json:"isDraft,omitempty"`
 
-	// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
+	// JobId The job this resource fulfils, when a worker is creating it. Forwarded onto yield:create; the knowledge base derives who requested the resource from the cited job's own events, and refuses a worker-role create that cites none. Absent for a person's own upload.
 	JobId *JobId `json:"jobId,omitempty"`
 
 	// Language ISO 639-1 language code
@@ -5594,10 +5596,10 @@ type ResourceUpload struct {
 	// Name Human-readable resource name
 	Name string `json:"name"`
 
-	// SourceAnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
+	// SourceAnnotationId For AI-generated resources: the annotation that triggered generation. Nested into generatedFrom.annotationId on the persisted event.
 	SourceAnnotationId *AnnotationId `json:"sourceAnnotationId,omitempty"`
 
-	// SourceResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// SourceResourceId For AI-generated resources: the source resource the generating annotation lives on. Nested into generatedFrom.resourceId on the persisted event.
 	SourceResourceId *ResourceId `json:"sourceResourceId,omitempty"`
 
 	// StorageUri Where the content lives (file://... for local). Required — the client names the location; the server does not derive one.
@@ -5621,7 +5623,7 @@ type ScoredResource struct {
 	// Context JSON-LD context; URI, object, or array of these.
 	Context ScoredResource_Context `json:"@context"`
 
-	// Id A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// Id The id of the resource being described.
 	Id ResourceId `json:"@id"`
 
 	// Type Type(s) of the resource (IRIs/CURIEs via @context).
@@ -5673,10 +5675,10 @@ type ScoredResource struct {
 	// Score Relevance score assigned by the matcher; higher is a better candidate.
 	Score *float32 `json:"score,omitempty"`
 
-	// SourceAnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
+	// SourceAnnotationId Application-specific: ID of annotation that triggered generation
 	SourceAnnotationId *AnnotationId `json:"sourceAnnotationId,omitempty"`
 
-	// SourceResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// SourceResourceId Application-specific: ID of source resource for clones/derivatives
 	SourceResourceId *ResourceId `json:"sourceResourceId,omitempty"`
 	Version          *string     `json:"version,omitempty"`
 
@@ -5831,7 +5833,7 @@ type Selector struct {
 
 // SemanticMatch defines model for SemanticMatch.
 type SemanticMatch struct {
-	// AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
+	// AnnotationId Source annotation ID, if the match is from an annotation
 	AnnotationId *AnnotationId `json:"annotationId,omitempty"`
 
 	// EntityTypes Entity types on the matched passage
@@ -5840,7 +5842,7 @@ type SemanticMatch struct {
 	// MachineRead True when this passage's text was recognized from pixels (OCR of a scanned page) rather than read from the document. Absent means read directly — the common case — so the flag is only present where it changes how the text should be trusted. It travels with the passage because a consumer receives the chunk with no document attached and cannot recompute how the text was obtained.
 	MachineRead *bool `json:"machineRead,omitempty"`
 
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// ResourceId Source resource ID
 	ResourceId ResourceId `json:"resourceId"`
 
 	// ResourceName The source resource's display name, resolved from its view at gather time. Required: a match card must name its source, and corpus matches routinely come from outside the graph neighborhood, so there is no node to borrow a name from. A match whose source no longer resolves to a view is dropped by the producer rather than served nameless.
@@ -5858,7 +5860,7 @@ type SessionJoinedEvent struct {
 	// ConnectionId Identifies this connection for its lifetime. The matching session:left carries the same value.
 	ConnectionId string `json:"connectionId"`
 
-	// Participant The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// Participant DID of the authenticated principal on that connection. A person or a software agent — the bus does not distinguish.
 	Participant UserId `json:"participant"`
 }
 
@@ -5867,7 +5869,7 @@ type SessionLeftEvent struct {
 	// ConnectionId The connectionId announced by the matching session:joined.
 	ConnectionId string `json:"connectionId"`
 
-	// Participant The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// Participant DID of the authenticated principal on that connection.
 	Participant UserId `json:"participant"`
 }
 
@@ -5891,10 +5893,10 @@ type SettingsThemeChangedEventTheme string
 
 // SmeltRebuildAnchorsCommand Bus command to rebuild anchored-text artifacts by re-running extraction — every geometry-capable resource when resourceId is absent, one resource when present. Served by the Smelter, serialized (each unit can be a multi-second OCR pass), and never destructive: nothing is deleted first, stale entries are simply overwritten. Re-anchoring makes zero embedding calls — the vectors are already correct; only the derived map is re-made. Partial completion replies failed, with counts: a rebuild that quietly skipped resources would present exactly like a document with no text.
 type SmeltRebuildAnchorsCommand struct {
-	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
 	UnderscoreUserId *UserId `json:"_userId,omitempty"`
 
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// ResourceId When present, re-anchor only this resource; otherwise every geometry-capable resource in the catalog.
 	ResourceId *ResourceId `json:"resourceId,omitempty"`
 }
 
@@ -5907,7 +5909,7 @@ type SmeltSettled struct {
 	// Reason Why the content was skipped.
 	Reason *SmeltSettledReason `json:"reason,omitempty"`
 
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// ResourceId The resource whose content was inspected.
 	ResourceId ResourceId `json:"resourceId"`
 }
 
@@ -5919,10 +5921,10 @@ type SmeltSettledReason string
 
 // SpecificResource defines model for SpecificResource.
 type SpecificResource struct {
-	// Purpose W3C Web Annotation body purpose vocabulary - https://www.w3.org/TR/annotation-vocab/#motivation
+	// Purpose Why this body is included
 	Purpose *BodyPurpose `json:"purpose,omitempty"`
 
-	// Source A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// Source The id of the resource this body leads to
 	Source ResourceId           `json:"source"`
 	Type   SpecificResourceType `json:"type"`
 }
@@ -5962,7 +5964,7 @@ type StoredEventResponse struct {
 	// Payload Event-type-specific payload
 	Payload map[string]interface{} `json:"payload"`
 
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// ResourceId Resource this event affects (absent for system events)
 	ResourceId *ResourceId `json:"resourceId,omitempty"`
 
 	// Timestamp When the event occurred
@@ -5971,7 +5973,7 @@ type StoredEventResponse struct {
 	// Type Event type (flow verb name, e.g. mark:added)
 	Type string `json:"type"`
 
-	// UserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UserId DID of the user who triggered the event
 	UserId UserId `json:"userId"`
 
 	// Version Event schema version
@@ -6073,7 +6075,7 @@ type TextualBody struct {
 	// Language BCP 47 language tag
 	Language *string `json:"language,omitempty"`
 
-	// Purpose W3C Web Annotation body purpose vocabulary - https://www.w3.org/TR/annotation-vocab/#motivation
+	// Purpose Why this body is included
 	Purpose *BodyPurpose    `json:"purpose,omitempty"`
 	Type    TextualBodyType `json:"type"`
 
@@ -6111,7 +6113,7 @@ type UpdateAnnotationBodyRequest struct {
 	// Operations Array of body modification operations to apply
 	Operations []UpdateAnnotationBodyRequest_Operations_Item `json:"operations"`
 
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// ResourceId Resource ID containing the annotation (required for O(1) Layer 3 lookup)
 	ResourceId ResourceId `json:"resourceId"`
 }
 
@@ -6129,7 +6131,7 @@ type UserId = string
 //
 // The remaining fields exist to be displayed, and all of them come from the token's own claims.
 type UserResponse struct {
-	// Did The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// Did The authenticated principal's DID — `did:web:<domain>:users:<subject>` for a person, where the subject is the issuer claim the knowledge base names its people by (`identity.subjectClaim`), `did:web:<domain>:agents:<provider>:<model>` for a software agent.
 	Did UserId `json:"did"`
 
 	// Domain Not always the email's suffix: a software agent's email sits in an `agents.<host>` namespace while its domain is the deployment's.
@@ -6141,7 +6143,7 @@ type UserResponse struct {
 
 // WeaveApplied The payload of `weave:applied`: the Weaver has applied a resource's events to the graph up to this sequence number. Emitted after applying an event, or a batch's last event.
 type WeaveApplied struct {
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// ResourceId The resource whose events were applied.
 	ResourceId ResourceId `json:"resourceId"`
 
 	// SequenceNumber The resource-stream sequence of the last applied event.
@@ -6150,10 +6152,10 @@ type WeaveApplied struct {
 
 // WeaveRebuildCommand Bus command to rebuild the graph projection from the event log — the whole graph when resourceId is absent, one resource when present. Served by the Weaver; replaces direct rebuild access, which does not survive the Weaver's container split.
 type WeaveRebuildCommand struct {
-	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
 	UnderscoreUserId *UserId `json:"_userId,omitempty"`
 
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// ResourceId When present, rebuild only this resource; otherwise clear and rebuild the entire graph.
 	ResourceId *ResourceId `json:"resourceId,omitempty"`
 }
 
@@ -6198,7 +6200,7 @@ type WorkerConfig struct {
 
 // YieldCloneCreateCommand Bus command to create a cloned resource from a clone token. Bytes are stored by the upload path BEFORE this command is emitted, because bytes travel over HTTP and never over the bus — the command carries the storage coordinates, never content.
 type YieldCloneCreateCommand struct {
-	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
 	UnderscoreUserId *UserId `json:"_userId,omitempty"`
 	ArchiveOriginal  *bool   `json:"archiveOriginal,omitempty"`
 	ByteSize         int     `json:"byteSize"`
@@ -6229,7 +6231,7 @@ type YieldCloneCreated struct {
 //
 // Generated resources are NOT clones: they carry provenance in `generatedFrom` and stay on `yield:create`.
 type YieldClonePersistCommand struct {
-	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UnderscoreUserId Injected by the gateway from the authenticated principal; never supplied by a wire caller.
 	UnderscoreUserId *UserId `json:"_userId,omitempty"`
 	ByteSize         int     `json:"byteSize"`
 	ContentChecksum  string  `json:"contentChecksum"`
@@ -6242,7 +6244,7 @@ type YieldClonePersistCommand struct {
 	Language *string       `json:"language,omitempty"`
 	Name     string        `json:"name"`
 
-	// ParentResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// ParentResourceId The resource this one is cloned FROM. Required: it is what makes this a clone rather than a creation.
 	ParentResourceId ResourceId `json:"parentResourceId"`
 
 	// StorageUri The caller's instruction for WHERE the bytes are — the uploader wrote them before emitting this. The stored location lives on the clone's primary Representation, the one home of a storage URI.
@@ -6274,7 +6276,7 @@ type YieldCreateCommand struct {
 	// UnderscoreRoles The emitter's capabilities (the token's `roles`), injected by the /bus/emit gateway. Clients do not set this. An emitter carrying the worker role must cite the job this resource fulfils in `jobId`; the Stower refuses the create otherwise.
 	UnderscoreRoles *[]string `json:"_roles,omitempty"`
 
-	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
 	UnderscoreUserId *UserId   `json:"_userId,omitempty"`
 	ByteSize         int       `json:"byteSize"`
 	ContentChecksum  string    `json:"contentChecksum"`
@@ -6295,7 +6297,7 @@ type YieldCreateCommand struct {
 	Generator *YieldCreateCommand_Generator `json:"generator,omitempty"`
 	IsDraft   *bool                         `json:"isDraft,omitempty"`
 
-	// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
+	// JobId The job this resource fulfils. Required when the emitter carries the worker role; absent for self-initiated work (a person, or an agent acting on its own). The knowledge base derives who requested this resource from the cited job's own events — the emitter never says who the work was for.
 	JobId    *JobId  `json:"jobId,omitempty"`
 	Language *string `json:"language,omitempty"`
 	Name     string  `json:"name"`
@@ -6323,10 +6325,10 @@ type YieldCreateOk struct {
 
 // YieldJobCompleteCommand A `yield` job's worker says the job is complete, with what a `yield` job reports.
 type YieldJobCompleteCommand struct {
-	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
 	UnderscoreUserId *UserId `json:"_userId,omitempty"`
 
-	// AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
+	// AnnotationId The annotation the job's context was focused on, when it was focused on one. Lets a client route the completion to that annotation.
 	AnnotationId *AnnotationId `json:"annotationId,omitempty"`
 
 	// Attempt Which attempt produced this event, 1-based (a first run is 1). ALWAYS present: the queue re-runs a failed job silently, so an operator reading progress or a terminal record has no other way to tell a re-run from a first run — and provider spend, already counted in semiont_inference_tokens_total, cannot be attributed to a repeated document without it. Stated rather than inferred from absence, because 'attempt 1' is a fact the emitter always knows.
@@ -6354,7 +6356,7 @@ type YieldJobCreateCommand struct {
 	// UnderscoreRoles The emitter's roles, injected by the gateway when it has any. Clients do not set this.
 	UnderscoreRoles *[]string `json:"_roles,omitempty"`
 
-	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UnderscoreUserId The emitter's verified DID, injected by the gateway. Clients do not set this.
 	UnderscoreUserId *UserId                      `json:"_userId,omitempty"`
 	JobType          YieldJobCreateCommandJobType `json:"jobType"`
 
@@ -6382,10 +6384,10 @@ type YieldJobQueuedEvent struct {
 	// Params What a `yield` job is asked to make: every parameter of GenerationJobParams but its `context`, the input the resource is made from. It is what an announcement of the job carries.
 	Params GenerationJobRequest `json:"params"`
 
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	// ResourceId The resource the job is about.
 	ResourceId ResourceId `json:"resourceId"`
 
-	// UserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UserId The DID of the principal whose `job:create` created the job.
 	UserId UserId `json:"userId"`
 }
 
@@ -6399,7 +6401,7 @@ type YieldJobResult struct {
 
 // YieldUpdateCommand Bus command to update a yielded resource's storage content.
 type YieldUpdateCommand struct {
-	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
 	UnderscoreUserId *UserId `json:"_userId,omitempty"`
 	ByteSize         int     `json:"byteSize"`
 	ContentChecksum  string  `json:"contentChecksum"`

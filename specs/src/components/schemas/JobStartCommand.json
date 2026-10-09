@@ -3,7 +3,7 @@
   "description": "Command to start a job",
   "properties": {
     "_userId": {
-      "$ref": "./UserId.json",
+      "allOf": [{ "$ref": "./UserId.json" }],
       "description": "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this."
     },
     "resourceId": {
@@ -16,7 +16,7 @@
       "$ref": "./JobType.json"
     },
     "annotationId": {
-      "$ref": "./AnnotationId.json",
+      "allOf": [{ "$ref": "./AnnotationId.json" }],
       "description": "Annotation this job is attached to, when applicable. Set for annotation-scoped jobs like generation (from a specific reference). Unset for resource-scoped jobs like bulk reference/tag/highlight detection."
     },
     "attempt": {

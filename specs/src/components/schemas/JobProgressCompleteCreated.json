@@ -13,7 +13,11 @@
       "description": "How many annotations were created"
     },
     "motivation": {
-      "$ref": "./Motivation.json",
+      "allOf": [
+        {
+          "$ref": "./Motivation.json"
+        }
+      ],
       "description": "The motivation of the job, and so of what it created. A client words it in its own language."
     }
   },

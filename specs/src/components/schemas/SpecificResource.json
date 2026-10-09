@@ -6,11 +6,11 @@
       "enum": ["SpecificResource"]
     },
     "source": {
-      "$ref": "./ResourceId.json",
+      "allOf": [{ "$ref": "./ResourceId.json" }],
       "description": "The id of the resource this body leads to"
     },
     "purpose": {
-      "$ref": "./BodyPurpose.json",
+      "allOf": [{ "$ref": "./BodyPurpose.json" }],
       "description": "Why this body is included"
     }
   },

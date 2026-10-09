@@ -13,9 +13,12 @@
       "additionalProperties": true
     },
     "scope": {
-      "$ref": "./ResourceId.json",
-      "description": "The resource scope of a resource-bound broadcast. Publishers of those broadcasts only; a command or request never carries one.",
-      "minLength": 1
+      "allOf": [
+        {
+          "$ref": "./ResourceId.json"
+        }
+      ],
+      "description": "The resource scope of a resource-bound broadcast. Publishers of those broadcasts only; a command or request never carries one."
     },
     "clientId": {
       "type": "string",

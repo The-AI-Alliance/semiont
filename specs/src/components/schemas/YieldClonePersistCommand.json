@@ -3,7 +3,11 @@
   "description": "Command: stow an already-uploaded clone's bytes and append `yield:cloned`.\n\nThe INNER half of the clone flow. `yield:clone-create` reaches the CloneTokenManager, which alone can validate the token and read the source's entity types; it then emits this so the Stower — the only appendEvent caller — writes the domain event.\n\nDistinct from `yield:create` because a clone is a distinct operation, not a creation with an extra field. It REQUIRES a parent, and that requirement is what a separate command expresses: an optional `parentResourceId` on the create command could not say that a clone without a parent is not a clone. `ResourceClonedPayload` requires it for the same reason.\n\nGenerated resources are NOT clones: they carry provenance in `generatedFrom` and stay on `yield:create`.",
   "properties": {
     "_userId": {
-      "$ref": "./UserId.json",
+      "allOf": [
+        {
+          "$ref": "./UserId.json"
+        }
+      ],
       "description": "Injected by the gateway from the authenticated principal; never supplied by a wire caller."
     },
     "name": {
@@ -33,7 +37,11 @@
       }
     },
     "parentResourceId": {
-      "$ref": "./ResourceId.json",
+      "allOf": [
+        {
+          "$ref": "./ResourceId.json"
+        }
+      ],
       "description": "The resource this one is cloned FROM. Required: it is what makes this a clone rather than a creation."
     }
   },

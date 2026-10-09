@@ -14,6 +14,24 @@ rules:
   # An operation has a name of its own, which a generated client's method takes.
   operation-operationId: error
 
+  # Something said of a reference is written
+  # `{ "allOf": [{ "$ref": … }], "description": … }`. OpenAPI 3.0 reads nothing
+  # beside a bare `$ref`, and the Go and Rust generators hold to that: a
+  # description written there reaches neither.
+  #
+  # Two kinds of reference are never wrapped, and `lint:spec-reference-forms`
+  # holds both. A member of a `oneOf` stays a bare `$ref`, and what would be
+  # said of it is said of the `oneOf`: the Go client names a union's accessors
+  # by a wrapped member's position. A reference to a schema that has a
+  # `discriminator` stays a bare `$ref` with its description beside it:
+  # openapi-typescript takes the discriminator's property out of a wrapped
+  # one. .redocly.lint-ignore.yaml names each of those.
+  spec-ref-siblings: error
+
+  # An operation documents a refusal. The five that take no credential and no
+  # parameter have none to document, and .redocly.lint-ignore.yaml names them.
+  operation-4xx-response: error
+
   # A reference that may be null is written
   # `{ "nullable": true, "allOf": [{ "$ref": … }] }`. The validators generated
   # from the spec (scripts/spec/generate-validators.mjs, packages/codegen-rust)

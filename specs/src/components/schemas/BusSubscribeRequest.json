@@ -31,9 +31,12 @@
         "additionalProperties": false,
         "properties": {
           "scope": {
-            "$ref": "./ResourceId.json",
-            "description": "Resource scope (a resourceId).",
-            "minLength": 1
+            "allOf": [
+              {
+                "$ref": "./ResourceId.json"
+              }
+            ],
+            "description": "Resource scope (a resourceId)."
           },
           "channels": {
             "type": "array",

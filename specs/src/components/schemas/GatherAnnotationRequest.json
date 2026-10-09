@@ -3,11 +3,19 @@
   "description": "Request payload sent on the gather:requested bus channel to gather context for an annotation.",
   "properties": {
     "annotationId": {
-      "$ref": "./AnnotationId.json",
+      "allOf": [
+        {
+          "$ref": "./AnnotationId.json"
+        }
+      ],
       "description": "Branded AnnotationId of the annotation to gather context for"
     },
     "resourceId": {
-      "$ref": "./ResourceId.json",
+      "allOf": [
+        {
+          "$ref": "./ResourceId.json"
+        }
+      ],
       "description": "Branded ResourceId of the resource the annotation belongs to"
     },
     "options": {

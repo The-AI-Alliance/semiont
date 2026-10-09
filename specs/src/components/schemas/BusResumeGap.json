@@ -3,7 +3,11 @@
   "description": "The payload of `bus:resume-gap`: a scope's `lastEventId` could not be honoured, so the client cannot trust that it has every persisted event of that scope and must refetch what it caches for it. Written by the gateway, never by a participant.",
   "properties": {
     "scope": {
-      "$ref": "./ResourceId.json",
+      "allOf": [
+        {
+          "$ref": "./ResourceId.json"
+        }
+      ],
       "description": "The scope of the subscription entry whose watermark failed."
     },
     "lastSeenId": {
