@@ -254,9 +254,6 @@ def discriminant(member: JsonObject) -> str | None:
         values = stated.get("enum")
         if isinstance(values, list) and len(values) == 1 and isinstance(values[0], str):
             return values[0]
-        constant = stated.get("const")
-        if values is None and isinstance(constant, str):
-            return constant
     return None
 
 

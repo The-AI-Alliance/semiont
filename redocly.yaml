@@ -1,0 +1,20 @@
+# Redocly's rules for the two API documents: `npm run openapi:lint`.
+# https://redocly.com/docs/cli/configuration/
+
+extends:
+  - recommended
+
+rules:
+  # Two paths one request could match are an error.
+  no-ambiguous-paths: error
+
+  # An operation says what it does.
+  operation-description: warn
+
+  # A reference that may be null is written
+  # `{ "nullable": true, "allOf": [{ "$ref": … }] }`. The validators generated
+  # from the spec (scripts/spec/generate-validators.mjs, packages/codegen-rust)
+  # and the type generators of every SDK read that as the reference, or null.
+  # This rule wants a `type` beside `nullable`. With one, the validators read
+  # that type or null, and the reference as well, which null does not satisfy.
+  nullable-type-sibling: off

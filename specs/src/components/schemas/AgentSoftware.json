@@ -5,7 +5,9 @@
   "properties": {
     "@type": {
       "type": "string",
-      "const": "Software"
+      "enum": [
+        "Software"
+      ]
     },
     "@id": {
       "type": "string",

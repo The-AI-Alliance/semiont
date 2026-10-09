@@ -115,20 +115,6 @@ npm run openapi:preview     # Launch interactive docs viewer
 npm run openapi:build-docs  # Generate static HTML docs
 ```
 
-## NPM Scripts
-
-Defined in [package.json](../package.json):
-
-```json
-{
-  "openapi:bundle": "redocly bundle specs/src/openapi.json -o specs/openapi.json",
-  "openapi:lint": "redocly lint specs/src/openapi.json",
-  "openapi:validate": "redocly lint specs/openapi.json",
-  "openapi:stats": "redocly stats specs/src/openapi.json",
-  "openapi:preview": "redocly preview-docs specs/src/openapi.json"
-}
-```
-
 ## Schema Organization
 
 All 79 schemas are defined in [src/components/schemas/](src/components/schemas/):
@@ -207,19 +193,14 @@ The spec is kept as modular files, bundled with Redocly:
 
 ## Configuration
 
-OpenAPI bundling configured in [.redocly.yaml](../.redocly.yaml):
+[redocly.yaml](../redocly.yaml) states the rules `npm run openapi:lint` holds the two API documents to: Redocly's recommended set, with the changes the file gives its reasons for. The lint is one of the Lint Gates of the architecture workflow.
 
-```yaml
-apis:
-  semiont@v1:
-    root: specs/src/openapi.json
+Two forms the rules bear on:
 
-bundle:
-  output: specs/openapi.json
-  dereferenceInlineSchemas: false  # Keep all schemas, even if "unused"
-```
+- **A property that admits one value** states it as an `enum` of one. `const` is JSON Schema's and not OpenAPI 3.0's; the lint refuses it, and so does the Rust type generator.
+- **A reference that may be null** is `{ "nullable": true, "allOf": [{ "$ref": … }] }`. The validators and every SDK's type generator read it as the reference, or null.
 
-The `dereferenceInlineSchemas: false` setting is **critical** - it prevents Redocly from removing schemas that are only referenced by other schemas (not directly by paths).
+Bundling takes no configuration: a schema is kept in the bundle because `components` lists it.
 
 ## API Statistics
 

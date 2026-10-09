@@ -126,7 +126,7 @@ impl Types<'_> {
         if let Some(members) = union(schema) {
             return members.iter().all(|m| self.is_string(m));
         }
-        schema["type"] == "string" && schema.get("enum").is_none() && schema.get("const").is_none()
+        schema["type"] == "string" && schema.get("enum").is_none()
     }
 
     /// The Rust type of a value `owner`'s property `property` holds.
@@ -137,6 +137,7 @@ impl Types<'_> {
         if schema.as_object().is_some_and(|o| o.is_empty()) {
             return "serde_json::Value".to_owned();
         }
+        refuse_const(&format!("{owner}.{property}"), schema);
         if let Some(inner) = without_null(schema) {
             return self.type_of(owner, property, &inner);
         }
@@ -154,13 +155,16 @@ impl Types<'_> {
             return self.inline(&self.inline_name(owner, property), schema);
         }
         if let Some(members) = union(schema) {
+            for member in members {
+                refuse_const(&format!("{owner}.{property}"), member);
+            }
             if members.iter().all(|m| self.is_string(m)) {
                 return "String".to_owned();
             }
             return self.inline(&self.inline_name(owner, property), schema);
         }
         match schema["type"].as_str() {
-            Some("string") if schema.get("enum").is_some() || schema.get("const").is_some() => {
+            Some("string") if schema.get("enum").is_some() => {
                 self.inline(&self.inline_name(owner, property), schema)
             }
             Some("string") => "String".to_owned(),
@@ -223,8 +227,8 @@ impl Types<'_> {
             }
             None => schema,
         };
-        let constant = schema.get("const").map(|value| vec![value.clone()]);
-        if let Some(values) = schema["enum"].as_array().or(constant.as_ref()) {
+        refuse_const(name, schema);
+        if let Some(values) = schema["enum"].as_array() {
             if schema["type"] != "string" {
                 panic!("{name}: only string enumerations are generated");
             }
@@ -706,14 +710,19 @@ fn discriminant(object: &Value) -> Option<&str> {
         .find_map(only_value)
 }
 
+/// `const` is JSON Schema's and not OpenAPI 3.0's, the dialect the spec is
+/// written in. A schema that admits one value states it as an `enum` of one,
+/// and one that states it as a `const` would be read here as admitting any.
+fn refuse_const(what: &str, schema: &Value) {
+    if schema.get("const").is_some() {
+        panic!("{what}: `const` is not OpenAPI 3.0: state the one value as an `enum` of one");
+    }
+}
+
 /// The one string a schema admits, when it admits exactly one.
 fn only_value(schema: &Value) -> Option<&str> {
-    match (
-        schema["enum"].as_array().map(Vec::as_slice),
-        &schema["const"],
-    ) {
-        (Some([only]), _) => only.as_str(),
-        (None, Value::String(only)) => Some(only.as_str()),
+    match schema["enum"].as_array().map(Vec::as_slice) {
+        Some([only]) => only.as_str(),
         _ => None,
     }
 }
@@ -1171,7 +1180,7 @@ mod tests {
     fn a_struct_whose_one_required_property_admits_one_value_is_made_from_nothing() {
         let code = generated(
             json!({ "Yielding": { "type": "object", "required": ["jobType"], "additionalProperties": false, "properties": {
-                "jobType": { "const": "yield", "type": "string" }
+                "jobType": { "enum": ["yield"], "type": "string" }
             } } }),
             "Yielding",
         );
@@ -1193,6 +1202,28 @@ mod tests {
                 "}\n",
             )),
             "{code}"
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Yielding.jobType: `const` is not OpenAPI 3.0")]
+    fn a_value_stated_as_a_const_is_refused() {
+        generated(
+            json!({ "Yielding": { "type": "object", "required": ["jobType"], "additionalProperties": false, "properties": {
+                "jobType": { "const": "yield", "type": "string" }
+            } } }),
+            "Yielding",
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Thing.kind: `const` is not OpenAPI 3.0")]
+    fn a_value_stated_as_a_const_in_a_union_of_strings_is_refused() {
+        generated(
+            json!({ "Thing": { "type": "object", "properties": {
+                "kind": { "oneOf": [{ "type": "string", "const": "a" }, { "type": "string", "const": "b" }] }
+            } } }),
+            "Thing",
         );
     }
 

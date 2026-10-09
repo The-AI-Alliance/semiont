@@ -24,6 +24,51 @@ const (
 	MediaTokenScopes = "mediaToken.Scopes"
 )
 
+// Defines values for AgentOrganizationType.
+const (
+	Organization AgentOrganizationType = "Organization"
+)
+
+// Valid indicates whether the value is a known member of the AgentOrganizationType enum.
+func (e AgentOrganizationType) Valid() bool {
+	switch e {
+	case Organization:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentPersonType.
+const (
+	Person AgentPersonType = "Person"
+)
+
+// Valid indicates whether the value is a known member of the AgentPersonType enum.
+func (e AgentPersonType) Valid() bool {
+	switch e {
+	case Person:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentSoftwareType.
+const (
+	Software AgentSoftwareType = "Software"
+)
+
+// Valid indicates whether the value is a known member of the AgentSoftwareType enum.
+func (e AgentSoftwareType) Valid() bool {
+	switch e {
+	case Software:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AnchoredTextAbsentKind.
 const (
 	NoMap   AnchoredTextAbsentKind = "no-map"
@@ -1979,20 +2024,23 @@ type Agent struct {
 // AgentOrganization An organization — the Organization branch of Agent.
 type AgentOrganization struct {
 	Id                   *string                `json:"@id,omitempty"`
-	Type                 string                 `json:"@type"`
+	Type                 AgentOrganizationType  `json:"@type"`
 	Homepage             *string                `json:"homepage,omitempty"`
 	Name                 string                 `json:"name"`
 	AdditionalProperties map[string]interface{} `json:"-"`
 }
 
+// AgentOrganizationType defines model for AgentOrganization.Type.
+type AgentOrganizationType string
+
 // AgentPerson A human participant — the Person branch of Agent.
 type AgentPerson struct {
 	// Id DID-shaped identifier (e.g. did:web:host:users:email%40host)
-	Id        *string `json:"@id,omitempty"`
-	Type      string  `json:"@type"`
-	Email     *string `json:"email,omitempty"`
-	EmailSha1 *string `json:"email_sha1,omitempty"`
-	Homepage  *string `json:"homepage,omitempty"`
+	Id        *string         `json:"@id,omitempty"`
+	Type      AgentPersonType `json:"@type"`
+	Email     *string         `json:"email,omitempty"`
+	EmailSha1 *string         `json:"email_sha1,omitempty"`
+	Homepage  *string         `json:"homepage,omitempty"`
 
 	// Name Display name. ABSENT until resolved: a Person is identified by `@id` and nothing else, and what they are called is recorded once per change on the knowledge base's own log and filled in when a record is read. An artifact therefore never freezes a name, which is what lets a correction reach every artifact its subject ever wrote. Absent also means genuinely unknown — a DID this knowledge base has no profile for.
 	Name                 *string                `json:"name,omitempty"`
@@ -2000,11 +2048,14 @@ type AgentPerson struct {
 	AdditionalProperties map[string]interface{} `json:"-"`
 }
 
+// AgentPersonType defines model for AgentPerson.Type.
+type AgentPersonType string
+
 // AgentSoftware A software peer (an inference model acting as a first-class participant) — the Software branch of Agent. Carries structured provider + model.
 type AgentSoftware struct {
 	// Id DID-shaped identifier (e.g. did:web:host:agents:provider:model)
-	Id   *string `json:"@id,omitempty"`
-	Type string  `json:"@type"`
+	Id   *string           `json:"@id,omitempty"`
+	Type AgentSoftwareType `json:"@type"`
 
 	// Model Model identifier (e.g. gemma2:27b, claude-3-5-sonnet)
 	Model *string `json:"model,omitempty"`
@@ -2019,6 +2070,9 @@ type AgentSoftware struct {
 	Provider             *string                `json:"provider,omitempty"`
 	AdditionalProperties map[string]interface{} `json:"-"`
 }
+
+// AgentSoftwareType defines model for AgentSoftware.Type.
+type AgentSoftwareType string
 
 // AgentTokenRequest The (provider, model) the agent token is issued for: together they name the agent.
 type AgentTokenRequest struct {
