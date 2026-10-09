@@ -6417,20 +6417,20 @@ type TooManyRequests = LimitRefusal
 // Unauthorized The body of every error the gateway answers, whatever the status and whatever the route — including a path it does not serve.
 type Unauthorized = ErrorResponse
 
-// PostApiTokensAgentJSONRequestBody defines body for PostApiTokensAgent for application/json ContentType.
-type PostApiTokensAgentJSONRequestBody = AgentTokenRequest
+// ExchangeAgentTokenJSONRequestBody defines body for ExchangeAgentToken for application/json ContentType.
+type ExchangeAgentTokenJSONRequestBody = AgentTokenRequest
 
-// PostApiTokensMediaJSONRequestBody defines body for PostApiTokensMedia for application/json ContentType.
-type PostApiTokensMediaJSONRequestBody = MediaTokenRequest
+// CreateMediaTokenJSONRequestBody defines body for CreateMediaToken for application/json ContentType.
+type CreateMediaTokenJSONRequestBody = MediaTokenRequest
 
-// PostBusEmitJSONRequestBody defines body for PostBusEmit for application/json ContentType.
-type PostBusEmitJSONRequestBody = BusEmitRequest
+// EmitOnBusJSONRequestBody defines body for EmitOnBus for application/json ContentType.
+type EmitOnBusJSONRequestBody = BusEmitRequest
 
-// PostBusSubscribeJSONRequestBody defines body for PostBusSubscribe for application/json ContentType.
-type PostBusSubscribeJSONRequestBody = BusSubscribeRequest
+// SubscribeToBusJSONRequestBody defines body for SubscribeToBus for application/json ContentType.
+type SubscribeToBusJSONRequestBody = BusSubscribeRequest
 
-// PostResourcesMultipartRequestBody defines body for PostResources for multipart/form-data ContentType.
-type PostResourcesMultipartRequestBody = ResourceUpload
+// UploadResourceMultipartRequestBody defines body for UploadResource for multipart/form-data ContentType.
+type UploadResourceMultipartRequestBody = ResourceUpload
 
 // Getter for additional properties for AgentOrganization. Returns the specified
 // element and whether it was found
@@ -13324,59 +13324,59 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 
 // The interface specification for the client above.
 type ClientInterface interface {
-	// Get request
-	Get(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetHealthAtRoot request
+	GetHealthAtRoot(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetWellKnownOauthProtectedResource request
-	GetWellKnownOauthProtectedResource(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetProtectedResourceMetadata request
+	GetProtectedResourceMetadata(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetApiHealth request
-	GetApiHealth(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetHealth request
+	GetHealth(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetApiOpenapiJson request
-	GetApiOpenapiJson(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetOpenApiDocument request
+	GetOpenApiDocument(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetApiResourcesId request
-	GetApiResourcesId(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetResourceRepresentationWithMediaToken request
+	GetResourceRepresentationWithMediaToken(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetApiStatus request
-	GetApiStatus(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetStatus request
+	GetStatus(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// PostApiTokensAgentWithBody request with any body
-	PostApiTokensAgentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// ExchangeAgentTokenWithBody request with any body
+	ExchangeAgentTokenWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	PostApiTokensAgent(ctx context.Context, body PostApiTokensAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	ExchangeAgentToken(ctx context.Context, body ExchangeAgentTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// PostApiTokensMediaWithBody request with any body
-	PostApiTokensMediaWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// CreateMediaTokenWithBody request with any body
+	CreateMediaTokenWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	PostApiTokensMedia(ctx context.Context, body PostApiTokensMediaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	CreateMediaToken(ctx context.Context, body CreateMediaTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetApiUsersMe request
-	GetApiUsersMe(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetCurrentUser request
+	GetCurrentUser(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// PostBusEmitWithBody request with any body
-	PostBusEmitWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// EmitOnBusWithBody request with any body
+	EmitOnBusWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	PostBusEmit(ctx context.Context, body PostBusEmitJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	EmitOnBus(ctx context.Context, body EmitOnBusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// PostBusSubscribeWithBody request with any body
-	PostBusSubscribeWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// SubscribeToBusWithBody request with any body
+	SubscribeToBusWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	PostBusSubscribe(ctx context.Context, body PostBusSubscribeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	SubscribeToBus(ctx context.Context, body SubscribeToBusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// PostResourcesWithBody request with any body
-	PostResourcesWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// UploadResourceWithBody request with any body
+	UploadResourceWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetResourcesId request
-	GetResourcesId(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetResourceRepresentation request
+	GetResourceRepresentation(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetResourcesIdJsonld request
-	GetResourcesIdJsonld(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetResourceJsonLd request
+	GetResourceJsonLd(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
-func (c *Client) Get(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetRequest(c.Server)
+func (c *Client) GetHealthAtRoot(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetHealthAtRootRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -13387,8 +13387,8 @@ func (c *Client) Get(ctx context.Context, reqEditors ...RequestEditorFn) (*http.
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetWellKnownOauthProtectedResource(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetWellKnownOauthProtectedResourceRequest(c.Server)
+func (c *Client) GetProtectedResourceMetadata(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetProtectedResourceMetadataRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -13399,8 +13399,8 @@ func (c *Client) GetWellKnownOauthProtectedResource(ctx context.Context, reqEdit
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetApiHealth(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetApiHealthRequest(c.Server)
+func (c *Client) GetHealth(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetHealthRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -13411,8 +13411,8 @@ func (c *Client) GetApiHealth(ctx context.Context, reqEditors ...RequestEditorFn
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetApiOpenapiJson(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetApiOpenapiJsonRequest(c.Server)
+func (c *Client) GetOpenApiDocument(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetOpenApiDocumentRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -13423,8 +13423,8 @@ func (c *Client) GetApiOpenapiJson(ctx context.Context, reqEditors ...RequestEdi
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetApiResourcesId(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetApiResourcesIdRequest(c.Server, id)
+func (c *Client) GetResourceRepresentationWithMediaToken(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetResourceRepresentationWithMediaTokenRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -13435,8 +13435,8 @@ func (c *Client) GetApiResourcesId(ctx context.Context, id ResourceId, reqEditor
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetApiStatus(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetApiStatusRequest(c.Server)
+func (c *Client) GetStatus(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetStatusRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -13447,8 +13447,8 @@ func (c *Client) GetApiStatus(ctx context.Context, reqEditors ...RequestEditorFn
 	return c.Client.Do(req)
 }
 
-func (c *Client) PostApiTokensAgentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiTokensAgentRequestWithBody(c.Server, contentType, body)
+func (c *Client) ExchangeAgentTokenWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewExchangeAgentTokenRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -13459,8 +13459,8 @@ func (c *Client) PostApiTokensAgentWithBody(ctx context.Context, contentType str
 	return c.Client.Do(req)
 }
 
-func (c *Client) PostApiTokensAgent(ctx context.Context, body PostApiTokensAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiTokensAgentRequest(c.Server, body)
+func (c *Client) ExchangeAgentToken(ctx context.Context, body ExchangeAgentTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewExchangeAgentTokenRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -13471,8 +13471,8 @@ func (c *Client) PostApiTokensAgent(ctx context.Context, body PostApiTokensAgent
 	return c.Client.Do(req)
 }
 
-func (c *Client) PostApiTokensMediaWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiTokensMediaRequestWithBody(c.Server, contentType, body)
+func (c *Client) CreateMediaTokenWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateMediaTokenRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -13483,8 +13483,8 @@ func (c *Client) PostApiTokensMediaWithBody(ctx context.Context, contentType str
 	return c.Client.Do(req)
 }
 
-func (c *Client) PostApiTokensMedia(ctx context.Context, body PostApiTokensMediaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiTokensMediaRequest(c.Server, body)
+func (c *Client) CreateMediaToken(ctx context.Context, body CreateMediaTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateMediaTokenRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -13495,8 +13495,8 @@ func (c *Client) PostApiTokensMedia(ctx context.Context, body PostApiTokensMedia
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetApiUsersMe(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetApiUsersMeRequest(c.Server)
+func (c *Client) GetCurrentUser(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetCurrentUserRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -13507,8 +13507,8 @@ func (c *Client) GetApiUsersMe(ctx context.Context, reqEditors ...RequestEditorF
 	return c.Client.Do(req)
 }
 
-func (c *Client) PostBusEmitWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostBusEmitRequestWithBody(c.Server, contentType, body)
+func (c *Client) EmitOnBusWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEmitOnBusRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -13519,8 +13519,8 @@ func (c *Client) PostBusEmitWithBody(ctx context.Context, contentType string, bo
 	return c.Client.Do(req)
 }
 
-func (c *Client) PostBusEmit(ctx context.Context, body PostBusEmitJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostBusEmitRequest(c.Server, body)
+func (c *Client) EmitOnBus(ctx context.Context, body EmitOnBusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEmitOnBusRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -13531,8 +13531,8 @@ func (c *Client) PostBusEmit(ctx context.Context, body PostBusEmitJSONRequestBod
 	return c.Client.Do(req)
 }
 
-func (c *Client) PostBusSubscribeWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostBusSubscribeRequestWithBody(c.Server, contentType, body)
+func (c *Client) SubscribeToBusWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSubscribeToBusRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -13543,8 +13543,8 @@ func (c *Client) PostBusSubscribeWithBody(ctx context.Context, contentType strin
 	return c.Client.Do(req)
 }
 
-func (c *Client) PostBusSubscribe(ctx context.Context, body PostBusSubscribeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostBusSubscribeRequest(c.Server, body)
+func (c *Client) SubscribeToBus(ctx context.Context, body SubscribeToBusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSubscribeToBusRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -13555,8 +13555,8 @@ func (c *Client) PostBusSubscribe(ctx context.Context, body PostBusSubscribeJSON
 	return c.Client.Do(req)
 }
 
-func (c *Client) PostResourcesWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostResourcesRequestWithBody(c.Server, contentType, body)
+func (c *Client) UploadResourceWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUploadResourceRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -13567,8 +13567,8 @@ func (c *Client) PostResourcesWithBody(ctx context.Context, contentType string, 
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetResourcesId(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetResourcesIdRequest(c.Server, id)
+func (c *Client) GetResourceRepresentation(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetResourceRepresentationRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -13579,8 +13579,8 @@ func (c *Client) GetResourcesId(ctx context.Context, id ResourceId, reqEditors .
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetResourcesIdJsonld(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetResourcesIdJsonldRequest(c.Server, id)
+func (c *Client) GetResourceJsonLd(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetResourceJsonLdRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -13591,8 +13591,8 @@ func (c *Client) GetResourcesIdJsonld(ctx context.Context, id ResourceId, reqEdi
 	return c.Client.Do(req)
 }
 
-// NewGetRequest generates requests for Get
-func NewGetRequest(server string) (*http.Request, error) {
+// NewGetHealthAtRootRequest generates requests for GetHealthAtRoot
+func NewGetHealthAtRootRequest(server string) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -13618,8 +13618,8 @@ func NewGetRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
-// NewGetWellKnownOauthProtectedResourceRequest generates requests for GetWellKnownOauthProtectedResource
-func NewGetWellKnownOauthProtectedResourceRequest(server string) (*http.Request, error) {
+// NewGetProtectedResourceMetadataRequest generates requests for GetProtectedResourceMetadata
+func NewGetProtectedResourceMetadataRequest(server string) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -13645,8 +13645,8 @@ func NewGetWellKnownOauthProtectedResourceRequest(server string) (*http.Request,
 	return req, nil
 }
 
-// NewGetApiHealthRequest generates requests for GetApiHealth
-func NewGetApiHealthRequest(server string) (*http.Request, error) {
+// NewGetHealthRequest generates requests for GetHealth
+func NewGetHealthRequest(server string) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -13672,8 +13672,8 @@ func NewGetApiHealthRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
-// NewGetApiOpenapiJsonRequest generates requests for GetApiOpenapiJson
-func NewGetApiOpenapiJsonRequest(server string) (*http.Request, error) {
+// NewGetOpenApiDocumentRequest generates requests for GetOpenApiDocument
+func NewGetOpenApiDocumentRequest(server string) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -13699,8 +13699,8 @@ func NewGetApiOpenapiJsonRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
-// NewGetApiResourcesIdRequest generates requests for GetApiResourcesId
-func NewGetApiResourcesIdRequest(server string, id ResourceId) (*http.Request, error) {
+// NewGetResourceRepresentationWithMediaTokenRequest generates requests for GetResourceRepresentationWithMediaToken
+func NewGetResourceRepresentationWithMediaTokenRequest(server string, id ResourceId) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -13733,8 +13733,8 @@ func NewGetApiResourcesIdRequest(server string, id ResourceId) (*http.Request, e
 	return req, nil
 }
 
-// NewGetApiStatusRequest generates requests for GetApiStatus
-func NewGetApiStatusRequest(server string) (*http.Request, error) {
+// NewGetStatusRequest generates requests for GetStatus
+func NewGetStatusRequest(server string) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -13760,19 +13760,19 @@ func NewGetApiStatusRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
-// NewPostApiTokensAgentRequest calls the generic PostApiTokensAgent builder with application/json body
-func NewPostApiTokensAgentRequest(server string, body PostApiTokensAgentJSONRequestBody) (*http.Request, error) {
+// NewExchangeAgentTokenRequest calls the generic ExchangeAgentToken builder with application/json body
+func NewExchangeAgentTokenRequest(server string, body ExchangeAgentTokenJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewPostApiTokensAgentRequestWithBody(server, "application/json", bodyReader)
+	return NewExchangeAgentTokenRequestWithBody(server, "application/json", bodyReader)
 }
 
-// NewPostApiTokensAgentRequestWithBody generates requests for PostApiTokensAgent with any type of body
-func NewPostApiTokensAgentRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+// NewExchangeAgentTokenRequestWithBody generates requests for ExchangeAgentToken with any type of body
+func NewExchangeAgentTokenRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -13800,19 +13800,19 @@ func NewPostApiTokensAgentRequestWithBody(server string, contentType string, bod
 	return req, nil
 }
 
-// NewPostApiTokensMediaRequest calls the generic PostApiTokensMedia builder with application/json body
-func NewPostApiTokensMediaRequest(server string, body PostApiTokensMediaJSONRequestBody) (*http.Request, error) {
+// NewCreateMediaTokenRequest calls the generic CreateMediaToken builder with application/json body
+func NewCreateMediaTokenRequest(server string, body CreateMediaTokenJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewPostApiTokensMediaRequestWithBody(server, "application/json", bodyReader)
+	return NewCreateMediaTokenRequestWithBody(server, "application/json", bodyReader)
 }
 
-// NewPostApiTokensMediaRequestWithBody generates requests for PostApiTokensMedia with any type of body
-func NewPostApiTokensMediaRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+// NewCreateMediaTokenRequestWithBody generates requests for CreateMediaToken with any type of body
+func NewCreateMediaTokenRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -13840,8 +13840,8 @@ func NewPostApiTokensMediaRequestWithBody(server string, contentType string, bod
 	return req, nil
 }
 
-// NewGetApiUsersMeRequest generates requests for GetApiUsersMe
-func NewGetApiUsersMeRequest(server string) (*http.Request, error) {
+// NewGetCurrentUserRequest generates requests for GetCurrentUser
+func NewGetCurrentUserRequest(server string) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -13867,19 +13867,19 @@ func NewGetApiUsersMeRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
-// NewPostBusEmitRequest calls the generic PostBusEmit builder with application/json body
-func NewPostBusEmitRequest(server string, body PostBusEmitJSONRequestBody) (*http.Request, error) {
+// NewEmitOnBusRequest calls the generic EmitOnBus builder with application/json body
+func NewEmitOnBusRequest(server string, body EmitOnBusJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewPostBusEmitRequestWithBody(server, "application/json", bodyReader)
+	return NewEmitOnBusRequestWithBody(server, "application/json", bodyReader)
 }
 
-// NewPostBusEmitRequestWithBody generates requests for PostBusEmit with any type of body
-func NewPostBusEmitRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+// NewEmitOnBusRequestWithBody generates requests for EmitOnBus with any type of body
+func NewEmitOnBusRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -13907,19 +13907,19 @@ func NewPostBusEmitRequestWithBody(server string, contentType string, body io.Re
 	return req, nil
 }
 
-// NewPostBusSubscribeRequest calls the generic PostBusSubscribe builder with application/json body
-func NewPostBusSubscribeRequest(server string, body PostBusSubscribeJSONRequestBody) (*http.Request, error) {
+// NewSubscribeToBusRequest calls the generic SubscribeToBus builder with application/json body
+func NewSubscribeToBusRequest(server string, body SubscribeToBusJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewPostBusSubscribeRequestWithBody(server, "application/json", bodyReader)
+	return NewSubscribeToBusRequestWithBody(server, "application/json", bodyReader)
 }
 
-// NewPostBusSubscribeRequestWithBody generates requests for PostBusSubscribe with any type of body
-func NewPostBusSubscribeRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+// NewSubscribeToBusRequestWithBody generates requests for SubscribeToBus with any type of body
+func NewSubscribeToBusRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -13947,8 +13947,8 @@ func NewPostBusSubscribeRequestWithBody(server string, contentType string, body 
 	return req, nil
 }
 
-// NewPostResourcesRequestWithBody generates requests for PostResources with any type of body
-func NewPostResourcesRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+// NewUploadResourceRequestWithBody generates requests for UploadResource with any type of body
+func NewUploadResourceRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -13976,8 +13976,8 @@ func NewPostResourcesRequestWithBody(server string, contentType string, body io.
 	return req, nil
 }
 
-// NewGetResourcesIdRequest generates requests for GetResourcesId
-func NewGetResourcesIdRequest(server string, id ResourceId) (*http.Request, error) {
+// NewGetResourceRepresentationRequest generates requests for GetResourceRepresentation
+func NewGetResourceRepresentationRequest(server string, id ResourceId) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -14010,8 +14010,8 @@ func NewGetResourcesIdRequest(server string, id ResourceId) (*http.Request, erro
 	return req, nil
 }
 
-// NewGetResourcesIdJsonldRequest generates requests for GetResourcesIdJsonld
-func NewGetResourcesIdJsonldRequest(server string, id ResourceId) (*http.Request, error) {
+// NewGetResourceJsonLdRequest generates requests for GetResourceJsonLd
+func NewGetResourceJsonLdRequest(server string, id ResourceId) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -14087,58 +14087,58 @@ func WithBaseURL(baseURL string) ClientOption {
 
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
-	// GetWithResponse request
-	GetWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetResponse, error)
+	// GetHealthAtRootWithResponse request
+	GetHealthAtRootWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetHealthAtRootResponse, error)
 
-	// GetWellKnownOauthProtectedResourceWithResponse request
-	GetWellKnownOauthProtectedResourceWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetWellKnownOauthProtectedResourceResponse, error)
+	// GetProtectedResourceMetadataWithResponse request
+	GetProtectedResourceMetadataWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetProtectedResourceMetadataResponse, error)
 
-	// GetApiHealthWithResponse request
-	GetApiHealthWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiHealthResponse, error)
+	// GetHealthWithResponse request
+	GetHealthWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetHealthResponse, error)
 
-	// GetApiOpenapiJsonWithResponse request
-	GetApiOpenapiJsonWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiOpenapiJsonResponse, error)
+	// GetOpenApiDocumentWithResponse request
+	GetOpenApiDocumentWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetOpenApiDocumentResponse, error)
 
-	// GetApiResourcesIdWithResponse request
-	GetApiResourcesIdWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetApiResourcesIdResponse, error)
+	// GetResourceRepresentationWithMediaTokenWithResponse request
+	GetResourceRepresentationWithMediaTokenWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetResourceRepresentationWithMediaTokenResponse, error)
 
-	// GetApiStatusWithResponse request
-	GetApiStatusWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiStatusResponse, error)
+	// GetStatusWithResponse request
+	GetStatusWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetStatusResponse, error)
 
-	// PostApiTokensAgentWithBodyWithResponse request with any body
-	PostApiTokensAgentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiTokensAgentResponse, error)
+	// ExchangeAgentTokenWithBodyWithResponse request with any body
+	ExchangeAgentTokenWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ExchangeAgentTokenResponse, error)
 
-	PostApiTokensAgentWithResponse(ctx context.Context, body PostApiTokensAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiTokensAgentResponse, error)
+	ExchangeAgentTokenWithResponse(ctx context.Context, body ExchangeAgentTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*ExchangeAgentTokenResponse, error)
 
-	// PostApiTokensMediaWithBodyWithResponse request with any body
-	PostApiTokensMediaWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiTokensMediaResponse, error)
+	// CreateMediaTokenWithBodyWithResponse request with any body
+	CreateMediaTokenWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateMediaTokenResponse, error)
 
-	PostApiTokensMediaWithResponse(ctx context.Context, body PostApiTokensMediaJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiTokensMediaResponse, error)
+	CreateMediaTokenWithResponse(ctx context.Context, body CreateMediaTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateMediaTokenResponse, error)
 
-	// GetApiUsersMeWithResponse request
-	GetApiUsersMeWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiUsersMeResponse, error)
+	// GetCurrentUserWithResponse request
+	GetCurrentUserWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetCurrentUserResponse, error)
 
-	// PostBusEmitWithBodyWithResponse request with any body
-	PostBusEmitWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostBusEmitResponse, error)
+	// EmitOnBusWithBodyWithResponse request with any body
+	EmitOnBusWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EmitOnBusResponse, error)
 
-	PostBusEmitWithResponse(ctx context.Context, body PostBusEmitJSONRequestBody, reqEditors ...RequestEditorFn) (*PostBusEmitResponse, error)
+	EmitOnBusWithResponse(ctx context.Context, body EmitOnBusJSONRequestBody, reqEditors ...RequestEditorFn) (*EmitOnBusResponse, error)
 
-	// PostBusSubscribeWithBodyWithResponse request with any body
-	PostBusSubscribeWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostBusSubscribeResponse, error)
+	// SubscribeToBusWithBodyWithResponse request with any body
+	SubscribeToBusWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SubscribeToBusResponse, error)
 
-	PostBusSubscribeWithResponse(ctx context.Context, body PostBusSubscribeJSONRequestBody, reqEditors ...RequestEditorFn) (*PostBusSubscribeResponse, error)
+	SubscribeToBusWithResponse(ctx context.Context, body SubscribeToBusJSONRequestBody, reqEditors ...RequestEditorFn) (*SubscribeToBusResponse, error)
 
-	// PostResourcesWithBodyWithResponse request with any body
-	PostResourcesWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostResourcesResponse, error)
+	// UploadResourceWithBodyWithResponse request with any body
+	UploadResourceWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UploadResourceResponse, error)
 
-	// GetResourcesIdWithResponse request
-	GetResourcesIdWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetResourcesIdResponse, error)
+	// GetResourceRepresentationWithResponse request
+	GetResourceRepresentationWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetResourceRepresentationResponse, error)
 
-	// GetResourcesIdJsonldWithResponse request
-	GetResourcesIdJsonldWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetResourcesIdJsonldResponse, error)
+	// GetResourceJsonLdWithResponse request
+	GetResourceJsonLdWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetResourceJsonLdResponse, error)
 }
 
-type GetResponse struct {
+type GetHealthAtRootResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *HealthResponse
@@ -14146,7 +14146,7 @@ type GetResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r GetResponse) Status() string {
+func (r GetHealthAtRootResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -14154,14 +14154,14 @@ func (r GetResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetResponse) StatusCode() int {
+func (r GetHealthAtRootResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type GetWellKnownOauthProtectedResourceResponse struct {
+type GetProtectedResourceMetadataResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ProtectedResourceMetadata
@@ -14169,7 +14169,7 @@ type GetWellKnownOauthProtectedResourceResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r GetWellKnownOauthProtectedResourceResponse) Status() string {
+func (r GetProtectedResourceMetadataResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -14177,14 +14177,14 @@ func (r GetWellKnownOauthProtectedResourceResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetWellKnownOauthProtectedResourceResponse) StatusCode() int {
+func (r GetProtectedResourceMetadataResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type GetApiHealthResponse struct {
+type GetHealthResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *HealthResponse
@@ -14192,7 +14192,7 @@ type GetApiHealthResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r GetApiHealthResponse) Status() string {
+func (r GetHealthResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -14200,14 +14200,14 @@ func (r GetApiHealthResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetApiHealthResponse) StatusCode() int {
+func (r GetHealthResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type GetApiOpenapiJsonResponse struct {
+type GetOpenApiDocumentResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
@@ -14219,7 +14219,7 @@ type GetApiOpenapiJsonResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r GetApiOpenapiJsonResponse) Status() string {
+func (r GetOpenApiDocumentResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -14227,14 +14227,14 @@ func (r GetApiOpenapiJsonResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetApiOpenapiJsonResponse) StatusCode() int {
+func (r GetOpenApiDocumentResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type GetApiResourcesIdResponse struct {
+type GetResourceRepresentationWithMediaTokenResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON401      *Unauthorized
@@ -14244,7 +14244,7 @@ type GetApiResourcesIdResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r GetApiResourcesIdResponse) Status() string {
+func (r GetResourceRepresentationWithMediaTokenResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -14252,14 +14252,14 @@ func (r GetApiResourcesIdResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetApiResourcesIdResponse) StatusCode() int {
+func (r GetResourceRepresentationWithMediaTokenResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type GetApiStatusResponse struct {
+type GetStatusResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *StatusResponse
@@ -14268,7 +14268,7 @@ type GetApiStatusResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r GetApiStatusResponse) Status() string {
+func (r GetStatusResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -14276,14 +14276,14 @@ func (r GetApiStatusResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetApiStatusResponse) StatusCode() int {
+func (r GetStatusResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type PostApiTokensAgentResponse struct {
+type ExchangeAgentTokenResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *AgentTokenResponse
@@ -14294,7 +14294,7 @@ type PostApiTokensAgentResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r PostApiTokensAgentResponse) Status() string {
+func (r ExchangeAgentTokenResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -14302,14 +14302,14 @@ func (r PostApiTokensAgentResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r PostApiTokensAgentResponse) StatusCode() int {
+func (r ExchangeAgentTokenResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type PostApiTokensMediaResponse struct {
+type CreateMediaTokenResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *MediaTokenResponse
@@ -14320,7 +14320,7 @@ type PostApiTokensMediaResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r PostApiTokensMediaResponse) Status() string {
+func (r CreateMediaTokenResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -14328,14 +14328,14 @@ func (r PostApiTokensMediaResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r PostApiTokensMediaResponse) StatusCode() int {
+func (r CreateMediaTokenResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type GetApiUsersMeResponse struct {
+type GetCurrentUserResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *UserResponse
@@ -14344,7 +14344,7 @@ type GetApiUsersMeResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r GetApiUsersMeResponse) Status() string {
+func (r GetCurrentUserResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -14352,14 +14352,14 @@ func (r GetApiUsersMeResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetApiUsersMeResponse) StatusCode() int {
+func (r GetCurrentUserResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type PostBusEmitResponse struct {
+type EmitOnBusResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON202      *BusEmitAccepted
@@ -14373,7 +14373,7 @@ type PostBusEmitResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r PostBusEmitResponse) Status() string {
+func (r EmitOnBusResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -14381,14 +14381,14 @@ func (r PostBusEmitResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r PostBusEmitResponse) StatusCode() int {
+func (r EmitOnBusResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type PostBusSubscribeResponse struct {
+type SubscribeToBusResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON400      *ErrorResponse
@@ -14400,7 +14400,7 @@ type PostBusSubscribeResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r PostBusSubscribeResponse) Status() string {
+func (r SubscribeToBusResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -14408,14 +14408,14 @@ func (r PostBusSubscribeResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r PostBusSubscribeResponse) StatusCode() int {
+func (r SubscribeToBusResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type PostResourcesResponse struct {
+type UploadResourceResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON202      *CreateResourceResponse
@@ -14426,7 +14426,7 @@ type PostResourcesResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r PostResourcesResponse) Status() string {
+func (r UploadResourceResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -14434,14 +14434,14 @@ func (r PostResourcesResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r PostResourcesResponse) StatusCode() int {
+func (r UploadResourceResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type GetResourcesIdResponse struct {
+type GetResourceRepresentationResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON401      *Unauthorized
@@ -14451,7 +14451,7 @@ type GetResourcesIdResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r GetResourcesIdResponse) Status() string {
+func (r GetResourceRepresentationResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -14459,14 +14459,14 @@ func (r GetResourcesIdResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetResourcesIdResponse) StatusCode() int {
+func (r GetResourceRepresentationResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type GetResourcesIdJsonldResponse struct {
+type GetResourceJsonLdResponse struct {
 	Body                 []byte
 	HTTPResponse         *http.Response
 	ApplicationldJSON200 *GetResourceResponse
@@ -14477,7 +14477,7 @@ type GetResourcesIdJsonldResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r GetResourcesIdJsonldResponse) Status() string {
+func (r GetResourceJsonLdResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -14485,180 +14485,180 @@ func (r GetResourcesIdJsonldResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GetResourcesIdJsonldResponse) StatusCode() int {
+func (r GetResourceJsonLdResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-// GetWithResponse request returning *GetResponse
-func (c *ClientWithResponses) GetWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetResponse, error) {
-	rsp, err := c.Get(ctx, reqEditors...)
+// GetHealthAtRootWithResponse request returning *GetHealthAtRootResponse
+func (c *ClientWithResponses) GetHealthAtRootWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetHealthAtRootResponse, error) {
+	rsp, err := c.GetHealthAtRoot(ctx, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetResponse(rsp)
+	return ParseGetHealthAtRootResponse(rsp)
 }
 
-// GetWellKnownOauthProtectedResourceWithResponse request returning *GetWellKnownOauthProtectedResourceResponse
-func (c *ClientWithResponses) GetWellKnownOauthProtectedResourceWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetWellKnownOauthProtectedResourceResponse, error) {
-	rsp, err := c.GetWellKnownOauthProtectedResource(ctx, reqEditors...)
+// GetProtectedResourceMetadataWithResponse request returning *GetProtectedResourceMetadataResponse
+func (c *ClientWithResponses) GetProtectedResourceMetadataWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetProtectedResourceMetadataResponse, error) {
+	rsp, err := c.GetProtectedResourceMetadata(ctx, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetWellKnownOauthProtectedResourceResponse(rsp)
+	return ParseGetProtectedResourceMetadataResponse(rsp)
 }
 
-// GetApiHealthWithResponse request returning *GetApiHealthResponse
-func (c *ClientWithResponses) GetApiHealthWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiHealthResponse, error) {
-	rsp, err := c.GetApiHealth(ctx, reqEditors...)
+// GetHealthWithResponse request returning *GetHealthResponse
+func (c *ClientWithResponses) GetHealthWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetHealthResponse, error) {
+	rsp, err := c.GetHealth(ctx, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetApiHealthResponse(rsp)
+	return ParseGetHealthResponse(rsp)
 }
 
-// GetApiOpenapiJsonWithResponse request returning *GetApiOpenapiJsonResponse
-func (c *ClientWithResponses) GetApiOpenapiJsonWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiOpenapiJsonResponse, error) {
-	rsp, err := c.GetApiOpenapiJson(ctx, reqEditors...)
+// GetOpenApiDocumentWithResponse request returning *GetOpenApiDocumentResponse
+func (c *ClientWithResponses) GetOpenApiDocumentWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetOpenApiDocumentResponse, error) {
+	rsp, err := c.GetOpenApiDocument(ctx, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetApiOpenapiJsonResponse(rsp)
+	return ParseGetOpenApiDocumentResponse(rsp)
 }
 
-// GetApiResourcesIdWithResponse request returning *GetApiResourcesIdResponse
-func (c *ClientWithResponses) GetApiResourcesIdWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetApiResourcesIdResponse, error) {
-	rsp, err := c.GetApiResourcesId(ctx, id, reqEditors...)
+// GetResourceRepresentationWithMediaTokenWithResponse request returning *GetResourceRepresentationWithMediaTokenResponse
+func (c *ClientWithResponses) GetResourceRepresentationWithMediaTokenWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetResourceRepresentationWithMediaTokenResponse, error) {
+	rsp, err := c.GetResourceRepresentationWithMediaToken(ctx, id, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetApiResourcesIdResponse(rsp)
+	return ParseGetResourceRepresentationWithMediaTokenResponse(rsp)
 }
 
-// GetApiStatusWithResponse request returning *GetApiStatusResponse
-func (c *ClientWithResponses) GetApiStatusWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiStatusResponse, error) {
-	rsp, err := c.GetApiStatus(ctx, reqEditors...)
+// GetStatusWithResponse request returning *GetStatusResponse
+func (c *ClientWithResponses) GetStatusWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetStatusResponse, error) {
+	rsp, err := c.GetStatus(ctx, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetApiStatusResponse(rsp)
+	return ParseGetStatusResponse(rsp)
 }
 
-// PostApiTokensAgentWithBodyWithResponse request with arbitrary body returning *PostApiTokensAgentResponse
-func (c *ClientWithResponses) PostApiTokensAgentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiTokensAgentResponse, error) {
-	rsp, err := c.PostApiTokensAgentWithBody(ctx, contentType, body, reqEditors...)
+// ExchangeAgentTokenWithBodyWithResponse request with arbitrary body returning *ExchangeAgentTokenResponse
+func (c *ClientWithResponses) ExchangeAgentTokenWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ExchangeAgentTokenResponse, error) {
+	rsp, err := c.ExchangeAgentTokenWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParsePostApiTokensAgentResponse(rsp)
+	return ParseExchangeAgentTokenResponse(rsp)
 }
 
-func (c *ClientWithResponses) PostApiTokensAgentWithResponse(ctx context.Context, body PostApiTokensAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiTokensAgentResponse, error) {
-	rsp, err := c.PostApiTokensAgent(ctx, body, reqEditors...)
+func (c *ClientWithResponses) ExchangeAgentTokenWithResponse(ctx context.Context, body ExchangeAgentTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*ExchangeAgentTokenResponse, error) {
+	rsp, err := c.ExchangeAgentToken(ctx, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParsePostApiTokensAgentResponse(rsp)
+	return ParseExchangeAgentTokenResponse(rsp)
 }
 
-// PostApiTokensMediaWithBodyWithResponse request with arbitrary body returning *PostApiTokensMediaResponse
-func (c *ClientWithResponses) PostApiTokensMediaWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiTokensMediaResponse, error) {
-	rsp, err := c.PostApiTokensMediaWithBody(ctx, contentType, body, reqEditors...)
+// CreateMediaTokenWithBodyWithResponse request with arbitrary body returning *CreateMediaTokenResponse
+func (c *ClientWithResponses) CreateMediaTokenWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateMediaTokenResponse, error) {
+	rsp, err := c.CreateMediaTokenWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParsePostApiTokensMediaResponse(rsp)
+	return ParseCreateMediaTokenResponse(rsp)
 }
 
-func (c *ClientWithResponses) PostApiTokensMediaWithResponse(ctx context.Context, body PostApiTokensMediaJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiTokensMediaResponse, error) {
-	rsp, err := c.PostApiTokensMedia(ctx, body, reqEditors...)
+func (c *ClientWithResponses) CreateMediaTokenWithResponse(ctx context.Context, body CreateMediaTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateMediaTokenResponse, error) {
+	rsp, err := c.CreateMediaToken(ctx, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParsePostApiTokensMediaResponse(rsp)
+	return ParseCreateMediaTokenResponse(rsp)
 }
 
-// GetApiUsersMeWithResponse request returning *GetApiUsersMeResponse
-func (c *ClientWithResponses) GetApiUsersMeWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiUsersMeResponse, error) {
-	rsp, err := c.GetApiUsersMe(ctx, reqEditors...)
+// GetCurrentUserWithResponse request returning *GetCurrentUserResponse
+func (c *ClientWithResponses) GetCurrentUserWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetCurrentUserResponse, error) {
+	rsp, err := c.GetCurrentUser(ctx, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetApiUsersMeResponse(rsp)
+	return ParseGetCurrentUserResponse(rsp)
 }
 
-// PostBusEmitWithBodyWithResponse request with arbitrary body returning *PostBusEmitResponse
-func (c *ClientWithResponses) PostBusEmitWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostBusEmitResponse, error) {
-	rsp, err := c.PostBusEmitWithBody(ctx, contentType, body, reqEditors...)
+// EmitOnBusWithBodyWithResponse request with arbitrary body returning *EmitOnBusResponse
+func (c *ClientWithResponses) EmitOnBusWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EmitOnBusResponse, error) {
+	rsp, err := c.EmitOnBusWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParsePostBusEmitResponse(rsp)
+	return ParseEmitOnBusResponse(rsp)
 }
 
-func (c *ClientWithResponses) PostBusEmitWithResponse(ctx context.Context, body PostBusEmitJSONRequestBody, reqEditors ...RequestEditorFn) (*PostBusEmitResponse, error) {
-	rsp, err := c.PostBusEmit(ctx, body, reqEditors...)
+func (c *ClientWithResponses) EmitOnBusWithResponse(ctx context.Context, body EmitOnBusJSONRequestBody, reqEditors ...RequestEditorFn) (*EmitOnBusResponse, error) {
+	rsp, err := c.EmitOnBus(ctx, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParsePostBusEmitResponse(rsp)
+	return ParseEmitOnBusResponse(rsp)
 }
 
-// PostBusSubscribeWithBodyWithResponse request with arbitrary body returning *PostBusSubscribeResponse
-func (c *ClientWithResponses) PostBusSubscribeWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostBusSubscribeResponse, error) {
-	rsp, err := c.PostBusSubscribeWithBody(ctx, contentType, body, reqEditors...)
+// SubscribeToBusWithBodyWithResponse request with arbitrary body returning *SubscribeToBusResponse
+func (c *ClientWithResponses) SubscribeToBusWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SubscribeToBusResponse, error) {
+	rsp, err := c.SubscribeToBusWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParsePostBusSubscribeResponse(rsp)
+	return ParseSubscribeToBusResponse(rsp)
 }
 
-func (c *ClientWithResponses) PostBusSubscribeWithResponse(ctx context.Context, body PostBusSubscribeJSONRequestBody, reqEditors ...RequestEditorFn) (*PostBusSubscribeResponse, error) {
-	rsp, err := c.PostBusSubscribe(ctx, body, reqEditors...)
+func (c *ClientWithResponses) SubscribeToBusWithResponse(ctx context.Context, body SubscribeToBusJSONRequestBody, reqEditors ...RequestEditorFn) (*SubscribeToBusResponse, error) {
+	rsp, err := c.SubscribeToBus(ctx, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParsePostBusSubscribeResponse(rsp)
+	return ParseSubscribeToBusResponse(rsp)
 }
 
-// PostResourcesWithBodyWithResponse request with arbitrary body returning *PostResourcesResponse
-func (c *ClientWithResponses) PostResourcesWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostResourcesResponse, error) {
-	rsp, err := c.PostResourcesWithBody(ctx, contentType, body, reqEditors...)
+// UploadResourceWithBodyWithResponse request with arbitrary body returning *UploadResourceResponse
+func (c *ClientWithResponses) UploadResourceWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UploadResourceResponse, error) {
+	rsp, err := c.UploadResourceWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParsePostResourcesResponse(rsp)
+	return ParseUploadResourceResponse(rsp)
 }
 
-// GetResourcesIdWithResponse request returning *GetResourcesIdResponse
-func (c *ClientWithResponses) GetResourcesIdWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetResourcesIdResponse, error) {
-	rsp, err := c.GetResourcesId(ctx, id, reqEditors...)
+// GetResourceRepresentationWithResponse request returning *GetResourceRepresentationResponse
+func (c *ClientWithResponses) GetResourceRepresentationWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetResourceRepresentationResponse, error) {
+	rsp, err := c.GetResourceRepresentation(ctx, id, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetResourcesIdResponse(rsp)
+	return ParseGetResourceRepresentationResponse(rsp)
 }
 
-// GetResourcesIdJsonldWithResponse request returning *GetResourcesIdJsonldResponse
-func (c *ClientWithResponses) GetResourcesIdJsonldWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetResourcesIdJsonldResponse, error) {
-	rsp, err := c.GetResourcesIdJsonld(ctx, id, reqEditors...)
+// GetResourceJsonLdWithResponse request returning *GetResourceJsonLdResponse
+func (c *ClientWithResponses) GetResourceJsonLdWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetResourceJsonLdResponse, error) {
+	rsp, err := c.GetResourceJsonLd(ctx, id, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetResourcesIdJsonldResponse(rsp)
+	return ParseGetResourceJsonLdResponse(rsp)
 }
 
-// ParseGetResponse parses an HTTP response from a GetWithResponse call
-func ParseGetResponse(rsp *http.Response) (*GetResponse, error) {
+// ParseGetHealthAtRootResponse parses an HTTP response from a GetHealthAtRootWithResponse call
+func ParseGetHealthAtRootResponse(rsp *http.Response) (*GetHealthAtRootResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetResponse{
+	response := &GetHealthAtRootResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -14683,15 +14683,15 @@ func ParseGetResponse(rsp *http.Response) (*GetResponse, error) {
 	return response, nil
 }
 
-// ParseGetWellKnownOauthProtectedResourceResponse parses an HTTP response from a GetWellKnownOauthProtectedResourceWithResponse call
-func ParseGetWellKnownOauthProtectedResourceResponse(rsp *http.Response) (*GetWellKnownOauthProtectedResourceResponse, error) {
+// ParseGetProtectedResourceMetadataResponse parses an HTTP response from a GetProtectedResourceMetadataWithResponse call
+func ParseGetProtectedResourceMetadataResponse(rsp *http.Response) (*GetProtectedResourceMetadataResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetWellKnownOauthProtectedResourceResponse{
+	response := &GetProtectedResourceMetadataResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -14716,15 +14716,15 @@ func ParseGetWellKnownOauthProtectedResourceResponse(rsp *http.Response) (*GetWe
 	return response, nil
 }
 
-// ParseGetApiHealthResponse parses an HTTP response from a GetApiHealthWithResponse call
-func ParseGetApiHealthResponse(rsp *http.Response) (*GetApiHealthResponse, error) {
+// ParseGetHealthResponse parses an HTTP response from a GetHealthWithResponse call
+func ParseGetHealthResponse(rsp *http.Response) (*GetHealthResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetApiHealthResponse{
+	response := &GetHealthResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -14749,15 +14749,15 @@ func ParseGetApiHealthResponse(rsp *http.Response) (*GetApiHealthResponse, error
 	return response, nil
 }
 
-// ParseGetApiOpenapiJsonResponse parses an HTTP response from a GetApiOpenapiJsonWithResponse call
-func ParseGetApiOpenapiJsonResponse(rsp *http.Response) (*GetApiOpenapiJsonResponse, error) {
+// ParseGetOpenApiDocumentResponse parses an HTTP response from a GetOpenApiDocumentWithResponse call
+func ParseGetOpenApiDocumentResponse(rsp *http.Response) (*GetOpenApiDocumentResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetApiOpenapiJsonResponse{
+	response := &GetOpenApiDocumentResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -14786,15 +14786,15 @@ func ParseGetApiOpenapiJsonResponse(rsp *http.Response) (*GetApiOpenapiJsonRespo
 	return response, nil
 }
 
-// ParseGetApiResourcesIdResponse parses an HTTP response from a GetApiResourcesIdWithResponse call
-func ParseGetApiResourcesIdResponse(rsp *http.Response) (*GetApiResourcesIdResponse, error) {
+// ParseGetResourceRepresentationWithMediaTokenResponse parses an HTTP response from a GetResourceRepresentationWithMediaTokenWithResponse call
+func ParseGetResourceRepresentationWithMediaTokenResponse(rsp *http.Response) (*GetResourceRepresentationWithMediaTokenResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetApiResourcesIdResponse{
+	response := &GetResourceRepresentationWithMediaTokenResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -14833,15 +14833,15 @@ func ParseGetApiResourcesIdResponse(rsp *http.Response) (*GetApiResourcesIdRespo
 	return response, nil
 }
 
-// ParseGetApiStatusResponse parses an HTTP response from a GetApiStatusWithResponse call
-func ParseGetApiStatusResponse(rsp *http.Response) (*GetApiStatusResponse, error) {
+// ParseGetStatusResponse parses an HTTP response from a GetStatusWithResponse call
+func ParseGetStatusResponse(rsp *http.Response) (*GetStatusResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetApiStatusResponse{
+	response := &GetStatusResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -14873,15 +14873,15 @@ func ParseGetApiStatusResponse(rsp *http.Response) (*GetApiStatusResponse, error
 	return response, nil
 }
 
-// ParsePostApiTokensAgentResponse parses an HTTP response from a PostApiTokensAgentWithResponse call
-func ParsePostApiTokensAgentResponse(rsp *http.Response) (*PostApiTokensAgentResponse, error) {
+// ParseExchangeAgentTokenResponse parses an HTTP response from a ExchangeAgentTokenWithResponse call
+func ParseExchangeAgentTokenResponse(rsp *http.Response) (*ExchangeAgentTokenResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &PostApiTokensAgentResponse{
+	response := &ExchangeAgentTokenResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -14927,15 +14927,15 @@ func ParsePostApiTokensAgentResponse(rsp *http.Response) (*PostApiTokensAgentRes
 	return response, nil
 }
 
-// ParsePostApiTokensMediaResponse parses an HTTP response from a PostApiTokensMediaWithResponse call
-func ParsePostApiTokensMediaResponse(rsp *http.Response) (*PostApiTokensMediaResponse, error) {
+// ParseCreateMediaTokenResponse parses an HTTP response from a CreateMediaTokenWithResponse call
+func ParseCreateMediaTokenResponse(rsp *http.Response) (*CreateMediaTokenResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &PostApiTokensMediaResponse{
+	response := &CreateMediaTokenResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -14981,15 +14981,15 @@ func ParsePostApiTokensMediaResponse(rsp *http.Response) (*PostApiTokensMediaRes
 	return response, nil
 }
 
-// ParseGetApiUsersMeResponse parses an HTTP response from a GetApiUsersMeWithResponse call
-func ParseGetApiUsersMeResponse(rsp *http.Response) (*GetApiUsersMeResponse, error) {
+// ParseGetCurrentUserResponse parses an HTTP response from a GetCurrentUserWithResponse call
+func ParseGetCurrentUserResponse(rsp *http.Response) (*GetCurrentUserResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetApiUsersMeResponse{
+	response := &GetCurrentUserResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -15021,15 +15021,15 @@ func ParseGetApiUsersMeResponse(rsp *http.Response) (*GetApiUsersMeResponse, err
 	return response, nil
 }
 
-// ParsePostBusEmitResponse parses an HTTP response from a PostBusEmitWithResponse call
-func ParsePostBusEmitResponse(rsp *http.Response) (*PostBusEmitResponse, error) {
+// ParseEmitOnBusResponse parses an HTTP response from a EmitOnBusWithResponse call
+func ParseEmitOnBusResponse(rsp *http.Response) (*EmitOnBusResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &PostBusEmitResponse{
+	response := &EmitOnBusResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -15096,15 +15096,15 @@ func ParsePostBusEmitResponse(rsp *http.Response) (*PostBusEmitResponse, error) 
 	return response, nil
 }
 
-// ParsePostBusSubscribeResponse parses an HTTP response from a PostBusSubscribeWithResponse call
-func ParsePostBusSubscribeResponse(rsp *http.Response) (*PostBusSubscribeResponse, error) {
+// ParseSubscribeToBusResponse parses an HTTP response from a SubscribeToBusWithResponse call
+func ParseSubscribeToBusResponse(rsp *http.Response) (*SubscribeToBusResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &PostBusSubscribeResponse{
+	response := &SubscribeToBusResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -15157,15 +15157,15 @@ func ParsePostBusSubscribeResponse(rsp *http.Response) (*PostBusSubscribeRespons
 	return response, nil
 }
 
-// ParsePostResourcesResponse parses an HTTP response from a PostResourcesWithResponse call
-func ParsePostResourcesResponse(rsp *http.Response) (*PostResourcesResponse, error) {
+// ParseUploadResourceResponse parses an HTTP response from a UploadResourceWithResponse call
+func ParseUploadResourceResponse(rsp *http.Response) (*UploadResourceResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &PostResourcesResponse{
+	response := &UploadResourceResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -15211,15 +15211,15 @@ func ParsePostResourcesResponse(rsp *http.Response) (*PostResourcesResponse, err
 	return response, nil
 }
 
-// ParseGetResourcesIdResponse parses an HTTP response from a GetResourcesIdWithResponse call
-func ParseGetResourcesIdResponse(rsp *http.Response) (*GetResourcesIdResponse, error) {
+// ParseGetResourceRepresentationResponse parses an HTTP response from a GetResourceRepresentationWithResponse call
+func ParseGetResourceRepresentationResponse(rsp *http.Response) (*GetResourceRepresentationResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetResourcesIdResponse{
+	response := &GetResourceRepresentationResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -15258,15 +15258,15 @@ func ParseGetResourcesIdResponse(rsp *http.Response) (*GetResourcesIdResponse, e
 	return response, nil
 }
 
-// ParseGetResourcesIdJsonldResponse parses an HTTP response from a GetResourcesIdJsonldWithResponse call
-func ParseGetResourcesIdJsonldResponse(rsp *http.Response) (*GetResourcesIdJsonldResponse, error) {
+// ParseGetResourceJsonLdResponse parses an HTTP response from a GetResourceJsonLdWithResponse call
+func ParseGetResourceJsonLdResponse(rsp *http.Response) (*GetResourceJsonLdResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetResourcesIdJsonldResponse{
+	response := &GetResourceJsonLdResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}

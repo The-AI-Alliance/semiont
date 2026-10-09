@@ -3,7 +3,11 @@
   "info": {
     "title": "Semiont Archivist",
     "version": "0.1.0",
-    "description": "The Archivist's HTTP surface: what the gateway (and only the fleet's own services) call to store and read the knowledge base's bytes, read its linked-data descriptions, and replay a resource's events. Everything else reaches the Archivist over the bus."
+    "description": "The Archivist's HTTP surface: what the gateway (and only the fleet's own services) call to store and read the knowledge base's bytes, read its linked-data descriptions, and replay a resource's events. Everything else reaches the Archivist over the bus.",
+    "license": {
+      "name": "Apache-2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0"
+    }
   },
   "servers": [
     {

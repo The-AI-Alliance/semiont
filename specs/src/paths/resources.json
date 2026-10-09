@@ -1,5 +1,6 @@
 {
   "post": {
+    "operationId": "uploadResource",
     "summary": "Create a resource",
     "description": "Upload a representation's bytes with its metadata, as multipart/form-data. The gateway forwards the upload untouched to the Archivist, which holds the knowledge base's tree: it stores the bytes and records the resource — as a clone of the token's source when the upload carries `cloneToken` — for the caller the gateway verified, and the new resource's id comes back with 202. What follows from the resource's creation — graph, views, vectors — settles afterwards, announced by `yield:created` on the bus.\n\nBytes travel on this HTTP request, never on the bus.",
     "tags": [

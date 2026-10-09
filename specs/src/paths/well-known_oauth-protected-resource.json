@@ -1,5 +1,6 @@
 {
   "get": {
+    "operationId": "getProtectedResourceMetadata",
     "summary": "Protected Resource Metadata",
     "description": "OAuth 2.0 Protected Resource Metadata (RFC 9728): the authorization server whose tokens this knowledge base accepts, and how a bearer token reaches it. Public — a client reads it before it has any token.",
     "tags": [

@@ -36,7 +36,6 @@
     "browser:dev": "npm run dev -w semiont-browser",
     "openapi:bundle": "redocly bundle specs/src/openapi.json -o specs/openapi.json && redocly bundle specs/src/archivist/openapi.json -o specs/archivist.openapi.json",
     "openapi:lint": "redocly lint specs/src/openapi.json specs/src/archivist/openapi.json",
-    "openapi:validate": "redocly lint specs/openapi.json specs/archivist.openapi.json",
     "lint:spec-protocol": "node scripts/spec/check-protocol.mjs",
     "lint:spec-jobs": "node scripts/spec/check-jobs.mjs",
     "lint:spec-archivist": "node scripts/spec/check-archivist.mjs",

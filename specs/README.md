@@ -78,7 +78,6 @@ gateway and Browser import from core
    ```bash
    npm run openapi:bundle    # Bundle source → specs/openapi.json and specs/archivist.openapi.json
    npm run openapi:lint      # Lint source files
-   npm run openapi:validate  # Validate bundled output
    npm run lint:spec-protocol  # The spec states the whole gateway protocol
    ```
 
@@ -197,21 +196,11 @@ The spec is kept as modular files, bundled with Redocly:
 
 Two forms the rules bear on:
 
+- **An operation** has an `operationId`, the name a generated client's method takes. A path item is one operation's, so a path that answers as another does has a path item of its own.
 - **A property that admits one value** states it as an `enum` of one. `const` is JSON Schema's and not OpenAPI 3.0's; the lint refuses it, and so does the Rust type generator.
 - **A reference that may be null** is `{ "nullable": true, "allOf": [{ "$ref": … }] }`. The validators and every SDK's type generator read it as the reference, or null.
 
 Bundling takes no configuration: a schema is kept in the bundle because `components` lists it.
-
-## API Statistics
-
-Generated from `npm run openapi:stats`:
-
-- **Operations**: 43 endpoints
-- **Paths**: 37 path items
-- **Schemas**: 79 type definitions
-- **Tags**: 15 categories
-- **Parameters**: 22 reusable parameters
-- **References**: 60 $ref links
 
 ## Related Documentation
 

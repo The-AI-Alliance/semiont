@@ -1,8 +1,8 @@
 {
   "get": {
-    "operationId": "getHealth",
-    "summary": "Health Check",
-    "description": "Check if the API is operational. GET / makes the same check.",
+    "operationId": "getHealthAtRoot",
+    "summary": "Health Check at the root",
+    "description": "The check GET /api/health makes, served at / so a person who types the host gets an answer rather than a 404.",
     "tags": [
       "System"
     ],

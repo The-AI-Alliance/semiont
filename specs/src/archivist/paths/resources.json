@@ -1,5 +1,6 @@
 {
   "post": {
+    "operationId": "storeResource",
     "summary": "Store an upload and record the resource",
     "description": "The gateway's `POST /resources`, forwarded untouched, with the principal the gateway verified. The Archivist stores the bytes at `storageUri`, outside git, and records the resource — as a clone of the token's source when the upload carries `cloneToken` — attributed to `Semiont-Principal`. It answers once the resource is recorded.",
     "security": [

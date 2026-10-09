@@ -1,5 +1,6 @@
 {
   "get": {
+    "operationId": "getResourceJsonLd",
     "summary": "Get a resource's JSON-LD description",
     "description": "The linked-data description of the resource: its descriptor, all its annotations, and the annotations on other resources that reference it — the Archivist's answer, proxied. This is where the `Link: rel=\"describedby\"` header of every content response points.",
     "tags": [

@@ -1,5 +1,6 @@
 {
   "get": {
+    "operationId": "getResourceEvents",
     "summary": "One resource's events from one sequence number",
     "description": "The events of one resource whose sequence number is at least `fromSequence`, in log order. The one read of the event log this surface serves, and deliberately narrow: a range of one resource, never the whole log. The gateway calls it to replay a scope a subscriber resumes, asking from the sequence after the last one the subscriber saw.",
     "security": [

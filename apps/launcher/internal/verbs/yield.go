@@ -284,11 +284,11 @@ func yieldOne(u *launcher.UI, cli *semiont.ClientWithResponses, sess *launcher.S
 	}
 
 	body := buf.Bytes()
-	var resp *semiont.PostResourcesResponse
+	var resp *semiont.UploadResourceResponse
 	err = sess.Authorized(func(token string) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
-		r, err := cli.PostResourcesWithBodyWithResponse(ctx, w.FormDataContentType(),
+		r, err := cli.UploadResourceWithBodyWithResponse(ctx, w.FormDataContentType(),
 			bytes.NewReader(body), launcher.Bearer(token))
 		if err != nil {
 			return err

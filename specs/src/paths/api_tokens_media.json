@@ -1,5 +1,6 @@
 {
   "post": {
+    "operationId": "createMediaToken",
     "summary": "Generate Media Token",
     "description": "A short-lived, resource-scoped media token (see the `mediaToken` scheme) for a `?token=` query parameter on `GET /api/resources/{id}`, where `<img>`, PDF.js and download links cannot send a header. Requires a bearer token.",
     "tags": [

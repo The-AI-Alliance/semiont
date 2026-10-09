@@ -1,5 +1,6 @@
 {
   "get": {
+    "operationId": "getCurrentUser",
     "summary": "Get Current User",
     "description": "Get information about the authenticated user",
     "tags": [

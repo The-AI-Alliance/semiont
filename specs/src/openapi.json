@@ -3,12 +3,24 @@
   "info": {
     "title": "Semiont API",
     "version": "0.1.0",
-    "description": "Semantic Knowledge Platform API"
+    "description": "Semantic Knowledge Platform API",
+    "license": {
+      "name": "Apache-2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0"
+    }
   },
   "servers": [
     {
-      "url": "http://localhost:4000",
-      "description": "API Server"
+      "url": "http://{host}:{port}",
+      "description": "A knowledge base's gateway, at the address its operator gives it.",
+      "variables": {
+        "host": {
+          "default": "localhost"
+        },
+        "port": {
+          "default": "4000"
+        }
+      }
     }
   ],
   "paths": {
@@ -16,7 +28,7 @@
       "$ref": "paths/api_health.json"
     },
     "/": {
-      "$ref": "paths/api_health.json"
+      "$ref": "paths/root.json"
     },
     "/api/openapi.json": {
       "$ref": "paths/api_openapi.json"

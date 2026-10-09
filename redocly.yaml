@@ -11,6 +11,9 @@ rules:
   # An operation says what it does.
   operation-description: warn
 
+  # An operation has a name of its own, which a generated client's method takes.
+  operation-operationId: error
+
   # A reference that may be null is written
   # `{ "nullable": true, "allOf": [{ "$ref": … }] }`. The validators generated
   # from the spec (scripts/spec/generate-validators.mjs, packages/codegen-rust)
