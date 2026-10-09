@@ -940,7 +940,6 @@ async fn a_cancellation_that_names_the_held_job_is_signalled_and_any_other_is_no
     let cancelled = job.cancelled();
 
     w.relay("job:cancel-requested", json!({ "jobId": "job-7" }));
-    w.relay("job:cancel-requested", json!({ "jobType": "mark" }));
     turn().await;
     assert!(!*cancelled.borrow());
 

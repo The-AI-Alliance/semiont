@@ -658,12 +658,9 @@ describe('JobNamespace', () => {
     await expect(j.cancel(jobId('j-42'))).resolves.toBe(1);
     expect(mock.emitSpy).toHaveBeenCalledWith(
       'job:cancel-requested',
-      expect.objectContaining({ jobId: 'j-42' }),
+      { jobId: 'j-42' },
       expect.objectContaining({ correlationId: expect.any(String) }),
     );
-    // The request names the job and nothing else.
-    const payload = mock.emitSpy.mock.calls.find(([ch]) => ch === 'job:cancel-requested')![1] as Record<string, unknown>;
-    expect(payload).not.toHaveProperty('jobType');
     bus.destroy();
   });
 

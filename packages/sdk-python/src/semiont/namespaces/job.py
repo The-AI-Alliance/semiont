@@ -80,8 +80,7 @@ class JobNamespace:
         """Cancel one job: how many the queue acted on.
 
         A pending job is cancelled outright. A running one is left to its
-        worker, so one means accepted, not stopped. The request names the
-        job and nothing else.
+        worker, so one means accepted, not stopped.
         """
         return (await self._links.request(JOB_CANCEL_REQUESTED, JobCancelRequest(job_id=job_id))).response.cancelled
 

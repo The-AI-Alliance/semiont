@@ -24,7 +24,7 @@
 
 use semiont::types::{
     FailureClass, Job, JobFilter, JobId, JobPending, JobRunning, JobStoredProgress,
-    JobStoredResult, JobType, UnitCursor,
+    JobStoredResult, UnitCursor,
 };
 use std::collections::BTreeMap;
 use std::fmt;
@@ -123,12 +123,6 @@ pub trait JobQueue: Send + Sync + 'static {
         id: &JobId,
         progress: JobStoredProgress,
     ) -> impl Future<Output = Result<(), QueueError>> + Send;
-
-    /// Cancel every pending job of the type; how many were cancelled.
-    fn cancel_pending_jobs(
-        &self,
-        job_type: JobType,
-    ) -> impl Future<Output = Result<u64, QueueError>> + Send;
 
     /// Cancel a pending or running job; `false` when it was neither.
     fn cancel_job(&self, id: &JobId) -> impl Future<Output = Result<bool, QueueError>> + Send;

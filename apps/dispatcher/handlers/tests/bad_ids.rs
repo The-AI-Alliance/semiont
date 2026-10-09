@@ -131,25 +131,29 @@ async fn a_one_way_command_for_a_job_id_that_is_not_one_is_dropped() {
     }
 }
 
-/// An empty `jobId` beside a `jobType` is refused. Read as no id at all, it
-/// would cancel every pending job of the type.
+/// A cancellation names its job. A request that names none is no
+/// `JobCancelRequest`, whatever else it states: it is refused, and the queue
+/// is not asked.
 #[tokio::test]
-async fn a_cancel_request_with_an_empty_job_id_and_a_type_cancels_nothing() {
-    let (replies, asked) = handled(
-        "job:cancel-requested",
+async fn a_cancel_request_that_names_no_job_is_refused_before_the_queue_is_asked() {
+    for unnamed in [
+        json!({}),
+        json!({ "jobType": "mark" }),
+        json!({ "jobId": "" }),
         json!({ "jobId": "", "jobType": "mark" }),
-    )
-    .await;
-    let message = refusal(&replies, "job:cancel-failed");
-    assert!(
-        message.starts_with("a job:cancel-requested that is not a JobCancelRequest: "),
-        "{message}"
-    );
-    assert_eq!(asked, [] as [&str; 0]);
+    ] {
+        let (replies, asked) = handled("job:cancel-requested", unnamed.clone()).await;
+        let message = refusal(&replies, "job:cancel-failed");
+        assert!(
+            message.starts_with("a job:cancel-requested that is not a JobCancelRequest: "),
+            "{unnamed}: {message}"
+        );
+        assert_eq!(asked, [] as [&str; 0], "{unnamed}");
+    }
 
-    let (replies, asked) = handled("job:cancel-requested", json!({ "jobType": "mark" })).await;
+    let (replies, asked) = handled("job:cancel-requested", json!({ "jobId": "job-1" })).await;
     assert_eq!(replies[0].channel, "job:cancel-ok");
-    assert_eq!(asked, ["cancel every pending mark"]);
+    assert_eq!(asked, ["get job-1"]);
 }
 
 #[tokio::test]

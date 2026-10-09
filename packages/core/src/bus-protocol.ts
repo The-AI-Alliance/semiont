@@ -439,9 +439,9 @@ export type EventMap = {
   'job:create-failed': components['schemas']['CommandError'];
   'job:claimed': components['schemas']['JobClaimedResult'];
   'job:claim-failed': components['schemas']['CommandError'];
-  // cancel-by-type confirmed-write reply: the count of *pending* jobs cancelled
-  // (running jobs finish — there's no worker-kill channel). Failure surfaces a
-  // queue error rather than being swallowed.
+  // confirmed-write reply to a cancellation: 1 when the queue acted on the job it
+  // named (a pending job is cancelled; a running one is left to its worker), else 0.
+  // Failure surfaces a queue error rather than being swallowed.
   'job:cancel-ok': { response: components['schemas']['JobCancelResult'] };
   'job:cancel-failed': components['schemas']['CommandError'];
 

@@ -6,8 +6,8 @@
 // document — and each restates a fact another owns. The check fails when they
 // disagree:
 //
-//   - JobCancelRequest's `jobType` is not JobType, the only unit a bulk cancel
-//     selects by;
+//   - JobCancelRequest is anything but one required `jobId`, a JobId: a
+//     cancellation names one job, and selects no other way;
 //   - a job description, an announcement or a filter is not told apart by
 //     exactly JobType, or a mark job's parameters by exactly Motivation, or a
 //     motivation's parameters are open;
@@ -46,8 +46,13 @@ const motivations = schema('Motivation').enum;
 const same = (a, b) => [...a].sort().join() === [...b].sort().join();
 const refName = (ref) => ref.replace(/^\.\//, '').replace(/\.json$/, '');
 
-if (schema('JobCancelRequest').properties.jobType.$ref !== './JobType.json') {
-  fail(`JobCancelRequest.jobType is not JobType, the only unit a bulk cancel selects by`);
+const cancellation = schema('JobCancelRequest');
+if (
+  !same(Object.keys(cancellation.properties), ['jobId']) ||
+  !same(cancellation.required ?? [], ['jobId']) ||
+  cancellation.properties.jobId.$ref !== './JobId.json'
+) {
+  fail(`JobCancelRequest is not exactly one required jobId, a JobId: a cancellation names one job, and selects no other way`);
 }
 
 // A union told apart by a property: its mapping is its members, the property

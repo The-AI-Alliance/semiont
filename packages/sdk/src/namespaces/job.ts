@@ -71,8 +71,6 @@ export class JobNamespace implements IJobNamespace {
    * cancelled outright; a RUNNING one is left to its worker, which stops
    * cooperatively at the next unit boundary and keeps its checkpoint, so `1`
    * means "accepted", not "already stopped". Rejects on a queue failure.
-   *
-   * The request names the job and nothing else.
    */
   async cancel(jobId: JobId): Promise<number> {
     const { cancelled } = await busRequest(

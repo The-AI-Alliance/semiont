@@ -1132,6 +1132,14 @@ class GraphResourceNode(WireModel, frozen=True):
     metadata: dict[str, JsonValue] | None = None
 
 
+class JobCancelRequest(WireModel, frozen=True):
+    """
+    Request to cancel one job, named by its id. A pending job is cancelled immediately by the dispatcher. A running job is cancelled cooperatively by the worker that holds it, which stops at its next unit boundary and emits JobCancelCommand: the queue is never made to yank a running job out from under a live worker.
+    """
+
+    job_id: Annotated[JobId, Field(alias="jobId")]
+
+
 class UnitCursor(WireModel, frozen=True):
     """
     How far a single unit got, for a resume that starts mid-unit rather than redoing it. A unit is an entity type for a linking job, a category for a tagging job, and the job's own motivation for every other — which is why a unit-grain checkpoint alone is too coarse: those three have exactly one unit, so nothing could be recorded until the whole document was done.
@@ -2645,10 +2653,13 @@ class ResourceErrorEvent(WireModel, frozen=True):
 
 class JobCancelResult(WireModel, frozen=True):
     """
-    What a cancel did, in the `response` of `job:cancel-ok`: how many jobs it cancelled. A pending job is cancelled outright; a running one is left to its worker, so for it the count means accepted, not stopped.
+    What a cancel did, in the `response` of `job:cancel-ok`: whether the queue acted on the job it named, as a count. A pending job is cancelled outright; a running one is left to its worker, so for it the count means accepted, not stopped.
     """
 
-    cancelled: Annotated[int, Field(description="The number of jobs cancelled.")]
+    cancelled: Annotated[
+        int,
+        Field(description="1 when the queue acted on the job; 0 when the job is unknown or already over."),
+    ]
 
 
 class WeaveApplied(WireModel, frozen=True):
@@ -3690,27 +3701,6 @@ class InferenceLimitsResult(WireModel, frozen=True):
     """
 
     response: InferenceLimitsResultResponse
-
-
-class JobCancelRequest(WireModel, frozen=True):
-    """
-    Request to cancel a job. Target one running or pending job by `jobId`, or every pending job of one `jobType`. A `jobId`-targeted request that names a RUNNING job is honoured cooperatively by the owning worker, which stops at its next unit boundary and emits JobCancelCommand — the queue is never made to yank a running job out from under a live worker.
-    """
-
-    job_id: Annotated[
-        JobId | None,
-        Field(
-            alias="jobId",
-            description="Cancel this one job. A pending job is cancelled immediately by the dispatcher; a running job is cancelled cooperatively by its worker. Takes precedence over jobType.",
-        ),
-    ] = None
-    job_type: Annotated[
-        JobType | None,
-        Field(
-            alias="jobType",
-            description="Cancel all PENDING jobs of this type — the bulk UI signal. Ignored when jobId is present.",
-        ),
-    ] = None
 
 
 class JobCancelCommand(WireModel, frozen=True):

@@ -48,11 +48,10 @@ export interface DelegatedVerb<C extends JobCompletion> {
  * `stallMs`, when given, is the ONE stall guard: armed at subscribe, armed
  * again on every event, cleared by any ending. It lives in this producer so
  * `await`, `.run()` and a state unit's drive all share it. Firing asks for
- * THAT job to be cancelled, by its id: a cancellation by type would end every
- * pending job of the type, whoever asked for it. A pending job is cancelled
- * outright; a running one is left to its worker. A job whose creation was
- * never answered has no id, and there is nothing to cancel. Then the stream
- * errors with `GenerationStallError`.
+ * the job to be cancelled: a pending job is cancelled outright; a running one
+ * is left to its worker. A job whose creation was never answered has no id,
+ * and there is nothing to cancel. Then the stream errors with
+ * `GenerationStallError`.
  */
 export function delegated<C extends JobCompletion>(
   transport: ITransport,

@@ -1,20 +1,19 @@
 /**
  * Cancellation (JOBS.md § `job:cancel-requested`, § `job:cancel`,
- * § Cancellation): the dispatcher cancels pending jobs, by id or by type;
+ * § Cancellation): the dispatcher cancels the pending job a request names;
  * a running job is its worker's to stop, which it confirms with `job:cancel`.
  */
 import { expect, it } from 'vitest';
-import { everyJob, generation, marks, resourceIdOf, settle, withDispatcher } from '../harness/dispatcher-world';
+import { everyJob, generation, resourceIdOf, settle, withDispatcher } from '../harness/dispatcher-world';
 
 const cancelled = (answer: { payload: Record<string, unknown> }) => (answer.payload['response'] as { cancelled: number }).cancelled;
 
 withDispatcher('job:cancel-requested', (world) => {
-  it('answers 0 for a job it does not know, and for a request naming nothing', async () => {
+  it('answers 0 for a job it does not know', async () => {
     const person = await world().person('canceller');
     const unknown = await person.cancelRequest({ jobId: 'job-00000000000000000000000000000000' });
     expect(unknown.channel).toBe('job:cancel-ok');
     expect(cancelled(unknown)).toBe(0);
-    expect(cancelled(await person.cancelRequest({}))).toBe(0);
   });
 
   it('cancels a pending job named by id: counted, recorded, and never claimable after', async () => {
@@ -43,50 +42,24 @@ withDispatcher('job:cancel-requested', (world) => {
     expect((await creator.statusOf(job.metadata.id)).status).toBe('complete');
   });
 
-  it('cancels every pending mark job, whatever its motivation, and neither yield nor running jobs', async () => {
-    const { creator, job: running } = await world().running({ motivation: 'tagging', schemaId: 'irac', categories: ['Issue'] });
-    const marking = [
-      await creator.created('mark', { motivation: 'highlighting' }, resourceIdOf()),
-      await creator.created('mark', { motivation: 'linking', entityTypes: ['Person'] }, resourceIdOf()),
-    ];
-    const yielding = await creator.created('yield', generation(resourceIdOf()));
-    expect(cancelled(await creator.cancelRequest({ jobType: 'mark' }))).toBe(2);
-    for (const id of marking) expect((await creator.statusOf(id)).status).toBe('cancelled');
-    expect((await creator.statusOf(yielding)).status).toBe('pending');
-    expect((await creator.statusOf(running.metadata.id)).status).toBe('running');
-  });
-
-  it('cancels every pending yield job, and no mark job', async () => {
-    const creator = await world().person('creator');
-    const yielding = await creator.created('yield', generation(resourceIdOf()));
-    const marking = await creator.created('mark', { motivation: 'commenting' }, resourceIdOf());
-    expect(cancelled(await creator.cancelRequest({ jobType: 'yield' }))).toBe(1);
-    expect((await creator.statusOf(yielding)).status).toBe('cancelled');
-    expect((await creator.statusOf(marking)).status).toBe('pending');
-  });
-
-  it('delivers a job created after its type was cancelled: the cancellation took the jobs pending then, and no later one', async () => {
-    const creator = await world().person('creator');
-    const worker = await world().worker('after-the-sweep');
-    await creator.created('mark', { motivation: 'highlighting' }, resourceIdOf());
-    expect(cancelled(await creator.cancelRequest({ jobType: 'mark' }))).toBe(1);
-    const later = await creator.created('mark', { motivation: 'highlighting' }, resourceIdOf());
-    await world().announced(later);
-    expect((await worker.claimed([marks('highlighting')])).metadata.id).toBe(later);
-  });
-
-  it('acts on the id when a request names both an id and a type', async () => {
+  it('cancels the job a request names and no other, of its type or of another', async () => {
     const creator = await world().person('creator');
     const named = await creator.created('mark', { motivation: 'highlighting' }, resourceIdOf());
-    const other = await creator.created('mark', { motivation: 'highlighting' }, resourceIdOf());
-    expect(cancelled(await creator.cancelRequest({ jobId: named, jobType: 'mark' }))).toBe(1);
+    const alike = await creator.created('mark', { motivation: 'highlighting' }, resourceIdOf());
+    const yielding = await creator.created('yield', generation(resourceIdOf()));
+    expect(cancelled(await creator.cancelRequest({ jobId: named }))).toBe(1);
     expect((await creator.statusOf(named)).status).toBe('cancelled');
-    expect((await creator.statusOf(other)).status).toBe('pending');
+    expect((await creator.statusOf(alike)).status).toBe('pending');
+    expect((await creator.statusOf(yielding)).status).toBe('pending');
   });
 
-  it('refuses at the door a request naming a type no job has', async () => {
-    const person = await world().person('canceller');
-    expect((await person.offered('job:cancel-requested', { jobType: 'annotation' })).status).toBe(400);
+  it('refuses at the door a request that names no job: a cancellation selects by id, and no other way', async () => {
+    const creator = await world().person('creator');
+    const pending = await creator.created('mark', { motivation: 'highlighting' }, resourceIdOf());
+    expect((await creator.offered('job:cancel-requested', {})).status).toBe(400);
+    expect((await creator.offered('job:cancel-requested', { jobType: 'mark' })).status).toBe(400);
+    await settle();
+    expect((await creator.statusOf(pending)).status).toBe('pending');
   });
 });
 

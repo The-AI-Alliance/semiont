@@ -385,26 +385,12 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
                 )));
             }
         };
-        let cancelled = match (request.job_id, request.job_type) {
-            (Some(id), _) => self.cancel_one(&id).await,
-            (None, Some(job_type)) => {
-                let cancelled = self
-                    .queue
-                    .cancel_pending_jobs(job_type)
-                    .await
-                    .map_err(|e| e.0);
-                if let Ok(count) = cancelled {
-                    logging::info(
-                        "Cancel requested",
-                        fields(json!({ "jobType": job_type.as_str(), "cancelled": count })),
-                    );
-                }
-                cancelled
-            }
-            (None, None) => Ok(0),
-        };
+        let cancelled = self.cancel_one(&request.job_id).await;
         if let Err(message) = &cancelled {
-            logging::error("Failed to cancel jobs", fields(json!({ "error": message })));
+            logging::error(
+                "Failed to cancel the job a request named",
+                fields(json!({ "jobId": request.job_id.as_str(), "error": message })),
+            );
         }
         answer(cancelled)
     }

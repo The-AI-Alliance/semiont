@@ -91,11 +91,10 @@ impl JobNamespace {
 
     /// Cancel one job: how many the queue acted on. A pending job is
     /// cancelled outright; a running one is left to its worker, so one means
-    /// accepted, not stopped. The request names the job and nothing else.
+    /// accepted, not stopped.
     pub async fn cancel(&self, job_id: &JobId) -> Result<i64, SemiontError> {
         let request = JobCancelRequest {
-            job_id: Some(job_id.clone()),
-            job_type: None,
+            job_id: job_id.clone(),
         };
         let answer = self.links.request::<JobCancelRequested>(&request).await?;
         Ok(answer.response.cancelled)

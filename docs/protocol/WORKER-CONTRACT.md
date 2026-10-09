@@ -192,8 +192,7 @@ worker stops.
   the work. When the work stops, the worker emits `job:cancel`, with the
   units it finished, and is idle.
   *Held by `worker/cancel`.*
-- **X2.** A `job:cancel-requested` that names another job, or a category of
-  jobs, is ignored.
+- **X2.** A `job:cancel-requested` that names another job is ignored.
   *Held by `worker/cancel`.*
 
 ## Liveness

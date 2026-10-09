@@ -4,7 +4,7 @@
 
 use semiont::types::{
     BusFrame, FailureClass, Job, JobFilter, JobId, JobPending, JobStoredProgress, JobStoredResult,
-    JobType, TagSchema,
+    TagSchema,
 };
 use semiont_dispatcher_handlers::admission::{Refusal, Vocabulary};
 use semiont_dispatcher_handlers::handlers::{Handlers, Reply};
@@ -75,11 +75,6 @@ impl JobQueue for AskedQueue {
     ) -> Result<(), QueueError> {
         self.note(format!("progress {id}"));
         Ok(())
-    }
-
-    async fn cancel_pending_jobs(&self, job_type: JobType) -> Result<u64, QueueError> {
-        self.note(format!("cancel every pending {}", job_type.as_str()));
-        Ok(0)
     }
 
     async fn cancel_job(&self, id: &JobId) -> Result<bool, QueueError> {

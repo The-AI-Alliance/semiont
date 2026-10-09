@@ -1,5 +1,5 @@
 {
-  "about": "a cancellation that names the held job is signalled to the work, and the worker settles with a cancel carrying the units it finished; one that names another job, or a category, is ignored",
+  "about": "a cancellation that names the held job is signalled to the work, and the worker settles with a cancel carrying the units it finished; one that names another job is ignored",
   "source": "docs/protocol/WORKER-CONTRACT.md § Cancellation",
   "steps": [
     {"let": {"accepts": [{"jobType": "mark", "params": {"motivation": "highlighting"}}]}},
@@ -13,7 +13,6 @@
     {"backend": "emit", "with": {"channel": "job:claimed", "correlationId": {"$var": "c1"}, "payload": {"response": {"$var": "job"}}}},
     {"claimed": {"jobId": "job-1", "jobType": "mark", "resourceId": {"$var": "r1"}, "params": {"resourceId": {"$var": "r1"}, "motivation": "highlighting"}, "completedUnits": [], "unitCursors": {}, "retryCount": 0, "maxRetries": 3}},
     {"backend": "emit", "with": {"channel": "job:cancel-requested", "payload": {"jobId": "job-7"}}},
-    {"backend": "emit", "with": {"channel": "job:cancel-requested", "payload": {"jobType": "mark"}}},
     {"quiet": 300},
     {"backend": "emit", "with": {"channel": "job:cancel-requested", "payload": {"jobId": "job-1"}}},
     {"signalled": "job-1"},

@@ -343,19 +343,14 @@ async fn followed<C: Completion>(
             }
             Step::Stalled => {
                 let Some(within) = stall else { continue };
-                // That job and no other: a cancellation by type would end
-                // every pending job of it, whoever asked for them. One
-                // whose creation was never answered has no id, and there is
-                // nothing to cancel. Asked for on its own task: the follower
-                // ends here, and the request must outlive it.
+                // A job whose creation was never answered has no id, and
+                // there is nothing to cancel. Asked for on its own task: the
+                // follower ends here, and the request must outlive it.
                 if let Some(stalled) = job_id.clone() {
                     let links = links.clone();
                     tokio::spawn(async move {
                         let _ = links
-                            .request::<JobCancelRequested>(&JobCancelRequest {
-                                job_id: Some(stalled),
-                                job_type: None,
-                            })
+                            .request::<JobCancelRequested>(&JobCancelRequest { job_id: stalled })
                             .await;
                     });
                 }

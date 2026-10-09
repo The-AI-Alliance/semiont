@@ -227,11 +227,10 @@ async def _followed[C: JobCompleteCommand](
         while True:
             now = loop.time()
             if stall is not None and stall_at is not None and now >= stall_at:
-                # That job and no other: a cancellation by type would end
-                # every pending job of it, whoever asked for them. One whose
-                # creation was never answered has no id, and there is nothing
-                # to cancel. Asked for on a task of the client's: the follower
-                # ends here, and the request must outlive it.
+                # A job whose creation was never answered has no id, and
+                # there is nothing to cancel. Asked for on a task of the
+                # client's: the follower ends here, and the request must
+                # outlive it.
                 if job_id is not None:
                     links.run(_cancelled(links, job_id))
                 raise JobError("job.stalled", f"The job stalled: nothing was heard of it within {stall_ms}ms", job_id=job_id)

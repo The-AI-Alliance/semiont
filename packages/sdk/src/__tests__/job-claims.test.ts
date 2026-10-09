@@ -686,11 +686,10 @@ describe('job.claim — the held job', () => {
     subscription.unsubscribe();
   });
 
-  it('a cancellation that names the held job is signalled to the work; one that names another job, or a category, is not', async () => {
+  it('a cancellation that names the held job is signalled to the work; one that names another job is not', async () => {
     const { job, subscription } = await holding(h);
 
     h.pushEvent('job:cancel-requested', { jobId: makeJobId('j7') });
-    h.pushEvent('job:cancel-requested', { jobType: 'mark' });
     expect(job.cancelled.aborted).toBe(false);
 
     h.pushEvent('job:cancel-requested', { jobId: makeJobId('j1') });

@@ -656,7 +656,7 @@
           "method": "cancel",
           "shape": "promise",
           "via": { "request": "job:cancel-requested" },
-          "cases": [{ "why": "one job, and no type with it", "args": { "jobId": "job-1" }, "sends": { "jobId": "job-1" } }]
+          "cases": [{ "args": { "jobId": "job-1" }, "sends": { "jobId": "job-1" } }]
         },
         {
           "method": "claim",

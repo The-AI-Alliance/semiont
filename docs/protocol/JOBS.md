@@ -105,7 +105,7 @@ There are exactly five states. There is no `claimed`, `retrying` or `declined` s
 | `running` | `pending` | `job:fail` when a retry is allowed | `retryCount + 1`, checkpoint merged; `startedAt`, `progress` and the error dropped | `job:queued` when the job is redelivered |
 | `running` | `failed` | `job:fail` when no retry is allowed | `completedAt`, `error`, checkpoint merged | nothing |
 | `running` | `pending` or `failed` | the dead-worker sweep | as `job:fail`, with the sweep's error and no failure class or units | `job:queued` on a retry; otherwise nothing |
-| `pending` | `cancelled` | `job:cancel-requested` naming it, by id or by type; or `job:cancel` | `completedAt`; no `startedAt` | `job:cancel-ok` (reply to `job:cancel-requested`) |
+| `pending` | `cancelled` | `job:cancel-requested` naming it; or `job:cancel` | `completedAt`; no `startedAt` | `job:cancel-ok` (reply to `job:cancel-requested`) |
 | `running` | `cancelled` | `job:cancel` | `completedAt`; `startedAt` kept | nothing |
 | `complete`, `failed`, `cancelled` | removed | retention | the record is deleted | nothing |
 
@@ -336,19 +336,17 @@ them into the record ([Checkpoints](#checkpoints)). Never throttled. No reply, n
 
 ### `job:cancel-requested`
 
-Asks for a job, or every pending job of one type, to be cancelled. Reads `jobId` and `jobType`
-([`JobCancelRequest`](../../specs/src/components/schemas/JobCancelRequest.json)); `jobId`, when present,
-takes precedence.
+Asks for one job to be cancelled, named by its id. Reads `jobId`
+([`JobCancelRequest`](../../specs/src/components/schemas/JobCancelRequest.json)). A cancellation
+selects no other way: a request that names no job is not a `JobCancelRequest`, and the gateway
+refuses it at its door.
 
-| Request | Effect | `cancelled` |
+| The job named | Effect | `cancelled` |
 |---|---|---|
-| `jobId`, no such job | none | `0` |
-| `jobId`, job `pending` | cancelled now | `1`, or `0` if it left `pending` first |
-| `jobId`, job `running` | none by the dispatcher; left to its worker ([Cancellation](#cancellation)) | `1` |
-| `jobId`, job terminal | none | `0` |
-| `jobType: "mark"` | every pending `mark` job cancelled, whatever its motivation | the number cancelled |
-| `jobType: "yield"` | every pending `yield` job cancelled | the number cancelled |
-| neither | none | `0` |
+| no such job | none | `0` |
+| `pending` | cancelled now | `1`, or `0` if it left `pending` first |
+| `running` | none by the dispatcher; left to its worker ([Cancellation](#cancellation)) | `1` |
+| terminal | none | `0` |
 
 **Reply:** `job:cancel-ok` with `{ response: { cancelled } }`. A store error is
 `job:cancel-failed` with the store's message and no code.
@@ -389,8 +387,8 @@ record is readable until retention deletes it.
 A follower says first what the queue answered its `job:create` with: the job's id
 ([`JobCreatedResult`](../../specs/src/components/schemas/JobCreatedResult.json)). It says so before
 anything else of the job, a frame that reached the client ahead of the reply among them. The id is
-how the follower's caller names the job from then on: to `job:cancel-requested`, which cancels that
-job and no other, and to `job:status-requested`.
+how the follower's caller names the job from then on: to `job:cancel-requested` and to
+`job:status-requested`.
 *Held by `sdk/live/job-created`.*
 
 `job:report-progress`, `job:complete` and `job:fail` reach the client that created the job as passing
@@ -415,8 +413,7 @@ A follower reports how its job ended under the codes every SDK shares
 setback and keeps following, and does not ask for the status of the attempt that died. Any other
 `job:fail`, and a status of `failed`, end it as `job.failed`, with the worker's message; a status of
 `cancelled` ends it as `job.cancelled`. A follower of a `yield` job that has heard nothing for its
-stall deadline asks for that job to be cancelled, by its id, and ends as `job.stalled`: a
-cancellation by type would end every pending `yield` job in the knowledge base. The deadline is
+stall deadline asks for that job to be cancelled and ends as `job.stalled`. The deadline is
 `generationStallFloorMs`, or `generationStallPerTokenMs` for each token asked for when that is
 longer, unless its caller states one. Each frame of the job starts the deadline again, a setback
 among them: the attempt that follows one has the whole deadline to say something.
@@ -514,15 +511,14 @@ then retried or failed. `job:cancel` does not merge its checkpoint.
 
 ## Cancellation
 
-**A pending job is cancelled by the dispatcher**, on `job:cancel-requested` naming it by id, on
-`job:cancel-requested` naming its type, or on `job:cancel`.
+**A pending job is cancelled by the dispatcher**, on `job:cancel-requested` naming it or on
+`job:cancel`.
 
 **A running job is cancelled only by its worker.** `job:cancel-requested` naming a running job
 changes nothing in the queue and replies `cancelled: 1`. Workers may subscribe to
 `job:cancel-requested` too, as the first-party worker does; a worker holding the named job may stop at
 a unit boundary and confirm with `job:cancel`, which moves the job to `cancelled`. A worker that does not stop finishes the job, which then ends
-`complete` or `failed` as usual. (The first-party worker stops only linking jobs.) A
-bulk cancel by type never touches running jobs' records.
+`complete` or `failed` as usual. (The first-party worker stops only linking jobs.)
 
 ## Retries
 
@@ -560,7 +556,7 @@ and record encoding — is specified machine-readably in [`specs/src/jobs/storag
 **A stored record that does not decode** — not a
 [`JobRecord`](../../specs/src/components/schemas/JobRecord.json), an id its kind refuses included —
 fails an operation that names its job, with `job <jobId>'s record: <why>`. A pass over every record
-goes on past it: a claim's search, a cancel by type, the tick's re-announcement, the dead-worker
+goes on past it: a claim's search, the tick's re-announcement, the dead-worker
 sweep, retention and the queue's counts each log `A stored job record that does not decode` with its id and reason, and
 take the next. Such a record is never claimed, cancelled, swept, deleted or counted, and is reported at
 every pass until it is removed by hand. A record that decodes but whose params are not its type's
@@ -614,9 +610,6 @@ protocol.
 - **Admission writes the record, then publishes.** When the publish fails, the reply is
   `job:create-failed` while a claimable `pending` job exists; having no message, it is never
   announced.
-- **A bulk cancel purges the messages of running jobs.** A cancel by type removes every message
-  of that type, not only those of the jobs it cancelled: running jobs lose theirs, and a job
-  admitted while the cancel runs is left `pending` with no message, claimable but never announced.
 - **Broker objects are created if missing but never updated.** A changed stream, consumer or bucket
   setting — the 30-second acknowledgement window among them — takes effect only on a fresh broker.
 - **The durable consumer is named `gateway-claims`,** after a component that does not hold it.

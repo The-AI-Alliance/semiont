@@ -3947,18 +3947,15 @@ type JobCancelCommand struct {
 	UnitCursors *map[string]UnitCursor `json:"unitCursors,omitempty"`
 }
 
-// JobCancelRequest Request to cancel a job. Target one running or pending job by `jobId`, or every pending job of one `jobType`. A `jobId`-targeted request that names a RUNNING job is honoured cooperatively by the owning worker, which stops at its next unit boundary and emits JobCancelCommand — the queue is never made to yank a running job out from under a live worker.
+// JobCancelRequest Request to cancel one job, named by its id. A pending job is cancelled immediately by the dispatcher. A running job is cancelled cooperatively by the worker that holds it, which stops at its next unit boundary and emits JobCancelCommand: the queue is never made to yank a running job out from under a live worker.
 type JobCancelRequest struct {
 	// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
-	JobId *JobId `json:"jobId,omitempty"`
-
-	// JobType What a job does, as the verb that asks for it: `mark` annotates a resource, `yield` makes one. A job description is its `jobType` and the parameters that verb takes; a `mark` job's parameters state its motivation.
-	JobType *JobType `json:"jobType,omitempty"`
+	JobId JobId `json:"jobId"`
 }
 
-// JobCancelResult What a cancel did, in the `response` of `job:cancel-ok`: how many jobs it cancelled. A pending job is cancelled outright; a running one is left to its worker, so for it the count means accepted, not stopped.
+// JobCancelResult What a cancel did, in the `response` of `job:cancel-ok`: whether the queue acted on the job it named, as a count. A pending job is cancelled outright; a running one is left to its worker, so for it the count means accepted, not stopped.
 type JobCancelResult struct {
-	// Cancelled The number of jobs cancelled.
+	// Cancelled 1 when the queue acted on the job; 0 when the job is unknown or already over.
 	Cancelled int `json:"cancelled"`
 }
 

@@ -564,7 +564,6 @@ def test_a_cancellation_that_names_the_held_job_is_signalled_and_any_other_is_no
         async with w.client.job.claim(EVERYTHING) as claims:
             job = await held(claims)
             w.relay("job:cancel-requested", {"jobId": "job-7"})
-            w.relay("job:cancel-requested", {"jobType": "mark"})
             await turns()
             assert now(job.cancelled) is False
 

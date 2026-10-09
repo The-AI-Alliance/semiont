@@ -598,7 +598,6 @@ def test_a_generation_that_says_nothing_is_cancelled_and_given_up_on() -> None:
             await soon(stalled)
         assert (ended.value.code, ended.value.job_id) == ("job.stalled", "job-1")
         assert ended.value.message == "The job stalled: nothing was heard of it within 30000ms"
-        # That job and no other: a cancellation by type would end every pending job of it.
         await turns()
         assert [dict(frame.payload) for frame in asked(transport, "job:cancel-requested")] == [{"jobId": "job-1"}]
         await client.close()
