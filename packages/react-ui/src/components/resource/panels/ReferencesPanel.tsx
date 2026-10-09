@@ -97,7 +97,7 @@ interface Props {
  * @emits mark:submit - Create new reference annotation. Payload: MarkSubmitEvent with motivation 'linking', and the chosen entity types as a TextualBody when any are chosen
  * @emits mark:cancel-pending - Cancel pending reference annotation. Payload: undefined
  * @emits mark:progress-dismiss - Dismiss the reference annotation progress display. Payload: undefined
- * @emits job:cancel-requested - Ask that the reference annotation job be cancelled. Payload: { jobType: 'mark' }
+ * @emits job:cancel-requested - Cancel every pending `mark` job; one that is running finishes. Payload: { jobType: 'mark' }
  * @subscribes browse:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function ReferencesPanel({
@@ -378,7 +378,11 @@ export function ReferencesPanel({
             isDelegating={isDelegating}
             progress={progress}
             progressProps={{
-              onCancel: () => session?.client.job.cancelRequest('mark'),
+              onCancel: () => {
+                session?.client.job.cancelByType('mark').catch((error: unknown) => {
+                  console.error('Failed to cancel the pending mark jobs:', error);
+                });
+              },
               onDismiss: () => session?.client.mark.dismissProgress(),
               translations: delegateProgressTranslations(ta, {
                 found: (count: number) => t('found', { count }),

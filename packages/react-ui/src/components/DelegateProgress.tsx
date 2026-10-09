@@ -92,7 +92,7 @@ export interface DelegateProgressProps {
    * `false` is a wrong answer, not a safe one.
    */
   ended: boolean;
-  /** Cancel the underlying job. Caller wires `client.job.cancelRequest(jobType)`. */
+  /** Cancel. Caller wires `client.job.cancelByType(jobType)`, which cancels the pending jobs of the type and leaves a running one to finish. */
   onCancel?: () => void;
   /** Dismiss the display. Caller wires `client.mark.dismissProgress()`. */
   onDismiss?: () => void;

@@ -57,7 +57,7 @@ interface Props {
  * @emits mark:unarchive - Unarchive this resource
  * @emits mark:archive - Archive this resource
  * @emits browse:resource-open - Open a resource this panel links to, the generated one among them. Payload: { resourceId: string }
- * @emits job:cancel-requested - Ask that the generation job be cancelled. Payload: { jobType: 'yield' }
+ * @emits job:cancel-requested - Cancel every pending `yield` job; one that is running finishes. Payload: { jobType: 'yield' }
  */
 export function ResourceInfoPanel({
   session,
@@ -246,7 +246,11 @@ export function ResourceInfoPanel({
           isDelegating={isGenerating}
           progress={generationProgress}
           progressProps={{
-            onCancel: () => session?.client.job.cancelRequest('yield'),
+            onCancel: () => {
+              session?.client.job.cancelByType('yield').catch((error: unknown) => {
+                console.error('Failed to cancel the pending yield jobs:', error);
+              });
+            },
             ...(onDismissProgress ? { onDismiss: onDismissProgress } : {}),
             ...(generationOutcome ? {
               outcome: {

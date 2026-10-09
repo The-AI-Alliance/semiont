@@ -400,6 +400,16 @@ describe('ReferencesPanel Component', () => {
       });
     });
 
+    it('the control of a running job cancels the pending mark jobs', async () => {
+      const cancelSpy = vi.spyOn(session.client.job, 'cancelByType').mockResolvedValue(0);
+      renderWithEventBus(
+        <ReferencesPanel {...panelProps()} isDelegating={true} progress={{ percentage: 0, completedItems: [] }} />,
+      );
+
+      await userEvent.click(screen.getByTestId('semiont-delegate-control'));
+      expect(cancelSpy).toHaveBeenCalledExactlyOnceWith('mark');
+    });
+
     it('should clear selected types after detection starts', async () => {
       const { rerender } = renderWithEventBus(<ReferencesPanel {...panelProps()} />);
 

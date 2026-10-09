@@ -329,6 +329,18 @@ describe('ResourceInfoPanel Component', () => {
       expect(screen.queryByRole('button', { name: '✨ Generate' })).toBeNull();
     });
 
+    it('the control of a running generation cancels the pending yield jobs', () => {
+      const { client } = renderWithEventBus(
+        <ResourceInfoPanel {...defaultProps} onGenerate={() => {}}
+          isGenerating
+          generationProgress={{ percentage: 40, message: { code: 'generating-resource' } }} />
+      );
+      const cancelSpy = vi.spyOn(client.job, 'cancelByType').mockResolvedValue(0);
+
+      fireEvent.click(screen.getByTestId('semiont-delegate-control'));
+      expect(cancelSpy).toHaveBeenCalledExactlyOnceWith('yield');
+    });
+
     it('the ended frame links the generated resource by name, and dismisses', () => {
       const onDismissProgress = vi.fn();
       const { client } = renderWithEventBus(
