@@ -295,9 +295,22 @@ def annotation_of_span(
 
     A span is checked against the text before anything is built, and one that
     is not the text's raises `SpanRefusedError`, whose `code` says which
-    refusal it is. A span `reconcile` found is the text's own.
+    refusal it is. A span `reconcile` found is the text's own. For a PDF,
+    every item of the anchored text must be a stretch of that text, or no span
+    of it is built (`item-out-of-range`).
     """
     whole = text if isinstance(text, str) else text.text
+    if not isinstance(text, str):
+        # A PDF's anchored text is held to itself before the span is held to it. Its items are what say where
+        # the text is on a page, and a rectangle is made from an item's own offsets, so one that is no stretch
+        # of the text refuses every span of it, whether this span touches that item or not.
+        for index, item in enumerate(text.items):
+            if not _is_a_span_of(len(whole), item.start, item.end):
+                raise SpanRefusedError(
+                    "item-out-of-range",
+                    f"item {index} of the anchored text is offsets {item.start} to {item.end}, "
+                    f"which is no stretch of a text of {len(whole)} code points",
+                )
     if not _is_a_span_of(len(whole), span.start, span.end):
         raise SpanRefusedError(
             "span-out-of-range", f"offsets {span.start} to {span.end} are not a span of a text of {len(whole)} code points"

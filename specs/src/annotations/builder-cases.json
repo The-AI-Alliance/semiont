@@ -1,5 +1,5 @@
 {
-  "$comment": "The annotation a worker commits, whole, as every implementation must build it. What a job leaves in the knowledge base is these annotations, so two workers that build them differently leave different records of the same work. TypeScript (@semiont/core, re-exported by @semiont/sdk), Rust (semiont::annotations) and Python (semiont.annotations) each run every case and fail on a difference: `annotationOfSpan` runs `cases`, and `annotationOfResource` runs `resources`. `cases` BUILD the annotation of a span found in a resource's text. A case gives `text` when the resource is a text, or `anchored`, a PDF's anchored text as pdf-locate-cases.json describes it, when it is a PDF. With it come the `resourceId`; the `generator`, which says what made the annotation; the `motivation`; the `span`, which is its `start` and `end`, the `exact` words, and maybe the `prefix` and `suffix` (as reconcile-cases.json reconciles one), `start` and `end` being offsets, which count the text's Unicode code points; and maybe a `body`, one body or a list of them. The answer is the `annotation`, or `refused` and which refusal. EVERY BUILT ANNOTATION has `@context` \"http://www.w3.org/ns/anno.jsonld\" and `type` \"Annotation\"; the `motivation`; the `generator` as given; the `body` as given, and no `body` member when none was; a `target` whose `type` is \"SpecificResource\", whose `source` is the resource id and whose `selector` is a list; and an `id` derived as id-cases.json says from the resource id, the motivation, the body if there is one, and this anchor: the span's `start` in decimal, a colon, its `end` in decimal, a colon, and its `exact`. The anchor is made the same way for a text and for a PDF. An annotation of a resource as a whole has no span, and its anchor is the empty string: the link a worker commits from a resource to the one it generated from it is such an annotation. Nothing in the annotation says who asked for it: that is derived where the annotation is recorded. The last selector is a TextQuoteSelector with the span's `exact`, and with its `prefix` and its `suffix` when they are given and not empty. A SPAN IS CHECKED before anything is built, and the first check that fails is the refusal. Its `start` and `end` must be two whole numbers, with `start` at least 0, `end` at least `start`, and `end` at most the length in code points of the text (for a PDF, of the anchored text): a span given backwards, one that runs past the end, one that starts below zero and one stated in fractions are each refused (`span-out-of-range`), whatever words lie between. FOR A TEXT the selector before the quote is a TextPositionSelector with the span's `start` and `end`. The annotation is then refused if the text from `start` to `end` is not `exact` (`exact-mismatch`); or a prefix is given and is not the text just before `start`, as many code points of it as the prefix has, or all there are if fewer (`prefix-mismatch`); or a suffix is given and is not the text just after `end`, in the same way (`suffix-mismatch`). FOR A PDF there is no TextPositionSelector. The span is located as pdf-locate-cases.json says, and before the quote comes one FragmentSelector for each rectangle, in their order, with `conformsTo` \"http://tools.ietf.org/rfc/rfc3778\" and the rectangle's fragment as its `value`. The annotation is then refused if the span is located nowhere (`nothing-located`), or if `exact` is not in the covered text (`exact-not-covered`): the covered text is the anchored text from the least `start` to the greatest `end` of the items the span overlaps, and both it and `exact` have every run of white space made one space, and the white space at their ends dropped, before the one is looked for in the other. Its prefix and its suffix are then checked against the anchored text exactly as a text span's are against its text, with the same two refusals. `resources` BUILD an annotation of a resource as a whole, which has no span: the link from a resource to the one generated from it is one. A case gives the `resourceId`, the `motivation`, and maybe a `generator` and a `body`. The `annotation` has `@context` and `type` as above; the `motivation`; the `generator` if one was given; the `body` as given, and no `body` member when none was; a `target` that is the resource's id as its `source`, and nothing else; and an `id` derived as id-cases.json says, with the anchor the empty string. `builders` names what builds: `reconcile`, which finds the words a model quoted in a text and is held by reconcile-cases.json; `annotationOfSpan`, which `cases` hold; and `annotationOfResource`, which `resources` hold. Every SDK has the three, each spelled in its own convention (`annotationOfSpan` is annotation_of_span), and no other builder. `unstated` names, for `cases` and for `resources`, the member every built annotation has and no case can state: `created`, the moment it was built, an RFC 3339 date-time in UTC to the millisecond. A runner checks that each is there and compares everything else. White space is what Unicode gives the White_Space property; no case rests on U+0085 or U+FEFF, about which implementations disagree. What an offset counts is stated in a table of its own (specs/src/text/offset-cases.json): code points, and so does every length here. The cases whose text has a character outside the Basic Multilingual Plane are the ones that tell that count from a count of UTF-16 code units. Add a case here before changing an implementation.",
+  "$comment": "The annotation a worker commits, whole, as every implementation must build it. What a job leaves in the knowledge base is these annotations, so two workers that build them differently leave different records of the same work. TypeScript (@semiont/core, re-exported by @semiont/sdk), Rust (semiont::annotations) and Python (semiont.annotations) each run every case and fail on a difference: `annotationOfSpan` runs `cases`, and `annotationOfResource` runs `resources`. `cases` BUILD the annotation of a span found in a resource's text. A case gives `text` when the resource is a text, or `anchored`, a PDF's anchored text as pdf-locate-cases.json describes it, when it is a PDF. With it come the `resourceId`; the `generator`, which says what made the annotation; the `motivation`; the `span`, which is its `start` and `end`, the `exact` words, and maybe the `prefix` and `suffix` (as reconcile-cases.json reconciles one), `start` and `end` being offsets, which count the text's Unicode code points; and maybe a `body`, one body or a list of them. The answer is the `annotation`, or `refused` and which refusal. EVERY BUILT ANNOTATION has `@context` \"http://www.w3.org/ns/anno.jsonld\" and `type` \"Annotation\"; the `motivation`; the `generator` as given; the `body` as given, and no `body` member when none was; a `target` whose `type` is \"SpecificResource\", whose `source` is the resource id and whose `selector` is a list; and an `id` derived as id-cases.json says from the resource id, the motivation, the body if there is one, and this anchor: the span's `start` in decimal, a colon, its `end` in decimal, a colon, and its `exact`. The anchor is made the same way for a text and for a PDF. An annotation of a resource as a whole has no span, and its anchor is the empty string: the link a worker commits from a resource to the one it generated from it is such an annotation. Nothing in the annotation says who asked for it: that is derived where the annotation is recorded. The last selector is a TextQuoteSelector with the span's `exact`, and with its `prefix` and its `suffix` when they are given and not empty. A SPAN IS CHECKED before anything is built, and the first check that fails is the refusal. Its `start` and `end` must be two whole numbers, with `start` at least 0, `end` at least `start`, and `end` at most the length in code points of the text (for a PDF, of the anchored text): a span given backwards, one that runs past the end, one that starts below zero and one stated in fractions are each refused (`span-out-of-range`), whatever words lie between. FOR A TEXT the selector before the quote is a TextPositionSelector with the span's `start` and `end`. The annotation is then refused if the text from `start` to `end` is not `exact` (`exact-mismatch`); or a prefix is given and is not the text just before `start`, as many code points of it as the prefix has, or all there are if fewer (`prefix-mismatch`); or a suffix is given and is not the text just after `end`, in the same way (`suffix-mismatch`). FOR A PDF the anchored text is held to itself before the span is held to it. Every item's `start` and `end` must be two whole numbers, with `start` at least 0, `end` at least `start`, and `end` at most the length in code points of the anchored text. An item that is not, whether the span touches it or not, refuses the span (`item-out-of-range`), and this check comes before every other: the items are what say where the text is on a page, and one that is no stretch of the text shows that they do not index it, so that a rectangle made from any of them may be drawn in the wrong place. There is no TextPositionSelector. The span is located as pdf-locate-cases.json says, and before the quote comes one FragmentSelector for each rectangle, in their order, with `conformsTo` \"http://tools.ietf.org/rfc/rfc3778\" and the rectangle's fragment as its `value`. The annotation is then refused if the span is located nowhere (`nothing-located`), or if `exact` is not in the covered text (`exact-not-covered`): the covered text is the anchored text from the least `start` to the greatest `end` of the items the span overlaps, and both it and `exact` have every run of white space made one space, and the white space at their ends dropped, before the one is looked for in the other. Its prefix and its suffix are then checked against the anchored text exactly as a text span's are against its text, with the same two refusals. `resources` BUILD an annotation of a resource as a whole, which has no span: the link from a resource to the one generated from it is one. A case gives the `resourceId`, the `motivation`, and maybe a `generator` and a `body`. The `annotation` has `@context` and `type` as above; the `motivation`; the `generator` if one was given; the `body` as given, and no `body` member when none was; a `target` that is the resource's id as its `source`, and nothing else; and an `id` derived as id-cases.json says, with the anchor the empty string. `builders` names what builds: `reconcile`, which finds the words a model quoted in a text and is held by reconcile-cases.json; `annotationOfSpan`, which `cases` hold; and `annotationOfResource`, which `resources` hold. Every SDK has the three, each spelled in its own convention (`annotationOfSpan` is annotation_of_span), and no other builder. `unstated` names, for `cases` and for `resources`, the member every built annotation has and no case can state: `created`, the moment it was built, an RFC 3339 date-time in UTC to the millisecond. A runner checks that each is there and compares everything else. White space is what Unicode gives the White_Space property; no case rests on U+0085 or U+FEFF, about which implementations disagree. What an offset counts is stated in a table of its own (specs/src/text/offset-cases.json): code points, and so does every length here. The cases whose text has a character outside the Basic Multilingual Plane are the ones that tell that count from a count of UTF-16 code units. Add a case here before changing an implementation.",
   "unstated": {
     "cases": ["created"],
     "resources": ["created"]
@@ -662,6 +662,68 @@
           ]
         }
       }
+    },
+    {
+      "why": "an item that is no stretch of the anchored text: the text is 24 code points, its emoji one of them, and the second line's item ends at 25, as it would for a producer that counted UTF-16 code units. The span's words are in the text, and nothing is built on an anchored text that does not hold together",
+      "anchored": {
+        "text": "😀 alpha beta\ngamma delta",
+        "items": [
+          { "start": 0, "end": 13, "page": 1, "x": 72, "y": 720, "width": 110, "height": 12 },
+          { "start": 14, "end": 25, "page": 1, "x": 72, "y": 700, "width": 95, "height": 12 }
+        ]
+      },
+      "resourceId": "res-1",
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "motivation": "highlighting",
+      "span": { "start": 19, "end": 24, "exact": "delta" },
+      "refused": "item-out-of-range"
+    },
+    {
+      "why": "every item is held to the text, not only those the span touches: this span is on the first line, whose item is a stretch of the text, and the second line's is not",
+      "anchored": {
+        "text": "😀 alpha beta\ngamma delta",
+        "items": [
+          { "start": 0, "end": 13, "page": 1, "x": 72, "y": 720, "width": 110, "height": 12 },
+          { "start": 14, "end": 25, "page": 1, "x": 72, "y": 700, "width": 95, "height": 12 }
+        ]
+      },
+      "resourceId": "res-1",
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "motivation": "highlighting",
+      "span": { "start": 2, "end": 7, "exact": "alpha" },
+      "refused": "item-out-of-range"
+    },
+    {
+      "why": "an item given backwards is no stretch of the text either",
+      "anchored": {
+        "text": "alpha beta\ngamma delta",
+        "items": [
+          { "start": 0, "end": 5, "page": 1, "x": 72, "y": 720, "width": 40, "height": 12 },
+          { "start": 10, "end": 6, "page": 1, "x": 118, "y": 720, "width": 34, "height": 12 },
+          { "start": 11, "end": 16, "page": 1, "x": 72, "y": 700, "width": 45, "height": 12 },
+          { "start": 17, "end": 22, "page": 1, "x": 125, "y": 700, "width": 42, "height": 12 }
+        ]
+      },
+      "resourceId": "res-1",
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "motivation": "highlighting",
+      "span": { "start": 0, "end": 5, "exact": "alpha" },
+      "refused": "item-out-of-range"
+    },
+    {
+      "why": "the anchored text is held to itself before the span is held to it: this span runs past the end of the text, and so does an item, and the item is what is named",
+      "anchored": {
+        "text": "alpha beta",
+        "items": [
+          { "start": 0, "end": 5, "page": 1, "x": 72, "y": 720, "width": 40, "height": 12 },
+          { "start": 6, "end": 11, "page": 1, "x": 118, "y": 720, "width": 34, "height": 12 }
+        ]
+      },
+      "resourceId": "res-1",
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "motivation": "highlighting",
+      "span": { "start": 6, "end": 11, "exact": "beta" },
+      "refused": "item-out-of-range"
     }
   ],
   "resources": [

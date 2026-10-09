@@ -241,6 +241,23 @@ describe('annotationOfSpan over a PDF\'s anchored text', () => {
     expect(refusal).toMatchObject({ code: 'exact-not-covered' });
   });
 
+  // specs/src/annotations/builder-cases.json holds the rule, with an item that
+  // runs past the text and one given backwards. A number that is no whole
+  // number is one more thing a JavaScript item can state, and no table can.
+  it('refuses every span of an anchored text one of whose items is stated in fractions', () => {
+    const [first, ...rest] = LAYER.items;
+    const fractional: AnchoredText = { text: LAYER.text, items: [{ ...first!, end: first!.end - 0.5 }, ...rest] };
+    let refusal: unknown;
+    try {
+      // A span on the second line, which the item does not touch.
+      pdf(fractional, 'highlighting', { exact: 'gamma', start: 11, end: 16 });
+    } catch (error) {
+      refusal = error;
+    }
+    expect(refusal).toBeInstanceOf(SpanRefusedError);
+    expect(refusal).toMatchObject({ code: 'item-out-of-range' });
+  });
+
   it('holds exact to the covered text with white space apart (a space where the text breaks a line)', () => {
     // `exact` uses a single space where the anchored text has a line break.
     const annotation = pdf(LAYER, 'highlighting', { exact: 'beta gamma', start: 6, end: 16 });

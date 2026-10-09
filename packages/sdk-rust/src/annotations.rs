@@ -58,7 +58,8 @@ use crate::text_offsets::Offsets;
 use crate::types::{
     Agent, AnchoredText, Annotation, AnnotationBodies, AnnotationBody, AnnotationGenerator,
     AnnotationSelector, AnnotationTarget, AnnotationTargetType, AnnotationTargetValue, BodyPurpose,
-    FragmentSelector, Motivation, ResourceId, Selector, TextPositionSelector, TextQuoteSelector,
+    FragmentSelector, Motivation, PdfTextItem, ResourceId, Selector, TextPositionSelector,
+    TextQuoteSelector,
 };
 use quote::Place;
 use std::time::SystemTime;
@@ -522,7 +523,9 @@ fn annotation(
 ///
 /// A span that is not the text's is refused, and the first check that fails
 /// is the refusal: a [`SpanRefusal`], whose codes are the spec's
-/// (specs/src/errors/codes.json). Its offsets must be a span of the text.
+/// (specs/src/errors/codes.json). For a PDF, every item of the anchored text
+/// must be a stretch of that text, or no span of it is built. The span's
+/// offsets must be a span of the text.
 /// For a text, the text between them must be the span's `exact`. For a PDF,
 /// the span must be somewhere on a page, and its `exact` in the text of the
 /// items it overlaps. Then a prefix given must be the text just before the
@@ -548,6 +551,19 @@ pub fn annotation_of_span<'a>(
         Spanned::Pdf(anchored) => anchored.text.as_str(),
     };
     let offsets = Offsets::of(text);
+    // A PDF's anchored text is held to itself before the span is held to it.
+    // Its items are what say where the text is on a page, and a rectangle is
+    // made from an item's own offsets, so one that is no stretch of the text
+    // refuses every span of it, whether this span touches that item or not.
+    if let Spanned::Pdf(anchored) = spanned {
+        let is_a_stretch = |item: &PdfTextItem| {
+            item.start <= item.end
+                && usize::try_from(item.end).is_ok_and(|end| end <= offsets.len())
+        };
+        if !anchored.items.iter().all(is_a_stretch) {
+            return Err(SpanRefusal::ItemOutOfRange);
+        }
+    }
     let (start, end) = match (usize::try_from(span.start), usize::try_from(span.end)) {
         (Ok(start), Ok(end)) if start <= end && end <= offsets.len() => (start, end),
         _ => return Err(SpanRefusal::SpanOutOfRange),
