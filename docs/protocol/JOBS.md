@@ -386,6 +386,13 @@ record is readable until retention deletes it.
 
 #### Following a job
 
+A follower says first what the queue answered its `job:create` with: the job's id
+([`JobCreatedResult`](../../specs/src/components/schemas/JobCreatedResult.json)). It says so before
+anything else of the job, a frame that reached the client ahead of the reply among them. The id is
+how the follower's caller names the job from then on: to `job:cancel-requested`, which cancels that
+job and no other, and to `job:status-requested`.
+*Held by `sdk/live/job-created`.*
+
 `job:report-progress`, `job:complete` and `job:fail` reach the client that created the job as passing
 frames: a stream that is down when one is published does not carry it later, and nothing redelivers
 it ([TRANSPORT-CONTRACT.md](./TRANSPORT-CONTRACT.md#delivery)).

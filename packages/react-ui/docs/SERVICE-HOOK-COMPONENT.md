@@ -77,10 +77,11 @@ channel in the local EventBus. Application code never calls
 
 The page state unit (`resource-viewer-page-state-unit`) owns a session-scoped
 `MarkStateUnit` (`createMarkStateUnit`, in `@semiont/sdk`). When the user delegates
-an annotation job, the SDK runs it and the mark state unit drives three observables:
+an annotation job, the SDK runs it and the mark state unit drives four observables:
 
 - `mark.delegatingMotivation$` — the in-progress motivation (or `null` when idle)
 - `mark.progress$` — the latest `JobProgress`
+- `mark.jobId$` — the delegated job's id, from the queue's answer to its creation to the job's end (or `null`); what `client.job.cancel` takes
 - `mark.pendingAnnotation$` — a pending manual annotation awaiting a body
 
 The hook layer just reads those observables with `useObservable` — no `useState`,
@@ -160,6 +161,7 @@ export function ResourceViewerPage({ rUri, locale, Link, routes }: ResourceViewe
   const pendingAnnotation = useObservable(stateUnit?.mark.pendingAnnotation$) ?? null;
   const delegatingMotivation = useObservable(stateUnit?.mark.delegatingMotivation$) ?? null;
   const progress = useObservable(stateUnit?.mark.progress$) ?? null;
+  const delegatedJobId = useObservable(stateUnit?.mark.jobId$) ?? null;
   const activePanel = useObservable(stateUnit?.browse.activePanel$) ?? null;
 
   // Layer 3: render JSX. The panels delegate through the session they
@@ -175,6 +177,7 @@ export function ResourceViewerPage({ rUri, locale, Link, routes }: ResourceViewe
           annotators={ANNOTATORS}
           delegatingMotivation={delegatingMotivation}
           progress={progress}
+          jobId={delegatedJobId}
           pendingAnnotation={pendingAnnotation}
           Link={Link}
           routes={routes}
@@ -418,6 +421,7 @@ it('calls mark.requestDelegate when Annotate is clicked', () => {
       annotations={[]}
       isDelegating={false}
       progress={null}
+      jobId={null}
       pendingAnnotation={null}
       allEntityTypes={['Person', 'Organization']}
       Link={Link}
@@ -482,7 +486,7 @@ event library.
 - `useObservable()` - Read a state-unit observable into React state
 - `useEventSubscriptions()` - Subscribe to bus events (for side effects)
 - `client.browse.*(resourceId)` - Resource-scoped live queries; subscribing acquires the resource's bus scope (freshness follows observation), the last unsubscribe releases it
-- `createMarkStateUnit()` - Mark/delegation state (`delegatingMotivation$`, `progress$`, `pendingAnnotation$`); driven off the unified job channels (in `@semiont/sdk`)
+- `createMarkStateUnit()` - Mark/delegation state (`delegatingMotivation$`, `progress$`, `jobId$`, `pendingAnnotation$`); driven off the unified job channels (in `@semiont/sdk`)
 - `client.mark.requestDelegate(params)` / `client.mark.delegate(resourceId, params)` - Delegate a `mark` job with its params; the job streams on `job:report-progress` / `job:complete` / `job:fail`
 - `createGatherStateUnit()` - Context correlation for generation (in `@semiont/sdk`)
 - `useShellStateUnit()` - App-scoped panel state (`activePanel$`, `openPanel`/`closePanel`/`togglePanel`)

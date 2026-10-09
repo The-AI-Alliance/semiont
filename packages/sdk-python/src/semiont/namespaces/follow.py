@@ -9,7 +9,8 @@ So a follower that has heard nothing of its job for the client's
 The follower listens before it creates the job: a frame of the job can be
 read from the stream beside the reply that names it. Frames that arrive before
 the job's id is known are held, and the job's are then handled in the order
-they came.
+they came. The reply itself is the follower's first event: it names the job,
+to `job.cancel` and to `job.status`.
 
 A failure the queue will retry is reported and followed past: the job is not
 over. A failure it will not retry ends the follower with `job.failed`. A
@@ -47,6 +48,7 @@ from semiont.types import (
     JobCompleteCommand,
     JobCreateCommand,
     JobCreatedResult,
+    JobCreatedResultResponse,
     JobFailCommand,
     JobProgress,
     JobReportProgressCommand,
@@ -55,7 +57,16 @@ from semiont.types import (
     JobType,
 )
 
-__all__ = ["Delegation", "JobAttemptFailed", "JobCompleted", "JobEvent", "JobProgressed", "follow"]
+__all__ = ["Delegation", "JobAttemptFailed", "JobCompleted", "JobCreated", "JobEvent", "JobProgressed", "follow"]
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class JobCreated:
+    """The queue's answer to the job's creation, naming the job. A follower's first value."""
+
+    data: JobCreatedResultResponse
+    kind: Literal["created"] = field(default="created", init=False)
 
 
 @final
@@ -85,7 +96,7 @@ class JobCompleted[C: JobCompleteCommand]:
     kind: Literal["complete"] = field(default="complete", init=False)
 
 
-type JobEvent[C: JobCompleteCommand] = JobProgressed | JobAttemptFailed | JobCompleted[C]
+type JobEvent[C: JobCompleteCommand] = JobCreated | JobProgressed | JobAttemptFailed | JobCompleted[C]
 """What a followed job reports, and how it ends, `C` being the completion its
 verb's jobs give. As JSON it is `{"kind": "progress", "data": …}`, the same
 event in every SDK."""
@@ -118,7 +129,7 @@ class Delegation[C: JobCompleteCommand]:
         match last:
             case JobCompleted(data=completion):
                 return completion
-            case JobProgressed() | JobAttemptFailed():
+            case JobCreated() | JobProgressed() | JobAttemptFailed():
                 raise RuntimeError(f"a delegated job ended on a {last.kind} event, not on its completion")
 
     def __await__(self) -> Generator[object, None, C]:
@@ -239,6 +250,8 @@ async def _followed[C: JobCompleteCommand](
                 created = creating.result()
                 creating = None
                 job_id = created.response.job_id
+                # Ahead of the frames held for it: the job's id is the first thing its follower gives.
+                report(JobCreated(created.response))
                 ask_at = now + silence
                 heard, held = held, []
 

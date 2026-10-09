@@ -106,6 +106,22 @@ impl<T: PartialEq> Held<T> {
     }
 }
 
+impl<T: PartialEq> Held<Option<T>> {
+    /// The value is none, when it is `value`. Decided and written as one
+    /// step, so a value set meanwhile is not the one let go.
+    pub fn forget(&self, value: &T) {
+        if let Some(sender) = locked(&self.sender).as_ref() {
+            sender.send_if_modified(|held| {
+                let is_it = held.as_ref() == Some(value);
+                if is_it {
+                    *held = None;
+                }
+                is_it
+            });
+        }
+    }
+}
+
 /// What a unit has running: its listener, and each operation it started.
 /// Stopped when the unit is disposed, after which nothing more is started.
 pub(crate) struct Tasks {

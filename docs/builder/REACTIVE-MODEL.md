@@ -20,7 +20,7 @@ Every namespace method returns exactly one of these. Which one is the method's r
 |---|---|---|---|---|
 | `promise` | Asked once, answered once: the value, or a failure with a code. | `Promise<T>` | `async fn … -> Result<T, SemiontError>` | `async def … -> T`, raising a `SemiontError` |
 | `stream` | A long-running operation: what it reports as it goes, then its final value. | `StreamObservable<T>` | `Running<T>` | `Running[T]` |
-| `delegation` | A job another party does: the job's events as it goes, its completion the last of them. The completion is its verb's. | `DelegationObservable<C>` | `Delegation<C>` | `Delegation[C]` |
+| `delegation` | A job another party does: the job's events as it goes, the queue's naming of it the first of them and its completion the last. The completion is its verb's. | `DelegationObservable<C>` | `Delegation<C>` | `Delegation[C]` |
 | `upload` | An upload in flight: its progress, then the id of the resource created. | `UploadObservable` | `Upload` | `Upload` |
 | `cache` | A live query. Building it touches nothing; its one-shot read asks the service now. | `CacheObservable<T>` | `Cached<T>` | `Cached[T]` |
 | `claims` | A worker's claims: each job it comes to hold, one at a time, from the first claim on. A held job starts, reports and settles itself. | `ClaimsObservable` | `Claims` | `Claims` |
@@ -100,7 +100,7 @@ The subclass name documents which semantics apply. `.subscribe(...)` works on bo
 
 A third subclass — `UploadObservable` — is shaped specifically for `yield.resource`. Subscribers see the full upload-progress lifecycle (`started` → optional `progress` → `finished`); awaiting resolves to `{ resourceId }` extracted from the `'finished'` event.
 
-A fourth — `DelegationObservable<C>` — is what `mark.delegate` and `yield.delegate` return. `C` is the completion of the job's verb: `MarkJobCompletion` from `mark.delegate`, `YieldJobCompletion` from `yield.delegate`. Subscribers see the job's events (`JobEvent<C>`): `progress` while the worker runs, `failed` for a failure the queue will try again, and `complete` last. Awaiting resolves to the completion itself, the `job:complete` the job ended with, so `(await ...).result` is read without narrowing an event. That result is its verb's: a `mark` job's counts or a decline, the resource a `yield` job made or a decline. A completion that is another verb's errors the stream.
+A fourth — `DelegationObservable<C>` — is what `mark.delegate` and `yield.delegate` return. `C` is the completion of the job's verb: `MarkJobCompletion` from `mark.delegate`, `YieldJobCompletion` from `yield.delegate`. Subscribers see the job's events (`JobEvent<C>`): `created` first, the queue's answer to the job's creation, whose `jobId` is what `job.cancel` takes; `progress` while the worker runs; `failed` for a failure the queue will try again; and `complete` last. Awaiting resolves to the completion itself, the `job:complete` the job ended with, so `(await ...).result` is read without narrowing an event. That result is its verb's: a `mark` job's counts or a decline, the resource a `yield` job made or a decline. A completion that is another verb's errors the stream.
 
 ### Return-shape discipline
 

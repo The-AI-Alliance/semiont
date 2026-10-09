@@ -1,6 +1,6 @@
 'use client';
 
-import type { ResourceId } from '@semiont/core';
+import type { JobId, ResourceId } from '@semiont/core';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { readyValue, type SemiontSession, type YieldOutcome } from '@semiont/sdk';
@@ -44,6 +44,12 @@ interface Props {
    */
   isGenerating?: boolean;
   generationProgress?: JobProgress | null;
+  /**
+   * The id of the generation job (`yield.jobId$`): what the cancel control
+   * names. Null until the queue has answered the job's creation and once the
+   * job is over, and then there is no control.
+   */
+  generationJobId?: JobId | null;
   /** The finished run's result; the ended frame links it by name. */
   generationOutcome?: YieldOutcome | null;
   /** Clear the finished display — wires `yield.dismissProgress()`. */
@@ -57,7 +63,7 @@ interface Props {
  * @emits mark:unarchive - Unarchive this resource
  * @emits mark:archive - Archive this resource
  * @emits browse:resource-open - Open a resource this panel links to, the generated one among them. Payload: { resourceId: string }
- * @emits job:cancel-requested - Cancel every pending `yield` job; one that is running finishes. Payload: { jobType: 'yield' }
+ * @emits job:cancel-requested - Cancel the generation job, by its id: pending, it is cancelled; running, it is left to its worker. Payload: { jobId: JobId }
  */
 export function ResourceInfoPanel({
   session,
@@ -76,6 +82,7 @@ export function ResourceInfoPanel({
   onGenerate,
   isGenerating = false,
   generationProgress = null,
+  generationJobId = null,
   generationOutcome = null,
   onDismissProgress,
 }: Props) {
@@ -246,11 +253,13 @@ export function ResourceInfoPanel({
           isDelegating={isGenerating}
           progress={generationProgress}
           progressProps={{
-            onCancel: () => {
-              session?.client.job.cancelByType('yield').catch((error: unknown) => {
-                console.error('Failed to cancel the pending yield jobs:', error);
-              });
-            },
+            ...(generationJobId ? {
+              onCancel: () => {
+                session?.client.job.cancel(generationJobId).catch((error: unknown) => {
+                  console.error(`Failed to cancel job ${generationJobId}:`, error);
+                });
+              },
+            } : {}),
             ...(onDismissProgress ? { onDismiss: onDismissProgress } : {}),
             ...(generationOutcome ? {
               outcome: {

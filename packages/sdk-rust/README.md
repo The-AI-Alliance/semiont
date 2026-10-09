@@ -302,7 +302,7 @@ A method's return type says how to use it.
 |---|---|---|
 | `async fn … -> Result<T, SemiontError>` | asked once, answered once | `.await?` |
 | `Running<T>` | a long-running operation | `.await` for its final value; `.next()` for each report and then the final value; `.run(f)` for both |
-| `Delegation<C>` | a job another party does | `.await` for its completion, a `C`: its verb's, `MarkJobCompleteCommand` or `YieldJobCompleteCommand`; `.next()` for each of the job's events, the completion last |
+| `Delegation<C>` | a job another party does | `.await` for its completion, a `C`: its verb's, `MarkJobCompleteCommand` or `YieldJobCompleteCommand`; `.next()` for each of the job's events: the queue's answer that names the job first (its id is what `job.cancel` takes), the completion last |
 | `Upload` | an upload in flight | `.await` for the resource created; as a stream, its progress; dropped, cancelled |
 | `Cached<T>` | a query, built without touching the wire | `.watch()` for its state now and as it changes; `.fresh().await?` for one read; `.invalidate()` to ask again |
 | nothing, from a plain `fn` | a signal to the client's own parts | called |
@@ -386,10 +386,10 @@ so does dropping it.
 
 | Unit | holds | hears, or is told |
 |---|---|---|
-| `MarkStateUnit` (one resource) | the annotation being composed; the motivation and progress of the delegated job running | `client.mark.request`, `submit`, `cancel_pending`, `request_delegate`, `dismiss_progress`; `mark:select-*` on the client's bus |
+| `MarkStateUnit` (one resource) | the annotation being composed; the motivation, id and progress of the delegated job running | `client.mark.request`, `submit`, `cancel_pending`, `request_delegate`, `dismiss_progress`; `mark:select-*` on the client's bus |
 | `GatherStateUnit` (one resource) | an annotation's context, and a resource's, each with its loading and its failure | `gather:requested` on the client's bus; `gather_resource` |
 | `MatchStateUnit` | nothing: it answers on the bus, under the asker's correlation id | `client.match_.request_search` |
-| `YieldStateUnit` | whether a generation runs, its progress, what it produced, and why it ended without a result | `generate`, `dismiss_progress` |
+| `YieldStateUnit` | whether a generation runs, its job's id, its progress, what it produced, and why it ended without a result | `generate`, `dismiss_progress` |
 | `BeckonStateUnit` | the annotation hovered | `client.beckon.hover`; an annotation opened, here or by another participant; `focus` |
 | `SearchPipeline<T>` | a query and the results of the query it settled on | `set_query` |
 

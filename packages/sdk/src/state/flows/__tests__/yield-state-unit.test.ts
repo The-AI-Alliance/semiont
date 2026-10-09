@@ -13,6 +13,8 @@ type JobCompleteCommand = components['schemas']['YieldJobCompleteCommand'];
 
 const progressEvent = (p: JobProgress): JobEvent => ({ kind: 'progress', data: p });
 
+const createdEvent = (id: string): JobEvent => ({ kind: 'created', data: { jobId: jobId(id) } });
+
 const completeEvent = (result?: JobCompleteCommand['result']): JobEvent => ({
   kind: 'complete',
   data: {
@@ -51,15 +53,18 @@ describe('createYieldStateUnit', () => {
 
   afterEach(() => { tc?.bus.destroy(); });
 
-  it('initializes with not generating and null progress', () => {
+  it('initializes with not generating, null progress and no job', () => {
     tc = withYield(vi.fn());
     const stateUnit = createYieldStateUnit(tc.client, 'en');
     const gen: boolean[] = [];
     const prog: unknown[] = [];
+    const ids: unknown[] = [];
     stateUnit.isGenerating$.subscribe(v => gen.push(v));
     stateUnit.progress$.subscribe(v => prog.push(v));
+    stateUnit.jobId$.subscribe(v => ids.push(v));
     expect(gen).toEqual([false]);
     expect(prog).toEqual([null]);
+    expect(ids).toEqual([null]);
     stateUnit.dispose();
   });
 
@@ -199,6 +204,76 @@ describe('createYieldStateUnit', () => {
 
     stateUnit.dispose();
     vi.useRealTimers();
+  });
+
+  // ── The generation job's id ──────────────────────────────────────
+  // What `client.job.cancel` names. A job is named only between the queue's
+  // answer to its creation and its end.
+
+  it("holds the generation job's id from the queue's answer to the job's completion", () => {
+    const job = new Subject<JobEvent>();
+    tc = withYield(vi.fn(() => job.asObservable()));
+    const stateUnit = createYieldStateUnit(tc.client, 'en');
+    const ids: unknown[] = [];
+    const gen: boolean[] = [];
+    stateUnit.jobId$.subscribe(v => ids.push(v));
+    stateUnit.isGenerating$.subscribe(v => gen.push(v));
+
+    stateUnit.generate({ title: 'T', storageUri: 's', context: CTX_RES });
+    expect(ids.at(-1)).toBeNull();
+
+    job.next(createdEvent('job-1'));
+    expect(ids.at(-1)).toBe('job-1');
+    // A job the queue holds is not yet a run under way: that begins with its first progress.
+    expect(gen.at(-1)).toBe(false);
+
+    job.next(progressEvent(makeProgress({ percentage: 40 })));
+    expect(ids.at(-1)).toBe('job-1');
+
+    job.next(completeEvent(GEN_RESULT));
+    job.complete();
+    expect(ids.at(-1)).toBeNull();
+    stateUnit.dispose();
+  });
+
+  it("forgets the generation job's id when the job ends in an error", () => {
+    const job = new Subject<JobEvent>();
+    tc = withYield(vi.fn(() => job.asObservable()));
+    const stateUnit = createYieldStateUnit(tc.client, 'en');
+    const ids: unknown[] = [];
+    stateUnit.jobId$.subscribe(v => ids.push(v));
+
+    stateUnit.generate({ title: 'T', storageUri: 's', context: CTX_RES });
+    job.next(createdEvent('job-1'));
+    job.error(new Error('The job was cancelled'));
+
+    expect(ids.at(-1)).toBeNull();
+    stateUnit.dispose();
+  });
+
+  it("names the job generated last: not the one before it, whose end does not forget it", () => {
+    const first = new Subject<JobEvent>();
+    const second = new Subject<JobEvent>();
+    const delegateFn = vi.fn()
+      .mockImplementationOnce(() => first.asObservable())
+      .mockImplementationOnce(() => second.asObservable());
+    tc = withYield(delegateFn);
+    const stateUnit = createYieldStateUnit(tc.client, 'en');
+    const ids: unknown[] = [];
+    stateUnit.jobId$.subscribe(v => ids.push(v));
+
+    stateUnit.generate({ title: 'T', storageUri: 's', context: CTX_RES });
+    first.next(createdEvent('job-1'));
+
+    // The next job's creation is unanswered: the control beside its display has nothing to name.
+    stateUnit.generate({ title: 'T', storageUri: 's', context: CTX_RES });
+    expect(ids.at(-1)).toBeNull();
+    second.next(createdEvent('job-2'));
+    expect(ids.at(-1)).toBe('job-2');
+
+    first.complete();
+    expect(ids.at(-1)).toBe('job-2');
+    stateUnit.dispose();
   });
 
   it('clears progress and stops generating on Observable error', () => {
@@ -393,7 +468,7 @@ describe('YieldStateUnit — StateUnit axioms', () => {
         const tc = makeTestClient({ yield: { delegate: vi.fn(stub) } });
         return { unit: createYieldStateUnit(tc.client, 'en'), teardown: () => tc.bus.destroy() };
       },
-      surfaces: (u) => [u.isGenerating$, u.progress$, u.outcome$, u.failure$],
+      surfaces: (u) => [u.isGenerating$, u.progress$, u.outcome$, u.failure$, u.jobId$],
       invocations: (u) => [() => u.generate({ ...opts, context: CTX_ANN }), () => u.generate({ ...opts, context: CTX_RES })],
       numRuns: 15,
     });

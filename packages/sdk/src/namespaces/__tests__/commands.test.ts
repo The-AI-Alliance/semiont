@@ -210,6 +210,32 @@ describe('MarkNamespace', () => {
     expect(progress.length).toBeGreaterThan(0);
   });
 
+  // The id is what `job.cancel` names, so a follower's caller has it before
+  // anything else of the job.
+  it("delegate() gives the job's id first, as the queue answered its creation, ahead of a frame it held", async () => {
+    const events: JobEvent[] = [];
+    const completed = new Promise<void>((resolve) => {
+      mark.delegate(RID, { motivation: 'linking', entityTypes: ['Person'] }).subscribe({
+        next: (e) => events.push(e),
+        complete: () => resolve(),
+      });
+    });
+
+    // Published before the creation is answered: held until the id is known.
+    eventBus.emit('job:report-progress', {
+      jobId: JID, resourceId: RID, _userId: UID, jobType: 'mark',
+      percentage: 10, progress: { percentage: 10 },
+    });
+    expect(events).toEqual([]);
+
+    await new Promise((r) => setTimeout(r, 10));
+    eventBus.emit('job:complete', { jobId: JID, resourceId: RID, _userId: UID, jobType: 'mark' });
+    await completed;
+
+    expect(events.map((e) => e.kind)).toEqual(['created', 'progress', 'complete']);
+    expect(events[0]).toEqual({ kind: 'created', data: { jobId: JID } });
+  });
+
   it('delegate() falls back to job polling when SSE is silent', async () => {
     vi.useFakeTimers();
     const bus = new EventBus();

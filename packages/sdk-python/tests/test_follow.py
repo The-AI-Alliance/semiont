@@ -15,7 +15,7 @@ from spec import JsonObject
 from semiont.client import ClientTiming, SemiontClient
 from semiont.errors import BusRequestError, JobError, SemiontError, TransportError
 from semiont.identifiers import ResourceId
-from semiont.namespaces.follow import Delegation, JobAttemptFailed, JobCompleted, JobEvent, JobProgressed
+from semiont.namespaces.follow import Delegation, JobAttemptFailed, JobCompleted, JobCreated, JobEvent, JobProgressed
 from semiont.namespaces.yield_ import generation_stall_deadline_ms
 from semiont.running import Running
 from semiont.testing import FaultyTransport, InMemoryContent, StubGateway
@@ -96,6 +96,8 @@ def asked(transport: FaultyTransport, channel: str) -> list[Frame]:
 
 def kind[C: JobCompleteCommand](event: JobEvent[C]) -> str:
     match event:
+        case JobCreated(data=data):
+            return f"created {data.job_id}"
         case JobProgressed(data=data):
             return f"progress {data.percentage:g}"
         case JobAttemptFailed():
@@ -139,13 +141,30 @@ def test_a_job_reports_its_progress_and_ends_with_its_completion() -> None:
         # Progress that states nothing of how far the job is, reports nothing.
         say(client, "job:report-progress", "job-1", percentage=70)
         say(client, "job:complete", "job-1", result={"found": 3, "persisted": 2, "errors": 1})
-        assert await soon(task) == ["progress 10", "progress 60", "complete"]
+        assert await soon(task) == ["created job-1", "progress 10", "progress 60", "complete"]
         # Its completion is the last of its events.
         last = seen[-1]
         assert isinstance(last, JobCompleted)
         assert (last.kind, last.data.job_id, last.data.resource_id) == ("complete", "job-1", "res-1")
         assert last.data.result == JobDetectionResult(found=3, persisted=2, errors=1)
         assert asked(transport, "job:status-requested") == []
+        await client.close()
+
+    run(scenario())
+
+
+def test_a_job_is_named_before_anything_else_of_it_is_given() -> None:
+    """The id is what `job.cancel` names: the queue's answer to the job's creation, a follower's first event."""
+
+    async def scenario() -> None:
+        client, _ = world()
+        task, seen = following(highlighting(client))
+        await turns()
+        say(client, "job:complete", "job-1")
+        assert (await soon(task))[0] == "created job-1"
+        first = seen[0]
+        assert isinstance(first, JobCreated)
+        assert (first.kind, first.data.model_dump(mode="json", by_alias=True)) == ("created", {"jobId": "job-1"})
         await client.close()
 
     run(scenario())
@@ -222,7 +241,7 @@ def test_a_delegation_is_awaited_or_read_and_once() -> None:
         task, _ = following(read)
         await turns()
         say(client, "job:complete", "job-1")
-        assert await soon(task) == ["complete"]
+        assert await soon(task) == ["created job-1", "complete"]
         with pytest.raises(RuntimeError):
             await read
         with pytest.raises(RuntimeError):
@@ -277,7 +296,7 @@ def test_frames_that_arrive_before_the_jobs_id_is_known_are_kept_and_handled_in_
         await turns()
         assert not task.done()
         transport.deliver(Frame(channel="job:created", payload={"response": {"jobId": "job-1"}}, correlation_id=created.correlation_id))
-        assert await soon(task) == ["progress 10", "complete"]
+        assert await soon(task) == ["created job-1", "progress 10", "complete"]
         await client.close()
 
     run(scenario())
@@ -299,11 +318,11 @@ def test_a_silent_job_is_asked_for_its_status_until_its_status_is_an_end() -> No
         assert len(asked(transport, "job:status-requested")) == 1
         assert not task.done()
         await pass_time(0.4, step=0.1)
-        assert await soon(task) == ["complete"]
+        assert await soon(task) == ["created job-1", "complete"]
         assert len(asked(transport, "job:status-requested")) == 2
 
         # What the stream did not carry, from the status: which says what the job was, and the follower knows what it was about.
-        done = seen[0]
+        done = seen[1]
         assert isinstance(done, JobCompleted)
         assert (done.data.job_id, done.data.resource_id, done.data.job_type, done.data.result) == ("job-1", "res-1", "mark", None)
         await client.close()
@@ -318,9 +337,9 @@ def test_a_status_carries_the_result_its_job_was_stored_with_and_an_empty_one_is
         task, seen = following(highlighting(client))
         await turns()
         await pass_time(SILENCE + 0.1, step=0.5)
-        assert await soon(task) == ["complete"]
+        assert await soon(task) == ["created job-1", "complete"]
         await client.close()
-        return seen[0]
+        return seen[1]
 
     stored = run(scenario({"found": 3, "persisted": 2}))
     assert isinstance(stored, JobCompleted)
@@ -376,7 +395,7 @@ def test_a_status_whose_completion_is_not_the_verb_s_ends_the_follower_and_is_no
         await turns()
         await pass_time(SILENCE + 0.1, step=0.5)
         # What the knowledge base answered is not the protocol's: no completion is made of it, and the job is not said to have failed.
-        assert await soon(task) == ["error error"]
+        assert await soon(task) == ["created job-1", "error error"]
         await client.close()
 
     run(scenario())
@@ -413,7 +432,7 @@ def test_every_frame_of_the_job_starts_the_silence_again() -> None:
         assert len(asked(transport, "job:status-requested")) == 2
         assert not task.done()
         await client.close()
-        assert await soon(task) == ["progress 10", "error bus.closed"]
+        assert await soon(task) == ["created job-1", "progress 10", "error bus.closed"]
 
     run(scenario())
 
@@ -454,8 +473,8 @@ def test_a_failure_the_queue_will_retry_is_reported_and_followed_past() -> None:
         assert asked(transport, "job:status-requested") == []
         say(client, "job:report-progress", "job-1", **progress(60))
         say(client, "job:complete", "job-1")
-        assert await soon(task) == ["failed", "progress 60", "complete"]
-        setback = seen[0]
+        assert await soon(task) == ["created job-1", "failed", "progress 60", "complete"]
+        setback = seen[1]
         assert isinstance(setback, JobAttemptFailed)
         assert (setback.kind, setback.data.error) == ("failed", "a blip")
         await client.close()
@@ -617,7 +636,7 @@ def test_what_a_generation_says_starts_its_stall_deadline_again_and_a_setback_is
         assert not task.done()
         assert asked(transport, "job:cancel-requested") == []
         say(client, "job:complete", "job-1", "yield")
-        assert await soon(task) == ["progress 10", "failed", "complete"]
+        assert await soon(task) == ["created job-1", "progress 10", "failed", "complete"]
         await pass_time(60, step=5)
         assert asked(transport, "job:cancel-requested") == []
         await client.close()
@@ -676,7 +695,7 @@ def test_a_client_that_closes_ends_the_jobs_it_was_following() -> None:
         awaited = asyncio.ensure_future(_awaited(highlighting(client)))
         await turns()
         await client.close()
-        assert await soon(task) == ["error bus.closed"]
+        assert await soon(task) == ["created job-1", "error bus.closed"]
         with pytest.raises(BusRequestError) as closed:
             await soon(awaited)
         assert closed.value.code == "bus.closed"

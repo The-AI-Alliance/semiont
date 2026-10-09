@@ -224,8 +224,10 @@ export type MarkJobCompletion = components['schemas']['MarkJobCompleteCommand'];
 export type YieldJobCompletion = components['schemas']['YieldJobCompleteCommand'];
 
 /**
- * One event of a delegated job. `progress` events come while the worker
- * runs, and the last event is `complete`, carrying the job's completion.
+ * One event of a delegated job. The first is `created`: the queue's answer
+ * to the job's creation, whose `jobId` names the job to `job.cancel` and
+ * `job.status`. `progress` events come while the worker runs, and the last
+ * event is `complete`, carrying the job's completion.
  *
  * `failed` is a failure the queue will try again: the job is not over, a
  * fresh attempt follows, and the stream stays open. Render it as a setback,
@@ -233,6 +235,7 @@ export type YieldJobCompletion = components['schemas']['YieldJobCompleteCommand'
  * stream.
  */
 export type JobEvent<C extends JobCompletion = JobCompletion> =
+  | { kind: 'created'; data: components['schemas']['JobCreatedResult']['response'] }
   | { kind: 'progress'; data: components['schemas']['JobProgress'] }
   | { kind: 'failed'; data: components['schemas']['JobFailCommand'] }
   | { kind: 'complete'; data: C };
@@ -247,9 +250,10 @@ function completionOf<C extends JobCompletion>(last: JobEvent<C> | undefined): C
 
 /**
  * A delegated job, from `mark.delegate` and `yield.delegate`. Subscribers see
- * the job's events as it goes (`JobEvent`), its completion the last of them.
- * Awaiting resolves to the completion itself, so `(await ...).result` is read
- * without narrowing an event, and is the result its verb reports.
+ * the job's events as it goes (`JobEvent`), the queue's naming of it the
+ * first of them and its completion the last. Awaiting resolves to the
+ * completion itself, so `(await ...).result` is read without narrowing an
+ * event, and is the result its verb reports.
  */
 export class DelegationObservable<C extends JobCompletion = JobCompletion> extends Observable<JobEvent<C>> implements PromiseLike<C> {
   then<R1 = C, R2 = never>(

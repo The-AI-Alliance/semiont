@@ -179,7 +179,7 @@ describe('generation stall guard', () => {
     bus.emit('job:complete', { resourceId: resourceId('res-1'), jobId: jobId('j1'), jobType: 'yield' });
 
     await expect(done).resolves.toEqual({ resourceId: 'res-1', jobId: 'j1', jobType: 'yield' });
-    expect(seen).toEqual(['failed a blip', 'progress', 'complete']);
+    expect(seen).toEqual(['created', 'failed a blip', 'progress', 'complete']);
   });
 
   it('a setback starts the stall deadline again, and the attempt that died is not asked about', async () => {

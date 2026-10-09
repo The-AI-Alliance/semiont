@@ -284,10 +284,10 @@ def test_the_client_annotates_over_the_doubles_and_over_http(capsys: pytest.Capt
     run(over_the_doubles())
     doubled = capsys.readouterr().out.splitlines()
     run(over_http())
-    # The same four things said, whichever transport the client is over.
+    # The same five things said, whichever transport the client is over.
     assert capsys.readouterr().out.splitlines() == doubled
-    described, half, done, reached = doubled
-    assert (described, half, reached) == ("A resource 9", "50.0", "1")
+    described, named, half, done, reached = doubled
+    assert (described, named, half, reached) == ("A resource 9", "to cancel it: job-1", "50.0", "1")
     assert done.startswith("found=3 persisted=2 ")
 
 

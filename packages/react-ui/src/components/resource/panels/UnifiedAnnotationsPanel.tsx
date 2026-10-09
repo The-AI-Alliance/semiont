@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import type { components, ResourceId, Selector } from '@semiont/core';
+import type { components, JobId, ResourceId, Selector } from '@semiont/core';
 type JobProgress = components['schemas']['JobProgress'];
 import type { RouteBuilder, LinkComponentProps } from '../../../contexts/RoutingContext';
 import type { SemiontSession } from '@semiont/sdk';
@@ -60,6 +60,8 @@ interface UnifiedAnnotationsPanelProps {
   // Delegated annotation state (per motivation)
   delegatingMotivation?: Motivation | null;
   progress?: JobProgress | null;
+  /** The id of the delegated job (`mark.jobId$`); it goes where the progress goes. */
+  jobId?: JobId | null;
 
   // Unified pending annotation (for creating new annotations)
   pendingAnnotation: PendingAnnotation | null;
@@ -277,6 +279,7 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
           // Only pass progress to the panel whose motivation matches delegatingMotivation
           // This prevents progress from appearing in wrong tabs
           const progress = isDelegating ? (props.progress ?? null) : null;
+          const jobId = isDelegating ? (props.jobId ?? null) : null;
 
           // Common props for all annotation panels
           const commonProps = {
@@ -313,6 +316,7 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
                 pendingAnnotation={commonProps.pendingAnnotation}
                 isDelegating={commonProps.isDelegating}
                 progress={commonProps.progress}
+                jobId={jobId}
                 annotateMode={commonProps.annotateMode}
                 scrollToAnnotationId={commonProps.scrollToAnnotationId}
                 onScrollCompleted={commonProps.onScrollCompleted}

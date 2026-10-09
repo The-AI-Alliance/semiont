@@ -7,7 +7,7 @@ import { ReferencesPanel } from '../ReferencesPanel';
 import type { Annotation, AnnotationId, EventBus } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
 import { createTestSemiontWrapper } from '../../../../test-utils';
-import { resourceId } from '@semiont/core';
+import { jobId, resourceId } from '@semiont/core';
 
 // Composition-based event tracker
 interface TrackedEvent {
@@ -101,6 +101,7 @@ describe('ReferencesPanel Component', () => {
     allEntityTypes: ['Person', 'Organization', 'Location', 'Date'],
     isDelegating: false,
     progress: null,
+    jobId: null,
     annotateMode: true,
     Link: MockLink,
     routes: mockRoutes,
@@ -400,14 +401,25 @@ describe('ReferencesPanel Component', () => {
       });
     });
 
-    it('the control of a running job cancels the pending mark jobs', async () => {
-      const cancelSpy = vi.spyOn(session.client.job, 'cancelByType').mockResolvedValue(0);
+    it('the control of a running job asks for that job to be cancelled, by its id', async () => {
+      const cancelSpy = vi.spyOn(session.client.job, 'cancel').mockResolvedValue(1);
+      const cancelByTypeSpy = vi.spyOn(session.client.job, 'cancelByType').mockResolvedValue(0);
       renderWithEventBus(
-        <ReferencesPanel {...panelProps()} isDelegating={true} progress={{ percentage: 0, completedItems: [] }} />,
+        <ReferencesPanel {...panelProps()} isDelegating={true} jobId={jobId('job-1')} progress={{ percentage: 0, completedItems: [] }} />,
       );
 
       await userEvent.click(screen.getByTestId('semiont-delegate-control'));
-      expect(cancelSpy).toHaveBeenCalledExactlyOnceWith('mark');
+      expect(cancelSpy).toHaveBeenCalledExactlyOnceWith('job-1');
+      // The pending mark jobs of the knowledge base are not this job.
+      expect(cancelByTypeSpy).not.toHaveBeenCalled();
+    });
+
+    it('a running job the queue has not named yet has no cancel control', () => {
+      renderWithEventBus(
+        <ReferencesPanel {...panelProps()} isDelegating={true} jobId={null} progress={{ percentage: 0, completedItems: [] }} />,
+      );
+
+      expect(screen.queryByTestId('semiont-delegate-control')).toBeNull();
     });
 
     it('should clear selected types after detection starts', async () => {
@@ -540,11 +552,12 @@ describe('ReferencesPanel Component', () => {
       expect(screen.queryByText('Person')).not.toBeInTheDocument();
     });
 
-    it('should render cancel button when detecting', async () => {
+    it('should render cancel button when detecting, once the job has its id', async () => {
       renderWithEventBus(
         <ReferencesPanel
           {...panelProps()}
           isDelegating={true}
+          jobId={jobId('job-1')}
           progress={{ percentage: 0, completedItems: [] }}
         />
       );

@@ -1,5 +1,5 @@
 //! Generation, as state: whether a resource is being generated, the job's
-//! progress, and what the finished run produced.
+//! id and progress, and what the finished run produced.
 //!
 //! The display it feeds stays once the run is over: the progress and the
 //! outcome are there until they are dismissed, or until the next run begins.
@@ -12,8 +12,8 @@ use crate::client::SemiontClient;
 use crate::errors::SemiontError;
 use crate::namespaces::JobEvent;
 use crate::state_unit::StateUnit;
-use crate::types::ResourceId;
 use crate::types::{GenerationJobParams, JobProgress, YieldJobResult};
+use crate::types::{JobId, ResourceId};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::watch;
@@ -35,6 +35,7 @@ struct Shared {
     progress: Held<Option<JobProgress>>,
     outcome: Held<Option<YieldOutcome>>,
     failure: Held<Option<SemiontError>>,
+    job_id: Held<Option<JobId>>,
     tasks: Tasks,
 }
 
@@ -55,6 +56,7 @@ impl YieldStateUnit {
                 progress: Held::new(None),
                 outcome: Held::new(None),
                 failure: Held::new(None),
+                job_id: Held::new(None),
                 tasks: Tasks::new(),
             }),
         }
@@ -82,20 +84,36 @@ impl YieldStateUnit {
         self.shared.failure.read()
     }
 
+    /// The id of the generation job, from the queue's answer to its creation
+    /// to the job's end: what `client.job.cancel` names. None before the
+    /// answer, when there is no id, and after the end, when there is nothing
+    /// to cancel.
+    pub fn job_id(&self) -> watch::Receiver<Option<JobId>> {
+        self.shared.job_id.read()
+    }
+
     /// Generate a resource from a gathered context, as
     /// `client.yield_.delegate` does, in this unit's locale when the
     /// request states no language.
     pub fn generate(&self, mut params: GenerationJobParams, stall_deadline: Option<Duration>) {
         self.shared.outcome.set(None);
         self.shared.failure.set(None);
+        self.shared.job_id.set(None);
         if params.language.as_deref().is_none_or(str::is_empty) {
             params.language = Some(self.shared.locale.clone());
         }
         let shared = self.shared.clone();
         self.shared.tasks.spawn(async move {
             let mut run = shared.client.yield_.delegate(params, stall_deadline);
+            // This job's id. At the job's end it is let go only while it is
+            // still the one held: a job generated later replaces it.
+            let mut created: Option<JobId> = None;
             while let Some(event) = run.next().await {
                 match event {
+                    Ok(JobEvent::Created(job)) => {
+                        shared.job_id.set(Some(job.job_id.clone()));
+                        created = Some(job.job_id);
+                    }
                     Ok(JobEvent::Progress(progress)) => {
                         shared.progress.set(Some(progress));
                         shared.generating.set(true);
@@ -120,6 +138,9 @@ impl YieldStateUnit {
                 }
             }
             shared.generating.set(false);
+            if let Some(job_id) = &created {
+                shared.job_id.forget(job_id);
+            }
         });
     }
 
@@ -139,6 +160,7 @@ impl StateUnit for YieldStateUnit {
         self.shared.progress.end();
         self.shared.outcome.end();
         self.shared.failure.end();
+        self.shared.job_id.end();
     }
 }
 

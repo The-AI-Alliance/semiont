@@ -1,7 +1,7 @@
 from semiont.client import SemiontClient
 from semiont.http import HttpTransport
 from semiont.identifiers import AnnotationId, ResourceId
-from semiont.namespaces.follow import JobAttemptFailed, JobCompleted, JobProgressed
+from semiont.namespaces.follow import JobAttemptFailed, JobCompleted, JobCreated, JobProgressed
 from semiont.transport import Transport
 from semiont.types import HighlightingJobParams
 from semiont.watched import Variable
@@ -14,6 +14,8 @@ async def annotate(client: SemiontClient[Transport], resource: ResourceId, annot
 
     async for event in client.mark.delegate(resource, HighlightingJobParams(motivation="highlighting")):  # a job, followed
         match event:
+            case JobCreated(data=created):
+                print("to cancel it:", created.job_id)  # what client.job.cancel names
             case JobProgressed(data=progress):
                 print(progress.percentage)
             case JobAttemptFailed(data=setback):

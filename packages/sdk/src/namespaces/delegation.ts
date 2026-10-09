@@ -25,9 +25,10 @@ export interface DelegatedVerb<C extends JobCompletion> {
  * Creates a job and follows it to its end: the one driver behind
  * `mark.delegate` and `yield.delegate`.
  *
- * It sends `job:create` with the description given, then gives the job's
- * `job:report-progress` / `job:complete` / `job:fail` frames as `JobEvent`s,
- * the status poll standing in for a frame the stream did not carry.
+ * It sends `job:create` with the description given, gives the queue's answer
+ * as the `created` event, then gives the job's `job:report-progress` /
+ * `job:complete` / `job:fail` frames as `JobEvent`s, the status poll standing
+ * in for a frame the stream did not carry.
  *
  * The three frames reach the client on the always-on global bridge: the
  * worker emits them to every client. Nothing here joins the resource's scope
@@ -166,9 +167,13 @@ export function delegated<C extends JobCompletion>(
     armStall();
 
     busRequest(transport, 'job:create', job)
-      .then(({ jobId }) => {
+      .then((created) => {
+        const { jobId } = created;
         if (jobId && !done) {
           activeJobId = jobId;
+          // Before the frames held for it are let go: the job's id is the
+          // first thing its follower says.
+          subscriber.next({ kind: 'created', data: created });
           poll.heard(jobId);
           frames.started(jobId);
         }

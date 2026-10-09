@@ -3,7 +3,7 @@
   "shapes": {
     "promise": "Asked once, answered once: the value, or a failure with a code.",
     "stream": "A long-running operation: what it reports as it goes, then its final value. Awaited, it gives the final value.",
-    "delegation": "A job another party does: the job's events as it goes, its completion the last of them. Awaited, it gives the completion.",
+    "delegation": "A job another party does: the job's events as it goes, the queue's naming of it the first of them and its completion the last. Awaited, it gives the completion.",
     "upload": "An upload in flight: its progress, then the id of the resource created.",
     "cache": "A live query. Building it touches nothing; its one-shot read asks the service now.",
     "signal": "Fire-and-forget. Nothing is returned and nothing is awaited.",
