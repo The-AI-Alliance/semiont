@@ -1114,6 +1114,48 @@
         "suffix": ". And then again Paris is old.",
         "anchorMethod": "context-recovered"
       }
+    },
+    {
+      "why": "the quote is lower-cased as the text is: the model wrote the words in capitals, and they are found without regard to case",
+      "text": "The United States Congress passed the bill yesterday.",
+      "quoted": { "exact": "UNITED STATES" },
+      "reconciled": {
+        "start": 4,
+        "end": 17,
+        "exact": "United States",
+        "prefix": "The ",
+        "suffix": " Congress passed the bill yesterday.",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "case-insensitive"
+      }
+    },
+    {
+      "why": "a no-break space (U+00A0) is white space: the text has one where the model wrote a space, twice, and the quote that is kept is the text's",
+      "text": "It cost 10\u00a0000\u00a0francs then.",
+      "quoted": { "exact": "10 000 francs" },
+      "reconciled": {
+        "start": 8,
+        "end": 21,
+        "exact": "10\u00a0000\u00a0francs",
+        "prefix": "It cost ",
+        "suffix": " then.",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "normalized"
+      }
+    },
+    {
+      "why": "a line separator (U+2028) is white space: the text has one where the model wrote a space",
+      "text": "The first line\u2028and the second.",
+      "quoted": { "exact": "first line and the second" },
+      "reconciled": {
+        "start": 4,
+        "end": 29,
+        "exact": "first line\u2028and the second",
+        "prefix": "The ",
+        "suffix": ".",
+        "anchorMethod": "fuzzy-match",
+        "matchQuality": "normalized"
+      }
     }
   ]
 }

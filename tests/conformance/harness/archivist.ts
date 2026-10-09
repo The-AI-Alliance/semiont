@@ -12,7 +12,7 @@
  * declaration. Anything else lands in `violations`, which fail the case.
  */
 import { randomUUID } from 'node:crypto';
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { createServer, type IncomingMessage, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { createLocalJWKSet, jwtVerify, type JWTPayload } from 'jose';
 import { archivistNonConformance } from './http';

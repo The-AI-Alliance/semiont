@@ -143,6 +143,15 @@
       "refused": "suffix-mismatch"
     },
     {
+      "why": "a suffix is the text just after the span, not text somewhere after it: ` the first` comes after `Lovelace`, and not next to it",
+      "text": "Ada Lovelace wrote the first algorithm.",
+      "resourceId": "res-1",
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "motivation": "highlighting",
+      "span": { "start": 4, "end": 12, "exact": "Lovelace", "suffix": " the first" },
+      "refused": "suffix-mismatch"
+    },
+    {
       "why": "a suffix longer than all the text there is after the span cannot be that text",
       "text": "Ada Lovelace wrote the first algorithm.",
       "resourceId": "res-1",

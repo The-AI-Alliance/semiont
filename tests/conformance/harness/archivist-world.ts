@@ -26,7 +26,7 @@ import { eventually, freePort } from './net';
 import { SPEC_SOURCE } from './paths';
 import { SERVICE_ROLE, WORKER_ROLE } from './roles';
 import { errorsOf, operationFor, registry, spec, type Method } from './spec';
-import type { BusFrame, BusStream } from './stream';
+import type { BusStream } from './stream';
 import { PARTICIPANT_CLIENT, World } from './world';
 
 /** The Archivist's service account at the issuer. */
