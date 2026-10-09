@@ -3,7 +3,7 @@
 //! for word (`semiont::testing::examples`).
 
 use bytes::Bytes;
-use semiont::annotations::{QuotedText, Spanned, annotation_of_span, reconcile};
+use semiont::annotations::{QuotedText, annotation_of_span, reconcile};
 use semiont::bus::{operation, reply_names};
 use semiont::claims::{ClaimOptions, Held, HeldJob, Mark};
 use semiont::client::SemiontClient;
@@ -155,7 +155,7 @@ async fn a_held_jobs_work(
             continue;
         };
         highlights.push(annotation_of_span(
-            Spanned::Text(text),
+            text,
             &found.span,
             &resource_id,
             Motivation::Highlighting,

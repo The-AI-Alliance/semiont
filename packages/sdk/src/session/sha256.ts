@@ -1,18 +1,17 @@
 /**
- * SHA-256 (FIPS 180-4), for the id of an annotation (`annotation-id.ts`).
+ * SHA-256 (FIPS 180-4), for the PKCE challenge of a sign-in.
  *
- * The platform's own is `crypto.subtle.digest`. It answers later, where an id
- * is worked out at once; and a browser withholds `crypto.subtle` from a page
- * that is not a secure context, one served over plain http from any host but
- * localhost, where this package runs too. This is the one implementation the
- * id uses, in every context: a branch that preferred the platform's where it
- * exists would be a second implementation of one hash, run only where nobody
- * tests.
+ * The platform's own is `crypto.subtle.digest`, and a browser withholds
+ * `crypto.subtle` from a page that is not a secure context: one served over
+ * plain http from any host but localhost. The launcher registers such an
+ * origin for the Browser, the host's LAN address, so a sign-in has to compute
+ * its challenge there. This is the one implementation, used in every context:
+ * a branch that preferred the platform's where it exists would be a second
+ * implementation of one hash, run only where nobody tests.
  *
- * Private to this package: its root exports no hash. Nothing secret is hashed
- * here. An id is a public derivation of what an annotation is, so a wrong
- * digest cannot leak anything: it fails where it can be seen, in the id's
- * case table.
+ * Private to the session layer. A wrong digest here cannot leak anything: the
+ * challenge is a public derivation of a value the client sends anyway, so the
+ * issuer refuses the code exchange and the sign-in fails where it can be seen.
  */
 
 /** The first 32 bits of the fractional parts of the cube roots of the first 64 primes. */

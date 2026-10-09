@@ -1,9 +1,10 @@
 /**
- * Core's own SHA-256, held to FIPS 180-4's vectors and to the platform's
- * implementation.
+ * The session's own SHA-256, held to FIPS 180-4's vectors and to the
+ * platform's implementation.
  *
- * It exists because the id of an annotation is a SHA-256 worked out at once,
- * in a browser as anywhere else. An id hashes a text of any length, so the
+ * It exists because `crypto.subtle` is withheld from a page that is not a
+ * secure context, and a sign-in's PKCE challenge is a SHA-256. Production
+ * hashes one length only, a 64-character verifier, so that length and the
  * padding boundaries around a block are where the equivalence run looks
  * hardest.
  */
@@ -38,7 +39,7 @@ describe('sha256', () => {
 
   it('agrees with the platform at every length across three blocks, the padding boundaries included', () => {
     // 55 bytes is the longest message whose padding fits its block; 56 spills
-    // the length into another; 64 is a whole block.
+    // the length into another; 64 is a whole block, and the length production hashes.
     for (let length = 0; length <= 192; length++) {
       const message = randomBytes(length);
       expect(hex(sha256(message)), `${length} bytes`).toBe(createHash('sha256').update(message).digest('hex'));
