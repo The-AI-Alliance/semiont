@@ -59,7 +59,7 @@ On the wire the request names the resource, and may name a `motivation` to keep 
 
 ## Options
 
-`gather.annotation` takes the size of the window of surrounding text. `gather.resource` takes how many links deep to follow, how many resources to take, and entity types to leave out.
+`gather.annotation` takes the size of the window of surrounding text: how much on each side of the annotation, counted in Unicode code points. `gather.resource` takes how many links deep to follow, how many resources to take, and entity types to leave out.
 
 ## Example
 

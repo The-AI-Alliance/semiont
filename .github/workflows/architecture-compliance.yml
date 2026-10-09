@@ -85,6 +85,7 @@ jobs:
           npm run lint:spec-case-tables || fail=1
           npm run lint:spec-channel-rosters || fail=1
           npm run lint:spec-reference-forms || fail=1
+          npm run lint:spec-offset-units || fail=1
           npm run openapi:lint || fail=1
           npm run lint:service-environment || fail=1
           npm run lint:rust-images || fail=1

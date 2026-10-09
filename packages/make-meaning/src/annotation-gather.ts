@@ -10,10 +10,10 @@
 import type { InferenceClient } from '@semiont/inference';
 import type { EmbeddingProvider, VectorSearchResult, VectorStore } from '@semiont/vectors';
 import { generateResourceSummary } from './generation/resource-generation';
-import { getBodySource, getTargetSource, getTargetSelector, getResourceEntityTypes, getStorageUri, deriveViews } from '@semiont/core';
+import { getBodySource, getTargetSource, getTargetSelector, getResourceEntityTypes, getStorageUri, deriveViews, textOffsets } from '@semiont/core';
 import type { components, GatheredContext, Annotation, ResourceDescriptor, ResourceId, AnnotationId, Logger } from '@semiont/core';
 import { getEntityTypes } from '@semiont/core';
-import { AnnotationContext, type AnnotationTextContext } from './annotation-context';
+import { AnnotationContext, textAround, type AnnotationTextContext } from './annotation-context';
 import { ResourceContext } from './resource-context';
 import { GraphContext, type KnowledgeGraphReads } from './graph-context';
 import type { ViewStorage } from '@semiont/event-sourcing';
@@ -164,11 +164,7 @@ export class AnnotationGather {
         const start = selector.start;
         const end = selector.end;
 
-        const before = contentStr.slice(Math.max(0, start - contextWindow), start);
-        const selected = contentStr.slice(start, end);
-        const after = contentStr.slice(end, Math.min(contentStr.length, end + contextWindow));
-
-        sourceContext = { before, selected, after };
+        sourceContext = textAround(contentStr, start, end, contextWindow, contextWindow);
         logger?.debug('Built source context using TextPositionSelector', { start, end });
       } else if (targetSelector.type === 'TextQuoteSelector') {
         // A TextQuoteSelector, by the type check above: exact is required
@@ -177,15 +173,14 @@ export class AnnotationGather {
         const index = contentStr.indexOf(exact);
 
         if (index !== -1) {
-          const start = index;
-          const end = index + exact.length;
+          // Where the search found the words is a position in the string;
+          // the window around them is measured in offsets.
+          const offsets = textOffsets(contentStr);
+          const start = offsets.offsetAt(index);
+          const end = offsets.offsetAt(index + exact.length);
 
-          const before = contentStr.slice(Math.max(0, start - contextWindow), start);
-          const selected = exact;
-          const after = contentStr.slice(end, Math.min(contentStr.length, end + contextWindow));
-
-          sourceContext = { before, selected, after };
-          logger?.debug('Built source context using TextQuoteSelector', { foundAt: index });
+          sourceContext = textAround(contentStr, start, end, contextWindow, contextWindow);
+          logger?.debug('Built source context using TextQuoteSelector', { foundAt: start });
         } else {
           logger?.warn('TextQuoteSelector exact text not found in content', { exactPreview: exact.substring(0, 50) });
         }

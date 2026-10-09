@@ -3480,7 +3480,7 @@ type GatherAnnotationComplete struct {
 
 // GatherAnnotationOptions Optional configuration for an annotation-focus gather, which windows text around a mark. Distinct from the resource-focus options (depth / maxResources / includeContent / includeSummary), which traverse the resource graph.
 type GatherAnnotationOptions struct {
-	// ContextWindow Characters of surrounding text context to include
+	// ContextWindow How much of the text on each side of the annotation to include, counted in Unicode code points
 	ContextWindow *int `json:"contextWindow,omitempty"`
 
 	// IncludeSourceContext Whether to include source context in the gathered result

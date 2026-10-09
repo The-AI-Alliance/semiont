@@ -990,7 +990,7 @@ class GatherAnnotationOptions(WireModel, frozen=True):
         int | None,
         Field(
             alias="contextWindow",
-            description="Characters of surrounding text context to include",
+            description="How much of the text on each side of the annotation to include, counted in Unicode code points",
         ),
     ] = None
 

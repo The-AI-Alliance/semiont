@@ -102,7 +102,7 @@ export const TOOLS: Tool[] = [
       properties: {
         resourceId: { type: 'string' },
         annotationId: { type: 'string' },
-        contextWindow: { type: 'number', description: 'Character window (default: 2000)' },
+        contextWindow: { type: 'number', description: 'How much of the text on each side of the annotation to include, in Unicode code points (default: 2000)' },
       },
       required: ['resourceId', 'annotationId'],
     },
