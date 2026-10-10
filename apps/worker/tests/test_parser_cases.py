@@ -16,6 +16,7 @@ import pytest
 from pydantic import BaseModel, Field, JsonValue
 from semiont.annotations import QuotedText, TextSpan
 from semiont.types import TagCategory, TagSchema
+from semiont.watched import Variable
 from semiont_inference.interface import ElementSchema, InferenceLimits, InferenceResponse, StructuredReadError, StructuredResponse
 from semiont_inference.mock import MockInferenceClient
 from spec import SPEC
@@ -218,6 +219,10 @@ def unheard(_consumed: int, _total: int) -> None:
     """Where a reading stands is not the table's to hold."""
 
 
+NOT_CANCELLED: Final = Variable[bool](False)
+"""Whether a cancellation has named the job a reading here is made for: none has."""
+
+
 @final
 @dataclass(frozen=True, slots=True)
 class HandedOn:
@@ -290,6 +295,7 @@ async def highlights_read(case: HighlightingCase, client: StandIn) -> HandedOn:
         instructions=None,
         density=None,
         source_language=None,
+        cancelled=NOT_CANCELLED,
         on_activity=unheard,
         resume=None,
         on_chunk_results=on_chunk_results,
@@ -311,6 +317,7 @@ async def comments_read(case: CommentingCase, client: StandIn) -> HandedOn:
         density=None,
         language=None,
         source_language=None,
+        cancelled=NOT_CANCELLED,
         on_activity=unheard,
         resume=None,
         on_chunk_results=on_chunk_results,
@@ -332,6 +339,7 @@ async def assessments_read(case: AssessingCase, client: StandIn) -> HandedOn:
         density=None,
         language=None,
         source_language=None,
+        cancelled=NOT_CANCELLED,
         on_activity=unheard,
         resume=None,
         on_chunk_results=on_chunk_results,
@@ -351,6 +359,7 @@ async def tags_read(case: TaggingCase, client: StandIn) -> HandedOn:
         schema=schema_of(case.category),
         category=case.category,
         source_language=None,
+        cancelled=NOT_CANCELLED,
         on_activity=unheard,
         resume=None,
         on_chunk_results=on_chunk_results,
@@ -372,6 +381,7 @@ async def mentions_read(case: LinkingCase, client: StandIn) -> HandedOn:
         client,
         include_descriptive_references=False,
         source_language=None,
+        cancelled=NOT_CANCELLED,
         on_activity=unheard,
         on_under_report=under_reported.append,
         on_counted=counted.append,

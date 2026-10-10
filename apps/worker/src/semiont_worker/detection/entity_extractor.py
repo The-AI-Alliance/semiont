@@ -23,6 +23,7 @@ from typing import Final, final
 from pydantic import JsonValue
 from semiont.annotations import QuotedText
 from semiont.types import UnitCursor
+from semiont.watched import Watched
 from semiont_inference.interface import ElementSchema, InferenceClient
 
 from semiont_worker.chunking import Chunking, estimate_tokens
@@ -143,6 +144,7 @@ async def extract_entities(
     *,
     include_descriptive_references: bool,
     source_language: str | None,
+    cancelled: Watched[bool],
     on_activity: OnActivity,
     on_under_report: Callable[[UnderReportedPiece], None],
     on_counted: Callable[[int], None],
@@ -162,6 +164,10 @@ async def extract_entities(
     once for each piece and awaited before the next is cut. `on_activity` is
     told where the extraction stands: at each boundary between pieces, and
     every fifteen seconds while a piece is with the model.
+
+    `cancelled` is whether a cancellation has named the job. Once it has, no
+    piece is asked about after the one in hand, which is handed on like any
+    other, and no boundary is told.
     """
 
     def prompt(piece: str) -> str:
@@ -241,8 +247,9 @@ async def extract_entities(
         await on_chunk_results(mentions, ChunkCursor(next=chunk.next, size=chunk.size), dropped)
 
         # A boundary, where text remains. After the last piece there is none, and the unit's end is its caller's to say.
-        if chunk.next < chunk.total_chars:
+        # A cancelled job has stopped with this piece, and no next one starts anywhere.
+        if chunk.next < chunk.total_chars and not cancelled.value:
             on_activity(chunk.next, chunk.total_chars)
         return asked.outcome
 
-    await run_adaptive_chunks(text, budget, on_chunk, resume)
+    await run_adaptive_chunks(text, budget, cancelled, on_chunk, resume)

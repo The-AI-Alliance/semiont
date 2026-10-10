@@ -24,6 +24,7 @@ from opentelemetry.sdk.metrics.export import InMemoryMetricReader
 from pydantic import JsonValue
 from semiont.annotations import QuotedText, TextSpan, reconcile
 from semiont.types import TagCategory, TagSchema, UnitCursor
+from semiont.watched import Variable
 from semiont_inference.interface import (
     ElementSchema,
     InferenceClient,
@@ -57,6 +58,9 @@ TEXT: Final = " ".join(f"Sentence {n} of the survey names marker {n:03d} beside 
 CLAIM: Final = TagCategory(name="Claim", description="What the text asserts", examples=["What is being asserted?"])
 SCHEMA: Final = TagSchema(id="argument", name="Argument", description="What a text claims", domain="rhetoric", tags=[CLAIM])
 
+NOT_CANCELLED: Final = Variable[bool](False)
+"""Whether a cancellation has named the job a detection here works for: none has. `test_cancellation.py` holds one that is."""
+
 type OnActivity = Callable[[int, int], None]
 type OnChunkResults = Callable[[Sequence[TextSpan | Mention], ChunkCursor, int], Awaitable[None]]
 type Detect = Callable[[str, InferenceClient, OnActivity, UnitCursor | None, OnChunkResults], Coroutine[None, None, None]]
@@ -69,6 +73,7 @@ async def highlights(text: str, client: InferenceClient, on_activity: OnActivity
         instructions="Mark every marker.",
         density=2.0,
         source_language="de",
+        cancelled=NOT_CANCELLED,
         on_activity=on_activity,
         resume=resume,
         on_chunk_results=kept,
@@ -84,6 +89,7 @@ async def comments(text: str, client: InferenceClient, on_activity: OnActivity, 
         density=4.0,
         language="fr",
         source_language="en",
+        cancelled=NOT_CANCELLED,
         on_activity=on_activity,
         resume=resume,
         on_chunk_results=kept,
@@ -99,6 +105,7 @@ async def assessments(text: str, client: InferenceClient, on_activity: OnActivit
         density=3.0,
         language="de",
         source_language="fr",
+        cancelled=NOT_CANCELLED,
         on_activity=on_activity,
         resume=resume,
         on_chunk_results=kept,
@@ -107,7 +114,15 @@ async def assessments(text: str, client: InferenceClient, on_activity: OnActivit
 
 async def tags(text: str, client: InferenceClient, on_activity: OnActivity, resume: UnitCursor | None, kept: OnChunkResults) -> None:
     await detect_tags(
-        text, client, schema=SCHEMA, category="Claim", source_language="en", on_activity=on_activity, resume=resume, on_chunk_results=kept
+        text,
+        client,
+        schema=SCHEMA,
+        category="Claim",
+        source_language="en",
+        cancelled=NOT_CANCELLED,
+        on_activity=on_activity,
+        resume=resume,
+        on_chunk_results=kept,
     )
 
 
@@ -126,6 +141,7 @@ async def mentions(text: str, client: InferenceClient, on_activity: OnActivity, 
         client,
         include_descriptive_references=True,
         source_language="en",
+        cancelled=NOT_CANCELLED,
         on_activity=on_activity,
         on_under_report=untold,
         on_counted=untold,
@@ -580,6 +596,7 @@ def test_a_category_its_schema_does_not_have_is_refused_before_anything_is_asked
                 schema=SCHEMA,
                 category="Rule",
                 source_language=None,
+                cancelled=NOT_CANCELLED,
                 on_activity=unheard,
                 resume=None,
                 on_chunk_results=unkept,
@@ -636,6 +653,7 @@ async def extraction(
         client,
         include_descriptive_references=False,
         source_language=None,
+        cancelled=NOT_CANCELLED,
         on_activity=unheard,
         on_under_report=under_reported.append,
         on_counted=counted.append,

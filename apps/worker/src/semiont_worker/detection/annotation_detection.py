@@ -16,6 +16,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from pydantic import JsonValue
 from semiont.annotations import TextSpan
 from semiont.types import TagSchema, UnitCursor
+from semiont.watched import Watched
 from semiont_inference.interface import ElementSchema, InferenceClient
 
 from semiont_worker.chunking import Chunking, estimate_tokens
@@ -55,7 +56,8 @@ It is told at each boundary between pieces, where the offset has moved on,
 and every fifteen seconds while a piece is with the model, where it has not:
 the offset is then where that piece began. The second says only that the job
 is alive. Whoever follows a job takes silence for a job that died, and a
-text of one piece crosses no boundary.
+text of one piece crosses no boundary. No boundary is told of a job that was
+cancelled: it stops with the piece it is on.
 """
 
 type OnChunkResults[M] = Callable[[list[M], ChunkCursor, int], Awaitable[None]]
@@ -75,11 +77,17 @@ async def _detect_in_pieces[M](
     element_schema: ElementSchema,
     prompt: Callable[[str], str],
     read: Callable[[Sequence[JsonValue]], Anchored[M]],
+    cancelled: Watched[bool],
     on_activity: OnActivity,
     resume: UnitCursor | None,
     on_chunk_results: OnChunkResults[M],
 ) -> None:
-    """Ask about `text` a piece at a time, in `prompt` around each piece, and hand on what `read` makes of each piece's reply."""
+    """Ask about `text` a piece at a time, in `prompt` around each piece, and hand on what `read` makes of each piece's reply.
+
+    `cancelled` is whether a cancellation has named the job. Once it has, no
+    piece is asked about after the one in hand, which is handed on like any
+    other.
+    """
     limits = await client.limits()
     # One kind of span to a call.
     budget = derive_detection_budget(limits, estimate_tokens(prompt("")), 1)
@@ -105,11 +113,12 @@ async def _detect_in_pieces[M](
         anchored = read(asked.items)
         await on_chunk_results(anchored.matches, ChunkCursor(next=chunk.next, size=chunk.size), anchored.dropped)
         # A boundary, where text remains. After the last piece there is none, and the unit's end is its caller's to say.
-        if chunk.next < chunk.total_chars:
+        # A cancelled job has stopped with this piece, and no next one starts anywhere.
+        if chunk.next < chunk.total_chars and not cancelled.value:
             on_activity(chunk.next, chunk.total_chars)
         return asked.outcome
 
-    await run_adaptive_chunks(text, budget, on_chunk, resume)
+    await run_adaptive_chunks(text, budget, cancelled, on_chunk, resume)
 
 
 async def detect_highlights(
@@ -119,6 +128,7 @@ async def detect_highlights(
     instructions: str | None,
     density: float | None,
     source_language: str | None,
+    cancelled: Watched[bool],
     on_activity: OnActivity,
     resume: UnitCursor | None,
     on_chunk_results: OnChunkResults[TextSpan],
@@ -131,6 +141,7 @@ async def detect_highlights(
         HIGHLIGHT_ELEMENT_SCHEMA,
         lambda piece: highlight_prompt(piece, instructions=instructions, density=density, source_language=source_language),
         lambda elements: read_highlights(elements, text),
+        cancelled,
         on_activity,
         resume,
         on_chunk_results,
@@ -146,6 +157,7 @@ async def detect_comments(
     density: float | None,
     language: str | None,
     source_language: str | None,
+    cancelled: Watched[bool],
     on_activity: OnActivity,
     resume: UnitCursor | None,
     on_chunk_results: OnChunkResults[CommentMatch],
@@ -160,6 +172,7 @@ async def detect_comments(
             piece, instructions=instructions, tone=tone, density=density, language=language, source_language=source_language
         ),
         lambda elements: read_comments(elements, text),
+        cancelled,
         on_activity,
         resume,
         on_chunk_results,
@@ -175,6 +188,7 @@ async def detect_assessments(
     density: float | None,
     language: str | None,
     source_language: str | None,
+    cancelled: Watched[bool],
     on_activity: OnActivity,
     resume: UnitCursor | None,
     on_chunk_results: OnChunkResults[AssessmentMatch],
@@ -189,6 +203,7 @@ async def detect_assessments(
             piece, instructions=instructions, tone=tone, density=density, language=language, source_language=source_language
         ),
         lambda elements: read_assessments(elements, text),
+        cancelled,
         on_activity,
         resume,
         on_chunk_results,
@@ -202,6 +217,7 @@ async def detect_tags(
     schema: TagSchema,
     category: str,
     source_language: str | None,
+    cancelled: Watched[bool],
     on_activity: OnActivity,
     resume: UnitCursor | None,
     on_chunk_results: OnChunkResults[TagMatch],
@@ -225,6 +241,7 @@ async def detect_tags(
         TAG_ELEMENT_SCHEMA,
         lambda piece: tag_prompt(piece, schema, of_the_schema, source_language=source_language),
         lambda elements: read_tags(elements, text, category),
+        cancelled,
         on_activity,
         resume,
         on_chunk_results,

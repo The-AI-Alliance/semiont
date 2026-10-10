@@ -21,6 +21,7 @@ from typing import Final, final
 
 from pydantic import JsonValue
 from semiont.types import UnitCursor
+from semiont.watched import Watched
 from semiont_inference.interface import InferenceLimits, StructuredReadError, TokenUsage
 
 from semiont_worker.chunking import Chunking, chunk_text, cut_chunk
@@ -243,6 +244,7 @@ class AdaptiveChunk:
 async def run_adaptive_chunks(
     text: str,
     budget: DetectionBudget,
+    cancelled: Watched[bool],
     on_chunk: Callable[[AdaptiveChunk], Awaitable[CallOutcome]],
     resume: UnitCursor | None,
 ) -> None:
@@ -253,8 +255,15 @@ async def run_adaptive_chunks(
     last one's size and what `on_chunk` answered it cost. The walk ends when a
     piece reaches the end of the text. `on_chunk` is awaited, so whatever it
     makes durable is durable before the next cut, and a failure it raises
-    stops the walk where it stands. Nothing else stops it: the walk does not
-    look for a cancellation of the job it works for.
+    stops the walk where it stands.
+
+    `cancelled` is whether a cancellation has named the job the walk works
+    for: a held job's own (`semiont.claims`). The walk reads it before each
+    cut, and cuts nothing once it is so. The piece in hand was awaited to its
+    end first, so a cancelled job stops between pieces and never inside one,
+    and a call to a model that is under way is not ended. The walk then
+    returns as it does at the end of the text: its caller tells the two
+    apart by reading `cancelled` itself.
 
     `resume` is where an earlier attempt left the unit. The walk starts at
     the cursor's `next`, at the size the step gives for the cursor's `size`
@@ -269,7 +278,7 @@ async def run_adaptive_chunks(
     else:
         at, size = resume.next, next_chunk_size(CallOutcome(size_failed=True, output_tokens=None), resume.size, budget.bounds)
 
-    while at < total_chars:
+    while at < total_chars and not cancelled.value:
         cut = cut_chunk(text, at, Chunking(chunk_size=size, overlap=budget.chunking.overlap))
         outcome = await on_chunk(AdaptiveChunk(piece=cut.piece, size=size, at=at, next=cut.next, total_chars=total_chars))
         at = cut.next

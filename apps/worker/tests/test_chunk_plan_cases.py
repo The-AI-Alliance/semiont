@@ -13,6 +13,7 @@ from typing import Annotated, Final, Literal
 import pytest
 from pydantic import BaseModel, Field, JsonValue
 from semiont.types import UnitCursor
+from semiont.watched import Variable
 from semiont_inference.interface import InferenceLimits, StructuredReadError, TokenUsage
 from spec import SPEC
 
@@ -289,7 +290,8 @@ def test_a_text_is_walked_in_the_pieces_the_table_gives(case: WalkCase) -> None:
             raise failure
         return outcome_of(scripted)
 
-    stopped_by = raised_by(run_adaptive_chunks(case.text, budget_of(case.budget), on_chunk, case.resume))
+    # No case of the table cancels its job: `test_cancellation.py` holds a walk whose job is.
+    stopped_by = raised_by(run_adaptive_chunks(case.text, budget_of(case.budget), Variable[bool](False), on_chunk, case.resume))
     assert stopped_by is (None if case.completes else failure), case.why
 
     # The table's positions are offsets: they count the text's code points, as a string's own indices do.
