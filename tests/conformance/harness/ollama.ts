@@ -1,7 +1,8 @@
 /**
  * A stand-in Ollama: the two calls a worker's Ollama driver makes, answered
  * from what a case scripted. `POST /api/show` answers the context length the
- * case set; `POST /api/generate` answers the next scripted reply. Every
+ * case set, or refuses, or ends the connection unanswered, as the case said;
+ * `POST /api/generate` answers the next scripted reply. Every
  * request is recorded as it was sent, so a case can hold a worker to the exact
  * prompt, model and options it asked with.
  *
@@ -37,8 +38,8 @@ export interface RecordedGeneration {
 export interface StandInOllama {
   /** What a worker's `baseUrl` names. */
   readonly origin: string;
-  /** The context length `/api/show` reports, or the status it refuses with. */
-  show: { contextLength: number } | { status: number };
+  /** The context length `/api/show` reports, or the status it refuses with, or that it ends the connection with no answer. */
+  show: { contextLength: number } | { status: number } | { drop: true };
   /** The body of every `POST /api/show`, in order. */
   readonly shows: unknown[];
   /** Every `POST /api/generate`, in order. */
@@ -105,6 +106,10 @@ export async function startOllama(contextLength = 8192): Promise<StandInOllama> 
 
       if (req.method === 'POST' && req.url === '/api/show') {
         shows.push(body);
+        if ('drop' in show) {
+          res.destroy();
+          return;
+        }
         if ('status' in show) return json(show.status, JSON.stringify({ error: 'the stand-in refuses /api/show' }));
         return json(200, JSON.stringify({ model_info: { 'general.architecture': 'standin', 'standin.context_length': show.contextLength } }));
       }

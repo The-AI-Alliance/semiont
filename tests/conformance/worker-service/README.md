@@ -32,15 +32,18 @@ Each file runs its cases in a world of its own
   read of bytes, each upload);
 - a stand-in Ollama ([harness/ollama.ts](../harness/ollama.ts)), which the
   `baseUrl` of an Ollama agent names. It answers `POST /api/show` with the
-  context length a case set and `POST /api/generate` with what the case
-  scripted, and records every request as it was sent;
+  context length a case set, or refuses it, or ends the connection
+  unanswered, and `POST /api/generate` with what the case scripted, and
+  records every request as it was sent;
 - a stand-in Anthropic ([harness/anthropic.ts](../harness/anthropic.ts)),
   which the `baseUrl` of an Anthropic agent names. It answers `GET
   /v1/models/{model}` with what a case said of the model, the probe of
   whether the model takes a `temperature` from the same, and any other `POST
   /v1/messages` with what the case scripted: an answer, as one message or as
   the stream of events the request asked for, a refusal, a held answer, or a
-  connection ended unanswered. It records every request with its headers.
+  connection ended unanswered. A refusal may carry headers, and so may one
+  of the Models API or of the probe. It records every request with its
+  headers.
   Its key reaches the service in the variable the agent's `apiKeyEnv` names,
   which is none the provider's own library reads;
 - the suite itself on the bus, as the three parties a worker asks things of.
@@ -122,7 +125,7 @@ is held to `JobClaimedResult`, and a Smelter's answer to
 | `code-points` | `code-points.test.ts` | D3 to D5, D9, D12, D13, D17 |
 | `pdf` | `pdf.test.ts` | J2, D10, D12, N1, N2, N4, N5 |
 | `declines` | `declines.test.ts` | J2, N1, N3, N6 to N8 |
-| `failures` | `failures.test.ts` | D3, F1 to F5, F8 |
+| `failures` | `failures.test.ts` | D3, F1 to F5, F8, F14 |
 | `halved` | `halved.test.ts` | F6 |
 | `resume` | `resume.test.ts` | D13 to D15, D18, U1 to U3 |
 | `cancel` | `cancel.test.ts` | Q1 to Q5 |
@@ -131,7 +134,7 @@ is held to `JobClaimedResult`, and a Smelter's answer to
 | `environment` | `environment.test.ts` | E1 to E11 |
 | `output` | `output.test.ts` | O1 |
 | `stop` | `stop.test.ts` | P1 to P3 |
-| `anthropic` | `anthropic.test.ts` | M5, D20, D21, K8, F3 to F5, F10 to F12, Q4, Y3, Y9, T3, P2 |
+| `anthropic` | `anthropic.test.ts` | M5, D20, D21, K8, F3 to F5, F10 to F14, Q4, Y3, Y9, T3, P2 |
 
 `npm run lint:transport-contract` holds the two to each other: every case a
 rule names exists, and every case is named by a rule.
@@ -140,10 +143,10 @@ rule names exists, and every case is named by a rule.
 
 | What | Why no case holds it |
 |---|---|
-| The class a `mark` job fails in on an Anthropic model that does not answer in a schema (D20) | The TypeScript service fails it with no class, and so says it will be retried, where no attempt changes what the model can do. `anthropic.test.ts` holds the failure and leaves its class unsaid |
 | The budget of an Anthropic model whose own ceiling on what it writes leaves it 64 tokens or fewer to read | The document does not cover it. A model with 37 tokens of room fails its job where one with none is asked, and no case holds either until it is settled which is meant |
 | Which of a generation's two token counts is what the model read (T3) | The receiver keeps a metric's values apart from its attributes. `anthropic.test.ts` holds that the two counts are the two the provider reported, and that both directions are counted |
 | A stream that ends partway | Not written: the stand-in Anthropic ends a connection only before it answers |
+| A wait of two minutes that is waited, and a wait stated as a date (F11) | A case cannot wait two minutes. `anthropic.test.ts` holds a wait of two seconds as waited, and one of two minutes and a second as not waited, by `retry-after` and by `retry-after-ms`. The edge and the date are held by each driver's own tests, which move a clock |
 | A request of Anthropic refused with 408 or 409 (F10) | Not written. `anthropic.test.ts` holds 429, 500, 529 and a connection that ends as asked for three times, and 400 as asked for once. A 409 is asked for three times and then fails its job as deterministic ([F3](../../../docs/protocol/WORKER-SERVICE.md#failures)): whether both are meant is not settled |
 | A `yield` job to PDF, and the citations of a generated PDF | It needs the `typst` binary in the suite's environment |
 | A real dispatcher, Archivist or Smelter | The suite plays them, so that it can hand a service answers a correct one never gives and see every message |

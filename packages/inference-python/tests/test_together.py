@@ -55,6 +55,7 @@ from semiont_inference.interface import (
     ProviderStatusError,
     StructuredReadError,
     StructuredResponse,
+    StructuredUnsupportedError,
     TokenUsage,
 )
 from semiont_inference.together import TogetherInferenceClient
@@ -313,18 +314,21 @@ def test_a_model_list_that_is_not_a_json_array_fails_the_discovery(said: Answer)
 
 
 @pytest.mark.parametrize(("status", "asked"), [(429, 3), (500, 3), (503, 3), (401, 1), (403, 1), (404, 1)])
-def test_limits_it_cannot_learn_are_a_plain_error_with_no_status_and_are_not_kept(status: int, asked: int) -> None:
+def test_a_model_list_the_provider_refuses_is_a_status_error_that_says_what_was_asked_and_the_status_and_is_not_kept(
+    status: int, asked: int
+) -> None:
     async def scenario() -> None:
         async with Together() as played:
             played.models = together_error(status, kind="error", code=None, message="what the provider said")
             client = driver(played)
-            with pytest.raises(
-                RuntimeError, match=re.escape(f"Failed to discover model limits for '{MODEL}' from Together's model list")
-            ) as refused:
+            with pytest.raises(ProviderStatusError) as refused:
                 await client.limits()
-            # A discovery that fails is not a refused generation: nothing about it is classified by a status.
-            assert type(refused.value) is RuntimeError
-            assert not hasattr(refused.value, "status")
+            # A refused discovery is classed as a refused generation is, by its status.
+            assert (
+                str(refused.value)
+                == f"Failed to discover model limits for '{MODEL}' from Together's model list: refused with status {status}"
+            )
+            assert refused.value.status == status
             cause = refused.value.__cause__
             assert isinstance(cause, together.APIStatusError)
             assert cause.status_code == status
@@ -810,8 +814,9 @@ def test_a_redirect_is_not_followed_so_a_prompt_and_a_key_go_nowhere_the_config_
             with pytest.raises(ProviderStatusError) as redirected:
                 await client.generate_text("p", 100, 0)
             assert redirected.value.status == 307
-            with pytest.raises(RuntimeError, match=re.escape("Failed to discover model limits")):
+            with pytest.raises(ProviderStatusError, match=re.escape("Failed to discover model limits")) as unlisted:
                 await client.limits()
+            assert unlisted.value.status == 307
             assert elsewhere.asked == []
             assert (len(played.lists), len(played.completions)) == (1, 1)
 
@@ -832,11 +837,11 @@ def test_a_model_not_known_to_hold_a_reply_to_a_schema_is_refused_before_any_req
         async with Together() as played:
             played.script(completed("It was never built."))
             client = driver(played, dataclasses.replace(PLAIN, structured_output=structured_output), "acme/Model-Old")
+            # The interface's own failure, so a caller classes it without reading its words.
             with pytest.raises(
-                RuntimeError, match=re.escape("Model 'acme/Model-Old' is not known to hold a reply to a JSON Schema")
+                StructuredUnsupportedError, match=re.escape("Model 'acme/Model-Old' is not known to hold a reply to a JSON Schema")
             ) as refused:
                 await client.generate_structured("p", 1000, 0.3, PERSON)
-            assert type(refused.value) is RuntimeError
             # Whose word it is: the catalogue's, and not the provider's, whose API states this of no model.
             assert f"the model catalogue it was given {said}" in str(refused.value)
             assert played.asked == []

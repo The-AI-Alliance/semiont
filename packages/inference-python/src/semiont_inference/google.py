@@ -146,7 +146,7 @@ from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from semiont_inference._effort import least_effort
 from semiont_inference._log import LOG
-from semiont_inference._once import Once
+from semiont_inference._once import Once, refused_discovery
 from semiont_inference._schema import array_schema
 from semiont_inference._telemetry import record
 from semiont_inference._tokens import Counts, as_usage, count
@@ -159,6 +159,7 @@ from semiont_inference.interface import (
     ProviderWithheldError,
     StructuredReadError,
     StructuredResponse,
+    StructuredUnsupportedError,
 )
 
 try:
@@ -461,7 +462,7 @@ class GoogleInferenceClient:
         # for an empty one completes a job that found nothing.
         if self._holds_to_a_schema is not True:
             said_of_it = "says it does not" if self._holds_to_a_schema is False else "does not say that it does"
-            raise RuntimeError(
+            raise StructuredUnsupportedError(
                 f"Model '{self.model_id}' is not known to hold a reply to a JSON Schema: the model catalogue it was given "
                 f"{said_of_it} (structured_output). Google's API states this of no model, so the catalogue's word is all there is. "
                 "It is refused: a generation the provider does not hold to the schema can come back unreadable. "
@@ -601,11 +602,14 @@ class GoogleInferenceClient:
                 library.close()
 
     async def _discover_limits(self) -> InferenceLimits:
+        learning = f"Failed to discover model limits for '{self.model_id}' from Google's models.get"
         try:
             async with self._library(_DISCOVERY_TIMEOUT) as library:
                 model = await library.aio.models.get(model=self.model_id)
+        except errors.APIError as refused:
+            raise refused_discovery(learning, refused.code) from refused
         except Exception as unlearned:
-            raise RuntimeError(f"Failed to discover model limits for '{self.model_id}' from Google's models.get") from unlearned
+            raise RuntimeError(learning) from unlearned
         if model.input_token_limit is None or model.output_token_limit is None:
             raise RuntimeError(f"Google's models.get states no input and output token limits for '{self.model_id}'")
         # Two ceilings: the most the model reads, and the most it writes, which is taken from nothing else.

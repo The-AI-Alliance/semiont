@@ -154,7 +154,8 @@ each of its models can take.
 - **M3.** An agent asks for its model's limits once, when they are first
   needed, and keeps the answer. An answer it could not get is not kept: that
   model is left out of the reply, the request is still answered, and the
-  provider is asked again the next time the limits are needed.
+  provider is asked again the next time the limits are needed. A job that
+  needed the answer fails ([F14](#failures)).
   *Held by `worker-service/limits`.*
 - **M4.** A provider that has not answered within 1.5 seconds is left out of
   that reply.
@@ -239,8 +240,8 @@ job is one unit for each of its `categories`.
   why the model stopped is its `stop_reason`. Before an agent's first
   generation it asks its model's limits ([M5](#limits)). A model that does
   not report `capabilities.structured_outputs.supported` as `true` is not
-  asked for an array of objects: a job that needs one fails with no
-  generation asked for, and its error names the model.
+  asked for an array of objects: a job that needs one fails as deterministic,
+  with no generation asked for ([F13](#failures)).
   *Held by `worker-service/anthropic`.*
 - **D21.** On an Anthropic agent the budget of [D3](#the-request) is worked
   out from the model's two ceilings. With `M` its `maxOutputTokens`: `output
@@ -568,9 +569,8 @@ deterministic, so that no attempt is spent on them again.
   The error says what the provider said: its status and its body. On an
   Ollama agent the request is not made again within the attempt; on an
   Anthropic agent it may be ([F10](#failures)), and the job fails by the last
-  answer. A failure of the provider that carries no status has no class: a
-  connection that ends unanswered, and limits that cannot be learned,
-  whatever was answered in their place.
+  answer. A generation that fails with no status has no class: a connection
+  that ends unanswered.
   *Held by `worker-service/failures`, `worker-service/anthropic`.*
 - **F4.** An answer that cannot be read, from a model that finished, has no
   class: one that is not JSON, one that is JSON and not an array, and one
@@ -614,13 +614,21 @@ deterministic, so that no attempt is spent on them again.
   generation, and each of the two that learn a model's limits
   ([M5](#limits)). A request answered on a later asking is answered, and
   nothing is said of the refusals before it. One refused or ended all three
-  times fails as [F3](#failures) says. A request refused with any other
-  status is not made again.
+  times fails as [F3](#failures) says of a generation, and as
+  [F14](#failures) says of a request that learns a model's limits. A request
+  refused with any other status is not made again, and neither is one whose
+  refusal says to wait longer than two minutes ([F11](#failures)).
   *Held by `worker-service/anthropic`.*
 - **F11.** Before it asks again an Anthropic agent waits: as long as the
-  refusal's `retry-after` says, in seconds, when it says; and otherwise at
-  least three eighths of a second before the second asking and at least
-  three quarters before the third.
+  refusal says, when it says and that is two minutes or less; and otherwise
+  at least three eighths of a second before the second asking and at least
+  three quarters before the third. A refusal says how long by its
+  `retry-after-ms`, in milliseconds, or by its `retry-after`, in seconds or
+  as a date. One that says longer than two minutes is not waited, and the
+  request is not made again: the job fails by that refusal at once, as
+  [F3](#failures) says of a generation and [F14](#failures) of a request
+  that learns a model's limits, and its error says, beside what the provider
+  said, the wait it stated, as the header stated it.
   *Held by `worker-service/anthropic`.*
 - **F12.** An answer the provider withheld (Anthropic's `stop_reason`
   `refusal`) is not used, whatever it carried: no annotation is made from it
@@ -631,6 +639,29 @@ deterministic, so that no attempt is spent on them again.
   be retried, whatever budget it has left
   ([JOBS.md § Retries](./JOBS.md#retries)).
   *Held by `worker-service/anthropic`.*
+- **F13.** A job that needs an array of objects from a model not known to
+  hold a reply to a schema fails as deterministic, with no generation asked
+  for. No attempt changes what is known of the model, so the job says it
+  will not be retried, whatever budget it has left. Its error names the
+  model. On an Anthropic agent that is a model that does not report
+  `capabilities.structured_outputs.supported` as `true`
+  ([D20](#the-request)); an Ollama agent refuses no model. Every `mark` job
+  needs such an array. A `yield` job needs none, and is done on such a model
+  all the same.
+  *Held by `worker-service/anthropic`.*
+- **F14.** A job whose agent cannot learn its model's limits
+  ([M2 and M5](#limits)) fails with no generation asked for. When the
+  provider refused a request that learns them with a status, the job fails in
+  the class that status gives, as a refused generation does
+  ([F3](#failures)): a wrong key, refused with 401, fails the job as
+  deterministic, and a provider that is overloaded, refusing with 503, as
+  transient. The error says what was being learned and the status, and on an
+  Anthropic agent a wait the refusal stated that was not waited
+  ([F11](#failures)). When no status refused it the failure has no class: a
+  connection that ends unanswered, and an answer that does not state the
+  limits. What could not be learned is not kept ([M3](#limits)), and the
+  next job asks again.
+  *Held by `worker-service/failures`, `worker-service/anthropic`.*
 
 ## Resuming
 

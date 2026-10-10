@@ -1,8 +1,18 @@
-"""What a driver learns once for every caller: its model's limits."""
+"""What a driver learns once for every caller: its model's limits. And what it says of a provider that refused to state them."""
 
 import asyncio
 from collections.abc import Callable, Coroutine
 from typing import final
+
+from semiont_inference.interface import ProviderStatusError
+
+
+def refused_discovery(learning: str, status: int) -> ProviderStatusError:
+    """The failure of a discovery the provider refused with `status`.
+
+    Its message is `learning`, which says what was being learned, and the status.
+    """
+    return ProviderStatusError(f"{learning}: refused with status {status}", status)
 
 
 @final

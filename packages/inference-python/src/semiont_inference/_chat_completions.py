@@ -47,6 +47,7 @@ from openai.types.shared_params import ResponseFormatJSONSchema
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from semiont_inference._log import LOG
+from semiont_inference._once import refused_discovery
 from semiont_inference._openai_library import open_library, request_headers
 from semiont_inference._schema import array_schema
 from semiont_inference._telemetry import record
@@ -125,15 +126,19 @@ class ChatCompletions:
         """The entries of the server's model list, each as the JSON the server wrote.
 
         What a driver learns from them is its model's limits, so a list that
-        cannot be had is a discovery that failed: a plain error with no
-        status, whatever status the server refused with.
+        cannot be had is a discovery that failed: a `ProviderStatusError`
+        where the server refused with a status, and a plain error where
+        there was none.
         """
+        learning = f"Failed to discover model limits for '{self._model}' from the server's model list"
         try:
             async with open_library(api_key=self._api_key, base_url=self._base_url) as library:
                 headers = request_headers(library, api_key=self._api_key, with_a_body=False)
                 listed = await library.get("/models", cast_to=str, options={"headers": headers, "timeout": _LIST_TIMEOUT})
+        except APIStatusError as refused:
+            raise refused_discovery(learning, refused.status_code) from refused
         except Exception as unlearned:
-            raise RuntimeError(f"Failed to discover model limits for '{self._model}' from the server's model list") from unlearned
+            raise RuntimeError(learning) from unlearned
         try:
             entries = _OBJECT.validate_json(listed).get("data")
         except ValidationError:
