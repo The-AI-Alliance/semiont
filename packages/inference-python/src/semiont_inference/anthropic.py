@@ -39,6 +39,7 @@ from semiont_inference.interface import (
     InferenceLimits,
     InferenceResponse,
     ProviderStatusError,
+    ProviderWithheldError,
     StructuredReadError,
     StructuredResponse,
     TokenUsage,
@@ -238,13 +239,26 @@ class AnthropicInferenceClient:
         return StructuredResponse(items=items, stop_reason=stop_reason, usage=_usage(counts))
 
     def _answer(self, started: float, message: Message, counts: _Counts) -> str:
-        """The text of the reply's first text block. A reply with none, or with an empty one, is a failure.
+        """The text of the reply's first text block. A reply the provider withheld, and one with no text or an empty one, is a failure.
+
+        A refusal is asked about first: what a refused reply carries is not
+        an answer, however much of one it looks like.
 
         A model that reasons before it answers can spend the whole budget
         first: the reply then holds no text block, or an empty one. Cut off
         before its first character is still cut off, so the stop reason goes
         with the failure, and `max_tokens` is read as a budget too small.
         """
+        if message.stop_reason == "refusal":
+            self._record(started, "error", counts)
+            category = message.stop_details.category if message.stop_details else None
+            explanation = message.stop_details.explanation if message.stop_details else None
+            LOG.error(
+                "The provider withheld its answer", extra={"model": self.model_id, "stopReason": message.stop_reason, "category": category}
+            )
+            raise ProviderWithheldError(
+                f"refusal{f' ({category})' if category else ''}{f': {explanation}' if explanation else ''}", "refusal"
+            )
         text = next((block.text for block in message.content if block.type == "text"), None)
         if not text:
             self._record(started, "error", counts)

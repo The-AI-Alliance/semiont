@@ -131,7 +131,7 @@ is held to `JobClaimedResult`, and a Smelter's answer to
 | `environment` | `environment.test.ts` | E1 to E11 |
 | `output` | `output.test.ts` | O1 |
 | `stop` | `stop.test.ts` | P1 to P3 |
-| `anthropic` | `anthropic.test.ts` | M5, D20, D21, K8, F3 to F5, F10, F11, Q4, Y3, Y9, T3, P2 |
+| `anthropic` | `anthropic.test.ts` | M5, D20, D21, K8, F3 to F5, F10 to F12, Q4, Y3, Y9, T3, P2 |
 
 `npm run lint:transport-contract` holds the two to each other: every case a
 rule names exists, and every case is named by a rule.

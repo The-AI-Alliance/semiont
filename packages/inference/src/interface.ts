@@ -142,6 +142,22 @@ export class ProviderStatusError extends Error {
 }
 
 /**
+ * Thrown when the provider withheld its answer: it had the request, and chose
+ * to give no answer, or to end one it had begun (a refusal, a content
+ * filter). One class for every implementation. Whatever the reply carried is
+ * no answer, and is not passed on: a caller that got it as text would keep a
+ * refusal as a document.
+ *
+ * `reason` is the provider's own word for what it did, as it stated it.
+ */
+export class ProviderWithheldError extends Error {
+  override readonly name = 'ProviderWithheldError';
+  constructor(detail: string, readonly reason: string, options?: ErrorOptions) {
+    super(`The provider withheld its answer: ${detail}`, options);
+  }
+}
+
+/**
  * What a generation rejects with is part of this contract, so a caller tells
  * failures apart without knowing which provider it is talking to, and without
  * importing a provider's library:
@@ -150,6 +166,7 @@ export class ProviderStatusError extends Error {
  *   HTTP status;
  * - a `StructuredReadError`, when the reply cannot be read as what was asked
  *   for, or is empty;
+ * - a `ProviderWithheldError`, when the provider withheld its answer;
  * - the language's own `AbortError`, when the call's signal was aborted. An
  *   implementation whose library has an abort of its own reports it as this
  *   one, and declares none;

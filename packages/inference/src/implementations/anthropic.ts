@@ -3,7 +3,7 @@
 import Anthropic, { APIError, APIUserAbortError } from '@anthropic-ai/sdk';
 import { isNumber, isObject, type Logger } from '@semiont/core';
 import { recordInferenceUsage } from '@semiont/observability';
-import { ElementSchema, InferenceClient, InferenceLimits, InferenceResponse, ProviderStatusError, StructuredReadError, StructuredResponse, TokenUsage } from '../interface.js';
+import { ElementSchema, InferenceClient, InferenceLimits, InferenceResponse, ProviderStatusError, ProviderWithheldError, StructuredReadError, StructuredResponse, TokenUsage } from '../interface.js';
 
 // The SDK's worst-case output-rate model: client.js's
 // calculateNonstreamingTimeout projects a call's maximum duration as
@@ -377,12 +377,20 @@ export class AnthropicInferenceClient implements InferenceClient {
   }
 
   /**
-   * The answer's text. An answer with none, or with an empty one, is cut off
+   * The answer's text, of an answer the provider gave. An answer with none, or with an empty one, is cut off
    * to nothing: a model that thinks can spend the whole output budget before
    * its first character. The stop reason rides the failure, so that
    * `max_tokens` is read as the cut-off it is.
    */
   private textOf(response: Anthropic.Message, start: number): string {
+    // A refusal is asked about first: what a refused reply carries is not an
+    // answer, however much of one it looks like.
+    if (response.stop_reason === 'refusal') {
+      this.recordError(start, response);
+      const { category, explanation } = response.stop_details ?? {};
+      this.logger?.error('The provider withheld its answer', { model: this.modelId, stopReason: response.stop_reason, category });
+      throw new ProviderWithheldError(`refusal${category ? ` (${category})` : ''}${explanation ? `: ${explanation}` : ''}`, 'refusal');
+    }
     const textContent = response.content.find(c => c.type === 'text');
     if (!textContent || textContent.type !== 'text' || textContent.text === '') {
       this.recordError(start, response);

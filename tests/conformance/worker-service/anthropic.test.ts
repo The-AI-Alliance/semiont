@@ -463,6 +463,26 @@ eachWorkerService('a worker on Anthropic', (world) => {
     expect(served.emits('job:complete')).toEqual([]);
   });
 
+  it('fails a job as deterministic, having asked once, when the provider withholds its answer, and uses nothing the answer carried', async () => {
+    const w = world();
+    const agent = claude(w);
+    const mark = markJob(w, 'anthropic-withheld', { motivation: 'highlighting' });
+    const generation = yieldJob(w, 'anthropic-yield-withheld', { maxTokens: 300, temperature: 0.2 });
+    // Each refusal carries what would have been an answer: a passage to highlight, and the start of a document.
+    w.anthropic.script(answer(JSON.stringify([{ exact: 'the first program' }]), 'refusal'), answer('Charles Babbage designed the engine in', 'refusal'));
+    const served = await started(w);
+    const { error: markError, ...markFailure } = await settled(served, mark, 'job:fail');
+    const { error: yieldError, ...yieldFailure } = await settled(served, generation, 'job:fail');
+
+    expectMessages(w.anthropic.generations, [highlighting(agent), message(agent.model, 'yield-markdown', { max_tokens: 300, temperature: 0.2 })]);
+    expect(markFailure).toEqual({ ...identity(mark), failureClass: 'deterministic', willRetry: false });
+    expect(yieldFailure).toEqual({ ...identity(generation), failureClass: 'deterministic', willRetry: false });
+    for (const error of [markError, yieldError]) expect(String(error)).toContain('withheld its answer: refusal');
+    expect(w.commits).toEqual([]);
+    expect(w.world.archivist.uploads).toEqual([]);
+    expect(served.emits('job:complete')).toEqual([]);
+  });
+
   it('asks for a generation of more than 21333 tokens as a stream, and for one of 21333 as one answer; and makes the same of either, cut off as each says it was', async () => {
     const w = world();
     const agent = claude(w);

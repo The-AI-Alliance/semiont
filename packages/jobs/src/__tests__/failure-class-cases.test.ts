@@ -6,7 +6,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { ProviderStatusError, StructuredReadError } from '@semiont/inference';
+import { ProviderStatusError, ProviderWithheldError, StructuredReadError } from '@semiont/inference';
 import { classifyFailure, DeterministicJobError, type FailureClass } from '../failure-class';
 import { YieldCollapseError } from '../workers/detection/detection-chunking';
 import { InferenceTimeoutError } from '../workers/inference-call';
@@ -52,6 +52,8 @@ function failureOf(described: Case['failure']): unknown {
     case 'StructuredReadError':
       if (stopReason === undefined) throw new Error('the table describes a StructuredReadError with no stop reason');
       return Object.assign(new StructuredReadError('described by the table', stopReason), carried);
+    case 'ProviderWithheldError':
+      return Object.assign(new ProviderWithheldError('described by the table', 'refusal'), carried);
     case 'ProviderStatusError':
       if (typeof status !== 'number') throw new Error('the table describes a ProviderStatusError with no status');
       return new ProviderStatusError('described by the table', status);

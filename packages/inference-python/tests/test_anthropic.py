@@ -23,6 +23,7 @@ from semiont_inference.interface import (
     InferenceLimits,
     InferenceResponse,
     ProviderStatusError,
+    ProviderWithheldError,
     StructuredReadError,
     StructuredResponse,
     TokenUsage,
@@ -406,6 +407,50 @@ def test_a_reply_with_nothing_in_it_and_no_stop_reason_fails_with_the_stop_reaso
             assert empty.value.stop_reason == "unknown"
 
     run(scenario())
+
+
+@pytest.mark.parametrize("structured", [False, True], ids=["text", "structured"])
+@pytest.mark.parametrize(
+    ("content", "stop_details", "said"),
+    [
+        (
+            [{"type": "text", "text": '[{"exact":"Paris"}]'}],
+            {"type": "refusal", "category": "cyber", "explanation": "This request could enable cyber harm."},
+            "The provider withheld its answer: refusal (cyber): This request could enable cyber harm.",
+        ),
+        ([], None, "The provider withheld its answer: refusal"),
+    ],
+    ids=["with what it had written, and why", "with nothing written, and no word of why"],
+)
+def test_an_answer_the_provider_withheld_is_a_failure_of_its_own_and_nothing_it_carried_is_returned(
+    structured: bool, content: list[JsonObject], stop_details: JsonObject | None, said: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    # What a refused reply carries is no answer, however much of one it looks like: it is not returned as text, and not read as an array.
+    async def scenario() -> None:
+        async with Anthropic() as played:
+            played.script(
+                Reply(content=content, stop_reason="refusal", usage={"input_tokens": 9, "output_tokens": 3}, stop_details=stop_details)
+            )
+            client = driver(played)
+
+            async def generation() -> object:
+                if structured:
+                    return await client.generate_structured("p", 100, 0, ELEMENT)
+                return await client.generate_text("p", 100, 0)
+
+            with pytest.raises(ProviderWithheldError) as withheld:
+                await generation()
+            assert (withheld.value.reason, str(withheld.value)) == ("refusal", said)
+
+    caplog.set_level(logging.DEBUG, logger="semiont_inference")
+    run(scenario())
+    (error,) = [record for record in ours(caplog) if record.levelno == logging.ERROR]
+    assert error.getMessage() == "The provider withheld its answer"
+    assert {key: vars(error)[key] for key in ("model", "stopReason", "category")} == {
+        "model": "claude-x",
+        "stopReason": "refusal",
+        "category": stop_details["category"] if stop_details else None,
+    }
 
 
 def test_a_call_logs_what_typescripts_does_at_the_same_levels(caplog: pytest.LogCaptureFixture) -> None:

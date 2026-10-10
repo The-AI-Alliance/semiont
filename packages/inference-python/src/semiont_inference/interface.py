@@ -12,6 +12,7 @@ __all__ = [
     "InferenceLimits",
     "InferenceResponse",
     "ProviderStatusError",
+    "ProviderWithheldError",
     "StructuredReadError",
     "StructuredResponse",
     "TokenUsage",
@@ -142,6 +143,23 @@ class ProviderStatusError(Exception):
         self.status = status
 
 
+@final
+class ProviderWithheldError(Exception):
+    """The provider withheld its answer.
+
+    It had the request, and chose to give no answer, or to end one it had
+    begun: a refusal, a content filter. Every driver raises this one failure.
+    Whatever the reply carried is no answer, and is not passed on: a caller
+    that got it as text would keep a refusal as a document.
+
+    `reason` is the provider's own word for what it did, as it stated it.
+    """
+
+    def __init__(self, detail: str, reason: str) -> None:
+        super().__init__(f"The provider withheld its answer: {detail}")
+        self.reason = reason
+
+
 class InferenceClient(Protocol):
     """One provider's model, as a service asks things of it.
 
@@ -149,7 +167,8 @@ class InferenceClient(Protocol):
     apart without knowing its provider and without importing a provider's
     library: a `ProviderStatusError`, when the provider refused the request
     with an HTTP status; a `StructuredReadError`, when the reply cannot be
-    read as what was asked for, or is empty; and anything else as it came, a
+    read as what was asked for, or is empty; a `ProviderWithheldError`, when
+    the provider withheld its answer; and anything else as it came, a
     connection that ended or a network failure.
 
     **Cancelling.** No method takes a signal. A call is cancelled by

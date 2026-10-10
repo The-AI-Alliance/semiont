@@ -15,7 +15,7 @@
  */
 
 import { isNumber, isObject, isString, RETRY_RULES, type components } from '@semiont/core';
-import { StructuredReadError } from '@semiont/inference';
+import { ProviderWithheldError, StructuredReadError } from '@semiont/inference';
 import { InferenceTimeoutError } from './workers/inference-call';
 
 /** Derived from the spec, not restated: the wire owns this vocabulary
@@ -56,6 +56,9 @@ export class DeterministicJobError extends Error {
  * - A connection that ended and a network failure carry no status, whatever
  *   reported them, and neither does a discovery that failed. All land
  *   `undefined` → retryable, the safe default.
+ * - `@semiont/inference`'s `ProviderWithheldError` is an answer the provider
+ *   withheld, by a refusal or a filter: the same request is withheld again
+ *   → deterministic.
  * - `@semiont/inference`'s `StructuredReadError` carries the stop reason
  *   because the cause classifies differently: `max_tokens` is truncation of
  *   an over-demanded answer — the adapter throws before the caller's
@@ -67,6 +70,7 @@ export function classifyFailure(error: unknown): FailureClass | undefined {
   if (error instanceof DeterministicJobError) return 'deterministic';
   if (error instanceof InferenceTimeoutError) return 'transient';
   if (error instanceof StructuredReadError && error.stopReason === 'max_tokens') return 'deterministic';
+  if (error instanceof ProviderWithheldError) return 'deterministic';
   // A `StructuredReadError` with any OTHER stop reason falls through to
   // `undefined` — retryable, and DECIDED rather than defaulted.
   //

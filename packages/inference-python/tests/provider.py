@@ -303,6 +303,8 @@ class Reply:
     content: list[JsonObject]
     stop_reason: str | None
     usage: JsonObject
+    # What the provider says of a refusal, beside a `stop_reason` of `refusal`.
+    stop_details: JsonObject | None = None
 
 
 def reply(text: str, *, stop_reason: str | None = "end_turn", usage: JsonObject | None = None) -> Reply:
@@ -394,6 +396,7 @@ class Anthropic(Played):
             "model": body["model"],
             "content": [*content],
             "stop_reason": stop_reason,
+            "stop_details": said.stop_details if stop_reason is not None else None,
             "stop_sequence": None,
             "usage": said.usage,
         }

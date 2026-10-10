@@ -33,6 +33,7 @@ SURFACE = {
         "InferenceLimits",
         "InferenceResponse",
         "ProviderStatusError",
+        "ProviderWithheldError",
         "StructuredReadError",
         "StructuredResponse",
         "TokenUsage",

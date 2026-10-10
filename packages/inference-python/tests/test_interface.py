@@ -12,6 +12,7 @@ from semiont_inference.interface import (
     InferenceLimits,
     InferenceResponse,
     ProviderStatusError,
+    ProviderWithheldError,
     StructuredReadError,
     StructuredResponse,
     TokenUsage,
@@ -94,14 +95,20 @@ def test_a_refusal_carries_the_status_as_a_number() -> None:
     assert error.status == 503
 
 
-def test_the_failures_the_failure_class_table_names_of_a_driver_are_the_two_declared_here() -> None:
+def test_an_answer_withheld_carries_the_providers_word_for_what_it_did() -> None:
+    error = ProviderWithheldError("refusal (cyber): This request could enable cyber harm.", "refusal")
+    assert str(error) == "The provider withheld its answer: refusal (cyber): This request could enable cyber harm."
+    assert error.reason == "refusal"
+
+
+def test_the_failures_the_failure_class_table_names_of_a_driver_are_the_ones_declared_here() -> None:
     # A worker classifies a failure by this table (P4 runs it). Of the names it uses, those that are
     # not the worker's own are a driver's: each is declared here, and is built from what a case states.
     cases = objects(read(SPEC / "worker/failure-class-cases.json")["cases"], "the cases")
     described = [case["failure"] for case in cases]
     named = {text(failure["name"], "a name") for failure in described if isinstance(failure, dict) and "name" in failure}
     of_the_worker = {"DeterministicJobError", "YieldCollapseError", "InferenceTimeoutError"}
-    assert named - of_the_worker == {"ProviderStatusError", "StructuredReadError"}
+    assert named - of_the_worker == {"ProviderStatusError", "ProviderWithheldError", "StructuredReadError"}
     assert {name for name in interface.__all__ if name.endswith("Error")} == named - of_the_worker
 
     built = 0
@@ -118,4 +125,7 @@ def test_the_failures_the_failure_class_table_names_of_a_driver_are_the_two_decl
             assert isinstance(stop_reason, str)
             assert StructuredReadError("response is not valid JSON", stop_reason).stop_reason == stop_reason
             built += 1
-    assert built >= 2
+        if failure.get("name") == "ProviderWithheldError":
+            assert ProviderWithheldError("refusal", "refusal").reason == "refusal"
+            built += 1
+    assert built >= 3

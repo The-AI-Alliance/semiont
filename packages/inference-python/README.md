@@ -78,6 +78,9 @@ library:
 
 - `ProviderStatusError`: the provider refused the request with an HTTP
   status, which the error carries as `status`.
+- `ProviderWithheldError`: the provider withheld its answer, by a refusal or
+  a filter. It carries the provider's word for what it did as `reason`, and
+  nothing the reply held is passed on.
 - `StructuredReadError`: the reply could not be read as the array asked for,
   or had nothing in it. It carries the provider's `stop_reason`: `max_tokens`
   means the reply was cut off.

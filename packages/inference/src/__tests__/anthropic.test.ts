@@ -32,7 +32,7 @@ vi.mock('@anthropic-ai/sdk', () => {
 
 import { APIError, APIUserAbortError } from '@anthropic-ai/sdk';
 import { AnthropicInferenceClient } from '../implementations/anthropic.js';
-import { ProviderStatusError } from '../interface.js';
+import { ProviderStatusError, ProviderWithheldError } from '../interface.js';
 
 /** Minimal element schema for tests — the shape callers declare. */
 const TEST_ELEMENT = { type: 'object', properties: { exact: { type: 'string' } }, required: ['exact'], additionalProperties: false };
@@ -234,6 +234,35 @@ describe('AnthropicInferenceClient - an answer with nothing in it', () => {
         stopReason: 'max_tokens',
         message: 'Structured response could not be read: response is empty (stop_reason: max_tokens)',
       });
+    }
+  });
+});
+
+describe('AnthropicInferenceClient - an answer the provider withheld', () => {
+  beforeEach(() => {
+    createMock.mockReset();
+    retrieveMock.mockReset();
+    streamMock.mockReset();
+    retrieveMock.mockResolvedValue(CAPABLE_MODEL);
+  });
+
+  // What a refused answer carries is no answer: it is not returned as text, and not read as an array.
+  it.each([
+    [
+      'with what it had written, and why',
+      [{ type: 'text', text: '[{"exact":"Paris"}]' }],
+      { type: 'refusal', category: 'cyber', explanation: 'This request could enable cyber harm.' },
+      'The provider withheld its answer: refusal (cyber): This request could enable cyber harm.',
+    ],
+    ['with nothing written, and no word of why', [], null, 'The provider withheld its answer: refusal'],
+  ])('is a ProviderWithheldError naming the provider\'s reason, asked for text or for an array: %s', async (_what, content, stop_details, said) => {
+    createMock.mockResolvedValue({ content, stop_reason: 'refusal', stop_details, usage: { input_tokens: 9, output_tokens: 3 } });
+    const client = new AnthropicInferenceClient('test-key', 'claude-x');
+
+    for (const asked of [client.generateTextWithMetadata('p', 100, 0), client.generateStructured('p', 100, 0, TEST_ELEMENT)]) {
+      const failure: unknown = await asked.catch((err: unknown) => err);
+      expect(failure).toBeInstanceOf(ProviderWithheldError);
+      expect(failure).toMatchObject({ name: 'ProviderWithheldError', reason: 'refusal', message: said });
     }
   });
 });

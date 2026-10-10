@@ -619,6 +619,12 @@ deterministic, so that no attempt is spent on them again.
   least three eighths of a second before the second asking and at least
   three quarters before the third.
   *Held by `worker-service/anthropic`.*
+- **F12.** An answer the provider withheld (Anthropic's `stop_reason`
+  `refusal`) is not used, whatever it carried: no annotation is made from it
+  and no document is kept of it. The job fails as deterministic, its error
+  saying that the answer was withheld and what the provider said of why, and
+  the request is not made again.
+  *Held by `worker-service/anthropic`.*
 
 ## Resuming
 
