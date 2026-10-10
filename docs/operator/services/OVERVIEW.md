@@ -12,7 +12,7 @@ All eight are published to `ghcr.io/the-ai-alliance/`, for `linux/amd64` and `li
 |---|---|---|---|---|
 | [gateway](../../../apps/gateway/README.md) | `semiont-gateway` | 4000 | Rust, `apps/gateway` | Verifies every caller's token, relays the bus, and proxies content bytes to the Archivist. It hosts no actors and holds no datastore |
 | [dispatcher](../../../apps/dispatcher/README.md) | `semiont-dispatcher` | 24105 | Rust, `apps/dispatcher` | Owns the job queue and answers the `job:*` lifecycle. No content flows through it |
-| [archivist](../../../apps/archivist/README.md) | `semiont-archivist` | 24103 | `@semiont/make-meaning` | Keeps the record. The only service that mounts the knowledge base's working tree: it appends the event log, writes content, and keeps the views |
+| [archivist](../../../apps/archivist/README.md) | `semiont-archivist` | 24103 | Rust, `apps/archivist` | Keeps the record. The only service that mounts the knowledge base's working tree: it appends the event log, writes content, and keeps the views |
 | [librarian](../../../apps/librarian/README.md) | `semiont-librarian` | 24104 | `@semiont/make-meaning` | Searches the knowledge base: finds resources by text, gathers context, lists what refers to a resource, and matches candidates |
 | [worker](../../../apps/worker/README.md) | `semiont-worker` | 24100 | `@semiont/jobs` | The worker pool: claims annotation and generation jobs and runs them against a model |
 | [smelter](../../../apps/smelter/README.md) | `semiont-smelter` | 24101 | `@semiont/make-meaning` | Computes embeddings, keeps the vector index, and extracts anchored text |
@@ -39,7 +39,7 @@ Every service but the Browser has its own service account at the knowledge base'
 Two specs hold the rest:
 
 - [`service-config/sections.json`](../../../specs/src/service-config/sections.json) lists the config sections each service that reads the TOML reads. A service resolves a `${VAR}` reference only in a section it reads.
-- [`service-environment/variables.json`](../../../specs/src/service-environment/variables.json) lists every environment variable the gateway and the dispatcher read.
+- [`service-environment/variables.json`](../../../specs/src/service-environment/variables.json) lists every environment variable the gateway, the dispatcher and the Archivist read.
 
 Why each service has one instance or many is in [Scaling](../administration/SCALING.md). Which secrets reach which service is in [Secrets](SECRETS.md).
 

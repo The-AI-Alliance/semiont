@@ -14,7 +14,7 @@ Tracing, metrics and the process logger for Semiont's TypeScript services and tr
 - **The actors** wrap each bus handler in a span, and the packages under them record what they measure: [`@semiont/inference`](../inference/README.md), [`@semiont/jobs`](../jobs/README.md), [`@semiont/content`](../content/README.md) and [`@semiont/event-sourcing`](../event-sourcing/README.md).
 - **[`@semiont/http-transport`](../http-transport/README.md)** runs each request in a span and carries the trace across the wire. That is how this package comes to be in the Browser's bundle.
 
-The gateway and the dispatcher are Rust, and have a crate of their own for this.
+The gateway, the dispatcher and the Archivist are Rust, and have a crate of their own for this.
 
 **Building an application?** You do not need this package. The SDK's transport reports through OpenTelemetry's global API, so an application that registers a tracer of its own sees the transport's spans in its traces.
 

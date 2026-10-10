@@ -302,6 +302,7 @@ impl Log {
 #[cfg(test)]
 mod tests {
     use super::{Log, file_name};
+    use semiont::channels::{Channel, MarkArchived, MarkUnarchived};
     use serde_json::{Map, json};
 
     #[test]
@@ -313,17 +314,18 @@ mod tests {
         std::fs::create_dir_all(&dir).expect("the stream's directory is made");
         let path = dir.join(file_name(1));
         let lines = [
-            r#"{"type":"mark:archived","metadata":{"sequenceNumber":1}}"#,
-            "",
-            "this line is not JSON",
-            r#"{"event":{"type":"mark:unarchived"},"metadata":{"sequenceNumber":7}}"#,
-            "[1]",
+            json!({ "type": MarkArchived::NAME, "metadata": { "sequenceNumber": 1 } }).to_string(),
+            String::new(),
+            "this line is not JSON".to_owned(),
+            json!({ "event": { "type": MarkUnarchived::NAME }, "metadata": { "sequenceNumber": 7 } })
+                .to_string(),
+            "[1]".to_owned(),
         ];
         std::fs::write(&path, lines.join("\n") + "\n").expect("the stream's file is written");
 
         let read = log.read(stream).expect("the stream is read");
         let mut next = Map::new();
-        next.insert("type".into(), json!("mark:unarchived"));
+        next.insert("type".into(), json!(MarkUnarchived::NAME));
         let appended = log.append(stream, next);
         std::fs::remove_dir_all(&root).expect("the test's directory is removed");
 
@@ -332,7 +334,7 @@ mod tests {
             .iter()
             .map(|event| event["type"].clone())
             .collect();
-        assert_eq!(types, [json!("mark:archived")]);
+        assert_eq!(types, [json!(MarkArchived::NAME)]);
         let note = |line: u32| format!("{} line {line} is not an event", path.display());
         assert_eq!(read.unread, [note(3), note(4), note(5)]);
         // A line that is not an event gives the stream no sequence number:

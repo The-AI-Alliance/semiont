@@ -42,13 +42,13 @@ Two things make the stack use your build:
 ### Rebuilding one thing
 
 ```bash
-./scripts/ci/local-build.sh --package make-meaning --image archivist   # one package, then one image
+./scripts/ci/local-build.sh --package make-meaning --image librarian   # one package, then one image
 ./scripts/ci/local-build.sh --images-only --image worker               # one image, from what is already published locally
 ./scripts/ci/local-build.sh --help                                     # every option
 ```
 
 - A Node image installs its packages from the local registry, so a change to package source reaches an image only after that package is rebuilt and republished. `--images-only` skips that step: use it when the package has not changed.
-- The gateway and dispatcher images compile the Rust workspace from the working tree every time, so `--images-only --image gateway` picks up a Rust change.
+- The gateway, dispatcher and archivist images compile the Rust workspace from the working tree every time, so `--images-only --image gateway` picks up a Rust change.
 - `--package` takes a package's directory name (`core`, `make-meaning`), as `version.json` lists them. An unknown name is refused with the list.
 
 The script's own README, [scripts/ci/README.md](../../scripts/ci/README.md), covers the rest.

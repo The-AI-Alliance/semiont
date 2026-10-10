@@ -133,7 +133,7 @@ logger.info('job started', { ...getLogTraceContext() });
 
 ### Metrics
 
-The gateway and the dispatcher are Rust and emit their own metrics, the SSE subscriber count among them. The recorders here (Tier 3) cover the hot paths of the TypeScript services and transports:
+The gateway, the dispatcher and the Archivist are Rust and emit their own metrics, the SSE subscriber count among them. The recorders here (Tier 3) cover the hot paths of the TypeScript services and transports:
 
 ```ts
 import {

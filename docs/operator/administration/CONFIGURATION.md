@@ -297,7 +297,7 @@ The launcher reads a few of its own:
 | `SEMIONT_ROOT` | The knowledge base to act on, instead of the one found by walking up from the current directory |
 | `SEMIONT_VERSION` | The image tag to run. `latest` when unset; `local` runs images built from a checkout and pulls nothing |
 
-What a service reads from its environment is in [Secrets](../services/SECRETS.md), and for the gateway and the dispatcher in [`variables.json`](../../../specs/src/service-environment/variables.json).
+What a service reads from its environment is in [Secrets](../services/SECRETS.md), and for the gateway, the dispatcher and the Archivist in [`variables.json`](../../../specs/src/service-environment/variables.json).
 
 ## What each service is given
 

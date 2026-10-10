@@ -245,7 +245,7 @@ The outer launcher never reaches into the containers. When something must happen
 
 ## Inside each container
 
-Each image runs `tini` as its first process, which runs the one service: a Rust binary for the gateway and the dispatcher, a Node entry point for the rest. When the launcher starts a stack it also sets `SEMIONT_SUPERVISE`, which has the container restart a crashed service and kill a hung one, because a laptop has no scheduler to do that. On a platform that has one, leave it unset ([Deployment](administration/DEPLOYMENT.md#what-your-platform-provides)).
+Each image runs `tini` as its first process, which runs the one service: a Rust binary for the gateway, the dispatcher and the Archivist, a Node entry point for the rest. When the launcher starts a stack it also sets `SEMIONT_SUPERVISE`, which has the container restart a crashed service and kill a hung one, because a laptop has no scheduler to do that. On a platform that has one, leave it unset ([Deployment](administration/DEPLOYMENT.md#what-your-platform-provides)).
 
 ## Related
 
