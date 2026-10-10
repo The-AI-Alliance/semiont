@@ -232,6 +232,9 @@ the dispatcher's `semiont.job.queue.size`, and the Archivist's
 `semiont.git.staging.failures`. They are specified, with their
 instruments, attributes and attribute values, in
 [`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json).
+The emits a client sent are a count of their own, `semiont.bus.sent`, a row of
+[`specs/src/sdk-telemetry/telemetry.json`](../../../specs/src/sdk-telemetry/telemetry.json);
+`semiont.bus.emit` is the gateway's count of the emits it accepted.
 
 The Worker service is Python and exports its own too, specified in the same table: the
 `semiont.process.*` and `semiont.runtime.*` instruments of the rows above, the three
@@ -251,9 +254,6 @@ Of its memory (`semiont.runtime.heap`) the Worker service reports `total`, `limi
 and no `used`: Python keeps no count of how much of its heap is in use. Its `limit` is the
 container's own memory limit. It counts a `semiont.process.abnormal_exit` for a failure
 nothing caught once it had started, as `uncaughtException`.
-The emits a client sent are a count of their own, `semiont.bus.sent`, a row of
-[`specs/src/sdk-telemetry/telemetry.json`](../../../specs/src/sdk-telemetry/telemetry.json);
-`semiont.bus.emit` is the gateway's count of the emits it accepted.
 
 Additional vars:
 

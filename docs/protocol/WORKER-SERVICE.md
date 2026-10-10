@@ -860,12 +860,13 @@ Beside its document, a Worker service reads its environment for its service
 account (`SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`,
 [B3](#configuration)), for the keys its document names
 ([B4](#configuration)), and for the variables of this section. Its own code
-reads no other. The libraries it is built on read some unasked: its
-OpenTelemetry SDK and exporter the standard variables they read on their
-own, but for where its telemetry goes and the name it goes under, which are
-this section's to say ([E1](#environment), [E3](#environment)); and a
-provider's library those of its own, such as a proxy and the certificates it
-trusts.
+reads no other. The libraries it is built on read some unasked. Its
+OpenTelemetry SDK and exporter read the standard variables they read on
+their own, but none that would say where its telemetry goes, the name it
+goes under, or what else it says of the service: the first two are this
+section's to say ([E1](#environment), [E3](#environment)), and the rest the
+telemetry table's ([T1](#telemetry)). A provider's library reads those of
+its own, such as a proxy and the certificates it trusts.
 
 - **E1.** `OTEL_EXPORTER_OTLP_ENDPOINT` is the OTLP/HTTP collector the
   service's spans and metrics are exported to ([T1](#telemetry)). Without it,
@@ -880,7 +881,7 @@ trusts.
   makes when it settles a job is not in that job's trace.
   *Held by `worker-service/environment`.*
 - **E3.** `OTEL_SERVICE_NAME` is the `service.name` its spans and metrics
-  carry; `semiont-worker` when unset.
+  carry; `semiont-worker` when unset or empty.
   *Held by `worker-service/environment`.*
 - **E4.** `OTEL_SDK_DISABLED` set to `true` exports nothing, whatever else is
   set.
