@@ -80,7 +80,7 @@ for (const pkg of packages) {
     unknown.push({ name, license: pkg.licenseDeclared ?? 'NOASSERTION' });
     continue;
   }
-  if (!policy.allows(license)) disallowed.push({ name, license: viaException ? `${license} (exception)` : license });
+  if (!policy.allows(license, pkg.name)) disallowed.push({ name, license: viaException ? `${license} (exception)` : license });
   else if (viaException) excepted.push({ name, license });
 }
 

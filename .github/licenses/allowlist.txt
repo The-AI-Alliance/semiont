@@ -57,3 +57,13 @@ PSF-2.0
 # Deliberately NOT wildcarded to `BSD-*`: BSD-4-Clause carries the advertising
 # clause and should trip a review rather than pass silently. Add BSD-2/3-Clause
 # explicitly above instead.
+
+# Allowed on one package and on no other: a line `<SPDX-id> for <package-name>`.
+# The license is not otherwise on this list, so another package that has it is
+# still refused.
+#
+# certifi: Mozilla's root certificates as a Python package. httpx, which the
+# Python SDK requires, requires it, so every Python image carries it. It is
+# MPL-2.0, a file-level copyleft, on data the images carry unmodified. MPL-2.0
+# is not allowed generally. Added 2026-10-10.
+MPL-2.0 for certifi
