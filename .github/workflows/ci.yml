@@ -945,6 +945,24 @@ jobs:
       - name: OpenAPI spec vs the Python SDK's generated models
         run: uv run --project packages/sdk-python --locked python packages/sdk-python/scripts/generate_models.py --check
 
+      # Authority: the npm package @opencode-ai/models (the models.dev
+      # catalogue), at the one version the root package.json pins → the model
+      # catalogue file the Python inference package's tests read, and its
+      # notice (packages/inference-python/tests/catalogue). The package carries
+      # no copy: an image's build makes the file with the same script. This
+      # one is the tests' fixture, real data at the pin, so the script, the
+      # package's reader and the pin are held to each other. A bump of the pin
+      # without `npm run generate:model-catalogue` fails here. This is the one
+      # check of this job that reads an installed package, so it installs
+      # first: the root's own dependencies at the lockfile's versions, without
+      # the workspaces' and without running any package's scripts. It is the
+      # job's last step, so that no other check runs with a node_modules it
+      # did not have before.
+      - name: models.dev catalogue vs the inference tests' catalogue file
+        run: |
+          npm ci --workspaces=false --ignore-scripts
+          npm run generate:model-catalogue:check
+
   test-launcher:
     name: Launcher Tests (Go)
     runs-on: ubuntu-latest

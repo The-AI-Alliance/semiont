@@ -45,12 +45,14 @@ class InferenceResponse:
 type ElementSchema = Mapping[str, JsonValue]
 """The JSON Schema of one element of a structured generation's array.
 
-Both providers take JSON Schema as it is, so this is the schema and nothing
-built around it. Keep to what both hold a reply to: objects, `string`,
-`number`, `boolean` and `null`, `enum`, `const`, `required`, and
-`additionalProperties: false`. A bound on a number or on a text's length
-(`minimum`, `maxLength`) is not held by Anthropic, and stating one misleads
-whoever reads the schema.
+It is the schema and nothing built around it. Anthropic and Ollama take JSON
+Schema as it is. OpenAI's strict mode does not, and its driver sends the
+schema rewritten and reads the answer back, so that an element reads the same
+whichever provider wrote it. Keep to what every provider holds a reply to:
+objects, `string`, `number`, `boolean` and `null`, `enum`, `const`,
+`required`, and `additionalProperties: false`. A bound on a number or on a
+text's length (`minimum`, `maxLength`) is not held by Anthropic, is refused
+by the OpenAI driver, and stating one misleads whoever reads the schema.
 """
 
 
@@ -82,19 +84,24 @@ class InferenceLimits:
     `context_tokens` is the context window. Anthropic states the most a model
     reads, and what it writes has a ceiling of its own. Ollama states one
     window shared by both, and it is given here as both: `max_output_tokens
-    == context_tokens` says the window is shared.
+    == context_tokens` says the window is shared. OpenAI's API states neither,
+    so its driver is handed them, as a model catalogue states them: the whole
+    window, which what is read and what is written share, and a ceiling of
+    its own on what is written.
 
     `output_tokens_per_hour` is the provider's own worst-case rate, where it
     states one. Anthropic's library reckons a call's longest duration from it
     and refuses to wait for a whole answer reckoned at over ten minutes. A
     caller with a deadline of its own works out from it how much to ask for.
     `None` is a provider whose rate cannot be known beforehand (Ollama: the
-    hardware is local). It does not mean a call has no bound.
+    hardware is local; OpenAI: it states none). It does not mean a call has
+    no bound.
 
     `accepts_temperature` is whether the model takes a caller's temperature.
     Some Anthropic models refuse any, so the Anthropic driver asks at
-    discovery and leaves the parameter out for one that does. `None` is no
-    claim: only `False` says the model refuses it.
+    discovery and leaves the parameter out for one that does. The OpenAI
+    driver leaves it out wherever this is not `True`. `None` is no claim:
+    only `False` says the model refuses it.
     """
 
     context_tokens: int
@@ -220,7 +227,9 @@ class InferenceClient(Protocol):
         A discovery that fails is not kept, and the next call asks again. It
         raises when the ceilings cannot be learned (a model the provider does
         not have, a provider that cannot be reached): there is no guessed
-        value to fall back on.
+        value to fall back on. A driver whose provider cannot be asked (the
+        OpenAI driver) answers what it was handed when it was made, and asks
+        nothing.
         """
         ...
 

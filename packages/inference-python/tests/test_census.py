@@ -17,9 +17,11 @@ from pathlib import Path
 from spec import PACKAGE, SDK, JsonObject
 
 from semiont_inference.anthropic import AnthropicInferenceClient
+from semiont_inference.catalogue import CatalogueFacts, CatalogueLimit
 from semiont_inference.interface import InferenceClient, InferenceLimits
 from semiont_inference.mock import MockInferenceClient
 from semiont_inference.ollama import OllamaInferenceClient
+from semiont_inference.openai import OpenAIInferenceClient
 
 SRC = PACKAGE / "src/semiont_inference"
 SOURCES = sorted(path for top in ("src", "tests") for path in (PACKAGE / top).rglob("*.py"))
@@ -40,9 +42,24 @@ SURFACE = {
     ],
     "anthropic": ["AnthropicInferenceClient"],
     "ollama": ["OllamaInferenceClient"],
+    "openai": ["OpenAIInferenceClient"],
     "mock": ["MockInferenceClient"],
     "factory": ["create_inference_client"],
     "limits_report": ["report_limits"],
+    "catalogue": [
+        "BudgetTokensOption",
+        "Catalogue",
+        "CatalogueFacts",
+        "CatalogueLimit",
+        "CatalogueProvider",
+        "EffortOption",
+        "ModelStatus",
+        "ReasoningEffort",
+        "ReasoningOption",
+        "ToggleOption",
+        "catalogue_facts",
+        "read_catalogue",
+    ],
 }
 
 # What mypy refuses and pyright has no rule for.
@@ -94,6 +111,15 @@ def test_a_driver_has_the_members_of_a_client_and_no_others() -> None:
     limits = InferenceLimits(context_tokens=1, max_output_tokens=1, output_tokens_per_hour=None, accepts_temperature=None)
     assert public(AnthropicInferenceClient(api_key="k", model="m", base_url="http://127.0.0.1:1")) == members
     assert public(OllamaInferenceClient(model="m", base_url="http://127.0.0.1:1")) == members
+    facts = CatalogueFacts(
+        limit=CatalogueLimit(context=1, input=None, output=1),
+        reasoning=False,
+        reasoning_options=None,
+        status=None,
+        structured_output=None,
+        temperature=None,
+    )
+    assert public(OpenAIInferenceClient(api_key="k", model="m", base_url="http://127.0.0.1:1/v1", facts=facts)) == members
     # The mock has, beside them, what a test reads and resets.
     assert public(MockInferenceClient(["[]"], stop_reasons=["end_turn"], limits=limits)) == members | {"calls", "reset", "set_responses"}
 
@@ -125,6 +151,7 @@ def test_every_refusal_is_silenced_for_both_checkers_on_the_line_it_is_made() ->
 def test_a_providers_library_is_named_by_its_driver_alone() -> None:
     # What stands between a caller and a provider's library is the interface: nothing else here knows which library a driver uses.
     assert importing("anthropic") == ["anthropic.py"]
+    assert importing("openai") == ["openai.py"]
     assert importing("httpx") == ["ollama.py"]
     assert importing("httpx2") == []
 
@@ -134,6 +161,32 @@ def test_one_module_names_opentelemetry_and_one_names_the_logger() -> None:
     naming = sorted(str(path.relative_to(SRC)) for path in SRC.rglob("*.py") if "getLogger(" in path.read_text(encoding="utf-8"))
     assert naming == ["_log.py"]
     assert (SRC / "_log.py").read_text(encoding="utf-8").count('getLogger("semiont_inference")') == 1
+
+
+def test_the_package_holds_nothing_beside_its_modules_but_its_typed_marker() -> None:
+    # No data: a model catalogue is a file the package is pointed to, and no copy of one is in it.
+    beside = sorted(str(path.relative_to(SRC)) for path in SRC.rglob("*") if path.is_file() and path.suffix not in (".py", ".pyc"))
+    assert beside == ["py.typed"]
+
+
+def test_the_catalogues_reader_reads_the_one_file_it_is_pointed_to_and_stands_alone() -> None:
+    source = (SRC / "catalogue.py").read_text(encoding="utf-8")
+    # What it imports is all it can reach: no HTTP library to download with, no `os` to read the environment
+    # with, no packaged resource, and nothing else of this package, so reading a catalogue imports no driver.
+    imported = [
+        found.group(1) or found.group(2) for found in re.finditer(r"^(?:from ([\w.]+) import |import ([\w.]+))", source, re.MULTILINE)
+    ]
+    assert imported == ["dataclasses", "pathlib", "typing", "pydantic"]
+    # It makes no path of its own: the one it reads is the one it is given.
+    assert "Path(" not in source
+    assert source.count(".read_bytes()") == 1
+
+
+def test_a_catalogue_is_a_third_partys_word_and_only_a_driver_whose_provider_is_silent_takes_it() -> None:
+    # The catalogue is models.dev's. Anthropic and Ollama state a model's facts themselves and are asked: their
+    # drivers, the mock and what every driver shares never read one. OpenAI's API states none, and its driver is
+    # the one that may.
+    assert set(importing(r"semiont_inference\.catalogue")) <= {"openai.py"}
 
 
 def test_the_checkers_and_their_strictness_are_the_sdks() -> None:
@@ -197,8 +250,8 @@ def test_what_every_install_has_is_what_the_package_imports_without_a_providers_
         extra: [name_of(requirement) for requirement in requirements]
         for extra, requirements in extras.items()
         if isinstance(requirements, list)
-    } == {"anthropic": ["anthropic"]}
-    assert set(extras) == {"anthropic"}
+    } == {"anthropic": ["anthropic"], "openai": ["openai"]}
+    assert set(extras) == {"anthropic", "openai"}
     for extra in extras:
         assert importing(extra) == [f"{extra}.py"]
         assert extra not in {name_of(requirement) for requirement in required}

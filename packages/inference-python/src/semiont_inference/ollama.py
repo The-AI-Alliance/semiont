@@ -11,6 +11,7 @@ from semiont_inference._log import LOG
 from semiont_inference._once import Once
 from semiont_inference._structured import read_array
 from semiont_inference._telemetry import record
+from semiont_inference._tokens import as_usage, count, read_counts
 from semiont_inference.interface import (
     ElementSchema,
     InferenceLimits,
@@ -18,7 +19,6 @@ from semiont_inference.interface import (
     ProviderStatusError,
     StructuredReadError,
     StructuredResponse,
-    TokenUsage,
 )
 
 __all__ = ["OllamaInferenceClient"]
@@ -58,11 +58,6 @@ def _estimate_tokens(text: str) -> int:
     return math.ceil(len(text) / _CODE_POINTS_PER_TOKEN)
 
 
-def _count(value: JsonValue) -> int | None:
-    """A count of tokens, where `value` is one."""
-    return value if isinstance(value, int) and not isinstance(value, bool) else None
-
-
 def _context_length(body: bytes) -> int | None:
     """The context length an answer of `/api/show` states, or None where it states none.
 
@@ -78,12 +73,12 @@ def _context_length(body: bytes) -> int | None:
         return None
     architecture = model_info.get("general.architecture")
     if isinstance(architecture, str):
-        direct = _count(model_info.get(f"{architecture}.context_length"))
+        direct = count(model_info.get(f"{architecture}.context_length"))
         if direct is not None and direct > 0:
             return direct
     for name, value in model_info.items():
         if name.endswith(".context_length"):
-            stated = _count(value)
+            stated = count(value)
             return stated if stated is not None and stated > 0 else None
     return None
 
@@ -223,7 +218,7 @@ class OllamaInferenceClient:
         stop_reason = _stop_reason(said.get("done_reason"))
         text, thinking = said.get("response"), said.get("thinking")
         # What the provider counted. The tokens written include any the model spent reasoning out of sight.
-        input_tokens, output_tokens = _count(said.get("prompt_eval_count")), _count(said.get("eval_count"))
+        counts = read_counts(said, "prompt_eval_count", "eval_count")
         thinking_chars = len(thinking) if isinstance(thinking, str) and thinking else None
 
         if thinking_chars is not None:
@@ -234,7 +229,7 @@ class OllamaInferenceClient:
             )
 
         if not isinstance(text, str) or not text:
-            self._record(started, "error", input_tokens, output_tokens)
+            self._record(started, "error", *counts)
             LOG.error(
                 "Empty response from Ollama", extra={"model": self.model_id, "stopReason": stop_reason, "thinkingChars": thinking_chars}
             )
@@ -242,12 +237,9 @@ class OllamaInferenceClient:
             # failure, so that `max_tokens` is read as a budget too small and not as a mystery.
             raise StructuredReadError("response is empty", stop_reason)
 
-        self._record(started, "success", input_tokens, output_tokens)
+        self._record(started, "success", *counts)
         LOG.info("Text generation completed", extra={"model": self.model_id, "textLength": len(text), "stopReason": stop_reason})
-        usage = (
-            None if input_tokens is None or output_tokens is None else TokenUsage(input_tokens=input_tokens, output_tokens=output_tokens)
-        )
-        return InferenceResponse(text=text, stop_reason=stop_reason, usage=usage)
+        return InferenceResponse(text=text, stop_reason=stop_reason, usage=as_usage(counts))
 
     def _record(self, started: float, outcome: Literal["success", "error"], input_tokens: int | None, output_tokens: int | None) -> None:
         record(

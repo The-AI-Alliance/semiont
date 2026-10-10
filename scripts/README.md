@@ -8,6 +8,7 @@ scripts/
 ├── lint/         The `lint:*` gates
 ├── compliance/   Architecture compliance audits
 ├── spec/         Checks over `specs/`
+├── inference/    The generator of the model catalogue file the Python inference drivers read (from models.dev)
 └── container/    Container image management
 ```
 

@@ -9,7 +9,7 @@ description = "The model providers Semiont's Python services call, behind one in
 readme = "README.md"
 requires-python = ">=3.12"
 license = "Apache-2.0"
-keywords = ["semiont", "inference", "anthropic", "ollama"]
+keywords = ["semiont", "inference", "anthropic", "ollama", "openai"]
 classifiers = [
     "Framework :: AsyncIO",
     "Intended Audience :: Developers",
@@ -36,6 +36,9 @@ dependencies = [
 # Anthropic's library, from the version the Anthropic driver was written
 # against: what the driver leans on in it is listed in anthropic.py.
 anthropic = ["anthropic>=1.13,<2"]
+# OpenAI's library, from the version the OpenAI driver was written against:
+# what the driver leans on in it, and switches off in it, is listed in openai.py.
+openai = ["openai>=3.28,<4"]
 
 [project.urls]
 Homepage = "https://the-ai-alliance.github.io/semiont/"
@@ -53,7 +56,7 @@ semiont = { path = "../sdk-python", editable = true }
 [dependency-groups]
 dev = [
     # Every extra: the checkers and the tests read every driver.
-    "semiont-inference[anthropic]",
+    "semiont-inference[anthropic,openai]",
     "mypy==2.4.0",
     # What reads, in memory, the telemetry the drivers record (tests/test_telemetry.py).
     "opentelemetry-sdk>=1.30,<2",

@@ -3,6 +3,16 @@ updates:
   # All npm dependencies — root + every workspace (apps/*, packages/*) in one pass.
   # A single "/" entry traverses all npm workspaces, so per-workspace entries are
   # redundant. Groups below match by package name across every workspace.
+  #
+  # The root's @opencode-ai/models is the models.dev catalogue, pinned to one
+  # version. A model catalogue file is generated from it: the file an image
+  # carries for the Python inference drivers, and the one copy the repository
+  # keeps, the fixture of the Python inference package's tests
+  # (packages/inference-python/tests/catalogue). The package is published every
+  # day: this entry's weekly schedule is what keeps it to one bump a week. A
+  # bump comes with the fixture regenerated (`npm run generate:model-catalogue`):
+  # CI's drift job fails until it is, and the diff is the models whose facts
+  # moved, to be read.
   - package-ecosystem: "npm"
     directory: "/"
     versioning-strategy: increase-if-necessary

@@ -5,6 +5,8 @@
 Worker service's suite. `Anthropic` plays the three the Anthropic driver makes
 through Anthropic's library: the Models API, the one-token probe, and a
 generation answered whole or as a stream of events, whichever was asked for.
+`OpenAI` plays the one call the OpenAI driver makes through OpenAI's library:
+a generation of the Responses API, answered whole.
 
 A request nothing was scripted for, and a request of any other path, lands in
 `unscripted`, which fails the test on the way out.
@@ -439,3 +441,127 @@ class Anthropic(Played):
             _event("message_stop", {"type": "message_stop"}),
         ]
         return Answer(headers={"content-type": "text/event-stream", "request-id": request_id}, body=b"".join(events))
+
+
+# ── OpenAI ──────────────────────────────────────────────────────────────
+
+
+def openai_error(status: int, *, kind: str, code: str | None, message: str, headers: dict[str, str] | None = None) -> Answer:
+    """A refusal as OpenAI's API states one.
+
+    With no `headers` given it asks to be tried again at once, so a test of
+    the library's retries does not wait.
+    """
+    stated = {"retry-after-ms": "1"} if headers is None else headers
+    return saying({"error": {"message": message, "type": kind, "param": None, "code": code}}, status=status, headers=stated)
+
+
+def output_text(text: str) -> JsonObject:
+    """The part of a message that holds its text."""
+    return {"type": "output_text", "text": text, "annotations": []}
+
+
+def refusal_part(said: str) -> JsonObject:
+    """The part a message holds in place of its text when the model refused."""
+    return {"type": "refusal", "refusal": said}
+
+
+def message(*content: JsonObject, phase: str | None = None) -> JsonObject:
+    """One message of a reply's output. Its `phase` is stated only when given."""
+    item: JsonObject = {"type": "message", "id": "msg_played", "role": "assistant", "status": "completed", "content": [*content]}
+    if phase is not None:
+        item["phase"] = phase
+    return item
+
+
+def reasoning_item() -> JsonObject:
+    """What a model that reasons puts in a reply's output before its message."""
+    return {"type": "reasoning", "id": "rs_played", "summary": []}
+
+
+def counted(input_tokens: int, output_tokens: int, *, reasoning_tokens: int = 0) -> JsonObject:
+    """A reply's `usage`, as the Responses API states one."""
+    return {
+        "input_tokens": input_tokens,
+        "input_tokens_details": {"cached_tokens": 0, "cache_write_tokens": 0},
+        "output_tokens": output_tokens,
+        "output_tokens_details": {"reasoning_tokens": reasoning_tokens},
+        "total_tokens": input_tokens + output_tokens,
+    }
+
+
+@final
+@dataclass(frozen=True, slots=True, kw_only=True)
+class Responded:
+    """What the Responses API answers a generation with: a reply's status, what it holds, and what the provider counted."""
+
+    output: list[JsonObject]
+    usage: JsonObject | None
+    status: str | None = "completed"
+    incomplete: str | None = None
+    """Why the reply is incomplete, as its `incomplete_details.reason`. With None the reply states no details."""
+    error: JsonObject | None = None
+    """What a failed reply states of its failure."""
+
+
+def responded(text: str, *, usage: JsonObject | None = None) -> Responded:
+    """A completed reply of one message that holds `text`. With no `usage` given it reports ten tokens read and five written."""
+    return Responded(output=[message(output_text(text))], usage=counted(10, 5) if usage is None else usage)
+
+
+@final
+class OpenAI(Played):
+    """A stand-in for OpenAI's Responses API. `script` queues what the next generations are answered with.
+
+    A driver is given `base_url`: the address a config names ends in `/v1`.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._scripted: list[Responded | Answer] = []
+
+    @property
+    def base_url(self) -> str:
+        """The address of the API, as a config names it."""
+        return f"{self.origin}/v1"
+
+    def script(self, *replies: Responded | Answer) -> None:
+        """What the next generations are answered with, in order, after those already scripted."""
+        self._scripted.extend(replies)
+
+    @property
+    def responses(self) -> list[Asked]:
+        """Every `POST /v1/responses`, in order."""
+        return self.of("POST", "/v1/responses")
+
+    @property
+    def generations(self) -> list[JsonObject]:
+        """The body of every generation, in order."""
+        return [asked.json() for asked in self.responses]
+
+    @override
+    def _answer(self, asked: Asked) -> Answer:
+        if (asked.method, asked.path) != ("POST", "/v1/responses"):
+            self.unscripted.append(f"{asked.method} {asked.path}")
+            return saying({"error": {"message": "not found", "type": "invalid_request_error", "param": None, "code": None}}, status=404)
+        asked_so_far = len(self.responses)
+        if not self._scripted:
+            self.unscripted.append(f"generation {asked_so_far}")
+            unscripted: JsonObject = {"message": "the stand-in has no reply scripted", "type": "server_error", "param": None, "code": None}
+            return saying({"error": unscripted}, status=500)
+        scripted = self._scripted.pop(0)
+        if isinstance(scripted, Answer):
+            return scripted
+        reply: JsonObject = {
+            "id": f"resp_played_{asked_so_far}",
+            "object": "response",
+            "created_at": 1_760_000_000,
+            "model": asked.json()["model"],
+            "status": scripted.status,
+            "error": scripted.error,
+            "incomplete_details": None if scripted.incomplete is None else {"reason": scripted.incomplete},
+            "output": [*scripted.output],
+            "usage": scripted.usage,
+        }
+        # The provider's id of the request is a header of its answer.
+        return saying(reply, headers={"x-request-id": f"req_played_{asked_so_far}"})

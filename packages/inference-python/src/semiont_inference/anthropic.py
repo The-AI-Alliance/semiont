@@ -34,6 +34,7 @@ from semiont_inference._log import LOG
 from semiont_inference._once import Once
 from semiont_inference._structured import read_array
 from semiont_inference._telemetry import record
+from semiont_inference._tokens import Counts, as_usage, read_counts
 from semiont_inference.interface import (
     ElementSchema,
     InferenceLimits,
@@ -42,7 +43,6 @@ from semiont_inference.interface import (
     ProviderWithheldError,
     StructuredReadError,
     StructuredResponse,
-    TokenUsage,
 )
 
 try:
@@ -95,9 +95,6 @@ _TEMPERATURE_PROBE_MAX_TOKENS: Final = 1
 # number.
 _MAX_RETRIES: Final = 2
 
-# The tokens the provider says it read and wrote, each where it said so.
-type _Counts = tuple[int | None, int | None]
-
 
 @final
 @dataclass(frozen=True, slots=True)
@@ -124,26 +121,9 @@ def _said(model: Message | ModelInfo) -> dict[str, JsonValue]:
     return _OBJECT.validate_python(model.to_dict(mode="json"))
 
 
-def _count(value: JsonValue) -> int | None:
-    """A count of tokens, where `value` is one."""
-    return value if isinstance(value, int) and not isinstance(value, bool) else None
-
-
-def _counts(message: Message) -> _Counts:
-    usage = _said(message).get("usage")
-    if not isinstance(usage, dict):
-        return None, None
-    return _count(usage.get("input_tokens")), _count(usage.get("output_tokens"))
-
-
-def _usage(counts: _Counts) -> TokenUsage | None:
-    """The provider's two counts as a usage, or None where it did not report both.
-
-    Never a zero in a count's place: that would say the call cost nothing,
-    which is another claim than not knowing.
-    """
-    input_tokens, output_tokens = counts
-    return None if input_tokens is None or output_tokens is None else TokenUsage(input_tokens=input_tokens, output_tokens=output_tokens)
+def _counts(message: Message) -> Counts:
+    """What the provider counted, where a reply states it."""
+    return read_counts(_said(message).get("usage"), "input_tokens", "output_tokens")
 
 
 @final
@@ -187,7 +167,7 @@ class AnthropicInferenceClient:
             "Text generation completed",
             extra={"model": self.model_id, "textLength": len(text), "stopReason": message.stop_reason, "requestId": request_id},
         )
-        return InferenceResponse(text=text, stop_reason=message.stop_reason or "unknown", usage=_usage(counts))
+        return InferenceResponse(text=text, stop_reason=message.stop_reason or "unknown", usage=as_usage(counts))
 
     async def generate_structured(
         self, prompt: str, max_tokens: int, temperature: float, element_schema: ElementSchema
@@ -236,9 +216,9 @@ class AnthropicInferenceClient:
             "Structured generation completed",
             extra={"model": self.model_id, "items": len(items), "stopReason": message.stop_reason, "requestId": request_id},
         )
-        return StructuredResponse(items=items, stop_reason=stop_reason, usage=_usage(counts))
+        return StructuredResponse(items=items, stop_reason=stop_reason, usage=as_usage(counts))
 
-    def _answer(self, started: float, message: Message, counts: _Counts) -> str:
+    def _answer(self, started: float, message: Message, counts: Counts) -> str:
         """The text of the reply's first text block. A reply the provider withheld, and one with no text or an empty one, is a failure.
 
         A refusal is asked about first: what a refused reply carries is not
@@ -387,7 +367,7 @@ class AnthropicInferenceClient:
             )
             return await response.parse(to=Message), response.request_id
 
-    def _record(self, started: float, outcome: Literal["success", "error"], counts: _Counts) -> None:
+    def _record(self, started: float, outcome: Literal["success", "error"], counts: Counts) -> None:
         input_tokens, output_tokens = counts
         record(
             provider=self.provider,

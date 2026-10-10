@@ -1,9 +1,14 @@
 """What the drivers tell OpenTelemetry, held to the table every service is held to (`specs/src/service-telemetry/telemetry.json`).
 
 The three `semiont.inference.*` rows are read from the table, and compared
-with what an in-memory reader collected from real calls of both drivers: the
-names, the kind of instrument, the attribute keys, and the values a row
-lists. A row that changes fails here.
+with what an in-memory reader collected from real calls of the drivers whose
+providers the table names: the names, the kind of instrument, the attribute
+keys, and the values a row lists. A row that changes fails here.
+
+The OpenAI driver records the same three. Its provider's name is not among
+the values the table lists: the protocol's list of providers is closed, and
+gains `openai` with the service that makes this driver. So its points are
+held to the table's keys, and counted, apart.
 """
 
 import asyncio
@@ -21,16 +26,45 @@ from opentelemetry.sdk.metrics.export import (
     NumberDataPoint,
     Sum,
 )
-from provider import HOLD, Anthropic, Ollama, generated, refused, reply, saying
+from provider import (
+    HOLD,
+    Anthropic,
+    Ollama,
+    OpenAI,
+    Responded,
+    counted,
+    generated,
+    message,
+    openai_error,
+    output_text,
+    refusal_part,
+    refused,
+    reply,
+    responded,
+    saying,
+)
 from spec import SPEC, JsonObject, objects, read, strings, text
 
 from semiont_inference.anthropic import AnthropicInferenceClient
-from semiont_inference.interface import ProviderStatusError, StructuredReadError
+from semiont_inference.catalogue import CatalogueFacts, CatalogueLimit
+from semiont_inference.interface import ProviderStatusError, ProviderWithheldError, StructuredReadError
 from semiont_inference.ollama import OllamaInferenceClient
+from semiont_inference.openai import OpenAIInferenceClient
 
 # Models no other test names: the reader keeps what the whole run recorded.
-LLAMA, CLAUDE = "telemetry-llama", "telemetry-claude"
+LLAMA, CLAUDE, GPT = "telemetry-llama", "telemetry-claude", "telemetry-gpt"
+# What a catalogue states of the last: it holds a reply to a schema, and nothing is said of its reasoning.
+GPT_FACTS = CatalogueFacts(
+    limit=CatalogueLimit(context=128_000, input=None, output=16_384),
+    reasoning=False,
+    reasoning_options=None,
+    status=None,
+    structured_output=True,
+    temperature=True,
+)
 ELEMENT: JsonObject = {"type": "object"}
+# OpenAI's strict mode is sent a schema rewritten, and an object must state its properties to be rewritten.
+ELEMENT_OF_ONE: JsonObject = {"type": "object", "properties": {"exact": {"type": "string"}}, "required": ["exact"]}
 PREFIX = "semiont.inference."
 
 
@@ -92,6 +126,36 @@ async def traffic() -> None:
             await claude.generate_text("p", 100, 0)
         with pytest.raises(ProviderStatusError):
             await claude.generate_text("p", 100, 0)
+
+    async with OpenAI() as openai:
+        openai.script(
+            responded("hello", usage=counted(4127, 571)),
+            responded("not an object", usage=counted(10, 5)),
+            # Nothing in it, and still counted by the provider.
+            Responded(output=[], usage=counted(7, 3), status="incomplete", incomplete="max_output_tokens"),
+            # Withheld, and still counted.
+            Responded(output=[message(refusal_part("I cannot help with that."))], usage=counted(9, 2)),
+            # Its provider reports no tokens: it is counted as a call, and adds none.
+            Responded(output=[message(output_text("hello"))], usage=None),
+            openai_error(400, kind="invalid_request_error", code="unsupported_parameter", message="temperature is not supported"),
+            HOLD,
+        )
+        gpt = OpenAIInferenceClient(api_key="k", model=GPT, base_url=openai.base_url, facts=GPT_FACTS)
+        await gpt.generate_text("p", 100, 0)
+        with pytest.raises(StructuredReadError):
+            await gpt.generate_structured("p", 100, 0, ELEMENT_OF_ONE)
+        with pytest.raises(StructuredReadError):
+            await gpt.generate_text("p", 100, 0)
+        with pytest.raises(ProviderWithheldError):
+            await gpt.generate_text("p", 100, 0)
+        await gpt.generate_text("p", 100, 0)
+        with pytest.raises(ProviderStatusError):
+            await gpt.generate_text("p", 100, 0)
+        cancelled = asyncio.ensure_future(gpt.generate_text("p", 100, 0))
+        await soon(openai.arrived("POST", "/v1/responses", 7))
+        cancelled.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await cancelled
 
 
 def ours(metric: Metric) -> list[NumberDataPoint | HistogramDataPoint | ExponentialHistogramDataPoint]:
@@ -155,3 +219,38 @@ def test_a_generation_is_counted_once_by_how_it_ended_and_its_tokens_are_the_pro
     # Every generation is timed, the failing ones too, in milliseconds.
     assert timed == calls
     assert arrived["semiont.inference.duration"].unit == "ms"
+
+
+def test_the_openai_driver_records_the_same_three_by_the_tables_keys_under_its_own_providers_name(arrived: dict[str, Metric]) -> None:
+    rows = {text(row["name"], "a name"): row for row in objects(read(SPEC / "service-telemetry/telemetry.json")["metrics"], "the metrics")}
+    calls: dict[object, float] = {}
+    tokens: dict[object, float] = {}
+    timed: dict[object, int] = {}
+    for name, row in rows.items():
+        if not name.startswith(PREFIX):
+            continue
+        keys = {text(attribute["key"], "a key") for attribute in objects(row["attributes"], "the attributes")}
+        points = [point for point in arrived[name].data.data_points if (point.attributes or {}).get("inference.model") == GPT]
+        assert points, f"no {name} was recorded for the OpenAI driver"
+        for point in points:
+            attributes = point.attributes or {}
+            assert set(attributes) == keys, f"{name} carries {set(attributes)}; the table lists {keys}"
+            assert attributes["inference.provider"] == "openai"
+            match name.removeprefix(PREFIX):
+                case "calls":
+                    assert isinstance(point, NumberDataPoint)
+                    calls[attributes["inference.outcome"]] = point.value
+                case "tokens":
+                    assert isinstance(point, NumberDataPoint)
+                    tokens[attributes["inference.direction"]] = point.value
+                case "duration":
+                    assert isinstance(point, HistogramDataPoint)
+                    timed[attributes["inference.outcome"]] = point.count
+                case other:
+                    raise AssertionError(f"{other} is a metric this test does not know how to count")
+
+    # Two answered; five not: unreadable, empty, withheld, refused, cancelled.
+    assert calls == {"success": 2, "error": 5}
+    # What the provider counted, the failing ones too, and nothing for a call whose provider reported none.
+    assert tokens == {"input": 4127 + 10 + 7 + 9, "output": 571 + 5 + 3 + 2}
+    assert timed == calls

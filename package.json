@@ -20,6 +20,8 @@
     "generate:media-types-go:check": "node scripts/spec/generate-media-types-go.mjs --check",
     "generate:launcher-contracts": "node scripts/spec/generate-sign-in-go.mjs && node scripts/spec/generate-oauth-clients-go.mjs",
     "generate:launcher-contracts:check": "node scripts/spec/generate-sign-in-go.mjs --check && node scripts/spec/generate-oauth-clients-go.mjs --check",
+    "generate:model-catalogue": "node scripts/inference/generate-model-catalogue.mjs --out packages/inference-python/tests/catalogue",
+    "generate:model-catalogue:check": "node scripts/inference/generate-model-catalogue.mjs --check packages/inference-python/tests/catalogue",
     "build:apps": "npm run build -w semiont-browser",
     "build:all": "npm run build --workspaces",
     "typecheck": "npm run typecheck --workspaces --if-present",
@@ -114,6 +116,7 @@
     }
   },
   "devDependencies": {
+    "@opencode-ai/models": "0.0.97",
     "@redocly/cli": "^2.34.0",
     "glob": "^13.0.6",
     "@types/node": "^26.0.0",
