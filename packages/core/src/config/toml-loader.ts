@@ -124,16 +124,8 @@ interface GraphSection {
   [key: string]: unknown;
 }
 
-interface InferenceFlatSection {
-  // Flat (single-provider) format: type = "anthropic"|"ollama" at this level
-  type?: 'anthropic' | 'ollama';
-  platform?: string;
-  model?: string;
-  maxTokens?: number;
-  apiKey?: string;
-  endpoint?: string;
-  baseURL?: string;
-  // Keyed (multi-provider) format: [inference.anthropic] / [inference.ollama]
+/** `[inference]`: a table for each provider, `[inference.anthropic]` and `[inference.ollama]`. */
+interface InferenceSection {
   anthropic?: { platform?: string; apiKey?: string; endpoint?: string };
   ollama?: { platform?: string; baseURL?: string; port?: number };
 }
@@ -146,13 +138,6 @@ interface GatewaySection {
 
 interface EnvironmentSection {
   gateway?: GatewaySection;
-  /**
-   * A second spelling of `gateway`, accepted because the KB fleet — whose
-   * TOMLs live in repos this build cannot reach — declares it. Retires when
-   * every fleet repo says `gateway`; that trigger is a release-checklist
-   * item, not something CI here can observe.
-   */
-  backend?: GatewaySection;
   archivist?: {
     host?: string;
     port?: number;
@@ -176,18 +161,6 @@ interface EnvironmentSection {
     type?: 'qdrant' | 'memory';
     host?: string;
     port?: number;
-    // Embedding nested under vectors; a top-level [embedding] takes precedence
-    embedding?: {
-      type?: 'voyage' | 'ollama';
-      model?: string;
-      apiKey?: string;
-      baseURL?: string;
-      endpoint?: string;
-    };
-    chunking?: {
-      chunkSize?: number;
-      overlap?: number;
-    };
   };
   embedding?: {
     type?: 'voyage' | 'ollama';
@@ -200,9 +173,8 @@ interface EnvironmentSection {
       overlap?: number;
     };
   };
-  inference?: InferenceFlatSection;
+  inference?: InferenceSection;
   'make-meaning'?: {
-    graph?: Record<string, unknown>;
     actors?: {
       gatherer?: { inference?: InferenceConfig };
       matcher?: { inference?: InferenceConfig };
@@ -344,8 +316,7 @@ export function loadTomlConfig(
   const declared: readonly string[] | undefined = service ? serviceConfigSections[service] : undefined;
   const resolvedSections = new Map<keyof EnvironmentSection, unknown>();
   function section<K extends keyof EnvironmentSection>(key: K): EnvironmentSection[K] {
-    const listed = key === 'backend' ? 'gateway' : key;
-    if (declared && !declared.includes(listed)) {
+    if (declared && !declared.includes(key)) {
       throw new Error(
         `${service} read [environments.${resolvedEnvironment}.${key}], which specs/src/service-config/sections.json ` +
           `does not list for it. List the section there if ${service} needs it: the launcher forwards each service ` +
@@ -361,54 +332,32 @@ export function loadTomlConfig(
     return built.get(part) as T;
   }
 
-  // 7. Make-meaning actor/worker inference with inheritance. The flat
-  // [inference] section provides defaults (apiKey, maxTokens, endpoint/baseURL).
-  // Actor/worker sections only need to specify type and model; missing fields
-  // fall back to the flat inference section.
-  function mergeWithFlatInference(specific: InferenceConfig): InferenceConfig {
-    const flatInference = section('inference');
-    if (!flatInference) return specific;
-    // For keyed sub-sections, inherit credentials from the matching provider sub-section.
-    // For flat format, flatInference.type is required to know which fields apply.
-    const providerDefaults: Partial<InferenceConfig> = {};
-    if (specific.type === 'anthropic') {
-      const a = flatInference.anthropic;
-      if (a) {
-        providerDefaults.apiKey = a.apiKey;
-        providerDefaults.endpoint = a.endpoint;
-      } else {
-        if (!flatInference.type) {
-          throw new Error(
-            `[environments.${resolvedEnvironment}.inference] is missing 'type'. ` +
-            `Add type = "anthropic" or use [inference.anthropic] sub-section.`
-          );
-        }
-        providerDefaults.apiKey = flatInference.apiKey;
-        providerDefaults.endpoint = flatInference.endpoint;
-      }
-    } else if (specific.type === 'ollama') {
-      const o = flatInference.ollama;
-      if (o) {
-        providerDefaults.baseURL = o.baseURL;
-      } else {
-        if (!flatInference.type) {
-          throw new Error(
-            `[environments.${resolvedEnvironment}.inference] is missing 'type'. ` +
-            `Add type = "ollama" or use [inference.ollama] sub-section.`
-          );
-        }
-        providerDefaults.baseURL = flatInference.baseURL;
-      }
+  // 7. A binding names a provider and a model. What reaches the provider
+  // (its key, its address) is said once, in that provider's own table, and
+  // every binding to it takes it from there. A binding to a provider the
+  // config has provider tables for, and none for that one, is refused.
+  function withProviderSettings(binding: InferenceConfig): InferenceConfig {
+    const providers = section('inference');
+    if (!providers) return binding;
+    const undeclared = (provider: string): Error => new Error(
+      `[environments.${resolvedEnvironment}.inference.${provider}] is not declared, and a binding names ${provider}. ` +
+      `Add the section, or bind to a provider the config declares.`,
+    );
+    if (binding.type === 'anthropic') {
+      const anthropic = providers.anthropic;
+      if (!anthropic) throw undeclared('anthropic');
+      return { apiKey: anthropic.apiKey, endpoint: anthropic.endpoint, ...binding };
     }
-    return {
-      maxTokens: flatInference.maxTokens,
-      ...providerDefaults,
-      ...specific,
-    };
+    if (binding.type === 'ollama') {
+      const ollama = providers.ollama;
+      if (!ollama) throw undeclared('ollama');
+      return { baseURL: ollama.baseURL, ...binding };
+    }
+    return binding;
   }
 
-  // Which section serves each actor, merged with [inference] as the service
-  // that calls the model needs it (`_metadata.actors`).
+  // Which section serves each actor, with its provider's settings as the
+  // service that calls the model needs them (`_metadata.actors`).
   // specs/src/service-config/roster-cases.json holds this selection and the
   // launcher's, which writes the Archivist's roster, to one answer. Who serves
   // each job is the launcher's alone to resolve: a worker reads the document
@@ -429,30 +378,22 @@ export function loadTomlConfig(
   function actorInference(): ActorInferenceConfig | undefined {
     const selected = selectedActors();
     return selected.length > 0
-      ? Object.fromEntries(selected.map(([actor, inference]) => [actor, mergeWithFlatInference(inference)]))
+      ? Object.fromEntries(selected.map(([actor, inference]) => [actor, withProviderSettings(inference)]))
       : undefined;
   }
 
-  // Inference providers. Two formats:
-  //   Flat:  [environments.local.inference] type = "anthropic"|"ollama"  (single provider)
-  //   Keyed: [environments.local.inference.anthropic] / [environments.local.inference.ollama] (multi-provider)
+  // Inference providers: a table for each, [environments.<env>.inference.anthropic]
+  // and [environments.<env>.inference.ollama].
   function inferenceProviders(): EnvironmentConfig['inference'] | undefined {
     const inferenceSection = section('inference');
     if (!inferenceSection) return undefined;
     const providers: NonNullable<EnvironmentConfig['inference']> = {};
-    // Keyed sub-sections take priority
     if (inferenceSection.anthropic) {
       const a = inferenceSection.anthropic;
       providers.anthropic = {
         platform: requirePlatform(a.platform, 'inference.anthropic'),
         endpoint: a.endpoint ?? 'https://api.anthropic.com',
         apiKey: a.apiKey ?? '',
-      } as AnthropicProviderConfig;
-    } else if (inferenceSection.type === 'anthropic') {
-      providers.anthropic = {
-        platform: requirePlatform(inferenceSection.platform, 'inference'),
-        endpoint: inferenceSection.endpoint ?? 'https://api.anthropic.com',
-        apiKey: inferenceSection.apiKey ?? '',
       } as AnthropicProviderConfig;
     }
     if (inferenceSection.ollama) {
@@ -461,12 +402,6 @@ export function loadTomlConfig(
         platform: { type: requirePlatform(o.platform, 'inference.ollama') },
         baseURL: o.baseURL,
         port: o.baseURL ? undefined : (o.port ?? 11434),
-      } as OllamaProviderConfig;
-    } else if (inferenceSection.type === 'ollama') {
-      providers.ollama = {
-        platform: { type: requirePlatform(inferenceSection.platform, 'inference') },
-        baseURL: inferenceSection.baseURL,
-        port: inferenceSection.baseURL ? undefined : 11434,
       } as OllamaProviderConfig;
     }
     return providers;
@@ -495,14 +430,13 @@ export function loadTomlConfig(
   }
 
   function embedding(): EnvironmentConfig['services']['embedding'] {
-    const e = section('embedding');
-    const source = e ?? section('vectors')?.embedding;
+    const source = section('embedding');
     if (!source?.type || !source.model) {
       throw new Error(
         `[environments.${resolvedEnvironment}] names no embedding provider — add [environments.${resolvedEnvironment}.embedding] with type = "voyage" or "ollama" and a model. Semiont requires an embedding provider; nothing is defaulted.`,
       );
     }
-    const chunking = e?.chunking ?? section('vectors')?.chunking;
+    const chunking = source.chunking;
     return {
       platform: { type: 'external' as PlatformType },
       type: source.type,
@@ -550,20 +484,8 @@ export function loadTomlConfig(
     return { type: id.type, issuer: id.issuer, subjectClaim: id.subjectClaim } as EnvironmentConfig['services']['identity'];
   }
 
-  // `gateway` and `backend` are one section under two spellings, the second
-  // accepted for the fleet. A file carrying BOTH is a mistake, not a state
-  // worth supporting — so it fails loudly instead of picking a winner the
-  // next reader cannot identify.
   function gateway(): EnvironmentConfig['services']['gateway'] {
-    const current = section('gateway');
-    const legacy = section('backend');
-    if (current && legacy) {
-      throw new Error(
-        `Environment '${resolvedEnvironment}' declares both [gateway] and [backend]. ` +
-        `They are one section under two spellings; keep [gateway] and delete [backend].`
-      );
-    }
-    const g = current ?? legacy;
+    const g = section('gateway');
     if (!g) return undefined;
     return {
       platform: { type: requirePlatform(g.platform, 'gateway') },
@@ -588,14 +510,12 @@ export function loadTomlConfig(
 
   function graph(): EnvironmentConfig['services']['graph'] {
     const g = section('graph');
-    if (g) {
-      return {
-        ...g,
-        platform: { type: requirePlatform(g.platform as string | undefined, 'graph') },
-        type: (g.type ?? 'neo4j') as import('./config.types').GraphDatabaseType,
-      } as EnvironmentConfig['services']['graph'];
-    }
-    return section('make-meaning')?.graph as EnvironmentConfig['services']['graph'];
+    if (!g) return undefined;
+    return {
+      ...g,
+      platform: { type: requirePlatform(g.platform as string | undefined, 'graph') },
+      type: (g.type ?? 'neo4j') as import('./config.types').GraphDatabaseType,
+    } as EnvironmentConfig['services']['graph'];
   }
 
   function database(): EnvironmentConfig['services']['database'] {

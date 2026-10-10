@@ -144,7 +144,7 @@ port = 4000
 publicURL = "http://${GATEWAY_HOST:-localhost}:4000"
 ```
 
-`publicURL` is the address clients reach the gateway at. The launcher sets `${GATEWAY_HOST}` itself. A section spelled `[environments.<env>.backend]` is read as this one; a file with both is refused.
+`publicURL` is the address clients reach the gateway at. The launcher sets `${GATEWAY_HOST}` itself.
 
 ### Inference
 

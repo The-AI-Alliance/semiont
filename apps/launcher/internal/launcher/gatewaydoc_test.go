@@ -38,9 +38,6 @@ func envFrom(t *testing.T, text string) *envConfig {
 		t.Fatalf("fixture is not valid TOML: %v", err)
 	}
 	env := cfg.Environments[cfg.Defaults.Environment]
-	if err := resolveGatewaySection(&env, "fixture", cfg.Defaults.Environment); err != nil {
-		t.Fatal(err)
-	}
 	if err := resolveWorkersSection(&env, "fixture", cfg.Defaults.Environment); err != nil {
 		t.Fatal(err)
 	}

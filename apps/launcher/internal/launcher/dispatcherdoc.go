@@ -67,7 +67,6 @@ func dispatcherNamedVars(env *envConfig) []string {
 func gatewayDialerVars(rt, addr string, issuerPort int, userEnv []string) map[string]string {
 	vars := gatewayVars(rt, addr, issuerPort, userEnv)
 	vars["GATEWAY_HOST"] = addr
-	vars["BACKEND_HOST"] = addr
 	return vars
 }
 

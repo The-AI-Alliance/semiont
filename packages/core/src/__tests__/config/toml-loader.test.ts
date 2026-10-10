@@ -28,7 +28,8 @@ publicURL = "http://localhost:3001"
 # tests pin it for a whole section.
 frontendURL = "http://localhost:3000"
 
-[environments.local.make-meaning.graph]
+[environments.local.graph]
+platform = "posix"
 type = "memory"
 ${SERVICES_LOCAL}`;
 
@@ -455,7 +456,8 @@ environment = "local"
 platform = "posix"
 port = 3001
 
-[environments.local.make-meaning.graph]
+[environments.local.graph]
+platform = "posix"
 type = "memory"
 ${SERVICES_LOCAL}`;
     const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {});
@@ -532,13 +534,10 @@ ${MINIMAL_TOML}`;
   });
 });
 
-// The gateway/backend alias, pinned row for row. `resolveGatewaySection` in
-// apps/launcher/internal/launcher/config.go implements these SAME four cases
-// against an independently-written Go struct — no schema is shared between the
-// lanes, so the pair of test blocks is what keeps them honest. Change one, change
-// the other.
-describe('loadTomlConfig — the gateway/backend section alias', () => {
-  const withSection = (key: 'gateway' | 'backend') => `
+// A knowledge base's gateway is declared in one section, `[gateway]`. A
+// section of any other name is one the loader does not read.
+describe('loadTomlConfig — the gateway section', () => {
+  const withSection = (key: string) => `
 [defaults]
 environment = "local"
 
@@ -547,53 +546,29 @@ platform = "posix"
 port = 3001
 publicURL = "http://localhost:3001"
 
-[environments.local.make-meaning.graph]
+[environments.local.graph]
+platform = "posix"
 type = "memory"
 ${SERVICES_LOCAL}`;
 
-  it('row 1 — gateway only: used', () => {
+  it('a [gateway] section is the gateway', () => {
     const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(withSection('gateway')), {});
     expect(config.services?.gateway?.port).toBe(3001);
     expect(config.services?.gateway?.publicURL).toBe('http://localhost:3001');
   });
 
-  it('row 2 — backend only: used, and lands on services.gateway (the compat path)', () => {
-    // The whole point of the alias: a fleet KB that says `backend` loads,
-    // and every consumer downstream reads the ONE name, `gateway`.
+  it('a section spelled [backend] is not read: the config declares no gateway', () => {
     const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(withSection('backend')), {});
-    expect(config.services?.gateway?.port).toBe(3001);
-    expect(config.services?.gateway?.publicURL).toBe('http://localhost:3001');
+    expect(config.services?.gateway).toBeUndefined();
   });
 
-  it('row 3 — both: throws, naming both keys', () => {
-    // Not "gateway wins". A file with both is half-migrated, and picking a
-    // winner silently leaves the next reader unable to tell which one is live.
-    const both = `
-[defaults]
-environment = "local"
-
-[environments.local.gateway]
-platform = "posix"
-port = 3001
-
-[environments.local.backend]
-platform = "posix"
-port = 4001
-
-[environments.local.make-meaning.graph]
-type = "memory"
-${SERVICES_LOCAL}`;
-    expect(() =>
-      loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(both), {}).services.gateway
-    ).toThrow(/both \[gateway\] and \[backend\]/);
-  });
-
-  it('row 4 — neither: services.gateway is absent, and nothing is invented', () => {
+  it('no [gateway]: services.gateway is absent, and nothing is invented', () => {
     const neither = `
 [defaults]
 environment = "local"
 
-[environments.local.make-meaning.graph]
+[environments.local.graph]
+platform = "posix"
 type = "memory"
 ${SERVICES_LOCAL}`;
     const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(neither), {});
@@ -666,24 +641,23 @@ platform = "posix"
 port = 3001
 `;
 
-  it('a flat [inference] with no type refuses at the read that needs it', () => {
-    for (const type of ['anthropic', 'ollama']) {
+  it('a binding to a provider the config has no table for is refused at the read that needs it', () => {
+    for (const [bound, declared] of [['anthropic', 'ollama'], ['ollama', 'anthropic']]) {
       const cfg = load(`${MINIMAL_TOML}
-[environments.local.inference]
+[environments.local.inference.${declared}]
 platform = "external"
 
 [environments.local.actors.gatherer.inference]
-type = "${type}"
+type = "${bound}"
 model = "m"
 `);
-      expect(() => cfg._metadata?.actors).toThrow(/inference\] is missing 'type'/);
+      expect(() => cfg._metadata?.actors).toThrow(new RegExp(`inference\\.${bound}\\] is not declared`));
     }
   });
 
-  it('maps a flat anthropic provider and a keyed ollama one, with their defaults', () => {
+  it('maps each provider from its own table, and a binding takes its key or its address from there', () => {
     const cfg = load(`${MINIMAL_TOML}
-[environments.local.inference]
-type = "anthropic"
+[environments.local.inference.anthropic]
 platform = "external"
 apiKey = "k"
 
@@ -701,10 +675,30 @@ model = "o"
 `);
     expect(cfg.inference?.anthropic).toMatchObject({ apiKey: 'k', endpoint: 'https://api.anthropic.com' });
     expect(cfg.inference?.ollama).toMatchObject({ baseURL: 'http://ollama.internal:11434' });
-    // A flat anthropic section hands its key down; a keyed ollama its baseURL.
     const actors = cfg._metadata?.actors as { gatherer?: { apiKey?: string }; matcher?: { baseURL?: string } };
     expect(actors.gatherer?.apiKey).toBe('k');
     expect(actors.matcher?.baseURL).toBe('http://ollama.internal:11434');
+  });
+
+  it('what is written at [inference]\'s own level is no provider, and is handed to no binding', () => {
+    const cfg = load(`${MINIMAL_TOML}
+[environments.local.inference]
+type = "anthropic"
+platform = "external"
+apiKey = "k"
+maxTokens = 4096
+
+[environments.local.inference.ollama]
+platform = "external"
+baseURL = "http://ollama.internal:11434"
+
+[environments.local.actors.matcher.inference]
+type = "ollama"
+model = "o"
+`);
+    expect(cfg.inference?.anthropic).toBeUndefined();
+    const actors = cfg._metadata?.actors as { matcher?: unknown };
+    expect(actors.matcher).toEqual({ type: 'ollama', model: 'o', baseURL: 'http://ollama.internal:11434' });
   });
 
   it('a config with no [inference] maps no providers', () => {
@@ -771,7 +765,28 @@ model = "nomic-embed-text"
     expect(() => cfg.services.graph).toThrow(/platform is required for service 'graph'/);
   });
 
-  it('vectors default their port, and chunking falls back to [vectors]', () => {
+  it('an embedding nested under [vectors] is not read: the config names no embedding provider', () => {
+    const cfg = load(`${BASE}
+[environments.local.vectors]
+type = "qdrant"
+host = "qdrant.internal"
+
+[environments.local.vectors.embedding]
+type = "ollama"
+model = "nomic-embed-text"
+`);
+    expect(() => cfg.services.embedding).toThrow(/names no embedding provider/);
+  });
+
+  it('a graph declared under [make-meaning] is not read: the config declares no graph', () => {
+    const cfg = load(`${BASE}
+[environments.local.make-meaning.graph]
+type = "memory"
+`);
+    expect(cfg.services.graph).toBeUndefined();
+  });
+
+  it('vectors default their port, and chunking is the embedding section\'s own', () => {
     const cfg = load(`${BASE}
 [environments.local.vectors]
 type = "qdrant"
@@ -786,7 +801,8 @@ model = "nomic-embed-text"
 `);
     expect(cfg.services.vectors).toMatchObject({ host: 'qdrant.internal', port: 6333 });
     expect(cfg.services.database).toBeUndefined();
-    expect(cfg.services.embedding?.chunking).toEqual({ chunkSize: 256, overlap: 64 });
+    // What is nested under [vectors] is not the embedding's.
+    expect(cfg.services.embedding?.chunking).toBeUndefined();
   });
 
   it('resolves a ${VAR} inside an array', () => {

@@ -41,8 +41,6 @@ func generateSemiontconfig(p genParams) string {
 	w(`[defaults]`)
 	w(`environment = "local"`)
 	w(``)
-	// New KBs are born on the current spelling. If this kept emitting
-	// `backend`, the compat alias would never be able to expire.
 	w(`[environments.local.gateway]`)
 	w(`platform = "posix"`)
 	w(`port = 4000`)

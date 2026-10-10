@@ -17,90 +17,51 @@ func writeConfigTOML(t *testing.T, body string) string {
 	return p
 }
 
-const aliasHead = "[defaults]\nenvironment = \"local\"\n\n"
+const localDefaults = "[defaults]\nenvironment = \"local\"\n\n"
 
-// The gateway/backend section alias, pinned row for row.
-//
-// packages/core/src/__tests__/config/toml-loader.test.ts pins these SAME four
-// rows against the TypeScript loader. The two lanes parse the file
-// independently and share no schema, so this pair of blocks is the only thing
-// keeping them from drifting. Change one, change the other.
-//
-// What must match is the four PRESENCE rows below, not the fields each lane
-// reads out of the section.
-func TestGatewaySectionAlias(t *testing.T) {
-	t.Run("row 1 — gateway only: used", func(t *testing.T) {
-		p := writeConfigTOML(t, aliasHead+"[environments.local.gateway]\nplatform = \"posix\"\nport = 3001\n")
+// The gateway's section has one name. A section under another name is one the
+// launcher does not model: the config loads, and it declares no gateway, so a
+// start gets the refusal every config without a gateway gets.
+func TestTheGatewaySectionHasOneName(t *testing.T) {
+	t.Run("gateway: read", func(t *testing.T) {
+		p := writeConfigTOML(t, localDefaults+"[environments.local.gateway]\nplatform = \"posix\"\nport = 3001\n")
 		env, _, _, err := loadConfig(p)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if env.Gateway == nil {
-			t.Fatal("gateway section did not resolve")
+			t.Fatal("the gateway section was not read")
 		}
 		if env.Gateway.Port != 3001 {
 			t.Errorf("port = %d, want 3001", env.Gateway.Port)
 		}
 	})
 
-	t.Run("row 2 — backend only: used, and lands on Gateway (the compat path)", func(t *testing.T) {
-		// The point of the alias: a fleet KB still spelling it `backend` loads,
-		// and every reader downstream sees the ONE current field.
-		p := writeConfigTOML(t, aliasHead+"[environments.local.backend]\nplatform = \"posix\"\nport = 3001\n")
-		env, _, _, err := loadConfig(p)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if env.Gateway == nil {
-			t.Fatal("backend section did not resolve onto Gateway")
-		}
-		if env.Gateway.Port != 3001 {
-			t.Errorf("port = %d, want 3001", env.Gateway.Port)
-		}
-		if env.GatewayOld != nil {
-			t.Error("GatewayOld survived resolution; readers could see two sources")
-		}
-	})
-
-	t.Run("row 3 — both: rejected, naming both keys", func(t *testing.T) {
-		// Not "gateway wins". Both present means half-migrated — a mistake just
-		// made — and choosing silently hides which section is live.
-		p := writeConfigTOML(t, aliasHead+
-			"[environments.local.gateway]\nplatform = \"posix\"\nport = 3001\n\n"+
-			"[environments.local.backend]\nplatform = \"posix\"\nport = 4001\n")
-		_, _, _, err := loadConfig(p)
-		if err == nil {
-			t.Fatal("want an error when both spellings are present, got nil")
-		}
-		for _, want := range []string{"gateway", "backend", "local"} {
-			if !strings.Contains(err.Error(), want) {
-				t.Errorf("error does not name %q: %v", want, err)
-			}
-		}
-	})
-
-	t.Run("row 4 — neither: absent, and nothing is invented", func(t *testing.T) {
-		p := writeConfigTOML(t, aliasHead+"[environments.local.graph]\ntype = \"memory\"\n")
+	t.Run("backend only: no gateway", func(t *testing.T) {
+		p := writeConfigTOML(t, localDefaults+"[environments.local.backend]\nplatform = \"posix\"\nport = 3001\npublicURL = \"http://localhost:3001\"\n")
 		env, _, _, err := loadConfig(p)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if env.Gateway != nil {
-			t.Errorf("Gateway was manufactured from an absent section: %+v", env.Gateway)
+			t.Errorf("a [backend] section was read as the gateway's: %+v", env.Gateway)
+		}
+		if env.declaresRole("gateway") {
+			t.Error("a [backend] section declares the gateway role")
+		}
+		_, err = dispatcherDocument(env, "container", "192.168.64.1", 8080, nil, false)
+		if err == nil || !strings.Contains(err.Error(), "declares no [gateway] publicURL") {
+			t.Errorf("want the refusal of an environment with no gateway, got %v", err)
 		}
 	})
 }
 
-// confgen must mint NEW knowledge bases on the current spelling. If it kept
-// writing `backend`, the alias above could never expire — every `semiont init`
-// would create another repo needing migration.
-func TestConfgenEmitsCurrentSpelling(t *testing.T) {
+// A generated config declares the gateway: the Archivist's, the worker's and
+// the dispatcher's documents refuse an environment without one.
+func TestAGeneratedConfigDeclaresTheGateway(t *testing.T) {
 	out := generateSemiontconfig(genParams{Inference: "anthropic", Model: "m", EmbeddingModel: "nomic-embed-text"})
 	if !strings.Contains(out, "[environments.local.gateway]") {
 		t.Error("generated config does not use the [gateway] section")
-	}
-	if strings.Contains(out, "[environments.local.backend]") {
-		t.Error("generated config still mints the deprecated [backend] section")
 	}
 }
 

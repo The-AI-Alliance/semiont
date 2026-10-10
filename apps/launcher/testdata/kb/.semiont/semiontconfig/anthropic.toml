@@ -8,7 +8,7 @@ environment = "local"
 [environments.local.gateway]
 platform = "posix"
 port = 4000
-publicURL = "http://${BACKEND_HOST:-localhost}:4000"
+publicURL = "http://${GATEWAY_HOST:-localhost}:4000"
 
 [environments.local.graph]
 platform = "container"

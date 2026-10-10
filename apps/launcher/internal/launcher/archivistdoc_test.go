@@ -226,7 +226,7 @@ func TestArchivistDocumentIsMountedAndNoHostVariableIsPassed(t *testing.T) {
 	if want := "/stage/" + archivistDocumentFile + ":" + archivistDocumentTarget + ":ro"; !strings.Contains(args, want) {
 		t.Errorf("the Archivist's document is not mounted (%s):\n%s", want, args)
 	}
-	for _, unwanted := range []string{"GATEWAY_HOST", "BACKEND_HOST", "XDG_STATE_HOME", ".semiontconfig"} {
+	for _, unwanted := range []string{"GATEWAY_HOST", "XDG_STATE_HOME", ".semiontconfig"} {
 		if strings.Contains(args, unwanted) {
 			t.Errorf("the Archivist is handed %s, which its document replaces:\n%s", unwanted, args)
 		}

@@ -74,9 +74,8 @@ func gatewayNamedVars(env *envConfig) []string {
 
 // gatewayVars: what a ${VAR} in the gateway's settings resolves against — the
 // addresses the launcher places (topologyVars), and the user's own variables.
-// The gateway-host variables are absent on purpose: the gateway is handed
-// neither (gatewayArgs), so a ${GATEWAY_HOST:-…} in its publicURL takes its
-// default.
+// GATEWAY_HOST is absent on purpose: the gateway is not handed it
+// (gatewayArgs), so a ${GATEWAY_HOST:-…} in its publicURL takes its default.
 func gatewayVars(rt, addr string, issuerPort int, userEnv []string) map[string]string {
 	vars := topologyVars(rt, addr, issuerPort)
 	for name, value := range userEnvVars(userEnv) {

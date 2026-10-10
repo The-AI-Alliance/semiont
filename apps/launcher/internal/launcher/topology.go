@@ -185,11 +185,8 @@ func stagedServiceConfig(svc string, cfg []byte, plan *launchPlan, vars map[stri
 	sections := serviceConfigSections[svc]
 	placeUnstated(env, sections)
 	for _, section := range sections {
-		// `gateway` includes its legacy spelling, `backend` (sectionRefs).
-		for _, name := range sectionSpellings(section) {
-			if table, ok := env[name]; ok {
-				env[name] = resolveTopology(table, vars)
-			}
+		if table, ok := env[section]; ok {
+			env[section] = resolveTopology(table, vars)
 		}
 	}
 	if graph, ok := env["graph"].(map[string]any); ok && contains(sections, "graph") && plan.Roles["graph"].Presence == presenceLauncher {
@@ -244,13 +241,4 @@ func placedAddresses(cfg []byte, envName string, vars map[string]string) []strin
 		}
 	}
 	return lines
-}
-
-// sectionSpellings: the keys a section is written under — `gateway` and its
-// legacy spelling, `backend`.
-func sectionSpellings(section string) []string {
-	if section == "gateway" {
-		return []string{"gateway", "backend"}
-	}
-	return []string{section}
 }
