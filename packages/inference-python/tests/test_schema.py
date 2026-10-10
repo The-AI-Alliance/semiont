@@ -21,7 +21,17 @@ TABLE = read(PACKAGE / "tests/schema-cases.json")
 CASES = objects(TABLE["cases"], "the cases")
 
 # A dialect by its name in the table. Each is stated here, so that a name the table has is one the type has.
-DIALECTS: dict[str, Dialect] = {"as-written": "as-written", "object-root-all-required": "object-root-all-required"}
+DIALECTS: dict[str, Dialect] = {
+    "as-written": "as-written",
+    "as-written-plain-enums": "as-written-plain-enums",
+    "object-root-all-required": "object-root-all-required",
+}
+
+# The dialects that send a schema as it is written.
+AS_WRITTEN = ("as-written", "as-written-plain-enums")
+
+# The one case of the table that is taken as written and refused where a reply is held to plain enums alone.
+ANY_SCALAR = "as written, a `const` and an `enum` of any scalar are sent as they are"
 
 # What a case holds, by how it ends: its schema is refused, its answer is read, or its answer cannot be read.
 REFUSED = {"name", "dialect", "schema", "refused"}
@@ -146,14 +156,31 @@ def test_a_schema_that_is_not_rewritten_is_refused_in_the_tables_words(case: Jso
 
 
 def test_what_is_refused_as_written_is_refused_in_the_same_words_in_every_dialect() -> None:
-    # Which schemas are taken does not depend on the provider: only an optional property that takes null of its
-    # own is refused by one dialect and not by another, and the table says so in a case of each.
+    # Which schemas are taken does not depend on the provider, but for two things one dialect refuses and another
+    # takes: an optional property that takes null of its own, and a `const` or an `enum` of more than text and
+    # numbers. The table says each in a case of each dialect.
     refused_as_written = [case for case in CASES if "refused" in case and case["dialect"] == "as-written"]
     assert len(refused_as_written) > 20
     for case in refused_as_written:
         for stated in DIALECTS.values():
             with pytest.raises(ValueError, match=re.escape(text(case["refused"], "a refusal"))):
                 array_schema(thing(case["schema"], "a schema"), stated)
+
+
+def test_a_provider_of_plain_enums_is_sent_what_is_sent_as_written_or_nothing() -> None:
+    # The dialect rewrites nothing. Whatever it does not refuse it sends as the schema is written, and what it
+    # refuses of all the table takes as written is the one case the table states for it.
+    taken_as_written = [case for case in CASES if "refused" not in case and case["dialect"] == "as-written"]
+    assert len(taken_as_written) > 10
+    refused: list[str] = []
+    for case in taken_as_written:
+        try:
+            made = array_schema(thing(case["schema"], "a schema"), "as-written-plain-enums")
+        except ValueError:
+            refused.append(name(case))
+            continue
+        assert written(made.sent) == written(case["sent"]), name(case)
+    assert refused == [ANY_SCALAR]
 
 
 def test_the_five_formats_of_the_table_are_the_ones_the_worker_services_suite_holds_a_detection_to() -> None:
@@ -164,8 +191,9 @@ def test_the_five_formats_of_the_table_are_the_ones_the_worker_services_suite_ho
         for stated in DIALECTS:
             (case,) = [case for case in CASES if case.get("format") == kind and case["dialect"] == stated]
             assert written(case["schema"]) == written(asked["items"]), name(case)
-        (as_written,) = [case for case in CASES if case.get("format") == kind and case["dialect"] == "as-written"]
-        assert written(as_written["sent"]) == written(asked), name(as_written)
+        for stated in AS_WRITTEN:
+            (as_written,) = [case for case in CASES if case.get("format") == kind and case["dialect"] == stated]
+            assert written(as_written["sent"]) == written(asked), name(as_written)
 
 
 def test_what_is_sent_shares_nothing_with_the_schema_it_was_made_from() -> None:

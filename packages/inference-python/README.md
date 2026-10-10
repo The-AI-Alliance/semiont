@@ -18,23 +18,29 @@ It runs on asyncio and requires Python 3.12 or later. It is checked by
 The package alone has the contract, the Ollama driver and the mock. Its
 dependencies are `semiont`, `httpx`, `pydantic` and `opentelemetry-api`.
 
-A provider's own library is not required. It comes with the extra named for
-the provider, and is imported only when that provider's driver is asked for:
+The library a driver asks its provider through is not required. It comes
+with the extra named for the provider, and is imported only when that
+provider's driver is asked for:
 
 | Provider | Install | What the extra brings |
 | --- | --- | --- |
 | `ollama` | `semiont-inference` | Nothing: Ollama is asked over `httpx` |
 | `anthropic` | `semiont-inference[anthropic]` | Anthropic's `anthropic` library |
 | `openai` | `semiont-inference[openai]` | OpenAI's `openai` library |
+| `google` | `semiont-inference[google]` | Google's `google-genai` library |
+| `together` | `semiont-inference[together]` | Together's `together` library |
+| `vllm` | `semiont-inference[vllm]` | OpenAI's `openai` library, which a vLLM server is asked through |
+| `llamacpp` | `semiont-inference[llamacpp]` | OpenAI's `openai` library, which llama.cpp's server is asked through |
 
 An image built for one provider installs that provider's extra alone. One
 that may be configured for any provider installs every extra. Asked for a
 provider whose library is not installed, `create_inference_client` raises a
 `ModuleNotFoundError` that names the extra to install.
 
-`create_inference_client` does not make an OpenAI client yet: `openai` is not
-a provider the protocol names. Its driver is imported from its module, which
-raises the same failure where the library is not installed.
+`create_inference_client` makes a client for the providers the protocol
+names: `ollama` and `anthropic`. The other five drivers are each imported
+from their own module, which raises the same failure where the library is
+not installed.
 
 ## A first call
 
@@ -71,12 +77,25 @@ failures from `semiont_inference.interface`, `create_inference_client` from
 `semiont_inference.factory`, `report_limits` from
 `semiont_inference.limits_report`, and what reads a model catalogue from
 `semiont_inference.catalogue`. A driver is a module too:
-`semiont_inference.anthropic.AnthropicInferenceClient`,
-`semiont_inference.ollama.OllamaInferenceClient`,
-`semiont_inference.openai.OpenAIInferenceClient`, and, for tests,
-`semiont_inference.mock.MockInferenceClient`, which answers from a list it is
-given and keeps the calls made of it. `report_limits` gathers the limits of
-the clients a service holds, as the protocol's `InferencePairLimits`.
+
+| Provider | Its client |
+| --- | --- |
+| Anthropic | `semiont_inference.anthropic.AnthropicInferenceClient` |
+| Google's Gemini, by the Developer API | `semiont_inference.google.GoogleInferenceClient` |
+| llama.cpp's server | `semiont_inference.llamacpp.LlamaCppInferenceClient` |
+| Ollama | `semiont_inference.ollama.OllamaInferenceClient` |
+| OpenAI | `semiont_inference.openai.OpenAIInferenceClient` |
+| Together AI | `semiont_inference.together.TogetherInferenceClient` |
+| vLLM | `semiont_inference.vllm.VllmInferenceClient` |
+
+For tests there is `semiont_inference.mock.MockInferenceClient`, which
+answers from a list it is given and keeps the calls made of it.
+`report_limits` gathers the limits of the clients a service holds, as the
+protocol's `InferencePairLimits`.
+
+A provider is who serves the model, and not whose API the request is shaped
+by: vLLM and llama.cpp's server are asked by OpenAI's Chat Completions API,
+and each is a provider of its own.
 
 ## Failures
 
@@ -87,7 +106,9 @@ library:
   status, which the error carries as `status`.
 - `ProviderWithheldError`: the provider withheld its answer, by a refusal or
   a filter. It carries the provider's word for what it did as `reason`, and
-  nothing the reply held is passed on.
+  nothing the reply held is passed on. Anthropic, OpenAI and Google signal
+  one. Ollama, Together, vLLM and llama.cpp's server have no signal for it:
+  what a model they serve declines, it declines in its text.
 - `StructuredReadError`: the reply could not be read as the array asked for,
   or had nothing in it. It carries the provider's `stop_reason`: `max_tokens`
   means the reply was cut off.
@@ -137,9 +158,24 @@ not in it.
 
 A fact read from a catalogue is the catalogue's word, and not the provider's.
 A driver takes it only for what its provider's API does not state. The
-Anthropic and Ollama drivers ask their providers, and read no catalogue. The
-OpenAI driver asks its provider nothing about a model and reads no file:
-whoever makes it hands it the model's `CatalogueFacts`.
+Anthropic, Ollama, vLLM and llama.cpp drivers ask their providers, and take
+nothing from a catalogue. The other three read no file either: whoever makes
+one hands it the model's `CatalogueFacts`.
+
+- The OpenAI driver asks its provider nothing about a model. Its limits too
+  are the catalogue's.
+- The Google driver asks its provider for a model's limits, and is handed the
+  rest: whether the model holds a reply to a schema, whether it takes a
+  temperature, and how its reasoning is set.
+- The Together driver asks its provider for a model's context window, which
+  is all Together's API states of a model, and is handed the rest, the most
+  the model writes among it. It never states the most a model writes above
+  its window. Where Together's list states no window for the model, the
+  catalogue's is used, and the driver logs that it is the catalogue's word.
+
+Each of the three refuses a structured generation to a model whose facts do
+not say it holds a reply to a schema. A catalogue leaves that unsaid of many
+models, and such a model is refused whatever its provider would have done.
 
 The repository keeps one generated file, in this package's `tests/catalogue`.
 It is the tests' fixture: real data at the pin, which

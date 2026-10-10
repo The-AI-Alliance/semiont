@@ -7,6 +7,8 @@ from spec import SPEC, objects, read, text
 
 from semiont_inference import interface
 from semiont_inference.anthropic import AnthropicInferenceClient
+from semiont_inference.catalogue import CatalogueFacts, CatalogueLimit
+from semiont_inference.google import GoogleInferenceClient
 from semiont_inference.interface import (
     InferenceClient,
     InferenceLimits,
@@ -17,17 +19,36 @@ from semiont_inference.interface import (
     StructuredResponse,
     TokenUsage,
 )
+from semiont_inference.llamacpp import LlamaCppInferenceClient
 from semiont_inference.mock import MockInferenceClient
 from semiont_inference.ollama import OllamaInferenceClient
+from semiont_inference.openai import OpenAIInferenceClient
+from semiont_inference.together import TogetherInferenceClient
+from semiont_inference.vllm import VllmInferenceClient
 
 LIMITS = InferenceLimits(context_tokens=100, max_output_tokens=50, output_tokens_per_hour=None, accepts_temperature=None)
+
+# A model's facts, as whoever makes a driver whose provider is silent hands them to it.
+FACTS = CatalogueFacts(
+    limit=CatalogueLimit(context=100, input=None, output=50),
+    reasoning=False,
+    reasoning_options=None,
+    status=None,
+    structured_output=None,
+    temperature=None,
+)
 
 
 def every_driver() -> list[InferenceClient]:
     """One of each driver, as the client the interface states: both type checkers hold each to the protocol here."""
     return [
         AnthropicInferenceClient(api_key="key", model="claude-x", base_url="http://127.0.0.1:1"),
+        GoogleInferenceClient(api_key="key", model="gemini-x", base_url="http://127.0.0.1:1", facts=FACTS),
+        LlamaCppInferenceClient(model="local-x", base_url="http://127.0.0.1:1/v1", api_key=None),
         OllamaInferenceClient(model="llama3", base_url="http://127.0.0.1:1"),
+        OpenAIInferenceClient(api_key="key", model="gpt-x", base_url="http://127.0.0.1:1/v1", facts=FACTS),
+        TogetherInferenceClient(api_key="key", model="acme/Model-X", base_url="http://127.0.0.1:1/v1", facts=FACTS),
+        VllmInferenceClient(model="served-x", base_url="http://127.0.0.1:1/v1", api_key=None),
         MockInferenceClient(["[]"], stop_reasons=["end_turn"], limits=LIMITS),
     ]
 
@@ -40,13 +61,20 @@ def test_a_client_has_the_members_the_design_lists_and_no_others() -> None:
 
 
 def test_each_driver_says_who_it_is_and_how_it_is_to_be_used() -> None:
-    anthropic, ollama, mock = every_driver()
-    # A hosted provider has room for independent calls at once; one local model has none.
-    assert (anthropic.provider, anthropic.model_id, anthropic.max_concurrency) == ("anthropic", "claude-x", 4)
-    assert (ollama.provider, ollama.model_id, ollama.max_concurrency) == ("ollama", "llama3", 1)
-    assert (mock.provider, mock.model_id, mock.max_concurrency) == ("mock", "mock-model", 1)
+    # A hosted provider has room for independent calls at once, and so has a vLLM, which decodes them together.
+    # One local model has none, and the slots of a llama.cpp server share the one window it states.
+    assert [(driver.provider, driver.model_id, driver.max_concurrency) for driver in every_driver()] == [
+        ("anthropic", "claude-x", 4),
+        ("google", "gemini-x", 4),
+        ("llamacpp", "local-x", 1),
+        ("ollama", "llama3", 1),
+        ("openai", "gpt-x", 4),
+        ("together", "acme/Model-X", 4),
+        ("vllm", "served-x", 4),
+        ("mock", "mock-model", 1),
+    ]
     # Every real provider's detections are count-verified. The mock's are not: a count call takes a reply off its list.
-    assert [driver.verify_detection_yield for driver in (anthropic, ollama, mock)] == [True, True, False]
+    assert [driver.verify_detection_yield for driver in every_driver()] == [True, True, True, True, True, True, True, False]
 
 
 def test_what_a_driver_answers_is_named_in_snake_case_and_cannot_be_changed() -> None:

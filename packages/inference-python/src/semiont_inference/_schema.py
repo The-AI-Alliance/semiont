@@ -6,17 +6,24 @@ array at the root and a property left out of `required`. Another (OpenAI, in
 its strict mode) takes only an object at the root, with every property of
 every object required and every object closed: there the array is the one
 property of a wrapping object, an optional property is written as one that
-takes null, and a null in the answer stands for the property left out.
+takes null, and a null in the answer stands for the property left out. A
+third (Google's Gemini API) takes a schema as it is written and holds a
+reply to less of it: it ignores a `const`, and an `enum` of anything but
+text and numbers, and says nothing. There a schema that states either is
+refused, and nothing is sent: the reply would not be held to it.
 
 `array_schema` makes, in one dialect, what the provider is sent, together
 with the reading back of what it answers: the array taken out of its
 wrapper, and each null that stands for a property left out taken out of its
 element, so that an element reads the same whichever provider wrote it.
 
-Which schemas are taken does not depend on the dialect, but for one case the
-table of `tests/schema-cases.json` states. A keyword this module does not
-know how to rewrite is refused by name, and is never passed through: what a
-provider does with a keyword it was not expected to see is not known here.
+Which schemas are taken does not depend on the dialect, but for the cases the
+table of `tests/schema-cases.json` states: an optional property that takes
+null of its own, where a null stands for a property left out, and a `const`
+or an `enum` of more than text and numbers, where the provider holds a reply
+to neither. A keyword this module does not know how to rewrite is refused by
+name, and is never passed through: what a provider does with a keyword it
+was not expected to see is not known here.
 """
 
 import copy
@@ -29,13 +36,16 @@ from pydantic import JsonValue
 from semiont_inference._structured import kind, read_array, read_json
 from semiont_inference.interface import ElementSchema, StructuredReadError
 
-type Dialect = Literal["as-written", "object-root-all-required"]
+type Dialect = Literal["as-written", "as-written-plain-enums", "object-root-all-required"]
 """How a provider takes a schema.
 
 `as-written`: an array at the root, and the element schema as the caller
-wrote it. `object-root-all-required`: an object at the root that holds the
-array, every property of every object in `required`, one that was optional
-taking null as well, and `additionalProperties: false` on every object.
+wrote it. `as-written-plain-enums`: the same, for a provider that holds a
+reply to no `const`, and to an `enum` of text and numbers alone, and says
+nothing when it ignores one: a schema that states either is refused.
+`object-root-all-required`: an object at the root that holds the array,
+every property of every object in `required`, one that was optional taking
+null as well, and `additionalProperties: false` on every object.
 """
 
 WRAPPER: Final = "elements"
@@ -58,14 +68,18 @@ class _Rules:
     """Every property is in `required`, and one that was optional takes null as well."""
     every_object_closed: bool
     """Every object states `additionalProperties: false`."""
+    plain_enums_alone: bool
+    """A `const`, and an `enum` that lists anything but text and numbers, is refused: the provider ignores each, and says nothing."""
 
 
 def _rules(dialect: Dialect) -> _Rules:
     match dialect:
         case "as-written":
-            return _Rules(object_at_the_root=False, every_property_required=False, every_object_closed=False)
+            return _Rules(object_at_the_root=False, every_property_required=False, every_object_closed=False, plain_enums_alone=False)
+        case "as-written-plain-enums":
+            return _Rules(object_at_the_root=False, every_property_required=False, every_object_closed=False, plain_enums_alone=True)
         case "object-root-all-required":
-            return _Rules(object_at_the_root=True, every_property_required=True, every_object_closed=True)
+            return _Rules(object_at_the_root=True, every_property_required=True, every_object_closed=True, plain_enums_alone=False)
 
 
 @final
@@ -104,6 +118,10 @@ def _under(at: str, *steps: str) -> str:
 
 def _is_scalar(value: JsonValue) -> bool:
     return value is None or isinstance(value, str | int | float)
+
+
+def _is_text_or_a_number(value: JsonValue) -> bool:
+    return isinstance(value, str | int | float) and not isinstance(value, bool)
 
 
 def _types(schema: Mapping[str, JsonValue], at: str) -> tuple[str, ...]:
@@ -179,6 +197,15 @@ def _rewritten(schema: JsonValue, at: str, rules: _Rules) -> _Rewritten:
             _refuse(f"`{keyword}` on a schema whose `type` does not name object", at)
     if "items" in schema and "array" not in types:
         _refuse("`items` on a schema whose `type` does not name array", at)
+    if rules.plain_enums_alone:
+        # After what is refused whatever the dialect, so that a schema refused as written is refused in the same words here.
+        if "const" in schema:
+            _refuse("`const` is a keyword the provider ignores, so no reply would be held to it", at)
+        listed = schema.get("enum")
+        if isinstance(listed, list) and not all(_is_text_or_a_number(one) for one in listed):
+            _refuse(
+                "`enum` lists a value that is neither text nor a number, which the provider ignores, so no reply would be held to it", at
+            )
 
     sent: dict[str, JsonValue] = {keyword: copy.deepcopy(value) for keyword, value in schema.items()}
     nulls: set[str] = set()

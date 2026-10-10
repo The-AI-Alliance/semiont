@@ -424,6 +424,8 @@ def test_an_element_schema_that_cannot_be_rewritten_is_refused_before_any_reques
 # ── what the library does unasked ───────────────────────────────────────
 
 # What the library reads from the environment whatever it is given, each set to what a driver must not send.
+# Four of the lines name a header this driver states, spelled as the library does not spell it: the library
+# reads a name without regard to its case, so a line spelled otherwise still speaks for that header.
 UNASKED = {
     "OPENAI_API_KEY": "sk-from-the-environment",
     "OPENAI_ADMIN_KEY": "sk-admin-from-the-environment",
@@ -431,7 +433,13 @@ UNASKED = {
     "OPENAI_ORG_ID": "org-from-the-environment",
     "OPENAI_PROJECT_ID": "proj-from-the-environment",
     "OPENAI_CUSTOM_HEADERS": "\n".join(
-        ["Authorization: Bearer sk-custom-from-the-environment", "User-Agent: from-the-environment", "X-From-The-Environment: 1"]
+        [
+            "authorization: Bearer sk-custom-from-the-environment",
+            "user-agent: from-the-environment",
+            "accept: text/html",
+            "content-type: text/plain",
+            "X-From-The-Environment: 1",
+        ]
     ),
 }
 PROXIES = ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy")
@@ -507,11 +515,14 @@ def test_left_to_itself_the_library_sends_what_this_driver_omits(monkeypatch: py
                 "org-from-the-environment",
                 "proj-from-the-environment",
             )
-            # A line of the environment's replaced the key it was given, and another named the client.
-            assert (asked.headers["authorization"], asked.headers["user-agent"]) == (
-                "Bearer sk-custom-from-the-environment",
-                "from-the-environment",
-            )
+            # A line of the environment's replaced the key it was given, another named the client, and two more
+            # said what is sent and what is taken in answer.
+            assert {name: asked.headers[name] for name in ("authorization", "user-agent", "accept", "content-type")} == {
+                "authorization": "Bearer sk-custom-from-the-environment",
+                "user-agent": "from-the-environment",
+                "accept": "text/html",
+                "content-type": "text/plain",
+            }
             # And it does not say that nothing is to be kept: the provider keeps a response thirty days unless told not to.
             assert asked.json() == {"model": "gpt-x", "input": "p"}
 

@@ -3,8 +3,9 @@
 Its public names are the ones its design lists, and no others. Hand-written
 code states no type by force: it has no `cast`, names no `Any`, and silences
 no checker, but in `tests/refusals`, where each silenced line is a program
-that must not type-check. A provider's library is named by its driver alone,
-is an extra and not a requirement, and is imported only when that driver is.
+that must not type-check. A library a provider is asked through is named
+only by the modules that ask through it, is an extra and not a requirement,
+and is imported only when one of its drivers is.
 And what this package's manifest says a second time, after the SDK's, says
 the same.
 """
@@ -18,10 +19,14 @@ from spec import PACKAGE, SDK, JsonObject
 
 from semiont_inference.anthropic import AnthropicInferenceClient
 from semiont_inference.catalogue import CatalogueFacts, CatalogueLimit
+from semiont_inference.google import GoogleInferenceClient
 from semiont_inference.interface import InferenceClient, InferenceLimits
+from semiont_inference.llamacpp import LlamaCppInferenceClient
 from semiont_inference.mock import MockInferenceClient
 from semiont_inference.ollama import OllamaInferenceClient
 from semiont_inference.openai import OpenAIInferenceClient
+from semiont_inference.together import TogetherInferenceClient
+from semiont_inference.vllm import VllmInferenceClient
 
 SRC = PACKAGE / "src/semiont_inference"
 SOURCES = sorted(path for top in ("src", "tests") for path in (PACKAGE / top).rglob("*.py"))
@@ -41,8 +46,12 @@ SURFACE = {
         "TokenUsage",
     ],
     "anthropic": ["AnthropicInferenceClient"],
+    "google": ["GoogleInferenceClient"],
+    "llamacpp": ["LlamaCppInferenceClient"],
     "ollama": ["OllamaInferenceClient"],
     "openai": ["OpenAIInferenceClient"],
+    "together": ["TogetherInferenceClient"],
+    "vllm": ["VllmInferenceClient"],
     "mock": ["MockInferenceClient"],
     "factory": ["create_inference_client"],
     "limits_report": ["report_limits"],
@@ -120,6 +129,10 @@ def test_a_driver_has_the_members_of_a_client_and_no_others() -> None:
         temperature=None,
     )
     assert public(OpenAIInferenceClient(api_key="k", model="m", base_url="http://127.0.0.1:1/v1", facts=facts)) == members
+    assert public(GoogleInferenceClient(api_key="k", model="m", base_url="http://127.0.0.1:1", facts=facts)) == members
+    assert public(TogetherInferenceClient(api_key="k", model="m", base_url="http://127.0.0.1:1/v1", facts=facts)) == members
+    assert public(VllmInferenceClient(model="m", base_url="http://127.0.0.1:1/v1", api_key=None)) == members
+    assert public(LlamaCppInferenceClient(model="m", base_url="http://127.0.0.1:1/v1", api_key=None)) == members
     # The mock has, beside them, what a test reads and resets.
     assert public(MockInferenceClient(["[]"], stop_reasons=["end_turn"], limits=limits)) == members | {"calls", "reset", "set_responses"}
 
@@ -148,11 +161,18 @@ def test_every_refusal_is_silenced_for_both_checkers_on_the_line_it_is_made() ->
                 assert "# pyright: ignore[" in line, f"{program.name}: pyright is not held on: {line.strip()}"
 
 
-def test_a_providers_library_is_named_by_its_driver_alone() -> None:
+def test_a_library_is_named_only_by_the_modules_that_ask_through_it() -> None:
     # What stands between a caller and a provider's library is the interface: nothing else here knows which library a driver uses.
     assert importing("anthropic") == ["anthropic.py"]
-    assert importing("openai") == ["openai.py"]
-    assert importing("httpx") == ["ollama.py"]
+    assert importing("google") == ["google.py"]
+    assert importing("together") == ["together.py"]
+    # OpenAI's library is what three providers are asked through: OpenAI itself, and the two servers that speak its
+    # Chat Completions API. One module sets the library up for all three, and one asks those two servers.
+    assert importing("openai") == ["_chat_completions.py", "_openai_library.py", "openai.py"]
+    assert importing(r"semiont_inference\._openai_library") == ["_chat_completions.py", "openai.py"]
+    assert importing(r"semiont_inference\._chat_completions") == ["llamacpp.py", "vllm.py"]
+    # Ollama has no library and is asked over HTTPX. Google's library is handed the HTTPX client its requests go through.
+    assert importing("httpx") == ["google.py", "ollama.py"]
     assert importing("httpx2") == []
 
 
@@ -183,10 +203,11 @@ def test_the_catalogues_reader_reads_the_one_file_it_is_pointed_to_and_stands_al
 
 
 def test_a_catalogue_is_a_third_partys_word_and_only_a_driver_whose_provider_is_silent_takes_it() -> None:
-    # The catalogue is models.dev's. Anthropic and Ollama state a model's facts themselves and are asked: their
-    # drivers, the mock and what every driver shares never read one. OpenAI's API states none, and its driver is
-    # the one that may.
-    assert set(importing(r"semiont_inference\.catalogue")) <= {"openai.py"}
+    # The catalogue is models.dev's. Anthropic, Ollama, vLLM and llama.cpp's server state a model's facts themselves
+    # and are asked: their drivers, the mock and what every driver shares never read one. The APIs of OpenAI, Google
+    # and Together are silent on some of a model's facts, and their drivers are the ones handed a catalogue's, with
+    # the one module that puts the reasoning efforts a catalogue names in order.
+    assert importing(r"semiont_inference\.catalogue") == ["_effort.py", "google.py", "openai.py", "together.py"]
 
 
 def test_the_checkers_and_their_strictness_are_the_sdks() -> None:
@@ -245,16 +266,28 @@ def test_what_every_install_has_is_what_the_package_imports_without_a_providers_
     for library in ("httpx", "opentelemetry", "pydantic", "semiont"):
         assert importing(library), f"{library} is required and nothing imports it"
 
-    # A provider's own library is an extra named for the provider, imported by that provider's driver and by nothing else.
+    # An extra is named for a provider, and brings the library that provider's driver asks through: the
+    # distribution, and the module it is imported as. A provider is who serves the model, so three extras
+    # bring OpenAI's library.
+    brought = {
+        "anthropic": ("anthropic", "anthropic"),
+        "google": ("google-genai", "google"),
+        "llamacpp": ("openai", "openai"),
+        "openai": ("openai", "openai"),
+        "together": ("together", "together"),
+        "vllm": ("openai", "openai"),
+    }
     assert {
         extra: [name_of(requirement) for requirement in requirements]
         for extra, requirements in extras.items()
         if isinstance(requirements, list)
-    } == {"anthropic": ["anthropic"], "openai": ["openai"]}
-    assert set(extras) == {"anthropic", "openai"}
-    for extra in extras:
-        assert importing(extra) == [f"{extra}.py"]
-        assert extra not in {name_of(requirement) for requirement in required}
+    } == {extra: [distribution] for extra, (distribution, _) in brought.items()}
+    for extra, (distribution, module) in brought.items():
+        assert (SRC / f"{extra}.py").is_file(), f"the extra {extra} is named for no driver"
+        assert importing(module), f"{distribution} is an extra and nothing imports it"
+        assert distribution not in {name_of(requirement) for requirement in required}
+    # The versions of OpenAI's library are stated three times, and say the same.
+    assert extras["openai"] == extras["vllm"] == extras["llamacpp"]
 
     # The checkers and the tests read every driver: the environment they run in has every extra.
     dev = manifest(PACKAGE)["dependency-groups"]["dev"]

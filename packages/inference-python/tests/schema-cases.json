@@ -103,6 +103,56 @@
       "items": [{"exact": "Ada Lovelace", "entityType": "Person"}, {"exact": "London", "entityType": "Place", "prefix": "in ", "suffix": ","}]
     },
     {
+      "name": "highlighting, as written for a provider of plain enums",
+      "format": "highlighting",
+      "dialect": "as-written-plain-enums",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact"], "additionalProperties": false},
+      "sent": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact"], "additionalProperties": false}},
+      "answer": [{"exact": "the old lighthouse", "prefix": "past ", "suffix": " at dusk"}, {"exact": "a second span"}],
+      "stopReason": "end_turn",
+      "items": [{"exact": "the old lighthouse", "prefix": "past ", "suffix": " at dusk"}, {"exact": "a second span"}]
+    },
+    {
+      "name": "commenting, as written for a provider of plain enums",
+      "format": "commenting",
+      "dialect": "as-written-plain-enums",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "comment": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact", "comment"], "additionalProperties": false},
+      "sent": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "comment": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact", "comment"], "additionalProperties": false}},
+      "answer": [{"exact": "the tide tables", "comment": "Which year's?", "prefix": "by "}],
+      "stopReason": "end_turn",
+      "items": [{"exact": "the tide tables", "comment": "Which year's?", "prefix": "by "}]
+    },
+    {
+      "name": "assessing, as written for a provider of plain enums",
+      "format": "assessing",
+      "dialect": "as-written-plain-enums",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "assessment": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact", "assessment"], "additionalProperties": false},
+      "sent": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "assessment": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact", "assessment"], "additionalProperties": false}},
+      "answer": [{"exact": "always", "assessment": "Too strong: the log shows two exceptions.", "suffix": " on time"}],
+      "stopReason": "end_turn",
+      "items": [{"exact": "always", "assessment": "Too strong: the log shows two exceptions.", "suffix": " on time"}]
+    },
+    {
+      "name": "tagging, as written for a provider of plain enums, and nothing found",
+      "format": "tagging",
+      "dialect": "as-written-plain-enums",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact"], "additionalProperties": false},
+      "sent": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact"], "additionalProperties": false}},
+      "answer": [],
+      "stopReason": "end_turn",
+      "items": []
+    },
+    {
+      "name": "linking, as written for a provider of plain enums",
+      "format": "linking",
+      "dialect": "as-written-plain-enums",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "entityType": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact", "entityType"], "additionalProperties": false},
+      "sent": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "entityType": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact", "entityType"], "additionalProperties": false}},
+      "answer": [{"exact": "Ada Lovelace", "entityType": "Person"}, {"exact": "London", "entityType": "Place", "prefix": "in ", "suffix": ","}],
+      "stopReason": "end_turn",
+      "items": [{"exact": "Ada Lovelace", "entityType": "Person"}, {"exact": "London", "entityType": "Place", "prefix": "in ", "suffix": ","}]
+    },
+    {
       "name": "an array of strings, as written",
       "dialect": "as-written",
       "schema": {"type": "string"},
@@ -256,6 +306,42 @@
       "items": [{"exact": "x", "note": null}, {"exact": "y"}]
     },
     {
+      "name": "as written, a `const` and an `enum` of any scalar are sent as they are",
+      "dialect": "as-written",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "kind": {"type": "string", "const": "span"}, "sure": {"type": "boolean", "enum": [true]}, "weight": {"type": ["string", "null"], "enum": ["high", null]}}, "required": ["exact", "kind"], "additionalProperties": false},
+      "sent": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "kind": {"type": "string", "const": "span"}, "sure": {"type": "boolean", "enum": [true]}, "weight": {"type": ["string", "null"], "enum": ["high", null]}}, "required": ["exact", "kind"], "additionalProperties": false}},
+      "answer": [{"exact": "x", "kind": "span", "sure": true, "weight": null}],
+      "stopReason": "end_turn",
+      "items": [{"exact": "x", "kind": "span", "sure": true, "weight": null}]
+    },
+    {
+      "name": "for a provider of plain enums, an `enum` of text is sent as written",
+      "dialect": "as-written-plain-enums",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "weight": {"type": "string", "enum": ["high", "low"]}}, "required": ["exact"], "additionalProperties": false},
+      "sent": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "weight": {"type": "string", "enum": ["high", "low"]}}, "required": ["exact"], "additionalProperties": false}},
+      "answer": [{"exact": "x", "weight": "low"}, {"exact": "y"}],
+      "stopReason": "end_turn",
+      "items": [{"exact": "x", "weight": "low"}, {"exact": "y"}]
+    },
+    {
+      "name": "for a provider of plain enums, an `enum` of numbers is sent as written",
+      "dialect": "as-written-plain-enums",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "rank": {"type": "number", "enum": [1, 2.5]}}, "required": ["exact", "rank"], "additionalProperties": false},
+      "sent": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "rank": {"type": "number", "enum": [1, 2.5]}}, "required": ["exact", "rank"], "additionalProperties": false}},
+      "answer": [{"exact": "x", "rank": 2.5}],
+      "stopReason": "end_turn",
+      "items": [{"exact": "x", "rank": 2.5}]
+    },
+    {
+      "name": "for a provider of plain enums, a property named `const` or `enum` is a property",
+      "dialect": "as-written-plain-enums",
+      "schema": {"type": "object", "properties": {"const": {"type": "string"}, "enum": {"type": "string"}}, "required": ["const"], "additionalProperties": false},
+      "sent": {"type": "array", "items": {"type": "object", "properties": {"const": {"type": "string"}, "enum": {"type": "string"}}, "required": ["const"], "additionalProperties": false}},
+      "answer": [{"const": "x", "enum": "y"}, {"const": "z"}],
+      "stopReason": "end_turn",
+      "items": [{"const": "x", "enum": "y"}, {"const": "z"}]
+    },
+    {
       "name": "what does not fit the schema is left as it came: only a null where an optional property was is taken out",
       "dialect": "object-root-all-required",
       "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact"], "additionalProperties": false},
@@ -355,13 +441,22 @@
       "failure": "response is not valid JSON"
     },
     {
+      "name": "for a provider of plain enums, an object at the root is a failure",
+      "dialect": "as-written-plain-enums",
+      "schema": {"type": "string"},
+      "sent": {"type": "array", "items": {"type": "string"}},
+      "answer": {"elements": ["a"]},
+      "stopReason": "end_turn",
+      "failure": "parsed to object, not an array"
+    },
+    {
       "name": "refused: a keyword that is not rewritten, as written",
       "dialect": "as-written",
       "schema": {"type": "object", "properties": {"exact": {"type": "string", "minLength": 1}}, "required": ["exact"], "additionalProperties": false},
       "refused": "The element schema cannot be rewritten: `minLength` is a keyword this package does not rewrite (at #/properties/exact)"
     },
     {
-      "name": "refused: a keyword that is not rewritten, in the other dialect",
+      "name": "refused: a keyword that is not rewritten, with an object at the root",
       "dialect": "object-root-all-required",
       "schema": {"type": "object", "properties": {"exact": {"type": "string", "minLength": 1}}, "required": ["exact"], "additionalProperties": false},
       "refused": "The element schema cannot be rewritten: `minLength` is a keyword this package does not rewrite (at #/properties/exact)"
@@ -527,6 +622,30 @@
       "dialect": "object-root-all-required",
       "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "nothing": {"type": "null"}}, "required": ["exact"], "additionalProperties": false},
       "refused": "The element schema cannot be rewritten: the optional property `nothing` takes null of its own, and a null is what stands here for a property left out (at #/properties/nothing)"
+    },
+    {
+      "name": "refused, where a reply is held to plain enums alone: a `const` of text",
+      "dialect": "as-written-plain-enums",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "kind": {"type": "string", "const": "span"}}, "required": ["exact", "kind"], "additionalProperties": false},
+      "refused": "The element schema cannot be rewritten: `const` is a keyword the provider ignores, so no reply would be held to it (at #/properties/kind)"
+    },
+    {
+      "name": "refused, where a reply is held to plain enums alone: a `const` deep in the schema",
+      "dialect": "as-written-plain-enums",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "a/b": {"type": "array", "items": {"type": "object", "properties": {"k": {"type": "null", "const": null}}, "additionalProperties": false}}}, "required": ["exact"], "additionalProperties": false},
+      "refused": "The element schema cannot be rewritten: `const` is a keyword the provider ignores, so no reply would be held to it (at #/properties/a~1b/items/properties/k)"
+    },
+    {
+      "name": "refused, where a reply is held to plain enums alone: an `enum` that lists a boolean",
+      "dialect": "as-written-plain-enums",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "sure": {"type": "boolean", "enum": [true, false]}}, "required": ["exact"], "additionalProperties": false},
+      "refused": "The element schema cannot be rewritten: `enum` lists a value that is neither text nor a number, which the provider ignores, so no reply would be held to it (at #/properties/sure)"
+    },
+    {
+      "name": "refused, where a reply is held to plain enums alone: an `enum` that lists null",
+      "dialect": "as-written-plain-enums",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "weight": {"type": ["string", "null"], "enum": ["high", null]}}, "required": ["exact"], "additionalProperties": false},
+      "refused": "The element schema cannot be rewritten: `enum` lists a value that is neither text nor a number, which the provider ignores, so no reply would be held to it (at #/properties/weight)"
     }
   ]
 }

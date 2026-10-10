@@ -185,6 +185,8 @@ class Played(ABC):
         finally:
             for waiting in (closed, answered, leaving):
                 waiting.cancel()
+            # Until the cancelled read has ended it is still waiting on the stream, and the next request cannot be read from it.
+            await asyncio.gather(closed, answered, leaving, return_exceptions=True)
             if released in self._held:
                 self._held.remove(released)
 

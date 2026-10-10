@@ -45,14 +45,17 @@ class InferenceResponse:
 type ElementSchema = Mapping[str, JsonValue]
 """The JSON Schema of one element of a structured generation's array.
 
-It is the schema and nothing built around it. Anthropic and Ollama take JSON
-Schema as it is. OpenAI's strict mode does not, and its driver sends the
-schema rewritten and reads the answer back, so that an element reads the same
+It is the schema and nothing built around it. Most providers take JSON Schema
+as it is. OpenAI's strict mode does not, and its driver sends the schema
+rewritten and reads the answer back, so that an element reads the same
 whichever provider wrote it. Keep to what every provider holds a reply to:
-objects, `string`, `number`, `boolean` and `null`, `enum`, `const`,
-`required`, and `additionalProperties: false`. A bound on a number or on a
-text's length (`minimum`, `maxLength`) is not held by Anthropic, is refused
-by the OpenAI driver, and stating one misleads whoever reads the schema.
+objects, `string`, `number`, `boolean` and `null`, an `enum` of text or of
+numbers, `required`, and `additionalProperties: false`. Google's API holds a
+reply to no `const`, and to no `enum` of anything else, and its driver
+refuses a schema that states one. A bound on a number or on a text's length
+(`minimum`, `maxLength`) is not held by Anthropic, is refused by every driver
+but Anthropic's and Ollama's, and stating one misleads whoever reads the
+schema.
 """
 
 
@@ -81,27 +84,36 @@ class StructuredResponse:
 class InferenceLimits:
     """A model's ceilings, as its provider states them. None is a constant kept by hand.
 
-    `context_tokens` is the context window. Anthropic states the most a model
-    reads, and what it writes has a ceiling of its own. Ollama states one
-    window shared by both, and it is given here as both: `max_output_tokens
-    == context_tokens` says the window is shared. OpenAI's API states neither,
-    so its driver is handed them, as a model catalogue states them: the whole
-    window, which what is read and what is written share, and a ceiling of
-    its own on what is written.
+    `context_tokens` is the context window, and `max_output_tokens` the most
+    the model writes. Who states them differs by provider:
+
+    - Anthropic and Google state the most a model reads, and a ceiling of its
+      own on what it writes.
+    - Ollama, vLLM and llama.cpp's server state one window shared by both,
+      and it is given here as both: `max_output_tokens == context_tokens`
+      says the window is shared.
+    - OpenAI's API states neither, so its driver is handed them, as a model
+      catalogue states them: the whole window, which what is read and what is
+      written share, and a ceiling of its own on what is written.
+    - Together states a model's window in its model list, and no ceiling on
+      what the model writes. Its driver asks for the window and is handed the
+      ceiling, as a model catalogue states it, and never states the ceiling
+      above the window. Where the list states no window for a model, the
+      window too is the catalogue's.
 
     `output_tokens_per_hour` is the provider's own worst-case rate, where it
     states one. Anthropic's library reckons a call's longest duration from it
     and refuses to wait for a whole answer reckoned at over ten minutes. A
     caller with a deadline of its own works out from it how much to ask for.
-    `None` is a provider whose rate cannot be known beforehand (Ollama: the
-    hardware is local; OpenAI: it states none). It does not mean a call has
-    no bound.
+    `None` is a provider whose rate cannot be known beforehand (Ollama, vLLM
+    and llama.cpp's server: the hardware is the operator's; OpenAI, Google
+    and Together: they state none). It does not mean a call has no bound.
 
     `accepts_temperature` is whether the model takes a caller's temperature.
     Some Anthropic models refuse any, so the Anthropic driver asks at
-    discovery and leaves the parameter out for one that does. The OpenAI
-    driver leaves it out wherever this is not `True`. `None` is no claim:
-    only `False` says the model refuses it.
+    discovery and leaves the parameter out for one that does. The OpenAI,
+    Google and Together drivers leave it out wherever this is not `True`.
+    `None` is no claim: only `False` says the model refuses it.
     """
 
     context_tokens: int

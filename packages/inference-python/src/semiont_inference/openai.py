@@ -1,8 +1,8 @@
 """The OpenAI driver: a model of OpenAI's, asked through OpenAI's own library, by its Responses API.
 
 The library is not a dependency of this package. It comes with the extra
-`semiont-inference[openai]`, and this module is the one place it is imported:
-whoever does not ask for this driver does not need it.
+`semiont-inference[openai]`: whoever does not ask for this driver does not
+need it.
 
 **What is known of the model.** OpenAI's API states nothing of a model: not
 its limits, not whether it holds a reply to a schema, not which reasoning
@@ -29,56 +29,15 @@ catalogue's word.
   (`semiont_inference._schema`), which takes an object at the root with every
   property required, and `strict` stated.
 
-**What the library does on its own, and what is done about each** (`openai`,
-read at 3.28.0, so that a new release of it is read for the same):
+**The library.** How it is set up, what it does on its own and what is done
+about each, and what of it is not switched off are in
+`semiont_inference._openai_library`, which this driver shares with the client
+of the vLLM and llama.cpp drivers. What of that is this driver's own:
 
-- Its HTTP client takes a proxy and its trusted certificates from the
-  environment (`HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY`,
-  `SSL_CERT_FILE`, `SSL_CERT_DIR`), and follows redirects. This driver's does
-  neither: the address it was given is the address asked.
-- It adds headers that describe itself and the machine it runs on
-  (`X-Stainless-*`: its version, the operating system, the architecture, the
-  Python runtime and its version), an `OpenAI-Organization` and an
-  `OpenAI-Project` read from `OPENAI_ORG_ID` and `OPENAI_PROJECT_ID`, and
-  every line of `OPENAI_CUSTOM_HEADERS`. An `Authorization` among those lines
-  replaces the key the client was given. Every header the library would add
-  is left off each request by name, and four are stated: `Accept`,
-  `Content-Type`, `User-Agent` (the library's name and version) and
-  `Authorization` (the key this driver was given).
-- It waits ten minutes for each read, and sends a request that timed out
-  again, twice, with nothing that tells the provider it is the same request.
-  This driver states no bound on a read (`_TIMEOUT`), so no generation is
-  started a second time for being slow.
-- It asks again, `max_retries` times, for a request the provider refused with
-  408, 409, 429 or 500 and above, and for one whose connection failed. It
-  waits as long as a `retry-after` header says, up to two minutes, and does
-  not ask again at all where the header says longer. `_MAX_RETRIES` states
-  how many times.
-- It builds a reply into typed models without checking it, and its
-  `output_text` joins the text of every message of a reply. The reply is read
-  here as the JSON the provider wrote.
-
-**What of it is not switched off**, because the library has no argument for
-it:
-
-- `OPENAI_LOG`, read when the library is imported: it sets the level of the
-  library's logger and configures the root logger. What the library logs is a
-  request's method, status, retry count and id, and no address, header or
-  body.
-- `OPENAI_ADMIN_KEY` and `OPENAI_WEBHOOK_SECRET` are read and kept by every
-  client. Neither is sent to the Responses API.
-- A request whose answer is asked for with its headers, which is where the
-  provider states the request's id, carries `X-Stainless-Raw-Response: true`.
-  The library reads that mark back itself.
-- It reads what platform it runs on, for headers that are not sent: in a
-  thread at each client's first request, and once in the process, where it is
-  asked, when this driver first asks it which headers it would add.
-- `OPENAI_API_KEY` and `OPENAI_BASE_URL` are read only by a client given no
-  key or no address. This driver gives both.
-
-Its failures: `APIStatusError` carries the status the provider refused with;
-`APIConnectionError` carries none. It has no failure of its own for a call
-that was cancelled, and catches no cancellation.
+- Its one request is asked for with its headers, which is where the provider
+  states the request's id, so it carries the library's mark of that.
+- The library's `output_text` joins the text of every message of a reply. The
+  reply is read here as the JSON the provider wrote.
 """
 
 import time
@@ -86,11 +45,12 @@ from typing import Final, Literal, final
 
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
+from semiont_inference._effort import least_effort
 from semiont_inference._log import LOG
 from semiont_inference._schema import array_schema
 from semiont_inference._telemetry import record
 from semiont_inference._tokens import Counts, as_usage, read_counts
-from semiont_inference.catalogue import CatalogueFacts, EffortOption, ReasoningEffort
+from semiont_inference.catalogue import CatalogueFacts, ReasoningEffort
 from semiont_inference.interface import (
     ElementSchema,
     InferenceLimits,
@@ -102,9 +62,11 @@ from semiont_inference.interface import (
 )
 
 try:
-    from openai import APIStatusError, AsyncOpenAI, DefaultAsyncHttpx2Client, Omit, Timeout, omit
+    from openai import APIStatusError, Omit, omit
     from openai.types.responses import ResponseTextConfigParam
     from openai.types.shared_params import Reasoning
+
+    from semiont_inference._openai_library import open_library, request_headers
 except ModuleNotFoundError as missing:
     # A module the library itself lacks is another failure, and is left as it is.
     if missing.name != "openai":
@@ -119,30 +81,6 @@ __all__ = ["OpenAIInferenceClient"]
 
 _OBJECT: Final = TypeAdapter[dict[str, JsonValue]](dict[str, JsonValue])
 
-# How long a generation may take. Asked for whole, the provider's answer is one
-# HTTP response, and any bound on the wait for it would be a ceiling on a
-# generation's length that no caller chose. The library would also answer that
-# bound by sending the request again. So there is none, on sending or on the
-# answer: a generation ends when it is answered or when its caller cancels it,
-# and that is its one bound. Reaching the provider at all is bounded, at ten
-# seconds, as it is in the Ollama driver.
-_TIMEOUT: Final = Timeout(None, connect=10.0)
-
-# How many times the library asks again for a request that failed. Chosen, and
-# not left to the library: two is its default today, and written here a release
-# of the library cannot change it unnoticed.
-#
-# Two rests on what was measured of the Anthropic driver, whose library asks
-# again by the same rule: a failure that comes quickly (a 429, a 409, a quick
-# 5xx, a connection refused) costs seconds, and the library waits as long as
-# `retry-after` says. Nothing has been measured against OpenAI. With no bound
-# on a read, a slow generation is never one of the tries.
-#
-# What would change it: a generation that runs for minutes and then loses its
-# connection, again and again. Each try starts it from nothing, and its tries
-# together can outlast the worker's bound. If that is seen, lower this number.
-_MAX_RETRIES: Final = 2
-
 # The name a request gives the format it asks for, which the API requires. The
 # provider treats a schema and its name as data about the account, not as
 # content, so the name says nothing of what is asked.
@@ -154,43 +92,6 @@ _FORMAT_NAME: Final = "elements"
 # withheld: called withheld, a job is never tried again. A release of the
 # library that lists a new code fails tests/test_openai.py, where each is read.
 _BLOCKED: Final = frozenset({"invalid_prompt", "bio_policy", "misalignment_policy_violation", "image_content_policy_violation"})
-
-# The header the library adds to each attempt beside its defaults.
-_RETRY_COUNT: Final = "x-stainless-retry-count"
-
-
-def _rank(effort: ReasoningEffort) -> int:
-    """Where an effort stands, from the least reasoning to the most."""
-    match effort:
-        case "none":
-            return 0
-        case "minimal":
-            return 1
-        case "low":
-            return 2
-        case "medium":
-            return 3
-        case "high":
-            return 4
-        case "xhigh":
-            return 5
-        case "max":
-            return 6
-
-
-def _least_effort(facts: CatalogueFacts) -> ReasoningEffort | None:
-    """The least reasoning effort the model's facts name, or None where they name none.
-
-    OpenAI's API takes reasoning by a named effort and by nothing else. A way
-    of another kind (a toggle, a budget of tokens) has no parameter there, so
-    a model whose facts state only such ways, or no way at all, is sent no
-    reasoning setting. A catalogue does not always list efforts from least to
-    most.
-    """
-    named: list[ReasoningEffort] = [
-        effort for option in facts.reasoning_options or () if isinstance(option, EffortOption) for effort in option.values
-    ]
-    return min(named, key=_rank, default=None)
 
 
 def _takes_temperature(facts: CatalogueFacts, effort: ReasoningEffort | None) -> bool | None:
@@ -273,7 +174,10 @@ class OpenAIInferenceClient:
         self._api_key: Final = api_key
         self._base_url: Final = base_url
         self._holds_to_a_schema: Final = facts.structured_output
-        self._effort: Final = _least_effort(facts)
+        # OpenAI's API takes reasoning by a named effort and by nothing else. A way of another kind (a
+        # toggle, a budget of tokens) has no parameter there, so a model whose facts state only such
+        # ways, or no way at all, is sent no reasoning setting.
+        self._effort: Final = least_effort(facts)
         self._takes_temperature: Final = _takes_temperature(facts, self._effort)
         # The catalogue's `context` is the whole window, which what is read and what is written share,
         # and its `output` a ceiling of its own on what is written: a caller takes what it asks to be
@@ -429,38 +333,6 @@ class OpenAIInferenceClient:
             return RuntimeError("OpenAI reported that the generation failed, and stated no code")
         return RuntimeError(f"OpenAI reported that the generation failed: {code}{why}")
 
-    def _library(self) -> AsyncOpenAI:
-        """The library's client, for one call. It is closed when the call ends, so a driver holds nothing open and has nothing to close.
-
-        Its HTTP client is stated, and not left to the library: one that
-        takes no proxy and no certificates from the environment, and follows
-        no redirect.
-        """
-        return AsyncOpenAI(
-            api_key=self._api_key,
-            base_url=self._base_url,
-            max_retries=_MAX_RETRIES,
-            timeout=_TIMEOUT,
-            http_client=DefaultAsyncHttpx2Client(trust_env=False, follow_redirects=False),
-        )
-
-    def _headers(self, library: AsyncOpenAI) -> dict[str, str | Omit]:
-        """The headers of a request: every one the library would add left off, and the four a request needs stated.
-
-        What the library would add is asked of the library, so that a header
-        a later release adds, and whatever the environment names, is left off
-        with the rest. The four are stated last, where nothing replaces them:
-        a line of the environment's cannot stand in for the key.
-        """
-        left_off: dict[str, str | Omit] = dict.fromkeys((*library.default_headers, _RETRY_COUNT), omit)
-        return {
-            **left_off,
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-            "User-Agent": library.user_agent,
-            "Authorization": f"Bearer {self._api_key}",
-        }
-
     async def _recorded(
         self, started: float, prompt: str, max_tokens: int, temperature: float, held_to: ResponseTextConfigParam | Omit
     ) -> tuple[dict[str, JsonValue], str | None]:
@@ -488,7 +360,7 @@ class OpenAIInferenceClient:
         again.
         """
         reasoning: Reasoning | Omit = omit if self._effort is None else {"effort": self._effort}
-        async with self._library() as library:
+        async with open_library(api_key=self._api_key, base_url=self._base_url) as library:
             # Asked for with its headers, which is where the provider states the request's id.
             response = await library.responses.with_raw_response.create(
                 model=self.model_id,
@@ -498,7 +370,7 @@ class OpenAIInferenceClient:
                 reasoning=reasoning,
                 temperature=temperature if self._takes_temperature else omit,
                 text=held_to,
-                extra_headers=self._headers(library),
+                extra_headers=request_headers(library, api_key=self._api_key, with_a_body=True),
             )
             try:
                 return _OBJECT.validate_json(response.parse(to=str)), response.request_id

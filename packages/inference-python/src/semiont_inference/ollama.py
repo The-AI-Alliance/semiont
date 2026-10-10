@@ -7,6 +7,7 @@ from typing import Final, Literal, final
 import httpx
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
+from semiont_inference._estimate import estimate_that_fits
 from semiont_inference._log import LOG
 from semiont_inference._once import Once
 from semiont_inference._structured import read_array
@@ -47,15 +48,6 @@ _GENERATION_TIMEOUT: Final = httpx.Timeout(None, connect=10.0)
 # the model's real window.
 _NUM_CTX_ESTIMATE_SLACK: Final = 0.2
 _NUM_CTX_TEMPLATE_ALLOWANCE: Final = 64
-
-# The rule of `estimateTokens` in TypeScript's core (packages/core/src/chunking.ts),
-# which cuts a text into pieces by it too: about four code points to a token,
-# rounded up. Python has no chunking yet. When it has, the two must have one home.
-_CODE_POINTS_PER_TOKEN: Final = 4
-
-
-def _estimate_tokens(text: str) -> int:
-    return math.ceil(len(text) / _CODE_POINTS_PER_TOKEN)
 
 
 def _context_length(body: bytes) -> int | None:
@@ -165,12 +157,7 @@ class OllamaInferenceClient:
         # own. With no `num_ctx` Ollama takes the model's default window and clips any prompt
         # beyond it: what was sent is lost, and nothing says so.
         limits = await self.limits()
-        prompt_tokens = _estimate_tokens(prompt)
-        if prompt_tokens + max_tokens > limits.context_tokens:
-            raise ValueError(
-                f"Prompt (~{prompt_tokens} tokens) + output budget ({max_tokens}) exceed the "
-                f"'{self.model_id}' context window ({limits.context_tokens} tokens)"
-            )
+        prompt_tokens = estimate_that_fits(prompt, max_tokens, model=self.model_id, context_tokens=limits.context_tokens)
         num_ctx = min(
             limits.context_tokens,
             prompt_tokens + max_tokens + math.ceil(prompt_tokens * _NUM_CTX_ESTIMATE_SLACK) + _NUM_CTX_TEMPLATE_ALLOWANCE,

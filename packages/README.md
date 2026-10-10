@@ -47,7 +47,7 @@ Two distributions. One is published to PyPI, and is how a Python program uses Se
 | Package | Version | Source | Description |
 | ------- | ------- | ------ | ----------- |
 | [semiont](https://pypi.org/project/semiont/) | [![PyPI](https://img.shields.io/pypi/v/semiont.svg)](https://pypi.org/project/semiont/) | [sdk-python](./sdk-python/) | The Python SDK: the client of a knowledge base, its transport over a gateway, signing in, live queries, and the doubles a test is built on. On asyncio, typed for `mypy` and `pyright` |
-| semiont-inference | not published | [inference-python](./inference-python/) | The model providers a Python service calls, behind one interface: text and structured generation, discovered limits (Anthropic, Ollama, OpenAI). A provider's own library is an extra. The Python counterpart of `@semiont/inference` |
+| semiont-inference | not published | [inference-python](./inference-python/) | The model providers a Python service calls, behind one interface: text and structured generation, discovered limits (Anthropic, Google's Gemini, llama.cpp's server, Ollama, OpenAI, Together AI, vLLM). A provider's own library is an extra. The Python counterpart of `@semiont/inference` |
 
 The Go client is [sdk-go](./sdk-go/).
 

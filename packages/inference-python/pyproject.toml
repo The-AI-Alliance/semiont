@@ -39,6 +39,16 @@ anthropic = ["anthropic>=1.13,<2"]
 # OpenAI's library, from the version the OpenAI driver was written against:
 # what the driver leans on in it, and switches off in it, is listed in openai.py.
 openai = ["openai>=3.28,<4"]
+# Google's library, from the version the Google driver was written against:
+# what the driver leans on in it, and switches off in it, is listed in google.py.
+google = ["google-genai>=2.29,<3"]
+# Together's library, from the version the Together driver was written against:
+# what the driver leans on in it, and switches off in it, is listed in together.py.
+together = ["together>=2.40,<3"]
+# vLLM and llama.cpp's server speak OpenAI's Chat Completions: each driver asks
+# its server through OpenAI's library, pointed at the server's address.
+vllm = ["openai>=3.28,<4"]
+llamacpp = ["openai>=3.28,<4"]
 
 [project.urls]
 Homepage = "https://the-ai-alliance.github.io/semiont/"
@@ -56,7 +66,7 @@ semiont = { path = "../sdk-python", editable = true }
 [dependency-groups]
 dev = [
     # Every extra: the checkers and the tests read every driver.
-    "semiont-inference[anthropic,openai]",
+    "semiont-inference[anthropic,google,llamacpp,openai,together,vllm]",
     "mypy==2.4.0",
     # What reads, in memory, the telemetry the drivers record (tests/test_telemetry.py).
     "opentelemetry-sdk>=1.30,<2",
