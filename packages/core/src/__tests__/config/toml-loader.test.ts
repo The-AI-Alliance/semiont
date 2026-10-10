@@ -48,13 +48,13 @@ const MINIMAL_TOML = `${MINIMAL_NO_IDENTITY}${IDENTITY_LOCAL}`;
 
 
 const WITH_INFERENCE_TOML = `
-[environments.local.make-meaning.actors.gatherer.inference]
+[environments.local.actors.gatherer.inference]
 type = "anthropic"
 model = "claude-haiku-4-5-20251001"
 maxTokens = 4096
 apiKey = "test-key"
 
-[environments.local.make-meaning.actors.matcher.inference]
+[environments.local.actors.matcher.inference]
 type = "anthropic"
 model = "claude-haiku-4-5-20251001"
 maxTokens = 2048
@@ -64,7 +64,7 @@ ${SERVICES_LOCAL}`;
 const WITH_INFERENCE_TOML_COMPLETE = `${WITH_INFERENCE_TOML}${IDENTITY_LOCAL}`;
 
 const WITH_ENV_VAR_TOML = `
-[environments.local.make-meaning.actors.gatherer.inference]
+[environments.local.actors.gatherer.inference]
 type = "anthropic"
 model = "claude-haiku-4-5-20251001"
 apiKey = "\${MY_API_KEY}"
@@ -705,28 +705,37 @@ model = "o"
     expect(load(MINIMAL_TOML).inference).toBeUndefined();
   });
 
-  it('maps the actor maps from [actors] and [make-meaning.actors]', () => {
+  it('maps each actor from its binding under [actors]', () => {
     const cfg = load(`${MINIMAL_TOML}
 [environments.local.actors.gatherer.inference]
 type = "anthropic"
 model = "g"
 apiKey = "k"
 
-[environments.local.make-meaning.actors.matcher.inference]
+[environments.local.actors.matcher.inference]
 type = "anthropic"
-model = "mm"
+model = "m"
 apiKey = "k"
+`);
+    expect(cfg._metadata?.actors).toEqual({
+      gatherer: { type: 'anthropic', model: 'g', apiKey: 'k' },
+      matcher: { type: 'anthropic', model: 'm', apiKey: 'k' },
+    });
+  });
 
+  it('a binding under [make-meaning] is not read: the config binds no actor', () => {
+    const cfg = load(`${MINIMAL_TOML}
 [environments.local.make-meaning.actors.gatherer.inference]
 type = "anthropic"
 model = "mg"
 apiKey = "k"
+
+[environments.local.make-meaning.default.inference]
+type = "anthropic"
+model = "md"
+apiKey = "k"
 `);
-    // [make-meaning.actors] wins over [actors] for the same actor.
-    expect(cfg._metadata?.actors).toMatchObject({
-      gatherer: { type: 'anthropic', model: 'mg' },
-      matcher: { type: 'anthropic', model: 'mm' },
-    });
+    expect(cfg._metadata?.actors).toBeUndefined();
   });
 
   it('maps [graph] and [database], with their defaults', () => {

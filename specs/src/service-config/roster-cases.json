@@ -1,5 +1,5 @@
 {
-  "$comment": "Who serves each role, as every reader must compute it from one environment of a knowledge base's config. A `mark` job of a motivation is served by `workers.mark.<motivation>`, else `workers.mark`, else `workers.default`; a `yield` job by `workers.yield`, else `workers.default`; an actor by `make-meaning.actors.<actor>`, else `actors.<actor>`, else `make-meaning.default`. A section under `workers` that names no job is refused, and the refusal names the section: left alone it would bind nothing, and the job it was written for would go unserved without a word. Go (apps/launcher: the config it reads before it starts anything, the roster it writes into the Archivist's configuration document, which `browse:agents` answers from, and the agents it writes into a worker's) runs every case and every refusal. TypeScript (packages/core: the loader the Librarian routes its actors' work by) runs every case's actors. Each fails on any difference, so the roster names exactly the agents the work is routed to. A worker reads no config of a knowledge base: the launcher resolves who serves each job, and the launcher alone refuses a section that names none. `config` is the whole file; `roster` is ArchivistConfig's; a refusal's `names` is the section its message must name, as `[environments.<env>.<names>] names no job`. Add a case or a refusal here before changing either implementation.",
+  "$comment": "Who serves each role, as every reader must compute it from one environment of a knowledge base's config. A `mark` job of a motivation is served by `workers.mark.<motivation>`, else `workers.mark`, else `workers.default`; a `yield` job by `workers.yield`, else `workers.default`; an actor by `actors.<actor>`, and by nothing else. A section under `workers` that names no job is refused, and the refusal names the section: left alone it would bind nothing, and the job it was written for would go unserved without a word. Go (apps/launcher: the config it reads before it starts anything, the roster it writes into the Archivist's configuration document, which `browse:agents` answers from, and the agents it writes into a worker's) runs every case and every refusal. TypeScript (packages/core: the loader the Librarian routes its actors' work by) runs every case's actors. Each fails on any difference, so the roster names exactly the agents the work is routed to. A worker reads no config of a knowledge base: the launcher resolves who serves each job, and the launcher alone refuses a section that names none. `config` is the whole file; `roster` is ArchivistConfig's; a refusal's `names` is the section its message must name, as `[environments.<env>.<names>] names no job`. Add a case or a refusal here before changing either implementation.",
   "cases": [
     {
       "why": "no role is bound: no one serves anything",
@@ -176,31 +176,14 @@
       }
     },
     {
-      "why": "make-meaning.default serves both actors",
-      "config": "[defaults]\nenvironment = \"local\"\n\n[environments.local.inference.anthropic]\nplatform = \"external\"\napiKey = \"k\"\n\n[environments.local.inference.ollama]\nplatform = \"external\"\nbaseURL = \"http://ollama.internal:11434\"\n\n[environments.local.make-meaning.default.inference]\ntype = \"ollama\"\nmodel = \"g-fallback\"\n",
+      "why": "each actor is served by its own binding",
+      "config": "[defaults]\nenvironment = \"local\"\n\n[environments.local.inference.anthropic]\nplatform = \"external\"\napiKey = \"k\"\n\n[environments.local.inference.ollama]\nplatform = \"external\"\nbaseURL = \"http://ollama.internal:11434\"\n\n[environments.local.actors.gatherer.inference]\ntype = \"ollama\"\nmodel = \"g-gatherer\"\n\n[environments.local.actors.matcher.inference]\ntype = \"anthropic\"\nmodel = \"m-matcher\"\n",
       "roster": {
         "workers": {},
         "actors": {
           "gatherer": {
             "provider": "ollama",
-            "model": "g-fallback"
-          },
-          "matcher": {
-            "provider": "ollama",
-            "model": "g-fallback"
-          }
-        }
-      }
-    },
-    {
-      "why": "an actor's own binding wins over make-meaning.default",
-      "config": "[defaults]\nenvironment = \"local\"\n\n[environments.local.inference.anthropic]\nplatform = \"external\"\napiKey = \"k\"\n\n[environments.local.inference.ollama]\nplatform = \"external\"\nbaseURL = \"http://ollama.internal:11434\"\n\n[environments.local.make-meaning.default.inference]\ntype = \"ollama\"\nmodel = \"g-fallback\"\n\n[environments.local.actors.matcher.inference]\ntype = \"anthropic\"\nmodel = \"m-matcher\"\n",
-      "roster": {
-        "workers": {},
-        "actors": {
-          "gatherer": {
-            "provider": "ollama",
-            "model": "g-fallback"
+            "model": "g-gatherer"
           },
           "matcher": {
             "provider": "anthropic",
@@ -210,20 +193,28 @@
       }
     },
     {
-      "why": "make-meaning.actors wins over actors",
+      "why": "a binding under make-meaning.default serves no actor",
+      "config": "[defaults]\nenvironment = \"local\"\n\n[environments.local.inference.anthropic]\nplatform = \"external\"\napiKey = \"k\"\n\n[environments.local.inference.ollama]\nplatform = \"external\"\nbaseURL = \"http://ollama.internal:11434\"\n\n[environments.local.make-meaning.default.inference]\ntype = \"ollama\"\nmodel = \"g-fallback\"\n",
+      "roster": {
+        "workers": {},
+        "actors": {}
+      }
+    },
+    {
+      "why": "a binding under make-meaning.actors serves no actor: the one under actors does",
       "config": "[defaults]\nenvironment = \"local\"\n\n[environments.local.inference.anthropic]\nplatform = \"external\"\napiKey = \"k\"\n\n[environments.local.inference.ollama]\nplatform = \"external\"\nbaseURL = \"http://ollama.internal:11434\"\n\n[environments.local.actors.gatherer.inference]\ntype = \"anthropic\"\nmodel = \"m-actors\"\n\n[environments.local.make-meaning.actors.gatherer.inference]\ntype = \"ollama\"\nmodel = \"g-make-meaning\"\n",
       "roster": {
         "workers": {},
         "actors": {
           "gatherer": {
-            "provider": "ollama",
-            "model": "g-make-meaning"
+            "provider": "anthropic",
+            "model": "m-actors"
           }
         }
       }
     },
     {
-      "why": "with no make-meaning.default, only the bound actors are served",
+      "why": "only the bound actors are served: workers.default serves no actor",
       "config": "[defaults]\nenvironment = \"local\"\n\n[environments.local.inference.anthropic]\nplatform = \"external\"\napiKey = \"k\"\n\n[environments.local.inference.ollama]\nplatform = \"external\"\nbaseURL = \"http://ollama.internal:11434\"\n\n[environments.local.actors.matcher.inference]\ntype = \"anthropic\"\nmodel = \"m-matcher\"\n\n[environments.local.workers.default.inference]\ntype = \"anthropic\"\nmodel = \"m-default\"\n",
       "roster": {
         "workers": {

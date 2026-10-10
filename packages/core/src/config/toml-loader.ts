@@ -175,11 +175,6 @@ interface EnvironmentSection {
   };
   inference?: InferenceSection;
   'make-meaning'?: {
-    actors?: {
-      gatherer?: { inference?: InferenceConfig };
-      matcher?: { inference?: InferenceConfig };
-    };
-    default?: { inference?: InferenceConfig };
     /**
      * Resource-gather knobs. `settleTimeoutMs` bounds the semanticContext
      * read-your-writes barrier — how long a gather waits for the vector
@@ -356,20 +351,17 @@ export function loadTomlConfig(
     return binding;
   }
 
-  // Which section serves each actor, with its provider's settings as the
+  // Each actor that `[actors]` binds, with its provider's settings as the
   // service that calls the model needs them (`_metadata.actors`).
   // specs/src/service-config/roster-cases.json holds this selection and the
   // launcher's, which writes the Archivist's roster, to one answer. Who serves
   // each job is the launcher's alone to resolve: a worker reads the document
   // the launcher writes for it, and no part of this file.
   function selectedActors(): [keyof ActorInferenceConfig, InferenceConfig][] {
-    const makeMeaningSection = section('make-meaning');
     const actorsSection = section('actors') ?? {};
     const selected: [keyof ActorInferenceConfig, InferenceConfig][] = [];
     for (const actor of ['gatherer', 'matcher'] as const) {
-      const inference = makeMeaningSection?.actors?.[actor]?.inference
-        ?? actorsSection[actor]?.inference
-        ?? makeMeaningSection?.default?.inference;
+      const inference = actorsSection[actor]?.inference;
       if (inference) selected.push([actor, inference]);
     }
     return selected;

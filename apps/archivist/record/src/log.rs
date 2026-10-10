@@ -35,7 +35,7 @@ pub struct Appended {
 }
 
 /// A stream as read: its events, oldest first, and a note for each line that
-/// was not an event.
+/// was not an event. An event is a JSON object that states its `type`.
 pub struct Stream {
     pub events: Vec<Object>,
     pub unread: Vec<String>,
@@ -109,25 +109,8 @@ impl Log {
                 continue;
             }
             match serde_json::from_str::<Value>(line) {
-                Ok(Value::Object(mut parsed)) => {
-                    // An enveloped line: the event, with its metadata beside it.
-                    let enveloped = !parsed.contains_key("type")
-                        && parsed.contains_key("metadata")
-                        && parsed.get("event").is_some_and(Value::is_object);
-                    if enveloped {
-                        let Some(Value::Object(mut event)) = parsed.remove("event") else {
-                            continue;
-                        };
-                        if let Some(metadata) = parsed.remove("metadata") {
-                            event.insert("metadata".into(), metadata);
-                        }
-                        if let Some(signature) = parsed.remove("signature") {
-                            event.insert("signature".into(), signature);
-                        }
-                        into.events.push(event);
-                    } else {
-                        into.events.push(parsed);
-                    }
+                Ok(Value::Object(event)) if event.get("type").is_some_and(Value::is_string) => {
+                    into.events.push(event);
                 }
                 _ => into.unread.push(format!(
                     "{} line {} is not an event",
@@ -313,5 +296,50 @@ impl Log {
             event: stored,
             changed,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Log, file_name};
+    use serde_json::{Map, json};
+
+    #[test]
+    fn a_line_is_an_event_only_when_it_states_its_type() {
+        let root = std::env::temp_dir().join(format!("semiont-log-{}", uuid::Uuid::new_v4()));
+        let mut log = Log::new(&root);
+        let stream = "a-stream";
+        let dir = log.stream_dir(stream).expect("a stream is filed by its id");
+        std::fs::create_dir_all(&dir).expect("the stream's directory is made");
+        let path = dir.join(file_name(1));
+        let lines = [
+            r#"{"type":"mark:archived","metadata":{"sequenceNumber":1}}"#,
+            "",
+            "this line is not JSON",
+            r#"{"event":{"type":"mark:unarchived"},"metadata":{"sequenceNumber":7}}"#,
+            "[1]",
+        ];
+        std::fs::write(&path, lines.join("\n") + "\n").expect("the stream's file is written");
+
+        let read = log.read(stream).expect("the stream is read");
+        let mut next = Map::new();
+        next.insert("type".into(), json!("mark:unarchived"));
+        let appended = log.append(stream, next);
+        std::fs::remove_dir_all(&root).expect("the test's directory is removed");
+
+        let types: Vec<_> = read
+            .events
+            .iter()
+            .map(|event| event["type"].clone())
+            .collect();
+        assert_eq!(types, [json!("mark:archived")]);
+        let note = |line: u32| format!("{} line {line} is not an event", path.display());
+        assert_eq!(read.unread, [note(3), note(4), note(5)]);
+        // A line that is not an event gives the stream no sequence number:
+        // the next event follows the last one read.
+        assert_eq!(
+            appended.expect("the event is appended").event["metadata"],
+            json!({ "sequenceNumber": 2 })
+        );
     }
 }

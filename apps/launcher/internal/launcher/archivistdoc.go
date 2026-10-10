@@ -196,11 +196,10 @@ func workerRoles(env *envConfig) ([]servedJob, error) {
 	return served, nil
 }
 
-// archivistRoster: who serves each role, with every fallback the KB's config
-// allows applied. A job is served as workerRoles says. An actor is served by
-// `make-meaning.actors.<actor>`, else `actors.<actor>`, else
-// `make-meaning.default`. The TypeScript loader decides an actor's the same
-// way for the Librarian, which calls the models, and
+// archivistRoster: who serves each role. A job is served as workerRoles says,
+// with every fallback the KB's config allows applied. An actor is served by
+// `actors.<actor>`, and by nothing else. The TypeScript loader decides an
+// actor's the same way for the Librarian, which calls the models, and
 // specs/src/service-config/roster-cases.json holds the two to one answer.
 func archivistRoster(env *envConfig) (roster semiont.ArchivistRoster, err error) {
 	served, err := workerRoles(env)
@@ -210,23 +209,6 @@ func archivistRoster(env *envConfig) (roster semiont.ArchivistRoster, err error)
 	for _, s := range served {
 		s.job.slot(reflect.ValueOf(&roster.Workers).Elem()).Set(reflect.ValueOf(s.role))
 	}
-	actor := func(name string) (*semiont.ArchivistRosterRole, error) {
-		var own, fallback *bindingCfg
-		if env.MakeMeaning != nil {
-			own, fallback = binding(env.MakeMeaning.Actors, name), env.MakeMeaning.Default
-		}
-		return firstBound(
-			func() (*semiont.ArchivistRosterRole, error) {
-				return rosterRole("make-meaning.actors."+name, own)
-			},
-			func() (*semiont.ArchivistRosterRole, error) {
-				return rosterRole("actors."+name, binding(env.Actors, name))
-			},
-			func() (*semiont.ArchivistRosterRole, error) {
-				return rosterRole("make-meaning.default", fallback)
-			},
-		)
-	}
 	for _, slot := range []struct {
 		role **semiont.ArchivistRosterRole
 		name string
@@ -234,7 +216,7 @@ func archivistRoster(env *envConfig) (roster semiont.ArchivistRoster, err error)
 		{&roster.Actors.Gatherer, "gatherer"},
 		{&roster.Actors.Matcher, "matcher"},
 	} {
-		if *slot.role, err = actor(slot.name); err != nil {
+		if *slot.role, err = rosterRole("actors."+slot.name, binding(env.Actors, slot.name)); err != nil {
 			return roster, err
 		}
 	}

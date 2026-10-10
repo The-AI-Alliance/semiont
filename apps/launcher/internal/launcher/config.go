@@ -110,8 +110,6 @@ type envConfig struct {
 	// Workers: the binding each section of `workers` holds, by the jobs that
 	// section serves: "default", "mark", "mark.<motivation>", "yield".
 	Workers map[string]bindingCfg `toml:"-"`
-	// MakeMeaning is read for the bindings it adds to Actors (archivistRoster).
-	MakeMeaning *makeMeaningCfg `toml:"make-meaning"`
 	// Site is read ONLY to refuse it (loadConfig). A knowledge base declares
 	// [site] once, at the top level of its committed .semiont/config; an
 	// environment cannot override it, here or in any service's loader.
@@ -265,13 +263,6 @@ type identityCfg struct {
 	// `type = "oidc"` names an issuer somebody else configures, and setting
 	// this there is refused rather than ignored.
 	AccessTokenLifespan *int `toml:"accessTokenLifespan"`
-}
-
-// makeMeaningCfg: the bindings [make-meaning] holds — each actor's own, and
-// the one serving an actor that has none.
-type makeMeaningCfg struct {
-	Default *bindingCfg           `toml:"default"`
-	Actors  map[string]bindingCfg `toml:"actors"`
 }
 
 type bindingCfg struct {
