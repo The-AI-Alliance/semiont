@@ -110,7 +110,7 @@ const SUITES = {
   packages: {
     docs: [
       'content', 'core', 'event-sourcing', 'graph', 'http-transport', 'inference',
-      'jobs', 'make-meaning', 'observability', 'ontology', 'vectors',
+      'make-meaning', 'observability', 'ontology', 'vectors',
     ].map((dir) => join('packages', dir, 'README.md')),
     preludes: [],
     options: { types: ['node'] },

@@ -20,6 +20,7 @@ import httpx
 from pydantic import JsonValue, ValidationError
 
 from semiont import telemetry
+from semiont._bus_log import bus_log
 from semiont.channels import BRIDGED_CHANNELS, RESOURCE_SCOPED_CHANNELS
 from semiont.errors import SemiontError, TransportError
 from semiont.events import Broadcast, Events
@@ -226,6 +227,7 @@ class HttpTransport(Transport, GatewayOperations):
     ) -> int | None:
         if self._running is None:
             raise RuntimeError("the transport is not open: hold it with `async with`")
+        bus_log("EMIT", channel, payload, scope=scope, correlation_id=correlation_id)
         body = BusEmitRequest(
             channel=channel,
             payload=dict(payload),

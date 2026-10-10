@@ -79,6 +79,6 @@ From the launcher: `semiont yield --upload <file>`, and `semiont yield --help` f
 
 - The SDK namespace: [packages/sdk/src/namespaces/yield.ts](../../../packages/sdk/src/namespaces/yield.ts)
 - What records the events: [the Archivist](../ARCHIVIST.md), in [apps/archivist/src/commands.rs](../../../apps/archivist/src/commands.rs)
-- The generation worker: [packages/jobs](../../../packages/jobs/README.md), and [its job types](../../../packages/jobs/docs/JobTypes.md)
+- The Worker service, which runs the generation: [apps/worker](../../../apps/worker/README.md), held to [WORKER-SERVICE.md](../WORKER-SERVICE.md#generation)
 - The launcher verb: [apps/launcher/internal/verbs/yield.go](../../../apps/launcher/internal/verbs/yield.go)
 - The channels and their payloads: [specs/src/bus/registry.json](../../../specs/src/bus/registry.json)

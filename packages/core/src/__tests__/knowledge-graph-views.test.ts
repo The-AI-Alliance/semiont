@@ -1,6 +1,5 @@
 /**
  * deriveViews — flattened neighborhood views derived from a KnowledgeGraph.
- * Moved here from make-meaning so jobs can share it (the function is pure over the core type).
  */
 import { describe, it, expect } from 'vitest';
 import { deriveViews } from '../knowledge-graph-views';

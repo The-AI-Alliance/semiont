@@ -25,9 +25,6 @@ set -euo pipefail
 #   - packages/sdk/src/**               — SemiontClient, namespaces, flow VMs,
 #                                          session
 #   - packages/http-transport/src/**        — HTTP adapters
-#   - packages/jobs/src/**              — job-claim adapter and worker loop
-#                                          (domain-owned worker adapters that
-#                                          subscribe to job:* bus events)
 #   - packages/make-meaning/src/weaver.ts
 #   - packages/make-meaning/src/smelter.ts
 #                                       — actors whose `bus` field is a
@@ -77,7 +74,6 @@ filter_allowlist() {
     | grep -v "/test-utils\." \
     | grep -v "^packages/sdk/src/" \
     | grep -v "^packages/http-transport/src/" \
-    | grep -v "^packages/jobs/src/" \
     | grep -v "^packages/make-meaning/src/weaver\.ts:" \
     | grep -v "^packages/make-meaning/src/smelter\.ts:" \
     | grep -v "^packages/core/src/faulty-transport\.ts:" \

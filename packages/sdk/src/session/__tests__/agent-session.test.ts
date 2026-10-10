@@ -132,7 +132,8 @@ describe('startAgentSession', () => {
     expect(session.token$.value).toBe(agentToken);
     expect(logger.warn).toHaveBeenCalledWith(
       'Gateway unreachable, retrying authentication',
-      expect.objectContaining({ attempt: 1, error: 'fetch failed' }),
+      // Which request got no answer, and the code the runtime gave the failed connection.
+      expect.objectContaining({ attempt: 1, error: 'http://gateway.test/api/tokens/agent got no answer: ECONNREFUSED' }),
     );
   });
 

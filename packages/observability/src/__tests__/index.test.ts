@@ -43,13 +43,10 @@ import {
   getActiveTraceparent,
   getLogTraceContext,
   recordAbnormalTermination,
-  recordAnchorOutcome,
   recordBusSent,
-  recordDetectionCall,
   recordGatherDegrade,
   recordHandlerDuration,
   recordInferenceUsage,
-  recordJobOutcome,
   materializeObservableGauges,
   registerProcessLifetimeMetrics,
   registerRestartCountProvider,
@@ -403,34 +400,6 @@ describe('recordHandlerDuration', () => {
   });
 });
 
-describe('recordJobOutcome', () => {
-  it('writes to both the outcome counter and duration histogram', async () => {
-    recordJobOutcome({ jobType: 'mark', motivation: 'tagging' }, 'completed', 1500);
-    recordJobOutcome({ jobType: 'yield' }, 'failed', 800);
-    recordJobOutcome({ jobType: 'mark', motivation: 'linking' }, 'cancelled', 300);
-    await flushMetrics();
-
-    const metricsByName = collectMetrics();
-    const outcomes = metricsByName.get('semiont.job.outcome');
-    expect(outcomes).toBeDefined();
-    expect(outcomes!.length).toBeGreaterThanOrEqual(2);
-
-    const completed = outcomes!.find((d) => d.attributes['job.outcome'] === 'completed');
-    const failed = outcomes!.find((d) => d.attributes['job.outcome'] === 'failed');
-    expect(completed?.value).toBe(1);
-    expect(failed?.value).toBe(1);
-    expect(outcomes!.find((d) => d.attributes['job.outcome'] === 'cancelled')?.value).toBe(1);
-    // A mark job says its motivation in a label of its own; a yield job has none to say.
-    expect(completed?.attributes).toMatchObject({ 'job.type': 'mark', 'job.motivation': 'tagging' });
-    expect(failed?.attributes).toMatchObject({ 'job.type': 'yield' });
-    expect(failed?.attributes).not.toHaveProperty('job.motivation');
-
-    const durations = metricsByName.get('semiont.job.duration');
-    expect(durations).toBeDefined();
-    expect(durations!.length).toBeGreaterThanOrEqual(2);
-  });
-});
-
 describe('registerVectorIndexSizeProvider', () => {
   it('emits one observation per flush from the registered provider', async () => {
     registerVectorIndexSizeProvider(() => 12345);
@@ -603,84 +572,6 @@ describe('recordGatherDegrade', () => {
     expect(counter).toBeDefined();
     expect(counter!.find((d) => d.attributes['projection'] === 'graph')?.value).toBe(1);
     expect(counter!.find((d) => d.attributes['projection'] === 'vectors')?.value).toBe(1);
-  });
-});
-
-describe('recordAnchorOutcome', () => {
-  it('counts every anchoring, so degraded methods have a denominator', async () => {
-    recordAnchorOutcome('Person', 'unique-match');
-    recordAnchorOutcome('Person', 'unique-match');
-    recordAnchorOutcome('Person', 'fuzzy-match');
-    await flushMetrics();
-
-    const counter = collectMetrics().get('semiont.detection.anchors');
-    expect(counter).toBeDefined();
-    const unique = counter!.find(
-      (d) => d.attributes['detection.label'] === 'Person' && d.attributes['anchor.method'] === 'unique-match',
-    );
-    const fuzzy = counter!.find(
-      (d) => d.attributes['detection.label'] === 'Person' && d.attributes['anchor.method'] === 'fuzzy-match',
-    );
-    expect(unique?.value).toBe(2);
-    expect(fuzzy?.value).toBe(1);
-  });
-});
-
-describe('recordDetectionCall', () => {
-  const base = {
-    label: 'Person',
-    durationMs: 250,
-    items: 3,
-    depth: 0,
-    reroll: false,
-    outcome: 'success' as const,
-  };
-
-  it('records call count, duration, and item count under shared attributes', async () => {
-    recordDetectionCall(base);
-    await flushMetrics();
-
-    const m = collectMetrics();
-    const matches = (d: MetricDataPoint) =>
-      d.attributes['detection.label'] === 'Person' &&
-      d.attributes['detection.outcome'] === 'success' &&
-      d.attributes['detection.depth'] === 0 &&
-      d.attributes['detection.reroll'] === false;
-
-    expect(m.get('semiont.detection.calls')!.find(matches)?.value).toBe(1);
-    expect(m.get('semiont.detection.call.duration')!.find(matches)?.sum).toBe(250);
-    expect(m.get('semiont.detection.call.items')!.find(matches)?.sum).toBe(3);
-  });
-
-  it('omits the token histogram when token counts are absent', async () => {
-    recordDetectionCall(base);
-    await flushMetrics();
-
-    expect(collectMetrics().get('semiont.detection.call.tokens')).toBeUndefined();
-  });
-
-  it('splits token counts by direction when present', async () => {
-    recordDetectionCall({ ...base, inputTokens: 900, outputTokens: 120 });
-    await flushMetrics();
-
-    const tokens = collectMetrics().get('semiont.detection.call.tokens');
-    expect(tokens).toBeDefined();
-    expect(tokens!.find((d) => d.attributes['detection.direction'] === 'input')?.sum).toBe(900);
-    expect(tokens!.find((d) => d.attributes['detection.direction'] === 'output')?.sum).toBe(120);
-  });
-
-  it('carries reroll and non-success outcomes onto every instrument', async () => {
-    recordDetectionCall({ ...base, reroll: true, depth: 2, outcome: 'truncated', items: 0 });
-    await flushMetrics();
-
-    const m = collectMetrics();
-    const matches = (d: MetricDataPoint) =>
-      d.attributes['detection.outcome'] === 'truncated' &&
-      d.attributes['detection.reroll'] === true &&
-      d.attributes['detection.depth'] === 2;
-
-    expect(m.get('semiont.detection.calls')!.find(matches)?.value).toBe(1);
-    expect(m.get('semiont.detection.call.items')!.find(matches)?.sum).toBe(0);
   });
 });
 

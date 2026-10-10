@@ -81,9 +81,9 @@ export const SDK_DRIVERS: Readonly<Record<string, SdkDrivers>> = {
  * provides them as `workerServices`.
  */
 export const WORKER_SERVICES: Readonly<Record<string, readonly string[]>> = {
-  typescript: ['node', join(REPO_ROOT, 'packages/jobs/dist/worker-main.js')],
   // The interpreter of the project's locked environment: nothing is resolved or installed when a case starts it.
-  python: [join(REPO_ROOT, 'apps/worker/.venv/bin/python'), '-m', 'semiont_worker'],
+  // `-P` keeps the directory a case starts it in off its import path, as the image's command does.
+  python: [join(REPO_ROOT, 'apps/worker/.venv/bin/python'), '-P', '-m', 'semiont_worker'],
 };
 
 export const SPEC_SOURCE = join(REPO_ROOT, 'specs/src');

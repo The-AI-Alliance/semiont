@@ -18,6 +18,7 @@ import httpx
 from pydantic import TypeAdapter
 
 from semiont import telemetry
+from semiont._bus_log import bus_log
 from semiont.errors import TransportError
 from semiont.http._withheld import why_unanswered
 from semiont.http.exchange import Exchange
@@ -186,6 +187,11 @@ class HttpContentTransport(ContentTransport):
     async def _put(self, request: PutBinaryRequest, report: Callable[[UploadProgress], None]) -> CreateResourceResponse:
         form = _Form(request)
         progress = _Progress(form.size, report)
+        bus_log(
+            "PUT",
+            "content",
+            {"name": request.name, "format": request.format, "storageUri": request.storage_uri, "sizeBytes": len(request.file)},
+        )
         with telemetry.putting(request.format, len(request.file)):
             # No deadline: how long an upload takes is how large the resource is.
             return await self._exchange.answer(
@@ -199,6 +205,7 @@ class HttpContentTransport(ContentTransport):
 
     @override
     async def get_binary(self, resource_id: ResourceId) -> Content:
+        bus_log("GET", "content", {"resourceId": resource_id})
         with telemetry.getting(resource_id, stream=False):
             # The deadline is on the bytes beginning to arrive: how long they take after that is how many there are.
             response = await self._exchange.begin("GET", _path_of(resource_id))
@@ -212,6 +219,7 @@ class HttpContentTransport(ContentTransport):
 
     @override
     async def get_binary_stream(self, resource_id: ResourceId) -> ContentStream:
+        bus_log("GET", "content", {"resourceId": resource_id, "stream": True})
         with telemetry.getting(resource_id, stream=True):
             response = await self._exchange.begin("GET", _path_of(resource_id))
         return ContentStream(_content_type(response), self._arriving(resource_id, response))
@@ -231,5 +239,6 @@ class HttpContentTransport(ContentTransport):
 
     @override
     async def get_resource_graph(self, resource_id: ResourceId) -> GetResourceResponse:
+        bus_log("GET", "content", {"resourceId": resource_id, "graph": True})
         with telemetry.getting_graph(resource_id):
             return await self._exchange.answer(GetResourceResponse, "GET", f"{_path_of(resource_id)}/jsonld")

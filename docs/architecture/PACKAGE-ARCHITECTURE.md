@@ -1,6 +1,6 @@
 # Package Architecture
 
-Semiont is a monorepo with two workspaces: the npm packages, and the Rust crates. Neither depends on the other. Both are built against [`specs/`](../../specs/src/openapi.json), the protocol each implements from its side.
+Semiont is a monorepo with two workspaces, the npm packages and the Rust crates, and three Python projects beside them. No language's packages depend on another's. All are built against [`specs/`](../../specs/src/openapi.json), the protocol each implements from its side.
 
 For the per-package descriptions and npm metadata, see **[../../packages/README.md](../../packages/README.md)** — alphabetized table with one-line descriptions of every published `@semiont/*` package.
 
@@ -10,16 +10,13 @@ Workspace packages are organized in layers from low-level primitives to applicat
 
 ```mermaid
 graph BT
-    %% Layer 5: Application
+    %% Layer 4: Application
     browser["apps/browser<br/><i>Vite + React SPA</i>"]
 
-    %% Layer 4: Application logic
-    meaning["@semiont/make-meaning<br/><i>The knowledge-system actors and<br/>four services' entry points</i>"]
+    %% Layer 3: Application logic
+    meaning["@semiont/make-meaning<br/><i>The knowledge-system actors and<br/>three services' entry points</i>"]
     react["@semiont/react-ui<br/><i>React components & hooks</i>"]
     mcp["@semiont/mcp-server<br/><i>Model Context Protocol server</i>"]
-
-    %% Layer 3: Workers
-    jobs["@semiont/jobs<br/><i>Job worker + its entry point</i>"]
 
     %% Layer 2: SDK + domain storage
     sdk["@semiont/sdk<br/><i>SemiontClient + namespaces + session<br/>state units, cache</i>"]
@@ -41,7 +38,6 @@ graph BT
     browser --> sdk
     browser --> api
 
-    meaning --> jobs
     meaning --> sdk
     meaning --> event
     meaning --> graph_pkg
@@ -57,13 +53,6 @@ graph BT
     react --> core
     mcp --> sdk
     mcp --> api
-
-    jobs --> sdk
-    jobs --> api
-    jobs --> content
-    jobs --> inference
-    jobs --> obs
-    jobs --> core
 
     sdk --> api
     sdk --> core
@@ -88,16 +77,14 @@ graph BT
     classDef layer0 fill:#e1f5fe,stroke:#01579b,stroke-width:3px
     classDef layer1 fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
     classDef layer2 fill:#fff3e0,stroke:#e65100,stroke-width:2px
-    classDef layer3 fill:#ffd180,stroke:#e65100,stroke-width:2px
-    classDef layer4 fill:#ffe0b2,stroke:#e65100,stroke-width:3px
-    classDef layer5 fill:#e8f5e9,stroke:#1b5e20,stroke-width:3px
+    classDef layer3 fill:#ffe0b2,stroke:#e65100,stroke-width:3px
+    classDef layer4 fill:#e8f5e9,stroke:#1b5e20,stroke-width:3px
 
     class core,obs layer0
     class api,content,vectors,ontology,inference layer1
     class sdk,event,graph_pkg layer2
-    class jobs layer3
-    class meaning,react,mcp layer4
-    class browser layer5
+    class meaning,react,mcp layer3
+    class browser layer4
 ```
 
 Each edge is an entry in that package's `package.json` `dependencies`.
@@ -151,9 +138,13 @@ graph BT
 
 Four crates are published to crates.io: `semiont`, `semiont-http-transport`, `semiont-telemetry` and `semiont-codegen`. `semiont-core`, `semiont-observability` and `semiont-http-service` are the services' own. The dispatcher also has two crates of its own beside its binary, for its handlers and its JetStream queue. The Archivist has two as well, for its record and its staging drivers.
 
-## The Python package
+## The Python projects
 
 `packages/sdk-python` is one distribution, `semiont`: the client, its transport over a gateway, sign-in, and telemetry with no exporter, which Rust keeps in four crates. It depends on `httpx`, `pydantic` and `opentelemetry-api`, and on nothing else in this repository. What it holds of `specs/` is generated, committed and held by drift gates.
+
+`packages/inference-python` is `semiont-inference`: the model providers a Python service asks, behind one interface. It depends on `semiont`, and each provider's own library is an extra of it, required by nothing.
+
+`apps/worker` is `semiont-worker`, the Worker service. It depends on the two above, and nothing depends on it: it is a service's code, run from its image, and published to no index.
 
 ## What each service image runs
 
@@ -162,7 +153,7 @@ Four crates are published to crates.io: `semiont`, `semiont-http-transport`, `se
 | `semiont-librarian` | `librarian-main` | `@semiont/make-meaning` |
 | `semiont-smelter` | `smelter-main` | `@semiont/make-meaning` |
 | `semiont-weaver` | `weaver-main` | `@semiont/make-meaning` |
-| `semiont-worker` | `worker-main` | `@semiont/jobs` |
+| `semiont-worker` | `python -P -m semiont_worker` | `apps/worker` |
 | `semiont-browser` | the built SPA | `apps/browser` |
 | `semiont-gateway` | a Rust binary | `apps/gateway` |
 | `semiont-archivist` | a Rust binary | `apps/archivist` |
@@ -178,7 +169,7 @@ Four crates are published to crates.io: `semiont`, `semiont-http-transport`, `se
 
 4. **The spec is the boundary between languages.** No crate depends on an npm package, and no npm package on a crate. What they agree on is in `specs/`, and each side generates its types from it.
 
-5. **Platform independence.** Foundation packages work in both browser and Node.js. Infrastructure packages (content, event-sourcing, graph, inference, jobs, make-meaning) are Node-only.
+5. **Platform independence.** Foundation packages work in both browser and Node.js. Infrastructure packages (content, event-sourcing, graph, inference, make-meaning) are Node-only.
 
 ## See also
 

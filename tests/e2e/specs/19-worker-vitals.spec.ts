@@ -13,12 +13,11 @@ import { signInSession } from '../fixtures/sdk-session';
  * vitals so a stalled worker is visible, not just alive. This
  * spec pins that payload as a cross-process **contract** — the consumers
  * (image HEALTHCHECK, compose `service_healthy`, `semiont start` waits, and any
- * operator's `curl :24100/health`) live outside the jobs package, so unit
- * tests on `buildHealthPayload` can't catch a break in the
- * worker-main shell wiring that serves it. The payload shape is
- * deliberately re-declared here rather than imported from
- * `@semiont/jobs`: importing the producer's type would make the shape
- * check tautological.
+ * operator's `curl :24100/health`) live outside the Worker service, so its
+ * own tests of the body it builds can't catch a break in what a running
+ * stack serves. The payload shape is deliberately re-declared here: it is
+ * the consumer's reading of docs/protocol/WORKER-SERVICE.md H1, and a shape
+ * taken from the producer would make the check tautological.
  *
  * What it pins:
  *
@@ -68,8 +67,8 @@ const JOBS = [...MARK_MOTIVATIONS.map((motivation) => `mark.${motivation}`), 'yi
 
 /**
  * Consumer-side re-declaration of the `/health` contract
- * (`WorkerHealthPayload` / `AgentVitals`, packages/jobs/src/worker-runtime.ts,
- * over the SDK's `WorkerVitals`). Every field is runtime-asserted below; the type
+ * (docs/protocol/WORKER-SERVICE.md H1, over what a worker can say of itself,
+ * WORKER-CONTRACT V1). Every field is runtime-asserted below; the type
  * exists so the assertions read cleanly, not as the check itself.
  */
 interface AgentVitalsEntry {

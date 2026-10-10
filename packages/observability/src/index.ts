@@ -284,8 +284,6 @@ export function materializeObservableGauges(): void {
 
 let _busSentCounter: Counter | undefined;
 let _handlerDurationHistogram: Histogram | undefined;
-let _jobOutcomeCounter: Counter | undefined;
-let _jobDurationHistogram: Histogram | undefined;
 let _gatherDegradeCounter: Counter | undefined;
 let _inferenceCallsCounter: Counter | undefined;
 let _inferenceTokensCounter: Counter | undefined;
@@ -310,25 +308,6 @@ function handlerDurationHistogram(): Histogram {
     });
   }
   return _handlerDurationHistogram;
-}
-
-function jobOutcomeCounter(): Counter {
-  if (!_jobOutcomeCounter) {
-    _jobOutcomeCounter = meter().createCounter('semiont.job.outcome', {
-      description: 'Worker jobs concluded, by type, motivation and outcome: completed, failed or cancelled',
-    });
-  }
-  return _jobOutcomeCounter;
-}
-
-function jobDurationHistogram(): Histogram {
-  if (!_jobDurationHistogram) {
-    _jobDurationHistogram = meter().createHistogram('semiont.job.duration', {
-      description: 'Worker job duration by type and motivation',
-      unit: 'ms',
-    });
-  }
-  return _jobDurationHistogram;
 }
 
 function inferenceCallsCounter(): Counter {
@@ -378,27 +357,6 @@ export function recordHandlerDuration(actor: string, channel: string, durationMs
     actor,
     'bus.channel': channel,
   });
-}
-
-/**
- * Record a worker job's outcome and duration.
- *
- * A job is labelled as its description names it: by its type and, for a
- * `mark` job, its motivation, which a `yield` job does not have. Those two are
- * small closed sets; no other parameter of a job is a label.
- */
-export function recordJobOutcome(
-  job: { jobType: string; motivation?: string },
-  outcome: 'completed' | 'failed' | 'cancelled',
-  durationMs: number,
-): void {
-  const labels = {
-    'job.type': job.jobType,
-    ...(job.motivation !== undefined ? { 'job.motivation': job.motivation } : {}),
-    'job.outcome': outcome,
-  };
-  jobOutcomeCounter().add(1, labels);
-  jobDurationHistogram().record(durationMs, labels);
 }
 
 function gatherDegradeCounter(): Counter {
@@ -567,123 +525,6 @@ export function recordInferenceUsage(opts: {
       'inference.direction': 'output',
     });
   }
-}
-
-let _detectionCallCounter: Counter | undefined;
-let _detectionDurationHistogram: Histogram | undefined;
-let _detectionItemsHistogram: Histogram | undefined;
-let _detectionTokensHistogram: Histogram | undefined;
-
-function detectionCallCounter(): Counter {
-  if (!_detectionCallCounter) {
-    _detectionCallCounter = meter().createCounter('semiont.detection.calls', {
-      description: 'Detection model calls, labeled by motivation, outcome, subdivision depth and whether this was the floor re-roll.',
-    });
-  }
-  return _detectionCallCounter;
-}
-
-function detectionDurationHistogram(): Histogram {
-  if (!_detectionDurationHistogram) {
-    _detectionDurationHistogram = meter().createHistogram('semiont.detection.call.duration', {
-      description: 'Wall time of one detection model call, including the attempts that failed and were retried smaller.',
-      unit: 'ms',
-    });
-  }
-  return _detectionDurationHistogram;
-}
-
-function detectionItemsHistogram(): Histogram {
-  if (!_detectionItemsHistogram) {
-    _detectionItemsHistogram = meter().createHistogram('semiont.detection.call.items', {
-      description: 'Annotations returned by one detection call. Against the input size on the same record, this is yield.',
-    });
-  }
-  return _detectionItemsHistogram;
-}
-
-function detectionTokensHistogram(): Histogram {
-  if (!_detectionTokensHistogram) {
-    _detectionTokensHistogram = meter().createHistogram('semiont.detection.call.tokens', {
-      description: "Provider-reported tokens for one detection call, by direction. Deliberately separate from semiont.inference.tokens: that series is the authoritative total but carries no subdivision depth, and 'what does a depth-2 call cost' is the question every sizing decision asks.",
-    });
-  }
-  return _detectionTokensHistogram;
-}
-
-/**
- * Record one detection model call.
- *
- * The adapters already record provider/model/duration/tokens for every
- * inference call. What they cannot know is the detection shape around it:
- * which motivation asked, how many annotations came
- * back, how deep subdivision had descended, and whether this was the floor
- * re-roll. Those are the facts that distinguish a healthy call from an
- * expensive descent, and without them a slow detection run is one
- * undifferentiated number.
- *
- * FAILED attempts are recorded too, and that is the point: the calls paid for
- * and thrown away during a descent are exactly the cost adaptive chunk sizing
- * exists to avoid, so a record only of successes would hide the thing being
- * optimized.
- *
- * Tokens are the PROVIDER's counts, passed through — never estimated. Absent
- * means the provider did not report them.
- */
-export function recordDetectionCall(opts: {
-  label: string;
-  durationMs: number;
-  items: number;
-  depth: number;
-  reroll: boolean;
-  outcome: 'success' | 'truncated' | 'timeout' | 'collapsed' | 'error';
-  inputTokens?: number;
-  outputTokens?: number;
-}): void {
-  const attrs = {
-    'detection.label': opts.label,
-    'detection.outcome': opts.outcome,
-    'detection.depth': opts.depth,
-    'detection.reroll': opts.reroll,
-  };
-  detectionCallCounter().add(1, attrs);
-  detectionDurationHistogram().record(opts.durationMs, attrs);
-  detectionItemsHistogram().record(opts.items, attrs);
-  if (opts.inputTokens !== undefined) {
-    detectionTokensHistogram().record(opts.inputTokens, { ...attrs, 'detection.direction': 'input' });
-  }
-  if (opts.outputTokens !== undefined) {
-    detectionTokensHistogram().record(opts.outputTokens, { ...attrs, 'detection.direction': 'output' });
-  }
-}
-
-let _anchorOutcomeCounter: Counter | undefined;
-function anchorOutcomeCounter(): Counter {
-  if (!_anchorOutcomeCounter) {
-    _anchorOutcomeCounter = meter().createCounter('semiont.detection.anchors', {
-      description: 'Every annotation anchoring, labeled by the method that resolved it. EVERY outcome is counted, not just the risky ones, because a bare count of degraded anchors has no denominator — the rate is the precision signal.',
-    });
-  }
-  return _anchorOutcomeCounter;
-}
-
-/**
- * Record how one annotation got anchored.
- *
- * The selector-vs-source check is already made AT WRITE TIME —
- * `annotationOfSpan` refuses a span that does not match its source, of a text
- * or of a PDF — so mechanical correctness is guaranteed rather than sampled,
- * and auditing it would measure a constant.
- *
- * What is genuinely uncertain is which anchoring METHOD got there. An `exact`
- * the model quoted verbatim and that appears once is certain; one resolved by
- * `first-of-many` (several occurrences, no usable context) or `fuzzy-match`
- * picked a plausible occurrence and may have picked wrong. Log warnings
- * alone leave those countable only by a human reading worker output; as a
- * rate they are the precision number that sits beside the yield numbers.
- */
-export function recordAnchorOutcome(label: string, method: string): void {
-  anchorOutcomeCounter().add(1, { 'detection.label': label, 'anchor.method': method });
 }
 
 // ── Re-exports from @opentelemetry/api ─────────────────────────────────

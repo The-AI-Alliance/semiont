@@ -16,7 +16,7 @@ The stores derived from a knowledge base's record, and the actors that keep them
 | **Smelter** | `@semiont/make-meaning/smelter-main` | Smelter |
 | **Weaver** | `@semiont/make-meaning/weaver-main` | Weaver |
 
-Each entry point composes exactly what its service owns. The gateway composes nothing from this package: it verifies tokens and relays the bus. The record is the [Archivist](../../apps/archivist/README.md)'s. The job queue is the [dispatcher](../../apps/dispatcher/README.md)'s, and jobs are run by [`@semiont/jobs`](../jobs/README.md). What each service is for is in the [service catalogue](../../docs/operator/services/OVERVIEW.md).
+Each entry point composes exactly what its service owns. The gateway composes nothing from this package: it verifies tokens and relays the bus. The record is the [Archivist](../../apps/archivist/README.md)'s. The job queue is the [dispatcher](../../apps/dispatcher/README.md)'s, and jobs are run by the [Worker](../../apps/worker/README.md). What each service is for is in the [service catalogue](../../docs/operator/services/OVERVIEW.md).
 
 **Building an application?** Use [`@semiont/sdk`](../sdk/README.md) against a running knowledge base.
 
@@ -43,7 +43,7 @@ The Weaver is not exported. It runs only from its entry point.
 
 - [Architecture](docs/architecture.md): what each actor answers, what each service reads and writes, the context modules, the order things start in.
 - [The actor model](../../docs/architecture/ACTOR-MODEL.md): the design this implements.
-- [Workers](../jobs/docs/Workers.md): the worker, in `@semiont/jobs`.
+- [The Worker service](../../docs/protocol/WORKER-SERVICE.md): what the service that runs jobs does.
 
 ## License
 

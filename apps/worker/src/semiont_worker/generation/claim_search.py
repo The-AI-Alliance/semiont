@@ -47,8 +47,7 @@ def find_claim_span(text: str, claim: str) -> tuple[int, int] | None:
     run_began: int | None = None
     for offset, character in enumerate(text):
         if character in WHITE_SPACE:
-            # White space ahead of the first word is no part of the collapsed text.
-            if collapsed and run_began is None:
+            if run_began is None:
                 run_began = offset
         else:
             if run_began is not None:

@@ -224,7 +224,7 @@ export interface InferenceClient {
    * extractions: a cheap count call that flags an extraction finding under
    * half the counted mentions as silent yield collapse (true for every real
    * provider — unverified completeness is not a savings). Declared HERE, per
-   * implementation, because @semiont/jobs does no provider-specific
+   * implementation, because a caller does no provider-specific
    * switching: whatever varies by provider is a capability on this contract,
    * like `maxConcurrency`. The mock alone defaults false, so deterministic
    * tests opt in explicitly rather than paying a queue-popping count call by

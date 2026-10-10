@@ -25,6 +25,7 @@ from semiont.errors import TransportError
 from semiont.identifiers import ResourceId
 from semiont.testing import GetBinary, PutBinary
 from semiont.timing import GENERATED_TEXT_ASKS_COUNT
+from semiont.transport import Frame
 from semiont.types import GenerationJobParams, JobProgress
 from semiont.watched import Watched
 from semiont_inference.interface import ElementSchema, InferenceClient, InferenceLimits, InferenceResponse, StructuredResponse
@@ -206,6 +207,21 @@ def test_a_failure_is_said_with_its_class_and_the_stack_it_was_raised_from_is_in
     assert failed.exc_info[0].__name__ == "DeterministicJobError"
 
 
+def test_a_resource_whose_description_states_no_representation_has_no_text_to_read_and_its_job_fails_for_good() -> None:
+    parties = Parties()
+    parties.descriptors[SOURCE] = {"@context": "https://schema.org", "@id": SOURCE, "name": "A resource", "representations": []}
+    run(worked(parties, job("job-1", "mark", HIGHLIGHTING), answering(ONE_HIGHLIGHT)))
+
+    assert parties.sequence() == ["job:start", "browse:resource-requested", "job:fail"]
+    (failure,) = parties.sent("job:fail")
+    assert (failure["failureClass"], failure["willRetry"]) == ("deterministic", False)
+    assert failure["error"] == (
+        f"Cannot run mark (highlighting) on resource {SOURCE}: media type 'unknown' has no extractable text to analyze"
+    )
+    # No bytes were read.
+    assert parties.content.calls == []
+
+
 class Silent:
     """A model that is asked and never answers, until its test lets it."""
 
@@ -266,6 +282,42 @@ def test_a_job_its_worker_s_stopping_failed_is_left_as_it_is_and_its_work_ends_w
             assert len(parties.frames()) == said
         await parties.transport.close()
 
+    run(scenario())
+
+
+def test_a_cancellation_that_names_the_held_job_is_said_in_the_log_and_the_job_is_settled_as_cancelled(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    async def scenario() -> None:
+        parties = Parties()
+        parties.text_resource()
+        parties.queue.append(job("job-1", "mark", HIGHLIGHTING))
+        model: InferenceClient = (silent := Silent())
+        async with parties.client as client, client.job.claim(EVERY_JOB) as claims:
+            held = await claimed(parties, claims)
+            working = asyncio.ensure_future(run_job(held, client=client, inference=model, generator=GENERATOR, accepts=EVERY_JOB))
+            await asyncio.wait_for(silent.asked.wait(), 5)
+
+            # A cancellation of another job is not this one's, and one that names it is.
+            parties.transport.deliver(Frame(channel="job:cancel-requested", payload={"jobId": "job-other"}))
+            await turns()
+            assert logged(caplog, "Cancel requested for active job") == []
+            parties.transport.deliver(Frame(channel="job:cancel-requested", payload={"jobId": "job-1"}))
+            await turns()
+            (noted,) = logged(caplog, "Cancel requested for active job")
+            assert (noted.levelname, vars(noted)["jobId"]) == ("INFO", "job-1")
+            # Nothing is ended: the model is still asked, and the job stops once it has answered.
+            assert not working.done()
+            silent.answer.set()
+            await asyncio.wait_for(working, 5)
+            assert parties.sent("job:cancel") == [
+                {"resourceId": SOURCE, "jobId": "job-1", "jobType": "mark", "completedUnits": ["highlighting"]}
+            ]
+            assert parties.sent("job:complete") == []
+            await turns()
+        await parties.transport.close()
+
+    caplog.set_level(logging.INFO, logger="semiont_worker")
     run(scenario())
 
 
@@ -381,6 +433,20 @@ def test_params_that_are_no_generation_s_fail_the_job_with_no_class_before_anyth
     assert "failureClass" not in failure
     assert failure["willRetry"] is True
     assert parties.content.calls == []
+
+
+def test_a_job_that_says_nowhere_to_store_what_it_makes_fails_and_writes_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Where the artifact is stored is the job's to say. There is no other place it is written: no location is made from its title.
+    parties = Parties()
+    asked = making(monkeypatch, markdown())
+    run(worked(parties, generation(""), answering("unused")))
+    assert asked == []
+    (failure,) = parties.sent("job:fail")
+    error = failure["error"]
+    assert isinstance(error, str)
+    assert "storageUri" in error
+    assert parties.content.calls == []
+    assert parties.commits == []
 
 
 def test_a_yield_job_cancelled_by_the_time_its_model_answered_uploads_nothing_and_is_settled_as_cancelled(

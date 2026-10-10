@@ -179,7 +179,7 @@ A gather waits for the projections it reads, within bounds. A graph read waits a
 
 ## Workers
 
-Workers are not in this package and are not actors. They are [`@semiont/jobs`](../../jobs/README.md): a separate process that claims jobs from the dispatcher over the bus and commits what it produces with `mark:commit`, which the Archivist answers once the annotations are in the log. [Workers](../../jobs/docs/Workers.md) describes the worker.
+Workers are not in this package and are not actors. The [Worker](../../../apps/worker/README.md) is a service of its own, in Python: a separate process that claims jobs from the dispatcher over the bus and commits what it produces with `mark:commit`, which the Archivist answers once the annotations are in the log. [WORKER-SERVICE.md](../../../docs/protocol/WORKER-SERVICE.md) states what it does.
 
 ## Initialization Order
 
@@ -197,4 +197,4 @@ The Librarian locates the views from the staged `[kb] name` alone: `SemiontState
 
 - [ACTOR-MODEL.md](../../../docs/architecture/ACTOR-MODEL.md) — System-wide actor model
 - [The Archivist](../../../docs/protocol/ARCHIVIST.md) — the record, its commands and its browse reads
-- [Workers](../../jobs/docs/Workers.md) — The worker, in `@semiont/jobs`
+- [The Worker service](../../../docs/protocol/WORKER-SERVICE.md) — what the service that runs jobs does

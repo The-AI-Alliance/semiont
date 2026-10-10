@@ -120,13 +120,17 @@ async def watch_for_a_stall(claims: Claims, agent: UserId) -> None:
 
 @final
 class AgentWorker:
-    """One agent at work. Held with `async with`: signed in and on its stream inside, and signed out on the way out.
+    """One agent at work. Held with `async with`: signed in inside, and signed out on the way out.
 
     `entry` is its entry of the configuration document and `inference` the
     client of its provider and model. `answers_limits_of` are the clients
     whose limits this agent answers a request for: every agent's, for the one
     agent that answers for the service, and none for the rest. The gateway
     delivers the first reply to a request, so one agent answers.
+
+    Signing in opens no stream. `open` does, once the service has everything
+    else it needs to start: its stream, its client and its claims are then
+    the agent's until the way out.
     """
 
     def __init__(
@@ -144,33 +148,43 @@ class AgentWorker:
         self._service: Final = service
         self._answers_limits_of: Final = tuple(answers_limits_of)
         self._held: Final = AsyncExitStack()
-        self._signed_in: tuple[UserId, SemiontClient[HttpTransport], Claims] | None = None
+        self._token: AgentToken | None = None
+        self._opened: tuple[SemiontClient[HttpTransport], Claims] | None = None
         self._stopping = False
 
     async def __aenter__(self) -> Self:
         engine = self._entry.agent
-        token = await self._held.enter_async_context(
+        self._token = await self._held.enter_async_context(
             AgentToken(self._gateway_url, provider=engine.provider, model=engine.model, service=self._service)
         )
-        channels = (*WORKER_CHANNELS, JOB_LIMITS_REQUESTED.request.name) if self._answers_limits_of else WORKER_CHANNELS
-        transport = await self._held.enter_async_context(
-            HttpTransport(self._gateway_url, token=token.token, refresher=token.refresh, channels=channels)
-        )
-        client = await self._held.enter_async_context(SemiontClient(transport, transport.content, transport))
-        self._signed_in = (token.did, client, client.job.claim(self._entry.accepts))
         LOG.info(
             "Agent ready",
-            extra={"did": token.did, "provider": engine.provider, "model": engine.model, "serves": _as_claimed(self._entry.accepts)},
+            extra={"did": self._token.did, "provider": engine.provider, "model": engine.model, "serves": _as_claimed(self._entry.accepts)},
         )
         return self
 
     async def __aexit__(self, kind: type[BaseException] | None, error: BaseException | None, trace: TracebackType | None) -> None:
         await self._held.aclose()
 
-    def _at_work(self) -> tuple[UserId, SemiontClient[HttpTransport], Claims]:
-        if self._signed_in is None:
+    def _signed_in(self) -> AgentToken:
+        if self._token is None:
             raise RuntimeError("the agent is not signed in: hold it with `async with`")
-        return self._signed_in
+        return self._token
+
+    async def open(self) -> None:
+        """Open the agent's stream, and its client over it. Its claiming begins when it is put to work."""
+        token = self._signed_in()
+        channels = (*WORKER_CHANNELS, JOB_LIMITS_REQUESTED.request.name) if self._answers_limits_of else WORKER_CHANNELS
+        transport = await self._held.enter_async_context(
+            HttpTransport(self._gateway_url, token=token.token, refresher=token.refresh, channels=channels)
+        )
+        client = await self._held.enter_async_context(SemiontClient(transport, transport.content, transport))
+        self._opened = (client, client.job.claim(self._entry.accepts))
+
+    def _at_work(self) -> tuple[UserId, SemiontClient[HttpTransport], Claims]:
+        if self._opened is None:
+            raise RuntimeError("the agent's stream is not open: `open` it")
+        return (self._signed_in().did, *self._opened)
 
     def vitals(self) -> dict[str, JsonValue]:
         """What the agent says of itself to the health endpoint: who it is, what it serves, and what its claims say of themselves."""

@@ -7,7 +7,7 @@ other long-running work that a request cannot wait on.
 | --- | --- |
 | Image | `ghcr.io/the-ai-alliance/semiont-worker` |
 | Port | 24100 |
-| Command | `python -m semiont_worker --config /etc/semiont/worker.json` |
+| Command | `python -P -m semiont_worker --config /etc/semiont/worker.json` |
 | Code | Python, in this directory: [`src/semiont_worker`](./src/semiont_worker/) |
 | Package indexes | not published — container only |
 

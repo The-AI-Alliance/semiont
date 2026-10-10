@@ -1,6 +1,6 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
-import { busLog, busLogEnabled, uuidV4, retryWithBackoff, retryAfterMs, equalJitter, isRetryableRequestError, BusRequestError, RESOURCE_SCOPED_CHANNELS, type BusEnvelope, type BusFrame, type BusRequestPrimitive, type components, type ConnectionState, type EventMap, type ResourceId, type RetryPolicy, type StateUnit, DEGRADED_THRESHOLD_MS, EMIT_RETRY, EMIT_TIMEOUT_MS, LAZY_REMOVE_MS, LINGER_MS, MAX_RECONNECT_MS, RECONNECT_DEBOUNCE_MS, RECONNECT_MS, SEEN_EVENT_IDS_COUNT } from '@semiont/core';
+import { busLog, busLogEnabled, uuidV4, retryWithBackoff, retryAfterMs, equalJitter, isRetryableRequestError, whyUnanswered, BusRequestError, RESOURCE_SCOPED_CHANNELS, type BusEnvelope, type BusFrame, type BusRequestPrimitive, type components, type ConnectionState, type EventMap, type ResourceId, type RetryPolicy, type StateUnit, DEGRADED_THRESHOLD_MS, EMIT_RETRY, EMIT_TIMEOUT_MS, LAZY_REMOVE_MS, LINGER_MS, MAX_RECONNECT_MS, RECONNECT_DEBOUNCE_MS, RECONNECT_MS, SEEN_EVENT_IDS_COUNT } from '@semiont/core';
 import {
   SpanKind,
   extractTraceparent,
@@ -820,9 +820,9 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
         // The gateway never answered, on any attempt the budget allowed: the
         // connection failed or the deadline passed. The runtime's own error
         // for that carries no code, and a caller routing on codes would not
-        // know an unreachable gateway from a bug.
-        const cause = error instanceof Error ? error : new Error(String(error));
-        throw APIError.withoutResponse(`/bus/emit got no answer: ${cause.message}`, cause.name);
+        // know an unreachable gateway from a bug. Its words are not said: the
+        // runtime quotes the request in them, its token with it.
+        throw APIError.withoutResponse(`/bus/emit got no answer: ${whyUnanswered(error)}`, error instanceof Error ? error.name : 'Error');
       });
       // No count is reported as no count, never as a zero: an absent
       // `subscribers` is the gateway saying it could not count (a broker

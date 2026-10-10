@@ -487,8 +487,8 @@ jobs:
             package-lock.json
             tests/conformance/package-lock.json
 
-      # The TypeScript worker driver runs the built worker package over the
-      # built transport, as a worker's author would.
+      # The TypeScript worker driver runs the built SDK over the built
+      # transport, as a worker's author would.
       - name: Install dependencies
         run: |
           npm ci --include=optional
@@ -563,12 +563,27 @@ jobs:
             package-lock.json
             tests/conformance/package-lock.json
 
-      # The suite starts the built Worker service, `@semiont/jobs` and every
-      # package it runs on, as a worker image does.
+      # The suite imports @semiont/core — its test issuer — and bundles the
+      # spec with the root's redocly. Core is the one package it builds.
       - name: Install dependencies
         run: |
           npm ci --include=optional
-          npm run build:packages
+          npm run build --workspace=@semiont/core
+
+      # The suite starts the Python Worker service by the interpreter of its
+      # project's locked environment, made as the worker image makes it: on the
+      # Python the SDK's floor names, without the development group, with every
+      # provider's library.
+      - name: Setup Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.2.0
+
+      - name: Make the Python Worker service's environment
+        run: uv sync --locked --no-dev --all-extras --project apps/worker
 
       # The suite's setup looks for a broker on PATH, as every suite's does.
       - name: Install nats-server

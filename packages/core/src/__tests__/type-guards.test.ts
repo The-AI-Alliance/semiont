@@ -10,7 +10,6 @@ import {
   isUndefined,
   isNullish,
   isDefined,
-  isGenerationJobParams,
   isReportedJobResult,
   isMarkJobResult,
   isYieldJobResult,
@@ -200,42 +199,6 @@ describe('@semiont/core - type-guards', () => {
         expect(upper).toBe('HELLO');
       }
     });
-  });
-});
-
-describe('isGenerationJobParams', () => {
-  // The behavioral contract lives with its consumer (@semiont/jobs guards the
-  // worker boundary with this); these cases cover the guard's own source —
-  // one per branch of the required-trio check.
-  const VALID = {
-    title: 'Answer',
-    storageUri: 'file://generated/answer.md',
-    context: { focus: { kind: 'resource' } },
-  };
-
-  it('accepts the required trio', () => {
-    expect(isGenerationJobParams(VALID)).toBe(true);
-  });
-
-  it('rejects non-objects', () => {
-    expect(isGenerationJobParams(null)).toBe(false);
-    expect(isGenerationJobParams('generation')).toBe(false);
-  });
-
-  it('rejects each missing/mistyped member of the trio', () => {
-    expect(isGenerationJobParams({ ...VALID, title: 7 })).toBe(false);
-    expect(isGenerationJobParams({ ...VALID, storageUri: undefined })).toBe(false);
-    expect(isGenerationJobParams({ ...VALID, context: 42 })).toBe(false);
-  });
-
-  it('required means NON-EMPTY — an empty string is not a home or a name', () => {
-    // The worker has no fallback: an empty storageUri would write to a bare
-    // `file://`, and an empty title would name the resource nothing. Both are
-    // silent corruption, so the guard is where they stop — it is the only
-    // runtime enforcement where a worker is handed a job: the gateway holds a
-    // job:create to the same rule, and nothing validates the job afterwards.
-    expect(isGenerationJobParams({ ...VALID, storageUri: '' })).toBe(false);
-    expect(isGenerationJobParams({ ...VALID, title: '' })).toBe(false);
   });
 });
 

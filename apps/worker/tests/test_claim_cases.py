@@ -56,3 +56,15 @@ def test_a_found_span_is_the_text_s_own_code_points() -> None:
     assert found is not None
     start, end = found
     assert text[start:end] == "extraor \ndinarily long"
+
+
+def test_a_break_is_passed_over_with_one_space_beside_it_at_the_most() -> None:
+    # One space before the break and one after it are the break's own. A second on either side is a space the claim does not have.
+    assert find_claim_span("extraor \n dinarily", "extraordinarily") == (0, 18)
+    assert find_claim_span("extraor  \ndinarily", "extraordinarily") is None
+    assert find_claim_span("extraor\n  dinarily", "extraordinarily") is None
+
+
+def test_a_space_is_never_passed_over_for_nothing() -> None:
+    assert find_claim_span("a b c", "abc") is None
+    assert find_claim_span("a\nb\nc", "abc") == (0, 5)

@@ -8,8 +8,9 @@
  * These functions are the viewrect peer of the W3C `FragmentSelector` wrapper in
  * `web-annotation-utils`: they serialize/parse the RFC 3778
  * `page=N&viewrect=left,top,width,height` value. `@semiont/content` (geometry
- * from the text layer), `@semiont/jobs` (serialization at write time), and the
- * browser canvas all import them from here — no package reaches into the UI.
+ * from the text layer), the annotation builders here (serialization at write
+ * time), and the browser canvas all take them from here — no package reaches
+ * into the UI.
  *
  * RFC 3778 PDF Fragment Identifiers: https://tools.ietf.org/html/rfc3778
  */

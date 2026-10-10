@@ -9,11 +9,14 @@ installed, and each reading, held to the rows of
 """
 
 import asyncio
+import threading
+import time
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 import pytest
 from aio import pass_time, run, under_way
+from counted import counted
 from opentelemetry.metrics import CallbackOptions
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import Gauge, InMemoryMetricReader, Metric, NumberDataPoint
@@ -195,3 +198,38 @@ def test_a_log_that_cannot_be_read_says_nothing_and_never_nought(tmp_path: Path)
 )
 def test_without_either_of_the_supervisor_s_two_variables_the_restarts_do_not_exist(environment: dict[str, str]) -> None:
     assert "semiont.process.restarts" not in exported(environment, Lag())
+
+
+# ── a process that ends ─────────────────────────────────────────────────
+
+
+def test_a_failure_nothing_caught_is_counted_once_under_the_reason_the_table_lists(metric_reader: InMemoryMetricReader) -> None:
+    (row,) = worker_metrics("semiont.process.abnormal_exit").values()
+    assert row.instrument == "counter"
+    (listed,) = row.attributes
+    assert listed.key == "reason"
+    before = counted(metric_reader, row.name, "reason")
+    Exporting(Lag(), lambda: None).died()
+    added = counted(metric_reader, row.name, "reason") - before
+    assert sum(added.values()) == 1
+    ((reason,),) = added
+    assert listed.values is not None
+    assert reason in listed.values
+
+
+def test_what_is_buffered_is_sent_when_the_process_stops_and_a_collector_that_does_not_answer_holds_it_two_seconds_at_most() -> None:
+    ended = threading.Event()
+    Exporting(Lag(), ended.set).shutdown()
+    assert ended.is_set()
+
+    # A last export that never returns: the process waits two seconds for it, and goes.
+    never = threading.Event()
+
+    def unanswered() -> None:
+        never.wait(30)
+
+    began = time.monotonic()
+    Exporting(Lag(), unanswered).shutdown()
+    waited = time.monotonic() - began
+    never.set()
+    assert 1.9 < waited < 5

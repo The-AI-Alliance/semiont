@@ -18,8 +18,8 @@ import { openResourceByName } from '../fixtures/discover';
  *   - commenting → a generated TextualBody (density-gated),
  *   - linking    → an entity-reference body (entity extraction).
  * Both anchor through `annotationOfSpan`, so both surface as <rect>s; the
- * per-body-shape detail is covered deterministically by the unit suites
- * (@semiont/jobs: the prepareDetection fan-out; @semiont/core:
+ * per-body-shape detail is covered deterministically elsewhere (the Worker
+ * service's conformance suite: its `pdf` cases; @semiont/core:
  * annotation-of-span).
  *
  * Seed dependency: `scripts/seed.ts` yields an `application/pdf` resource named

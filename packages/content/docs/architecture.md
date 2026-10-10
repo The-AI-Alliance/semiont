@@ -14,7 +14,7 @@ Text decodes out of a text file. Out of a PDF it has to be derived, and how depe
 
 - **No text is a named answer.** A document that gives none says why: it has no text layer, it is encrypted, it is corrupt, or it is too large.
 - **What is derived is kept.** Recognition is slow, and several services read the same document, so an outcome is stored by the checksum of the bytes it came from. That store is a cache: a miss costs time and nothing else, and a read of it never fails.
-- **One byte budget.** `MAX_PDF_BYTES` bounds what the extractor will read. The same bound is applied to what a generation writes, so Semiont does not create a resource its own extractor would decline.
+- **One byte budget.** `MAX_PDF_BYTES` bounds what the extractor will read. The Worker applies the same bound to what a generation writes, and its tests hold its number to this one, so Semiont does not create a resource its own extractor would decline.
 - **Geometry is in PDF points**, with the origin at the bottom left. The flip to pixels happens in the browser. The types and the arithmetic that read a page's geometry are [`@semiont/core`](../../core/README.md)'s, so the browser needs none of this package's parsers.
 
 ## What it does not do

@@ -41,8 +41,7 @@ export { GraphContext } from './graph-context';
 export { LLMContext } from './llm-context';
 export type { LLMContextOptions } from './llm-context';
 
-// Generation exports: the context-building reads. Topic generation
-// (`generateResourceFromTopic`) is in `@semiont/jobs`.
+// Generation exports: the context-building reads.
 export {
   generateResourceSummary,
   generateReferenceSuggestions,

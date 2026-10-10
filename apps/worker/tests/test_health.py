@@ -9,12 +9,19 @@ import json
 import socket
 
 import pytest
-from aio import run
+from aio import pass_time, run, turns
 from pydantic import JsonValue
 
-from semiont_worker.health import serve_health
+from semiont_worker.health import Health, bind_health
 
 SAID: JsonValue = {"status": "ok", "agents": 1, "workers": [{"provider": "ollama", "model": "gemma2:27b", "jobsCompleted": 0}]}
+
+
+async def serve_health(port: int, health: Health) -> asyncio.Server:
+    """An endpoint on `port` that has been told to serve."""
+    server = await bind_health(port, health)
+    await server.start_serving()
+    return server
 
 
 def port_of(server: asyncio.Server) -> int:
@@ -176,5 +183,46 @@ def test_once_closed_it_answers_no_more() -> None:
         await server.wait_closed()
         with pytest.raises(ConnectionRefusedError):
             await asyncio.open_connection("127.0.0.1", port)
+
+    run(scenario())
+
+
+def test_an_endpoint_that_has_taken_its_port_answers_nothing_until_it_is_told_to_serve() -> None:
+    async def scenario() -> None:
+        server = await bind_health(0, lambda: SAID)
+        port = port_of(server)
+        try:
+            # Nothing listens yet: a request is refused where it connects, and waits for no answer.
+            with pytest.raises(ConnectionRefusedError):
+                await asyncio.open_connection("127.0.0.1", port)
+            await server.start_serving()
+            assert (await asked(port, get("/health")))[0] == "HTTP/1.1 200 OK"
+        finally:
+            server.close()
+            await server.wait_closed()
+
+    run(scenario())
+
+
+def test_a_connection_that_does_not_finish_its_request_s_head_in_ten_seconds_is_closed() -> None:
+    async def scenario() -> None:
+        server = await serve_health(0, lambda: SAID)
+        try:
+            reader, writer = await asyncio.open_connection("127.0.0.1", port_of(server))
+            writer.write(b"GET /health HTTP/1.1\r\n")
+            await writer.drain()
+            await asyncio.sleep(0.05)
+            await turns()
+            # Short of ten seconds the endpoint is still waiting for the rest.
+            await pass_time(9, step=1)
+            assert not reader.at_eof()
+            await pass_time(2, step=1)
+            # Then it gives the connection up, having answered nothing.
+            assert await asyncio.wait_for(reader.read(), 5) == b""
+            writer.close()
+            await writer.wait_closed()
+        finally:
+            server.close()
+            await server.wait_closed()
 
     run(scenario())

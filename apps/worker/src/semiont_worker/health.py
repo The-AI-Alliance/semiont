@@ -45,11 +45,12 @@ def _answer_to(request_line: bytes, health: Health) -> bytes:
     return _answer("404 Not Found", b"", None)
 
 
-async def serve_health(port: int, health: Health) -> asyncio.Server:
-    """Listen on `port`, on every address of the machine, and answer each request from `health`.
+async def bind_health(port: int, health: Health) -> asyncio.Server:
+    """Take `port`, on every address of the machine, for an endpoint that answers each request from `health`.
 
-    Raises `OSError` where the port cannot be listened on. The server
-    answers until it is closed.
+    Raises `OSError` where the port cannot be taken. The server it returns
+    holds the port and answers nothing: it answers from when it is told to
+    start serving (`start_serving`) until it is closed.
     """
 
     async def answer(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
@@ -66,4 +67,4 @@ async def serve_health(port: int, health: Health) -> asyncio.Server:
             with contextlib.suppress(ConnectionError):
                 await writer.wait_closed()
 
-    return await asyncio.start_server(answer, host=None, port=port)
+    return await asyncio.start_server(answer, host=None, port=port, start_serving=False)

@@ -17,10 +17,10 @@ This package does not implement any platform domain logic; it provides the spann
 Initialize once at the process entry point, before any spanning code runs:
 
 ```ts
-// worker-main.ts (or smelter-main.ts, etc.)
+// smelter-main.ts (or weaver-main.ts, librarian-main.ts)
 import { initObservabilityNode } from '@semiont/observability/node';
 
-initObservabilityNode({ serviceName: 'semiont-worker' });
+initObservabilityNode({ serviceName: 'semiont-smelter' });
 
 // ...rest of process startup
 ```
@@ -40,13 +40,13 @@ What is exported, and where, is read from the standard `OTEL_*` variables. They 
 
 ## Process logger (Node)
 
-For long-lived Node entry points (workers, smelter, the other sidecars), the package exposes a winston-based structured logger that auto-correlates each line with the active span:
+For long-lived Node entry points (the Smelter, the Weaver, the Librarian), the package exposes a winston-based structured logger that auto-correlates each line with the active span:
 
 ```ts
-// worker-main.ts (or smelter-main.ts, etc.)
+// smelter-main.ts (or weaver-main.ts, librarian-main.ts)
 import { createProcessLogger } from '@semiont/observability/process-logger';
 
-const logger = createProcessLogger('worker');
+const logger = createProcessLogger('smelter');
 logger.info('Started', { config });
 ```
 
@@ -139,17 +139,15 @@ The gateway, the dispatcher and the Archivist are Rust and emit their own metric
 import {
   recordBusSent,
   recordHandlerDuration,
-  recordJobOutcome,
   recordInferenceUsage,
 } from '@semiont/observability';
 
 recordBusSent('mark:create-request', resourceId);  // channel, and the scope it was sent in
 recordHandlerDuration('stower', 'mark:create-request', durationMs);
-recordJobOutcome({ jobType: 'mark', motivation: 'linking' }, 'completed', durationMs);
 recordInferenceUsage({ provider: 'ollama', model: 'gemma3:27b', durationMs, outcome: 'success', inputTokens: 412, outputTokens: 87 });
 ```
 
-The recorders above are four of many. Each says what it measures where it is defined, in [`src/index.ts`](../src/index.ts).
+The recorders above are three of several. Each says what it measures where it is defined, in [`src/index.ts`](../src/index.ts).
 
 ### Provider registration
 

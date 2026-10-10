@@ -2,9 +2,8 @@
  * Per-service bus channel rosters for the standalone make-meaning entry
  * points (smelter, weaver, librarian).
  *
- * Each service's transport subscribes exactly what that service consumes
- * (the worker-runtime precedent, `WORKER_AWAITED_OPERATIONS` in
- * `@semiont/jobs`), never the full `BRIDGED_CHANNELS`: a transport
+ * Each service's transport subscribes exactly what that service consumes,
+ * never the full `BRIDGED_CHANNELS`: a transport
  * subscribed to the full set receives and parses every broadcast frame on
  * channels its service never reads, only to drop it. (Replies are not
  * broadcast — the gateway delivers a reply only to its requester:
@@ -24,7 +23,7 @@
  * census beside each list: every awaiting site declares its operation next to
  * the call (a `*Awaits` alias, `satisfies`-tied to the literal), and a drift
  * between a list and its declarations fails COMPILATION with the operation
- * named (the worker-runtime pattern). `busRequest`'s `isSubscribed` probe is
+ * named. `busRequest`'s `isSubscribed` probe is
  * the runtime backstop for an await nobody declared.
  */
 

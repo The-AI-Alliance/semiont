@@ -26,7 +26,8 @@ import { openResourceByName } from '../fixtures/discover';
  * worker that silently drops every extracted entity (JSON parse failure →
  * `return []`). This spec is the system-level guard (structured output from
  * the model, and an unreadable extraction failing the job instead of returning
- * `[]`); the deterministic one lives in the `@semiont/jobs` unit tests.
+ * `[]`); the deterministic one is the Worker service's own: its
+ * `parser-cases` table (specs/src/worker) and the conformance suite's cases.
  *
  * Entity-type choice: **Concept**, not the "first chip" (= `Person`).
  * The seed this spec opens (Photosynthesis Overview) is Concept-dense, so the

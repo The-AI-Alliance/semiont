@@ -2,10 +2,8 @@
  * Reading a resource's bytes: the contract, the way it fails, and the
  * implementation that reaches the Archivist over HTTP.
  *
- * These live in `@semiont/content` because the readers span the dependency
- * graph: `@semiont/make-meaning` holds the Librarian and the Smelter,
- * `@semiont/jobs` holds the Worker, and make-meaning depends on jobs, so
- * anything both need has to sit under both.
+ * These live in `@semiont/content`, under `@semiont/make-meaning`, which
+ * holds the two services that read this way: the Librarian and the Smelter.
  *
  * Where the Archivist IS lives in `@semiont/core/node` (`archivistEndpoint`),
  * not here: an address is a config value plus a credential, which is what

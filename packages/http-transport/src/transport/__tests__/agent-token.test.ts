@@ -7,6 +7,7 @@
  * real `serviceAccountToken`. Each test signs in at an issuer of its own:
  * core remembers an issuer's token endpoint for the life of the process.
  */
+import util from 'node:util';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { HTTP_REQUEST_TIMEOUT_MS, STARTUP_FETCH_RETRY } from '@semiont/core';
 import { agentToken } from '../agent-token';
@@ -42,6 +43,17 @@ function stubFetch(exchange: (asked: Asked) => Response | Promise<Response>, iss
 }
 
 const minted = () => Response.json({ token: 'agent-token', did: DID });
+
+const UNREAD = 'what-the-runtime-could-not-read';
+/**
+ * What Node's `fetch` rejects with when an answer is not HTTP: what it could
+ * not read of the answer rides on the cause. Core's own suite sees the
+ * runtime make one; here it is made by hand, for requests that are stubbed.
+ */
+function unread(): TypeError {
+  const cause = Object.assign(new Error('Response does not match the HTTP/1.1 protocol (Invalid header token)'), { name: 'HTTPParserError', data: UNREAD });
+  return new TypeError('fetch failed', { cause });
+}
 
 describe('agentToken', () => {
   beforeEach(() => {
@@ -159,7 +171,53 @@ describe('agentToken', () => {
     const signing = agentToken({ baseUrl: GATEWAY, credential: credential(), provider: 'ollama', model: 'gemma3:4b' }).catch((e: unknown) => e);
     await vi.runAllTimersAsync();
 
-    expect(await signing).toBeInstanceOf(TypeError);
+    // Nothing answered, and it is said as that: under the code of every request that got no answer, and with no status.
+    const failure = await signing;
+    expect(failure).toMatchObject({ code: 'unavailable', message: `${GATEWAY}/api/tokens/agent got no answer: TypeError` });
+    expect(failure).not.toHaveProperty('status');
     expect(wire.exchanges()).toHaveLength(STARTUP_FETCH_RETRY.attempts);
+  });
+
+  it('an exchange the runtime could not read is asked again, and its failure holds nothing of the answer', async () => {
+    const wire = stubFetch(() => { throw unread(); });
+
+    const signing = agentToken({ baseUrl: GATEWAY, credential: credential(), provider: 'ollama', model: 'gemma3:4b' }).catch((e: unknown) => e);
+    await vi.runAllTimersAsync();
+
+    const failure = await signing;
+    expect(util.inspect(failure, { depth: 6 })).not.toContain(UNREAD);
+    expect(failure).toMatchObject({ code: 'unavailable', message: `${GATEWAY}/api/tokens/agent got no answer: HTTPParserError` });
+    expect(wire.exchanges()).toHaveLength(STARTUP_FETCH_RETRY.attempts);
+  });
+
+  it('an exchange whose answer stops coming got no answer, and is asked again', async () => {
+    const wire = stubFetch(() => new Response(new ReadableStream<Uint8Array>({ start: (body) => body.error(unread()) })));
+
+    const signing = agentToken({ baseUrl: GATEWAY, credential: credential(), provider: 'ollama', model: 'gemma3:4b' }).catch((e: unknown) => e);
+    await vi.runAllTimersAsync();
+
+    const failure = await signing;
+    expect(util.inspect(failure, { depth: 6 })).not.toContain(UNREAD);
+    expect(failure).toMatchObject({ code: 'unavailable', message: `${GATEWAY}/api/tokens/agent got no answer: HTTPParserError` });
+    expect(wire.exchanges()).toHaveLength(STARTUP_FETCH_RETRY.attempts);
+  });
+
+  it('a grant the runtime could not read is asked again too, and its failure holds nothing of the answer', async () => {
+    let grants = 0;
+    const wire = stubFetch(minted, { grant: () => { grants += 1; throw unread(); } });
+    const account = credential();
+
+    const signing = agentToken({ baseUrl: GATEWAY, credential: account, provider: 'ollama', model: 'gemma3:4b' }).catch((e: unknown) => e);
+    await vi.runAllTimersAsync();
+
+    const failure = await signing;
+    expect(util.inspect(failure, { depth: 6 })).not.toContain(UNREAD);
+    expect(failure).toMatchObject({
+      code: 'unavailable',
+      message: `Client-credentials grant for semiont-worker at ${account.issuer} got no answer: HTTPParserError`,
+    });
+    // The issuer may be starting when this process does: the whole sign-in is made again.
+    expect(grants).toBe(STARTUP_FETCH_RETRY.attempts);
+    expect(wire.exchanges()).toHaveLength(0);
   });
 });

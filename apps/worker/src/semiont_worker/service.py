@@ -37,7 +37,7 @@ from semiont_inference.interface import InferenceClient
 from semiont_worker.agent import AgentWorker, exit_for_restart
 from semiont_worker.config import Refused, api_key_of, config_path_of, read_worker_config, service_account_of
 from semiont_worker.failure_class import words_of
-from semiont_worker.health import serve_health
+from semiont_worker.health import bind_health
 from semiont_worker.log import LOG, configure
 from semiont_worker.observability import Exporting, install
 
@@ -70,91 +70,96 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
     """Work as every agent of the document until the process is told to stop."""
     config = started.config
     loop = asyncio.get_running_loop()
-    # DIAGNOSTIC-ONLY begin
-    import threading
-    import time as _time
-
-    def _dump() -> None:
-        _time.sleep(12)
-        sys.stderr.write("DIAGNOSTIC tasks:\n")
-        for task in asyncio.all_tasks(loop):
-            sys.stderr.write(f"DIAGNOSTIC task {task.get_name()} {task.get_coro()!r}\n")
-            task.print_stack(file=sys.stderr)
-        sys.stderr.flush()
-
-    threading.Thread(target=_dump, daemon=True).start()
-    # DIAGNOSTIC-ONLY end
     told_to_stop = asyncio.Event()
     for told in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(told, told_to_stop.set)
 
-    LOG.info(
-        "Starting agents",
-        extra={
-            "baseUrl": config.gateway_url,
-            "agents": [
-                {"provider": entry.agent.provider, "model": entry.agent.model, "serves": [written(accepted) for accepted in entry.accepts]}
-                for entry in config.agents
-            ],
-        },
-    )
+    agents: list[AgentWorker] = []
+    # The port is taken before anything is dialled, and answers nothing yet: a service that cannot listen on it has
+    # signed in nowhere and opened no stream.
+    try:
+        health = await bind_health(
+            config.port, lambda: {"status": "ok", "agents": len(agents), "workers": [agent.vitals() for agent in agents]}
+        )
+    except OSError as unheard:
+        raise Refused(f"Cannot listen on port {config.port}: {unheard}") from unheard
 
-    service = ServiceToken(started.credential)
-    async with AsyncExitStack() as held:
-        agents = [
-            await held.enter_async_context(
-                AgentWorker(
-                    entry,
-                    client,
-                    gateway_url=config.gateway_url,
-                    service=service,
-                    # The first agent answers for every agent's model: the gateway delivers the first reply to a request.
-                    answers_limits_of=started.clients if index == 0 else (),
-                )
-            )
-            for index, (entry, client) in enumerate(zip(config.agents, started.clients, strict=True))
-        ]
-
-        try:
-            health = await serve_health(
-                config.port, lambda: {"status": "ok", "agents": len(agents), "workers": [agent.vitals() for agent in agents]}
-            )
-        except OSError as unheard:
-            raise Refused(f"Cannot listen on port {config.port}: {unheard}") from unheard
-        LOG.info("Health endpoint ready", extra={"port": config.port})
-
-        sampling = None if exporting is None else asyncio.ensure_future(exporting.sample_the_loop())
-        working = [asyncio.ensure_future(agent.work()) for agent in agents]
-        stopping = asyncio.ensure_future(told_to_stop.wait())
-        try:
-            await asyncio.wait([stopping, *working], return_when=asyncio.FIRST_COMPLETED)
-            for ended in working:
-                if ended.done():
-                    # An agent that cannot claim, on a service that was not told to stop: nothing would wake it again.
-                    failure = ended.exception()
-                    LOG.error(
-                        "Cannot claim jobs \N{EM DASH} exiting for restart",
-                        extra={"error": "the agent stopped claiming" if failure is None else words_of(failure)},
+    try:
+        LOG.info(
+            "Starting agents",
+            extra={
+                "baseUrl": config.gateway_url,
+                "agents": [
+                    {
+                        "provider": entry.agent.provider,
+                        "model": entry.agent.model,
+                        "serves": [written(accepted) for accepted in entry.accepts],
+                    }
+                    for entry in config.agents
+                ],
+            },
+        )
+        service = ServiceToken(started.credential)
+        async with AsyncExitStack() as held:
+            # Every agent signs in before any of them opens its stream: a sign-in the issuer or the gateway refuses
+            # ends a service that has opened none.
+            for index, (entry, client) in enumerate(zip(config.agents, started.clients, strict=True)):
+                agents.append(
+                    await held.enter_async_context(
+                        AgentWorker(
+                            entry,
+                            client,
+                            gateway_url=config.gateway_url,
+                            service=service,
+                            # The first agent answers for every agent's model: the gateway delivers the first reply to a request.
+                            answers_limits_of=started.clients if index == 0 else (),
+                        )
                     )
-                    exit_for_restart()
+                )
+            for agent in agents:
+                await agent.open()
 
-            LOG.info("Shutting down")
-            # A job still held is failed before its agent's client goes, so the queue retries it now.
-            await asyncio.gather(*(agent.stop() for agent in agents))
-        finally:
-            for task in (stopping, *working, *(() if sampling is None else (sampling,))):
-                task.cancel()
-            await asyncio.gather(stopping, *working, *(() if sampling is None else (sampling,)), return_exceptions=True)
-            health.close()
-            await health.wait_closed()
+            try:
+                await health.start_serving()
+            except OSError as unheard:
+                raise Refused(f"Cannot listen on port {config.port}: {unheard}") from unheard
+            LOG.info("Health endpoint ready", extra={"port": config.port})
+
+            sampling = None if exporting is None else asyncio.ensure_future(exporting.sample_the_loop())
+            working = [asyncio.ensure_future(agent.work()) for agent in agents]
+            stopping = asyncio.ensure_future(told_to_stop.wait())
+            try:
+                await asyncio.wait([stopping, *working], return_when=asyncio.FIRST_COMPLETED)
+                for ended in working:
+                    if ended.done():
+                        # An agent that cannot claim, on a service that was not told to stop: nothing would wake it again.
+                        failure = ended.exception()
+                        LOG.error(
+                            "Cannot claim jobs \N{EM DASH} exiting for restart",
+                            extra={"error": "the agent stopped claiming" if failure is None else words_of(failure)},
+                        )
+                        exit_for_restart()
+
+                LOG.info("Shutting down")
+                # A job still held is failed before its agent's client goes, so the queue retries it now.
+                await asyncio.gather(*(agent.stop() for agent in agents))
+            except Exception:
+                # A failure nothing caught, in a service that had started: it is counted, and the process exits for it.
+                if exporting is not None:
+                    exporting.died()
+                raise
+            finally:
+                for task in (stopping, *working, *(() if sampling is None else (sampling,))):
+                    task.cancel()
+                await asyncio.gather(stopping, *working, *(() if sampling is None else (sampling,)), return_exceptions=True)
+    finally:
+        health.close()
+        await health.wait_closed()
 
 
 def main() -> int:
     """Run the service, and answer the status the process exits with."""
     exporting: Exporting | None = None
-    import faulthandler  # DIAGNOSTIC-ONLY
-
-    faulthandler.dump_traceback_later(14, repeat=False)  # DIAGNOSTIC-ONLY
     try:
         started = boot(sys.argv[1:], os.environ)
         exporting = install(os.environ)

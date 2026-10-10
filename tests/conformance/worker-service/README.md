@@ -13,10 +13,10 @@ driver. This one holds the service: how it boots, what it claims, what it asks
 a model, what it commits, how it ends a job, how it stops.
 
 The suite imports nothing from a Worker service. The lines that name one are
-`WORKER_SERVICES` in [harness/paths.ts](../harness/paths.ts): the TypeScript
-service, `node packages/jobs/dist/worker-main.js`, and the Python service,
-`python -m semiont_worker` by the interpreter of its project's environment
-(`apps/worker/.venv`). Every case runs against every entry.
+`WORKER_SERVICES` in [harness/paths.ts](../harness/paths.ts): today Semiont's
+own, the Python service of `apps/worker`, `python -P -m semiont_worker` by the
+interpreter of its project's environment (`apps/worker/.venv`). Every case
+runs against every entry.
 
 ## The world around a Worker service
 
@@ -161,21 +161,21 @@ rule names exists, and every case is named by a rule.
 Add its command to `WORKER_SERVICES` in
 [harness/paths.ts](../harness/paths.ts), and what builds it to
 [harness/worker-service-setup.ts](../harness/worker-service-setup.ts). It is
-started as the TypeScript one is: `<command> --config <document>`, with the
+started as the one there is: `<command> --config <document>`, with the
 variables [WORKER-SERVICE.md § Environment](../../../docs/protocol/WORKER-SERVICE.md#environment)
 names, any variable its document's `apiKeyEnv` names, and `PATH`. It passes
 every case unchanged.
 
 ## Running it
 
-It needs a built gateway, `nats-server` (2.10 or later) on `PATH`, the
-packages built, and the Python service's environment made with every
+It needs a built gateway, `nats-server` (2.10 or later) on `PATH`,
+`@semiont/core` built, and the Python service's environment made with every
 provider's library, as its image has them, which needs `uv` and Python 3.12
 or later on `PATH`:
 
 ```bash
 cargo build --release -p semiont-gateway
-npm run build:packages
+npm run build --workspace=@semiont/core
 uv sync --locked --no-dev --all-extras --project apps/worker
 cd tests/conformance
 npm ci

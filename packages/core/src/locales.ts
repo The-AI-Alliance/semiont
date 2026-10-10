@@ -29,13 +29,6 @@ export function getLocaleNativeName(code: string | undefined): string | undefine
 }
 
 /**
- * Get the English name of a language by its locale code
- */
-export function getLocaleEnglishName(code: string | undefined): string | undefined {
-  return getLocaleInfo(code)?.englishName;
-}
-
-/**
  * Format locale code for display as "Native Name (code)"
  */
 export function formatLocaleDisplay(code: string | undefined): string | undefined {

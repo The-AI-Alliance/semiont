@@ -28,11 +28,13 @@ and a stand-in Anthropic, and a proxy that stands between a client and the gatew
 All need a built gateway and `nats-server` (2.10 or later) on `PATH`. The
 dispatcher suite also needs a built dispatcher, the Archivist suite a built
 Archivist and `git`, the SDK suite and the worker suite the Rust drivers
-and the packages built, and the worker-service suite the packages built:
+and the packages built, and the worker-service suite the Worker service's
+environment, which `uv` makes:
 
 ```bash
 cargo build --release -p semiont-gateway -p semiont-dispatcher -p semiont-archivist -p semiont-conformance-drivers
 npm run build:packages
+uv sync --locked --no-dev --all-extras --project apps/worker
 cd tests/conformance
 npm ci
 npm test

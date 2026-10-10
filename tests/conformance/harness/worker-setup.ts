@@ -23,7 +23,7 @@ export default function setup(project: TestProject): void {
   for (const pkg of ['http-transport', 'sdk']) {
     const built = join(REPO_ROOT, 'packages', pkg, 'dist/index.js');
     if (!existsSync(built)) {
-      throw new Error(`The TypeScript worker is not built: ${built} does not exist. Run \`npm run build:packages\` at the repository root.`);
+      throw new Error(`The TypeScript SDK is not built: ${built} does not exist. Run \`npm run build:packages\` at the repository root.`);
     }
   }
   try {

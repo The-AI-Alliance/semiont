@@ -1,3 +1,4 @@
+import util from 'node:util';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { firstValueFrom } from 'rxjs';
 import { EMIT_RETRY, annotationId, resourceId } from '@semiont/core';
@@ -155,7 +156,7 @@ describe('createActorStateUnit', () => {
     });
 
     const rejects = expect(stateUnit.emit('beckon:hover', { annotationId: annotationId('a-1') }))
-      .rejects.toThrow(/timed out/i);
+      .rejects.toThrow('/bus/emit got no answer: TimeoutError');
     await vi.advanceTimersByTimeAsync(60_000);
     await rejects;
     expect(mockFetch).toHaveBeenCalledTimes(EMIT_RETRY.attempts);
@@ -178,9 +179,35 @@ describe('createActorStateUnit', () => {
     await expect(stateUnit.emit('beckon:hover', { annotationId: annotationId('a-1') })).rejects.toMatchObject({
       name: 'APIError',
       code: 'unavailable',
-      message: '/bus/emit got no answer: fetch failed',
+      message: '/bus/emit got no answer: TypeError',
     });
     expect(mockFetch).toHaveBeenCalledTimes(2);
+
+    stateUnit.dispose();
+  });
+
+  it('an emit the runtime would not send says the kind of error, and none of the token it was to carry', async () => {
+    // A header's value that is none is refused by the runtime, in words that quote the value.
+    const carried = 'eyJhbGciOiJSUzI1NiJ9.eyJuIjo3fQ.c2lnbmF0dXJl';
+    let refusal: unknown;
+    try {
+      new Headers({ Authorization: `Bearer one line\nand ${carried}` });
+    } catch (error) {
+      refusal = error;
+    }
+    expect(String(refusal)).toContain(carried);
+    mockFetch.mockRejectedValue(refusal);
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: [],
+      emitRetry: { attempts: 2, initialDelayMs: 1, maxDelayMs: 1 },
+    });
+
+    const failure: unknown = await stateUnit.emit('beckon:hover', { annotationId: annotationId('a-1') }).catch((e: unknown) => e);
+
+    expect(util.inspect(failure, { depth: 6 })).not.toContain(carried.slice(0, 6));
+    expect(failure).toMatchObject({ name: 'APIError', code: 'unavailable', message: '/bus/emit got no answer: TypeError' });
 
     stateUnit.dispose();
   });

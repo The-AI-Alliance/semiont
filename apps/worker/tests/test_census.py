@@ -253,7 +253,7 @@ def test_one_module_reads_the_process_s_environment_and_the_variables_read_are_t
         "LOG_FORMAT",
         # Read by OpenTelemetry's SDK, and not by the service's own code (E8).
         "OTEL_BSP_SCHEDULE_DELAY",
-        # The bus log is its transport's to write, and the Python SDK's transport writes none: E9 is not met.
+        # Read by the SDK, whose transport writes the bus log, and not by the service's own code (E9).
         "SEMIONT_BUS_LOG",
     }
     assert not_read_here <= listed

@@ -4,6 +4,7 @@
  * grant, refresh, and revocation — against a fetch stub, with the issuer's
  * answers scripted per case. Nothing here names a vendor.
  */
+import util from 'node:util';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { HTTP_REQUEST_TIMEOUT_MS, REFRESH_RETRY } from '@semiont/core';
 import { APIError, HttpTransport } from '@semiont/http-transport';
@@ -39,11 +40,27 @@ function reply(json: unknown, status = 200): Response {
     ok: status < 300,
     status,
     json: async () => {
-      if (json === undefined) throw new Error('no body');
+      // What the runtime says of a body that is no JSON: an answer with no body is one.
+      if (json === undefined) throw new SyntaxError('Unexpected end of JSON input');
       return json;
     },
   } as unknown as Response;
 }
+
+const UNREAD = 'what-the-runtime-could-not-read';
+/**
+ * What Node's `fetch` rejects with when an answer is not HTTP, and what a
+ * body's read rejects with when the body is not: what the runtime could not
+ * read rides on the cause. Core's own suite sees the runtime make one; here
+ * it is made by hand, for requests that are stubbed.
+ */
+function unread(said: 'fetch failed' | 'terminated' = 'fetch failed'): TypeError {
+  const cause = Object.assign(new Error('Response does not match the HTTP/1.1 protocol (Invalid header token)'), { name: 'HTTPParserError', data: UNREAD });
+  return new TypeError(said, { cause });
+}
+
+/** What is printed of a failure wherever it is logged whole. */
+const printed = (failure: unknown): string => util.inspect(failure, { depth: 6 });
 
 /** The form a POST carried, decoded. */
 function formOf(call: unknown[]): Record<string, string> {
@@ -135,6 +152,36 @@ describe('discoverIssuer', () => {
     fetchMock.mockImplementation(async () => reply({ ...DISCOVERY, issuer: 'https://other.test' }));
 
     await expect(discoverIssuer(TARGET)).rejects.toMatchObject({ code: 'discovery' });
+  });
+
+  it('an issuer that does not answer its discovery is said by the kind of error, with no status and nothing of the answer', async () => {
+    fetchMock.mockRejectedValue(unread());
+
+    const failure: unknown = await discoverIssuer(TARGET).catch((e: unknown) => e);
+
+    expect(failure).toBeInstanceOf(SignInError);
+    expect(failure).toMatchObject({ code: 'discovery', message: `Issuer ${ISSUER}: discovery was not answered: HTTPParserError`, status: undefined });
+    expect(printed(failure)).not.toContain(UNREAD);
+  });
+
+  it('a discovery document that stops coming is a discovery that was not answered', async () => {
+    const stopped = new ReadableStream<Uint8Array>({ start: (body) => body.error(unread('terminated')) });
+    fetchMock.mockImplementation(async () => new Response(stopped));
+
+    const failure: unknown = await discoverIssuer(TARGET).catch((e: unknown) => e);
+
+    expect(failure).toMatchObject({ code: 'discovery', message: `Issuer ${ISSUER}: discovery was not answered: HTTPParserError`, status: undefined });
+    expect(printed(failure)).not.toContain(UNREAD);
+  });
+
+  it('a discovery document that is not JSON is no OpenID configuration, and none of it is said', async () => {
+    // Whatever parses a body says where it stopped, and quotes the body there.
+    fetchMock.mockImplementation(async () => new Response(`{"issuer": ${UNREAD}}`));
+
+    const failure: unknown = await discoverIssuer(TARGET).catch((e: unknown) => e);
+
+    expect(failure).toMatchObject({ code: 'discovery', message: `Issuer ${ISSUER}: its discovery document is not an OpenID configuration for it` });
+    expect(printed(failure)).not.toContain(UNREAD.slice(0, 6));
   });
 });
 
@@ -286,6 +333,25 @@ describe('refresh and revocation', () => {
       expect(await refreshStoredSession(storage, KB)).toBe('acc-2');
       expect(stored(storage)?.access, 'the rotation is persisted').toBe('acc-2');
       expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('a grant the issuer does not answer is said by the kind of error, with no status and nothing of the answer', async () => {
+      fetchMock.mockRejectedValue(unread());
+
+      const failure: unknown = await refreshAtIssuer(`${ISSUER}/token`, BROWSER_CLIENT_ID, 'ref-1').catch((e: unknown) => e);
+
+      expect(failure).toBeInstanceOf(SignInError);
+      expect(failure).toMatchObject({ code: 'exchange', message: 'The issuer did not answer: HTTPParserError', status: undefined });
+      expect(printed(failure)).not.toContain(UNREAD);
+    });
+
+    it('a grant whose answer stops coming was not answered: it states no status, and so is asked again', async () => {
+      fetchMock.mockImplementation(async () => new Response(new ReadableStream<Uint8Array>({ start: (body) => body.error(unread('terminated')) })));
+
+      const failure: unknown = await refreshAtIssuer(`${ISSUER}/token`, BROWSER_CLIENT_ID, 'ref-1').catch((e: unknown) => e);
+
+      expect(failure).toMatchObject({ code: 'exchange', message: 'The issuer did not answer: HTTPParserError', status: undefined });
+      expect(printed(failure)).not.toContain(UNREAD);
     });
 
     it('rides out a network failure, which is the case with no status at all', async () => {
@@ -485,7 +551,7 @@ describe('a request to the issuer has a deadline', () => {
     fetchMock.mockRejectedValue(new DOMException('The operation timed out.', 'TimeoutError'));
 
     const renewed = expect(refreshStoredSession(storage, 'kb-1')).rejects.toThrow(
-      `The session could not be renewed after ${REFRESH_RETRY.attempts} attempts: The operation timed out.`,
+      `The session could not be renewed after ${REFRESH_RETRY.attempts} attempts: The issuer did not answer: TimeoutError`,
     );
     await vi.advanceTimersByTimeAsync(60_000);
     await renewed;

@@ -107,9 +107,9 @@ agent token from the gateway; `SEMIONT_BUS_LOG`; and the telemetry variables.
 ## Related
 
 - [docs/protocol/JOBS.md](../../docs/protocol/JOBS.md) — what it does, channel by channel
-- [`@semiont/jobs`](../../packages/jobs/) — the worker's side
+- [docs/protocol/WORKER-CONTRACT.md](../../docs/protocol/WORKER-CONTRACT.md) — the worker's side, which every SDK has
 - [Worker](../worker/) — the executor, and a client of this service
-- [Archivist](../archivist/) — serves the bytes and records the annotations, directly to workers
+- [Archivist](../archivist/) — keeps the record: the bytes a worker reads through the gateway, and the annotations it commits
 - [Container Topology](../../docs/operator/CONTAINER-TOPOLOGY.md) — where it sits in the fleet
 - [Authentication](../../docs/operator/administration/AUTHENTICATION.md) — the service-account
   and worker-role requirements an issuer must meet

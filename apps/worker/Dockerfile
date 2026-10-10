@@ -101,4 +101,6 @@ ENV SUPERVISE_NAME=worker \
 ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/boot.sh"]
 # --config names where the launcher mounts the worker's document; the
 # launcher's census (TestConfigDocumentsAreWhereTheImagesLook) reads it here.
-CMD ["python", "-m", "semiont_worker", "--config", "/etc/semiont/worker.json"]
+# `-P` keeps the working directory off the import path: a file in /kb is never
+# a module the service imports.
+CMD ["python", "-P", "-m", "semiont_worker", "--config", "/etc/semiont/worker.json"]

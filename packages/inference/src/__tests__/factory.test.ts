@@ -61,7 +61,7 @@ describe('@semiont/inference - createInferenceClient', () => {
 
 // ── Detection-consumption capabilities ───────────────────────────────────
 //
-// @semiont/jobs is written in terms of the InferenceClient contract and does
+// A caller is written in terms of the InferenceClient contract and does
 // NO provider-specific switching: whatever varies by provider is DECLARED
 // here, per implementation, like `maxConcurrency`. These pin the
 // declarations so a new provider must take a position and an edit to one is
