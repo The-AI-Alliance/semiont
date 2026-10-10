@@ -46,6 +46,7 @@ export const ANTHROPIC_MODEL: ModelFacts = { maxInputTokens: 200_000, maxOutputT
 export type RunningJob = components['schemas']['JobRunning'];
 export type JobFilter = components['schemas']['JobFilter'];
 export type JobType = components['schemas']['JobType'];
+export type FailureClass = components['schemas']['FailureClass'];
 export type Annotation = components['schemas']['Annotation'];
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type AgentEntry = WorkerSettings['agents'][number];

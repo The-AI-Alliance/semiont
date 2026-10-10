@@ -537,16 +537,32 @@ place and not at once: it does not interrupt a generation that is under way
 On `job:fail` (and on the sweep) a retry is allowed exactly when
 
 ```text
-failureClass !== "deterministic"  and  retryCount < maxRetries
+failureClass is neither "deterministic" nor "withheld"  and  retryCount < maxRetries
 ```
 
-evaluated on the record before the failure is applied. A worker evaluates the same predicate, on
+evaluated on the record before the failure is applied. `failureClass` is the worker's claim about
+the failure ([`FailureClass`](../../specs/src/components/schemas/FailureClass.json)), one of three:
+
+| `failureClass` | The claim | Retried |
+|---|---|---|
+| `transient` | nothing about the request was judged: a bound ran out, a provider said not now | while budget is left |
+| `deterministic` | the same request cannot succeed a second time | never |
+| `withheld` | the model's provider had the request and withheld its answer, by a refusal or a content filter, and withholds the same request again | never |
+
+An absent `failureClass` is a failure nobody classified, and counts as retryable. A `withheld`
+failure is told from a `deterministic` one so that whoever reads the failure can tell "the provider
+would not answer" from "the job broke" without reading the error's text. The class is stated on the
+`job:fail` frame, and on the `job:failed` event the Archivist records of it
+([ARCHIVIST.md](ARCHIVIST.md#vocabulary-people-and-jobs)). The dispatcher's record of a failed job
+keeps the error and not the class, so a job's status does not state it.
+
+A worker evaluates the same predicate, on
 the record it claimed, to set `willRetry` on its `job:fail`: `willRetryAfter` in the TypeScript SDK
 ([`claims.ts`](../../packages/sdk/src/claims.ts)), and `will_retry_after` in the Rust SDK
 ([`claims.rs`](../../packages/sdk-rust/src/claims.rs)) and the Python SDK
 ([`claims.py`](../../packages/sdk-python/src/semiont/claims.py)), which a held job's `fail` applies. The
-dispatcher's own is the Rust SDK's. An absent `failureClass`
-counts as retryable. With the budgets set at admission, a `yield` job is never retried and a
+dispatcher's own is the Rust SDK's. Every implementation answers
+[`retry-cases.json`](../../specs/src/jobs/retry-cases.json) alike. With the budgets set at admission, a `yield` job is never retried and a
 `mark` job is retried at most once.
 
 A retried job is `pending` again with `retryCount` one higher, its checkpoint merged, and no

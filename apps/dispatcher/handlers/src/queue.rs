@@ -100,7 +100,8 @@ pub trait JobQueue: Send + Sync + 'static {
     ) -> impl Future<Output = Result<bool, QueueError>> + Send;
 
     /// A running job's attempt failed: its checkpoint merged, then retried or
-    /// failed by the retry rule (`crate::retry`); `None` when it was not running.
+    /// failed by the retry rule (`semiont::claims::will_retry_after`), which
+    /// reads the failure's class; `None` when it was not running.
     fn fail_job(
         &self,
         id: &JobId,

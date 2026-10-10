@@ -547,8 +547,11 @@ deterministic, so that no attempt is spent on them again.
 - **F1.** Anything that stops a job's work becomes its `job:fail`
   ([WORKER-CONTRACT L4](./WORKER-CONTRACT.md#the-lifecycle)): the error as
   text, the failure's class when the service knows one, and `willRetry` as
-  the claimed record's budget and that class make it. After it the service
-  claims again.
+  the claimed record's budget and that class make it. The class is
+  `transient`, `deterministic` or `withheld`, as
+  [`failure-class-cases.json`](../../specs/src/worker/failure-class-cases.json)
+  gives each failure its own, and a failure the table gives none has no
+  class. After it the service claims again.
   *Held by `worker-service/failures`.*
 - **F2.** A failure carries the checkpoint the job last stated
   ([D13 and D14](#committing-and-where-a-job-stands)): the cursor of each
@@ -621,9 +624,12 @@ deterministic, so that no attempt is spent on them again.
   *Held by `worker-service/anthropic`.*
 - **F12.** An answer the provider withheld (Anthropic's `stop_reason`
   `refusal`) is not used, whatever it carried: no annotation is made from it
-  and no document is kept of it. The job fails as deterministic, its error
-  saying that the answer was withheld and what the provider said of why, and
-  the request is not made again.
+  and no document is kept of it. The job fails as withheld, a class of its
+  own, so that its failure reads as the provider's choice and not as the job
+  breaking. Its error says that the answer was withheld and what the provider
+  said of why. The request is not made again, and the job says it will not
+  be retried, whatever budget it has left
+  ([JOBS.md § Retries](./JOBS.md#retries)).
   *Held by `worker-service/anthropic`.*
 
 ## Resuming

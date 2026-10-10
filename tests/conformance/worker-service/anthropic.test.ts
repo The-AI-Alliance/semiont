@@ -463,7 +463,7 @@ eachWorkerService('a worker on Anthropic', (world) => {
     expect(served.emits('job:complete')).toEqual([]);
   });
 
-  it('fails a job as deterministic, having asked once, when the provider withholds its answer, and uses nothing the answer carried', async () => {
+  it('fails a job as withheld, having asked once, when the provider withholds its answer, and uses nothing the answer carried', async () => {
     const w = world();
     const agent = claude(w);
     const mark = markJob(w, 'anthropic-withheld', { motivation: 'highlighting' });
@@ -475,8 +475,8 @@ eachWorkerService('a worker on Anthropic', (world) => {
     const { error: yieldError, ...yieldFailure } = await settled(served, generation, 'job:fail');
 
     expectMessages(w.anthropic.generations, [highlighting(agent), message(agent.model, 'yield-markdown', { max_tokens: 300, temperature: 0.2 })]);
-    expect(markFailure).toEqual({ ...identity(mark), failureClass: 'deterministic', willRetry: false });
-    expect(yieldFailure).toEqual({ ...identity(generation), failureClass: 'deterministic', willRetry: false });
+    expect(markFailure).toEqual({ ...identity(mark), failureClass: 'withheld', willRetry: false });
+    expect(yieldFailure).toEqual({ ...identity(generation), failureClass: 'withheld', willRetry: false });
     for (const error of [markError, yieldError]) expect(String(error)).toContain('withheld its answer: refusal');
     expect(w.commits).toEqual([]);
     expect(w.world.archivist.uploads).toEqual([]);

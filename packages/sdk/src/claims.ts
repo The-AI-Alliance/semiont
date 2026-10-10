@@ -118,6 +118,19 @@ const WEAKNESS: Record<DurabilityEvidence, number> = {
 };
 
 /**
+ * Whether the queue runs a failure of each class again while its job has
+ * retries left. `deterministic`: the same request cannot succeed on a second
+ * attempt. `withheld`: the provider withholds its answer to the same request
+ * again. Every class the spec names is answered here, and one it comes to
+ * name does not compile until it is.
+ */
+const RETRIED: Record<FailureClass, boolean> = {
+  transient: true,
+  deterministic: false,
+  withheld: false,
+};
+
+/**
  * Will this failure be put back in the queue for another attempt?
  *
  * Two places need the answer and they must never disagree: the dispatcher's
@@ -128,15 +141,15 @@ const WEAKNESS: Record<DurabilityEvidence, number> = {
  * record it claimed, and `retryCount` changes only when the dispatcher fails
  * the attempt, so the two evaluations see the same numbers.
  *
- * A failure known to be deterministic skips the budget: the same request
- * cannot succeed on a second attempt. A failure of no stated class is
- * treated as transient.
+ * A failure known to be deterministic and an answer the provider withheld
+ * are not retried, whatever budget is left (`RETRIED`). A failure of no
+ * stated class is retried as a transient one is.
  */
 export function willRetryAfter(
   budget: Pick<components['schemas']['JobMetadata'], 'retryCount' | 'maxRetries'>,
   failureClass?: FailureClass,
 ): boolean {
-  return failureClass !== 'deterministic' && budget.retryCount < budget.maxRetries;
+  return (failureClass === undefined || RETRIED[failureClass]) && budget.retryCount < budget.maxRetries;
 }
 
 export interface ClaimOptions {

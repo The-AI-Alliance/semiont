@@ -335,7 +335,8 @@ builders to the same answers.
 - **`fail` says whether the queue will run the job again**
   (`will_retry_after`), from the budget on the record the worker claimed and
   the failure's class: `FailureClass::Deterministic` is a failure no second
-  attempt can change.
+  attempt can change, and `FailureClass::Withheld` an answer the model's
+  provider withheld. The queue retries neither.
 - **A cancellation is signalled.** `job.cancelled()` turns true when a
   cancellation names the held job: the work stops where it can, and says
   `job.cancel(..)`.

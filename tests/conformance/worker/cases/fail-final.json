@@ -1,10 +1,11 @@
 {
-  "about": "a failure says it will not be retried when it is deterministic, whatever budget is left, and when the record's budget is spent",
+  "about": "a failure says it will not be retried when it is deterministic or withheld, whatever budget is left, and when the record's budget is spent",
   "source": "docs/protocol/WORKER-CONTRACT.md § The lifecycle",
   "steps": [
     {"let": {"accepts": [{"jobType": "mark", "params": {"motivation": "highlighting"}}]}},
     {"let": {"job": {"status": "running", "metadata": {"id": "job-1", "type": "mark", "userId": {"$var": "client"}, "created": "2026-01-01T00:00:00.000Z", "retryCount": 0, "maxRetries": 3}, "params": {"resourceId": {"$var": "r1"}, "motivation": "highlighting"}, "startedAt": "2026-01-01T00:00:01.000Z", "progress": {}}}},
     {"let": {"spent": {"status": "running", "metadata": {"id": "job-2", "type": "mark", "userId": {"$var": "client"}, "created": "2026-01-01T00:00:00.000Z", "retryCount": 3, "maxRetries": 3}, "params": {"resourceId": {"$var": "r1"}, "motivation": "highlighting"}, "startedAt": "2026-01-01T00:00:01.000Z", "progress": {}}}},
+    {"let": {"withheld": {"status": "running", "metadata": {"id": "job-3", "type": "mark", "userId": {"$var": "client"}, "created": "2026-01-01T00:00:00.000Z", "retryCount": 1, "maxRetries": 3}, "params": {"resourceId": {"$var": "r1"}, "motivation": "highlighting"}, "startedAt": "2026-01-01T00:00:01.000Z", "progress": {}}}},
     {"backend": "listen", "with": {"channels": ["job:claim"]}},
     {"driver": "open", "with": {"timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},
     {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["job:cancel-requested", "job:claim-failed", "job:claimed", "job:queued"], "scoped": [], "pendingReplies": []}},
@@ -21,7 +22,12 @@
     {"driver": "fail", "with": {"error": "the model timed out"}},
     {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "job:fail", "payload": {"resourceId": {"$var": "r1"}, "jobId": "job-2", "jobType": "mark", "attempt": 4, "error": "the model timed out", "willRetry": false}, "clientId": {"$var": "clientId"}}},
     {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "job:claim", "payload": {"accepts": {"$var": "accepts"}}, "correlationId": {"$var": "c3"}, "clientId": {"$var": "clientId"}}},
-    {"backend": "emit", "with": {"channel": "job:claim-failed", "correlationId": {"$var": "c3"}, "payload": {"message": "No pending job matches", "code": "none-pending"}}},
+    {"backend": "emit", "with": {"channel": "job:claimed", "correlationId": {"$var": "c3"}, "payload": {"response": {"$var": "withheld"}}}},
+    {"claimed": {"jobId": "job-3", "jobType": "mark", "resourceId": {"$var": "r1"}, "params": {"$var": "_"}, "completedUnits": [], "unitCursors": {}, "retryCount": 1, "maxRetries": 3}},
+    {"driver": "fail", "with": {"error": "The provider withheld its answer: refusal", "failureClass": "withheld"}},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "job:fail", "payload": {"resourceId": {"$var": "r1"}, "jobId": "job-3", "jobType": "mark", "attempt": 2, "error": "The provider withheld its answer: refusal", "failureClass": "withheld", "willRetry": false}, "clientId": {"$var": "clientId"}}},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "job:claim", "payload": {"accepts": {"$var": "accepts"}}, "correlationId": {"$var": "c4"}, "clientId": {"$var": "clientId"}}},
+    {"backend": "emit", "with": {"channel": "job:claim-failed", "correlationId": {"$var": "c4"}, "payload": {"message": "No pending job matches", "code": "none-pending"}}},
     {"quiet": 200}
   ]
 }

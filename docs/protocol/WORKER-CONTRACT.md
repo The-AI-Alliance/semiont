@@ -124,12 +124,14 @@ matches one of them, or with `none-pending`.
   `job:complete`, `job:fail` or `job:cancel`.
   *Held by `worker/lifecycle`.*
 - **L4.** `job:fail` carries the error; the failure's class, when the worker
-  knows it; the checkpoint, when there is one, as a `job:checkpoint` states
-  one ([L2](#the-lifecycle)); and `willRetry`, which is
-  what [`retry-cases.json`](../../specs/src/jobs/retry-cases.json) answers
-  for the claimed record's retry budget and that class. The dispatcher
-  applies the same table, so a follower told `willRetry` is told what the
-  queue will do.
+  knows it (`transient`, `deterministic` or `withheld`:
+  [JOBS.md § Retries](./JOBS.md#retries)); the checkpoint, when there is
+  one, as a `job:checkpoint` states one ([L2](#the-lifecycle)); and
+  `willRetry`, which is what
+  [`retry-cases.json`](../../specs/src/jobs/retry-cases.json) answers for
+  the claimed record's retry budget and that class. The dispatcher applies
+  the same table, so a follower told `willRetry` is told what the queue
+  will do.
   *Held by `worker/fail-will-retry`, `worker/fail-final`.*
 - **L5.** Every lifecycle message is emitted globally. None carries a scope.
   *Held by `worker/lifecycle`.*

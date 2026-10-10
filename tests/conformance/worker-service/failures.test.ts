@@ -7,7 +7,7 @@
  */
 import { expect, it } from 'vitest';
 import type { ScriptedGeneration } from '../harness/ollama';
-import { eachWorkerService, type RunningJob, type WorkerServiceWorld } from '../harness/worker-service-world';
+import { eachWorkerService, type FailureClass, type RunningJob, type WorkerServiceWorld } from '../harness/worker-service-world';
 import { expectGenerations, expectProgress, FORMATS, generation, identity, LONG_TEXT, markJob, report, settled, SMALL_CONTEXT_LENGTH, TEXT } from './support';
 
 const HIGHLIGHT_REQUEST = { num_predict: 5284, num_ctx: 5785, temperature: 0 };
@@ -25,7 +25,7 @@ async function failed(w: WorkerServiceWorld, name: string, replies: ScriptedGene
 }
 
 /** A failure of the class given, of a job that made nothing: its identity, its class, its error, and whether it will be retried. */
-function classed(job: RunningJob, failure: Record<string, unknown>, failureClass: 'transient' | 'deterministic', willRetry: boolean): string {
+function classed(job: RunningJob, failure: Record<string, unknown>, failureClass: FailureClass, willRetry: boolean): string {
   const { error, ...rest } = failure;
   expect(rest).toEqual({ ...identity(job), failureClass, willRetry });
   expect(typeof error).toBe('string');

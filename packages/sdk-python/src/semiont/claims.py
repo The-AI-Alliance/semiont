@@ -160,7 +160,7 @@ _FILTER: Final = TypeAdapter[JobFilter](JobFilter)
 def will_retry_after(retry_count: int, max_retries: int, failure_class: FailureClass | None = None) -> bool:
     """Whether a failed attempt is retried.
 
-    Exactly when the failure is not known to be deterministic and the job has
+    Exactly when the failure's class is one the queue retries and the job has
     retries left, on the record before the failure is applied. Two places need
     the answer and they must never disagree: the dispatcher's queue acts on
     it, and a worker reports it on `job:fail` as `willRetry`, so a follower of
@@ -168,7 +168,25 @@ def will_retry_after(retry_count: int, max_retries: int, failure_class: FailureC
     has one implementation, and specs/src/jobs/retry-cases.json is the table
     all of them answer alike.
     """
-    return failure_class != "deterministic" and retry_count < max_retries
+    return _retried(failure_class) and retry_count < max_retries
+
+
+def _retried(failure_class: FailureClass | None) -> bool:
+    """Whether the queue runs a failure of this class again while its job has retries left.
+
+    A failure known to be deterministic is not: the same request cannot
+    succeed on a second attempt. Neither is an answer the provider withheld:
+    it withholds its answer to the same request again. A failure of no stated
+    class is retried as a transient one is. Every class the spec names is
+    answered here, and one it comes to name does not type-check until it is.
+    """
+    match failure_class:
+        case None | "transient":
+            return True
+        case "deterministic" | "withheld":
+            return False
+        case _:
+            assert_never(failure_class)
 
 
 def _weakness(evidence: DurabilityEvidence) -> int:

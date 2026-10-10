@@ -1,12 +1,16 @@
 /**
- * Failure classification: a deterministic failure is not retried.
+ * Failure classification: a deterministic failure is not retried, and neither
+ * is an answer the provider withheld.
  *
  * A retried deterministic failure always costs exactly double: the second
- * attempt of the same request cannot succeed. The rule is one-sided —
- * only KNOWN-deterministic failures skip the retry budget; everything
- * unrecognized stays retryable (`undefined`), because mis-classifying a
- * transient failure as deterministic silently halves reliability, while the
- * reverse merely costs one wasted attempt.
+ * attempt of the same request cannot succeed. A withheld answer costs the
+ * same, because the provider withholds the same request again; it is a class
+ * of its own so that whoever reads the failure can tell "the provider would
+ * not answer" from "the job broke" without reading the error's text. The rule
+ * is one-sided — only failures KNOWN to be deterministic or withheld skip the
+ * retry budget; everything unrecognized stays retryable (`undefined`),
+ * because mis-classifying a transient failure as either silently halves
+ * reliability, while the reverse merely costs one wasted attempt.
  *
  * Classification happens HERE, in the worker, where errors are still typed —
  * at the gateway's `job:fail` handler the failure is already a flattened
@@ -57,8 +61,8 @@ export class DeterministicJobError extends Error {
  *   reported them, and neither does a discovery that failed. All land
  *   `undefined` → retryable, the safe default.
  * - `@semiont/inference`'s `ProviderWithheldError` is an answer the provider
- *   withheld, by a refusal or a filter: the same request is withheld again
- *   → deterministic.
+ *   withheld, by a refusal or a filter: the job did not break, and the same
+ *   request is withheld again → withheld.
  * - `@semiont/inference`'s `StructuredReadError` carries the stop reason
  *   because the cause classifies differently: `max_tokens` is truncation of
  *   an over-demanded answer — the adapter throws before the caller's
@@ -70,7 +74,7 @@ export function classifyFailure(error: unknown): FailureClass | undefined {
   if (error instanceof DeterministicJobError) return 'deterministic';
   if (error instanceof InferenceTimeoutError) return 'transient';
   if (error instanceof StructuredReadError && error.stopReason === 'max_tokens') return 'deterministic';
-  if (error instanceof ProviderWithheldError) return 'deterministic';
+  if (error instanceof ProviderWithheldError) return 'withheld';
   // A `StructuredReadError` with any OTHER stop reason falls through to
   // `undefined` — retryable, and DECIDED rather than defaulted.
   //
@@ -84,7 +88,7 @@ export function classifyFailure(error: unknown): FailureClass | undefined {
   // one chunk, not the whole prefix.
   //
   // It stays `undefined` rather than becoming `'transient'` on purpose. The wire
-  // vocabulary has two values, and this is neither: it is not weather, it is
+  // vocabulary has three values, and this is none of them: it is not weather, it is
   // "retryable because the next attempt reads different input". Claiming
   // `transient` would assert an environmental cause nobody established, and
   // absent already means exactly what is true — unrecognised, so retryable.
