@@ -139,7 +139,7 @@ catches no cancellation.
 import time
 from collections.abc import AsyncGenerator, Callable, Coroutine
 from contextlib import asynccontextmanager
-from typing import Final, Literal, Protocol, final
+from typing import Final, Literal, Protocol, assert_never, final
 
 import httpx
 from pydantic import JsonValue, TypeAdapter, ValidationError
@@ -281,6 +281,8 @@ def _level(effort: ReasoningEffort) -> types.ThinkingLevel | None:
             return types.ThinkingLevel.HIGH
         case "none" | "xhigh" | "max":
             return None
+        case _:
+            assert_never(effort)
 
 
 def _least_thinking(model: str, facts: CatalogueFacts) -> types.ThinkingConfig | None:
