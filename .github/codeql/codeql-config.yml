@@ -48,6 +48,8 @@ paths:
   # The Python SDK and the Python inference drivers: what each wheel holds
   - packages/sdk-python/src
   - packages/inference-python/src
+  # The Worker service's Python code
+  - apps/worker/src
 
 paths-ignore:
   - apps/launcher/testdata

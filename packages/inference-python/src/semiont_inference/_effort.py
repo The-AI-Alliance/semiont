@@ -6,6 +6,8 @@ from least to most, so their order is stated here, once, for every driver
 that sends one.
 """
 
+from typing import assert_never
+
 from semiont_inference.catalogue import CatalogueFacts, EffortOption, ReasoningEffort
 
 
@@ -26,6 +28,8 @@ def _rank(effort: ReasoningEffort) -> int:
             return 5
         case "max":
             return 6
+        case _:
+            assert_never(effort)
 
 
 def least_effort(facts: CatalogueFacts) -> ReasoningEffort | None:

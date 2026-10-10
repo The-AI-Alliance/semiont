@@ -102,8 +102,16 @@ and each is a provider of its own.
 A caller tells a generation's failures apart without importing a provider's
 library:
 
-- `ProviderStatusError`: the provider refused the request with an HTTP
-  status, which the error carries as `status`.
+- `ProviderStatusError`: the provider refused a request with an HTTP
+  status, which the error carries as `status`: a generation, or what learns
+  a model's limits.
+- `StructuredUnsupportedError`: a structured generation was asked of a model
+  not known to hold a reply to a schema. The driver refuses it and asks for
+  no generation, and its message names the model. The Anthropic driver
+  refuses a model its provider does not report as holding a reply to one.
+  The OpenAI, Google and Together drivers refuse a model whose catalogue
+  facts do not say it does. The Ollama, vLLM and llama.cpp drivers refuse no
+  model.
 - `ProviderWithheldError`: the provider withheld its answer, by a refusal or
   a filter. It carries the provider's word for what it did as `reason`, and
   nothing the reply held is passed on. Anthropic, OpenAI and Google signal
@@ -115,8 +123,20 @@ library:
 - Anything else is passed on as it came: a connection that ended, a network
   failure.
 
-Limits that cannot be learned are a plain error with no status, and are not
-kept: the provider is asked again at the next call.
+Limits that cannot be learned are not kept: the provider is asked again at
+the next call. Where the provider refused with a status, a wrong key or a
+provider that is overloaded, the failure is a `ProviderStatusError` whose
+message says what was being learned and the status. Where there was no
+status (a connection that ended, an answer that does not state the limits, a
+model a list does not have) it is a plain error.
+
+Anthropic's library asks again for a request the provider refused for the
+moment, and waits first as long as the refusal says. The Anthropic driver
+lets it wait two minutes at the most. A refusal that says longer is raised at
+once, as the `ProviderStatusError` it is, the request is not made again, and
+the message says the wait the provider stated. That is so of every request
+the driver makes: a generation, and each of the two that learn a model's
+limits.
 
 ## Cancelling
 
@@ -174,8 +194,9 @@ one hands it the model's `CatalogueFacts`.
   catalogue's is used, and the driver logs that it is the catalogue's word.
 
 Each of the three refuses a structured generation to a model whose facts do
-not say it holds a reply to a schema. A catalogue leaves that unsaid of many
-models, and such a model is refused whatever its provider would have done.
+not say it holds a reply to a schema, with a `StructuredUnsupportedError`. A
+catalogue leaves that unsaid of many models, and such a model is refused
+whatever its provider would have done.
 
 The repository keeps one generated file, in this package's `tests/catalogue`.
 It is the tests' fixture: real data at the pin, which

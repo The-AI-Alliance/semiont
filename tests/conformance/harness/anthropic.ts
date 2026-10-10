@@ -46,6 +46,12 @@ export type ScriptedMessage =
   /** The connection is ended with no answer. */
   | { drop: true };
 
+/** What the stand-in refuses a request with: this status, with these headers beside its own. */
+export interface Refusal {
+  status: number;
+  headers?: Record<string, string>;
+}
+
 /** One request, as it arrived. */
 export interface RecordedRequest {
   method: string;
@@ -72,10 +78,10 @@ export interface StandInAnthropic {
   readonly apiKey: string;
   /** What the provider says of each model it has, by the model's name. A model it lacks is answered 404. */
   readonly models: Map<string, ModelFacts>;
-  /** The status the Models API refuses every request with, when a case says it does. */
-  modelsRefusal: number | undefined;
-  /** The status the probe is refused with, whatever the model takes, when a case says it is. */
-  probeRefusal: number | undefined;
+  /** What the Models API refuses every request with, when a case says it does. */
+  modelsRefusal: Refusal | undefined;
+  /** What the probe is refused with, whatever the model takes, when a case says it is. */
+  probeRefusal: Refusal | undefined;
   /** Every request, in order. */
   readonly requests: RecordedRequest[];
   /** Every `GET /v1/models/{model}`, in order. */
@@ -136,8 +142,8 @@ export async function startAnthropic(apiKey: string, models: readonly string[], 
   };
   describe();
 
-  let modelsRefusal: number | undefined;
-  let probeRefusal: number | undefined;
+  let modelsRefusal: Refusal | undefined;
+  let probeRefusal: Refusal | undefined;
   let choose: StandInAnthropic['choose'];
 
   /** Send `reply` as the answer to a generation that asked with `body`. */
@@ -199,6 +205,10 @@ export async function startAnthropic(apiKey: string, models: readonly string[], 
         res.writeHead(status, { 'content-type': 'application/json' });
         res.end(payload);
       };
+      const refuse = (how: Refusal, said: string) => {
+        res.writeHead(how.status, { 'content-type': 'application/json', ...how.headers });
+        res.end(refusal('api_error', said));
+      };
       const what = `${recorded.method} ${recorded.path}`;
 
       if (req.headers['x-api-key'] !== apiKey) {
@@ -209,7 +219,7 @@ export async function startAnthropic(apiKey: string, models: readonly string[], 
       const model = /^\/v1\/models\/([^/?]+)$/.exec(recorded.path)?.[1];
       if (req.method === 'GET' && model !== undefined) {
         described.push(recorded);
-        if (modelsRefusal !== undefined) return json(modelsRefusal, refusal('api_error', 'the stand-in refuses the Models API'));
+        if (modelsRefusal !== undefined) return refuse(modelsRefusal, 'the stand-in refuses the Models API');
         const id = decodeURIComponent(model);
         const said = known.get(id);
         if (said === undefined) {
@@ -244,7 +254,7 @@ export async function startAnthropic(apiKey: string, models: readonly string[], 
           violations.push(`${what} of ${String(asked.body['model'])}, a model the case has not described`);
           return json(404, refusal('not_found_error', `model: ${String(asked.body['model'])}`));
         }
-        if (probe && probeRefusal !== undefined) return json(probeRefusal, refusal('api_error', 'the stand-in refuses the probe'));
+        if (probe && probeRefusal !== undefined) return refuse(probeRefusal, 'the stand-in refuses the probe');
         if (!said.acceptsTemperature && 'temperature' in asked.body) return json(400, refusal('invalid_request_error', '`temperature` is deprecated for this model.'));
         if (probe) return answer(res, asked.body, { text: 'ok', usage: { input: 8, output: 1 }, stopReason: 'max_tokens' });
         const reply = choose?.(asked.body) ?? scripted.shift();

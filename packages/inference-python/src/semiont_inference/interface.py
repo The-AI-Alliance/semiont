@@ -15,6 +15,7 @@ __all__ = [
     "ProviderWithheldError",
     "StructuredReadError",
     "StructuredResponse",
+    "StructuredUnsupportedError",
     "TokenUsage",
 ]
 
@@ -144,17 +145,40 @@ class StructuredReadError(Exception):
 
 
 @final
+class StructuredUnsupportedError(Exception):
+    """A structured generation asked of a model not known to hold a reply to a schema.
+
+    It is the counterpart of `StructuredReadError`, raised before any
+    generation is asked for. A generation the provider does not hold to the
+    schema can come back unreadable, and an unreadable reply taken for an
+    empty one completes a job that found nothing, so a driver refuses rather
+    than ask. Every driver that refuses such a generation raises this one
+    failure.
+
+    No attempt changes what is known of the model, so asking again is wasted.
+    The message is the driver's own, and names the model. The failure carries
+    nothing else: whoever catches it holds the client, which says its model.
+    """
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+
+
+@final
 class ProviderStatusError(Exception):
-    """The provider answered a generation with an HTTP status that refuses it.
+    """The provider answered a request with an HTTP status that refuses it.
 
-    Every driver raises this one failure: `status` is what a caller decides a
-    retry by, and it does not depend on which provider's library reported the
-    refusal, or on whether there is a library at all.
+    The request is a generation, or a discovery: `limits`, and whatever a
+    driver learns with it. Every driver raises this one failure: `status` is
+    what a caller decides a retry by, and it does not depend on which
+    provider's library reported the refusal, or on whether there is a library
+    at all.
 
-    A discovery that fails (`limits`, and whatever a driver learns with it)
-    is not one of these, whatever status it was refused with: it raises a
-    plain error that carries no status, so a provider that cannot be asked
-    about a model is asked again.
+    A refused discovery says in its message what was being learned and the
+    status. A discovery that fails with no status (a connection that ended,
+    an answer that does not state what was asked, a model a list does not
+    have) is not one of these: it raises a plain error, with what failed as
+    its cause where something did.
     """
 
     def __init__(self, message: str, status: int) -> None:
@@ -184,11 +208,13 @@ class InferenceClient(Protocol):
 
     **What a generation raises** is part of this, so a caller tells failures
     apart without knowing its provider and without importing a provider's
-    library: a `ProviderStatusError`, when the provider refused the request
-    with an HTTP status; a `StructuredReadError`, when the reply cannot be
-    read as what was asked for, or is empty; a `ProviderWithheldError`, when
-    the provider withheld its answer; and anything else as it came, a
-    connection that ended or a network failure.
+    library: a `ProviderStatusError`, when the provider refused with an HTTP
+    status, the generation itself or a discovery it waited on; a
+    `StructuredUnsupportedError`, when a structured generation is asked of a
+    model not known to hold a reply to a schema; a `StructuredReadError`,
+    when the reply cannot be read as what was asked for, or is empty; a
+    `ProviderWithheldError`, when the provider withheld its answer; and
+    anything else as it came, a connection that ended or a network failure.
 
     **Cancelling.** No method takes a signal. A call is cancelled by
     cancelling the task that awaits it: the request to the provider is torn
@@ -237,11 +263,14 @@ class InferenceClient(Protocol):
         """The model's ceilings, asked of the provider at the first call and kept.
 
         A discovery that fails is not kept, and the next call asks again. It
-        raises when the ceilings cannot be learned (a model the provider does
-        not have, a provider that cannot be reached): there is no guessed
-        value to fall back on. A driver whose provider cannot be asked (the
-        OpenAI driver) answers what it was handed when it was made, and asks
-        nothing.
+        raises when the ceilings cannot be learned, and there is no guessed
+        value to fall back on: a `ProviderStatusError` when the provider
+        refused with an HTTP status (a wrong key, a model the provider does
+        not have, a provider that is overloaded), and a plain error when
+        there was no status (a provider that cannot be reached, an answer
+        that states no ceilings). A driver whose provider cannot be asked
+        (the OpenAI driver) answers what it was handed when it was made, and
+        asks nothing.
         """
         ...
 
@@ -256,6 +285,8 @@ class InferenceClient(Protocol):
 
         The answer is the array or a failure. A reply that is not valid JSON,
         or is JSON and not an array, raises a `StructuredReadError`. It is
-        never an empty array in the reply's place.
+        never an empty array in the reply's place. A model not known to hold
+        a reply to a schema raises a `StructuredUnsupportedError`, and no
+        generation is asked for.
         """
         ...

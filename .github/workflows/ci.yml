@@ -728,6 +728,71 @@ jobs:
       - name: Run the tests
         run: uv run pytest
 
+  # The Worker service's Python code (apps/worker), as the Python SDK is
+  # checked: both type checkers, strict, on the oldest Python supported, and
+  # the tests on every one. The locked environment takes the SDK and the
+  # inference drivers from this checkout. The tests run the case tables of
+  # specs/ that state what the worker does; they start no service and reach
+  # no provider.
+  test-worker-python:
+    name: Python Worker Service
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.12', '3.13', '3.14']
+
+    defaults:
+      run:
+        working-directory: apps/worker
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.2.0
+
+      - name: Install the locked environment
+        run: uv sync --locked
+
+      - name: Type-check with mypy (strict)
+        if: matrix.python-version == '3.12'
+        run: uv run mypy
+
+      # pyright runs on Node, which the runner has.
+      - name: Type-check with pyright (strict)
+        if: matrix.python-version == '3.12'
+        run: uv run pyright
+
+      - name: Lint and check formatting
+        if: matrix.python-version == '3.12'
+        run: |
+          uv run ruff check
+          uv run ruff format --check
+
+      # A generation to PDF runs the Typst compiler, and four tests run the
+      # compiler itself. It is taken from the image the worker's Dockerfile
+      # takes it from, so its version is stated once, there.
+      - name: Put the worker image's typst on PATH
+        run: |
+          image=$(sed -n 's/^COPY --from=\(ghcr\.io\/typst\/typst:[^ ]*\) .*/\1/p' Dockerfile)
+          test -n "$image"
+          docker create --name typst "$image"
+          mkdir -p "$RUNNER_TEMP/typst"
+          docker cp typst:/bin/typst "$RUNNER_TEMP/typst/typst"
+          docker rm typst
+          "$RUNNER_TEMP/typst/typst" --version
+          echo "$RUNNER_TEMP/typst" >> "$GITHUB_PATH"
+
+      - name: Run the tests
+        run: uv run pytest
+
   test-comprehensive:
     name: Comprehensive Test Suite
     runs-on: ubuntu-latest

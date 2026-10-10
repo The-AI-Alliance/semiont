@@ -214,7 +214,7 @@ eachWorkerService('a worker on Anthropic', (world) => {
     expect(served.emits('job:fail')).toEqual([]);
   });
 
-  it('fails a mark job, having asked for no generation, on a model that does not answer in a schema, and does a yield job on it all the same', async () => {
+  it('fails a mark job as deterministic, having asked for no generation, on a model that does not answer in a schema, and does a yield job on it all the same', async () => {
     const w = world();
     const agent = claude(w);
     w.anthropic.models.set(agent.model, { ...ANTHROPIC_MODEL, structuredOutputs: false });
@@ -222,11 +222,11 @@ eachWorkerService('a worker on Anthropic', (world) => {
     const made = yieldJob(w, 'anthropic-no-schema-yield', { maxTokens: 300, temperature: 0.2 });
     w.anthropic.script(answer('It was never built.'));
     const served = await started(w);
-    // The class of this failure, and whether it says it will be retried, are not held: see the suite's README.
-    const { error, failureClass: _failureClass, willRetry: _willRetry, ...failure } = await settled(served, mark, 'job:fail');
+    const { error, ...failure } = await settled(served, mark, 'job:fail');
     await settled(served, made);
 
-    expect(failure).toEqual(identity(mark));
+    // No attempt changes what the model can do: the job says it will not be retried, whatever budget it has left.
+    expect(failure).toEqual({ ...identity(mark), failureClass: 'deterministic', willRetry: false });
     expect(String(error)).toContain(agent.model);
     expectProgress(served, mark, [report(mark, 10, { code: 'loading' }), report(mark, 30, { code: 'analyzing' })]);
     // It learned of the model once, and asked it for the one generation that wants no schema.
@@ -367,6 +367,43 @@ eachWorkerService('a worker on Anthropic', (world) => {
     expect(served.emits('job:fail')).toEqual([]);
   });
 
+  it('asks once for a generation refused with a wait of over two minutes, and fails the job as transient, saying the wait', async () => {
+    const w = world();
+    const agent = claude(w);
+    const job = markJob(w, 'anthropic-told-to-wait', { motivation: 'highlighting' });
+    // Two minutes and a second. A second asking is scripted no answer: one made would fail the case as a request nothing scripted.
+    w.anthropic.script(refused(429, 'rate_limit_error', 'the account is over its rate', { 'retry-after': '121' }));
+    const served = await started(w);
+    const { error, ...failure } = await settled(served, job, 'job:fail');
+
+    expectMessages(w.anthropic.generations, [highlighting(agent)]);
+    // The refusal's own class: the provider said not now, and nothing about the request was judged.
+    expect(failure).toEqual({ ...identity(job), failureClass: 'transient', willRetry: true });
+    // What the provider said, and the wait it stated, which the worker did not wait.
+    expect(String(error)).toContain('429');
+    expect(String(error)).toContain('the account is over its rate');
+    expect(String(error)).toContain('retry-after: 121');
+    expect(served.sequence()).toEqual(madeNothing(job));
+  });
+
+  it('asks once for its model\'s ceilings when the refusal states a wait of over two minutes, and fails the job as transient, saying the wait', async () => {
+    const w = world();
+    const agent = claude(w);
+    w.anthropic.modelsRefusal = { status: 429, headers: { 'retry-after-ms': '121000' } };
+    const job = markJob(w, 'anthropic-unlearned-told-to-wait', { motivation: 'highlighting' });
+    const served = await started(w);
+    const { error, ...failure } = await settled(served, job, 'job:fail');
+
+    expect(failure).toEqual({ ...identity(job), failureClass: 'transient', willRetry: true });
+    expect(String(error)).toContain(agent.model);
+    expect(String(error)).toContain('429');
+    expect(String(error)).toContain('retry-after-ms: 121000');
+    // Asked once, and nothing else was: no probe, no generation.
+    expect({ described: w.anthropic.described.length, probes: w.anthropic.probes.length }).toEqual({ described: 1, probes: 0 });
+    expect(w.anthropic.generations).toEqual([]);
+    expect(served.sequence()).toEqual(madeNothing(job));
+  });
+
   it('asks three times in all for a generation whose connection ends unanswered, and then fails the job with no class', async () => {
     const w = world();
     const agent = claude(w);
@@ -382,18 +419,23 @@ eachWorkerService('a worker on Anthropic', (world) => {
   });
 
   it.each([
-    ['its ceilings', (w: WorkerServiceWorld) => (w.anthropic.modelsRefusal = 500), { described: 3, probes: 0 }],
-    ['whether it takes a temperature', (w: WorkerServiceWorld) => (w.anthropic.probeRefusal = 500), { described: 1, probes: 3 }],
-  ])('fails a job, with no class, when it cannot learn of its model %s, having asked three times and for no generation; and asks again for the next job', async (_what, refuse, askedFor) => {
+    // A wrong key is refused again: asked once, and the job is not retried.
+    ['its ceilings', 401, 'deterministic', 'modelsRefusal', { described: 1, probes: 0 }],
+    ['its ceilings', 503, 'transient', 'modelsRefusal', { described: 3, probes: 0 }],
+    ['whether it takes a temperature', 401, 'deterministic', 'probeRefusal', { described: 1, probes: 1 }],
+    ['whether it takes a temperature', 503, 'transient', 'probeRefusal', { described: 1, probes: 3 }],
+  ] as const)('fails a job, when its provider will not say of its model %s and refuses with %i, as %s, having asked for no generation; and asks again for the next job', async (_what, status, failureClass, which, askedFor) => {
     const w = world();
     const agent = claude(w);
-    refuse(w);
-    const job = markJob(w, 'anthropic-unlearned', { motivation: 'highlighting' });
+    w.anthropic[which] = { status };
+    const job = markJob(w, `anthropic-unlearned-${status}`, { motivation: 'highlighting' });
     const served = await started(w);
     const { error, ...failure } = await settled(served, job, 'job:fail');
 
-    expect(failure).toEqual({ ...identity(job), willRetry: true });
+    // The class is the status's, as a refused generation's is, and the error says the status.
+    expect(failure).toEqual({ ...identity(job), failureClass, willRetry: failureClass === 'transient' });
     expect(String(error)).toContain(agent.model);
+    expect(String(error)).toContain(String(status));
     expect({ described: w.anthropic.described.length, probes: w.anthropic.probes.length }).toEqual(askedFor);
     expect(w.anthropic.generations).toEqual([]);
     expect(served.sequence()).toEqual(madeNothing(job));

@@ -14,8 +14,19 @@ that a new release of it is read for the same:
 - It has no `temperature` parameter. A request's temperature goes in
   `extra_body`, which the library merges into the body it sends.
 - It tries a request again, `max_retries` times, when the connection fails
-  or the provider answers 408, 409, 429 or 500 and above, waiting as long as
-  a `retry-after` header says.
+  or the provider answers 408, 409, 429 or 500 and above. It waits as long
+  as the refusal says, by `retry-after-ms`, or by `retry-after` in seconds
+  or as a date, and has no ceiling of its own on that short of weeks.
+- It obeys an `x-should-retry` header on a refusal before any of that
+  (`_should_retry`): marked `false`, the refusal is raised at once, with no
+  wait and no second asking. That is how this driver stops it at a wait of
+  over two minutes (`_LONGEST_STATED_WAIT`), and `tests/test_anthropic.py`
+  fails when a release stops obeying the header, or stops waiting as long as
+  a refusal says.
+- It takes the HTTP client its requests go through, which is `httpx2`'s, and
+  that client calls a response hook with each answer before the library
+  reads it. The client it is handed here is its own default
+  (`DefaultAsyncHttpxClient`), with one hook.
 - It builds a reply into typed models without checking it, so a member its
   types promise can be absent.
 - Its failures: `APIStatusError` carries the status the provider refused
@@ -23,15 +34,17 @@ that a new release of it is read for the same:
   call that was cancelled, and catches no cancellation.
 """
 
+import email.utils
 import re
 import time
+from collections.abc import Mapping, MutableMapping
 from dataclasses import dataclass
-from typing import Final, Literal, final
+from typing import Final, Literal, Protocol, final
 
 from pydantic import JsonValue, TypeAdapter
 
 from semiont_inference._log import LOG
-from semiont_inference._once import Once
+from semiont_inference._once import Once, refused_discovery
 from semiont_inference._structured import read_array
 from semiont_inference._telemetry import record
 from semiont_inference._tokens import Counts, as_usage, read_counts
@@ -43,10 +56,11 @@ from semiont_inference.interface import (
     ProviderWithheldError,
     StructuredReadError,
     StructuredResponse,
+    StructuredUnsupportedError,
 )
 
 try:
-    from anthropic import APIStatusError, AsyncAnthropic, Omit, omit
+    from anthropic import APIStatusError, AsyncAnthropic, DefaultAsyncHttpxClient, Omit, omit
     from anthropic.types import Message, ModelInfo, OutputConfigParam
 except ModuleNotFoundError as missing:
     # A module the library itself lacks is another failure, and is left as it is.
@@ -83,10 +97,11 @@ _TEMPERATURE_PROBE_MAX_TOKENS: Final = 1
 # of the library cannot change it unnoticed.
 #
 # Two is right on what was measured. A failure that comes quickly (a 429, a 409,
-# a quick 5xx) costs seconds, the library waits as long as `retry-after` says,
-# and 429 is the answer to expect when several entity types are asked about at
-# once. A call that hangs never reaches a second try: the worker bounds the whole
-# call, and that bound ends it during the first.
+# a quick 5xx) costs seconds, the library waits as long as the refusal says, up
+# to the two minutes this driver lets it (`_LONGEST_STATED_WAIT`), and 429 is the
+# answer to expect when several entity types are asked about at once. A call that
+# hangs never reaches a second try: the worker bounds the whole call, and that
+# bound ends it during the first.
 #
 # What would change it: a call that generates for minutes and then fails, again
 # and again. Its tries together can outlast the worker's bound, which the worker
@@ -94,6 +109,22 @@ _TEMPERATURE_PROBE_MAX_TOKENS: Final = 1
 # does not mend a failing server. That has not been seen. If it is, lower this
 # number.
 _MAX_RETRIES: Final = 2
+
+# The longest wait a refusal may state and still be waited, in seconds. The
+# library has no ceiling of its own on that short of weeks, so this is the
+# ceiling. A refusal that states a longer wait is not waited and the request is
+# not made again: the call fails at once, by the refusal's own status, and its
+# failure says the wait the provider stated.
+#
+# Two minutes, on what a worker does around a call. It bounds a generation, every
+# asking of it and the waits between, at ten minutes, and sizes a generation to
+# five at the library's worst-case rate: two waits of two minutes and a generation
+# of five are nine of the ten. A wait that fits is better waited than refused,
+# since a job that fails is retried once at the most. A wait that does not fit
+# can only run the call into that bound, which reports a timeout where the
+# provider said "not now". And what is learned of a model is one asking that no
+# caller's bound ends.
+_LONGEST_STATED_WAIT: Final = 120
 
 
 @final
@@ -109,6 +140,76 @@ class _Discovery:
     limits: InferenceLimits
     structured_outputs_supported: bool
     temperature_accepted: bool
+
+
+class _Answered(Protocol):
+    """An answer to one HTTP request, as the library's HTTP client hands it to a response hook: what a hook here reads of it, and writes."""
+
+    @property
+    def is_success(self) -> bool: ...
+
+    @property
+    def headers(self) -> MutableMapping[str, str]: ...
+
+
+def _number(text: str) -> float | None:
+    """`text` as the number it is, or None."""
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
+def _until(date: str) -> float | None:
+    """The seconds from now until `date`, which is a date as a header states one. None where it is no date."""
+    try:
+        when = email.utils.parsedate_tz(date)
+        return None if when is None else email.utils.mktime_tz(when) - time.time()
+    except (OverflowError, ValueError):
+        return None
+
+
+def _wait_not_waited(headers: Mapping[str, str]) -> str | None:
+    """The header by which a refusal states a wait longer than this driver waits, as the provider wrote it.
+
+    None where it states no wait, or one that is waited. The wait is read as
+    the library reads it (`_parse_retry_after_header`): `retry-after-ms`
+    first, where it is a number, and then `retry-after`, as seconds or as a
+    date.
+    """
+    in_milliseconds = headers.get("retry-after-ms")
+    milliseconds = None if in_milliseconds is None else _number(in_milliseconds)
+    if milliseconds is not None:
+        return f"retry-after-ms: {in_milliseconds}" if milliseconds / 1000 > _LONGEST_STATED_WAIT else None
+    stated = headers.get("retry-after")
+    if stated is None:
+        return None
+    seconds = _number(stated)
+    if seconds is None:
+        seconds = _until(stated)
+    return f"retry-after: {stated}" if seconds is not None and seconds > _LONGEST_STATED_WAIT else None
+
+
+async def _stop_at_a_wait_too_long(answered: _Answered) -> None:
+    """Mark a refusal that states a wait longer than this driver waits as not to be asked again.
+
+    The library obeys the mark before any rule of its own: it neither waits
+    nor asks again, and raises the refusal at once. The mark replaces one the
+    provider set: the wait decides. Every other answer is left as it came.
+    """
+    if not answered.is_success and _wait_not_waited(answered.headers) is not None:
+        answered.headers["x-should-retry"] = "false"
+
+
+def _stating_the_wait(failure: ProviderStatusError, refused: APIStatusError) -> ProviderStatusError:
+    """`failure`, which also says the wait the provider stated in refusing, where this driver does not wait it."""
+    said = _wait_not_waited(refused.response.headers)
+    if said is None:
+        return failure
+    return ProviderStatusError(
+        f"{failure}; the provider said to wait ({said}), which is longer than the {_LONGEST_STATED_WAIT} seconds this driver waits",
+        failure.status,
+    )
 
 
 def _said(model: Message | ModelInfo) -> dict[str, JsonValue]:
@@ -178,7 +279,7 @@ class AnthropicInferenceClient:
         # completes a job that found nothing. It is the same discovery `limits()` makes.
         discovery = await self._discovery.get()
         if not discovery.structured_outputs_supported:
-            raise RuntimeError(
+            raise StructuredUnsupportedError(
                 f"Model '{self.model_id}' does not report support for strict structured outputs "
                 "(Models API capabilities.structured_outputs). It is refused: a generation the provider does not hold "
                 "to the schema can come back unreadable. Give the agent that does this work a model that reports "
@@ -258,18 +359,28 @@ class AnthropicInferenceClient:
 
         Its timeout is left as the library has it (five seconds to connect,
         ten minutes for each of the rest): the library refuses to wait for a
-        whole answer only while that is so.
+        whole answer only while that is so. Its HTTP client is the library's
+        own default, made here so that it carries the hook that stops the
+        library at a wait too long.
         """
-        return AsyncAnthropic(api_key=self._api_key, base_url=self._base_url, max_retries=_MAX_RETRIES)
+        return AsyncAnthropic(
+            api_key=self._api_key,
+            base_url=self._base_url,
+            max_retries=_MAX_RETRIES,
+            http_client=DefaultAsyncHttpxClient(event_hooks={"response": [_stop_at_a_wait_too_long]}),
+        )
 
     async def _discover(self) -> _Discovery:
         async with self._library() as library:
             # The Models API states each model's ceilings and what it can do, so there is no
             # table here to go stale when a model is released.
+            learning = f"Failed to discover model limits for '{self.model_id}' from the Models API"
             try:
                 info = await library.models.retrieve(self.model_id)
+            except APIStatusError as refused:
+                raise _stating_the_wait(refused_discovery(learning, refused.status_code), refused) from refused
             except Exception as unlearned:
-                raise RuntimeError(f"Failed to discover model limits for '{self.model_id}' from the Models API") from unlearned
+                raise RuntimeError(learning) from unlearned
             if info.max_input_tokens is None or info.max_tokens is None:
                 raise RuntimeError(f"Models API reports no context/output ceilings for '{self.model_id}'")
             # A model the provider says nothing of here is read as one that does not answer in
@@ -298,6 +409,7 @@ class AnthropicInferenceClient:
         where it happens once, so that no generation's failure is read that
         way.
         """
+        learning = f"Sampling-parameter probe failed for '{self.model_id}'"
         try:
             await library.messages.create(
                 model=self.model_id,
@@ -305,15 +417,17 @@ class AnthropicInferenceClient:
                 messages=[{"role": "user", "content": "ok"}],
                 extra_body={"temperature": 0.7},
             )
-        except Exception as failed:
-            if isinstance(failed, APIStatusError) and failed.status_code == 400 and re.search("temperature", failed.message, re.IGNORECASE):
+        except APIStatusError as refused:
+            if refused.status_code == 400 and re.search("temperature", refused.message, re.IGNORECASE):
                 LOG.warning(
                     "Model rejects `temperature`; caller-supplied values will be omitted from its requests",
                     extra={"model": self.model_id},
                 )
                 return False
-            # Anything else is not an answer. It fails the discovery, which is not kept, so the next call asks again.
-            raise RuntimeError(f"Sampling-parameter probe failed for '{self.model_id}'") from failed
+            # Any other refusal is not an answer. It fails the discovery, which is not kept, so the next call asks again.
+            raise _stating_the_wait(refused_discovery(learning, refused.status_code), refused) from refused
+        except Exception as failed:
+            raise RuntimeError(learning) from failed
         return True
 
     async def _recorded(
@@ -329,7 +443,7 @@ class AnthropicInferenceClient:
                 # it from the response the stream opened with, whose status is 200. No status
                 # refused this generation, so it is passed on as it came.
                 raise
-            raise ProviderStatusError(refused.message, refused.status_code) from refused
+            raise _stating_the_wait(ProviderStatusError(refused.message, refused.status_code), refused) from refused
         except BaseException:
             # A failure of the library's with no status (a connection that ended), which is passed
             # on as it came, and a caller that cancelled. The library has no failure of its own

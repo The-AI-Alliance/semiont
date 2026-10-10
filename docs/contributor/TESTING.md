@@ -11,6 +11,7 @@ How Semiont's test suites are organized, configured and run, and what CI gates o
 | Go | `apps/launcher`, `packages/sdk-go` | The launcher driving a fake runtime through real start and stop lifecycles; the Go bus client's wire contract | The Go toolchain each `go.mod` names |
 | Python | `packages/sdk-python` (`uv run pytest`) | The Python SDK: its transport, sign-in and session, its client, cache and live queries, the shared case tables, and the programs its README shows, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
 | Python | `packages/inference-python` (`uv run pytest`) | The Python inference drivers: each driver against a provider the test plays over HTTP, what a driver raises, the extras, the telemetry rows against the spec, and the program its README shows, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
+| Python | `apps/worker` (`uv run pytest`) | The Worker service's Python code: the case tables that state how a failure is classed, where a text is cut and how its pieces are planned, and what the project is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
 | Gateway conformance | [`tests/conformance/gateway`](../../tests/conformance/gateway/README.md) | A running gateway, black-box, against `specs/`: every declared operation, every response and stream message, and hand-written protocol cases, on both signal planes | A built gateway; `nats-server` 2.10 or later on `PATH` |
 | Dispatcher conformance | [`tests/conformance/dispatcher`](../../tests/conformance/dispatcher/README.md) | A running dispatcher, black-box, behind a real gateway on a real JetStream broker, against [JOBS.md](../protocol/JOBS.md) and every channel's schema | A built gateway and dispatcher; `nats-server` |
 | Archivist conformance | [`tests/conformance/archivist`](../../tests/conformance/archivist/README.md) | A running Archivist, black-box, on the bus through a real gateway, at its HTTP surface and in the files it keeps, against [ARCHIVIST.md](../protocol/ARCHIVIST.md) | A built gateway and Archivist; `git`; `nats-server` |
@@ -147,7 +148,7 @@ The launcher's suite takes minutes; its notes are in [apps/launcher/README.md](.
 
 ### Python
 
-As CI runs them, from `packages/sdk-python`, and the same from `packages/inference-python`:
+As CI runs them, from `packages/sdk-python`, and the same from `packages/inference-python` and from `apps/worker`:
 
 ```bash
 uv sync --locked
@@ -309,6 +310,7 @@ Excluded from coverage: what the shared config excludes (see [One shared Vitest 
 | `test-sdk-python` | `mypy` and `pyright`, each as Linux and as Windows, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `packages/sdk-python`; the distributions a release uploads are built and checked |
 | `test-sdk-python-windows` | The Python SDK's sign-in store and state directory tests, on Windows |
 | `test-inference-python` | `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `packages/inference-python` |
+| `test-worker-python` | `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `apps/worker` |
 | `test-comprehensive` | The Browser suite again, after a full package build |
 | `validate-config` | `npm ci --include=optional` and `npm run build:packages` |
 | `check-phantom-deps` | Every import in a published `dist` is declared by its package |

@@ -710,6 +710,31 @@
       }
     },
     {
+      "why": "a comma and three digits followed by a fourth digit separate no thousands either: 1,2345 is 1 and not 1234, so two found is no collapse",
+      "motivation": "linking",
+      "text": "Alice went to Paris. Bob stayed home.",
+      "entityType": "Person",
+      "reply": {
+        "elements": [
+          { "exact": "Alice", "entityType": "Person" },
+          { "exact": "Bob", "entityType": "Person" }
+        ],
+        "stopReason": "end_turn"
+      },
+      "count": { "text": "1,2345" },
+      "calls": 1,
+      "countCalls": 1,
+      "read": {
+        "items": [
+          { "exact": "Alice", "entityType": "Person" },
+          { "exact": "Bob", "entityType": "Person" }
+        ],
+        "dropped": 0,
+        "counted": [1],
+        "underReported": []
+      }
+    },
+    {
       "why": "a digit is one of 0 to 9: a number written in other digits is no count, and the check is off for the piece",
       "motivation": "linking",
       "text": "Alice went to Paris. Bob stayed home.",

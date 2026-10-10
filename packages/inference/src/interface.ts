@@ -124,15 +124,33 @@ export class StructuredReadError extends Error {
 }
 
 /**
- * Thrown when the provider answers a generation with an HTTP status that
- * refuses it. One class for every implementation: the status is what a
- * caller decides a retry by, and it must not depend on which provider's
- * library reported the refusal, or on whether there is a library at all.
+ * Thrown when a structured generation is asked of a model not known to hold
+ * a reply to a schema: the counterpart of `StructuredReadError`, raised
+ * before any generation is requested. One class for every implementation.
+ * A generation the provider does not hold to the schema can come back
+ * unreadable, and an unreadable reply taken for an empty one completes a job
+ * that found nothing, so the implementation refuses rather than ask.
  *
- * A discovery that fails (`limits()`, and whatever an implementation learns
- * with it) is NOT one of these, whatever status it was refused with: it
- * rejects with a plain error that carries no status, so a provider that
- * cannot be asked about a model is asked again.
+ * No attempt changes what is known of the model, so asking again is wasted.
+ * The message is the implementation's own, and names the model. It carries
+ * nothing else: whoever catches it holds the client, which says its model.
+ */
+export class StructuredUnsupportedError extends Error {
+  override readonly name = 'StructuredUnsupportedError';
+}
+
+/**
+ * Thrown when the provider answers a request with an HTTP status that
+ * refuses it: a generation, or a discovery (`limits()`, and whatever an
+ * implementation learns with it). One class for every implementation: the
+ * status is what a caller decides a retry by, and it must not depend on which
+ * provider's library reported the refusal, or on whether there is a library
+ * at all.
+ *
+ * A refused discovery says in its message what was being learned and the
+ * status. A discovery that fails with no status (a connection that ended, an
+ * answer that does not state what was asked) is NOT one of these: it rejects
+ * with a plain error.
  */
 export class ProviderStatusError extends Error {
   override readonly name = 'ProviderStatusError';
@@ -162,8 +180,10 @@ export class ProviderWithheldError extends Error {
  * failures apart without knowing which provider it is talking to, and without
  * importing a provider's library:
  *
- * - a `ProviderStatusError`, when the provider refused the request with an
- *   HTTP status;
+ * - a `ProviderStatusError`, when the provider refused with an HTTP status:
+ *   the generation itself, or a discovery it waited on;
+ * - a `StructuredUnsupportedError`, when a structured generation is asked of
+ *   a model not known to hold a reply to a schema;
  * - a `StructuredReadError`, when the reply cannot be read as what was asked
  *   for, or is empty;
  * - a `ProviderWithheldError`, when the provider withheld its answer;
@@ -216,8 +236,11 @@ export interface InferenceClient {
    * The provider's actual context/output ceilings for `modelId`. Discovered
    * lazily on first call and cached for the client's lifetime; a failed
    * discovery is NOT cached — the next call retries. Throws when the ceilings
-   * cannot be determined (unknown model, discovery endpoint unreachable):
-   * fail-loud, never a guessed floor.
+   * cannot be determined: fail-loud, never a guessed floor. A discovery the
+   * provider refused with an HTTP status (a wrong key, an unknown model, a
+   * provider that is overloaded) rejects with a `ProviderStatusError` that
+   * carries it; one that failed with no status (a discovery endpoint
+   * unreachable, an answer that states no ceilings) with a plain error.
    */
   limits(): Promise<InferenceLimits>;
 
@@ -250,7 +273,9 @@ export interface InferenceClient {
    * response is not valid JSON, it parses to something other than an array,
    * the grammar was not honoured), implementations THROW a
    * "Structured response could not be read" error — they never coerce to
-   * `[]`, because empty is a legitimate, distinct outcome.
+   * `[]`, because empty is a legitimate, distinct outcome. A model not known
+   * to hold a reply to a schema is refused with a
+   * `StructuredUnsupportedError`, and no generation is requested.
    */
   generateStructured<T>(
     prompt: string,

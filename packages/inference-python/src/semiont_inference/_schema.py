@@ -29,7 +29,7 @@ was not expected to see is not known here.
 import copy
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Final, Literal, NoReturn, final
+from typing import Final, Literal, NoReturn, assert_never, final
 
 from pydantic import JsonValue
 
@@ -80,6 +80,8 @@ def _rules(dialect: Dialect) -> _Rules:
             return _Rules(object_at_the_root=False, every_property_required=False, every_object_closed=False, plain_enums_alone=True)
         case "object-root-all-required":
             return _Rules(object_at_the_root=True, every_property_required=True, every_object_closed=True, plain_enums_alone=False)
+        case _:
+            assert_never(dialect)
 
 
 @final

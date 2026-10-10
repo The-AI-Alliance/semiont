@@ -55,6 +55,7 @@ from semiont_inference.interface import (
     ProviderWithheldError,
     StructuredReadError,
     StructuredResponse,
+    StructuredUnsupportedError,
     TokenUsage,
 )
 
@@ -255,18 +256,19 @@ def test_whether_the_model_takes_a_temperature_is_the_facts_word_whatever_the_pr
     run(scenario())
 
 
-def test_limits_it_cannot_learn_are_a_plain_error_with_no_status_and_are_not_kept() -> None:
+def test_limits_the_provider_refuses_to_state_are_a_status_error_that_says_what_was_asked_and_the_status_and_are_not_kept() -> None:
     async def scenario() -> None:
         async with Google() as played:
             played.model = google_error(404, "NOT_FOUND", "models/gemini-unknown is not found for API version v1beta")
             client = driver(played, model="gemini-unknown")
-            with pytest.raises(
-                RuntimeError, match=re.escape("Failed to discover model limits for 'gemini-unknown' from Google's models.get")
-            ) as unlearned:
+            with pytest.raises(ProviderStatusError) as unlearned:
                 await client.limits()
-            # A discovery that fails is not a refused generation, whatever status refused it: the library's failure is its cause.
-            assert type(unlearned.value) is RuntimeError
-            assert not hasattr(unlearned.value, "status")
+            # A refused discovery is classed as a refused generation is, by its status: the library's failure is its cause.
+            assert (
+                str(unlearned.value)
+                == "Failed to discover model limits for 'gemini-unknown' from Google's models.get: refused with status 404"
+            )
+            assert unlearned.value.status == 404
             assert isinstance(unlearned.value.__cause__, errors.ClientError)
 
             # A later call asks again.
@@ -283,8 +285,9 @@ def test_a_provider_that_refuses_to_say_is_asked_three_times_in_all() -> None:
     async def scenario() -> None:
         async with Google() as played:
             played.model = google_error(503, "UNAVAILABLE", "the provider is overloaded")
-            with pytest.raises(RuntimeError, match=f"Failed to discover model limits for '{MODEL}'"):
+            with pytest.raises(ProviderStatusError, match=f"Failed to discover model limits for '{MODEL}'") as unlearned:
                 await hurried(driver(played).limits())
+            assert unlearned.value.status == 503
             assert len(played.retrievals) == 3
 
     run(scenario())
@@ -914,11 +917,11 @@ def test_a_model_not_known_to_hold_a_reply_to_a_schema_is_refused_before_any_req
         async with Google() as played:
             played.script(generated("It was never built."))
             client = driver(played, dataclasses.replace(PLAIN, structured_output=structured_output), "gemini-legacy")
+            # The interface's own failure, so a caller classes it without reading its words.
             with pytest.raises(
-                RuntimeError, match=re.escape("Model 'gemini-legacy' is not known to hold a reply to a JSON Schema")
+                StructuredUnsupportedError, match=re.escape("Model 'gemini-legacy' is not known to hold a reply to a JSON Schema")
             ) as refused:
                 await client.generate_structured("p", 1000, 0.3, PERSON)
-            assert type(refused.value) is RuntimeError
             # Whose word it is: the catalogue's, and not the provider's, which states this of no model.
             assert f"the model catalogue it was given {said_of_it}" in str(refused.value)
             assert played.asked == []

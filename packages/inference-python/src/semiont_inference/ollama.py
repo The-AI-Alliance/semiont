@@ -130,7 +130,9 @@ class OllamaInferenceClient:
         async with httpx.AsyncClient(timeout=_DISCOVERY_TIMEOUT, trust_env=False) as http:
             response = await http.post(f"{self._base_url}/api/show", json={"model": self.model_id})
         if not response.is_success:
-            raise RuntimeError(f"Failed to discover model limits: /api/show returned {response.status_code} for '{self.model_id}'")
+            raise ProviderStatusError(
+                f"Failed to discover model limits: /api/show returned {response.status_code} for '{self.model_id}'", response.status_code
+            )
         context_tokens = _context_length(response.content)
         if context_tokens is None:
             raise RuntimeError(f"/api/show reports no context length for '{self.model_id}'")

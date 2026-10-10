@@ -34,7 +34,7 @@ The factory is synchronous and performs no I/O; the first network call happens o
 
 `outputTokensPerHour` is the one **duration** statement a provider surface makes: Anthropic's SDK projects a call's maximum duration as `max_tokens / rate` (the `calculateNonstreamingTimeout` constant, 128K/hour) and detection derives its duration-safe output budget from it. Absent for providers whose rates are unknowable a priori (Ollama — local hardware) — and absence does **not** mean no duration bound: the detection consumer applies its own conservative assumed floor rate instead, because an unbounded output budget turns a model repetition loop into an hour-long transient burn. Note the modeled rate is a ceiling estimate, not a floor: generation measured live runs at roughly half that rate, which is why consumers spend only part of their call bound against it.
 
-Discovery is lazy (first call) and cached for the client's lifetime; a failed discovery is **not** cached, so the next call retries. `limits()` **throws** when the ceilings cannot be determined (unknown model, discovery endpoint unreachable) — fail-loud, never a guessed floor.
+Discovery is lazy (first call) and cached for the client's lifetime; a failed discovery is **not** cached, so the next call retries. `limits()` **throws** when the ceilings cannot be determined — fail-loud, never a guessed floor. A discovery the provider refused with an HTTP status (a wrong key, an unknown model, an overloaded provider) throws a `ProviderStatusError` carrying that status, whose message says what was being learned and the status; one that failed with no status (discovery endpoint unreachable, an answer that states no ceilings) throws a plain error with its cause. A generation that waits on a discovery throws the same.
 
 ## Structured generation
 
@@ -43,7 +43,7 @@ Discovery is lazy (first call) and cached for the client's lifetime; a failed di
 Provider mechanisms:
 
 - **Ollama** uses grammar-constrained sampling: the request's `format` field carries `{ type: 'array', items: <elementSchema> }`, so generation itself is constrained. The response text is parsed here; a non-array parse throws.
-- **Anthropic** uses response-level structured output: `output_config.format` carries `{ type: 'array', items: <elementSchema> }` (array roots accepted on both live-config models), so the response **text is the schema-conforming JSON** and is parsed here. There is no tool-input accumulation step for the SDK to hand over unparsed; an unparseable or non-array response throws, never coerces to `[]`. A capability gate refuses, before any request, when the Models API does not report `capabilities.structured_outputs.supported: true` — the error names the model and the `inference.model` TOML key that pins it.
+- **Anthropic** uses response-level structured output: `output_config.format` carries `{ type: 'array', items: <elementSchema> }` (array roots accepted on both live-config models), so the response **text is the schema-conforming JSON** and is parsed here. There is no tool-input accumulation step for the SDK to hand over unparsed; an unparseable or non-array response throws, never coerces to `[]`. A capability gate refuses, before any generation is requested, when the Models API does not report `capabilities.structured_outputs.supported: true`: it throws a `StructuredUnsupportedError`, whose message names the model and the `inference.model` TOML key that pins it.
 
 `T` is a **caller assertion, not a runtime guarantee** — nothing verifies the element schema and `T` agree, and the type parameter is erased. Declare the schema and `T` adjacently at the call site, and keep per-element structural guards on the consuming side.
 
@@ -64,11 +64,13 @@ const client = new AnthropicInferenceClient(
 const response = await client.generateTextWithMetadata('Hello', 100, 0.7);
 ```
 
-Uses `@anthropic-ai/sdk`'s Messages API. Throws if the response contains no text content block, on the text and the structured path alike. SDK errors (rate limits, auth, network) propagate unchanged.
+Uses `@anthropic-ai/sdk`'s Messages API. Throws if the response contains no text content block, on the text and the structured path alike. A refusal the SDK reports with a status is thrown as a `ProviderStatusError`, its abort as the language's `AbortError`, and an SDK error with no status (a connection that ended) propagates unchanged.
+
+The SDK asks again, twice at the most, for a request the provider refused for the moment, and waits first as long as the refusal says: by `retry-after-ms`, or by `retry-after` in seconds or as a date. The client lets it wait two minutes at the most. A refusal that states a longer wait is thrown at once, as the `ProviderStatusError` it is, with the stated wait in its message, and the request is not made again. That is so of every request the client makes: a generation, and each of the two that discover the model's limits. The client hands the SDK a `fetch` that marks such a refusal `x-should-retry: false`, which the SDK obeys; `anthropic-retry-after.test.ts` runs the SDK itself and fails if a release stops obeying it.
 
 Declared capabilities: `maxConcurrency: 4` (a hosted API whose per-account rate limit sits far above one job's usage — independent calls genuinely parallelize) and `verifyDetectionYield: true`.
 
-`limits()` discovers ceilings via the Models API (`models.retrieve(modelId)` → `max_input_tokens` / `max_tokens`); throws if either is absent. The same discovery sends one single-token request carrying a `temperature` to learn `acceptsTemperature`; for a model that refuses the parameter, the client omits it from every request. Requests whose `maxTokens` exceeds the SDK's non-streaming ceiling (≈21,333 output tokens — beyond it the SDK refuses non-streaming calls as likely to outlive its 10-minute timeout) are **streamed internally** and assembled via `finalMessage()`: same request shape, same response handling, no interface change.
+`limits()` discovers ceilings via the Models API (`models.retrieve(modelId)` → `max_input_tokens` / `max_tokens`); throws a plain error if either is absent, and a `ProviderStatusError` if the Models API or the probe below is refused with a status. The same discovery sends one single-token request carrying a `temperature` to learn `acceptsTemperature`; for a model that refuses the parameter, the client omits it from every request. Requests whose `maxTokens` exceeds the SDK's non-streaming ceiling (≈21,333 output tokens — beyond it the SDK refuses non-streaming calls as likely to outlive its 10-minute timeout) are **streamed internally** and assembled via `finalMessage()`: same request shape, same response handling, no interface change.
 
 ## OllamaInferenceClient
 
@@ -100,8 +102,8 @@ Declared capabilities: `maxConcurrency: 1` (a local single model is hardware-bou
 
 **Throws:**
 - `Prompt (~N tokens) + output budget (M) exceed the '<model>' context window` before the request is sent
-- `Failed to discover model limits: /api/show returned <status>` / `/api/show reports no context length` from `limits()`
-- `Ollama API error (<status>): <body>` on non-2xx responses
+- `ProviderStatusError` (`Failed to discover model limits: /api/show returned <status>`) from `limits()` when `/api/show` is refused, and a plain `/api/show reports no context length` when its answer states none
+- `ProviderStatusError` (`Ollama API error (<status>): <body>`) on non-2xx responses to a generation
 - `StructuredReadError` (`response is empty`) when the response body has no text
 
 ## MockInferenceClient
@@ -141,4 +143,4 @@ Every generation (success or failure) records a metric through `@semiont/observa
 
 ## Error Handling
 
-`StructuredReadError` is the one custom error class. Provider/SDK errors propagate unchanged; the only errors originated by this package are the factory config errors and the response-shape errors listed per implementation above. Retry policy is the caller's responsibility.
+The package declares four failures, each one class for every implementation: `ProviderStatusError` (the provider refused a generation or a discovery with an HTTP status, which it carries), `StructuredUnsupportedError` (a structured generation asked of a model not known to hold a reply to a schema), `StructuredReadError` (a reply that cannot be read as what was asked for, or is empty, carrying the stop reason) and `ProviderWithheldError` (the provider withheld its answer). An abort is the language's own `AbortError`. A failure with no status, a connection that ended or a network failure, propagates as it came. The other errors this package originates are the factory config errors and the plain errors listed per implementation above. Retry policy is the caller's responsibility.

@@ -19,7 +19,7 @@
  */
 
 import { isNumber, isObject, isString, RETRY_RULES, type components } from '@semiont/core';
-import { ProviderWithheldError, StructuredReadError } from '@semiont/inference';
+import { ProviderWithheldError, StructuredReadError, StructuredUnsupportedError } from '@semiont/inference';
 import { InferenceTimeoutError } from './workers/inference-call';
 
 /** Derived from the spec, not restated: the wire owns this vocabulary
@@ -45,8 +45,9 @@ export class DeterministicJobError extends Error {
  * it, and failure-class-cases.test.ts runs every case.
  *
  * - A status, carried as a number: a driver's `ProviderStatusError` carries
- *   the one its provider refused a generation with, and http-transport's
- *   `APIError` the one a gateway refused with. WHICH statuses are
+ *   the one its provider refused a request with, a generation or what learns
+ *   a model's limits, and http-transport's `APIError` the one a gateway
+ *   refused with. WHICH statuses are
  *   worth another attempt is not decided here: it is `RETRY_RULES.job`, core's
  *   named rule. Restating its conditions here would be a second opinion on a
  *   question core already answers, and where a bare list and a reasoned rule
@@ -58,8 +59,12 @@ export class DeterministicJobError extends Error {
  *   is our own bound or shutdown tearing the transport down — nothing was
  *   judged → transient.
  * - A connection that ended and a network failure carry no status, whatever
- *   reported them, and neither does a discovery that failed. All land
- *   `undefined` → retryable, the safe default.
+ *   reported them, and neither does an answer about a model's limits that
+ *   does not state them. All land `undefined` → retryable, the safe default.
+ * - `@semiont/inference`'s `StructuredUnsupportedError` is a structured
+ *   generation asked of a model not known to hold a reply to a schema, which
+ *   its driver refuses with no request made: no attempt changes what is known
+ *   of the model → deterministic.
  * - `@semiont/inference`'s `ProviderWithheldError` is an answer the provider
  *   withheld, by a refusal or a filter: the job did not break, and the same
  *   request is withheld again → withheld.
@@ -73,6 +78,7 @@ export class DeterministicJobError extends Error {
 export function classifyFailure(error: unknown): FailureClass | undefined {
   if (error instanceof DeterministicJobError) return 'deterministic';
   if (error instanceof InferenceTimeoutError) return 'transient';
+  if (error instanceof StructuredUnsupportedError) return 'deterministic';
   if (error instanceof StructuredReadError && error.stopReason === 'max_tokens') return 'deterministic';
   if (error instanceof ProviderWithheldError) return 'withheld';
   // A `StructuredReadError` with any OTHER stop reason falls through to

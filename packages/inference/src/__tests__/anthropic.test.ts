@@ -353,11 +353,38 @@ describe('AnthropicInferenceClient - limits() discovery', () => {
     expect(retrieveMock).toHaveBeenCalledWith('claude-x');
   });
 
-  it('throws on discovery failure and does not cache the failure', async () => {
-    retrieveMock.mockRejectedValueOnce(new Error('404: model not found'));
+  it.each([401, 503])('reports a Models API refusal with %i as a ProviderStatusError that says what was being learned and the status, and does not cache it', async (status) => {
+    const refused = new APIError(status, undefined, `${status} {"type":"error","error":{"type":"api_error"}}`, undefined);
+    retrieveMock.mockRejectedValueOnce(refused);
+
+    const client = new AnthropicInferenceClient('test-key', 'claude-x');
+    const failure: unknown = await client.limits().catch((err: unknown) => err);
+
+    expect(failure).toBeInstanceOf(ProviderStatusError);
+    expect(failure).toMatchObject({
+      status,
+      message: `Failed to discover model limits for 'claude-x' from the Models API: refused with status ${status}`,
+      cause: refused,
+    });
+    // Nothing was learned, so nothing else was asked.
+    expect(createMock).not.toHaveBeenCalled();
+
+    // A later call retries instead of replaying the cached rejection.
+    retrieveMock.mockResolvedValueOnce({ max_input_tokens: 1000, max_tokens: 100 });
+    expect(await client.limits()).toEqual({ contextTokens: 1000, maxOutputTokens: 100, outputTokensPerHour: 128_000, acceptsTemperature: true });
+    expect(retrieveMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('reports a discovery that failed with no status as a plain error with its cause, and does not cache it', async () => {
+    const dropped = new APIError(undefined, undefined, 'Connection error.', undefined);
+    retrieveMock.mockRejectedValueOnce(dropped);
 
     const client = new AnthropicInferenceClient('test-key', 'claude-unknown');
-    await expect(client.limits()).rejects.toThrow(/limits/i);
+    const failure: unknown = await client.limits().catch((err: unknown) => err);
+
+    expect(failure).not.toBeInstanceOf(ProviderStatusError);
+    expect(failure).toMatchObject({ message: "Failed to discover model limits for 'claude-unknown' from the Models API", cause: dropped });
+    expect(failure).not.toHaveProperty('status');
 
     // A later call retries instead of replaying the cached rejection.
     retrieveMock.mockResolvedValueOnce({ max_input_tokens: 1000, max_tokens: 100 });
@@ -470,12 +497,42 @@ describe('AnthropicInferenceClient - temperature suppression', () => {
     expect(createMock).toHaveBeenCalledTimes(3);
   });
 
-  it('a probe failure that is NOT the temperature 400 fails discovery loudly and is not cached', async () => {
+  it.each([
+    [401, '401 {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}'],
+    [503, '503 {"type":"error","error":{"type":"api_error","message":"overloaded"}}'],
+    // A 400 that is not about the temperature is a refusal like any other, and no verdict.
+    [400, '400 {"type":"error","error":{"type":"invalid_request_error","message":"max_tokens: must be at least 2"}}'],
+  ])('a probe the provider refuses with %i, and not for its temperature, is a ProviderStatusError that says so, and is not cached', async (status, said) => {
     retrieveMock.mockResolvedValue(CAPABLE_MODEL);
-    createMock.mockRejectedValueOnce(Object.assign(new Error('500 overloaded'), { status: 500 }));
+    const refused = new APIError(status, undefined, said, undefined);
+    createMock.mockRejectedValueOnce(refused);
 
     const client = new AnthropicInferenceClient('test-key', 'claude-x');
-    await expect(client.generateText('p', 100, 0)).rejects.toThrow(/sampling|probe|discover/i);
+    const failure: unknown = await client.generateText('p', 100, 0).catch((err: unknown) => err);
+
+    expect(failure).toBeInstanceOf(ProviderStatusError);
+    expect(failure).toMatchObject({
+      status,
+      message: `Sampling-parameter probe failed for 'claude-x': refused with status ${status}`,
+      cause: refused,
+    });
+
+    // Recovery: the next call re-runs discovery instead of replaying the failure.
+    stubAcceptingModel();
+    await expect(client.generateText('p', 100, 0)).resolves.toBeDefined();
+  });
+
+  it('a probe that fails with no status fails discovery as a plain error with its cause, and is not cached', async () => {
+    retrieveMock.mockResolvedValue(CAPABLE_MODEL);
+    const dropped = new APIError(undefined, undefined, 'Connection error.', undefined);
+    createMock.mockRejectedValueOnce(dropped);
+
+    const client = new AnthropicInferenceClient('test-key', 'claude-x');
+    const failure: unknown = await client.generateText('p', 100, 0).catch((err: unknown) => err);
+
+    expect(failure).not.toBeInstanceOf(ProviderStatusError);
+    expect(failure).toMatchObject({ message: "Sampling-parameter probe failed for 'claude-x'", cause: dropped });
+    expect(failure).not.toHaveProperty('status');
 
     // Recovery: the next call re-runs discovery instead of replaying the failure.
     stubAcceptingModel();

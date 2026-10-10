@@ -483,6 +483,19 @@
         ]
       },
       "dropped": []
+    },
+    {
+      "why": "an asterisk after a line feed closes nothing either: a line feed is no sentence mark, so a list item's bullet at the start of a line begins the claim",
+      "text": "It has parts.\n* one is brass. [[r1]]",
+      "contextResourceIds": ["r1"],
+      "contextAnnotationIds": [],
+      "resolved": {
+        "text": "It has parts.\n* one is brass.",
+        "citations": [
+          { "resourceId": "r1", "start": 14, "end": 29, "exact": "* one is brass." }
+        ]
+      },
+      "dropped": []
     }
   ],
   "contexts": [

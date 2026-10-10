@@ -6,8 +6,8 @@
  * deterministic or withheld skip the retry budget; everything unrecognized
  * stays retryable (`undefined`), because mis-classifying a transient failure
  * as either silently halves reliability, while the reverse merely costs one
- * wasted attempt. The withheld answer's case is the table's
- * (failure-class-cases.test.ts).
+ * wasted attempt. The withheld answer's case, and that of a model not known
+ * to hold a reply to a schema, are the table's (failure-class-cases.test.ts).
  */
 
 import { describe, it, expect } from 'vitest';

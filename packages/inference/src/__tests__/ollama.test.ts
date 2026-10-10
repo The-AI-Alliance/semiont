@@ -87,11 +87,15 @@ describe('OllamaInferenceClient - limits() discovery', () => {
     expect(await client.limits()).toEqual({ contextTokens: 32768, maxOutputTokens: 32768, acceptsTemperature: true });
   });
 
-  it('throws when discovery fails, and does not cache the failure', async () => {
+  it('reports a refused discovery as a ProviderStatusError carrying the status, and does not cache the failure', async () => {
     const fetchMock = stubRoutedFetch({ show: { ok: false } });
 
     const client = new OllamaInferenceClient('llama3', 'http://localhost:11434');
-    await expect(client.limits()).rejects.toThrow(/limits|show/i);
+    await expect(client.limits()).rejects.toMatchObject({
+      name: 'ProviderStatusError',
+      status: 500,
+      message: "Failed to discover model limits: /api/show returned 500 for 'llama3'",
+    });
 
     // Server recovers → a later call retries and succeeds.
     fetchMock.mockImplementation(async () => ({
@@ -107,7 +111,11 @@ describe('OllamaInferenceClient - limits() discovery', () => {
     stubRoutedFetch({ show: { body: { model_info: { 'general.architecture': 'llama' } } } });
 
     const client = new OllamaInferenceClient('llama3', 'http://localhost:11434');
-    await expect(client.limits()).rejects.toThrow(/context length/i);
+    const failure: unknown = await client.limits().catch((err: unknown) => err);
+
+    // The provider answered, and refused nothing: a plain error, with no status to class it by.
+    expect(failure).toMatchObject({ name: 'Error', message: "/api/show reports no context length for 'llama3'" });
+    expect(failure).not.toHaveProperty('status');
   });
 });
 

@@ -89,8 +89,9 @@ export class OllamaInferenceClient implements InferenceClient {
       body: JSON.stringify({ model: this.modelId }),
     });
     if (!res.ok) {
-      throw new Error(
+      throw new ProviderStatusError(
         `Failed to discover model limits: /api/show returned ${res.status} for '${this.modelId}'`,
+        res.status,
       );
     }
     const data: unknown = await res.json();

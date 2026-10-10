@@ -58,6 +58,7 @@ from semiont_inference.interface import (
     ProviderWithheldError,
     StructuredReadError,
     StructuredResponse,
+    StructuredUnsupportedError,
     TokenUsage,
 )
 from semiont_inference.openai import OpenAIInferenceClient
@@ -593,11 +594,11 @@ def test_a_model_not_known_to_hold_a_reply_to_a_schema_is_refused_before_any_req
         async with OpenAI() as played:
             played.script(responded("It was never built."))
             client = driver(played, dataclasses.replace(PLAIN, structured_output=structured_output), "gpt-legacy")
+            # The interface's own failure, so a caller classes it without reading its words.
             with pytest.raises(
-                RuntimeError, match=re.escape("Model 'gpt-legacy' is not known to hold a reply to a JSON Schema")
+                StructuredUnsupportedError, match=re.escape("Model 'gpt-legacy' is not known to hold a reply to a JSON Schema")
             ) as refused:
                 await client.generate_structured("p", 1000, 0.3, PERSON)
-            assert type(refused.value) is RuntimeError
             # Whose word it is: the catalogue's, and not the provider's, which states this of no model.
             assert f"the model catalogue it was given {said}" in str(refused.value)
             assert played.asked == []

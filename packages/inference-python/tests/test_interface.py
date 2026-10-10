@@ -1,4 +1,4 @@
-"""What the interface states: the client a driver is, what it answers, and the two failures it raises."""
+"""What the interface states: the client a driver is, what it answers, and the failures it raises."""
 
 import dataclasses
 
@@ -17,6 +17,7 @@ from semiont_inference.interface import (
     ProviderWithheldError,
     StructuredReadError,
     StructuredResponse,
+    StructuredUnsupportedError,
     TokenUsage,
 )
 from semiont_inference.llamacpp import LlamaCppInferenceClient
@@ -117,6 +118,15 @@ def test_a_reply_that_cannot_be_read_says_why_and_carries_the_stop_reason() -> N
     assert error.stop_reason == "max_tokens"
 
 
+def test_a_structured_generation_a_model_is_not_known_to_hold_to_a_schema_is_refused_in_its_drivers_words_and_carries_nothing_else() -> (
+    None
+):
+    error = StructuredUnsupportedError("Model 'claude-legacy' does not report support for strict structured outputs")
+    assert str(error) == "Model 'claude-legacy' does not report support for strict structured outputs"
+    # Whoever catches it holds the client, which says its model: the failure states no member of its own.
+    assert vars(error) == {}
+
+
 def test_a_refusal_carries_the_status_as_a_number() -> None:
     error = ProviderStatusError("Ollama API error (503): loading", 503)
     assert str(error) == "Ollama API error (503): loading"
@@ -136,7 +146,7 @@ def test_the_failures_the_failure_class_table_names_of_a_driver_are_the_ones_dec
     described = [case["failure"] for case in cases]
     named = {text(failure["name"], "a name") for failure in described if isinstance(failure, dict) and "name" in failure}
     of_the_worker = {"DeterministicJobError", "YieldCollapseError", "InferenceTimeoutError"}
-    assert named - of_the_worker == {"ProviderStatusError", "ProviderWithheldError", "StructuredReadError"}
+    assert named - of_the_worker == {"ProviderStatusError", "ProviderWithheldError", "StructuredReadError", "StructuredUnsupportedError"}
     assert {name for name in interface.__all__ if name.endswith("Error")} == named - of_the_worker
 
     built = 0
@@ -156,4 +166,7 @@ def test_the_failures_the_failure_class_table_names_of_a_driver_are_the_ones_dec
         if failure.get("name") == "ProviderWithheldError":
             assert ProviderWithheldError("refusal", "refusal").reason == "refusal"
             built += 1
-    assert built >= 3
+        if failure.get("name") == "StructuredUnsupportedError":
+            assert str(StructuredUnsupportedError("Model 'm' is not known to hold a reply to a JSON Schema")).startswith("Model 'm'")
+            built += 1
+    assert built >= 4

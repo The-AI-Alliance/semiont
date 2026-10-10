@@ -59,6 +59,7 @@ from semiont_inference.interface import (
     ProviderWithheldError,
     StructuredReadError,
     StructuredResponse,
+    StructuredUnsupportedError,
 )
 
 try:
@@ -218,7 +219,7 @@ class OpenAIInferenceClient:
         # for an empty one completes a job that found nothing.
         if self._holds_to_a_schema is not True:
             said_of_it = "says it does not" if self._holds_to_a_schema is False else "does not say that it does"
-            raise RuntimeError(
+            raise StructuredUnsupportedError(
                 f"Model '{self.model_id}' is not known to hold a reply to a JSON Schema: the model catalogue it was given "
                 f"{said_of_it} (structured_output). OpenAI's API states this of no model, so the catalogue's word is all there is. "
                 "It is refused: a generation the provider does not hold to the schema can come back unreadable. "

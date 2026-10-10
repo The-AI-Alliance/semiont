@@ -22,7 +22,7 @@ state, and says of what it learned this way that it learned it this way.
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated, Final, Literal, final
+from typing import Annotated, Final, Literal, Never, NoReturn, final
 
 from pydantic import ConfigDict, Field, PositiveInt, TypeAdapter, ValidationError
 
@@ -213,6 +213,12 @@ def read_catalogue(path: Path) -> Catalogue:
         ) from invalid
 
 
+def _unknown(provider: Never) -> NoReturn:
+    # A provider the vocabulary names and this does not answer for is refused by a type checker, here: the
+    # argument is then no longer one that cannot be. A caller no checker read is refused when it runs.
+    raise ValueError(f"A model catalogue has no provider '{provider}'")
+
+
 def catalogue_facts(catalogue: Catalogue, provider: CatalogueProvider, model_id: str) -> CatalogueFacts | None:
     """What `catalogue` says of `model_id` as `provider` serves it, or `None` for a model it does not have.
 
@@ -222,6 +228,10 @@ def catalogue_facts(catalogue: Catalogue, provider: CatalogueProvider, model_id:
     A dated snapshot of a model (`gpt-5-2025-08-07`) is an id of its own, and
     the catalogue has few of them: the facts of the alias are not answered
     for it.
+
+    Raises `ValueError` for a provider that is none of the catalogue's.
+    `None` says the catalogue lacks a model, and is never the answer for a
+    provider's name it does not know.
     """
     match provider:
         case "google":
@@ -230,3 +240,5 @@ def catalogue_facts(catalogue: Catalogue, provider: CatalogueProvider, model_id:
             return catalogue.providers.openai.models.get(model_id)
         case "together":
             return catalogue.providers.togetherai.models.get(model_id)
+        case _:
+            _unknown(provider)
