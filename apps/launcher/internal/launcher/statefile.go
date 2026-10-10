@@ -20,10 +20,9 @@ import (
 // work from these identifiers (falling back to the all-runtimes
 // name sweep only when no record exists). The record is belief, not ground
 // truth: status still verifies every claim against the runtime, gh, and
-// the health endpoints. Schema 2 single-stack files are migrated on read;
-// schema 1 is refused rather than read (LoadStackSet says why).
+// the health endpoints.
 
-// Provided values (schema 2): who provides this role.
+// Provided values: who provides this role.
 const (
 	providedLauncher = "launcher" // a container this launcher started
 	providedHost     = "host"     // a host process (reused, not launched)
@@ -35,7 +34,7 @@ type ServiceState struct {
 	Container string `json:"container,omitempty"` // container name (launcher-provided only)
 	ID        string `json:"id,omitempty"`        // identifier the runtime printed at run -d
 	Image     string `json:"image,omitempty"`     // full image ref
-	Provided  string `json:"provided,omitempty"`  // schema 2: launcher|host|external|none
+	Provided  string `json:"provided,omitempty"`  // launcher|host|external|none
 	Driver    string `json:"driver,omitempty"`    // config `type` (infra roles)
 	// Models: the models this role uses, each with its provider, per the
 	// config it started with.
@@ -51,7 +50,6 @@ type ServiceState struct {
 }
 
 type StackState struct {
-	Schema    int       `json:"schema,omitempty"` // legacy single-stack files only (read-compat)
 	UpdatedAt time.Time `json:"updatedAt"`
 	Runtime   string    `json:"runtime"`
 	KBRoot    string    `json:"kbRoot,omitempty"`
@@ -164,8 +162,6 @@ func stackKey(st *StackState) string {
 }
 
 // LoadStackSet returns every recorded stack (never nil; empty when no file).
-// Schema 2 single-stack files migrate in memory — the next save writes
-// schema 3. Schema 1 is not read (see below).
 //
 // A file this launcher cannot turn into stacks does NOT come back as an empty
 // set: the set carries why, and refuseUnreadable turns that into a refusal at
@@ -183,50 +179,17 @@ func LoadStackSet() *StackSet {
 		}
 		return ss
 	}
-	var probe struct {
-		Schema int             `json:"schema"`
-		Stacks json.RawMessage `json:"stacks"`
-	}
-	if err := json.Unmarshal(b, &probe); err != nil {
+	var full StackSet
+	if err := json.Unmarshal(b, &full); err != nil {
 		ss.unreadable = err
 		return ss
 	}
-	if probe.Stacks != nil {
-		var full StackSet
-		if err := json.Unmarshal(b, &full); err != nil {
-			ss.unreadable = err
-			return ss
-		}
-		if full.Stacks == nil {
-			ss.unreadable = errors.New(`"stacks" is present but holds no stacks`)
-			return ss
-		}
-		full.Schema = 3
-		return &full
-	}
-	// Legacy single-stack file (schema 2).
-	//
-	// Schema 1 is NOT read. It has no `provided`, marking host reuse with a
-	// `hostReuse` bool the struct does not carry, so a schema-1
-	// record would load with every service unclassified — and an unclassified
-	// entry is worse than no record at all: teardown would treat a host
-	// process as launcher-owned. Refusing to read it is therefore right;
-	// refusing SILENTLY is not, so it lands here rather than as no record.
-	if probe.Schema < 2 {
-		ss.unreadable = errors.New("schema 1 predates the `provided` field, so its services cannot be told apart from host processes")
+	if full.Stacks == nil {
+		ss.unreadable = errors.New(`it has no "stacks" object`)
 		return ss
 	}
-	var st StackState
-	if err := json.Unmarshal(b, &st); err != nil {
-		ss.unreadable = err
-		return ss
-	}
-	if st.Services == nil {
-		ss.unreadable = errors.New(`schema 2 record with no "services" object`)
-		return ss
-	}
-	ss.Stacks[stackKey(&st)] = &st
-	return ss
+	full.Schema = 3
+	return &full
 }
 
 // refuseUnreadable prints the refusal for a record this launcher could not
@@ -326,7 +289,6 @@ func saveStackSet(ss *StackSet) {
 // saveStack upserts one stack into the collection.
 func saveStack(st *StackState) {
 	st.UpdatedAt = time.Now().UTC()
-	st.Schema = 0 // schema lives on the set
 	ss := LoadStackSet()
 	ss.Stacks[stackKey(st)] = st
 	saveStackSet(ss)

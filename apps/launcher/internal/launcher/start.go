@@ -682,9 +682,9 @@ const kbMountTarget = "/kb"
 // configured by one document the launcher writes resolved (gatewaydoc.go) —
 // the KB's committed identity, the addresses, the issuer — mounted at the
 // path its image passes to `--config`. Resolved means no ${VAR} is left for
-// it to expand, so it is handed no *_HOST variable: not even the gateway-host
-// pair the services that load the KB's config get (gatewayHostEnv), which
-// leaves a ${GATEWAY_HOST:-…} in its publicURL on its default (gatewayVars).
+// it to expand, so it is handed no *_HOST variable: not even the GATEWAY_HOST
+// the services that load the KB's config get (gatewayHostEnv), which leaves a
+// ${GATEWAY_HOST:-…} in its publicURL on its default (gatewayVars).
 // What is left is that document, the state mount its supervisor keeps its
 // events on, its secrets, and the user's variables (the document names its
 // broker credentials by variable).
@@ -714,21 +714,16 @@ func gatewayArgs(stage, rt, addr, clientSecret, jwt, version string, port int, u
 	return append(a, image("gateway", version))
 }
 
-// gatewayHostEnv injects the gateway's address under BOTH spellings.
+// gatewayHostEnv injects the gateway's address as GATEWAY_HOST, for the
+// services that load a staged copy of the KB's config.
 //
-// A KB's TOML interpolates one of them into the gateway's publicURL, and which
-// one depends on whether that repo's config spells the section `[gateway]` or
-// `[backend]` — a fact this binary cannot observe. Injecting only GATEWAY_HOST
-// would leave a `[backend]` KB's `${BACKEND_HOST:-localhost}` falling back to
-// `localhost`, which inside a container means every sidecar dials ITSELF: a
-// wrong-but-plausible value that fails far from its cause. Injecting both
-// costs one argv pair and cannot.
-//
-// Retires with the [backend] section alias — see resolveGatewaySection.
-// Defined once because three call sites spelling the same pair is three chances
-// to update two of them.
+// A KB's TOML interpolates it into the gateway's publicURL as
+// `${GATEWAY_HOST:-localhost}`. Left on that default inside a container, every
+// such service would dial ITSELF: a wrong-but-plausible value that fails far
+// from its cause. Defined once because two call sites spelling the same pair
+// is two chances to update one of them.
 func gatewayHostEnv(addr string) []string {
-	return []string{"--env", "GATEWAY_HOST=" + addr, "--env", "BACKEND_HOST=" + addr}
+	return []string{"--env", "GATEWAY_HOST=" + addr}
 }
 
 // superviseEnv is the per-run supervision opt-in: boot.sh wraps the image
@@ -798,8 +793,8 @@ func archivistArgs(kbRoot, stage, rt, addr string, clientSecret, version string,
 // stagedServiceConfig), just the shared state tree (as a reader of what the
 // Archivist writes) and its staged config, which states the addresses the
 // launcher places as literals — the Archivist's among them (it reads bytes
-// from the record directly); the gateway's it resolves from the gateway-host
-// pair (gatewayHostEnv). NO JWT_SECRET, and nothing dials this service; it
+// from the record directly); the gateway's it resolves from GATEWAY_HOST
+// (gatewayHostEnv). NO JWT_SECRET, and nothing dials this service; it
 // dials the gateway for the bus and the Archivist for bytes.
 func librarianArgs(stage, rt, addr string, clientSecret, version string, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-librarian", // no --rm: see providedRunArgs

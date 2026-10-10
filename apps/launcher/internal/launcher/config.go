@@ -22,8 +22,7 @@ import (
 // the launcher places is not among them: it is resolved at staging
 // (topology.go), and TestNoTopologyTravelsInAnEnvironment holds the two apart.
 var injectedVars = map[string]bool{
-	"GATEWAY_HOST": true, "BACKEND_HOST": true,
-	"SEMIONT_OIDC_CLIENT_ID": true, "SEMIONT_OIDC_CLIENT_SECRET": true,
+	"GATEWAY_HOST": true, "SEMIONT_OIDC_CLIENT_ID": true, "SEMIONT_OIDC_CLIENT_SECRET": true,
 }
 
 // launcherResolved: a reference the user's environment is never asked for —
@@ -94,17 +93,12 @@ type semiontConfig struct {
 }
 
 type envConfig struct {
-	// Two spellings of one section. `gateway` is current; `backend` is the
-	// pre-rename key the KB fleet still carries, accepted until every fleet
-	// repo has moved. loadConfig collapses them into Gateway and rejects a
-	// file that sets both — see resolveGatewaySection.
-	Gateway    *gatewayCfg            `toml:"gateway"`
-	GatewayOld *gatewayCfg            `toml:"backend"`
-	Graph      *graphCfg              `toml:"graph"`
-	Vectors    *vectorsCfg            `toml:"vectors"`
-	Embedding  *embeddingCfg          `toml:"embedding"`
-	Inference  map[string]providerCfg `toml:"inference"`
-	Database   *databaseCfg           `toml:"database"`
+	Gateway   *gatewayCfg            `toml:"gateway"`
+	Graph     *graphCfg              `toml:"graph"`
+	Vectors   *vectorsCfg            `toml:"vectors"`
+	Embedding *embeddingCfg          `toml:"embedding"`
+	Inference map[string]providerCfg `toml:"inference"`
+	Database  *databaseCfg           `toml:"database"`
 	// Jobs names the dispatcher's JetStream queue (see jobsCfg).
 	Jobs     *jobsCfg              `toml:"jobs"`
 	Signal   *signalCfg            `toml:"signal"`
@@ -156,7 +150,7 @@ func (e *envConfig) declaresRole(role string) bool {
 	case "inference":
 		return len(e.Inference) > 0
 	case "gateway":
-		return e.Gateway != nil || e.GatewayOld != nil
+		return e.Gateway != nil
 	}
 	return false
 }
@@ -329,9 +323,6 @@ func loadConfig(path string) (*envConfig, string, configRefs, error) {
 	if !ok {
 		return nil, "", configRefs{}, fmt.Errorf("%s: environment %q selected by [defaults] is not defined", path, envName)
 	}
-	if err := resolveGatewaySection(&env, path, envName); err != nil {
-		return nil, "", configRefs{}, err
-	}
 	if err := resolveWorkersSection(&env, path, envName); err != nil {
 		return nil, "", configRefs{}, err
 	}
@@ -358,30 +349,6 @@ func refuseEnvironmentSites(envs map[string]envConfig, path string) error {
 		"%s in %s: a knowledge base declares [site] once, at the top level of its committed .semiont/config, "+
 			"and no environment can override it. Delete the section.",
 		strings.Join(sited, ", "), path)
-}
-
-// resolveGatewaySection collapses the `gateway` / `backend` spellings of one
-// section into env.Gateway.
-//
-// A file that sets BOTH is half-migrated — a mistake someone just made, not a
-// state worth supporting — so it is rejected by name rather than resolved by
-// precedence. Silently preferring one would leave the next reader unable to
-// tell which section is live.
-//
-// The TypeScript loader implements the same four cases independently; neither
-// lane can see the other's schema, so both are pinned by parity tests.
-func resolveGatewaySection(env *envConfig, path, envName string) error {
-	if env.Gateway != nil && env.GatewayOld != nil {
-		return fmt.Errorf(
-			"%s: environment %q declares both [environments.%s.gateway] and [environments.%s.backend]; "+
-				"they are one section under two spellings — keep gateway and delete backend",
-			path, envName, envName, envName)
-	}
-	if env.Gateway == nil {
-		env.Gateway = env.GatewayOld
-	}
-	env.GatewayOld = nil
-	return nil
 }
 
 // resolveWorkersSection reads the `workers` section as written into

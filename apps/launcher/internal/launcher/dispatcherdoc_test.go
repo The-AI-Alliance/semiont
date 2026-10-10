@@ -152,7 +152,7 @@ func TestDispatcherDocumentIsWhereTheImageLooks(t *testing.T) {
 	if want := "/stage/" + dispatcherDocumentFile + ":" + dispatcherDocumentTarget + ":ro"; !strings.Contains(args, want) {
 		t.Errorf("the dispatcher's document is not mounted onto %s:\n%s", dispatcherDocumentTarget, args)
 	}
-	for _, unread := range []string{"GATEWAY_HOST", "BACKEND_HOST", "NATS_HOST", "KEYCLOAK_HOST", ".semiontconfig"} {
+	for _, unread := range []string{"GATEWAY_HOST", "NATS_HOST", "KEYCLOAK_HOST", ".semiontconfig"} {
 		if strings.Contains(args, unread) {
 			t.Errorf("the dispatcher is handed %s, which it does not read:\n%s", unread, args)
 		}

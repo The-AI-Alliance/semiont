@@ -5377,9 +5377,9 @@ func TestLogsRecordAware(t *testing.T) {
 	}
 
 	// Host-provided inference: no container logs, pointed message.
-	v2 := `{"schema":2,"runtime":"container","services":{
-	  "inference":{"provided":"host","endpoint":"http://localhost:11434/api/version","startedAt":"2026-07-19T00:00:00Z"}}}`
-	if err := os.WriteFile(statePathFor(s.home), []byte(v2), 0o644); err != nil {
+	hostProvided := `{"schema":3,"stacks":{"local":{"runtime":"container","services":{
+	  "inference":{"provided":"host","endpoint":"http://localhost:11434/api/version","startedAt":"2026-07-19T00:00:00Z"}}}}}`
+	if err := os.WriteFile(statePathFor(s.home), []byte(hostProvided), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	_, stderr, code := s.run(t, "logs", "--service", "inference")
@@ -5657,11 +5657,11 @@ func TestUnreadableStackRecordRefuses(t *testing.T) {
 	}
 }
 
-// writeStackState plants a schema-2 stack.json for the scenario.
+// writeStackState plants a stack.json that records a local stack for the scenario.
 func writeStackState(t *testing.T, s *scenario, runtime string) {
 	t.Helper()
-	st := `{"schema":2,"runtime":"` + runtime + `","services":{
-	  "gateway":{"container":"semiont-gateway","id":"fid-semiont-gateway","provided":"launcher","startedAt":"2026-07-19T00:00:00Z"}}}`
+	st := `{"schema":3,"stacks":{"local":{"runtime":"` + runtime + `","services":{
+	  "gateway":{"container":"semiont-gateway","id":"fid-semiont-gateway","provided":"launcher","startedAt":"2026-07-19T00:00:00Z"}}}}}`
 	p := statePathFor(s.home)
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		t.Fatal(err)

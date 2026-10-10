@@ -560,7 +560,7 @@ func TestWorkerDocumentIsWhereTheImageLooks(t *testing.T) {
 	if want := "/stage/" + workerDocumentFile + ":" + workerDocumentTarget + ":ro"; !strings.Contains(args, want) {
 		t.Errorf("the worker's document is not mounted onto %s:\n%s", workerDocumentTarget, args)
 	}
-	for _, unread := range []string{"GATEWAY_HOST", "BACKEND_HOST", "OLLAMA_HOST", "KEYCLOAK_HOST", ".semiontconfig", ".toml"} {
+	for _, unread := range []string{"GATEWAY_HOST", "OLLAMA_HOST", "KEYCLOAK_HOST", ".semiontconfig", ".toml"} {
 		if strings.Contains(args, unread) {
 			t.Errorf("the worker is handed %s, which it does not read:\n%s", unread, args)
 		}

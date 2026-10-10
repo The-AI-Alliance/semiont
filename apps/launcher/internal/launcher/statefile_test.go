@@ -75,8 +75,7 @@ func TestUnreadableRecordIsNotAnEmptySet(t *testing.T) {
 		{"not json at all", "half a log line\n"},
 		{"stacks is not an object", `{"schema":3,"stacks":[]}`},
 		{"stacks is null", `{"schema":3,"stacks":null}`},
-		{"schema 1", `{"schema":1,"runtime":"container","services":{}}`},
-		{"schema 2 without services", `{"schema":2,"runtime":"container"}`},
+		{"no stacks object", `{"schema":3,"runtime":"container","services":{}}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			p := recordPath(t)
