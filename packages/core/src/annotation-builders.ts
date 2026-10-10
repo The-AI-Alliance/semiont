@@ -215,6 +215,10 @@ function refuse(code: SpanRefusal, why: string, { resourceId, motivation }: Refu
   throw new SpanRefusedError(`annotationOfSpan refused a span (${code}): ${why}, for resource ${resourceId}, motivation ${motivation}`, code);
 }
 
+/** Whether two numbers are the offsets of a stretch of a text of `length` code points: whole, in order, inside it. */
+const isStretchOf = (length: number, start: number, end: number): boolean =>
+  Number.isInteger(start) && Number.isInteger(end) && 0 <= start && start <= end && end <= length;
+
 /**
  * Refuse a span that is no span of the text: one given backwards, one that
  * runs past the end, one that starts below zero, one stated in fractions.
@@ -222,8 +226,29 @@ function refuse(code: SpanRefusal, why: string, { resourceId, motivation }: Refu
  * text, and an annotation built on it would state offsets that anchor nothing.
  */
 function holdSpanToText(offsets: TextOffsets, { start, end }: TextSpan, of: Refused): void {
-  if (Number.isInteger(start) && Number.isInteger(end) && 0 <= start && start <= end && end <= offsets.length) return;
+  if (isStretchOf(offsets.length, start, end)) return;
   refuse('span-out-of-range', `offsets ${start} to ${end} are not a span of a text of ${offsets.length} code points`, of);
+}
+
+/**
+ * Refuse an anchored text one of whose items is no stretch of it. The items
+ * are what say where the text is on a page, and a rectangle is made from an
+ * item's own offsets: one that is no stretch of the text shows that the items
+ * do not index it, and a rectangle made from any of them may be drawn in the
+ * wrong place. So every item is held to the text, whether the span touches
+ * it or not, and before the span is. A producer that counts offsets another
+ * way than the text is counted is what this finds: its last items run past
+ * the end, and every item before them is shifted where nothing would show it.
+ */
+function holdItemsToText(anchored: AnchoredText, offsets: TextOffsets, of: Refused): void {
+  const stray = anchored.items.findIndex((item) => !isStretchOf(offsets.length, item.start, item.end));
+  if (stray === -1) return;
+  const { start, end } = anchored.items[stray]!;
+  refuse(
+    'item-out-of-range',
+    `item ${stray} of the anchored text is offsets ${start} to ${end}, which is no stretch of a text of ${offsets.length} code points`,
+    of,
+  );
 }
 
 /**
@@ -273,12 +298,14 @@ function selectorsInText(text: string, span: TextSpan, of: Refused): Selector[] 
  * under a name of its own: merged with the other, it would send whoever
  * reads the refusal to a comparison of words that never ran.
  *
- * The span is held to the anchored text first, and its prefix and suffix
- * after, exactly as a span of a text is held to its text: the quote this
- * writes is what re-anchoring reads, on a PDF as on a text.
+ * The anchored text is held to itself before anything else (`holdItemsToText`).
+ * Then the span is held to it, and its prefix and suffix after, exactly as a
+ * span of a text is held to its text: the quote this writes is what
+ * re-anchoring reads, on a PDF as on a text.
  */
 function selectorsInPdf(anchored: AnchoredText, span: TextSpan, of: Refused): Selector[] {
   const offsets = textOffsets(anchored.text);
+  holdItemsToText(anchored, offsets, of);
   holdSpanToText(offsets, span, of);
 
   // `locate` answers both the rectangles and the items they were made from:
@@ -349,8 +376,9 @@ function anchorOf(span: TextSpan): string {
  * `body` is one body or a list of them, or nothing: an annotation whose
  * motivation alone says what it means (a highlight) has none.
  *
- * Throws `SpanRefusedError` for a span that is not the text's: its `code` is
- * the refusal, and the first check that fails names it.
+ * Throws `SpanRefusedError` for a span that is not the text's, and for any
+ * span of a PDF whose anchored text has an item that is no stretch of it: its
+ * `code` is the refusal, and the first check that fails names it.
  */
 export function annotationOfSpan(
   of: {

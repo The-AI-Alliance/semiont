@@ -197,7 +197,7 @@ const link = annotationOfResource({
 
 For a PDF, give `annotationOfSpan` the PDF's `anchored` text in place of `text`: the annotation has one `FragmentSelector` for each line the span is on, and no `TextPositionSelector`.
 
-**Refusals** (`SpanRefusal`): `span-out-of-range`, `exact-mismatch`, `prefix-mismatch`, `suffix-mismatch`, and for a PDF `nothing-located` and `exact-not-covered`. [`specs/src/annotations/builder-cases.json`](../../../specs/src/annotations/builder-cases.json) holds the rule, as cases.
+**Refusals** (`SpanRefusal`): `span-out-of-range`, `exact-mismatch`, `prefix-mismatch`, `suffix-mismatch`, and for a PDF `nothing-located`, `exact-not-covered` and `item-out-of-range`. The last is said of the PDF's anchored text and not of the span: one of its items is no stretch of its text, so no span of it is built. [`specs/src/annotations/builder-cases.json`](../../../specs/src/annotations/builder-cases.json) holds the rule, as cases.
 
 ## Render-Time Anchoring
 

@@ -146,14 +146,15 @@
     ]
   },
   "spanRefusal": {
-    "docs": "Why no annotation was built of a span: the span is not the text's, or, for a PDF, is nowhere on its pages. specs/src/annotations/builder-cases.json holds when each is given.",
+    "docs": "Why no annotation was built of a span: the span is not the text's, or, for a PDF, is nowhere on its pages, or the PDF's anchored text does not hold together. specs/src/annotations/builder-cases.json holds when each is given.",
     "codes": [
       { "code": "span-out-of-range", "docs": "The span's offsets are not two whole numbers from 0, the second no less than the first, within the text." },
       { "code": "exact-mismatch", "docs": "The words the span states are not the text between its offsets." },
       { "code": "prefix-mismatch", "docs": "The prefix the span states is not the text just before it." },
       { "code": "suffix-mismatch", "docs": "The suffix the span states is not the text just after it." },
       { "code": "nothing-located", "docs": "No item of the PDF's anchored text holds any of the span, so it is nowhere on a page." },
-      { "code": "exact-not-covered", "docs": "The items of the PDF's anchored text that hold the span do not have its words." }
+      { "code": "exact-not-covered", "docs": "The items of the PDF's anchored text that hold the span do not have its words." },
+      { "code": "item-out-of-range", "docs": "An item of the PDF's anchored text is no stretch of that text: its offsets are not two whole numbers from 0, the second no less than the first, within the text. This one is said of the anchored text and not of the span: the items are what say where the text is on a page, and no span is built on an anchored text one of whose items cannot be." }
     ]
   }
 }

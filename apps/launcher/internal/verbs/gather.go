@@ -25,7 +25,7 @@ context surrounding one annotation.
 Options:
   --depth <n>          Resource-graph traversal depth (default 2)
   --max-resources <n>  Cap on related resources (resource focus; default 10)
-  --context-window <n> Characters of text around the annotation (annotation focus)
+  --context-window <n> Text on each side of the annotation, in code points (annotation focus)
   --no-content         Omit resource content (metadata only)
   --summary            Include summaries
   --json               Raw JSON reply instead of a summary

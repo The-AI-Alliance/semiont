@@ -6,7 +6,7 @@
  * vectors or a model is `AnnotationGather`.
  */
 
-import { getTargetSelector, getTextPositionSelector } from '@semiont/core';
+import { getTargetSelector, getTextPositionSelector, textOffsets } from '@semiont/core';
 import type { Annotation, ResourceId, ResourceAnnotations, AnnotationId } from '@semiont/core';
 import type { ViewStorage } from '@semiont/event-sourcing';
 
@@ -17,6 +17,26 @@ export interface AnnotationTextContext {
   before: string;
   selected: string;
   after: string;
+}
+
+/**
+ * A span of a content, and the content on either side of it.
+ *
+ * `start` and `end` are offsets: they count Unicode code points from the
+ * start of the content, as a `TextPositionSelector` does. `before` and `after`
+ * say how much to take on each side, and count code points too. A JavaScript
+ * string is indexed in UTF-16 code units, so each offset is converted where
+ * the string is cut.
+ */
+export function textAround(content: string, start: number, end: number, before: number, after: number): AnnotationTextContext {
+  const offsets = textOffsets(content);
+  const cut = (from: number, to: number): string =>
+    content.slice(offsets.indexAt(Math.max(0, from)), offsets.indexAt(Math.min(offsets.length, to)));
+  return {
+    before: cut(start - before, start),
+    selected: cut(start, end),
+    after: cut(end, end + after),
+  };
 }
 
 export class AnnotationContext {
@@ -58,15 +78,6 @@ export class AnnotationContext {
       throw new Error('TextPositionSelector required for context');
     }
 
-    const selStart = posSelector.start;
-    const selEnd = posSelector.end;
-    const start = Math.max(0, selStart - contextBefore);
-    const end = Math.min(contentStr.length, selEnd + contextAfter);
-
-    return {
-      before: contentStr.substring(start, selStart),
-      selected: contentStr.substring(selStart, selEnd),
-      after: contentStr.substring(selEnd, end),
-    };
+    return textAround(contentStr, posSelector.start, posSelector.end, contextBefore, contextAfter);
   }
 }

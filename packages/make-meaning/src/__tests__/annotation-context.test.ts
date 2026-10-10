@@ -5,6 +5,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { AnnotationGather, type AnnotationGatherReads } from '../annotation-gather';
+import { AnnotationContext } from '../annotation-context';
 import { deriveViews } from '@semiont/core';
 import { resourceId, annotationId, type Logger } from '@semiont/core';
 import type { GraphDatabase } from '@semiont/graph';
@@ -308,6 +309,91 @@ describe('AnnotationGather.buildLLMContext', () => {
 
     expect(result).toBeDefined();
     expect(result.focus).toHaveProperty('annotation');
+  });
+
+  // An offset counts Unicode code points, and so does a length worked out
+  // from one (specs/src/text/offset-cases.json). A JavaScript string counts
+  // UTF-16 code units, two for a character outside the Basic Multilingual
+  // Plane, so the two counts part after the first such character.
+  describe('an annotation is found, and its window measured, in code points', () => {
+    const selectedOf = async (id: string, options: { contextWindow: number }) => {
+      const gathered = await AnnotationGather.buildLLMContext(
+        annotationId(id),
+        resourceId(id),
+        kb,
+        mockEmbeddingProvider,
+        options,
+        undefined,
+        mockLogger,
+      );
+      return gathered.focus.kind === 'annotation' ? gathered.focus.selected : undefined;
+    };
+
+    it('the passage of an annotation that comes after such a character is its own words', async () => {
+      // Three books and their spaces are 6 code points and 9 UTF-16 code units.
+      const content = '📚 📚 📚 ' + 'x'.repeat(150) + ' Ada Lovelace wrote the first program. ' + 'y'.repeat(150);
+      const id = `after-books-${Date.now()}`;
+      await createTestResource(id, content);
+      await createTestAnnotation(id, annotationId(id), 'Ada Lovelace', 157, 169);
+
+      expect(await selectedOf(id, { contextWindow: 100 })).toEqual({
+        before: 'x'.repeat(99) + ' ',
+        text: 'Ada Lovelace',
+        after: ' wrote the first program. ' + 'y'.repeat(74),
+      });
+    });
+
+    it('contextWindow is a count of code points on each side', async () => {
+      // The hundred before are 40 letters and 60 books: 160 UTF-16 code units.
+      const content = 'a'.repeat(50) + '📚'.repeat(60) + 'Ada Lovelace' + '📚'.repeat(60) + 'b'.repeat(50);
+      const id = `books-in-the-window-${Date.now()}`;
+      await createTestResource(id, content);
+      await createTestAnnotation(id, annotationId(id), 'Ada Lovelace', 110, 122);
+
+      expect(await selectedOf(id, { contextWindow: 100 })).toEqual({
+        before: 'a'.repeat(40) + '📚'.repeat(60),
+        text: 'Ada Lovelace',
+        after: '📚'.repeat(60) + 'b'.repeat(40),
+      });
+    });
+
+    it('and so it is for an annotation that has a quote and no position', async () => {
+      const content = 'a'.repeat(50) + '📚'.repeat(60) + 'Ada Lovelace' + '📚'.repeat(60) + 'b'.repeat(50);
+      const id = `quote-only-books-${Date.now()}`;
+      await createTestResource(id, content);
+      await record.annotate(id, {
+        '@context': 'http://www.w3.org/ns/anno.jsonld',
+        id: annotationId(id),
+        type: 'Annotation',
+        motivation: 'highlighting',
+        created: '2026-01-01T00:00:00.000Z',
+        target: { source: resourceId(id), selector: { type: 'TextQuoteSelector', exact: 'Ada Lovelace' } },
+      });
+
+      expect(await selectedOf(id, { contextWindow: 100 })).toEqual({
+        before: 'a'.repeat(40) + '📚'.repeat(60),
+        text: 'Ada Lovelace',
+        after: '📚'.repeat(60) + 'b'.repeat(40),
+      });
+    });
+
+    it('the text cut around an annotation for its summary is cut the same way', () => {
+      const content = '📚 📚 📚 ' + 'x'.repeat(150) + ' Ada Lovelace wrote the first program. ' + 'y'.repeat(150);
+      const context = AnnotationContext.extractAnnotationContext(
+        {
+          '@context': 'http://www.w3.org/ns/anno.jsonld',
+          id: annotationId('summarized'),
+          type: 'Annotation',
+          motivation: 'highlighting',
+          created: '2026-01-01T00:00:00.000Z',
+          target: { source: resourceId('res-1'), selector: { type: 'TextPositionSelector', start: 157, end: 169 } },
+        },
+        content,
+        5,
+        5,
+      );
+      expect(context).toEqual({ before: 'xxxx ', selected: 'Ada Lovelace', after: ' wrot' });
+    });
   });
 
   describe('graph context enrichment', () => {

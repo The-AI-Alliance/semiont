@@ -234,7 +234,8 @@ IDENTITY_UNVERIFIABLE_REASONS: Final[tuple[IdentityUnverifiableReason, ...]] = (
 )
 
 # Why no annotation was built of a span: the span is not the text's, or, for a PDF, is nowhere
-# on its pages. specs/src/annotations/builder-cases.json holds when each is given.
+# on its pages, or the PDF's anchored text does not hold together.
+# specs/src/annotations/builder-cases.json holds when each is given.
 type SpanRefusal = Literal[
     # The span's offsets are not two whole numbers from 0, the second no less than the first,
     # within the text.
@@ -249,6 +250,11 @@ type SpanRefusal = Literal[
     "nothing-located",
     # The items of the PDF's anchored text that hold the span do not have its words.
     "exact-not-covered",
+    # An item of the PDF's anchored text is no stretch of that text: its offsets are not two
+    # whole numbers from 0, the second no less than the first, within the text. This one is said
+    # of the anchored text and not of the span: the items are what say where the text is on a
+    # page, and no span is built on an anchored text one of whose items cannot be.
+    "item-out-of-range",
 ]
 
 SPAN_REFUSALS: Final[tuple[SpanRefusal, ...]] = (
@@ -258,4 +264,5 @@ SPAN_REFUSALS: Final[tuple[SpanRefusal, ...]] = (
     "suffix-mismatch",
     "nothing-located",
     "exact-not-covered",
+    "item-out-of-range",
 )

@@ -565,10 +565,12 @@ def describe(annotation: Annotation) -> str:
 - **An offset counts Unicode code points**, which is what a `str` is indexed
   by: `text[span.start:span.end]` is `span.exact`.
 - **A span is checked before anything is built.** One that is not the
-  text's raises `SpanRefusedError`, and its `code` says which of six refusals
-  it is: `span-out-of-range`, `exact-mismatch`, `prefix-mismatch`,
-  `suffix-mismatch`, and for a PDF `nothing-located` and `exact-not-covered`.
-  A span `reconcile` found in a text is not refused for that text.
+  text's raises `SpanRefusedError`, and its `code` says which of seven
+  refusals it is: `span-out-of-range`, `exact-mismatch`, `prefix-mismatch`,
+  `suffix-mismatch`, and for a PDF `nothing-located`, `exact-not-covered` and
+  `item-out-of-range`. The last is said of the PDF's anchored text and not of
+  the span: one of its items is no stretch of its text, so no span of it is
+  built. A span `reconcile` found in a text is not refused for that text.
 - **A PDF is annotated through its anchored text**, which
   `client.browse.resource_anchored_text` answers. The words are found in its
   `text`, and the annotation selects them by a rectangle for each line they
