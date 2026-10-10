@@ -1,17 +1,16 @@
 """What a generation says to its model.
 
-Four prompts are stated outside any worker's source: the files
+Four prompts are stated outside the worker's source: the files
 `yield-*.txt` of `tests/conformance/worker-service/prompts`, each the exact
 text of one prompt less its one final line end. A prompt built here from what
 the suite's case asked with, around the resource's text as the file carries
 it, is that file's text.
 
-What those four do not reach is stated by nothing but the TypeScript worker's
-source: an annotation's comment, what a resource focus says beyond its
-content, the knowledge graph and the similar passages, the tasks and the
-structures but `prose`, Typst and a repair. Those are held here by whole
-prompts written out by hand from that source, and word for word to the source
-itself by `test_generation_typescript.py`.
+What those four do not reach is stated by nothing outside this worker: an
+annotation's comment, what a resource focus says beyond its content, the
+knowledge graph and the similar passages, the tasks and the structures but
+`prose`, Typst and a repair. Those are held here by whole prompts written out
+by hand.
 """
 
 import logging
@@ -133,7 +132,7 @@ def test_a_job_focused_on_an_annotation_is_asked_as_the_suite_s_file_says() -> N
     assert generation_prompt(params, "text/plain", None) == stated("yield-annotation")
 
 
-# What no file of the suite states. Each prompt is written out whole, from the TypeScript worker's source.
+# What no file of the suite states. Each prompt is written out whole.
 
 LONG: Final = "\U0001f600" * (SEMANTIC_MATCH_CODE_POINTS + 10)
 

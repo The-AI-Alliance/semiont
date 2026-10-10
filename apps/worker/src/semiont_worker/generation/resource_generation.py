@@ -7,8 +7,9 @@ focus, the neighbourhood the knowledge graph shows, and the passages found
 similar. Every passage the prompt shows is labelled with the id of its
 source in square brackets, which is what a model cites by.
 
-The words of the prompt are the TypeScript worker's, for as long as there is
-one: the tests hold each piece of text here to that worker's source.
+The words of the prompt are this module's own. Four whole prompts are stated
+outside it, by the Worker service's suite; the tests hold the rest to prompts
+written out whole.
 """
 
 from dataclasses import dataclass

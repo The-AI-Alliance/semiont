@@ -1,4 +1,4 @@
-"""A stream that is stopped ends every connection it began, whatever became of the first cancellation it sent one.
+"""A stream that is stopped ends every connection it began, whatever became of the first cancellation it sent each.
 
 A connection is a task, and a task is ended by cancelling it. The HTTP
 library can take a cancellation for its own. While a connection is being
