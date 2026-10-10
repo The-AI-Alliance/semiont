@@ -10,7 +10,7 @@
  * predicate could only agree with one of them.
  */
 
-import { SemiontError, isObject, isString, retryAfterMs, transportErrorCodeForStatus, type TransportErrorCode, type HttpStatusError } from '@semiont/core';
+import { SemiontError, isObject, isString, retryAfterMs, transportErrorCodeForStatus, whyUnanswered, type TransportErrorCode, type HttpStatusError } from '@semiont/core';
 
 export class APIError extends SemiontError {
   declare code: TransportErrorCode;
@@ -63,6 +63,17 @@ export class APIError extends SemiontError {
    */
   static withoutResponse(message: string, statusText: string): APIError {
     return new APIError(message, 'unavailable', 0, statusText, undefined, undefined);
+  }
+
+  /**
+   * The request `what` names got no answer, and `error` is what the runtime
+   * rejected with, or threw, in place of one. The runtime quotes the request
+   * in its words, the token it carries and the address it goes to: the
+   * failure says the kind of error it was, and none of those words
+   * (`whyUnanswered`).
+   */
+  static unanswered(what: string, error: unknown): APIError {
+    return APIError.withoutResponse(`${what} got no answer: ${whyUnanswered(error)}`, error instanceof Error ? error.name : 'Error');
   }
 }
 

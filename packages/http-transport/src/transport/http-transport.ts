@@ -103,6 +103,28 @@ function unansweredOf(request: Request, error: Error): APIError {
 }
 
 /**
+ * Ask ky for a request of `method` at `path`, and hand back what it answers.
+ *
+ * ky makes its request before any hook of its own runs, and the runtime
+ * refuses to make one of a token that is no header value, or of an address
+ * that is no URL or carries a credential. The refusal is thrown where ky was
+ * called, so it is caught where ky is called: a request that was never made
+ * got no answer (`APIError.unanswered`). `unanswered` is told of it before
+ * it is thrown.
+ */
+async function asked<T>(method: string, path: string, ask: () => PromiseLike<T>, unanswered?: (failure: APIError) => void): Promise<T> {
+  let answer: PromiseLike<T>;
+  try {
+    answer = ask();
+  } catch (error) {
+    const failure = APIError.unanswered(`${method} ${path}`, error);
+    unanswered?.(failure);
+    throw failure;
+  }
+  return answer;
+}
+
+/**
  * What a failed request is reported as: the gateway's refusal, or that it
  * never answered. Anything else — the caller's own abort, a fault in a
  * hook — is not the gateway's doing, and is handed back as it is.
@@ -125,19 +147,20 @@ const CURRENT_USER = '/api/users/me';
  * session asks this of a credential it found stored, before it trusts it.
  */
 export function currentUserOf(baseUrl: BaseUrl, token: AccessToken): Promise<UserResponse> {
-  return ky.get(`${withoutTrailingSlash(baseUrl)}${CURRENT_USER}`, {
-    headers: { Authorization: `Bearer ${token}` },
-    timeout: HTTP_REQUEST_TIMEOUT_MS,
-    hooks: {
-      beforeError: [
-        async ({ request, error }) => {
-          const reported = reportedAs(request, error);
-          if (reported !== error) throw reported;
-          return error;
-        },
-      ],
-    },
-  }).json();
+  return asked('GET', CURRENT_USER, () =>
+    ky.get(`${withoutTrailingSlash(baseUrl)}${CURRENT_USER}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: HTTP_REQUEST_TIMEOUT_MS,
+      hooks: {
+        beforeError: [
+          async ({ request, error }) => {
+            const reported = reportedAs(request, error);
+            if (reported !== error) throw reported;
+            return error;
+          },
+        ],
+      },
+    }).json<UserResponse>());
 }
 
 export class HttpTransport implements ITransport, IGatewayOperations {
@@ -268,7 +291,13 @@ export class HttpTransport implements ITransport, IGatewayOperations {
                   throw error;
                 }
                 if (!newToken) throw error;
-                request.headers.set('Authorization', `Bearer ${newToken}`);
+                try {
+                  request.headers.set('Authorization', `Bearer ${newToken}`);
+                } catch {
+                  // A token the runtime will not carry is no fresh credential
+                  // either, and the runtime says the token in refusing it.
+                  throw error;
+                }
                 return undefined;
               },
             ]
@@ -510,44 +539,43 @@ export class HttpTransport implements ITransport, IGatewayOperations {
   }
 
   async getCurrentUser(): Promise<UserResponse> {
-    return this.http.get(`${this.baseUrl}${CURRENT_USER}`, {
-      headers: this.authHeaders(),
-    }).json();
+    return this.ask('GET', CURRENT_USER, (http) => http.get(`${this.baseUrl}${CURRENT_USER}`, { headers: this.authHeaders() }).json<UserResponse>());
   }
 
   async getProtectedResourceMetadata(): Promise<ProtectedResourceMetadata> {
-    return this.http.get(`${this.baseUrl}/.well-known/oauth-protected-resource`).json();
+    const path = '/.well-known/oauth-protected-resource';
+    return this.ask('GET', path, (http) => http.get(`${this.baseUrl}${path}`).json<ProtectedResourceMetadata>());
   }
 
   async getMediaToken(resourceId: ResourceId): Promise<{ token: string }> {
-    return this.http.post(`${this.baseUrl}/api/tokens/media`, {
-      json: { resourceId },
-      headers: this.authHeaders(),
-    }).json();
+    const path = '/api/tokens/media';
+    return this.ask('POST', path, (http) =>
+      http.post(`${this.baseUrl}${path}`, { json: { resourceId }, headers: this.authHeaders() }).json<{ token: string }>());
   }
 
   // ── System status ─────────────────────────────────────────────────────
 
   async healthCheck(): Promise<HealthCheckResponse> {
-    return this.http.get(`${this.baseUrl}/api/health`, {
-      headers: this.authHeaders(),
-    }).json();
+    const path = '/api/health';
+    return this.ask('GET', path, (http) => http.get(`${this.baseUrl}${path}`, { headers: this.authHeaders() }).json<HealthCheckResponse>());
   }
 
   async getStatus(): Promise<StatusResponse> {
-    return this.http.get(`${this.baseUrl}/api/status`, {
-      headers: this.authHeaders(),
-    }).json();
+    const path = '/api/status';
+    return this.ask('GET', path, (http) => http.get(`${this.baseUrl}${path}`, { headers: this.authHeaders() }).json<StatusResponse>());
   }
 
-  // ── Internal: ky accessor for the content transport ───────────────────
+  // ── Internal: how the content transport asks ──────────────────────────
 
   /**
-   * The configured `ky` instance. `HttpContentTransport` issues its content
-   * requests through it, so they pass through the same hooks.
+   * Ask this transport's `ky` instance for a request of `method` at `path`.
+   * Every request of the transport is asked here, and `HttpContentTransport`
+   * asks its content requests here: they pass through the same hooks, and
+   * one the runtime will not make is reported as the others are, as a
+   * request that got no answer, on `errors$`.
    */
-  get rawHttp(): KyInstance {
-    return this.http;
+  ask<T>(method: string, path: string, make: (http: KyInstance) => PromiseLike<T>): Promise<T> {
+    return asked(method, path, () => make(this.http), (failure) => this.pushError(failure));
   }
 
   /**
