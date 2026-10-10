@@ -16,9 +16,9 @@ The Browser also ships as a published, attested container image
 
 These ship as attested images and are **not** published to npm. The gateway, the
 dispatcher and the Archivist are Rust binaries, each compiled into its image from its
-directory here. The other four are Node: their code lives in `@semiont/make-meaning` (the
-actors) and `@semiont/jobs` (the processors), and each one's directory here holds only its
-Dockerfile.
+directory here. The worker is Python, and is built into its image from its directory here
+too. The other three are Node: their code lives in `@semiont/make-meaning` (the actors), and
+each one's directory here holds only its Dockerfile.
 
 What each service reads, mounts and reaches is stated once, in the operator's
 [service catalog](../docs/operator/services/OVERVIEW.md). What the actors inside them do is
@@ -31,7 +31,7 @@ What each service reads, mounts and reaches is stated once, in the operator's
 | `semiont-librarian` | [librarian](./librarian/README.md) | 24104 | **Searches the record** — Gatherer (context assembly) and Matcher (candidate search + scoring) |
 | `semiont-smelter` | [smelter](./smelter/README.md) | 24101 | Chunks and embeds content into the vector store; owns anchored-text extraction |
 | `semiont-weaver` | [weaver](./weaver/README.md) | 24102 | Projects the event log into the graph |
-| `semiont-worker` | [worker](./worker/README.md) | 24100 | Claims queued jobs (detection, generation) and runs inference |
+| `semiont-worker` | [worker](./worker/README.md) | 24100 | Claims queued jobs (detection, generation) and runs inference. Python, with every model provider's library |
 | `semiont-dispatcher` | [dispatcher](./dispatcher/README.md) | 24105 | **Hands out the work** — owns the job queue and answers the `job:*` lifecycle commands; a control plane through which no content flows |
 
 All seven service images are built by

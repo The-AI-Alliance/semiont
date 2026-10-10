@@ -45,9 +45,9 @@ async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
         # Leaving this block stops the worker: a job it still holds is failed first, and the queue retries it.
         client.job.claim(accepts) as claims,
     ):
-        # What made the annotations it commits: the agent the gateway says this token is.
-        me = await transport.get_current_user()
-        generator = AgentSoftware(type="Software", id=me.did, name=agent_name(PROVIDER, MODEL), provider=PROVIDER, model=MODEL)
+        print(f"working as {agent.did}")
+        # What made the annotations it commits: the agent the gateway gave it.
+        generator = AgentSoftware(type="Software", id=agent.did, name=agent_name(PROVIDER, MODEL), provider=PROVIDER, model=MODEL)
         # Each job the worker comes to hold, one at a time. The next is claimed when this one settles.
         async for handed in claims:
             match handed:

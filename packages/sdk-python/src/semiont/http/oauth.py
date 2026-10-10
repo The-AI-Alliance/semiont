@@ -29,6 +29,7 @@ import httpx
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from semiont.errors import SignInError, TransportError
+from semiont.http._withheld import why_unanswered
 from semiont.http.transport import HttpTransport
 from semiont.identity import encode_uri_component
 from semiont.oauth_clients import SCRIPT_CLIENT_ID, SIGN_IN_SCOPE
@@ -158,7 +159,7 @@ async def discover_issuer(base_url: str) -> IssuerEndpoints:
         async with issuer_client() as http, _within():
             response = await http.get(url, headers={"Accept": "application/json"})
     except (TimeoutError, httpx.HTTPError) as error:
-        raise SignInError("discovery", f"Issuer {issuer}: discovery was not answered: {error!r}") from error
+        raise SignInError("discovery", f"Issuer {issuer}: discovery was not answered: {why_unanswered(error)}") from None
     status = response.status_code
     if not response.is_success:
         raise SignInError("discovery", f"Issuer {issuer}: discovery answered HTTP {status}", status=status)
@@ -196,7 +197,7 @@ async def post_form(http: httpx.AsyncClient, endpoint: str, form: Sequence[tuple
                 headers={"Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json"},
             )
     except (TimeoutError, httpx.HTTPError) as error:
-        raise SignInError("exchange", f"The issuer did not answer: {error!r}") from error
+        raise SignInError("exchange", f"The issuer did not answer: {why_unanswered(error)}") from None
     return response.status_code, object_in(response.content)
 
 

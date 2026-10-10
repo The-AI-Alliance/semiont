@@ -3,8 +3,9 @@
 A service account signs in at its issuer (OIDC discovery, then the
 client-credentials grant), and its token is exchanged at
 `POST /api/tokens/agent` for the token of the software agent
-`(provider, model)`, which names the work it does. The gateway decides how
-long the agent token lives.
+`(provider, model)`, which names the work it does. The gateway answers with
+the agent's DID beside the token (`did`): who that work is attributed to. The
+gateway decides how long the agent token lives.
 
 An `AgentToken` is a transport's token source, as a person's kept sign-in is:
 it gives the current token and each one after it (`token`), renews the token
@@ -16,7 +17,9 @@ and signs in again. An agent whose renewal fails keeps the token it has and
 tries again: a process holding a token that still works does not stop working
 over one bad round trip.
 
-A failure names the issuer and the client, and never the secret.
+A failure names the issuer and the client, and never the secret. Nor does one
+say any part of a token: an answer that is refused is said by what it lacks,
+in none of its own words.
 """
 
 import asyncio
@@ -29,7 +32,9 @@ import httpx
 from pydantic import ValidationError
 
 from semiont.errors import SemiontError, SignInError, TransportError
+from semiont.http._withheld import lacks, why_unanswered
 from semiont.http.oauth import issuer_client, object_in, post_form, seconds_in, text_in
+from semiont.identifiers import UserId
 from semiont.retry import REFRESH, RetryFacts, retry_after_ms, retry_with_backoff
 from semiont.session import refresh_delay, renew_when_due, renewal_delay
 from semiont.timing import HTTP_REQUEST_TIMEOUT_MS, REFRESH_RETRY
@@ -80,7 +85,7 @@ class ServiceToken:
             async with _within():
                 response = await http.get(url)
         except (TimeoutError, httpx.HTTPError) as error:
-            raise SignInError("discovery", f"OIDC discovery for {issuer} got no answer: {error!r}") from error
+            raise SignInError("discovery", f"OIDC discovery for {issuer} got no answer: {why_unanswered(error)}") from None
         status = response.status_code
         if not response.is_success:
             raise SignInError("discovery", f"OIDC discovery for {issuer} failed: HTTP {status} from {url}", status=status)
@@ -146,6 +151,7 @@ class AgentToken:
     is kept signed in until the way out.
 
     A transport is given `token` as its token and `refresh` as its refresher.
+    Signed in, it says who the agent is (`did`).
     """
 
     def __init__(self, gateway: str, *, provider: str, model: str, service: ServiceToken) -> None:
@@ -153,6 +159,7 @@ class AgentToken:
         self._agent: Final = AgentTokenRequest(provider=provider, model=model)
         self._service: Final = service
         self._token: Final[Variable[str | None]] = Variable(None)
+        self._did: UserId | None = None
         self._closing: Final = asyncio.Event()
         self._keeping: asyncio.Task[None] | None = None
 
@@ -166,10 +173,24 @@ class AgentToken:
         """The agent token: the current one, and each one after it."""
         return self._token
 
+    @property
+    def did(self) -> UserId:
+        """The agent's DID, as the gateway minted it under the knowledge base's own domain.
+
+        It is carried as it came: re-derived from the URL the process happens
+        to dial, one agent has two DIDs. It is the sign-in's answer, so an
+        agent that is not signed in has none, and asking for it raises.
+        """
+        if self._did is None:
+            raise RuntimeError("the agent is not signed in: hold it with `async with`")
+        return self._did
+
     async def __aenter__(self) -> Self:
         if self._keeping is not None or self._closing.is_set():
             raise RuntimeError("an agent is signed in once")
-        await self._renew()
+        signed_in = await self._exchange()
+        self._did = signed_in.did
+        self._token.set(signed_in.token)
         self._keeping = asyncio.create_task(renew_when_due(self._token, self._renew_within_budget))
         return self
 
@@ -192,7 +213,7 @@ class AgentToken:
 
     async def _renew(self) -> str:
         """Exchange again, and make the answer the token."""
-        token = await self._exchange()
+        token = (await self._exchange()).token
         self._token.set(token)
         return token
 
@@ -209,7 +230,8 @@ class AgentToken:
         except SemiontError:
             return
 
-    async def _exchange(self) -> str:
+    async def _exchange(self) -> AgentTokenResponse:
+        """One exchange: the service account's token for the agent's, and the DID the gateway names the agent by."""
         authorization = await self._service.authorization()
         url = f"{self._gateway}/api/tokens/agent"
         try:
@@ -220,13 +242,15 @@ class AgentToken:
                     headers={"Authorization": authorization, "Content-Type": "application/json"},
                 )
         except (TimeoutError, httpx.HTTPError) as error:
-            raise TransportError.without_response(f"{url} got no answer: {error!r}") from error
+            raise TransportError.without_response(f"{url} got no answer: {why_unanswered(error)}") from None
         status = response.status_code
         if not response.is_success:
             raise TransportError.of_status(
                 f"the gateway refused the agent token exchange (HTTP {status})", status, retry_after_ms(response.headers.get("retry-after"))
             )
         try:
-            return AgentTokenResponse.model_validate_json(response.content).token
+            return AgentTokenResponse.model_validate_json(response.content)
         except ValidationError as error:
-            raise TransportError("error", f"{url} did not answer an agent token: {error}", status=status) from error
+            lacking = lacks(AgentTokenResponse, error, "an agent token")
+        # Raised from nothing: the decoder's failure shows the answer, and what a failure is raised from is printed with it.
+        raise TransportError("error", f"{url} did not answer an agent token: {lacking}", status=status)

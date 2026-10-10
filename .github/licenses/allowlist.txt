@@ -1,7 +1,8 @@
 # Permissive SPDX license allowlist for the published service images.
 #
-# The license-policy gates check every bundled npm dependency's SPDX license
-# (.github/scripts/check-licenses.mjs, over an image's SBOM) and every crate
+# The license-policy gates check the SPDX license of every package an image
+# installs from npm or from PyPI (.github/scripts/check-licenses.mjs, over an
+# image's SBOM) and of every crate
 # a Rust service binary links (scripts/lint/check-image-crates.mjs) against this
 # list, and fail if anything is unlisted. Approved (permissive) licenses pass silently;
 # copyleft / unknown / unusual licenses trip CI and get a human review — at
@@ -45,6 +46,13 @@ CC-BY-3.0
 Unicode-3.0
 Zlib
 CDLA-Permissive-2.0
+
+# The worker image's Python packages (check-licenses.mjs reads the PyPI packages
+# of an image's SBOM as it reads the npm ones). One license is new with them,
+# and permissive: PSF-2.0 — the Python Software Foundation License, on
+# typing_extensions, which pydantic and the model providers' libraries require.
+# Added 2026-10-10.
+PSF-2.0
 
 # Deliberately NOT wildcarded to `BSD-*`: BSD-4-Clause carries the advertising
 # clause and should trip a review rather than pass silently. Add BSD-2/3-Clause

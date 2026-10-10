@@ -41,10 +41,10 @@ semiont/
 │   ├── gateway/            # Rust: verifies tokens, relays the bus, proxies content
 │   ├── dispatcher/         # Rust: owns the job queue
 │   ├── archivist/          # Rust: keeps the record — event log, content, views
-│   ├── librarian/          # Image definitions for the four Node services;
+│   ├── librarian/          # Image definitions for the three Node services;
 │   ├── smelter/            #   their code is in @semiont/make-meaning
-│   ├── weaver/             #   and @semiont/jobs
-│   ├── worker/
+│   ├── weaver/
+│   ├── worker/             # Python: claims jobs and runs them against a model
 │   ├── browser/            # The Semiont Browser: a Vite + React single-page app
 │   ├── desktop/            # The Browser as a desktop app (Tauri)
 │   └── launcher/           # Go: the `semiont` command

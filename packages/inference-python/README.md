@@ -74,8 +74,8 @@ driver satisfies.
 
 Every name is imported from the module that has it: the contract and its
 failures from `semiont_inference.interface`, `create_inference_client` from
-`semiont_inference.factory`, `report_limits` from
-`semiont_inference.limits_report`, and what reads a model catalogue from
+`semiont_inference.factory`, `report_limits` and `answer_limits_requests`
+from `semiont_inference.limits_report`, and what reads a model catalogue from
 `semiont_inference.catalogue`. A driver is a module too:
 
 | Provider | Its client |
@@ -91,7 +91,11 @@ failures from `semiont_inference.interface`, `create_inference_client` from
 For tests there is `semiont_inference.mock.MockInferenceClient`, which
 answers from a list it is given and keeps the calls made of it.
 `report_limits` gathers the limits of the clients a service holds, as the
-protocol's `InferencePairLimits`.
+protocol's `InferencePairLimits`. `answer_limits_requests` answers a request
+for them on the bus: it is given the SDK's bus, the limits operation the
+service answers (`semiont.operations.JOB_LIMITS_REQUESTED` for the Worker),
+and the clients, and answers each request with a report for as long as it is
+awaited.
 
 A provider is who serves the model, and not whose API the request is shaped
 by: vLLM and llama.cpp's server are asked by OpenAI's Chat Completions API,

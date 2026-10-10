@@ -4,7 +4,13 @@ A process installs each once, and a second installing is refused. So a test
 that reads what the service told OpenTelemetry asks for one of these, and
 installs nothing itself. What is read is everything the run has recorded so
 far: a test says which of it is its own.
+
+A process's logging is configured once too, by the service as it boots. A
+test that boots it, or configures it, asks for it to be put back.
 """
+
+import logging
+from collections.abc import Generator
 
 import pytest
 from opentelemetry import metrics, trace
@@ -31,3 +37,20 @@ def metric_reader() -> InMemoryMetricReader:
     reader = InMemoryMetricReader()
     metrics.set_meter_provider(MeterProvider(metric_readers=[reader]))
     return reader
+
+
+@pytest.fixture
+def unconfigured() -> Generator[None]:
+    """Put the process's logging back as it was once the test is over."""
+    root = logging.getLogger()
+    handlers, level = list(root.handlers), root.level
+    own = ("semiont_worker", "semiont_inference", "semiont")
+    levels = {name: logging.getLogger(name).level for name in own}
+    try:
+        yield
+    finally:
+        root.handlers[:] = handlers
+        root.setLevel(level)
+        for name, was in levels.items():
+            logging.getLogger(name).setLevel(was)
+        logging.captureWarnings(False)

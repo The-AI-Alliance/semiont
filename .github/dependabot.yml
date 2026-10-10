@@ -313,8 +313,8 @@ updates:
   # archivist's runtime base is alpine; their builder's Rust tag comes from rust-toolchain.toml, which
   # the rust-toolchain entry updates. Major node updates are ignored because node
   # 26's undici breaks the qdrant client the sidecars carry; drop the ignore
-  # when qdrant ships a fix. apps/browser and apps/worker carry no qdrant
-  # client, run Node 26, and have their own entries.
+  # when qdrant ships a fix. apps/browser carries no qdrant client, runs Node
+  # 26, and has its own entry. apps/worker is Python, and has its own too.
   - package-ecosystem: "docker"
     directories:
       - "/apps/gateway"
@@ -344,9 +344,12 @@ updates:
       prefix: "service-docker"
       include: "scope"
 
-  # Worker base image (apps/worker/Dockerfile). Outside the service group: its
-  # @semiont/jobs carries no qdrant client, so it runs Node 26 and takes the
-  # major node updates the qdrant-bound sidecars cannot.
+  # The worker image (apps/worker/Dockerfile). Its Python base is no tag this
+  # entry can move: it is python:${PYTHON_FLOOR}-<variant>, the floor
+  # packages/sdk-python/pyproject.toml states, which a person moves. What the
+  # file's FROM lines write out, and this entry moves, is the uv that makes
+  # the image's environment. Outside the service group, whose bases are Node
+  # and Alpine.
   - package-ecosystem: "docker"
     directory: "/apps/worker"
     schedule:

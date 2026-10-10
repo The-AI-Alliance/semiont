@@ -42,7 +42,9 @@ at most five minutes before, and at once when the gateway refuses it.
 
 **An agent** is a service account's token exchanged at the gateway for the
 token of the agent `(provider, model)`. It is what a service holds: a
-transport, its agent's token, and the channels it awaits replies on.
+transport, its agent's token, and the channels it awaits replies on. The
+gateway answers the exchange with the agent's DID, which is who its work is
+attributed to: `agent.did`, once it is signed in, as the gateway minted it.
 
 ```python
 from semiont.bus import reply_channels_for
@@ -57,6 +59,7 @@ async def work(gateway: str, issuer: str, secret: str) -> None:
         AgentToken(gateway, provider="ollama", model="gemma2:27b", service=service) as agent,
         HttpTransport(gateway, token=agent.token, refresher=agent.refresh, channels=reply_channels_for(JOB_CLAIM)) as transport,
     ):
+        print(f"working as {agent.did}")  # who its work is attributed to, as the gateway named it
         print(await reached(transport.state, lambda state: state == "open"))  # its stream is open, as the agent
 ```
 
@@ -406,9 +409,9 @@ async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
         # Leaving this block stops the worker: a job it still holds is failed first, and the queue retries it.
         client.job.claim(accepts) as claims,
     ):
-        # What made the annotations it commits: the agent the gateway says this token is.
-        me = await transport.get_current_user()
-        generator = AgentSoftware(type="Software", id=me.did, name=agent_name(PROVIDER, MODEL), provider=PROVIDER, model=MODEL)
+        print(f"working as {agent.did}")
+        # What made the annotations it commits: the agent the gateway gave it.
+        generator = AgentSoftware(type="Software", id=agent.did, name=agent_name(PROVIDER, MODEL), provider=PROVIDER, model=MODEL)
         # Each job the worker comes to hold, one at a time. The next is claimed when this one settles.
         async for handed in claims:
             match handed:

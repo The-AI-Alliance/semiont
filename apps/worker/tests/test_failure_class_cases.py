@@ -16,7 +16,7 @@ from semiont_inference.interface import ProviderStatusError, ProviderWithheldErr
 from spec import SPEC
 
 from semiont_worker.detection.chunk_plan import UnderReportedPiece, YieldCollapseError
-from semiont_worker.failure_class import JOB, DeterministicJobError, classify_failure
+from semiont_worker.failure_class import JOB, DeterministicJobError, classify_failure, words_of
 from semiont_worker.inference_call import InferenceTimeoutError
 
 
@@ -120,3 +120,11 @@ def test_every_status_is_classed_by_the_job_rule_and_by_no_second_list() -> None
     for status in range(100, 600):
         expected = "transient" if JOB.retryable(RetryFacts(status=status)) else "deterministic" if status >= 400 else None
         assert classify_failure(ProviderStatusError("refused", status)) == expected, status
+
+
+def test_a_failure_is_said_in_its_own_words_or_by_its_kind_where_it_has_none() -> None:
+    assert words_of(DeterministicJobError("No processor for job: mark (tagging)")) == "No processor for job: mark (tagging)"
+    assert words_of(TransportError.of_status("/bus/emit 503: not now", 503, None)) == "/bus/emit 503: not now"
+    # A failure raised with nothing to say is still said: by what it is.
+    assert words_of(TimeoutError()) == "TimeoutError"
+    assert words_of(asyncio.CancelledError()) == "CancelledError"

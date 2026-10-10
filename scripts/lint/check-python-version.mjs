@@ -25,13 +25,17 @@
  *    1 holds of its manifest too, and its classifiers name the versions the
  *    SDK's do. An installer reads its `requires-python` line as it reads the
  *    SDK's. Nothing else does: rule 6's one reader reads the SDK's.
+ * 8. An image that runs Python runs the floor. A Dockerfile's `FROM python:`
+ *    is `python:${PYTHON_FLOOR}-<variant>`, and the file declares
+ *    `ARG PYTHON_FLOOR` with no default, so a build that is not told the
+ *    floor stops at the FROM. What tells it asks scripts/ci/python-floor.sh.
  *
  * WHAT THE REPOSITORY HOLDS is what git says it does (repository-files.mjs):
  * the files git tracks, and new ones it does not ignore.
  */
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'smol-toml';
 import { repositoryFiles } from './repository-files.mjs';
@@ -106,6 +110,7 @@ for (const manifest of others) {
 
 let read = 0;
 let matrices = 0;
+let dockerfiles = 0;
 for (const file of files) {
   if (file === SELF) continue;
   let text;
@@ -117,8 +122,29 @@ for (const file of files) {
   if (text.includes('\u0000')) continue; // not text
   read += 1;
   const isWorkflow = /^\.github\/.*\.ya?ml$/.test(file);
+  const lines = text.split('\n');
 
-  text.split('\n').forEach((line, index) => {
+  // Rule 8.
+  if (/dockerfile/i.test(basename(file))) {
+    const pythonStages = lines
+      .map((line, index) => ({ index, image: /^FROM\s+(?:--\S+\s+)*(\S+)/.exec(line)?.[1] }))
+      .filter(({ image }) => image && /(?:^|\/)python(?::|@|$)/.test(image));
+    if (pythonStages.length > 0) {
+      dockerfiles += 1;
+      for (const { index, image } of pythonStages) {
+        if (!/^python:\$\{PYTHON_FLOOR\}-[a-z0-9.]+$/.test(image)) {
+          fail(`${file}:${index + 1} builds from ${image}; a Python image is python:\${PYTHON_FLOOR}-<variant>`);
+        }
+      }
+      const declared = lines.findIndex((line) => /^ARG\s+PYTHON_FLOOR\s*$/.test(line));
+      if (declared < 0 || declared > pythonStages[0].index) fail(`${file} does not declare \`ARG PYTHON_FLOOR\` before its first Python stage`);
+      lines.forEach((line, index) => {
+        if (/^ARG\s+PYTHON_FLOOR\s*=/.test(line)) fail(`${file}:${index + 1} gives PYTHON_FLOOR a default; with none, a build that is not told the floor stops`);
+      });
+    }
+  }
+
+  lines.forEach((line, index) => {
     const at = `${file}:${index + 1}`;
 
     if (/\bpython:[0-9]/.test(line)) fail(`${at} writes a Python image's tag out; it is python:<floor>-<variant>, with the floor ${READER} prints`);
@@ -151,8 +177,9 @@ for (const file of files) {
 }
 
 if (matrices === 0) fail('no workflow runs a matrix of Python versions: the check has lost what it reads');
+if (dockerfiles === 0) fail('no Dockerfile builds from a Python image: the check has lost what it reads');
 
 if (failures.length > 0) report();
 console.log(
-  `✅ lint:python-version — the floor is ${floor}, and the versions ${supportedSaid}; ${read} files read, ${others.length} other Python package(s) held to them, and every restatement says the same`,
+  `✅ lint:python-version — the floor is ${floor}, and the versions ${supportedSaid}; ${read} files read, ${others.length} other Python package(s) held to them, ${dockerfiles} Dockerfile(s) build from python:\${PYTHON_FLOOR}, and every restatement says the same`,
 );

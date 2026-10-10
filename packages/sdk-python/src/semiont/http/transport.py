@@ -23,6 +23,7 @@ from semiont import telemetry
 from semiont.channels import BRIDGED_CHANNELS, RESOURCE_SCOPED_CHANNELS
 from semiont.errors import SemiontError, TransportError
 from semiont.events import Broadcast, Events
+from semiont.http._withheld import why_unanswered
 from semiont.http.content import HttpContentTransport
 from semiont.http.exchange import Exchange, TokenRefresher
 from semiont.http.stream import Bookmarks, Stream, Timing
@@ -269,7 +270,7 @@ class HttpTransport(Transport, GatewayOperations):
         except TimeoutError:
             raise TransportError.without_response(f"/bus/emit got no answer within {EMIT_TIMEOUT_MS // 1000}s") from None
         except httpx.HTTPError as error:
-            raise TransportError.without_response(f"/bus/emit got no answer: {error!r}") from error
+            raise TransportError.without_response(f"/bus/emit got no answer: {why_unanswered(error)}") from None
         if not response.is_success:
             status = response.status_code
             detail = response.text[:500]

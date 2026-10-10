@@ -19,12 +19,30 @@ classifiers = [
 ]
 # OpenTelemetry's API and pydantic are the SDK's dependencies too, and the SDK
 # states their versions: a bound written here would be a second copy of its.
+# OpenTelemetry's SDK and its OTLP exporter are what the service exports its
+# telemetry with, at the versions the SDK states for its conformance drivers:
+# tests/test_census.py holds the two to each other.
 dependencies = [
     "opentelemetry-api",
+    "opentelemetry-exporter-otlp-proto-http>=1.30,<2",
+    "opentelemetry-sdk>=1.30,<2",
     "pydantic",
     "semiont",
     "semiont-inference",
 ]
+
+# A provider's own library is not required: the service asks for a client by
+# the provider's name, and the inference drivers import that provider's
+# library then. Each extra here brings the drivers' extra of the same name,
+# and with it that library. The image asks for every one (`--all-extras`, in
+# Dockerfile); an image built for one provider asks for that provider's alone.
+[project.optional-dependencies]
+anthropic = ["semiont-inference[anthropic]"]
+google = ["semiont-inference[google]"]
+llamacpp = ["semiont-inference[llamacpp]"]
+openai = ["semiont-inference[openai]"]
+together = ["semiont-inference[together]"]
+vllm = ["semiont-inference[vllm]"]
 
 # The SDK and the inference drivers are the ones in this repository: the
 # service is checked and tested against the types the tree's spec generates.
@@ -39,9 +57,9 @@ semiont-inference = { path = "../../packages/inference-python", editable = true 
 # packages/sdk-python/pyproject.toml.
 [dependency-groups]
 dev = [
+    # Every extra: the tests run the service with every provider's library, as its image has them.
+    "semiont-worker[anthropic,google,llamacpp,openai,together,vllm]",
     "mypy==2.4.0",
-    # What reads, in memory, the telemetry the service records (tests/conftest.py).
-    "opentelemetry-sdk>=1.30,<2",
     "pyright==1.1.414",
     "pytest>=9.1,<10",
     "ruff==0.16.10",

@@ -74,6 +74,8 @@ const TABLES = [
       'packages/core/src/__tests__/pdf-locate-cases.test.ts',
       'packages/sdk-rust/src/annotations/locate.rs',
       'packages/sdk-python/tests/test_pdf_locate.py',
+      // Its `claims`, which are the rule of Semiont's worker alone.
+      'apps/worker/tests/test_claim_cases.py',
     ],
     countsCodePoints: true,
   },

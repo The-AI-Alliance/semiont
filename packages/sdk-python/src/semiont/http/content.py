@@ -19,6 +19,7 @@ from pydantic import TypeAdapter
 
 from semiont import telemetry
 from semiont.errors import TransportError
+from semiont.http._withheld import why_unanswered
 from semiont.http.exchange import Exchange
 from semiont.identifiers import ResourceId
 from semiont.transport import Content, ContentStream, ContentTransport, PutBinaryRequest, Upload, UploadProgress
@@ -165,7 +166,7 @@ def _content_type(response: httpx.Response) -> str:
 
 def _interrupted(resource_id: ResourceId, error: httpx.HTTPError) -> TransportError:
     """A read whose bytes stopped coming."""
-    return TransportError.without_response(f"GET {_path_of(resource_id)} ended before its bytes did: {error!r}")
+    return TransportError.without_response(f"GET {_path_of(resource_id)} ended before its bytes did: {why_unanswered(error)}")
 
 
 @final
@@ -204,7 +205,7 @@ class HttpContentTransport(ContentTransport):
             try:
                 data = await response.aread()
             except httpx.HTTPError as error:
-                raise self._exchange.failed(_interrupted(resource_id, error)) from error
+                raise self._exchange.failed(_interrupted(resource_id, error)) from None
             finally:
                 await response.aclose()
             return Content(data=data, content_type=_content_type(response))
@@ -221,7 +222,7 @@ class HttpContentTransport(ContentTransport):
             async for piece in pieces:
                 yield piece
         except httpx.HTTPError as error:
-            raise self._exchange.failed(_interrupted(resource_id, error)) from error
+            raise self._exchange.failed(_interrupted(resource_id, error)) from None
         finally:
             # A read left early is ended here, by the one who left it.
             if isinstance(pieces, AsyncGenerator):

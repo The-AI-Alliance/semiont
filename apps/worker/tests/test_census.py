@@ -7,8 +7,12 @@ SDK and the inference drivers it is checked against are the ones in this
 repository. It is a service's code and no library: it carries no marker of a
 typed package, no index takes it, and no other Python package of the
 repository requires it. It does nothing by provider: of the inference
-package it imports what a client is, and no driver. And one module names
-OpenTelemetry, and one names the logger.
+package it imports what a client is and no driver, but for the one module
+that makes each agent's client and the one that answers for their limits.
+It requires no provider's library: each is an extra, and its image asks for
+every one.
+One module tells OpenTelemetry of the service's work and one installs what
+exports it, one names the logger, and one reads the process's environment.
 """
 
 import re
@@ -74,9 +78,18 @@ def settings(manifest: Toml, tool: str, *, but: tuple[str, ...]) -> Toml:
 
 
 def imported(sources: list[Path]) -> set[str]:
-    """Every module the files import, as each is written."""
-    naming = re.compile(r"^(?:from ([\w.]+) import |import ([\w.]+))", re.MULTILINE)
+    """Every module the files import, as each is written: at a module's top, and where a function imports what it alone needs."""
+    naming = re.compile(r"^[ ]*(?:from ([\w.]+) import |import ([\w.]+)$)", re.MULTILINE)
     return {found.group(1) or found.group(2) for path in sources for found in naming.finditer(path.read_text(encoding="utf-8"))}
+
+
+def modules(names: set[str]) -> list[str]:
+    """The modules of the source that import a module whose name begins with one of `names`, by their paths in the package."""
+    return sorted(
+        str(path.relative_to(SRC))
+        for path in SRC.rglob("*.py")
+        if any(module == name or module.startswith(f"{name}.") for module in imported([path]) for name in names)
+    )
 
 
 def test_the_walk_found_the_project() -> None:
@@ -100,10 +113,8 @@ def test_the_checkers_and_their_strictness_are_the_sdks() -> None:
     ours, theirs = toml(PROJECT / "pyproject.toml"), toml(SDK / "pyproject.toml")
 
     checkers = ("mypy", "pyright", "pytest", "ruff")
-    assert set(tools(ours, "dev")) == {*checkers, "opentelemetry-sdk"}
+    assert set(tools(ours, "dev")) == {*checkers, "semiont-worker"}
     assert {name: tools(ours, "dev")[name] for name in checkers} == {name: tools(theirs, "dev")[name] for name in checkers}
-    # What reads this service's telemetry in memory is what the SDK's conformance drivers export theirs with, as the SDK states it.
-    assert tools(ours, "dev")["opentelemetry-sdk"] == tools(theirs, "conformance")["opentelemetry-sdk"]
 
     # What each reads is its own project's; everything else is the same.
     assert settings(ours, "mypy", but=("files",)) == settings(theirs, "mypy", but=("files",))
@@ -121,13 +132,35 @@ def test_the_checkers_and_their_strictness_are_the_sdks() -> None:
 
 
 def test_what_the_manifest_requires_is_what_the_source_imports() -> None:
-    # A distribution is imported by its own name, but for the one named here.
-    imported_as = {"opentelemetry-api": "opentelemetry"}
-    declared = {imported_as.get(name, name.replace("-", "_")) for name in map(name_of, required(toml(PROJECT / "pyproject.toml")))}
-    roots = {module.split(".")[0] for module in imported(sorted(SRC.rglob("*.py")))}
+    # A distribution is imported by its own name, but for OpenTelemetry's three: its API, its SDK and its OTLP exporter
+    # are each a part of the one package.
+    part_of_opentelemetry = {
+        "opentelemetry-api": "opentelemetry",
+        "opentelemetry-sdk": "opentelemetry.sdk",
+        "opentelemetry-exporter-otlp-proto-http": "opentelemetry.exporter.otlp.proto.http",
+    }
+    names = set(map(name_of, required(toml(PROJECT / "pyproject.toml"))))
+    declared = {"opentelemetry" if name in part_of_opentelemetry else name.replace("-", "_") for name in names}
+    everything = imported(sorted(SRC.rglob("*.py")))
+    roots = {module.split(".")[0] for module in everything}
     # Every module imported from outside the standard library is declared, and nothing declared goes unused.
     assert roots - set(sys.stdlib_module_names) - {"semiont_worker"} == declared
     assert declared == {"opentelemetry", "pydantic", "semiont", "semiont_inference"}
+    assert names >= set(part_of_opentelemetry)
+    for distribution, part in part_of_opentelemetry.items():
+        assert any(module == part or module.startswith(f"{part}.") for module in everything), f"nothing imports {distribution}"
+    # The API is what is left of OpenTelemetry once the other two are taken away, and something imports that too.
+    others = tuple(part for part in part_of_opentelemetry.values() if part != "opentelemetry")
+    assert any(module.split(".")[0] == "opentelemetry" and not module.startswith(others) for module in everything)
+
+
+def test_what_exports_the_service_s_telemetry_is_at_the_versions_the_sdk_states_for_its_own_drivers() -> None:
+    # OpenTelemetry's SDK and its exporter are no dependency of the SDK's: only a process that exports takes them.
+    # The SDK states their versions once, for the drivers its conformance suite runs, and this manifest says the same.
+    ours = {name_of(requirement): requirement for requirement in required(toml(PROJECT / "pyproject.toml"))}
+    theirs = tools(toml(SDK / "pyproject.toml"), "conformance")
+    assert set(theirs) == {"opentelemetry-sdk", "opentelemetry-exporter-otlp-proto-http"}
+    assert {name: ours[name] for name in theirs} == theirs
 
 
 def test_a_dependency_the_sdk_bounds_is_named_here_without_a_bound_of_its_own() -> None:
@@ -175,16 +208,71 @@ def test_it_is_a_service_s_code_and_no_library() -> None:
 def test_the_source_does_nothing_by_provider() -> None:
     # What differs between providers is said by the client. Of the inference package the source imports
     # what a client is, what it answers and how it fails, and names no driver.
-    of_inference = {module for module in imported(sorted(SRC.rglob("*.py"))) if module.split(".")[0] == "semiont_inference"}
-    assert of_inference == {"semiont_inference.interface"}
+    beyond_what_a_client_is = {
+        # The module that boots the service makes each agent's client, from what the configuration document names.
+        "service.py": {"semiont_inference.factory"},
+        # The module that is one agent answers a request for the limits of the service's models.
+        "agent.py": {"semiont_inference.limits_report"},
+    }
+    for path in sorted(SRC.rglob("*.py")):
+        of_inference = {module for module in imported([path]) if module.split(".")[0] == "semiont_inference"}
+        allowed = beyond_what_a_client_is.get(str(path.relative_to(SRC)), set())
+        assert of_inference - {"semiont_inference.interface"} == allowed, path.name
+    # Each of the two exists, and imports what it is allowed.
+    assert modules({"semiont_inference.factory"}) == ["service.py"]
+    assert modules({"semiont_inference.limits_report"}) == ["agent.py"]
 
 
-def test_one_module_names_opentelemetry_and_one_names_the_logger() -> None:
-    # What the service tells OpenTelemetry is the rows of one table, and what it logs goes through one logger:
-    # each has one module, and every other module asks that one.
+def test_two_modules_name_opentelemetry_and_one_names_the_logger() -> None:
+    # What the service tells OpenTelemetry of its work is the rows of one table, and has one module. What exports
+    # it, the SDK and its exporter, is installed by one other, which also takes the process's own readings. What
+    # the service logs goes through one logger. Every other module asks these.
+    assert modules({"opentelemetry"}) == ["observability.py", "telemetry.py"]
+    assert modules({"opentelemetry.sdk", "opentelemetry.exporter"}) == ["observability.py"]
     sources = sorted(SRC.rglob("*.py"))
-    assert sorted(
-        str(path.relative_to(SRC)) for path in sources if "opentelemetry" in {module.split(".")[0] for module in imported([path])}
-    ) == ["telemetry.py"]
     assert sorted(str(path.relative_to(SRC)) for path in sources if "getLogger(" in path.read_text(encoding="utf-8")) == ["log.py"]
     assert (SRC / "log.py").read_text(encoding="utf-8").count('getLogger("semiont_worker")') == 1
+
+
+def test_one_module_reads_the_process_s_environment_and_the_variables_read_are_the_ones_the_protocol_lists() -> None:
+    sources = {str(path.relative_to(SRC)): path.read_text(encoding="utf-8") for path in sorted(SRC.rglob("*.py"))}
+    # The process's environment and its arguments are read in one place, and handed on from there.
+    reading = re.compile(r"\bos\.environ\b|\bos\.getenv\b|\bsys\.argv\b|\bgetenv\(")
+    assert sorted(name for name, source in sources.items() if reading.search(source)) == ["service.py"]
+
+    # Every variable the source names, as a variable's name is written: capitals, joined by underscores.
+    named = {found for source in sources.values() for found in re.findall(r'"([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)"', source)}
+    document = (ROOT / "docs/protocol/WORKER-SERVICE.md").read_text(encoding="utf-8")
+    section = re.search(r"\n## Environment\n(.*?)\n## ", document, re.DOTALL)
+    assert section is not None
+    listed = set(re.findall(r"`([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)`", section.group(1)))
+    assert len(listed) >= 14
+    not_read_here = {
+        # Named by the section as the two the service does not read: how much it logs is its document's to say.
+        "LOG_LEVEL",
+        "LOG_FORMAT",
+        # Read by OpenTelemetry's SDK, and not by the service's own code (E8).
+        "OTEL_BSP_SCHEDULE_DELAY",
+        # The bus log is its transport's to write, and the Python SDK's transport writes none: E9 is not met.
+        "SEMIONT_BUS_LOG",
+    }
+    assert not_read_here <= listed
+    assert named == listed - not_read_here
+
+
+def test_a_providers_library_is_an_extra_and_the_image_asks_for_every_one() -> None:
+    manifest = toml(PROJECT / "pyproject.toml")
+    # The service requires the drivers, and no provider's library with them.
+    assert "semiont-inference" in required(manifest)
+    # An extra for each of the drivers' extras, of the same name, which brings that one and nothing else.
+    of_the_drivers = table(table(toml(INFERENCE / "pyproject.toml")["project"], "project")["optional-dependencies"], "the drivers' extras")
+    extras = table(table(manifest["project"], "project")["optional-dependencies"], "optional-dependencies")
+    assert {extra: texts(brought, f"the extra {extra}") for extra, brought in extras.items()} == {
+        extra: [f"semiont-inference[{extra}]"] for extra in of_the_drivers
+    }
+    # The image asks for every one, and so does the environment the checkers and the tests run in.
+    syncs = [line.split() for line in (PROJECT / "Dockerfile").read_text(encoding="utf-8").splitlines() if line.startswith("RUN uv sync ")]
+    assert len(syncs) == 1
+    assert "--all-extras" in syncs[0]
+    dev = texts(table(manifest["dependency-groups"], "dependency-groups")["dev"], "the dev group")
+    assert f"semiont-worker[{','.join(sorted(extras))}]" in dev

@@ -23,7 +23,7 @@ Packages that must move together are grouped, so they arrive in one pull request
 
 `npm run lint:go-toolchain` holds the Go version the same way. Each `go.mod` pins the toolchain, because Go reads no other module's, and the gate fails when the two differ, when a Go image's tag is written out, when a workflow names a Go version in place of a `go.mod`, or when anything but [`scripts/ci/go-toolchain.sh`](../../scripts/ci/go-toolchain.sh) reads the pin.
 
-`npm run lint:python-version` holds the Python the SDK supports. `requires-python` states the floor, a person moves it, and the tools that do not read it keep a copy: mypy, pyright, the classifiers, and the versions CI installs. The gate fails when one of them, a sentence in a document, or a Python image's tag says anything else, and when anything but [`scripts/ci/python-floor.sh`](../../scripts/ci/python-floor.sh) reads the line.
+`npm run lint:python-version` holds the Python the SDK supports. `requires-python` states the floor, a person moves it, and the tools that do not read it keep a copy: mypy, pyright, the classifiers, and the versions CI installs. The gate fails when one of them, a sentence in a document, or a Python image's tag says anything else, and when anything but [`scripts/ci/python-floor.sh`](../../scripts/ci/python-floor.sh) reads the line. An image that runs Python runs the floor: its Dockerfile takes it as `PYTHON_FLOOR`, as a Rust image takes `RUST_TOOLCHAIN`, and the gate fails on a Python base that is not `python:${PYTHON_FLOOR}-<variant>` or an argument with a default.
 
 `npm run lint:node-version` holds Node's two versions. [`.node-version`](../../.node-version) names the Node that builds and tests: the workflows read the file, and the scripts ask [`scripts/ci/node-version.sh`](../../scripts/ci/node-version.sh) for their image's tag. `engines.node` is the floor a package asks of whoever installs it, which npm reads from each manifest alone: every manifest states it, and the gate holds them, and the lockfile's copies, to the root's. It fails on a version a workflow writes, on a Node image tag outside a Dockerfile, and on a sentence that states another floor. A Dockerfile's base image is its own, and Dependabot moves it.
 
@@ -78,7 +78,7 @@ The version bump regenerates the root lockfile itself ([Release](RELEASE.md#5-bu
 
 ## Licences
 
-The service images pass a licence policy before they are published. For the Node images it reads the image's bill of materials; for the Rust images, [`scripts/lint/check-image-crates.mjs`](../../scripts/lint/check-image-crates.mjs) reads the crates each binary links. [`.github/licenses/exceptions.txt`](../../.github/licenses/exceptions.txt) records licences judged acceptable. It never suppresses a finding.
+The service images pass a licence policy before they are published. For the Node images and the Python one it reads the image's bill of materials, which lists every package installed from npm or from PyPI; for the Rust images, [`scripts/lint/check-image-crates.mjs`](../../scripts/lint/check-image-crates.mjs) reads the crates each binary links. [`.github/licenses/exceptions.txt`](../../.github/licenses/exceptions.txt) records licences judged acceptable. It never suppresses a finding.
 
 ## Related
 

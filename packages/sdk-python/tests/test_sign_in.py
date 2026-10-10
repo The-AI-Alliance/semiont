@@ -35,6 +35,7 @@ from issuer import (
 )
 from kb import recorded
 from pydantic import JsonValue, TypeAdapter
+from shown import CARRIED, parts_of, printed
 from spec import JsonObject
 from tokens import expired, token
 
@@ -51,7 +52,7 @@ from semiont.http.oauth import (
     revoke_at_issuer,
     sign_in_with_device_grant,
 )
-from semiont.identifiers import ResourceId
+from semiont.identifiers import ResourceId, UserId
 from semiont.operations import BROWSE_RESOURCE_REQUESTED, MARK_DELETE
 from semiont.session import HeldSignIn, MemorySignIn, SessionEndReason, SignInKept
 from semiont.sign_in_store import FILE_NAME, SignInStore
@@ -661,11 +662,16 @@ def test_an_agent_that_cannot_be_signed_in_says_so_on_the_way_in() -> None:
                     pass
             assert (refused.value.code, refused.value.status) == ("forbidden", 403)
 
+            unsigned = agent()
             gateway.scripted[("POST", AGENT)] = [says({"did": "did:web:example.org:agents:a:b"})]
             with pytest.raises(TransportError, match="did not answer an agent token") as malformed:
-                async with agent():
+                async with unsigned:
                     pass
             assert (malformed.value.code, malformed.value.status) == ("error", 200)
+            # And nobody is signed in: no token is held, and no DID is said.
+            assert now(unsigned.token) is None
+            with pytest.raises(RuntimeError, match="not signed in"):
+                _ = unsigned.did
 
             gateway.scripted[("POST", AGENT)] = [Answer(hang_up=True)]
             with pytest.raises(TransportError, match="/api/tokens/agent got no answer") as silent:
@@ -678,6 +684,107 @@ def test_an_agent_that_cannot_be_signed_in_says_so_on_the_way_in() -> None:
             with pytest.raises(SignInError):
                 async with AgentToken(gateway.origin, provider="ollama", model="gemma2:27b", service=ServiceToken(account(gateway))):
                     pass
+
+    run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("answer", "lacks"),
+    [
+        (says({"token": CARRIED}), "it has no `did`"),
+        (says({"token": CARRIED, "did": "ollama gemma2:27b"}), "its `did` is malformed"),
+        (says({"token": [CARRIED], "did": "did:web:example.org:agents:a:b"}), "its `token` is malformed"),
+        (says({"did": "did:web:example.org:agents:a:b"}), "it has no `token`"),
+        (says({}), "it has no `token`; it has no `did`"),
+        (says([{"token": CARRIED, "did": "did:web:example.org:agents:a:b"}]), "it is not the JSON object an agent token is"),
+        (Answer(body=f"token={CARRIED}".encode()), "it is not the JSON object an agent token is"),
+    ],
+    ids=["no DID", "a DID that is none", "a token that is none", "no token", "neither", "not an object", "not JSON"],
+)
+def test_an_answer_that_is_no_agent_token_is_refused_for_what_it_lacks_and_in_none_of_its_own_words(answer: Answer, lacks: str) -> None:
+    async def scenario() -> None:
+        async with GatewayServer() as gateway:
+            trusting(gateway)
+            gateway.answers[TOKEN] = {"access_token": token(3600, 0)}
+            gateway.scripted[("POST", AGENT)] = [answer]
+            with pytest.raises(TransportError) as refused:
+                async with AgentToken(gateway.origin, provider="ollama", model="gemma2:27b", service=ServiceToken(account(gateway))):
+                    pass
+            # The token an answer carries is a credential whether or not the answer signs anyone in: no part of it is said.
+            assert parts_of(CARRIED, printed(refused.value)) == []
+            assert refused.value.message == f"{gateway.origin}{AGENT} did not answer an agent token: {lacks}"
+            assert (refused.value.code, refused.value.status) == ("error", 200)
+
+    run(scenario())
+
+
+def test_a_grant_that_fails_while_its_answer_carries_a_token_says_no_part_of_the_token() -> None:
+    async def scenario() -> None:
+        async with GatewayServer() as gateway, issuer_client() as http:
+            trusting(gateway)
+            endpoint = f"{gateway.origin}{TOKEN}"
+            failures: list[SignInError] = []
+
+            # A service account's grant: refused with a token in the refusal, and granted a token that is not text.
+            gateway.scripted[("POST", TOKEN)] = [
+                says({"access_token": CARRIED, "error": "access_denied"}, 403),
+                says({"access_token": [CARRIED]}),
+            ]
+            for said in (r"failed \(HTTP 403\)", "returned no `access_token`"):
+                with pytest.raises(SignInError, match=said) as failed:
+                    await soon(ServiceToken(account(gateway)).authorization())
+                failures.append(failed.value)
+
+            # The refresh grant, answered a token under a status that is no grant.
+            gateway.scripted[("POST", TOKEN)] = [says({"access_token": CARRIED, "refresh_token": CARRIED}, 500)]
+            with pytest.raises(SignInError, match=r"refused the token request \(HTTP 500\)") as failed:
+                await soon(refresh_at_issuer(http, endpoint, "semiont-cli", "refresh-1"))
+            failures.append(failed.value)
+
+            # The device grant, answered an access token and no refresh token.
+            gateway.scripted[("POST", DEVICE)] = [minted(interval=1)]
+            gateway.scripted[("POST", TOKEN)] = [says({"access_token": CARRIED})]
+            with pytest.raises(SignInError, match="returned no refresh token") as failed:
+                await hurried(sign_in_with_device_grant(gateway.origin, lambda _: None))
+            failures.append(failed.value)
+
+            assert len(failures) == 4
+            for failure in failures:
+                assert parts_of(CARRIED, printed(failure)) == []
+
+    run(scenario())
+
+
+def test_an_agent_says_the_did_its_gateway_minted_as_it_came_once_it_is_signed_in() -> None:
+    async def scenario() -> None:
+        async with GatewayServer() as gateway:
+            trusting(gateway)
+            gateway.answers[TOKEN] = {"access_token": token(86_400, 0)}
+            # Minted under the knowledge base's own domain: not the address dialled, and not as anything here would form one.
+            minted_as = "did:web:example.org:agents:indexer"
+            gateway.scripted[("POST", AGENT)] = [
+                says({"token": token(3600, 1), "did": minted_as}),
+                says({"token": token(3600, 2), "did": "did:web:example.org:agents:another"}),
+            ]
+
+            agent = AgentToken(gateway.origin, provider="example", model="indexer", service=ServiceToken(account(gateway)))
+            # The gateway says who the agent is. Before it has, nobody does: asking is refused, and no DID is made up.
+            with pytest.raises(RuntimeError, match="not signed in"):
+                _ = agent.did
+            assert gateway.of("POST", AGENT) == []
+
+            async with agent:
+                assert agent.did == minted_as
+                assert isinstance(agent.did, UserId)
+                assert "example.org" not in gateway.origin, "the gateway is dialled somewhere else"
+
+                # A renewal brings a token. Who the agent is was said when it signed in, and is said once.
+                first = agent.token.value
+                assert await soon(agent.refresh()) not in (None, first)
+                assert len(gateway.of("POST", AGENT)) == 2
+                assert agent.did == minted_as
+            # Left, it is still who it was signed in as.
+            assert agent.did == minted_as
 
     run(scenario())
 

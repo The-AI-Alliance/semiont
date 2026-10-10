@@ -23,6 +23,7 @@ from pydantic import ValidationError
 from semiont import telemetry
 from semiont.errors import SemiontError, TransportError
 from semiont.events import Broadcast
+from semiont.http._withheld import lacks, why_unanswered
 from semiont.model import WireModel
 from semiont.retry import TRANSPORT, RetryFacts, retry_after_ms
 from semiont.types import ErrorResponse
@@ -141,7 +142,7 @@ class Exchange:
                     retried = True
                     await asyncio.sleep(_RETRY_PAUSE_MS / 1000)
                     continue
-                raise self.failed(TransportError.without_response(f"{method} {path} got no answer: {error!r}")) from error
+                raise self.failed(TransportError.without_response(f"{method} {path} got no answer: {why_unanswered(error)}")) from None
             if response.is_success:
                 return response
 
@@ -189,12 +190,15 @@ class Exchange:
         except TimeoutError:
             raise self.failed(self._unanswered(method, path)) from None
         except httpx.HTTPError as error:
-            raise self.failed(TransportError.without_response(f"{method} {path} ended before its answer did: {error!r}")) from error
+            said = f"{method} {path} ended before its answer did: {why_unanswered(error)}"
+            raise self.failed(TransportError.without_response(said)) from None
         finally:
             await response.aclose()
         try:
             return declared.model_validate_json(body)
         except ValidationError as error:
-            raise self.failed(
-                TransportError("error", f"{method} {path} answered what is not its declared body: {error}", status=response.status_code)
-            ) from error
+            lacking = lacks(declared, error, "its declared body")
+        # Raised from nothing: the decoder's failure shows the answer, and what a failure is raised from is printed with it.
+        raise self.failed(
+            TransportError("error", f"{method} {path} answered what is not its declared body: {lacking}", status=response.status_code)
+        )

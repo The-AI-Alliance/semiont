@@ -3,6 +3,7 @@
  * run, so a missing build reads as that, never as every case failing.
  */
 import { existsSync } from 'node:fs';
+import { isAbsolute } from 'node:path';
 import type { TestProject } from 'vitest/node';
 
 declare module 'vitest' {
@@ -12,19 +13,22 @@ declare module 'vitest' {
   }
 }
 
-/** What builds each implementation's entry, said when the entry is missing. */
+/** What builds each implementation, said when a file its command names is missing. */
 const BUILDS: Readonly<Record<string, string>> = {
   typescript: '`npm run build:packages` at the repository root',
+  python: '`uv sync --locked --no-dev --all-extras --project apps/worker` at the repository root',
 };
 
 export default function setup(project: TestProject): void {
   const services = project.getProvidedContext().workerServices;
   if (Object.keys(services).length === 0) throw new Error('harness/paths.ts names no Worker service: WORKER_SERVICES is empty.');
   for (const [implementation, command] of Object.entries(services)) {
-    const entry = command[command.length - 1]!;
-    if (!existsSync(entry)) {
-      const build = BUILDS[implementation] ?? 'its build';
-      throw new Error(`The ${implementation} Worker service is not built: ${entry} does not exist. Run ${build}.`);
+    // Every file a command names by its path is what a build makes: the entry of one, the interpreter of another.
+    for (const built of command.filter((part) => isAbsolute(part))) {
+      if (!existsSync(built)) {
+        const build = BUILDS[implementation] ?? 'its build';
+        throw new Error(`The ${implementation} Worker service is not built: ${built} does not exist. Run ${build}.`);
+      }
     }
   }
 }

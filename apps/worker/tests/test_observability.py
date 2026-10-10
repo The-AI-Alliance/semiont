@@ -1,0 +1,197 @@
+"""What the process exports of itself: when it exports nothing, and the readings it takes of itself.
+
+`docs/protocol/WORKER-SERVICE.md` § Environment states what each variable
+does, and the worker service's conformance suite holds a started service to
+it, exporter by exporter. A process installs its telemetry once, so what is
+installed is that suite's to hold. Here is what is decided before anything is
+installed, and each reading, held to the rows of
+`specs/src/service-telemetry/telemetry.json` that every service exports.
+"""
+
+import asyncio
+from collections.abc import Mapping, Sequence
+from pathlib import Path
+
+import pytest
+from aio import pass_time, run, under_way
+from opentelemetry.metrics import CallbackOptions
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import Gauge, InMemoryMetricReader, Metric, NumberDataPoint
+from telemetry_rows import MetricRow, as_the_table_writes, worker_metrics
+
+from semiont_worker.observability import Exporting, Lag, install, interval_ms, lives_less_one, memory, report_the_process
+
+
+def exported(environment: Mapping[str, str], lag: Lag) -> dict[str, Metric]:
+    """What a process reports of itself in `environment`, read once: each metric by its name."""
+    reader = InMemoryMetricReader()
+    provider = MeterProvider(metric_readers=[reader], shutdown_on_exit=False)
+    report_the_process(provider.get_meter("semiont"), lag, environment)
+    data = reader.get_metrics_data()
+    provider.shutdown()
+    if data is None:
+        return {}
+    return {metric.name: metric for resource in data.resource_metrics for scope in resource.scope_metrics for metric in scope.metrics}
+
+
+def points(metric: Metric) -> Sequence[NumberDataPoint]:
+    assert isinstance(metric.data, Gauge), f"{metric.name} is no gauge"
+    read: list[NumberDataPoint] = []
+    for point in metric.data.data_points:
+        assert isinstance(point, NumberDataPoint)
+        read.append(point)
+    return read
+
+
+def held_to(row: MetricRow, metric: Metric) -> None:
+    """Hold what a gauge carries to its row of the table: its kind, and the keys and values of every point."""
+    assert row.instrument == "gauge"
+    listed = {attribute.key: attribute.values for attribute in row.attributes}
+    for point in points(metric):
+        attributes = point.attributes or {}
+        assert sorted(attributes) == sorted(listed), f"a point of {metric.name} carries {sorted(attributes)}"
+        for key, value in attributes.items():
+            values = listed[key]
+            assert values is None or as_the_table_writes(value) in values, f"{metric.name} carries {key}={value!r}"
+
+
+# ── when nothing is exported ────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "environment",
+    [
+        {},
+        {"OTEL_EXPORTER_OTLP_ENDPOINT": ""},
+        {"OTEL_CONSOLE_EXPORTER": "false"},
+        {"OTEL_CONSOLE_EXPORTER": "1"},
+        {"OTEL_METRICS_EXPORTER": "console"},
+        {"OTEL_SERVICE_NAME": "renamed", "OTEL_METRIC_EXPORT_INTERVAL": "500"},
+        {"OTEL_SDK_DISABLED": "true", "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4318"},
+        {"OTEL_SDK_DISABLED": "true", "OTEL_CONSOLE_EXPORTER": "true"},
+    ],
+)
+def test_with_no_endpoint_and_no_console_exporter_or_with_the_sdk_disabled_nothing_is_installed(environment: dict[str, str]) -> None:
+    assert install(environment) is None
+
+
+# ── how often metrics are exported ──────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    ("stated", "milliseconds"),
+    [
+        (None, 30_000),
+        ("", 30_000),
+        ("500", 500),
+        (" 2500 ", 2500),
+        ("0", 30_000),
+        ("-500", 30_000),
+        ("1.5", 30_000),
+        ("soon", 30_000),
+        # Digits, and not the ones a number is written in here.
+        ("\u0665\u0660\u0660", 30_000),
+    ],
+)
+def test_metrics_are_exported_as_often_as_the_environment_states_and_every_thirty_seconds_where_it_states_no_whole_number_above_nought(
+    stated: str | None, milliseconds: int
+) -> None:
+    environment = {} if stated is None else {"OTEL_METRIC_EXPORT_INTERVAL": stated}
+    assert interval_ms(environment) == milliseconds
+
+
+# ── the readings ────────────────────────────────────────────────────────
+
+
+def test_a_process_reports_when_it_started_how_late_its_loop_runs_and_its_memory_each_as_the_table_lists_it() -> None:
+    lag = Lag()
+    for late in (0.0, 1.0, 4.0):
+        lag.note(late)
+    metrics = exported({}, lag)
+    rows = {**worker_metrics("semiont.process."), **worker_metrics("semiont.runtime.")}
+    assert sorted(metrics) == ["semiont.process.start_time", "semiont.runtime.event_loop.lag", "semiont.runtime.heap"]
+    for name, metric in metrics.items():
+        held_to(rows[name], metric)
+
+    (started,) = points(metrics["semiont.process.start_time"])
+    assert isinstance(started.value, int)
+    assert started.value > 1_700_000_000
+
+    lateness = {(point.attributes or {})["lag.stat"]: point.value for point in points(metrics["semiont.runtime.event_loop.lag"])}
+    assert lateness == {"mean": pytest.approx(5 / 3), "p99": 4.0, "max": 4.0}
+
+
+def test_the_loop_s_lateness_is_of_what_was_measured_since_it_was_last_read() -> None:
+    lag = Lag()
+    options = CallbackOptions()
+    # Nothing measured is nothing said, and never nought: nought is a loop that was never late.
+    assert list(lag.observed(options)) == []
+    for late in range(1, 201):
+        lag.note(float(late))
+    read = {(observation.attributes or {})["lag.stat"]: observation.value for observation in lag.observed(options)}
+    assert read == {"mean": 100.5, "p99": 198.0, "max": 200.0}
+    assert list(lag.observed(options)) == []
+
+
+def test_the_loop_s_lateness_is_how_long_past_its_ten_milliseconds_a_sleep_woke() -> None:
+    async def scenario() -> None:
+        lag = Lag()
+        sampling = await under_way(Exporting(lag, lambda: None).sample_the_loop())
+        # The clock is moved a quarter of a second while the loop is asked to sleep ten milliseconds: each waking is late.
+        await pass_time(1.0, step=0.25)
+        sampling.cancel()
+        await asyncio.gather(sampling, return_exceptions=True)
+        read = {(observation.attributes or {})["lag.stat"]: observation.value for observation in lag.observed(CallbackOptions())}
+        assert read["max"] == pytest.approx(240.0, abs=1.0)
+        assert 0 < read["mean"] <= read["p99"] <= read["max"]
+
+    run(scenario())
+
+
+def test_memory_is_said_by_kind_as_the_kernel_states_it_and_only_where_it_could_be_read() -> None:
+    read = {(observation.attributes or {})["heap.stat"]: observation.value for observation in memory(CallbackOptions())}
+    # What the interpreter has in use of its heap is not among them: Python keeps no such count.
+    assert set(read) <= {"total", "limit", "rss"}
+    if Path("/proc/self/status").exists():
+        assert {"total", "rss"} <= set(read)
+        assert 1_000_000 < read["rss"] < 2**40
+    for value in read.values():
+        assert isinstance(value, int)
+        assert value > 0
+
+
+def test_under_a_supervisor_a_process_reports_the_lives_its_log_records_less_one(tmp_path: Path) -> None:
+    events = tmp_path / "events.log"
+
+    def life(n: int, name: str = "worker") -> str:
+        return f"[supervise 2026-09-30T00:00:0{n}Z] starting {name} (rapid failures so far: {n})"
+
+    supervised = {"SUPERVISE_EVENTS": str(events), "SUPERVISE_NAME": "worker"}
+    restarts = "semiont.process.restarts"
+    (row,) = worker_metrics(restarts).values()
+
+    # One life is no restart, and another service's lives are not this one's.
+    events.write_text("\n".join([life(0), life(1, "gateway"), "something else"]) + "\n", encoding="utf-8")
+    metric = exported(supervised, Lag())[restarts]
+    held_to(row, metric)
+    assert [point.value for point in points(metric)] == [0]
+
+    events.write_text("\n".join([life(0), life(1), life(2)]) + "\n", encoding="utf-8")
+    assert [point.value for point in points(exported(supervised, Lag())[restarts])] == [2]
+
+    # A log with no life of this service in it is read as none, and not as fewer than none.
+    events.write_text("", encoding="utf-8")
+    assert [point.value for point in points(exported(supervised, Lag())[restarts])] == [0]
+
+
+def test_a_log_that_cannot_be_read_says_nothing_and_never_nought(tmp_path: Path) -> None:
+    read = lives_less_one(str(tmp_path / "absent.log"), "worker")
+    assert list(read(CallbackOptions())) == []
+
+
+@pytest.mark.parametrize(
+    "environment",
+    [{}, {"SUPERVISE_EVENTS": "/tmp/events.log"}, {"SUPERVISE_NAME": "worker"}, {"SUPERVISE_EVENTS": "", "SUPERVISE_NAME": "worker"}],
+)
+def test_without_either_of_the_supervisor_s_two_variables_the_restarts_do_not_exist(environment: dict[str, str]) -> None:
+    assert "semiont.process.restarts" not in exported(environment, Lag())

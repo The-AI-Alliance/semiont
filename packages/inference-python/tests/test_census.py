@@ -55,7 +55,7 @@ SURFACE = {
     "vllm": ["VllmInferenceClient"],
     "mock": ["MockInferenceClient"],
     "factory": ["create_inference_client"],
-    "limits_report": ["report_limits"],
+    "limits_report": ["answer_limits_requests", "report_limits"],
     "catalogue": [
         "BudgetTokensOption",
         "Catalogue",

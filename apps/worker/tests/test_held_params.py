@@ -1,9 +1,10 @@
-"""Which `mark` job a holder was handed.
+"""Which job a holder was handed.
 
 The spec states what the Dispatcher adds to a job's params and leaves the
 held shape open, so a holder learns which of the five `mark` jobs it was
 handed by asking. The answer is the job's description as the spec's shape
-for its motivation, and it is only given for params that holder can run.
+for its motivation, and it is only given for params that holder can run. A
+`yield` job's description is asked for the same way.
 """
 
 from typing import Final, get_args
@@ -13,6 +14,7 @@ from pydantic import JsonValue, ValidationError
 from semiont.types import (
     AssessingJobParams,
     CommentingJobParams,
+    GenerationJobParams,
     HighlightingJobParams,
     JobParams,
     LinkingJobParams,
@@ -21,7 +23,7 @@ from semiont.types import (
     TagSchema,
 )
 
-from semiont_worker.held_params import HeldTagging, held_mark
+from semiont_worker.held_params import HeldTagging, held_generation, held_mark, motivation_of
 
 SCHEMA: Final[dict[str, JsonValue]] = {"id": "irac", "name": "IRAC", "description": "Legal analysis", "domain": "legal", "tags": []}
 
@@ -92,3 +94,42 @@ def test_params_that_state_a_motivation_and_are_not_its_shape_are_refused_and_no
 ) -> None:
     with pytest.raises(ValidationError):
         held_mark(held(params))
+
+
+def test_the_motivation_params_state_is_one_a_mark_job_has_or_none() -> None:
+    for motivation in get_args(get_args(Motivation.__value__)[0]):
+        assert motivation_of(held({"motivation": motivation})) == motivation
+    # A `yield` job's params state none, and what is no motivation of a `mark` job is none either.
+    assert motivation_of(held({"title": "Ouranos", "storageUri": "file://generated/ouranos.md"})) is None
+    assert motivation_of(held({"motivation": "bookmarking"})) is None
+    assert motivation_of(held({"motivation": 7})) is None
+    assert motivation_of(held({"motivation": ["highlighting"]})) is None
+    # It names the job, and says nothing of whether its params are that motivation's shape.
+    assert motivation_of(held({"motivation": "linking"})) == "linking"
+
+
+CONTEXT: Final[dict[str, JsonValue]] = {
+    "focus": {"kind": "resource", "resource": {"@context": "https://schema.org", "@id": "res-1", "name": "Source", "representations": []}},
+    "graph": {"nodes": [], "edges": []},
+    "metadata": {},
+}
+
+
+def test_a_yield_job_s_params_are_answered_as_its_description() -> None:
+    stated: dict[str, JsonValue] = {"title": "Ouranos", "storageUri": "file://generated/ouranos.md", "context": CONTEXT, "maxTokens": 300}
+    described = held_generation(held(stated))
+    assert described == GenerationJobParams.model_validate(stated)
+    assert (described.title, described.storage_uri, described.max_tokens, described.prompt) == (
+        "Ouranos",
+        "file://generated/ouranos.md",
+        300,
+        None,
+    )
+
+
+@pytest.mark.parametrize("lacking", ["title", "storageUri", "context"])
+def test_params_that_lack_what_every_yield_job_states_are_refused(lacking: str) -> None:
+    stated: dict[str, JsonValue] = {"title": "Ouranos", "storageUri": "file://generated/ouranos.md", "context": CONTEXT}
+    with pytest.raises(ValidationError) as refused:
+        held_generation(held({name: value for name, value in stated.items() if name != lacking}))
+    assert [(error["type"], error["loc"]) for error in refused.value.errors()] == [("missing", (lacking,))]

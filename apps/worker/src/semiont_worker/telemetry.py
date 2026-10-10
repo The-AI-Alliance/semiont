@@ -1,8 +1,10 @@
 """What the worker tells OpenTelemetry of its work: its rows of `specs/src/service-telemetry/telemetry.json`.
 
 It takes OpenTelemetry's API and nothing more, so recording does nothing
-until the process it runs in installs a provider. What a driver records of a
-generation, the `semiont.inference.*` rows, is the driver's own.
+until the process it runs in installs a provider
+(`semiont_worker.observability`). What a driver records of a generation, the
+`semiont.inference.*` rows, is the driver's own, and what the process says of
+itself is `semiont_worker.observability`'s.
 """
 
 import time
@@ -13,6 +15,7 @@ from typing import Final, Literal
 from opentelemetry import metrics, trace
 from opentelemetry.trace import SpanKind
 from semiont.annotations import AnchorMethod
+from semiont.types import JobType, Motivation
 from semiont_inference.interface import TokenUsage
 
 _SCOPE: Final = "semiont"
@@ -34,6 +37,12 @@ _DETECTION_ANCHORS: Final = _METER.create_counter(
     "semiont.detection.anchors", description="Spans a mark job anchored in its text, by what was anchored and how each was found"
 )
 
+_JOB_OUTCOME: Final = _METER.create_counter("semiont.job.outcome", description="The jobs a worker concluded, by how")
+_JOB_DURATION: Final = _METER.create_histogram("semiont.job.duration", unit="ms", description="How long a worker held a job")
+
+type JobOutcome = Literal["completed", "failed", "cancelled"]
+"""How a held job ended. A job that was declined is one that completed."""
+
 type GenerationKind = Literal["text", "structured"]
 """What a generation is asked for: text, or an array of objects."""
 
@@ -48,6 +57,59 @@ cleanly and found a fraction of what a count says is there. The two are told
 apart, though a piece that suffers either is asked again in smaller pieces:
 one is a reply that overflowed, and the other a silent under-report.
 """
+
+
+def active_span() -> tuple[str, str] | None:
+    """The trace and the span this code is running in, each as the hex text a trace's readers know it by. Nothing where it runs in none."""
+    context = trace.get_current_span().get_span_context()
+    if not context.is_valid:
+        return None
+    return trace.format_trace_id(context.trace_id), trace.format_span_id(context.span_id)
+
+
+def _of_job(job_type: JobType, motivation: Motivation | None) -> dict[str, str]:
+    """What names a job's kind: its type and, of a `mark` job, its motivation in a label of its own."""
+    kind: dict[str, str] = {"job.type": job_type}
+    if motivation is not None:
+        kind["job.motivation"] = motivation
+    return kind
+
+
+@contextmanager
+def holding(job_type: JobType, motivation: Motivation | None, *, job_id: str, resource_id: str) -> Generator[None]:
+    """A job a worker holds, in a span for as long as it is held: `job:mark` or `job:yield`.
+
+    It continues whatever trace is current where it is entered: the trace of
+    the claim that handed the job over, inside the held job's own block. A
+    failure raised while it is held is recorded on the span, which is then an
+    error's.
+    """
+    attributes = {**_of_job(job_type, motivation), "job.id": job_id, "resource.id": resource_id}
+    with _TRACER.start_as_current_span(f"job:{job_type}", kind=SpanKind.CONSUMER, attributes=attributes):
+        yield
+
+
+def record_job_outcome(job_type: JobType, motivation: Motivation | None, outcome: JobOutcome, started: float) -> None:
+    """Count one job a worker concluded, and how long it held it: the `semiont.job.outcome` and `semiont.job.duration` rows.
+
+    `started` is when the job was handed over, a reading of
+    `time.perf_counter`.
+    """
+    filed = {**_of_job(job_type, motivation), "job.outcome": outcome}
+    _JOB_OUTCOME.add(1, filed)
+    _JOB_DURATION.record((time.perf_counter() - started) * 1000, filed)
+
+
+@contextmanager
+def preparing(*, resource_id: str, media_type: str) -> Generator[None]:
+    """A `mark` job's reading of its resource, in a span for as long as it is held: `detection:prepare`.
+
+    A span of its own, because the read of a large resource is otherwise not
+    told apart from the model's answer in a trace.
+    """
+    attributes = {"resource.id": resource_id, "media.type": media_type}
+    with _TRACER.start_as_current_span("detection:prepare", kind=SpanKind.INTERNAL, attributes=attributes):
+        yield
 
 
 @contextmanager

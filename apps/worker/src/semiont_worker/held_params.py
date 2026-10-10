@@ -1,11 +1,12 @@
-"""Which `mark` job a holder was handed.
+"""Which job a holder was handed.
 
-The spec states a `mark` job's description, one shape for each motivation,
-and what the Dispatcher adds to the params of a job it holds: the resource
-the job is about and, for a tagging job, the schema its `schemaId` names. It
-leaves the held shape open. So whoever holds a job asks here which of the
-five it was handed, and is answered the description as the spec's shape for
-its motivation.
+The spec states a job's description, one shape for each motivation of a
+`mark` job and one for a `yield` job, and what the Dispatcher adds to the
+params of a job it holds: the resource the job is about and, for a tagging
+job, the schema its `schemaId` names. It leaves the held shape open. So
+whoever holds a `mark` job asks here which of the five it was handed, and is
+answered the description as the spec's shape for its motivation; and whoever
+holds a `yield` job is answered its description.
 """
 
 from dataclasses import dataclass
@@ -16,10 +17,12 @@ from semiont.model import written
 from semiont.types import (
     AssessingJobParams,
     CommentingJobParams,
+    GenerationJobParams,
     HighlightingJobParams,
     JobParams,
     LinkingJobParams,
     MarkJobParams,
+    Motivation,
     TaggingJobParams,
     TagSchema,
 )
@@ -42,6 +45,15 @@ _ADDED: Final = frozenset(field.alias or name for name, field in JobParams.model
 """What the Dispatcher adds to a job's params, by the names the wire gives them."""
 _NO_SUCH_MOTIVATION: Final = frozenset({"union_tag_invalid", "union_tag_not_found"})
 """How the description's shape refuses params that state none of its motivations."""
+_MOTIVATION: Final = TypeAdapter[Motivation](Motivation)
+
+
+def motivation_of(params: JobParams) -> Motivation | None:
+    """The motivation `params` state, or `None` where they state none a `mark` job has: what names the job to an operator."""
+    try:
+        return _MOTIVATION.validate_python(written(params).get("motivation"), strict=True)
+    except ValidationError:
+        return None
 
 
 def held_mark(params: JobParams) -> HeldMark | None:
@@ -65,3 +77,13 @@ def held_mark(params: JobParams) -> HeldMark | None:
     if isinstance(description, TaggingJobParams):
         return None if params.schema_ is None else HeldTagging(params=description, schema=params.schema_)
     return description
+
+
+def held_generation(params: JobParams) -> GenerationJobParams:
+    """The `yield` job `params` are: its description.
+
+    Raises `pydantic.ValidationError` for params that are not a `yield`
+    job's: its title, where it is stored and the context it is made from are
+    each required.
+    """
+    return GenerationJobParams.model_validate(written(params))
