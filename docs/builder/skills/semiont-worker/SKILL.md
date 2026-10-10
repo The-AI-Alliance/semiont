@@ -128,7 +128,7 @@ async function runJob(client: SemiontClient, job: HeldMarkJob, work: Work): Prom
 
 A progress message is a code, not a sentence: each client renders it in its reader's language. The codes are in [`JobProgressMessage`](../../../../specs/src/components/schemas/JobProgressMessage.json).
 
-`job.fail` says whether the queue will run the job again (`willRetry`), from the retry budget on the record the worker claimed. Tell it the failure's class when you know it: `job.fail(message, { failureClass: 'deterministic' })` for a failure no second attempt can change, which the queue then does not retry. `job.cancelled` is an `AbortSignal`, aborted when a cancellation names the held job: stop where the work can, and say `job.cancel()`.
+`job.fail` says whether the queue will run the job again (`willRetry`), from the retry budget on the record the worker claimed. Tell it the failure's class when you know it: `job.fail(message, { failureClass: 'deterministic' })` for a failure no second attempt can change, and `job.fail(message, { failureClass: 'withheld' })` for an answer the model's provider withheld, by a refusal or a content filter. The queue retries neither, and whoever reads the failure tells "the provider would not answer" from "the job broke" by the class. `'transient'` says nothing about the request was judged; with no class the failure is retried as a transient one is. `job.cancelled` is an `AbortSignal`, aborted when a cancellation names the held job: stop where the work can, and say `job.cancel()`.
 
 ## Writing what a job produces
 

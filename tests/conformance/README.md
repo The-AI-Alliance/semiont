@@ -14,12 +14,12 @@ judge any implementation of the same spec.
 | [archivist](archivist/README.md) | an Archivist, on the bus through a real gateway, at its HTTP surface, and in the files it keeps | `npm run test:archivist` |
 | [sdk](sdk/README.md) | every SDK, through a driver, as a client of a real gateway | `npm run test:sdk` |
 | [worker](worker/README.md) | a worker written on an SDK, through a driver, with the suite playing the dispatcher | `npm run test:worker` |
-| [worker-service](worker-service/README.md) | a Worker service, as a process: on the bus through a real gateway, at a stand-in for its provider, and at its health port, with the suite playing the dispatcher, the record and the Smelter | `npm run test:worker-service` |
+| [worker-service](worker-service/README.md) | a Worker service, as a process: on the bus through a real gateway, at a stand-in for each of its providers, and at its health port, with the suite playing the dispatcher, the record and the Smelter | `npm run test:worker-service` |
 
 They share one harness ([harness/](harness/)): the trusted issuer, a real
 `nats-server`, gateway, dispatcher, Archivist and Worker service processes, bus streams checked message by
-message against the spec, a stand-in Archivist held to the Archivist's spec, a stand-in Ollama,
-and a proxy that stands between a client and the gateway.
+message against the spec, a stand-in Archivist held to the Archivist's spec, a stand-in Ollama
+and a stand-in Anthropic, and a proxy that stands between a client and the gateway.
 [vitest.config.ts](vitest.config.ts) runs each suite as a project of its own;
 `npm test` runs all six.
 

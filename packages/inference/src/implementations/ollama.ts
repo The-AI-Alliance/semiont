@@ -5,7 +5,7 @@ import { Agent } from 'undici';
 import { estimateTokens, isNumber, isObject } from '@semiont/core';
 import type { Logger } from '@semiont/core';
 import { recordInferenceUsage } from '@semiont/observability';
-import { ElementSchema, InferenceClient, InferenceLimits, InferenceResponse, StructuredReadError, StructuredResponse } from '../interface.js';
+import { ElementSchema, InferenceClient, InferenceLimits, InferenceResponse, ProviderStatusError, StructuredReadError, StructuredResponse } from '../interface.js';
 
 // With `stream: false` Ollama sends nothing — not even response headers —
 // until the whole generation finishes, so any transport-level header timeout
@@ -251,7 +251,7 @@ export class OllamaInferenceClient implements InferenceClient {
         status: res.status,
         body,
       });
-      throw new Error(`Ollama API error (${res.status}): ${body}`);
+      throw new ProviderStatusError(`Ollama API error (${res.status}): ${body}`, res.status);
     }
 
     const data = await res.json() as OllamaGenerateResponse;

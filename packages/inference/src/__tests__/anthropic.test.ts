@@ -10,15 +10,29 @@ const { createMock, retrieveMock, streamMock, ctorMock } = vi.hoisted(() => ({
   ctorMock: vi.fn(),
 }));
 
-vi.mock('@anthropic-ai/sdk', () => ({
-  default: class MockAnthropic {
-    messages = { create: createMock, stream: streamMock };
-    models = { retrieve: retrieveMock };
-    constructor(options: unknown) { ctorMock(options); }
-  },
-}));
+// The library's two failures the driver reads, as the library declares them:
+// a status-carrying APIError, and the abort that is a kind of one.
+vi.mock('@anthropic-ai/sdk', () => {
+  class APIError extends Error {
+    constructor(readonly status: number | undefined, _error: unknown, message: string | undefined, _headers: unknown) { super(message); }
+  }
+  class APIUserAbortError extends APIError {
+    constructor() { super(undefined, undefined, 'Request was aborted.', undefined); }
+  }
+  return {
+    default: class MockAnthropic {
+      messages = { create: createMock, stream: streamMock };
+      models = { retrieve: retrieveMock };
+      constructor(options: unknown) { ctorMock(options); }
+    },
+    APIError,
+    APIUserAbortError,
+  };
+});
 
+import { APIError, APIUserAbortError } from '@anthropic-ai/sdk';
 import { AnthropicInferenceClient } from '../implementations/anthropic.js';
+import { ProviderStatusError, ProviderWithheldError } from '../interface.js';
 
 /** Minimal element schema for tests — the shape callers declare. */
 const TEST_ELEMENT = { type: 'object', properties: { exact: { type: 'string' } }, required: ['exact'], additionalProperties: false };
@@ -194,6 +208,127 @@ describe('AnthropicInferenceClient - cancellation threads to the SDK', () => {
 
     const opts = streamMock.mock.calls[0][1] as { signal?: AbortSignal } | undefined;
     expect(opts?.signal).toBe(controller.signal);
+  });
+});
+
+describe('AnthropicInferenceClient - an answer with nothing in it', () => {
+  beforeEach(() => {
+    createMock.mockReset();
+    retrieveMock.mockReset();
+    streamMock.mockReset();
+    retrieveMock.mockResolvedValue(CAPABLE_MODEL);
+  });
+
+  // Cut off before its first character: a model that thinks can spend the
+  // whole budget unseen. The stop reason rides the failure, on either path.
+  it.each([
+    ['a text block that is empty', [{ type: 'text', text: '' }]],
+    ['no text block at all', [{ type: 'thinking', thinking: 'weighing the passage', signature: 's' }]],
+  ])('is a StructuredReadError carrying the stop reason, asked for text or for an array: %s', async (_what, content) => {
+    createMock.mockResolvedValue({ content, stop_reason: 'max_tokens', usage: { input_tokens: 9, output_tokens: 100 } });
+    const client = new AnthropicInferenceClient('test-key', 'claude-x');
+
+    for (const asked of [client.generateTextWithMetadata('p', 100, 0), client.generateStructured('p', 100, 0, TEST_ELEMENT)]) {
+      await expect(asked).rejects.toMatchObject({
+        name: 'StructuredReadError',
+        stopReason: 'max_tokens',
+        message: 'Structured response could not be read: response is empty (stop_reason: max_tokens)',
+      });
+    }
+  });
+});
+
+describe('AnthropicInferenceClient - an answer the provider withheld', () => {
+  beforeEach(() => {
+    createMock.mockReset();
+    retrieveMock.mockReset();
+    streamMock.mockReset();
+    retrieveMock.mockResolvedValue(CAPABLE_MODEL);
+  });
+
+  // What a refused answer carries is no answer: it is not returned as text, and not read as an array.
+  it.each([
+    [
+      'with what it had written, and why',
+      [{ type: 'text', text: '[{"exact":"Paris"}]' }],
+      { type: 'refusal', category: 'cyber', explanation: 'This request could enable cyber harm.' },
+      'The provider withheld its answer: refusal (cyber): This request could enable cyber harm.',
+    ],
+    ['with nothing written, and no word of why', [], null, 'The provider withheld its answer: refusal'],
+  ])('is a ProviderWithheldError naming the provider\'s reason, asked for text or for an array: %s', async (_what, content, stop_details, said) => {
+    createMock.mockResolvedValue({ content, stop_reason: 'refusal', stop_details, usage: { input_tokens: 9, output_tokens: 3 } });
+    const client = new AnthropicInferenceClient('test-key', 'claude-x');
+
+    for (const asked of [client.generateTextWithMetadata('p', 100, 0), client.generateStructured('p', 100, 0, TEST_ELEMENT)]) {
+      const failure: unknown = await asked.catch((err: unknown) => err);
+      expect(failure).toBeInstanceOf(ProviderWithheldError);
+      expect(failure).toMatchObject({ name: 'ProviderWithheldError', reason: 'refusal', message: said });
+    }
+  });
+});
+
+describe('AnthropicInferenceClient - the tokens a generation reports', () => {
+  beforeEach(() => {
+    createMock.mockReset();
+    retrieveMock.mockReset();
+    streamMock.mockReset();
+    retrieveMock.mockResolvedValue(CAPABLE_MODEL);
+  });
+
+  it('answers the provider\'s counts on the text path as on the structured one', async () => {
+    createMock.mockResolvedValue({ content: [{ type: 'text', text: '[]' }], stop_reason: 'end_turn', usage: { input_tokens: 412, output_tokens: 57 } });
+    const client = new AnthropicInferenceClient('test-key', 'claude-x');
+
+    expect(await client.generateTextWithMetadata('p', 100, 0)).toEqual({ text: '[]', stopReason: 'end_turn', usage: { inputTokens: 412, outputTokens: 57 } });
+    expect(await client.generateStructured('p', 100, 0, TEST_ELEMENT)).toEqual({ items: [], stopReason: 'end_turn', usage: { inputTokens: 412, outputTokens: 57 } });
+  });
+
+  it('answers no counts where the provider reported none, on either path', async () => {
+    createMock.mockResolvedValue({ content: [{ type: 'text', text: '[]' }], stop_reason: 'end_turn', usage: {} });
+    const client = new AnthropicInferenceClient('test-key', 'claude-x');
+
+    expect(await client.generateTextWithMetadata('p', 100, 0)).toEqual({ text: '[]', stopReason: 'end_turn' });
+    expect(await client.generateStructured('p', 100, 0, TEST_ELEMENT)).toEqual({ items: [], stopReason: 'end_turn' });
+  });
+});
+
+describe('AnthropicInferenceClient - a generation fails as the interface states', () => {
+  beforeEach(() => {
+    createMock.mockReset();
+    retrieveMock.mockReset();
+    streamMock.mockReset();
+    retrieveMock.mockResolvedValue(CAPABLE_MODEL);
+    // The temperature probe, answered: every case below is about the generation after it.
+    createMock.mockResolvedValueOnce({ content: [{ type: 'text', text: 'ok' }], stop_reason: 'max_tokens', usage: {} });
+  });
+
+  it('reports the library\'s abort as the language\'s own', async () => {
+    createMock.mockRejectedValueOnce(new APIUserAbortError());
+    const client = new AnthropicInferenceClient('test-key', 'claude-x');
+
+    const failure: unknown = await client.generateStructured('p', 100, 0, TEST_ELEMENT).catch((err: unknown) => err);
+
+    expect(failure).toBeInstanceOf(DOMException);
+    expect(failure).toMatchObject({ name: 'AbortError' });
+  });
+
+  it('reports a refusal as a ProviderStatusError carrying the status, with the library\'s failure as its cause', async () => {
+    const refused = new APIError(429, undefined, '429 {"type":"error","error":{"type":"rate_limit_error"}}', undefined);
+    createMock.mockRejectedValueOnce(refused);
+    const client = new AnthropicInferenceClient('test-key', 'claude-x');
+
+    const failure: unknown = await client.generateTextWithMetadata('p', 100, 0).catch((err: unknown) => err);
+
+    expect(failure).toBeInstanceOf(ProviderStatusError);
+    expect(failure).toMatchObject({ status: 429, message: refused.message, cause: refused });
+  });
+
+  it('passes on, unread, a failure of the library\'s that carries no status', async () => {
+    const dropped = new APIError(undefined, undefined, 'Connection error.', undefined);
+    createMock.mockRejectedValueOnce(dropped);
+    const client = new AnthropicInferenceClient('test-key', 'claude-x');
+
+    await expect(client.generateTextWithMetadata('p', 100, 0)).rejects.toBe(dropped);
   });
 });
 

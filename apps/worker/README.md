@@ -71,9 +71,11 @@ sequentially on a local single-model server, where concurrent requests would onl
 GPU.
 
 When a job does fail, the worker classifies it: deterministic failures (an identical retry
-cannot succeed) skip the retry budget; transient ones retry — and the retry **resumes from
-the checkpoint** of entity types the failed attempt already persisted, paying only for what
-is left.
+cannot succeed) skip the retry budget, and so does an answer the model's provider withheld
+(a refusal, a content filter), which is classed `withheld` so that it reads as the
+provider's choice and not as the job breaking; transient ones retry — and the retry
+**resumes from the checkpoint** of entity types the failed attempt already persisted, paying
+only for what is left.
 
 ## What it reports
 

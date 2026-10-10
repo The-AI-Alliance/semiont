@@ -1,11 +1,13 @@
 /**
- * Failure classification: a deterministic failure is not retried.
+ * Failure classification: a deterministic failure is not retried, and neither
+ * is an answer the provider withheld.
  *
- * The taxonomy is deliberately small and one-sided: only KNOWN-deterministic
- * failures skip the retry budget; everything unrecognized stays retryable
- * (`undefined`), because mis-classifying a transient failure as deterministic
- * silently halves reliability, while the reverse merely costs one wasted
- * attempt.
+ * The taxonomy is deliberately small and one-sided: only failures KNOWN to be
+ * deterministic or withheld skip the retry budget; everything unrecognized
+ * stays retryable (`undefined`), because mis-classifying a transient failure
+ * as either silently halves reliability, while the reverse merely costs one
+ * wasted attempt. The withheld answer's case is the table's
+ * (failure-class-cases.test.ts).
  */
 
 import { describe, it, expect } from 'vitest';
@@ -26,8 +28,11 @@ describe('classifyFailure', () => {
   });
 
   it('aborts are transient — the transport was torn down, not the request judged', () => {
-    expect(classifyFailure(Object.assign(new Error('aborted'), { name: 'APIUserAbortError' }))).toBe('transient');
     expect(classifyFailure(new DOMException('This operation was aborted', 'AbortError'))).toBe('transient');
+  });
+
+  it('reads no name a provider\'s library gives a failure: its driver reports an abort as the language\'s', () => {
+    expect(classifyFailure(Object.assign(new Error('aborted'), { name: 'APIUserAbortError' }))).toBeUndefined();
   });
 
   it('environmental provider statuses are transient: 408, 429, 5xx', () => {
@@ -75,8 +80,8 @@ describe('classifyFailure', () => {
     // the poison text in a DIFFERENT piece. The retry is not the same call,
     // and being wrong costs one chunk rather than a whole re-paid prefix.
     //
-    // `undefined`, not `'transient'`: the wire vocabulary has two values
-    // and this is neither — not weather, but "the next attempt reads different
+    // `undefined`, not `'transient'`: the wire vocabulary has three values
+    // and this is none of them — not weather, but "the next attempt reads different
     // input". Absent says unrecognised-so-retryable, which is what is true.
     expect(classifyFailure(new StructuredReadError('parsed to object, not an array', 'end_turn'))).toBeUndefined();
   });
@@ -127,7 +132,7 @@ describe('classifyFailure', () => {
     });
   });
 
-  it('everything unrecognized is unclassified — retryable by default (only KNOWN-deterministic failures are gated)', () => {
+  it('everything unrecognized is unclassified — retryable by default (only failures KNOWN to be deterministic or withheld are gated)', () => {
     expect(classifyFailure(new Error('MessageStream terminated'))).toBeUndefined();
     expect(classifyFailure(new TypeError('fetch failed'))).toBeUndefined();
     expect(classifyFailure('a string')).toBeUndefined();

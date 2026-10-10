@@ -1,0 +1,26 @@
+Generate a concise, informative resource about "The Analytical Engine".
+Instruction: Write three sentences.
+Focus on these entity types: Person.
+
+Resource context:
+- Resource: Notes on the engine [res-ws-yield-source]
+
+Resource content:
+---
+Ada Lovelace published the first program in 1843 — a method for computing Bernoulli numbers on the Analytical Engine.
+
+Charles Babbage designed the engine in London, but it was never built. Lovelace argued that the engine could manipulate symbols as well as numbers; nobody tested that claim for a century.
+
+The program was naïve by later standards, and London ignored it. London was wrong.
+
+---
+
+The source resource and embedded context are in English.
+
+Requirements:
+- Aim for approximately 21333 tokens of content
+- Be factual and informative
+- Write flowing, well-structured paragraphs with no section headings
+- Ground every claim in the provided context. Immediately after each claim, cite its source by emitting [[<id>]], where <id> is an id shown in square brackets in the context above (for a passage labeled [abc], emit [[abc]]). Cite only ids that appear in the context.
+- Use markdown formatting
+- Write the response as markdown

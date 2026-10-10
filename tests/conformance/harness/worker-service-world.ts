@@ -2,8 +2,8 @@
  * A Worker service's world: the service as a process, and everything it meets.
  * That is the trusted issuer, which admits its service account; a real
  * gateway, with the harness's stand-in Archivist behind it for bytes and
- * uploads; a stand-in Ollama, its provider; and the suite itself on the bus,
- * playing the three parties a worker asks things of. As the dispatcher it
+ * uploads; a stand-in Ollama and a stand-in Anthropic, its providers; and the
+ * suite itself on the bus, playing the three parties a worker asks things of. As the dispatcher it
  * answers `job:claim` from the jobs a case queued. As the record it answers
  * `browse:resource-requested`, `mark:commit` and `browse:annotation-requested`.
  * As the Smelter it answers `browse:anchored-text-requested`.
@@ -15,6 +15,7 @@
 import { randomBytes } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, describe, expect, inject } from 'vitest';
 import type { components } from '@semiont/core';
+import { startAnthropic, type ModelFacts, type StandInAnthropic } from './anthropic';
 import { startClientProxy, type ClientProxy, type ProxiedRequest } from './client-proxy';
 import { everyJob } from './dispatcher-world';
 import { freePort } from './net';
@@ -28,9 +29,24 @@ import { World } from './world';
 /** The worker's service account at the issuer. */
 export const WORKER_CLIENT = 'semiont-worker';
 
+/**
+ * The variable an Anthropic agent's entry names for its key (`apiKeyEnv`). It
+ * is not one the provider's own library reads, so a worker that reaches the
+ * stand-in read the variable its document names.
+ */
+export const ANTHROPIC_KEY_VARIABLE = 'WORKER_SERVICE_ANTHROPIC_KEY';
+
+/**
+ * What the stand-in Anthropic says of a model unless a case says otherwise: it
+ * reads far more than it writes, answers in a schema, and takes a
+ * `temperature`.
+ */
+export const ANTHROPIC_MODEL: ModelFacts = { maxInputTokens: 200_000, maxOutputTokens: 64_000, structuredOutputs: true, acceptsTemperature: true };
+
 export type RunningJob = components['schemas']['JobRunning'];
 export type JobFilter = components['schemas']['JobFilter'];
 export type JobType = components['schemas']['JobType'];
+export type FailureClass = components['schemas']['FailureClass'];
 export type Annotation = components['schemas']['Annotation'];
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type AgentEntry = WorkerSettings['agents'][number];
@@ -230,6 +246,7 @@ export class WorkerServiceWorld {
     private readonly command: readonly string[],
     readonly world: World,
     readonly ollama: StandInOllama,
+    readonly anthropic: StandInAnthropic,
     /** The worker's service account, as the issuer knows it. */
     readonly env: WorkerEnvironment,
   ) {}
@@ -240,7 +257,9 @@ export class WorkerServiceWorld {
     const secret = randomBytes(24).toString('hex');
     const world = await World.create('in-process', { accounts: { [WORKER_CLIENT]: { secret, roles: [SERVICE_ROLE, WORKER_ROLE] } } });
     const ollama = await startOllama();
-    const made = new WorkerServiceWorld(implementation, command, world, ollama, { SEMIONT_OIDC_CLIENT_ID: WORKER_CLIENT, SEMIONT_OIDC_CLIENT_SECRET: secret });
+    const claudes = principals(world.kb.domain).agents.flatMap((a) => (a.provider === 'anthropic' ? [a.model] : []));
+    const anthropic = await startAnthropic(`sk-ant-conformance-${randomBytes(24).toString('hex')}`, claudes, ANTHROPIC_MODEL);
+    const made = new WorkerServiceWorld(implementation, command, world, ollama, anthropic, { SEMIONT_OIDC_CLIENT_ID: WORKER_CLIENT, SEMIONT_OIDC_CLIENT_SECRET: secret });
     made.peer = await world.responder(
       ['job:claim', 'browse:resource-requested', 'mark:commit', 'browse:annotation-requested', 'browse:anchored-text-requested'],
       (frame) => made.answer(frame),
@@ -250,15 +269,21 @@ export class WorkerServiceWorld {
 
   // ── who the worker works as ──────────────────────────────────────────────
 
-  /**
-   * The agents a case's worker works as: the Ollama pairs of
-   * principals/cases.json under this knowledge base, each with the DID and
-   * name the gateway must give it.
-   */
-  get agents(): WorkerAgent[] {
-    const found = principals(this.world.kb.domain).agents.flatMap((a): WorkerAgent[] => (a.provider === 'ollama' ? [{ provider: 'ollama', model: a.model, did: a.did, name: a.name }] : []));
-    if (found.length < 2) throw new Error('principals/cases.json needs two ollama agents under the suite\'s knowledge base');
+  /** The pairs of principals/cases.json under this knowledge base that are `provider`'s, each with the DID and name the gateway must give it. */
+  private agentsOn(provider: WorkerAgent['provider']): WorkerAgent[] {
+    const found = principals(this.world.kb.domain).agents.flatMap((a): WorkerAgent[] => (a.provider === provider ? [{ provider, model: a.model, did: a.did, name: a.name }] : []));
+    if (found.length < 2) throw new Error(`principals/cases.json needs two ${provider} agents under the suite's knowledge base`);
     return found;
+  }
+
+  /** The agents a case's worker works as unless the case says otherwise: the Ollama pairs. */
+  get agents(): WorkerAgent[] {
+    return this.agentsOn('ollama');
+  }
+
+  /** The agents of a case about a worker on Anthropic: the Anthropic pairs. */
+  get anthropicAgents(): WorkerAgent[] {
+    return this.agentsOn('anthropic');
   }
 
   /** The `generator` a worker working as `agent` states on what it makes. */
@@ -285,9 +310,13 @@ export class WorkerServiceWorld {
     };
   }
 
-  /** An entry of `agents`: `agent`, serving `accepts`, on the stand-in Ollama. */
+  /**
+   * An entry of `agents`: `agent`, serving `accepts`, on the stand-in of its
+   * provider. An Anthropic agent's entry names the variable its key is in.
+   */
   entry(agent: WorkerAgent, accepts: JobFilter[]): AgentEntry {
-    return { agent: { provider: agent.provider, model: agent.model }, accepts, baseUrl: this.ollama.origin };
+    const serving = { agent: { provider: agent.provider, model: agent.model }, accepts };
+    return agent.provider === 'anthropic' ? { ...serving, baseUrl: this.anthropic.origin, apiKeyEnv: ANTHROPIC_KEY_VARIABLE } : { ...serving, baseUrl: this.ollama.origin };
   }
 
   /** A launch as `start` makes it, for a case that must change it: the gateway is dialled directly. */
@@ -300,14 +329,21 @@ export class WorkerServiceWorld {
     return refusedWorkerBoot(await this.launch(change));
   }
 
-  /** Start a worker behind a recording proxy and wait for its health. It is stopped when the case ends. */
+  /**
+   * Start a worker behind a recording proxy and wait for its health. It is
+   * stopped when the case ends. Each variable its document names for a key
+   * holds the stand-in Anthropic's.
+   */
   async start(options: { agents?: AgentEntry[]; env?: WorkerEnvironment; unlisted?: Record<string, string>; settings?: Partial<WorkerSettings> } = {}): Promise<Served> {
     const proxy = await startClientProxy(this.world.origin);
     try {
+      const settings: WorkerSettings = { ...(await this.settings(proxy.origin, options.agents)), ...options.settings };
+      const keys: WorkerEnvironment = {};
+      for (const agent of settings.agents) if (agent.apiKeyEnv !== undefined) keys[agent.apiKeyEnv] = this.anthropic.apiKey;
       const process = await startWorkerService({
         command: this.command,
-        settings: { ...(await this.settings(proxy.origin, options.agents)), ...options.settings },
-        env: { ...this.env, ...options.env },
+        settings,
+        env: { ...this.env, ...keys, ...options.env },
         ...(options.unlisted ? { unlisted: options.unlisted } : {}),
       });
       const served = new Served(process, proxy);
@@ -434,12 +470,14 @@ export class WorkerServiceWorld {
 
   // ── the end of a case ────────────────────────────────────────────────────
 
-  /** What a failing case shows: every worker's transcript, and what its provider was asked. */
+  /** What a failing case shows: every worker's transcript, and what its providers were asked. */
   account(): string {
     return [
       ...this.served.map((s) => s.account()),
       '  the stand-in Ollama was asked:',
       ...this.ollama.generations.map((g) => `    ${JSON.stringify(g.body)}${g.abandoned ? ' (abandoned)' : ''}`),
+      '  the stand-in Anthropic was asked:',
+      ...this.anthropic.requests.map((r) => `    ${r.method} ${r.path} ${JSON.stringify(r.body ?? null)}${r.abandoned ? ' (abandoned)' : ''}`),
       '  the record was committed:',
       ...this.commits.map((c) => `    ${JSON.stringify(c)}`),
       '  the dispatcher was claimed from:',
@@ -450,7 +488,7 @@ export class WorkerServiceWorld {
   /**
    * Stop every worker the case started and forget what the case scripted.
    * Returns what went wrong that no case may let pass: a request of the
-   * gateway that it refused, a request of the provider no case scripted, a
+   * gateway that it refused, a request of a provider no case scripted, a
    * frame or an Archivist call outside the spec, and anything the suite itself
    * handed a worker outside the spec.
    */
@@ -461,8 +499,9 @@ export class WorkerServiceWorld {
       await served.process.stop();
       await served.proxy.close();
     }
-    violations.push(...this.ollama.violations.splice(0), ...this.violations.splice(0), ...this.world.drain());
+    violations.push(...this.ollama.violations.splice(0), ...this.anthropic.violations.splice(0), ...this.violations.splice(0), ...this.world.drain());
     this.ollama.reset();
+    this.anthropic.reset();
     this.queue.length = 0;
     this.claims.length = 0;
     this.descriptors.clear();
@@ -481,6 +520,7 @@ export class WorkerServiceWorld {
   async close(): Promise<void> {
     await this.settle(true);
     await this.ollama.close();
+    await this.anthropic.close();
     await this.world.close();
   }
 }
@@ -489,7 +529,7 @@ export class WorkerServiceWorld {
  * Run `body`'s cases against each implementation of the Worker service, each
  * in a world of its own. A case starts the workers it needs; they are stopped
  * when it ends, and it fails, whatever it was about, if a worker asked the
- * gateway for something the gateway refused, asked its provider for something
+ * gateway for something the gateway refused, asked a provider for something
  * the case did not script, or put on the bus what the spec does not allow.
  */
 export function eachWorkerService(title: string, body: (world: () => WorkerServiceWorld) => void, options: { allowRefusedRequests?: boolean } = {}): void {

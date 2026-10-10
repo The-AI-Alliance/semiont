@@ -17,6 +17,7 @@
 import { createInterface } from 'node:readline';
 import { BehaviorSubject } from 'rxjs';
 import { SemiontError, accessToken, baseUrl, resourceId, type AccessToken, type JobFilter } from '@semiont/core';
+import { formatErrors, validators } from '@semiont/core/openapi';
 import { SpanKind, getActiveTraceparent, withSpan, withTraceparent, type TraceCarrier } from '@semiont/observability';
 import { initObservabilityNode, shutdownObservabilityNode } from '@semiont/observability/node';
 import {
@@ -229,8 +230,9 @@ const operations: Record<string, (args: Arguments) => Promise<unknown> | unknown
   },
 
   async fail(args) {
-    const failureClass = args['failureClass'] === undefined ? undefined : text(args, 'failureClass');
-    if (failureClass !== undefined && failureClass !== 'transient' && failureClass !== 'deterministic') throw new Misuse('failureClass is transient or deterministic');
+    // A class is one the spec names, as its own schema reads it.
+    const failureClass = args['failureClass'];
+    if (failureClass !== undefined && !validators.FailureClass(failureClass)) throw new Misuse(`failureClass is no class of a failure: ${formatErrors(validators.FailureClass.errors)}`);
     const said: JobFailure = { ...checkpoint(args), ...(failureClass === undefined ? {} : { failureClass }) };
     const error = text(args, 'error');
     await settling((job) => job.fail(error, said));

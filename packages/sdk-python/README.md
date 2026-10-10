@@ -466,7 +466,9 @@ async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
   worker was killed waits for the dispatcher's sweep.
 - **`fail` says whether the queue will run the job again**, from the budget
   on the record the worker claimed and the failure's class:
-  `failure_class="deterministic"` is a failure no second attempt can change.
+  `failure_class="deterministic"` is a failure no second attempt can change,
+  and `failure_class="withheld"` an answer the model's provider withheld. The
+  queue retries neither.
 - **A cancellation is signalled.** `job.cancelled` becomes true when a
   cancellation names the held job: the work stops where it can, and says
   `await job.cancel()`.

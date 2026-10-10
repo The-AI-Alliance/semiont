@@ -1,0 +1,139 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "semiont-inference"
+dynamic = ["version"]
+description = "The model providers Semiont's Python services call, behind one interface: text and structured generation, and discovered limits"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+keywords = ["semiont", "inference", "anthropic", "ollama", "openai"]
+classifiers = [
+    "Framework :: AsyncIO",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Typing :: Typed",
+]
+# What every install has: the contract, the Ollama driver and the mock. Each of
+# the first three is the SDK's dependency too, and the SDK states the versions:
+# a bound written here would be a second copy of its.
+dependencies = [
+    "httpx",
+    "opentelemetry-api",
+    "pydantic",
+    "semiont",
+]
+
+# A provider's own library is not required: it comes with the extra named for
+# the provider, and is imported only when that provider's driver is. An image
+# built for one provider installs that provider's extra alone.
+[project.optional-dependencies]
+# Anthropic's library, from the version the Anthropic driver was written
+# against: what the driver leans on in it is listed in anthropic.py.
+anthropic = ["anthropic>=1.13,<2"]
+# OpenAI's library, from the version the OpenAI driver was written against:
+# what the driver leans on in it, and switches off in it, is listed in openai.py.
+openai = ["openai>=3.28,<4"]
+# Google's library, from the version the Google driver was written against:
+# what the driver leans on in it, and switches off in it, is listed in google.py.
+google = ["google-genai>=2.29,<3"]
+# Together's library, from the version the Together driver was written against:
+# what the driver leans on in it, and switches off in it, is listed in together.py.
+together = ["together>=2.40,<3"]
+# vLLM and llama.cpp's server speak OpenAI's Chat Completions: each driver asks
+# its server through OpenAI's library, pointed at the server's address.
+vllm = ["openai>=3.28,<4"]
+llamacpp = ["openai>=3.28,<4"]
+
+[project.urls]
+Homepage = "https://the-ai-alliance.github.io/semiont/"
+Repository = "https://github.com/The-AI-Alliance/semiont"
+Issues = "https://github.com/The-AI-Alliance/semiont/issues"
+
+# The SDK is the one in this repository: this package is checked and tested
+# against the types the tree's spec generates.
+[tool.uv.sources]
+semiont = { path = "../sdk-python", editable = true }
+
+# The checkers and the formatter are the SDK's, at the SDK's versions:
+# tests/test_census.py holds these pins, and the strictness below, to
+# packages/sdk-python/pyproject.toml.
+[dependency-groups]
+dev = [
+    # Every extra: the checkers and the tests read every driver.
+    "semiont-inference[anthropic,google,llamacpp,openai,together,vllm]",
+    "mypy==2.4.0",
+    # What reads, in memory, the telemetry the drivers record (tests/test_telemetry.py).
+    "opentelemetry-sdk>=1.30,<2",
+    "pyright==1.1.414",
+    "pytest>=9.1,<10",
+    "ruff==0.16.10",
+]
+
+# The version is the repository's, stated once, in version.json.
+[tool.hatch.version]
+path = "../../version.json"
+pattern = '"version": "(?P<version>[^"]+)"'
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/semiont_inference"]
+
+# What the wheel is built from, and no more. The tests read the repository
+# around this package, which a source distribution does not hold.
+[tool.hatch.build.targets.sdist]
+only-include = ["src/semiont_inference", "README.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--strict-markers", "--strict-config", "-ra"]
+xfail_strict = true
+
+# No target-version: ruff takes it from requires-python.
+[tool.ruff]
+line-length = 140
+
+[tool.ruff.lint]
+select = ["ANN", "ASYNC", "B", "C4", "E", "F", "I", "PGH", "PT", "RUF", "SIM", "TID", "UP", "W"]
+
+[tool.ruff.lint.per-file-ignores]
+# A program that must not type-check is not otherwise good code.
+"tests/refusals/*" = ["ANN", "B", "F", "RUF", "SIM"]
+
+[tool.mypy]
+# requires-python's floor, which mypy does not read. lint:python-version holds
+# this, pyright's, the classifiers and CI's matrix to it.
+python_version = "3.12"
+files = ["src", "tests"]
+strict = true
+# pydantic's own plugin, with each of its looser defaults turned off below: at
+# its defaults a constructor takes anything.
+plugins = ["pydantic.mypy"]
+disallow_any_explicit = true
+disallow_any_unimported = true
+warn_unreachable = true
+enable_error_code = ["explicit-override", "ignore-without-code", "possibly-undefined", "redundant-expr", "truthy-bool"]
+
+[tool.pydantic-mypy]
+init_typed = true
+init_forbid_extra = true
+warn_required_dynamic_aliases = true
+
+[tool.pyright]
+pythonVersion = "3.12"
+include = ["src", "tests"]
+typeCheckingMode = "strict"
+# `# type: ignore` is mypy's alone here; pyright is told by `# pyright: ignore[rule]`.
+# Either left on a line that no longer needs it is an error, which is what
+# holds tests/refusals: a program there that starts to type-check fails.
+enableTypeIgnoreComments = false
+reportUnnecessaryTypeIgnoreComment = "error"
+reportImplicitOverride = "error"
+reportImportCycles = "error"
+reportMissingSuperCall = "none"
+reportPropertyTypeMismatch = "error"
+reportUnnecessaryCast = "error"

@@ -31,9 +31,18 @@ Each file runs its cases in a world of its own
   transcript, in order (each sign-in, each stream it opens, each emit, each
   read of bytes, each upload);
 - a stand-in Ollama ([harness/ollama.ts](../harness/ollama.ts)), which the
-  service's `baseUrl` names. It answers `POST /api/show` with the context
-  length a case set and `POST /api/generate` with what the case scripted, and
-  records every request as it was sent;
+  `baseUrl` of an Ollama agent names. It answers `POST /api/show` with the
+  context length a case set and `POST /api/generate` with what the case
+  scripted, and records every request as it was sent;
+- a stand-in Anthropic ([harness/anthropic.ts](../harness/anthropic.ts)),
+  which the `baseUrl` of an Anthropic agent names. It answers `GET
+  /v1/models/{model}` with what a case said of the model, the probe of
+  whether the model takes a `temperature` from the same, and any other `POST
+  /v1/messages` with what the case scripted: an answer, as one message or as
+  the stream of events the request asked for, a refusal, a held answer, or a
+  connection ended unanswered. It records every request with its headers.
+  Its key reaches the service in the variable the agent's `apiKeyEnv` names,
+  which is none the provider's own library reads;
 - the suite itself on the bus, as the three parties a worker asks things of.
   As the dispatcher it answers `job:claim` from the jobs a case queued, with
   `none-pending` when no queued job matches the claim's filters. As the record
@@ -53,8 +62,10 @@ Whatever a case is about, it also fails a service that:
 - asks the gateway for anything the gateway refuses: the gateway is the real
   one, and holds every emit to its channel's schema and every route to its
   rules;
-- asks its provider for a generation the case did not script, or for any path
-  but the two an Ollama driver uses;
+- asks a provider for a generation the case did not script, or for any path
+  but the two of Ollama's and the two of Anthropic's above;
+- asks the stand-in Anthropic for anything without the key, or about a model
+  the case has not described;
 - puts on the bus, or has the gateway ask the Archivist for, what the spec
   does not allow.
 
@@ -66,8 +77,10 @@ is held to `JobClaimedResult`, and a Smelter's answer to
 
 - **Prompts** are files in [prompts/](prompts/): each is the exact text of one
   prompt, less its one final line end. A case holds the whole body of each
-  request to the provider (the model, the prompt, `stream`, `think`, the
-  three `options` and the `format`) and the order the requests arrive in.
+  request to the provider and the order the requests arrive in: of Ollama,
+  the model, the prompt, `stream`, `think`, the three `options` and the
+  `format`; of Anthropic, the model, `max_tokens`, the `temperature`, the one
+  message, the `output_config` and, of a long generation, `stream`.
 - **Annotations** are compared whole: `id`, selectors, body and `generator`,
   in the batches they were committed in. `created` must be an instant and is
   otherwise the service's own. The annotations a `yield` job commits are on,
@@ -97,7 +110,7 @@ is held to `JobClaimedResult`, and a Smelter's answer to
 |---|---|---|
 | `boot` | `boot.test.ts` | B1 to B6 |
 | `started` | `started.test.ts` | G1 to G4, H1 |
-| `limits` | `limits.test.ts` | M1 to M3 |
+| `limits` | `limits.test.ts` | M1 to M3, M5 |
 | `highlighting` | `highlighting.test.ts` | J1, J2, D1 to D3, D8, D9, D11 to D13, D15 to D17, K1 |
 | `commenting` | `commenting.test.ts` | D8, D9, D12, D17, K2 |
 | `assessing` | `assessing.test.ts` | D5, D12, D17, K3 |
@@ -114,10 +127,11 @@ is held to `JobClaimedResult`, and a Smelter's answer to
 | `resume` | `resume.test.ts` | D13 to D15, D18, U1 to U3 |
 | `cancel` | `cancel.test.ts` | Q1 to Q5 |
 | `yield` | `yield.test.ts` | J3, Y1 to Y8 |
-| `telemetry` | `telemetry.test.ts` | T1, T2 |
+| `telemetry` | `telemetry.test.ts` | T1 to T3 |
 | `environment` | `environment.test.ts` | E1 to E11 |
 | `output` | `output.test.ts` | O1 |
 | `stop` | `stop.test.ts` | P1 to P3 |
+| `anthropic` | `anthropic.test.ts` | M5, D20, D21, K8, F3 to F5, F10 to F12, Q4, Y3, Y9, T3, P2 |
 
 `npm run lint:transport-contract` holds the two to each other: every case a
 rule names exists, and every case is named by a rule.
@@ -126,11 +140,15 @@ rule names exists, and every case is named by a rule.
 
 | What | Why no case holds it |
 |---|---|
-| A job on Anthropic | Its driver streams its answer. A stand-in for it is a second step |
+| The class a `mark` job fails in on an Anthropic model that does not answer in a schema (D20) | The TypeScript service fails it with no class, and so says it will be retried, where no attempt changes what the model can do. `anthropic.test.ts` holds the failure and leaves its class unsaid |
+| The budget of an Anthropic model whose own ceiling on what it writes leaves it 64 tokens or fewer to read | The document does not cover it. A model with 37 tokens of room fails its job where one with none is asked, and no case holds either until it is settled which is meant |
+| Which of a generation's two token counts is what the model read (T3) | The receiver keeps a metric's values apart from its attributes. `anthropic.test.ts` holds that the two counts are the two the provider reported, and that both directions are counted |
+| A stream that ends partway | Not written: the stand-in Anthropic ends a connection only before it answers |
+| A request of Anthropic refused with 408 or 409 (F10) | Not written. `anthropic.test.ts` holds 429, 500, 529 and a connection that ends as asked for three times, and 400 as asked for once. A 409 is asked for three times and then fails its job as deterministic ([F3](../../../docs/protocol/WORKER-SERVICE.md#failures)): whether both are meant is not settled |
 | A `yield` job to PDF, and the citations of a generated PDF | It needs the `typst` binary in the suite's environment |
 | A real dispatcher, Archivist or Smelter | The suite plays them, so that it can hand a service answers a correct one never gives and see every message |
-| M4, F9, P4: the clocks | 1.5 seconds for a provider's limits, ten minutes for a generation, fifteen minutes for a stalled job. A service takes them from no document a case could shorten |
-| D7, the size of a piece following the provider's usage | On a model whose window is shared, as the stand-in's is, the ceiling of a piece is where it opens unless the window is far over what any fixture fills |
+| M4, F9, P4: the clocks | 1.5 seconds for a provider's limits, ten minutes for a generation and every asking of it, fifteen minutes for a stalled job. A service takes them from no document a case could shorten |
+| D7, the size of a piece following the provider's usage | Not written. On a model whose window is shared, as the stand-in Ollama's is, the ceiling of a piece is where it opens unless the window is far over what any fixture fills. A model of the stand-in Anthropic has two ceilings, and a case on it could hold the rule |
 | F7 and K6, a piece asked again in halves for another reason than a cut-off answer | Not written: `halved.test.ts` holds the halving itself |
 | The commit whose acknowledgement is lost | [WORKER-CONTRACT A5](../../../docs/protocol/WORKER-CONTRACT.md#committing-annotations), held by the worker suite: a service waits a minute for an acknowledgement |
 

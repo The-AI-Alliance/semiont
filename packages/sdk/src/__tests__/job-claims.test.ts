@@ -1355,7 +1355,7 @@ describe('willRetryAfter (specs/src/jobs/retry-cases.json)', () => {
     why: string;
     retryCount: number;
     maxRetries: number;
-    failureClass?: 'transient' | 'deterministic';
+    failureClass?: NonNullable<JobFailure['failureClass']>;
     retries: boolean;
   }
   const { cases } = JSON.parse(readFileSync(new URL('../../../../specs/src/jobs/retry-cases.json', import.meta.url), 'utf8')) as { cases: RetryCase[] };

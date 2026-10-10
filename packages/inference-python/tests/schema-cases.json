@@ -1,0 +1,651 @@
+{
+  "about": "An element schema, the dialect it is rewritten into, the schema a provider is then sent for an array of such elements, an answer, and what is read from it. tests/test_schema.py runs every case. A case with `format` is one of the five a detection asks for, held to tests/conformance/worker-service/support.ts. A case with `refused` is a schema that is not rewritten, and the words it is refused in. `answer` is the reply as JSON; `answerText` is a reply that is not JSON, as its text.",
+  "wrapper": "elements",
+  "cases": [
+    {
+      "name": "highlighting, as written",
+      "format": "highlighting",
+      "dialect": "as-written",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact"], "additionalProperties": false},
+      "sent": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact"], "additionalProperties": false}},
+      "answer": [{"exact": "the old lighthouse", "prefix": "past ", "suffix": " at dusk"}, {"exact": "a second span"}],
+      "stopReason": "end_turn",
+      "items": [{"exact": "the old lighthouse", "prefix": "past ", "suffix": " at dusk"}, {"exact": "a second span"}]
+    },
+    {
+      "name": "highlighting, an object at the root and every property required",
+      "format": "highlighting",
+      "dialect": "object-root-all-required",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact"], "additionalProperties": false},
+      "sent": {"type": "object", "properties": {"elements": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "prefix": {"type": ["string", "null"]}, "suffix": {"type": ["string", "null"]}}, "required": ["exact", "prefix", "suffix"], "additionalProperties": false}}}, "required": ["elements"], "additionalProperties": false},
+      "answer": {"elements": [{"exact": "the old lighthouse", "prefix": "past ", "suffix": " at dusk"}, {"exact": "a second span", "prefix": null, "suffix": null}]},
+      "stopReason": "end_turn",
+      "items": [{"exact": "the old lighthouse", "prefix": "past ", "suffix": " at dusk"}, {"exact": "a second span"}]
+    },
+    {
+      "name": "commenting, as written",
+      "format": "commenting",
+      "dialect": "as-written",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "comment": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact", "comment"], "additionalProperties": false},
+      "sent": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "comment": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact", "comment"], "additionalProperties": false}},
+      "answer": [{"exact": "the tide tables", "comment": "Which year's?", "prefix": "by "}],
+      "stopReason": "end_turn",
+      "items": [{"exact": "the tide tables", "comment": "Which year's?", "prefix": "by "}]
+    },
+    {
+      "name": "commenting, an object at the root and every property required",
+      "format": "commenting",
+      "dialect": "object-root-all-required",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "comment": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact", "comment"], "additionalProperties": false},
+      "sent": {"type": "object", "properties": {"elements": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "comment": {"type": "string"}, "prefix": {"type": ["string", "null"]}, "suffix": {"type": ["string", "null"]}}, "required": ["exact", "comment", "prefix", "suffix"], "additionalProperties": false}}}, "required": ["elements"], "additionalProperties": false},
+      "answer": {"elements": [{"exact": "the tide tables", "comment": "Which year's?", "prefix": "by ", "suffix": null}]},
+      "stopReason": "end_turn",
+      "items": [{"exact": "the tide tables", "comment": "Which year's?", "prefix": "by "}]
+    },
+    {
+      "name": "assessing, as written",
+      "format": "assessing",
+      "dialect": "as-written",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "assessment": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact", "assessment"], "additionalProperties": false},
+      "sent": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "assessment": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact", "assessment"], "additionalProperties": false}},
+      "answer": [{"exact": "always", "assessment": "Too strong: the log shows two exceptions.", "suffix": " on time"}],
+      "stopReason": "end_turn",
+      "items": [{"exact": "always", "assessment": "Too strong: the log shows two exceptions.", "suffix": " on time"}]
+    },
+    {
+      "name": "assessing, an object at the root and every property required",
+      "format": "assessing",
+      "dialect": "object-root-all-required",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "assessment": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact", "assessment"], "additionalProperties": false},
+      "sent": {"type": "object", "properties": {"elements": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "assessment": {"type": "string"}, "prefix": {"type": ["string", "null"]}, "suffix": {"type": ["string", "null"]}}, "required": ["exact", "assessment", "prefix", "suffix"], "additionalProperties": false}}}, "required": ["elements"], "additionalProperties": false},
+      "answer": {"elements": [{"exact": "always", "assessment": "Too strong: the log shows two exceptions.", "prefix": null, "suffix": " on time"}]},
+      "stopReason": "end_turn",
+      "items": [{"exact": "always", "assessment": "Too strong: the log shows two exceptions.", "suffix": " on time"}]
+    },
+    {
+      "name": "tagging, as written, and nothing found",
+      "format": "tagging",
+      "dialect": "as-written",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact"], "additionalProperties": false},
+      "sent": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact"], "additionalProperties": false}},
+      "answer": [],
+      "stopReason": "end_turn",
+      "items": []
+    },
+    {
+      "name": "tagging, an object at the root and every property required, and nothing found",
+      "format": "tagging",
+      "dialect": "object-root-all-required",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact"], "additionalProperties": false},
+      "sent": {"type": "object", "properties": {"elements": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "prefix": {"type": ["string", "null"]}, "suffix": {"type": ["string", "null"]}}, "required": ["exact", "prefix", "suffix"], "additionalProperties": false}}}, "required": ["elements"], "additionalProperties": false},
+      "answer": {"elements": []},
+      "stopReason": "end_turn",
+      "items": []
+    },
+    {
+      "name": "linking, as written",
+      "format": "linking",
+      "dialect": "as-written",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "entityType": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact", "entityType"], "additionalProperties": false},
+      "sent": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "entityType": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact", "entityType"], "additionalProperties": false}},
+      "answer": [{"exact": "Ada Lovelace", "entityType": "Person"}, {"exact": "London", "entityType": "Place", "prefix": "in ", "suffix": ","}],
+      "stopReason": "end_turn",
+      "items": [{"exact": "Ada Lovelace", "entityType": "Person"}, {"exact": "London", "entityType": "Place", "prefix": "in ", "suffix": ","}]
+    },
+    {
+      "name": "linking, an object at the root and every property required",
+      "format": "linking",
+      "dialect": "object-root-all-required",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "entityType": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact", "entityType"], "additionalProperties": false},
+      "sent": {"type": "object", "properties": {"elements": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "entityType": {"type": "string"}, "prefix": {"type": ["string", "null"]}, "suffix": {"type": ["string", "null"]}}, "required": ["exact", "entityType", "prefix", "suffix"], "additionalProperties": false}}}, "required": ["elements"], "additionalProperties": false},
+      "answer": {"elements": [{"exact": "Ada Lovelace", "entityType": "Person", "prefix": null, "suffix": null}, {"exact": "London", "entityType": "Place", "prefix": "in ", "suffix": ","}]},
+      "stopReason": "end_turn",
+      "items": [{"exact": "Ada Lovelace", "entityType": "Person"}, {"exact": "London", "entityType": "Place", "prefix": "in ", "suffix": ","}]
+    },
+    {
+      "name": "highlighting, as written for a provider of plain enums",
+      "format": "highlighting",
+      "dialect": "as-written-plain-enums",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact"], "additionalProperties": false},
+      "sent": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact"], "additionalProperties": false}},
+      "answer": [{"exact": "the old lighthouse", "prefix": "past ", "suffix": " at dusk"}, {"exact": "a second span"}],
+      "stopReason": "end_turn",
+      "items": [{"exact": "the old lighthouse", "prefix": "past ", "suffix": " at dusk"}, {"exact": "a second span"}]
+    },
+    {
+      "name": "commenting, as written for a provider of plain enums",
+      "format": "commenting",
+      "dialect": "as-written-plain-enums",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "comment": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact", "comment"], "additionalProperties": false},
+      "sent": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "comment": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact", "comment"], "additionalProperties": false}},
+      "answer": [{"exact": "the tide tables", "comment": "Which year's?", "prefix": "by "}],
+      "stopReason": "end_turn",
+      "items": [{"exact": "the tide tables", "comment": "Which year's?", "prefix": "by "}]
+    },
+    {
+      "name": "assessing, as written for a provider of plain enums",
+      "format": "assessing",
+      "dialect": "as-written-plain-enums",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "assessment": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact", "assessment"], "additionalProperties": false},
+      "sent": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "assessment": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact", "assessment"], "additionalProperties": false}},
+      "answer": [{"exact": "always", "assessment": "Too strong: the log shows two exceptions.", "suffix": " on time"}],
+      "stopReason": "end_turn",
+      "items": [{"exact": "always", "assessment": "Too strong: the log shows two exceptions.", "suffix": " on time"}]
+    },
+    {
+      "name": "tagging, as written for a provider of plain enums, and nothing found",
+      "format": "tagging",
+      "dialect": "as-written-plain-enums",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact"], "additionalProperties": false},
+      "sent": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact"], "additionalProperties": false}},
+      "answer": [],
+      "stopReason": "end_turn",
+      "items": []
+    },
+    {
+      "name": "linking, as written for a provider of plain enums",
+      "format": "linking",
+      "dialect": "as-written-plain-enums",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "entityType": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact", "entityType"], "additionalProperties": false},
+      "sent": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "entityType": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact", "entityType"], "additionalProperties": false}},
+      "answer": [{"exact": "Ada Lovelace", "entityType": "Person"}, {"exact": "London", "entityType": "Place", "prefix": "in ", "suffix": ","}],
+      "stopReason": "end_turn",
+      "items": [{"exact": "Ada Lovelace", "entityType": "Person"}, {"exact": "London", "entityType": "Place", "prefix": "in ", "suffix": ","}]
+    },
+    {
+      "name": "an array of strings, as written",
+      "dialect": "as-written",
+      "schema": {"type": "string"},
+      "sent": {"type": "array", "items": {"type": "string"}},
+      "answer": ["a", "b"],
+      "stopReason": "end_turn",
+      "items": ["a", "b"]
+    },
+    {
+      "name": "an array of strings, in an object at the root",
+      "dialect": "object-root-all-required",
+      "schema": {"type": "string"},
+      "sent": {"type": "object", "properties": {"elements": {"type": "array", "items": {"type": "string"}}}, "required": ["elements"], "additionalProperties": false},
+      "answer": {"elements": ["a", "b"]},
+      "stopReason": "end_turn",
+      "items": ["a", "b"]
+    },
+    {
+      "name": "a nested object, as written: nothing is added to it",
+      "dialect": "as-written",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "position": {"type": "object", "properties": {"start": {"type": "integer"}, "end": {"type": "integer"}}, "required": ["start", "end"]}}, "required": ["exact", "position"]},
+      "sent": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "position": {"type": "object", "properties": {"start": {"type": "integer"}, "end": {"type": "integer"}}, "required": ["start", "end"]}}, "required": ["exact", "position"]}},
+      "answer": [{"exact": "x", "position": {"start": 0, "end": 1}}],
+      "stopReason": "end_turn",
+      "items": [{"exact": "x", "position": {"start": 0, "end": 1}}]
+    },
+    {
+      "name": "a nested object: every object is closed, at any depth",
+      "dialect": "object-root-all-required",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "position": {"type": "object", "properties": {"start": {"type": "integer"}, "end": {"type": "integer"}}, "required": ["start", "end"]}}, "required": ["exact", "position"]},
+      "sent": {"type": "object", "properties": {"elements": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "position": {"type": "object", "properties": {"start": {"type": "integer"}, "end": {"type": "integer"}}, "required": ["start", "end"], "additionalProperties": false}}, "required": ["exact", "position"], "additionalProperties": false}}}, "required": ["elements"], "additionalProperties": false},
+      "answer": {"elements": [{"exact": "x", "position": {"start": 0, "end": 1}}]},
+      "stopReason": "end_turn",
+      "items": [{"exact": "x", "position": {"start": 0, "end": 1}}]
+    },
+    {
+      "name": "an optional property at depth takes null, and its null is taken out at depth",
+      "dialect": "object-root-all-required",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "context": {"type": "object", "properties": {"before": {"type": "string"}, "after": {"type": "string"}}, "required": [], "additionalProperties": false}}, "required": ["exact", "context"], "additionalProperties": false},
+      "sent": {"type": "object", "properties": {"elements": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "context": {"type": "object", "properties": {"before": {"type": ["string", "null"]}, "after": {"type": ["string", "null"]}}, "required": ["before", "after"], "additionalProperties": false}}, "required": ["exact", "context"], "additionalProperties": false}}}, "required": ["elements"], "additionalProperties": false},
+      "answer": {"elements": [{"exact": "x", "context": {"before": "a", "after": null}}, {"exact": "y", "context": {"before": null, "after": null}}]},
+      "stopReason": "end_turn",
+      "items": [{"exact": "x", "context": {"before": "a"}}, {"exact": "y", "context": {}}]
+    },
+    {
+      "name": "an object that states no `required`: every property was optional",
+      "dialect": "object-root-all-required",
+      "schema": {"type": "object", "properties": {"a": {"type": "string"}, "b": {"type": "number"}}},
+      "sent": {"type": "object", "properties": {"elements": {"type": "array", "items": {"type": "object", "properties": {"a": {"type": ["string", "null"]}, "b": {"type": ["number", "null"]}}, "required": ["a", "b"], "additionalProperties": false}}}, "required": ["elements"], "additionalProperties": false},
+      "answer": {"elements": [{"a": null, "b": 2.5}, {"a": null, "b": null}]},
+      "stopReason": "end_turn",
+      "items": [{"b": 2.5}, {}]
+    },
+    {
+      "name": "`required` is written in the order of the properties, and only a null is taken out",
+      "dialect": "object-root-all-required",
+      "schema": {"type": "object", "properties": {"a": {"type": "string"}, "b": {"type": "boolean"}, "c": {"type": "integer"}}, "required": ["c", "a"], "additionalProperties": false},
+      "sent": {"type": "object", "properties": {"elements": {"type": "array", "items": {"type": "object", "properties": {"a": {"type": "string"}, "b": {"type": ["boolean", "null"]}, "c": {"type": "integer"}}, "required": ["a", "b", "c"], "additionalProperties": false}}}, "required": ["elements"], "additionalProperties": false},
+      "answer": {"elements": [{"a": "x", "b": null, "c": 3}, {"a": "", "b": false, "c": 0}]},
+      "stopReason": "end_turn",
+      "items": [{"a": "x", "c": 3}, {"a": "", "b": false, "c": 0}]
+    },
+    {
+      "name": "an optional object is that object or null",
+      "dialect": "object-root-all-required",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "position": {"type": "object", "properties": {"start": {"type": "integer"}, "end": {"type": "integer"}}, "required": ["start"], "additionalProperties": false}}, "required": ["exact"], "additionalProperties": false},
+      "sent": {"type": "object", "properties": {"elements": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "position": {"anyOf": [{"type": "object", "properties": {"start": {"type": "integer"}, "end": {"type": ["integer", "null"]}}, "required": ["start", "end"], "additionalProperties": false}, {"type": "null"}]}}, "required": ["exact", "position"], "additionalProperties": false}}}, "required": ["elements"], "additionalProperties": false},
+      "answer": {"elements": [{"exact": "x", "position": null}, {"exact": "y", "position": {"start": 4, "end": null}}]},
+      "stopReason": "end_turn",
+      "items": [{"exact": "x"}, {"exact": "y", "position": {"start": 4}}]
+    },
+    {
+      "name": "an array within an element: its elements are rewritten and read back too",
+      "dialect": "object-root-all-required",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "tags": {"type": "array", "items": {"type": "object", "properties": {"name": {"type": "string"}, "weight": {"type": "number"}}, "required": ["name"], "additionalProperties": false}}}, "required": ["exact", "tags"], "additionalProperties": false},
+      "sent": {"type": "object", "properties": {"elements": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "tags": {"type": "array", "items": {"type": "object", "properties": {"name": {"type": "string"}, "weight": {"type": ["number", "null"]}}, "required": ["name", "weight"], "additionalProperties": false}}}, "required": ["exact", "tags"], "additionalProperties": false}}}, "required": ["elements"], "additionalProperties": false},
+      "answer": {"elements": [{"exact": "x", "tags": [{"name": "a", "weight": null}, {"name": "b", "weight": 0.5}]}]},
+      "stopReason": "end_turn",
+      "items": [{"exact": "x", "tags": [{"name": "a"}, {"name": "b", "weight": 0.5}]}]
+    },
+    {
+      "name": "an optional array is that array or null, and an empty array is an answer",
+      "dialect": "object-root-all-required",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "tags": {"type": "array", "items": {"type": "string"}}}, "required": ["exact"], "additionalProperties": false},
+      "sent": {"type": "object", "properties": {"elements": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "tags": {"anyOf": [{"type": "array", "items": {"type": "string"}}, {"type": "null"}]}}, "required": ["exact", "tags"], "additionalProperties": false}}}, "required": ["elements"], "additionalProperties": false},
+      "answer": {"elements": [{"exact": "x", "tags": null}, {"exact": "y", "tags": []}]},
+      "stopReason": "end_turn",
+      "items": [{"exact": "x"}, {"exact": "y", "tags": []}]
+    },
+    {
+      "name": "an optional `enum` and an optional `const` are each what they were or null",
+      "dialect": "object-root-all-required",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "weight": {"type": "string", "enum": ["high", "low"]}, "kind": {"type": "string", "const": "span"}}, "required": ["exact"], "additionalProperties": false},
+      "sent": {"type": "object", "properties": {"elements": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "weight": {"anyOf": [{"type": "string", "enum": ["high", "low"]}, {"type": "null"}]}, "kind": {"anyOf": [{"type": "string", "const": "span"}, {"type": "null"}]}}, "required": ["exact", "weight", "kind"], "additionalProperties": false}}}, "required": ["elements"], "additionalProperties": false},
+      "answer": {"elements": [{"exact": "x", "weight": null, "kind": null}, {"exact": "y", "weight": "low", "kind": "span"}]},
+      "stopReason": "end_turn",
+      "items": [{"exact": "x"}, {"exact": "y", "weight": "low", "kind": "span"}]
+    },
+    {
+      "name": "a required `enum` and a required `const` are sent as written",
+      "dialect": "object-root-all-required",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "weight": {"type": "string", "enum": ["high", "low"]}, "kind": {"type": "string", "const": "span"}}, "required": ["exact", "weight", "kind"], "additionalProperties": false},
+      "sent": {"type": "object", "properties": {"elements": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "weight": {"type": "string", "enum": ["high", "low"]}, "kind": {"type": "string", "const": "span"}}, "required": ["exact", "weight", "kind"], "additionalProperties": false}}}, "required": ["elements"], "additionalProperties": false},
+      "answer": {"elements": [{"exact": "y", "weight": "low", "kind": "span"}]},
+      "stopReason": "end_turn",
+      "items": [{"exact": "y", "weight": "low", "kind": "span"}]
+    },
+    {
+      "name": "a required property that takes null is sent as written, and its null is an answer",
+      "dialect": "object-root-all-required",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "note": {"type": ["string", "null"]}, "grade": {"type": ["string", "null"], "enum": ["a", "b", null]}}, "required": ["exact", "note", "grade"], "additionalProperties": false},
+      "sent": {"type": "object", "properties": {"elements": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "note": {"type": ["string", "null"]}, "grade": {"type": ["string", "null"], "enum": ["a", "b", null]}}, "required": ["exact", "note", "grade"], "additionalProperties": false}}}, "required": ["elements"], "additionalProperties": false},
+      "answer": {"elements": [{"exact": "x", "note": null, "grade": null}]},
+      "stopReason": "end_turn",
+      "items": [{"exact": "x", "note": null, "grade": null}]
+    },
+    {
+      "name": "an optional property of more than one type takes null beside them",
+      "dialect": "object-root-all-required",
+      "schema": {"type": "object", "properties": {"id": {"type": ["string", "integer"]}, "alias": {"type": ["string", "integer"]}}, "required": ["id"], "additionalProperties": false},
+      "sent": {"type": "object", "properties": {"elements": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": ["string", "integer"]}, "alias": {"type": ["string", "integer", "null"]}}, "required": ["id", "alias"], "additionalProperties": false}}}, "required": ["elements"], "additionalProperties": false},
+      "answer": {"elements": [{"id": 7, "alias": null}, {"id": "seven", "alias": 7}]},
+      "stopReason": "end_turn",
+      "items": [{"id": 7}, {"id": "seven", "alias": 7}]
+    },
+    {
+      "name": "a description stays with what it describes",
+      "dialect": "object-root-all-required",
+      "schema": {"type": "object", "description": "One span.", "properties": {"exact": {"type": "string", "description": "The text, word for word."}, "prefix": {"type": "string", "description": "What comes before."}, "weight": {"type": "string", "enum": ["high", "low"], "description": "How sure."}}, "required": ["exact"], "additionalProperties": false},
+      "sent": {"type": "object", "properties": {"elements": {"type": "array", "items": {"type": "object", "description": "One span.", "properties": {"exact": {"type": "string", "description": "The text, word for word."}, "prefix": {"type": ["string", "null"], "description": "What comes before."}, "weight": {"anyOf": [{"type": "string", "enum": ["high", "low"], "description": "How sure."}, {"type": "null"}]}}, "required": ["exact", "prefix", "weight"], "additionalProperties": false}}}, "required": ["elements"], "additionalProperties": false},
+      "answer": {"elements": [{"exact": "x", "prefix": null, "weight": "high"}]},
+      "stopReason": "end_turn",
+      "items": [{"exact": "x", "weight": "high"}]
+    },
+    {
+      "name": "as written, a null in an answer is left where it is",
+      "dialect": "as-written",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact"], "additionalProperties": false},
+      "sent": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact"], "additionalProperties": false}},
+      "answer": [{"exact": "x", "prefix": null}],
+      "stopReason": "end_turn",
+      "items": [{"exact": "x", "prefix": null}]
+    },
+    {
+      "name": "as written, an optional property may take null of its own",
+      "dialect": "as-written",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "note": {"type": ["string", "null"]}}, "required": ["exact"], "additionalProperties": false},
+      "sent": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "note": {"type": ["string", "null"]}}, "required": ["exact"], "additionalProperties": false}},
+      "answer": [{"exact": "x", "note": null}, {"exact": "y"}],
+      "stopReason": "end_turn",
+      "items": [{"exact": "x", "note": null}, {"exact": "y"}]
+    },
+    {
+      "name": "as written, a `const` and an `enum` of any scalar are sent as they are",
+      "dialect": "as-written",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "kind": {"type": "string", "const": "span"}, "sure": {"type": "boolean", "enum": [true]}, "weight": {"type": ["string", "null"], "enum": ["high", null]}}, "required": ["exact", "kind"], "additionalProperties": false},
+      "sent": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "kind": {"type": "string", "const": "span"}, "sure": {"type": "boolean", "enum": [true]}, "weight": {"type": ["string", "null"], "enum": ["high", null]}}, "required": ["exact", "kind"], "additionalProperties": false}},
+      "answer": [{"exact": "x", "kind": "span", "sure": true, "weight": null}],
+      "stopReason": "end_turn",
+      "items": [{"exact": "x", "kind": "span", "sure": true, "weight": null}]
+    },
+    {
+      "name": "for a provider of plain enums, an `enum` of text is sent as written",
+      "dialect": "as-written-plain-enums",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "weight": {"type": "string", "enum": ["high", "low"]}}, "required": ["exact"], "additionalProperties": false},
+      "sent": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "weight": {"type": "string", "enum": ["high", "low"]}}, "required": ["exact"], "additionalProperties": false}},
+      "answer": [{"exact": "x", "weight": "low"}, {"exact": "y"}],
+      "stopReason": "end_turn",
+      "items": [{"exact": "x", "weight": "low"}, {"exact": "y"}]
+    },
+    {
+      "name": "for a provider of plain enums, an `enum` of numbers is sent as written",
+      "dialect": "as-written-plain-enums",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "rank": {"type": "number", "enum": [1, 2.5]}}, "required": ["exact", "rank"], "additionalProperties": false},
+      "sent": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "rank": {"type": "number", "enum": [1, 2.5]}}, "required": ["exact", "rank"], "additionalProperties": false}},
+      "answer": [{"exact": "x", "rank": 2.5}],
+      "stopReason": "end_turn",
+      "items": [{"exact": "x", "rank": 2.5}]
+    },
+    {
+      "name": "for a provider of plain enums, a property named `const` or `enum` is a property",
+      "dialect": "as-written-plain-enums",
+      "schema": {"type": "object", "properties": {"const": {"type": "string"}, "enum": {"type": "string"}}, "required": ["const"], "additionalProperties": false},
+      "sent": {"type": "array", "items": {"type": "object", "properties": {"const": {"type": "string"}, "enum": {"type": "string"}}, "required": ["const"], "additionalProperties": false}},
+      "answer": [{"const": "x", "enum": "y"}, {"const": "z"}],
+      "stopReason": "end_turn",
+      "items": [{"const": "x", "enum": "y"}, {"const": "z"}]
+    },
+    {
+      "name": "what does not fit the schema is left as it came: only a null where an optional property was is taken out",
+      "dialect": "object-root-all-required",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact"], "additionalProperties": false},
+      "sent": {"type": "object", "properties": {"elements": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "prefix": {"type": ["string", "null"]}, "suffix": {"type": ["string", "null"]}}, "required": ["exact", "prefix", "suffix"], "additionalProperties": false}}}, "required": ["elements"], "additionalProperties": false},
+      "answer": {"elements": ["text", 3, null, {"exact": null, "prefix": null, "more": null}, [{"prefix": null}]]},
+      "stopReason": "end_turn",
+      "items": ["text", 3, null, {"exact": null, "more": null}, [{"prefix": null}]]
+    },
+    {
+      "name": "an object without the wrapper is a failure, and is not read as an empty array",
+      "dialect": "object-root-all-required",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "prefix": {"type": "string"}, "suffix": {"type": "string"}}, "required": ["exact"], "additionalProperties": false},
+      "sent": {"type": "object", "properties": {"elements": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}, "prefix": {"type": ["string", "null"]}, "suffix": {"type": ["string", "null"]}}, "required": ["exact", "prefix", "suffix"], "additionalProperties": false}}}, "required": ["elements"], "additionalProperties": false},
+      "answer": {},
+      "stopReason": "end_turn",
+      "failure": "the object has no `elements`"
+    },
+    {
+      "name": "an array under another name is not the wrapper",
+      "dialect": "object-root-all-required",
+      "schema": {"type": "string"},
+      "sent": {"type": "object", "properties": {"elements": {"type": "array", "items": {"type": "string"}}}, "required": ["elements"], "additionalProperties": false},
+      "answer": {"items": ["a"]},
+      "stopReason": "end_turn",
+      "failure": "the object has no `elements`"
+    },
+    {
+      "name": "a wrapper that holds null is a failure",
+      "dialect": "object-root-all-required",
+      "schema": {"type": "string"},
+      "sent": {"type": "object", "properties": {"elements": {"type": "array", "items": {"type": "string"}}}, "required": ["elements"], "additionalProperties": false},
+      "answer": {"elements": null},
+      "stopReason": "end_turn",
+      "failure": "`elements` parsed to null, not an array"
+    },
+    {
+      "name": "a wrapper that holds one element and not an array of them is a failure",
+      "dialect": "object-root-all-required",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}}, "required": ["exact"], "additionalProperties": false},
+      "sent": {"type": "object", "properties": {"elements": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}}, "required": ["exact"], "additionalProperties": false}}}, "required": ["elements"], "additionalProperties": false},
+      "answer": {"elements": {"exact": "x"}},
+      "stopReason": "end_turn",
+      "failure": "`elements` parsed to object, not an array"
+    },
+    {
+      "name": "an array at the root, where an object was asked for, is a failure",
+      "dialect": "object-root-all-required",
+      "schema": {"type": "string"},
+      "sent": {"type": "object", "properties": {"elements": {"type": "array", "items": {"type": "string"}}}, "required": ["elements"], "additionalProperties": false},
+      "answer": ["a"],
+      "stopReason": "end_turn",
+      "failure": "parsed to array, not the object asked for"
+    },
+    {
+      "name": "text at the root, where an object was asked for, is a failure",
+      "dialect": "object-root-all-required",
+      "schema": {"type": "string"},
+      "sent": {"type": "object", "properties": {"elements": {"type": "array", "items": {"type": "string"}}}, "required": ["elements"], "additionalProperties": false},
+      "answer": "Nothing in this text is worth a highlight.",
+      "stopReason": "end_turn",
+      "failure": "parsed to string, not the object asked for"
+    },
+    {
+      "name": "a wrapped answer cut off by its budget is a failure that carries the stop reason",
+      "dialect": "object-root-all-required",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}}, "required": ["exact"], "additionalProperties": false},
+      "sent": {"type": "object", "properties": {"elements": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}}, "required": ["exact"], "additionalProperties": false}}}, "required": ["elements"], "additionalProperties": false},
+      "answerText": "{\"elements\": [{\"exact\": \"the old ligh",
+      "stopReason": "max_tokens",
+      "failure": "response is not valid JSON"
+    },
+    {
+      "name": "a wrapped answer that holds what JSON has no word for is a failure",
+      "dialect": "object-root-all-required",
+      "schema": {"type": "number"},
+      "sent": {"type": "object", "properties": {"elements": {"type": "array", "items": {"type": "number"}}}, "required": ["elements"], "additionalProperties": false},
+      "answerText": "{\"elements\": [NaN]}",
+      "stopReason": "end_turn",
+      "failure": "response is not valid JSON"
+    },
+    {
+      "name": "as written, an object at the root is a failure",
+      "dialect": "as-written",
+      "schema": {"type": "string"},
+      "sent": {"type": "array", "items": {"type": "string"}},
+      "answer": {"elements": ["a"]},
+      "stopReason": "end_turn",
+      "failure": "parsed to object, not an array"
+    },
+    {
+      "name": "as written, an answer cut off by its budget is a failure that carries the stop reason",
+      "dialect": "as-written",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}}, "required": ["exact"], "additionalProperties": false},
+      "sent": {"type": "array", "items": {"type": "object", "properties": {"exact": {"type": "string"}}, "required": ["exact"], "additionalProperties": false}},
+      "answerText": "[{\"exact\": \"the old ligh",
+      "stopReason": "max_tokens",
+      "failure": "response is not valid JSON"
+    },
+    {
+      "name": "for a provider of plain enums, an object at the root is a failure",
+      "dialect": "as-written-plain-enums",
+      "schema": {"type": "string"},
+      "sent": {"type": "array", "items": {"type": "string"}},
+      "answer": {"elements": ["a"]},
+      "stopReason": "end_turn",
+      "failure": "parsed to object, not an array"
+    },
+    {
+      "name": "refused: a keyword that is not rewritten, as written",
+      "dialect": "as-written",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string", "minLength": 1}}, "required": ["exact"], "additionalProperties": false},
+      "refused": "The element schema cannot be rewritten: `minLength` is a keyword this package does not rewrite (at #/properties/exact)"
+    },
+    {
+      "name": "refused: a keyword that is not rewritten, with an object at the root",
+      "dialect": "object-root-all-required",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string", "minLength": 1}}, "required": ["exact"], "additionalProperties": false},
+      "refused": "The element schema cannot be rewritten: `minLength` is a keyword this package does not rewrite (at #/properties/exact)"
+    },
+    {
+      "name": "refused: `anyOf`, which the rewriting writes and does not read",
+      "dialect": "as-written",
+      "schema": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+      "refused": "The element schema cannot be rewritten: `anyOf` is a keyword this package does not rewrite (at #)"
+    },
+    {
+      "name": "refused: `$ref`, in the elements of an array within an element",
+      "dialect": "as-written",
+      "schema": {"type": "object", "properties": {"tags": {"type": "array", "items": {"$ref": "#/$defs/tag"}}}, "required": ["tags"], "additionalProperties": false},
+      "refused": "The element schema cannot be rewritten: `$ref` is a keyword this package does not rewrite (at #/properties/tags/items)"
+    },
+    {
+      "name": "refused: a property's name is written as JSON Pointer writes it",
+      "dialect": "as-written",
+      "schema": {"type": "object", "properties": {"a/b~c": {"type": "string", "format": "date"}}, "required": [], "additionalProperties": false},
+      "refused": "The element schema cannot be rewritten: `format` is a keyword this package does not rewrite (at #/properties/a~1b~0c)"
+    },
+    {
+      "name": "refused: a schema that is `true`",
+      "dialect": "as-written",
+      "schema": {"type": "object", "properties": {"exact": true}, "required": ["exact"], "additionalProperties": false},
+      "refused": "The element schema cannot be rewritten: a schema that is not a JSON object (at #/properties/exact)"
+    },
+    {
+      "name": "refused: `items` that is a list of schemas",
+      "dialect": "as-written",
+      "schema": {"type": "array", "items": [{"type": "string"}]},
+      "refused": "The element schema cannot be rewritten: a schema that is not a JSON object (at #/items)"
+    },
+    {
+      "name": "refused: a schema that states no `type`",
+      "dialect": "as-written",
+      "schema": {"type": "object", "properties": {"weight": {"enum": ["high", "low"]}}, "required": ["weight"], "additionalProperties": false},
+      "refused": "The element schema cannot be rewritten: a schema that states no `type` (at #/properties/weight)"
+    },
+    {
+      "name": "refused: a `type` JSON Schema does not have",
+      "dialect": "as-written",
+      "schema": {"type": "date"},
+      "refused": "The element schema cannot be rewritten: `type` is not one of array, boolean, integer, null, number, object, string, or a list of them without repeats (at #)"
+    },
+    {
+      "name": "refused: a `type` that is an empty list",
+      "dialect": "as-written",
+      "schema": {"type": []},
+      "refused": "The element schema cannot be rewritten: `type` is not one of array, boolean, integer, null, number, object, string, or a list of them without repeats (at #)"
+    },
+    {
+      "name": "refused: a `type` that names one type twice",
+      "dialect": "as-written",
+      "schema": {"type": ["string", "string"]},
+      "refused": "The element schema cannot be rewritten: `type` is not one of array, boolean, integer, null, number, object, string, or a list of them without repeats (at #)"
+    },
+    {
+      "name": "refused: an object that states no `properties`",
+      "dialect": "as-written",
+      "schema": {"type": "object"},
+      "refused": "The element schema cannot be rewritten: an object that states no `properties` (at #)"
+    },
+    {
+      "name": "refused: `properties` that is a list",
+      "dialect": "as-written",
+      "schema": {"type": "object", "properties": ["exact"]},
+      "refused": "The element schema cannot be rewritten: `properties` is not an object of schemas (at #)"
+    },
+    {
+      "name": "refused: an array that states no `items`",
+      "dialect": "as-written",
+      "schema": {"type": "object", "properties": {"tags": {"type": "array"}}, "required": ["tags"], "additionalProperties": false},
+      "refused": "The element schema cannot be rewritten: an array that states no `items` (at #/properties/tags)"
+    },
+    {
+      "name": "refused: `properties` on what is not an object",
+      "dialect": "as-written",
+      "schema": {"type": "string", "properties": {}},
+      "refused": "The element schema cannot be rewritten: `properties` on a schema whose `type` does not name object (at #)"
+    },
+    {
+      "name": "refused: `required` on what is not an object",
+      "dialect": "as-written",
+      "schema": {"type": "string", "required": ["a"]},
+      "refused": "The element schema cannot be rewritten: `required` on a schema whose `type` does not name object (at #)"
+    },
+    {
+      "name": "refused: `additionalProperties` on what is not an object",
+      "dialect": "as-written",
+      "schema": {"type": "array", "items": {"type": "string"}, "additionalProperties": false},
+      "refused": "The element schema cannot be rewritten: `additionalProperties` on a schema whose `type` does not name object (at #)"
+    },
+    {
+      "name": "refused: `items` on what is not an array",
+      "dialect": "as-written",
+      "schema": {"type": "string", "items": {"type": "string"}},
+      "refused": "The element schema cannot be rewritten: `items` on a schema whose `type` does not name array (at #)"
+    },
+    {
+      "name": "refused: an object left open",
+      "dialect": "as-written",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}}, "required": ["exact"], "additionalProperties": true},
+      "refused": "The element schema cannot be rewritten: `additionalProperties` is not false (at #)"
+    },
+    {
+      "name": "refused: an object whose other properties have a schema",
+      "dialect": "as-written",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}}, "required": ["exact"], "additionalProperties": {"type": "string"}},
+      "refused": "The element schema cannot be rewritten: `additionalProperties` is not false (at #)"
+    },
+    {
+      "name": "refused: `required` that is not a list",
+      "dialect": "as-written",
+      "schema": {"type": "object", "properties": {"a": {"type": "string"}}, "required": "a"},
+      "refused": "The element schema cannot be rewritten: `required` is not a list of names without repeats (at #)"
+    },
+    {
+      "name": "refused: `required` that names a property twice",
+      "dialect": "as-written",
+      "schema": {"type": "object", "properties": {"a": {"type": "string"}}, "required": ["a", "a"]},
+      "refused": "The element schema cannot be rewritten: `required` is not a list of names without repeats (at #)"
+    },
+    {
+      "name": "refused: `required` that names a property the object does not have",
+      "dialect": "as-written",
+      "schema": {"type": "object", "properties": {"a": {"type": "string"}}, "required": ["a", "b"]},
+      "refused": "The element schema cannot be rewritten: `required` names `b`, which `properties` does not have (at #)"
+    },
+    {
+      "name": "refused: an `enum` of nothing",
+      "dialect": "as-written",
+      "schema": {"type": "string", "enum": []},
+      "refused": "The element schema cannot be rewritten: `enum` is not a list of at least one string, number, boolean or null (at #)"
+    },
+    {
+      "name": "refused: an `enum` that holds an object",
+      "dialect": "as-written",
+      "schema": {"type": "string", "enum": ["a", {"b": 1}]},
+      "refused": "The element schema cannot be rewritten: `enum` is not a list of at least one string, number, boolean or null (at #)"
+    },
+    {
+      "name": "refused: a `const` that is a list",
+      "dialect": "as-written",
+      "schema": {"type": "string", "const": ["a"]},
+      "refused": "The element schema cannot be rewritten: `const` is not a string, a number, a boolean or null (at #)"
+    },
+    {
+      "name": "refused: a `description` that is not text",
+      "dialect": "as-written",
+      "schema": {"type": "string", "description": 7},
+      "refused": "The element schema cannot be rewritten: `description` is not text (at #)"
+    },
+    {
+      "name": "refused, where every property is made required: an optional property that takes null of its own",
+      "dialect": "object-root-all-required",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "note": {"type": ["string", "null"]}}, "required": ["exact"], "additionalProperties": false},
+      "refused": "The element schema cannot be rewritten: the optional property `note` takes null of its own, and a null is what stands here for a property left out (at #/properties/note)"
+    },
+    {
+      "name": "refused, where every property is made required: an optional property that is null and nothing else",
+      "dialect": "object-root-all-required",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "nothing": {"type": "null"}}, "required": ["exact"], "additionalProperties": false},
+      "refused": "The element schema cannot be rewritten: the optional property `nothing` takes null of its own, and a null is what stands here for a property left out (at #/properties/nothing)"
+    },
+    {
+      "name": "refused, where a reply is held to plain enums alone: a `const` of text",
+      "dialect": "as-written-plain-enums",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "kind": {"type": "string", "const": "span"}}, "required": ["exact", "kind"], "additionalProperties": false},
+      "refused": "The element schema cannot be rewritten: `const` is a keyword the provider ignores, so no reply would be held to it (at #/properties/kind)"
+    },
+    {
+      "name": "refused, where a reply is held to plain enums alone: a `const` deep in the schema",
+      "dialect": "as-written-plain-enums",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "a/b": {"type": "array", "items": {"type": "object", "properties": {"k": {"type": "null", "const": null}}, "additionalProperties": false}}}, "required": ["exact"], "additionalProperties": false},
+      "refused": "The element schema cannot be rewritten: `const` is a keyword the provider ignores, so no reply would be held to it (at #/properties/a~1b/items/properties/k)"
+    },
+    {
+      "name": "refused, where a reply is held to plain enums alone: an `enum` that lists a boolean",
+      "dialect": "as-written-plain-enums",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "sure": {"type": "boolean", "enum": [true, false]}}, "required": ["exact"], "additionalProperties": false},
+      "refused": "The element schema cannot be rewritten: `enum` lists a value that is neither text nor a number, which the provider ignores, so no reply would be held to it (at #/properties/sure)"
+    },
+    {
+      "name": "refused, where a reply is held to plain enums alone: an `enum` that lists null",
+      "dialect": "as-written-plain-enums",
+      "schema": {"type": "object", "properties": {"exact": {"type": "string"}, "weight": {"type": ["string", "null"], "enum": ["high", null]}}, "required": ["exact"], "additionalProperties": false},
+      "refused": "The element schema cannot be rewritten: `enum` lists a value that is neither text nor a number, which the provider ignores, so no reply would be held to it (at #/properties/weight)"
+    }
+  ]
+}

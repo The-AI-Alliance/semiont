@@ -27,6 +27,8 @@ Two of Semiont's services hold a model credential, and only they create clients:
 | `OllamaInferenceClient` | Ollama's native HTTP API, with no SDK |
 | `MockInferenceClient` | A scripted double for tests: canned responses in order, every call recorded |
 | `StructuredReadError` | What a structured generation throws when the response cannot be read as the list that was asked for |
+| `ProviderStatusError` | What a generation throws when the provider refuses it with an HTTP status, which it carries |
+| `ProviderWithheldError` | What a generation throws when the provider withheld its answer, by a refusal or a filter |
 | `answerLimitsRequests`, `reportLimits` | How a service that holds clients answers a limits request on the bus, with each model's discovered limits |
 
 Every generation records a usage metric through [`@semiont/observability`](../observability/README.md): provider, model, duration, outcome, and the token counts the provider reported.
@@ -63,6 +65,7 @@ const { items } = await client.generateStructured<{ exact: string }>(
 - **Limits are asked of the provider, never kept in a table here.** `limits()` discovers the model's context window and its output ceiling. A success is cached, a failure is not, and when the limits cannot be found it throws rather than guess.
 - **A structured generation returns parsed elements or throws.** A response that is unreadable, empty or cut off mid-list is a `StructuredReadError` carrying the provider's stop reason. It is never an empty list.
 - **A cancelled call stops at the provider.** Every generation takes an `AbortSignal`, and aborting tears the request down rather than leaving it running and billed.
+- **A caller tells failures apart without knowing the provider.** A refusal is a `ProviderStatusError` with the status, an unreadable reply a `StructuredReadError`, an answer withheld a `ProviderWithheldError`, an abort the language's own `AbortError`. An implementation turns what its library throws into those, so no caller imports a provider's library to read a failure.
 - **Token counts are the provider's own.** `usage` is absent when the provider reported none. It is never estimated.
 
 ## Adding a provider

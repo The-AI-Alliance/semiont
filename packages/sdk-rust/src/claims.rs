@@ -118,9 +118,14 @@ const fn weakness(evidence: DurabilityEvidence) -> u8 {
     }
 }
 
-/// Whether a failed attempt is retried: exactly when the failure is not known
-/// to be deterministic and the job has retries left, on the record before the
-/// failure is applied.
+/// Whether a failed attempt is retried: exactly when its class is one the
+/// queue retries and the job has retries left, on the record before the
+/// failure is applied. A failure known to be deterministic is not retried:
+/// the same request cannot succeed on a second attempt. Neither is an answer
+/// the provider withheld: it withholds its answer to the same request again.
+/// A failure of no stated class is retried as a transient one is. Every class
+/// the spec names is answered here, and one it comes to name does not compile
+/// until it is.
 ///
 /// Two places need the answer and they must never disagree: the dispatcher's
 /// queue acts on it, and a worker reports it on `job:fail` as `willRetry`, so
@@ -128,8 +133,11 @@ const fn weakness(evidence: DurabilityEvidence) -> u8 {
 /// This is the one implementation in Rust, which the Dispatcher uses too, and
 /// specs/src/jobs/retry-cases.json is the table every language answers alike.
 pub fn will_retry_after(metadata: &JobMetadata, failure_class: Option<FailureClass>) -> bool {
-    failure_class != Some(FailureClass::Deterministic)
-        && metadata.retry_count < metadata.max_retries
+    let retried = match failure_class {
+        None | Some(FailureClass::Transient) => true,
+        Some(FailureClass::Deterministic | FailureClass::Withheld) => false,
+    };
+    retried && metadata.retry_count < metadata.max_retries
 }
 
 /// The waits a worker keeps, each the value of specs/src/client/timing.json

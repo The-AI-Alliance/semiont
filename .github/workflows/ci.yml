@@ -678,6 +678,56 @@ jobs:
       - name: Test the sign-in store
         run: uv run pytest tests/test_sign_in_store.py tests/test_state_dir.py
 
+  # The Python inference drivers, as the Python SDK is checked: both type
+  # checkers, strict, on the oldest Python supported, and the tests on every
+  # one. The locked environment has every provider's extra, so every driver is
+  # read. The tests play each provider over HTTP on the runner, and reach no
+  # real one.
+  test-inference-python:
+    name: Python Inference Drivers
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.12', '3.13', '3.14']
+
+    defaults:
+      run:
+        working-directory: packages/inference-python
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.2.0
+
+      - name: Install the locked environment
+        run: uv sync --locked
+
+      - name: Type-check with mypy (strict)
+        if: matrix.python-version == '3.12'
+        run: uv run mypy
+
+      # pyright runs on Node, which the runner has.
+      - name: Type-check with pyright (strict)
+        if: matrix.python-version == '3.12'
+        run: uv run pyright
+
+      - name: Lint and check formatting
+        if: matrix.python-version == '3.12'
+        run: |
+          uv run ruff check
+          uv run ruff format --check
+
+      - name: Run the tests
+        run: uv run pytest
+
   test-comprehensive:
     name: Comprehensive Test Suite
     runs-on: ubuntu-latest
@@ -894,6 +944,24 @@ jobs:
 
       - name: OpenAPI spec vs the Python SDK's generated models
         run: uv run --project packages/sdk-python --locked python packages/sdk-python/scripts/generate_models.py --check
+
+      # Authority: the npm package @opencode-ai/models (the models.dev
+      # catalogue), at the one version the root package.json pins → the model
+      # catalogue file the Python inference package's tests read, and its
+      # notice (packages/inference-python/tests/catalogue). The package carries
+      # no copy: an image's build makes the file with the same script. This
+      # one is the tests' fixture, real data at the pin, so the script, the
+      # package's reader and the pin are held to each other. A bump of the pin
+      # without `npm run generate:model-catalogue` fails here. This is the one
+      # check of this job that reads an installed package, so it installs
+      # first: the root's own dependencies at the lockfile's versions, without
+      # the workspaces' and without running any package's scripts. It is the
+      # job's last step, so that no other check runs with a node_modules it
+      # did not have before.
+      - name: models.dev catalogue vs the inference tests' catalogue file
+        run: |
+          npm ci --workspaces=false --ignore-scripts
+          npm run generate:model-catalogue:check
 
   test-launcher:
     name: Launcher Tests (Go)

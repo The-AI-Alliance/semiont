@@ -1,12 +1,16 @@
 /**
- * Failure classification: a deterministic failure is not retried.
+ * Failure classification: a deterministic failure is not retried, and neither
+ * is an answer the provider withheld.
  *
  * A retried deterministic failure always costs exactly double: the second
- * attempt of the same request cannot succeed. The rule is one-sided —
- * only KNOWN-deterministic failures skip the retry budget; everything
- * unrecognized stays retryable (`undefined`), because mis-classifying a
- * transient failure as deterministic silently halves reliability, while the
- * reverse merely costs one wasted attempt.
+ * attempt of the same request cannot succeed. A withheld answer costs the
+ * same, because the provider withholds the same request again; it is a class
+ * of its own so that whoever reads the failure can tell "the provider would
+ * not answer" from "the job broke" without reading the error's text. The rule
+ * is one-sided — only failures KNOWN to be deterministic or withheld skip the
+ * retry budget; everything unrecognized stays retryable (`undefined`),
+ * because mis-classifying a transient failure as either silently halves
+ * reliability, while the reverse merely costs one wasted attempt.
  *
  * Classification happens HERE, in the worker, where errors are still typed —
  * at the gateway's `job:fail` handler the failure is already a flattened
@@ -15,7 +19,7 @@
  */
 
 import { isNumber, isObject, isString, RETRY_RULES, type components } from '@semiont/core';
-import { StructuredReadError } from '@semiont/inference';
+import { ProviderWithheldError, StructuredReadError } from '@semiont/inference';
 import { InferenceTimeoutError } from './workers/inference-call';
 
 /** Derived from the spec, not restated: the wire owns this vocabulary
@@ -35,9 +39,14 @@ export class DeterministicJobError extends Error {
 }
 
 /**
- * The taxonomy, and its provider coupling — THE part that will drift:
+ * The taxonomy. It reads the failures the worker and its inference drivers
+ * declare, the language's abort, and a status; never the name a provider's
+ * library gives a failure. specs/src/worker/failure-class-cases.json states
+ * it, and failure-class-cases.test.ts runs every case.
  *
- * - `@anthropic-ai/sdk` errors carry a numeric `status`, and WHICH statuses are
+ * - A status, carried as a number: a driver's `ProviderStatusError` carries
+ *   the one its provider refused a generation with, and http-transport's
+ *   `APIError` the one a gateway refused with. WHICH statuses are
  *   worth another attempt is not decided here: it is `RETRY_RULES.job`, core's
  *   named rule. Restating its conditions here would be a second opinion on a
  *   question core already answers, and where a bare list and a reasoned rule
@@ -45,12 +54,15 @@ export class DeterministicJobError extends Error {
  *   carries the ONE thing the rule cannot know: that anything else at or above
  *   400 is a rejected request, and re-sending it unchanged is guaranteed waste →
  *   deterministic.
- * - Aborts (`APIUserAbortError` from the SDK, `AbortError` from fetch/mock)
- *   are our own bound or shutdown tearing the transport down — nothing was
+ * - An abort (`AbortError`, which a driver reports its library's abort as)
+ *   is our own bound or shutdown tearing the transport down — nothing was
  *   judged → transient.
- * - Ollama surfaces plain `Error`s (no status) and network failures as
- *   `TypeError: fetch failed`; the SDK's `MessageStream terminated` is a
- *   dropped connection. All land `undefined` → retryable, the safe default.
+ * - A connection that ended and a network failure carry no status, whatever
+ *   reported them, and neither does a discovery that failed. All land
+ *   `undefined` → retryable, the safe default.
+ * - `@semiont/inference`'s `ProviderWithheldError` is an answer the provider
+ *   withheld, by a refusal or a filter: the job did not break, and the same
+ *   request is withheld again → withheld.
  * - `@semiont/inference`'s `StructuredReadError` carries the stop reason
  *   because the cause classifies differently: `max_tokens` is truncation of
  *   an over-demanded answer — the adapter throws before the caller's
@@ -62,6 +74,7 @@ export function classifyFailure(error: unknown): FailureClass | undefined {
   if (error instanceof DeterministicJobError) return 'deterministic';
   if (error instanceof InferenceTimeoutError) return 'transient';
   if (error instanceof StructuredReadError && error.stopReason === 'max_tokens') return 'deterministic';
+  if (error instanceof ProviderWithheldError) return 'withheld';
   // A `StructuredReadError` with any OTHER stop reason falls through to
   // `undefined` — retryable, and DECIDED rather than defaulted.
   //
@@ -75,7 +88,7 @@ export function classifyFailure(error: unknown): FailureClass | undefined {
   // one chunk, not the whole prefix.
   //
   // It stays `undefined` rather than becoming `'transient'` on purpose. The wire
-  // vocabulary has two values, and this is neither: it is not weather, it is
+  // vocabulary has three values, and this is none of them: it is not weather, it is
   // "retryable because the next attempt reads different input". Claiming
   // `transient` would assert an environmental cause nobody established, and
   // absent already means exactly what is true — unrecognised, so retryable.
@@ -83,7 +96,7 @@ export function classifyFailure(error: unknown): FailureClass | undefined {
 
   const name = isString(error.name) ? error.name : '';
   if (name === 'DeterministicJobError') return 'deterministic';
-  if (name === 'APIUserAbortError' || name === 'AbortError') return 'transient';
+  if (name === 'AbortError') return 'transient';
 
   const status = isNumber(error.status) ? error.status : undefined;
   if (status !== undefined) {

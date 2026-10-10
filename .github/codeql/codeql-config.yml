@@ -45,8 +45,9 @@ paths:
   - packages/mcp-server/src
   - packages/observability/src
   - packages/sdk/src
-  # The Python SDK: what its wheel holds
+  # The Python SDK and the Python inference drivers: what each wheel holds
   - packages/sdk-python/src
+  - packages/inference-python/src
 
 paths-ignore:
   - apps/launcher/testdata

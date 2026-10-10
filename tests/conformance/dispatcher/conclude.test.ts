@@ -138,6 +138,15 @@ withDispatcher('job:fail', (world) => {
     await creator.until(job.metadata.id, 'the job to fail', (s) => s.status === 'failed');
   });
 
+  it('fails at once a failure classed withheld, whatever budget is left, and does not queue the job again', async () => {
+    const { creator, worker, job, ref } = await world().running({ motivation: 'commenting' });
+    expect(job.metadata).toMatchObject({ retryCount: 0, maxRetries: 1 });
+    await worker.fail(ref, 'The provider withheld its answer: refusal', { failureClass: 'withheld' });
+    const status = await creator.until(job.metadata.id, 'the job to fail', (s) => s.status === 'failed');
+    expect(status.error).toBe('The provider withheld its answer: refusal');
+    expect((await worker.claim([marks('commenting')])).payload['code']).toBe('none-pending');
+  });
+
   it('has no effect on a job that is not running', async () => {
     const creator = await world().person('creator');
     const worker = await world().worker('premature');

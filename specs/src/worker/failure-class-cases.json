@@ -1,5 +1,5 @@
 {
-  "$comment": "How a worker classifies a job's failure, as every worker must classify it: the class it reports on job:fail as failureClass, which the retry rule of specs/src/jobs/retry-cases.json then acts on. A `failure` is described as data: its `name` (the kind of failure it is), the HTTP `status` it carries and the `stopReason` of the reply it could not read, whichever of those it has. A failure that is a string or null is something thrown that is no failure object at all. `failureClass` is what the worker reports: \"deterministic\" (the same request cannot succeed a second time, so the retry budget is skipped), \"transient\" (nothing about the request was judged), or null where the failure is not classified and the field is left off the wire, which the retry rule treats as retryable. Only a failure known to be deterministic is called so: calling a transient failure deterministic halves reliability, where the reverse costs one wasted attempt. The rule is asked in this order and the first part that answers decides. (1) What the worker itself raised: a DeterministicJobError, or any kind of one (a YieldCollapseError is one), is deterministic; an InferenceTimeoutError, the worker's own bound on a model call, is transient; a StructuredReadError, a reply that could not be read as the array asked for, is deterministic when its stop reason is max_tokens, and with any other stop reason is left unclassified. (2) By name: an APIUserAbortError or an AbortError is transient. (3) By status, where it is a number: a status the `job` rule of specs/src/retry/cases.json retries is transient, any other status of 400 or more is deterministic, and a status below 400 decides nothing. (4) Anything else is not classified. To run a case a runner builds the failure described: for the four names of (1) the worker's own failure of that kind, and for any other description a failure carrying the name and the status given. TypeScript runs every case in packages/jobs (src/__tests__/failure-class-cases.test.ts) against classifyFailure; a worker in another language runs the same file against its own. Add a case here before changing an implementation.",
+  "$comment": "How a worker classifies a job's failure, as every worker must classify it: the class it reports on job:fail as failureClass, which the retry rule of specs/src/jobs/retry-cases.json then acts on. A `failure` is described as data: its `name`, where it is one of the failures the worker and its inference drivers declare; `aborted`, where the call was torn down by the one who made it; the HTTP `status` it carries; and the `stopReason` of the reply that could not be read: whichever of those it has. A failure that is a string or null is something thrown that is no failure object at all. `failureClass` is what the worker reports: \"deterministic\" (the same request cannot succeed a second time), \"withheld\" (the provider had the request and withheld its answer, and withholds the same request again), \"transient\" (nothing about the request was judged), or null where the failure is not classified and the field is left off the wire, which the retry rule treats as retryable. A deterministic failure and a withheld one are not retried, whatever retry budget is left. Only a failure known to be deterministic or withheld is called so: calling a transient failure either one halves reliability, where the reverse costs one wasted attempt. The rule is asked in this order and the first part that answers decides. (1) What the worker itself raised: a DeterministicJobError, or any kind of one (a YieldCollapseError is one), is deterministic; an InferenceTimeoutError, the worker's own bound on a model call, is transient. (2) What an inference driver raised of a reply: a StructuredReadError, a reply it could not read as the array asked for, is deterministic when its stop reason is max_tokens, and with any other stop reason is left unclassified; a ProviderWithheldError, an answer the provider withheld (a refusal, a content filter), is withheld. (3) An abort is transient. An abort is what the language raises when a call is torn down by the one who made it: JavaScript's AbortError, Python's asyncio.CancelledError. A driver reports its library's abort as the language's, and declares none of its own. (4) By status, where the failure carries one as a number: a driver's ProviderStatusError carries the status its provider refused a generation with, and the SDK's failure carries the status a gateway refused with. A status the `job` rule of specs/src/retry/cases.json retries is transient, any other status of 400 or more is deterministic, and a status below 400 decides nothing. (5) Anything else is not classified: a connection that ended or a network failure, whatever the library that reported it calls it. No part of the rule reads the name a provider's library gives a failure: a driver turns what its library raised into the failures above, or passes it on unread. To run a case a runner builds the failure described: for a `name`, the worker's or the driver's own failure of that name, and a runner refuses a name it does not have; for `aborted`, its language's abort; for a description with neither, a plain failure; and it puts the `status` given on whichever it built. TypeScript runs every case in packages/jobs (src/__tests__/failure-class-cases.test.ts) against classifyFailure; a worker in another language runs the same file against its own. Add a case here before changing an implementation.",
   "cases": [
     {
       "why": "the worker's own mark on a failure it knows cannot succeed a second time: a reply cut off despite the derived budget, a media type with nothing to extract",
@@ -37,18 +37,18 @@
       "failureClass": null
     },
     {
-      "why": "the provider's client was told to abort: the worker's own bound or shutdown tore the transport down, and nothing was judged",
-      "failure": { "name": "APIUserAbortError" },
-      "failureClass": "transient"
+      "why": "an answer the provider withheld, by a refusal or a filter, is classed as that and not as a failure of the job: the same request is withheld again",
+      "failure": { "name": "ProviderWithheldError" },
+      "failureClass": "withheld"
     },
     {
-      "why": "an abort as fetch reports it",
-      "failure": { "name": "AbortError" },
+      "why": "an abort: the worker's own bound or shutdown tore the call down, and nothing was judged",
+      "failure": { "aborted": true },
       "failureClass": "transient"
     },
     {
       "why": "an abort is asked about before a status: whatever status rides an abort, no server gave it as a verdict",
-      "failure": { "name": "AbortError", "status": 400 },
+      "failure": { "aborted": true, "status": 400 },
       "failureClass": "transient"
     },
     {
@@ -67,8 +67,8 @@
       "failureClass": "transient"
     },
     {
-      "why": "503 is a promise to recover, whatever the failure is called",
-      "failure": { "name": "APIError", "status": 503 },
+      "why": "503 is a promise to recover: a driver's ProviderStatusError carries the status its provider refused with",
+      "failure": { "name": "ProviderStatusError", "status": 503 },
       "failureClass": "transient"
     },
     {
@@ -77,8 +77,8 @@
       "failureClass": "transient"
     },
     {
-      "why": "400 is a rejected request: sent again unchanged it is rejected again",
-      "failure": { "status": 400 },
+      "why": "400 is a rejected request, a provider's as any other: sent again unchanged it is rejected again",
+      "failure": { "name": "ProviderStatusError", "status": 400 },
       "failureClass": "deterministic"
     },
     {
@@ -88,7 +88,7 @@
     },
     {
       "why": "404: bytes that are not there will not be there on a second identical read",
-      "failure": { "name": "APIError", "status": 404 },
+      "failure": { "status": 404 },
       "failureClass": "deterministic"
     },
     {
@@ -107,13 +107,8 @@
       "failureClass": null
     },
     {
-      "why": "a failure nothing here recognises, a dropped stream for one, stays unclassified and so retryable",
-      "failure": { "name": "Error" },
-      "failureClass": null
-    },
-    {
-      "why": "a network failure carries no status",
-      "failure": { "name": "TypeError" },
+      "why": "a failure nothing here recognises, a dropped stream or a network failure for one, carries no status: it stays unclassified and so retryable",
+      "failure": {},
       "failureClass": null
     },
     {

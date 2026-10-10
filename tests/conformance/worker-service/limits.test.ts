@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { expect, it } from 'vitest';
 import { marks, YIELDS } from '../harness/dispatcher-world';
 import { eventually } from '../harness/net';
-import { eachWorkerService, type Served, type WorkerServiceWorld } from '../harness/worker-service-world';
+import { ANTHROPIC_MODEL, eachWorkerService, type Served, type WorkerAgent, type WorkerServiceWorld } from '../harness/worker-service-world';
 import { CONTEXT_LENGTH } from './support';
 
 /** Ask for the limits as a client does, and read the one reply. */
@@ -25,8 +25,9 @@ async function limits(w: WorkerServiceWorld): Promise<{ payload: Record<string, 
 /** A window of `contextTokens`, as an Ollama model's is stated: one window, shared by what goes in and what comes out. */
 const shared = (contextTokens: number) => ({ contextTokens, maxOutputTokens: contextTokens, acceptsTemperature: true });
 
-async function started(w: WorkerServiceWorld): Promise<Served> {
-  const [first, second] = w.agents;
+/** A worker of two agents, the first two of `agents`: one that serves highlighting and one that serves generation. */
+async function started(w: WorkerServiceWorld, agents: WorkerAgent[]): Promise<Served> {
+  const [first, second] = agents;
   const served = await w.start({ agents: [w.entry(first!, [marks('highlighting')]), w.entry(second!, [YIELDS])] });
   await eventually('both agents to have claimed', 15_000, () => (w.claims.length >= 2 ? true : undefined));
   return served;
@@ -36,7 +37,7 @@ eachWorkerService('the limits a worker answers', (world) => {
   it('answers a request once, from its first agent, with the limits of every provider and model it works as, in the order of its agents', async () => {
     const w = world();
     const [first, second] = w.agents;
-    const served = await started(w);
+    const served = await started(w, w.agents);
     const answer = await limits(w);
     expect(answer.payload).toEqual({
       response: {
@@ -58,7 +59,7 @@ eachWorkerService('the limits a worker answers', (world) => {
   it('remembers what a provider said, and asks it again only for a model it could not learn of', async () => {
     const w = world();
     const [first, second] = w.agents;
-    await started(w);
+    await started(w, w.agents);
 
     // A provider that cannot be asked: its models are left out, and the request is still answered.
     w.ollama.show = { status: 500 };
@@ -81,5 +82,35 @@ eachWorkerService('the limits a worker answers', (world) => {
     const asked = w.ollama.shows.length;
     expect((await limits(w)).payload).toEqual(learned);
     expect(w.ollama.shows.length).toBe(asked);
+  });
+
+  it('answers, of an Anthropic model, what its provider says it reads and writes and whether it took the temperature it was probed with, having asked of each model once', async () => {
+    const w = world();
+    const [first, second] = w.anthropicAgents;
+    // The second reads and writes less, and refuses a temperature.
+    w.anthropic.models.set(second!.model, { maxInputTokens: 180_000, maxOutputTokens: 8192, structuredOutputs: true, acceptsTemperature: false });
+    await started(w, w.anthropicAgents);
+    const stated = {
+      response: {
+        limits: [
+          { provider: first!.provider, model: first!.model, limits: { contextTokens: ANTHROPIC_MODEL.maxInputTokens, maxOutputTokens: ANTHROPIC_MODEL.maxOutputTokens, acceptsTemperature: true } },
+          { provider: second!.provider, model: second!.model, limits: { contextTokens: 180_000, maxOutputTokens: 8192, acceptsTemperature: false } },
+        ],
+      },
+    };
+    const answer = await limits(w);
+    expect(answer.payload).toEqual(stated);
+    expect(answer.by).toBe(first!.did);
+
+    // Of each model: its ceilings, and one probe. The two agents ask at once, so the four requests come in no fixed order.
+    expect(w.anthropic.described.map((r) => `${r.method} ${r.path}`).sort()).toEqual([`GET /v1/models/${first!.model}`, `GET /v1/models/${second!.model}`].sort());
+    const probe = (model: string) => ({ model, max_tokens: 1, temperature: 0.7, messages: [{ role: 'user', content: 'ok' }] });
+    const byModel = (a: Record<string, unknown>, b: Record<string, unknown>) => (String(a['model']) < String(b['model']) ? -1 : 1);
+    expect(w.anthropic.probes.map((p) => p.body).sort(byModel)).toEqual([probe(first!.model), probe(second!.model)].sort(byModel));
+    expect(w.anthropic.requests).toHaveLength(4);
+
+    // What it learned it keeps: the provider is asked nothing more.
+    expect((await limits(w)).payload).toEqual(stated);
+    expect(w.anthropic.requests).toHaveLength(4);
   });
 });
