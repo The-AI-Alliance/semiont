@@ -43,13 +43,13 @@ bases from the person's web browser (see [HUMAN-UI.md](../../architecture/HUMAN-
 
 Five are Node. Each installs the published `@semiont/*` npm packages at the image's own version, so an image's version is always the npm version it carries. The three that carry `@semiont/make-meaning` run on Node 24; the worker and the Browser run on Node 26. Each Dockerfile's `FROM` names its base.
 
-Two are Rust: the gateway and the dispatcher. Each image compiles its binary from the commit it is published from and ships it on `alpine`, with no source and no toolchain, and builds or fetches nothing when it starts.
+Three are Rust: the gateway, the dispatcher and the Archivist. Each image compiles its binary from the commit it is published from and ships it on `alpine`, with no source and no toolchain, and builds or fetches nothing when it starts. The Archivist's also carries `git`, which it stages a knowledge base's changes with.
 
 | Image | Built from | Dockerfile |
 |---|---|---|
 | `semiont-gateway` | Rust, `apps/gateway` | [apps/gateway/Dockerfile](../../../apps/gateway/Dockerfile) |
 | `semiont-dispatcher` | Rust, `apps/dispatcher` | [apps/dispatcher/Dockerfile](../../../apps/dispatcher/Dockerfile) |
-| `semiont-archivist` | `@semiont/make-meaning` | [apps/archivist/Dockerfile](../../../apps/archivist/Dockerfile) |
+| `semiont-archivist` | Rust, `apps/archivist` | [apps/archivist/Dockerfile](../../../apps/archivist/Dockerfile) |
 | `semiont-librarian` | `@semiont/make-meaning` | [apps/librarian/Dockerfile](../../../apps/librarian/Dockerfile) |
 | `semiont-smelter` | `@semiont/make-meaning` | [apps/smelter/Dockerfile](../../../apps/smelter/Dockerfile) |
 | `semiont-weaver` | `@semiont/make-meaning` | [apps/weaver/Dockerfile](../../../apps/weaver/Dockerfile) |

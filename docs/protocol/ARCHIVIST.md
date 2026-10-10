@@ -59,10 +59,10 @@ A config file that is absent or does not parse reads as every key absent.
 **The roster** is who serves each role, behind `browse:agents-requested`: for a `mark` job of each
 of the five motivations, for a `yield` job, and for the two actors that call a model (`gatherer`,
 `matcher`), a provider and a model, or nothing. The Archivist applies no fallback. The knowledge
-base's config allows three — a `mark` job of a motivation without a binding is served by
+base's config allows two — a `mark` job of a motivation without a binding is served by
 `workers.mark`, and without that by `workers.default`; a `yield` job without one by
-`workers.default`; an actor without one by `make-meaning.default` —
-and the launcher applies them when it writes the document. The same selection routes the work, in
+`workers.default` — and the launcher applies them when it writes the document. An actor is served
+by its own binding, `actors.<actor>`, and by nothing else. The same selection routes the work, in
 the services that call the models; `roster-cases.json`
 ([specs/src/service-config](../../specs/src/service-config/roster-cases.json)) holds the two to one
 answer.
@@ -132,10 +132,11 @@ log stores facts, not routing.
 restart a stream's next number follows its last event. A last line that was cut short, with no
 newline, is ended with one before the next event is appended.
 
-**Reading.** A stream is read file by file in file-number order. Blank lines are skipped. A line that
-is not JSON is logged and skipped. A line of the shape `{"event": {…}, "metadata": {…}}` with no
-top-level `type` is read as the event with that metadata. A read that fails for any reason but a
-missing file reports the path it was reading.
+**Reading.** A stream is read file by file in file-number order. Blank lines are skipped. A line is
+an event when it is a JSON object with a string `type` at its top level. A line that is anything
+else is logged and skipped: it is in no view, in no replay, and its sequence number, if it carries
+one, is not counted. A read that fails for any reason but a missing file reports the path it was
+reading.
 
 ### The views
 

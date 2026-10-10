@@ -27,7 +27,7 @@ An application installs [`@semiont/sdk`](./sdk/), and [`@semiont/react-ui`](./re
 
 ## Rust Crates
 
-Six crates of the Rust workspace live here. Four are published to crates.io, and are how a Rust program uses Semiont. Two are the Rust services' own: they are built into the gateway and the dispatcher and published nowhere.
+Seven crates of the Rust workspace live here. Four are published to crates.io, and are how a Rust program uses Semiont. Three are the Rust services' own: they are built into the gateway, the dispatcher and the Archivist, and published nowhere.
 
 | Crate | Version | Source | Description |
 | ----- | ------- | ------ | ----------- |

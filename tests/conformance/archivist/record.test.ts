@@ -105,26 +105,32 @@ withArchivist('the record, across restarts', (world) => {
     expect(existsSync(orphan)).toBe(false);
   });
 
-  it('reads a log as it finds it: blank lines skipped, a line that is not JSON skipped, an enveloped line unwrapped', async () => {
+  it('reads a log as it finds it: blank lines skipped, and a line that is not an event logged and skipped', async () => {
     const { id } = await annotated(world(), 'as found');
     const file = join(world().streamDir(id), 'events-000001.jsonl');
-    const third = {
+    // JSON, and no event: it states no `type` of its own, and what it holds under `event` is not read.
+    const untyped = {
       event: { type: 'mark:archived', resourceId: id, userId: world().world.personDid('ada'), version: 1, payload: {}, id: '6f1e2d3c-4b5a-4c6d-8e7f-0a1b2c3d4e5f', timestamp: '2026-02-02T02:02:02.002Z' },
-      metadata: { sequenceNumber: 3 },
+      metadata: { sequenceNumber: 9 },
     };
 
     await world().archivist.stop();
-    appendFileSync(file, `\nthis line is not JSON\n${JSON.stringify(third)}\n`);
+    appendFileSync(file, `\nthis line is not JSON\n${JSON.stringify(untyped)}\n`);
     await world().restart();
 
-    expect(world().view(id)).toMatchObject({ lastSequence: 3, resource: { archived: true } });
+    expect(world().view(id)).toMatchObject({ lastSequence: 2, resource: { archived: false } });
     const replay = await world().http('GET', `/events/${id}?fromSequence=1`, { route: '/events/{resourceId}' });
     const events = (replay.json as { events: Array<{ type: string; metadata: { sequenceNumber: number } }> }).events;
-    expect(events.map((e) => [e.type, e.metadata.sequenceNumber])).toEqual([['yield:created', 1], ['mark:added', 2], ['mark:archived', 3]]);
+    expect(events.map((e) => [e.type, e.metadata.sequenceNumber])).toEqual([['yield:created', 1], ['mark:added', 2]]);
+    const logged = world().archivist.output.filter((line) => line.includes('is not an event'));
+    expect(logged).toHaveLength(2);
+    expect(logged[0]).toContain('events-000001.jsonl line 4 is not an event');
+    expect(logged[1]).toContain('events-000001.jsonl line 5 is not an event');
 
+    // The next event follows the last one read, whatever number a skipped line carries.
     const editor = await world().person('editor');
-    await editor.ask('mark:unarchive', { resourceId: id });
-    expect(JSON.parse(world().streamLines(id).at(-1)!)).toMatchObject({ type: 'mark:unarchived', metadata: { sequenceNumber: 4 } });
+    await editor.ask('mark:archive', { resourceId: id });
+    expect(JSON.parse(world().streamLines(id).at(-1)!)).toMatchObject({ type: 'mark:archived', metadata: { sequenceNumber: 3 } });
   });
 
   it('keeps a clone token only as long as the process', async () => {

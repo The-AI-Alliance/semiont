@@ -99,12 +99,11 @@ func TestArchivistDocumentRefusesAMissingGatewayOrIssuer(t *testing.T) {
 // for, is refused by its place in the config.
 func TestArchivistRosterRefusesAMalformedBinding(t *testing.T) {
 	for field, binding := range map[string]string{
-		"workers.yield":                "[environments.local.workers.yield.inference]\ntype = \"anthropic\"\n",
-		"workers.mark":                 "[environments.local.workers.mark.inference]\nmodel = \"m\"\n",
-		"workers.mark.tagging":         "[environments.local.workers.mark.tagging.inference]\ntype = \"openai\"\nmodel = \"m\"\n",
-		"actors.matcher":               "[environments.local.actors.matcher.inference]\nmodel = \"m\"\n",
-		"make-meaning.default":         "[environments.local.make-meaning.default.inference]\ntype = \"openai\"\nmodel = \"m\"\n",
-		"make-meaning.actors.gatherer": "[environments.local.make-meaning.actors.gatherer.inference]\ntype = \"ollama\"\n",
+		"workers.yield":        "[environments.local.workers.yield.inference]\ntype = \"anthropic\"\n",
+		"workers.mark":         "[environments.local.workers.mark.inference]\nmodel = \"m\"\n",
+		"workers.mark.tagging": "[environments.local.workers.mark.tagging.inference]\ntype = \"openai\"\nmodel = \"m\"\n",
+		"actors.matcher":       "[environments.local.actors.matcher.inference]\nmodel = \"m\"\n",
+		"actors.gatherer":      "[environments.local.actors.gatherer.inference]\ntype = \"openai\"\nmodel = \"m\"\n",
 	} {
 		_, err := archivistDocument(envFrom(t, archivistDocFixture+"\n"+binding), "container", "192.168.64.1", 8080, nil)
 		if err == nil || !strings.Contains(err.Error(), field+".inference") {
