@@ -106,11 +106,30 @@ const TABLES = [
     ],
   },
   // What Semiont's worker alone does.
-  { table: 'specs/src/text/chunk-cases.json', runners: ['packages/core/src/__tests__/chunk-cases.test.ts'], countsCodePoints: true },
-  { table: 'specs/src/worker/chunk-plan-cases.json', runners: ['packages/jobs/src/__tests__/chunk-plan-cases.test.ts'], countsCodePoints: true },
-  { table: 'specs/src/worker/parser-cases.json', runners: ['packages/jobs/src/__tests__/parser-cases.test.ts'], countsCodePoints: true },
-  { table: 'specs/src/worker/citation-cases.json', runners: ['packages/jobs/src/__tests__/citation-cases.test.ts'], countsCodePoints: true },
-  { table: 'specs/src/worker/failure-class-cases.json', runners: ['packages/jobs/src/__tests__/failure-class-cases.test.ts'] },
+  {
+    table: 'specs/src/text/chunk-cases.json',
+    runners: ['packages/core/src/__tests__/chunk-cases.test.ts', 'apps/worker/tests/test_chunk_cases.py'],
+    countsCodePoints: true,
+  },
+  {
+    table: 'specs/src/worker/chunk-plan-cases.json',
+    runners: ['packages/jobs/src/__tests__/chunk-plan-cases.test.ts', 'apps/worker/tests/test_chunk_plan_cases.py'],
+    countsCodePoints: true,
+  },
+  {
+    table: 'specs/src/worker/parser-cases.json',
+    runners: ['packages/jobs/src/__tests__/parser-cases.test.ts', 'apps/worker/tests/test_parser_cases.py'],
+    countsCodePoints: true,
+  },
+  {
+    table: 'specs/src/worker/citation-cases.json',
+    runners: ['packages/jobs/src/__tests__/citation-cases.test.ts', 'apps/worker/tests/test_citation_cases.py'],
+    countsCodePoints: true,
+  },
+  {
+    table: 'specs/src/worker/failure-class-cases.json',
+    runners: ['packages/jobs/src/__tests__/failure-class-cases.test.ts', 'apps/worker/tests/test_failure_class_cases.py'],
+  },
 ];
 
 const failures = [];
