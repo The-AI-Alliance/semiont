@@ -24,6 +24,14 @@ async function failed(w: WorkerServiceWorld, name: string, replies: ScriptedGene
   return { job, failure, sequence: served.sequence() };
 }
 
+/** A failure of the class given, of a job that made nothing: its identity, its class, its error, and whether it will be retried. */
+function classed(job: RunningJob, failure: Record<string, unknown>, failureClass: 'transient' | 'deterministic', willRetry: boolean): string {
+  const { error, ...rest } = failure;
+  expect(rest).toEqual({ ...identity(job), failureClass, willRetry });
+  expect(typeof error).toBe('string');
+  return String(error);
+}
+
 /** A failure of no class, of a job that made nothing: its identity, its error, and whether it will be retried. */
 function unclassed(job: RunningJob, failure: Record<string, unknown>, willRetry: boolean): string {
   const { error, ...rest } = failure;
@@ -33,10 +41,10 @@ function unclassed(job: RunningJob, failure: Record<string, unknown>, willRetry:
 }
 
 eachWorkerService('a job that fails', (world) => {
-  it('fails, with no class, and says it will be retried, when its provider refuses the request', async () => {
+  it('fails as transient, and says it will be retried, when its provider refuses the request with a status the job rule retries', async () => {
     const w = world();
     const { job, failure, sequence } = await failed(w, 'refused', [{ status: 500, body: '{"error":"the model is still loading"}' }]);
-    const error = unclassed(job, failure, true);
+    const error = classed(job, failure, 'transient', true);
     // The error says what the provider said: its status and its body.
     expect(error).toContain('500');
     expect(error).toContain('the model is still loading');
@@ -45,17 +53,21 @@ eachWorkerService('a job that fails', (world) => {
     expect(sequence).toEqual(['emit job:claim', 'emit job:start', 'emit browse:resource-requested', `GET /resources/${String(job.params.resourceId)}`, 'emit job:fail', 'emit job:claim']);
   });
 
-  it('gives no other class to a refusal the provider says is the request\'s own fault', async () => {
+  it('fails as deterministic, and says it will not be retried, when its provider refuses the request as the request\'s own fault', async () => {
     const w = world();
     const { job, failure } = await failed(w, 'refused-400', [{ status: 400, body: '{"error":"invalid options"}' }]);
-    expect(unclassed(job, failure, true)).toContain('400');
+    const error = classed(job, failure, 'deterministic', false);
+    expect(error).toContain('400');
+    expect(error).toContain('invalid options');
+    // Asked once: a request refused as its own fault is not sent again.
+    expect(w.ollama.generations).toHaveLength(1);
   });
 
   it('says a failure will not be retried when the job has no attempt left', async () => {
     const w = world();
     const { job, failure } = await failed(w, 'spent', [{ status: 500, body: '{"error":"overloaded"}' }], { retryCount: 3, maxRetries: 3 });
     expect(job.metadata.retryCount + 1).toBe(4);
-    unclassed(job, failure, false);
+    classed(job, failure, 'transient', false);
   });
 
   it('fails, with no class, when the connection to its provider ends unanswered', async () => {
@@ -90,6 +102,7 @@ eachWorkerService('a job that fails', (world) => {
   it.each([
     ['is not JSON', 'I found three passages worth highlighting.'],
     ['is JSON and not an array', '{"highlights":[{"exact":"the first program"}]}'],
+    ['has nothing in it', ''],
   ])('fails, with no class, on an answer that %s, having asked once', async (_what, response) => {
     const w = world();
     const agent = w.agents[0]!;
@@ -140,7 +153,7 @@ eachWorkerService('a job that fails', (world) => {
     expect(w.commits).toHaveLength(1);
     const { error, ...rest } = failure;
     // The first piece is on the record, and a later attempt begins after it.
-    expect(rest).toEqual({ ...identity(job), unitCursors: { highlighting: { next: 704, size: 311, found: 2, emitted: 2, errors: 0 } }, willRetry: true });
+    expect(rest).toEqual({ ...identity(job), unitCursors: { highlighting: { next: 704, size: 311, found: 2, emitted: 2, errors: 0 } }, failureClass: 'transient', willRetry: true });
     expect(String(error)).toContain('500');
     expect(served.sequence()).toEqual([
       'emit job:claim',
@@ -163,7 +176,7 @@ eachWorkerService('a job that fails', (world) => {
 
     expect(w.commits).toHaveLength(1);
     const { error, ...rest } = failure;
-    expect(rest).toEqual({ ...identity(job), completedUnits: ['Person'], unitCursors: { Person: { next: TEXT.length, size: 2658, found: 1, emitted: 1, errors: 0 } }, willRetry: true });
+    expect(rest).toEqual({ ...identity(job), completedUnits: ['Person'], unitCursors: { Person: { next: TEXT.length, size: 2658, found: 1, emitted: 1, errors: 0 } }, failureClass: 'transient', willRetry: true });
     expect(String(error)).toContain('500');
   });
 

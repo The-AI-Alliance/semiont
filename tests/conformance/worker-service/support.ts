@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect } from 'vitest';
+import type { RecordedMessage } from '../harness/anthropic';
 import type { RecordedGeneration } from '../harness/ollama';
 import { sortedProgress, type RunningJob, type Served, type WorkerServiceWorld } from '../harness/worker-service-world';
 
@@ -73,6 +74,14 @@ export const SMALL_CONTEXT_LENGTH = 1200;
 /** The context length the stand-in Ollama reports unless a case sets another. */
 export const CONTEXT_LENGTH = 8192;
 
+/**
+ * What a detection asks of a model the stand-in Anthropic describes as it does
+ * unless a case says otherwise (`ANTHROPIC_MODEL`): 10666 tokens of answer, of
+ * a piece of 5333.
+ */
+export const ANTHROPIC_OUTPUT = 10666;
+export const ANTHROPIC_PIECE = 5333;
+
 /** A prompt kept in `prompts/`: the file's text, less its one final line end. */
 export function prompt(name: string): string {
   return readFileSync(join(HERE, 'prompts', `${name}.txt`), 'utf8').replace(/\n$/, '');
@@ -107,6 +116,25 @@ export function generation(model: string, promptName: string, options: { num_pre
  */
 export function expectGenerations(asked: RecordedGeneration[], expected: Array<Record<string, unknown>>): void {
   expect(asked.map((g) => g.body['prompt'])).toEqual(expected.map((e) => e['prompt']));
+  expect(asked.map((g) => g.body)).toEqual(expected);
+}
+
+/**
+ * The request a worker makes of Anthropic for one generation: nothing more,
+ * and nothing less. `schema` is what the answer is to be an array of, for a
+ * generation that asks for one.
+ */
+export function message(model: string, promptName: string, options: { max_tokens: number; temperature?: number; stream?: true }, schema?: unknown): Record<string, unknown> {
+  return { model, ...options, messages: [{ role: 'user', content: prompt(promptName) }], ...(schema === undefined ? {} : { output_config: { format: { type: 'json_schema', schema } } }) };
+}
+
+/**
+ * Hold what Anthropic was asked to `expected`, request by request. What was
+ * said to the model is compared first and apart, so a difference reads as
+ * text.
+ */
+export function expectMessages(asked: RecordedMessage[], expected: Array<Record<string, unknown>>): void {
+  expect(asked.map((g) => g.body['messages'])).toEqual(expected.map((e) => e['messages']));
   expect(asked.map((g) => g.body)).toEqual(expected);
 }
 

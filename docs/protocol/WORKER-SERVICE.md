@@ -23,8 +23,10 @@ rule marked "Held by no case" is one nothing checks.
 `npm run lint:transport-contract` fails when a case named here does not exist,
 and when a case of the suite is named by no rule.
 
-**What this document does not cover.** A job on a provider other than Ollama;
-and a `yield` job to PDF, and so the citations of a generated PDF.
+**What this document does not cover.** A `yield` job to PDF, and so the
+citations of a generated PDF; and the budget of an Anthropic model whose
+`contextTokens` leave 64 tokens or fewer to read once its `maxOutputTokens`
+and the prompt are taken from them.
 
 **What an offset counts.** An offset into a text counts Unicode code points
 from the start of the text, exactly as it was decoded
@@ -157,6 +159,19 @@ each of its models can take.
 - **M4.** A provider that has not answered within 1.5 seconds is left out of
   that reply.
   *Held by no case.*
+- **M5.** An Anthropic model's limits are asked of its provider in two
+  requests. Each carries the agent's key ([B4](#configuration)) as
+  `x-api-key`, and `anthropic-version: 2023-06-01`, as every request of an
+  Anthropic agent does. The first is `GET <baseUrl>/v1/models/<model>`: its
+  `max_input_tokens` is stated as `contextTokens` and its `max_tokens` as
+  `maxOutputTokens`, each a ceiling of its own. The second is a probe, `POST
+  <baseUrl>/v1/messages` with `model`, a `max_tokens` of 1, a `temperature`
+  of 0.7 and one message, `{"role": "user", "content": "ok"}`:
+  `acceptsTemperature` is `true` when it is answered, and `false` when it is
+  refused with 400 in words that name `temperature`. The two are one asking
+  under [M3](#limits): neither is made again once both are had, and any other
+  refusal of either is an answer that could not be got.
+  *Held by `worker-service/limits`, `worker-service/anthropic`.*
 
 ## What a job reads
 
@@ -189,12 +204,12 @@ job is one unit for each of its `categories`.
 
 ### The request
 
-- **D1.** A generation is `POST <baseUrl>/api/generate` with `model`,
-  `prompt`, `stream: false`, `think: false`, `options` (`num_predict`,
-  `num_ctx` and `temperature`), and, when the answer is to be an array of
-  objects, `format`: `{"type": "array", "items": <schema>}`. Nothing else is
-  sent. Before an agent's first generation it asks its model's limits
-  ([M2](#limits)).
+- **D1.** On an Ollama agent a generation is `POST <baseUrl>/api/generate`
+  with `model`, `prompt`, `stream: false`, `think: false`, `options`
+  (`num_predict`, `num_ctx` and `temperature`), and, when the answer is to be
+  an array of objects, `format`: `{"type": "array", "items": <schema>}`.
+  Nothing else is sent. Before an agent's first generation it asks its
+  model's limits ([M2](#limits)).
   *Held by `worker-service/highlighting`.*
 - **D2.** A detection's `temperature` is `0`. Its prompt is the kind's
   ([The five kinds of mark job](#the-five-kinds-of-mark-job)), carrying one
@@ -213,6 +228,30 @@ job is one unit for each of its `categories`.
   tokens of the whole prompt, `num_ctx` is the lesser of `C` and `P +
   num_predict + ceil(P × 0.2) + 64`.
   *Held by `worker-service/highlighting`, `worker-service/chunks`, `worker-service/prompts`, `worker-service/code-points`, `worker-service/failures`.*
+- **D20.** On an Anthropic agent a generation is `POST <baseUrl>/v1/messages`
+  with `model`, `max_tokens`, `temperature`, `messages` (one message, of
+  `role` `user`, whose `content` is the prompt), and, when the answer is to
+  be an array of objects, `output_config`: `{"format": {"type":
+  "json_schema", "schema": {"type": "array", "items": <schema>}}}`. Nothing
+  else is sent, but `stream` by a long generation
+  ([Y9](#generation)). A model that takes no temperature
+  ([M5](#limits)) is sent none. The answer is the text of the message, and
+  why the model stopped is its `stop_reason`. Before an agent's first
+  generation it asks its model's limits ([M5](#limits)). A model that does
+  not report `capabilities.structured_outputs.supported` as `true` is not
+  asked for an array of objects: a job that needs one fails with no
+  generation asked for, and its error names the model.
+  *Held by `worker-service/anthropic`.*
+- **D21.** On an Anthropic agent the budget of [D3](#the-request) is worked
+  out from the model's two ceilings. With `M` its `maxOutputTokens`: `output
+  = M`, and `input = C − M − S`. When `output` is over 10666, `input` becomes
+  `floor(input × 10666 / output)` and `output` becomes 10666. That is what a
+  model writes in five minutes at 128,000 tokens an hour, the rate
+  Anthropic's library reckons by; the 9000 of [D3](#the-request) is the same
+  at 108,000, the rate taken of a provider that states none. Then `input` is
+  the lesser of itself and `floor(output / 2)`. `max_tokens` is `output`, and
+  there is no `num_ctx`.
+  *Held by `worker-service/anthropic`.*
 
 ### Pieces
 
@@ -423,7 +462,8 @@ A job's `sourceLanguage` is said in the prompt by its English name; so is the
   `assessing`, `format` `text/plain`, and `language` as for a comment.
   *Held by `worker-service/assessing`, `worker-service/prompts`.*
 - **K4.** A **linking** job takes its entity types one at a time, in the
-  job's order, on an Ollama model. For each piece it makes two generations:
+  job's order, on an Ollama model, and four at a time on an Anthropic one
+  ([K8](#the-five-kinds-of-mark-job)). For each piece it makes two generations:
   the extraction, an array of `exact`, `entityType`, `prefix` and `suffix`
   with the first two required, asking for names only unless the job has
   `includeDescriptiveReferences`; and a count of the mentions in the same
@@ -457,6 +497,13 @@ A job's `sourceLanguage` is said in the prompt by its English name; so is the
   and the schema's `id` as `value`, `purpose` `classifying` and `format`
   `text/plain`.
   *Held by `worker-service/tagging`, `worker-service/prompts`.*
+- **K8.** On an Anthropic agent a linking job has up to four of its entity
+  types with the model at once: the job's first four, and each of the others
+  when one before it is finished. Each type is done as
+  [K4](#the-five-kinds-of-mark-job) says, its count a generation with no
+  `output_config` and a `max_tokens` of 16. So what the job asks its model,
+  commits and checkpoints comes in no fixed order across its types.
+  *Held by `worker-service/anthropic`.*
 
 ## Declines
 
@@ -510,21 +557,29 @@ deterministic, so that no attempt is spent on them again.
   `completedUnits`. A job that had established nothing on this attempt carries
   neither.
   *Held by `worker-service/failures`.*
-- **F3.** A failure of the provider has no class: a request the provider
-  refuses, whatever the status; a connection that ends unanswered; and limits
-  that cannot be learned. The error says what the provider said: for a
-  refusal, its status and its body. The request is not made again within the
-  attempt.
-  *Held by `worker-service/failures`.*
+- **F3.** A generation the provider refuses fails the job in the class its
+  status gives, as
+  [`failure-class-cases.json`](../../specs/src/worker/failure-class-cases.json)
+  states it: transient for a status the job rule retries (408, 429, and every
+  status from 500 up), and deterministic for any other status of 400 or more.
+  The error says what the provider said: its status and its body. On an
+  Ollama agent the request is not made again within the attempt; on an
+  Anthropic agent it may be ([F10](#failures)), and the job fails by the last
+  answer. A failure of the provider that carries no status has no class: a
+  connection that ends unanswered, and limits that cannot be learned,
+  whatever was answered in their place.
+  *Held by `worker-service/failures`, `worker-service/anthropic`.*
 - **F4.** An answer that cannot be read, from a model that finished, has no
-  class: one that is not JSON, and one that is JSON and not an array. Over a
-  text that fits one piece the request is made once.
-  *Held by `worker-service/failures`.*
-- **F5.** An answer the model was cut off in (`done_reason` `length`) is not
-  used, whatever it carried. Over a piece that cannot be cut smaller the same
-  request is made a second time, and no more; cut off again, the job fails as
-  deterministic.
-  *Held by `worker-service/failures`.*
+  class: one that is not JSON, one that is JSON and not an array, and one
+  with nothing in it. Over a text that fits one piece the request is made
+  once. An answer with nothing in it cannot be read whatever was asked for: a
+  `yield` job whose model answers nothing fails so, and uploads nothing.
+  *Held by `worker-service/failures`, `worker-service/anthropic`.*
+- **F5.** An answer the model was cut off in (Ollama's `done_reason`
+  `length`, Anthropic's `stop_reason` `max_tokens`) is not used, whatever it
+  carried. Over a piece that cannot be cut smaller the same request is made a
+  second time, and no more; cut off again, the job fails as deterministic.
+  *Held by `worker-service/failures`, `worker-service/anthropic`.*
 - **F6.** A piece that can be cut smaller is asked again in halves when its
   answer is cut off: pieces of half the size, cut as [D4](#pieces) cuts them,
   each asked in turn, and what they find taken together as the one piece's.
@@ -545,8 +600,25 @@ deterministic, so that no attempt is spent on them again.
 - **F9.** A generation is given ten minutes. One not answered by then is
   ended, and when no smaller piece is to be asked for instead
   ([F6](#failures)) the job fails as transient. While a detection awaits a
-  generation, it reports where it stands again every fifteen seconds.
+  generation, it reports where it stands again every fifteen seconds. On an
+  Anthropic agent the ten minutes are of every asking of the one generation
+  ([F10](#failures)) and of the waits between them.
   *Held by no case.*
+- **F10.** An Anthropic agent asks again, within the attempt, for a request
+  its provider refused with 408, 409, 429 or a status of 500 or more, and for
+  one whose connection ended unanswered: the same request, twice more at
+  most, three askings in all. This is so of every request it makes: a
+  generation, and each of the two that learn a model's limits
+  ([M5](#limits)). A request answered on a later asking is answered, and
+  nothing is said of the refusals before it. One refused or ended all three
+  times fails as [F3](#failures) says. A request refused with any other
+  status is not made again.
+  *Held by `worker-service/anthropic`.*
+- **F11.** Before it asks again an Anthropic agent waits: as long as the
+  refusal's `retry-after` says, in seconds, when it says; and otherwise at
+  least three eighths of a second before the second asking and at least
+  three quarters before the third.
+  *Held by `worker-service/anthropic`.*
 
 ## Resuming
 
@@ -613,7 +685,7 @@ stopping place, and not at once.
   on working on an answer nobody will use, until the model answers or the
   ten-minute bound of [F9](#failures) ends the request. A cancellation can
   take that long to take effect.
-  *Held by `worker-service/cancel`.*
+  *Held by `worker-service/cancel`, `worker-service/anthropic`.*
 - **Q5.** A cancelled job reports no completion: no `complete-created` and no
   `complete-generated`. Once it has stopped it makes no progress report at
   all: a `mark` job, none after the checkpoint of the piece it stopped on; a
@@ -632,19 +704,21 @@ focused on a resource or on an annotation.
   mark `generatable` fails as deterministic, before anything is asked of the
   model. With none stated, the job writes `text/markdown`.
   *Held by `worker-service/yield`.*
-- **Y2.** A generation to a text format is one request ([D1](#the-request))
-  with no `format`: `temperature` is the job's, or `0.7`; `num_predict` is
-  the job's `maxTokens`, or `500`; and `num_ctx` is as [D3](#the-request)
-  works it out. The prompt is made of the job's `title`, `prompt`,
-  `entityTypes`, languages, `structure` and `cite`, and of its context. A job
-  whose prompt and `num_predict` are together over the model's
-  `contextTokens`, in tokens as [D3](#the-request) counts them, fails as
-  deterministic, and the generation is not asked for.
+- **Y2.** A generation to a text format is one request, which asks for no
+  array of objects. Its temperature is the job's, or `0.7`, and its length
+  the job's `maxTokens`, or `500`. The prompt is made of the job's `title`,
+  `prompt`, `entityTypes`, languages, `structure` and `cite`, and of its
+  context. On an Ollama agent the request is [D1](#the-request)'s with no
+  `format`: the length is `num_predict`, and `num_ctx` is as
+  [D3](#the-request) works it out. There a job whose prompt and length are
+  together over the model's `contextTokens`, in tokens as [D3](#the-request)
+  counts them, fails as deterministic, and the generation is not asked for.
   *Held by `worker-service/yield`.*
 - **Y3.** What the model answers is the document, less the white space at its
-  ends and a code fence around it. When the model was cut off (`done_reason`
-  `length`) the document is kept, and the job says `truncated`.
-  *Held by `worker-service/yield`.*
+  ends and a code fence around it. When the model was cut off (Ollama's
+  `done_reason` `length`, Anthropic's `stop_reason` `max_tokens`) the
+  document is kept, and the job says `truncated`.
+  *Held by `worker-service/yield`, `worker-service/anthropic`.*
 - **Y4.** With `cite`, the model is asked to mark each claim with the id of
   its source, `[[<id>]]`. The marks are taken out of the document, each with
   the spaces and tabs before it. A mark whose id the context showed makes a
@@ -690,6 +764,19 @@ focused on a resource or on an annotation.
   new resource's `resourceId`, the job's `title` as `resourceName`, and
   `truncated`.
   *Held by `worker-service/yield`.*
+- **Y9.** On an Anthropic agent the request of [Y2](#generation) is
+  [D20](#the-request)'s with no `output_config`: the length is `max_tokens`.
+  The generation is asked for whatever the model's ceilings are: a job whose
+  prompt and length are together over what the model reads is asked for all
+  the same, and what the provider will not take it refuses
+  ([F3](#failures)). A length over 21333, which the provider's library
+  reckons at over ten minutes of writing, is asked for with `stream: true`,
+  and its answer is read from the provider's stream of events: the text is
+  the `text_delta`s of its text block, joined, and why the model stopped is
+  the `stop_reason` of its `message_delta`. A length of 21333 or less is
+  asked for without `stream`, and answered as one message. The job makes the
+  same of either.
+  *Held by `worker-service/anthropic`.*
 
 ## Telemetry
 
@@ -710,6 +797,16 @@ focused on a resource or on an annotation.
   job, and how it ended: `completed`, a declined job among them, `failed`, or
   `cancelled`.
   *Held by `worker-service/telemetry`.*
+- **T3.** A generation is a span, `inference:structured` when it asks for an
+  array of objects and `inference:text` when it does not, that names the
+  agent's provider and model and the tokens asked for. It is counted
+  (`semiont.inference.calls`) and timed once, by how it ended, however many
+  times its request was made ([F10](#failures)). The tokens its provider
+  reported for it are counted as reported (`semiont.inference.tokens`), what
+  the model read as `input` and what it wrote as `output`, under the
+  provider and the model. What learns a model's limits
+  ([M2 and M5](#limits)) is no generation, and is not counted.
+  *Held by `worker-service/telemetry`, `worker-service/anthropic`.*
 
 ## Environment
 
@@ -782,8 +879,9 @@ other, beyond the standard variables an OpenTelemetry SDK reads on its own.
   *Held by `worker-service/stop`.*
 - **P2.** A service that holds a job fails it first
   ([WORKER-CONTRACT L8](./WORKER-CONTRACT.md#the-lifecycle)), claims no other,
-  and exits with status 0.
-  *Held by `worker-service/stop`.*
+  and exits with status 0. A request to its provider that is under way ends
+  with the process, unanswered.
+  *Held by `worker-service/stop`, `worker-service/anthropic`.*
 - **P3.** A claim refused as `unauthorized` ends the service: it exits with
   status 1, for whatever supervises it to restart. A claim refused for any
   other reason does not: the service stays up and claims at its next idle

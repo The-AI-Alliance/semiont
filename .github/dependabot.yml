@@ -144,14 +144,21 @@ updates:
       prefix: "sdk-go"
       include: "scope"
 
-  # The Python SDK: its runtime dependencies, and the tools its gates are
-  # made of. The type checkers, the formatter and the model generator are
-  # pinned to a version each, because what they say of the package, and what
-  # the generator writes, is held by CI: a bump of one is a change to read, and
-  # for the generator or the formatter it comes with a regenerated types.py.
-  # One PR per tool, so a gate that goes red names the tool that moved.
+  # The Python packages: the SDK, and the inference drivers Semiont's Python
+  # services are built from. Their runtime dependencies, and the tools their
+  # gates are made of. The type checkers, the formatter and the SDK's model
+  # generator are pinned to a version each, because what they say of a
+  # package, and what the generator writes, is held by CI: a bump of one is a
+  # change to read, and for the generator or the formatter it comes with a
+  # regenerated types.py. A bump of Anthropic's library is a change to read
+  # too: anthropic.py lists what the driver leans on in it.
+  # One entry for both packages, and a group for each tool they both pin: the
+  # inference package's tests hold its pins to the SDK's, so a tool moves in
+  # both manifests in one PR, and a gate that goes red names the tool.
   - package-ecosystem: "uv"
-    directory: "/packages/sdk-python"
+    directories:
+      - "/packages/sdk-python"
+      - "/packages/inference-python"
     cooldown:
       default-days: 5
     schedule:
@@ -159,11 +166,21 @@ updates:
       day: "monday"
       time: "09:00"
     open-pull-requests-limit: 5
+    groups:
+      mypy:
+        patterns: ["mypy"]
+      pyright:
+        patterns: ["pyright"]
+      ruff:
+        patterns: ["ruff"]
+      pytest:
+        patterns: ["pytest"]
     labels:
       - "dependencies"
       - "sdk-python"
+      - "inference-python"
     commit-message:
-      prefix: "sdk-python"
+      prefix: "python"
       include: "scope"
 
   # The Rust workspace's crates (Cargo.toml at the root: the gateway, the

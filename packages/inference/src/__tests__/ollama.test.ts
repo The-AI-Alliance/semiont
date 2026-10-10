@@ -125,6 +125,19 @@ describe('OllamaInferenceClient - cancellation threads to the transport', () => 
   });
 });
 
+describe('OllamaInferenceClient - a refused generation', () => {
+  it('is a ProviderStatusError carrying the status, and says what the provider said', async () => {
+    stubRoutedFetch({ generate: { ok: false } });
+    const client = new OllamaInferenceClient('llama3', 'http://localhost:11434');
+
+    await expect(client.generateTextWithMetadata('p', 100, 0)).rejects.toMatchObject({
+      name: 'ProviderStatusError',
+      status: 500,
+      message: 'Ollama API error (500): error body',
+    });
+  });
+});
+
 describe('OllamaInferenceClient - temperature is unconditional', () => {
   // Ollama suppresses nothing: it always forwards temperature, and it
   // declares acceptance on limits() so the same UI channel reads true here.

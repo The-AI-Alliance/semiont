@@ -6,13 +6,14 @@
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { StructuredReadError } from '@semiont/inference';
+import { ProviderStatusError, StructuredReadError } from '@semiont/inference';
 import { classifyFailure, DeterministicJobError, type FailureClass } from '../failure-class';
 import { YieldCollapseError } from '../workers/detection/detection-chunking';
 import { InferenceTimeoutError } from '../workers/inference-call';
 
 interface FailureDescription {
   name?: string;
+  aborted?: true;
   status?: number | string;
   stopReason?: string;
 }
@@ -27,11 +28,17 @@ const table: { cases: Case[] } = JSON.parse(
   readFileSync(new URL('../../../../specs/src/worker/failure-class-cases.json', import.meta.url), 'utf8'),
 );
 
-/** The failure a case describes: the worker's own kind where the table names one, and otherwise a failure carrying the name and status given. */
+/**
+ * The failure a case describes: the worker's or the driver's own where the
+ * table names one, JavaScript's abort where it says the call was aborted, and
+ * otherwise a plain failure; with the status given on whichever it is. A name
+ * this runner does not have is refused: the table names no library's failure.
+ */
 function failureOf(described: Case['failure']): unknown {
   if (described === null || typeof described === 'string') return described;
-  const { name, status, stopReason } = described;
+  const { name, aborted, status, stopReason } = described;
   const carried = status !== undefined ? { status } : {};
+  if (aborted) return Object.assign(new DOMException('described by the table', 'AbortError'), carried);
   switch (name) {
     case 'DeterministicJobError':
       return Object.assign(new DeterministicJobError('described by the table'), carried);
@@ -45,8 +52,13 @@ function failureOf(described: Case['failure']): unknown {
     case 'StructuredReadError':
       if (stopReason === undefined) throw new Error('the table describes a StructuredReadError with no stop reason');
       return Object.assign(new StructuredReadError('described by the table', stopReason), carried);
+    case 'ProviderStatusError':
+      if (typeof status !== 'number') throw new Error('the table describes a ProviderStatusError with no status');
+      return new ProviderStatusError('described by the table', status);
+    case undefined:
+      return Object.assign(new Error('described by the table'), carried);
     default:
-      return Object.assign(new Error('described by the table'), name !== undefined ? { name } : {}, carried);
+      throw new Error(`the table names ${name}, which is no failure of the worker's or of its drivers'`);
   }
 }
 

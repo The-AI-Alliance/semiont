@@ -35,9 +35,14 @@ export class DeterministicJobError extends Error {
 }
 
 /**
- * The taxonomy, and its provider coupling — THE part that will drift:
+ * The taxonomy. It reads the failures the worker and its inference drivers
+ * declare, the language's abort, and a status; never the name a provider's
+ * library gives a failure. specs/src/worker/failure-class-cases.json states
+ * it, and failure-class-cases.test.ts runs every case.
  *
- * - `@anthropic-ai/sdk` errors carry a numeric `status`, and WHICH statuses are
+ * - A status, carried as a number: a driver's `ProviderStatusError` carries
+ *   the one its provider refused a generation with, and http-transport's
+ *   `APIError` the one a gateway refused with. WHICH statuses are
  *   worth another attempt is not decided here: it is `RETRY_RULES.job`, core's
  *   named rule. Restating its conditions here would be a second opinion on a
  *   question core already answers, and where a bare list and a reasoned rule
@@ -45,12 +50,12 @@ export class DeterministicJobError extends Error {
  *   carries the ONE thing the rule cannot know: that anything else at or above
  *   400 is a rejected request, and re-sending it unchanged is guaranteed waste →
  *   deterministic.
- * - Aborts (`APIUserAbortError` from the SDK, `AbortError` from fetch/mock)
- *   are our own bound or shutdown tearing the transport down — nothing was
+ * - An abort (`AbortError`, which a driver reports its library's abort as)
+ *   is our own bound or shutdown tearing the transport down — nothing was
  *   judged → transient.
- * - Ollama surfaces plain `Error`s (no status) and network failures as
- *   `TypeError: fetch failed`; the SDK's `MessageStream terminated` is a
- *   dropped connection. All land `undefined` → retryable, the safe default.
+ * - A connection that ended and a network failure carry no status, whatever
+ *   reported them, and neither does a discovery that failed. All land
+ *   `undefined` → retryable, the safe default.
  * - `@semiont/inference`'s `StructuredReadError` carries the stop reason
  *   because the cause classifies differently: `max_tokens` is truncation of
  *   an over-demanded answer — the adapter throws before the caller's
@@ -83,7 +88,7 @@ export function classifyFailure(error: unknown): FailureClass | undefined {
 
   const name = isString(error.name) ? error.name : '';
   if (name === 'DeterministicJobError') return 'deterministic';
-  if (name === 'APIUserAbortError' || name === 'AbortError') return 'transient';
+  if (name === 'AbortError') return 'transient';
 
   const status = isNumber(error.status) ? error.status : undefined;
   if (status !== undefined) {

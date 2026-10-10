@@ -1,9 +1,9 @@
 // Anthropic Claude implementation of InferenceClient interface
 
-import Anthropic from '@anthropic-ai/sdk';
-import { isObject, type Logger } from '@semiont/core';
+import Anthropic, { APIError, APIUserAbortError } from '@anthropic-ai/sdk';
+import { isNumber, isObject, type Logger } from '@semiont/core';
 import { recordInferenceUsage } from '@semiont/observability';
-import { ElementSchema, InferenceClient, InferenceLimits, InferenceResponse, StructuredReadError, StructuredResponse, TokenUsage } from '../interface.js';
+import { ElementSchema, InferenceClient, InferenceLimits, InferenceResponse, ProviderStatusError, StructuredReadError, StructuredResponse, TokenUsage } from '../interface.js';
 
 // The SDK's worst-case output-rate model: client.js's
 // calculateNonstreamingTimeout projects a call's maximum duration as
@@ -246,16 +246,7 @@ export class AnthropicInferenceClient implements InferenceClient {
     const start = performance.now();
     const response = await this.recordedRequest(params, start, signal);
 
-    const textContent = response.content.find(c => c.type === 'text');
-    if (!textContent || textContent.type !== 'text') {
-      this.recordError(start, response);
-      this.logger?.error('No text content in inference response', {
-        model: this.modelId,
-        contentTypes: response.content.map(c => c.type)
-      });
-      throw new Error('No text content in inference response');
-    }
-    const text = textContent.text;
+    const text = this.textOf(response, start);
 
     recordInferenceUsage({
       provider: this.type,
@@ -275,7 +266,8 @@ export class AnthropicInferenceClient implements InferenceClient {
 
     return {
       text,
-      stopReason: response.stop_reason || 'unknown'
+      stopReason: response.stop_reason || 'unknown',
+      ...usageOf(response),
     };
   }
 
@@ -332,15 +324,7 @@ export class AnthropicInferenceClient implements InferenceClient {
     const start = performance.now();
     const response = await this.recordedRequest(params, start, signal);
 
-    const textContent = response.content.find(c => c.type === 'text');
-    if (!textContent || textContent.type !== 'text') {
-      this.recordError(start, response);
-      this.logger?.error('No text content in structured inference response', {
-        model: this.modelId,
-        contentTypes: response.content.map(c => c.type)
-      });
-      throw new Error('No text content in structured inference response');
-    }
+    const text = this.textOf(response, start);
 
     // Anything that does not read as an array is a THROW, never a coerced
     // `[]` — "we could not read the model" must never be conflated with
@@ -349,12 +333,12 @@ export class AnthropicInferenceClient implements InferenceClient {
     // response surfaces here too, as unparseable JSON naming its stop_reason.
     let parsed: unknown;
     try {
-      parsed = JSON.parse(textContent.text);
+      parsed = JSON.parse(text);
     } catch (err) {
       this.recordError(start, response);
       this.logger?.error('Structured response could not be read', {
         model: this.modelId,
-        textLength: textContent.text.length,
+        textLength: text.length,
         stopReason: response.stop_reason,
       });
       throw new StructuredReadError('response is not valid JSON', response.stop_reason || 'unknown', { cause: err });
@@ -392,6 +376,26 @@ export class AnthropicInferenceClient implements InferenceClient {
     };
   }
 
+  /**
+   * The answer's text. An answer with none, or with an empty one, is cut off
+   * to nothing: a model that thinks can spend the whole output budget before
+   * its first character. The stop reason rides the failure, so that
+   * `max_tokens` is read as the cut-off it is.
+   */
+  private textOf(response: Anthropic.Message, start: number): string {
+    const textContent = response.content.find(c => c.type === 'text');
+    if (!textContent || textContent.type !== 'text' || textContent.text === '') {
+      this.recordError(start, response);
+      this.logger?.error('Empty response from Anthropic', {
+        model: this.modelId,
+        stopReason: response.stop_reason,
+        contentTypes: response.content.map(c => c.type),
+      });
+      throw new StructuredReadError('response is empty', response.stop_reason || 'unknown');
+    }
+    return textContent.text;
+  }
+
   /** Issue the request, recording an error metric if the transport throws. */
   private async recordedRequest(params: Anthropic.MessageCreateParamsNonStreaming, start: number, signal?: AbortSignal): Promise<Anthropic.Message> {
     try {
@@ -403,7 +407,7 @@ export class AnthropicInferenceClient implements InferenceClient {
         durationMs: performance.now() - start,
         outcome: 'error',
       });
-      throw err;
+      throw generationFailure(err);
     }
   }
 
@@ -417,6 +421,18 @@ export class AnthropicInferenceClient implements InferenceClient {
       outputTokens: response.usage?.output_tokens,
     });
   }
+}
+
+/**
+ * A failure of the library's, as the interface states a generation's
+ * failures. The library's abort is a kind of its `APIError` that carries no
+ * status, so it is asked about first. A failure of the library's with no
+ * status, a connection that ended for one, is passed on as it came.
+ */
+function generationFailure(err: unknown): unknown {
+  if (err instanceof APIUserAbortError) return new DOMException('This operation was aborted', 'AbortError');
+  if (err instanceof APIError && isNumber(err.status)) return new ProviderStatusError(err.message, err.status, { cause: err });
+  return err;
 }
 
 /**

@@ -40,13 +40,14 @@ Seven crates of the Rust workspace live here. Four are published to crates.io, a
 | semiont-http-service | not published | [http-service-rust](./http-service-rust/) | What the Rust services that serve HTTP share: connections a service can close from its side, the bearer credential, and the verifier of tokens from the trusted issuer |
 | semiont-observability | not published | [observability-rust](./observability-rust/) | What a Rust service writes about itself: telemetry exported over OTLP, and log lines |
 
-## Python Package
+## Python Packages
 
-One distribution, published to PyPI.
+Two distributions. One is published to PyPI, and is how a Python program uses Semiont. The other is what Semiont's Python services are built from.
 
 | Package | Version | Source | Description |
 | ------- | ------- | ------ | ----------- |
 | [semiont](https://pypi.org/project/semiont/) | [![PyPI](https://img.shields.io/pypi/v/semiont.svg)](https://pypi.org/project/semiont/) | [sdk-python](./sdk-python/) | The Python SDK: the client of a knowledge base, its transport over a gateway, signing in, live queries, and the doubles a test is built on. On asyncio, typed for `mypy` and `pyright` |
+| semiont-inference | not published | [inference-python](./inference-python/) | The model providers a Python service calls, behind one interface: text and structured generation, discovered limits (Anthropic, Ollama). A provider's own library is an extra. The Python counterpart of `@semiont/inference` |
 
 The Go client is [sdk-go](./sdk-go/).
 

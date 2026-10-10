@@ -123,6 +123,38 @@ export class StructuredReadError extends Error {
   }
 }
 
+/**
+ * Thrown when the provider answers a generation with an HTTP status that
+ * refuses it. One class for every implementation: the status is what a
+ * caller decides a retry by, and it must not depend on which provider's
+ * library reported the refusal, or on whether there is a library at all.
+ *
+ * A discovery that fails (`limits()`, and whatever an implementation learns
+ * with it) is NOT one of these, whatever status it was refused with: it
+ * rejects with a plain error that carries no status, so a provider that
+ * cannot be asked about a model is asked again.
+ */
+export class ProviderStatusError extends Error {
+  override readonly name = 'ProviderStatusError';
+  constructor(message: string, readonly status: number, options?: ErrorOptions) {
+    super(message, options);
+  }
+}
+
+/**
+ * What a generation rejects with is part of this contract, so a caller tells
+ * failures apart without knowing which provider it is talking to, and without
+ * importing a provider's library:
+ *
+ * - a `ProviderStatusError`, when the provider refused the request with an
+ *   HTTP status;
+ * - a `StructuredReadError`, when the reply cannot be read as what was asked
+ *   for, or is empty;
+ * - the language's own `AbortError`, when the call's signal was aborted. An
+ *   implementation whose library has an abort of its own reports it as this
+ *   one, and declares none;
+ * - anything else as it came: a connection that ended, a network failure.
+ */
 export interface InferenceClient {
   /** Provider type identifier (e.g. 'anthropic', 'ollama') */
   readonly type: string;

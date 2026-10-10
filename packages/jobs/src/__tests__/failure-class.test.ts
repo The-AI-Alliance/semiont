@@ -26,8 +26,11 @@ describe('classifyFailure', () => {
   });
 
   it('aborts are transient — the transport was torn down, not the request judged', () => {
-    expect(classifyFailure(Object.assign(new Error('aborted'), { name: 'APIUserAbortError' }))).toBe('transient');
     expect(classifyFailure(new DOMException('This operation was aborted', 'AbortError'))).toBe('transient');
+  });
+
+  it('reads no name a provider\'s library gives a failure: its driver reports an abort as the language\'s', () => {
+    expect(classifyFailure(Object.assign(new Error('aborted'), { name: 'APIUserAbortError' }))).toBeUndefined();
   });
 
   it('environmental provider statuses are transient: 408, 429, 5xx', () => {

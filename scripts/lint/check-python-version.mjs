@@ -20,6 +20,11 @@
  * 5. A sentence that states the floor ("Python X.Y or later") or the
  *    supported versions ("Python X.Y, X.Z and X.W") states these.
  * 6. `requires-python` is read in one place, scripts/ci/python-floor.sh.
+ * 7. Every other Python package of the repository (any other pyproject.toml)
+ *    runs on the same Pythons: its own `requires-python` is the floor, rule
+ *    1 holds of its manifest too, and its classifiers name the versions the
+ *    SDK's do. An installer reads its `requires-python` line as it reads the
+ *    SDK's. Nothing else does: rule 6's one reader reads the SDK's.
  *
  * WHAT THE REPOSITORY HOLDS is what git says it does (repository-files.mjs):
  * the files git tracks, and new ones it does not ignore.
@@ -32,6 +37,7 @@ import { parse } from 'smol-toml';
 import { repositoryFiles } from './repository-files.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
+/** The manifest that owns the floor: the one scripts/ci/python-floor.sh reads. */
 const PYPROJECT = 'packages/sdk-python/pyproject.toml';
 const GENERATOR = 'packages/sdk-python/scripts/generate_models.py';
 const READER = 'scripts/ci/python-floor.sh';
@@ -69,19 +75,34 @@ const parts = (version) => version.split('.').map(Number);
 const byVersion = (a, b) => parts(a)[0] - parts(b)[0] || parts(a)[1] - parts(b)[1];
 const same = (a, b) => a.length === b.length && a.every((version, index) => version === b[index]);
 
-// Rules 1 and 2, in the package's own manifest.
-const project = parse(readFileSync(join(ROOT, PYPROJECT), 'utf8'));
-const tool = project.tool ?? {};
-if (tool.mypy?.python_version !== floor) fail(`${PYPROJECT}: mypy's python_version is ${JSON.stringify(tool.mypy?.python_version)}; the floor is ${floor}`);
-if (tool.pyright?.pythonVersion !== floor) fail(`${PYPROJECT}: pyright's pythonVersion is ${JSON.stringify(tool.pyright?.pythonVersion)}; the floor is ${floor}`);
-if (tool.ruff?.['target-version'] !== undefined) fail(`${PYPROJECT}: ruff states a target-version; with none it takes requires-python`);
-const supported = (project.project?.classifiers ?? [])
-  .map((classifier) => /^Programming Language :: Python :: (\d+\.\d+)$/.exec(classifier)?.[1])
-  .filter(Boolean)
-  .sort(byVersion);
+/** Rule 1 of one manifest, and the versions its classifiers name, lowest first. */
+function held(manifest) {
+  const project = parse(readFileSync(join(ROOT, manifest), 'utf8'));
+  const tool = project.tool ?? {};
+  if (tool.mypy?.python_version !== floor) fail(`${manifest}: mypy's python_version is ${JSON.stringify(tool.mypy?.python_version)}; the floor is ${floor}`);
+  if (tool.pyright?.pythonVersion !== floor) fail(`${manifest}: pyright's pythonVersion is ${JSON.stringify(tool.pyright?.pythonVersion)}; the floor is ${floor}`);
+  if (tool.ruff?.['target-version'] !== undefined) fail(`${manifest}: ruff states a target-version; with none it takes requires-python`);
+  const named = (project.project?.classifiers ?? [])
+    .map((classifier) => /^Programming Language :: Python :: (\d+\.\d+)$/.exec(classifier)?.[1])
+    .filter(Boolean)
+    .sort(byVersion);
+  return { project, named };
+}
+
+// Rules 1 and 2, in the SDK's manifest.
+const { named: supported } = held(PYPROJECT);
 if (supported.length === 0) fail(`${PYPROJECT}: no classifier names a Python version`);
 else if (supported[0] !== floor) fail(`${PYPROJECT}: the lowest version its classifiers name is ${supported[0]}; the floor is ${floor}`);
 const supportedSaid = supported.join(', ');
+
+// Rule 7, in every other Python package's manifest.
+const others = files.filter((file) => file !== PYPROJECT && file.split('/').pop() === 'pyproject.toml');
+for (const manifest of others) {
+  const { project, named } = held(manifest);
+  const requires = project.project?.['requires-python'];
+  if (requires !== `>=${floor}`) fail(`${manifest}: requires-python is ${JSON.stringify(requires)}; the floor is ${floor}, so it is ">=${floor}"`);
+  if (!same(named, supported)) fail(`${manifest}: its classifiers name Python ${named.join(', ') || 'nothing'}; the SDK's name ${supportedSaid}`);
+}
 
 let read = 0;
 let matrices = 0;
@@ -132,4 +153,6 @@ for (const file of files) {
 if (matrices === 0) fail('no workflow runs a matrix of Python versions: the check has lost what it reads');
 
 if (failures.length > 0) report();
-console.log(`✅ lint:python-version — the floor is ${floor}, and the versions ${supportedSaid}; ${read} files read, and every restatement says the same`);
+console.log(
+  `✅ lint:python-version — the floor is ${floor}, and the versions ${supportedSaid}; ${read} files read, ${others.length} other Python package(s) held to them, and every restatement says the same`,
+);
