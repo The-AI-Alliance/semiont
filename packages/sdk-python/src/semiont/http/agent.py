@@ -31,8 +31,9 @@ from typing import Final, Self, final
 import httpx
 from pydantic import ValidationError
 
+from semiont._lacks import lacks
 from semiont.errors import SemiontError, SignInError, TransportError
-from semiont.http._withheld import lacks, why_unanswered
+from semiont.http._withheld import why_unanswered
 from semiont.http.oauth import issuer_client, object_in, post_form, seconds_in, text_in
 from semiont.identifiers import UserId
 from semiont.retry import REFRESH, RetryFacts, retry_after_ms, retry_with_backoff
@@ -251,6 +252,6 @@ class AgentToken:
         try:
             return AgentTokenResponse.model_validate_json(response.content)
         except ValidationError as error:
-            lacking = lacks(AgentTokenResponse, error, "an agent token")
+            lacking = lacks((AgentTokenResponse,), error, "an agent token")
         # Raised from nothing: the decoder's failure shows the answer, and what a failure is raised from is printed with it.
         raise TransportError("error", f"{url} did not answer an agent token: {lacking}", status=status)

@@ -35,6 +35,7 @@ from typing import Final, Literal, final
 
 from pydantic import TypeAdapter, ValidationError
 
+from semiont._lacks import lacks
 from semiont.bus import decoded
 from semiont.channels import JOB_COMPLETE, JOB_FAIL, JOB_REPORT_PROGRESS
 from semiont.errors import BusRequestError, JobError, SemiontError, TransportError
@@ -158,9 +159,7 @@ def _heard(frame: Frame) -> _Heard | None:
     return None
 
 
-def _learned[C: JobCompleteCommand](
-    completion: TypeAdapter[C], delegated: JobType, status: JobStatusResponse, resource_id: ResourceId
-) -> C:
+def _learned[C: JobCompleteCommand](completion: type[C], delegated: JobType, status: JobStatusResponse, resource_id: ResourceId) -> C:
     """The completion a complete status stands for, read as the delegated verb's.
 
     A status states its job's type and a result of any verb's, and does not
@@ -172,9 +171,11 @@ def _learned[C: JobCompleteCommand](
     if not (status.result is None or isinstance(status.result, dict)):
         stated["result"] = status.result
     try:
-        return completion.validate_python(stated)
+        return TypeAdapter(completion).validate_python(stated)
     except ValidationError as error:
-        raise TransportError("error", f"The status of job {status.job_id} is not a completed {delegated} job's: {error}") from error
+        lacking = lacks((completion,), error, f"a completed {delegated} job")
+    # Raised from nothing: the decoder's failure shows the result, and what a failure is raised from is printed with it.
+    raise TransportError("error", f"The status of job {status.job_id} is not a completed {delegated} job's: {lacking}")
 
 
 def follow[C: JobCompleteCommand](
@@ -187,8 +188,7 @@ def follow[C: JobCompleteCommand](
     `stall_ms` is how long the job may say nothing before its follower gives
     up on it, when it gives up at all.
     """
-    reads = TypeAdapter(completion)
-    return Delegation(Running(lambda report: links.run(_followed(links, create, reads, resource_id, stall_ms, report))))
+    return Delegation(Running(lambda report: links.run(_followed(links, create, completion, resource_id, stall_ms, report))))
 
 
 async def _status(links: Links, job_id: JobId) -> JobStatusResponse:
@@ -205,7 +205,7 @@ async def _cancelled(links: Links, job_id: JobId) -> None:
 async def _followed[C: JobCompleteCommand](
     links: Links,
     create: JobCreateCommand,
-    completion: TypeAdapter[C],
+    completion: type[C],
     resource_id: ResourceId,
     stall_ms: int | None,
     report: Callable[[JobEvent[C]], None],
@@ -312,7 +312,7 @@ async def _followed[C: JobCompleteCommand](
                     case _:
                         # The third thing a job says: that it completed, read as the delegated verb's completion.
                         try:
-                            return JobCompleted(completion.validate_python(said))
+                            return JobCompleted(TypeAdapter(completion).validate_python(said))
                         except ValidationError:
                             completed, delegated = said.job_type, create.job_type
                             raise TransportError(

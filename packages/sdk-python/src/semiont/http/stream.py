@@ -35,6 +35,7 @@ import httpx
 from pydantic import JsonValue, ValidationError
 
 from semiont import telemetry
+from semiont._lacks import lacks
 from semiont.channels import RESOURCE_SCOPED_CHANNELS
 from semiont.errors import SemiontError, TransportError
 from semiont.events import Broadcast
@@ -514,7 +515,7 @@ class Stream:
             carried = _Carried.model_validate_json(data)
         except ValidationError as error:
             # What is not a frame is not delivered, and is said so.
-            _LOG.warning("the stream carried what is not a frame (id %s): %s", event_id, error)
+            _LOG.warning("the stream carried what is not a frame (id %s): %s", event_id, lacks((_Carried,), error, "a frame"))
             return
         payload = carried.payload
         sent_under: TraceContext | None = None

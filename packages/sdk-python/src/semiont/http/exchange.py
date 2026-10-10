@@ -21,9 +21,10 @@ import httpx
 from pydantic import ValidationError
 
 from semiont import telemetry
+from semiont._lacks import lacks
 from semiont.errors import SemiontError, TransportError
 from semiont.events import Broadcast
-from semiont.http._withheld import lacks, why_unanswered
+from semiont.http._withheld import why_unanswered
 from semiont.model import WireModel
 from semiont.retry import TRANSPORT, RetryFacts, retry_after_ms
 from semiont.types import ErrorResponse
@@ -197,7 +198,7 @@ class Exchange:
         try:
             return declared.model_validate_json(body)
         except ValidationError as error:
-            lacking = lacks(declared, error, "its declared body")
+            lacking = lacks((declared,), error, "its declared body")
         # Raised from nothing: the decoder's failure shows the answer, and what a failure is raised from is printed with it.
         raise self.failed(
             TransportError("error", f"{method} {path} answered what is not its declared body: {lacking}", status=response.status_code)
