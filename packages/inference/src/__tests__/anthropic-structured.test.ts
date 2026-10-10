@@ -30,6 +30,7 @@ vi.mock('@anthropic-ai/sdk', () => ({
 }));
 
 import { AnthropicInferenceClient } from '../implementations/anthropic.js';
+import { StructuredUnsupportedError } from '../interface.js';
 
 /** One array element's JSON Schema — the caller-supplied shape. */
 const PERSON_ELEMENT: Record<string, unknown> = {
@@ -126,9 +127,14 @@ describe('AnthropicInferenceClient.generateStructured — output_config + capabi
     });
 
     const client = new AnthropicInferenceClient('test-key', 'claude-legacy');
-    await expect(
-      client.generateStructured('p', 1000, 0.3, PERSON_ELEMENT),
-    ).rejects.toThrow(/structured outputs.*inference\.model|inference\.model.*structured outputs/is);
+    const refusal: unknown = await client.generateStructured('p', 1000, 0.3, PERSON_ELEMENT).catch((err: unknown) => err);
+
+    // The interface's own failure, so a caller classes it without reading its words.
+    expect(refusal).toBeInstanceOf(StructuredUnsupportedError);
+    expect(refusal).toMatchObject({
+      name: 'StructuredUnsupportedError',
+      message: expect.stringMatching(/'claude-legacy'.*structured outputs.*inference\.model/is),
+    });
 
     // The refusal happens at the gate — no GENERATION request is issued.
     // (Discovery's ~1-token sampling probe is the one permitted create call:

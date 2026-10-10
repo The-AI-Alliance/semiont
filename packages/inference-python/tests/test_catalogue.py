@@ -21,6 +21,7 @@ from pathlib import Path
 
 import pytest
 from pydantic import JsonValue
+from refusals.a_provider_the_catalogue_lacks import facts_under_an_unknown_provider
 from spec import PACKAGE, ROOT, JsonObject, read, text, thing
 
 from semiont_inference.catalogue import (
@@ -203,6 +204,13 @@ def test_a_model_a_catalogue_does_not_have_is_none_and_a_model_is_looked_for_und
     assert catalogue_facts(CATALOGUE, "together", of_together_alone[0]) is not None
     assert catalogue_facts(CATALOGUE, "openai", of_together_alone[0]) is None
     assert catalogue_facts(CATALOGUE, "google", of_together_alone[0]) is None
+
+
+def test_a_provider_a_catalogue_does_not_have_is_refused_when_run_as_it_is_by_both_checkers() -> None:
+    # `None` is the answer for a model the catalogue lacks. Answered for a provider it lacks, it would say the same
+    # of a name that was never one of the catalogue's: that is refused, by the name.
+    with pytest.raises(ValueError, match=re.escape("A model catalogue has no provider 'mistral'")):
+        facts_under_an_unknown_provider(CATALOGUE)
 
 
 def test_a_fact_the_fixture_does_not_state_is_none() -> None:

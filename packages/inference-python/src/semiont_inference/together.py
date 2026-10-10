@@ -144,7 +144,7 @@ from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from semiont_inference._effort import least_effort
 from semiont_inference._log import LOG
-from semiont_inference._once import Once
+from semiont_inference._once import Once, refused_discovery
 from semiont_inference._schema import array_schema
 from semiont_inference._telemetry import record
 from semiont_inference._tokens import Counts, as_usage, count, read_counts
@@ -156,6 +156,7 @@ from semiont_inference.interface import (
     ProviderStatusError,
     StructuredReadError,
     StructuredResponse,
+    StructuredUnsupportedError,
 )
 
 try:
@@ -306,7 +307,7 @@ class TogetherInferenceClient:
         # for an empty one completes a job that found nothing.
         if self._holds_to_a_schema is not True:
             said_of_it = "says it does not" if self._holds_to_a_schema is False else "does not say that it does"
-            raise RuntimeError(
+            raise StructuredUnsupportedError(
                 f"Model '{self.model_id}' is not known to hold a reply to a JSON Schema: the model catalogue it was given "
                 f"{said_of_it} (structured_output). Together's API states this of no model, so the catalogue's word is all there is. "
                 "It is refused: a generation the provider does not hold to the schema can come back unreadable. "
@@ -421,12 +422,15 @@ class TogetherInferenceClient:
         }
 
     async def _discover_limits(self) -> InferenceLimits:
+        learning = f"Failed to discover model limits for '{self.model_id}' from Together's model list"
         async with self._library() as library:
             try:
                 response = await library.models.with_raw_response.list(extra_headers=self._headers(library), timeout=_DISCOVERY_TIMEOUT)
                 listed = await response.parse(to=str)
+            except APIStatusError as refused:
+                raise refused_discovery(learning, refused.status_code) from refused
             except Exception as unlearned:
-                raise RuntimeError(f"Failed to discover model limits for '{self.model_id}' from Together's model list") from unlearned
+                raise RuntimeError(learning) from unlearned
         try:
             models = _ARRAY.validate_json(listed)
         except ValidationError as not_an_array:

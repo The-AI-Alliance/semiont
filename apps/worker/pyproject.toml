@@ -1,0 +1,101 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "semiont-worker"
+dynamic = ["version"]
+description = "Semiont's Worker service: it claims annotation and generation jobs and runs them against a model"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+classifiers = [
+    "Framework :: AsyncIO",
+    # A service's code, run from its image: no index takes an upload that says this.
+    "Private :: Do Not Upload",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+# OpenTelemetry's API and pydantic are the SDK's dependencies too, and the SDK
+# states their versions: a bound written here would be a second copy of its.
+dependencies = [
+    "opentelemetry-api",
+    "pydantic",
+    "semiont",
+    "semiont-inference",
+]
+
+# The SDK and the inference drivers are the ones in this repository: the
+# service is checked and tested against the types the tree's spec generates.
+# Both are named, because a source the inference package states for the SDK
+# is read only where that package is the project.
+[tool.uv.sources]
+semiont = { path = "../../packages/sdk-python", editable = true }
+semiont-inference = { path = "../../packages/inference-python", editable = true }
+
+# The checkers and the formatter are the SDK's, at the SDK's versions:
+# tests/test_census.py holds these pins, and the strictness below, to
+# packages/sdk-python/pyproject.toml.
+[dependency-groups]
+dev = [
+    "mypy==2.4.0",
+    # What reads, in memory, the telemetry the service records (tests/conftest.py).
+    "opentelemetry-sdk>=1.30,<2",
+    "pyright==1.1.414",
+    "pytest>=9.1,<10",
+    "ruff==0.16.10",
+]
+
+# The version is the repository's, stated once, in version.json.
+[tool.hatch.version]
+path = "../../version.json"
+pattern = '"version": "(?P<version>[^"]+)"'
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/semiont_worker"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--strict-markers", "--strict-config", "-ra"]
+xfail_strict = true
+
+# No target-version: ruff takes it from requires-python.
+[tool.ruff]
+line-length = 140
+
+[tool.ruff.lint]
+select = ["ANN", "ASYNC", "B", "C4", "E", "F", "I", "PGH", "PT", "RUF", "SIM", "TID", "UP", "W"]
+
+[tool.mypy]
+# requires-python's floor, which mypy does not read. lint:python-version holds
+# this, pyright's, the classifiers and CI's matrix to it.
+python_version = "3.12"
+files = ["src", "tests"]
+strict = true
+# pydantic's own plugin, with each of its looser defaults turned off below: at
+# its defaults a constructor takes anything.
+plugins = ["pydantic.mypy"]
+disallow_any_explicit = true
+disallow_any_unimported = true
+warn_unreachable = true
+enable_error_code = ["explicit-override", "ignore-without-code", "possibly-undefined", "redundant-expr", "truthy-bool"]
+
+[tool.pydantic-mypy]
+init_typed = true
+init_forbid_extra = true
+warn_required_dynamic_aliases = true
+
+[tool.pyright]
+pythonVersion = "3.12"
+include = ["src", "tests"]
+typeCheckingMode = "strict"
+# `# type: ignore` is mypy's alone here; pyright is told by `# pyright: ignore[rule]`.
+# Either left on a line that no longer needs it is an error.
+enableTypeIgnoreComments = false
+reportUnnecessaryTypeIgnoreComment = "error"
+reportImplicitOverride = "error"
+reportImportCycles = "error"
+reportMissingSuperCall = "none"
+reportPropertyTypeMismatch = "error"
+reportUnnecessaryCast = "error"

@@ -154,21 +154,24 @@ updates:
       prefix: "sdk-go"
       include: "scope"
 
-  # The Python packages: the SDK, and the inference drivers Semiont's Python
-  # services are built from. Their runtime dependencies, and the tools their
-  # gates are made of. The type checkers, the formatter and the SDK's model
-  # generator are pinned to a version each, because what they say of a
-  # package, and what the generator writes, is held by CI: a bump of one is a
-  # change to read, and for the generator or the formatter it comes with a
-  # regenerated types.py. A bump of Anthropic's library is a change to read
-  # too: anthropic.py lists what the driver leans on in it.
-  # One entry for both packages, and a group for each tool they both pin: the
-  # inference package's tests hold its pins to the SDK's, so a tool moves in
-  # both manifests in one PR, and a gate that goes red names the tool.
+  # The Python projects: the SDK, the inference drivers Semiont's Python
+  # services are built from, and the Worker service (apps/worker). Their
+  # runtime dependencies, and the tools their gates are made of. The type
+  # checkers, the formatter and the SDK's model generator are pinned to a
+  # version each, because what they say of a package, and what the generator
+  # writes, is held by CI: a bump of one is a change to read, and for the
+  # generator or the formatter it comes with a regenerated types.py. A bump of
+  # Anthropic's library is a change to read too: anthropic.py lists what the
+  # driver leans on in it.
+  # One entry for the three, and a group for each tool they all pin: the
+  # inference package's tests and the worker's hold their pins to the SDK's,
+  # so a tool moves in every manifest in one PR, and a gate that goes red
+  # names the tool.
   - package-ecosystem: "uv"
     directories:
       - "/packages/sdk-python"
       - "/packages/inference-python"
+      - "/apps/worker"
     cooldown:
       default-days: 5
     schedule:
@@ -189,6 +192,7 @@ updates:
       - "dependencies"
       - "sdk-python"
       - "inference-python"
+      - "worker"
     commit-message:
       prefix: "python"
       include: "scope"

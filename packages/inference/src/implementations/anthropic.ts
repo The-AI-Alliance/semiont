@@ -3,7 +3,7 @@
 import Anthropic, { APIError, APIUserAbortError } from '@anthropic-ai/sdk';
 import { isNumber, isObject, type Logger } from '@semiont/core';
 import { recordInferenceUsage } from '@semiont/observability';
-import { ElementSchema, InferenceClient, InferenceLimits, InferenceResponse, ProviderStatusError, ProviderWithheldError, StructuredReadError, StructuredResponse, TokenUsage } from '../interface.js';
+import { ElementSchema, InferenceClient, InferenceLimits, InferenceResponse, ProviderStatusError, ProviderWithheldError, StructuredReadError, StructuredResponse, StructuredUnsupportedError, TokenUsage } from '../interface.js';
 
 // The SDK's worst-case output-rate model: client.js's
 // calculateNonstreamingTimeout projects a call's maximum duration as
@@ -64,9 +64,10 @@ const TEMPERATURE_PROBE_MAX_TOKENS = 1;
  *
  * Two is right here on measured grounds, not taste:
  * - **Fast failures cost almost nothing.** A 429, 409 or quick 5xx returns in
- *   seconds, so three attempts are seconds — and the SDK honors `retry-after`,
- *   which matters because entity types run concurrently, up to
- *   `maxConcurrency`, and 429 is the expected pushback.
+ *   seconds, so three attempts are seconds — and the SDK waits as long as a
+ *   refusal says, up to the two minutes this driver lets it
+ *   (`LONGEST_STATED_WAIT_MS`), which matters because entity types run
+ *   concurrently, up to `maxConcurrency`, and 429 is the expected pushback.
  * - **Slow failures never reach the retries.** `boundedGenerateStructured` wraps
  *   the whole call in one 10-minute timer, and the SDK's own default timeout is
  *   also 10 minutes, so a hung call trips OUR bound during the first attempt.
@@ -82,6 +83,71 @@ const TEMPERATURE_PROBE_MAX_TOKENS = 1;
  * Anthropic only. Nothing here is claimed about Ollama's client.
  */
 const ANTHROPIC_MAX_RETRIES = 2;
+
+/**
+ * The longest wait a refusal may state and still be waited, in milliseconds.
+ *
+ * The SDK waits as long as a refusal says before it asks again: by
+ * `retry-after-ms`, or by `retry-after` in seconds or as a date. It has no
+ * ceiling of its own on that short of weeks. This is the ceiling. A refusal
+ * that states a longer wait is not waited and the request is not made again:
+ * the call fails at once, by the refusal's own status, and its failure says
+ * the wait the provider stated.
+ *
+ * Two minutes, on what a caller does around a call. A worker bounds a
+ * generation, every asking of it and the waits between, at ten minutes, and
+ * sizes a generation to five at the SDK's worst-case rate: two waits of two
+ * minutes and a generation of five are nine of the ten. A wait that fits is
+ * better waited than refused, since a job that fails is retried once at the
+ * most. A wait that does not fit can only run the call into that bound,
+ * which reports a timeout where the provider said "not now". And a discovery
+ * is under no bound of a caller's at all.
+ *
+ * How it is done leans on the SDK (read at 0.131.0, client.js `shouldRetry`):
+ * it obeys `x-should-retry: false` on a refusal before any rule of its own.
+ * anthropic-retry-after.test.ts runs the SDK itself, and fails when a release
+ * of it stops obeying that header, or stops waiting as long as a refusal
+ * says.
+ */
+const LONGEST_STATED_WAIT_MS = 120_000;
+
+/**
+ * The header by which a refusal states a wait longer than this driver waits,
+ * as the provider wrote it. Undefined where it states none, or one that is
+ * waited. The wait is read as the SDK reads it (client.js `retryRequest`):
+ * `retry-after-ms` first, unless it is no number or is zero, and then
+ * `retry-after`, as seconds or as a date.
+ */
+function waitNotWaited(headers: Headers): string | undefined {
+  const inMilliseconds = headers.get('retry-after-ms');
+  if (inMilliseconds !== null) {
+    const milliseconds = parseFloat(inMilliseconds);
+    if (!Number.isNaN(milliseconds) && milliseconds !== 0) {
+      return milliseconds > LONGEST_STATED_WAIT_MS ? `retry-after-ms: ${inMilliseconds}` : undefined;
+    }
+  }
+  const stated = headers.get('retry-after');
+  if (stated === null || stated === '') return undefined;
+  const seconds = parseFloat(stated);
+  const milliseconds = Number.isNaN(seconds) ? Date.parse(stated) - Date.now() : seconds * 1000;
+  return milliseconds > LONGEST_STATED_WAIT_MS ? `retry-after: ${stated}` : undefined;
+}
+
+/**
+ * The platform's `fetch`, as the SDK is handed it. A refusal that states a
+ * wait longer than this driver waits is marked `x-should-retry: false`, so
+ * the SDK neither waits nor asks again, and throws the refusal at once. The
+ * mark replaces one the provider set: the wait decides. Every other answer
+ * is passed on as it came.
+ */
+async function fetchStoppingAtALongWait(input: string | URL | Request, init?: RequestInit): Promise<Response> {
+  const response = await fetch(input, init);
+  if (response.ok || waitNotWaited(response.headers) === undefined) return response;
+  // The headers of an answer the platform fetched cannot be written, so the answer is made again around its own body.
+  const headers = new Headers(response.headers);
+  headers.set('x-should-retry', 'false');
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
 
 export class AnthropicInferenceClient implements InferenceClient {
   readonly type = 'anthropic' as const;
@@ -104,6 +170,7 @@ export class AnthropicInferenceClient implements InferenceClient {
       apiKey,
       baseURL: baseURL || 'https://api.anthropic.com',
       maxRetries: ANTHROPIC_MAX_RETRIES,
+      fetch: fetchStoppingAtALongWait,
     });
     this.modelId = model;
     this.logger = logger;
@@ -132,10 +199,7 @@ export class AnthropicInferenceClient implements InferenceClient {
     // disagree (the docs' supported-model list can be stale while
     // `capabilities.structured_outputs.supported` is correct).
     const info = await this.client.models.retrieve(this.modelId).catch((err: unknown) => {
-      throw new Error(
-        `Failed to discover model limits for '${this.modelId}' from the Models API`,
-        { cause: err },
-      );
+      throw discoveryFailure(`Failed to discover model limits for '${this.modelId}' from the Models API`, err);
     });
     if (info.max_input_tokens == null || info.max_tokens == null) {
       throw new Error(`Models API reports no context/output ceilings for '${this.modelId}'`);
@@ -196,10 +260,7 @@ export class AnthropicInferenceClient implements InferenceClient {
       }
       // Anything else is a discovery failure, not a verdict — thrown so the
       // uncached-failure rule (discover()) lets the next call retry.
-      throw new Error(
-        `Sampling-parameter probe failed for '${this.modelId}'`,
-        { cause: err },
-      );
+      throw discoveryFailure(`Sampling-parameter probe failed for '${this.modelId}'`, err);
     }
   }
 
@@ -286,7 +347,7 @@ export class AnthropicInferenceClient implements InferenceClient {
     // Models API call `limits()` uses; no extra round trip.
     const discovery = await this.discover();
     if (!discovery.structuredOutputsSupported) {
-      throw new Error(
+      throw new StructuredUnsupportedError(
         `Model '${this.modelId}' does not report support for strict structured outputs ` +
         `(Models API capabilities.structured_outputs) — refusing rather than degrading to ` +
         `unconstrained tool use, which silently discards unreadable results. Re-point the ` +
@@ -439,8 +500,34 @@ export class AnthropicInferenceClient implements InferenceClient {
  */
 function generationFailure(err: unknown): unknown {
   if (err instanceof APIUserAbortError) return new DOMException('This operation was aborted', 'AbortError');
-  if (err instanceof APIError && isNumber(err.status)) return new ProviderStatusError(err.message, err.status, { cause: err });
+  if (err instanceof APIError && isNumber(err.status)) {
+    return new ProviderStatusError(`${err.message}${statingTheWait(err)}`, err.status, { cause: err });
+  }
   return err;
+}
+
+/**
+ * What a refusal's failure says after the refusal itself, where the provider
+ * stated a wait this driver does not wait. Otherwise nothing.
+ */
+function statingTheWait(refused: APIError): string {
+  const said = refused.headers === undefined ? undefined : waitNotWaited(refused.headers);
+  if (said === undefined) return '';
+  return `; the provider said to wait (${said}), which is longer than the ${LONGEST_STATED_WAIT_MS / 1000} seconds this driver waits`;
+}
+
+/**
+ * A discovery's failure, as the interface states one. `learning` says what
+ * was being learned. A refusal by status carries the status, and says it,
+ * with a wait the provider stated and this driver does not wait; a failure of
+ * the library's with no status, a connection that ended for one, is a plain
+ * error. Either has what the library threw as its cause.
+ */
+function discoveryFailure(learning: string, err: unknown): Error {
+  if (err instanceof APIError && isNumber(err.status)) {
+    return new ProviderStatusError(`${learning}: refused with status ${err.status}${statingTheWait(err)}`, err.status, { cause: err });
+  }
+  return new Error(learning, { cause: err });
 }
 
 /**

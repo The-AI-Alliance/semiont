@@ -43,6 +43,7 @@ SURFACE = {
         "ProviderWithheldError",
         "StructuredReadError",
         "StructuredResponse",
+        "StructuredUnsupportedError",
         "TokenUsage",
     ],
     "anthropic": ["AnthropicInferenceClient"],

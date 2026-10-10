@@ -469,8 +469,9 @@ def test_a_redirected_model_list_is_not_followed_either(server: Server) -> None:
     async def scenario() -> None:
         async with play(server) as played, play(server, 4096) as elsewhere:
             played.models = Answer(status=307, headers={"location": f"{elsewhere.base_url}/models"})
-            with pytest.raises(RuntimeError, match=re.escape(f"Failed to discover model limits for '{MODEL}'")):
+            with pytest.raises(ProviderStatusError, match=re.escape(f"Failed to discover model limits for '{MODEL}'")) as redirected:
                 await driver(server, played).limits()
+            assert redirected.value.status == 307
             assert elsewhere.asked == []
             assert len(played.listings) == 1
 
@@ -496,18 +497,21 @@ def test_the_models_window_is_asked_of_the_server_once_and_kept_and_is_stated_as
 
 @each_server
 @pytest.mark.parametrize(("status", "asked"), [(401, 1), (404, 1), (500, 3), (503, 3)])
-def test_limits_it_cannot_learn_are_a_plain_error_with_no_status_and_are_not_kept(server: Server, status: int, asked: int) -> None:
+def test_a_model_list_the_server_refuses_is_a_status_error_that_says_what_was_asked_and_the_status_and_is_not_kept(
+    server: Server, status: int, asked: int
+) -> None:
     async def scenario() -> None:
         async with play(server) as played:
             played.models = server.refused(status, "what the server said")
             client = driver(server, played)
-            with pytest.raises(
-                RuntimeError, match=re.escape(f"Failed to discover model limits for '{MODEL}' from the server's model list")
-            ) as refused:
+            with pytest.raises(ProviderStatusError) as refused:
                 await client.limits()
-            # A discovery that fails is not a refused generation: nothing about it is classified by a status.
-            assert type(refused.value) is RuntimeError
-            assert not hasattr(refused.value, "status")
+            # A refused discovery is classed as a refused generation is, by its status.
+            assert (
+                str(refused.value)
+                == f"Failed to discover model limits for '{MODEL}' from the server's model list: refused with status {status}"
+            )
+            assert refused.value.status == status
             cause = refused.value.__cause__
             assert isinstance(cause, openai.APIStatusError)
             assert cause.status_code == status

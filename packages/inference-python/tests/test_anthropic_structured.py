@@ -15,7 +15,7 @@ from provider import Anthropic, model_info, reply
 from spec import JsonObject
 
 from semiont_inference.anthropic import AnthropicInferenceClient
-from semiont_inference.interface import StructuredReadError, StructuredResponse, TokenUsage
+from semiont_inference.interface import StructuredReadError, StructuredResponse, StructuredUnsupportedError, TokenUsage
 
 PERSON: JsonObject = {
     "type": "object",
@@ -88,8 +88,9 @@ def test_a_model_that_does_not_report_that_it_answers_in_a_schema_is_refused_bef
             played.model = model_info(structured_outputs=structured_outputs)
             played.script(reply("It was never built."))
             client = driver(played, "claude-legacy")
+            # The interface's own failure, so a caller classes it without reading its words.
             with pytest.raises(
-                RuntimeError, match=re.escape("Model 'claude-legacy' does not report support for strict structured outputs")
+                StructuredUnsupportedError, match=re.escape("Model 'claude-legacy' does not report support for strict structured outputs")
             ) as refused:
                 await client.generate_structured("p", 1000, 0.3, PERSON)
             assert "capabilities.structured_outputs" in str(refused.value)

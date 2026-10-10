@@ -77,11 +77,36 @@ eachWorkerService('a job that fails', (world) => {
     expect(w.ollama.generations).toHaveLength(1);
   });
 
-  it('fails, with no class, when it cannot learn its model\'s limits, and asks for no generation', async () => {
+  it.each([
+    // A wrong key, for one: refused again however often it is asked.
+    [401, 'deterministic', false],
+    [503, 'transient', true],
+  ] as const)('fails in the class of the status, when its provider refuses with %i to say its model\'s limits, and asks for no generation', async (status, failureClass, willRetry) => {
     const w = world();
-    w.ollama.show = { status: 500 };
-    const { job, failure } = await failed(w, 'no-limits', []);
+    w.ollama.show = { status };
+    const { job, failure } = await failed(w, `no-limits-${status}`, []);
+    const error = classed(job, failure, failureClass, willRetry);
+    // The error says what was being learned, and the status it was refused with.
+    expect(error).toContain('/api/show');
+    expect(error).toContain(String(status));
+    expect(w.ollama.generations).toEqual([]);
+  });
+
+  it('fails, with no class, when its provider answers and states no limits for its model, and asks for no generation', async () => {
+    const w = world();
+    // An answer, and no refusal: there is no status to class it by.
+    w.ollama.show = { contextLength: 0 };
+    const { job, failure } = await failed(w, 'no-limits-stated', []);
     expect(unclassed(job, failure, true)).toContain('/api/show');
+    expect(w.ollama.generations).toEqual([]);
+  });
+
+  it('fails, with no class, when the connection to its provider ends unanswered as it asks its model\'s limits, and asks for no generation', async () => {
+    const w = world();
+    w.ollama.show = { drop: true };
+    const { job, failure } = await failed(w, 'no-limits-dropped', []);
+    unclassed(job, failure, true);
+    expect(w.ollama.shows).toHaveLength(1);
     expect(w.ollama.generations).toEqual([]);
   });
 

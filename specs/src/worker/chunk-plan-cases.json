@@ -25,6 +25,14 @@
     },
     {
       "kind": "budget",
+      "why": "the text shrinks by a quotient taken first and in double precision: a third of what this scaffold leaves is exactly half the rest, so whole-number arithmetic would answer 4,500, but 9,000 over 66,254 is a hair under its true value in double precision, and its product with 33,127 rounds down to 4,499",
+      "limits": { "contextTokens": 100000, "maxOutputTokens": 100000 },
+      "scaffoldTokens": 619,
+      "typesPerCall": 1,
+      "budget": { "size": 4499, "overlap": 64, "floor": 128, "ceiling": 90381, "outputBudget": 9000 }
+    },
+    {
+      "kind": "budget",
       "why": "a reply ceiling of its own, and a stated rate: the reply is capped at that rate (10,666 tokens), and the text is at most half the reply whatever the window could hold",
       "limits": { "contextTokens": 200000, "maxOutputTokens": 64000, "outputTokensPerHour": 128000 },
       "scaffoldTokens": 500,
