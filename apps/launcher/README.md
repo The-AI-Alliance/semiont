@@ -208,8 +208,7 @@ semiont stop
   stack is running they mean local; inside a clone whose origin names a
   recorded codespace stack (no local stack) they mean that one — and refuse
   anywhere less certain: `--repo <owner/name>` targets a codespace stack,
-  `--runtime` the local one. A schema 2 single-stack record migrates on read;
-  a schema 1 record is refused.
+  `--runtime` the local one.
 - Codespace preflights fail fast with fixes: `gh` missing/unauthenticated, the
   `codespace` scope, the `ANTHROPIC_API_KEY` Codespaces user secret, and the
   VM class. The machine list GitHub returns for a repo is filtered by the
