@@ -9,14 +9,13 @@ import "sort"
 // enforces; TestServiceSectionsAgreeWithTheSpec holds this copy to it.
 var serviceConfigSections = map[string][]string{
 	"librarian": {"gateway", "graph", "vectors", "embedding", "identity", "archivist", "make-meaning", "actors", "inference"},
-	"weaver":    {"gateway", "graph", "identity"},
 	"smelter":   {"gateway", "vectors", "embedding", "identity", "archivist"},
 }
 
 // launcherReads: the sections whose ${VAR} values the launcher resolves itself,
 // keyed by the role it resolves them for — the gateway's, the dispatcher's,
-// the Archivist's and the worker's documents, Keycloak's external PostgreSQL
-// password, and the remote-model check's key.
+// the Archivist's, the worker's and the Weaver's documents, Keycloak's
+// external PostgreSQL password, and the remote-model check's key.
 // TestLauncherReadsAreTheSectionsTheLauncherResolves reads them from the
 // resolving calls.
 var launcherReads = map[string][]string{
@@ -24,6 +23,7 @@ var launcherReads = map[string][]string{
 	"dispatcher": {"gateway", "identity", "jobs"},
 	"archivist":  {"gateway", "identity"},
 	"worker":     {"gateway", "identity", "inference"},
+	"weaver":     {"gateway", "identity", "graph"},
 	"identity":   {"database"},
 	"inference":  {"inference"},
 }
@@ -99,10 +99,10 @@ func sectionRefs(envSection map[string]any, sections []string) (required, option
 
 // serviceVars: for each stack service, the user variables it is handed — the
 // references in the sections it reads. The gateway, the dispatcher, the
-// Archivist and the worker read no KB config: their variables are the ones
-// their documents name, and the Archivist's names none.
+// Archivist, the worker and the Weaver read no KB config: their variables are
+// the ones their documents name, and the Archivist's names none.
 func serviceVars(envSection map[string]any, env *envConfig) map[string][]string {
-	out := map[string][]string{"gateway": gatewayNamedVars(env), "dispatcher": dispatcherNamedVars(env), "archivist": nil, "worker": workerNamedVars(env)}
+	out := map[string][]string{"gateway": gatewayNamedVars(env), "dispatcher": dispatcherNamedVars(env), "archivist": nil, "worker": workerNamedVars(env), "weaver": weaverNamedVars(env)}
 	for svc, sections := range serviceConfigSections {
 		required, optional := sectionRefs(envSection, sections)
 		names := append(required, optional...)
@@ -114,8 +114,8 @@ func serviceVars(envSection map[string]any, env *envConfig) map[string][]string 
 
 // withDaemonCredentialVars adds, to each service's variables, the credential
 // names of the daemons the launcher runs that the service dials: a [graph]
-// reader the Neo4j password, a [jobs] reader the broker pair, and the gateway
-// the pair when its signal plane is that broker.
+// reader and the Weaver the Neo4j password, a [jobs] reader the broker pair,
+// and the gateway the pair when its signal plane is that broker.
 func withDaemonCredentialVars(byService map[string][]string, plan *launchPlan, signalOnBroker bool) map[string][]string {
 	out := map[string][]string{}
 	for svc, names := range byService {
@@ -131,6 +131,9 @@ func withDaemonCredentialVars(byService map[string][]string, plan *launchPlan, s
 		if brokerRun && contains(sections, "jobs") {
 			out[svc] = append(out[svc], pair...)
 		}
+	}
+	if graphRun {
+		out["weaver"] = append(out["weaver"], daemonPasswords["graph"].env)
 	}
 	if brokerRun && signalOnBroker {
 		out["gateway"] = append(out["gateway"], pair...)

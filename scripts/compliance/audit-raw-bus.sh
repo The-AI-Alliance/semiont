@@ -25,11 +25,10 @@ set -euo pipefail
 #   - packages/sdk/src/**               — SemiontClient, namespaces, flow VMs,
 #                                          session
 #   - packages/http-transport/src/**        — HTTP adapters
-#   - packages/make-meaning/src/weaver.ts
 #   - packages/make-meaning/src/smelter.ts
-#                                       — actors whose `bus` field is a
-#                                          `BusRequestPrimitive` — the port they
-#                                          announce and request on, in-process or
+#                                       — an actor whose `bus` field is a
+#                                          `BusRequestPrimitive` — the port it
+#                                          announces and requests on, in-process or
 #                                          through the gateway — not `client.bus`;
 #                                          an actor has no namespace method to
 #                                          call instead
@@ -74,7 +73,6 @@ filter_allowlist() {
     | grep -v "/test-utils\." \
     | grep -v "^packages/sdk/src/" \
     | grep -v "^packages/http-transport/src/" \
-    | grep -v "^packages/make-meaning/src/weaver\.ts:" \
     | grep -v "^packages/make-meaning/src/smelter\.ts:" \
     | grep -v "^packages/core/src/faulty-transport\.ts:" \
     | grep -v "^packages/react-ui/src/state/" \

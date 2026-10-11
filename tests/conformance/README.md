@@ -32,7 +32,8 @@ dispatcher suite also needs a built dispatcher, the Archivist suite a built
 Archivist and `git`, the SDK suite and the worker suite the Rust drivers
 and the packages built, the worker-service suite the Worker service's
 environment, which `uv` makes, and the weaver suite a built Archivist, the
-packages built, and a neo4j of its own, whose address and password it is told
+Weaver's environment, which `uv` makes too, the packages built, and a neo4j of
+its own, whose address and password it is told
 in `NEO4J_HOST` and `NEO4J_PASSWORD` ([weaver/README.md](weaver/README.md)):
 
 ```bash

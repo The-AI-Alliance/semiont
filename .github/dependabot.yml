@@ -317,12 +317,12 @@ updates:
   # the rust-toolchain entry updates. Major node updates are ignored because node
   # 26's undici breaks the qdrant client the sidecars carry; drop the ignore
   # when qdrant ships a fix. apps/browser carries no qdrant client, runs Node
-  # 26, and has its own entry. apps/worker is Python, and has its own too.
+  # 26, and has its own entry. apps/worker and apps/weaver are Python, and
+  # have their own too.
   - package-ecosystem: "docker"
     directories:
       - "/apps/gateway"
       - "/apps/smelter"
-      - "/apps/weaver"
       - "/apps/archivist"
       - "/apps/librarian"
       - "/apps/dispatcher"
@@ -347,14 +347,17 @@ updates:
       prefix: "service-docker"
       include: "scope"
 
-  # The worker image (apps/worker/Dockerfile). Its Python base is no tag this
-  # entry can move: it is python:${PYTHON_FLOOR}-<variant>, the floor
-  # packages/sdk-python/pyproject.toml states, which a person moves. What the
+  # The images of the Python services (apps/worker/Dockerfile,
+  # apps/weaver/Dockerfile). Their Python base is no tag this entry can move:
+  # it is python:${PYTHON_FLOOR}-<variant>, the floor
+  # packages/sdk-python/pyproject.toml states, which a person moves. What each
   # file's FROM lines write out, and this entry moves, is the uv that makes
-  # the image's environment. Outside the service group, whose bases are Node
-  # and Alpine.
+  # the image's environment, in both at once. Outside the service group, whose
+  # bases are Node and Alpine.
   - package-ecosystem: "docker"
-    directory: "/apps/worker"
+    directories:
+      - "/apps/worker"
+      - "/apps/weaver"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -364,6 +367,10 @@ updates:
       - "dependencies"
       - "services"
       - "docker"
+    groups:
+      python-service-images:
+        patterns:
+          - "*"
     commit-message:
       prefix: "service-docker"
       include: "scope"

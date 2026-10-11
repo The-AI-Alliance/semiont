@@ -89,25 +89,17 @@ export const WORKER_SERVICES: Readonly<Record<string, readonly string[]>> = {
 
 /**
  * How each implementation of the Weaver is started and reached. The weaver
- * suite runs each one against a real gateway, a real Archivist and a real
- * neo4j, and meets it on the bus, in the graph it writes and at its health
- * port (weaver/README.md). An implementation joins the suite by adding its
- * line. vitest.config.ts provides them as `weaverServices`.
+ * suite runs each one with `--config <document>` and the environment, against
+ * a real gateway, a real Archivist and a real neo4j, and meets it on the bus,
+ * in the graph it writes and at its health port (weaver/README.md). An
+ * implementation joins the suite by adding its line. vitest.config.ts
+ * provides them as `weaverServices`.
  */
 export const WEAVER_SERVICES: Readonly<Record<string, WeaverService>> = {
-  // The built entry point: `npm run build --workspace=@semiont/make-meaning` makes it.
-  // It reads ~/.semiontconfig, and its health port is a constant of the entry point.
-  typescript: {
-    command: ['node', join(REPO_ROOT, 'packages/make-meaning/dist/weaver-main.js')],
-    configuration: 'semiontconfig',
-    healthPort: 24102,
-  },
   // The interpreter of the project's locked environment: nothing is resolved or installed when a case starts it.
-  // `-P` keeps the directory a case starts it in off its import path, as the image's command does. It reads the
-  // configuration document the harness writes, which names the port its health answers on.
+  // `-P` keeps the directory a case starts it in off its import path, as the image's command does.
   python: {
     command: [join(REPO_ROOT, 'apps/weaver/.venv/bin/python'), '-P', '-m', 'semiont_weaver'],
-    configuration: 'document',
     healthPort: 24102,
   },
 };

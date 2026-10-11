@@ -98,7 +98,7 @@ export class WeaverWorld {
   }
 
   /** What a case launches a Weaver of its own with: this world's, changed as the case says. */
-  launch(change: Partial<Pick<WeaverLaunch, 'settings' | 'env' | 'verbatim' | 'home'>> = {}): WeaverLaunch {
+  launch(change: Partial<Pick<WeaverLaunch, 'settings' | 'env' | 'home'>> = {}): WeaverLaunch {
     return { service: this.service, settings: this.settings, env: this.env, home: this.home, ...change };
   }
 
@@ -130,7 +130,7 @@ export class WeaverWorld {
   }
 
   /** A Weaver that must refuse to start, launched as `change` says beside this world's. */
-  refused(change: Partial<Pick<WeaverLaunch, 'settings' | 'env' | 'verbatim'>>): Promise<{ code: number | null; output: string }> {
+  refused(change: Partial<Pick<WeaverLaunch, 'settings' | 'env'>>): Promise<{ code: number | null; output: string }> {
     return refusedWeaverBoot({ ...this.launch(change), home: mkdtempSync(join(tmpdir(), 'conformance-weaver-refused-')) });
   }
 

@@ -1,15 +1,12 @@
 /**
  * Starting and stopping Weaver processes.
  *
- * A Weaver is one of `WEAVER_SERVICES`, its settings and an environment. How
- * the settings reach it is the implementation's, and `paths.ts` says which.
- * TypeScript's reads `~/.semiontconfig`, so the harness gives it a home
- * directory of its own with that file in it. Python's reads the protocol's
- * configuration document (`WeaverConfig`) at the path `--config` names, as
- * every other service does, and the harness writes that. The environment
- * holds its service account, the graph database's password under the name its
- * settings give it, and PATH, which finds its command; nothing else from the
- * developer's shell.
+ * A Weaver is one of `WEAVER_SERVICES`, its settings and an environment. Its
+ * settings reach it as the protocol's configuration document (`WeaverConfig`),
+ * at the path `--config` names, as every other service's do: the harness
+ * writes that. The environment holds its service account, the graph
+ * database's password under the name its document gives it, and PATH, which
+ * finds its command; nothing else from the developer's shell.
  *
  * The home directory is the world's and outlives a process: a Weaver stopped
  * and started again finds what it kept there (its checkpoint, under the
@@ -25,9 +22,7 @@ import { call } from './http';
 /** How one implementation of the Weaver is started and reached. */
 export interface WeaverService {
   command: readonly string[];
-  /** How it is given its settings: the knowledge base's config in its home directory, or its own configuration document. */
-  configuration: 'semiontconfig' | 'document';
-  /** The port its health answers on. TypeScript's is a constant of its entry point, so one runs at a time. */
+  /** The port its health answers on, which the harness writes into its document. */
   healthPort: number;
 }
 
@@ -64,8 +59,6 @@ export interface WeaverLaunch {
   env: WeaverEnvironment;
   /** The Weaver's home directory, which the world keeps across its restarts. */
   home: string;
-  /** Written as its configuration instead of the settings: for the cases that check what is refused. */
-  verbatim?: string;
 }
 
 export interface WeaverProcess {
@@ -78,42 +71,6 @@ export interface WeaverProcess {
   stop(): Promise<number | null>;
   /** SIGKILL: nothing it would settle on the way out is settled. */
   crash(): Promise<void>;
-}
-
-const toml = (value: string) => JSON.stringify(value);
-
-/** The settings as the knowledge base's configuration file states them, for one environment. */
-function semiontconfig(settings: WeaverSettings): string {
-  const graph =
-    settings.graph.type === 'memory'
-      ? ['type = "memory"']
-      : [
-          'type = "neo4j"',
-          `uri = ${toml(settings.graph.uri)}`,
-          `username = ${toml(settings.graph.username)}`,
-          `password = ${toml('${' + settings.graph.passwordEnv + '}')}`,
-          `database = ${toml(settings.graph.database)}`,
-        ];
-  return [
-    '[defaults]',
-    'environment = "conformance"',
-    '',
-    // Each is somebody else's to run, as far as a Weaver is concerned.
-    '[environments.conformance.gateway]',
-    'platform = "external"',
-    `publicURL = ${toml(settings.gatewayUrl)}`,
-    '',
-    '[environments.conformance.identity]',
-    'platform = "external"',
-    'type = "oidc"',
-    `issuer = ${toml(settings.issuer)}`,
-    'subjectClaim = "sub"',
-    '',
-    '[environments.conformance.graph]',
-    'platform = "external"',
-    ...graph,
-    '',
-  ].join('\n');
 }
 
 /**
@@ -134,20 +91,14 @@ function document(settings: WeaverSettings, service: WeaverService, temporary: s
   });
 }
 
-function launch({ service, settings, env, home, verbatim }: WeaverLaunch): { child: ChildProcess; output: string[]; exited: Promise<number | null> } {
+function launch({ service, settings, env, home }: WeaverLaunch): { child: ChildProcess; output: string[]; exited: Promise<number | null> } {
   const temporary = join(home, 'tmp');
   mkdirSync(temporary, { recursive: true });
-  const configured: string[] = [];
-  if (service.configuration === 'document') {
-    const path = join(home, 'weaver.json');
-    writeFileSync(path, verbatim ?? document(settings, service, temporary));
-    configured.push('--config', path);
-  } else {
-    writeFileSync(join(home, '.semiontconfig'), verbatim ?? semiontconfig(settings));
-  }
+  const path = join(home, 'weaver.json');
+  writeFileSync(path, document(settings, service, temporary));
   const childEnv: Record<string, string> = { PATH: process.env['PATH'] ?? '', HOME: home, TMPDIR: temporary };
   for (const [name, value] of Object.entries(env)) if (value !== undefined) childEnv[name] = value;
-  const [program, ...args] = [...service.command, ...configured];
+  const [program, ...args] = [...service.command, '--config', path];
   const child = spawn(program!, args, { env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] });
   const output: string[] = [];
   collectLines(child.stdout!, [output]);

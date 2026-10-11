@@ -169,19 +169,18 @@ const TABLES = [
       'packages/sdk-python/tests/test_bus_log.py',
     ],
   },
-  // What the graph holds of an annotation and of a resource. The graph's
-  // codecs are TypeScript's today; the Python package that follows them
-  // (semiont_graph) adds its runner here when it is written.
+  // What the graph holds of an annotation and of a resource, run by each
+  // implementation of the graph's codecs: TypeScript's (@semiont/graph) and
+  // Python's (semiont_graph).
   {
     table: 'specs/src/graph/codec-cases.json',
-    runners: ['packages/graph/src/__tests__/codec-cases.test.ts'],
+    runners: ['packages/graph/src/__tests__/codec-cases.test.ts', 'packages/graph-python/tests/test_codec_cases.py'],
   },
   // What the Weaver's fold does to the graph: a history of recorded events,
-  // and the graph it leaves. The Python Weaver adds its runner here when it
-  // is written.
+  // and the graph it leaves. Run by the Weaver (semiont_weaver).
   {
     table: 'specs/src/weaver/fold-cases.json',
-    runners: ['packages/make-meaning/src/__tests__/weaver-fold-cases.test.ts'],
+    runners: ['apps/weaver/tests/test_fold_cases.py'],
   },
 ];
 

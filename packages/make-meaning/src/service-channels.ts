@@ -1,6 +1,6 @@
 /**
  * Per-service bus channel rosters for the standalone make-meaning entry
- * points (smelter, weaver, librarian).
+ * points (smelter, librarian).
  *
  * Each service's transport subscribes exactly what that service consumes,
  * never the full `BRIDGED_CHANNELS`: a transport
@@ -9,11 +9,10 @@
  * broadcast — the gateway delivers a reply only to its requester:
  * docs/protocol/TRANSPORT-CONTRACT.md.)
  *
- *   - The SMELTER and WEAVER await `busRequest` replies (embed/catch-up/
- *     reconcile reads), so their transports carry the reply channels DERIVED
- *     from `BUS_OPERATIONS` over the operations they await, beside the
- *     domain-event and command channels their fan-ins read
- *     (`SMELTER_MANIFEST`, `WEAVER_MANIFEST`).
+ *   - The SMELTER awaits `busRequest` replies (embed and reconcile reads),
+ *     so its transport carries the reply channels DERIVED from
+ *     `BUS_OPERATIONS` over the operations it awaits, beside the domain-event
+ *     and command channels its fan-in reads (`SMELTER_MANIFEST`).
  *   - The LIBRARIAN answers operations AND awaits one read (the anchored-text
  *     ask behind gather's text dispatcher), so its transport carries its
  *     inbound roster plus that operation's reply channels.
@@ -34,11 +33,6 @@ import type {
   SmelterAnnotationsReadAwaits,
   SmelterCatalogPageAwaits,
 } from './smelter';
-import type {
-  WeaverCatalogPageAwaits,
-  WeaverEventsReadAwaits,
-  WeaverAnnotationsReadAwaits,
-} from './weaver';
 
 // ── Smelter ──────────────────────────────────────────────────────────
 
@@ -64,31 +58,6 @@ type SmelterAwaitCensusDrift =
 export const smelterAwaitCensus: [SmelterAwaitCensusDrift] extends [never]
   ? 'in-census'
   : SmelterAwaitCensusDrift = 'in-census';
-
-// ── Weaver ───────────────────────────────────────────────────────────
-
-/** The operations the Weaver awaits replies to (catch-up + reconcile reads). */
-export const WEAVER_AWAITED_OPERATIONS = [
-  'browse:resources-requested',
-  'browse:events-requested',
-  'browse:annotations-requested',
-] as const satisfies readonly BusOperationKey[];
-
-/** The reply channels in the Weaver transport's subscription (`WEAVER_MANIFEST`). */
-export const WEAVER_REPLY_CHANNELS: readonly (keyof EventMap)[] =
-  replyChannelsFor(WEAVER_AWAITED_OPERATIONS);
-
-type DeclaredWeaverAwaits =
-  | WeaverCatalogPageAwaits
-  | WeaverEventsReadAwaits
-  | WeaverAnnotationsReadAwaits;
-type WeaverAwaitCensusDrift =
-  | Exclude<DeclaredWeaverAwaits, (typeof WEAVER_AWAITED_OPERATIONS)[number]>
-  | Exclude<(typeof WEAVER_AWAITED_OPERATIONS)[number], DeclaredWeaverAwaits>;
-/** The build-time census gate — see the header. Drift names the operation. */
-export const weaverAwaitCensus: [WeaverAwaitCensusDrift] extends [never]
-  ? 'in-census'
-  : WeaverAwaitCensusDrift = 'in-census';
 
 // ── Librarian ────────────────────────────────────────────────────────
 

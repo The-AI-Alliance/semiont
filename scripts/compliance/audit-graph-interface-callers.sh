@@ -27,7 +27,16 @@ INTERFACE="$REPO_ROOT/packages/graph/src/interface.ts"
 # Kept with no caller, by the user's ruling of 2026-10-11 on what the
 # Librarian's port will need: "`resolveReference` certainly sounds like it
 # should be ported. Probably those other two."
-KEPT=(resolveReference findPath getStats)
+READS_KEPT=(resolveReference findPath getStats)
+
+# Kept with no caller since the Weaver became the Python service (apps/weaver),
+# which writes the graph through semiont_graph. These are everything the
+# TypeScript Weaver alone called. @semiont/graph stays whole until the
+# Librarian is Python too, and is deleted then: its remaining reads go with
+# these.
+WRITES_KEPT=(createResource updateResource deleteResource createAnnotation updateAnnotation deleteAnnotation batchCreateResources createAnnotations getEntityTypes addEntityTypes clearDatabase)
+
+KEPT=("${READS_KEPT[@]}" "${WRITES_KEPT[@]}")
 
 echo "🔍 Auditing the graph interface's callers..."
 

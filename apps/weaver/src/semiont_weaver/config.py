@@ -10,7 +10,8 @@ read for it here.
 
 A refusal is worded as the gateway's, the Dispatcher's, the Archivist's and
 the Worker's are, so an operator reads one kind of message from every
-service. It names a member and what was expected of it, and never a value
+service: it names the service in lower case, as its image and its container
+are named. It names a member and what was expected of it, and never a value
 found in the document: a password written where its variable's name belongs
 is such a value.
 """
@@ -46,7 +47,7 @@ def config_path_of(arguments: Sequence[str]) -> str:
             path = arguments[at + 1]
             if path and not path.startswith("--"):
                 return path
-    raise Refused("The Weaver's configuration document is not named: start it with --config <path>")
+    raise Refused("The weaver's configuration document is not named: start it with --config <path>")
 
 
 _STATES_WHAT_WAS_EXPECTED: Final = frozenset(
@@ -106,8 +107,8 @@ def read_weaver_config(path: str) -> WeaverConfig:
         written = Path(path).read_bytes()
     except OSError as unread:
         raise Refused(
-            f"Cannot read the Weaver's configuration document at {path} ({unread}). "
-            "The launcher writes it; a Weaver started another way is given one (WeaverConfig in specs/)."
+            f"Cannot read the weaver's configuration document at {path} ({unread}). "
+            "The launcher writes it; a weaver started another way is given one (WeaverConfig in specs/)."
         ) from unread
     try:
         config = WeaverConfig.model_validate_json(written, strict=True, by_alias=True, by_name=False)
@@ -118,9 +119,9 @@ def read_weaver_config(path: str) -> WeaverConfig:
                 raise Refused(f"{path} is not JSON: {refusal['msg'].removeprefix('Invalid JSON: ')}") from None
         # Each reason on a line of its own.
         reasons = "\n".join(f"  {_reason(refusal['loc'], refusal['type'], refusal['msg'])}" for refusal in refusals)
-        raise Refused(f"{path} is not a Weaver configuration document (WeaverConfig):\n{reasons}") from None
+        raise Refused(f"{path} is not a weaver configuration document (WeaverConfig):\n{reasons}") from None
     if isinstance(config.graph, MemoryGraphConfig):
-        raise Refused("graph.type is memory: a graph held in the Weaver's own memory could not be shared with a reader of the graph")
+        raise Refused("graph.type is memory: a graph held in the weaver's own memory could not be shared with a reader of the graph")
     return config
 
 
@@ -140,7 +141,7 @@ def graph_password_of(config: WeaverConfig, environment: Mapping[str, str]) -> s
         return None
     password = _set_in(environment, graph.password_env)
     if password is None:
-        raise Refused(f"graph.passwordEnv names {graph.password_env}, which is not set in the Weaver's environment")
+        raise Refused(f"graph.passwordEnv names {graph.password_env}, which is not set in the weaver's environment")
     return password
 
 
@@ -150,7 +151,7 @@ def service_account_of(config: WeaverConfig, environment: Mapping[str, str]) -> 
     def held(name: str) -> str:
         value = _set_in(environment, name)
         if value is None:
-            raise Refused(f"{name} is not set in the Weaver's environment: a Weaver signs in as a service account")
+            raise Refused(f"{name} is not set in the weaver's environment: a weaver signs in as a service account")
         return value
 
     return Credential(

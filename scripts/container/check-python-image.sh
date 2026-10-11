@@ -1,27 +1,30 @@
 #!/bin/sh
-# check-worker-image.sh <image> [runtime] — what the worker image promises,
-# checked against a built image:
+# check-python-image.sh <service> <image> [runtime] — what the image of a
+# Python service promises (the worker's, the weaver's), checked against a
+# built image:
 #
 #   1. No installer and no Node: as its user, nothing on its PATH installs a
 #      package (pip, uv) or runs JavaScript (node, npm), and its Python has
 #      no pip.
-#   2. Every provider's library: every module of the Python packages the
-#      image builds from this repository imports there, each inference driver
-#      with the library its provider is asked through. The service imports a
-#      driver when it makes an agent for that provider, so an image missing a
-#      library starts all the same, and fails where that provider is
-#      configured.
+#   2. Every library it can be configured for: every module of the Python
+#      packages the image builds from this repository imports there, each
+#      inference driver with the library its provider is asked through, and
+#      each graph store with the client its database is asked through. A
+#      service imports a driver or a store when its configuration names one,
+#      so an image missing a library starts all the same, and fails where
+#      that provider or that database is configured.
 #   3. Run as the image says, with no document mounted where its CMD tells it
 #      to read one, it refuses by name: exit 1, naming the document it cannot
 #      read.
 #
-# Run by local-build.sh after it builds the worker image, and by the image
+# Run by local-build.sh after it builds such an image, and by the image
 # publish workflow before it pushes.
 set -eu
 
-IMAGE="${1:?usage: check-worker-image.sh <image> [runtime]}"
-RT="${2:-docker}"
-DOCKERFILE="$(cd "$(dirname "$0")/../.." && pwd)/apps/worker/Dockerfile"
+SERVICE="${1:?usage: check-python-image.sh <service> <image> [runtime]}"
+IMAGE="${2:?usage: check-python-image.sh <service> <image> [runtime]}"
+RT="${3:-docker}"
+DOCKERFILE="$(cd "$(dirname "$0")/../.." && pwd)/apps/$SERVICE/Dockerfile"
 COMMAND=$(sed -n 's/^CMD \[\(.*\)\]$/\1/p' "$DOCKERFILE" | sed 's/", "/ /g; s/"//g')
 if [ -z "$COMMAND" ]; then
   echo "✗ $DOCKERFILE declares no exec-form CMD"
@@ -83,7 +86,7 @@ if ! imported=$("$RT" run --rm --entrypoint /bin/sh -e WALK="$WALK" "$IMAGE" -c 
   echo "$imported"
   exit 1
 fi
-echo "✓ $IMAGE imports every module of the packages built into it, each provider's driver with its library: $imported"
+echo "✓ $IMAGE imports every module of the packages built into it, each with the library it asks through: $imported"
 
 # The script runs, and expands, inside the container: the command's output,
 # then a last line of its exit status.
@@ -99,7 +102,7 @@ if [ "$status" != 1 ]; then
   echo "$log"
   exit 1
 fi
-if ! echo "$log" | grep -qF "Cannot read the worker's configuration document"; then
+if ! echo "$log" | grep -qF "Cannot read the $SERVICE's configuration document"; then
   echo "✗ $IMAGE with no document did not refuse by name:"
   echo "$log"
   exit 1

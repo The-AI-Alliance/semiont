@@ -13,10 +13,10 @@ set -euo pipefail
 #     names a read: an entry nothing reads is a reason given for something
 #     that is not there. The gateway is not here: its
 #     environment is specs/src/service-environment/variables.json, which
-#     lint:service-environment checks in both directions. Nor is the worker:
-#     its environment is the Environment section of
-#     docs/protocol/WORKER-SERVICE.md, which apps/worker/tests/test_census.py
-#     holds its source to.
+#     lint:service-environment checks in both directions. Nor are the worker
+#     and the Weaver: each one's environment is the Environment section of its
+#     page of docs/protocol (WORKER-SERVICE.md, WEAVER.md), which its own
+#     tests/test_census.py holds its source to.
 # B2  [kb] identity census: every `config.kb?.X` read is a key the launcher
 #     stages in the [kb] table (stagedServiceConfig).
 # B3  archivist topology census: every `services.archivist.X` read is a key
@@ -62,7 +62,6 @@ literal_keys() {
 service_files() {
   case "$1" in
     smelter)   echo packages/make-meaning/src/smelter-main.ts ;;
-    weaver)    echo packages/make-meaning/src/weaver-main.ts ;;
     librarian) echo packages/make-meaning/src/librarian-main.ts ;;
   esac
 }
@@ -99,7 +98,7 @@ demand_of() {
 }
 
 # ── B1 — per-service env census ─────────────────────────────────────────────
-for svc in smelter weaver librarian; do
+for svc in smelter librarian; do
   demand=$(demand_of "$svc")
   df=$(dockerfile_for "$svc")
   df_env=$(grep -hE '^ENV ' "$df" | sed -E 's/^ENV +//' | cut -d= -f1 || true)

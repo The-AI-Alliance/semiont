@@ -205,3 +205,53 @@ def test_the_payload_it_reads_each_followed_event_as_is_the_one_the_bus_registry
     named = {row["event"]: row["payload"] for row in registry if row.get("shape") == "storedEvent" and row.get("event") in FOLLOWED}
     assert {event: shape.__name__ for event, shape in PAYLOADS.items()} == named
     assert sorted(PAYLOADS) == sorted(FOLLOWED)
+
+
+def naming(text: str) -> list[str]:
+    """The modules of this project whose source holds `text`, by their paths in it."""
+    return sorted(str(path.relative_to(SRC)) for path in SRC.rglob("*.py") if text in path.read_text(encoding="utf-8"))
+
+
+def test_it_opens_no_file_of_the_record() -> None:
+    # It reads history from the Archivist, over the bus. What touches a file is the module that keeps its marks, the
+    # one that reads its document, and the one that reads the process's environment and names where the marks go.
+    touching = sorted(
+        str(path.relative_to(SRC)) for path in SRC.rglob("*.py") if re.search(r"\bPath\b|\bopen\(|\bos\.\w", path.read_text(encoding="utf-8"))
+    )
+    assert touching == ["checkpoint.py", "config.py", "service.py"]
+
+
+def test_the_marks_have_one_writer_and_the_signal_one_emitter() -> None:
+    # A mark says everything at or below it was applied. One module holds the marks and decides what raises
+    # one, and one line says a mark on the bus: a second of either could say what the first would not.
+    assert naming("_applied[") == ["marks.py"]
+    assert naming("WEAVE_APPLIED") == ["weaver.py"]
+    assert (SRC / "weaver.py").read_text(encoding="utf-8").count("emit(WEAVE_APPLIED") == 1
+
+
+def test_the_fold_has_a_rule_for_each_event_followed_and_for_no_other() -> None:
+    cases = re.findall(r'^        case "([a-z]+:[a-z-]+)":', (SRC / "fold.py").read_text(encoding="utf-8"), re.MULTILINE)
+    assert sorted(cases) == sorted(FOLLOWED)
+
+
+def test_reconcile_holds_an_annotation_to_what_the_codec_says_and_to_no_list_of_its_own() -> None:
+    # The graph is no copy of a view. Whether it is right is asked of what the codec says it is to hold, so
+    # that widening or narrowing what is stored changes what reconcile compares with no second list to keep.
+    source = (SRC / "weaver.py").read_text(encoding="utf-8")
+    assert "written(annotation) != written(intended_graph_annotation(recorded))" in source
+
+
+def test_the_variables_it_reads_by_name_are_the_ones_the_protocol_lists() -> None:
+    page = (ROOT / "docs/protocol/WEAVER.md").read_text(encoding="utf-8")
+    section = re.search(r"^## Environment\n(.*?)^## ", page, re.DOTALL | re.MULTILINE)
+    assert section is not None, "docs/protocol/WEAVER.md no longer has an Environment section"
+    listed_there = {
+        name
+        for row in section.group(1).splitlines()
+        if row.startswith("| ") and not row.startswith("| Variable")
+        for name in re.findall(r"`([A-Z][A-Z0-9_]+)`", row.split("|")[1])
+    }
+    read_here = {
+        name for path in SRC.rglob("*.py") for name in re.findall(r'"([A-Z][A-Z0-9]*_[A-Z0-9_]+)"', path.read_text(encoding="utf-8"))
+    }
+    assert read_here == listed_there == {"SEMIONT_OIDC_CLIENT_ID", "SEMIONT_OIDC_CLIENT_SECRET"}

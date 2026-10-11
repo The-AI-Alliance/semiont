@@ -64,7 +64,7 @@ export function createGraphDatabase(config: GraphDatabaseConfig): GraphDatabase 
     case 'memory':
       // Hermetic TEST sink only: a heap-local graph cannot be shared with a
       // standalone Weaver, so no deployment configures it — and none does.
-      // weaver-main refuses it.
+      // The Weaver and the Librarian each refuse it.
       return new MemoryGraphDatabase({});
 
     default:

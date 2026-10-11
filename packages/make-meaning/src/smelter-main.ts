@@ -230,9 +230,8 @@ async function main() {
   // changed while this worker was down — or a wiped Qdrant volume — is
   // brought back in sync here.
   //
-  // NOT fatal, for the same reason as the weaver's: an index of unknown
-  // completeness is a data condition, and exiting does not complete it. No
-  // state sink is passed — `Smelter.reconcile()` already sets `reconcileState`
+  // NOT fatal: an index of unknown completeness is a data condition, and
+  // exiting does not complete it. `Smelter.reconcile()` sets `reconcileState`
   // to `{ phase: 'failed' }` before it throws, and that is what `/health`
   // serves.
   await runBootPass('reconcile', () => smelter.reconcile(), logger);

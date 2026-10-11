@@ -97,7 +97,7 @@ def test_its_stream_names_what_it_follows_the_command_it_answers_and_the_replies
 
 
 def test_the_document_is_named_by_a_flag_and_never_guessed(tmp_path: Path) -> None:
-    said = "The Weaver's configuration document is not named: start it with --config <path>"
+    said = "The weaver's configuration document is not named: start it with --config <path>"
     assert refusal([], {**ACCOUNT, **PASSWORD}) == said
     assert refusal(["--config"], {**ACCOUNT, **PASSWORD}) == said
     assert refusal(["--config", "--verbose"], {**ACCOUNT, **PASSWORD}) == said
@@ -109,7 +109,7 @@ def test_the_document_is_named_by_a_flag_and_never_guessed(tmp_path: Path) -> No
 def test_a_document_that_cannot_be_read_or_is_no_json_is_refused_by_its_path(tmp_path: Path) -> None:
     missing = str(tmp_path / "nowhere.json")
     assert refusal(["--config", missing], {**ACCOUNT, **PASSWORD}).startswith(
-        f"Cannot read the Weaver's configuration document at {missing} ("
+        f"Cannot read the weaver's configuration document at {missing} ("
     )
     path = tmp_path / "weaver.json"
     path.write_text("{ not json", encoding="utf-8")
@@ -125,7 +125,7 @@ def test_a_document_that_is_not_the_schemas_is_refused_naming_each_member_and_no
     }
     path = written(tmp_path, document)
     said = refusal(["--config", path], {**ACCOUNT, **PASSWORD})
-    assert said.splitlines()[0] == f"{path} is not a Weaver configuration document (WeaverConfig):"
+    assert said.splitlines()[0] == f"{path} is not a weaver configuration document (WeaverConfig):"
     assert sorted(said.splitlines()[1:]) == sorted(
         [
             "  Missing required property: passwordEnv",
@@ -149,7 +149,7 @@ def test_a_kind_of_graph_database_the_schema_does_not_name_is_refused_without_sa
 def test_a_graph_held_in_the_weavers_own_memory_is_refused(tmp_path: Path) -> None:
     path = written(tmp_path, {**DOCUMENT, "graph": {"type": "memory"}})
     assert refusal(["--config", path], {**ACCOUNT, **PASSWORD}) == (
-        "graph.type is memory: a graph held in the Weaver's own memory could not be shared with a reader of the graph"
+        "graph.type is memory: a graph held in the weaver's own memory could not be shared with a reader of the graph"
     )
 
 
@@ -157,15 +157,15 @@ def test_the_document_is_settled_before_the_account_and_the_account_before_the_p
     assert refusal(["--config", written(tmp_path, without("graph"))], {}).endswith("  Missing required property: graph")
     path = written(tmp_path)
     assert refusal(["--config", path], {}) == (
-        "SEMIONT_OIDC_CLIENT_ID is not set in the Weaver's environment: a Weaver signs in as a service account"
+        "SEMIONT_OIDC_CLIENT_ID is not set in the weaver's environment: a weaver signs in as a service account"
     )
     assert refusal(["--config", path], {"SEMIONT_OIDC_CLIENT_ID": "semiont-weaver", "SEMIONT_OIDC_CLIENT_SECRET": ""}) == (
-        "SEMIONT_OIDC_CLIENT_SECRET is not set in the Weaver's environment: a Weaver signs in as a service account"
+        "SEMIONT_OIDC_CLIENT_SECRET is not set in the weaver's environment: a weaver signs in as a service account"
     )
-    assert refusal(["--config", path], ACCOUNT) == "graph.passwordEnv names NEO4J_PASSWORD, which is not set in the Weaver's environment"
+    assert refusal(["--config", path], ACCOUNT) == "graph.passwordEnv names NEO4J_PASSWORD, which is not set in the weaver's environment"
     renamed = written(tmp_path, {**DOCUMENT, "graph": {**DOCUMENT_GRAPH, "passwordEnv": "SOMEBODY_ELSES"}})
     assert refusal(["--config", renamed], {**ACCOUNT, **PASSWORD}) == (
-        "graph.passwordEnv names SOMEBODY_ELSES, which is not set in the Weaver's environment"
+        "graph.passwordEnv names SOMEBODY_ELSES, which is not set in the weaver's environment"
     )
     assert boot(["--config", renamed], {**ACCOUNT, "SOMEBODY_ELSES": "n30"}).config.port == 24102
 
@@ -190,4 +190,4 @@ def test_a_refusal_is_one_line_on_stderr_and_status_1_and_nothing_on_stdout(
 
     said = capsys.readouterr()
     assert said.out == ""
-    assert said.err == "[fatal] SEMIONT_OIDC_CLIENT_ID is not set in the Weaver's environment: a Weaver signs in as a service account\n"
+    assert said.err == "[fatal] SEMIONT_OIDC_CLIENT_ID is not set in the weaver's environment: a weaver signs in as a service account\n"

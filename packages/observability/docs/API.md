@@ -17,7 +17,7 @@ This package does not implement any platform domain logic; it provides the spann
 Initialize once at the process entry point, before any spanning code runs:
 
 ```ts
-// smelter-main.ts (or weaver-main.ts, librarian-main.ts)
+// smelter-main.ts (or librarian-main.ts)
 import { initObservabilityNode } from '@semiont/observability/node';
 
 initObservabilityNode({ serviceName: 'semiont-smelter' });
@@ -43,7 +43,7 @@ What is exported, and where, is read from the standard `OTEL_*` variables. They 
 For long-lived Node entry points (the Smelter, the Weaver, the Librarian), the package exposes a winston-based structured logger that auto-correlates each line with the active span:
 
 ```ts
-// smelter-main.ts (or weaver-main.ts, librarian-main.ts)
+// smelter-main.ts (or librarian-main.ts)
 import { createProcessLogger } from '@semiont/observability/process-logger';
 
 const logger = createProcessLogger('smelter');

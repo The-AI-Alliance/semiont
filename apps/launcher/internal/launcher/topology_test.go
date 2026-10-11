@@ -187,12 +187,12 @@ func TestStagingLeavesWhatAServiceDoesNotRead(t *testing.T) {
 	cfg := fixtureConfig(t, "ollama-gemma.toml")
 	_, plan := loadedFrom(t, cfg)
 	vars := topologyVars("container", "192.168.64.1", plan.Roles["identity"].Port)
-	staged := stagedServiceConfig("weaver", cfg, plan, vars, "192.168.64.1", "test-kb", "example.com")
-	if contains(serviceConfigSections["weaver"], "vectors") {
-		t.Fatal("the weaver reads [vectors] now: pick another section for this test")
+	staged := stagedServiceConfig("smelter", cfg, plan, vars, "192.168.64.1", "test-kb", "example.com")
+	if contains(serviceConfigSections["smelter"], "graph") {
+		t.Fatal("the smelter reads [graph] now: pick another section for this test")
 	}
-	if got := stagedSection(t, staged, "vectors")["host"]; got != "${QDRANT_HOST}" {
-		t.Errorf("[vectors] host in the weaver's copy = %v, want it as written", got)
+	if got := stagedSection(t, staged, "graph")["uri"]; got != "bolt://${NEO4J_HOST}:7687" {
+		t.Errorf("[graph] uri in the smelter's copy = %v, want it as written", got)
 	}
 }
 

@@ -17,8 +17,8 @@ from pydantic import JsonValue
 from rig import Rig
 from semiont.model import written
 from semiont.types import Annotation, ResourceDescriptor, StoredEventResponse
-from semiont_graph._vocabulary import DEFAULT_ENTITY_TYPES
 from semiont_graph.interface import GraphDatabase, ResourceQuery
+from semiont_graph.memory import MemoryGraphDatabase
 from spec import SPEC, JsonObject, objects, read, strings, text, thing, whole
 
 from semiont_weaver.recorded import PAYLOADS
@@ -51,7 +51,9 @@ async def held(graph: GraphDatabase) -> JsonObject:
     annotations: list[JsonValue] = []
     for resource in resources:
         annotations.extend(written(annotation) for annotation in await graph.get_resource_annotations(resource.id))
-    added: list[JsonValue] = [name for name in await graph.get_entity_types() if name not in DEFAULT_ENTITY_TYPES]
+    # What every knowledge base starts with is what a graph nothing was added to has.
+    starts_with = await MemoryGraphDatabase().get_entity_types()
+    added: list[JsonValue] = [name for name in await graph.get_entity_types() if name not in starts_with]
     described: list[JsonValue] = [written(resource) for resource in resources]
     return ordered({"resources": described, "annotations": annotations, "entityTypesAdded": added})
 

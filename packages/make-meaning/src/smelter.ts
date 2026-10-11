@@ -13,7 +13,7 @@
  * Smelter processes events strictly in order per resourceId via
  * `groupBy(resourceId) + concatMap(...)`. This is the stream-consumer
  * flavor of per-resource serialization — the same invariant enforced by
- * `Weaver`, `Gatherer`, and (in a different shape) `ViewManager`.
+ * `Gatherer`, and (in a different shape) `ViewManager`.
  * See `packages/core/src/serialize-per-key.ts` for the shared primitive
  * used by RPC-style services.
  *
@@ -1163,9 +1163,8 @@ export class Smelter {
   }
 
   /** Page through `browse:resources-requested` until the catalog is
-   *  exhausted. Shared with the weaver — see `browse-resources.ts` for why
-   *  the retry lives at the page rather than around the pass.
-   *  `archived: false` is the smelter's own filter; the weaver passes none. */
+   *  exhausted. See `browse-resources.ts` for why the retry lives at the page
+   *  rather than around the pass. `archived: false` is the smelter's filter. */
   private listAllResources(): Promise<ResourceDescriptor[]> {
     return browseAllResources(this.bus, { limit: Smelter.RECONCILE_PAGE_SIZE, archived: false });
   }

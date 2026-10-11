@@ -50,6 +50,8 @@ from semiont.types import (
     StoredEventResponse,
 )
 
+__all__ = ["FOLLOWED", "PAYLOADS", "payload_of", "stored_event"]
+
 PLAIN: Final[tuple[Channel[StoredEventResponse] | ScopedChannel[StoredEventResponse], ...]] = (
     YIELD_CREATED,
     MARK_ARCHIVED,

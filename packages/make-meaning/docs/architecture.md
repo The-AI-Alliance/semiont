@@ -1,19 +1,19 @@
 # Architecture
 
-`@semiont/make-meaning` implements the Librarian, the Smelter and the Weaver of the actor model in [ACTOR-MODEL.md](../../../docs/architecture/ACTOR-MODEL.md).
+`@semiont/make-meaning` implements the Librarian and the Smelter of the actor model in [ACTOR-MODEL.md](../../../docs/architecture/ACTOR-MODEL.md).
 
 ## Actor Model
 
-The package holds two **access actors** (Gatherer, Matcher), which answer retrieval, and two **projection pipelines** (Weaver, Smelter), which follow the record to keep the eventually-consistent read models (graph, vectors) in step. All communication flows through the **EventBus** — actors subscribe via RxJS pipelines and expose no public business methods: `initialize()` and `stop()`, plus a startup recovery entry point on the pipelines (`Weaver.catchUp()` / `Smelter.reconcile()`).
+The package holds two **access actors** (Gatherer, Matcher), which answer retrieval, and one **projection pipeline** (Smelter), which follows the record to keep the eventually-consistent vector index in step. The other projection, the graph, is kept by the Weaver, a Python service ([apps/weaver](../../../apps/weaver/README.md)); the Librarian reads what it writes. All communication flows through the **EventBus** — actors subscribe via RxJS pipelines and expose no public business methods: `initialize()` and `stop()`, plus a startup recovery entry point on the pipeline (`Smelter.reconcile()`).
 
 The record itself — the event log, the materialized views and the working tree — is the [Archivist](../../../docs/protocol/ARCHIVIST.md)'s. Its Stower is the only writer and its Browser answers `browse:*`. Nothing in this package appends an event or writes a view.
 
 ### Deployment topology
 
-The package has three service entry points:
+The package has two service entry points:
 
 - **Librarian** (`librarian-main`) — the reference desk: runs the LLM-bound actors, Matcher and Gatherer, plus the gather-summary handler and the two retrieval handlers, which answer text search (`match:resources-requested`) and what refers to a resource (`gather:referenced-by-requested`) from the graph and the vector index. It reads views from the shared stateDir the Archivist materializes into, bytes from the Archivist (`archivistContentReads` in `@semiont/content`), and runs the weave/smelt progress folds locally off the bus signals. It appends nothing, serves no bytes, and owns no store.
-- **Weaver** (`weaver-main`) and **Smelter** (`smelter-main`) — the projection pipelines, each its own process.
+- **Smelter** (`smelter-main`) — the vector projection, its own process. The graph projection is the Weaver's, a Python service that is no part of this package ([apps/weaver](../../../apps/weaver/README.md)).
 
 Each actor's constructor takes a Pick-derived **capability slice** (`GathererStores`, `MatcherStores`) naming exactly the store operations it uses. Each actor's inbound channel roster is exported from `service-channels.ts` (`GATHERER_CHANNELS`, `MATCHER_CHANNELS`, `RETRIEVAL_HANDLER_CHANNELS`) and pinned to its real subscriptions by a census gate in the decoupling tests.
 
@@ -109,29 +109,11 @@ The two reads that need the graph or the vector index and take no `GatheredConte
 | `match:resources-requested` | `searchResources()` — the graph's lexical index; when its first page is empty, the vector index above `search.semanticFloor`, labelled `matchKind: 'semantic'` | `match:resources-result` / `match:resources-failed` |
 | `gather:referenced-by-requested` | `findReferencedBy()` — the graph's inbound references, each with the name of the resource it is on | `gather:referenced-by-result` / `gather:referenced-by-failed` |
 
-### Weaver (Projection Pipeline, standalone process)
-
-**Implementation**: [src/weaver.ts](../src/weaver.ts), entry point [src/weaver-main.ts](../src/weaver-main.ts)
-
-The Weaver runs as its own process via `@semiont/make-meaning/weaver-main`, receiving graph-relevant domain events and `weave:rebuild` commands through the [`weaverFanIn`](../src/weaver-fan-in.ts) fan-in (the graph projection is part of the graph stack, not the embedding process). It projects the nine graph-relevant event types into the graph database through an RxJS pipeline with adaptive burst buffering:
-
-```
-weaverFanIn(bus).events$ (9 channels, StoredEvents)
-  → Subject<StoredEvent>
-    → groupBy(resourceId)        — one stream per resource
-      → burstBuffer(50ms, 500, 200ms) — adaptive batching per resource
-        → concatMap               — sequential per resource
-          → Single event: applyEventToGraph()
-          → Batch: processBatch() → batchCreateResources / createAnnotations
-```
-
-Every apply advances a per-resource high-water mark and emits a `weave:applied` signal; the Librarian keeps a `WeaveProgress` fold, which turns those into the `whenApplied` barrier the gatherer's graph reads use. At startup the Weaver runs a **checkpointed catch-up**: it discovers resources via `browse:resources-requested`, fetches gap events via `browse:events-requested` (its ONLY view of history), and replays them through the normal pipeline; a checkpoint ahead of the log (restore) triggers a per-resource rebuild. Full rebuilds are the `weave:rebuild` bus command — so a wiped graph volume recovers by command or by wiping the checkpoint and restarting.
-
 ### Smelter (Projection Pipeline, standalone process)
 
 **Implementation**: [src/smelter.ts](../src/smelter.ts), entry point [src/smelter-main.ts](../src/smelter-main.ts)
 
-The Smelter runs as its own process via `@semiont/make-meaning/smelter-main`, receiving domain events through the [`smelterFanIn`](../src/smelter-fan-in.ts) fan-in. It reads content bytes from the Archivist (`archivistContentReads` in `@semiont/content`), chunks them, computes embeddings via `@semiont/vectors` (Voyage or Ollama), and indexes vectors into the VectorStore (Qdrant or memory). Like the Weaver, it processes strictly in order per resource (`groupBy(resourceId)` + `concatMap`) with `burstBuffer` batching — consecutive same-type runs within a burst share a single `embedBatch()` call. Every settled decision emits a `smelt:settled` signal; each reading process keeps its own `SmeltProgress` fold, which turns those into the `whenSettled` barrier the resource-gather read uses.
+The Smelter runs as its own process via `@semiont/make-meaning/smelter-main`, receiving domain events through the [`smelterFanIn`](../src/smelter-fan-in.ts) fan-in. It reads content bytes from the Archivist (`archivistContentReads` in `@semiont/content`), chunks them, computes embeddings via `@semiont/vectors` (Voyage or Ollama), and indexes vectors into the VectorStore (Qdrant or memory). It processes strictly in order per resource (`groupBy(resourceId)` + `concatMap`) with `burstBuffer` batching — consecutive same-type runs within a burst share a single `embedBatch()` call. Every settled decision emits a `smelt:settled` signal; each reading process keeps its own `SmeltProgress` fold, which turns those into the `whenSettled` barrier the resource-gather read uses.
 
 | Domain Event | Handler |
 |--------------|---------|
@@ -185,7 +167,7 @@ Workers are not in this package and are not actors. The [Worker](../../../apps/w
 
 The Librarian connects the graph, the embedding provider and the vector store, each bounded by the 60s startup timeout so the container restart policy can retry, then starts the **Gatherer**, the **Matcher**, the retrieval handlers and the gather-summary handler.
 
-The Smelter and the Weaver each sign in, attach their fan-in, and run one boot pass (`Smelter.reconcile()`, `Weaver.catchUp()`) before following live events.
+The Smelter signs in, attaches its fan-in, and runs one boot pass (`Smelter.reconcile()`) before following live events.
 
 Each service's `*-main` composes exactly what it owns, and the gateway composes nothing from this package — it verifies, validates and routes. The `job:*` set is the dispatcher's, with the queue.
 

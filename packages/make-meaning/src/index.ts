@@ -1,6 +1,6 @@
 // @semiont/make-meaning — the services that keep, index and find a knowledge
 // base's contents. Each runs from its own entry point (`./librarian-main`,
-// `./smelter-main`, `./weaver-main`); what is exported here is what a caller
+// `./smelter-main`); what is exported here is what a caller
 // composing its own process builds from.
 
 export { makeMeaningConfigFrom, requireKBName } from './config';

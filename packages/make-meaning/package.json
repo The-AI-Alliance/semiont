@@ -17,10 +17,6 @@
       "types": "./dist/smelter-main.d.ts",
       "import": "./dist/smelter-main.js"
     },
-    "./weaver-main": {
-      "types": "./dist/weaver-main.d.ts",
-      "import": "./dist/weaver-main.js"
-    },
     "./librarian-main": {
       "types": "./dist/librarian-main.d.ts",
       "import": "./dist/librarian-main.js"

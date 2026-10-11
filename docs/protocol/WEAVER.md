@@ -37,11 +37,21 @@ table states.
 
 ## Settings
 
-A Weaver is told four things, and defaults none of them: the gateway's URL;
-the issuer its service account signs in at; the graph database, which is its
-kind and what that kind needs to be reached; and the name of the environment
-variable that holds the database's password. How it is told is the
-implementation's until the Weaver's configuration document is specified.
+A Weaver reads its settings from a configuration document, the protocol's
+[`WeaverConfig`](../../specs/src/components/schemas/WeaverConfig.json), at the
+path its `--config` flag names. The document is resolved: no `${VAR}` is left
+in it, and the Weaver defaults nothing it leaves out. It states the gateway's
+URL; the issuer the Weaver's service account signs in at; the graph database
+([`GraphConfig`](../../specs/src/components/schemas/GraphConfig.json): its
+kind, and what that kind needs to be reached, with the name of the environment
+variable that holds its password); the file the Weaver keeps its marks in; the
+port its health answers on; and how it logs. Whoever starts a Weaver writes
+it: the launcher for the Weaver it starts, and anyone else to the same schema.
+
+- **Started with no `--config`, with a path it cannot read, or with a document
+  that is not the schema's, it refuses to start,** and says which. A refusal
+  names a member of the document and what was expected of it, and never a
+  value found there. *Held by `apps/weaver/tests/test_service.py`.*
 
 - **A graph that lives in one process's memory is refused.** It could not be
   shared with a reader of the graph. *Held by `weaver/boot`.*
@@ -49,7 +59,7 @@ implementation's until the Weaver's configuration document is specified.
   `SEMIONT_OIDC_CLIENT_SECRET` in its environment** ([Environment](#environment)).
   With either missing it refuses to start, and names what is missing.
   *Held by `weaver/boot`.*
-- **The database's password is read from the variable its settings name.**
+- **The database's password is read from the variable its document names.**
   With that variable unset it refuses to start, and names the variable.
   *Held by `weaver/boot`.*
 
@@ -85,37 +95,37 @@ prose.
   `timestamp`; and by the `wasAttributedTo` the payload records. The date is
   never the moment the Weaver applied the event, and who it is by is never
   made from who sent the event.
-  *Held by `packages/make-meaning/src/__tests__/weaver-fold-cases.test.ts` and `weaver/record`.*
+  *Held by `apps/weaver/tests/test_fold_cases.py` and `weaver/record`.*
 - **A `yield:created` that records no `wasAttributedTo` is refused**
   ([What it has applied](#what-it-has-applied)).
-  *Held by `packages/make-meaning/src/__tests__/weaver-fold-cases.test.ts`.*
+  *Held by `apps/weaver/tests/test_fold_cases.py`.*
 - **`mark:archived` and `mark:unarchived` set the resource's one flag.**
-  *Held by `packages/make-meaning/src/__tests__/weaver-fold-cases.test.ts` and `weaver/record`.*
+  *Held by `apps/weaver/tests/test_fold_cases.py` and `weaver/record`.*
 - **`mark:added` puts the annotation in the graph under the id its event gave
   it, by the creator the event records.** The record's creator is the party
   that asked for the annotation. The event's own `userId` is the party that
   sent it, which for work a person asked a worker for is the worker's agent;
   the graph never takes a creator from it.
-  *Held by `packages/make-meaning/src/__tests__/weaver-fold-cases.test.ts` and `weaver/record`.*
+  *Held by `apps/weaver/tests/test_fold_cases.py` and `weaver/record`.*
 - **A `mark:added` whose annotation records no creator is refused**
   ([What it has applied](#what-it-has-applied)).
-  *Held by `packages/make-meaning/src/__tests__/weaver-fold-cases.test.ts`.*
+  *Held by `apps/weaver/tests/test_fold_cases.py`.*
 - **`mark:removed` takes the annotation out.** Removing one that is not there
   changes nothing.
-  *Held by `packages/make-meaning/src/__tests__/weaver-fold-cases.test.ts` and `weaver/record`.*
+  *Held by `apps/weaver/tests/test_fold_cases.py` and `weaver/record`.*
 - **`mark:body-updated` applies its operations, in order, to the body the
   graph holds, and dates the annotation `modified` at the event's
   `timestamp`,** which is what the record's view does. `add` adds an item not
   already there; `remove` takes one out; `replace` puts one in another's
   place. An item is the same item as another of its type with the same
   `source`, or the same `value`.
-  *Held by `packages/make-meaning/src/__tests__/weaver-fold-cases.test.ts` and `weaver/record`.*
+  *Held by `apps/weaver/tests/test_fold_cases.py` and `weaver/record`.*
 - **`mark:entity-tag-added` and `mark:entity-tag-removed` change the
   resource's entity types, which are a set.**
-  *Held by `packages/make-meaning/src/__tests__/weaver-fold-cases.test.ts` and `weaver/record`.*
+  *Held by `apps/weaver/tests/test_fold_cases.py` and `weaver/record`.*
 - **`frame:entity-type-added` adds to the graph's vocabulary,** beside the
   entity types every knowledge base starts with.
-  *Held by `packages/make-meaning/src/__tests__/weaver-fold-cases.test.ts` and `weaver/record`.*
+  *Held by `apps/weaver/tests/test_fold_cases.py` and `weaver/record`.*
 
 ### What the graph holds
 
@@ -127,20 +137,20 @@ which are required, and what is refused.
   selector as given, its creator, when it was made and last changed, and the
   software that made it; its link to another resource; and its entity tags.
   A body item that is neither a link nor a tag is not held.
-  *Held by `packages/graph/src/__tests__/codec-cases.test.ts`.*
+  *Held by `packages/graph/src/__tests__/codec-cases.test.ts`, `packages/graph-python/tests/test_codec_cases.py`.*
 - **A person is held as who they are, without a name.** A person's name is the
   directory's: the Archivist joins it onto every read, and a person can change
-  it. *Held by `packages/graph/src/__tests__/codec-cases.test.ts` and `weaver/record`.*
+  it. *Held by `packages/graph/src/__tests__/codec-cases.test.ts`, `packages/graph-python/tests/test_codec_cases.py` and `weaver/record`.*
 - **An update leaves the annotation the current one becomes with the changed
   fields replaced, and a store writes that whole:** a link or a tag the update
   took away goes with it. An annotation is never moved to another resource.
-  *Held by `packages/graph/src/__tests__/codec-cases.test.ts`.*
+  *Held by `packages/graph/src/__tests__/codec-cases.test.ts`, `packages/graph-python/tests/test_codec_cases.py`.*
 - **Of a resource:** its id, name, entity types, format, checksum, storage
   URI, whether it is archived, when the record says it was created, and who
   the record says it is by.
-  *Held by `packages/graph/src/__tests__/codec-cases.test.ts`.*
+  *Held by `packages/graph/src/__tests__/codec-cases.test.ts`, `packages/graph-python/tests/test_codec_cases.py`.*
 - **No store reads a clock.** Every date in the graph is one an event carried.
-  *Held by `scripts/compliance/audit-graph-annotation-codec.sh`.*
+  *Held by `packages/graph-python/tests/test_census.py` and `scripts/compliance/audit-graph-annotation-codec.sh`.*
 
 ### Order
 
@@ -149,9 +159,9 @@ which are required, and what is refused.
 - **The events of different resources are applied in no fixed order.** A link
   can reach the graph before the resource it points at, and the graph ends the
   same either way.
-  *Held by `packages/make-meaning/src/__tests__/weaver-fold-cases.test.ts`.*
+  *Held by `apps/weaver/tests/test_fold_cases.py`.*
 - **An event delivered again is applied once.**
-  *Held by `packages/make-meaning/src/__tests__/weaver-fold-cases.test.ts`.*
+  *Held by `apps/weaver/tests/test_fold_cases.py`.*
 
 ## What it has applied
 
@@ -166,9 +176,9 @@ For each resource a Weaver keeps the sequence number it has applied up to.
   Weaver refuses, or fails to apply, is counted (`applyFailures` in its
   [health](#health)) and holds the mark below it, however many later events of
   the resource are applied. So what it missed is found again when it next
-  starts. *Held by `packages/make-meaning/src/__tests__/weaver-fold-cases.test.ts`.*
+  starts. *Held by `apps/weaver/tests/test_fold_cases.py`.*
 - **A refused event is refused alone.** The events delivered beside it are
-  applied. *Held by `packages/make-meaning/src/__tests__/weaver-fold-cases.test.ts`.*
+  applied. *Held by `apps/weaver/tests/test_fold_cases.py`.*
 - **It may keep its marks across a restart,** as a checkpoint. A checkpoint is
   never a correctness input: a Weaver with none applies the whole record again
   and ends with the same graph. *Held by `weaver/repair`.*
@@ -198,7 +208,8 @@ Catch-up applies what was recorded while the Weaver was not running.
   applies those above its mark.** With a checkpoint that is what was recorded
   since; with none it is everything. *Held by `weaver/repair`.*
 - **A mark above the last event the record holds means the record was
-  rewound:** the resource is rebuilt ([Rebuild](#rebuild)). *Held by no case.*
+  rewound:** the resource is rebuilt ([Rebuild](#rebuild)).
+  *Held by `apps/weaver/tests/test_weaver.py`.*
 - **It reports** how many resources it checked (`resourcesChecked`), how many
   events it replayed (`eventsReplayed`), how many resources it rebuilt
   (`resourcesRebuilt`), how many events were not applied (`eventsFailed`) and
@@ -226,7 +237,7 @@ Weaver once applied to it.
   before. *Held by `weaver/repair`.*
 - **A resource the catalog lists and the record holds no events for is an
   orphaned view.** It is counted, and not healed: there is nothing to rebuild
-  it from. *Held by `packages/make-meaning/src/__tests__/weaver.test.ts`.*
+  it from. *Held by `apps/weaver/tests/test_weaver.py`.*
 - **A graph that was cleared is rebuilt whole** by this pass, when the Weaver
   next starts. *Held by `weaver/repair`.*
 - **It reports** how many resources it checked (`resourcesChecked`), how many
@@ -241,13 +252,13 @@ Weaver once applied to it.
   applied again, in order. *Held by `weaver/repair`.*
 - **Another resource's annotation that links to the rebuilt one is not
   touched,** and is followed to it afterwards as before.
-  *Held by `weaver/repair` and `packages/make-meaning/src/__tests__/weaver-rebuild-links.test.ts`.*
+  *Held by `weaver/repair` and `apps/weaver/tests/test_weaver.py`.*
 - **`weave:rebuild` naming none rebuilds the whole graph:** the graph is
   cleared, its vocabulary kept, and every resource of the catalog applied
   again. *Held by `weaver/repair`.*
 - **It answers `weave:rebuild-ok` when every event was applied, and
   `weave:rebuild-failed`, saying how many were not, otherwise.**
-  *Held by `weaver/repair` and `packages/make-meaning/src/__tests__/weaver.test.ts`.*
+  *Held by `weaver/repair` and `apps/weaver/tests/test_weaver.py`.*
 
 ## Health
 
@@ -266,21 +277,20 @@ Weaver once applied to it.
 
 ## Environment
 
-A Weaver reads these from its environment, beside its settings:
+A Weaver reads these from its environment, beside its document, and no
+others:
 
 | Variable | What it is |
 |---|---|
 | `SEMIONT_OIDC_CLIENT_ID`, `SEMIONT_OIDC_CLIENT_SECRET` | Its service account at the knowledge base's issuer. Required |
-| the variable its settings name | The graph database's password. Required. A stack the launcher starts names `NEO4J_PASSWORD`, and gives it the password the launcher keeps |
-| `OTEL_*` | What the OpenTelemetry SDK it exports with reads on its own |
+| the variable its document names | The graph database's password. Required. A stack the launcher starts names `NEO4J_PASSWORD`, and gives it the password the launcher keeps |
 
-*Held by `weaver/boot`.*
+*Held by `weaver/boot` and `apps/weaver/tests/test_census.py`.*
 
 ## Not specified here
 
-- **Telemetry.** What a Weaver exports is not stated.
-- **The configuration document.** [Settings](#settings) says what a Weaver is
-  told and not the form it is told in.
+- **Telemetry.** What a Weaver exports is not stated, and Semiont's Weaver
+  exports none.
 - **Events it does not follow.** `yield:cloned`, `yield:updated`,
   `yield:moved`, `yield:representation-added` and
   `yield:representation-removed` change what a view holds of a resource, and

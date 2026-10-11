@@ -8,9 +8,9 @@ Weaver does against
 
 The suite imports nothing from a Weaver. The lines that name one are
 `WEAVER_SERVICES` in [harness/paths.ts](../harness/paths.ts): today Semiont's
-own, the TypeScript entry point of `@semiont/make-meaning`
-(`packages/make-meaning/dist/weaver-main.js`). Every case runs against every
-entry.
+own, the Python service of [`apps/weaver`](../../../apps/weaver/README.md),
+started by the interpreter of its locked environment. Every case runs against
+every entry.
 
 It does import one thing that is not the harness's: `@semiont/graph`, which it
 reads the graph with, as the Librarian does. What a store holds is stated by
@@ -51,15 +51,15 @@ NEO4J_HOST=localhost NEO4J_PASSWORD=a-password npm run test:weaver
 ```
 
 **One world at a time.** The files share one database, which a rebuild of the
-whole graph clears, and the TypeScript Weaver's health port is a constant of
-its entry point, so the project runs its files one after another.
+whole graph clears, so the project runs its files one after another.
 
-How a Weaver is given its settings is the implementation's
-([harness/weaver-process.ts](../harness/weaver-process.ts)). TypeScript's reads
-`~/.semiontconfig`: the harness gives it a home directory of its own with that
-file in it, and a temporary directory inside that home, where it keeps its
-checkpoint. A Weaver stopped and started again finds what it kept; one that is
-replaced starts with nothing.
+A Weaver is given its settings as its configuration document (`WeaverConfig`),
+which the harness writes
+([harness/weaver-process.ts](../harness/weaver-process.ts)) into a home
+directory of the world's own, and names on its command (`--config`). The
+document says where the Weaver keeps its checkpoint: a temporary directory
+inside that home. A Weaver stopped and started again finds what it kept; one
+that is replaced starts with nothing.
 
 ## What it checks
 
@@ -83,11 +83,13 @@ replaced starts with nothing.
 
 ## Running it
 
-It needs a built gateway and Archivist, the packages built, `nats-server` and
-`git` on `PATH`, and a neo4j:
+It needs a built gateway and Archivist, the Weaver's Python environment, the
+packages built (the suite reads the graph with `@semiont/graph`), `nats-server`
+and `git` on `PATH`, and a neo4j:
 
 ```bash
 cargo build --release -p semiont-gateway -p semiont-archivist
+uv sync --locked --no-dev --all-extras --project apps/weaver
 npm run build:packages
 cd tests/conformance
 npm ci

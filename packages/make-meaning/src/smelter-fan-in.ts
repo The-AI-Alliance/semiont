@@ -29,7 +29,7 @@ export type SmelterChannel = (typeof SMELTER_CHANNELS)[number];
 
 /**
  * A domain event exactly as the bus delivers it — a full `StoredEvent`, body
- * under `.payload` — passed through verbatim, as the Weaver's fan-in does.
+ * under `.payload` — passed through verbatim.
  * Derived from `EventMap`, never re-shaped: an envelope that re-nests the
  * message under its own `payload` field is how a handler once read
  * `event.payload.annotationId` one level too shallow with nothing to object.

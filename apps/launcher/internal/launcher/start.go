@@ -736,9 +736,8 @@ func superviseEnv() []string {
 	return []string{"--env", "SEMIONT_SUPERVISE=1"}
 }
 
-// sidecarArgs covers the two sidecars that load a staged copy of the KB's
-// config (smelter / weaver) — identical in shape, differing only in name,
-// port, and memory.
+// sidecarArgs covers the sidecar that loads a staged copy of the KB's config
+// (the smelter).
 func sidecarArgs(svc string, stage, rt, addr string, clientSecret, version string, userEnv, otel []string, extra ...string) []string {
 	p := strconv.Itoa(semiontDescriptor(svc).ports[0].port)
 	a := []string{"run", "-d", "--name", "semiont-" + svc, // no --rm: see providedRunArgs
@@ -858,6 +857,32 @@ func workerArgs(stage, rt, addr string, clientSecret, version string, userEnv, o
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
 	a = append(a, superviseEnv()...)
 	return append(a, image("worker", version))
+}
+
+// weaverArgs: the Weaver keeps the graph in step with the record. It mounts
+// no piece of the knowledge base and no state: the gateway is its route to
+// the bus, and the graph database the one other thing it reaches. It reads a
+// resolved configuration document (weaverdoc.go) at the path its image passes
+// to `--config`, so it is handed no *_HOST variables and no copy of the KB's
+// config: the document carries every address already, and names the variable
+// holding the graph database's password (weaverNamedVars, and the launcher's
+// own for a Neo4j it runs), which arrives among the user's. It keeps the
+// issuer's host entry, because it signs in at the issuer by name.
+func weaverArgs(stage, rt, addr string, clientSecret, version string, userEnv, otel []string) []string {
+	port := strconv.Itoa(semiontDescriptor("weaver").ports[0].port)
+	a := []string{"run", "-d", "--name", "semiont-weaver", // no --rm: see providedRunArgs
+		"--memory", semiontDescriptor("weaver").mem, "--publish", port + ":" + port,
+		"--volume", stage + "/" + weaverDocumentFile + ":" + weaverDocumentTarget + ":ro"}
+	a = append(a, userEnv...)
+	a = append(a, otel...)
+	a = append(a, identityHostArgs(rt, addr)...)
+	a = append(a,
+		// This process's own credential at the realm. It buys the agent token
+		// of (semiont, weaver) from the gateway.
+		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("weaver"),
+		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
+	a = append(a, superviseEnv()...)
+	return append(a, image("weaver", version))
 }
 
 // browserArgs: the Browser publishes on the chosen host port (default

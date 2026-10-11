@@ -9,7 +9,6 @@ export default defineConfig({
   entry: {
     index: 'src/index.ts',
     'smelter-main': 'src/smelter-main.ts',
-    'weaver-main': 'src/weaver-main.ts',
     'librarian-main': 'src/librarian-main.ts',
   },
   format: ['esm'],

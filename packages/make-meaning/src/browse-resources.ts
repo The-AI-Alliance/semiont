@@ -1,5 +1,5 @@
 /**
- * Every resource, paged over the bus. Shared by the weaver and the smelter.
+ * Every resource, paged over the bus, for the smelter's reconcile.
  *
  * The archivist answers `browse:*`, and a projector that authenticates first can
  * ask before it has subscribed. Retried per PAGE, not per boot pass: a pass
@@ -35,7 +35,7 @@ export const RESOURCES_CHANNEL = 'browse:resources-requested' as const;
 
 export interface BrowseResourcesOptions {
   limit: number;
-  /** The smelter excludes archived resources; the weaver projects them too. */
+  /** The smelter excludes archived resources. */
   archived?: boolean;
 }
 

@@ -16,7 +16,7 @@ All eight are published to `ghcr.io/the-ai-alliance/`, for `linux/amd64` and `li
 | [librarian](../../../apps/librarian/README.md) | `semiont-librarian` | 24104 | `@semiont/make-meaning` | Searches the knowledge base: finds resources by text, gathers context, lists what refers to a resource, and matches candidates |
 | [worker](../../../apps/worker/README.md) | `semiont-worker` | 24100 | Python, `apps/worker` | The worker pool: claims annotation and generation jobs and runs them against a model |
 | [smelter](../../../apps/smelter/README.md) | `semiont-smelter` | 24101 | `@semiont/make-meaning` | Computes embeddings, keeps the vector index, and extracts anchored text |
-| [weaver](../../../apps/weaver/README.md) | `semiont-weaver` | 24102 | `@semiont/make-meaning` | Keeps the graph projection of the event log |
+| [weaver](../../../apps/weaver/README.md) | `semiont-weaver` | 24102 | Python, `apps/weaver` | Keeps the graph in step with the record |
 | [browser](../../../apps/browser/README.md) | `semiont-browser` | 3000 | `apps/browser` | Serves the Semiont Browser's static files. The app itself runs in the user's web browser and connects to gateways from there |
 
 ## What each service needs
@@ -31,7 +31,7 @@ This is the contract a deployment satisfies, whoever does the deploying. The lau
 | librarian | `~/.semiontconfig` (TOML) | The state directory, to read views | The gateway's bus; graph; vectors; embedding; inference; the Archivist | one |
 | worker | `/etc/semiont/worker.json`, a [`WorkerConfig`](../../../specs/src/components/schemas/WorkerConfig.json) document | none | The gateway, for the bus and for bytes; inference | any number |
 | smelter | `~/.semiontconfig` | The anchored-text store, read-write | The gateway's bus; vectors; embedding; the Archivist, for bytes | one |
-| weaver | `~/.semiontconfig` | none | The gateway's bus; graph | one |
+| weaver | `/etc/semiont/weaver.json`, a [`WeaverConfig`](../../../specs/src/components/schemas/WeaverConfig.json) document | none | The gateway's bus; graph | one |
 | browser | none; `PORT` only | none | nothing | any number |
 
 Every service but the Browser has its own service account at the knowledge base's issuer, which it receives as `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`. It signs in with that account, then exchanges the issuer's token at the gateway (`POST /api/tokens/agent`) for the agent identity its work is attributed to.
