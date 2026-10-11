@@ -3,7 +3,7 @@
  * make-meaning service.
  *
  * Each service's HttpTransport subscribes exactly what it consumes: the
- * smelter and weaver the reply channels of the operations they await, the
+ * smelter the reply channels of the operations it awaits, the
  * librarian its inbound request/signal roster with the reply channels of the
  * one read it awaits. These pins
  * are census gates: grow a roster (or add a `busRequest` call site) and the
@@ -17,7 +17,6 @@ import { describe, it, expect } from 'vitest';
 import { BRIDGED_CHANNELS, BUS_OPERATIONS } from '@semiont/core';
 import {
   SMELTER_REPLY_CHANNELS,
-  WEAVER_REPLY_CHANNELS,
   LIBRARIAN_INBOUND_CHANNELS,
   LIBRARIAN_OUTBOUND_CHANNELS,
 } from '../service-channels';
@@ -36,25 +35,6 @@ describe('smelter transport channels', () => {
 
   it('every channel is a bridged reply channel — the derivation cannot drift from the registry', () => {
     for (const channel of SMELTER_REPLY_CHANNELS) {
-      expect(BRIDGED_CHANNELS).toContain(channel);
-    }
-  });
-});
-
-describe('weaver transport channels', () => {
-  it('carries exactly the reply channels of the operations the Weaver awaits', () => {
-    expect([...WEAVER_REPLY_CHANNELS].sort()).toEqual([
-      'browse:annotations-failed',
-      'browse:annotations-result',
-      'browse:events-failed',
-      'browse:events-result',
-      'browse:resources-failed',
-      'browse:resources-result',
-    ]);
-  });
-
-  it('every channel is a bridged reply channel — the derivation cannot drift from the registry', () => {
-    for (const channel of WEAVER_REPLY_CHANNELS) {
       expect(BRIDGED_CHANNELS).toContain(channel);
     }
   });

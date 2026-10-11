@@ -166,10 +166,6 @@ export { errField } from './logger';
 // Bus logging — Tier 1 cross-wire observability
 export { busLog, busLogEnabled, setBusLogTraceIdProvider, type BusOp } from './bus-log';
 
-// Annotation body matcher (used by mark:body-updated event replay)
-export { findBodyItem } from './annotation-utils';
-export type { BodyItemIdentity } from './annotation-utils';
-
 // The annotation builders: what a worker turns a model's words into
 // annotations with. Every SDK has the three, and
 // specs/src/annotations/builder-cases.json holds them to one answer.
@@ -379,10 +375,10 @@ export type {
 } from './media-types';
 
 // Resource types
-export type { UpdateResourceInput, ResourceFilter, StoredResource } from './resource-types';
+export type { ResourceFilter, StoredResource } from './resource-types';
 
 // Annotation types
-export type { Annotation, AnnotationCategory, CreateAnnotationInternal } from './annotation-types';
+export type { Annotation, AnnotationCategory } from './annotation-types';
 
 // Tag-schema type aliases (the schemas themselves are runtime-registered per KB)
 export type { TagSchema, TagCategory } from './tag-schemas';

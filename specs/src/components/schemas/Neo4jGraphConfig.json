@@ -1,0 +1,40 @@
+{
+  "type": "object",
+  "description": "A graph kept in a Neo4j database.",
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": [
+        "neo4j"
+      ]
+    },
+    "uri": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Where the database is reached (`bolt://host:7687`)."
+    },
+    "username": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The user the service connects as."
+    },
+    "passwordEnv": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The environment variable holding that user's password. The password is never a value here."
+    },
+    "database": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Which of the server's databases holds the graph."
+    }
+  },
+  "required": [
+    "type",
+    "uri",
+    "username",
+    "passwordEnv",
+    "database"
+  ],
+  "additionalProperties": false
+}

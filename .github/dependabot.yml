@@ -154,8 +154,9 @@ updates:
       prefix: "sdk-go"
       include: "scope"
 
-  # The Python projects: the SDK, the inference drivers Semiont's Python
-  # services are built from, and the Worker service (apps/worker). Their
+  # The Python projects: the SDK, the inference drivers and the graph stores
+  # Semiont's Python services are built from, and the two services themselves,
+  # the Worker (apps/worker) and the Weaver (apps/weaver). Their
   # runtime dependencies, and the tools their gates are made of. The type
   # checkers, the formatter and the SDK's model generator are pinned to a
   # version each, because what they say of a package, and what the generator
@@ -163,15 +164,17 @@ updates:
   # generator or the formatter it comes with a regenerated types.py. A bump of
   # Anthropic's library is a change to read too: anthropic.py lists what the
   # driver leans on in it.
-  # One entry for the three, and a group for each tool they all pin: the
-  # inference package's tests and the worker's hold their pins to the SDK's,
+  # One entry for them all, and a group for each tool they all pin: every
+  # project's tests but the SDK's hold its pins to the SDK's,
   # so a tool moves in every manifest in one PR, and a gate that goes red
   # names the tool.
   - package-ecosystem: "uv"
     directories:
       - "/packages/sdk-python"
       - "/packages/inference-python"
+      - "/packages/graph-python"
       - "/apps/worker"
+      - "/apps/weaver"
     cooldown:
       default-days: 5
     schedule:
@@ -314,12 +317,12 @@ updates:
   # the rust-toolchain entry updates. Major node updates are ignored because node
   # 26's undici breaks the qdrant client the sidecars carry; drop the ignore
   # when qdrant ships a fix. apps/browser carries no qdrant client, runs Node
-  # 26, and has its own entry. apps/worker is Python, and has its own too.
+  # 26, and has its own entry. apps/worker and apps/weaver are Python, and
+  # have their own too.
   - package-ecosystem: "docker"
     directories:
       - "/apps/gateway"
       - "/apps/smelter"
-      - "/apps/weaver"
       - "/apps/archivist"
       - "/apps/librarian"
       - "/apps/dispatcher"
@@ -344,14 +347,17 @@ updates:
       prefix: "service-docker"
       include: "scope"
 
-  # The worker image (apps/worker/Dockerfile). Its Python base is no tag this
-  # entry can move: it is python:${PYTHON_FLOOR}-<variant>, the floor
-  # packages/sdk-python/pyproject.toml states, which a person moves. What the
+  # The images of the Python services (apps/worker/Dockerfile,
+  # apps/weaver/Dockerfile). Their Python base is no tag this entry can move:
+  # it is python:${PYTHON_FLOOR}-<variant>, the floor
+  # packages/sdk-python/pyproject.toml states, which a person moves. What each
   # file's FROM lines write out, and this entry moves, is the uv that makes
-  # the image's environment. Outside the service group, whose bases are Node
-  # and Alpine.
+  # the image's environment, in both at once. Outside the service group, whose
+  # bases are Node and Alpine.
   - package-ecosystem: "docker"
-    directory: "/apps/worker"
+    directories:
+      - "/apps/worker"
+      - "/apps/weaver"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -361,6 +367,10 @@ updates:
       - "dependencies"
       - "services"
       - "docker"
+    groups:
+      python-service-images:
+        patterns:
+          - "*"
     commit-message:
       prefix: "service-docker"
       include: "scope"

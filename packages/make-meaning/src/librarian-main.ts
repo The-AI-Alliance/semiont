@@ -101,7 +101,7 @@ if (!maybeGraphConfig?.type) {
   throw new Error('services.graph.type is required for the Librarian');
 }
 if (maybeGraphConfig.type === 'memory') {
-  // Same stance as weaver-main: an in-memory graph lives
+  // The Weaver's stance too: an in-memory graph lives
   // in one process's heap; the Librarian would search an empty graph forever
   // while looking healthy.
   throw new Error("services.graph.type 'memory' is a test-only sink; the Librarian requires a server-backed graph");

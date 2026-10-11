@@ -1,0 +1,29 @@
+{
+  "type": "object",
+  "description": "A graph kept in a JanusGraph server, asked in Gremlin. No service has been run against one.",
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": [
+        "janusgraph"
+      ]
+    },
+    "host": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The server's host."
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535,
+      "description": "The port its Gremlin endpoint listens on."
+    }
+  },
+  "required": [
+    "type",
+    "host",
+    "port"
+  ],
+  "additionalProperties": false
+}

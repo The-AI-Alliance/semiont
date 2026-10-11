@@ -1,0 +1,56 @@
+{
+  "type": "object",
+  "description": "Everything a Weaver reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the Weaver. The launcher writes it for the Weaver it starts, from the environment the knowledge base's config selects, and the Weaver reads it from the path its `--config` flag names (its image passes `/etc/semiont/weaver.json`). Whoever starts a Weaver another way writes the same document: this schema is the contract, and a Weaver needs no launcher. Started without `--config`, or with a path that names no file, the Weaver refuses to start and says which. No secret is a value here: the graph database's password is named by the environment variable that holds it, and the Weaver's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` in its environment. A document that does not validate is refused at boot, naming each failing field.",
+  "properties": {
+    "gatewayUrl": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The URL the Weaver reaches the gateway at: its route to the bus, and the only address of the knowledge base it holds."
+    },
+    "identity": {
+      "type": "object",
+      "description": "The issuer the Weaver's service account signs in at.",
+      "properties": {
+        "issuer": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The issuer URL, exactly as tokens carry it in `iss`."
+        }
+      },
+      "required": [
+        "issuer"
+      ],
+      "additionalProperties": false
+    },
+    "graph": {
+      "$ref": "./GraphConfig.json"
+    },
+    "checkpointPath": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The file the Weaver keeps its marks in: for each resource, the sequence number it has applied up to. Never a correctness input: a Weaver that finds none applies the whole record again."
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535,
+      "description": "The port the Weaver answers `/health` on."
+    },
+    "logLevel": {
+      "$ref": "./LogLevel.json"
+    },
+    "logFormat": {
+      "$ref": "./LogFormat.json"
+    }
+  },
+  "required": [
+    "gatewayUrl",
+    "identity",
+    "graph",
+    "checkpointPath",
+    "port",
+    "logLevel",
+    "logFormat"
+  ],
+  "additionalProperties": false
+}

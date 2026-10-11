@@ -70,6 +70,7 @@ jobs:
           npm run lint:service-role || fail=1
           npm run lint:attribution || fail=1
           npm run lint:coverage-roster || fail=1
+          npm run lint:compliance-audits || fail=1
           npm run lint:vitest-coverage || fail=1
           npm run lint:notice || fail=1
           npm run lint:dependabot || fail=1
@@ -104,23 +105,36 @@ jobs:
       - name: Run StateUnit Compliance Audit
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
-          echo "::group::StateUnit Compliance Audit (A1-static no-class / X3-static no-module-state / X5 fire-and-forget)"
+          echo "::group::StateUnit Compliance Audit (A1-static no-class / X3-static no-module-state / X5 fire-and-forget / A5 gathered context is SDK state / session-bound units built under a session)"
           fail=0
           ./scripts/compliance/audit-state-unit-no-class.sh || fail=1
           ./scripts/compliance/audit-state-unit-module-state.sh || fail=1
           ./scripts/compliance/audit-fire-and-forget-promise-void.sh || fail=1
+          ./scripts/compliance/audit-gathered-context-component-state.sh || fail=1
+          ./scripts/compliance/audit-session-typed-factories.sh || fail=1
           echo "::endgroup::"
           exit $fail
 
       - name: Run Boot Contract Audit
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
-          echo "::group::Boot Contract Audit (B1-B3 env/config census + P1-P3 path environment + H1 test-env hygiene + vi.mock targets)"
+          echo "::group::Boot Contract Audit (B1-B3 env/config census + P1-P3 path environment + H1 test-env hygiene + vi.mock targets + every service image can be supervised)"
           fail=0
           ./scripts/compliance/audit-boot-contract.sh || fail=1
           ./scripts/compliance/audit-path-env.sh || fail=1
           ./scripts/compliance/audit-test-env-hygiene.sh || fail=1
           ./scripts/compliance/audit-mock-targets.sh || fail=1
+          ./scripts/compliance/audit-supervision.sh || fail=1
+          echo "::endgroup::"
+          exit $fail
+
+      - name: Run Graph Audits
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          echo "::group::Graph Audits (A1/A5 one annotation codec, no clock + every graph interface member called or kept by name)"
+          fail=0
+          ./scripts/compliance/audit-graph-annotation-codec.sh || fail=1
+          ./scripts/compliance/audit-graph-interface-callers.sh || fail=1
           echo "::endgroup::"
           exit $fail
 
@@ -130,6 +144,16 @@ jobs:
           echo "::group::Storage-URI One-Home Audit (storageUri lives on Representation; descriptor access is invisible to tsc)"
           ./scripts/compliance/audit-storage-uri-one-home.sh
           echo "::endgroup::"
+
+      - name: Run One-Home Audits
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          echo "::group::One-Home Audits (A6 one generated validator over the spec + toolbar preferences persisted by the policy layer alone)"
+          fail=0
+          ./scripts/compliance/audit-spec-validator.sh || fail=1
+          ./scripts/compliance/audit-toolbar-pref-storage.sh || fail=1
+          echo "::endgroup::"
+          exit $fail
 
       # The two audits below decide by exit status: batch-audit.ts exits
       # non-zero when a symbol fails, its wrapper passes that on, and the step

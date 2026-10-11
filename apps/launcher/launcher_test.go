@@ -4812,7 +4812,7 @@ const stdJobs = "[environments.local.jobs]\ntype = \"jetstream\"\nservers = \"${
 const stdEmbedding = "[environments.local.embedding]\ntype = \"ollama\"\nmodel = \"nomic-embed-text\"\nbaseURL = \"http://${OLLAMA_HOST}:11434\"\n\n"
 const stdEmbeddingVoyage = "[environments.local.embedding]\nplatform = \"external\"\ntype = \"voyage\"\nmodel = \"voyage-3\"\n\n"
 const stdDatabase = "[environments.local.database]\nhost = \"${POSTGRES_HOST}\"\nport = 5432\nname = \"semiont\"\nuser = \"postgres\"\n\n"
-const stdGraph = "[environments.local.graph]\ntype = \"neo4j\"\nuri = \"bolt://${NEO4J_HOST}:7687\"\nusername = \"neo4j\"\n\n"
+const stdGraph = "[environments.local.graph]\ntype = \"neo4j\"\nuri = \"bolt://${NEO4J_HOST}:7687\"\nusername = \"neo4j\"\ndatabase = \"neo4j\"\n\n"
 
 func TestStartExternalGraphBoot(t *testing.T) {
 	// A graph somebody else runs (platform = "external"), at the address the
@@ -4820,8 +4820,9 @@ func TestStartExternalGraphBoot(t *testing.T) {
 	// ports.
 	s := newScenario(t, "container")
 	writeKBConfig(t, s, "external-graph",
-		"[environments.local.graph]\nplatform = \"external\"\ntype = \"neo4j\"\nuri = \"bolt://127.0.0.1:7777\"\nusername = \"neo4j\"\npassword = \"remotepass\"\n\n"+
+		"[environments.local.graph]\nplatform = \"external\"\ntype = \"neo4j\"\nuri = \"bolt://127.0.0.1:7777\"\nusername = \"neo4j\"\ndatabase = \"neo4j\"\npassword = \"${EXT_GRAPH}\"\n\n"+
 			stdVectors+stdEmbedding+stdDatabase)
+	s.extraEnv = append(s.extraEnv, "EXT_GRAPH=remotepass")
 	serveHealth(t, 7777)
 	stdout, stderr, code := s.run(t, "start", "--config", "external-graph")
 	if code != 0 {

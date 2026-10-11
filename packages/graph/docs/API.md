@@ -4,7 +4,7 @@ How to make a graph store and query it. What the graph is for, and how it stays 
 
 ## The contract
 
-Every store implements `GraphDatabase`, in [`src/interface.ts`](../src/interface.ts). That file is the reference for each method and its types. In outline it has: connecting; writing and reading resources and annotations, one at a time and in bulk; resolving a reference; what refers to a resource, and a resource's connections; statistics; and the entity-type collection.
+Every store implements `GraphDatabase`, in [`src/interface.ts`](../src/interface.ts). That file is the reference for each method and its types. In outline it has: connecting; reading a resource and an annotation; listing and searching resources; what refers to a resource, and a resource's connections; a path between two resources; and statistics. Nothing in it writes: the graph's one writer is the Weaver, through [`semiont_graph`](../../graph-python/README.md).
 
 Its types are [`@semiont/core`](../../core/README.md)'s: a resource is a `ResourceDescriptor`, an annotation is an `Annotation`, and each is named by an id of its own kind.
 
@@ -13,11 +13,11 @@ Its types are [`@semiont/core`](../../core/README.md)'s: a resource is a `Resour
 The usual entry point is the singleton factory, which takes the `services.graph` block of an environment config (`GraphServiceConfig` from `@semiont/core`), instantiates the right implementation, and connects:
 
 ```typescript
-import { getGraphDatabase, closeGraphDatabase } from '@semiont/graph';
+import { getGraphDatabase } from '@semiont/graph';
 
 const graph = await getGraphDatabase(graphConfig);
 // ... use graph ...
-await closeGraphDatabase();
+await graph.disconnect();
 ```
 
 `createGraphDatabase(config)` is the non-singleton variant; it takes the factory's own flat config (`{ type, neo4jUri, neo4jUsername, … }`) rather than a `GraphServiceConfig`, and instantiates without connecting.
@@ -84,25 +84,23 @@ await graph.connect();
 
 ### In-memory
 
-The contract in one process's memory, for tests. The Weaver and the Librarian refuse it, because it could not be shared between them.
+The contract in one process's memory, for a test. It is given what it holds when it is made: its resources as the Weaver gives them to the graph, and its annotations as the record holds them, which it keeps as the graph does. No configuration yields one, and the Weaver and the Librarian refuse the type, because it could not be shared between them.
 
 ```typescript
 import { MemoryGraphDatabase } from '@semiont/graph';
 
-const graph = new MemoryGraphDatabase();
-await graph.connect(); // No-op for memory
+const graph = new MemoryGraphDatabase({ resources: [resource], annotations: [annotation] });
 ```
 
 ## What differs between stores
 
-Callers are written to the contract and never ask which store they hold. Two things differ underneath:
+Callers are written to the contract and never ask which store they hold. One thing differs underneath:
 
 | | Neo4j | Neptune, JanusGraph | In-memory |
 |---|---|---|---|
 | A property that is a list | Stored as a list | Stored as a JSON string, parsed on the way out | A JavaScript array |
-| A link to a resource that is not in the graph yet | Makes a stub, filled in when the resource arrives | Needs the resource to be there | Needs no target: the link is part of the annotation |
 
-The second row matters to whoever writes events to a store, and is explained in [Architecture](ARCHITECTURE.md#writes-that-take-any-order).
+A link to a resource the graph has not been given yet is a stub in Neo4j, an id and nothing else. No store answers one as a resource, and [Architecture](ARCHITECTURE.md#writes-that-take-any-order) says how one comes to be.
 
 ## Query Patterns
 
@@ -111,10 +109,6 @@ The second row matters to whoever writes events to a store, and is explained in 
 ```typescript
 // All annotations on a resource
 const annotations = await graph.getResourceAnnotations(resourceId);
-
-// Highlights only / references only
-const highlights = await graph.getHighlights(resourceId);
-const references = await graph.getReferences(resourceId);
 
 // Annotations on other resources that link TO this resource
 const referencedBy = await graph.getResourceReferencedBy(resourceId);
@@ -145,6 +139,8 @@ const { resources: matches } = await graph.listResources({
 // Resources connected to this one through annotations
 const connections = await graph.getResourceConnections(resourceId);
 
-// Paths between two resources (up to maxDepth hops)
+// The shortest way from one resource to another along links, followed
+// forwards. The third argument counts the resources on the path, both ends
+// included: 3 finds a path through one resource between them.
 const paths = await graph.findPath(fromResourceId, toResourceId, 3);
 ```

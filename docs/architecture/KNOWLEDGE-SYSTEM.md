@@ -7,7 +7,7 @@ The knowledge base itself is inert — no goals, no decisions, never initiating 
 - **Five access actors** mediate every read and write: **Stower** (write), **Browser** (read), **Gatherer** (context assembly), **Matcher** (search), and **CloneTokenManager** (clone tokens). They are the bus-facing interface of the knowledge base — commands and requests in, replies out, correlated by `correlationId`.
 - **Two projection pipelines** keep the eventually-consistent read models in sync with the event log: the **Weaver** (events → graph) and the **Smelter** (events → vectors). Pipelines are addressed by no one and reply to nothing; they consume already-persisted domain events.
 
-All seven are reached only over the bus and expose no public business methods; the pipelines also have a startup recovery entry point (`Weaver.catchUp()`, `Smelter.reconcile()`). All seven run standalone, none in the gateway, split by store affinity: the record's three (Stower, Browser, CloneTokenManager) are the Archivist's, a Rust service ([apps/archivist](../../apps/archivist/)) in which they are its commands, its browse reads and its clone tokens; the LLM-bound pair (Gatherer, Matcher) in `librarian-main`, and each projection as part of its store's stack (`weaver-main`, `smelter-main`). Callers never call into an actor directly; they put a message on the bus and trust the actor is listening.
+All seven are reached only over the bus and expose no public business methods; the pipelines also repair at startup (the Weaver's catch-up and reconcile, `Smelter.reconcile()`). All seven run standalone, none in the gateway, split by store affinity: the record's three (Stower, Browser, CloneTokenManager) are the Archivist's, a Rust service ([apps/archivist](../../apps/archivist/)) in which they are its commands, its browse reads and its clone tokens; the LLM-bound pair (Gatherer, Matcher) in `librarian-main`, and each projection as part of its store's stack: the Weaver, a Python service ([apps/weaver](../../apps/weaver/)), and `smelter-main`. Callers never call into an actor directly; they put a message on the bus and trust the actor is listening.
 
 The third derived read model — the materialized views — is deliberately **not** pipeline-maintained: the Archivist changes a resource's view as part of appending each event, before the event is published, so subscribers get a read-your-writes guarantee that a fire-and-forget pipeline cannot provide.
 
@@ -117,7 +117,7 @@ Candidate search and scoring for the match flow: retrieves candidates by name, e
 
 ### Weaver (projection pipeline)
 
-Follows the domain events and keeps the graph projection in sync; beyond the bus its single privileged attachment is Neo4j. Bursts are batched per resource (`groupBy` + burst buffer + `concatMap`), every apply emits `weave:applied`, and the `whenApplied` barrier lets graph readers wait out projection lag. Startup runs a checkpointed catch-up over `browse:*` (no event-store attachment); `weave:rebuild` is the full rebuild command.
+Follows the domain events and keeps the graph projection in sync; beyond the bus its single privileged attachment is Neo4j. One resource's events are applied one at a time and in the order they were recorded, resources beside one another; every apply emits `weave:applied`, and the `whenApplied` barrier lets graph readers wait out projection lag. Startup runs a checkpointed catch-up over `browse:*` (no event-store attachment); `weave:rebuild` is the full rebuild command.
 
 ### Smelter (projection pipeline)
 

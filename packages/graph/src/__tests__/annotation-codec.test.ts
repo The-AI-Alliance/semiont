@@ -11,9 +11,8 @@
  */
 import { describe, it, expect } from 'vitest';
 import { annotationId, resourceId } from '@semiont/core';
-import type { Annotation, CreateAnnotationInternal, ResourceId } from '@semiont/core';
+import type { Annotation, ResourceId } from '@semiont/core';
 import {
-  buildAnnotation,
   encodeAnnotation,
   intendedGraphAnnotation,
   motivationForCategory,
@@ -25,8 +24,16 @@ import { vertexToAnnotation as neptuneVertexToAnnotation } from '../implementati
 import { vertexToAnnotation as janusVertexToAnnotation } from '../implementations/janusgraph';
 import { MemoryGraphDatabase } from '../implementations/memorygraph';
 
-const CREATOR = { '@type': 'Person' as const, id: 'did:web:example.org:users:u1', name: 'Ada' };
+/** A person as the record names one: by who they are. A name is the directory's, joined on at a read. */
+const CREATOR = { '@type': 'Person' as const, '@id': 'did:web:example.org:users:u1' };
 const CREATED = '2026-08-21T10:00:00.000Z';
+
+/** An annotation as the record holds one: the W3C envelope around the fields a case names. */
+const annotation = (fields: Omit<Annotation, '@context' | 'type'>): Annotation => ({
+  '@context': 'http://www.w3.org/ns/anno.jsonld',
+  type: 'Annotation',
+  ...fields,
+});
 
 /**
  * Each store hands the codec a flat property bag, but shapes its own on the
@@ -100,9 +107,10 @@ describe.each(STORES)('$name — decode conformance', ({ decode }) => {
   it('preserves a real selector, and rebuilds the tagging and linking bodies', () => {
     const ann = decode(FULLY_POPULATED, ['Person', '', 'Org']);
     expect(ann.target).toEqual({ source: 'res-1', selector: QUOTE_SELECTOR });
+    // Tags in the codec's one order, then the link.
     expect(ann.body).toEqual([
-      { type: 'TextualBody', value: 'Person', purpose: 'tagging' },
       { type: 'TextualBody', value: 'Org', purpose: 'tagging' },
+      { type: 'TextualBody', value: 'Person', purpose: 'tagging' },
       { type: 'SpecificResource', source: resourceId('res-2'), purpose: 'linking' },
     ]);
   });
@@ -121,15 +129,14 @@ describe('A4: the stores agree', () => {
 });
 
 describe('encode — absence is stored as absence', () => {
-  const sourceOnly = buildAnnotation(
-    {
-      id: annotationId('ann-1'),
-      motivation: 'linking',
-      target: { source: resourceId('res-1') },
-      body: [{ type: 'SpecificResource', source: resourceId('res-2'), purpose: 'linking' }],
-      creator: CREATOR,
-      created: CREATED,
-    } as CreateAnnotationInternal);
+  const sourceOnly = annotation({
+    id: annotationId('ann-1'),
+    motivation: 'linking',
+    target: { source: resourceId('res-1') },
+    body: [{ type: 'SpecificResource', source: resourceId('res-2'), purpose: 'linking' }],
+    creator: CREATOR,
+    created: CREATED,
+  });
 
   it('emits NO selector property at all for a source-only target', () => {
     const props = encodeAnnotation(sourceOnly);
@@ -147,56 +154,52 @@ describe('encode — absence is stored as absence', () => {
   });
 
   it('round-trips a selector-bearing annotation unchanged, in every store', () => {
-    const highlight = buildAnnotation(
-      {
-        id: annotationId('ann-2'),
-        motivation: 'highlighting',
-        target: { source: resourceId('res-1'), selector: QUOTE_SELECTOR },
-        creator: CREATOR,
-        created: CREATED,
-      } as CreateAnnotationInternal);
+    const highlight = annotation({
+      id: annotationId('ann-2'),
+      motivation: 'highlighting',
+      target: { source: resourceId('res-1'), selector: QUOTE_SELECTOR as never },
+      creator: CREATOR,
+      created: CREATED,
+    });
     const props = encodeAnnotation(highlight);
     expect(props.selector).toBe(JSON.stringify(QUOTE_SELECTOR));
     for (const store of STORES) expect(store.decode(props)).toEqual(highlight);
   });
 
   it('discriminates highlights from references in the stored type, so the category filter can match', () => {
-    const highlight = buildAnnotation(
-      {
-        id: annotationId('ann-3'),
-        motivation: 'highlighting',
-        target: { source: resourceId('res-1'), selector: QUOTE_SELECTOR },
-        creator: CREATOR,
-        created: CREATED,
-      } as CreateAnnotationInternal);
+    const highlight = annotation({
+      id: annotationId('ann-3'),
+      motivation: 'highlighting',
+      target: { source: resourceId('res-1'), selector: QUOTE_SELECTOR as never },
+      creator: CREATOR,
+      created: CREATED,
+    });
     expect(encodeAnnotation(highlight).type).toBe('TextualBody');
     expect(encodeAnnotation(sourceOnly).type).toBe('SpecificResource');
   });
 });
 
 describe('encode — the fields a store cannot invent for itself', () => {
-  const base = buildAnnotation(
-    {
-      id: annotationId('ann-4'),
-      motivation: 'linking',
-      target: { source: resourceId('res-1') },
-      creator: CREATOR,
-      created: CREATED,
-    } as CreateAnnotationInternal);
+  const base = annotation({
+    id: annotationId('ann-4'),
+    motivation: 'linking',
+    target: { source: resourceId('res-1') },
+    creator: CREATOR,
+    created: CREATED,
+  });
 
   it('refuses an annotation whose target has no source', () => {
     expect(() => encodeAnnotation({ ...base, target: { source: '' as ResourceId } })).toThrow(/no target source/);
   });
 
   it('writes a selector but no exact when the selector quotes nothing', () => {
-    const positional = buildAnnotation(
-      {
-        id: annotationId('ann-5'),
-        motivation: 'highlighting',
-        target: { source: resourceId('res-1'), selector: { type: 'TextPositionSelector', start: 10, end: 20 } },
-        creator: CREATOR,
-        created: CREATED,
-      } as CreateAnnotationInternal);
+    const positional = annotation({
+      id: annotationId('ann-5'),
+      motivation: 'highlighting',
+      target: { source: resourceId('res-1'), selector: { type: 'TextPositionSelector', start: 10, end: 20 } },
+      creator: CREATOR,
+      created: CREATED,
+    });
     const props = encodeAnnotation(positional);
     expect(props.selector).toBe(JSON.stringify({ type: 'TextPositionSelector', start: 10, end: 20 }));
     expect('exact' in props).toBe(false);
@@ -271,36 +274,32 @@ describe('each store flattens its own driver shapes before the codec sees them',
   });
 });
 
-describe('memorygraph is a faithful reference: it goes through the codec like the serializing stores', () => {
-  it('round-trips a source-only annotation through the codec, selector-free', async () => {
-    const graph = new MemoryGraphDatabase();
-    await graph.connect();
-    const created = await graph.createAnnotation({
+describe('memorygraph holds an annotation as the serializing stores do: through the codec', () => {
+  it('reads a source-only annotation back selector-free', async () => {
+    const given = annotation({
       id: annotationId('ann-mem-1'),
       motivation: 'linking',
       target: { source: resourceId('res-1') },
       body: [{ type: 'SpecificResource', source: resourceId('res-2'), purpose: 'linking' }],
       creator: CREATOR,
       created: CREATED,
-    } as CreateAnnotationInternal);
-
-    expect('selector' in (created.target as object)).toBe(false);
+    });
+    const graph = new MemoryGraphDatabase({ resources: [], annotations: [given] });
 
     const fetched = await graph.getAnnotation(annotationId('ann-mem-1'));
-    expect(fetched).toEqual(created);
+    expect(fetched).toEqual(intendedGraphAnnotation(given));
     expect('selector' in (fetched!.target as object)).toBe(false);
   });
 
-  it('rejects a motivation-less annotation exactly as the serializing stores do', async () => {
-    const graph = new MemoryGraphDatabase();
-    await graph.connect();
-    await expect(
-      graph.createAnnotation({
-        id: annotationId('ann-mem-2'),
-        target: { source: resourceId('res-1') },
-        creator: CREATOR,
-      } as unknown as CreateAnnotationInternal)
-    ).rejects.toThrow(/missing required field: motivation/);
+  it('refuses a motivation-less annotation exactly as the serializing stores do', () => {
+    const motivationless = {
+      id: annotationId('ann-mem-2'),
+      target: { source: resourceId('res-1') },
+      creator: CREATOR,
+    } as unknown as Annotation;
+    expect(() => new MemoryGraphDatabase({ resources: [], annotations: [motivationless] })).toThrow(
+      /missing required field: motivation/,
+    );
   });
 });
 
@@ -310,8 +309,9 @@ describe('memorygraph is a faithful reference: it goes through the codec like th
  * annotation?" — deliberately NOT "what does the view hold?", because the graph
  * is a purpose-built projection rather than a copy of the views.
  *
- * The weaver's reconcile compares against it, so these are the properties that
- * check depends on, pinned where the function lives.
+ * The Weaver's conformance suite holds the graph a Weaver built to it, so
+ * these are the properties that check depends on, pinned where the function
+ * lives.
  */
 describe('intendedGraphAnnotation — what the graph is supposed to hold', () => {
   const full: Annotation = {
@@ -361,5 +361,22 @@ describe('intendedGraphAnnotation — what the graph is supposed to hold', () =>
     } as Annotation);
 
     expect(tagged.body).toEqual([{ type: 'TextualBody', value: 'Person', purpose: 'tagging' }]);
+  });
+
+  it('states one order for entity tags, so two answers that differ only in order are the same answer', () => {
+    // Tags are edges. A store answers them as a collection with no promised
+    // order (`collect()` in Cypher), and a check that compares the graph with
+    // what it should hold would call a reordering a divergence.
+    const tag = (value: string) => ({ type: 'TextualBody' as const, value, purpose: 'tagging' as const });
+    const asWritten = intendedGraphAnnotation({ ...full, body: [tag('Place'), tag('Person')] });
+    const otherwise = intendedGraphAnnotation({ ...full, body: [tag('Person'), tag('Place')] });
+
+    expect(asWritten).toEqual(otherwise);
+
+    const props = encodeAnnotation(asWritten);
+    for (const store of STORES) {
+      expect(store.decode(props, ['Place', 'Person']), store.name).toEqual(store.decode(props, ['Person', 'Place']));
+      expect(store.decode(props, ['Place', 'Person']), store.name).toEqual(asWritten);
+    }
   });
 });

@@ -22,6 +22,7 @@ import { afterAll, afterEach, beforeAll, describe, expect } from 'vitest';
 import type { components } from '@semiont/core';
 import { startArchivistProcess, type ArchivistEnvironment, type ArchivistProcess, type ArchivistSettings } from './archivist-process';
 import { archivistNonConformance, type CallOptions, type Reply } from './http';
+import type { ServiceAccount } from './issuer';
 import { eventually, freePort } from './net';
 import { SPEC_SOURCE } from './paths';
 import { SERVICE_ROLE, WORKER_ROLE } from './roles';
@@ -62,6 +63,8 @@ export interface ArchivistWorldOptions {
   env?: ArchivistEnvironment;
   /** Put a `git` that only records that it was run ahead of the real one: for a knowledge base that must run none. */
   gitTripwire?: boolean;
+  /** Service accounts the issuer grants beside the Archivist's: another service the world runs. */
+  accounts?: Record<string, ServiceAccount>;
 }
 
 /** Where a world keeps its three trees. */
@@ -218,7 +221,7 @@ export class ArchivistWorld {
 
   static async create(options: ArchivistWorldOptions = {}): Promise<ArchivistWorld> {
     const secret = randomBytes(24).toString('hex');
-    const world = await World.create('in-process', { accounts: { [ARCHIVIST_CLIENT]: { secret, roles: [SERVICE_ROLE] } } });
+    const world = await World.create('in-process', { accounts: { ...options.accounts, [ARCHIVIST_CLIENT]: { secret, roles: [SERVICE_ROLE] } } });
     const base = mkdtempSync(join(tmpdir(), 'conformance-kb-'));
     const stateHome = join(base, 'state');
     const dirs: Directories = {

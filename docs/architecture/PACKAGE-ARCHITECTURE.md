@@ -152,7 +152,7 @@ Four crates are published to crates.io: `semiont`, `semiont-http-transport`, `se
 |---|---|---|
 | `semiont-librarian` | `librarian-main` | `@semiont/make-meaning` |
 | `semiont-smelter` | `smelter-main` | `@semiont/make-meaning` |
-| `semiont-weaver` | `weaver-main` | `@semiont/make-meaning` |
+| `semiont-weaver` | `python -P -m semiont_weaver` | `apps/weaver` |
 | `semiont-worker` | `python -P -m semiont_worker` | `apps/worker` |
 | `semiont-browser` | the built SPA | `apps/browser` |
 | `semiont-gateway` | a Rust binary | `apps/gateway` |

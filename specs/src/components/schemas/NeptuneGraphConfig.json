@@ -1,0 +1,29 @@
+{
+  "type": "object",
+  "description": "A graph kept in Amazon Neptune, asked in Gremlin. No service has been run against one.",
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": [
+        "neptune"
+      ]
+    },
+    "endpoint": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The cluster's endpoint: its host name."
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535,
+      "description": "The port its Gremlin endpoint listens on."
+    }
+  },
+  "required": [
+    "type",
+    "endpoint",
+    "port"
+  ],
+  "additionalProperties": false
+}

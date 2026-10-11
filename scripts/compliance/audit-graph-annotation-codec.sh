@@ -10,7 +10,7 @@ set -euo pipefail
 # and the `{}` reaches the wire.
 #
 # A1 — exactly one module decides that shape. No W3C envelope is built inside
-#      an implementation file.
+#      an implementation file. The same holds of a resource and its codec.
 # A5 — the codec manufactures nothing. No `|| '{}'`, no `|| 'linking'`, no
 #      optional-with-fallback: absence must fail loudly, never acquire a
 #      value the next reader cannot tell from a real one.
@@ -36,7 +36,7 @@ echo "🔍 Auditing the graph annotation codec..."
 if envelope=$(grep -rn "anno\.jsonld" "$IMPLEMENTATIONS" 2>/dev/null); then
   echo ""
   echo "❌ A1: a W3C annotation envelope is built inside an implementation file."
-  echo "   Build it in annotation-codec.ts (buildAnnotation/decodeAnnotation) instead."
+  echo "   Build it in annotation-codec.ts (decodeAnnotation) instead."
   echo "$envelope" | sed 's|^|   |'
   violations=$((violations + 1))
 fi
@@ -47,6 +47,17 @@ if minted=$(grep -rn "JSON\.stringify([^)]*|| *{}" "$IMPLEMENTATIONS" 2>/dev/nul
   echo ""
   echo "❌ A1: an implementation is serializing a selector with a manufactured default."
   echo "$minted" | sed 's|^|   |'
+  violations=$((violations + 1))
+fi
+
+# A resource's envelope is its codec's, the same way (resource-codec.ts).
+# Three stores once each built it, and each named the node's properties for
+# itself: one media type was `format`, `contentType` and `mediaType`.
+if envelope=$(grep -rn "schema\.org" "$IMPLEMENTATIONS" 2>/dev/null); then
+  echo ""
+  echo "❌ A1: a resource envelope is built inside an implementation file."
+  echo "   Build it in resource-codec.ts (decodeResource) instead."
+  echo "$envelope" | sed 's|^|   |'
   violations=$((violations + 1))
 fi
 
@@ -69,25 +80,25 @@ fi
 # A5, one frame up: an implementation must not mint a value the log carries
 # and hand it to the codec. The event supplies `created`; a store that stamps
 # its own clock overwrites the authoring moment with a write moment.
-# `resolvedAt` is the one deliberate exception, and it is on the record rather
-# than silently permitted: unlike `created` it appears in no event, no core
-# type and no spec, so there is no authored value being overwritten — it is
-# bookkeeping the graph invents, which a rebuild loses outright. Whether it
-# should be derived from the resolve event or declared ephemeral is an open
-# question about the graph's content model; when that is settled, this
-# exclusion is either deleted or given a reason that outlives the question.
-if stamped=$(grep -rnE "new Date\(\)" "$IMPLEMENTATIONS" 2>/dev/null | grep -v "resolvedAt"); then
+#
+# No store reads a clock at all: not its own (`new Date()`, `Date.now()`), and
+# not the database's (`datetime()`, `timestamp()` in a query). neo4j once
+# stamped `updatedAt` on every update and `resolvedAt` on every resolve, both
+# with the database's clock, as native temporals nothing read; a rebuild lost
+# them, and a check that looked only for JavaScript's `new Date()` could not
+# see either.
+if stamped=$(grep -rnE "new Date\(|Date\.now\(|datetime\(\)|timestamp\(\)" "$IMPLEMENTATIONS" 2>/dev/null); then
   echo ""
-  echo "❌ A5: an implementation is minting a timestamp of its own."
-  echo "   The log carries the authored value; pass it through, never restamp."
+  echo "❌ A5: an implementation is reading a clock."
+  echo "   The log carries the authored value; pass it through, never stamp one."
   echo "$stamped" | sed 's|^|   |'
   violations=$((violations + 1))
 fi
 
 if [ "$violations" -eq 0 ]; then
-  echo "✅ A1: no W3C envelope built outside the codec"
+  echo "✅ A1: no annotation or resource envelope built outside its codec"
   echo "✅ A5: the codec manufactures nothing"
-  echo "✅ A5: no implementation mints a value the log carries"
+  echo "✅ A5: no implementation reads a clock"
   exit 0
 fi
 

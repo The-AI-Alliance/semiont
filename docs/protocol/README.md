@@ -105,6 +105,7 @@ For product framing and getting a knowledge base running, see the **[project REA
 | [JOBS.md](JOBS.md) | Delegated work: the job record and its states, the `job:*` channels the dispatcher answers, claims, checkpoints, retries, cancellation |
 | [WORKER-CONTRACT.md](WORKER-CONTRACT.md) | What every worker promises, in any language: when it claims, the lifecycle it reports, cancellation, liveness |
 | [WORKER-SERVICE.md](WORKER-SERVICE.md) | The Worker service, the process a worker image runs: its configuration document and what it refuses to start on, its agents, what it reads for a job, what it asks its model and does with the answer, what it commits and reports, how it stops |
+| [WEAVER.md](WEAVER.md) | The Weaver, the process a weaver image runs: the events it follows and what each does to the graph, what the graph holds, how far it says it has applied, and how it repairs the graph when it starts and when it is asked |
 | [TRANSPORT-CONTRACT.md](TRANSPORT-CONTRACT.md) | What every transport promises a client, in any language |
 | [TRANSPORT-HTTP.md](TRANSPORT-HTTP.md) | The HTTP transport: `/bus/emit`, the `/bus/subscribe` stream, content, limits |
 | [CACHE-SEMANTICS.md](CACHE-SEMANTICS.md) | The numbered behaviors every SDK's live queries are held to |

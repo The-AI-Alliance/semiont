@@ -133,6 +133,7 @@ func TestConfigDocumentsAreWhereTheImagesLook(t *testing.T) {
 		{"dispatcher", dispatcherDocumentTarget},
 		{"archivist", archivistDocumentTarget},
 		{"worker", workerDocumentTarget},
+		{"weaver", weaverDocumentTarget},
 	} {
 		if named := commandConfigPath(t, "..", "..", "..", c.service, "Dockerfile"); named != c.mounts {
 			t.Errorf("the %s image passes --config %q, the launcher mounts onto %q", c.service, named, c.mounts)
@@ -161,7 +162,7 @@ func TestExactlyOneContainerMountsTheKB(t *testing.T) {
 		"librarian": librarianArgs("/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
 		"worker":    workerArgs("/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
 		"smelter":   sidecarArgs("smelter", "/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
-		"weaver":    sidecarArgs("weaver", "/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
+		"weaver":    weaverArgs("/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
 	}
 
 	var mounters []string
@@ -223,14 +224,14 @@ func TestArchivistRunsUnderTheSupervisor(t *testing.T) {
 // launcher portNeed). They can't be derived across three languages, so this
 // gate keeps them agreeing. The Archivist's main has no constant: it listens
 // where its configuration document says, which the launcher writes from the
-// portNeed. The dispatcher and the worker listen where theirs say too, and
-// their images are held to the port those documents carry
+// portNeed. The dispatcher, the worker and the Weaver listen where theirs
+// say too, and their images are held to the port those documents carry
 // (TestDispatcherDocumentIsWhereTheImageLooks,
-// TestWorkerDocumentIsWhereTheImageLooks).
+// TestWorkerDocumentIsWhereTheImageLooks,
+// TestWeaverDocumentIsWhereTheImageLooks).
 func TestServiceHealthPortsAgreeAcrossAllHomes(t *testing.T) {
 	mains := map[string]string{
 		"smelter":   filepath.Join("..", "..", "..", "..", "packages", "make-meaning", "src", "smelter-main.ts"),
-		"weaver":    filepath.Join("..", "..", "..", "..", "packages", "make-meaning", "src", "weaver-main.ts"),
 		"archivist": "",
 		"librarian": filepath.Join("..", "..", "..", "..", "packages", "make-meaning", "src", "librarian-main.ts"),
 	}
@@ -281,6 +282,7 @@ func TestGatewayDocumentMountsOntoItsOwnPath(t *testing.T) {
 	for name, args := range map[string][]string{
 		"archivist": archivistArgs("/kb", "/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
 		"worker":    workerArgs("/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
+		"weaver":    weaverArgs("/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
 	} {
 		if strings.Contains(strings.Join(args, " "), gatewayDocumentTarget) {
 			t.Errorf("%s mounts the gateway's document path", name)

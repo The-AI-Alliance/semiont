@@ -6,7 +6,7 @@ What the graph is for, what it holds, and how it stays right when events reach i
 
 The graph is derived from a knowledge base's record. Everything in it can be made again from the events, and nothing in it is the source of truth.
 
-One process writes it: the Weaver, in [`@semiont/make-meaning`](../../make-meaning/docs/architecture.md#weaver-projection-pipeline-standalone-process), which applies the record's events to the graph. Every other user of this package reads.
+One process writes it: the [Weaver](../../../apps/weaver/README.md), a Python service that applies the record's events to the graph through [`semiont_graph`](../../graph-python/README.md). This package reads, and has no method that writes.
 
 The graph answers what crosses documents:
 
@@ -21,7 +21,7 @@ It is not asked for anything about a single document. A resource, its annotation
 
 | Vertex | |
 |---|---|
-| `Resource` | A resource's description: its name, entity types, format, storage URI, and whether it is archived |
+| `Resource` | A resource's description: its name, entity types, format, checksum, storage URI, whether it is archived, when the record says it was created, and who the record says it is by. [`src/resource-codec.ts`](../src/resource-codec.ts) names each property, once, for every store |
 | `Annotation` | An annotation. In Neo4j it also carries a label for its motivation (`:Linking`, for one), so a query by motivation is a label match |
 | `EntityType` | One per entity type in use |
 | `TagCollection` | The knowledge base's entity-type vocabulary |
@@ -32,13 +32,15 @@ It is not asked for anything about a single document. A resource, its annotation
 | `REFERENCES` | An annotation, to the resource it links to, once the reference is resolved |
 | `TAGGED_AS` | An annotation, to each of its entity types |
 
+An annotation's body is held in two of these and nowhere else: its link is the `source` property and the `REFERENCES` edge, and each entity tag is a `TAGGED_AS` edge. A body that is neither, a comment's text for one, is the views' to keep and reads back from no store. When a body changes, the Weaver replaces the annotation's row and those edges with what its codec says the update leaves, so a link or a tag the update took away goes with it.
+
 The graph is not a copy of the views. It stores what its queries need and no more: an annotation's attribution, for one, is on almost every annotation in the record and is not written here. So whether the graph is right cannot be checked by comparing it with a view. `intendedGraphAnnotation(annotation)` in [`src/annotation-codec.ts`](../src/annotation-codec.ts) is the statement of what the graph should hold for an annotation, and is what a check compares against.
 
 ## Writes that take any order
 
 The Weaver applies one resource's events in order, and the events of different resources side by side. A person who creates a resource and links an annotation to it produces two events, on two resources. The link can reach the graph before the resource it points at.
 
-The Neo4j store is written so that this does not matter. A link makes its target if the target is not there, and marks it a stub:
+The Weaver's Neo4j store (`semiont_graph.neo4j`) is written so that this does not matter. A link makes its target if the target is not there, and marks it a stub:
 
 ```cypher
 MATCH (a:Annotation {id: $annotationId})
@@ -47,12 +49,16 @@ ON CREATE SET target.stub = true
 MERGE (a)-[:REFERENCES]->(target)
 ```
 
-Creating a resource fills in whatever is there, stub or nothing:
+Creating a resource fills in whatever is there, stub or nothing. The node becomes exactly the resource codec's properties, so a stub's mark goes with the rest:
 
 ```cypher
 MERGE (d:Resource {id: $id})
-SET d.name = $name, d.entityTypes = $entityTypes, d.stub = false
+SET d = $props
 ```
+
+A stub is not a resource the graph has. `getResource` answers none for one, a listing leaves it out, and it is no connection of the resource that links to it.
+
+Deleting a resource removes it and the annotations on it. Another resource's annotation that links to it is that resource's, and stays; while such a link exists the node is left as a stub, with the edge on it. The Weaver rebuilds one resource by deleting it and applying its events again, so this is what keeps a rebuild from costing every other resource its links.
 
 Whichever event is applied first, the graph ends the same: a whole resource, and an edge to it. Applying either event again changes nothing. A listing of resources leaves stubs out, so a resource is not seen before its own event has been applied.
 
@@ -62,7 +68,7 @@ A stub lasts as long as it takes to apply the other event. One that stays means 
 MATCH (r:Resource) WHERE r.stub = true RETURN r.id
 ```
 
-**This is the Neo4j store's design, and only its.** The in-memory store keeps a link as part of the annotation, so it has no target to wait for. The Neptune and JanusGraph stores add the edge to a resource vertex that must already be there. They make no stub, and no test applies events to them out of order.
+**This is the design of the Neo4j store, the one a stack runs.** A reader meets it as the stub: an id and nothing else, which no store here answers as a resource.
 
 ## When the graph is behind, or away
 
@@ -78,4 +84,4 @@ npm run rebuild-graph --workspace=@semiont/make-meaning                   # ever
 npm run rebuild-graph --workspace=@semiont/make-meaning -- <resourceId>   # one resource
 ```
 
-How the Weaver orders, batches and checkpoints its work is in [`@semiont/make-meaning`'s architecture](../../make-meaning/docs/architecture.md#weaver-projection-pipeline-standalone-process).
+How the Weaver orders and checkpoints its work is its contract's to say: [`docs/protocol/WEAVER.md`](../../../docs/protocol/WEAVER.md).

@@ -12,12 +12,9 @@
  *   burstWindowMs  — How long to wait for more events before flushing a batch.
  *                    50ms is a good default: longer than event-loop jitter (~1-5ms)
  *                    but short enough to feel responsive.
- *   maxBatchSize   — Force-flush at this size to bound memory. 500 is safe for
- *                    Neo4j UNWIND queries. Increase if graph writes are cheap.
+ *   maxBatchSize   — Force-flush at this size to bound memory.
  *   idleTimeoutMs  — How long after the last flush before returning to passthrough.
  *                    200ms is a good default. Must be >= burstWindowMs.
- *
- * See: packages/graph/docs/ARCHITECTURE.md for Weaver context.
  */
 
 import { Observable, OperatorFunction } from 'rxjs';

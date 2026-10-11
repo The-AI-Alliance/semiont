@@ -377,8 +377,8 @@ const gatewayDocumentFile = "gateway.json"
 const gatewayDocumentTarget = "/etc/semiont/gateway.json"
 
 // stageService writes one service's config into the stage: the gateway's,
-// the dispatcher's, the Archivist's or the worker's resolved document, or
-// another service's patched copy of the KB config.
+// the dispatcher's, the Archivist's, the worker's or the Weaver's resolved
+// document, or another service's patched copy of the KB config.
 func (x *liveExec) stageService(stage, svc string, cfg []byte, fc flowCtx, addr string) bool {
 	if svc == "gateway" {
 		env, _, _, err := loadConfig(fc.configFile)
@@ -432,6 +432,20 @@ func (x *liveExec) stageService(stage, svc string, cfg []byte, fc flowCtx, addr 
 		}
 		if err != nil {
 			x.u.Fail("Writing the worker's configuration document: %v", err)
+			return false
+		}
+		return true
+	}
+	if svc == "weaver" {
+		env, _, _, err := loadConfig(fc.configFile)
+		if err == nil {
+			var doc []byte
+			if doc, err = weaverDocument(env, x.rt, addr, fc.plan.Roles["identity"].Port, fc.userEnv, fc.plan.Roles["graph"].Presence == presenceLauncher); err == nil {
+				err = os.WriteFile(filepath.Join(stage, weaverDocumentFile), doc, 0o644)
+			}
+		}
+		if err != nil {
+			x.u.Fail("Writing the Weaver's configuration document: %v", err)
 			return false
 		}
 		return true
@@ -1270,7 +1284,7 @@ func (x *planExec) stageCollector(string) (string, bool) {
 func (x *planExec) stageAll(fc flowCtx, addr string) (string, bool) {
 	staged := make([]string, 0, len(stackServices))
 	for _, svc := range stackServices {
-		if svc != "gateway" && svc != "dispatcher" && svc != "archivist" && svc != "worker" {
+		if svc != "gateway" && svc != "dispatcher" && svc != "archivist" && svc != "worker" && svc != "weaver" {
 			staged = append(staged, svc+".toml")
 		}
 	}
@@ -1280,6 +1294,7 @@ func (x *planExec) stageAll(fc flowCtx, addr string) (string, bool) {
 	if fc.plan.runs("worker") {
 		x.c("write <config-stage>/%s (the worker's configuration document: WorkerConfig, resolved)", workerDocumentFile)
 	}
+	x.c("write <config-stage>/%s (the Weaver's configuration document: WeaverConfig, resolved)", weaverDocumentFile)
 	x.c("stage per-service config copies under <config-stage>: %s", strings.Join(staged, " "))
 	x.c("write into each copy the addresses this start places, as literals, in the sections that service reads (launcher-staged topology):")
 	// In plan mode the context names the config; the file is under the root.
@@ -1313,6 +1328,10 @@ func (x *planExec) stageOne(svc string, fc flowCtx, _ string) (string, bool) {
 	}
 	if svc == "worker" {
 		x.c("write a fresh <config-stage>/%s (the worker's configuration document: WorkerConfig, resolved)", workerDocumentFile)
+		return "<config-stage>", true
+	}
+	if svc == "weaver" {
+		x.c("write a fresh <config-stage>/%s (the Weaver's configuration document: WeaverConfig, resolved)", weaverDocumentFile)
 		return "<config-stage>", true
 	}
 	x.c("stage a fresh private config copy under <config-stage>: %s.toml, with the addresses this start places written into the sections it reads (launcher-staged topology)", svc)

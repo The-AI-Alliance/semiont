@@ -1,7 +1,7 @@
 /**
  * asBusRequestPrimitive — the in-process `BusRequestPrimitive` over the core
- * EventBus. `busRequest` callers inside the process and the actor fan-ins
- * (`weaverFanIn`, the smelter's) both run on it.
+ * EventBus. `busRequest` callers inside the process and the smelter's fan-in
+ * both run on it.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -35,10 +35,10 @@ describe('asBusRequestPrimitive', () => {
     expect(seen).toEqual([{ resourceId: 'r1', sequenceNumber: 4 }]);
   });
 
-  // `emit` returns a promise, so a failure is a rejection. The Weaver's
-  // `weave:applied` signal is fire-and-forget with a `.catch` attached
-  // (weaver.ts), and the bus under it can be destroyed first at teardown: a
-  // synchronous throw would escape that `.catch` into the event handler.
+  // `emit` returns a promise, so a failure is a rejection. A signal emitted
+  // fire-and-forget has a `.catch` attached, and the bus under it can be
+  // destroyed first at teardown: a synchronous throw would escape that
+  // `.catch` into the event handler.
   it('emit on a destroyed bus rejects; it never throws', async () => {
     const eventBus = new EventBus();
     const bus = asBusRequestPrimitive(eventBus);

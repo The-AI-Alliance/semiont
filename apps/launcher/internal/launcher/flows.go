@@ -806,12 +806,15 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage string, ote
 	if !ok {
 		return 1
 	}
-	// The worker reads a configuration document; the Smelter and the Weaver
-	// load a staged copy of the KB's config.
+	// The worker and the Weaver each read a configuration document; the
+	// Smelter loads a staged copy of the KB's config.
 	var args []string
-	if sc.svc == "worker" {
+	switch sc.svc {
+	case "worker":
 		args = workerArgs(stage, x.rtName(), addr, clientSecret, fc.version, fc.envFor(sc.svc), otel)
-	} else {
+	case "weaver":
+		args = weaverArgs(stage, x.rtName(), addr, clientSecret, fc.version, fc.envFor(sc.svc), otel)
+	default:
 		args = sidecarArgs(sc.svc, stage, x.rtName(), addr, clientSecret, fc.version, fc.envFor(sc.svc), otel, extra...)
 	}
 	id, ok := x.runDetached(args)

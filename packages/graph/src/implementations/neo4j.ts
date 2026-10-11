@@ -1,33 +1,24 @@
 // Neo4j implementation of GraphDatabase interface
 // Uses Cypher query language
 
-import type { Driver, Session } from 'neo4j-driver';
+import type { Driver, Integer, Node as Neo4jNode, Session } from 'neo4j-driver';
 import { GraphDatabase } from '../interface';
-import { assertMutableResourceUpdate } from '../interface';
 import { searchTerms } from '../resource-query';
 import type { Logger } from '@semiont/core';
 import type {
-  AnnotationCategory,
   GraphConnection,
   GraphPath,
   EntityTypeStats,
   ResourceFilter,
-  UpdateResourceInput,
-  CreateAnnotationInternal,
   ResourceId,
   AnnotationId,
 } from '@semiont/core';
-import { v4 as uuidv4 } from 'uuid';
-import { getPrimaryRepresentation, getStorageUri } from '@semiont/core';
-import { getEntityTypes } from '@semiont/core';
 import {
-  buildAnnotation,
   decodeAnnotation,
-  encodeAnnotation,
   motivationForCategory,
-  storedAnnotationType,
   type AnnotationProperties,
 } from '../annotation-codec';
+import { decodeResource } from '../resource-codec';
 
 import type { ResourceDescriptor } from '@semiont/core';
 import type { Annotation } from '@semiont/core';
@@ -62,9 +53,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     password?: string;
     database?: string;
   };
-
-  // Tag Collections - cached in memory for performance
-  private entityTypesCollection: Set<string> | null = null;
 
   constructor(config: {
     uri?: string;
@@ -194,58 +182,13 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async createResource(resource: ResourceDescriptor): Promise<ResourceDescriptor> {
-    const session = this.getSession();
-    try {
-      const id = resource['@id']; // Use full URI for consistency
-      const primaryRep = getPrimaryRepresentation(resource);
-      if (!primaryRep) {
-        throw new Error('Resource must have at least one representation');
-      }
-
-      // Use MERGE instead of CREATE for idempotence and to enrich stub nodes
-      // Stub nodes may be created by REFERENCES edge creation before resource.created event
-      const result = await session.run(
-        `MERGE (d:Resource {id: $id})
-         SET d.name = $name,
-             d.entityTypes = $entityTypes,
-             d.format = $format,
-             d.archived = $archived,
-             d.created = $created,
-             d.creator = $creator,
-             d.contentChecksum = $contentChecksum,
-             d.sourceAnnotationId = $sourceAnnotationId,
-             d.sourceResourceId = $sourceResourceId,
-             d.storageUri = $storageUri,
-             d.stub = false
-         RETURN d`,
-        {
-          id,
-          name: resource.name,
-          entityTypes: resource.entityTypes,
-          format: primaryRep.mediaType,
-          archived: resource.archived || false,
-          created: resource.dateCreated,
-          creator: JSON.stringify(resource.wasAttributedTo),
-          contentChecksum: primaryRep.checksum,
-          sourceAnnotationId: resource.sourceAnnotationId ?? null,
-          sourceResourceId: resource.sourceResourceId ?? null,
-          storageUri: getStorageUri(resource) ?? null,
-        }
-      );
-
-      this.logger?.info('Resource created/enriched', { id });
-      return this.parseResourceNode(result.records[0]!.get('d'));
-    } finally {
-      await session.close();
-    }
-  }
-
   async getResource(id: ResourceId): Promise<ResourceDescriptor | null> {
     const session = this.getSession();
     try {
+      // A stub is a link's target the graph has not been given yet: an id
+      // and nothing else. It is not a resource the graph has.
       const result = await session.run(
-        'MATCH (d:Resource {id: $id}) RETURN d',
+        'MATCH (d:Resource {id: $id}) WHERE coalesce(d.stub, false) = false RETURN d',
         { id }
       );
 
@@ -256,61 +199,13 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async updateResource(id: ResourceId, input: UpdateResourceInput): Promise<ResourceDescriptor> {
-    assertMutableResourceUpdate(input);
-
-    const sets: string[] = [];
-    const params: Record<string, unknown> = { id };
-    if (input.archived !== undefined) {
-      sets.push('d.archived = $archived');
-      params.archived = input.archived;
-    }
-    if (input.entityTypes !== undefined) {
-      sets.push('d.entityTypes = $entityTypes');
-      params.entityTypes = input.entityTypes;
-    }
-
-    const session = this.getSession();
-    try {
-      const result = await session.run(
-        `MATCH (d:Resource {id: $id})
-         SET ${sets.join(', ')}
-         RETURN d`,
-        params
-      );
-
-      if (result.records.length === 0) {
-        throw new Error('Resource not found');
-      }
-
-      return this.parseResourceNode(result.records[0]!.get('d'));
-    } finally {
-      await session.close();
-    }
-  }
-
-  async deleteResource(id: ResourceId): Promise<void> {
-    const session = this.getSession();
-    try {
-      // Delete resource and all its annotations
-      await session.run(
-        `MATCH (d:Resource {id: $id})
-         OPTIONAL MATCH (a:Annotation)-[:BELONGS_TO|:REFERENCES]->(d)
-         DETACH DELETE d, a`,
-        { id }
-      );
-    } finally {
-      await session.close();
-    }
-  }
-
   async listResources(filter: ResourceFilter): Promise<{ resources: ResourceDescriptor[]; total: number }> {
     const session = this.getSession();
     try {
       let whereClause = '';
       const params: any = {};
-      // Stub nodes are id-only placeholders that `MERGE` creates when a
-      // REFERENCES edge points at a resource whose `resource.created` event
+      // Stub nodes are id-only placeholders the Weaver makes when a
+      // REFERENCES edge points at a resource whose `yield:created` event
       // hasn't landed yet. They carry no name, so they are not listable — and
       // `parseResourceNode` throws on the missing field rather than inventing one.
       const conditions: string[] = ['coalesce(d.stub, false) = false'];
@@ -385,62 +280,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-
-  async createAnnotation(input: CreateAnnotationInternal): Promise<Annotation> {
-    const session = this.getSession();
-    try {
-      const annotation = buildAnnotation(input);
-      const props = encodeAnnotation(annotation);
-      const targetSource = props.resourceId!;
-      const bodySource = props.source;
-
-      // Entity tags are edges, not properties, so they travel beside the bag.
-      const entityTypes = getEntityTypes(input);
-
-      // Convert motivation to label (e.g., "linking" -> "Linking")
-      const motivationLabel = motivationToLabel(annotation.motivation);
-
-      // The codec's property bag is applied verbatim, `created` included:
-      // it is stored as the codec's string, not as a native temporal.
-      const cypher = bodySource
-        ? `MATCH (from:Resource {id: $targetSource})
-           MATCH (to:Resource {id: $bodySource})
-           CREATE (a:Annotation:${motivationLabel})
-           SET a = $props
-           CREATE (a)-[:BELONGS_TO]->(from)
-           CREATE (a)-[:REFERENCES]->(to)
-           FOREACH (entityType IN $entityTypes |
-             MERGE (et:EntityType {name: entityType})
-             CREATE (a)-[:TAGGED_AS]->(et)
-           )
-           RETURN a`
-        : `MATCH (d:Resource {id: $targetSource})
-           CREATE (a:Annotation:${motivationLabel})
-           SET a = $props
-           CREATE (a)-[:BELONGS_TO]->(d)
-           FOREACH (entityType IN $entityTypes |
-             MERGE (et:EntityType {name: entityType})
-             CREATE (a)-[:TAGGED_AS]->(et)
-           )
-           RETURN a`;
-
-      const result = await session.run(cypher, {
-        props,
-        targetSource,
-        bodySource: bodySource ?? null,
-        entityTypes,
-      });
-
-      if (result.records.length === 0) {
-        throw new Error(`Failed to create annotation: Resource ${targetSource} not found in graph database`);
-      }
-
-      return parseAnnotationNode(result.records[0]!.get('a'), entityTypes);
-    } finally {
-      await session.close();
-    }
-  }
-
   async getAnnotation(id: AnnotationId): Promise<Annotation | null> {
     this.logger?.debug('Getting annotation', { id });
     const session = this.getSession();
@@ -460,264 +299,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       return parseAnnotationNode(
         result.records[0]!.get('a'),
         result.records[0]!.get('entityTypes')
-      );
-    } finally {
-      await session.close();
-    }
-  }
-
-  async updateAnnotation(id: AnnotationId, updates: Partial<Annotation>): Promise<Annotation> {
-    const session = this.getSession();
-    try {
-      const setClauses: string[] = ['a.updatedAt = datetime()'];
-      const params: any = { id };
-
-      // Build SET clauses dynamically
-      Object.entries(updates).forEach(([key, value]) => {
-        if (key !== 'id' && key !== 'updatedAt') {
-          setClauses.push(`a.${key} = $${key}`);
-          if (key === 'body') {
-            params[key] = JSON.stringify(value);
-          } else if (key === 'created') {
-            params[key] = value ? new Date(value as any).toISOString() : null;
-          } else {
-            params[key] = value;
-          }
-        }
-      });
-
-      // Update annotation properties
-      const result = await session.run(
-        `MATCH (a:Annotation {id: $id})
-         SET ${setClauses.join(', ')}
-         WITH a
-         OPTIONAL MATCH (a)-[:TAGGED_AS]->(et:EntityType)
-         RETURN a, collect(et.name) as entityTypes`,
-        params
-      );
-
-      if (result.records.length === 0) {
-        throw new Error('Annotation not found');
-      }
-
-      // If motivation was updated, update the label
-      if (updates.motivation) {
-        const newLabel = motivationToLabel(updates.motivation);
-        this.logger?.debug('Updating motivation label', { newLabel });
-
-        // Remove all possible motivation labels and add the new one
-        const allMotivations = ['Assessing', 'Bookmarking', 'Classifying', 'Commenting',
-                                'Describing', 'Editing', 'Highlighting', 'Identifying',
-                                'Linking', 'Moderating', 'Questioning', 'Replying', 'Tagging'];
-        const removeLabels = allMotivations.filter(m => m !== newLabel).map(m => `a:${m}`).join(', ');
-
-        await session.run(
-          `MATCH (a:Annotation {id: $id})
-           REMOVE ${removeLabels}
-           SET a:${newLabel}`,
-          { id }
-        );
-        this.logger?.debug('Motivation label updated', { newLabel });
-      }
-
-      // If body was updated and contains a SpecificResource, create REFERENCES relationship
-      if (updates.body) {
-        this.logger?.debug('Body update for annotation', { id, body: updates.body });
-        const bodyArray = Array.isArray(updates.body) ? updates.body : [updates.body];
-
-        const specificResource = bodyArray.find((item: any) => item.type === 'SpecificResource' && item.purpose === 'linking');
-
-        if (specificResource && 'source' in specificResource && specificResource.source) {
-          this.logger?.debug('Creating REFERENCES edge', { annotationId: id, targetResourceId: specificResource.source });
-          // Create REFERENCES relationship to the target resource
-          // Use MERGE for target to create stub node if it doesn't exist yet (eventual consistency)
-          // Stub will be enriched when resource.created event arrives
-          const refResult = await session.run(
-            `MATCH (a:Annotation {id: $annotationId})
-             MERGE (target:Resource {id: $targetResourceId})
-             ON CREATE SET target.stub = true
-             MERGE (a)-[:REFERENCES]->(target)
-             RETURN a, target, target.stub AS wasStub`,
-            {
-              annotationId: id,
-              targetResourceId: specificResource.source
-            }
-          );
-
-          if (refResult.records.length > 0) {
-            const wasStub = refResult.records[0]!.get('wasStub');
-            if (wasStub) {
-              this.logger?.debug('REFERENCES edge created with stub node', { targetResourceId: specificResource.source });
-            } else {
-              this.logger?.debug('REFERENCES edge created to existing resource', { targetResourceId: specificResource.source });
-            }
-          } else {
-            this.logger?.warn('REFERENCES edge creation returned no records');
-          }
-        } else {
-          this.logger?.debug('No SpecificResource in body - stub reference not yet resolved');
-        }
-      } else {
-        this.logger?.debug('No body update for annotation', { id });
-      }
-
-      return parseAnnotationNode(
-        result.records[0]!.get('a'),
-        result.records[0]!.get('entityTypes')
-      );
-    } finally {
-      await session.close();
-    }
-  }
-
-  async deleteAnnotation(id: AnnotationId): Promise<void> {
-    const session = this.getSession();
-    try {
-      await session.run(
-        'MATCH (a:Annotation {id: $id}) DETACH DELETE a',
-        { id }
-      );
-    } finally {
-      await session.close();
-    }
-  }
-
-  async listAnnotations(filter: { resourceId?: ResourceId; type?: AnnotationCategory }): Promise<{ annotations: Annotation[]; total: number }> {
-    const session = this.getSession();
-    try {
-      const conditions: string[] = [];
-      const params: any = {};
-
-      if (filter.resourceId) {
-        conditions.push('a.resourceId = $resourceId');
-        params.resourceId = filter.resourceId;
-      }
-
-      if (filter.type) {
-        conditions.push('a.type = $type');
-        params.type = storedAnnotationType(motivationForCategory(filter.type));
-      }
-
-      const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
-
-      // Get all results (the interface has no pagination)
-      const result = await session.run(
-        `MATCH (a:Annotation) ${whereClause}
-         OPTIONAL MATCH (a)-[:TAGGED_AS]->(et:EntityType)
-         RETURN a, collect(et.name) as entityTypes`,
-        params
-      );
-
-      const annotations = result.records.map(record =>
-        parseAnnotationNode(record.get('a'), record.get('entityTypes'))
-      );
-
-      return { annotations, total: annotations.length };
-    } finally {
-      await session.close();
-    }
-  }
-
-  async getHighlights(resourceId: ResourceId): Promise<Annotation[]> {
-    const session = this.getSession();
-    try {
-      const result = await session.run(
-        `MATCH (a:Annotation {resourceId: $resourceId})
-         WHERE a.annotationCategory = 'highlight'
-         OPTIONAL MATCH (a)-[:TAGGED_AS]->(et:EntityType)
-         RETURN a, collect(et.name) as entityTypes
-         ORDER BY a.created DESC`,
-        { resourceId }
-      );
-
-      return result.records.map(record =>
-        parseAnnotationNode(record.get('a'), record.get('entityTypes'))
-      );
-    } finally {
-      await session.close();
-    }
-  }
-
-  async resolveReference(annotationId: AnnotationId, source: ResourceId): Promise<Annotation> {
-    const session = this.getSession();
-    try {
-      // Get the target resource's name
-      const docResult = await session.run(
-        'MATCH (d:Resource {id: $id}) RETURN d.name as name',
-        { id: source }
-      );
-      const resourceName = docResult.records[0]?.get('name');
-
-      // Update annotation and create REFERENCES relationship
-      const result = await session.run(
-        `MATCH (a:Annotation {id: $annotationId})
-         MATCH (to:Resource {id: $source})
-         SET a.source = $source,
-             a.resolvedResourceName = $resourceName,
-             a.resolvedAt = datetime()
-         MERGE (a)-[:REFERENCES]->(to)
-         OPTIONAL MATCH (a)-[:TAGGED_AS]->(et:EntityType)
-         RETURN a, collect(et.name) as entityTypes`,
-        { annotationId, source, resourceName }
-      );
-
-      if (result.records.length === 0) {
-        throw new Error('Annotation not found');
-      }
-
-      return parseAnnotationNode(
-        result.records[0]!.get('a'),
-        result.records[0]!.get('entityTypes')
-      );
-    } finally {
-      await session.close();
-    }
-  }
-
-  async getReferences(resourceId: ResourceId): Promise<Annotation[]> {
-    const session = this.getSession();
-    try {
-      const result = await session.run(
-        `MATCH (a:Annotation {resourceId: $resourceId})
-         WHERE a.annotationCategory IN ['stub_reference', 'resolved_reference']
-         OPTIONAL MATCH (a)-[:TAGGED_AS]->(et:EntityType)
-         RETURN a, collect(et.name) as entityTypes
-         ORDER BY a.created DESC`,
-        { resourceId }
-      );
-
-      return result.records.map(record =>
-        parseAnnotationNode(record.get('a'), record.get('entityTypes'))
-      );
-    } finally {
-      await session.close();
-    }
-  }
-
-  async getEntityReferences(resourceId: ResourceId, entityTypes?: string[]): Promise<Annotation[]> {
-    const session = this.getSession();
-    try {
-      let cypher = `MATCH (a:Annotation {resourceId: $resourceId})
-                    WHERE a.source IS NOT NULL`;
-
-      const params: any = { resourceId };
-
-      if (entityTypes && entityTypes.length > 0) {
-        cypher += `
-          MATCH (a)-[:TAGGED_AS]->(et:EntityType)
-          WHERE et.name IN $entityTypes`;
-        params.entityTypes = entityTypes;
-      }
-
-      cypher += `
-        OPTIONAL MATCH (a)-[:TAGGED_AS]->(et2:EntityType)
-        RETURN a, collect(et2.name) as entityTypes
-        ORDER BY a.created DESC`;
-
-      const result = await session.run(cypher, params);
-
-      return result.records.map(record =>
-        parseAnnotationNode(record.get('a'), record.get('entityTypes'))
       );
     } finally {
       await session.close();
@@ -776,7 +357,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
          OPTIONAL MATCH (d)<-[:BELONGS_TO]-(a1:Annotation)-[:REFERENCES]->(other:Resource)
          OPTIONAL MATCH (other)<-[:BELONGS_TO]-(a2:Annotation)-[:REFERENCES]->(d)
          WITH other, COLLECT(DISTINCT a1) as outgoing, COLLECT(DISTINCT a2) as incoming
-         WHERE other IS NOT NULL
+         WHERE other IS NOT NULL AND coalesce(other.stub, false) = false
          RETURN other, outgoing, incoming`,
         { resourceId }
       );
@@ -837,45 +418,57 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
+  /**
+   * The shortest way from one resource to another along links: an annotation
+   * on a resource that links to the next. A link is followed forwards only,
+   * and `maxDepth` counts the resources on the path, both ends included.
+   */
   async findPath(fromResourceId: ResourceId, toResourceId: ResourceId, maxDepth: number = 5): Promise<GraphPath[]> {
+    if (!Number.isInteger(maxDepth)) {
+      throw new Error(`findPath: maxDepth must be a whole number, got ${maxDepth}`);
+    }
+    const from = await this.getResource(fromResourceId);
+    if (!from || maxDepth < 1) return [];
+    if (fromResourceId === toResourceId) return [{ resources: [from], annotations: [] }];
+
+    // A path of n resources has n - 1 links. The bound is part of the
+    // pattern, where Cypher takes no parameter; it is a whole number, above.
+    const links = maxDepth - 1;
+    if (links < 1) return [];
+
     const session = this.getSession();
     try {
       const result = await session.run(
-        `MATCH path = shortestPath((from:Resource {id: $fromId})-[:REFERENCES*..${maxDepth}]-(to:Resource {id: $toId}))
-         WITH path, nodes(path) as docs, relationships(path) as rels
-         RETURN docs, rels
-         LIMIT 10`,
-        { fromId: fromResourceId, toId: toResourceId }
+        `MATCH SHORTEST 1 (from:Resource {id: $fromId})
+           ((:Resource)<-[:BELONGS_TO]-(link:Annotation {motivation: $linking})-[:REFERENCES]->(next:Resource)
+             WHERE coalesce(next.stub, false) = false){1,${links}}
+           (to:Resource {id: $toId})
+         RETURN next, [l IN link | l.id] AS linkIds`,
+        { fromId: fromResourceId, toId: toResourceId, linking: motivationForCategory('reference') }
       );
 
       const paths: GraphPath[] = [];
-
       for (const record of result.records) {
-        const docs = record.get('docs').map((node: any) => this.parseResourceNode(node));
-        const rels = record.get('rels');
-
-        // Get annotation details for the relationships
-        const annotationIds = rels.map((rel: any) => rel.properties.id).filter((id: any) => id);
-        const annotations: Annotation[] = [];
-
-        if (annotationIds.length > 0) {
-          const selResult = await session.run(
-            `MATCH (a:Annotation) WHERE a.id IN $ids
-             OPTIONAL MATCH (a)-[:TAGGED_AS]->(et:EntityType)
-             RETURN a, collect(et.name) as entityTypes`,
-            { ids: annotationIds }
-          );
-          selResult.records.forEach(rec => {
-            annotations.push(parseAnnotationNode(
-              rec.get('a'),
-              rec.get('entityTypes')
-            ));
-          });
-        }
-
+        const linkIds: string[] = record.get('linkIds');
+        const found = await session.run(
+          `MATCH (a:Annotation) WHERE a.id IN $ids
+           OPTIONAL MATCH (a)-[:TAGGED_AS]->(et:EntityType)
+           RETURN a, collect(et.name) as entityTypes`,
+          { ids: linkIds }
+        );
+        const byId = new Map(
+          found.records.map((rec) => {
+            const annotation = parseAnnotationNode(rec.get('a'), rec.get('entityTypes'));
+            return [String(annotation.id), annotation] as const;
+          })
+        );
         paths.push({
-          resources: docs,
-          annotations: annotations
+          resources: [from, ...record.get('next').map((node: Neo4jNode) => this.parseResourceNode(node))],
+          annotations: linkIds.map((id) => {
+            const annotation = byId.get(id);
+            if (!annotation) throw new Error(`findPath: annotation ${id} is on the path and could not be read`);
+            return annotation;
+          }),
         });
       }
 
@@ -915,58 +508,52 @@ export class Neo4jGraphDatabase implements GraphDatabase {
   }> {
     const session = this.getSession();
     try {
-      // Get resource count
-      const docCountResult = await session.run('MATCH (d:Resource) RETURN count(d) as count');
-      const resourceCount = docCountResult.records[0]!.get('count').toNumber();
+      const count = (value: Integer | number): number => this.neo4j.integer.toNumber(value);
 
-      // Get annotation counts
-      const selCountResult = await session.run('MATCH (a:Annotation) RETURN count(a) as count');
-      const annotationCount = selCountResult.records[0]!.get('count').toNumber();
-
-      const highlightCountResult = await session.run(
-        'MATCH (a:Annotation) WHERE a.resolvedResourceId IS NULL RETURN count(a) as count'
+      // A stub is a link's target the graph has not been given yet: an id and
+      // nothing else. It is not a resource to count.
+      const resources = await session.run(
+        `MATCH (d:Resource) WHERE coalesce(d.stub, false) = false
+         RETURN count(d) AS resources`
       );
-      const highlightCount = highlightCountResult.records[0]!.get('count').toNumber();
 
-      const referenceCountResult = await session.run(
-        'MATCH (a:Annotation) WHERE a.resolvedResourceId IS NOT NULL RETURN count(a) as count'
+      // A highlight and a reference are told apart by motivation, the one
+      // property that says which an annotation is.
+      const annotations = await session.run(
+        `MATCH (a:Annotation)
+         RETURN count(a) AS annotations,
+                sum(CASE WHEN a.motivation = $highlighting THEN 1 ELSE 0 END) AS highlights,
+                sum(CASE WHEN a.motivation = $linking THEN 1 ELSE 0 END) AS references,
+                sum(CASE WHEN a.motivation = $linking AND EXISTS { (a)-[:TAGGED_AS]->(:EntityType) } THEN 1 ELSE 0 END) AS entityReferences`,
+        { highlighting: motivationForCategory('highlight'), linking: motivationForCategory('reference') }
       );
-      const referenceCount = referenceCountResult.records[0]!.get('count').toNumber();
 
-      const entityRefCountResult = await session.run(
-        'MATCH (a:Annotation) WHERE a.resolvedResourceId IS NOT NULL AND size(a.entityTypes) > 0 RETURN count(a) as count'
-      );
-      const entityReferenceCount = entityRefCountResult.records[0]!.get('count').toNumber();
-
-      // Get entity type stats
       const entityTypeResult = await session.run(
-        `MATCH (d:Resource)
+        `MATCH (d:Resource) WHERE coalesce(d.stub, false) = false
          UNWIND d.entityTypes AS type
          RETURN type, count(*) AS count`
       );
-
       const entityTypes: Record<string, number> = {};
       entityTypeResult.records.forEach(record => {
-        entityTypes[record.get('type')] = record.get('count').toNumber();
+        entityTypes[record.get('type')] = count(record.get('count'));
       });
 
-      // Get content type stats
       const contentTypeResult = await session.run(
-        `MATCH (d:Resource)
+        `MATCH (d:Resource) WHERE coalesce(d.stub, false) = false
          RETURN d.format as type, count(*) AS count`
       );
-
       const contentTypes: Record<string, number> = {};
       contentTypeResult.records.forEach(record => {
-        contentTypes[record.get('type')] = record.get('count').toNumber();
+        contentTypes[record.get('type')] = count(record.get('count'));
       });
 
+      const counted = annotations.records[0]!;
       return {
-        resourceCount,
-        annotationCount,
-        highlightCount,
-        referenceCount,
-        entityReferenceCount,
+        resourceCount: count(resources.records[0]!.get('resources')),
+        annotationCount: count(counted.get('annotations')),
+        highlightCount: count(counted.get('highlights')),
+        referenceCount: count(counted.get('references')),
+        entityReferenceCount: count(counted.get('entityReferences')),
         entityTypes,
         contentTypes
       };
@@ -975,184 +562,13 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async batchCreateResources(resources: ResourceDescriptor[]): Promise<ResourceDescriptor[]> {
-    if (resources.length === 0) return [];
-    const session = this.getSession();
-    try {
-      const params = resources.map(resource => {
-        const primaryRep = getPrimaryRepresentation(resource);
-        if (!primaryRep) throw new Error('Resource must have at least one representation');
-        return {
-          id: resource['@id'],
-          name: resource.name,
-          entityTypes: resource.entityTypes,
-          format: primaryRep.mediaType,
-          archived: resource.archived || false,
-          created: resource.dateCreated,
-          creator: JSON.stringify(resource.wasAttributedTo),
-          contentChecksum: primaryRep.checksum,
-          sourceAnnotationId: resource.sourceAnnotationId ?? null,
-          sourceResourceId: resource.sourceResourceId ?? null,
-          storageUri: getStorageUri(resource) ?? null,
-        };
-      });
-
-      const result = await session.run(
-        `UNWIND $resources AS r
-         MERGE (d:Resource {id: r.id})
-         SET d.name = r.name,
-             d.entityTypes = r.entityTypes,
-             d.format = r.format,
-             d.archived = r.archived,
-             d.created = r.created,
-             d.creator = r.creator,
-             d.contentChecksum = r.contentChecksum,
-             d.sourceAnnotationId = r.sourceAnnotationId,
-             d.sourceResourceId = r.sourceResourceId,
-             d.storageUri = r.storageUri,
-             d.stub = false
-         RETURN d`,
-        { resources: params }
-      );
-
-      this.logger?.info('Batch created/enriched resources', { count: resources.length });
-      return result.records.map(record => this.parseResourceNode(record.get('d')));
-    } finally {
-      await session.close();
-    }
-  }
-
-  async createAnnotations(inputs: CreateAnnotationInternal[]): Promise<Annotation[]> {
-    const results: Annotation[] = [];
-    for (const input of inputs) {
-      results.push(await this.createAnnotation(input));
-    }
-    return results;
-  }
-
-  async resolveReferences(inputs: { annotationId: AnnotationId; source: ResourceId }[]): Promise<Annotation[]> {
-    const results: Annotation[] = [];
-    for (const input of inputs) {
-      results.push(await this.resolveReference(input.annotationId, input.source));
-    }
-    return results;
-  }
-
-  // Tag Collections
-  async getEntityTypes(): Promise<string[]> {
-    if (this.entityTypesCollection === null) {
-      await this.initializeTagCollections();
-    }
-    return Array.from(this.entityTypesCollection!).sort();
-  }
-
-  async addEntityType(tag: string): Promise<void> {
-    if (this.entityTypesCollection === null) {
-      await this.initializeTagCollections();
-    }
-    this.entityTypesCollection!.add(tag);
-    await this.persistTagCollection('entity-types', this.entityTypesCollection!);
-  }
-
-  async addEntityTypes(tags: string[]): Promise<void> {
-    if (this.entityTypesCollection === null) {
-      await this.initializeTagCollections();
-    }
-    tags.forEach(tag => this.entityTypesCollection!.add(tag));
-    await this.persistTagCollection('entity-types', this.entityTypesCollection!);
-  }
-
-  private async initializeTagCollections(): Promise<void> {
-    const session = this.getSession();
-    try {
-      // Load existing collections from Neo4j
-      const result = await session.run(
-        'MATCH (t:TagCollection {type: "entity-types"}) RETURN t.tags as tags'
-      );
-
-      let entityTypesFromDb: string[] = [];
-
-      if (result.records.length > 0) {
-        const record = result.records[0];
-        if (record) {
-          const tags = record.get('tags');
-          entityTypesFromDb = tags || [];
-        }
-      }
-
-      // Load defaults
-      const { DEFAULT_ENTITY_TYPES } = await import('@semiont/ontology');
-
-      // Merge with defaults
-      this.entityTypesCollection = new Set([...DEFAULT_ENTITY_TYPES, ...entityTypesFromDb]);
-
-      // Persist merged collection back to Neo4j
-      await this.persistTagCollection('entity-types', this.entityTypesCollection);
-    } finally {
-      await session.close();
-    }
-  }
-
-  private async persistTagCollection(type: string, collection: Set<string>): Promise<void> {
-    const session = this.getSession();
-    try {
-      await session.run(
-        'MERGE (t:TagCollection {type: $type}) SET t.tags = $tags',
-        { type, tags: Array.from(collection) }
-      );
-    } finally {
-      await session.close();
-    }
-  }
-
-  generateId(): string {
-    return uuidv4().replace(/-/g, '').substring(0, 12);
-  }
-
-  async clearDatabase(): Promise<void> {
-    const session = this.getSession();
-    try {
-      // CAREFUL! This clears the entire database
-      await session.run('MATCH (n) DETACH DELETE n');
-      this.entityTypesCollection = null;
-    } finally {
-      await session.close();
-    }
-  }
-
-  // Helper methods to parse Neo4j nodes
-  private parseResourceNode(node: any): ResourceDescriptor {
-    const props = node.properties;
-
-    // Validate all required fields
-    if (!props.id) throw new Error('Resource missing required field: id');
-    if (!props.name) throw new Error(`Resource ${props.id} missing required field: name`);
-    if (!props.entityTypes) throw new Error(`Resource ${props.id} missing required field: entityTypes`);
-    if (!props.format) throw new Error(`Resource ${props.id} missing required field: contentType`);
-    if (props.archived === undefined || props.archived === null) throw new Error(`Resource ${props.id} missing required field: archived`);
-    if (!props.created) throw new Error(`Resource ${props.id} missing required field: created`);
-    if (!props.creator) throw new Error(`Resource ${props.id} missing required field: creator`);
-    if (!props.contentChecksum) throw new Error(`Resource ${props.id} missing required field: contentChecksum`);
-
-    const resource: ResourceDescriptor = {
-      '@context': 'https://schema.org/',
-      '@id': props.id,
-      name: props.name,
-      entityTypes: props.entityTypes,
-      representations: [{
-        mediaType: props.format,
-        checksum: props.contentChecksum,
-        rel: 'original',
-        storageUri: props.storageUri ?? undefined,
-      }],
-      archived: props.archived,
-      dateCreated: props.created.toString(),
-      wasAttributedTo: typeof props.creator === 'string' ? JSON.parse(props.creator) : props.creator,
-    };
-
-    if (props.sourceResourceId) resource.sourceResourceId = props.sourceResourceId;
-
-    return resource;
+  /**
+   * A node's properties, in the codec's names. What they mean, and which a
+   * resource must have, is the codec's.
+   */
+  private parseResourceNode(node: Neo4jNode): ResourceDescriptor {
+    const { id, name, entityTypes, format, archived, created, creator, contentChecksum, storageUri } = node.properties;
+    return decodeResource({ id, name, entityTypes, format, archived, created, creator, contentChecksum, storageUri });
   }
 
 }

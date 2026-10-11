@@ -90,8 +90,8 @@ def factory_hits(lines, sf):
     """Check 3b: `storageUri:` at brace depth 1 inside a descriptor factory
     call (createTestResource({...})). The override object IS a descriptor
     literal, but it usually has no `representations:` sibling for check 3 to
-    anchor on — this shape escaped to CI twice (memorygraph, then the graph
-    interface-contract suite). Depth 1 = top level of the override; a URI
+    anchor on — this shape escaped to CI twice, both times in the graph
+    package's tests. Depth 1 = top level of the override; a URI
     inside `representations: [{ ... }]` sits at depth 2+ and is the correct
     shape."""
     for i, l in enumerate(lines):

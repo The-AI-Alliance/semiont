@@ -15,9 +15,9 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { LLMContext, type ResourceGatherReads } from '../llm-context';
 import { resourceId, annotationId, EventBus, type Logger } from '@semiont/core';
-import type { GraphServiceConfig, GatheredContext } from '@semiont/core';
+import type { Annotation, GatheredContext } from '@semiont/core';
 import { calculateChecksum } from '@semiont/content';
-import type { GraphDatabase } from '@semiont/graph';
+import { MemoryGraphDatabase, type GraphDatabase } from '@semiont/graph';
 import { createSmeltProgress } from '../smelt-progress';
 import { createRecordFixture, type RecordFixture } from './helpers/record-fixtures';
 
@@ -48,7 +48,6 @@ vi.mock('@semiont/inference', async () => {
 
 describe('LLM Context', () => {
   let record: RecordFixture;
-  let graphConfig: GraphServiceConfig;
   // The narrow gather reads — real views, a real memory graph, mock vectors.
   let kb: ResourceGatherReads;
   let graphDb: GraphDatabase;
@@ -63,12 +62,34 @@ describe('LLM Context', () => {
       JSON.stringify(['Reference 1', 'Reference 2'])
     ]);
 
-    graphConfig = { type: 'memory' } as GraphServiceConfig;
-
     record = await createRecordFixture();
 
-    const { getGraphDatabase } = await import('@semiont/graph');
-    graphDb = await getGraphDatabase(graphConfig);
+    // The unified context sources a resource's annotations from the graph.
+    // This test's kb wires no Weaver, so the graph is made holding what a
+    // Weaver would have given it: the resource, with the checksum, date and
+    // attribution every folded resource has, and one annotation on it.
+    const inGraph = {
+      '@context': 'http://www.w3.org/ns/anno.jsonld',
+      type: 'Annotation',
+      id: annotationId('llm-graph-ann'),
+      motivation: 'highlighting',
+      created: '2026-01-01T00:00:00.000Z',
+      target: { source: resourceId(testResourceId), selector: [{ type: 'TextPositionSelector', start: 0, end: 4 }] },
+      creator: { '@type': 'Person', '@id': 'did:web:test.local:users:test-user', name: 'Test User' },
+    } as Annotation;
+    graphDb = new MemoryGraphDatabase({
+      resources: [{
+        '@context': 'https://schema.org/',
+        '@id': resourceId(testResourceId),
+        name: 'LLM Context Test Resource',
+        archived: false,
+        entityTypes: [],
+        representations: [{ mediaType: 'text/plain', rel: 'original', checksum: 'sha256:llm-context-test' }],
+        dateCreated: '2026-01-01T00:00:00.000Z',
+        wasAttributedTo: { '@type': 'Person', '@id': 'did:web:test:users:asker', name: 'Asker' },
+      }],
+      annotations: [inGraph],
+    });
     kb = {
       views: record.views,
       content: record.content,
@@ -81,16 +102,6 @@ describe('LLM Context', () => {
     };
 
     await record.resource(testResourceId, { name: 'LLM Context Test Resource', text: CONTENT });
-
-    // Populate graph database (required by GraphContext)
-    await graphDb.createResource({
-      '@context': 'https://www.w3.org/ns/anno.jsonld',
-      '@id': resourceId(testResourceId),
-      name: 'LLM Context Test Resource',
-      archived: false,
-      entityTypes: [],
-      representations: { mediaType: 'text/plain', rel: 'original', checksum: '', byteSize: Buffer.byteLength(CONTENT) },
-    });
   });
 
   afterAll(async () => {
@@ -151,19 +162,8 @@ describe('LLM Context', () => {
         target: { source: resourceId(testResourceId), selector: [{ type: 'TextPositionSelector', start: 0, end: 4 }] },
       });
 
-      // The unified context sources annotations from the graph projection; this test's kb wires no
-      // Weaver, so add the annotation to the graph store directly. The graph
-      // is a projection of already-derived events, so its write API takes
-      // `creator` as the event carried it.
-      const creator = { '@type': 'Person' as const, '@id': 'did:web:test.local:users:test-user', name: 'Test User' };
-      await graphDb.createAnnotation({
-        id: annotationId('llm-graph-ann'),
-        motivation: 'highlighting',
-        created: '2026-01-01T00:00:00.000Z',
-        target: { source: resourceId(testResourceId), selector: [{ type: 'TextPositionSelector', start: 0, end: 4 }] },
-        creator,
-      });
-
+      // The context's annotation nodes come from the graph, which was made
+      // holding one on this resource.
       const result = await LLMContext.getResourceContext(
         resourceId(testResourceId),
         { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },

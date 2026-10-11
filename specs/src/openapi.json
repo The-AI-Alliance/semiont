@@ -954,6 +954,24 @@
       "WorkerAgentConfig": {
         "$ref": "components/schemas/WorkerAgentConfig.json"
       },
+      "WeaverConfig": {
+        "$ref": "components/schemas/WeaverConfig.json"
+      },
+      "GraphConfig": {
+        "$ref": "components/schemas/GraphConfig.json"
+      },
+      "Neo4jGraphConfig": {
+        "$ref": "components/schemas/Neo4jGraphConfig.json"
+      },
+      "JanusGraphConfig": {
+        "$ref": "components/schemas/JanusGraphConfig.json"
+      },
+      "NeptuneGraphConfig": {
+        "$ref": "components/schemas/NeptuneGraphConfig.json"
+      },
+      "MemoryGraphConfig": {
+        "$ref": "components/schemas/MemoryGraphConfig.json"
+      },
       "DispatcherHealth": {
         "$ref": "components/schemas/DispatcherHealth.json"
       },

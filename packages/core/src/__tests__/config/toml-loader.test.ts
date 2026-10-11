@@ -598,9 +598,9 @@ apiKey = "\${UNSET_P5_KEY}"
   });
 
   it('a service reading a section it does not declare refuses, naming the section and the spec', () => {
-    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), {}, 'weaver');
+    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), {}, 'smelter');
     expect(cfg.services.identity.type).toBe('keycloak');
-    expect(() => cfg.services.vectors).toThrow(/weaver.*\[environments\.local\.vectors\].*specs\/src\/service-config\/sections\.json/);
+    expect(() => cfg.services.graph).toThrow(/smelter.*\[environments\.local\.graph\].*specs\/src\/service-config\/sections\.json/);
   });
 });
 
@@ -836,7 +836,7 @@ model = "nomic-embed-text"
   });
 
   it('createTomlConfigLoader hands its service to the loader', () => {
-    const cfg = createTomlConfigLoader(makeReader(MINIMAL_TOML), '/home/user/.semiontconfig', {}, 'weaver')('/project', 'local');
-    expect(() => cfg.services.vectors).toThrow(/weaver/);
+    const cfg = createTomlConfigLoader(makeReader(MINIMAL_TOML), '/home/user/.semiontconfig', {}, 'smelter')('/project', 'local');
+    expect(() => cfg.services.graph).toThrow(/smelter/);
   });
 });

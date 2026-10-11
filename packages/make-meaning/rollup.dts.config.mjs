@@ -44,7 +44,6 @@ function isExternal(id) {
 const entries = [
   { input: 'dist-types/index.d.ts', file: 'dist/index.d.ts' },
   { input: 'dist-types/smelter-main.d.ts', file: 'dist/smelter-main.d.ts' },
-  { input: 'dist-types/weaver-main.d.ts', file: 'dist/weaver-main.d.ts' },
   { input: 'dist-types/librarian-main.d.ts', file: 'dist/librarian-main.d.ts' },
 ];
 

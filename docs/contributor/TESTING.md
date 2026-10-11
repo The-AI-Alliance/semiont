@@ -12,12 +12,16 @@ How Semiont's test suites are organized, configured and run, and what CI gates o
 | Python | `packages/sdk-python` (`uv run pytest`) | The Python SDK: its transport, sign-in and session, its client, cache and live queries, the shared case tables, and the programs its README shows, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
 | Python | `packages/inference-python` (`uv run pytest`) | The Python inference drivers: each driver against a provider the test plays over HTTP, what a driver raises, the extras, the telemetry rows against the spec, and the program its README shows, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
 | Python | `apps/worker` (`uv run pytest`) | The Worker service's Python code: the case tables that state how a failure is classed, where a text is cut and how its pieces are planned, and what the project is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
+| Python | `packages/graph-python` (`uv run pytest`) | The Python graph stores: the codecs against the case table of what the graph holds, one store contract against the in-memory store, the two Gremlin stores against fake clients, the extras, and what the package is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
+| Python | `packages/graph-python` (`uv run pytest tests/neo4j_live.py`) | The same store contract against a real neo4j, which it clears | The above, and a neo4j of its own, named in `NEO4J_HOST` and `NEO4J_PASSWORD` |
+| Python | `apps/weaver` (`uv run pytest`) | The Weaver's Python code: the fold against the case table of what each event does to the graph, and the Weaver over a scripted transport and a graph in the process (its order, its marks, catch-up, reconcile, rebuild, what it refuses to start on), and what the project is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
 | Gateway conformance | [`tests/conformance/gateway`](../../tests/conformance/gateway/README.md) | A running gateway, black-box, against `specs/`: every declared operation, every response and stream message, and hand-written protocol cases, on both signal planes | A built gateway; `nats-server` 2.10 or later on `PATH` |
 | Dispatcher conformance | [`tests/conformance/dispatcher`](../../tests/conformance/dispatcher/README.md) | A running dispatcher, black-box, behind a real gateway on a real JetStream broker, against [JOBS.md](../protocol/JOBS.md) and every channel's schema | A built gateway and dispatcher; `nats-server` |
 | Archivist conformance | [`tests/conformance/archivist`](../../tests/conformance/archivist/README.md) | A running Archivist, black-box, on the bus through a real gateway, at its HTTP surface and in the files it keeps, against [ARCHIVIST.md](../protocol/ARCHIVIST.md) | A built gateway and Archivist; `git`; `nats-server` |
 | SDK conformance | [`tests/conformance/sdk`](../../tests/conformance/sdk/README.md) | Every SDK, through a driver, as a client of a real gateway: one corpus of cases, on the wire and in live queries | A built gateway and the Rust drivers; `@semiont/sdk` built; `uv` and Python 3.12 or later, for the Python drivers; `nats-server` |
 | Worker conformance | [`tests/conformance/worker`](../../tests/conformance/worker/README.md) | A worker written on each SDK, through a driver, with the suite playing the dispatcher, against [WORKER-CONTRACT.md](../protocol/WORKER-CONTRACT.md) | A built gateway and the Rust drivers; the packages built; `uv` and Python 3.12 or later, for the Python driver; `nats-server` |
 | Worker-service conformance | [`tests/conformance/worker-service`](../../tests/conformance/worker-service/README.md) | The Worker service as a running process, black-box, behind a real gateway, with the suite playing the dispatcher, the record, the Smelter and the model's provider, against [WORKER-SERVICE.md](../protocol/WORKER-SERVICE.md) | A built gateway; `@semiont/core` built; the Worker service's environment, which `uv` makes; `nats-server` |
+| Weaver conformance | [`tests/conformance/weaver`](../../tests/conformance/weaver/README.md) | The Weaver as a running process, black-box, behind a real gateway and a real Archivist, writing a real neo4j that the suite reads back, against [WEAVER.md](../protocol/WEAVER.md) | A built gateway and Archivist; the Weaver's Python environment (`uv sync --locked --no-dev --all-extras --project apps/weaver`); the packages built; `git`; `nats-server`; a neo4j of its own, named in `NEO4J_HOST` and `NEO4J_PASSWORD` |
 | End-to-end | [`tests/e2e`](../../tests/e2e/README.md) | The live Browser against a live gateway and knowledge base | A running stack and a user at its issuer |
 
 The conformance suites import nothing from what they check. One line per service and per SDK in [`harness/paths.ts`](../../tests/conformance/harness/paths.ts) names the implementation, so the same cases judge any implementation of the same spec.
@@ -77,7 +81,7 @@ Workspace suites run with nothing listening. CI's package matrix starts no datab
 
 ### How the conformance suites are configured
 
-[`tests/conformance/vitest.config.ts`](../../tests/conformance/vitest.config.ts) is its own config, not derived from the shared one. It holds six projects over one shared harness: `gateway`, `dispatcher`, `archivist`, `sdk`, `worker` and `worker-service`. It uses the `forks` pool with up to four workers, since each file boots its own gateways, issuer and broker, and a 60-second test timeout.
+[`tests/conformance/vitest.config.ts`](../../tests/conformance/vitest.config.ts) is its own config, not derived from the shared one. It holds seven projects over one shared harness: `gateway`, `dispatcher`, `archivist`, `sdk`, `worker`, `worker-service` and `weaver`. It uses the `forks` pool with up to four workers, since each file boots its own gateways, issuer and broker, and a 60-second test timeout.
 
 Each gateway the suite starts gets a fresh temporary directory holding its `GatewayConfig` document, and an environment of `PATH` plus the variables the case sets, such as `JWT_SECRET` and `SEMIONT_OIDC_CLIENT_ID`. Nothing else from your shell reaches it.
 
@@ -130,7 +134,7 @@ cargo build --release -p semiont-gateway -p semiont-dispatcher -p semiont-archiv
 npm run build:packages
 cd tests/conformance
 npm ci
-npm run test:gateway        # or test:dispatcher, test:archivist, test:sdk, test:worker, test:worker-service; npm test runs all six
+npm run test:gateway        # or test:dispatcher, test:archivist, test:sdk, test:worker, test:worker-service, test:weaver; npm test runs all seven
 ```
 
 Each script typechecks the cases first. What each suite checks is in its README, linked in the table above, and the gateway's is also described in [apps/gateway/docs/TESTING.md](../../apps/gateway/docs/TESTING.md).
@@ -148,7 +152,7 @@ The launcher's suite takes minutes; its notes are in [apps/launcher/README.md](.
 
 ### Python
 
-As CI runs them, from `packages/sdk-python`, and the same from `packages/inference-python` and from `apps/worker`:
+As CI runs them, from `packages/sdk-python`, and the same from `packages/inference-python`, `packages/graph-python`, `apps/worker` and `apps/weaver`:
 
 ```bash
 uv sync --locked
@@ -302,10 +306,14 @@ Excluded from coverage: what the shared config excludes (see [One shared Vitest 
 | `sdk-conformance` | Builds the gateway, the Rust drivers and `@semiont/sdk`, installs the Python SDK's locked environment, and runs the `sdk` project |
 | `worker-conformance` | Builds the gateway, the Rust drivers and the packages, installs the Python SDK's locked environment, and runs the `worker` project |
 | `worker-service-conformance` | Builds the gateway and `@semiont/core`, makes the Worker service's locked environment with every provider's library, and runs the `worker-service` project |
+| `weaver-conformance` | Builds the gateway, the Archivist and the packages, makes the Weaver's Python environment, starts the neo4j the launcher runs, and runs the `weaver` project |
 | `test-sdk-python` | `mypy` and `pyright`, each as Linux and as Windows, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `packages/sdk-python`; the distributions a release uploads are built and checked |
 | `test-sdk-python-windows` | The Python SDK's sign-in store and state directory tests, on Windows |
 | `test-inference-python` | `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `packages/inference-python` |
 | `test-worker-python` | `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `apps/worker` |
+| `test-graph-python` | `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `packages/graph-python` |
+| `test-graph-python-neo4j` | Starts the neo4j the launcher runs and holds the Python neo4j store to the store contract against it |
+| `test-weaver-python` | `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `apps/weaver` |
 | `test-comprehensive` | The Browser suite again, after a full package build |
 | `validate-config` | `npm ci --include=optional` and `npm run build:packages` |
 | `check-phantom-deps` | Every import in a published `dist` is declared by its package |

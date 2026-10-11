@@ -12,12 +12,6 @@ export type StoredResource = Required<
   Pick<components['schemas']['Representation'], 'storageUri' | 'checksum' | 'byteSize' | 'created'>
 >;
 
-export interface UpdateResourceInput {
-  name?: string;
-  entityTypes?: string[];
-  archived?: boolean;
-}
-
 export interface ResourceFilter {
   entityTypes?: string[];
   search?: string;

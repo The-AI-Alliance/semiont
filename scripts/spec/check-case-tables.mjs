@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // lint:spec-case-tables — the case tables that state what a worker does to a
-// text and to a model's reply and what a bus log shows of a payload, and the
-// runners each must have.
+// text and to a model's reply, what a bus log shows of a payload, what the
+// graph holds of an annotation and a resource and what the Weaver's fold does
+// to it, and the runners each must have.
 //
 // A rule that lives only in one implementation's code is that
 // implementation's. These tables are the rules a worker in any language is
@@ -10,7 +11,9 @@
 // of a PDF, the builders, the id, the readers) is run by the TypeScript, Rust
 // and Python SDKs, each through its own code. What Semiont's worker alone
 // does is run by that worker. What a bus log shows of a payload is run by
-// each bus log: TypeScript's, Rust's and Python's.
+// each bus log: TypeScript's, Rust's and Python's. What the graph holds of an
+// annotation and of a resource is run by each implementation of the graph's
+// codecs, and what the Weaver's fold does to the graph by each Weaver.
 //
 // It fails when:
 //   - a table listed here does not exist, is not JSON, states no `$comment`
@@ -23,14 +26,15 @@
 //     the basic plane. An offset counts code points, and so does every length
 //     such a rule states; only a text with such a character tells that count
 //     from a count of UTF-16 code units or of bytes, so a table without one
-//     holds its rule to no count. These are every table here but five: what
+//     holds its rule to no count. These are every table here but seven: what
 //     an offset counts, the chunker, the reconciling of a quote, the locating
 //     of a span of a PDF, the builders, the id (whose anchor states a span's
 //     offsets), the chunk plan, the citations, and the reading of a reply
 //     (whose items state where each passage is, and how long a piece was).
 //     The two tables of what text a resource's bytes are, the readers' table,
-//     the table of failure classes and the bus log's table count nothing and
-//     state no offset, and are held to nothing about their characters.
+//     the table of failure classes, the bus log's table, the graph codecs'
+//     table and the Weaver's fold table count nothing and state no offset, and
+//     are held to nothing about their characters.
 //
 // It reads the source files, so it cannot pass on a stale bundle.
 
@@ -41,7 +45,7 @@ import { fileURLToPath } from 'node:url';
 const REPO = resolve(fileURLToPath(import.meta.url), '../../..');
 
 /** Where these tables live. Every `*-cases.json` in one of them is listed below. */
-const DIRECTORIES = ['specs/src/text', 'specs/src/annotations', 'specs/src/worker', 'specs/src/bus'];
+const DIRECTORIES = ['specs/src/text', 'specs/src/annotations', 'specs/src/worker', 'specs/src/bus', 'specs/src/graph', 'specs/src/weaver'];
 
 /**
  * Each table, and the files that run it.
@@ -164,6 +168,19 @@ const TABLES = [
       'packages/sdk-rust/src/bus_log.rs',
       'packages/sdk-python/tests/test_bus_log.py',
     ],
+  },
+  // What the graph holds of an annotation and of a resource, run by each
+  // implementation of the graph's codecs: TypeScript's (@semiont/graph) and
+  // Python's (semiont_graph).
+  {
+    table: 'specs/src/graph/codec-cases.json',
+    runners: ['packages/graph/src/__tests__/codec-cases.test.ts', 'packages/graph-python/tests/test_codec_cases.py'],
+  },
+  // What the Weaver's fold does to the graph: a history of recorded events,
+  // and the graph it leaves. Run by the Weaver (semiont_weaver).
+  {
+    table: 'specs/src/weaver/fold-cases.json',
+    runners: ['apps/weaver/tests/test_fold_cases.py'],
   },
 ];
 

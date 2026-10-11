@@ -1,112 +1,156 @@
 # semiont-weaver
 
-**Projects the event log into the graph.** One of the two projection pipelines — the graph
-half of what the Smelter does for vectors.
+**Keeps the graph in step with the record.** It follows the recorded events that change what
+the graph holds, applies each to a graph database, and says how far it has got.
 
 | | |
 | --- | --- |
 | Image | `ghcr.io/the-ai-alliance/semiont-weaver` |
-| Port | 24102 (`/health`, and nothing else — all real traffic is the bus) |
-| Entry point | `@semiont/make-meaning/dist/weaver-main.js` |
-| Code | [`packages/make-meaning`](../../packages/make-meaning/) |
-| npm | not published — container only |
+| Port | 24102 (`/health`, and nothing else: everything it does is on the bus and in the graph) |
+| Command | `python -P -m semiont_weaver --config /etc/semiont/weaver.json` |
+| Code | Python, in this directory: [`src/semiont_weaver`](./src/semiont_weaver/) |
+| Package indexes | not published — container only |
 
-## The source is not in this directory
-
-Only the image recipe lives here. The entry point is
-`packages/make-meaning/src/weaver-main.ts`, and the image installs the published
-`@semiont/make-meaning` and runs `dist/weaver-main.js` out of it. That is deliberate: the
-entry point is thin wiring over the pipeline it starts, and moving it here would mean
-promoting ~18 of that package's internals to public API to satisfy a directory layout.
-
-Change the CMD only against that file.
-
-The image also bundles `neo4j-driver`, as the Librarian's does and the Archivist's and the
-Smelter's do not. It is a lazy peer of `@semiont/graph`, loaded at connect time, so only the
-images of services that dial the graph carry it. The Weaver is the one that writes it.
+What the service does is written rule by rule in [WEAVER.md](../../docs/protocol/WEAVER.md),
+and the [weaver conformance suite](../../tests/conformance/weaver/README.md) holds a Weaver
+to each rule, as a process behind a real gateway, a real Archivist and a real neo4j. This
+page is the image, and how it is run.
 
 ## What it does
 
-Subscribes to graph-relevant domain events over SSE and writes them into the graph store:
-resources, annotations, references, entity types, and the edges between them. That projection
-is what `gather.referencedBy` answers from, and what gather's knowledge-graph traversal
-walks.
+It follows nine of the events a knowledge base records and writes each into the graph: a
+resource, an annotation, an annotation's link to another resource and its entity tags, a
+resource's archiving and entity types, and the vocabulary. That graph is what
+`gather.referencedBy` answers from, and what gather's knowledge-graph traversal walks.
 
-It is a pure network peer. Its only privileged attachment beyond the bus is the graph
-database — no knowledge base mount, no event-store attachment. Even the history it replays
-arrives as `browse:*` bus reads.
+It reaches two things: the gateway, for the bus, and the graph database. It mounts no piece
+of the knowledge base and no state. The history it replays arrives as `browse:*` reads over
+the bus, answered by the Archivist.
+
+**The graph says what the record says.** A resource is dated when its event was recorded and
+is by whom the event records; an annotation is by the creator its event records, who asked
+for it, and never by whoever sent the event. A person is held without a name: the name is
+the directory's, which the Archivist joins onto every read.
 
 ## Readers wait on its signals
 
-Every apply emits `weave:applied` with the resource and the sequence it has reached. The
-Archivist and the Librarian each fold those into per-resource progress, and the
-read-after-write barrier in gather's knowledge-graph build waits on that signal rather than
-polling.
+Each time it has applied more of a resource's record it emits `weave:applied`, with the
+resource and the sequence number it has reached. The Archivist and the Librarian each keep
+those, and the read-after-write barrier in gather's knowledge-graph build waits on that
+signal rather than polling.
 
-So a stopped weaver is not a quiet degradation. Reads that need a just-written node block at
-the barrier and then fail — the graph stays empty, and a gather finds nothing to walk.
+So a stopped Weaver is not a quiet degradation. A read that needs a node just written waits
+at the barrier and then fails: the graph stays as it was, and a gather finds nothing new to
+walk.
 
-`weave:rebuild` is the one command it accepts: optionally scoped to a single resource,
-strictly serialized, answered with a correlated `weave:rebuild-ok` or `weave:rebuild-failed`.
-A rebuild that dropped events fails rather than claiming success.
+`weave:rebuild` is the one command it answers: for one resource or for the whole graph, one
+at a time, answered with `weave:rebuild-ok` or `weave:rebuild-failed`. A rebuild that left
+events not applied answers that it failed, and says how many.
+
+## When it starts
+
+It reads its document, signs in, connects to the graph database, begins following the
+record, opens its health port, and then runs two passes. Both can be run again, so a restart
+runs them again, and `/health` reports how each ended.
+
+**Catch-up** applies what was recorded while it was not running: from the marks it kept, or
+everything where it kept none. **Reconcile** then compares the graph with what the record's
+views say, and rebuilds from the record any resource the graph holds wrongly: the backstop
+for what catch-up cannot see, such as a graph volume that was wiped.
+
+**A pass that fails does not end the service.** A failed pass is said in the log and at
+`/health`, and the Weaver goes on applying what arrives. That log line is the one signal
+that the graph may be behind.
+
+**An orphaned view is reported, not healed.** A resource the catalog lists and the record
+holds no events for cannot be rebuilt, so reconcile counts it as `orphaned`. It means history
+was rewritten without the views being made again; `semiont clean --store state` clears them.
 
 ## Configuration
 
-Reads `~/.semiontconfig` (TOML), section chosen by `[defaults] environment`. Required:
+It reads one document, the protocol's
+[`WeaverConfig`](../../specs/src/components/schemas/WeaverConfig.json), at the path
+`--config` names. The launcher writes it for the Weaver it starts, resolved, and mounts it at
+`/etc/semiont/weaver.json`. Whoever starts a Weaver another way writes the same document.
 
-| Key | |
+| Member | |
 | --- | --- |
-| `services.gateway.publicURL` | the bus it subscribes to and emits on |
-| `services.graph.type` | the graph sink — must be server-backed |
-| `services.identity.issuer` | where it signs in |
+| `gatewayUrl` | the gateway: its route to the bus |
+| `identity.issuer` | where its service account signs in |
+| `graph` | the graph database ([`GraphConfig`](../../specs/src/components/schemas/GraphConfig.json)): its kind, where it is reached, and the name of the variable that holds its password |
+| `checkpointPath` | the file it keeps its marks in |
+| `port` | the port `/health` answers on |
+| `logLevel`, `logFormat` | how it logs |
 
-Those are the three sections it reads: `gateway`, `graph` and `identity`.
-`type = "memory"` is refused at startup: the in-memory graph lives in one process's heap and
-cannot be shared with the Archivist and the Librarian, which read it.
-
-Its environment is **`SEMIONT_OIDC_CLIENT_ID`** / **`SEMIONT_OIDC_CLIENT_SECRET`**: its own
-service account at the knowledge base's issuer, exchanged for an issuer token and then for an
-agent token naming the stable identity `(semiont, weaver)`:
+Its environment is its service account, **`SEMIONT_OIDC_CLIENT_ID`** and
+**`SEMIONT_OIDC_CLIENT_SECRET`**, and the one variable its document names for the graph
+database's password (`NEO4J_PASSWORD`, for a Neo4j the launcher runs). It signs in as itself
+and works as the agent `(semiont, weaver)`:
 `did:web:<the knowledge base's domain>:agents:semiont:weaver`.
 
-It mounts nothing. Its catch-up checkpoint is a file in the container's own temporary
-directory, so it lasts as long as the container does. The checkpoint is an optimization, never
-a correctness input: losing it degrades the next catch-up to a full replay.
+Started without its document, without its account or without that password, it refuses to
+start: one line on stderr that begins `[fatal] `, and status 1. A graph of the kind `memory`
+is refused too: a graph in the Weaver's own memory could not be shared with a reader.
 
-## Startup catch-up and reconcile
+**Its marks are never a correctness input.** The launcher has it keep them in the
+container's own temporary directory, so they last as long as the container does. A Weaver
+that finds none applies the whole record again and ends with the same graph.
 
-On boot it runs two passes. Both are idempotent, so a restart re-runs them, and `/health`
-reports each one's phase and summary.
+## What the image carries
 
-**Catch-up** replays what it missed while down, from the checkpoint forward (full replay if
-the checkpoint is gone). **Reconcile** then diffs the projection against what the views serve
-and heals divergence from the log — the backstop for damage the accounting cannot witness: a
-wiped graph volume, an out-of-band mutation.
+The service, and the two Python packages of this repository it runs on: the SDK
+([`packages/sdk-python`](../../packages/sdk-python/)), its client of the gateway, and the
+graph stores ([`packages/graph-python`](../../packages/graph-python/)), which ask a graph
+database. All three are built into the image from the commit it is published from, and carry
+[`version.json`](../../version.json)'s version. Everything else in its environment is what
+[`uv.lock`](./uv.lock) pins. Nothing is built, installed or fetched when the container
+starts.
 
-**A failed pass does not kill the process.** Under no restart policy an exit means gone
-until a human notices, and one refused bus request is enough to fail a pass. A failed repair
-pass is a data condition, so the weaver
-survives it and logs an error. That error is the only operator-visible signal that the
-projection may be stale; nothing else reports it, and `/health` does not fold it in.
+**Every graph database's client is in it.** The stores ask each database through that
+database's own client, which their package brings as an extra named for the store
+([what an install has](../../packages/graph-python/README.md#what-an-install-has)). The image
+is built with every extra, so it is not rebuilt to be pointed at another database.
 
-So a restart heals missed events and drift. **It does not re-derive events it has already
-applied.** Reconcile compares a fixed set of facts — node presence, archived flag, entity
-types, the annotation id set, and annotation bodies — so a change to what the projection
-*stores* outside that set, such as a new denormalized property on a node, is invisible to it.
-After that kind of change, run `weave:rebuild`, and verify the projection actually carries
-what you expect rather than trusting the command's success line.
+**The launcher writes its document for Neo4j alone,** the one graph database it runs and the
+one the stores have been run against. The JanusGraph and Neptune stores have never run
+against a server.
 
-**An orphaned view is reported, not healed.** A resource in the catalog whose log holds no
-events cannot be rebuilt — replaying nothing writes nothing — so reconcile counts it as
-`orphaned` rather than `healed` and warns with the remedy. It means history was rewritten
-without invalidating the views; the archivist's startup rebuild reaps such views, and
-`semiont clean --store state` clears them outright.
+It runs on the oldest Python the repository's Python packages support, on Alpine, as the
+user `semiont`. It carries no installer (`pip`, `uv`) and no Node.
+
+### A slimmer image
+
+The one line that decides which databases' clients an image has is the builder stage's
+`uv sync` in the [Dockerfile](./Dockerfile). `--all-extras` asks for every extra of
+`semiont-weaver`, each of which brings the stores' extra of the same name. An image for one
+database names that database's in its place:
+
+```dockerfile
+RUN uv sync --project apps/weaver --locked --no-dev --no-editable --extra neo4j
+```
+
+A service whose document names a database its image has no client for refuses to start, and
+names the stores' extra that brings it.
+
+## Building it
+
+From the repository root, on the Python [`scripts/ci/python-floor.sh`](../../scripts/ci/python-floor.sh)
+prints:
+
+```bash
+docker build --build-arg PYTHON_FLOOR=$(scripts/ci/python-floor.sh) \
+  --file apps/weaver/Dockerfile --tag ghcr.io/the-ai-alliance/semiont-weaver:local .
+```
+
+[`scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh) builds it so with the other
+images, and [`scripts/container/check-python-image.sh`](../../scripts/container/check-python-image.sh)
+checks what a built one promises.
 
 ## Related
 
-- [`@semiont/make-meaning`](../../packages/make-meaning/) — the pipeline and this entry point
-- [`@semiont/graph`](../../packages/graph/) — the store adapters and the annotation codec
+- [WEAVER.md](../../docs/protocol/WEAVER.md) — what a Weaver does, rule by rule
+- [`semiont-graph`](../../packages/graph-python/) — the graph stores, and what the graph holds
 - [Gateway](../gateway/) — the bus it rides
 - [Librarian](../librarian/) and [Archivist](../archivist/) — the readers whose barriers wait on
   its signals
-- [Smelter](../smelter/) — the other projection pipeline: same shape, vectors instead of graph
+- [Smelter](../smelter/) — the other projection: the same shape, vectors instead of a graph

@@ -1,22 +1,20 @@
 /**
  * `runBootPass` — a projector's startup repair must not kill the projector.
  *
- * The weaver and smelter each run repair passes at boot (catch-up, reconcile). A
- * failure rethrown into the catch-all around `main()` is `process.exit(1)`, and —
- * with containers running under no restart policy — gone until a human notices. A
- * single 429 from the gateway is enough.
+ * The smelter runs a repair pass at boot (reconcile). A failure rethrown into
+ * the catch-all around `main()` is `process.exit(1)`, and — with containers
+ * running under no restart policy — gone until a human notices. A single 429
+ * from the gateway is enough.
  *
  * The underlying emit retries a retryable refusal, which narrows the window but
  * does not change what happens at the end of it. This is that end.
  *
- * Tested here rather than through `weaver-main.ts` because that module calls
- * `main()` at load, so importing it runs it. Sharing the contract is also what
- * makes both mains answer the same way structurally, rather than by each
- * separately remembering to.
+ * Tested here rather than through `smelter-main.ts` because that module calls
+ * `main()` at load, so importing it runs it.
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { runBootPass, type BootPassState } from '../boot-pass';
+import { runBootPass } from '../boot-pass';
 
 const fakeLogger = () => ({
   debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(),
@@ -29,20 +27,8 @@ describe('runBootPass', () => {
     // failed repair pass is a DATA condition, not a reason to die.
     const logger = fakeLogger();
     await expect(
-      runBootPass('catch-up', async () => { throw new Error('/bus/emit 429'); }, logger),
+      runBootPass('reconcile', async () => { throw new Error('/bus/emit 429'); }, logger),
     ).resolves.toBeUndefined();
-  });
-
-  it('records the failure, so the phase outlives the pass', async () => {
-    // Surviving is what makes this state readable: under a fatal pass it would be
-    // written and then unreachable one line later, the process gone before
-    // anything could read it.
-    const states: BootPassState[] = [];
-    await runBootPass('catch-up', async () => { throw new Error('/bus/emit 429'); },
-      fakeLogger(), (s) => states.push(s));
-
-    expect(states.map((s) => s.phase)).toEqual(['running', 'failed']);
-    expect(states[1]).toMatchObject({ phase: 'failed', error: expect.stringContaining('429') });
   });
 
   it('logs the failure at error level — the ONLY operator signal left', async () => {
@@ -57,27 +43,9 @@ describe('runBootPass', () => {
     expect(logger.error.mock.calls[0]![0]).toMatch(/reconcile/i);
   });
 
-  it('records running then done with the summary on success', async () => {
-    const states: BootPassState[] = [];
-    await runBootPass('reconcile', async () => ({ healed: 3 }), fakeLogger(), (s) => states.push(s));
-
-    expect(states.map((s) => s.phase)).toEqual(['running', 'done']);
-    expect(states[1]).toMatchObject({ phase: 'done', summary: { healed: 3 } });
-  });
-
   it('does not log an error on the success path', async () => {
     const logger = fakeLogger();
-    await runBootPass('catch-up', async () => 'ok', logger);
+    await runBootPass('reconcile', async () => 'ok', logger);
     expect(logger.error).not.toHaveBeenCalled();
-  });
-
-  it('works without a state sink — the smelter records its own', async () => {
-    // `Smelter.reconcileState` is set inside `reconcile()` before it throws, so
-    // that main passes no sink and must not need one.
-    const logger = fakeLogger();
-    await expect(
-      runBootPass('reconcile', async () => { throw new Error('boom'); }, logger),
-    ).resolves.toBeUndefined();
-    expect(logger.error).toHaveBeenCalledTimes(1);
   });
 });

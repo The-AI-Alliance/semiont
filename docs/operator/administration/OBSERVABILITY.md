@@ -102,8 +102,8 @@ The standard OpenTelemetry variables, set in each service's environment. The lau
 The Rust services — the gateway, the dispatcher and the Archivist — read the ones their
 environment table lists ([`variables.json`](../../../specs/src/service-environment/variables.json))
 and configure their SDK from them. The Worker service reads the ones
-[WORKER-SERVICE.md](../../protocol/WORKER-SERVICE.md#environment) lists. The table below is the
-three Node services': the Librarian's, the Smelter's and the Weaver's.
+[WORKER-SERVICE.md](../../protocol/WORKER-SERVICE.md#environment) lists. The Weaver exports
+no telemetry. The table below is the two Node services': the Librarian's and the Smelter's.
 
 | Variable                          | Default                                | Purpose                            |
 |-----------------------------------|----------------------------------------|------------------------------------|
@@ -245,7 +245,7 @@ endpoint. No extra config required — the `OTEL_EXPORTER_OTLP_ENDPOINT`
 you set for traces also drives metrics. The Browser exports spans only.
 
 The table is what the Node services export: the
-Librarian, the Smelter and the Weaver.
+Librarian and the Smelter.
 
 | Metric                       | Type             | Attributes                                              | Where                                         |
 |------------------------------|------------------|---------------------------------------------------------|-----------------------------------------------|

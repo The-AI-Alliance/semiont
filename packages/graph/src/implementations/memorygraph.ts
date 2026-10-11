@@ -1,210 +1,79 @@
-// In-memory implementation of GraphDatabase interface
-// Used for development and testing without requiring a real graph database
+// A graph held in memory, for a test of something that reads the graph.
+//
+// It is given what it holds when it is made, and nothing writes to it after:
+// the one writer of the graph is the Weaver, and the Weaver is not in this
+// package. An annotation is held as the codec says the graph holds one, so
+// what a Map hands back is what Cypher and Gremlin hand back: a test that
+// reads from here reads no field a database would not have.
 
 import { GraphDatabase } from '../interface';
-import { assertMutableResourceUpdate } from '../interface';
 import { queryResources } from '../resource-query';
-import type { Logger } from '@semiont/core';
 import type {
-  AnnotationCategory,
   GraphConnection,
   GraphPath,
   EntityTypeStats,
   ResourceFilter,
-  UpdateResourceInput,
-  CreateAnnotationInternal,
   ResourceId,
   AnnotationId,
 } from '@semiont/core';
-import { v4 as uuidv4 } from 'uuid';
 import { getBodySource, getTargetSource, getResourceId, getPrimaryRepresentation, getResourceEntityTypes } from '@semiont/core';
 import { getEntityTypes } from '@semiont/core';
-import { buildAnnotation, decodeAnnotation, encodeAnnotation } from '../annotation-codec';
+import { intendedGraphAnnotation } from '../annotation-codec';
 import type { ResourceDescriptor } from '@semiont/core';
 import type { Annotation } from '@semiont/core';
 
-// Simple in-memory storage using Maps
-// Useful for development and testing
-
 export class MemoryGraphDatabase implements GraphDatabase {
   private connected: boolean = false;
-  private logger?: Logger;
 
-  // In-memory storage using Maps
   private resources: Map<string, ResourceDescriptor> = new Map();
   private annotations: Map<string, Annotation> = new Map();
 
-  constructor(config: { logger?: Logger } = {}) {
-    this.logger = config.logger;
+  /**
+   * `resources` are held as given: each is a resource as the Weaver gives one
+   * to the graph. `annotations` are given as the record holds them, and held
+   * as the graph does.
+   */
+  constructor(held: { resources: ResourceDescriptor[]; annotations: Annotation[] }) {
+    for (const resource of held.resources) {
+      const id = getResourceId(resource);
+      if (!id) {
+        throw new Error('Resource must have an id');
+      }
+      this.resources.set(id, resource);
+    }
+    for (const annotation of held.annotations) {
+      this.annotations.set(annotation.id, intendedGraphAnnotation(annotation));
+    }
   }
-  
+
   async connect(): Promise<void> {
-    // No actual connection needed for in-memory storage
-    this.logger?.info('Using in-memory graph database');
     this.connected = true;
   }
-  
+
   async disconnect(): Promise<void> {
-    // Nothing to close for in-memory storage
     this.connected = false;
   }
-  
+
   isConnected(): boolean {
     return this.connected;
   }
 
-  async createResource(resource: ResourceDescriptor): Promise<ResourceDescriptor> {
-    const id = getResourceId(resource);
-    if (!id) {
-      throw new Error('Resource must have an id');
-    }
-
-    this.resources.set(id, resource);
-    return resource;
-  }
-  
   async getResource(id: ResourceId): Promise<ResourceDescriptor | null> {
     return this.resources.get(String(id)) || null;
   }
 
-  async updateResource(id: ResourceId, input: UpdateResourceInput): Promise<ResourceDescriptor> {
-    assertMutableResourceUpdate(input);
-
-    const doc = this.resources.get(String(id));
-    if (!doc) throw new Error('Resource not found');
-
-    if (input.archived !== undefined) doc.archived = input.archived;
-    if (input.entityTypes !== undefined) doc.entityTypes = input.entityTypes;
-    return doc;
-  }
-
-  async deleteResource(id: ResourceId): Promise<void> {
-    this.resources.delete(String(id));
-
-    // Delete annotations targeting or referencing this resource
-    const idStr = String(id);
-    for (const [selId, sel] of this.annotations) {
-      if (getTargetSource(sel.target) === idStr || getBodySource(sel.body) === idStr) {
-        this.annotations.delete(selId);
-      }
-    }
-  }
-  
   async listResources(filter: ResourceFilter): Promise<{ resources: ResourceDescriptor[]; total: number }> {
     return queryResources(Array.from(this.resources.values()), filter);
   }
 
-  
-  async createAnnotation(input: CreateAnnotationInternal): Promise<Annotation> {
-    // The caller's id is the system of record's — never mint a fresh one
-    // (the event-log id is what deletes and lookups arrive under).
-    const id = input.id;
-
-    // Nothing here needs serializing — but this store is the reference the
-    // interface-contract suite runs against, and a reference that cannot
-    // exhibit what the real stores exhibit hides codec divergences between
-    // them. So the annotation round-trips through the codec: what a Map
-    // hands back is exactly what Cypher and Gremlin hand back.
-    const annotation = decodeAnnotation(
-      encodeAnnotation(buildAnnotation(input)),
-      getEntityTypes(input)
-    );
-
-    this.annotations.set(id, annotation);
-    this.logger?.debug('Created annotation', {
-      id,
-      motivation: annotation.motivation,
-      hasSource: !!getBodySource(annotation.body),
-      targetSource: getTargetSource(annotation.target)
-    });
-    return annotation;
-  }
-  
   async getAnnotation(id: AnnotationId): Promise<Annotation | null> {
     return this.annotations.get(id) || null;
   }
-  
-  async updateAnnotation(id: AnnotationId, updates: Partial<Annotation>): Promise<Annotation> {
-    const annotation = this.annotations.get(id);
-    if (!annotation) throw new Error('Annotation not found');
 
-    const updated: Annotation = {
-      ...annotation,
-      ...updates,
-    };
-
-    // Motivation should come from updates if provided
-    // No need to derive from body type
-
-    this.annotations.set(id, updated);
-    return updated;
-  }
-  
-  async deleteAnnotation(id: AnnotationId): Promise<void> {
-    this.annotations.delete(id);
-  }
-  
-  async listAnnotations(filter: { resourceId?: ResourceId; type?: AnnotationCategory }): Promise<{ annotations: Annotation[]; total: number }> {
-    let results = Array.from(this.annotations.values());
-
-    if (filter.resourceId) {
-      const resourceIdStr = String(filter.resourceId);
-      results = results.filter(a => getTargetSource(a.target) === resourceIdStr);
-    }
-
-    // Only SpecificResource supported, use motivation to distinguish
-    if (filter.type) {
-      const motivation = filter.type === 'highlight' ? 'highlighting' : 'linking';
-      results = results.filter(a => a.motivation === motivation);
-    }
-
-    return { annotations: results, total: results.length };
-  }
-
-  async getHighlights(resourceId: ResourceId): Promise<Annotation[]> {
+  private async getReferences(resourceId: ResourceId): Promise<Annotation[]> {
     const resourceIdStr = String(resourceId);
-    const highlights = Array.from(this.annotations.values())
-      .filter(sel => getTargetSource(sel.target) === resourceIdStr && sel.motivation === 'highlighting');
-    this.logger?.debug('Got highlights for resource', { resourceId, count: highlights.length });
-    return highlights;
-  }
-
-  async resolveReference(annotationId: AnnotationId, source: ResourceId): Promise<Annotation> {
-    const annotation = this.annotations.get(annotationId);
-    if (!annotation) throw new Error('Annotation not found');
-
-    // Convert stub (empty array) to resolved SpecificResource
-    const updated: Annotation = {
-      ...annotation,
-      body: {
-        type: 'SpecificResource',
-        source,
-        purpose: 'linking',
-      },
-    };
-
-    this.annotations.set(annotationId, updated);
-    return updated;
-  }
-
-  async getReferences(resourceId: ResourceId): Promise<Annotation[]> {
-    const resourceIdStr = String(resourceId);
-    const references = Array.from(this.annotations.values())
+    return Array.from(this.annotations.values())
       .filter(sel => getTargetSource(sel.target) === resourceIdStr && sel.motivation === 'linking');
-    this.logger?.debug('Got references for resource', { resourceId, count: references.length });
-    return references;
-  }
-
-  async getEntityReferences(resourceId: ResourceId, entityTypes?: string[]): Promise<Annotation[]> {
-    const resourceIdStr = String(resourceId);
-    let refs = Array.from(this.annotations.values())
-      .filter(sel => getTargetSource(sel.target) === resourceIdStr && getEntityTypes(sel).length > 0);
-
-    if (entityTypes && entityTypes.length > 0) {
-      refs = refs.filter(sel => getEntityTypes(sel).some(type => entityTypes.includes(type)));
-    }
-
-    return refs;
   }
 
   async getResourceAnnotations(resourceId: ResourceId): Promise<Annotation[]> {
@@ -282,7 +151,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
 
     return paths;
   }
-  
+
   async getEntityTypeStats(): Promise<EntityTypeStats[]> {
     const typeCounts = new Map<string, number>();
 
@@ -292,13 +161,13 @@ export class MemoryGraphDatabase implements GraphDatabase {
         typeCounts.set(type, (typeCounts.get(type) || 0) + 1);
       }
     }
-    
+
     return Array.from(typeCounts.entries()).map(([type, count]) => ({
       type,
       count,
     }));
   }
-  
+
   async getStats(): Promise<{
     resourceCount: number;
     annotationCount: number;
@@ -320,7 +189,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
         contentTypes[primaryRep.mediaType] = (contentTypes[primaryRep.mediaType] || 0) + 1;
       }
     }
-    
+
     const annotations = Array.from(this.annotations.values());
     // Use motivation to distinguish types
     const highlightCount = annotations.filter(a => a.motivation === 'highlighting').length;
@@ -329,7 +198,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
     const entityReferenceCount = annotations.filter(
       a => a.motivation === 'linking' && getEntityTypes(a).length > 0
     ).length;
-    
+
     return {
       resourceCount: this.resources.size,
       annotationCount: this.annotations.size,
@@ -339,73 +208,5 @@ export class MemoryGraphDatabase implements GraphDatabase {
       entityTypes,
       contentTypes,
     };
-  }
-  
-  async batchCreateResources(resources: ResourceDescriptor[]): Promise<ResourceDescriptor[]> {
-    const results: ResourceDescriptor[] = [];
-    for (const resource of resources) {
-      results.push(await this.createResource(resource));
-    }
-    return results;
-  }
-
-  async createAnnotations(inputs: CreateAnnotationInternal[]): Promise<Annotation[]> {
-    const results: Annotation[] = [];
-    for (const input of inputs) {
-      results.push(await this.createAnnotation(input));
-    }
-    return results;
-  }
-  
-  
-  async resolveReferences(inputs: { annotationId: AnnotationId; source: ResourceId }[]): Promise<Annotation[]> {
-    const results: Annotation[] = [];
-    for (const input of inputs) {
-      results.push(await this.resolveReference(input.annotationId, input.source));
-    }
-    return results;
-  }
-  
-  // Tag Collections - an in-memory set
-  private entityTypesCollection: Set<string> | null = null;
-  
-  async getEntityTypes(): Promise<string[]> {
-    // Initialize if not already loaded
-    if (this.entityTypesCollection === null) {
-      await this.initializeTagCollections();
-    }
-    return Array.from(this.entityTypesCollection!).sort();
-  }
-
-  async addEntityType(tag: string): Promise<void> {
-    if (this.entityTypesCollection === null) {
-      await this.initializeTagCollections();
-    }
-    this.entityTypesCollection!.add(tag);
-  }
-
-  async addEntityTypes(tags: string[]): Promise<void> {
-    if (this.entityTypesCollection === null) {
-      await this.initializeTagCollections();
-    }
-    tags.forEach(tag => this.entityTypesCollection!.add(tag));
-  }
-
-  private async initializeTagCollections(): Promise<void> {
-    // Initialize with defaults if not present
-    if (this.entityTypesCollection === null) {
-      const { DEFAULT_ENTITY_TYPES } = await import('@semiont/ontology');
-      this.entityTypesCollection = new Set(DEFAULT_ENTITY_TYPES);
-    }
-  }
-  
-  generateId(): string {
-    return uuidv4().replace(/-/g, '').substring(0, 12);
-  }
-  
-  async clearDatabase(): Promise<void> {
-    this.resources.clear();
-    this.annotations.clear();
-    this.entityTypesCollection = null;
   }
 }

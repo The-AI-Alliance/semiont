@@ -49,13 +49,10 @@ bash "$COMPLIANCE_DIR/audit-mock-targets.sh"
 bash "$COMPLIANCE_DIR/audit-supervision.sh"
 echo ""
 
-# Weaver structural invariants (G1–G6)
-echo "🕸️  Checking Weaver invariants (no event-store/fs, standalone-only, single mark/signal writer, channel↔fold sync, codec-derived divergence)..."
-bash "$COMPLIANCE_DIR/audit-weaver-invariants.sh"
-echo ""
 # One annotation codec for all four graph stores (codec axioms A1/A5)
-echo "🗺️  Checking the graph annotation codec (single envelope, no manufactured values)..."
+echo "🗺️  Checking the graph annotation codec (single envelope, no manufactured values) and the graph interface (every member called, or kept by name)..."
 bash "$COMPLIANCE_DIR/audit-graph-annotation-codec.sh"
+bash "$COMPLIANCE_DIR/audit-graph-interface-callers.sh"
 bash "$COMPLIANCE_DIR/audit-spec-validator.sh"
 echo ""
 

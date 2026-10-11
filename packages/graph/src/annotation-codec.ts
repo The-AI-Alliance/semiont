@@ -13,12 +13,17 @@
  *
  * The codec manufactures nothing. Absence is stored as absence and read back
  * as absence, in both directions.
+ *
+ * No store in this package writes: the graph's writer is the Weaver, whose
+ * codec is `semiont_graph`'s, and specs/src/graph/codec-cases.json holds the
+ * two to one answer. The encoding half is here for `intendedGraphAnnotation`,
+ * which says what a reader is to read back.
  */
 
 import { annotationId as makeAnnotationId, resourceId as makeResourceId } from '@semiont/core';
 import { getBodySource, getExactText, getTargetSelector, getTargetSource } from '@semiont/core';
 import { getEntityTypes } from '@semiont/core';
-import type { Annotation, AnnotationCategory, CreateAnnotationInternal } from '@semiont/core';
+import type { Annotation, AnnotationCategory } from '@semiont/core';
 
 /**
  * A store's property bag, flattened. Producing this is the store's job:
@@ -46,28 +51,22 @@ export function motivationForCategory(category: AnnotationCategory): Annotation[
   return category === 'highlight' ? 'highlighting' : 'linking';
 }
 
+type Agent = NonNullable<Annotation['creator']>;
+
 /**
- * Mint the annotation a create request describes.
+ * An agent as the graph holds it: who, and not what a person is called.
  *
- * `created` comes from the input, which carries the AUTHORED moment from the
- * event. A store stamping `new Date().toISOString()` instead would record the
- * graph's own write time, and a rebuild would collapse every annotation to
- * the rebuild moment.
+ * A person's name is the directory's. The record's annotation carries none
+ * for the one who asked; the Archivist joins it onto every read from the
+ * people projection, where a person can change it. A graph that stored the
+ * name would hold a copy that goes stale, and a check of the graph against a
+ * read would call every annotation by a named person wrong. Software is not
+ * named on a read: its agent is stored as the record gives it.
  */
-export function buildAnnotation(input: CreateAnnotationInternal): Annotation {
-  const annotation: Annotation = {
-    '@context': 'http://www.w3.org/ns/anno.jsonld',
-    type: 'Annotation',
-    id: input.id,
-    motivation: input.motivation,
-    target: input.target,
-    creator: input.creator,
-    created: input.created,
-  };
-  if (input.body && (!Array.isArray(input.body) || input.body.length > 0)) {
-    annotation.body = input.body;
-  }
-  return annotation;
+function storedAgent(agent: Agent): Agent {
+  if (agent['@type'] !== 'Person') return agent;
+  const { name: _theDirectorys, ...who } = agent;
+  return who;
 }
 
 /**
@@ -86,24 +85,27 @@ export function encodeAnnotation(annotation: Annotation): Record<string, string>
     resourceId,
     type: storedAnnotationType(annotation.motivation),
     motivation: annotation.motivation,
-    creator: JSON.stringify(annotation.creator),
+    creator: JSON.stringify(annotation.creator === undefined ? undefined : storedAgent(annotation.creator)),
     created: annotation.created,
   };
 
   if (selector) Object.assign(props, encodeSelector(selector));
   if (bodySource) props.source = bodySource;
   if (annotation.modified) props.modified = annotation.modified;
-  if (annotation.generator) props.generator = JSON.stringify(annotation.generator);
+  if (annotation.generator) {
+    props.generator = JSON.stringify(
+      Array.isArray(annotation.generator) ? annotation.generator.map(storedAgent) : storedAgent(annotation.generator),
+    );
+  }
 
   return props;
 }
 
 /**
  * The properties a selector contributes: its serialization, plus the quoted
- * text pulled out beside it. Targeted selector updates go through here too,
- * so no store decides on its own what a selector is called on disk.
+ * text pulled out beside it.
  */
-export function encodeSelector(selector: AnnotationSelector): Record<string, string> {
+function encodeSelector(selector: AnnotationSelector): Record<string, string> {
   const props: Record<string, string> = { selector: JSON.stringify(selector) };
   const exact = getExactText(selector);
   if (exact) props.exact = exact;
@@ -136,8 +138,11 @@ export function decodeAnnotation(props: AnnotationProperties, entityTypes: strin
   const motivation = required('motivation') as Annotation['motivation'];
   const created = required('created');
 
+  // Tags are edges, and a store answers edges in no promised order. The
+  // codec states one, so that two readings of the same tags are the same
+  // annotation and a check of the graph never mistakes order for content.
   const body: AnnotationBody = [];
-  for (const entityType of entityTypes) {
+  for (const entityType of [...entityTypes].sort()) {
     if (entityType) body.push({ type: 'TextualBody', value: entityType, purpose: 'tagging' });
   }
   if (props.source) {

@@ -3,8 +3,7 @@
  *
  * Shared by every gateway whose engine does not express it directly (memory,
  * JanusGraph, Neptune) so those three cannot drift apart. Neo4j expresses the
- * same semantics in Cypher, and the interface contract tests pin both shapes to
- * one behaviour.
+ * same semantics in Cypher.
  */
 
 import { compareByRecencyThenId, getResourceEntityTypes, getStorageUri } from '@semiont/core';

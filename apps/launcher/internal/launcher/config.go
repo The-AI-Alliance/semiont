@@ -172,6 +172,9 @@ type graphCfg struct {
 	URI      string `toml:"uri"`
 	Username string `toml:"username"`
 	Password string `toml:"password"`
+	// Database: which of Neo4j's databases holds the graph. Written into the
+	// Weaver's configuration document (weaverdoc.go).
+	Database string `toml:"database"`
 	Image    string `toml:"image"` // optional: override the catalog's default image
 }
 

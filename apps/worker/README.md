@@ -147,7 +147,7 @@ docker build --build-arg PYTHON_FLOOR=$(scripts/ci/python-floor.sh) \
 ```
 
 [`scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh) builds it so with the other
-images, and [`scripts/container/check-worker-image.sh`](../../scripts/container/check-worker-image.sh)
+images, and [`scripts/container/check-python-image.sh`](../../scripts/container/check-python-image.sh)
 checks what a built one promises.
 
 ## Related

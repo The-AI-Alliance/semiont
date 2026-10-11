@@ -100,7 +100,8 @@ podman rm semiont-jaeger
 # write <config-stage>/dispatcher.json (the dispatcher's configuration document: DispatcherConfig, resolved)
 # write <config-stage>/archivist.json (the Archivist's configuration document: ArchivistConfig, resolved)
 # write <config-stage>/worker.json (the worker's configuration document: WorkerConfig, resolved)
-# stage per-service config copies under <config-stage>: librarian.toml smelter.toml weaver.toml
+# write <config-stage>/weaver.json (the Weaver's configuration document: WeaverConfig, resolved)
+# stage per-service config copies under <config-stage>: librarian.toml smelter.toml
 # write into each copy the addresses this start places, as literals, in the sections that service reads (launcher-staged topology):
 #   [graph] uri = bolt://<host-addr>:7687
 #   [vectors] host = <host-addr>
@@ -189,7 +190,7 @@ container run -d --name semiont-worker --memory 2G --publish 24100:24100 --volum
 # anchored-text state: <data-home>/roots/example.github.io-test-kb/anchored-text (created if absent; reused across restarts)
 container run -d --name semiont-smelter --memory 2G --publish 24101:24101 --volume <config-stage>/smelter.toml:/home/semiont/.semiontconfig:ro --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env GATEWAY_HOST=<host-addr> --env SEMIONT_OIDC_CLIENT_ID=semiont-smelter --env SEMIONT_OIDC_CLIENT_SECRET --env SEMIONT_SUPERVISE=1 -v <data-home>/roots/example.github.io-test-kb/anchored-text:/anchored-text ghcr.io/the-ai-alliance/semiont-smelter:latest
 # wait: http://localhost:24101/health (30s)
-container run -d --name semiont-weaver --memory 2G --publish 24102:24102 --volume <config-stage>/weaver.toml:/home/semiont/.semiontconfig:ro --env NEO4J_PASSWORD --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env GATEWAY_HOST=<host-addr> --env SEMIONT_OIDC_CLIENT_ID=semiont-weaver --env SEMIONT_OIDC_CLIENT_SECRET --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-weaver:latest
+container run -d --name semiont-weaver --memory 2G --publish 24102:24102 --volume <config-stage>/weaver.json:/etc/semiont/weaver.json:ro --env NEO4J_PASSWORD --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env SEMIONT_OIDC_CLIENT_ID=semiont-weaver --env SEMIONT_OIDC_CLIENT_SECRET --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-weaver:latest
 # wait: http://localhost:24102/health (30s)
 # browser: keep if running with image identity matching ghcr.io/the-ai-alliance/semiont-browser:latest; else stop/rm + pull + run
 # (the Browser is not a stack member: stop leaves it running; semiont stop --service browser stops it)

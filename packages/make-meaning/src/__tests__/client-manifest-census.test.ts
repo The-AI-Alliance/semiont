@@ -1,14 +1,14 @@
 /**
- * Each sidecar declares ONE manifest, and it covers everything that sidecar
+ * A sidecar declares ONE manifest, and it covers everything that sidecar
  * consumes.
  *
- * What this gate exists for: both sidecar fan-ins ask the bus for their
- * streams the moment they are called
+ * What this gate exists for: a sidecar's fan-in asks the bus for its
+ * streams the moment it is called
  * (`SMELTER_CHANNELS.map((c) => bus.stream(c))`). A subscription set widened
  * afterwards, via an `addChannels`, is never comparable with the consumption
  * at any single moment — which is how a widening can be deleted without any
  * list getting shorter, and how `stream`'s refusal of a channel outside the
- * subscription set would reject `yield:created` at weaver boot: not in the
+ * subscription set would reject `yield:created` at smelter boot: not in the
  * constructed reply set, and not scopable because it is globally bridged.
  *
  * The manifest is the whole set, stated once, and the transport is
@@ -23,12 +23,7 @@ import {
   SMELTER_CHANNELS,
   SMELTER_COMMAND_CHANNELS,
 } from '../smelter-fan-in';
-import {
-  WEAVER_MANIFEST,
-  WEAVER_CHANNELS,
-  WEAVER_COMMAND_CHANNELS,
-} from '../weaver-fan-in';
-import { SMELTER_REPLY_CHANNELS, WEAVER_REPLY_CHANNELS } from '../service-channels';
+import { SMELTER_REPLY_CHANNELS } from '../service-channels';
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '..');
 const stripComments = (s: string) =>
@@ -41,13 +36,6 @@ const CLIENTS = [
     consumed: [...SMELTER_CHANNELS, ...SMELTER_COMMAND_CHANNELS, ...SMELTER_REPLY_CHANNELS],
     fanIn: 'smelter-fan-in.ts',
     main: 'smelter-main.ts',
-  },
-  {
-    kind: 'weaver',
-    manifest: WEAVER_MANIFEST,
-    consumed: [...WEAVER_CHANNELS, ...WEAVER_COMMAND_CHANNELS, ...WEAVER_REPLY_CHANNELS],
-    fanIn: 'weaver-fan-in.ts',
-    main: 'weaver-main.ts',
   },
 ] as const;
 
@@ -74,9 +62,6 @@ describe('client subscription manifests (sidecars)', () => {
 
   it.each(CLIENTS)('$kind: main constructs the transport with the manifest', (client) => {
     const source = stripComments(readFileSync(join(SRC, client.main), 'utf-8'));
-    const manifestName = client.kind === 'smelter' ? 'SMELTER_MANIFEST' : 'WEAVER_MANIFEST';
-    expect(source, `${client.main} must pass ${manifestName} as its channel set`).toMatch(
-      new RegExp(`channels:\\s*${manifestName}`),
-    );
+    expect(source, `${client.main} must pass SMELTER_MANIFEST as its channel set`).toMatch(/channels:\s*SMELTER_MANIFEST/);
   });
 });

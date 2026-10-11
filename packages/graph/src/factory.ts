@@ -4,7 +4,6 @@ import { GraphDatabase } from './interface';
 import { NeptuneGraphDatabase } from './implementations/neptune';
 import { Neo4jGraphDatabase } from './implementations/neo4j';
 import { JanusGraphDatabase } from './implementations/janusgraph';
-import { MemoryGraphDatabase } from './implementations/memorygraph';
 import type { GraphServiceConfig } from '@semiont/core';
 
 export type GraphDatabaseType = 'neptune' | 'neo4j' | 'janusgraph' | 'memory';
@@ -61,12 +60,9 @@ export function createGraphDatabase(config: GraphDatabaseConfig): GraphDatabase 
       return new JanusGraphDatabase(janusConfig);
     }
 
-    case 'memory':
-      // Hermetic TEST sink only: a heap-local graph cannot be shared with a
-      // standalone Weaver, so no deployment configures it — and none does.
-      // weaver-main refuses it.
-      return new MemoryGraphDatabase({});
-
+    // `memory` is a graph a test makes, with what it holds (MemoryGraphDatabase).
+    // No configuration yields one: it could not be shared with the Weaver that
+    // writes the graph, and the Weaver and the Librarian each refuse it.
     default:
       throw new Error(`Unsupported graph database type: ${config.type}`);
   }
@@ -126,11 +122,4 @@ export async function getGraphDatabase(graphConfig: GraphServiceConfig): Promise
   }
 
   return graphDatabaseInstance;
-}
-
-export async function closeGraphDatabase(): Promise<void> {
-  if (graphDatabaseInstance) {
-    await graphDatabaseInstance.disconnect();
-    graphDatabaseInstance = null;
-  }
 }

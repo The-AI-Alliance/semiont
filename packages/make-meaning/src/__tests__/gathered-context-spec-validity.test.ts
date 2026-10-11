@@ -35,34 +35,43 @@ const silentLogger: Logger = {
 const SOURCE_ID = makeResourceId('res-cedar-county');
 const DERIVED_FROM_ID = makeResourceId('res-iowa-counties');
 
+/** A resource as the Weaver gives one to the graph: checksum, date and attribution included. */
 const resource = (id: string, name: string): ResourceDescriptor => ({
   '@context': 'https://schema.org/',
   '@id': makeResourceId(id),
   name,
   entityTypes: ['Document'],
-  representations: [],
+  representations: [{ mediaType: 'text/markdown', checksum: `sha256:${id}`, rel: 'original' }],
+  archived: false,
+  dateCreated: '2026-01-01T00:00:00.000Z',
+  wasAttributedTo: { '@type': 'Person', '@id': 'did:web:test:users:asker', name: 'Asker' },
 });
 
 /**
  * The shape under test: a generated-from provenance edge, which is
- * resource-level — `source`, no `selector`. Written through a REAL store,
- * which round-trips the codec; a hand-built fixture would validate whatever
- * the store does to a missing selector.
+ * resource-level — `source`, no `selector`. Read back from a REAL store,
+ * which holds it as the codec says the graph does; a hand-built fixture
+ * would validate whatever the codec does to a missing selector.
  */
 async function seedGraph(): Promise<{ kb: KnowledgeGraphReads; annotation: Annotation }> {
-  const graph = new MemoryGraphDatabase();
-  await graph.createResource(resource(String(SOURCE_ID), 'Cedar County, Iowa'));
-  await graph.createResource(resource(String(DERIVED_FROM_ID), 'Counties of Iowa'));
+  const id = makeAnnotationId('ann-provenance-1');
+  const graph = new MemoryGraphDatabase({
+    resources: [resource(String(SOURCE_ID), 'Cedar County, Iowa'), resource(String(DERIVED_FROM_ID), 'Counties of Iowa')],
+    annotations: [{
+      '@context': 'http://www.w3.org/ns/anno.jsonld',
+      type: 'Annotation',
+      id,
+      motivation: 'linking',
+      target: { source: String(DERIVED_FROM_ID) },
+      body: [{ type: 'SpecificResource', source: String(SOURCE_ID) }],
+      // AgentPerson requires `name` as well as `@type`, or every branch fails.
+      creator: { '@id': 'did:user:test', '@type': 'Person', name: 'Test User' },
+      created: '2026-01-01T00:00:00.000Z',
+    } as Annotation],
+  });
 
-  const annotation = await graph.createAnnotation({
-    id: makeAnnotationId('ann-provenance-1'),
-    motivation: 'linking',
-    target: { source: String(DERIVED_FROM_ID) },
-    body: [{ type: 'SpecificResource', source: String(SOURCE_ID) }],
-    // AgentPerson requires `name` as well as `@type`, or every branch fails.
-    creator: { '@id': 'did:user:test', '@type': 'Person', name: 'Test User' },
-    created: '2026-01-01T00:00:00.000Z',
-  } as Parameters<MemoryGraphDatabase['createAnnotation']>[0]);
+  const annotation = await graph.getAnnotation(id);
+  if (!annotation) throw new Error('the graph does not hold the annotation it was made with');
 
   const kb: KnowledgeGraphReads = {
     views: { get: vi.fn().mockResolvedValue({ resource: resource(String(DERIVED_FROM_ID), 'Counties of Iowa') }) } as KnowledgeGraphReads['views'],
