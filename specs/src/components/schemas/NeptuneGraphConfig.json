@@ -18,18 +18,12 @@
       "minimum": 1,
       "maximum": 65535,
       "description": "The port its Gremlin endpoint listens on."
-    },
-    "region": {
-      "type": "string",
-      "minLength": 1,
-      "description": "The AWS region the cluster is in."
     }
   },
   "required": [
     "type",
     "endpoint",
-    "port",
-    "region"
+    "port"
   ],
   "additionalProperties": false
 }

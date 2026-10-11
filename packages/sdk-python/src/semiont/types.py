@@ -2648,7 +2648,6 @@ class NeptuneGraphConfig(WireModel, frozen=True, extra="forbid"):
         int,
         Field(description="The port its Gremlin endpoint listens on.", ge=1, le=65535),
     ]
-    region: Annotated[str, Field(description="The AWS region the cluster is in.", min_length=1)]
 
 
 class MemoryGraphConfig(WireModel, frozen=True, extra="forbid"):

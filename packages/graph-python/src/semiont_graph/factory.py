@@ -37,7 +37,7 @@ def create_graph_database(config: GraphConfig, *, password: str | None) -> Graph
         case NeptuneGraphConfig():
             from semiont_graph.neptune import NeptuneGraphDatabase
 
-            return NeptuneGraphDatabase(endpoint=config.endpoint, port=config.port, region=config.region)
+            return NeptuneGraphDatabase(endpoint=config.endpoint, port=config.port)
         case MemoryGraphConfig():
             from semiont_graph.memory import MemoryGraphDatabase
 
