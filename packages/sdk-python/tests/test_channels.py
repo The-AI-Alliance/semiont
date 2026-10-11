@@ -123,11 +123,11 @@ def test_a_channel_of_the_record_gives_the_event_s_own_payload() -> None:
 def test_a_channel_of_the_record_refuses_a_stored_event_of_another_type_and_a_payload_that_is_not_its_event_s() -> None:
     # A tag's adding and its removal carry the same payload: read by its payload alone, one would be taken for the other.
     untagged = StoredEventResponse.model_validate({**STORED, "type": "mark:entity-tag-removed", "payload": {"entityType": "Person"}})
-    with pytest.raises(ValueError, match="mark:entity-tag-removed 0e2f8c0a-.* is not a mark:entity-tag-added event"):
+    with pytest.raises(ValueError, match=r"mark:entity-tag-removed 0e2f8c0a-.* is not a mark:entity-tag-added event"):
         channels.MARK_ENTITY_TAG_ADDED.event(untagged)
     assert channels.MARK_ENTITY_TAG_REMOVED.event(untagged) == EntityTagChangedPayload(entity_type="Person")
     named = StoredEventResponse.model_validate({**STORED, "type": "frame:entity-type-added", "payload": {"entityType": "Person"}})
-    with pytest.raises(ValueError, match="frame:entity-type-added 0e2f8c0a-.* is not a frame:tag-schema-added event"):
+    with pytest.raises(ValueError, match=r"frame:entity-type-added 0e2f8c0a-.* is not a frame:tag-schema-added event"):
         channels.FRAME_TAG_SCHEMA_ADDED.event(named)
     with pytest.raises(ValidationError):
         channels.MARK_REMOVED.event(StoredEventResponse.model_validate({**STORED, "type": "mark:removed", "payload": {}}))
