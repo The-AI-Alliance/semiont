@@ -59,15 +59,6 @@ eachWeaver('the graph a Weaver builds', (world) => {
     const named = await world().graph.listResources({ search: 'Linked to' });
     expect(named.resources.map((resource) => resource['@id'])).toContain(linkedTo);
 
-    // The two reads no service makes yet: the way from one resource to another along a link, and the counts.
-    const paths = await world().graph.findPath(resourceId(id), resourceId(linkedTo), 2);
-    expect(paths.map((path) => path.resources.map((resource) => resource['@id']))).toEqual([[id, linkedTo]]);
-    expect(paths[0]!.annotations.map((a) => a.id)).toEqual([reference]);
-    const counted = await world().graph.getStats();
-    expect(counted.resourceCount).toBeGreaterThanOrEqual(2);
-    expect(counted.referenceCount).toBeGreaterThanOrEqual(1);
-    expect(counted.entityReferenceCount).toBeGreaterThanOrEqual(1);
-
     // The resource is dated and attributed as its event records.
     const created = world().recorded(id, 'yield:created')[0]!;
     expect(await world().graph.getResource(resourceId(id))).toMatchObject({

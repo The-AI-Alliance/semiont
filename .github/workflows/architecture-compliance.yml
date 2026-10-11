@@ -131,7 +131,7 @@ jobs:
       - name: Run Graph Audits
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
-          echo "::group::Graph Audits (A1/A5 one annotation codec, no clock + every graph interface member called or kept by name)"
+          echo "::group::Graph Audits (A1/A5 one annotation codec, no clock + every graph interface member called)"
           fail=0
           ./scripts/compliance/audit-graph-annotation-codec.sh || fail=1
           ./scripts/compliance/audit-graph-interface-callers.sh || fail=1

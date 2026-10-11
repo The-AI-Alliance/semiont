@@ -1,13 +1,12 @@
 // Neo4j implementation of GraphDatabase interface
 // Uses Cypher query language
 
-import type { Driver, Integer, Node as Neo4jNode, Session } from 'neo4j-driver';
+import type { Driver, Node as Neo4jNode, Session } from 'neo4j-driver';
 import { GraphDatabase } from '../interface';
 import { searchTerms } from '../resource-query';
 import type { Logger } from '@semiont/core';
 import type {
   GraphConnection,
-  GraphPath,
   EntityTypeStats,
   ResourceFilter,
   ResourceId,
@@ -15,7 +14,6 @@ import type {
 } from '@semiont/core';
 import {
   decodeAnnotation,
-  motivationForCategory,
   type AnnotationProperties,
 } from '../annotation-codec';
 import { decodeResource } from '../resource-codec';
@@ -418,66 +416,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  /**
-   * The shortest way from one resource to another along links: an annotation
-   * on a resource that links to the next. A link is followed forwards only,
-   * and `maxDepth` counts the resources on the path, both ends included.
-   */
-  async findPath(fromResourceId: ResourceId, toResourceId: ResourceId, maxDepth: number = 5): Promise<GraphPath[]> {
-    if (!Number.isInteger(maxDepth)) {
-      throw new Error(`findPath: maxDepth must be a whole number, got ${maxDepth}`);
-    }
-    const from = await this.getResource(fromResourceId);
-    if (!from || maxDepth < 1) return [];
-    if (fromResourceId === toResourceId) return [{ resources: [from], annotations: [] }];
-
-    // A path of n resources has n - 1 links. The bound is part of the
-    // pattern, where Cypher takes no parameter; it is a whole number, above.
-    const links = maxDepth - 1;
-    if (links < 1) return [];
-
-    const session = this.getSession();
-    try {
-      const result = await session.run(
-        `MATCH SHORTEST 1 (from:Resource {id: $fromId})
-           ((:Resource)<-[:BELONGS_TO]-(link:Annotation {motivation: $linking})-[:REFERENCES]->(next:Resource)
-             WHERE coalesce(next.stub, false) = false){1,${links}}
-           (to:Resource {id: $toId})
-         RETURN next, [l IN link | l.id] AS linkIds`,
-        { fromId: fromResourceId, toId: toResourceId, linking: motivationForCategory('reference') }
-      );
-
-      const paths: GraphPath[] = [];
-      for (const record of result.records) {
-        const linkIds: string[] = record.get('linkIds');
-        const found = await session.run(
-          `MATCH (a:Annotation) WHERE a.id IN $ids
-           OPTIONAL MATCH (a)-[:TAGGED_AS]->(et:EntityType)
-           RETURN a, collect(et.name) as entityTypes`,
-          { ids: linkIds }
-        );
-        const byId = new Map(
-          found.records.map((rec) => {
-            const annotation = parseAnnotationNode(rec.get('a'), rec.get('entityTypes'));
-            return [String(annotation.id), annotation] as const;
-          })
-        );
-        paths.push({
-          resources: [from, ...record.get('next').map((node: Neo4jNode) => this.parseResourceNode(node))],
-          annotations: linkIds.map((id) => {
-            const annotation = byId.get(id);
-            if (!annotation) throw new Error(`findPath: annotation ${id} is on the path and could not be read`);
-            return annotation;
-          }),
-        });
-      }
-
-      return paths;
-    } finally {
-      await session.close();
-    }
-  }
-
   async getEntityTypeStats(): Promise<EntityTypeStats[]> {
     const session = this.getSession();
     try {
@@ -492,71 +430,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         type: record.get('type'),
         count: record.get('count').toNumber()
       }));
-    } finally {
-      await session.close();
-    }
-  }
-
-  async getStats(): Promise<{
-    resourceCount: number;
-    annotationCount: number;
-    highlightCount: number;
-    referenceCount: number;
-    entityReferenceCount: number;
-    entityTypes: Record<string, number>;
-    contentTypes: Record<string, number>;
-  }> {
-    const session = this.getSession();
-    try {
-      const count = (value: Integer | number): number => this.neo4j.integer.toNumber(value);
-
-      // A stub is a link's target the graph has not been given yet: an id and
-      // nothing else. It is not a resource to count.
-      const resources = await session.run(
-        `MATCH (d:Resource) WHERE coalesce(d.stub, false) = false
-         RETURN count(d) AS resources`
-      );
-
-      // A highlight and a reference are told apart by motivation, the one
-      // property that says which an annotation is.
-      const annotations = await session.run(
-        `MATCH (a:Annotation)
-         RETURN count(a) AS annotations,
-                sum(CASE WHEN a.motivation = $highlighting THEN 1 ELSE 0 END) AS highlights,
-                sum(CASE WHEN a.motivation = $linking THEN 1 ELSE 0 END) AS references,
-                sum(CASE WHEN a.motivation = $linking AND EXISTS { (a)-[:TAGGED_AS]->(:EntityType) } THEN 1 ELSE 0 END) AS entityReferences`,
-        { highlighting: motivationForCategory('highlight'), linking: motivationForCategory('reference') }
-      );
-
-      const entityTypeResult = await session.run(
-        `MATCH (d:Resource) WHERE coalesce(d.stub, false) = false
-         UNWIND d.entityTypes AS type
-         RETURN type, count(*) AS count`
-      );
-      const entityTypes: Record<string, number> = {};
-      entityTypeResult.records.forEach(record => {
-        entityTypes[record.get('type')] = count(record.get('count'));
-      });
-
-      const contentTypeResult = await session.run(
-        `MATCH (d:Resource) WHERE coalesce(d.stub, false) = false
-         RETURN d.format as type, count(*) AS count`
-      );
-      const contentTypes: Record<string, number> = {};
-      contentTypeResult.records.forEach(record => {
-        contentTypes[record.get('type')] = count(record.get('count'));
-      });
-
-      const counted = annotations.records[0]!;
-      return {
-        resourceCount: count(resources.records[0]!.get('resources')),
-        annotationCount: count(counted.get('annotations')),
-        highlightCount: count(counted.get('highlights')),
-        referenceCount: count(counted.get('references')),
-        entityReferenceCount: count(counted.get('entityReferences')),
-        entityTypes,
-        contentTypes
-      };
     } finally {
       await session.close();
     }

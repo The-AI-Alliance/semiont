@@ -17,9 +17,15 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
 ]
-# Pydantic is the SDK's dependency too, and the SDK states its versions: a
-# bound written here would be a second copy of its.
+# OpenTelemetry's API and pydantic are the SDK's dependencies too, and the SDK
+# states their versions: a bound written here would be a second copy of its.
+# OpenTelemetry's SDK and its OTLP exporter are what the service exports its
+# telemetry with, at the versions the SDK states for its conformance drivers:
+# tests/test_census.py holds the two to each other.
 dependencies = [
+    "opentelemetry-api",
+    "opentelemetry-exporter-otlp-proto-http>=1.30,<2",
+    "opentelemetry-sdk>=1.30,<2",
     "pydantic",
     "semiont",
     "semiont-graph",
@@ -50,6 +56,8 @@ semiont-graph = { path = "../../packages/graph-python", editable = true }
 dev = [
     # Every extra: the service is checked with every database's client, as its image has them.
     "semiont-weaver[janusgraph,neo4j,neptune]",
+    # What makes the histories of tests/test_properties.py.
+    "hypothesis>=6.130,<7",
     "mypy==2.4.0",
     "pyright==1.1.414",
     "pytest>=9.1,<10",

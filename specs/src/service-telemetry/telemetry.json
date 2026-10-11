@@ -11,6 +11,9 @@
       "bus",
       "content.put",
       "content.get"
+    ],
+    "weaver": [
+      "bus"
     ]
   },
   "spans": [
@@ -380,7 +383,8 @@
         "gateway",
         "dispatcher",
         "archivist",
-        "worker"
+        "worker",
+        "weaver"
       ],
       "instrument": "gauge",
       "when": "export",
@@ -393,7 +397,8 @@
         "gateway",
         "dispatcher",
         "archivist",
-        "worker"
+        "worker",
+        "weaver"
       ],
       "instrument": "gauge",
       "when": "export",
@@ -415,7 +420,8 @@
         "gateway",
         "dispatcher",
         "archivist",
-        "worker"
+        "worker",
+        "weaver"
       ],
       "instrument": "gauge",
       "when": "export",
@@ -438,7 +444,8 @@
         "gateway",
         "dispatcher",
         "archivist",
-        "worker"
+        "worker",
+        "weaver"
       ],
       "instrument": "gauge",
       "when": "supervised",
@@ -451,7 +458,8 @@
         "gateway",
         "dispatcher",
         "archivist",
-        "worker"
+        "worker",
+        "weaver"
       ],
       "instrument": "counter",
       "when": "fatal",

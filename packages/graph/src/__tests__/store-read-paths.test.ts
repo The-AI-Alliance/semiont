@@ -67,58 +67,25 @@ const node = (id: string, entityTypes: string[]) => ({
   },
 });
 
-function neo4jHolding(held: ReturnType<typeof node> | undefined): { db: Neo4jGraphDatabase; asked: string[] } {
-  const asked: string[] = [];
+function neo4jHolding(held: ReturnType<typeof node> | undefined): Neo4jGraphDatabase {
   const db = new Neo4jGraphDatabase({ database: 'neo4j' });
   const session = {
-    run: async (cypher: string) => {
-      asked.push(cypher);
-      return { records: held ? [{ get: () => held }] : [] };
-    },
+    run: async () => ({ records: held ? [{ get: () => held }] : [] }),
     close: async () => {},
   };
   Object.assign(db, { driver: { session: () => session }, connected: true });
-  return { db, asked };
+  return db;
 }
 
 describe('neo4j read path', () => {
   it('reads a resource node through the resource codec', async () => {
-    const { db } = neo4jHolding(node('res-1', ['Place']));
+    const db = neo4jHolding(node('res-1', ['Place']));
     expect(await db.getResource(resourceId('res-1'))).toEqual(resource('res-1', ['Place']));
   });
 
   it('answers none for a resource the database does not hold', async () => {
-    const { db } = neo4jHolding(undefined);
+    const db = neo4jHolding(undefined);
     expect(await db.getResource(resourceId('res-1'))).toBeNull();
-  });
-
-  describe('findPath, before it asks the database for a path', () => {
-    it('refuses a depth that is not a whole number', async () => {
-      const { db, asked } = neo4jHolding(node('res-1', []));
-      await expect(db.findPath(resourceId('res-1'), resourceId('res-2'), 2.5)).rejects.toThrow(
-        'maxDepth must be a whole number',
-      );
-      expect(asked).toEqual([]);
-    });
-
-    it('answers the resource itself for a path to where it starts', async () => {
-      const { db } = neo4jHolding(node('res-1', []));
-      expect(await db.findPath(resourceId('res-1'), resourceId('res-1'), 5)).toEqual([
-        { resources: [resource('res-1', [])], annotations: [] },
-      ]);
-    });
-
-    it('finds no other resource at a depth of one, and seeks no path', async () => {
-      const { db, asked } = neo4jHolding(node('res-1', []));
-      expect(await db.findPath(resourceId('res-1'), resourceId('res-2'), 1)).toEqual([]);
-      // The one query is the read of where the path starts.
-      expect(asked).toHaveLength(1);
-    });
-
-    it('finds no path from a resource the database does not hold', async () => {
-      const { db } = neo4jHolding(undefined);
-      expect(await db.findPath(resourceId('res-1'), resourceId('res-2'), 5)).toEqual([]);
-    });
   });
 });
 

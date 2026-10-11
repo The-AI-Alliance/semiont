@@ -19,14 +19,6 @@ export interface GraphConnection {
 }
 
 /**
- * Represents a path through the graph
- */
-export interface GraphPath {
-  resources: ResourceDescriptor[];
-  annotations: Annotation[];
-}
-
-/**
  * Statistics about entity types in the graph
  */
 export interface EntityTypeStats {

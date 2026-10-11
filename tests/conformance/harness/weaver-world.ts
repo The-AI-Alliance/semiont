@@ -113,10 +113,10 @@ export class WeaverWorld {
     return { service: this.service, settings: this.settings, env: this.env, home: this.home, ...change };
   }
 
-  /** Start the Weaver, and wait until both of its boot passes have ended. */
-  async start(): Promise<void> {
+  /** Start the Weaver, as this world launches one or as a case changes that, and wait until both of its boot passes have ended. */
+  async start(change: Partial<Pick<WeaverLaunch, 'settings' | 'env'>> = {}): Promise<void> {
     if (this.weaverProcess) throw new Error('a Weaver is already running in this world');
-    this.weaverProcess = await startWeaver(this.launch());
+    this.weaverProcess = await startWeaver(this.launch(change));
   }
 
   /** SIGTERM, and wait: its exit code. */

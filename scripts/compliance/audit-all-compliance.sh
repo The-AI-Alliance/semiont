@@ -50,7 +50,7 @@ bash "$COMPLIANCE_DIR/audit-supervision.sh"
 echo ""
 
 # One annotation codec for all four graph stores (codec axioms A1/A5)
-echo "🗺️  Checking the graph annotation codec (single envelope, no manufactured values) and the graph interface (every member called, or kept by name)..."
+echo "🗺️  Checking the graph annotation codec (single envelope, no manufactured values) and the graph interface (every member called)..."
 bash "$COMPLIANCE_DIR/audit-graph-annotation-codec.sh"
 bash "$COMPLIANCE_DIR/audit-graph-interface-callers.sh"
 bash "$COMPLIANCE_DIR/audit-spec-validator.sh"

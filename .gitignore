@@ -87,6 +87,7 @@ packages/core/src/config/config.types.ts
 __pycache__/
 .mypy_cache/
 .pytest_cache/
+.hypothesis/
 .ruff_cache/
 
 # Generated OpenAPI bundle (source is specs/src/)

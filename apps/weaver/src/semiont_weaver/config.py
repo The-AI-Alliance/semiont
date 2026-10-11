@@ -125,7 +125,7 @@ def read_weaver_config(path: str) -> WeaverConfig:
     return config
 
 
-def _set_in(environment: Mapping[str, str], name: str) -> str | None:
+def set_in(environment: Mapping[str, str], name: str) -> str | None:
     """What `environment` holds for the variable `name`. `None` where it holds nothing: a variable set to nothing is not set."""
     return environment.get(name) or None
 
@@ -139,7 +139,7 @@ def graph_password_of(config: WeaverConfig, environment: Mapping[str, str]) -> s
     graph = config.graph
     if not isinstance(graph, Neo4jGraphConfig):
         return None
-    password = _set_in(environment, graph.password_env)
+    password = set_in(environment, graph.password_env)
     if password is None:
         raise Refused(f"graph.passwordEnv names {graph.password_env}, which is not set in the weaver's environment")
     return password
@@ -149,7 +149,7 @@ def service_account_of(config: WeaverConfig, environment: Mapping[str, str]) -> 
     """The Weaver's own account at the issuer the document names."""
 
     def held(name: str) -> str:
-        value = _set_in(environment, name)
+        value = set_in(environment, name)
         if value is None:
             raise Refused(f"{name} is not set in the weaver's environment: a weaver signs in as a service account")
         return value

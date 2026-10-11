@@ -89,6 +89,11 @@ Each event a Weaver follows changes the graph in one way.
 history and the graph it leaves, and is the rule; this section says it in
 prose.
 
+A table holds the histories someone wrote. Semiont's Weaver is held beyond
+them by `apps/weaver/tests/test_properties.py`: over histories a generator
+makes, delivered in any order and some of them twice, its graph is what a
+second fold, which shares nothing with it, says the record leaves.
+
 - **`yield:created` puts the resource in the graph as its event records it:**
   its name, format, checksum and entity types from the payload, its storage
   URI where the payload has one, not archived; dated at the event's
@@ -159,9 +164,10 @@ which are required, and what is refused.
 - **The events of different resources are applied in no fixed order.** A link
   can reach the graph before the resource it points at, and the graph ends the
   same either way.
-  *Held by `apps/weaver/tests/test_fold_cases.py`.*
-- **An event delivered again is applied once.**
-  *Held by `apps/weaver/tests/test_fold_cases.py`.*
+  *Held by `apps/weaver/tests/test_fold_cases.py` and `apps/weaver/tests/test_properties.py`.*
+- **An event delivered again is applied once,** whether it comes again at
+  once or after later ones.
+  *Held by `apps/weaver/tests/test_fold_cases.py` and `apps/weaver/tests/test_properties.py`.*
 
 ## What it has applied
 
@@ -171,7 +177,8 @@ For each resource a Weaver keeps the sequence number it has applied up to.
   sequence number. A reader of the graph waits on that signal to know the
   graph has caught up with something it just saw recorded.
   *Held by `weaver/record`.*
-- **The mark only rises.** *Held by `weaver/record`.*
+- **The mark only rises.**
+  *Held by `weaver/record` and `apps/weaver/tests/test_properties.py`.*
 - **The mark never reaches an event that was not applied.** An event the
   Weaver refuses, or fails to apply, is counted (`applyFailures` in its
   [health](#health)) and holds the mark below it, however many later events of
@@ -181,7 +188,8 @@ For each resource a Weaver keeps the sequence number it has applied up to.
   applied. *Held by `apps/weaver/tests/test_fold_cases.py`.*
 - **It may keep its marks across a restart,** as a checkpoint. A checkpoint is
   never a correctness input: a Weaver with none applies the whole record again
-  and ends with the same graph. *Held by `weaver/repair`.*
+  and ends with the same graph.
+  *Held by `weaver/repair` and `apps/weaver/tests/test_properties.py`.*
 
 ## Boot
 
@@ -255,7 +263,7 @@ Weaver once applied to it.
   *Held by `weaver/repair` and `apps/weaver/tests/test_weaver.py`.*
 - **`weave:rebuild` naming none rebuilds the whole graph:** the graph is
   cleared, its vocabulary kept, and every resource of the catalog applied
-  again. *Held by `weaver/repair`.*
+  again. *Held by `weaver/repair` and `apps/weaver/tests/test_properties.py`.*
 - **It answers `weave:rebuild-ok` when every event was applied, and
   `weave:rebuild-failed`, saying how many were not, otherwise.**
   *Held by `weaver/repair` and `apps/weaver/tests/test_weaver.py`.*
@@ -275,22 +283,60 @@ Weaver once applied to it.
 - **On SIGTERM a Weaver stops applying, closes what it holds open, and exits
   with status 0.** *Held by `weaver/boot`.*
 
+## Telemetry
+
+- **A Weaver started with `OTEL_EXPORTER_OTLP_ENDPOINT` exports, as
+  `semiont-weaver`, exactly what
+  [`specs/src/service-telemetry/telemetry.json`](../../specs/src/service-telemetry/telemetry.json)
+  lists for the weaver, and the rows of
+  [`specs/src/sdk-telemetry/telemetry.json`](../../specs/src/sdk-telemetry/telemetry.json)
+  the first names for it under `sdk`.** Those are what every service says of
+  its own process (when it started, how late its loop runs, its memory), a
+  span for each frame it sends and each it receives on the bus, and a count
+  of the frames it sent. Every span and metric it exports is one of those
+  rows, of the row's kind, carrying only the row's attributes; and every one
+  of those rows that its work can make arrives, with every attribute the row
+  does not mark as conditional. *Held by `weaver/telemetry`.*
+- **An event it logs while a span is current carries that span's trace and
+  its own id** (`trace_id` and `span_id`), in either form of its log. One
+  logged in no span carries neither.
+  *Held by `apps/weaver/tests/test_log.py`.*
+
 ## Environment
 
-A Weaver reads these from its environment, beside its document, and no
-others:
+A Weaver's own code reads these from its environment, beside its document,
+and no others:
 
 | Variable | What it is |
 |---|---|
 | `SEMIONT_OIDC_CLIENT_ID`, `SEMIONT_OIDC_CLIENT_SECRET` | Its service account at the knowledge base's issuer. Required |
 | the variable its document names | The graph database's password. Required. A stack the launcher starts names `NEO4J_PASSWORD`, and gives it the password the launcher keeps |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | The OTLP/HTTP collector its spans and metrics are exported to ([Telemetry](#telemetry)). Without it, and without the console exporter, it exports nothing and writes no span or metric anywhere |
+| `OTEL_SERVICE_NAME` | The `service.name` its spans and metrics carry; `semiont-weaver` when unset or empty |
+| `OTEL_SDK_DISABLED` | Set to `true`, it exports nothing, whatever else is set |
+| `OTEL_CONSOLE_EXPORTER` | Set to `true`, with no endpoint, it writes spans and metrics to its output instead of exporting them |
+| `OTEL_METRICS_EXPORTER` | Set to `console`, it writes metrics to its output, while spans still go to the endpoint |
+| `OTEL_METRIC_EXPORT_INTERVAL` | The milliseconds between metric exports; 30000 when unset |
+| `SUPERVISE_EVENTS`, `SUPERVISE_NAME` | The supervisor's events log, one `starting <name>` line for each life of the process, and that name. With both, it reports `semiont.process.restarts`: the lives the log records, less one. Without either, the metric does not exist |
 
-*Held by `weaver/boot` and `apps/weaver/tests/test_census.py`.*
+The libraries it is built on read some unasked. Its OpenTelemetry SDK and
+exporter read the standard variables they read on their own, such as how long
+a finished span waits to be exported (`OTEL_BSP_SCHEDULE_DELAY`), but none
+that would say where its telemetry goes or the name it goes under. Semiont's
+SDK reads `SEMIONT_BUS_LOG`, and with any value that is not empty writes a
+line to the service's output for each frame it sends and receives.
+
+What each telemetry variable does is what the Worker service's does
+([WORKER-SERVICE.md](./WORKER-SERVICE.md#environment)): the Weaver's code for
+it is the Worker's, held to it by `apps/weaver/tests/test_census.py`.
+
+*Held by `weaver/boot`, `weaver/telemetry` and `apps/weaver/tests/test_census.py`.*
 
 ## Not specified here
 
-- **Telemetry.** What a Weaver exports is not stated, and Semiont's Weaver
-  exports none.
+- **Telemetry of its own work.** No row of the telemetry table is of what a
+  Weaver applies, fails to apply, heals or rebuilds: its health says those,
+  and it exports no span or metric of them.
 - **Events it does not follow.** `yield:cloned`, `yield:updated`,
   `yield:moved`, `yield:representation-added` and
   `yield:representation-removed` change what a view holds of a resource, and

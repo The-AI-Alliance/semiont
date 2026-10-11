@@ -261,7 +261,6 @@ import type {
   ResourceFilter,
   AnnotationCategory,
   GraphConnection,
-  GraphPath,
   EntityTypeStats,
 } from '@semiont/core';
 ```

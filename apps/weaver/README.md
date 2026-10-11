@@ -88,6 +88,12 @@ database's password (`NEO4J_PASSWORD`, for a Neo4j the launcher runs). It signs 
 and works as the agent `(semiont, weaver)`:
 `did:web:<the knowledge base's domain>:agents:semiont:weaver`.
 
+**Its telemetry goes where `OTEL_EXPORTER_OTLP_ENDPOINT` says**, as `semiont-weaver`: what
+every service says of its own process, and a span for each frame it sends and receives on the
+bus ([WEAVER.md § Telemetry](../../docs/protocol/WEAVER.md#telemetry)). The launcher sets the
+endpoint for a stack it runs. Without it the Weaver exports nothing. Its log lines carry the
+trace and the span they were written in.
+
 Started without its document, without its account or without that password, it refuses to
 start: one line on stderr that begins `[fatal] `, and status 1. A graph of the kind `memory`
 is refused too: a graph in the Weaver's own memory could not be shared with a reader.
