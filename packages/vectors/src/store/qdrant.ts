@@ -13,8 +13,10 @@ import { mergeByResource } from './merge';
 import { resolveDimensions } from '../embedding/resolve-dimensions';
 
 /**
- * Generate a deterministic UUID v5-style ID from an arbitrary string.
- * Qdrant requires point IDs to be UUIDs or unsigned integers.
+ * A point's id: the MD5 of a string, written in the form of a UUID. It is no
+ * version of UUID (no version or variant bit is set), so a UUID library's
+ * name-based ids are other ids. Qdrant requires point IDs to be UUIDs or
+ * unsigned integers. specs/src/vectors/payload-cases.json states the ids.
  */
 function toQdrantId(input: string): string {
   const hex = createHash('md5').update(input).digest('hex');

@@ -2,7 +2,9 @@
 // lint:spec-case-tables — the case tables that state what a worker does to a
 // text and to a model's reply, what a bus log shows of a payload, what the
 // graph holds of an annotation and a resource and what the Weaver's fold does
-// to it, and the runners each must have.
+// to it, what a point of the vector index is and what the index answers, the
+// work a Smelter's start plans and what each kind of PDF becomes, and the
+// runners each must have.
 //
 // A rule that lives only in one implementation's code is that
 // implementation's. These tables are the rules a worker in any language is
@@ -13,7 +15,10 @@
 // does is run by that worker. What a bus log shows of a payload is run by
 // each bus log: TypeScript's, Rust's and Python's. What the graph holds of an
 // annotation and of a resource is run by each implementation of the graph's
-// codecs, and what the Weaver's fold does to the graph by each Weaver.
+// codecs, and what the Weaver's fold does to the graph by each Weaver. What a
+// point of the vector index is, and what the index answers, is run by each
+// implementation of the stores; the work a start plans and what each kind of
+// PDF becomes, by each Smelter.
 //
 // It fails when:
 //   - a table listed here does not exist, is not JSON, states no `$comment`
@@ -33,8 +38,9 @@
 //     (whose items state where each passage is, and how long a piece was).
 //     The two tables of what text a resource's bytes are, the readers' table,
 //     the table of failure classes, the bus log's table, the graph codecs'
-//     table and the Weaver's fold table count nothing and state no offset, and
-//     are held to nothing about their characters.
+//     table, the Weaver's fold table, the two tables of the vector index and
+//     the Smelter's two count nothing and state no offset, and are held to
+//     nothing about their characters.
 //
 // It reads the source files, so it cannot pass on a stale bundle.
 
@@ -45,7 +51,7 @@ import { fileURLToPath } from 'node:url';
 const REPO = resolve(fileURLToPath(import.meta.url), '../../..');
 
 /** Where these tables live. Every `*-cases.json` in one of them is listed below. */
-const DIRECTORIES = ['specs/src/text', 'specs/src/annotations', 'specs/src/worker', 'specs/src/bus', 'specs/src/graph', 'specs/src/weaver'];
+const DIRECTORIES = ['specs/src/text', 'specs/src/annotations', 'specs/src/worker', 'specs/src/bus', 'specs/src/graph', 'specs/src/weaver', 'specs/src/vectors', 'specs/src/smelter'];
 
 /**
  * Each table, and the files that run it.
@@ -181,6 +187,28 @@ const TABLES = [
   {
     table: 'specs/src/weaver/fold-cases.json',
     runners: ['apps/weaver/tests/test_fold_cases.py'],
+  },
+  // What a point of the vector index is, and what the index answers after a
+  // history of writes. Run by each implementation of the stores: TypeScript's
+  // (@semiont/vectors).
+  {
+    table: 'specs/src/vectors/payload-cases.json',
+    runners: ['packages/vectors/src/__tests__/payload-cases.test.ts'],
+  },
+  {
+    table: 'specs/src/vectors/store-cases.json',
+    runners: ['packages/vectors/src/__tests__/store-cases.test.ts'],
+  },
+  // The work a Smelter's start plans, from what the index, the catalog and
+  // the anchored-text store each hold; and what each kind of PDF becomes. Run
+  // by the Smelter (@semiont/make-meaning, with @semiont/content).
+  {
+    table: 'specs/src/smelter/reconcile-cases.json',
+    runners: ['packages/make-meaning/src/__tests__/reconcile-cases.test.ts'],
+  },
+  {
+    table: 'specs/src/smelter/extraction-cases.json',
+    runners: ['packages/content/src/__tests__/extraction-cases.test.ts'],
   },
 ];
 

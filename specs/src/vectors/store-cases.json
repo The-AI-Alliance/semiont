@@ -1,0 +1,1622 @@
+{
+  "$comment": "What the vector index answers after what it was told, as every implementation of the index must answer: a history of writes, and what each read then gives. Semiont's in-memory store (@semiont/vectors: memory.ts) runs every case. Its Qdrant store in TypeScript runs none: no Qdrant is under that store's tests, and a client faked in its place can show what the store sends and not what a real Qdrant answers. A real Qdrant runs this table from the Python package. What a point is, and how each store keys one, is specs/src/vectors/payload-cases.json. A HISTORY. `writes` are done in order, on an index that holds nothing. `resourcePut` gives a resource's `chunks` (each an `index`, a `text` and an `embedding`), the `contentChecksum` of the bytes they came from, its `entityTypes`, and `machineRead` when the text was read from pixels: the resource's points become these, and every point it had before is gone. `entityTypesRewritten` sets the entity types on every point of a resource's chunks and changes nothing else. `annotationPut` gives an annotation's one point: its `annotationId`, `resourceId`, `motivation` and `entityTypes`, the `text` it quotes and that text's `embedding`, and `machineRead` when that text was read from pixels. `resourceDeleted` takes every point of a resource's chunks, `annotationDeleted` takes an annotation's point, and `annotationsOfResourceDeleted` takes the point of every annotation on a resource. READS. `reads` are made after the writes, in order, and none of them changes anything; each states what it `answers`. `resourcesSearched` and `annotationsSearched` search one collection by an `embedding`, and `searchedByResource` searches the resources by the vectors the chunks of the resource `resourceId` have. Each answers a list of results, best first. A result is a `score`, the `resourceId`, the `annotationId` of an annotation's point, the `text`, the `entityTypes`, and `machineRead` where the point is marked; its `id` is each store's own key and is not stated. A search of resources by an embedding answers one result for each chunk: a resource found by three of its chunks is three results. A search by a resource's own vectors answers one result for each resource, with the score and the text of the chunk of it that scored best against any chunk of the resource searched by, and never answers that resource itself. `counted` answers the number of points in both collections together. `stampsListed` answers the stamp of every resource that has points, by its id: the `contentChecksum`, the `entityTypes`, and `machineRead` where its points are marked. `stampRead` answers the stamp of the one resource `resourceId`, and has no `answers` where that resource has no points. `annotationIdsListed` answers the id of every annotation that has a point. The ids listed and the stamps listed are sets: no order of theirs is stated. A SEARCH takes a `limit`, the most results it answers, and may take a `scoreThreshold` and a `filter`. A score is the cosine of the angle between two vectors, whatever their lengths: 1 when they point the same way, 0 at a right angle, -1 when they point opposite ways. Scores are stated to six decimal places and compared within 0.000001. With a threshold, a point that scores below it is not answered. A point is answered only if every member of the filter holds of it. `entityTypes` keeps a point that has any one of the types listed, and `excludeEntityTypes` drops a point that has any one of them; an empty list of either filters nothing. `resourceId` keeps the points of that resource alone, and `excludeResourceId` drops them. `motivation` keeps the annotations of that motivation alone. The limit counts what the filter and the threshold leave. WHAT NO CASE RESTS ON. No two results of one read have the same score, so no case says how a tie is broken. No score equals its threshold: the in-memory store answers such a point, and whether Qdrant does is Qdrant's to say. No limit is 0, about which the two stores disagree. Every search by a resource's own vectors has a limit well above the number of points there are, and finds resources of one or two chunks: with more, Qdrant's store can miss a resource the in-memory store finds. Add a case here before changing an implementation.",
+  "cases": [
+    {
+      "why": "an index nothing was written to answers nothing: no result, no stamp, no annotation, and a count of 0",
+      "writes": [],
+      "reads": [
+        { "read": "resourcesSearched", "embedding": [1, 0], "limit": 10, "answers": [] },
+        { "read": "annotationsSearched", "embedding": [1, 0], "limit": 10, "answers": [] },
+        { "read": "searchedByResource", "resourceId": "res-a", "limit": 10, "answers": [] },
+        { "read": "counted", "answers": 0 },
+        { "read": "stampsListed", "answers": {} },
+        { "read": "stampRead", "resourceId": "res-a" },
+        { "read": "annotationIdsListed", "answers": [] }
+      ]
+    },
+    {
+      "why": "a search of resources by an embedding answers one result for each chunk and not one for each resource, best first; a search of annotations answers annotations' points alone; and the count is of the points of both",
+      "writes": [
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the first chunk of a", "embedding": [1, 0] },
+            { "index": 1, "text": "the second chunk of a", "embedding": [3, 4] }
+          ],
+          "contentChecksum": "checksum-a",
+          "entityTypes": ["Place"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-b",
+          "chunks": [
+            { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
+          ],
+          "contentChecksum": "checksum-b",
+          "entityTypes": ["Person"]
+        },
+        {
+          "write": "annotationPut",
+          "annotationId": "ann-1",
+          "resourceId": "res-a",
+          "motivation": "highlighting",
+          "entityTypes": ["Event"],
+          "text": "quoted by ann-1",
+          "embedding": [1, 1]
+        }
+      ],
+      "reads": [
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "answers": [
+            { "score": 1.000000, "resourceId": "res-a", "text": "the first chunk of a", "entityTypes": ["Place"] },
+            { "score": 0.800000, "resourceId": "res-b", "text": "the chunk of b", "entityTypes": ["Person"] },
+            { "score": 0.600000, "resourceId": "res-a", "text": "the second chunk of a", "entityTypes": ["Place"] }
+          ]
+        },
+        {
+          "read": "annotationsSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "answers": [
+            { "score": 0.707107, "resourceId": "res-a", "annotationId": "ann-1", "text": "quoted by ann-1", "entityTypes": ["Event"] }
+          ]
+        },
+        { "read": "counted", "answers": 4 },
+        {
+          "read": "stampsListed",
+          "answers": {
+            "res-a": { "contentChecksum": "checksum-a", "entityTypes": ["Place"] },
+            "res-b": { "contentChecksum": "checksum-b", "entityTypes": ["Person"] }
+          }
+        },
+        { "read": "annotationIdsListed", "answers": ["ann-1"] }
+      ]
+    },
+    {
+      "why": "putting a resource's vectors replaces all it had: a resource that shrinks from three chunks to one keeps no point of the three, its stamp is the new one, the mark of the old text is gone, and another resource's points are as they were",
+      "writes": [
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the first old chunk of a", "embedding": [1, 0] },
+            { "index": 1, "text": "the second old chunk of a", "embedding": [1, 1] },
+            { "index": 2, "text": "the third old chunk of a", "embedding": [0, 1] }
+          ],
+          "contentChecksum": "checksum-a1",
+          "entityTypes": ["Place"],
+          "machineRead": true
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-b",
+          "chunks": [
+            { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
+          ],
+          "contentChecksum": "checksum-b",
+          "entityTypes": ["Person"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the new chunk of a", "embedding": [3, 4] }
+          ],
+          "contentChecksum": "checksum-a2",
+          "entityTypes": ["Event"]
+        }
+      ],
+      "reads": [
+        { "read": "counted", "answers": 2 },
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "answers": [
+            { "score": 0.800000, "resourceId": "res-b", "text": "the chunk of b", "entityTypes": ["Person"] },
+            { "score": 0.600000, "resourceId": "res-a", "text": "the new chunk of a", "entityTypes": ["Event"] }
+          ]
+        },
+        {
+          "read": "stampRead",
+          "resourceId": "res-a",
+          "answers": { "contentChecksum": "checksum-a2", "entityTypes": ["Event"] }
+        },
+        {
+          "read": "stampsListed",
+          "answers": {
+            "res-a": { "contentChecksum": "checksum-a2", "entityTypes": ["Event"] },
+            "res-b": { "contentChecksum": "checksum-b", "entityTypes": ["Person"] }
+          }
+        }
+      ]
+    },
+    {
+      "why": "putting no chunks leaves a resource with no points, and so with no stamp: the checksum and the entity types given with no chunk are kept nowhere",
+      "writes": [
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the first chunk of a", "embedding": [1, 0] },
+            { "index": 1, "text": "the second chunk of a", "embedding": [0, 1] }
+          ],
+          "contentChecksum": "checksum-a1",
+          "entityTypes": ["Place"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-b",
+          "chunks": [
+            { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
+          ],
+          "contentChecksum": "checksum-b",
+          "entityTypes": ["Person"]
+        },
+        { "write": "resourcePut", "resourceId": "res-a", "chunks": [], "contentChecksum": "checksum-a2", "entityTypes": ["Event"] }
+      ],
+      "reads": [
+        { "read": "counted", "answers": 1 },
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "answers": [
+            { "score": 0.800000, "resourceId": "res-b", "text": "the chunk of b", "entityTypes": ["Person"] }
+          ]
+        },
+        { "read": "stampRead", "resourceId": "res-a" },
+        {
+          "read": "stampsListed",
+          "answers": {
+            "res-b": { "contentChecksum": "checksum-b", "entityTypes": ["Person"] }
+          }
+        }
+      ]
+    },
+    {
+      "why": "putting an annotation's vector again replaces its one point, the vector and all of the payload: what it was first put with is found by nothing",
+      "writes": [
+        {
+          "write": "annotationPut",
+          "annotationId": "ann-1",
+          "resourceId": "res-a",
+          "motivation": "highlighting",
+          "entityTypes": ["Place"],
+          "text": "first quoted by ann-1",
+          "embedding": [1, 0]
+        },
+        {
+          "write": "annotationPut",
+          "annotationId": "ann-1",
+          "resourceId": "res-a",
+          "motivation": "linking",
+          "entityTypes": ["Person"],
+          "text": "then quoted by ann-1",
+          "embedding": [0, 1],
+          "machineRead": true
+        }
+      ],
+      "reads": [
+        { "read": "counted", "answers": 1 },
+        { "read": "annotationIdsListed", "answers": ["ann-1"] },
+        {
+          "read": "annotationsSearched",
+          "embedding": [0, 1],
+          "limit": 10,
+          "answers": [
+            {
+              "score": 1.000000,
+              "resourceId": "res-a",
+              "annotationId": "ann-1",
+              "text": "then quoted by ann-1",
+              "entityTypes": ["Person"],
+              "machineRead": true
+            }
+          ]
+        },
+        {
+          "read": "annotationsSearched",
+          "embedding": [0, 1],
+          "limit": 10,
+          "filter": { "motivation": "highlighting" },
+          "answers": []
+        },
+        {
+          "read": "annotationsSearched",
+          "embedding": [0, 1],
+          "limit": 10,
+          "filter": { "entityTypes": ["Place"] },
+          "answers": []
+        }
+      ]
+    },
+    {
+      "why": "rewriting a resource's entity types changes them on every one of its points, and so its stamp and what a filter finds. The checksum, the mark, the texts and the vectors are as they were, and so are another resource's points and the resource's annotations, which keep the entity types they were put with",
+      "writes": [
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the first chunk of a", "embedding": [1, 0] },
+            { "index": 1, "text": "the second chunk of a", "embedding": [3, 4] }
+          ],
+          "contentChecksum": "checksum-a",
+          "entityTypes": ["Place"],
+          "machineRead": true
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-b",
+          "chunks": [
+            { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
+          ],
+          "contentChecksum": "checksum-b",
+          "entityTypes": ["Place"]
+        },
+        {
+          "write": "annotationPut",
+          "annotationId": "ann-1",
+          "resourceId": "res-a",
+          "motivation": "highlighting",
+          "entityTypes": ["Place"],
+          "text": "quoted by ann-1",
+          "embedding": [1, 1]
+        },
+        { "write": "entityTypesRewritten", "resourceId": "res-a", "entityTypes": ["Question", "Event"] }
+      ],
+      "reads": [
+        {
+          "read": "stampRead",
+          "resourceId": "res-a",
+          "answers": { "contentChecksum": "checksum-a", "entityTypes": ["Question", "Event"], "machineRead": true }
+        },
+        {
+          "read": "stampRead",
+          "resourceId": "res-b",
+          "answers": { "contentChecksum": "checksum-b", "entityTypes": ["Place"] }
+        },
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "answers": [
+            {
+              "score": 1.000000,
+              "resourceId": "res-a",
+              "text": "the first chunk of a",
+              "entityTypes": ["Question", "Event"],
+              "machineRead": true
+            },
+            { "score": 0.800000, "resourceId": "res-b", "text": "the chunk of b", "entityTypes": ["Place"] },
+            {
+              "score": 0.600000,
+              "resourceId": "res-a",
+              "text": "the second chunk of a",
+              "entityTypes": ["Question", "Event"],
+              "machineRead": true
+            }
+          ]
+        },
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "filter": { "entityTypes": ["Place"] },
+          "answers": [
+            { "score": 0.800000, "resourceId": "res-b", "text": "the chunk of b", "entityTypes": ["Place"] }
+          ]
+        },
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "filter": { "entityTypes": ["Question"] },
+          "answers": [
+            {
+              "score": 1.000000,
+              "resourceId": "res-a",
+              "text": "the first chunk of a",
+              "entityTypes": ["Question", "Event"],
+              "machineRead": true
+            },
+            {
+              "score": 0.600000,
+              "resourceId": "res-a",
+              "text": "the second chunk of a",
+              "entityTypes": ["Question", "Event"],
+              "machineRead": true
+            }
+          ]
+        },
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "filter": { "excludeEntityTypes": ["Event"] },
+          "answers": [
+            { "score": 0.800000, "resourceId": "res-b", "text": "the chunk of b", "entityTypes": ["Place"] }
+          ]
+        },
+        {
+          "read": "annotationsSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "filter": { "entityTypes": ["Place"] },
+          "answers": [
+            { "score": 0.707107, "resourceId": "res-a", "annotationId": "ann-1", "text": "quoted by ann-1", "entityTypes": ["Place"] }
+          ]
+        },
+        { "read": "counted", "answers": 4 }
+      ]
+    },
+    {
+      "why": "rewriting the entity types of a resource that has no points does nothing: no point is made, and the resource has no stamp",
+      "writes": [
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
+          ],
+          "contentChecksum": "checksum-a",
+          "entityTypes": ["Place"]
+        },
+        { "write": "entityTypesRewritten", "resourceId": "res-b", "entityTypes": ["Question"] }
+      ],
+      "reads": [
+        { "read": "counted", "answers": 1 },
+        { "read": "stampRead", "resourceId": "res-b" },
+        {
+          "read": "stampsListed",
+          "answers": {
+            "res-a": { "contentChecksum": "checksum-a", "entityTypes": ["Place"] }
+          }
+        },
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "filter": { "entityTypes": ["Question"] },
+          "answers": []
+        }
+      ]
+    },
+    {
+      "why": "deleting a resource's vectors takes every point of its chunks and nothing else: another resource's points stay, and so does every annotation's point, those of annotations on the deleted resource too",
+      "writes": [
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the first chunk of a", "embedding": [1, 0] },
+            { "index": 1, "text": "the second chunk of a", "embedding": [0, 1] }
+          ],
+          "contentChecksum": "checksum-a",
+          "entityTypes": ["Place"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-b",
+          "chunks": [
+            { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
+          ],
+          "contentChecksum": "checksum-b",
+          "entityTypes": ["Person"]
+        },
+        {
+          "write": "annotationPut",
+          "annotationId": "ann-1",
+          "resourceId": "res-a",
+          "motivation": "highlighting",
+          "entityTypes": ["Place"],
+          "text": "quoted by ann-1",
+          "embedding": [1, 1]
+        },
+        {
+          "write": "annotationPut",
+          "annotationId": "ann-2",
+          "resourceId": "res-b",
+          "motivation": "highlighting",
+          "entityTypes": ["Person"],
+          "text": "quoted by ann-2",
+          "embedding": [3, 4]
+        },
+        { "write": "resourceDeleted", "resourceId": "res-a" }
+      ],
+      "reads": [
+        { "read": "counted", "answers": 3 },
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "answers": [
+            { "score": 0.800000, "resourceId": "res-b", "text": "the chunk of b", "entityTypes": ["Person"] }
+          ]
+        },
+        { "read": "stampRead", "resourceId": "res-a" },
+        {
+          "read": "stampsListed",
+          "answers": {
+            "res-b": { "contentChecksum": "checksum-b", "entityTypes": ["Person"] }
+          }
+        },
+        { "read": "annotationIdsListed", "answers": ["ann-1", "ann-2"] },
+        {
+          "read": "annotationsSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "answers": [
+            { "score": 0.707107, "resourceId": "res-a", "annotationId": "ann-1", "text": "quoted by ann-1", "entityTypes": ["Place"] },
+            { "score": 0.600000, "resourceId": "res-b", "annotationId": "ann-2", "text": "quoted by ann-2", "entityTypes": ["Person"] }
+          ]
+        }
+      ]
+    },
+    {
+      "why": "deleting an annotation's vector takes that one point: the other annotations on its resource stay, and so do the resource's own points",
+      "writes": [
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
+          ],
+          "contentChecksum": "checksum-a",
+          "entityTypes": ["Place"]
+        },
+        {
+          "write": "annotationPut",
+          "annotationId": "ann-1",
+          "resourceId": "res-a",
+          "motivation": "highlighting",
+          "entityTypes": ["Place"],
+          "text": "quoted by ann-1",
+          "embedding": [4, 3]
+        },
+        {
+          "write": "annotationPut",
+          "annotationId": "ann-2",
+          "resourceId": "res-a",
+          "motivation": "highlighting",
+          "entityTypes": ["Place"],
+          "text": "quoted by ann-2",
+          "embedding": [1, 1]
+        },
+        { "write": "annotationDeleted", "annotationId": "ann-1" }
+      ],
+      "reads": [
+        { "read": "counted", "answers": 2 },
+        { "read": "annotationIdsListed", "answers": ["ann-2"] },
+        {
+          "read": "annotationsSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "answers": [
+            { "score": 0.707107, "resourceId": "res-a", "annotationId": "ann-2", "text": "quoted by ann-2", "entityTypes": ["Place"] }
+          ]
+        },
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "answers": [
+            { "score": 1.000000, "resourceId": "res-a", "text": "the chunk of a", "entityTypes": ["Place"] }
+          ]
+        }
+      ]
+    },
+    {
+      "why": "deleting a resource's annotations' vectors takes the point of every annotation on that resource, and leaves the resource's own points and the annotations on other resources",
+      "writes": [
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
+          ],
+          "contentChecksum": "checksum-a",
+          "entityTypes": ["Place"]
+        },
+        {
+          "write": "annotationPut",
+          "annotationId": "ann-1",
+          "resourceId": "res-a",
+          "motivation": "highlighting",
+          "entityTypes": ["Place"],
+          "text": "quoted by ann-1",
+          "embedding": [4, 3]
+        },
+        {
+          "write": "annotationPut",
+          "annotationId": "ann-2",
+          "resourceId": "res-a",
+          "motivation": "linking",
+          "entityTypes": ["Place"],
+          "text": "quoted by ann-2",
+          "embedding": [1, 1]
+        },
+        {
+          "write": "annotationPut",
+          "annotationId": "ann-3",
+          "resourceId": "res-b",
+          "motivation": "highlighting",
+          "entityTypes": ["Person"],
+          "text": "quoted by ann-3",
+          "embedding": [3, 4]
+        },
+        { "write": "annotationsOfResourceDeleted", "resourceId": "res-a" }
+      ],
+      "reads": [
+        { "read": "counted", "answers": 2 },
+        { "read": "annotationIdsListed", "answers": ["ann-3"] },
+        {
+          "read": "annotationsSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "answers": [
+            { "score": 0.600000, "resourceId": "res-b", "annotationId": "ann-3", "text": "quoted by ann-3", "entityTypes": ["Person"] }
+          ]
+        },
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "answers": [
+            { "score": 1.000000, "resourceId": "res-a", "text": "the chunk of a", "entityTypes": ["Place"] }
+          ]
+        },
+        {
+          "read": "stampRead",
+          "resourceId": "res-a",
+          "answers": { "contentChecksum": "checksum-a", "entityTypes": ["Place"] }
+        }
+      ]
+    },
+    {
+      "why": "deleting what is not there is no failure, and changes nothing",
+      "writes": [
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
+          ],
+          "contentChecksum": "checksum-a",
+          "entityTypes": ["Place"]
+        },
+        {
+          "write": "annotationPut",
+          "annotationId": "ann-1",
+          "resourceId": "res-a",
+          "motivation": "highlighting",
+          "entityTypes": ["Place"],
+          "text": "quoted by ann-1",
+          "embedding": [1, 1]
+        },
+        { "write": "resourceDeleted", "resourceId": "res-b" },
+        { "write": "annotationDeleted", "annotationId": "ann-2" },
+        { "write": "annotationsOfResourceDeleted", "resourceId": "res-b" }
+      ],
+      "reads": [
+        { "read": "counted", "answers": 2 },
+        {
+          "read": "stampsListed",
+          "answers": {
+            "res-a": { "contentChecksum": "checksum-a", "entityTypes": ["Place"] }
+          }
+        },
+        { "read": "annotationIdsListed", "answers": ["ann-1"] }
+      ]
+    },
+    {
+      "why": "a filter by entity types keeps a point that has any one of them, and not only a point that has them all; a point with no entity types is never kept by it",
+      "writes": [
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
+          ],
+          "contentChecksum": "checksum-a",
+          "entityTypes": ["Place"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-b",
+          "chunks": [
+            { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
+          ],
+          "contentChecksum": "checksum-b",
+          "entityTypes": ["Person"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-c",
+          "chunks": [
+            { "index": 0, "text": "the chunk of c", "embedding": [1, 1] }
+          ],
+          "contentChecksum": "checksum-c",
+          "entityTypes": ["Place", "Person"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-d",
+          "chunks": [
+            { "index": 0, "text": "the chunk of d", "embedding": [3, 4] }
+          ],
+          "contentChecksum": "checksum-d",
+          "entityTypes": ["Event"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-e",
+          "chunks": [
+            { "index": 0, "text": "the chunk of e", "embedding": [0, 1] }
+          ],
+          "contentChecksum": "checksum-e",
+          "entityTypes": []
+        }
+      ],
+      "reads": [
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "filter": { "entityTypes": ["Place", "Person"] },
+          "answers": [
+            { "score": 1.000000, "resourceId": "res-a", "text": "the chunk of a", "entityTypes": ["Place"] },
+            { "score": 0.800000, "resourceId": "res-b", "text": "the chunk of b", "entityTypes": ["Person"] },
+            { "score": 0.707107, "resourceId": "res-c", "text": "the chunk of c", "entityTypes": ["Place", "Person"] }
+          ]
+        },
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "filter": { "entityTypes": ["Place"] },
+          "answers": [
+            { "score": 1.000000, "resourceId": "res-a", "text": "the chunk of a", "entityTypes": ["Place"] },
+            { "score": 0.707107, "resourceId": "res-c", "text": "the chunk of c", "entityTypes": ["Place", "Person"] }
+          ]
+        }
+      ]
+    },
+    {
+      "why": "a filter that leaves entity types out drops a point that has any one of them, and keeps a point that has none",
+      "writes": [
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
+          ],
+          "contentChecksum": "checksum-a",
+          "entityTypes": ["Place"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-b",
+          "chunks": [
+            { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
+          ],
+          "contentChecksum": "checksum-b",
+          "entityTypes": ["Person"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-c",
+          "chunks": [
+            { "index": 0, "text": "the chunk of c", "embedding": [1, 1] }
+          ],
+          "contentChecksum": "checksum-c",
+          "entityTypes": ["Place", "Person"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-d",
+          "chunks": [
+            { "index": 0, "text": "the chunk of d", "embedding": [3, 4] }
+          ],
+          "contentChecksum": "checksum-d",
+          "entityTypes": ["Event"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-e",
+          "chunks": [
+            { "index": 0, "text": "the chunk of e", "embedding": [0, 1] }
+          ],
+          "contentChecksum": "checksum-e",
+          "entityTypes": []
+        }
+      ],
+      "reads": [
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "filter": { "excludeEntityTypes": ["Place", "Event"] },
+          "answers": [
+            { "score": 0.800000, "resourceId": "res-b", "text": "the chunk of b", "entityTypes": ["Person"] },
+            { "score": 0.000000, "resourceId": "res-e", "text": "the chunk of e", "entityTypes": [] }
+          ]
+        },
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "filter": { "excludeEntityTypes": ["Place"] },
+          "answers": [
+            { "score": 0.800000, "resourceId": "res-b", "text": "the chunk of b", "entityTypes": ["Person"] },
+            { "score": 0.600000, "resourceId": "res-d", "text": "the chunk of d", "entityTypes": ["Event"] },
+            { "score": 0.000000, "resourceId": "res-e", "text": "the chunk of e", "entityTypes": [] }
+          ]
+        }
+      ]
+    },
+    {
+      "why": "an empty list of entity types filters nothing, whether it is of types to keep or of types to leave out: every point is answered",
+      "writes": [
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
+          ],
+          "contentChecksum": "checksum-a",
+          "entityTypes": ["Place"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-b",
+          "chunks": [
+            { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
+          ],
+          "contentChecksum": "checksum-b",
+          "entityTypes": ["Person"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-c",
+          "chunks": [
+            { "index": 0, "text": "the chunk of c", "embedding": [1, 1] }
+          ],
+          "contentChecksum": "checksum-c",
+          "entityTypes": ["Place", "Person"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-d",
+          "chunks": [
+            { "index": 0, "text": "the chunk of d", "embedding": [3, 4] }
+          ],
+          "contentChecksum": "checksum-d",
+          "entityTypes": ["Event"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-e",
+          "chunks": [
+            { "index": 0, "text": "the chunk of e", "embedding": [0, 1] }
+          ],
+          "contentChecksum": "checksum-e",
+          "entityTypes": []
+        }
+      ],
+      "reads": [
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "filter": { "entityTypes": [] },
+          "answers": [
+            { "score": 1.000000, "resourceId": "res-a", "text": "the chunk of a", "entityTypes": ["Place"] },
+            { "score": 0.800000, "resourceId": "res-b", "text": "the chunk of b", "entityTypes": ["Person"] },
+            { "score": 0.707107, "resourceId": "res-c", "text": "the chunk of c", "entityTypes": ["Place", "Person"] },
+            { "score": 0.600000, "resourceId": "res-d", "text": "the chunk of d", "entityTypes": ["Event"] },
+            { "score": 0.000000, "resourceId": "res-e", "text": "the chunk of e", "entityTypes": [] }
+          ]
+        },
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "filter": { "excludeEntityTypes": [] },
+          "answers": [
+            { "score": 1.000000, "resourceId": "res-a", "text": "the chunk of a", "entityTypes": ["Place"] },
+            { "score": 0.800000, "resourceId": "res-b", "text": "the chunk of b", "entityTypes": ["Person"] },
+            { "score": 0.707107, "resourceId": "res-c", "text": "the chunk of c", "entityTypes": ["Place", "Person"] },
+            { "score": 0.600000, "resourceId": "res-d", "text": "the chunk of d", "entityTypes": ["Event"] },
+            { "score": 0.000000, "resourceId": "res-e", "text": "the chunk of e", "entityTypes": [] }
+          ]
+        }
+      ]
+    },
+    {
+      "why": "a filter by resource keeps the points of that resource alone, in a search of either collection",
+      "writes": [
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the first chunk of a", "embedding": [1, 0] },
+            { "index": 1, "text": "the second chunk of a", "embedding": [3, 4] }
+          ],
+          "contentChecksum": "checksum-a",
+          "entityTypes": ["Place"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-b",
+          "chunks": [
+            { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
+          ],
+          "contentChecksum": "checksum-b",
+          "entityTypes": ["Place"]
+        },
+        {
+          "write": "annotationPut",
+          "annotationId": "ann-1",
+          "resourceId": "res-a",
+          "motivation": "highlighting",
+          "entityTypes": ["Place"],
+          "text": "quoted by ann-1",
+          "embedding": [1, 1]
+        },
+        {
+          "write": "annotationPut",
+          "annotationId": "ann-2",
+          "resourceId": "res-b",
+          "motivation": "highlighting",
+          "entityTypes": ["Place"],
+          "text": "quoted by ann-2",
+          "embedding": [1, 0]
+        }
+      ],
+      "reads": [
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "filter": { "resourceId": "res-a" },
+          "answers": [
+            { "score": 1.000000, "resourceId": "res-a", "text": "the first chunk of a", "entityTypes": ["Place"] },
+            { "score": 0.600000, "resourceId": "res-a", "text": "the second chunk of a", "entityTypes": ["Place"] }
+          ]
+        },
+        {
+          "read": "annotationsSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "filter": { "resourceId": "res-a" },
+          "answers": [
+            { "score": 0.707107, "resourceId": "res-a", "annotationId": "ann-1", "text": "quoted by ann-1", "entityTypes": ["Place"] }
+          ]
+        }
+      ]
+    },
+    {
+      "why": "a filter that leaves a resource out drops every point of that resource, in a search of either collection",
+      "writes": [
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the first chunk of a", "embedding": [1, 0] },
+            { "index": 1, "text": "the second chunk of a", "embedding": [3, 4] }
+          ],
+          "contentChecksum": "checksum-a",
+          "entityTypes": ["Place"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-b",
+          "chunks": [
+            { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
+          ],
+          "contentChecksum": "checksum-b",
+          "entityTypes": ["Place"]
+        },
+        {
+          "write": "annotationPut",
+          "annotationId": "ann-1",
+          "resourceId": "res-a",
+          "motivation": "highlighting",
+          "entityTypes": ["Place"],
+          "text": "quoted by ann-1",
+          "embedding": [1, 1]
+        },
+        {
+          "write": "annotationPut",
+          "annotationId": "ann-2",
+          "resourceId": "res-b",
+          "motivation": "highlighting",
+          "entityTypes": ["Place"],
+          "text": "quoted by ann-2",
+          "embedding": [1, 0]
+        }
+      ],
+      "reads": [
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "filter": { "excludeResourceId": "res-a" },
+          "answers": [
+            { "score": 0.800000, "resourceId": "res-b", "text": "the chunk of b", "entityTypes": ["Place"] }
+          ]
+        },
+        {
+          "read": "annotationsSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "filter": { "excludeResourceId": "res-a" },
+          "answers": [
+            { "score": 1.000000, "resourceId": "res-b", "annotationId": "ann-2", "text": "quoted by ann-2", "entityTypes": ["Place"] }
+          ]
+        }
+      ]
+    },
+    {
+      "why": "a filter by motivation keeps the annotations of that motivation alone",
+      "writes": [
+        {
+          "write": "annotationPut",
+          "annotationId": "ann-1",
+          "resourceId": "res-a",
+          "motivation": "highlighting",
+          "entityTypes": ["Place"],
+          "text": "quoted by ann-1",
+          "embedding": [1, 0]
+        },
+        {
+          "write": "annotationPut",
+          "annotationId": "ann-2",
+          "resourceId": "res-a",
+          "motivation": "linking",
+          "entityTypes": ["Place"],
+          "text": "quoted by ann-2",
+          "embedding": [4, 3]
+        },
+        {
+          "write": "annotationPut",
+          "annotationId": "ann-3",
+          "resourceId": "res-b",
+          "motivation": "linking",
+          "entityTypes": ["Person"],
+          "text": "quoted by ann-3",
+          "embedding": [1, 1]
+        }
+      ],
+      "reads": [
+        {
+          "read": "annotationsSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "filter": { "motivation": "linking" },
+          "answers": [
+            { "score": 0.800000, "resourceId": "res-a", "annotationId": "ann-2", "text": "quoted by ann-2", "entityTypes": ["Place"] },
+            { "score": 0.707107, "resourceId": "res-b", "annotationId": "ann-3", "text": "quoted by ann-3", "entityTypes": ["Person"] }
+          ]
+        },
+        {
+          "read": "annotationsSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "filter": { "motivation": "highlighting" },
+          "answers": [
+            { "score": 1.000000, "resourceId": "res-a", "annotationId": "ann-1", "text": "quoted by ann-1", "entityTypes": ["Place"] }
+          ]
+        }
+      ]
+    },
+    {
+      "why": "the members of a filter must all hold: a point is answered when it passes every one of them, and a point that passes one and fails another is not",
+      "writes": [
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
+          ],
+          "contentChecksum": "checksum-a",
+          "entityTypes": ["Place"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-b",
+          "chunks": [
+            { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
+          ],
+          "contentChecksum": "checksum-b",
+          "entityTypes": ["Person"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-c",
+          "chunks": [
+            { "index": 0, "text": "the chunk of c", "embedding": [1, 1] }
+          ],
+          "contentChecksum": "checksum-c",
+          "entityTypes": ["Place", "Person"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-d",
+          "chunks": [
+            { "index": 0, "text": "the chunk of d", "embedding": [3, 4] }
+          ],
+          "contentChecksum": "checksum-d",
+          "entityTypes": ["Event"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-e",
+          "chunks": [
+            { "index": 0, "text": "the chunk of e", "embedding": [0, 1] }
+          ],
+          "contentChecksum": "checksum-e",
+          "entityTypes": []
+        }
+      ],
+      "reads": [
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "filter": { "entityTypes": ["Place"], "excludeEntityTypes": ["Person"] },
+          "answers": [
+            { "score": 1.000000, "resourceId": "res-a", "text": "the chunk of a", "entityTypes": ["Place"] }
+          ]
+        },
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "filter": { "entityTypes": ["Place", "Person"], "excludeResourceId": "res-a" },
+          "answers": [
+            { "score": 0.800000, "resourceId": "res-b", "text": "the chunk of b", "entityTypes": ["Person"] },
+            { "score": 0.707107, "resourceId": "res-c", "text": "the chunk of c", "entityTypes": ["Place", "Person"] }
+          ]
+        }
+      ]
+    },
+    {
+      "why": "a score threshold drops every point that scores below it",
+      "writes": [
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
+          ],
+          "contentChecksum": "checksum-a",
+          "entityTypes": ["Place"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-b",
+          "chunks": [
+            { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
+          ],
+          "contentChecksum": "checksum-b",
+          "entityTypes": ["Person"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-c",
+          "chunks": [
+            { "index": 0, "text": "the chunk of c", "embedding": [1, 1] }
+          ],
+          "contentChecksum": "checksum-c",
+          "entityTypes": ["Place", "Person"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-d",
+          "chunks": [
+            { "index": 0, "text": "the chunk of d", "embedding": [3, 4] }
+          ],
+          "contentChecksum": "checksum-d",
+          "entityTypes": ["Event"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-e",
+          "chunks": [
+            { "index": 0, "text": "the chunk of e", "embedding": [0, 1] }
+          ],
+          "contentChecksum": "checksum-e",
+          "entityTypes": []
+        }
+      ],
+      "reads": [
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "scoreThreshold": 0.75,
+          "answers": [
+            { "score": 1.000000, "resourceId": "res-a", "text": "the chunk of a", "entityTypes": ["Place"] },
+            { "score": 0.800000, "resourceId": "res-b", "text": "the chunk of b", "entityTypes": ["Person"] }
+          ]
+        },
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "scoreThreshold": 0.5,
+          "answers": [
+            { "score": 1.000000, "resourceId": "res-a", "text": "the chunk of a", "entityTypes": ["Place"] },
+            { "score": 0.800000, "resourceId": "res-b", "text": "the chunk of b", "entityTypes": ["Person"] },
+            { "score": 0.707107, "resourceId": "res-c", "text": "the chunk of c", "entityTypes": ["Place", "Person"] },
+            { "score": 0.600000, "resourceId": "res-d", "text": "the chunk of d", "entityTypes": ["Event"] }
+          ]
+        }
+      ]
+    },
+    {
+      "why": "the limit keeps the best: of five points, the two that score highest, best first",
+      "writes": [
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
+          ],
+          "contentChecksum": "checksum-a",
+          "entityTypes": ["Place"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-b",
+          "chunks": [
+            { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
+          ],
+          "contentChecksum": "checksum-b",
+          "entityTypes": ["Person"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-c",
+          "chunks": [
+            { "index": 0, "text": "the chunk of c", "embedding": [1, 1] }
+          ],
+          "contentChecksum": "checksum-c",
+          "entityTypes": ["Place", "Person"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-d",
+          "chunks": [
+            { "index": 0, "text": "the chunk of d", "embedding": [3, 4] }
+          ],
+          "contentChecksum": "checksum-d",
+          "entityTypes": ["Event"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-e",
+          "chunks": [
+            { "index": 0, "text": "the chunk of e", "embedding": [0, 1] }
+          ],
+          "contentChecksum": "checksum-e",
+          "entityTypes": []
+        }
+      ],
+      "reads": [
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 2,
+          "answers": [
+            { "score": 1.000000, "resourceId": "res-a", "text": "the chunk of a", "entityTypes": ["Place"] },
+            { "score": 0.800000, "resourceId": "res-b", "text": "the chunk of b", "entityTypes": ["Person"] }
+          ]
+        },
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 1,
+          "answers": [
+            { "score": 1.000000, "resourceId": "res-a", "text": "the chunk of a", "entityTypes": ["Place"] }
+          ]
+        }
+      ]
+    },
+    {
+      "why": "the limit counts what the filter left: the best two of the points that pass, and not what passes of the best two",
+      "writes": [
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
+          ],
+          "contentChecksum": "checksum-a",
+          "entityTypes": ["Place"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-b",
+          "chunks": [
+            { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
+          ],
+          "contentChecksum": "checksum-b",
+          "entityTypes": ["Person"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-c",
+          "chunks": [
+            { "index": 0, "text": "the chunk of c", "embedding": [1, 1] }
+          ],
+          "contentChecksum": "checksum-c",
+          "entityTypes": ["Place", "Person"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-d",
+          "chunks": [
+            { "index": 0, "text": "the chunk of d", "embedding": [3, 4] }
+          ],
+          "contentChecksum": "checksum-d",
+          "entityTypes": ["Event"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-e",
+          "chunks": [
+            { "index": 0, "text": "the chunk of e", "embedding": [0, 1] }
+          ],
+          "contentChecksum": "checksum-e",
+          "entityTypes": []
+        }
+      ],
+      "reads": [
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 2,
+          "filter": { "excludeEntityTypes": ["Place"] },
+          "answers": [
+            { "score": 0.800000, "resourceId": "res-b", "text": "the chunk of b", "entityTypes": ["Person"] },
+            { "score": 0.600000, "resourceId": "res-d", "text": "the chunk of d", "entityTypes": ["Event"] }
+          ]
+        }
+      ]
+    },
+    {
+      "why": "with no threshold a search answers every point up to its limit, however poorly it scores, best first: a point at a right angle scores 0, and one that points the opposite way scores -1",
+      "writes": [
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
+          ],
+          "contentChecksum": "checksum-a",
+          "entityTypes": ["Place"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-b",
+          "chunks": [
+            { "index": 0, "text": "the chunk of b", "embedding": [0, 1] }
+          ],
+          "contentChecksum": "checksum-b",
+          "entityTypes": ["Place"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-c",
+          "chunks": [
+            { "index": 0, "text": "the chunk of c", "embedding": [-1, 0] }
+          ],
+          "contentChecksum": "checksum-c",
+          "entityTypes": ["Place"]
+        }
+      ],
+      "reads": [
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "answers": [
+            { "score": 1.000000, "resourceId": "res-a", "text": "the chunk of a", "entityTypes": ["Place"] },
+            { "score": 0.000000, "resourceId": "res-b", "text": "the chunk of b", "entityTypes": ["Place"] },
+            { "score": -1.000000, "resourceId": "res-c", "text": "the chunk of c", "entityTypes": ["Place"] }
+          ]
+        }
+      ]
+    },
+    {
+      "why": "a search by a resource's own vectors answers the other resources nearest to them, best first: the resource itself is left out, and no annotation's point is searched",
+      "writes": [
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
+          ],
+          "contentChecksum": "checksum-a",
+          "entityTypes": ["Place"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-b",
+          "chunks": [
+            { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
+          ],
+          "contentChecksum": "checksum-b",
+          "entityTypes": ["Person"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-c",
+          "chunks": [
+            { "index": 0, "text": "the chunk of c", "embedding": [1, 1] }
+          ],
+          "contentChecksum": "checksum-c",
+          "entityTypes": ["Event"]
+        },
+        {
+          "write": "annotationPut",
+          "annotationId": "ann-1",
+          "resourceId": "res-b",
+          "motivation": "highlighting",
+          "entityTypes": ["Person"],
+          "text": "quoted by ann-1",
+          "embedding": [1, 0]
+        }
+      ],
+      "reads": [
+        {
+          "read": "searchedByResource",
+          "resourceId": "res-a",
+          "limit": 10,
+          "answers": [
+            { "score": 0.800000, "resourceId": "res-b", "text": "the chunk of b", "entityTypes": ["Person"] },
+            { "score": 0.707107, "resourceId": "res-c", "text": "the chunk of c", "entityTypes": ["Event"] }
+          ]
+        }
+      ]
+    },
+    {
+      "why": "a search by a resource's own vectors answers one result for each resource: a resource found by two of its chunks is answered once, with the score and the text of the chunk that scored best. A search of resources by an embedding answers both chunks",
+      "writes": [
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
+          ],
+          "contentChecksum": "checksum-a",
+          "entityTypes": ["Place"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-b",
+          "chunks": [
+            { "index": 0, "text": "the chunk of b that is off the subject", "embedding": [0, 1] },
+            { "index": 1, "text": "the chunk of b that is on the subject", "embedding": [4, 3] }
+          ],
+          "contentChecksum": "checksum-b",
+          "entityTypes": ["Person"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-c",
+          "chunks": [
+            { "index": 0, "text": "the chunk of c", "embedding": [1, 1] }
+          ],
+          "contentChecksum": "checksum-c",
+          "entityTypes": ["Event"]
+        }
+      ],
+      "reads": [
+        {
+          "read": "searchedByResource",
+          "resourceId": "res-a",
+          "limit": 10,
+          "answers": [
+            { "score": 0.800000, "resourceId": "res-b", "text": "the chunk of b that is on the subject", "entityTypes": ["Person"] },
+            { "score": 0.707107, "resourceId": "res-c", "text": "the chunk of c", "entityTypes": ["Event"] }
+          ]
+        },
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "answers": [
+            { "score": 1.000000, "resourceId": "res-a", "text": "the chunk of a", "entityTypes": ["Place"] },
+            { "score": 0.800000, "resourceId": "res-b", "text": "the chunk of b that is on the subject", "entityTypes": ["Person"] },
+            { "score": 0.707107, "resourceId": "res-c", "text": "the chunk of c", "entityTypes": ["Event"] },
+            { "score": 0.000000, "resourceId": "res-b", "text": "the chunk of b that is off the subject", "entityTypes": ["Person"] }
+          ]
+        }
+      ]
+    },
+    {
+      "why": "every chunk of the resource is searched by, and another resource scores as its best match with any one of them, and not as its match with what they average to",
+      "writes": [
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the first chunk of a", "embedding": [1, 0] },
+            { "index": 1, "text": "the second chunk of a", "embedding": [0, 1] }
+          ],
+          "contentChecksum": "checksum-a",
+          "entityTypes": ["Place"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-b",
+          "chunks": [
+            { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
+          ],
+          "contentChecksum": "checksum-b",
+          "entityTypes": ["Person"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-c",
+          "chunks": [
+            { "index": 0, "text": "the chunk of c", "embedding": [1, 1] }
+          ],
+          "contentChecksum": "checksum-c",
+          "entityTypes": ["Event"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-d",
+          "chunks": [
+            { "index": 0, "text": "the chunk of d", "embedding": [0, 1] }
+          ],
+          "contentChecksum": "checksum-d",
+          "entityTypes": ["Event"]
+        }
+      ],
+      "reads": [
+        {
+          "read": "searchedByResource",
+          "resourceId": "res-a",
+          "limit": 10,
+          "answers": [
+            { "score": 1.000000, "resourceId": "res-d", "text": "the chunk of d", "entityTypes": ["Event"] },
+            { "score": 0.800000, "resourceId": "res-b", "text": "the chunk of b", "entityTypes": ["Person"] },
+            { "score": 0.707107, "resourceId": "res-c", "text": "the chunk of c", "entityTypes": ["Event"] }
+          ]
+        }
+      ]
+    },
+    {
+      "why": "a search by the vectors of a resource that has none answers nothing",
+      "writes": [
+        {
+          "write": "resourcePut",
+          "resourceId": "res-b",
+          "chunks": [
+            { "index": 0, "text": "the chunk of b", "embedding": [1, 0] }
+          ],
+          "contentChecksum": "checksum-b",
+          "entityTypes": ["Person"]
+        }
+      ],
+      "reads": [
+        { "read": "searchedByResource", "resourceId": "res-a", "limit": 10, "answers": [] }
+      ]
+    },
+    {
+      "why": "a search by a resource's own vectors takes the filters a search takes: entity types to leave out, and entity types to keep",
+      "writes": [
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
+          ],
+          "contentChecksum": "checksum-a",
+          "entityTypes": ["Question"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-b",
+          "chunks": [
+            { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
+          ],
+          "contentChecksum": "checksum-b",
+          "entityTypes": ["Question"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-c",
+          "chunks": [
+            { "index": 0, "text": "the chunk of c", "embedding": [1, 1] }
+          ],
+          "contentChecksum": "checksum-c",
+          "entityTypes": ["Article"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-d",
+          "chunks": [
+            { "index": 0, "text": "the chunk of d", "embedding": [3, 4] }
+          ],
+          "contentChecksum": "checksum-d",
+          "entityTypes": ["Article", "Place"]
+        }
+      ],
+      "reads": [
+        {
+          "read": "searchedByResource",
+          "resourceId": "res-a",
+          "limit": 10,
+          "filter": { "excludeEntityTypes": ["Question"] },
+          "answers": [
+            { "score": 0.707107, "resourceId": "res-c", "text": "the chunk of c", "entityTypes": ["Article"] },
+            { "score": 0.600000, "resourceId": "res-d", "text": "the chunk of d", "entityTypes": ["Article", "Place"] }
+          ]
+        },
+        {
+          "read": "searchedByResource",
+          "resourceId": "res-a",
+          "limit": 10,
+          "filter": { "entityTypes": ["Place"] },
+          "answers": [
+            { "score": 0.600000, "resourceId": "res-d", "text": "the chunk of d", "entityTypes": ["Article", "Place"] }
+          ]
+        }
+      ]
+    },
+    {
+      "why": "a search by a resource's own vectors drops a resource whose best chunk scores below the threshold",
+      "writes": [
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
+          ],
+          "contentChecksum": "checksum-a",
+          "entityTypes": ["Place"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-b",
+          "chunks": [
+            { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
+          ],
+          "contentChecksum": "checksum-b",
+          "entityTypes": ["Person"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-c",
+          "chunks": [
+            { "index": 0, "text": "the chunk of c", "embedding": [1, 1] }
+          ],
+          "contentChecksum": "checksum-c",
+          "entityTypes": ["Event"]
+        }
+      ],
+      "reads": [
+        {
+          "read": "searchedByResource",
+          "resourceId": "res-a",
+          "limit": 10,
+          "scoreThreshold": 0.75,
+          "answers": [
+            { "score": 0.800000, "resourceId": "res-b", "text": "the chunk of b", "entityTypes": ["Person"] }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -239,6 +239,121 @@ function tallyEmbedOutcomes(planned: readonly string[], outcomes: ReadonlyMap<st
   return { embedded, skipped, unavailable, failed };
 }
 
+/**
+ * Embeddable live resources, each with the catalog's claims: the primary
+ * representation's checksum (the bytes the smelter would read), the
+ * current entity-type set (the discriminator the stamps must carry), and
+ * whether the media type's extractor derives geometry (whether an
+ * anchored-text artifact should exist). Both answers are core's, keyed by the
+ * media type's strategy: embeddable ⇔ the type has any text-reading strategy
+ * at all, and geometry ⇔ that strategy derives it — facts about a media
+ * type, asked of the type and never by resolving an implementation.
+ * Shared by `reconcile()` and the `smelt:rebuild-anchors` planner.
+ */
+export function classifyEmbeddable(
+  resources: ResourceDescriptor[],
+): Map<string, { checksum: string | undefined; entityTypes: string[]; yieldsGeometry: boolean }> {
+  const embeddable = new Map<string, { checksum: string | undefined; entityTypes: string[]; yieldsGeometry: boolean }>();
+  for (const resource of resources) {
+    const mediaType = getPrimaryMediaType(resource);
+    const readable = mediaType !== undefined && textSourceOf(mediaType) !== 'none';
+    if (resource['@id'] && mediaType && readable) {
+      embeddable.set(resource['@id'], {
+        checksum: getPrimaryRepresentation(resource)?.checksum,
+        entityTypes: getResourceEntityTypes(resource),
+        yieldsGeometry: yieldsGeometryOf(mediaType),
+      });
+    }
+  }
+  return embeddable;
+}
+
+/** An annotation the catalog lists, with the live resource it is on. */
+interface LiveAnnotation {
+  resourceId: string;
+  annotation: Annotation;
+}
+
+/**
+ * Reconcile's plan: what IS indexed and anchored, diffed against what the
+ * catalog says SHOULD be, as `smelt:*` work items in the order `reconcile()`
+ * drains them. It reads nothing, awaits nothing and logs nothing — the
+ * snapshots and the catalog reads are `reconcile()`'s — so the rule can be
+ * held case by case: `specs/src/smelter/reconcile-cases.json` is its table.
+ */
+export function planReconcile({ indexedResources, indexedAnnotations, anchoredKeys, embeddable, liveAnnotations }: {
+  /** The index's stamp for each resource it holds vectors for. */
+  indexedResources: Awaited<ReturnType<VectorStore['listResourceStamps']>>;
+  /** The annotations the index holds a vector for. */
+  indexedAnnotations: ReadonlySet<string>;
+  /** The anchored-text store's keys — content checksums. */
+  anchoredKeys: ReadonlySet<string>;
+  /** The catalog's side for resources — `classifyEmbeddable`'s answer. */
+  embeddable: ReturnType<typeof classifyEmbeddable>;
+  /** The catalog's side for annotations — those of EVERY live resource,
+   *  embeddable or not, whether or not they quote text. */
+  liveAnnotations: readonly LiveAnnotation[];
+}): SmelterWorkItem[] {
+  const work: SmelterWorkItem[] = [];
+
+  for (const rid of indexedResources.keys()) {
+    if (!embeddable.has(rid)) work.push({ type: 'smelt:purge', resourceId: rid, payload: {} });
+  }
+  for (const [rid, catalog] of embeddable) {
+    const indexed = indexedResources.get(rid);
+    if (!indexed) {
+      work.push({ type: 'smelt:embed', resourceId: rid, payload: {} });
+    } else if (catalog.checksum !== undefined && indexed.contentChecksum !== catalog.checksum) {
+      // Stale-but-present content: indexed from earlier bytes (or with
+      // no stamp at all, which reads as undefined) — re-embed (S12).
+      // The fresh embed re-reads the tags too.
+      work.push({ type: 'smelt:embed', resourceId: rid, payload: {} });
+    } else if (!sameStringSet(indexed.entityTypes, catalog.entityTypes)) {
+      // Content current, tags drifted: tag edits change no bytes, so the
+      // checksum diff is blind to them — payload-only restamp (S13),
+      // never an embedding call.
+      work.push({ type: 'smelt:restamp', resourceId: rid, payload: {} });
+    }
+    // Third drift class — a lost anchored-text artifact — deliberately
+    // NOT in the else-if chain: tag drift and a lost artifact can
+    // co-occur, and each work item heals its own half. Indexed at the
+    // current checksum means embed/re-embed will not run (those paths
+    // re-publish the artifact as a side effect); a geometry-capable
+    // extractor means an artifact SHOULD exist; an absent key means it
+    // was lost — the launcher clears the store when the Smelter's image
+    // changes, and a publish can fail silently. A catalog without a
+    // checksum cannot claim "current", so it never plans re-anchoring —
+    // the stamp diff owns that resource's fate. The store is
+    // checksum-keyed, so presence is asked by the catalog's checksum —
+    // the identity of the bytes — not the rid.
+    if (indexed && catalog.checksum !== undefined
+        && indexed.contentChecksum === catalog.checksum
+        && catalog.yieldsGeometry && !anchoredKeys.has(catalog.checksum)) {
+      work.push({ type: 'smelt:reanchor', resourceId: rid, payload: {} });
+    }
+  }
+
+  const liveAnnotationIds = new Set<string>();
+  for (const { resourceId, annotation } of liveAnnotations) {
+    const exactText = getExactText(getTargetSelector(annotation.target));
+    if (!annotation.id || !exactText?.trim()) continue;
+    liveAnnotationIds.add(annotation.id);
+    if (!indexedAnnotations.has(annotation.id)) {
+      work.push({ type: 'smelt:embed-annotation', resourceId, payload: { annotation } });
+    }
+  }
+
+  for (const aid of indexedAnnotations) {
+    if (!liveAnnotationIds.has(aid)) {
+      // An orphan's anchor is unknown — the annotation no longer exists
+      // in the catalog — so the orphan's own id keys its lane.
+      work.push({ type: 'smelt:purge-annotation', resourceId: aid, payload: { annotationId: makeAnnotationId(aid) } });
+    }
+  }
+
+  return work;
+}
+
 export class Smelter {
   private static readonly RECONCILE_PAGE_SIZE = 200;
   /** Bound on concurrently in-flight reconcile work — a cold rebuild must not fan out unbounded embedding calls. */
@@ -946,50 +1061,11 @@ export class Smelter {
         liveResources: resources.length,
       });
 
-      const embeddable = this.classifyEmbeddable(resources);
-
-      const work: SmelterWorkItem[] = [];
-
-      for (const rid of indexedResources.keys()) {
-        if (!embeddable.has(rid)) work.push({ type: 'smelt:purge', resourceId: rid, payload: {} });
-      }
-      for (const [rid, catalog] of embeddable) {
-        const indexed = indexedResources.get(rid);
-        if (!indexed) {
-          work.push({ type: 'smelt:embed', resourceId: rid, payload: {} });
-        } else if (catalog.checksum !== undefined && indexed.contentChecksum !== catalog.checksum) {
-          // Stale-but-present content: indexed from earlier bytes (or with
-          // no stamp at all, which reads as undefined) — re-embed (S12).
-          // The fresh embed re-reads the tags too.
-          work.push({ type: 'smelt:embed', resourceId: rid, payload: {} });
-        } else if (!sameStringSet(indexed.entityTypes, catalog.entityTypes)) {
-          // Content current, tags drifted: tag edits change no bytes, so the
-          // checksum diff is blind to them — payload-only restamp (S13),
-          // never an embedding call.
-          work.push({ type: 'smelt:restamp', resourceId: rid, payload: {} });
-        }
-        // Third drift class — a lost anchored-text artifact — deliberately
-        // NOT in the else-if chain: tag drift and a lost artifact can
-        // co-occur, and each work item heals its own half. Indexed at the
-        // current checksum means embed/re-embed will not run (those paths
-        // re-publish the artifact as a side effect); a geometry-capable
-        // extractor means an artifact SHOULD exist; an absent key means it
-        // was lost — the launcher clears the store when the Smelter's image
-        // changes, and a publish can fail silently. A catalog without a
-        // checksum cannot claim "current", so it never plans re-anchoring —
-        // the stamp diff owns that resource's fate. The store is
-        // checksum-keyed, so presence is asked by the catalog's checksum —
-        // the identity of the bytes — not the rid.
-        if (indexed && catalog.checksum !== undefined
-            && indexed.contentChecksum === catalog.checksum
-            && catalog.yieldsGeometry && !anchoredKeys.has(catalog.checksum)) {
-          work.push({ type: 'smelt:reanchor', resourceId: rid, payload: {} });
-        }
-      }
+      const embeddable = classifyEmbeddable(resources);
 
       // Annotations: every live resource is consulted — not just the
       // re-embedded ones — so orphan detection sees the full live set.
-      const liveAnnotationIds = new Set<string>();
+      const liveAnnotations: LiveAnnotation[] = [];
       for (const resource of resources) {
         const rid = resource['@id'];
         if (!rid) continue;
@@ -998,23 +1074,10 @@ export class Smelter {
           'browse:annotations-requested' satisfies SmelterAnnotationsReadAwaits,
           { resourceId: rid },
         );
-        for (const annotation of annotations) {
-          const exactText = getExactText(getTargetSelector(annotation.target));
-          if (!annotation.id || !exactText?.trim()) continue;
-          liveAnnotationIds.add(annotation.id);
-          if (!indexedAnnotations.has(annotation.id)) {
-            work.push({ type: 'smelt:embed-annotation', resourceId: rid, payload: { annotation } });
-          }
-        }
+        for (const annotation of annotations) liveAnnotations.push({ resourceId: rid, annotation });
       }
 
-      for (const aid of indexedAnnotations) {
-        if (!liveAnnotationIds.has(aid)) {
-          // An orphan's anchor is unknown — the annotation no longer exists
-          // in the catalog — so the orphan's own id keys its lane.
-          work.push({ type: 'smelt:purge-annotation', resourceId: aid, payload: { annotationId: makeAnnotationId(aid) } });
-        }
-      }
+      const work = planReconcile({ indexedResources, indexedAnnotations, anchoredKeys, embeddable, liveAnnotations });
 
       await this.drain(work);
 
@@ -1108,7 +1171,7 @@ export class Smelter {
         work = [{ type: 'smelt:reanchor', resourceId, payload: {} }];
       } else {
         const resources = await this.listAllResources();
-        work = [...this.classifyEmbeddable(resources)]
+        work = [...classifyEmbeddable(resources)]
           .filter(([, catalog]) => catalog.yieldsGeometry)
           .map(([rid]) => ({ type: 'smelt:reanchor' as const, resourceId: rid, payload: {} }));
       }
@@ -1132,35 +1195,6 @@ export class Smelter {
         this.logger.warn('Failed to emit smelt:rebuild-anchors-failed', { error: errField(emitError) });
       }
     }
-  }
-
-  /**
-   * Embeddable live resources, each with the catalog's claims: the primary
-   * representation's checksum (the bytes the smelter would read), the
-   * current entity-type set (the discriminator the stamps must carry), and
-   * whether the media type's extractor derives geometry (whether an
-   * anchored-text artifact should exist). Both answers are core's, keyed by the
-   * media type's strategy: embeddable ⇔ the type has any text-reading strategy
-   * at all, and geometry ⇔ that strategy derives it — facts about a media
-   * type, asked of the type and never by resolving an implementation.
-   * Shared by `reconcile()` and the `smelt:rebuild-anchors` planner.
-   */
-  private classifyEmbeddable(
-    resources: ResourceDescriptor[],
-  ): Map<string, { checksum: string | undefined; entityTypes: string[]; yieldsGeometry: boolean }> {
-    const embeddable = new Map<string, { checksum: string | undefined; entityTypes: string[]; yieldsGeometry: boolean }>();
-    for (const resource of resources) {
-      const mediaType = getPrimaryMediaType(resource);
-      const readable = mediaType !== undefined && textSourceOf(mediaType) !== 'none';
-      if (resource['@id'] && mediaType && readable) {
-        embeddable.set(resource['@id'], {
-          checksum: getPrimaryRepresentation(resource)?.checksum,
-          entityTypes: getResourceEntityTypes(resource),
-          yieldsGeometry: yieldsGeometryOf(mediaType),
-        });
-      }
-    }
-    return embeddable;
   }
 
   /** Page through `browse:resources-requested` until the catalog is

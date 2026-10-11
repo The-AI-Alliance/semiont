@@ -1,0 +1,595 @@
+{
+  "$comment": "The work a Smelter plans when it starts, as every implementation of the Smelter must plan it. A Smelter that starts reads three things and compares them: what its vector index holds, what the catalog says the knowledge base holds, and which bytes its anchored-text store has an entry for. Where they differ it plans work, and then does it. This table is the plan and nothing after it: not how the work is done, and not what the Smelter counts and reports when it is done. Semiont's Smelter (@semiont/make-meaning: smelter.ts) runs every case and fails on a difference; a Smelter in another language runs the same file. WHAT A CASE STATES. `index` is what the vector index holds. Its `resources` are the resources it holds points for, each with what those points carry: the `checksum` of the bytes they were made from, which is absent when they carry none, and their `entityTypes`. Its `annotations` are the ids of the annotations it holds a point for: the plan is told nothing else of such a point, and not which resource its annotation is on. `anchored` is the keys of the anchored-text store, each the checksum of the bytes an entry was derived from. `catalog` is the resources of the knowledge base that are not archived, each with the `mediaType` and the `checksum` of its first representation, its `entityTypes`, and its `annotations`, each with its id and its `quote`: the text its target quotes, which is the empty string when it quotes none. The `checksum` is absent when the catalog states none, and both it and the `mediaType` are absent for a resource that has no representation at all. A list of entity types states each type once. An archived resource is not in the catalog at all, and neither are its annotations: a Smelter asks the catalog for the resources that are not archived, so to the plan a resource that was archived and one that is gone are the same. `work` is what is planned: each item has a `kind` and says what it is about. WHAT A MEDIA TYPE MEANS is not this table's to say. Whether a type has text a Smelter reads, and whether reading it gives places on a page, is read from specs/src/media-types/registry.json: a type whose `textSource` is `none` has no text, and one whose `textSource` is `pdf-text-layer` has text with places on a page. A type the registry does not list is decoded when it is a `text/` type, and has no text otherwise. A type is looked up without its parameters. A resource that has no representation has no media type, and so no text. A case here states a media type and the work that follows from it. THE RULE, OF RESOURCES. `purge` a `resource`, which takes its points out: the index holds points for it, and it is not a resource of the catalog whose media type has text. A resource of the catalog whose media type has text is planned at most one of `embed` and `restamp`. `embed` it, which indexes its text in place of whatever points it has: it has no points; or the catalog states its checksum and its points do not carry that checksum, carrying another or none. Otherwise `restamp` it, which rewrites the entity types its points carry and embeds nothing: its points carry other entity types than the catalog's, compared in no order. Beside a `restamp` or alone, `reanchor` it, which derives its anchored text again and embeds nothing: the catalog states its checksum, its points carry that checksum, reading its media type gives places on a page, and `anchored` has no entry under that checksum. A catalog that states no checksum for a resource does not say whether its bytes changed: such a resource is embedded only when it has no points, and is never re-anchored. THE RULE, OF ANNOTATIONS. An annotation quotes text when its quote has a character that is not white space. `embed-annotation` an `annotation`, naming the `resource` it is on: it is on a resource of the catalog, whatever that resource's media type; it quotes text; and it has no point. `purge-annotation` an `annotation`, which takes its point out: the index holds a point for it, and it is not an annotation of the catalog that quotes text. THE ORDER. A plan is a list, and one order in it is part of the rule: where a plan has both an `embed` of a resource and an `embed-annotation` on that resource, the `embed` comes first. An annotation's point takes the mark of text read from pixels from its resource's points, as they are when the annotation is indexed, so the resource is indexed first. The work is otherwise in no stated order: the order of the work for different resources is not part of the rule. Every list of a case is a set, stated in no order, and its `work` is one too: no case shows the order above, and a runner checks it of every plan it is given. Add a case here before changing an implementation.",
+  "cases": [
+    {
+      "why": "nothing is planned where the three agree: each resource with text has points that carry the catalog's checksum and entity types, the PDF's bytes have their anchored text, each annotation that quotes text has its point, and an image, with an annotation that quotes nothing, has no points",
+      "index": {
+        "resources": [
+          { "id": "res-1", "checksum": "sha256:res-1", "entityTypes": ["Person"] },
+          { "id": "res-2", "checksum": "sha256:res-2", "entityTypes": [] }
+        ],
+        "annotations": ["ann-1", "ann-2"]
+      },
+      "anchored": ["sha256:res-2"],
+      "catalog": [
+        {
+          "id": "res-1", "mediaType": "text/markdown", "checksum": "sha256:res-1", "entityTypes": ["Person"],
+          "annotations": [
+            { "id": "ann-1", "quote": "Black Hawk" }
+          ]
+        },
+        {
+          "id": "res-2", "mediaType": "application/pdf", "checksum": "sha256:res-2", "entityTypes": [],
+          "annotations": [
+            { "id": "ann-2", "quote": "the treaty of 1804" }
+          ]
+        },
+        {
+          "id": "res-3", "mediaType": "image/png", "checksum": "sha256:res-3", "entityTypes": [],
+          "annotations": [
+            { "id": "ann-3", "quote": "" }
+          ]
+        }
+      ],
+      "work": []
+    },
+    {
+      "why": "a resource of the catalog whose media type has text, and which has no points, is indexed",
+      "index": {
+        "resources": [],
+        "annotations": []
+      },
+      "anchored": [],
+      "catalog": [
+        { "id": "res-1", "mediaType": "text/markdown", "checksum": "sha256:res-1", "entityTypes": [], "annotations": [] }
+      ],
+      "work": [
+        { "kind": "embed", "resource": "res-1" }
+      ]
+    },
+    {
+      "why": "points that carry another checksum than the catalog states were made from earlier bytes: the resource is indexed again",
+      "index": {
+        "resources": [
+          { "id": "res-1", "checksum": "sha256:res-1-before", "entityTypes": [] }
+        ],
+        "annotations": []
+      },
+      "anchored": [],
+      "catalog": [
+        { "id": "res-1", "mediaType": "text/markdown", "checksum": "sha256:res-1", "entityTypes": [], "annotations": [] }
+      ],
+      "work": [
+        { "kind": "embed", "resource": "res-1" }
+      ]
+    },
+    {
+      "why": "points that carry no checksum, where the catalog states one, are not known to be of the bytes the resource has now: it is indexed again",
+      "index": {
+        "resources": [
+          { "id": "res-1", "entityTypes": [] }
+        ],
+        "annotations": []
+      },
+      "anchored": [],
+      "catalog": [
+        { "id": "res-1", "mediaType": "text/markdown", "checksum": "sha256:res-1", "entityTypes": [], "annotations": [] }
+      ],
+      "work": [
+        { "kind": "embed", "resource": "res-1" }
+      ]
+    },
+    {
+      "why": "a resource whose bytes and whose entity types both changed is indexed again and nothing more: indexing it gives its new points its entity types as they now are",
+      "index": {
+        "resources": [
+          { "id": "res-1", "checksum": "sha256:res-1-before", "entityTypes": ["Place"] }
+        ],
+        "annotations": []
+      },
+      "anchored": [],
+      "catalog": [
+        { "id": "res-1", "mediaType": "text/markdown", "checksum": "sha256:res-1", "entityTypes": ["Person"], "annotations": [] }
+      ],
+      "work": [
+        { "kind": "embed", "resource": "res-1" }
+      ]
+    },
+    {
+      "why": "a resource for which the catalog states no checksum, and which has no points, is indexed",
+      "index": {
+        "resources": [],
+        "annotations": []
+      },
+      "anchored": [],
+      "catalog": [
+        { "id": "res-1", "mediaType": "text/markdown", "entityTypes": [], "annotations": [] }
+      ],
+      "work": [
+        { "kind": "embed", "resource": "res-1" }
+      ]
+    },
+    {
+      "why": "a catalog that states no checksum for a resource does not say whether its bytes changed: a resource that has points is not indexed again, whether those points carry a checksum or none",
+      "index": {
+        "resources": [
+          { "id": "res-1", "checksum": "sha256:res-1", "entityTypes": [] },
+          { "id": "res-2", "entityTypes": [] }
+        ],
+        "annotations": []
+      },
+      "anchored": [],
+      "catalog": [
+        { "id": "res-1", "mediaType": "text/markdown", "entityTypes": [], "annotations": [] },
+        { "id": "res-2", "mediaType": "text/plain", "entityTypes": [], "annotations": [] }
+      ],
+      "work": []
+    },
+    {
+      "why": "entity types are compared where the catalog states no checksum too: points that carry other entity types have them rewritten",
+      "index": {
+        "resources": [
+          { "id": "res-1", "checksum": "sha256:res-1", "entityTypes": ["Place"] }
+        ],
+        "annotations": []
+      },
+      "anchored": [],
+      "catalog": [
+        { "id": "res-1", "mediaType": "text/markdown", "entityTypes": ["Person"], "annotations": [] }
+      ],
+      "work": [
+        { "kind": "restamp", "resource": "res-1" }
+      ]
+    },
+    {
+      "why": "a PDF for which the catalog states no checksum is not re-anchored, though the anchored-text store has no entry for it: the catalog does not say that its points are of the bytes it has now",
+      "index": {
+        "resources": [
+          { "id": "res-1", "checksum": "sha256:res-1", "entityTypes": [] }
+        ],
+        "annotations": []
+      },
+      "anchored": [],
+      "catalog": [
+        { "id": "res-1", "mediaType": "application/pdf", "entityTypes": [], "annotations": [] }
+      ],
+      "work": []
+    },
+    {
+      "why": "points that carry the catalog's checksum and other entity types have their entity types rewritten: the resource is not indexed again",
+      "index": {
+        "resources": [
+          { "id": "res-1", "checksum": "sha256:res-1", "entityTypes": ["Place"] }
+        ],
+        "annotations": []
+      },
+      "anchored": [],
+      "catalog": [
+        { "id": "res-1", "mediaType": "text/markdown", "checksum": "sha256:res-1", "entityTypes": ["Person"], "annotations": [] }
+      ],
+      "work": [
+        { "kind": "restamp", "resource": "res-1" }
+      ]
+    },
+    {
+      "why": "an entity type given to one resource and one taken from another, while the Smelter was not running: each resource's points have their entity types rewritten",
+      "index": {
+        "resources": [
+          { "id": "res-1", "checksum": "sha256:res-1", "entityTypes": [] },
+          { "id": "res-2", "checksum": "sha256:res-2", "entityTypes": ["Question"] }
+        ],
+        "annotations": []
+      },
+      "anchored": [],
+      "catalog": [
+        { "id": "res-1", "mediaType": "text/markdown", "checksum": "sha256:res-1", "entityTypes": ["Question"], "annotations": [] },
+        { "id": "res-2", "mediaType": "text/plain", "checksum": "sha256:res-2", "entityTypes": [], "annotations": [] }
+      ],
+      "work": [
+        { "kind": "restamp", "resource": "res-1" },
+        { "kind": "restamp", "resource": "res-2" }
+      ]
+    },
+    {
+      "why": "entity types are compared in no order: points that carry the catalog's entity types in another order are left alone",
+      "index": {
+        "resources": [
+          { "id": "res-1", "checksum": "sha256:res-1", "entityTypes": ["Person", "Place"] }
+        ],
+        "annotations": []
+      },
+      "anchored": [],
+      "catalog": [
+        { "id": "res-1", "mediaType": "text/markdown", "checksum": "sha256:res-1", "entityTypes": ["Place", "Person"], "annotations": [] }
+      ],
+      "work": []
+    },
+    {
+      "why": "a PDF whose points carry the catalog's checksum, and whose bytes the anchored-text store has no entry for, has its anchored text derived again: it is not indexed again",
+      "index": {
+        "resources": [
+          { "id": "res-1", "checksum": "sha256:res-1", "entityTypes": [] }
+        ],
+        "annotations": []
+      },
+      "anchored": [],
+      "catalog": [
+        { "id": "res-1", "mediaType": "application/pdf", "checksum": "sha256:res-1", "entityTypes": [], "annotations": [] }
+      ],
+      "work": [
+        { "kind": "reanchor", "resource": "res-1" }
+      ]
+    },
+    {
+      "why": "a PDF whose points carry the catalog's checksum, and whose bytes the anchored-text store has an entry for, is left alone",
+      "index": {
+        "resources": [
+          { "id": "res-1", "checksum": "sha256:res-1", "entityTypes": [] }
+        ],
+        "annotations": []
+      },
+      "anchored": ["sha256:res-1"],
+      "catalog": [
+        { "id": "res-1", "mediaType": "application/pdf", "checksum": "sha256:res-1", "entityTypes": [], "annotations": [] }
+      ],
+      "work": []
+    },
+    {
+      "why": "the anchored-text store is asked by the checksum the catalog states, and not by resource: an entry for the bytes a PDF had before is no entry for the bytes it has now",
+      "index": {
+        "resources": [
+          { "id": "res-1", "checksum": "sha256:res-1", "entityTypes": [] }
+        ],
+        "annotations": []
+      },
+      "anchored": ["sha256:res-1-before"],
+      "catalog": [
+        { "id": "res-1", "mediaType": "application/pdf", "checksum": "sha256:res-1", "entityTypes": [], "annotations": [] }
+      ],
+      "work": [
+        { "kind": "reanchor", "resource": "res-1" }
+      ]
+    },
+    {
+      "why": "a PDF whose points carry the catalog's checksum and other entity types, and whose bytes the anchored-text store has no entry for, is planned both: its entity types rewritten, and its anchored text derived again",
+      "index": {
+        "resources": [
+          { "id": "res-1", "checksum": "sha256:res-1", "entityTypes": [] }
+        ],
+        "annotations": []
+      },
+      "anchored": [],
+      "catalog": [
+        { "id": "res-1", "mediaType": "application/pdf", "checksum": "sha256:res-1", "entityTypes": ["Person"], "annotations": [] }
+      ],
+      "work": [
+        { "kind": "restamp", "resource": "res-1" },
+        { "kind": "reanchor", "resource": "res-1" }
+      ]
+    },
+    {
+      "why": "a PDF whose bytes changed is indexed again and nothing more, though the anchored-text store has no entry for the bytes it has now: indexing it reads them, and reading them files their anchored text",
+      "index": {
+        "resources": [
+          { "id": "res-1", "checksum": "sha256:res-1-before", "entityTypes": [] }
+        ],
+        "annotations": []
+      },
+      "anchored": [],
+      "catalog": [
+        { "id": "res-1", "mediaType": "application/pdf", "checksum": "sha256:res-1", "entityTypes": [], "annotations": [] }
+      ],
+      "work": [
+        { "kind": "embed", "resource": "res-1" }
+      ]
+    },
+    {
+      "why": "a PDF that has no points is indexed and nothing more, though the anchored-text store has no entry for its bytes",
+      "index": {
+        "resources": [],
+        "annotations": []
+      },
+      "anchored": [],
+      "catalog": [
+        { "id": "res-1", "mediaType": "application/pdf", "checksum": "sha256:res-1", "entityTypes": [], "annotations": [] }
+      ],
+      "work": [
+        { "kind": "embed", "resource": "res-1" }
+      ]
+    },
+    {
+      "why": "a resource whose text is decoded has no places on a page, and so no anchored text to lose: with points that carry the catalog's checksum and entity types it is left alone, though the anchored-text store has no entry for its bytes",
+      "index": {
+        "resources": [
+          { "id": "res-1", "checksum": "sha256:res-1", "entityTypes": [] }
+        ],
+        "annotations": []
+      },
+      "anchored": [],
+      "catalog": [
+        { "id": "res-1", "mediaType": "text/plain", "checksum": "sha256:res-1", "entityTypes": [], "annotations": [] }
+      ],
+      "work": []
+    },
+    {
+      "why": "points of a resource the catalog does not list are taken out, and those of a resource it lists are left alone",
+      "index": {
+        "resources": [
+          { "id": "res-1", "checksum": "sha256:res-1", "entityTypes": [] },
+          { "id": "res-2", "checksum": "sha256:res-2", "entityTypes": [] }
+        ],
+        "annotations": []
+      },
+      "anchored": [],
+      "catalog": [
+        { "id": "res-1", "mediaType": "text/markdown", "checksum": "sha256:res-1", "entityTypes": [], "annotations": [] }
+      ],
+      "work": [
+        { "kind": "purge", "resource": "res-2" }
+      ]
+    },
+    {
+      "why": "points of a resource the catalog lists, whose media type has no text, are taken out",
+      "index": {
+        "resources": [
+          { "id": "res-1", "checksum": "sha256:res-1", "entityTypes": [] }
+        ],
+        "annotations": []
+      },
+      "anchored": [],
+      "catalog": [
+        { "id": "res-1", "mediaType": "image/png", "checksum": "sha256:res-1", "entityTypes": [], "annotations": [] }
+      ],
+      "work": [
+        { "kind": "purge", "resource": "res-1" }
+      ]
+    },
+    {
+      "why": "a resource of the catalog that has no representation has no media type, and so no text: its points are taken out, and its annotations are read all the same, so one that quotes text and has no point is indexed",
+      "index": {
+        "resources": [
+          { "id": "res-1", "checksum": "sha256:res-1", "entityTypes": [] }
+        ],
+        "annotations": []
+      },
+      "anchored": [],
+      "catalog": [
+        {
+          "id": "res-1", "entityTypes": [],
+          "annotations": [
+            { "id": "ann-1", "quote": "Black Hawk" }
+          ]
+        }
+      ],
+      "work": [
+        { "kind": "purge", "resource": "res-1" },
+        { "kind": "embed-annotation", "annotation": "ann-1", "resource": "res-1" }
+      ]
+    },
+    {
+      "why": "a `text/` media type the registry does not list is decoded: a resource of such a type, with no points, is indexed",
+      "index": {
+        "resources": [],
+        "annotations": []
+      },
+      "anchored": [],
+      "catalog": [
+        { "id": "res-1", "mediaType": "text/x-unheard-of", "checksum": "sha256:res-1", "entityTypes": [], "annotations": [] }
+      ],
+      "work": [
+        { "kind": "embed", "resource": "res-1" }
+      ]
+    },
+    {
+      "why": "a media type the registry does not list, and which is not a `text/` type, has no text: points of a resource of such a type are taken out",
+      "index": {
+        "resources": [
+          { "id": "res-1", "checksum": "sha256:res-1", "entityTypes": [] }
+        ],
+        "annotations": []
+      },
+      "anchored": [],
+      "catalog": [
+        { "id": "res-1", "mediaType": "application/x-unheard-of", "checksum": "sha256:res-1", "entityTypes": [], "annotations": [] }
+      ],
+      "work": [
+        { "kind": "purge", "resource": "res-1" }
+      ]
+    },
+    {
+      "why": "a media type is looked up without its parameters: a resource stated as JSON in UTF-8, with no points, is indexed as any JSON is",
+      "index": {
+        "resources": [],
+        "annotations": []
+      },
+      "anchored": [],
+      "catalog": [
+        { "id": "res-1", "mediaType": "application/json; charset=utf-8", "checksum": "sha256:res-1", "entityTypes": [], "annotations": [] }
+      ],
+      "work": [
+        { "kind": "embed", "resource": "res-1" }
+      ]
+    },
+    {
+      "why": "an annotation that quotes text, and has no point, is indexed",
+      "index": {
+        "resources": [
+          { "id": "res-1", "checksum": "sha256:res-1", "entityTypes": [] }
+        ],
+        "annotations": []
+      },
+      "anchored": [],
+      "catalog": [
+        {
+          "id": "res-1", "mediaType": "text/markdown", "checksum": "sha256:res-1", "entityTypes": [],
+          "annotations": [
+            { "id": "ann-1", "quote": "Black Hawk" }
+          ]
+        }
+      ],
+      "work": [
+        { "kind": "embed-annotation", "annotation": "ann-1", "resource": "res-1" }
+      ]
+    },
+    {
+      "why": "an annotation that quotes no text has no point and is given none, and neither is one that quotes only white space",
+      "index": {
+        "resources": [
+          { "id": "res-1", "checksum": "sha256:res-1", "entityTypes": [] }
+        ],
+        "annotations": []
+      },
+      "anchored": [],
+      "catalog": [
+        {
+          "id": "res-1", "mediaType": "text/markdown", "checksum": "sha256:res-1", "entityTypes": [],
+          "annotations": [
+            { "id": "ann-1", "quote": "" },
+            { "id": "ann-2", "quote": " \t\n" }
+          ]
+        }
+      ],
+      "work": []
+    },
+    {
+      "why": "a point whose annotation no longer quotes text is taken out, whether the annotation now quotes nothing or only white space",
+      "index": {
+        "resources": [
+          { "id": "res-1", "checksum": "sha256:res-1", "entityTypes": [] }
+        ],
+        "annotations": ["ann-1", "ann-2"]
+      },
+      "anchored": [],
+      "catalog": [
+        {
+          "id": "res-1", "mediaType": "text/markdown", "checksum": "sha256:res-1", "entityTypes": [],
+          "annotations": [
+            { "id": "ann-1", "quote": "" },
+            { "id": "ann-2", "quote": " \t\n" }
+          ]
+        }
+      ],
+      "work": [
+        { "kind": "purge-annotation", "annotation": "ann-1" },
+        { "kind": "purge-annotation", "annotation": "ann-2" }
+      ]
+    },
+    {
+      "why": "the annotations of every resource of the catalog are read, whatever its media type: on a resource whose media type has no text, an annotation that quotes text and has no point is indexed, and one that has a point keeps it",
+      "index": {
+        "resources": [],
+        "annotations": ["ann-2"]
+      },
+      "anchored": [],
+      "catalog": [
+        {
+          "id": "res-1", "mediaType": "image/png", "checksum": "sha256:res-1", "entityTypes": [],
+          "annotations": [
+            { "id": "ann-1", "quote": "Rock Island" },
+            { "id": "ann-2", "quote": "Saukenuk" }
+          ]
+        }
+      ],
+      "work": [
+        { "kind": "embed-annotation", "annotation": "ann-1", "resource": "res-1" }
+      ]
+    },
+    {
+      "why": "a point whose annotation is not among the catalog's is taken out, though the resource it was on is still there",
+      "index": {
+        "resources": [
+          { "id": "res-1", "checksum": "sha256:res-1", "entityTypes": [] }
+        ],
+        "annotations": ["ann-1", "ann-2"]
+      },
+      "anchored": [],
+      "catalog": [
+        {
+          "id": "res-1", "mediaType": "text/markdown", "checksum": "sha256:res-1", "entityTypes": [],
+          "annotations": [
+            { "id": "ann-1", "quote": "Black Hawk" }
+          ]
+        }
+      ],
+      "work": [
+        { "kind": "purge-annotation", "annotation": "ann-2" }
+      ]
+    },
+    {
+      "why": "a resource that was archived is not in the catalog, and neither are its annotations: its points and theirs are taken out, and those of the resource still listed are left alone",
+      "index": {
+        "resources": [
+          { "id": "res-1", "checksum": "sha256:res-1", "entityTypes": [] },
+          { "id": "res-2", "checksum": "sha256:res-2", "entityTypes": [] }
+        ],
+        "annotations": ["ann-1", "ann-2"]
+      },
+      "anchored": [],
+      "catalog": [
+        {
+          "id": "res-1", "mediaType": "text/markdown", "checksum": "sha256:res-1", "entityTypes": [],
+          "annotations": [
+            { "id": "ann-1", "quote": "Black Hawk" }
+          ]
+        }
+      ],
+      "work": [
+        { "kind": "purge", "resource": "res-2" },
+        { "kind": "purge-annotation", "annotation": "ann-2" }
+      ]
+    },
+    {
+      "why": "an index that holds nothing is filled whole: every resource whose media type has text is indexed, and every annotation that quotes text; each resource, the PDF as the other, is planned before the annotation on it",
+      "index": {
+        "resources": [],
+        "annotations": []
+      },
+      "anchored": [],
+      "catalog": [
+        {
+          "id": "res-1", "mediaType": "text/markdown", "checksum": "sha256:res-1", "entityTypes": ["Person"],
+          "annotations": [
+            { "id": "ann-1", "quote": "Black Hawk" },
+            { "id": "ann-2", "quote": "" }
+          ]
+        },
+        {
+          "id": "res-2", "mediaType": "application/pdf", "checksum": "sha256:res-2", "entityTypes": [],
+          "annotations": [
+            { "id": "ann-3", "quote": "the treaty of 1804" }
+          ]
+        },
+        {
+          "id": "res-3", "mediaType": "image/png", "checksum": "sha256:res-3", "entityTypes": [],
+          "annotations": [
+            { "id": "ann-4", "quote": "" }
+          ]
+        }
+      ],
+      "work": [
+        { "kind": "embed", "resource": "res-1" },
+        { "kind": "embed", "resource": "res-2" },
+        { "kind": "embed-annotation", "annotation": "ann-1", "resource": "res-1" },
+        { "kind": "embed-annotation", "annotation": "ann-3", "resource": "res-2" }
+      ]
+    },
+    {
+      "why": "against a catalog that lists nothing, every point is taken out: each resource's and each annotation's",
+      "index": {
+        "resources": [
+          { "id": "res-1", "checksum": "sha256:res-1", "entityTypes": ["Person"] },
+          { "id": "res-2", "checksum": "sha256:res-2", "entityTypes": [] }
+        ],
+        "annotations": ["ann-1", "ann-2"]
+      },
+      "anchored": [],
+      "catalog": [],
+      "work": [
+        { "kind": "purge", "resource": "res-1" },
+        { "kind": "purge", "resource": "res-2" },
+        { "kind": "purge-annotation", "annotation": "ann-1" },
+        { "kind": "purge-annotation", "annotation": "ann-2" }
+      ]
+    }
+  ]
+}

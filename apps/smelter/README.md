@@ -75,6 +75,7 @@ no manual step.
 
 ## Related
 
+- [SMELTER.md](../../docs/protocol/SMELTER.md) — what a Smelter does, rule by rule
 - [`@semiont/make-meaning`](../../packages/make-meaning/) — the pipeline and this entry point
 - [`@semiont/vectors`](../../packages/vectors/) — chunking, embedding, and the store adapters
 - [Archivist](../archivist/) — serves the bytes, and answers anchored-text reads

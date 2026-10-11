@@ -13,10 +13,10 @@ use semiont::channels::{
     BrowseAnnotationRequested, BrowseAnnotationsRequested, BrowseDirectoryRequested,
     BrowseEntityTypesRequested, BrowseEventsRequested, BrowseKbRequested, BrowseResourceRequested,
     BrowseResourcesRequested, BrowseTagSchemasRequested, Channel, FrameAddEntityType,
-    FrameAddTagSchema, JobAssign, JobComplete, JobFail, JobStart, MarkArchive, MarkBodyUpdateFailed,
-    MarkCommit, MarkCreateRequest, MarkDelete, MarkUnarchive, MarkUpdateBody, MarkUpdateEntityTypes,
-    PersonProfile, SmeltSettled, YieldCloneCreate, YieldClonePersist, YieldCloneResourceRequested,
-    YieldCloneTokenRequested, YieldCreate, YieldUpdate,
+    FrameAddTagSchema, JobAssign, JobComplete, JobFail, JobStart, MarkArchive,
+    MarkBodyUpdateFailed, MarkCommit, MarkCreateRequest, MarkDelete, MarkUnarchive, MarkUpdateBody,
+    MarkUpdateEntityTypes, PersonProfile, SmeltSettled, YieldCloneCreate, YieldClonePersist,
+    YieldCloneResourceRequested, YieldCloneTokenRequested, YieldCreate, YieldUpdate,
 };
 use semiont::transport::{Envelope, Frame, Frames};
 use semiont_archivist_record::Object;
