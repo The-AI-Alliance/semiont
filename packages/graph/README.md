@@ -21,7 +21,7 @@ This package reads the graph and does not write it. The one writer is the [Weave
 
 | | |
 |---|---|
-| `GraphDatabase` | The contract: read a resource and an annotation, list and search resources, what refers to a resource, a resource's connections, a path between two resources, and counts |
+| `GraphDatabase` | The contract: read a resource and an annotation, list and search resources, what refers to a resource, a resource's connections, and how many resources each entity type has |
 | `getGraphDatabase(config)` | The process's one connection, made from the `services.graph` block of a knowledge base's configuration |
 | `Neo4jGraphDatabase` | Neo4j, in Cypher. It is what a stack started by the launcher runs |
 | `NeptuneGraphDatabase`, `JanusGraphDatabase` | The same contract over Gremlin. **Never run against a server**: they are kept as the shape of other kinds of graph database |
@@ -61,7 +61,7 @@ const { resources } = await graph.listResources({ entityTypes: ['Person'] });
 - **Callers never ask which database they hold.** They are written to `GraphDatabase`.
 - **What a row means is the codecs' alone.** [`src/annotation-codec.ts`](src/annotation-codec.ts) and [`src/resource-codec.ts`](src/resource-codec.ts) are the only places that decide what a stored property is called and which are required. The Weaver's codec is `semiont_graph`'s, and [`specs/src/graph/codec-cases.json`](../../specs/src/graph/codec-cases.json) holds the two to one answer: both run it.
 - **The stores are held to a graph the Weaver wrote.** `npm test` needs no server: it holds each store's reading of a row to the codec. What a store reads from a real Neo4j is held by the Weaver's conformance suite, which reads through `Neo4jGraphDatabase` what a Weaver built from a real record.
-- **Every member of `GraphDatabase` has a caller, or is kept by name.** `scripts/compliance/audit-graph-interface-callers.sh` holds that. A member nobody calls is held by nobody.
+- **Every member of `GraphDatabase` has a caller.** `scripts/compliance/audit-graph-interface-callers.sh` holds that. A member nobody calls is held by nobody.
 - **A memory graph is for one process.** No configuration yields one, and the Weaver and the Librarian refuse the type, because it could not be shared between them.
 
 ## Documentation

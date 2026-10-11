@@ -13,9 +13,11 @@ an extra, and its image asks for every one.
 
 What it copies from the protocol, it copies under a gate: the events it
 follows are the ones the protocol's page lists, and the payload it reads
-each as is the one the bus registry names.
+each as is the one the bus registry names. What installs its telemetry is a
+copy of the Worker service's module, and is held to it.
 """
 
+import ast
 import re
 import tomllib
 from pathlib import Path
@@ -115,18 +117,62 @@ def test_the_checkers_and_their_strictness_are_the_sdks() -> None:
 
 
 def test_what_the_manifest_requires_is_what_the_source_imports() -> None:
-    project = table(MANIFEST["project"], "project")
-    required = {name_of(requirement) for requirement in listed(project["dependencies"], "dependencies")}
-    assert required == {"pydantic", "semiont", "semiont-graph"}
-    for library in ("pydantic", "semiont", "semiont_graph"):
+    requirements = listed(table(MANIFEST["project"], "project")["dependencies"], "dependencies")
+    assert {name_of(requirement) for requirement in requirements} == {
+        "opentelemetry-api",
+        "opentelemetry-exporter-otlp-proto-http",
+        "opentelemetry-sdk",
+        "pydantic",
+        "semiont",
+        "semiont-graph",
+    }
+    # OpenTelemetry's API, its SDK and its OTLP exporter are three distributions, and each a part of the one package.
+    imported = (
+        "opentelemetry",
+        r"opentelemetry\.sdk",
+        r"opentelemetry\.exporter\.otlp\.proto\.http",
+        "pydantic",
+        "semiont",
+        "semiont_graph",
+    )
+    for library in imported:
         assert importing(library), f"{library} is required and nothing imports it"
     # A dependency the SDK bounds is named here without a bound of its own.
-    bounded = {
-        name_of(requirement) for requirement in listed(table(toml(SDK / "pyproject.toml")["project"], "project")["dependencies"], "its")
-    }
-    for requirement in listed(project["dependencies"], "dependencies"):
+    sdk = toml(SDK / "pyproject.toml")
+    bounded = {name_of(requirement) for requirement in listed(table(sdk["project"], "project")["dependencies"], "its")}
+    assert bounded >= {"opentelemetry-api", "pydantic"}
+    for requirement in requirements:
         if name_of(requirement) in bounded:
             assert requirement == name_of(requirement), f"{requirement}: the SDK states the versions of {name_of(requirement)}"
+    # OpenTelemetry's SDK and its exporter are no dependency of the SDK's: only a process that exports takes them.
+    # The SDK states their versions once, for the drivers its conformance suite runs, and this manifest says the same.
+    for_its_drivers = listed(table(sdk["dependency-groups"], "dependency-groups")["conformance"], "conformance")
+    assert {name_of(requirement) for requirement in for_its_drivers} == {"opentelemetry-sdk", "opentelemetry-exporter-otlp-proto-http"}
+    assert set(for_its_drivers) <= set(requirements)
+
+
+def test_what_installs_the_telemetry_is_the_worker_service_s_under_this_one_s_name() -> None:
+    # A second copy of one module. It is held to the first: the same code, with the Weaver's name where the
+    # Worker's has its own. What the code does is held where the first is, by the Worker's tests.
+    def code(source: str) -> str:
+        """A module's code, without the words written beside it: its documentation is each service's own."""
+        tree = ast.parse(source)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
+                node.body = [
+                    statement
+                    for statement in node.body
+                    if not (
+                        isinstance(statement, ast.Expr)
+                        and isinstance(statement.value, ast.Constant)
+                        and isinstance(statement.value.value, str)
+                    )
+                ]
+        return ast.dump(tree)
+
+    theirs = (ROOT / "apps/worker/src/semiont_worker/observability.py").read_text(encoding="utf-8")
+    ours = (SRC / "observability.py").read_text(encoding="utf-8")
+    assert code(ours) == code(theirs.replace("semiont_worker", "semiont_weaver").replace("semiont-worker", "semiont-weaver"))
 
 
 def test_the_sdk_and_the_graph_stores_are_the_ones_in_this_repository() -> None:
@@ -214,13 +260,14 @@ def naming(text: str) -> list[str]:
 
 def test_it_opens_no_file_of_the_record() -> None:
     # It reads history from the Archivist, over the bus. What touches a file is the module that keeps its marks, the
-    # one that reads its document, and the one that reads the process's environment and names where the marks go.
+    # one that reads its document, the one that reads the process's environment and names where the marks go, and
+    # the one that reads what the kernel and the supervisor say of the process, for its telemetry.
     touching = sorted(
         str(path.relative_to(SRC))
         for path in SRC.rglob("*.py")
         if re.search(r"\bPath\b|\bopen\(|\bos\.\w", path.read_text(encoding="utf-8"))
     )
-    assert touching == ["checkpoint.py", "config.py", "service.py"]
+    assert touching == ["checkpoint.py", "config.py", "observability.py", "service.py"]
 
 
 def test_the_marks_have_one_writer_and_the_signal_one_emitter() -> None:
@@ -256,4 +303,17 @@ def test_the_variables_it_reads_by_name_are_the_ones_the_protocol_lists() -> Non
     read_here = {
         name for path in SRC.rglob("*.py") for name in re.findall(r'"([A-Z][A-Z0-9]*_[A-Z0-9_]+)"', path.read_text(encoding="utf-8"))
     }
-    assert read_here == listed_there == {"SEMIONT_OIDC_CLIENT_ID", "SEMIONT_OIDC_CLIENT_SECRET"}
+    assert read_here == listed_there
+    # Its service account, and what says where its telemetry goes and under what name.
+    assert read_here == {
+        "SEMIONT_OIDC_CLIENT_ID",
+        "SEMIONT_OIDC_CLIENT_SECRET",
+        "OTEL_EXPORTER_OTLP_ENDPOINT",
+        "OTEL_SERVICE_NAME",
+        "OTEL_SDK_DISABLED",
+        "OTEL_CONSOLE_EXPORTER",
+        "OTEL_METRICS_EXPORTER",
+        "OTEL_METRIC_EXPORT_INTERVAL",
+        "SUPERVISE_EVENTS",
+        "SUPERVISE_NAME",
+    }

@@ -25,9 +25,7 @@ function createMockGraphDb(): GraphDatabase {
     getResourceAnnotations: vi.fn().mockResolvedValue([]),
     getResourceReferencedBy: vi.fn().mockResolvedValue([]),
     getResourceConnections: vi.fn().mockResolvedValue([]),
-    findPath: vi.fn().mockResolvedValue([]),
     getEntityTypeStats: vi.fn().mockResolvedValue([]),
-    getStats: vi.fn().mockResolvedValue({ resourceCount: 0, annotationCount: 0, highlightCount: 0, referenceCount: 0, entityReferenceCount: 0, entityTypes: {}, contentTypes: {} }),
   } as unknown as GraphDatabase;
 }
 

@@ -15,8 +15,8 @@ emit, content put/get, in-process actor handler, and worker job
 becomes a span. Trace context propagates over HTTP `traceparent`
 headers and SSE `_trace` payload fields.
 
-The spans are in the tables below, by who exports them. What the Rust services and the
-Worker service export is specified, with kinds and attributes, in
+The spans are in the tables below, by who exports them. What the Rust services, the
+Worker service and the Weaver export is specified, with kinds and attributes, in
 [`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json),
 and what an SDK's transports export, in any language, in
 [`specs/src/sdk-telemetry/telemetry.json`](../../../specs/src/sdk-telemetry/telemetry.json),
@@ -28,7 +28,7 @@ actor's name. **When** is the services' table's word for when a span is there: `
 the service has had something of its kind to do.
 
 An SDK's transports, in whatever process they run: the Browser, the Node services, and the
-services that reach the bus through an SDK. The dispatcher and the Archivist make no span of
+services that reach the bus through an SDK. The dispatcher, the Archivist and the Weaver make no span of
 their own and export the two bus rows; the Worker service exports those and `content.put` and
 `content.get`, for the uploads and reads it makes.
 
@@ -102,8 +102,8 @@ The standard OpenTelemetry variables, set in each service's environment. The lau
 The Rust services — the gateway, the dispatcher and the Archivist — read the ones their
 environment table lists ([`variables.json`](../../../specs/src/service-environment/variables.json))
 and configure their SDK from them. The Worker service reads the ones
-[WORKER-SERVICE.md](../../protocol/WORKER-SERVICE.md#environment) lists. The Weaver exports
-no telemetry. The table below is the two Node services': the Librarian's and the Smelter's.
+[WORKER-SERVICE.md](../../protocol/WORKER-SERVICE.md#environment) lists, and the Weaver the ones
+[WEAVER.md](../../protocol/WEAVER.md#environment) lists. The table below is the two Node services': the Librarian's and the Smelter's.
 
 | Variable                          | Default                                | Purpose                            |
 |-----------------------------------|----------------------------------------|------------------------------------|
@@ -218,8 +218,8 @@ implicitly) — see `packages/observability/src/node.ts`.
 ## Relationship to the structured logger and `busLog`
 
 - **Structured logger** (the Rust services', in `packages/observability-rust/src/logging.rs`;
-  `createProcessLogger()` in the Node services; the Worker service's, in
-  `apps/worker/src/semiont_worker/log.py`) — JSON-line,
+  `createProcessLogger()` in the Node services; the Worker service's and the Weaver's, in
+  `apps/worker/src/semiont_worker/log.py` and `apps/weaver/src/semiont_weaver/log.py`) — JSON-line,
   level-filtered, always on. Logs semantic events (validation failed,
   user authenticated). Goes to log aggregator. Every line is auto-
   tagged with the active span's `trace_id` / `span_id` when one
@@ -319,6 +319,10 @@ and no `used`: Python keeps no count of how much of its heap is in use. Its `lim
 container's own memory limit. It counts a `semiont.process.abnormal_exit` for a failure
 nothing caught once it had started, as `uncaughtException`.
 
+The Weaver is Python too. It exports the `semiont.process.*` and `semiont.runtime.*` instruments
+as the Worker service does, with the same three readings of its memory, and no metric of its own:
+how many events it could not apply, and how its two boot passes ended, are what its health says.
+
 Additional vars:
 
 | Variable                          | Default | Purpose                                       |
@@ -333,7 +337,7 @@ metric snapshots also print to the service's output at each export interval.
 
 Every log line a service writes is tagged with `trace_id` and `span_id`
 when an active span exists: the Rust services — the gateway, the
-dispatcher and the Archivist — and the Worker service by their loggers, the
+dispatcher and the Archivist — and the Worker service and the Weaver by their loggers, the
 Node services by `createProcessLogger()`. Log queries in CloudWatch / Loki / Datadog
 can be filtered by `trace_id` and joined with the trace UI.
 

@@ -1,20 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Every member of `GraphDatabase` has a caller, or is kept by name.
+# Every member of `GraphDatabase` has a caller.
 #
 # The interface is written once for every store behind it: a member costs one
-# method in each of four TypeScript stores, and one again in each Python store
-# that follows them. Nine members once had no caller in any service. They were
-# not idle: none had ever run against a database, and when three were, two
-# answered wrongly (a count read from a property no store writes, a path
-# sought along an edge that joins no two resources). A member nobody calls is
-# held by nobody.
+# method in each of four TypeScript stores. Nine members once had no caller in
+# any service. They were not idle: none had ever run against a database, and
+# when three were, two answered wrongly (a count read from a property no store
+# writes, a path sought along an edge that joins no two resources). A member
+# nobody calls is held by nobody.
 #
-# So a member is called from the services' source, or it is named below with
-# the word that keeps it. The list is held to the tree both ways: a kept
-# member that has gained a caller comes off it, and a name that is no longer a
-# member is refused.
+# So a member is called from the services' source, or it is not a member. No
+# name is kept without one: what a later port will need is in the stores that
+# port will call (semiont_graph, packages/graph-python), not here.
 #
 # A caller is a call in non-test TypeScript under apps/ or packages/, outside
 # the stores themselves (packages/graph/src/implementations). The factory is a
@@ -23,16 +21,6 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 INTERFACE="$REPO_ROOT/packages/graph/src/interface.ts"
-
-# Kept with no caller, by the user's ruling of 2026-10-11 on what the
-# Librarian's port will need: "`resolveReference` certainly sounds like it
-# should be ported. Probably those other two." All three are members of the
-# Python stores (semiont_graph), which is where a port will call them.
-# `resolveReference` is a write: it went from this interface with every other
-# write when the Weaver became the Python service, since nothing here writes
-# the graph. The other two are reads, and are kept here until the Librarian
-# is Python.
-KEPT=(findPath getStats)
 
 echo "🔍 Auditing the graph interface's callers..."
 
@@ -72,14 +60,6 @@ has_caller() {
   return "$status"
 }
 
-is_kept() {
-  local name
-  for name in "${KEPT[@]}"; do
-    [ "$name" = "$1" ] && return 0
-  done
-  return 1
-}
-
 GREP_ERRORS="$(mktemp)"
 trap 'rm -f "$GREP_ERRORS"' EXIT
 
@@ -88,26 +68,14 @@ count=0
 
 for member in $members; do
   count=$((count + 1))
-  if has_caller "$member"; then
-    if is_kept "$member"; then
-      echo "❌ $member is kept as a member with no caller, and it has one now. Take it off the kept list."
-      violations=$((violations + 1))
-    fi
-  elif ! is_kept "$member"; then
+  if ! has_caller "$member"; then
     echo "❌ $member has no caller in any service. Delete it from the interface and the stores, or give it a caller."
     violations=$((violations + 1))
   fi
 done
 
-for name in "${KEPT[@]}"; do
-  if ! printf '%s\n' "$members" | grep -qx "$name"; then
-    echo "❌ $name is on the kept list and is not a member of GraphDatabase."
-    violations=$((violations + 1))
-  fi
-done
-
 if [ "$violations" -eq 0 ]; then
-  echo "✅ all $count members of GraphDatabase have a caller, or are kept by name (${KEPT[*]})"
+  echo "✅ all $count members of GraphDatabase have a caller"
   exit 0
 fi
 

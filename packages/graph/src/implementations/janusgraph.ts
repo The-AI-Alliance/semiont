@@ -3,12 +3,10 @@
 import { GraphDatabase } from '../interface';
 import { queryResources } from '../resource-query';
 import type { Logger } from '@semiont/core';
-import { getBodySource, getPrimaryRepresentation, getResourceId } from '@semiont/core';
-import { getEntityTypes } from '@semiont/core';
+import { getBodySource, getResourceId } from '@semiont/core';
 import type {
   AnnotationCategory,
   GraphConnection,
-  GraphPath,
   EntityTypeStats,
   ResourceFilter,
   ResourceId,
@@ -294,12 +292,6 @@ export class JanusGraphDatabase implements GraphDatabase {
     return connections;
   }
   
-  async findPath(_fromResourceId: ResourceId, _toResourceId: ResourceId, _maxDepth?: number): Promise<GraphPath[]> {
-    // TODO: Implement real graph traversal with JanusGraph
-    // Not implemented: returns an empty array
-    return [];
-  }
-  
   async getEntityTypeStats(): Promise<EntityTypeStats[]> {
     const docs = await this.g!.V().hasLabel('Resource').toList();
     const resources = docs.map((v: any) => this.vertexToResource(v));
@@ -313,42 +305,5 @@ export class JanusGraphDatabase implements GraphDatabase {
     }
 
     return Array.from(stats.entries()).map(([type, count]) => ({ type, count }));
-  }
-  
-  async getStats(): Promise<any> {
-    const entityTypes: Record<string, number> = {};
-    const contentTypes: Record<string, number> = {};
-
-    // Get all resources
-    const docs = await this.g!.V().hasLabel('Resource').toList();
-    const resources = docs.map((v: any) => this.vertexToResource(v));
-
-    for (const doc of resources) {
-      for (const type of doc.entityTypes || []) {
-        entityTypes[type] = (entityTypes[type] || 0) + 1;
-      }
-      const primaryRep = getPrimaryRepresentation(doc);
-      if (primaryRep?.mediaType) {
-        contentTypes[primaryRep.mediaType] = (contentTypes[primaryRep.mediaType] || 0) + 1;
-      }
-    }
-
-    // Get all annotations
-    const anns = await this.g!.V().hasLabel('Annotation').toList();
-    const annotations = await this.fetchAnnotationsWithEntityTypes(anns);
-
-    const highlights = annotations.filter(a => a.motivation === 'highlighting');
-    const references = annotations.filter(a => a.motivation === 'linking');
-    const entityReferences = references.filter(a => getEntityTypes(a).length > 0);
-
-    return {
-      resourceCount: resources.length,
-      annotationCount: annotations.length,
-      highlightCount: highlights.length,
-      referenceCount: references.length,
-      entityReferenceCount: entityReferences.length,
-      entityTypes,
-      contentTypes,
-    };
   }
 }

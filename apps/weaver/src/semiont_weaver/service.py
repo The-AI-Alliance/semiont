@@ -3,9 +3,10 @@
 It is started with the path of its configuration document (`--config`), its
 own account at the issuer (`SEMIONT_OIDC_CLIENT_ID` and
 `SEMIONT_OIDC_CLIENT_SECRET`), and the variable its document names for the
-graph database's password. Beside those it reads no variable. This is the one
-module that reads the process's environment and its arguments: everything
-else is handed what it needs.
+graph database's password. Beside those it reads the variables that say
+where its telemetry goes (`docs/protocol/WEAVER.md` § Environment), and no
+other. This is the one module that reads the process's environment and its
+arguments: everything else is handed what it needs.
 
 Everything it is started with is read before anything is dialled, so a
 service that cannot start says so while an operator is watching it boot: one
@@ -43,6 +44,7 @@ from semiont_weaver.config import Refused, config_path_of, graph_password_of, re
 from semiont_weaver.health import Health, bind_health
 from semiont_weaver.history import READ
 from semiont_weaver.log import LOG, configure
+from semiont_weaver.observability import Exporting, install
 from semiont_weaver.recorded import FOLLOWED
 from semiont_weaver.weaver import CaughtUp, Reconciled, Weaver, words_of
 
@@ -101,8 +103,8 @@ async def _listening(port: int, health: Health) -> asyncio.Server:
         raise Refused(f"Cannot listen on port {port}: {unheard}") from unheard
 
 
-async def _serve(started: _Started) -> None:
-    """Follow the record until the process is told to stop."""
+async def _serve(started: _Started, exporting: Exporting | None) -> None:
+    """Follow the record until the process is told to stop. `exporting` is the process's telemetry, where it exports any."""
     config = started.config
     loop = asyncio.get_running_loop()
     told_to_stop = asyncio.Event()
@@ -141,12 +143,20 @@ async def _serve(started: _Started) -> None:
                         await _run_pass("reconcile", lambda: _said(weaver.reconcile()), reconcile)
 
                     passing = asyncio.ensure_future(passes())
+                    sampling = None if exporting is None else asyncio.ensure_future(exporting.sample_the_loop())
+                    running = (passing, *(() if sampling is None else (sampling,)))
                     try:
                         await told_to_stop.wait()
                         LOG.info("Shutting down")
                     finally:
-                        passing.cancel()
-                        await asyncio.gather(passing, return_exceptions=True)
+                        for task in running:
+                            task.cancel()
+                        await asyncio.gather(*running, return_exceptions=True)
+                except Exception:
+                    # A failure nothing caught, in a service that had started: it is counted, and the process exits for it.
+                    if exporting is not None:
+                        exporting.died()
+                    raise
                 finally:
                     health.close()
                     await health.wait_closed()
@@ -161,10 +171,16 @@ async def _said(passing: Awaitable[CaughtUp | Reconciled]) -> dict[str, JsonValu
 
 def main() -> int:
     """Run the service, and answer the status the process exits with."""
+    exporting: Exporting | None = None
     try:
-        asyncio.run(_serve(boot(sys.argv[1:], os.environ)))
+        started = boot(sys.argv[1:], os.environ)
+        exporting = install(os.environ)
+        asyncio.run(_serve(started, exporting))
     except Exception as failure:
         # Whatever ends the service that was not its being told to stop is said once, as every service says it.
         sys.stderr.write(f"[fatal] {failure if isinstance(failure, Refused) else words_of(failure)}\n")
         return 1
+    finally:
+        if exporting is not None:
+            exporting.shutdown()
     return 0

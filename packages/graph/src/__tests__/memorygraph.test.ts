@@ -94,27 +94,11 @@ describe('MemoryGraphDatabase', () => {
     expect(await graph().getResourceConnections(resourceId('res-3'))).toEqual([]);
   });
 
-  it('finds the way from one resource to another along a link', async () => {
-    const paths = await graph().findPath(resourceId('res-1'), resourceId('res-2'), 3);
-    expect(paths.map((path) => path.resources.map((on) => getResourceId(on)))).toEqual([['res-1', 'res-2']]);
-    expect(ids(paths[0]!.annotations)).toEqual(['ann-a']);
-    expect(await graph().findPath(resourceId('res-1'), resourceId('res-3'), 3)).toEqual([]);
-  });
-
-  it('counts what it holds: resources by entity type, and annotations by kind', async () => {
+  it('counts its resources by entity type', async () => {
     const byType = (a: { type: string }, b: { type: string }) => a.type.localeCompare(b.type);
     expect((await graph().getEntityTypeStats()).sort(byType)).toEqual([
       { type: 'County', count: 1 },
       { type: 'Place', count: 2 },
     ]);
-    expect(await graph().getStats()).toEqual({
-      resourceCount: 3,
-      annotationCount: 3,
-      highlightCount: 1,
-      referenceCount: 2,
-      entityReferenceCount: 0,
-      entityTypes: { Place: 2, County: 1 },
-      contentTypes: { 'text/markdown': 3 },
-    });
   });
 });

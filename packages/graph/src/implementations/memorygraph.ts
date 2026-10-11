@@ -10,14 +10,12 @@ import { GraphDatabase } from '../interface';
 import { queryResources } from '../resource-query';
 import type {
   GraphConnection,
-  GraphPath,
   EntityTypeStats,
   ResourceFilter,
   ResourceId,
   AnnotationId,
 } from '@semiont/core';
-import { getBodySource, getTargetSource, getResourceId, getPrimaryRepresentation, getResourceEntityTypes } from '@semiont/core';
-import { getEntityTypes } from '@semiont/core';
+import { getBodySource, getTargetSource, getResourceId, getResourceEntityTypes } from '@semiont/core';
 import { intendedGraphAnnotation } from '../annotation-codec';
 import type { ResourceDescriptor } from '@semiont/core';
 import type { Annotation } from '@semiont/core';
@@ -112,46 +110,6 @@ export class MemoryGraphDatabase implements GraphDatabase {
     return connections;
   }
 
-  async findPath(fromResourceId: ResourceId, toResourceId: ResourceId, maxDepth: number = 5): Promise<GraphPath[]> {
-    const visited = new Set<ResourceId>();
-    const queue: { docId: ResourceId; path: ResourceDescriptor[]; sels: Annotation[] }[] = [];
-    const fromDoc = await this.getResource(fromResourceId);
-
-    if (!fromDoc) return [];
-
-    queue.push({ docId: fromResourceId, path: [fromDoc], sels: [] });
-    visited.add(fromResourceId);
-
-    const paths: GraphPath[] = [];
-
-    while (queue.length > 0 && paths.length < 10) {
-      const { docId, path, sels } = queue.shift()!;
-
-      if (path.length > maxDepth) continue;
-
-      if (docId === toResourceId) {
-        paths.push({ resources: path, annotations: sels });
-        continue;
-      }
-
-      const connections = await this.getResourceConnections(docId);
-
-      for (const conn of connections) {
-        const targetId = getResourceId(conn.targetResource);
-        if (targetId && !visited.has(targetId)) {
-          visited.add(targetId);
-          queue.push({
-            docId: targetId,
-            path: [...path, conn.targetResource],
-            sels: [...sels, ...conn.annotations],
-          });
-        }
-      }
-    }
-
-    return paths;
-  }
-
   async getEntityTypeStats(): Promise<EntityTypeStats[]> {
     const typeCounts = new Map<string, number>();
 
@@ -166,47 +124,5 @@ export class MemoryGraphDatabase implements GraphDatabase {
       type,
       count,
     }));
-  }
-
-  async getStats(): Promise<{
-    resourceCount: number;
-    annotationCount: number;
-    highlightCount: number;
-    referenceCount: number;
-    entityReferenceCount: number;
-    entityTypes: Record<string, number>;
-    contentTypes: Record<string, number>;
-  }> {
-    const entityTypes: Record<string, number> = {};
-    const contentTypes: Record<string, number> = {};
-
-    for (const doc of this.resources.values()) {
-      for (const type of doc.entityTypes || []) {
-        entityTypes[type] = (entityTypes[type] || 0) + 1;
-      }
-      const primaryRep = getPrimaryRepresentation(doc);
-      if (primaryRep?.mediaType) {
-        contentTypes[primaryRep.mediaType] = (contentTypes[primaryRep.mediaType] || 0) + 1;
-      }
-    }
-
-    const annotations = Array.from(this.annotations.values());
-    // Use motivation to distinguish types
-    const highlightCount = annotations.filter(a => a.motivation === 'highlighting').length;
-    const referenceCount = annotations.filter(a => a.motivation === 'linking').length;
-    // Extract entity types from annotation body
-    const entityReferenceCount = annotations.filter(
-      a => a.motivation === 'linking' && getEntityTypes(a).length > 0
-    ).length;
-
-    return {
-      resourceCount: this.resources.size,
-      annotationCount: this.annotations.size,
-      highlightCount,
-      referenceCount,
-      entityReferenceCount,
-      entityTypes,
-      contentTypes,
-    };
   }
 }

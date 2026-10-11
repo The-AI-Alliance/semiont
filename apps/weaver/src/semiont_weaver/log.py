@@ -4,6 +4,8 @@ Every event is a short message with its facts beside it (`extra`), each under
 a name in camel case. Once the service is configured, each event is one line
 on stdout, in the form its configuration document names: as one JSON object,
 or as `<when> [<LEVEL>] [weaver] <message>` followed by the facts as JSON.
+Either carries the trace and the span the event was logged in, where it was
+logged in one.
 
 How much is written is the document's too. Its level is the least severe
 event the service's own code writes: this package's, the graph stores' and
@@ -19,6 +21,7 @@ import traceback
 from datetime import UTC, datetime
 from typing import Final, assert_never, final, override
 
+from opentelemetry import trace
 from semiont.types import LogFormat, LogLevel
 
 LOG: Final = logging.getLogger("semiont_weaver")
@@ -57,11 +60,22 @@ def _level(record: logging.LogRecord) -> LogLevel:
     return "debug"
 
 
+def _active_span() -> tuple[str, str] | None:
+    """The trace and the span this code is running in, each as the hex text a trace's readers know it by. Nothing where it runs in none."""
+    context = trace.get_current_span().get_span_context()
+    if not context.is_valid:
+        return None
+    return trace.format_trace_id(context.trace_id), trace.format_span_id(context.span_id)
+
+
 def _facts(record: logging.LogRecord) -> dict[str, object]:
-    """What an event was logged with: its facts, and the failure it was logged for."""
+    """What an event was logged with: its facts, the failure it was logged for, and the trace it was logged in."""
     facts: dict[str, object] = {name: value for name, value in vars(record).items() if name not in _OF_EVERY_RECORD}
     if record.exc_info is not None and record.exc_info[0] is not None:
         facts["stack"] = "".join(traceback.format_exception(*record.exc_info))
+    span = _active_span()
+    if span is not None:
+        facts["trace_id"], facts["span_id"] = span
     return facts
 
 

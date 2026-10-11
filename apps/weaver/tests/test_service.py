@@ -7,9 +7,7 @@ what the suite does not reach: each word of a refusal.
 """
 
 import json
-import logging
 import sys
-from collections.abc import Generator
 from pathlib import Path
 from typing import Final
 
@@ -19,8 +17,9 @@ from semiont.http import Credential
 from semiont_graph.memory import MemoryGraphDatabase
 
 from semiont_weaver.config import Refused
-from semiont_weaver.log import LOG
 from semiont_weaver.service import CHANNELS, boot, main
+
+pytestmark = pytest.mark.usefixtures("the_log_as_it_was")
 
 ACCOUNT: Final = {"SEMIONT_OIDC_CLIENT_ID": "semiont-weaver", "SEMIONT_OIDC_CLIENT_SECRET": "s3cret"}
 PASSWORD: Final = {"NEO4J_PASSWORD": "n30"}
@@ -34,18 +33,6 @@ DOCUMENT: Final[dict[str, JsonValue]] = {
     "logLevel": "warn",
     "logFormat": "simple",
 }
-
-
-@pytest.fixture(autouse=True)
-def the_log_as_it_was() -> Generator[None]:
-    """A process's logging is configured once, by the service as it boots. A test that boots it puts it back."""
-    everything = logging.getLogger()
-    handlers, level, own = list(everything.handlers), everything.level, LOG.level
-    yield
-    everything.handlers[:] = handlers
-    everything.setLevel(level)
-    LOG.setLevel(own)
-    logging.captureWarnings(False)
 
 
 def written(tmp_path: Path, document: object = DOCUMENT) -> str:

@@ -73,8 +73,8 @@ export default defineConfig({
           provide: { gatewayCommand: GATEWAY_COMMAND, archivistCommand: ARCHIVIST_COMMAND, weaverServices: WEAVER_SERVICES },
           globalSetup: ['harness/global-setup.ts', 'harness/archivist-setup.ts', 'harness/weaver-setup.ts'],
           // One file at a time: the files share one graph database, which a
-          // rebuild of the whole graph clears, and the TypeScript Weaver's
-          // health port is a constant, so two cannot run at once.
+          // rebuild of the whole graph clears, and a Weaver's health port is a
+          // constant, so two cannot run at once.
           fileParallelism: false,
         },
       },

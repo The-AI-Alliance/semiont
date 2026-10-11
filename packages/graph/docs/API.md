@@ -4,7 +4,7 @@ How to make a graph store and query it. What the graph is for, and how it stays 
 
 ## The contract
 
-Every store implements `GraphDatabase`, in [`src/interface.ts`](../src/interface.ts). That file is the reference for each method and its types. In outline it has: connecting; reading a resource and an annotation; listing and searching resources; what refers to a resource, and a resource's connections; a path between two resources; and statistics. Nothing in it writes: the graph's one writer is the Weaver, through [`semiont_graph`](../../graph-python/README.md).
+Every store implements `GraphDatabase`, in [`src/interface.ts`](../src/interface.ts). That file is the reference for each method and its types. In outline it has: connecting; reading a resource and an annotation; listing and searching resources; what refers to a resource, and a resource's connections; and how many resources each entity type has. Nothing in it writes: the graph's one writer is the Weaver, through [`semiont_graph`](../../graph-python/README.md).
 
 Its types are [`@semiont/core`](../../core/README.md)'s: a resource is a `ResourceDescriptor`, an annotation is an `Annotation`, and each is named by an id of its own kind.
 
@@ -138,9 +138,4 @@ const { resources: matches } = await graph.listResources({
 ```typescript
 // Resources connected to this one through annotations
 const connections = await graph.getResourceConnections(resourceId);
-
-// The shortest way from one resource to another along links, followed
-// forwards. The third argument counts the resources on the path, both ends
-// included: 3 finds a path through one resource between them.
-const paths = await graph.findPath(fromResourceId, toResourceId, 3);
 ```

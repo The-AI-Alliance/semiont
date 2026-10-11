@@ -69,7 +69,6 @@ export {
 // Graph types
 export type {
   GraphConnection,
-  GraphPath,
   EntityTypeStats,
   ResourceDescriptor,
 } from './graph';

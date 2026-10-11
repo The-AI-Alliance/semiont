@@ -84,6 +84,10 @@ that is replaced starts with nothing.
   and every refusal to start: no service account, no password for the graph
   database, a graph that lives in one process's memory, a gateway that does
   not answer.
+- **What it exports** (`telemetry.test.ts`): a Weaver told where to export,
+  held to the telemetry table in both directions: every row the table lists
+  for it arrives, under its name, and nothing arrives that the table does not
+  list.
 
 ## Running it
 

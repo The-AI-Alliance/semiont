@@ -11,7 +11,6 @@ import {
 import { decodeResource, type ResourceProperties } from '../resource-codec';
 import type {
   GraphConnection,
-  GraphPath,
   EntityTypeStats,
   ResourceFilter,
   ResourceId,
@@ -25,7 +24,6 @@ import type { Annotation } from '@semiont/core';
 let NeptuneClient: any;
 let DescribeDBClustersCommand: any;
 let gremlin: any;
-let process: any;
 
 async function loadDependencies() {
   if (!NeptuneClient) {
@@ -36,7 +34,6 @@ async function loadDependencies() {
   if (!gremlin) {
     // @ts-ignore - gremlin module has no types
     gremlin = await import('gremlin');
-    process = gremlin.process;
   }
 }
 
@@ -464,52 +461,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async findPath(fromResourceId: ResourceId, toResourceId: ResourceId, maxDepth: number = 5): Promise<GraphPath[]> {
-    try {
-      // Use Neptune's optimized path queries
-      const results = await this.g.V()
-        .hasLabel('Resource')
-        .has('id', fromResourceId)
-        .repeat(
-          process.statics.both('REFERENCES')
-            .simplePath()
-        )
-        .times(maxDepth)
-        .emit()
-        .has('id', toResourceId)
-        .path()
-        .by(process.statics.elementMap())
-        .limit(10)
-        .toList();
-      
-      const paths: GraphPath[] = [];
-      
-      for (const pathResult of results) {
-        const resources: ResourceDescriptor[] = [];
-
-        // Process path elements (alternating vertices and edges)
-        for (let i = 0; i < pathResult.objects.length; i++) {
-          const element = pathResult.objects[i];
-
-          if (i % 2 === 0) {
-            // Vertex (Resource)
-            resources.push(vertexToResource(element));
-          } else {
-            // Edge - skipped: annotations are vertices, so filling them in
-            // would need a query for annotations between resources
-          }
-        }
-
-        paths.push({ resources, annotations: [] });
-      }
-      
-      return paths;
-    } catch (error) {
-      this.logger?.error('Failed to find paths in Neptune', { error });
-      throw error;
-    }
-  }
-  
   async getEntityTypeStats(): Promise<EntityTypeStats[]> {
     try {
       // Use Neptune's analytics capabilities
@@ -538,85 +489,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       return stats;
     } catch (error) {
       this.logger?.error('Failed to get entity type stats from Neptune', { error });
-      throw error;
-    }
-  }
-  
-  async getStats(): Promise<{
-    resourceCount: number;
-    annotationCount: number;
-    highlightCount: number;
-    referenceCount: number;
-    entityReferenceCount: number;
-    entityTypes: Record<string, number>;
-    contentTypes: Record<string, number>;
-  }> {
-    try {
-      // Get resource count
-      const docCountResult = await this.g.V()
-        .hasLabel('Resource')
-        .count()
-        .next();
-      const resourceCount = docCountResult.value || 0;
-      
-      // Get annotation count
-      const selCountResult = await this.g.V()
-        .hasLabel('Annotation')
-        .count()
-        .next();
-      const annotationCount = selCountResult.value || 0;
-
-      // Get highlight count (annotations without resolved resource)
-      const highlightCountResult = await this.g.V()
-        .hasLabel('Annotation')
-        .hasNot('resolvedResourceId')
-        .count()
-        .next();
-      const highlightCount = highlightCountResult.value || 0;
-
-      // Get reference count (annotations with resolved resource)
-      const referenceCountResult = await this.g.V()
-        .hasLabel('Annotation')
-        .has('resolvedResourceId')
-        .count()
-        .next();
-      const referenceCount = referenceCountResult.value || 0;
-
-      // Get entity reference count
-      const entityRefCountResult = await this.g.V()
-        .hasLabel('Annotation')
-        .has('resolvedResourceId')
-        .has('entityTypes')
-        .count()
-        .next();
-      const entityReferenceCount = entityRefCountResult.value || 0;
-      
-      // Get entity type stats
-      const entityTypeStats = await this.getEntityTypeStats();
-      const entityTypes: Record<string, number> = {};
-      for (const stat of entityTypeStats) {
-        entityTypes[stat.type] = stat.count;
-      }
-      
-      // Get content type stats
-      const contentTypeResult = await this.g.V()
-        .hasLabel('Resource')
-        .groupCount()
-        .by('format')
-        .next();
-      const contentTypes = contentTypeResult.value || {};
-      
-      return {
-        resourceCount,
-        annotationCount,
-        highlightCount,
-        referenceCount,
-        entityReferenceCount,
-        entityTypes,
-        contentTypes,
-      };
-    } catch (error) {
-      this.logger?.error('Failed to get stats from Neptune', { error });
       throw error;
     }
   }
