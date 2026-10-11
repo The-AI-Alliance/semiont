@@ -35,12 +35,16 @@ const silentLogger: Logger = {
 const SOURCE_ID = makeResourceId('res-cedar-county');
 const DERIVED_FROM_ID = makeResourceId('res-iowa-counties');
 
+/** A resource as the Weaver gives one to the graph: checksum, date and attribution included. */
 const resource = (id: string, name: string): ResourceDescriptor => ({
   '@context': 'https://schema.org/',
   '@id': makeResourceId(id),
   name,
   entityTypes: ['Document'],
-  representations: [],
+  representations: [{ mediaType: 'text/markdown', checksum: `sha256:${id}`, rel: 'original' }],
+  archived: false,
+  dateCreated: '2026-01-01T00:00:00.000Z',
+  wasAttributedTo: { '@type': 'Person', '@id': 'did:web:test:users:asker', name: 'Asker' },
 });
 
 /**

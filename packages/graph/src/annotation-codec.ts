@@ -18,7 +18,7 @@
 import { annotationId as makeAnnotationId, resourceId as makeResourceId } from '@semiont/core';
 import { getBodySource, getExactText, getTargetSelector, getTargetSource } from '@semiont/core';
 import { getEntityTypes } from '@semiont/core';
-import type { Annotation, AnnotationCategory, CreateAnnotationInternal } from '@semiont/core';
+import type { Annotation, AnnotationCategory, CreateAnnotationInternal, ResourceId } from '@semiont/core';
 
 /**
  * A store's property bag, flattened. Producing this is the store's job:
@@ -67,6 +67,11 @@ export function buildAnnotation(input: CreateAnnotationInternal): Annotation {
   if (input.body && (!Array.isArray(input.body) || input.body.length > 0)) {
     annotation.body = input.body;
   }
+  // What the encoder stores, the builder carries: an annotation created
+  // without the generator and the `modified` its record has is one the graph
+  // then disagrees with the record about.
+  if (input.generator) annotation.generator = input.generator;
+  if (input.modified) annotation.modified = input.modified;
   return annotation;
 }
 
@@ -136,8 +141,11 @@ export function decodeAnnotation(props: AnnotationProperties, entityTypes: strin
   const motivation = required('motivation') as Annotation['motivation'];
   const created = required('created');
 
+  // Tags are edges, and a store answers edges in no promised order. The
+  // codec states one, so that two readings of the same tags are the same
+  // annotation and a check of the graph never mistakes order for content.
   const body: AnnotationBody = [];
-  for (const entityType of entityTypes) {
+  for (const entityType of [...entityTypes].sort()) {
     if (entityType) body.push({ type: 'TextualBody', value: entityType, purpose: 'tagging' });
   }
   if (props.source) {
@@ -201,4 +209,43 @@ function decodeSelector(raw: string | undefined): AnnotationSelector | undefined
  */
 export function intendedGraphAnnotation(annotation: Annotation): Annotation {
   return decodeAnnotation(encodeAnnotation(annotation), getEntityTypes(annotation));
+}
+
+/**
+ * The annotation an update leaves, as the graph is to hold it.
+ *
+ * An update names the fields that changed. What it leaves is the current
+ * annotation with those fields replaced, and a store writes THAT, whole: the
+ * codec's bag for it, its entity tags, its link. A store that writes "only
+ * what changed" has to know which stored things a field owns, and a body owns
+ * three in three places: `source`, the tag edges and the reference edge.
+ * neo4j's update path knew none of them. It wrote the body to a property
+ * nothing reads, so a link or a tag added after an annotation was made was
+ * never read back, and a link taken away was still followed.
+ *
+ * An annotation belongs to one resource for good: the edge to it is written
+ * at creation and nothing rewrites it. An update that names another is
+ * refused here rather than leaving a row that says one resource and an edge
+ * that says another.
+ */
+export function updatedAnnotation(current: Annotation, updates: Partial<Annotation>): Annotation {
+  const updated = intendedGraphAnnotation({ ...current, ...updates, id: current.id });
+  const from = getTargetSource(current.target);
+  const to = getTargetSource(updated.target);
+  if (from !== to) {
+    throw new Error(`Annotation ${current.id} belongs to ${from}; an update cannot move it to ${to}`);
+  }
+  return updated;
+}
+
+/**
+ * What a reference resolved to `source` is: the annotation's body with its
+ * link replaced by one to `source`, and its entity tags kept. Resolving is an
+ * update like any other, so it stores what `updatedAnnotation` says and
+ * nothing of its own.
+ */
+export function resolvedBody(current: Annotation, source: ResourceId): AnnotationBody {
+  const items = current.body === undefined ? [] : Array.isArray(current.body) ? current.body : [current.body];
+  const kept = items.filter((item) => item.type !== 'SpecificResource');
+  return [...kept, { type: 'SpecificResource', source, purpose: 'linking' }];
 }

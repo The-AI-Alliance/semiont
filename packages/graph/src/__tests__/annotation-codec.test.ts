@@ -100,9 +100,10 @@ describe.each(STORES)('$name — decode conformance', ({ decode }) => {
   it('preserves a real selector, and rebuilds the tagging and linking bodies', () => {
     const ann = decode(FULLY_POPULATED, ['Person', '', 'Org']);
     expect(ann.target).toEqual({ source: 'res-1', selector: QUOTE_SELECTOR });
+    // Tags in the codec's one order, then the link.
     expect(ann.body).toEqual([
-      { type: 'TextualBody', value: 'Person', purpose: 'tagging' },
       { type: 'TextualBody', value: 'Org', purpose: 'tagging' },
+      { type: 'TextualBody', value: 'Person', purpose: 'tagging' },
       { type: 'SpecificResource', source: resourceId('res-2'), purpose: 'linking' },
     ]);
   });
@@ -361,5 +362,22 @@ describe('intendedGraphAnnotation — what the graph is supposed to hold', () =>
     } as Annotation);
 
     expect(tagged.body).toEqual([{ type: 'TextualBody', value: 'Person', purpose: 'tagging' }]);
+  });
+
+  it('states one order for entity tags, so two answers that differ only in order are the same answer', () => {
+    // Tags are edges. A store answers them as a collection with no promised
+    // order (`collect()` in Cypher), and a check that compares the graph with
+    // what it should hold would call a reordering a divergence.
+    const tag = (value: string) => ({ type: 'TextualBody' as const, value, purpose: 'tagging' as const });
+    const asWritten = intendedGraphAnnotation({ ...full, body: [tag('Place'), tag('Person')] });
+    const otherwise = intendedGraphAnnotation({ ...full, body: [tag('Person'), tag('Place')] });
+
+    expect(asWritten).toEqual(otherwise);
+
+    const props = encodeAnnotation(asWritten);
+    for (const store of STORES) {
+      expect(store.decode(props, ['Place', 'Person']), store.name).toEqual(store.decode(props, ['Person', 'Place']));
+      expect(store.decode(props, ['Place', 'Person']), store.name).toEqual(asWritten);
+    }
   });
 });

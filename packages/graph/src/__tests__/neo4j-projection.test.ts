@@ -93,8 +93,8 @@ describe('parseAnnotationNode — the rest of the projection contract', () => {
   it('reconstructs entity tags as tagging bodies, filtering empty values', () => {
     const ann = parseAnnotationNode(node('2026-01-01T00:00:00Z'), ['Person', '', 'Org']);
     expect(ann.body).toEqual([
-      { type: 'TextualBody', value: 'Person', purpose: 'tagging' },
       { type: 'TextualBody', value: 'Org', purpose: 'tagging' },
+      { type: 'TextualBody', value: 'Person', purpose: 'tagging' },
     ]);
   });
 

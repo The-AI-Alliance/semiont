@@ -25,4 +25,10 @@ export interface CreateAnnotationInternal {
   // replays, so a store that restamps collapses every annotation's `created`
   // to the rebuild moment on every reconcile heal.
   created: Annotation['created'];
+  // The software that made the annotation and when it was last changed, where
+  // the record carries them. The graph's codec stores both, so an annotation
+  // created without them is one a check of the graph against the record calls
+  // wrong.
+  generator?: Annotation['generator'];
+  modified?: Annotation['modified'];
 }

@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { MemoryGraphDatabase } from '../implementations/memorygraph';
-import { annotationId, resourceId, getStorageUri } from '@semiont/core';
+import { annotationId, getBodySource, resourceId, getStorageUri } from '@semiont/core';
 import {
   createTestResource,
   createTestHighlight,
@@ -193,7 +193,7 @@ describe('MemoryGraphDatabase Implementation', () => {
     it('search should match against storageUri', async () => {
       const resource = createTestResource({
         name: 'Greek Victory',
-        representations: [{ mediaType: 'text/plain', storageUri: 'file://authors/Herodotus/places/Marathon.md' }],
+        representations: [{ mediaType: 'text/plain', checksum: 'sha256:test-content', rel: 'original', storageUri: 'file://authors/Herodotus/places/Marathon.md' }],
       });
       await db.createResource(resource);
 
@@ -206,7 +206,7 @@ describe('MemoryGraphDatabase Implementation', () => {
     it('search against storageUri is case-insensitive', async () => {
       const resource = createTestResource({
         name: 'Plays',
-        representations: [{ mediaType: 'text/plain', storageUri: 'file://authors/Aeschylus/plays.md' }],
+        representations: [{ mediaType: 'text/plain', checksum: 'sha256:test-content', rel: 'original', storageUri: 'file://authors/Aeschylus/plays.md' }],
       });
       await db.createResource(resource);
 
@@ -219,7 +219,7 @@ describe('MemoryGraphDatabase Implementation', () => {
     it('search returns a single result when query matches both name and storageUri', async () => {
       const resource = createTestResource({
         name: 'Marathon',
-        representations: [{ mediaType: 'text/plain', storageUri: 'file://places/Marathon.md' }],
+        representations: [{ mediaType: 'text/plain', checksum: 'sha256:test-content', rel: 'original', storageUri: 'file://places/Marathon.md' }],
       });
       await db.createResource(resource);
 
@@ -231,11 +231,11 @@ describe('MemoryGraphDatabase Implementation', () => {
     it('listResources({ search }) matches storageUri the same way', async () => {
       await db.createResource(createTestResource({
         name: 'Resource A',
-        representations: [{ mediaType: 'text/plain', storageUri: 'file://authors/Plato/republic.md' }],
+        representations: [{ mediaType: 'text/plain', checksum: 'sha256:test-content', rel: 'original', storageUri: 'file://authors/Plato/republic.md' }],
       }));
       await db.createResource(createTestResource({
         name: 'Resource B',
-        representations: [{ mediaType: 'text/plain', storageUri: 'file://authors/Aristotle/ethics.md' }],
+        representations: [{ mediaType: 'text/plain', checksum: 'sha256:test-content', rel: 'original', storageUri: 'file://authors/Aristotle/ethics.md' }],
       }));
 
       const result = await db.listResources({ search: 'plato' });
@@ -247,7 +247,7 @@ describe('MemoryGraphDatabase Implementation', () => {
     it('createResource persists the representation storageUri so it round-trips through getResource', async () => {
       // The URI's one home is the representation.
       const resource = createTestResource({
-        representations: [{ mediaType: 'text/plain', storageUri: 'file://docs/overview.md' }],
+        representations: [{ mediaType: 'text/plain', checksum: 'sha256:test-content', rel: 'original', storageUri: 'file://docs/overview.md' }],
       });
       await db.createResource(resource);
 
@@ -279,29 +279,28 @@ describe('MemoryGraphDatabase Implementation', () => {
 
       const annotations = await db.getResourceAnnotations(resourceId(resource['@id']));
       expect(annotations).toHaveLength(1);
-
-      const highlights = await db.getHighlights(resourceId(resource['@id']));
-      expect(highlights).toHaveLength(1);
     });
 
-    it('should cascade delete annotations when resource deleted', async () => {
+    it('deletes the annotations on a deleted resource, and leaves another resource\'s link to it', async () => {
       const resource1 = createTestResource();
       const resource2 = createTestResource();
       await db.createResource(resource1);
       await db.createResource(resource2);
 
-      // Create annotations targeting resource1
+      // Annotations on resource1
       await db.createAnnotation(createTestHighlight(resource1['@id']));
       await db.createAnnotation(createTestReference(resource1['@id']));
 
-      // Create annotation with resource1 as body source
-      await db.createAnnotation(createTestEntityReference(resource2['@id'], resource1['@id']));
+      // An annotation on resource2 that links to resource1. It is
+      // resource2's: the Weaver rebuilds a resource by deleting it and
+      // applying its own events again, and this one is not among them.
+      const link = await db.createAnnotation(createTestEntityReference(resource2['@id'], resource1['@id']));
 
       await db.deleteResource(resourceId(resource1['@id']));
 
-      // All annotations should be deleted
-      const stats = await db.getStats();
-      expect(stats.annotationCount).toBe(0);
+      expect(await db.getResourceAnnotations(resourceId(resource1['@id']))).toEqual([]);
+      expect(await db.getResourceAnnotations(resourceId(resource2['@id']))).toEqual([link]);
+      expect(await db.getResourceReferencedBy(resourceId(resource1['@id']))).toEqual([link]);
     });
 
     it('should preserve annotations when unrelated resource deleted', async () => {
@@ -315,47 +314,6 @@ describe('MemoryGraphDatabase Implementation', () => {
 
       const annotations = await db.getResourceAnnotations(resourceId(resource1['@id']));
       expect(annotations).toHaveLength(1);
-    });
-
-    it('getHighlights() should match by motivation=highlighting', async () => {
-      const resource = createTestResource();
-      await db.createResource(resource);
-
-      await db.createAnnotation(createTestHighlight(resource['@id']));
-      await db.createAnnotation(createTestReference(resource['@id']));
-
-      const highlights = await db.getHighlights(resourceId(resource['@id']));
-
-      expect(highlights).toHaveLength(1);
-      expect(highlights[0]?.motivation).toBe('highlighting');
-    });
-
-    it('getReferences() should match by motivation=linking', async () => {
-      const resource = createTestResource();
-      await db.createResource(resource);
-
-      await db.createAnnotation(createTestHighlight(resource['@id']));
-      await db.createAnnotation(createTestReference(resource['@id']));
-
-      const references = await db.getReferences(resourceId(resource['@id']));
-
-      expect(references).toHaveLength(1);
-      expect(references[0]?.motivation).toBe('linking');
-    });
-
-    it('getEntityReferences() should extract entity types from body', async () => {
-      const resource1 = createTestResource();
-      const resource2 = createTestResource();
-      await db.createResource(resource1);
-      await db.createResource(resource2);
-
-      await db.createAnnotation(
-        createTestEntityReference(resource1['@id'], resource2['@id'], ['Person', 'Author'])
-      );
-
-      const entityRefs = await db.getEntityReferences(resourceId(resource1['@id']));
-
-      expect(entityRefs).toHaveLength(1);
     });
 
     it('getResourceReferencedBy() should match body source', async () => {
@@ -386,31 +344,9 @@ describe('MemoryGraphDatabase Implementation', () => {
       await db.resolveReference(annotationId(created.id), resourceId(resource2['@id']));
 
       const retrieved = await db.getAnnotation(annotationId(created.id));
-      expect((retrieved?.body as any).source).toBe(resource2['@id']);
+      expect(getBodySource(retrieved?.body)).toBe(resource2['@id']);
     });
 
-    it('resolveReferences() should batch resolve', async () => {
-      const resource1 = createTestResource();
-      const resource2 = createTestResource();
-      const resource3 = createTestResource();
-      await db.createResource(resource1);
-      await db.createResource(resource2);
-      await db.createResource(resource3);
-
-      const ref1 = await db.createAnnotation(createTestReference(resource1['@id']));
-      const ref2 = await db.createAnnotation(createTestReference(resource1['@id']));
-
-      await db.resolveReferences([
-        { annotationId: annotationId(ref1.id), source: resourceId(resource2['@id']) },
-        { annotationId: annotationId(ref2.id), source: resourceId(resource3['@id']) },
-      ]);
-
-      const retrieved1 = await db.getAnnotation(annotationId(ref1.id));
-      const retrieved2 = await db.getAnnotation(annotationId(ref2.id));
-
-      expect((retrieved1?.body as any).source).toBe(resource2['@id']);
-      expect((retrieved2?.body as any).source).toBe(resource3['@id']);
-    });
   });
 
   describe('Graph Traversal Implementation', () => {
@@ -551,18 +487,10 @@ describe('MemoryGraphDatabase Implementation', () => {
 
     it('getStats() should extract primary representation mediaType', async () => {
       await db.createResource(createTestResource({
-        representations: [{
-          id: generateResourceId(),
-          mediaType: 'text/plain',
-          content: { value: 'test' },
-        }],
+        representations: [{ mediaType: 'text/plain', checksum: 'sha256:test-content', rel: 'original' }],
       }));
       await db.createResource(createTestResource({
-        representations: [{
-          id: generateResourceId(),
-          mediaType: 'text/plain',
-          content: { value: 'test' },
-        }],
+        representations: [{ mediaType: 'text/plain', checksum: 'sha256:test-content', rel: 'original' }],
       }));
 
       const stats = await db.getStats();
@@ -675,13 +603,10 @@ describe('MemoryGraphDatabase Implementation', () => {
       expect(reverseRefs).toEqual([]);
     });
 
-    it('should handle resources with no primary representation', async () => {
-      await db.createResource(createTestResource({ representations: [] }));
-
-      const stats = await db.getStats();
-
-      expect(stats.resourceCount).toBe(1);
-      expect(Object.keys(stats.contentTypes)).toHaveLength(0);
+    it('refuses a resource with no representation, as a server store does', async () => {
+      await expect(db.createResource(createTestResource({ representations: [] }))).rejects.toThrow(
+        /missing required field: representations/,
+      );
     });
 
     it('should handle circular reference paths', async () => {

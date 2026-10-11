@@ -82,20 +82,21 @@ const RESOURCE_WITHOUT_STORAGE: ResourceDescriptor = {
 // driver would, `created` included: as a native temporal, not a string.
 // ---------------------------------------------------------------------------
 
-type Recorded = { cypher: string; params: Record<string, unknown>; props: Record<string, string> };
+type Recorded = { cypher: string; params: Record<string, unknown>; props: Record<string, unknown> };
 
 function neo4jStore(): { db: Neo4jGraphDatabase; recorded: Recorded[] } {
   const recorded: Recorded[] = [];
   const db = new Neo4jGraphDatabase({ database: 'neo4j' });
 
-  const session = {
-    run: async (cypher: string, params: Record<string, unknown>) => {
-      const props = { ...(params.props as Record<string, string> | undefined) };
+  let annotation: Record<string, unknown> | undefined;
+
+  const run = async (cypher: string, params: Record<string, unknown>) => {
+      const props = { ...(params.props as Record<string, unknown> | undefined) };
       recorded.push({ cypher, params, props });
 
-      // A resource write names its properties in the query rather than passing
-      // a bag, so the params ARE the stored node. `created` included: it is
-      // stored as the string it arrived as, not coerced to a temporal.
+      // A resource write is `SET d = $props` with the resource codec's bag,
+      // so the bag IS the stored node. `created` included: it is stored as
+      // the string it arrived as, not coerced to a temporal.
       if (cypher.includes('UNWIND $resources')) {
         const batch = params.resources as Array<Record<string, unknown>>;
         return {
@@ -107,19 +108,31 @@ function neo4jStore(): { db: Neo4jGraphDatabase; recorded: Recorded[] } {
       }
 
       if (cypher.includes('MERGE (d:Resource')) {
-        const stored = { ...params };
-        return { records: [{ get: (key: string) => (key === 'd' ? { properties: stored } : []) }] };
+        return { records: [{ get: (key: string) => (key === 'd' ? { properties: props } : []) }] };
       }
 
-      // Only an annotation write carries a property bag; a read gets an empty
-      // result, which is enough to see the query it asked for.
-      if (!params.props) return { records: [] };
+      // Only an annotation write carries a property bag. A read of the
+      // annotation by id is answered with the last bag written, as the
+      // database would; any other read gets an empty result, which is enough
+      // to see the query it asked for.
+      if (!params.props) {
+        if (annotation && cypher.includes('MATCH (a:Annotation {id: $id})') && params.id === annotation.id) {
+          const held = annotation;
+          return { records: [{ get: (key: string) => (key === 'a' ? { properties: held } : []) }] };
+        }
+        return { records: [] };
+      }
+      annotation = props;
 
       // The annotation write is `SET a = $props` — the codec's string, stored as
       // written and read back verbatim. Re-setting `created` as a native
       // temporal would reformat the value on the way out, via its toString().
       return { records: [{ get: (key: string) => (key === 'a' ? { properties: props } : []) }] };
-    },
+  };
+  const session = {
+    run,
+    // A transaction is its work, run once, against the same fake.
+    executeWrite: <T>(work: (tx: { run: typeof run }) => Promise<T>) => work({ run }),
     close: async () => {},
   };
 
@@ -167,33 +180,39 @@ describe('neo4j write path', () => {
     expect(written.body).toEqual([{ type: 'SpecificResource', source: 'res-2', purpose: 'linking' }]);
   });
 
-  it('filters highlights on the value it actually wrote for one', async () => {
-    const { db, recorded } = neo4jStore();
-    await db.createAnnotation(HIGHLIGHT);
-    await db.listAnnotations({ type: 'highlight' });
-
-    // A filter asking for 'TextualBody' while the write stores
-    // 'SpecificResource' matches no highlight. Both sides read the same
-    // derivation.
-    const query = recorded[1]!;
-    expect(query.cypher).toContain('a.type = $type');
-    expect(query.params.type).toBe(recorded[0]!.props.type);
-  });
-
   it("carries the representation's storage URI through the write and back out of the read", async () => {
     const { db, recorded } = neo4jStore();
     const stored = await db.createResource(RESOURCE);
 
-    expect(recorded[0]!.params.storageUri).toBe(STORAGE_URI);
+    expect(recorded[0]!.props.storageUri).toBe(STORAGE_URI);
     expect(getStorageUri(stored)).toBe(STORAGE_URI);
   });
 
-  it('stores null and reads back no storage URI when the representation has none', async () => {
+  it('writes no storage URI property at all when the representation has none', async () => {
     const { db, recorded } = neo4jStore();
     const stored = await db.createResource(RESOURCE_WITHOUT_STORAGE);
 
-    expect(recorded[0]!.params.storageUri).toBeNull();
+    expect('storageUri' in recorded[0]!.props).toBe(false);
     expect(getStorageUri(stored)).toBeUndefined();
+  });
+
+  it('writes a resource as exactly the codec\'s bag, and reads its own write back unchanged', async () => {
+    const { db, recorded } = neo4jStore();
+    const stored = await db.createResource(RESOURCE);
+
+    expect(recorded[0]!.cypher).toContain('SET d = $props');
+    expect(recorded[0]!.props).toEqual({
+      id: 'res-1',
+      name: 'Cedar County, Iowa',
+      entityTypes: ['Place'],
+      format: 'text/markdown',
+      archived: false,
+      created: '2026-08-22T10:00:00.000Z',
+      creator: JSON.stringify(CREATOR),
+      contentChecksum: 'sha256:abc',
+      storageUri: STORAGE_URI,
+    });
+    expect(stored).toEqual(RESOURCE);
   });
 
   it('carries the storage URI through the batch write too, one resource per row', async () => {
@@ -201,8 +220,51 @@ describe('neo4j write path', () => {
     const stored = await db.batchCreateResources([RESOURCE, RESOURCE_WITHOUT_STORAGE]);
 
     const rows = recorded[0]!.params.resources as Array<Record<string, unknown>>;
-    expect(rows.map(r => r.storageUri)).toEqual([STORAGE_URI, null]);
+    expect(rows.map(r => r.storageUri)).toEqual([STORAGE_URI, undefined]);
     expect(stored.map(getStorageUri)).toEqual([STORAGE_URI, undefined]);
+  });
+
+  it('replaces the row with the codec\'s bag on an update, and says which tags and link it has', async () => {
+    const { db, recorded } = neo4jStore();
+    await db.createAnnotation(HIGHLIGHT);
+
+    const updated = await db.updateAnnotation(annotationId('ann-highlight'), {
+      body: [
+        { type: 'TextualBody', value: 'Person', purpose: 'tagging' },
+        { type: 'SpecificResource', source: resourceId('res-2'), purpose: 'linking' },
+      ],
+    });
+
+    const write = recorded[recorded.length - 1]!;
+    expect(write.cypher).toContain('SET a = $props');
+    expect(write.props.source).toBe('res-2');
+    expect(write.params.entityTypes).toEqual(['Person']);
+    expect(write.params.linked).toEqual(['res-2']);
+    // Nothing of the store's own: no body property, no clock.
+    expect(Object.keys(write.props).sort()).toEqual(
+      ['created', 'creator', 'exact', 'id', 'motivation', 'resourceId', 'selector', 'source', 'type'],
+    );
+    expect(write.cypher).not.toMatch(/datetime\(\)|updatedAt/);
+    expect(updated.created).toBe(AUTHORED);
+  });
+
+  it('takes the link and the tags away when an update leaves the body empty', async () => {
+    const { db, recorded } = neo4jStore();
+    await db.createAnnotation(SOURCE_ONLY);
+
+    const updated = await db.updateAnnotation(annotationId('ann-source-only'), { body: [] });
+
+    const write = recorded[recorded.length - 1]!;
+    expect('source' in write.props).toBe(false);
+    expect(write.params.entityTypes).toEqual([]);
+    expect(write.params.linked).toEqual([]);
+    expect(write.cypher).toContain('DELETE stale');
+    expect(updated.body).toBeUndefined();
+  });
+
+  it('refuses to update an annotation that is not there', async () => {
+    const { db } = neo4jStore();
+    await expect(db.updateAnnotation(annotationId('nobody'), { body: [] })).rejects.toThrow('Annotation not found');
   });
 
   it('fails loudly when the resource the annotation belongs to is not in the graph', async () => {
@@ -252,7 +314,6 @@ function gremlinRecorder(): { g: Chain; written: Record<string, string>; filtere
 interface GremlinStore {
   db: {
     createAnnotation(input: CreateAnnotationInternal): Promise<unknown>;
-    listAnnotations(filter: { type?: 'highlight' | 'reference' }): Promise<unknown>;
     updateAnnotation(id: AnnotationId, updates: Partial<Annotation>): Promise<unknown>;
     createResource(resource: ResourceDescriptor): Promise<unknown>;
     getResource(id: ResourceId): Promise<ResourceDescriptor | null>;
@@ -313,16 +374,6 @@ describe.each(GREMLIN_STORES)('%s write path', (_name, makeStore) => {
     expect(written.id).toBe('ann-highlight');
   });
 
-  it('filters highlights on the value it actually wrote for one', async () => {
-    const write = makeStore();
-    await write.db.createAnnotation(HIGHLIGHT);
-
-    const read = makeStore();
-    await read.db.listAnnotations({ type: 'highlight' });
-
-    expect(read.filtered.type).toBe(write.written.type);
-  });
-
   it("carries the representation's storage URI through its own write/read seam", async () => {
     const { db, written } = makeStore();
     await db.createResource(RESOURCE);
@@ -350,5 +401,23 @@ describe.each(GREMLIN_STORES)('%s write path', (_name, makeStore) => {
 
     expect(written.selector).toBe(JSON.stringify(moved));
     expect(written.exact).toBe('Cedar County');
+  });
+});
+
+describe('janusgraph read path', () => {
+  it('finds a resource\'s references by the type it wrote for one', async () => {
+    const write = gremlinRecorder();
+    const writer = new JanusGraphDatabase({});
+    Object.assign(writer, { g: write.g, connected: true });
+    await writer.createAnnotation(SOURCE_ONLY);
+
+    // A filter asking for one value while the write stores another matches
+    // no reference. Both sides read the same derivation.
+    const read = gremlinRecorder();
+    const reader = new JanusGraphDatabase({});
+    Object.assign(reader, { g: read.g, connected: true });
+    await reader.getResourceConnections(resourceId('res-1'));
+
+    expect(read.filtered.type).toBe(write.written.type);
   });
 });

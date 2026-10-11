@@ -550,9 +550,11 @@ describe('W9 — reconcile detects and heals out-of-band divergence', () => {
       expect(await awaitMarks(rig.weaver, maxSeqs(history))).toBe(true);
 
       const { annotationId: mkAid } = await import('@semiont/core');
+      // A tag the log never gave it: something the graph holds, so the
+      // corruption is one a database could carry.
       await rig.graph.updateAnnotation(mkAid('ann-deep'), {
-        body: [{ type: 'TextualBody', value: 'CORRUPTED', purpose: 'commenting' }],
-      } as never);
+        body: [{ type: 'TextualBody', value: 'CORRUPTED', purpose: 'tagging' }],
+      });
 
       const summary = await rig.weaver.reconcile();
       expect(summary.divergent).toBeGreaterThanOrEqual(1);

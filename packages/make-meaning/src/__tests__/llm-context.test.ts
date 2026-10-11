@@ -83,13 +83,17 @@ describe('LLM Context', () => {
     await record.resource(testResourceId, { name: 'LLM Context Test Resource', text: CONTENT });
 
     // Populate graph database (required by GraphContext)
+    // As the Weaver gives a resource to the graph: with the checksum, date
+    // and attribution every folded resource has.
     await graphDb.createResource({
-      '@context': 'https://www.w3.org/ns/anno.jsonld',
+      '@context': 'https://schema.org/',
       '@id': resourceId(testResourceId),
       name: 'LLM Context Test Resource',
       archived: false,
       entityTypes: [],
-      representations: { mediaType: 'text/plain', rel: 'original', checksum: '', byteSize: Buffer.byteLength(CONTENT) },
+      representations: [{ mediaType: 'text/plain', rel: 'original', checksum: 'sha256:llm-context-test' }],
+      dateCreated: '2026-01-01T00:00:00.000Z',
+      wasAttributedTo: { '@type': 'Person', '@id': 'did:web:test:users:asker', name: 'Asker' },
     });
   });
 

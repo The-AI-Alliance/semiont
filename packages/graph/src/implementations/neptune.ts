@@ -11,12 +11,10 @@ import {
   decodeAnnotation,
   encodeAnnotation,
   encodeSelector,
-  motivationForCategory,
-  storedAnnotationType,
   type AnnotationProperties,
 } from '../annotation-codec';
+import { decodeResource, encodeResource, type ResourceProperties } from '../resource-codec';
 import type {
-  AnnotationCategory,
   GraphConnection,
   GraphPath,
   EntityTypeStats,
@@ -26,8 +24,7 @@ import type {
   ResourceId,
   AnnotationId,
 } from '@semiont/core';
-import { v4 as uuidv4 } from 'uuid';
-import { getBodySource, getTargetSource, getPrimaryRepresentation, getResourceId, getStorageUri } from '@semiont/core';
+import { getBodySource, getTargetSource, getResourceId } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
 import type { Annotation } from '@semiont/core';
 
@@ -36,7 +33,6 @@ let NeptuneClient: any;
 let DescribeDBClustersCommand: any;
 let gremlin: any;
 let process: any;
-let TextP: any;
 let cardinality: any;
 let __: any;
 
@@ -50,61 +46,44 @@ async function loadDependencies() {
     // @ts-ignore - gremlin module has no types
     gremlin = await import('gremlin');
     process = gremlin.process;
-    TextP = process.TextP;
     cardinality = process.cardinality;
     __ = process.statics;
   }
 }
 
 // Helper function to convert Neptune vertex to ResourceDescriptor
+/**
+ * A vertex's properties, in the resource codec's names. Gremlin keeps a list
+ * as a JSON string and hands a boolean back as either; what the properties
+ * mean, and which a resource must have, is the codec's.
+ */
 function vertexToResource(vertex: any): ResourceDescriptor {
   const props = vertex.properties || vertex;
 
   // Handle different property formats from Neptune
-  const getValue = (key: string, required: boolean = false) => {
+  const value = (key: keyof ResourceProperties) => {
     const prop = props[key];
-    if (!prop) {
-      if (required) {
-        throw new Error(`Resource ${vertex.id || 'unknown'} missing required field: ${key}`);
-      }
-      return undefined;
-    }
-    if (Array.isArray(prop) && prop.length > 0) {
+    if (prop === undefined || prop === null) return undefined;
+    if (Array.isArray(prop)) {
+      if (prop.length === 0) return undefined;
       return prop[0].value !== undefined ? prop[0].value : prop[0];
     }
     return prop.value !== undefined ? prop.value : prop;
   };
 
-  // Get all required fields and validate
-  const id = getValue('id', true);
-  const name = getValue('name', true);
-  const entityTypesRaw = getValue('entityTypes', true);
-  const mediaType = getValue('mediaType', true);
-  const archived = getValue('archived', true);
-  const dateCreated = getValue('dateCreated', true);
-  const checksum = getValue('checksum', true);
-  const creatorRaw = getValue('creator', true);
-
-  const resource: ResourceDescriptor = {
-    '@context': 'https://schema.org/',
-    '@id': id,
-    name,
-    entityTypes: JSON.parse(entityTypesRaw),
-    representations: [{
-      mediaType,
-      checksum,
-      rel: 'original',
-      storageUri: getValue('storageUri') || undefined,
-    }],
-    archived: archived === 'true' || archived === true,
-    dateCreated,
-    wasAttributedTo: typeof creatorRaw === 'string' ? JSON.parse(creatorRaw) : creatorRaw,
-  };
-
-  const sourceResourceId = getValue('sourceResourceId');
-  if (sourceResourceId) resource.sourceResourceId = sourceResourceId;
-
-  return resource;
+  const entityTypes = value('entityTypes');
+  const archived = value('archived');
+  return decodeResource({
+    id: value('id'),
+    name: value('name'),
+    entityTypes: typeof entityTypes === 'string' ? JSON.parse(entityTypes) : entityTypes,
+    format: value('format'),
+    archived: archived === undefined ? undefined : archived === true || archived === 'true',
+    created: value('created'),
+    creator: value('creator'),
+    contentChecksum: value('contentChecksum'),
+    storageUri: value('storageUri'),
+  });
 }
 
 /**
@@ -298,36 +277,17 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   }
 
   async createResource(resource: ResourceDescriptor): Promise<ResourceDescriptor> {
-    const id = getResourceId(resource);
-    const primaryRep = getPrimaryRepresentation(resource);
-    if (!primaryRep) {
-      throw new Error('Resource must have at least one representation');
-    }
-
-    // Create vertex in Neptune
+    // The resource codec's bag, property by property; a list rides as JSON.
+    const props = encodeResource(resource);
     try {
-      const vertex = this.g.addV('Resource')
-        .property('id', id)
-        .property('name', resource.name)
-        .property('mediaType', primaryRep.mediaType)
-        .property('archived', resource.archived || false)
-        .property('dateCreated', resource.dateCreated)
-        .property('creator', JSON.stringify(resource.wasAttributedTo))
-        .property('checksum', primaryRep.checksum)
-        .property('entityTypes', JSON.stringify(resource.entityTypes));
-
-      if (resource.sourceResourceId) {
-        vertex.property('sourceResourceId', resource.sourceResourceId);
+      let vertex = this.g.addV('Resource');
+      for (const [key, value] of Object.entries(props)) {
+        vertex = vertex.property(key, Array.isArray(value) ? JSON.stringify(value) : value);
       }
-      const storageUri = getStorageUri(resource);
-      if (storageUri) {
-        vertex.property('storageUri', storageUri);
-      }
-
       await vertex.next();
 
-      this.logger?.info('Created resource vertex in Neptune', { id });
-      return resource;
+      this.logger?.info('Created resource vertex in Neptune', { id: props.id });
+      return decodeResource(props);
     } catch (error) {
       this.logger?.error('Failed to create resource in Neptune', { error });
       throw error;
@@ -620,63 +580,14 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async listAnnotations(filter: { resourceId?: ResourceId; type?: AnnotationCategory }): Promise<{ annotations: Annotation[]; total: number }> {
-    try {
-      let traversal = this.g.V().hasLabel('Annotation');
-
-      // Apply filters
-      if (filter.resourceId) {
-        traversal = traversal.has('resourceId', filter.resourceId);
-      }
-
-      if (filter.type) {
-        traversal = traversal.has('type', storedAnnotationType(motivationForCategory(filter.type)));
-      }
-
-      const results = await traversal.elementMap().toList();
-      const annotations = await this.fetchAnnotationsWithEntityTypes(results);
-
-      return { annotations, total: annotations.length };
-    } catch (error) {
-      this.logger?.error('Failed to list annotations from Neptune', { error });
-      throw error;
-    }
-  }
-  
-  
-  async getHighlights(resourceId: ResourceId): Promise<Annotation[]> {
-    try {
-      const results = await this.g.V()
-        .hasLabel('Annotation')
-        .has('resourceId', resourceId)
-        .hasNot('resolvedResourceId')
-        .elementMap()
-        .toList();
-
-      return await this.fetchAnnotationsWithEntityTypes(results);
-    } catch (error) {
-      this.logger?.error('Failed to get highlights from Neptune', { error });
-      throw error;
-    }
-  }
   
   async resolveReference(annotationId: AnnotationId, source: ResourceId): Promise<Annotation> {
     try {
-      // Get target resource name
-      const targetDocResult = await this.g.V()
-        .hasLabel('Resource')
-        .has('id', source)
-        .elementMap()
-        .next();
-      const targetDoc = targetDocResult.value ? vertexToResource(targetDocResult.value) : null;
-
       // Update the existing Annotation vertex
       const traversal = this.g.V()
         .hasLabel('Annotation')
         .has('id', annotationId)
-        .property('source', source)
-        .property('resolvedResourceName', targetDoc?.name)
-        .property('resolvedAt', new Date().toISOString());
+        .property('source', source);
 
       const result = await traversal.elementMap().next();
 
@@ -709,49 +620,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       return vertexToAnnotation(result.value, entityTypes);
     } catch (error) {
       this.logger?.error('Failed to resolve reference in Neptune', { error });
-      throw error;
-    }
-  }
-  
-  async getReferences(resourceId: ResourceId): Promise<Annotation[]> {
-    try {
-      const results = await this.g.V()
-        .hasLabel('Annotation')
-        .has('resourceId', resourceId)
-        .has('resolvedResourceId')
-        .elementMap()
-        .toList();
-
-      return await this.fetchAnnotationsWithEntityTypes(results);
-    } catch (error) {
-      this.logger?.error('Failed to get references from Neptune', { error });
-      throw error;
-    }
-  }
-  
-  async getEntityReferences(resourceId: ResourceId, entityTypes?: string[]): Promise<Annotation[]> {
-    try {
-      let traversal = this.g.V()
-        .hasLabel('Annotation')
-        .has('resourceId', resourceId)
-        .has('resolvedResourceId')
-        .has('entityTypes');
-      
-      if (entityTypes && entityTypes.length > 0) {
-        traversal = traversal.filter(
-          process.statics.or(
-            ...entityTypes.map((type: string) =>
-              process.statics.has('entityTypes', TextP.containing(`"${type}"`))
-            )
-          )
-        );
-      }
-      
-      const results = await traversal.elementMap().toList();
-
-      return await this.fetchAnnotationsWithEntityTypes(results);
-    } catch (error) {
-      this.logger?.error('Failed to get entity references from Neptune', { error });
       throw error;
     }
   }
@@ -1015,7 +883,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       const contentTypeResult = await this.g.V()
         .hasLabel('Resource')
         .groupCount()
-        .by('contentType')
+        .by('format')
         .next();
       const contentTypes = contentTypeResult.value || {};
       
@@ -1059,22 +927,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   }
 
 
-  async resolveReferences(inputs: { annotationId: AnnotationId; source: ResourceId }[]): Promise<Annotation[]> {
-    const results: Annotation[] = [];
-
-    try {
-      for (const input of inputs) {
-        const annotation = await this.resolveReference(input.annotationId, input.source);
-        results.push(annotation);
-      }
-
-      return results;
-    } catch (error) {
-      this.logger?.error('Failed to resolve references in Neptune', { error });
-      throw error;
-    }
-  }
-  
   // Tag Collections - stored as special vertices in the graph
   private entityTypesCollection: Set<string> | null = null;
   
@@ -1168,10 +1020,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         this.logger?.error('Failed to initialize entity types', { error });
       }
     }
-  }
-  
-  generateId(): string {
-    return uuidv4().replace(/-/g, '').substring(0, 12);
   }
   
   async clearDatabase(): Promise<void> {

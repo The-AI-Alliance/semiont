@@ -7,27 +7,23 @@ import type { CreateAnnotationInternal, ResourceDescriptor } from '@semiont/core
 import { annotationId, resourceId } from '@semiont/core';
 
 /**
- * Create a test resource with sensible defaults
+ * A resource as the Weaver gives one to the graph: what the fold builds from
+ * a `yield:created`, and no more. A fixture with other fields, or without the
+ * checksum, date and attribution every folded resource has, is not something
+ * a store is ever given.
  */
 export function createTestResource(overrides: Partial<ResourceDescriptor> = {}): ResourceDescriptor {
-  const id = (overrides as any)['@id'] || overrides.id || uuidv4();
-
   return {
-    '@context': 'https://www.w3.org/ns/ldp',
-    '@id': resourceId(id),
-    type: 'ldp:RDFSource',
+    '@context': 'https://schema.org/',
+    '@id': resourceId(uuidv4()),
     name: 'Test Resource',
     entityTypes: ['Person'],
-    representations: [
-      {
-        id: uuidv4(),
-        mediaType: 'text/plain',
-        content: { value: 'test content' },
-      },
-    ],
+    representations: [{ mediaType: 'text/plain', checksum: 'sha256:test-content', rel: 'original' }],
+    archived: false,
     dateCreated: new Date().toISOString(),
+    wasAttributedTo: { '@type': 'Person', '@id': 'did:web:example.org:users:ada', name: 'Ada' },
     ...overrides,
-  } as ResourceDescriptor;
+  };
 }
 
 /**

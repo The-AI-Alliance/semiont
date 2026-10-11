@@ -24,7 +24,7 @@ Each service connects from its own entry point in [`@semiont/make-meaning`](../m
 | `GraphDatabase` | The contract: write and read resources and annotations, list and search, what refers to a resource, a resource's connections, and the entity-type collection |
 | `getGraphDatabase(config)` | The process's one connection, made from the `services.graph` block of a knowledge base's configuration. `closeGraphDatabase()` ends it |
 | `Neo4jGraphDatabase` | Neo4j, in Cypher. It is what a stack started by the launcher runs |
-| `NeptuneGraphDatabase`, `JanusGraphDatabase` | The same contract over Gremlin |
+| `NeptuneGraphDatabase`, `JanusGraphDatabase` | The same contract over Gremlin. **Never run against a server**: they are kept as the shape of other kinds of graph database |
 | `MemoryGraphDatabase` | The contract in one process's memory, for tests |
 | `intendedGraphAnnotation(annotation)` | What the graph should hold for an annotation. The graph stores what its queries need and no more, so this, and not a view, is what a check of the graph compares against |
 
@@ -57,6 +57,10 @@ const { resources } = await graph.listResources({ entityTypes: ['Person'] });
 - **Writes are idempotent and take any order.** Events for different resources reach the graph in no fixed order, so a write never assumes the thing it points at is there yet. The Neo4j store is built that way, and [Architecture](docs/ARCHITECTURE.md#writes-that-take-any-order) says how. The Gremlin stores are not.
 - **Reading a single document needs no graph.** A resource, its annotations and their changes come from the record's views. The graph answers what crosses documents, and a reader degrades, rather than fails, when it lags.
 - **Callers never ask which database they hold.** They are written to `GraphDatabase`.
+- **A store is held to its database, not to a fake of it.** `npm test` needs no server: it holds the stores to fake drivers and the in-memory store, and both have been wrong about Neo4j. `npm run test:neo4j` runs the Neo4j store's own methods against a real server and reads the rows back. It is told where the server is in `NEO4J_HOST` and `NEO4J_PASSWORD`, and fails without them. `scripts/ci/neo4j-image.sh` prints the image to start, the one the launcher runs.
+- **The graph says what the record says, and no store reads a clock.** A resource's date is the one its event carries and an annotation's creator the one its event records; a store writes them as given. Two codecs, [`src/annotation-codec.ts`](src/annotation-codec.ts) and [`src/resource-codec.ts`](src/resource-codec.ts), are the only places that decide what a stored property is called and which are required.
+- **An update stores what the codec says it leaves.** `updatedAnnotation(current, updates)` in [`src/annotation-codec.ts`](src/annotation-codec.ts) is the one statement of that. A store replaces the annotation's row and its tag and reference edges with it, and writes nothing of its own: no property the codec does not write, and no clock.
+- **Every member of `GraphDatabase` has a caller, or is kept by name.** `scripts/compliance/audit-graph-interface-callers.sh` holds that. A member nobody calls is held by nobody.
 - **A memory graph is for one process.** The Weaver and the Librarian refuse it, because it could not be shared between them.
 
 ## Documentation

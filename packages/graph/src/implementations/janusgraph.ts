@@ -4,7 +4,7 @@ import { GraphDatabase } from '../interface';
 import { assertMutableResourceUpdate } from '../interface';
 import { queryResources } from '../resource-query';
 import type { Logger } from '@semiont/core';
-import { getBodySource, getPrimaryRepresentation, getResourceId, getStorageUri } from '@semiont/core';
+import { getBodySource, getPrimaryRepresentation, getResourceId } from '@semiont/core';
 import { getEntityTypes } from '@semiont/core';
 import type {
   AnnotationCategory,
@@ -17,16 +17,17 @@ import type {
   ResourceId,
   AnnotationId,
 } from '@semiont/core';
-import { v4 as uuidv4 } from 'uuid';
 import {
   buildAnnotation,
   decodeAnnotation,
   encodeAnnotation,
   encodeSelector,
   motivationForCategory,
+  resolvedBody,
   storedAnnotationType,
   type AnnotationProperties,
 } from '../annotation-codec';
+import { decodeResource, encodeResource, type ResourceProperties } from '../resource-codec';
 
 import type { ResourceDescriptor } from '@semiont/core';
 import type { Annotation } from '@semiont/core';
@@ -132,47 +133,27 @@ export class JanusGraphDatabase implements GraphDatabase {
   }
   
   // Helper function to convert vertex to Resource
+  /**
+   * A vertex's properties, in the resource codec's names. Gremlin keeps a list
+   * as a JSON string and hands a boolean back as either; what the properties
+   * mean, and which a resource must have, is the codec's.
+   */
   private vertexToResource(vertex: any): ResourceDescriptor {
     const props = vertex.properties || {};
-    const id = getPropertyValue(props, 'id');
-
-    // Validate required fields
-    const creatorRaw = getPropertyValue(props, 'creator');
-    const contentChecksum = getPropertyValue(props, 'contentChecksum');
-    const mediaType = getPropertyValue(props, 'contentType');
-
-    if (!creatorRaw) throw new Error(`Resource ${id} missing required field: creator`);
-    if (!contentChecksum) throw new Error(`Resource ${id} missing required field: contentChecksum`);
-    if (!mediaType) throw new Error(`Resource ${id} missing required field: contentType`);
-
-    // The graph property is named `creator`; it holds the resource's
-    // `wasAttributedTo` verbatim, as the event carried it (see the write
-    // side). Nothing is derived here — the projection copies.
-    const storedAttribution = typeof creatorRaw === 'string' ? JSON.parse(creatorRaw) : creatorRaw;
-
-    const resource: ResourceDescriptor = {
-      '@context': 'https://schema.org/',
-      '@id': id,
-      name: getPropertyValue(props, 'name'),
-      entityTypes: JSON.parse(getPropertyValue(props, 'entityTypes') || '[]'),
-      representations: [{
-        mediaType,
-        checksum: contentChecksum,
-        rel: 'original',
-        storageUri: getPropertyValue(props, 'storageUri') || undefined,
-      }],
-      archived: getPropertyValue(props, 'archived') === 'true',
-      dateCreated: getPropertyValue(props, 'created'),
-      wasAttributedTo: storedAttribution,
-    };
-
-    const sourceAnnotationId = getPropertyValue(props, 'sourceAnnotationId');
-    const sourceResourceId = getPropertyValue(props, 'sourceResourceId');
-
-    if (sourceAnnotationId) resource.sourceAnnotationId = sourceAnnotationId;
-    if (sourceResourceId) resource.sourceResourceId = sourceResourceId;
-
-    return resource;
+    const value = (key: keyof ResourceProperties) => getPropertyValue(props, key);
+    const entityTypes = value('entityTypes');
+    const archived = value('archived');
+    return decodeResource({
+      id: value('id'),
+      name: value('name'),
+      entityTypes: typeof entityTypes === 'string' ? JSON.parse(entityTypes) : entityTypes,
+      format: value('format'),
+      archived: archived === undefined ? undefined : archived === true || archived === 'true',
+      created: value('created'),
+      creator: value('creator'),
+      contentChecksum: value('contentChecksum'),
+      storageUri: value('storageUri'),
+    });
   }
   
   // Helper method to fetch annotations with their entity types
@@ -202,39 +183,16 @@ export class JanusGraphDatabase implements GraphDatabase {
 
 
   async createResource(resource: ResourceDescriptor): Promise<ResourceDescriptor> {
-    const id = getResourceId(resource);
-    const primaryRep = getPrimaryRepresentation(resource);
-    if (!primaryRep) {
-      throw new Error('Resource must have at least one representation');
+    // The resource codec's bag, property by property; a list rides as JSON.
+    const props = encodeResource(resource);
+    let vertex = this.g!.addV('Resource');
+    for (const [key, value] of Object.entries(props)) {
+      vertex = vertex.property(key, Array.isArray(value) ? JSON.stringify(value) : value);
     }
-
-    // Create vertex in JanusGraph using fields from ResourceDescriptor
-    const vertex = this.g!
-      .addV('Resource')
-      .property('id', id)
-      .property('name', resource.name)
-      .property('entityTypes', JSON.stringify(resource.entityTypes))
-      .property('contentType', primaryRep.mediaType)
-      .property('archived', resource.archived || false)
-      .property('created', resource.dateCreated)
-      .property('creator', JSON.stringify(resource.wasAttributedTo))
-      .property('contentChecksum', primaryRep.checksum);
-
-    if (resource.sourceAnnotationId) {
-      vertex.property('sourceAnnotationId', resource.sourceAnnotationId);
-    }
-    if (resource.sourceResourceId) {
-      vertex.property('sourceResourceId', resource.sourceResourceId);
-    }
-    const storageUri = getStorageUri(resource);
-    if (storageUri) {
-      vertex.property('storageUri', storageUri);
-    }
-
     await vertex.next();
 
-    this.logger?.info('Created resource vertex in JanusGraph', { id });
-    return resource;
+    this.logger?.info('Created resource vertex in JanusGraph', { id: props.id });
+    return decodeResource(props);
   }
   
   async getResource(id: ResourceId): Promise<ResourceDescriptor | null> {
@@ -479,7 +437,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     this.logger?.info('Deleted annotation from JanusGraph', { id });
   }
   
-  async listAnnotations(filter: { resourceId?: ResourceId; type?: AnnotationCategory }): Promise<{ annotations: Annotation[]; total: number }> {
+  private async listAnnotations(filter: { resourceId?: ResourceId; type?: AnnotationCategory }): Promise<{ annotations: Annotation[]; total: number }> {
     let traversalQuery = this.g!.V().hasLabel('Annotation');
 
     // Apply filters
@@ -500,29 +458,11 @@ export class JanusGraphDatabase implements GraphDatabase {
     };
   }
 
-  async getHighlights(resourceId: ResourceId): Promise<Annotation[]> {
-    const { annotations } = await this.listAnnotations({
-      resourceId,
-      type: 'highlight'
-    });
-    return annotations;
-  }
-
   async resolveReference(annotationId: AnnotationId, source: ResourceId): Promise<Annotation> {
     const annotation = await this.getAnnotation(annotationId);
     if (!annotation) throw new Error('Annotation not found');
 
-    // TODO Preserve existing TextualBody entities, add SpecificResource
-    // The update carries the SpecificResource alone, losing entity tags
-    await this.updateAnnotation(annotationId, {
-      body: [
-        {
-          type: 'SpecificResource',
-          source,
-          purpose: 'linking' as const,
-        },
-      ],
-    });
+    await this.updateAnnotation(annotationId, { body: resolvedBody(annotation, source) });
 
     // Create edge from annotation to target resource
     await this.g!
@@ -540,29 +480,12 @@ export class JanusGraphDatabase implements GraphDatabase {
     return updatedAnnotation;
   }
 
-  async getReferences(resourceId: ResourceId): Promise<Annotation[]> {
+  private async getReferences(resourceId: ResourceId): Promise<Annotation[]> {
     const { annotations } = await this.listAnnotations({
       resourceId,
       type: 'reference'
     });
     return annotations;
-  }
-
-  async getEntityReferences(resourceId: ResourceId, entityTypes?: string[]): Promise<Annotation[]> {
-    const { annotations } = await this.listAnnotations({
-      resourceId,
-      type: 'reference'
-    });
-
-    // TODO Extract entity types from body using helper
-    if (entityTypes && entityTypes.length > 0) {
-      return annotations.filter(ann => {
-        const annEntityTypes = getEntityTypes(ann);
-        return annEntityTypes.some((type: string) => entityTypes.includes(type));
-      });
-    }
-
-    return annotations.filter(ann => getEntityTypes(ann).length > 0);
   }
 
   async getResourceAnnotations(resourceId: ResourceId): Promise<Annotation[]> {
@@ -684,14 +607,6 @@ export class JanusGraphDatabase implements GraphDatabase {
     return results;
   }
 
-  async resolveReferences(inputs: Array<{ annotationId: AnnotationId; source: ResourceId }>): Promise<Annotation[]> {
-    const results = [];
-    for (const input of inputs) {
-      results.push(await this.resolveReference(input.annotationId, input.source));
-    }
-    return results;
-  }
-
   async getEntityTypes(): Promise<string[]> {
     if (this.entityTypesCollection === null) {
       await this.initializeTagCollections();
@@ -789,10 +704,6 @@ export class JanusGraphDatabase implements GraphDatabase {
     }
   }
 
-  generateId(): string {
-    return uuidv4().replace(/-/g, '').substring(0, 12);
-  }
-  
   async clearDatabase(): Promise<void> {
     // Drop all vertices in JanusGraph
     await this.g!.V().drop().next();

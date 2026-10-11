@@ -6,7 +6,6 @@ import { assertMutableResourceUpdate } from '../interface';
 import { queryResources } from '../resource-query';
 import type { Logger } from '@semiont/core';
 import type {
-  AnnotationCategory,
   GraphConnection,
   GraphPath,
   EntityTypeStats,
@@ -16,10 +15,10 @@ import type {
   ResourceId,
   AnnotationId,
 } from '@semiont/core';
-import { v4 as uuidv4 } from 'uuid';
 import { getBodySource, getTargetSource, getResourceId, getPrimaryRepresentation, getResourceEntityTypes } from '@semiont/core';
 import { getEntityTypes } from '@semiont/core';
-import { buildAnnotation, decodeAnnotation, encodeAnnotation } from '../annotation-codec';
+import { buildAnnotation, decodeAnnotation, encodeAnnotation, resolvedBody, updatedAnnotation } from '../annotation-codec';
+import { decodeResource, encodeResource } from '../resource-codec';
 import type { ResourceDescriptor } from '@semiont/core';
 import type { Annotation } from '@semiont/core';
 
@@ -59,8 +58,12 @@ export class MemoryGraphDatabase implements GraphDatabase {
       throw new Error('Resource must have an id');
     }
 
-    this.resources.set(id, resource);
-    return resource;
+    // Through the codec, as an annotation is: this store is the reference
+    // the contract suite runs against, and a Map that kept a descriptor as
+    // given would answer with fields no database holds.
+    const stored = decodeResource(encodeResource(resource));
+    this.resources.set(id, stored);
+    return stored;
   }
   
   async getResource(id: ResourceId): Promise<ResourceDescriptor | null> {
@@ -81,10 +84,11 @@ export class MemoryGraphDatabase implements GraphDatabase {
   async deleteResource(id: ResourceId): Promise<void> {
     this.resources.delete(String(id));
 
-    // Delete annotations targeting or referencing this resource
+    // The annotations ON this resource go with it. Another resource's
+    // annotation that links here is that resource's, and stays.
     const idStr = String(id);
     for (const [selId, sel] of this.annotations) {
-      if (getTargetSource(sel.target) === idStr || getBodySource(sel.body) === idStr) {
+      if (getTargetSource(sel.target) === idStr) {
         this.annotations.delete(selId);
       }
     }
@@ -128,13 +132,11 @@ export class MemoryGraphDatabase implements GraphDatabase {
     const annotation = this.annotations.get(id);
     if (!annotation) throw new Error('Annotation not found');
 
-    const updated: Annotation = {
-      ...annotation,
-      ...updates,
-    };
-
-    // Motivation should come from updates if provided
-    // No need to derive from body type
+    // What the codec says the update leaves, as a server store holds it: a
+    // Map that kept the fields as given would hold what no database does
+    // (an empty body where the codec writes none), and hide it from every
+    // test that runs here.
+    const updated = updatedAnnotation(annotation, updates);
 
     this.annotations.set(id, updated);
     return updated;
@@ -144,67 +146,18 @@ export class MemoryGraphDatabase implements GraphDatabase {
     this.annotations.delete(id);
   }
   
-  async listAnnotations(filter: { resourceId?: ResourceId; type?: AnnotationCategory }): Promise<{ annotations: Annotation[]; total: number }> {
-    let results = Array.from(this.annotations.values());
-
-    if (filter.resourceId) {
-      const resourceIdStr = String(filter.resourceId);
-      results = results.filter(a => getTargetSource(a.target) === resourceIdStr);
-    }
-
-    // Only SpecificResource supported, use motivation to distinguish
-    if (filter.type) {
-      const motivation = filter.type === 'highlight' ? 'highlighting' : 'linking';
-      results = results.filter(a => a.motivation === motivation);
-    }
-
-    return { annotations: results, total: results.length };
-  }
-
-  async getHighlights(resourceId: ResourceId): Promise<Annotation[]> {
-    const resourceIdStr = String(resourceId);
-    const highlights = Array.from(this.annotations.values())
-      .filter(sel => getTargetSource(sel.target) === resourceIdStr && sel.motivation === 'highlighting');
-    this.logger?.debug('Got highlights for resource', { resourceId, count: highlights.length });
-    return highlights;
-  }
-
   async resolveReference(annotationId: AnnotationId, source: ResourceId): Promise<Annotation> {
     const annotation = this.annotations.get(annotationId);
     if (!annotation) throw new Error('Annotation not found');
-
-    // Convert stub (empty array) to resolved SpecificResource
-    const updated: Annotation = {
-      ...annotation,
-      body: {
-        type: 'SpecificResource',
-        source,
-        purpose: 'linking',
-      },
-    };
-
-    this.annotations.set(annotationId, updated);
-    return updated;
+    return this.updateAnnotation(annotationId, { body: resolvedBody(annotation, source) });
   }
 
-  async getReferences(resourceId: ResourceId): Promise<Annotation[]> {
+  private async getReferences(resourceId: ResourceId): Promise<Annotation[]> {
     const resourceIdStr = String(resourceId);
     const references = Array.from(this.annotations.values())
       .filter(sel => getTargetSource(sel.target) === resourceIdStr && sel.motivation === 'linking');
     this.logger?.debug('Got references for resource', { resourceId, count: references.length });
     return references;
-  }
-
-  async getEntityReferences(resourceId: ResourceId, entityTypes?: string[]): Promise<Annotation[]> {
-    const resourceIdStr = String(resourceId);
-    let refs = Array.from(this.annotations.values())
-      .filter(sel => getTargetSource(sel.target) === resourceIdStr && getEntityTypes(sel).length > 0);
-
-    if (entityTypes && entityTypes.length > 0) {
-      refs = refs.filter(sel => getEntityTypes(sel).some(type => entityTypes.includes(type)));
-    }
-
-    return refs;
   }
 
   async getResourceAnnotations(resourceId: ResourceId): Promise<Annotation[]> {
@@ -358,14 +311,6 @@ export class MemoryGraphDatabase implements GraphDatabase {
   }
   
   
-  async resolveReferences(inputs: { annotationId: AnnotationId; source: ResourceId }[]): Promise<Annotation[]> {
-    const results: Annotation[] = [];
-    for (const input of inputs) {
-      results.push(await this.resolveReference(input.annotationId, input.source));
-    }
-    return results;
-  }
-  
   // Tag Collections - an in-memory set
   private entityTypesCollection: Set<string> | null = null;
   
@@ -397,10 +342,6 @@ export class MemoryGraphDatabase implements GraphDatabase {
       const { DEFAULT_ENTITY_TYPES } = await import('@semiont/ontology');
       this.entityTypesCollection = new Set(DEFAULT_ENTITY_TYPES);
     }
-  }
-  
-  generateId(): string {
-    return uuidv4().replace(/-/g, '').substring(0, 12);
   }
   
   async clearDatabase(): Promise<void> {

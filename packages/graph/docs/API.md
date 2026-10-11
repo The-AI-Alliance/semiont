@@ -112,10 +112,6 @@ The second row matters to whoever writes events to a store, and is explained in 
 // All annotations on a resource
 const annotations = await graph.getResourceAnnotations(resourceId);
 
-// Highlights only / references only
-const highlights = await graph.getHighlights(resourceId);
-const references = await graph.getReferences(resourceId);
-
 // Annotations on other resources that link TO this resource
 const referencedBy = await graph.getResourceReferencedBy(resourceId);
 ```
@@ -145,6 +141,8 @@ const { resources: matches } = await graph.listResources({
 // Resources connected to this one through annotations
 const connections = await graph.getResourceConnections(resourceId);
 
-// Paths between two resources (up to maxDepth hops)
+// The shortest way from one resource to another along links, followed
+// forwards. The third argument counts the resources on the path, both ends
+// included: 3 finds a path through one resource between them.
 const paths = await graph.findPath(fromResourceId, toResourceId, 3);
 ```

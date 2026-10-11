@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Audit: Weaver structural invariants G1–G6. These are the invariants that
+# Audit: Weaver structural invariants G1–G7. These are the invariants that
 # hold by construction and cannot be expressed as runtime properties — the
 # static complement of the weaver-axioms.test.ts suite.
 #
@@ -11,6 +11,8 @@ set -euo pipefail
 # G4  weave:applied has a single emitter (noteApplied)
 # G5  the fan-in channel list and the fold's switch cases stay in sync
 # G6  divergenceOf compares against the codec, not a hand-written field list
+# G7  the fold says what the record says: no clock of its own in a stored
+#     value, and no creator derived from who sent an event
 #
 # Exit code: 0 if clean, 1 if violations found.
 
@@ -100,7 +102,36 @@ if ! grep -q "intendedGraphAnnotation" "$WEAVER"; then
   FAIL=1
 fi
 
+# ---------------------------------------------------------------------------
+# G7: the fold says what the record says.
+#
+# An event carries when it was recorded and, for a resource or an annotation,
+# who it is by: the knowledge base derives that when it records the event, and
+# a reader does not derive it again. The fold once did both for itself. It
+# dated every resource with `new Date()`, so the graph said when the Weaver
+# last ran; and it made an annotation's creator from the event's `userId`, the
+# party that SENT the event, so the graph named the model as the creator of
+# what a person had asked for.
+#
+# `Date.now()` is not a stored value: it bounds a wait. And one `didToAgent`
+# remains by name: a `yield:created` from before the record derived any
+# attribution carries none, and the graph then says what the Archivist's view
+# says of the same event.
+# ---------------------------------------------------------------------------
+G7_CLOCK=$(grep -nE "new Date\(" "$WEAVER" || true)
+if [ -n "$G7_CLOCK" ]; then
+  echo "❌ G7: weaver.ts reads its own clock for a value. The event carries when it was recorded:"
+  echo "$G7_CLOCK"
+  FAIL=1
+fi
+G7_AGENT=$(grep -nE "didToAgent\(" "$WEAVER" | grep -v "event\.payload\.wasAttributedTo ?? \[didToAgent(event\.userId)\]" || true)
+if [ -n "$G7_AGENT" ]; then
+  echo "❌ G7: weaver.ts derives an agent from who sent an event. The record carries who it is by:"
+  echo "$G7_AGENT"
+  FAIL=1
+fi
+
 if [ "$FAIL" -ne 0 ]; then
   exit 1
 fi
-echo "✅ Weaver invariants G1–G6 hold"
+echo "✅ Weaver invariants G1–G7 hold"

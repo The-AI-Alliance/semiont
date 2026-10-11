@@ -1,0 +1,1924 @@
+{
+  "$comment": "What the graph holds of an annotation and of a resource, as every implementation of the graph's two codecs must say it. TypeScript (@semiont/graph: annotation-codec.ts, resource-codec.ts) runs every case; Python (semiont_graph) runs every case when it is written, and a third implementation would. A store keeps its own dialect (a map set on a node, a chain of properties, a list kept as a JSON string); what is stored, what each stored thing is called, which are required and what is refused are stated here, once. Each case has one of six parts. `annotationStored`: an annotation as the record gives it; the `properties` of its row that are plain strings; the properties that are JSON, each given under `json` as the value the stored string must parse to (a serializer is free in its spacing and its key order); its `tags`, which are edges and not properties, as a set; the resource it `linksTo`, where the reference edge goes; and what the graph `holds`, which is what reading the row back answers. `annotationRead`: a row's `properties` (JSON ones as the strings a store holds) and its `tags` in whatever order a store answers them, and the `annotation` read. `annotationUpdated`: the `current` annotation as the graph holds it, the `updates`, and the `annotation` the update leaves; a store writes that annotation whole. `referenceResolved`: the `current` annotation, the `source` it is resolved to, and the `body` it then has. `resourceStored` and `resourceRead` say the same of a resource. Where an implementation must refuse, the part has `refused`: a word the refusal names (the missing field, or the resource an update tried to move to). Text here is carried and never counted, so a character outside the basic plane is in the table to be carried as itself. Add a case here before changing an implementation.",
+  "cases": [
+    {
+      "why": "a highlight is its row and nothing else: no link, no tags, and the quoted text pulled out beside the selector",
+      "annotationStored": {
+        "annotation": {
+          "@context": "http://www.w3.org/ns/anno.jsonld",
+          "type": "Annotation",
+          "id": "ann-1",
+          "motivation": "highlighting",
+          "target": {
+            "source": "res-1",
+            "selector": {
+              "type": "TextQuoteSelector",
+              "exact": "Black Hawk",
+              "prefix": "Chief ",
+              "suffix": " led"
+            }
+          },
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          },
+          "created": "2020-03-04T05:06:07.000Z"
+        },
+        "properties": {
+          "id": "ann-1",
+          "resourceId": "res-1",
+          "type": "TextualBody",
+          "motivation": "highlighting",
+          "created": "2020-03-04T05:06:07.000Z",
+          "exact": "Black Hawk"
+        },
+        "json": {
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          },
+          "selector": {
+            "type": "TextQuoteSelector",
+            "exact": "Black Hawk",
+            "prefix": "Chief ",
+            "suffix": " led"
+          }
+        },
+        "tags": [],
+        "linksTo": null,
+        "holds": {
+          "@context": "http://www.w3.org/ns/anno.jsonld",
+          "type": "Annotation",
+          "id": "ann-1",
+          "motivation": "highlighting",
+          "target": {
+            "source": "res-1",
+            "selector": {
+              "type": "TextQuoteSelector",
+              "exact": "Black Hawk",
+              "prefix": "Chief ",
+              "suffix": " led"
+            }
+          },
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          },
+          "created": "2020-03-04T05:06:07.000Z"
+        }
+      }
+    },
+    {
+      "why": "a link to a resource is the `source` property, which is also where the reference edge goes; a target that is a whole resource stores no selector at all",
+      "annotationStored": {
+        "annotation": {
+          "@context": "http://www.w3.org/ns/anno.jsonld",
+          "type": "Annotation",
+          "id": "ann-1",
+          "motivation": "linking",
+          "target": {
+            "source": "res-1"
+          },
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          },
+          "created": "2020-03-04T05:06:07.000Z",
+          "body": [
+            {
+              "type": "SpecificResource",
+              "source": "res-2",
+              "purpose": "linking"
+            }
+          ]
+        },
+        "properties": {
+          "id": "ann-1",
+          "resourceId": "res-1",
+          "type": "SpecificResource",
+          "motivation": "linking",
+          "created": "2020-03-04T05:06:07.000Z",
+          "source": "res-2"
+        },
+        "json": {
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          }
+        },
+        "tags": [],
+        "linksTo": "res-2",
+        "holds": {
+          "@context": "http://www.w3.org/ns/anno.jsonld",
+          "type": "Annotation",
+          "id": "ann-1",
+          "motivation": "linking",
+          "target": {
+            "source": "res-1"
+          },
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          },
+          "created": "2020-03-04T05:06:07.000Z",
+          "body": [
+            {
+              "type": "SpecificResource",
+              "source": "res-2",
+              "purpose": "linking"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "why": "entity tags are edges, not properties, and are held in one order whatever order they were written in: sorted, then the link",
+      "annotationStored": {
+        "annotation": {
+          "@context": "http://www.w3.org/ns/anno.jsonld",
+          "type": "Annotation",
+          "id": "ann-1",
+          "motivation": "linking",
+          "target": {
+            "source": "res-1"
+          },
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          },
+          "created": "2020-03-04T05:06:07.000Z",
+          "body": [
+            {
+              "type": "TextualBody",
+              "value": "Place",
+              "purpose": "tagging"
+            },
+            {
+              "type": "SpecificResource",
+              "source": "res-2",
+              "purpose": "linking"
+            },
+            {
+              "type": "TextualBody",
+              "value": "Person",
+              "purpose": "tagging"
+            }
+          ]
+        },
+        "properties": {
+          "id": "ann-1",
+          "resourceId": "res-1",
+          "type": "SpecificResource",
+          "motivation": "linking",
+          "created": "2020-03-04T05:06:07.000Z",
+          "source": "res-2"
+        },
+        "json": {
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          }
+        },
+        "tags": [
+          "Person",
+          "Place"
+        ],
+        "linksTo": "res-2",
+        "holds": {
+          "@context": "http://www.w3.org/ns/anno.jsonld",
+          "type": "Annotation",
+          "id": "ann-1",
+          "motivation": "linking",
+          "target": {
+            "source": "res-1"
+          },
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          },
+          "created": "2020-03-04T05:06:07.000Z",
+          "body": [
+            {
+              "type": "TextualBody",
+              "value": "Person",
+              "purpose": "tagging"
+            },
+            {
+              "type": "TextualBody",
+              "value": "Place",
+              "purpose": "tagging"
+            },
+            {
+              "type": "SpecificResource",
+              "source": "res-2",
+              "purpose": "linking"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "why": "the graph holds what its queries need and no more: an annotation's attribution and a comment's text are the views' to keep",
+      "annotationStored": {
+        "annotation": {
+          "@context": "http://www.w3.org/ns/anno.jsonld",
+          "type": "Annotation",
+          "id": "ann-1",
+          "motivation": "commenting",
+          "target": {
+            "source": "res-1"
+          },
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          },
+          "created": "2020-03-04T05:06:07.000Z",
+          "wasAttributedTo": [
+            {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            {
+              "@type": "Software",
+              "@id": "did:web:example.org:agents:anthropic:model",
+              "name": "model"
+            }
+          ],
+          "body": [
+            {
+              "type": "TextualBody",
+              "value": "A note on the passage",
+              "purpose": "commenting"
+            }
+          ]
+        },
+        "properties": {
+          "id": "ann-1",
+          "resourceId": "res-1",
+          "type": "SpecificResource",
+          "motivation": "commenting",
+          "created": "2020-03-04T05:06:07.000Z"
+        },
+        "json": {
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          }
+        },
+        "tags": [],
+        "linksTo": null,
+        "holds": {
+          "@context": "http://www.w3.org/ns/anno.jsonld",
+          "type": "Annotation",
+          "id": "ann-1",
+          "motivation": "commenting",
+          "target": {
+            "source": "res-1"
+          },
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          },
+          "created": "2020-03-04T05:06:07.000Z"
+        }
+      }
+    },
+    {
+      "why": "when it was changed and the software that made it are carried; a body that is one item and not a list is read as that one item",
+      "annotationStored": {
+        "annotation": {
+          "@context": "http://www.w3.org/ns/anno.jsonld",
+          "type": "Annotation",
+          "id": "ann-1",
+          "motivation": "linking",
+          "target": {
+            "source": "res-1"
+          },
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          },
+          "created": "2020-03-04T05:06:07.000Z",
+          "body": {
+            "type": "SpecificResource",
+            "source": "res-2",
+            "purpose": "linking"
+          },
+          "modified": "2021-01-02T03:04:05.000Z",
+          "generator": {
+            "@type": "Software",
+            "@id": "did:web:example.org:agents:anthropic:model",
+            "name": "model"
+          }
+        },
+        "properties": {
+          "id": "ann-1",
+          "resourceId": "res-1",
+          "type": "SpecificResource",
+          "motivation": "linking",
+          "created": "2020-03-04T05:06:07.000Z",
+          "source": "res-2",
+          "modified": "2021-01-02T03:04:05.000Z"
+        },
+        "json": {
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          },
+          "generator": {
+            "@type": "Software",
+            "@id": "did:web:example.org:agents:anthropic:model",
+            "name": "model"
+          }
+        },
+        "tags": [],
+        "linksTo": "res-2",
+        "holds": {
+          "@context": "http://www.w3.org/ns/anno.jsonld",
+          "type": "Annotation",
+          "id": "ann-1",
+          "motivation": "linking",
+          "target": {
+            "source": "res-1"
+          },
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          },
+          "created": "2020-03-04T05:06:07.000Z",
+          "body": [
+            {
+              "type": "SpecificResource",
+              "source": "res-2",
+              "purpose": "linking"
+            }
+          ],
+          "modified": "2021-01-02T03:04:05.000Z",
+          "generator": {
+            "@type": "Software",
+            "@id": "did:web:example.org:agents:anthropic:model",
+            "name": "model"
+          }
+        }
+      }
+    },
+    {
+      "why": "a selector is carried as given, a list of selectors as a list, and a character outside the basic plane as itself: the codec counts nothing",
+      "annotationStored": {
+        "annotation": {
+          "@context": "http://www.w3.org/ns/anno.jsonld",
+          "type": "Annotation",
+          "id": "ann-1",
+          "motivation": "highlighting",
+          "target": {
+            "source": "res-1",
+            "selector": [
+              {
+                "type": "TextPositionSelector",
+                "start": 3,
+                "end": 5
+              },
+              {
+                "type": "TextQuoteSelector",
+                "exact": "𝒜x"
+              }
+            ]
+          },
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          },
+          "created": "2020-03-04T05:06:07.000Z"
+        },
+        "properties": {
+          "id": "ann-1",
+          "resourceId": "res-1",
+          "type": "TextualBody",
+          "motivation": "highlighting",
+          "created": "2020-03-04T05:06:07.000Z",
+          "exact": "𝒜x"
+        },
+        "json": {
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          },
+          "selector": [
+            {
+              "type": "TextPositionSelector",
+              "start": 3,
+              "end": 5
+            },
+            {
+              "type": "TextQuoteSelector",
+              "exact": "𝒜x"
+            }
+          ]
+        },
+        "tags": [],
+        "linksTo": null,
+        "holds": {
+          "@context": "http://www.w3.org/ns/anno.jsonld",
+          "type": "Annotation",
+          "id": "ann-1",
+          "motivation": "highlighting",
+          "target": {
+            "source": "res-1",
+            "selector": [
+              {
+                "type": "TextPositionSelector",
+                "start": 3,
+                "end": 5
+              },
+              {
+                "type": "TextQuoteSelector",
+                "exact": "𝒜x"
+              }
+            ]
+          },
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          },
+          "created": "2020-03-04T05:06:07.000Z"
+        }
+      }
+    },
+    {
+      "why": "an empty body is no body: nothing is stored for it and none is read back",
+      "annotationStored": {
+        "annotation": {
+          "@context": "http://www.w3.org/ns/anno.jsonld",
+          "type": "Annotation",
+          "id": "ann-1",
+          "motivation": "linking",
+          "target": {
+            "source": "res-1"
+          },
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          },
+          "created": "2020-03-04T05:06:07.000Z",
+          "body": []
+        },
+        "properties": {
+          "id": "ann-1",
+          "resourceId": "res-1",
+          "type": "SpecificResource",
+          "motivation": "linking",
+          "created": "2020-03-04T05:06:07.000Z"
+        },
+        "json": {
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          }
+        },
+        "tags": [],
+        "linksTo": null,
+        "holds": {
+          "@context": "http://www.w3.org/ns/anno.jsonld",
+          "type": "Annotation",
+          "id": "ann-1",
+          "motivation": "linking",
+          "target": {
+            "source": "res-1"
+          },
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          },
+          "created": "2020-03-04T05:06:07.000Z"
+        }
+      }
+    },
+    {
+      "why": "a row and its tag edges are read as the annotation: tags first, in the one order, then the link",
+      "annotationRead": {
+        "properties": {
+          "id": "ann-1",
+          "resourceId": "res-1",
+          "type": "SpecificResource",
+          "motivation": "linking",
+          "created": "2020-03-04T05:06:07.000Z",
+          "source": "res-2",
+          "selector": "{\"type\": \"TextQuoteSelector\", \"exact\": \"Black Hawk\", \"prefix\": \"Chief \", \"suffix\": \" led\"}",
+          "exact": "Black Hawk",
+          "creator": "{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}"
+        },
+        "tags": [
+          "Place",
+          "Person"
+        ],
+        "annotation": {
+          "@context": "http://www.w3.org/ns/anno.jsonld",
+          "type": "Annotation",
+          "id": "ann-1",
+          "motivation": "linking",
+          "target": {
+            "source": "res-1",
+            "selector": {
+              "type": "TextQuoteSelector",
+              "exact": "Black Hawk",
+              "prefix": "Chief ",
+              "suffix": " led"
+            }
+          },
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          },
+          "created": "2020-03-04T05:06:07.000Z",
+          "body": [
+            {
+              "type": "TextualBody",
+              "value": "Person",
+              "purpose": "tagging"
+            },
+            {
+              "type": "TextualBody",
+              "value": "Place",
+              "purpose": "tagging"
+            },
+            {
+              "type": "SpecificResource",
+              "source": "res-2",
+              "purpose": "linking"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "why": "a tag edge with no name is no tag",
+      "annotationRead": {
+        "properties": {
+          "id": "ann-1",
+          "resourceId": "res-1",
+          "type": "SpecificResource",
+          "motivation": "linking",
+          "created": "2020-03-04T05:06:07.000Z",
+          "creator": "{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}"
+        },
+        "tags": [
+          "",
+          "Person"
+        ],
+        "annotation": {
+          "@context": "http://www.w3.org/ns/anno.jsonld",
+          "type": "Annotation",
+          "id": "ann-1",
+          "motivation": "linking",
+          "target": {
+            "source": "res-1"
+          },
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          },
+          "created": "2020-03-04T05:06:07.000Z",
+          "body": [
+            {
+              "type": "TextualBody",
+              "value": "Person",
+              "purpose": "tagging"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "why": "a row with no id is refused, by that name: a required field is never given a value the row does not hold",
+      "annotationRead": {
+        "properties": {
+          "resourceId": "res-1",
+          "type": "SpecificResource",
+          "motivation": "linking",
+          "created": "2020-03-04T05:06:07.000Z",
+          "creator": "{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}"
+        },
+        "tags": [],
+        "refused": "id"
+      }
+    },
+    {
+      "why": "a row with no resourceId is refused, by that name: a required field is never given a value the row does not hold",
+      "annotationRead": {
+        "properties": {
+          "id": "ann-1",
+          "type": "SpecificResource",
+          "motivation": "linking",
+          "created": "2020-03-04T05:06:07.000Z",
+          "creator": "{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}"
+        },
+        "tags": [],
+        "refused": "resourceId"
+      }
+    },
+    {
+      "why": "a row with no creator is refused, by that name: a required field is never given a value the row does not hold",
+      "annotationRead": {
+        "properties": {
+          "id": "ann-1",
+          "resourceId": "res-1",
+          "type": "SpecificResource",
+          "motivation": "linking",
+          "created": "2020-03-04T05:06:07.000Z"
+        },
+        "tags": [],
+        "refused": "creator"
+      }
+    },
+    {
+      "why": "a row with no motivation is refused, by that name: a required field is never given a value the row does not hold",
+      "annotationRead": {
+        "properties": {
+          "id": "ann-1",
+          "resourceId": "res-1",
+          "type": "SpecificResource",
+          "created": "2020-03-04T05:06:07.000Z",
+          "creator": "{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}"
+        },
+        "tags": [],
+        "refused": "motivation"
+      }
+    },
+    {
+      "why": "a row with no created is refused, by that name: a required field is never given a value the row does not hold",
+      "annotationRead": {
+        "properties": {
+          "id": "ann-1",
+          "resourceId": "res-1",
+          "type": "SpecificResource",
+          "motivation": "linking",
+          "creator": "{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}"
+        },
+        "tags": [],
+        "refused": "created"
+      }
+    },
+    {
+      "why": "an update leaves the current annotation with the changed fields replaced: here its whole body",
+      "annotationUpdated": {
+        "current": {
+          "@context": "http://www.w3.org/ns/anno.jsonld",
+          "type": "Annotation",
+          "id": "ann-1",
+          "motivation": "linking",
+          "target": {
+            "source": "res-1",
+            "selector": {
+              "type": "TextQuoteSelector",
+              "exact": "Black Hawk",
+              "prefix": "Chief ",
+              "suffix": " led"
+            }
+          },
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          },
+          "created": "2020-03-04T05:06:07.000Z",
+          "body": [
+            {
+              "type": "TextualBody",
+              "value": "Person",
+              "purpose": "tagging"
+            },
+            {
+              "type": "SpecificResource",
+              "source": "res-2",
+              "purpose": "linking"
+            }
+          ]
+        },
+        "updates": {
+          "body": [
+            {
+              "type": "TextualBody",
+              "value": "Place",
+              "purpose": "tagging"
+            },
+            {
+              "type": "SpecificResource",
+              "source": "res-3",
+              "purpose": "linking"
+            }
+          ]
+        },
+        "annotation": {
+          "@context": "http://www.w3.org/ns/anno.jsonld",
+          "type": "Annotation",
+          "id": "ann-1",
+          "motivation": "linking",
+          "target": {
+            "source": "res-1",
+            "selector": {
+              "type": "TextQuoteSelector",
+              "exact": "Black Hawk",
+              "prefix": "Chief ",
+              "suffix": " led"
+            }
+          },
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          },
+          "created": "2020-03-04T05:06:07.000Z",
+          "body": [
+            {
+              "type": "TextualBody",
+              "value": "Place",
+              "purpose": "tagging"
+            },
+            {
+              "type": "SpecificResource",
+              "source": "res-3",
+              "purpose": "linking"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "why": "a body updated to nothing takes the link and the tags with it",
+      "annotationUpdated": {
+        "current": {
+          "@context": "http://www.w3.org/ns/anno.jsonld",
+          "type": "Annotation",
+          "id": "ann-1",
+          "motivation": "linking",
+          "target": {
+            "source": "res-1",
+            "selector": {
+              "type": "TextQuoteSelector",
+              "exact": "Black Hawk",
+              "prefix": "Chief ",
+              "suffix": " led"
+            }
+          },
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          },
+          "created": "2020-03-04T05:06:07.000Z",
+          "body": [
+            {
+              "type": "TextualBody",
+              "value": "Person",
+              "purpose": "tagging"
+            },
+            {
+              "type": "SpecificResource",
+              "source": "res-2",
+              "purpose": "linking"
+            }
+          ]
+        },
+        "updates": {
+          "body": []
+        },
+        "annotation": {
+          "@context": "http://www.w3.org/ns/anno.jsonld",
+          "type": "Annotation",
+          "id": "ann-1",
+          "motivation": "linking",
+          "target": {
+            "source": "res-1",
+            "selector": {
+              "type": "TextQuoteSelector",
+              "exact": "Black Hawk",
+              "prefix": "Chief ",
+              "suffix": " led"
+            }
+          },
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          },
+          "created": "2020-03-04T05:06:07.000Z"
+        }
+      }
+    },
+    {
+      "why": "a field the update does not name is unchanged",
+      "annotationUpdated": {
+        "current": {
+          "@context": "http://www.w3.org/ns/anno.jsonld",
+          "type": "Annotation",
+          "id": "ann-1",
+          "motivation": "linking",
+          "target": {
+            "source": "res-1",
+            "selector": {
+              "type": "TextQuoteSelector",
+              "exact": "Black Hawk",
+              "prefix": "Chief ",
+              "suffix": " led"
+            }
+          },
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          },
+          "created": "2020-03-04T05:06:07.000Z",
+          "body": [
+            {
+              "type": "TextualBody",
+              "value": "Person",
+              "purpose": "tagging"
+            },
+            {
+              "type": "SpecificResource",
+              "source": "res-2",
+              "purpose": "linking"
+            }
+          ]
+        },
+        "updates": {
+          "modified": "2021-01-02T03:04:05.000Z"
+        },
+        "annotation": {
+          "@context": "http://www.w3.org/ns/anno.jsonld",
+          "type": "Annotation",
+          "id": "ann-1",
+          "motivation": "linking",
+          "target": {
+            "source": "res-1",
+            "selector": {
+              "type": "TextQuoteSelector",
+              "exact": "Black Hawk",
+              "prefix": "Chief ",
+              "suffix": " led"
+            }
+          },
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          },
+          "created": "2020-03-04T05:06:07.000Z",
+          "body": [
+            {
+              "type": "TextualBody",
+              "value": "Person",
+              "purpose": "tagging"
+            },
+            {
+              "type": "SpecificResource",
+              "source": "res-2",
+              "purpose": "linking"
+            }
+          ],
+          "modified": "2021-01-02T03:04:05.000Z"
+        }
+      }
+    },
+    {
+      "why": "a selector may change; the resource it is on may not",
+      "annotationUpdated": {
+        "current": {
+          "@context": "http://www.w3.org/ns/anno.jsonld",
+          "type": "Annotation",
+          "id": "ann-1",
+          "motivation": "linking",
+          "target": {
+            "source": "res-1",
+            "selector": {
+              "type": "TextQuoteSelector",
+              "exact": "Black Hawk",
+              "prefix": "Chief ",
+              "suffix": " led"
+            }
+          },
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          },
+          "created": "2020-03-04T05:06:07.000Z",
+          "body": [
+            {
+              "type": "TextualBody",
+              "value": "Person",
+              "purpose": "tagging"
+            },
+            {
+              "type": "SpecificResource",
+              "source": "res-2",
+              "purpose": "linking"
+            }
+          ]
+        },
+        "updates": {
+          "target": {
+            "source": "res-1",
+            "selector": {
+              "type": "TextQuoteSelector",
+              "exact": "Cedar County"
+            }
+          }
+        },
+        "annotation": {
+          "@context": "http://www.w3.org/ns/anno.jsonld",
+          "type": "Annotation",
+          "id": "ann-1",
+          "motivation": "linking",
+          "target": {
+            "source": "res-1",
+            "selector": {
+              "type": "TextQuoteSelector",
+              "exact": "Cedar County"
+            }
+          },
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          },
+          "created": "2020-03-04T05:06:07.000Z",
+          "body": [
+            {
+              "type": "TextualBody",
+              "value": "Person",
+              "purpose": "tagging"
+            },
+            {
+              "type": "SpecificResource",
+              "source": "res-2",
+              "purpose": "linking"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "why": "an annotation belongs to one resource for good: an update that names another is refused",
+      "annotationUpdated": {
+        "current": {
+          "@context": "http://www.w3.org/ns/anno.jsonld",
+          "type": "Annotation",
+          "id": "ann-1",
+          "motivation": "linking",
+          "target": {
+            "source": "res-1",
+            "selector": {
+              "type": "TextQuoteSelector",
+              "exact": "Black Hawk",
+              "prefix": "Chief ",
+              "suffix": " led"
+            }
+          },
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          },
+          "created": "2020-03-04T05:06:07.000Z",
+          "body": [
+            {
+              "type": "TextualBody",
+              "value": "Person",
+              "purpose": "tagging"
+            },
+            {
+              "type": "SpecificResource",
+              "source": "res-2",
+              "purpose": "linking"
+            }
+          ]
+        },
+        "updates": {
+          "target": {
+            "source": "res-9"
+          }
+        },
+        "refused": "res-9"
+      }
+    },
+    {
+      "why": "an update cannot rename an annotation: the id stays the one it was made under",
+      "annotationUpdated": {
+        "current": {
+          "@context": "http://www.w3.org/ns/anno.jsonld",
+          "type": "Annotation",
+          "id": "ann-1",
+          "motivation": "linking",
+          "target": {
+            "source": "res-1",
+            "selector": {
+              "type": "TextQuoteSelector",
+              "exact": "Black Hawk",
+              "prefix": "Chief ",
+              "suffix": " led"
+            }
+          },
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          },
+          "created": "2020-03-04T05:06:07.000Z",
+          "body": [
+            {
+              "type": "TextualBody",
+              "value": "Person",
+              "purpose": "tagging"
+            },
+            {
+              "type": "SpecificResource",
+              "source": "res-2",
+              "purpose": "linking"
+            }
+          ]
+        },
+        "updates": {
+          "id": "ann-other",
+          "body": []
+        },
+        "annotation": {
+          "@context": "http://www.w3.org/ns/anno.jsonld",
+          "type": "Annotation",
+          "id": "ann-1",
+          "motivation": "linking",
+          "target": {
+            "source": "res-1",
+            "selector": {
+              "type": "TextQuoteSelector",
+              "exact": "Black Hawk",
+              "prefix": "Chief ",
+              "suffix": " led"
+            }
+          },
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          },
+          "created": "2020-03-04T05:06:07.000Z"
+        }
+      }
+    },
+    {
+      "why": "resolving a reference replaces its link and keeps its tags",
+      "referenceResolved": {
+        "current": {
+          "@context": "http://www.w3.org/ns/anno.jsonld",
+          "type": "Annotation",
+          "id": "ann-1",
+          "motivation": "linking",
+          "target": {
+            "source": "res-1",
+            "selector": {
+              "type": "TextQuoteSelector",
+              "exact": "Black Hawk",
+              "prefix": "Chief ",
+              "suffix": " led"
+            }
+          },
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          },
+          "created": "2020-03-04T05:06:07.000Z",
+          "body": [
+            {
+              "type": "TextualBody",
+              "value": "Person",
+              "purpose": "tagging"
+            },
+            {
+              "type": "SpecificResource",
+              "source": "res-2",
+              "purpose": "linking"
+            }
+          ]
+        },
+        "source": "res-3",
+        "body": [
+          {
+            "type": "TextualBody",
+            "value": "Person",
+            "purpose": "tagging"
+          },
+          {
+            "type": "SpecificResource",
+            "source": "res-3",
+            "purpose": "linking"
+          }
+        ]
+      }
+    },
+    {
+      "why": "a reference with no body yet is resolved to the link alone",
+      "referenceResolved": {
+        "current": {
+          "@context": "http://www.w3.org/ns/anno.jsonld",
+          "type": "Annotation",
+          "id": "ann-1",
+          "motivation": "linking",
+          "target": {
+            "source": "res-1"
+          },
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          },
+          "created": "2020-03-04T05:06:07.000Z"
+        },
+        "source": "res-3",
+        "body": [
+          {
+            "type": "SpecificResource",
+            "source": "res-3",
+            "purpose": "linking"
+          }
+        ]
+      }
+    },
+    {
+      "why": "a resource is its name, entity types, format, checksum, storage location, whether it is archived, when the record says it was created and who the record says it is by",
+      "resourceStored": {
+        "resource": {
+          "@context": "https://schema.org/",
+          "@id": "res-1",
+          "name": "Cedar County, Iowa",
+          "entityTypes": [
+            "Place",
+            "County"
+          ],
+          "representations": [
+            {
+              "mediaType": "text/markdown",
+              "checksum": "sha256:abc",
+              "rel": "original",
+              "storageUri": "file:///kb/cedar.md"
+            }
+          ],
+          "archived": false,
+          "dateCreated": "2020-03-04T05:06:07.000Z",
+          "wasAttributedTo": [
+            {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            {
+              "@type": "Software",
+              "@id": "did:web:example.org:agents:anthropic:model",
+              "name": "model"
+            }
+          ]
+        },
+        "properties": {
+          "id": "res-1",
+          "name": "Cedar County, Iowa",
+          "entityTypes": [
+            "Place",
+            "County"
+          ],
+          "format": "text/markdown",
+          "archived": false,
+          "created": "2020-03-04T05:06:07.000Z",
+          "contentChecksum": "sha256:abc",
+          "storageUri": "file:///kb/cedar.md"
+        },
+        "json": {
+          "creator": [
+            {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            {
+              "@type": "Software",
+              "@id": "did:web:example.org:agents:anthropic:model",
+              "name": "model"
+            }
+          ]
+        },
+        "holds": {
+          "@context": "https://schema.org/",
+          "@id": "res-1",
+          "name": "Cedar County, Iowa",
+          "entityTypes": [
+            "Place",
+            "County"
+          ],
+          "representations": [
+            {
+              "mediaType": "text/markdown",
+              "checksum": "sha256:abc",
+              "rel": "original",
+              "storageUri": "file:///kb/cedar.md"
+            }
+          ],
+          "archived": false,
+          "dateCreated": "2020-03-04T05:06:07.000Z",
+          "wasAttributedTo": [
+            {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            {
+              "@type": "Software",
+              "@id": "did:web:example.org:agents:anthropic:model",
+              "name": "model"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "why": "a representation stored nowhere has no storage property at all, and none is read back",
+      "resourceStored": {
+        "resource": {
+          "@context": "https://schema.org/",
+          "@id": "res-1",
+          "name": "Cedar County, Iowa",
+          "entityTypes": [
+            "Place",
+            "County"
+          ],
+          "representations": [
+            {
+              "mediaType": "text/markdown",
+              "checksum": "sha256:abc",
+              "rel": "original"
+            }
+          ],
+          "archived": false,
+          "dateCreated": "2020-03-04T05:06:07.000Z",
+          "wasAttributedTo": [
+            {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            {
+              "@type": "Software",
+              "@id": "did:web:example.org:agents:anthropic:model",
+              "name": "model"
+            }
+          ]
+        },
+        "properties": {
+          "id": "res-1",
+          "name": "Cedar County, Iowa",
+          "entityTypes": [
+            "Place",
+            "County"
+          ],
+          "format": "text/markdown",
+          "archived": false,
+          "created": "2020-03-04T05:06:07.000Z",
+          "contentChecksum": "sha256:abc"
+        },
+        "json": {
+          "creator": [
+            {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            {
+              "@type": "Software",
+              "@id": "did:web:example.org:agents:anthropic:model",
+              "name": "model"
+            }
+          ]
+        },
+        "holds": {
+          "@context": "https://schema.org/",
+          "@id": "res-1",
+          "name": "Cedar County, Iowa",
+          "entityTypes": [
+            "Place",
+            "County"
+          ],
+          "representations": [
+            {
+              "mediaType": "text/markdown",
+              "checksum": "sha256:abc",
+              "rel": "original"
+            }
+          ],
+          "archived": false,
+          "dateCreated": "2020-03-04T05:06:07.000Z",
+          "wasAttributedTo": [
+            {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            {
+              "@type": "Software",
+              "@id": "did:web:example.org:agents:anthropic:model",
+              "name": "model"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "why": "a resource with no archived flag is not archived, and one with no entity types has none; one party it is by is stored as the one",
+      "resourceStored": {
+        "resource": {
+          "@context": "https://schema.org/",
+          "@id": "res-1",
+          "name": "Cedar County, Iowa",
+          "representations": [
+            {
+              "mediaType": "text/markdown",
+              "checksum": "sha256:abc",
+              "rel": "original",
+              "storageUri": "file:///kb/cedar.md"
+            }
+          ],
+          "dateCreated": "2020-03-04T05:06:07.000Z",
+          "wasAttributedTo": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          }
+        },
+        "properties": {
+          "id": "res-1",
+          "name": "Cedar County, Iowa",
+          "entityTypes": [],
+          "format": "text/markdown",
+          "archived": false,
+          "created": "2020-03-04T05:06:07.000Z",
+          "contentChecksum": "sha256:abc",
+          "storageUri": "file:///kb/cedar.md"
+        },
+        "json": {
+          "creator": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          }
+        },
+        "holds": {
+          "@context": "https://schema.org/",
+          "@id": "res-1",
+          "name": "Cedar County, Iowa",
+          "entityTypes": [],
+          "representations": [
+            {
+              "mediaType": "text/markdown",
+              "checksum": "sha256:abc",
+              "rel": "original",
+              "storageUri": "file:///kb/cedar.md"
+            }
+          ],
+          "archived": false,
+          "dateCreated": "2020-03-04T05:06:07.000Z",
+          "wasAttributedTo": {
+            "@type": "Person",
+            "@id": "did:web:example.org:users:ada",
+            "name": "Ada"
+          }
+        }
+      }
+    },
+    {
+      "why": "the graph holds of a resource what its queries need and no more: a description, a draft flag and a byte size are the views' to keep",
+      "resourceStored": {
+        "resource": {
+          "@context": "https://schema.org/",
+          "@id": "res-1",
+          "name": "Cedar County, Iowa",
+          "entityTypes": [
+            "Place",
+            "County"
+          ],
+          "representations": [
+            {
+              "mediaType": "text/markdown",
+              "checksum": "sha256:abc",
+              "rel": "original",
+              "storageUri": "file:///kb/cedar.md",
+              "byteSize": 12
+            }
+          ],
+          "archived": false,
+          "dateCreated": "2020-03-04T05:06:07.000Z",
+          "wasAttributedTo": [
+            {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            {
+              "@type": "Software",
+              "@id": "did:web:example.org:agents:anthropic:model",
+              "name": "model"
+            }
+          ],
+          "description": "A county",
+          "dateModified": "2026-01-01T00:00:00.000Z",
+          "isDraft": true
+        },
+        "properties": {
+          "id": "res-1",
+          "name": "Cedar County, Iowa",
+          "entityTypes": [
+            "Place",
+            "County"
+          ],
+          "format": "text/markdown",
+          "archived": false,
+          "created": "2020-03-04T05:06:07.000Z",
+          "contentChecksum": "sha256:abc",
+          "storageUri": "file:///kb/cedar.md"
+        },
+        "json": {
+          "creator": [
+            {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            {
+              "@type": "Software",
+              "@id": "did:web:example.org:agents:anthropic:model",
+              "name": "model"
+            }
+          ]
+        },
+        "holds": {
+          "@context": "https://schema.org/",
+          "@id": "res-1",
+          "name": "Cedar County, Iowa",
+          "entityTypes": [
+            "Place",
+            "County"
+          ],
+          "representations": [
+            {
+              "mediaType": "text/markdown",
+              "checksum": "sha256:abc",
+              "rel": "original",
+              "storageUri": "file:///kb/cedar.md"
+            }
+          ],
+          "archived": false,
+          "dateCreated": "2020-03-04T05:06:07.000Z",
+          "wasAttributedTo": [
+            {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            {
+              "@type": "Software",
+              "@id": "did:web:example.org:agents:anthropic:model",
+              "name": "model"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "why": "a resource with no name is refused on the way in, by that name, rather than stored as a row that could not be read back",
+      "resourceStored": {
+        "resource": {
+          "@context": "https://schema.org/",
+          "@id": "res-1",
+          "name": "",
+          "entityTypes": [
+            "Place",
+            "County"
+          ],
+          "representations": [
+            {
+              "mediaType": "text/markdown",
+              "checksum": "sha256:abc",
+              "rel": "original",
+              "storageUri": "file:///kb/cedar.md"
+            }
+          ],
+          "archived": false,
+          "dateCreated": "2020-03-04T05:06:07.000Z",
+          "wasAttributedTo": [
+            {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            {
+              "@type": "Software",
+              "@id": "did:web:example.org:agents:anthropic:model",
+              "name": "model"
+            }
+          ]
+        },
+        "refused": "name"
+      }
+    },
+    {
+      "why": "a resource with no dateCreated is refused on the way in, by that name, rather than stored as a row that could not be read back",
+      "resourceStored": {
+        "resource": {
+          "@context": "https://schema.org/",
+          "@id": "res-1",
+          "name": "Cedar County, Iowa",
+          "entityTypes": [
+            "Place",
+            "County"
+          ],
+          "representations": [
+            {
+              "mediaType": "text/markdown",
+              "checksum": "sha256:abc",
+              "rel": "original",
+              "storageUri": "file:///kb/cedar.md"
+            }
+          ],
+          "archived": false,
+          "wasAttributedTo": [
+            {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            {
+              "@type": "Software",
+              "@id": "did:web:example.org:agents:anthropic:model",
+              "name": "model"
+            }
+          ]
+        },
+        "refused": "dateCreated"
+      }
+    },
+    {
+      "why": "a resource with no wasAttributedTo is refused on the way in, by that name, rather than stored as a row that could not be read back",
+      "resourceStored": {
+        "resource": {
+          "@context": "https://schema.org/",
+          "@id": "res-1",
+          "name": "Cedar County, Iowa",
+          "entityTypes": [
+            "Place",
+            "County"
+          ],
+          "representations": [
+            {
+              "mediaType": "text/markdown",
+              "checksum": "sha256:abc",
+              "rel": "original",
+              "storageUri": "file:///kb/cedar.md"
+            }
+          ],
+          "archived": false,
+          "dateCreated": "2020-03-04T05:06:07.000Z"
+        },
+        "refused": "wasAttributedTo"
+      }
+    },
+    {
+      "why": "a resource with no representations is refused on the way in, by that name, rather than stored as a row that could not be read back",
+      "resourceStored": {
+        "resource": {
+          "@context": "https://schema.org/",
+          "@id": "res-1",
+          "name": "Cedar County, Iowa",
+          "entityTypes": [
+            "Place",
+            "County"
+          ],
+          "representations": [],
+          "archived": false,
+          "dateCreated": "2020-03-04T05:06:07.000Z",
+          "wasAttributedTo": [
+            {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            {
+              "@type": "Software",
+              "@id": "did:web:example.org:agents:anthropic:model",
+              "name": "model"
+            }
+          ]
+        },
+        "refused": "representations"
+      }
+    },
+    {
+      "why": "a resource with no checksum is refused on the way in, by that name, rather than stored as a row that could not be read back",
+      "resourceStored": {
+        "resource": {
+          "@context": "https://schema.org/",
+          "@id": "res-1",
+          "name": "Cedar County, Iowa",
+          "entityTypes": [
+            "Place",
+            "County"
+          ],
+          "representations": [
+            {
+              "mediaType": "text/markdown",
+              "rel": "original",
+              "storageUri": "file:///kb/cedar.md"
+            }
+          ],
+          "archived": false,
+          "dateCreated": "2020-03-04T05:06:07.000Z",
+          "wasAttributedTo": [
+            {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            {
+              "@type": "Software",
+              "@id": "did:web:example.org:agents:anthropic:model",
+              "name": "model"
+            }
+          ]
+        },
+        "refused": "checksum"
+      }
+    },
+    {
+      "why": "a row is read as the resource, with its one representation rebuilt",
+      "resourceRead": {
+        "properties": {
+          "id": "res-1",
+          "name": "Cedar County, Iowa",
+          "entityTypes": [
+            "Place",
+            "County"
+          ],
+          "format": "text/markdown",
+          "archived": false,
+          "created": "2020-03-04T05:06:07.000Z",
+          "contentChecksum": "sha256:abc",
+          "storageUri": "file:///kb/cedar.md",
+          "creator": "[{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}, {\"@type\": \"Software\", \"@id\": \"did:web:example.org:agents:anthropic:model\", \"name\": \"model\"}]"
+        },
+        "resource": {
+          "@context": "https://schema.org/",
+          "@id": "res-1",
+          "name": "Cedar County, Iowa",
+          "entityTypes": [
+            "Place",
+            "County"
+          ],
+          "representations": [
+            {
+              "mediaType": "text/markdown",
+              "checksum": "sha256:abc",
+              "rel": "original",
+              "storageUri": "file:///kb/cedar.md"
+            }
+          ],
+          "archived": false,
+          "dateCreated": "2020-03-04T05:06:07.000Z",
+          "wasAttributedTo": [
+            {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            {
+              "@type": "Software",
+              "@id": "did:web:example.org:agents:anthropic:model",
+              "name": "model"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "why": "false and an empty list are values a row holds, not absence",
+      "resourceRead": {
+        "properties": {
+          "id": "res-1",
+          "name": "Cedar County, Iowa",
+          "entityTypes": [],
+          "format": "text/markdown",
+          "archived": false,
+          "created": "2020-03-04T05:06:07.000Z",
+          "contentChecksum": "sha256:abc",
+          "storageUri": "file:///kb/cedar.md",
+          "creator": "[{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}, {\"@type\": \"Software\", \"@id\": \"did:web:example.org:agents:anthropic:model\", \"name\": \"model\"}]"
+        },
+        "resource": {
+          "@context": "https://schema.org/",
+          "@id": "res-1",
+          "name": "Cedar County, Iowa",
+          "entityTypes": [],
+          "representations": [
+            {
+              "mediaType": "text/markdown",
+              "checksum": "sha256:abc",
+              "rel": "original",
+              "storageUri": "file:///kb/cedar.md"
+            }
+          ],
+          "archived": false,
+          "dateCreated": "2020-03-04T05:06:07.000Z",
+          "wasAttributedTo": [
+            {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            {
+              "@type": "Software",
+              "@id": "did:web:example.org:agents:anthropic:model",
+              "name": "model"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "why": "a row with no id is refused, by that name",
+      "resourceRead": {
+        "properties": {
+          "name": "Cedar County, Iowa",
+          "entityTypes": [
+            "Place",
+            "County"
+          ],
+          "format": "text/markdown",
+          "archived": false,
+          "created": "2020-03-04T05:06:07.000Z",
+          "contentChecksum": "sha256:abc",
+          "storageUri": "file:///kb/cedar.md",
+          "creator": "[{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}, {\"@type\": \"Software\", \"@id\": \"did:web:example.org:agents:anthropic:model\", \"name\": \"model\"}]"
+        },
+        "refused": "id"
+      }
+    },
+    {
+      "why": "a row with no name is refused, by that name",
+      "resourceRead": {
+        "properties": {
+          "id": "res-1",
+          "entityTypes": [
+            "Place",
+            "County"
+          ],
+          "format": "text/markdown",
+          "archived": false,
+          "created": "2020-03-04T05:06:07.000Z",
+          "contentChecksum": "sha256:abc",
+          "storageUri": "file:///kb/cedar.md",
+          "creator": "[{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}, {\"@type\": \"Software\", \"@id\": \"did:web:example.org:agents:anthropic:model\", \"name\": \"model\"}]"
+        },
+        "refused": "name"
+      }
+    },
+    {
+      "why": "a row with no entityTypes is refused, by that name",
+      "resourceRead": {
+        "properties": {
+          "id": "res-1",
+          "name": "Cedar County, Iowa",
+          "format": "text/markdown",
+          "archived": false,
+          "created": "2020-03-04T05:06:07.000Z",
+          "contentChecksum": "sha256:abc",
+          "storageUri": "file:///kb/cedar.md",
+          "creator": "[{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}, {\"@type\": \"Software\", \"@id\": \"did:web:example.org:agents:anthropic:model\", \"name\": \"model\"}]"
+        },
+        "refused": "entityTypes"
+      }
+    },
+    {
+      "why": "a row with no format is refused, by that name",
+      "resourceRead": {
+        "properties": {
+          "id": "res-1",
+          "name": "Cedar County, Iowa",
+          "entityTypes": [
+            "Place",
+            "County"
+          ],
+          "archived": false,
+          "created": "2020-03-04T05:06:07.000Z",
+          "contentChecksum": "sha256:abc",
+          "storageUri": "file:///kb/cedar.md",
+          "creator": "[{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}, {\"@type\": \"Software\", \"@id\": \"did:web:example.org:agents:anthropic:model\", \"name\": \"model\"}]"
+        },
+        "refused": "format"
+      }
+    },
+    {
+      "why": "a row with no archived is refused, by that name",
+      "resourceRead": {
+        "properties": {
+          "id": "res-1",
+          "name": "Cedar County, Iowa",
+          "entityTypes": [
+            "Place",
+            "County"
+          ],
+          "format": "text/markdown",
+          "created": "2020-03-04T05:06:07.000Z",
+          "contentChecksum": "sha256:abc",
+          "storageUri": "file:///kb/cedar.md",
+          "creator": "[{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}, {\"@type\": \"Software\", \"@id\": \"did:web:example.org:agents:anthropic:model\", \"name\": \"model\"}]"
+        },
+        "refused": "archived"
+      }
+    },
+    {
+      "why": "a row with no created is refused, by that name",
+      "resourceRead": {
+        "properties": {
+          "id": "res-1",
+          "name": "Cedar County, Iowa",
+          "entityTypes": [
+            "Place",
+            "County"
+          ],
+          "format": "text/markdown",
+          "archived": false,
+          "contentChecksum": "sha256:abc",
+          "storageUri": "file:///kb/cedar.md",
+          "creator": "[{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}, {\"@type\": \"Software\", \"@id\": \"did:web:example.org:agents:anthropic:model\", \"name\": \"model\"}]"
+        },
+        "refused": "created"
+      }
+    },
+    {
+      "why": "a row with no creator is refused, by that name",
+      "resourceRead": {
+        "properties": {
+          "id": "res-1",
+          "name": "Cedar County, Iowa",
+          "entityTypes": [
+            "Place",
+            "County"
+          ],
+          "format": "text/markdown",
+          "archived": false,
+          "created": "2020-03-04T05:06:07.000Z",
+          "contentChecksum": "sha256:abc",
+          "storageUri": "file:///kb/cedar.md"
+        },
+        "refused": "creator"
+      }
+    },
+    {
+      "why": "a row with no contentChecksum is refused, by that name",
+      "resourceRead": {
+        "properties": {
+          "id": "res-1",
+          "name": "Cedar County, Iowa",
+          "entityTypes": [
+            "Place",
+            "County"
+          ],
+          "format": "text/markdown",
+          "archived": false,
+          "created": "2020-03-04T05:06:07.000Z",
+          "storageUri": "file:///kb/cedar.md",
+          "creator": "[{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}, {\"@type\": \"Software\", \"@id\": \"did:web:example.org:agents:anthropic:model\", \"name\": \"model\"}]"
+        },
+        "refused": "contentChecksum"
+      }
+    }
+  ]
+}

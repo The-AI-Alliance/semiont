@@ -24,13 +24,13 @@
     "clean": "rm -rf dist dist-types",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:neo4j": "vitest run --config vitest.neo4j.config.ts"
   },
   "dependencies": {
     "@semiont/core": "*",
     "@semiont/http-transport": "*",
-    "@semiont/ontology": "*",
-    "uuid": "^14.0.2"
+    "@semiont/ontology": "*"
   },
   "peerDependencies": {
     "gremlin": "^3.7.4",
@@ -55,6 +55,7 @@
     "rollup-plugin-dts": "^6.4.1",
     "tsup": "^8.0.1",
     "typescript": "^6.0.2",
+    "uuid": "^14.0.2",
     "vitest": "^4.1.11"
   },
   "publishConfig": {

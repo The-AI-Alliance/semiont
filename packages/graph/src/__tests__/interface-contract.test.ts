@@ -14,7 +14,6 @@ import {
   createTestHighlight,
   createTestReference,
   createTestEntityReference,
-  generateResourceId,
 } from './helpers/test-data';
 
 describe('GraphDatabase Interface Contract', () => {
@@ -72,7 +71,7 @@ describe('GraphDatabase Interface Contract', () => {
     });
 
     it('createResource() should require resource id', async () => {
-      const resource = createTestResource({ '@id': undefined } as any);
+      const resource = createTestResource({ '@id': undefined });
 
       await expect(db.createResource(resource)).rejects.toThrow();
     });
@@ -288,7 +287,7 @@ describe('GraphDatabase Interface Contract', () => {
       }));
       await db.createResource(createTestResource({
         '@id': resourceId('rank-path'), name: 'Greek victory',
-        representations: [{ mediaType: 'text/plain', storageUri: 'file://places/Marathon.md' }],
+        representations: [{ mediaType: 'text/plain', checksum: 'sha256:test-content', rel: 'original', storageUri: 'file://places/Marathon.md' }],
         dateCreated: '2026-03-01T00:00:00.000Z',
       }));
       await db.createResource(createTestResource({
@@ -343,12 +342,12 @@ describe('GraphDatabase Interface Contract', () => {
     it('requires every query term to match, across name and path together', async () => {
       await db.createResource(createTestResource({
         '@id': resourceId('tok-split'), name: 'Greek victory',
-        representations: [{ mediaType: 'text/plain', storageUri: 'file://authors/Aeschylus/places/Marathon.md' }],
+        representations: [{ mediaType: 'text/plain', checksum: 'sha256:test-content', rel: 'original', storageUri: 'file://authors/Aeschylus/places/Marathon.md' }],
       }));
       // Has one term but not the other — AND, not OR.
       await db.createResource(createTestResource({
         '@id': resourceId('tok-partial'), name: 'Aeschylus alone',
-        representations: [{ mediaType: 'text/plain', storageUri: 'file://authors/Aeschylus/index.md' }],
+        representations: [{ mediaType: 'text/plain', checksum: 'sha256:test-content', rel: 'original', storageUri: 'file://authors/Aeschylus/index.md' }],
       }));
 
       const { resources: results } = await db.listResources({ search: 'Aeschylus Marathon' });
@@ -369,7 +368,7 @@ describe('GraphDatabase Interface Contract', () => {
     it('ranks a name-only match above one the path had to complete', async () => {
       await db.createResource(createTestResource({
         '@id': resourceId('tok-path'), name: 'Marathon notes',
-        representations: [{ mediaType: 'text/plain', storageUri: 'file://authors/Aeschylus/notes.md' }],
+        representations: [{ mediaType: 'text/plain', checksum: 'sha256:test-content', rel: 'original', storageUri: 'file://authors/Aeschylus/notes.md' }],
         dateCreated: '2026-01-01T00:00:00.000Z',
       }));
       await db.createResource(createTestResource({
@@ -490,7 +489,7 @@ describe('GraphDatabase Interface Contract', () => {
 
       expect(String(created.id)).toBe(String(input.id));
       expect(await db.getAnnotation(input.id)).not.toBeNull();
-      const { annotations } = await db.listAnnotations({ resourceId: resourceId(resource['@id']) });
+      const annotations = await db.getResourceAnnotations(resourceId(resource['@id']));
       expect(annotations.filter((a) => String(a.id) === String(input.id))).toHaveLength(1);
     });
 
@@ -512,24 +511,57 @@ describe('GraphDatabase Interface Contract', () => {
       expect(retrieved).toBeNull();
     });
 
-    it('updateAnnotation() should update fields', async () => {
+    it('updateAnnotation() leaves the annotation the codec says the update leaves', async () => {
       const resource = createTestResource();
+      const linked = createTestResource();
       await db.createResource(resource);
+      await db.createResource(linked);
 
-      const input = createTestHighlight(resource['@id']);
-      const created = await db.createAnnotation(input);
+      const created = await db.createAnnotation(createTestReference(resource['@id'], { body: [] }));
 
-      const newBody = {
-        type: 'TextualBody' as const,
-        value: 'Updated highlight',
-        format: 'text/plain' as const,
-        purpose: 'highlighting' as const,
-      };
+      const newBody = [
+        { type: 'TextualBody' as const, value: 'Person', purpose: 'tagging' as const },
+        { type: 'SpecificResource' as const, source: resourceId(linked['@id']), purpose: 'linking' as const },
+      ];
 
       const updated = await db.updateAnnotation(annotationId(created.id), { body: newBody });
 
       expect(updated.body).toEqual(newBody);
       expect(updated.id).toBe(created.id);
+      expect(await db.getAnnotation(annotationId(created.id))).toEqual(updated);
+    });
+
+    it('updateAnnotation() keeps no body the graph does not hold', async () => {
+      const resource = createTestResource();
+      await db.createResource(resource);
+
+      const created = await db.createAnnotation(createTestHighlight(resource['@id']));
+
+      // The graph holds an annotation's entity tags and its link. A body that
+      // is neither is the views' to keep, and reads back from no store.
+      const updated = await db.updateAnnotation(annotationId(created.id), {
+        body: { type: 'TextualBody', value: 'A note', format: 'text/plain', purpose: 'commenting' },
+      });
+
+      expect(updated.body).toBeUndefined();
+    });
+
+    it('updateAnnotation() with an empty body leaves the annotation with none', async () => {
+      const resource = createTestResource();
+      const linked = createTestResource();
+      await db.createResource(resource);
+      await db.createResource(linked);
+
+      const created = await db.createAnnotation(
+        createTestEntityReference(resource['@id'], linked['@id'], ['Person'])
+      );
+      expect(await db.getResourceReferencedBy(resourceId(linked['@id']))).toHaveLength(1);
+
+      const updated = await db.updateAnnotation(annotationId(created.id), { body: [] });
+
+      expect(updated.body).toBeUndefined();
+      expect((await db.getAnnotation(annotationId(created.id)))?.body).toBeUndefined();
+      expect(await db.getResourceReferencedBy(resourceId(linked['@id']))).toEqual([]);
     });
 
     it('updateAnnotation() should preserve unchanged fields', async () => {
@@ -541,8 +573,20 @@ describe('GraphDatabase Interface Contract', () => {
 
       const updated = await db.updateAnnotation(annotationId(created.id), {});
 
-      expect(updated.creator).toBe(created.creator);
-      expect(updated.motivation).toBe(created.motivation);
+      expect(updated).toEqual(created);
+    });
+
+    it('updateAnnotation() refuses to move an annotation to another resource', async () => {
+      const resource = createTestResource();
+      const other = createTestResource();
+      await db.createResource(resource);
+      await db.createResource(other);
+
+      const created = await db.createAnnotation(createTestHighlight(resource['@id']));
+
+      await expect(
+        db.updateAnnotation(annotationId(created.id), { target: { source: resourceId(other['@id']) } })
+      ).rejects.toThrow(/cannot move it/);
     });
 
     it('deleteAnnotation() should remove annotation', async () => {
@@ -556,50 +600,6 @@ describe('GraphDatabase Interface Contract', () => {
 
       const retrieved = await db.getAnnotation(annotationId(created.id));
       expect(retrieved).toBeNull();
-    });
-
-    it('listAnnotations() should filter by resourceId', async () => {
-      const resource1 = createTestResource();
-      const resource2 = createTestResource();
-      await db.createResource(resource1);
-      await db.createResource(resource2);
-
-      await db.createAnnotation(createTestHighlight(resource1['@id']));
-      await db.createAnnotation(createTestHighlight(resource1['@id']));
-      await db.createAnnotation(createTestHighlight(resource2['@id']));
-
-      const result = await db.listAnnotations({ resourceId: resourceId(resource1['@id']) });
-
-      expect(result.total).toBe(2);
-      expect(result.annotations).toHaveLength(2);
-    });
-
-    it('listAnnotations() should filter by type (highlight vs reference)', async () => {
-      const resource = createTestResource();
-      await db.createResource(resource);
-
-      await db.createAnnotation(createTestHighlight(resource['@id']));
-      await db.createAnnotation(createTestHighlight(resource['@id']));
-      await db.createAnnotation(createTestReference(resource['@id']));
-
-      const highlights = await db.listAnnotations({ type: 'highlight' });
-      const references = await db.listAnnotations({ type: 'reference' });
-
-      expect(highlights.total).toBe(2);
-      expect(references.total).toBe(1);
-    });
-
-    it('listAnnotations() should return total count', async () => {
-      const resource = createTestResource();
-      await db.createResource(resource);
-
-      await db.createAnnotation(createTestHighlight(resource['@id']));
-      await db.createAnnotation(createTestHighlight(resource['@id']));
-
-      const result = await db.listAnnotations({});
-
-      expect(result.total).toBe(2);
-      expect(result.annotations).toHaveLength(2);
     });
 
     it('createAnnotations() should batch create', async () => {
@@ -621,51 +621,14 @@ describe('GraphDatabase Interface Contract', () => {
     });
   });
 
-  describe('Highlight Operations', () => {
-    it('getHighlights() should return only highlighting annotations', async () => {
-      const resource = createTestResource();
-      await db.createResource(resource);
-
-      await db.createAnnotation(createTestHighlight(resource['@id']));
-      await db.createAnnotation(createTestHighlight(resource['@id']));
-      await db.createAnnotation(createTestReference(resource['@id']));
-
-      const highlights = await db.getHighlights(resourceId(resource['@id']));
-
-      expect(highlights).toHaveLength(2);
-      expect(highlights.every(h => h.motivation === 'highlighting')).toBe(true);
-    });
-
-    it('getHighlights() should filter by resourceId', async () => {
-      const resource1 = createTestResource();
-      const resource2 = createTestResource();
-      await db.createResource(resource1);
-      await db.createResource(resource2);
-
-      await db.createAnnotation(createTestHighlight(resource1['@id']));
-      await db.createAnnotation(createTestHighlight(resource2['@id']));
-
-      const highlights = await db.getHighlights(resourceId(resource1['@id']));
-
-      expect(highlights).toHaveLength(1);
-    });
-
-    it('getHighlights() should return empty array when none exist', async () => {
-      const resource = createTestResource();
-      await db.createResource(resource);
-
-      const highlights = await db.getHighlights(resourceId(resource['@id']));
-
-      expect(highlights).toEqual([]);
-    });
-  });
-
   describe('Reference Operations', () => {
-    it('resolveReference() should convert stub to SpecificResource', async () => {
+    it('resolveReference() links the annotation and keeps its entity tags', async () => {
       const resource1 = createTestResource();
       const resource2 = createTestResource();
+      const resource3 = createTestResource();
       await db.createResource(resource1);
       await db.createResource(resource2);
+      await db.createResource(resource3);
 
       const input = createTestReference(resource1['@id']);
       const created = await db.createAnnotation(input);
@@ -675,72 +638,25 @@ describe('GraphDatabase Interface Contract', () => {
         resourceId(resource2['@id'])
       );
 
-      expect(resolved.body).toHaveProperty('source');
-      expect((resolved.body as any).source).toBe(resource2['@id']);
+      expect(resolved.body).toEqual([
+        { type: 'TextualBody', value: 'StubEntityType', purpose: 'tagging' },
+        { type: 'SpecificResource', source: resource2['@id'], purpose: 'linking' },
+      ]);
+      expect(await db.getAnnotation(annotationId(created.id))).toEqual(resolved);
+
+      // Resolved again, the link is replaced: an annotation links to one resource.
+      const again = await db.resolveReference(annotationId(created.id), resourceId(resource3['@id']));
+      expect(again.body).toEqual([
+        { type: 'TextualBody', value: 'StubEntityType', purpose: 'tagging' },
+        { type: 'SpecificResource', source: resource3['@id'], purpose: 'linking' },
+      ]);
+      expect(await db.getResourceReferencedBy(resourceId(resource2['@id']))).toEqual([]);
     });
 
     it('resolveReference() should throw for non-existent annotation', async () => {
       await expect(
         db.resolveReference(annotationId('nonexistent'), resourceId('test'))
       ).rejects.toThrow();
-    });
-
-    it('getReferences() should return linking annotations', async () => {
-      const resource = createTestResource();
-      await db.createResource(resource);
-
-      await db.createAnnotation(createTestReference(resource['@id']));
-      await db.createAnnotation(createTestReference(resource['@id']));
-      await db.createAnnotation(createTestHighlight(resource['@id']));
-
-      const references = await db.getReferences(resourceId(resource['@id']));
-
-      expect(references).toHaveLength(2);
-      expect(references.every(r => r.motivation === 'linking')).toBe(true);
-    });
-
-    it('getReferences() should filter by resourceId', async () => {
-      const resource1 = createTestResource();
-      const resource2 = createTestResource();
-      await db.createResource(resource1);
-      await db.createResource(resource2);
-
-      await db.createAnnotation(createTestReference(resource1['@id']));
-      await db.createAnnotation(createTestReference(resource2['@id']));
-
-      const references = await db.getReferences(resourceId(resource1['@id']));
-
-      expect(references).toHaveLength(1);
-    });
-
-    it('getEntityReferences() should return entity-typed references', async () => {
-      const resource1 = createTestResource();
-      const resource2 = createTestResource();
-      await db.createResource(resource1);
-      await db.createResource(resource2);
-
-      await db.createAnnotation(createTestEntityReference(resource1['@id'], resource2['@id'], ['Person']));
-      // A reference with no entity tags at all — the default fixture carries
-      // one, so the body is overridden empty.
-      await db.createAnnotation(createTestReference(resource1['@id'], { body: [] }));
-
-      const entityRefs = await db.getEntityReferences(resourceId(resource1['@id']));
-
-      expect(entityRefs).toHaveLength(1);
-    });
-
-    it('getEntityReferences() should filter by entity types', async () => {
-      const resource1 = createTestResource();
-      const resource2 = createTestResource();
-      await db.createResource(resource1);
-      await db.createResource(resource2);
-
-      await db.createAnnotation(createTestEntityReference(resource1['@id'], resource2['@id'], ['Person']));
-      await db.createAnnotation(createTestEntityReference(resource1['@id'], resource2['@id'], ['Organization']));
-
-      const personRefs = await db.getEntityReferences(resourceId(resource1['@id']), ['Person']);
-
-      expect(personRefs).toHaveLength(1);
     });
 
     it('getResourceAnnotations() should return all annotations for resource', async () => {
@@ -889,18 +805,10 @@ describe('GraphDatabase Interface Contract', () => {
 
     it('getStats() should aggregate content types', async () => {
       await db.createResource(createTestResource({
-        representations: [{
-          id: generateResourceId(),
-          mediaType: 'text/plain',
-          content: { value: 'test' },
-        }],
+        representations: [{ mediaType: 'text/plain', checksum: 'sha256:test-content', rel: 'original' }],
       }));
       await db.createResource(createTestResource({
-        representations: [{
-          id: generateResourceId(),
-          mediaType: 'text/markdown',
-          content: { value: 'test' },
-        }],
+        representations: [{ mediaType: 'text/markdown', checksum: 'sha256:test-content', rel: 'original' }],
       }));
 
       const stats = await db.getStats();
@@ -943,16 +851,6 @@ describe('GraphDatabase Interface Contract', () => {
   });
 
   describe('Utility Methods', () => {
-    it('generateId() should create unique identifiers', () => {
-      const id1 = db.generateId();
-      const id2 = db.generateId();
-
-      expect(id1).toBeDefined();
-      expect(id2).toBeDefined();
-      expect(id1).not.toBe(id2);
-      expect(id1.length).toBeGreaterThan(0);
-    });
-
     it('clearDatabase() should remove all data', async () => {
       await db.createResource(createTestResource());
       const resource = createTestResource();

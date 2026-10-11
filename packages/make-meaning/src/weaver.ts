@@ -539,20 +539,18 @@ export class Weaver {
     // exactly the fields the graph is meant to carry, and widens or narrows
     // automatically when the encoder does.
     //
-    // `creator` is taken from the GRAPH rather than the view, and not for
-    // convenience: the fold derives it from the EVENT's userId (`didToAgent`),
-    // never from the annotation, so the view does not hold the graph's
-    // reference for it. A heal replays the log and re-derives the same value,
-    // so a creator "mismatch" could never be repaired — comparing it could only
-    // manufacture permanent divergence and heal every resource on every boot.
-    // Supplying it also keeps the round-trip total: `creator` is optional on the
-    // wire, and the codec requires it, so a sparse view annotation would
-    // otherwise throw out of a routine divergence check.
+    // `creator` is compared like every other field. The fold stores the
+    // creator the event records, which is the one the view holds, so a
+    // difference is a real one and a heal from the log repairs it. An
+    // annotation the record holds with no creator is one the graph cannot
+    // hold at all (the codec requires it); it is named as such rather than
+    // thrown out of a routine check.
     const viewById = new Map(annotations.map((a) => [String(a.id), a]));
     for (const graphAnnotation of graphAnnotations) {
       const viewAnnotation = viewById.get(String(graphAnnotation.id));
       if (!viewAnnotation) continue; // set equality established above
-      const intended = intendedGraphAnnotation({ ...viewAnnotation, creator: graphAnnotation.creator });
+      if (!viewAnnotation.creator) return 'annotation-creator-unrecorded';
+      const intended = intendedGraphAnnotation(viewAnnotation);
       if (Weaver.canonicalJson(graphAnnotation) !== Weaver.canonicalJson(intended)) {
         return 'annotation-content-mismatch';
       }
@@ -718,12 +716,20 @@ export class Weaver {
         // run by annotation id, then skip ids the graph already holds — a
         // replayed burst (at-least-once delivery) must not create doubles.
         const byId = new Map<AnnotationId, CreateAnnotationInternal>();
+        // An event the graph cannot take is refused by itself: the rest of
+        // the run is applied, and only the refused event holds the mark back.
+        const refused = new Set<StoredEvent>();
         for (const e of events) {
           const event = e as EventOfType<'mark:added'>;
-          byId.set(event.payload.annotation.id, {
-            ...event.payload.annotation,
-            creator: didToAgent(event.userId),
-          });
+          try {
+            byId.set(event.payload.annotation.id, this.recordedAnnotation(event.payload.annotation, e));
+          } catch (error) {
+            refused.add(e);
+            this._applyFailures++;
+            this.logger.error('Failed to apply event to graph', {
+              eventType: e.type, resourceId: e.resourceId, error: errField(error),
+            });
+          }
         }
         const inputs: CreateAnnotationInternal[] = [];
         for (const [id, input] of byId) {
@@ -732,10 +738,11 @@ export class Weaver {
         if (inputs.length > 0) {
           await this.graphDb.createAnnotations(inputs);
         }
-        for (const e of events) this.noteOutcome(e, true);
+        for (const e of events) this.noteOutcome(e, !refused.has(e));
         this.logger.info('Batch created annotations in graph', {
           count: inputs.length,
-          duplicatesSkipped: events.length - inputs.length,
+          duplicatesSkipped: events.length - refused.size - inputs.length,
+          refused: refused.size,
         });
         break;
       }
@@ -778,9 +785,38 @@ export class Weaver {
         ...(event.payload.storageUri ? { storageUri: event.payload.storageUri } : {}),
       }],
       archived: false,
-      dateCreated: new Date().toISOString(),
-      wasAttributedTo: didToAgent(event.userId),
+      // When the record says it was created. The Weaver's own clock says
+      // when the Weaver last ran: every rebuild would date the resource
+      // again, and every boot replays the log.
+      dateCreated: event.timestamp,
+      // Who it is by, as the record derived it when it recorded the event:
+      // the party that asked, and the software that did the work when the
+      // two differ. Readers do not derive it again. An event from before the
+      // record derived any carries none, and the Archivist's view then
+      // attributes the resource to the party that sent the event; the graph
+      // says what the view says.
+      wasAttributedTo: event.payload.wasAttributedTo ?? [didToAgent(event.userId)],
     };
+  }
+
+  /**
+   * The annotation a `mark:added` records, as the graph is given it.
+   *
+   * Its creator is the one the record carries. The knowledge base derives a
+   * creator for every annotation it records (the party that asked), and the
+   * event's `userId` is the party that SENT it, which for delegated work is
+   * the worker's agent. Deriving a creator here from `userId` named the model
+   * as the creator of what a person asked for. An annotation recorded with no
+   * creator is refused by name: the graph does not make one up.
+   */
+  private recordedAnnotation(annotation: Annotation, event: StoredEvent): CreateAnnotationInternal {
+    if (!annotation.creator) {
+      throw new Error(
+        `${event.type} ${event.id} (resource ${event.resourceId}, sequence ${event.metadata.sequenceNumber}) ` +
+          `records annotation ${annotation.id} with no creator`,
+      );
+    }
+    return { ...annotation, creator: annotation.creator };
   }
 
   /**
@@ -831,10 +867,7 @@ export class Weaver {
           });
           break;
         }
-        await this.graphDb.createAnnotation({
-          ...event.payload.annotation,
-          creator: didToAgent(event.userId),
-        });
+        await this.graphDb.createAnnotation(this.recordedAnnotation(event.payload.annotation, event));
         this.logger.info('Annotation created in graph', {
           annotationId: event.payload.annotation.id
         });
@@ -881,9 +914,12 @@ export class Weaver {
               }
             }
 
+            // `modified` is the moment the record says the body changed,
+            // which is what the Archivist's view stamps on the annotation.
             await this.graphDb.updateAnnotation(annId, {
               body: bodyArray,
-            } as Partial<Annotation>);
+              modified: event.timestamp,
+            });
 
             this.logger.info('updateAnnotation completed successfully');
           } else {

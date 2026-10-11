@@ -69,6 +69,14 @@ function createEventLog(bus: EventBus) {
 // Helper: wait for fire-and-forget callbacks + burst buffer flush + idle timeout
 const tick = (ms = 350) => new Promise(resolve => setTimeout(resolve, ms));
 
+/**
+ * Who a recorded annotation is by. The knowledge base derives a creator for
+ * every annotation it records, and the fold stores that one: an annotation
+ * with none is refused, so every `mark:added` here carries it, as a recorded
+ * one does.
+ */
+const RECORDED_CREATOR = { '@type': 'Person' as const, '@id': 'did:web:test:users:asker', name: 'Asker' };
+
 // Mock logger
 const mockLogger: Logger = {
   debug: vi.fn(),
@@ -93,11 +101,7 @@ function createMockGraphDb(): GraphDatabase {
     getAnnotation: vi.fn().mockResolvedValue(null),
     updateAnnotation: vi.fn().mockResolvedValue({}),
     deleteAnnotation: vi.fn().mockResolvedValue(undefined),
-    listAnnotations: vi.fn().mockResolvedValue({ annotations: [], total: 0 }),
-    getHighlights: vi.fn().mockResolvedValue([]),
     resolveReference: vi.fn().mockResolvedValue({}),
-    getReferences: vi.fn().mockResolvedValue([]),
-    getEntityReferences: vi.fn().mockResolvedValue([]),
     getResourceAnnotations: vi.fn().mockResolvedValue([]),
     getResourceReferencedBy: vi.fn().mockResolvedValue([]),
     getResourceConnections: vi.fn().mockResolvedValue([]),
@@ -106,11 +110,9 @@ function createMockGraphDb(): GraphDatabase {
     getStats: vi.fn().mockResolvedValue({ resourceCount: 0, annotationCount: 0, highlightCount: 0, referenceCount: 0, entityReferenceCount: 0, entityTypes: {}, contentTypes: {} }),
     batchCreateResources: vi.fn().mockResolvedValue([]),
     createAnnotations: vi.fn().mockResolvedValue([]),
-    resolveReferences: vi.fn().mockResolvedValue([]),
     getEntityTypes: vi.fn().mockResolvedValue([]),
     addEntityType: vi.fn().mockResolvedValue(undefined),
     addEntityTypes: vi.fn().mockResolvedValue(undefined),
-    generateId: vi.fn().mockReturnValue('mock-id'),
     clearDatabase: vi.fn().mockResolvedValue(undefined),
   } as unknown as GraphDatabase;
 }
@@ -402,6 +404,7 @@ describe('Weaver', () => {
             id: annotationId('ann-1'),
             motivation: 'highlighting' as const,
             created: '2026-01-01T00:00:00.000Z',
+            creator: RECORDED_CREATOR,
             target: {
               source: docId,
               selector: [
@@ -419,7 +422,8 @@ describe('Weaver', () => {
       expect(graphDb.createAnnotation).toHaveBeenCalledTimes(1);
       const arg = (graphDb.createAnnotation as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(arg.id).toBe('ann-1');
-      expect(arg.creator).toBeDefined(); // Added from event userId
+      // The creator the event records, not one derived from who sent it.
+      expect(arg.creator).toEqual(RECORDED_CREATOR);
     });
 
     it('should handle mark:removed', async () => {
@@ -782,6 +786,7 @@ describe('Weaver', () => {
               id: annotationId(`ann-batch-${i}`),
               motivation: 'highlighting' as const,
               created: '2026-01-01T00:00:00.000Z',
+              creator: RECORDED_CREATOR,
               target: {
                 source: docId,
                 selector: [
@@ -910,6 +915,7 @@ describe('Weaver', () => {
       target: { source: rid },
       body: [],
       created: '2026-01-01T00:00:00.000Z',
+      creator: RECORDED_CREATOR,
     });
 
     beforeEach(async () => {
@@ -937,7 +943,7 @@ describe('Weaver', () => {
       await deliver(e);
       await deliver(e);
 
-      const { annotations } = await graphDb.listAnnotations({ resourceId: resourceId('dup-add') });
+      const annotations = await graphDb.getResourceAnnotations(resourceId('dup-add'));
       expect(annotations).toHaveLength(1);
       // The graph must store the annotation under the event's id — the id is
       // the system of record's, not the store's to mint (Neo4j already
@@ -957,7 +963,7 @@ describe('Weaver', () => {
       coreEventBus.emit('mark:added', e);
       await tick();
 
-      const { annotations } = await graphDb.listAnnotations({ resourceId: resourceId('dup-add-burst') });
+      const annotations = await graphDb.getResourceAnnotations(resourceId('dup-add-burst'));
       expect(annotations).toHaveLength(1);
       const createdInputs =
         singleSpy.mock.calls.length +
@@ -973,7 +979,7 @@ describe('Weaver', () => {
       await deliver(e);
       await deliver(e);
 
-      const { annotations } = await graphDb.listAnnotations({ resourceId: resourceId('dup-rm') });
+      const annotations = await graphDb.getResourceAnnotations(resourceId('dup-rm'));
       expect(annotations).toHaveLength(0);
     });
 
@@ -1006,7 +1012,9 @@ describe('Weaver', () => {
       await deliver(createdEvent('dup-body'));
       await deliver(stored('mark:added', 'dup-body', { annotation: annotation('ann-dup-body', 'dup-body') }));
 
-      const item = { type: 'TextualBody', value: 'dup-comment', purpose: 'commenting' };
+      // A tag, which the graph holds. (A comment's body is the views' to keep:
+      // the graph stores an annotation's entity tags and its link, no more.)
+      const item = { type: 'TextualBody', value: 'DupTag', purpose: 'tagging' };
       const e = stored('mark:body-updated', 'dup-body', {
         annotationId: 'ann-dup-body',
         operations: [{ op: 'add', item }],
@@ -1207,6 +1215,7 @@ describe('Weaver', () => {
             id: annotationId('ann-authored'),
             motivation: 'highlighting' as const,
             created: AUTHORED,
+            creator: RECORDED_CREATOR,
             target: { source: resourceId(rid) },
           },
         },
@@ -1278,7 +1287,7 @@ describe('Weaver', () => {
       // createAnnotations — the mocked failure.
       const ann = (aid: string) => ({
         id: annotationId(aid), motivation: 'commenting', target: { source: rid }, body: [],
-        created: '2026-01-01T00:00:00.000Z',
+        created: '2026-01-01T00:00:00.000Z', creator: RECORDED_CREATOR,
       });
       const pushMark = (aid: string, seq: number) => coreEventBus.emit('mark:added', {
         id: randomUUID(), type: 'mark:added', timestamp: new Date().toISOString(),
@@ -1450,8 +1459,7 @@ describe('Weaver', () => {
 
       // Same id, same body — the graph's annotation is source-only, and the log
       // says it should carry a selector. A check of the id SET and the bodies
-      // alone would call this clean. (Deliberately not `creator`: the
-      // fold derives that from the event, so it is held out — see divergenceOf.)
+      // alone would call this clean.
       serveBrowseReads([rid], {
         [rid]: [{ ...viewAnn(),
                   target: { source: rid, selector: { type: 'TextQuoteSelector', exact: 'Black Hawk' } } }],

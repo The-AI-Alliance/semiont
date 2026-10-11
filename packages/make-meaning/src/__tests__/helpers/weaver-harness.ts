@@ -73,12 +73,13 @@ export function storedEvent<K extends PersistedEventType>(
   rid: string | undefined,
   payload: EventOfType<K>['payload'],
   seq: number,
+  recorded: { sentBy?: string; at?: string } = {},
 ): StoredEvent<EventOfType<K>> {
   return {
     id: `evt-${++eventCounter}`,
     type,
-    timestamp: new Date().toISOString(),
-    userId: 'did:web:test:users:axioms',
+    timestamp: recorded.at ?? new Date().toISOString(),
+    userId: recorded.sentBy ?? 'did:web:test:users:axioms',
     ...(rid ? { resourceId: makeResourceId(rid) } : {}),
     version: 1,
     payload,
@@ -300,7 +301,17 @@ export function faultingGraph(inner: GraphDatabase, schedule: FaultSchedule): Fa
  * in for the Browser exactly where catch-up, rebuild, and reconcile read.
  * Annotations answer with the MODEL's current live set for the resource.
  */
-export function serveHistory(eventBus: EventBus, history: StoredEvent[]): () => void {
+export function serveHistory(
+  eventBus: EventBus,
+  history: StoredEvent[],
+  /**
+   * A resource's annotations as its VIEW holds them, where a case states
+   * them. The model below knows only which annotations are live; what the
+   * Archivist's view makes of each (a body's operations applied, `modified`
+   * stamped with the update's moment) is the case's to say.
+   */
+  views: Record<string, Annotation[]> = {},
+): () => void {
   const byRid = new Map<string, StoredEvent[]>();
   for (const e of history) {
     if (!e.resourceId) continue;
@@ -341,7 +352,7 @@ export function serveHistory(eventBus: EventBus, history: StoredEvent[]): () => 
     eventBus.frames('browse:annotations-requested').subscribe(({ payload: req, correlationId }) => {
       const rid = String((req as { resourceId: string }).resourceId);
       const live = model.resources.get(rid)?.annotations ?? new Set<string>();
-      const annotations = [...live].map((aid) => makeAnnotationPayload(aid, rid)) as unknown as Annotation[];
+      const annotations = views[rid] ?? [...live].map((aid) => makeAnnotationPayload(aid, rid));
       eventBus.emit('browse:annotations-result', {
         response: { annotations },
       } as unknown as EventMap['browse:annotations-result'], { correlationId });

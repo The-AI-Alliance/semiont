@@ -2,7 +2,6 @@
 
 import type {
   Annotation,
-  AnnotationCategory,
   AnnotationId,
   CreateAnnotationInternal,
   EntityTypeStats,
@@ -49,15 +48,9 @@ export interface GraphDatabase {
   getAnnotation(id: AnnotationId): Promise<Annotation | null>;
   updateAnnotation(id: AnnotationId, updates: Partial<Annotation>): Promise<Annotation>;
   deleteAnnotation(id: AnnotationId): Promise<void>;
-  listAnnotations(filter: { resourceId?: ResourceId; type?: AnnotationCategory }): Promise<{ annotations: Annotation[]; total: number }>;
-
-  // Highlight operations
-  getHighlights(resourceId: ResourceId): Promise<Annotation[]>;
 
   // Reference operations
   resolveReference(annotationId: AnnotationId, source: ResourceId): Promise<Annotation>;
-  getReferences(resourceId: ResourceId): Promise<Annotation[]>;
-  getEntityReferences(resourceId: ResourceId, entityTypes?: string[]): Promise<Annotation[]>;
 
   // Relationship queries
   getResourceAnnotations(resourceId: ResourceId): Promise<Annotation[]>;
@@ -82,7 +75,6 @@ export interface GraphDatabase {
   // Bulk operations
   batchCreateResources(resources: ResourceDescriptor[]): Promise<ResourceDescriptor[]>;
   createAnnotations(inputs: CreateAnnotationInternal[]): Promise<Annotation[]>;
-  resolveReferences(inputs: { annotationId: AnnotationId; source: ResourceId }[]): Promise<Annotation[]>;
 
   // Tag Collections
   getEntityTypes(): Promise<string[]>;
@@ -90,6 +82,5 @@ export interface GraphDatabase {
   addEntityTypes(tags: string[]): Promise<void>;
   
   // Utility
-  generateId(): string;
   clearDatabase(): Promise<void>; // For testing
 }

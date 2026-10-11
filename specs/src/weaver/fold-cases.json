@@ -1,0 +1,2274 @@
+{
+  "$comment": "What the Weaver's fold does to the graph, as every implementation of the Weaver must do it: a history of recorded events, and the graph it leaves. TypeScript's Weaver (@semiont/make-meaning, weaver.ts) runs every case; the Python Weaver (semiont_weaver) runs every case when it is written. `history` is the events as the Weaver is given them, in the order they are delivered, each as the bus carries a recorded event (a StoredEventResponse, with the payload the bus registry names for its channel): an event that appears twice is delivered twice. `graph` is what the graph then holds, as a store answers it: its `resources`, its `annotations` (each as the graph's annotation codec says the graph holds it, which is not all a view holds), and the `entityTypesAdded` to the vocabulary every knowledge base starts with. Resources, annotations, a resource's entity types and the vocabulary are sets: no order of theirs is stated. `applied` is the sequence the Weaver has applied up to for each resource, which it also signals on `weave:applied`; it never passes an event that was not applied. `refused` is how many events the Weaver did not apply, where there are any. The graph says what the record says: a resource's date and an updated annotation's `modified` are the moments their events were recorded, and who a thing is by is who its event records, so that a check of the graph against the record's views finds nothing to repair in a graph the fold has just built. What a rebuild, a catch-up and a reconcile do are not here: they are the service's, and its suite's. Add a case here before changing an implementation.",
+  "cases": [
+    {
+      "why": "a created resource is in the graph as its event records it: named and typed by the payload, dated when the event was recorded and not when it was applied, and by the parties the record derived, here the one that asked and the software that did the work",
+      "history": [
+        {
+          "id": "evt-1",
+          "type": "yield:created",
+          "timestamp": "2020-03-04T05:06:01.000Z",
+          "userId": "did:web:example.org:agents:anthropic:model",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "name": "Name of res-1",
+            "format": "text/markdown",
+            "contentChecksum": "sha256:res-1",
+            "creator": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            "wasAttributedTo": [
+              {
+                "@type": "Person",
+                "@id": "did:web:example.org:users:ada",
+                "name": "Ada"
+              },
+              {
+                "@type": "Software",
+                "@id": "did:web:example.org:agents:anthropic:model",
+                "name": "anthropic model",
+                "provider": "anthropic",
+                "model": "model"
+              }
+            ],
+            "entityTypes": [
+              "Place"
+            ],
+            "storageUri": "file:///kb/res-1.md"
+          },
+          "metadata": {
+            "sequenceNumber": 1
+          }
+        }
+      ],
+      "graph": {
+        "resources": [
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-1",
+            "name": "Name of res-1",
+            "entityTypes": [
+              "Place"
+            ],
+            "representations": [
+              {
+                "mediaType": "text/markdown",
+                "checksum": "sha256:res-1",
+                "rel": "original",
+                "storageUri": "file:///kb/res-1.md"
+              }
+            ],
+            "archived": false,
+            "dateCreated": "2020-03-04T05:06:01.000Z",
+            "wasAttributedTo": [
+              {
+                "@type": "Person",
+                "@id": "did:web:example.org:users:ada",
+                "name": "Ada"
+              },
+              {
+                "@type": "Software",
+                "@id": "did:web:example.org:agents:anthropic:model",
+                "name": "anthropic model",
+                "provider": "anthropic",
+                "model": "model"
+              }
+            ]
+          }
+        ],
+        "annotations": [],
+        "entityTypesAdded": []
+      },
+      "applied": {
+        "res-1": 1
+      }
+    },
+    {
+      "why": "a created event that records no attribution, as events did before the record derived any, is attributed to the party that sent it, as the record's own view attributes it",
+      "history": [
+        {
+          "id": "evt-2",
+          "type": "yield:created",
+          "timestamp": "2020-03-04T05:06:01.000Z",
+          "userId": "did:web:example.org:agents:anthropic:model",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "name": "Name of res-1",
+            "format": "text/markdown",
+            "contentChecksum": "sha256:res-1"
+          },
+          "metadata": {
+            "sequenceNumber": 1
+          }
+        }
+      ],
+      "graph": {
+        "resources": [
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-1",
+            "name": "Name of res-1",
+            "entityTypes": [],
+            "representations": [
+              {
+                "mediaType": "text/markdown",
+                "checksum": "sha256:res-1",
+                "rel": "original"
+              }
+            ],
+            "archived": false,
+            "dateCreated": "2020-03-04T05:06:01.000Z",
+            "wasAttributedTo": [
+              {
+                "@type": "Software",
+                "@id": "did:web:example.org:agents:anthropic:model",
+                "name": "anthropic model",
+                "provider": "anthropic",
+                "model": "model"
+              }
+            ]
+          }
+        ],
+        "annotations": [],
+        "entityTypesAdded": []
+      },
+      "applied": {
+        "res-1": 1
+      }
+    },
+    {
+      "why": "the same event delivered twice is applied once",
+      "history": [
+        {
+          "id": "evt-3",
+          "type": "yield:created",
+          "timestamp": "2020-03-04T05:06:01.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "name": "Name of res-1",
+            "format": "text/markdown",
+            "contentChecksum": "sha256:res-1",
+            "creator": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          },
+          "metadata": {
+            "sequenceNumber": 1
+          }
+        },
+        {
+          "id": "evt-3",
+          "type": "yield:created",
+          "timestamp": "2020-03-04T05:06:01.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "name": "Name of res-1",
+            "format": "text/markdown",
+            "contentChecksum": "sha256:res-1",
+            "creator": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          },
+          "metadata": {
+            "sequenceNumber": 1
+          }
+        }
+      ],
+      "graph": {
+        "resources": [
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-1",
+            "name": "Name of res-1",
+            "entityTypes": [],
+            "representations": [
+              {
+                "mediaType": "text/markdown",
+                "checksum": "sha256:res-1",
+                "rel": "original"
+              }
+            ],
+            "archived": false,
+            "dateCreated": "2020-03-04T05:06:01.000Z",
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          }
+        ],
+        "annotations": [],
+        "entityTypesAdded": []
+      },
+      "applied": {
+        "res-1": 1
+      }
+    },
+    {
+      "why": "archiving and unarchiving set the one flag, and the last one stands",
+      "history": [
+        {
+          "id": "evt-4",
+          "type": "yield:created",
+          "timestamp": "2020-03-04T05:06:01.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "name": "Name of res-1",
+            "format": "text/markdown",
+            "contentChecksum": "sha256:res-1",
+            "creator": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          },
+          "metadata": {
+            "sequenceNumber": 1
+          }
+        },
+        {
+          "id": "evt-5",
+          "type": "mark:archived",
+          "timestamp": "2020-03-04T05:06:05.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {},
+          "metadata": {
+            "sequenceNumber": 2
+          }
+        },
+        {
+          "id": "evt-6",
+          "type": "mark:unarchived",
+          "timestamp": "2020-03-04T05:06:06.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {},
+          "metadata": {
+            "sequenceNumber": 3
+          }
+        },
+        {
+          "id": "evt-7",
+          "type": "mark:archived",
+          "timestamp": "2020-03-04T05:06:07.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "reason": "superseded"
+          },
+          "metadata": {
+            "sequenceNumber": 4
+          }
+        }
+      ],
+      "graph": {
+        "resources": [
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-1",
+            "name": "Name of res-1",
+            "entityTypes": [],
+            "representations": [
+              {
+                "mediaType": "text/markdown",
+                "checksum": "sha256:res-1",
+                "rel": "original"
+              }
+            ],
+            "archived": true,
+            "dateCreated": "2020-03-04T05:06:01.000Z",
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          }
+        ],
+        "annotations": [],
+        "entityTypesAdded": []
+      },
+      "applied": {
+        "res-1": 4
+      }
+    },
+    {
+      "why": "an added annotation is by the creator its event records, who asked for it, and not by the party that sent the event, which did the work; the software that made it is kept as its generator, and who it is attributed to is the views' to keep",
+      "history": [
+        {
+          "id": "evt-8",
+          "type": "yield:created",
+          "timestamp": "2020-03-04T05:06:01.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "name": "Name of res-1",
+            "format": "text/markdown",
+            "contentChecksum": "sha256:res-1",
+            "creator": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          },
+          "metadata": {
+            "sequenceNumber": 1
+          }
+        },
+        {
+          "id": "evt-9",
+          "type": "mark:added",
+          "timestamp": "2020-03-04T05:06:09.000Z",
+          "userId": "did:web:example.org:agents:anthropic:model",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-1",
+              "motivation": "highlighting",
+              "target": {
+                "source": "res-1",
+                "selector": {
+                  "type": "TextQuoteSelector",
+                  "exact": "Black Hawk"
+                }
+              },
+              "creator": {
+                "@type": "Person",
+                "@id": "did:web:example.org:users:ada",
+                "name": "Ada"
+              },
+              "created": "2020-03-04T05:06:30.000Z",
+              "generator": {
+                "@type": "Software",
+                "@id": "did:web:example.org:agents:anthropic:model",
+                "name": "anthropic model",
+                "provider": "anthropic",
+                "model": "model"
+              },
+              "wasAttributedTo": [
+                {
+                  "@type": "Person",
+                  "@id": "did:web:example.org:users:ada",
+                  "name": "Ada"
+                },
+                {
+                  "@type": "Software",
+                  "@id": "did:web:example.org:agents:anthropic:model",
+                  "name": "anthropic model",
+                  "provider": "anthropic",
+                  "model": "model"
+                }
+              ]
+            }
+          },
+          "metadata": {
+            "sequenceNumber": 2
+          }
+        }
+      ],
+      "graph": {
+        "resources": [
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-1",
+            "name": "Name of res-1",
+            "entityTypes": [],
+            "representations": [
+              {
+                "mediaType": "text/markdown",
+                "checksum": "sha256:res-1",
+                "rel": "original"
+              }
+            ],
+            "archived": false,
+            "dateCreated": "2020-03-04T05:06:01.000Z",
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "@context": "http://www.w3.org/ns/anno.jsonld",
+            "type": "Annotation",
+            "id": "ann-1",
+            "motivation": "highlighting",
+            "target": {
+              "source": "res-1",
+              "selector": {
+                "type": "TextQuoteSelector",
+                "exact": "Black Hawk"
+              }
+            },
+            "creator": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            "created": "2020-03-04T05:06:30.000Z",
+            "generator": {
+              "@type": "Software",
+              "@id": "did:web:example.org:agents:anthropic:model",
+              "name": "anthropic model",
+              "provider": "anthropic",
+              "model": "model"
+            }
+          }
+        ],
+        "entityTypesAdded": []
+      },
+      "applied": {
+        "res-1": 2
+      }
+    },
+    {
+      "why": "an annotation added twice is in the graph once, under the id its event gave it",
+      "history": [
+        {
+          "id": "evt-10",
+          "type": "yield:created",
+          "timestamp": "2020-03-04T05:06:01.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "name": "Name of res-1",
+            "format": "text/markdown",
+            "contentChecksum": "sha256:res-1",
+            "creator": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          },
+          "metadata": {
+            "sequenceNumber": 1
+          }
+        },
+        {
+          "id": "evt-11",
+          "type": "mark:added",
+          "timestamp": "2020-03-04T05:06:11.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-1",
+              "motivation": "linking",
+              "target": {
+                "source": "res-1"
+              },
+              "creator": {
+                "@type": "Person",
+                "@id": "did:web:example.org:users:ada",
+                "name": "Ada"
+              },
+              "created": "2020-03-04T05:06:30.000Z"
+            }
+          },
+          "metadata": {
+            "sequenceNumber": 2
+          }
+        },
+        {
+          "id": "evt-11",
+          "type": "mark:added",
+          "timestamp": "2020-03-04T05:06:11.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-1",
+              "motivation": "linking",
+              "target": {
+                "source": "res-1"
+              },
+              "creator": {
+                "@type": "Person",
+                "@id": "did:web:example.org:users:ada",
+                "name": "Ada"
+              },
+              "created": "2020-03-04T05:06:30.000Z"
+            }
+          },
+          "metadata": {
+            "sequenceNumber": 2
+          }
+        }
+      ],
+      "graph": {
+        "resources": [
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-1",
+            "name": "Name of res-1",
+            "entityTypes": [],
+            "representations": [
+              {
+                "mediaType": "text/markdown",
+                "checksum": "sha256:res-1",
+                "rel": "original"
+              }
+            ],
+            "archived": false,
+            "dateCreated": "2020-03-04T05:06:01.000Z",
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "@context": "http://www.w3.org/ns/anno.jsonld",
+            "type": "Annotation",
+            "id": "ann-1",
+            "motivation": "linking",
+            "target": {
+              "source": "res-1"
+            },
+            "creator": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            "created": "2020-03-04T05:06:30.000Z"
+          }
+        ],
+        "entityTypesAdded": []
+      },
+      "applied": {
+        "res-1": 2
+      }
+    },
+    {
+      "why": "an annotation recorded with no creator is refused: the graph makes none up, the event is not applied, and the applied mark does not pass it",
+      "history": [
+        {
+          "id": "evt-12",
+          "type": "yield:created",
+          "timestamp": "2020-03-04T05:06:01.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "name": "Name of res-1",
+            "format": "text/markdown",
+            "contentChecksum": "sha256:res-1",
+            "creator": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          },
+          "metadata": {
+            "sequenceNumber": 1
+          }
+        },
+        {
+          "id": "evt-13",
+          "type": "mark:added",
+          "timestamp": "2020-03-04T05:06:13.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-1",
+              "motivation": "linking",
+              "target": {
+                "source": "res-1"
+              },
+              "created": "2020-03-04T05:06:30.000Z"
+            }
+          },
+          "metadata": {
+            "sequenceNumber": 2
+          }
+        }
+      ],
+      "graph": {
+        "resources": [
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-1",
+            "name": "Name of res-1",
+            "entityTypes": [],
+            "representations": [
+              {
+                "mediaType": "text/markdown",
+                "checksum": "sha256:res-1",
+                "rel": "original"
+              }
+            ],
+            "archived": false,
+            "dateCreated": "2020-03-04T05:06:01.000Z",
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          }
+        ],
+        "annotations": [],
+        "entityTypesAdded": []
+      },
+      "applied": {
+        "res-1": 1
+      },
+      "refused": 1
+    },
+    {
+      "why": "a refused event is refused alone: of three annotations added in one burst, the one with no creator is not applied, the two beside it are, and the applied mark stops before the refused one",
+      "history": [
+        {
+          "id": "evt-14",
+          "type": "yield:created",
+          "timestamp": "2020-03-04T05:06:01.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "name": "Name of res-1",
+            "format": "text/markdown",
+            "contentChecksum": "sha256:res-1",
+            "creator": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          },
+          "metadata": {
+            "sequenceNumber": 1
+          }
+        },
+        {
+          "id": "evt-15",
+          "type": "mark:added",
+          "timestamp": "2020-03-04T05:06:15.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-1",
+              "motivation": "linking",
+              "target": {
+                "source": "res-1"
+              },
+              "creator": {
+                "@type": "Person",
+                "@id": "did:web:example.org:users:ada",
+                "name": "Ada"
+              },
+              "created": "2020-03-04T05:06:30.000Z"
+            }
+          },
+          "metadata": {
+            "sequenceNumber": 2
+          }
+        },
+        {
+          "id": "evt-16",
+          "type": "mark:added",
+          "timestamp": "2020-03-04T05:06:16.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-2",
+              "motivation": "linking",
+              "target": {
+                "source": "res-1"
+              },
+              "created": "2020-03-04T05:06:30.000Z"
+            }
+          },
+          "metadata": {
+            "sequenceNumber": 3
+          }
+        },
+        {
+          "id": "evt-17",
+          "type": "mark:added",
+          "timestamp": "2020-03-04T05:06:17.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-3",
+              "motivation": "linking",
+              "target": {
+                "source": "res-1"
+              },
+              "creator": {
+                "@type": "Person",
+                "@id": "did:web:example.org:users:ada",
+                "name": "Ada"
+              },
+              "created": "2020-03-04T05:06:30.000Z"
+            }
+          },
+          "metadata": {
+            "sequenceNumber": 4
+          }
+        }
+      ],
+      "graph": {
+        "resources": [
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-1",
+            "name": "Name of res-1",
+            "entityTypes": [],
+            "representations": [
+              {
+                "mediaType": "text/markdown",
+                "checksum": "sha256:res-1",
+                "rel": "original"
+              }
+            ],
+            "archived": false,
+            "dateCreated": "2020-03-04T05:06:01.000Z",
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "@context": "http://www.w3.org/ns/anno.jsonld",
+            "type": "Annotation",
+            "id": "ann-1",
+            "motivation": "linking",
+            "target": {
+              "source": "res-1"
+            },
+            "creator": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            "created": "2020-03-04T05:06:30.000Z"
+          },
+          {
+            "@context": "http://www.w3.org/ns/anno.jsonld",
+            "type": "Annotation",
+            "id": "ann-3",
+            "motivation": "linking",
+            "target": {
+              "source": "res-1"
+            },
+            "creator": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            "created": "2020-03-04T05:06:30.000Z"
+          }
+        ],
+        "entityTypesAdded": []
+      },
+      "applied": {
+        "res-1": 2
+      },
+      "refused": 1
+    },
+    {
+      "why": "a removed annotation is gone, and removing one that is not there changes nothing",
+      "history": [
+        {
+          "id": "evt-18",
+          "type": "yield:created",
+          "timestamp": "2020-03-04T05:06:01.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "name": "Name of res-1",
+            "format": "text/markdown",
+            "contentChecksum": "sha256:res-1",
+            "creator": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          },
+          "metadata": {
+            "sequenceNumber": 1
+          }
+        },
+        {
+          "id": "evt-19",
+          "type": "mark:added",
+          "timestamp": "2020-03-04T05:06:19.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-1",
+              "motivation": "linking",
+              "target": {
+                "source": "res-1"
+              },
+              "creator": {
+                "@type": "Person",
+                "@id": "did:web:example.org:users:ada",
+                "name": "Ada"
+              },
+              "created": "2020-03-04T05:06:30.000Z"
+            }
+          },
+          "metadata": {
+            "sequenceNumber": 2
+          }
+        },
+        {
+          "id": "evt-20",
+          "type": "mark:added",
+          "timestamp": "2020-03-04T05:06:20.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-2",
+              "motivation": "linking",
+              "target": {
+                "source": "res-1"
+              },
+              "creator": {
+                "@type": "Person",
+                "@id": "did:web:example.org:users:ada",
+                "name": "Ada"
+              },
+              "created": "2020-03-04T05:06:30.000Z"
+            }
+          },
+          "metadata": {
+            "sequenceNumber": 3
+          }
+        },
+        {
+          "id": "evt-21",
+          "type": "mark:removed",
+          "timestamp": "2020-03-04T05:06:21.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "annotationId": "ann-1"
+          },
+          "metadata": {
+            "sequenceNumber": 4
+          }
+        },
+        {
+          "id": "evt-22",
+          "type": "mark:removed",
+          "timestamp": "2020-03-04T05:06:22.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "annotationId": "ann-never"
+          },
+          "metadata": {
+            "sequenceNumber": 5
+          }
+        }
+      ],
+      "graph": {
+        "resources": [
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-1",
+            "name": "Name of res-1",
+            "entityTypes": [],
+            "representations": [
+              {
+                "mediaType": "text/markdown",
+                "checksum": "sha256:res-1",
+                "rel": "original"
+              }
+            ],
+            "archived": false,
+            "dateCreated": "2020-03-04T05:06:01.000Z",
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "@context": "http://www.w3.org/ns/anno.jsonld",
+            "type": "Annotation",
+            "id": "ann-2",
+            "motivation": "linking",
+            "target": {
+              "source": "res-1"
+            },
+            "creator": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            "created": "2020-03-04T05:06:30.000Z"
+          }
+        ],
+        "entityTypesAdded": []
+      },
+      "applied": {
+        "res-1": 5
+      }
+    },
+    {
+      "why": "a link added to an annotation's body after it was made is held and read back, and the annotation is dated as changed when the record says the body was",
+      "history": [
+        {
+          "id": "evt-23",
+          "type": "yield:created",
+          "timestamp": "2020-03-04T05:06:01.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "name": "Name of res-1",
+            "format": "text/markdown",
+            "contentChecksum": "sha256:res-1",
+            "creator": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          },
+          "metadata": {
+            "sequenceNumber": 1
+          }
+        },
+        {
+          "id": "evt-24",
+          "type": "yield:created",
+          "timestamp": "2020-03-04T05:06:01.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-2",
+          "version": 1,
+          "payload": {
+            "name": "Name of res-2",
+            "format": "text/markdown",
+            "contentChecksum": "sha256:res-2",
+            "creator": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          },
+          "metadata": {
+            "sequenceNumber": 1
+          }
+        },
+        {
+          "id": "evt-25",
+          "type": "mark:added",
+          "timestamp": "2020-03-04T05:06:25.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-1",
+              "motivation": "linking",
+              "target": {
+                "source": "res-1"
+              },
+              "creator": {
+                "@type": "Person",
+                "@id": "did:web:example.org:users:ada",
+                "name": "Ada"
+              },
+              "created": "2020-03-04T05:06:30.000Z"
+            }
+          },
+          "metadata": {
+            "sequenceNumber": 2
+          }
+        },
+        {
+          "id": "evt-26",
+          "type": "mark:body-updated",
+          "timestamp": "2021-06-07T08:09:10.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "annotationId": "ann-1",
+            "operations": [
+              {
+                "op": "add",
+                "item": {
+                  "type": "SpecificResource",
+                  "source": "res-2",
+                  "purpose": "linking"
+                }
+              }
+            ]
+          },
+          "metadata": {
+            "sequenceNumber": 3
+          }
+        }
+      ],
+      "graph": {
+        "resources": [
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-1",
+            "name": "Name of res-1",
+            "entityTypes": [],
+            "representations": [
+              {
+                "mediaType": "text/markdown",
+                "checksum": "sha256:res-1",
+                "rel": "original"
+              }
+            ],
+            "archived": false,
+            "dateCreated": "2020-03-04T05:06:01.000Z",
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          },
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-2",
+            "name": "Name of res-2",
+            "entityTypes": [],
+            "representations": [
+              {
+                "mediaType": "text/markdown",
+                "checksum": "sha256:res-2",
+                "rel": "original"
+              }
+            ],
+            "archived": false,
+            "dateCreated": "2020-03-04T05:06:01.000Z",
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "@context": "http://www.w3.org/ns/anno.jsonld",
+            "type": "Annotation",
+            "id": "ann-1",
+            "motivation": "linking",
+            "target": {
+              "source": "res-1"
+            },
+            "creator": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            "created": "2020-03-04T05:06:30.000Z",
+            "body": [
+              {
+                "type": "SpecificResource",
+                "source": "res-2",
+                "purpose": "linking"
+              }
+            ],
+            "modified": "2021-06-07T08:09:10.000Z"
+          }
+        ],
+        "entityTypesAdded": []
+      },
+      "applied": {
+        "res-1": 3,
+        "res-2": 1
+      }
+    },
+    {
+      "why": "body operations apply in order to what the graph holds: a tag and a link added, then the link removed, leave the tag; the last change dates the annotation",
+      "history": [
+        {
+          "id": "evt-27",
+          "type": "yield:created",
+          "timestamp": "2020-03-04T05:06:01.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "name": "Name of res-1",
+            "format": "text/markdown",
+            "contentChecksum": "sha256:res-1",
+            "creator": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          },
+          "metadata": {
+            "sequenceNumber": 1
+          }
+        },
+        {
+          "id": "evt-28",
+          "type": "yield:created",
+          "timestamp": "2020-03-04T05:06:01.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-2",
+          "version": 1,
+          "payload": {
+            "name": "Name of res-2",
+            "format": "text/markdown",
+            "contentChecksum": "sha256:res-2",
+            "creator": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          },
+          "metadata": {
+            "sequenceNumber": 1
+          }
+        },
+        {
+          "id": "evt-29",
+          "type": "mark:added",
+          "timestamp": "2020-03-04T05:06:29.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-1",
+              "motivation": "linking",
+              "target": {
+                "source": "res-1"
+              },
+              "creator": {
+                "@type": "Person",
+                "@id": "did:web:example.org:users:ada",
+                "name": "Ada"
+              },
+              "created": "2020-03-04T05:06:30.000Z"
+            }
+          },
+          "metadata": {
+            "sequenceNumber": 2
+          }
+        },
+        {
+          "id": "evt-30",
+          "type": "mark:body-updated",
+          "timestamp": "2021-06-07T08:09:10.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "annotationId": "ann-1",
+            "operations": [
+              {
+                "op": "add",
+                "item": {
+                  "type": "TextualBody",
+                  "value": "Person",
+                  "purpose": "tagging"
+                }
+              },
+              {
+                "op": "add",
+                "item": {
+                  "type": "SpecificResource",
+                  "source": "res-2",
+                  "purpose": "linking"
+                }
+              }
+            ]
+          },
+          "metadata": {
+            "sequenceNumber": 3
+          }
+        },
+        {
+          "id": "evt-31",
+          "type": "mark:body-updated",
+          "timestamp": "2021-06-07T08:09:11.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "annotationId": "ann-1",
+            "operations": [
+              {
+                "op": "remove",
+                "item": {
+                  "type": "SpecificResource",
+                  "source": "res-2",
+                  "purpose": "linking"
+                }
+              }
+            ]
+          },
+          "metadata": {
+            "sequenceNumber": 4
+          }
+        }
+      ],
+      "graph": {
+        "resources": [
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-1",
+            "name": "Name of res-1",
+            "entityTypes": [],
+            "representations": [
+              {
+                "mediaType": "text/markdown",
+                "checksum": "sha256:res-1",
+                "rel": "original"
+              }
+            ],
+            "archived": false,
+            "dateCreated": "2020-03-04T05:06:01.000Z",
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          },
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-2",
+            "name": "Name of res-2",
+            "entityTypes": [],
+            "representations": [
+              {
+                "mediaType": "text/markdown",
+                "checksum": "sha256:res-2",
+                "rel": "original"
+              }
+            ],
+            "archived": false,
+            "dateCreated": "2020-03-04T05:06:01.000Z",
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "@context": "http://www.w3.org/ns/anno.jsonld",
+            "type": "Annotation",
+            "id": "ann-1",
+            "motivation": "linking",
+            "target": {
+              "source": "res-1"
+            },
+            "creator": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            "created": "2020-03-04T05:06:30.000Z",
+            "body": [
+              {
+                "type": "TextualBody",
+                "value": "Person",
+                "purpose": "tagging"
+              }
+            ],
+            "modified": "2021-06-07T08:09:11.000Z"
+          }
+        ],
+        "entityTypesAdded": []
+      },
+      "applied": {
+        "res-1": 4,
+        "res-2": 1
+      }
+    },
+    {
+      "why": "a replaced link is the new one alone; an item added again is there once",
+      "history": [
+        {
+          "id": "evt-32",
+          "type": "yield:created",
+          "timestamp": "2020-03-04T05:06:01.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "name": "Name of res-1",
+            "format": "text/markdown",
+            "contentChecksum": "sha256:res-1",
+            "creator": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          },
+          "metadata": {
+            "sequenceNumber": 1
+          }
+        },
+        {
+          "id": "evt-33",
+          "type": "yield:created",
+          "timestamp": "2020-03-04T05:06:01.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-2",
+          "version": 1,
+          "payload": {
+            "name": "Name of res-2",
+            "format": "text/markdown",
+            "contentChecksum": "sha256:res-2",
+            "creator": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          },
+          "metadata": {
+            "sequenceNumber": 1
+          }
+        },
+        {
+          "id": "evt-34",
+          "type": "yield:created",
+          "timestamp": "2020-03-04T05:06:01.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-3",
+          "version": 1,
+          "payload": {
+            "name": "Name of res-3",
+            "format": "text/markdown",
+            "contentChecksum": "sha256:res-3",
+            "creator": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          },
+          "metadata": {
+            "sequenceNumber": 1
+          }
+        },
+        {
+          "id": "evt-35",
+          "type": "mark:added",
+          "timestamp": "2020-03-04T05:06:35.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-1",
+              "motivation": "linking",
+              "target": {
+                "source": "res-1"
+              },
+              "creator": {
+                "@type": "Person",
+                "@id": "did:web:example.org:users:ada",
+                "name": "Ada"
+              },
+              "created": "2020-03-04T05:06:30.000Z",
+              "body": [
+                {
+                  "type": "TextualBody",
+                  "value": "Person",
+                  "purpose": "tagging"
+                },
+                {
+                  "type": "SpecificResource",
+                  "source": "res-2",
+                  "purpose": "linking"
+                }
+              ]
+            }
+          },
+          "metadata": {
+            "sequenceNumber": 2
+          }
+        },
+        {
+          "id": "evt-36",
+          "type": "mark:body-updated",
+          "timestamp": "2021-06-07T08:09:10.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "annotationId": "ann-1",
+            "operations": [
+              {
+                "op": "replace",
+                "oldItem": {
+                  "type": "SpecificResource",
+                  "source": "res-2",
+                  "purpose": "linking"
+                },
+                "newItem": {
+                  "type": "SpecificResource",
+                  "source": "res-3",
+                  "purpose": "linking"
+                }
+              },
+              {
+                "op": "add",
+                "item": {
+                  "type": "TextualBody",
+                  "value": "Person",
+                  "purpose": "tagging"
+                }
+              }
+            ]
+          },
+          "metadata": {
+            "sequenceNumber": 3
+          }
+        }
+      ],
+      "graph": {
+        "resources": [
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-1",
+            "name": "Name of res-1",
+            "entityTypes": [],
+            "representations": [
+              {
+                "mediaType": "text/markdown",
+                "checksum": "sha256:res-1",
+                "rel": "original"
+              }
+            ],
+            "archived": false,
+            "dateCreated": "2020-03-04T05:06:01.000Z",
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          },
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-2",
+            "name": "Name of res-2",
+            "entityTypes": [],
+            "representations": [
+              {
+                "mediaType": "text/markdown",
+                "checksum": "sha256:res-2",
+                "rel": "original"
+              }
+            ],
+            "archived": false,
+            "dateCreated": "2020-03-04T05:06:01.000Z",
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          },
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-3",
+            "name": "Name of res-3",
+            "entityTypes": [],
+            "representations": [
+              {
+                "mediaType": "text/markdown",
+                "checksum": "sha256:res-3",
+                "rel": "original"
+              }
+            ],
+            "archived": false,
+            "dateCreated": "2020-03-04T05:06:01.000Z",
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "@context": "http://www.w3.org/ns/anno.jsonld",
+            "type": "Annotation",
+            "id": "ann-1",
+            "motivation": "linking",
+            "target": {
+              "source": "res-1"
+            },
+            "creator": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            "created": "2020-03-04T05:06:30.000Z",
+            "body": [
+              {
+                "type": "TextualBody",
+                "value": "Person",
+                "purpose": "tagging"
+              },
+              {
+                "type": "SpecificResource",
+                "source": "res-3",
+                "purpose": "linking"
+              }
+            ],
+            "modified": "2021-06-07T08:09:10.000Z"
+          }
+        ],
+        "entityTypesAdded": []
+      },
+      "applied": {
+        "res-1": 3,
+        "res-2": 1,
+        "res-3": 1
+      }
+    },
+    {
+      "why": "a comment's text added to a body is not the graph's to hold: the body is as it was, and the annotation is still dated as changed",
+      "history": [
+        {
+          "id": "evt-37",
+          "type": "yield:created",
+          "timestamp": "2020-03-04T05:06:01.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "name": "Name of res-1",
+            "format": "text/markdown",
+            "contentChecksum": "sha256:res-1",
+            "creator": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          },
+          "metadata": {
+            "sequenceNumber": 1
+          }
+        },
+        {
+          "id": "evt-38",
+          "type": "mark:added",
+          "timestamp": "2020-03-04T05:06:38.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-1",
+              "motivation": "commenting",
+              "target": {
+                "source": "res-1"
+              },
+              "creator": {
+                "@type": "Person",
+                "@id": "did:web:example.org:users:ada",
+                "name": "Ada"
+              },
+              "created": "2020-03-04T05:06:30.000Z",
+              "body": [
+                {
+                  "type": "TextualBody",
+                  "value": "Person",
+                  "purpose": "tagging"
+                }
+              ]
+            }
+          },
+          "metadata": {
+            "sequenceNumber": 2
+          }
+        },
+        {
+          "id": "evt-39",
+          "type": "mark:body-updated",
+          "timestamp": "2021-06-07T08:09:10.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "annotationId": "ann-1",
+            "operations": [
+              {
+                "op": "add",
+                "item": {
+                  "type": "TextualBody",
+                  "value": "A note",
+                  "purpose": "commenting"
+                }
+              }
+            ]
+          },
+          "metadata": {
+            "sequenceNumber": 3
+          }
+        }
+      ],
+      "graph": {
+        "resources": [
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-1",
+            "name": "Name of res-1",
+            "entityTypes": [],
+            "representations": [
+              {
+                "mediaType": "text/markdown",
+                "checksum": "sha256:res-1",
+                "rel": "original"
+              }
+            ],
+            "archived": false,
+            "dateCreated": "2020-03-04T05:06:01.000Z",
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "@context": "http://www.w3.org/ns/anno.jsonld",
+            "type": "Annotation",
+            "id": "ann-1",
+            "motivation": "commenting",
+            "target": {
+              "source": "res-1"
+            },
+            "creator": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            "created": "2020-03-04T05:06:30.000Z",
+            "body": [
+              {
+                "type": "TextualBody",
+                "value": "Person",
+                "purpose": "tagging"
+              }
+            ],
+            "modified": "2021-06-07T08:09:10.000Z"
+          }
+        ],
+        "entityTypesAdded": []
+      },
+      "applied": {
+        "res-1": 3
+      }
+    },
+    {
+      "why": "a resource's entity tags are a set: one added twice is there once, and one removed is gone",
+      "history": [
+        {
+          "id": "evt-40",
+          "type": "yield:created",
+          "timestamp": "2020-03-04T05:06:01.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "name": "Name of res-1",
+            "format": "text/markdown",
+            "contentChecksum": "sha256:res-1",
+            "creator": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            "entityTypes": [
+              "Place"
+            ]
+          },
+          "metadata": {
+            "sequenceNumber": 1
+          }
+        },
+        {
+          "id": "evt-41",
+          "type": "mark:entity-tag-added",
+          "timestamp": "2020-03-04T05:06:41.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "entityType": "County"
+          },
+          "metadata": {
+            "sequenceNumber": 2
+          }
+        },
+        {
+          "id": "evt-42",
+          "type": "mark:entity-tag-added",
+          "timestamp": "2020-03-04T05:06:42.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "entityType": "County"
+          },
+          "metadata": {
+            "sequenceNumber": 3
+          }
+        },
+        {
+          "id": "evt-43",
+          "type": "mark:entity-tag-added",
+          "timestamp": "2020-03-04T05:06:43.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "entityType": "Seat"
+          },
+          "metadata": {
+            "sequenceNumber": 4
+          }
+        },
+        {
+          "id": "evt-44",
+          "type": "mark:entity-tag-removed",
+          "timestamp": "2020-03-04T05:06:44.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "entityType": "Place"
+          },
+          "metadata": {
+            "sequenceNumber": 5
+          }
+        },
+        {
+          "id": "evt-45",
+          "type": "mark:entity-tag-removed",
+          "timestamp": "2020-03-04T05:06:45.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "entityType": "Never"
+          },
+          "metadata": {
+            "sequenceNumber": 6
+          }
+        }
+      ],
+      "graph": {
+        "resources": [
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-1",
+            "name": "Name of res-1",
+            "entityTypes": [
+              "County",
+              "Seat"
+            ],
+            "representations": [
+              {
+                "mediaType": "text/markdown",
+                "checksum": "sha256:res-1",
+                "rel": "original"
+              }
+            ],
+            "archived": false,
+            "dateCreated": "2020-03-04T05:06:01.000Z",
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          }
+        ],
+        "annotations": [],
+        "entityTypesAdded": []
+      },
+      "applied": {
+        "res-1": 6
+      }
+    },
+    {
+      "why": "an entity type added to the knowledge base's vocabulary is in the graph's, beside the ones every knowledge base starts with",
+      "history": [
+        {
+          "id": "evt-46",
+          "type": "frame:entity-type-added",
+          "timestamp": "2020-03-04T05:06:46.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "version": 1,
+          "payload": {
+            "entityType": "Steamboat"
+          },
+          "metadata": {
+            "sequenceNumber": 1
+          }
+        },
+        {
+          "id": "evt-47",
+          "type": "frame:entity-type-added",
+          "timestamp": "2020-03-04T05:06:47.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "version": 1,
+          "payload": {
+            "entityType": "Steamboat"
+          },
+          "metadata": {
+            "sequenceNumber": 2
+          }
+        }
+      ],
+      "graph": {
+        "resources": [],
+        "annotations": [],
+        "entityTypesAdded": [
+          "Steamboat"
+        ]
+      },
+      "applied": {}
+    },
+    {
+      "why": "events of different resources reach the graph in no fixed order: a link applied before the resource it points at ends as the same graph",
+      "history": [
+        {
+          "id": "evt-48",
+          "type": "yield:created",
+          "timestamp": "2020-03-04T05:06:01.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "name": "Name of res-1",
+            "format": "text/markdown",
+            "contentChecksum": "sha256:res-1",
+            "creator": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          },
+          "metadata": {
+            "sequenceNumber": 1
+          }
+        },
+        {
+          "id": "evt-49",
+          "type": "mark:added",
+          "timestamp": "2020-03-04T05:06:49.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-1",
+              "motivation": "linking",
+              "target": {
+                "source": "res-1"
+              },
+              "creator": {
+                "@type": "Person",
+                "@id": "did:web:example.org:users:ada",
+                "name": "Ada"
+              },
+              "created": "2020-03-04T05:06:30.000Z",
+              "body": [
+                {
+                  "type": "SpecificResource",
+                  "source": "res-2",
+                  "purpose": "linking"
+                }
+              ]
+            }
+          },
+          "metadata": {
+            "sequenceNumber": 2
+          }
+        },
+        {
+          "id": "evt-50",
+          "type": "yield:created",
+          "timestamp": "2020-03-04T05:06:01.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-2",
+          "version": 1,
+          "payload": {
+            "name": "Name of res-2",
+            "format": "text/markdown",
+            "contentChecksum": "sha256:res-2",
+            "creator": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          },
+          "metadata": {
+            "sequenceNumber": 1
+          }
+        }
+      ],
+      "graph": {
+        "resources": [
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-1",
+            "name": "Name of res-1",
+            "entityTypes": [],
+            "representations": [
+              {
+                "mediaType": "text/markdown",
+                "checksum": "sha256:res-1",
+                "rel": "original"
+              }
+            ],
+            "archived": false,
+            "dateCreated": "2020-03-04T05:06:01.000Z",
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          },
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-2",
+            "name": "Name of res-2",
+            "entityTypes": [],
+            "representations": [
+              {
+                "mediaType": "text/markdown",
+                "checksum": "sha256:res-2",
+                "rel": "original"
+              }
+            ],
+            "archived": false,
+            "dateCreated": "2020-03-04T05:06:01.000Z",
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "@context": "http://www.w3.org/ns/anno.jsonld",
+            "type": "Annotation",
+            "id": "ann-1",
+            "motivation": "linking",
+            "target": {
+              "source": "res-1"
+            },
+            "creator": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            "created": "2020-03-04T05:06:30.000Z",
+            "body": [
+              {
+                "type": "SpecificResource",
+                "source": "res-2",
+                "purpose": "linking"
+              }
+            ]
+          }
+        ],
+        "entityTypesAdded": []
+      },
+      "applied": {
+        "res-1": 2,
+        "res-2": 1
+      }
+    },
+    {
+      "why": "a link to a resource the graph is never given is still the annotation's link, and its target is no resource of the graph's",
+      "history": [
+        {
+          "id": "evt-51",
+          "type": "yield:created",
+          "timestamp": "2020-03-04T05:06:01.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "name": "Name of res-1",
+            "format": "text/markdown",
+            "contentChecksum": "sha256:res-1",
+            "creator": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          },
+          "metadata": {
+            "sequenceNumber": 1
+          }
+        },
+        {
+          "id": "evt-52",
+          "type": "mark:added",
+          "timestamp": "2020-03-04T05:06:52.000Z",
+          "userId": "did:web:example.org:users:ada",
+          "resourceId": "res-1",
+          "version": 1,
+          "payload": {
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-1",
+              "motivation": "linking",
+              "target": {
+                "source": "res-1"
+              },
+              "creator": {
+                "@type": "Person",
+                "@id": "did:web:example.org:users:ada",
+                "name": "Ada"
+              },
+              "created": "2020-03-04T05:06:30.000Z",
+              "body": [
+                {
+                  "type": "SpecificResource",
+                  "source": "res-absent",
+                  "purpose": "linking"
+                }
+              ]
+            }
+          },
+          "metadata": {
+            "sequenceNumber": 2
+          }
+        }
+      ],
+      "graph": {
+        "resources": [
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-1",
+            "name": "Name of res-1",
+            "entityTypes": [],
+            "representations": [
+              {
+                "mediaType": "text/markdown",
+                "checksum": "sha256:res-1",
+                "rel": "original"
+              }
+            ],
+            "archived": false,
+            "dateCreated": "2020-03-04T05:06:01.000Z",
+            "wasAttributedTo": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            }
+          }
+        ],
+        "annotations": [
+          {
+            "@context": "http://www.w3.org/ns/anno.jsonld",
+            "type": "Annotation",
+            "id": "ann-1",
+            "motivation": "linking",
+            "target": {
+              "source": "res-1"
+            },
+            "creator": {
+              "@type": "Person",
+              "@id": "did:web:example.org:users:ada",
+              "name": "Ada"
+            },
+            "created": "2020-03-04T05:06:30.000Z",
+            "body": [
+              {
+                "type": "SpecificResource",
+                "source": "res-absent",
+                "purpose": "linking"
+              }
+            ]
+          }
+        ],
+        "entityTypesAdded": []
+      },
+      "applied": {
+        "res-1": 2
+      }
+    }
+  ]
+}
