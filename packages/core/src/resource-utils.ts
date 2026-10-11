@@ -128,12 +128,10 @@ export function isDraft(resource: ResourceDescriptor | undefined): boolean {
 
 /**
  * A representation's bytes as the text they are, for a media type whose bytes
- * are its text: read as specs/src/text/decode-cases.json states, the table
- * every reader of a resource's text runs. In the charset the media type
- * states, UTF-8 when it states none; a leading byte-order mark is not part of
- * the text; and a sequence the encoding does not have is U+FFFD. An offset
- * counts the code points of this text, so every reader makes the same text of
- * the same bytes.
+ * are its text. The reading is `decodeWithCharset`'s, which keeps the rule
+ * every reader of a resource's text keeps (docs/protocol/W3C-SELECTORS.md,
+ * "The text of a resource"). An offset counts the code points of this text,
+ * so every reader makes the same text of the same bytes.
  *
  * @param buffer - The raw representation data
  * @param mediaType - Media type with optional charset (e.g., "text/plain; charset=iso-8859-1")

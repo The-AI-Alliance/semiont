@@ -185,7 +185,8 @@ each of its models can take.
 - **J2.** Where the text comes from follows the media type's `textSource` in
   the [media-type registry](../../specs/src/media-types/registry.json). For
   `decode`, the text is the resource's bytes, read from the gateway (`GET
-  /resources/{id}`, under the agent's token) and decoded. For
+  /resources/{id}`, under the agent's token) and decoded as
+  [W3C-SELECTORS.md](W3C-SELECTORS.md#the-text-of-a-resource) says. For
   `pdf-text-layer`, the text is the Smelter's, asked for on the bus
   (`browse:anchored-text-requested` with the `resourceId`), and the service
   reads no bytes. For `none`, the job is not done ([N3](#declines)).

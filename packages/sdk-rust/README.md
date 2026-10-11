@@ -45,7 +45,7 @@ machine.
 
 | Feature | What it adds |
 |---|---|
-| `charsets` | A resource's text in any charset the Encoding Standard names, as a browser reads it. Without the feature, `browse.resource_content` reads UTF-8 and refuses any other charset by name. `browse.resource_representation` gives the bytes either way. |
+| `charsets` | A resource's text in every encoding the Encoding Standard has, read as a browser reads it: by [the rule every Semiont reader keeps](../../docs/protocol/W3C-SELECTORS.md#the-text-of-a-resource). Without the feature, `browse.resource_content` reads UTF-8 alone, by the same rule, and refuses by name any other charset and bytes that begin with UTF-16's mark. `browse.resource_representation` gives the bytes either way. |
 | `testing` | Doubles and harnesses for the tests of code built on the client. See [Testing your code](#testing-your-code). |
 
 Every type and method is documented on [docs.rs](https://docs.rs/semiont).

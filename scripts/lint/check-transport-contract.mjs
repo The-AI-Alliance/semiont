@@ -2,10 +2,12 @@
 /**
  * lint:transport-contract — the contract documents and the conformance
  * corpus name each other truthfully. The documents are the two transport
- * ones, the worker contract and the Worker service's.
+ * ones, the worker contract, the Worker service's, and the selectors' page,
+ * for its rules of what text a resource's bytes are.
  *
  * - Every rule's `*Held by …*` in docs/protocol/TRANSPORT-CONTRACT.md,
- *   TRANSPORT-HTTP.md, WORKER-CONTRACT.md and WORKER-SERVICE.md names cases
+ *   TRANSPORT-HTTP.md, WORKER-CONTRACT.md, WORKER-SERVICE.md and
+ *   W3C-SELECTORS.md names cases
  *   that exist: `sdk/wire/<case>`, `sdk/live/<case>` (a file, or a case built
  *   from a row of specs/src/client/refresh.json), `worker/<case>`,
  *   `worker-service/<case>`, `gateway/<file>`, `dispatcher/<file>`, or a path
@@ -30,7 +32,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const WORKER_SERVICE_DOC = 'docs/protocol/WORKER-SERVICE.md';
-const DOCS = ['docs/protocol/TRANSPORT-CONTRACT.md', 'docs/protocol/TRANSPORT-HTTP.md', 'docs/protocol/WORKER-CONTRACT.md', WORKER_SERVICE_DOC];
+const DOCS = ['docs/protocol/TRANSPORT-CONTRACT.md', 'docs/protocol/TRANSPORT-HTTP.md', 'docs/protocol/WORKER-CONTRACT.md', WORKER_SERVICE_DOC, 'docs/protocol/W3C-SELECTORS.md'];
 const SDK = 'tests/conformance/sdk';
 const WORKER = 'tests/conformance/worker/cases';
 const WORKER_SERVICE = 'tests/conformance/worker-service';

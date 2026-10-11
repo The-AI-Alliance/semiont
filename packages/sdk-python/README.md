@@ -571,6 +571,13 @@ def describe(annotation: Annotation) -> str:
   nothing a knowledge base relies on rests on them.
 - **An offset counts Unicode code points**, which is what a `str` is indexed
   by: `text[span.start:span.end]` is `span.exact`.
+- **The text it is counted in is `client.browse.resource_content`'s**: the
+  resource's bytes read as a browser reads them, by
+  [the rule every Semiont reader keeps][resource-text]. The charset is the one
+  the content type states and a label of the Encoding Standard, a byte-order
+  mark decides over it, and what the encoding does not have is U+FFFD. A
+  charset that is not decoded raises `TransportError`, and
+  `client.browse.resource_representation` gives the bytes.
 - **A span is checked before anything is built.** One that is not the
   text's raises `SpanRefusedError`, and its `code` says which of seven
   refusals it is: `span-out-of-range`, `exact-mismatch`, `prefix-mismatch`,
@@ -841,9 +848,11 @@ resource is cloned by, `password`, `apiKey` and the rest of the
 
 Nothing here restates the protocol by hand. `identifiers`, `types`,
 `channels`, `operations`, `error_codes`, `timing`, `refresh`,
-`telemetry_table`, `oauth_clients`, `sign_in` and `media_types_table` are
-generated from the [specification][specs], and a gate in CI fails when one of
-them differs from what the specification generates.
+`telemetry_table`, `oauth_clients`, `sign_in`, `media_types_table` and
+`_encodings` (the Encoding Standard's labels and single-byte encodings, by
+which a resource's text is read) are generated from the
+[specification][specs], and a gate in CI fails when one of them differs from
+what the specification generates.
 
 ## Working on it
 
@@ -881,6 +890,7 @@ Apache-2.0. See [LICENSE][license].
 [reconcile-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/annotations/reconcile-cases.json
 [builder-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/annotations/builder-cases.json
 [id-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/annotations/id-cases.json
+[resource-text]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/W3C-SELECTORS.md#the-text-of-a-resource
 [sign-in-store]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/sign-in-store/README.md
 [telemetry]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/sdk-telemetry/telemetry.json
 [bus-log]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/EVENT-BUS.md#wire-format-the-bus-log

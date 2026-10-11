@@ -6,11 +6,11 @@ All of them are plain functions in the main import, which runs in a browser as w
 
 ## Text Encoding
 
-Character set utilities for consistent text encoding across the system. Critical for maintaining TextPositionSelector offset accuracy when documents use non-UTF-8 encodings.
+What text a resource's bytes are. The rule is protocol: [the text of a resource](../../../docs/protocol/W3C-SELECTORS.md#the-text-of-a-resource) states it, as the MIME Sniffing Standard reads a content type and the Encoding Standard reads the bytes, and every reader of a resource keeps it. A TextPositionSelector's offsets are counted in that text, so a reader that made another text of the same bytes would count into the wrong place.
 
 ### Extract Charset
 
-Extract charset parameter from media type string:
+The charset a media type states: its `charset` parameter, in lower case, without quotation marks or the white space around it.
 
 ```typescript
 import { extractCharset } from '@semiont/core';
@@ -23,11 +23,14 @@ const charset2 = extractCharset('text/markdown');
 
 const charset3 = extractCharset('text/html; charset=UTF-8');
 // Returns: 'utf-8' (normalized to lowercase)
+
+const charset4 = extractCharset('text/plain; charset="utf-16le"; format=flowed');
+// Returns: 'utf-16le' (a quoted value is what is between the quotation marks)
 ```
 
 ### Decode with Charset
 
-Decode binary data using the charset from media type:
+A resource's bytes as the text they are. This is the one reader TypeScript has: the SDK's `browse.resourceContent`, the Browser and, through `decodeRepresentation`, the Node services all read with it.
 
 ```typescript
 import { decodeWithCharset } from '@semiont/core';
@@ -64,13 +67,15 @@ const span = reconcile(rightText, { exact: 'café' });
 // Offsets will be CORRECT
 ```
 
-**Supported Charsets:**
+**What it reads:**
 
-- `utf-8` (default)
-- `iso-8859-1` through `iso-8859-15` (Latin-1 through Latin-9)
-- `windows-1252`, `windows-1251`, etc.
-- `ascii`, `us-ascii`
-- `utf-16le`, `utf-16be`
+- The charset is a label of the [Encoding Standard](https://encoding.spec.whatwg.org/), and names the encoding the standard gives it: `iso-8859-1`, `latin1` and `ascii` are windows-1252.
+- With no charset stated, UTF-8.
+- Bytes that begin with the byte-order mark of UTF-8, UTF-16BE or UTF-16LE are in that encoding, whatever charset was stated, and the mark is not part of the text.
+- What the encoding does not have is U+FFFD.
+- A charset that is no label of the standard, or that the platform's `TextDecoder` does not decode, throws a `SemiontError` whose `code` is `error` and whose message names the charset. Nothing is read as UTF-8 in its place.
+
+The cases are [`specs/src/text/decode-cases.json`](../../../specs/src/text/decode-cases.json) and [`specs/src/text/encoding-cases.json`](../../../specs/src/text/encoding-cases.json), which the Rust and Python SDKs' readers run too.
 
 ## Text Context Extraction
 
@@ -392,7 +397,7 @@ const draft = isDraft(resource);
 
 ### Decode Resource Content
 
-Read a representation's bytes as the text they are, for a media type whose bytes are its text. The reading is the one [`specs/src/text/decode-cases.json`](../../../specs/src/text/decode-cases.json) states and every reader of a resource's text runs: in the charset the media type states, UTF-8 when it states none, with a leading byte-order mark left out and a sequence the encoding does not have read as U+FFFD. An offset counts the code points of that text, so every reader makes the same text of the same bytes.
+Read a representation's bytes as the text they are, for a media type whose bytes are its text. The reading is `decodeWithCharset`'s, above: the one every reader of a resource's text keeps.
 
 ```typescript
 import { decodeRepresentation, getPrimaryRepresentation, getPrimaryMediaType, type ResourceDescriptor } from '@semiont/core';

@@ -951,8 +951,9 @@ jobs:
       # Authority: specs/src → the Python SDK's committed modules
       # (packages/sdk-python/src/semiont): the bus vocabulary, the kinds of id,
       # the error codes, the client's timing, its refresh table, the telemetry
-      # it exports, the clients it signs in as, the entry of the sign-in store
-      # and the media types. TypeScript and Rust build theirs from the same files at build
+      # it exports, the clients it signs in as, the entry of the sign-in store,
+      # the media types, and the Encoding Standard's labels and single-byte
+      # encodings. TypeScript and Rust build theirs from the same files at build
       # time; Python has no build, so its are committed, and are what can go
       # stale.
       - name: Spec tables vs the Python SDK's generated modules
@@ -966,6 +967,7 @@ jobs:
           node scripts/spec/generate-oauth-clients-python.mjs --check
           node scripts/spec/generate-sign-in-python.mjs --check
           node scripts/spec/generate-media-types-python.mjs --check
+          node scripts/spec/generate-encodings-python.mjs --check
 
       # Authority: specs/src/media-types/registry.json → Go
       # (packages/sdk-go/mediatypes). The TypeScript and Rust tables are built
@@ -1032,16 +1034,28 @@ jobs:
       # no copy: an image's build makes the file with the same script. This
       # one is the tests' fixture, real data at the pin, so the script, the
       # package's reader and the pin are held to each other. A bump of the pin
-      # without `npm run generate:model-catalogue` fails here. This is the one
-      # check of this job that reads an installed package, so it installs
-      # first: the root's own dependencies at the lockfile's versions, without
-      # the workspaces' and without running any package's scripts. It is the
-      # job's last step, so that no other check runs with a node_modules it
-      # did not have before.
+      # without `npm run generate:model-catalogue` fails here. This and the
+      # next are the checks of this job that read an installed package, so
+      # this one installs first: the root's own dependencies at the lockfile's
+      # versions, without the workspaces' and without running any package's
+      # scripts. They are the job's last steps, so that no other check runs
+      # with a node_modules it did not have before.
       - name: models.dev catalogue vs the inference tests' catalogue file
         run: |
           npm ci --workspaces=false --ignore-scripts
           npm run generate:model-catalogue:check
+
+      # Authority: the Encoding Standard, as two implementations of it have
+      # it → specs/src/text/encoding-cases.json, the table every reader of a
+      # resource's text runs: every label of the standard, and every byte of
+      # each of its single-byte encodings. The labels are read from the npm
+      # package @exodus/bytes at the one version the root package.json pins,
+      # and the bytes from this job's Node, whose TextDecoder must take every
+      # label as that package's table has it. The Rust SDK's tests then hold
+      # the table to encoding_rs. A bump of the pin without
+      # `npm run generate:encoding-cases` fails here when the table changes.
+      - name: Encoding Standard vs the table of its labels and single-byte encodings
+        run: npm run generate:encoding-cases:check
 
   test-launcher:
     name: Launcher Tests (Go)

@@ -21,7 +21,10 @@
 //! - `cache_refresh.rs`: what each event on the bus, and the reopening of a
 //!   dropped stream, does to a client's cache (client/refresh.json);
 //! - `media_types.rs`: the media types a knowledge base admits and what the
-//!   system can do with each (media-types/registry.json).
+//!   system can do with each (media-types/registry.json);
+//! - `utf8_labels.rs`: the labels of UTF-8 in the Encoding Standard, which
+//!   the reader of a resource's text has without the `charsets` feature
+//!   (text/encoding-cases.json).
 
 use semiont_codegen::bundle::{Bundle, draft7_definitions, read_json};
 use semiont_codegen::types::{Generation, generate, pascal};
@@ -273,6 +276,33 @@ fn main() {
         media_types(&read_json(&specs.join("media-types/registry.json"))),
     )
     .expect("cannot write media_types.rs");
+    fs::write(
+        out.join("utf8_labels.rs"),
+        utf8_labels(&read_json(&specs.join("text/encoding-cases.json"))),
+    )
+    .expect("cannot write utf8_labels.rs");
+}
+
+/// The labels of UTF-8, as the table of the Encoding Standard's labels has
+/// them. With the `charsets` feature `encoding_rs` has every label; without
+/// it the reader decodes UTF-8 alone, and these are how it knows a charset
+/// is UTF-8.
+fn utf8_labels(table: &Value) -> String {
+    let utf8 = list(&table["cases"], "cases")
+        .iter()
+        .find(|case| case["encoding"] == "utf-8")
+        .expect("the table of encodings has no utf-8");
+    let labels: Vec<&str> = list(&utf8["labels"], "utf-8's labels")
+        .iter()
+        .map(|label| label.as_str().expect("a label is text"))
+        .collect();
+    assert!(
+        labels.contains(&"utf-8"),
+        "utf-8 is not among its own labels"
+    );
+    format!(
+        "// Generated from specs/src/text/encoding-cases.json; do not edit.\n/// Every label of UTF-8 in the Encoding Standard, in lower case.\nconst UTF_8_LABELS: &[&str] = &{labels:?};\n"
+    )
 }
 
 /// The registry as an enum per vocabulary, a row per media type in the
