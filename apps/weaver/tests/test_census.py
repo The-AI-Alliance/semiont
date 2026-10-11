@@ -216,7 +216,9 @@ def test_it_opens_no_file_of_the_record() -> None:
     # It reads history from the Archivist, over the bus. What touches a file is the module that keeps its marks, the
     # one that reads its document, and the one that reads the process's environment and names where the marks go.
     touching = sorted(
-        str(path.relative_to(SRC)) for path in SRC.rglob("*.py") if re.search(r"\bPath\b|\bopen\(|\bos\.\w", path.read_text(encoding="utf-8"))
+        str(path.relative_to(SRC))
+        for path in SRC.rglob("*.py")
+        if re.search(r"\bPath\b|\bopen\(|\bos\.\w", path.read_text(encoding="utf-8"))
     )
     assert touching == ["checkpoint.py", "config.py", "service.py"]
 

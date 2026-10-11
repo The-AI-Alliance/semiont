@@ -7,8 +7,9 @@ set -euo pipefail
 # launcher (SEMIONT_SUPERVISE), so this gate can only prove an image is
 # CAPABLE of it: tini as PID 1, a boot entrypoint that branches on the flag,
 # the shared supervisor on board, and a conventional exec-form CMD (`node`
-# on an entry module, or the gateway's binary) — the single statement of
-# what the image runs, in both modes. The launcher
+# on an entry module, a Rust service's binary, or `python -P -m` on a Python
+# service's module) — the single statement of what the image runs, in both
+# modes. The launcher
 # half (launcher_test.go) proves local runs actually pass the flag; landing
 # one half without the other is silent unsupervised operation.
 #
@@ -58,9 +59,11 @@ for df in apps/*/Dockerfile; do
   fi
 
   # CMD is the conventional exec form a Kubernetes user expects to see, and
-  # the ONLY statement of the entry path.
-  if ! grep -qE '^CMD \[("node", "/[^"]+\.js"|"/usr/local/bin/[a-z-]+")(, "[^"]+")*\]$' "$df"; then
-    echo "❌ supervision: $df has no exec-form CMD [\"node\", \"<entry>.js\", <args>...] or [\"/usr/local/bin/<binary>\", <args>...]"
+  # the ONLY statement of the entry path. A Python service is run as a module
+  # with `-P`, which keeps the working directory off its import path: a file
+  # in the directory it is started in is never a module it imports.
+  if ! grep -qE '^CMD \[("node", "/[^"]+\.js"|"/usr/local/bin/[a-z-]+"|"python", "-P", "-m", "[a-z_]+")(, "[^"]+")*\]$' "$df"; then
+    echo "❌ supervision: $df has no exec-form CMD [\"node\", \"<entry>.js\", <args>...], [\"/usr/local/bin/<binary>\", <args>...] or [\"python\", \"-P\", \"-m\", \"<module>\", <args>...]"
     FAIL=1
   fi
   if sed -n '/^CMD/,$p' "$df" | grep -q "supervise.sh"; then

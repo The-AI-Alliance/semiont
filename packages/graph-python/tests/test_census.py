@@ -10,6 +10,7 @@ clock. And what this package's manifest says a second time, after the SDK's,
 says the same.
 """
 
+import ast
 import importlib
 import re
 import tomllib
@@ -123,8 +124,9 @@ def test_the_public_modules_and_their_names_are_the_ones_the_design_lists() -> N
 
 def test_a_public_name_is_imported_from_its_module_and_not_from_the_packages_root() -> None:
     # One path to each name, as the SDK has it. It is also why importing the package imports no database's client.
-    root_source = (SRC / "__init__.py").read_text(encoding="utf-8")
-    assert not re.search(r"^\s*(import|from)\s", root_source, re.MULTILINE), "the package's root imports something"
+    # Read as Python, and not as text: the root's docstring has a line that begins with the word "from".
+    root_statements = ast.parse((SRC / "__init__.py").read_text(encoding="utf-8")).body
+    assert not [held for held in root_statements if isinstance(held, ast.Import | ast.ImportFrom)], "the package's root imports something"
     root = importlib.import_module("semiont_graph")
     assert not hasattr(root, "__all__")
     for module, names in SURFACE.items():
@@ -163,10 +165,10 @@ def test_a_client_is_named_only_by_the_module_that_asks_through_it() -> None:
     assert importing("gremlin_python") == []
     assert naming("gremlin_python") == ["_gremlin.py"]
     assert importing(r"semiont_graph\._gremlin") == ["janusgraph.py", "neptune.py"]
-    # The interface and the codec name no store, and so no client.
-    for module in ("interface.py", "codec.py", "_query.py", "_vocabulary.py"):
-        source = (SRC / module).read_text(encoding="utf-8")
-        assert not re.search(r"semiont_graph\.(neo4j|janusgraph|neptune|memory|_gremlin|factory)\b", source), module
+    # The interface, the codec and what they share import no store, and so no client.
+    for store in ("neo4j", "janusgraph", "neptune", "memory", "_gremlin", "factory"):
+        imported_by = set(importing(rf"semiont_graph\.{store}"))
+        assert not imported_by & {"interface.py", "codec.py", "_query.py", "_vocabulary.py"}, store
 
 
 def test_the_factory_imports_a_store_where_its_database_is_asked_for_and_not_before() -> None:
@@ -238,7 +240,8 @@ def test_what_every_install_has_is_what_the_package_imports_without_a_databases_
     for library in ("pydantic", "semiont"):
         assert importing(library), f"{library} is required and nothing imports it"
     # A dependency the SDK bounds is named here without a bound of its own.
-    bounded = {name_of(requirement) for requirement in listed(table(toml(SDK / "pyproject.toml")["project"], "project")["dependencies"], "its")}
+    of_the_sdk = listed(table(toml(SDK / "pyproject.toml")["project"], "project")["dependencies"], "the SDK's dependencies")
+    bounded = {name_of(requirement) for requirement in of_the_sdk}
     assert "pydantic" in bounded
     for requirement in required:
         if name_of(requirement) in bounded:
