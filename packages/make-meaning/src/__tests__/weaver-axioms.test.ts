@@ -34,6 +34,7 @@ import {
   faultingGraph,
   failKeys,
   failKeysOnce,
+  RECORDED_BY,
 } from './helpers/weaver-harness';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -88,6 +89,7 @@ function toHistory(cat: Catalog, ops: OpDescriptor[]): StoredEvent[] {
       name: `Resource ${rid}`,
       format: 'text/plain',
       contentChecksum: `cs-${rid}`,
+      wasAttributedTo: RECORDED_BY,
     }, 1),
   );
 
@@ -228,7 +230,7 @@ describe('W5 — rebuild ≡ replay', () => {
     const rig = await buildWeaverRig();
     const history = [
       storedEvent('yield:created', 'res-f', {
-        name: 'F', format: 'text/plain', contentChecksum: 'cs-f',
+        name: 'F', format: 'text/plain', contentChecksum: 'cs-f', wasAttributedTo: RECORDED_BY,
       }, 1),
       storedEvent('frame:entity-type-added', undefined, { entityType: 'CustomFrameType' }, 1001),
     ];
@@ -541,7 +543,7 @@ describe('W9 — reconcile detects and heals out-of-band divergence', () => {
     const rig = await buildWeaverRig();
     const rid = 'res-deep';
     const history = [
-      storedEvent('yield:created', rid, { name: 'Deep', format: 'text/plain', contentChecksum: 'cs-d' }, 1),
+      storedEvent('yield:created', rid, { name: 'Deep', format: 'text/plain', contentChecksum: 'cs-d', wasAttributedTo: RECORDED_BY }, 1),
       storedEvent('mark:added', rid, { annotation: makeAnnotationPayload('ann-deep', rid) }, 2),
     ];
     const stopServing = serveHistory(rig.eventBus, history);
@@ -635,7 +637,7 @@ describe('W1 — per-resource mutual exclusion (pipeline path)', () => {
   it.fails('W1-strict: a rebuild racing live traffic never loses the live write', async () => {
     const rid = 'res-race';
     const history = [
-      storedEvent('yield:created', rid, { name: 'Race', format: 'text/plain', contentChecksum: 'cs-r' }, 1),
+      storedEvent('yield:created', rid, { name: 'Race', format: 'text/plain', contentChecksum: 'cs-r', wasAttributedTo: RECORDED_BY }, 1),
     ];
     const inner = new MemoryGraphDatabase();
     let releaseClear: () => void = () => {};

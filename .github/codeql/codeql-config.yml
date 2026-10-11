@@ -47,8 +47,10 @@ paths:
   # The Python SDK and the Python inference drivers: what each wheel holds
   - packages/sdk-python/src
   - packages/inference-python/src
-  # The Worker service's Python code
+  - packages/graph-python/src
+  # The Worker service's and the Weaver's Python code
   - apps/worker/src
+  - apps/weaver/src
 
 paths-ignore:
   - apps/launcher/testdata

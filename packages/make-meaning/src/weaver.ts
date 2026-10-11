@@ -45,7 +45,7 @@
 
 import { Subject, Subscription, from, type Observable } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
-import { didToAgent, burstBuffer, errField, busRequest } from '@semiont/core';
+import { burstBuffer, errField, busRequest } from '@semiont/core';
 import { SYSTEM_SCOPE } from '@semiont/core';
 import type { BusFrame, BusRequestPrimitive, EventMap } from '@semiont/core';
 import type { GraphDatabase } from '@semiont/graph';
@@ -791,12 +791,20 @@ export class Weaver {
       dateCreated: event.timestamp,
       // Who it is by, as the record derived it when it recorded the event:
       // the party that asked, and the software that did the work when the
-      // two differ. Readers do not derive it again. An event from before the
-      // record derived any carries none, and the Archivist's view then
-      // attributes the resource to the party that sent the event; the graph
-      // says what the view says.
-      wasAttributedTo: event.payload.wasAttributedTo ?? [didToAgent(event.userId)],
+      // two differ. Readers do not derive it again, and the graph makes none
+      // up: an event that records no attribution is refused, by name.
+      wasAttributedTo: this.recordedAttribution(event.payload.wasAttributedTo, event),
     };
+  }
+
+  private recordedAttribution<A>(attribution: A | undefined, event: StoredEvent): A {
+    if (attribution === undefined) {
+      throw new Error(
+        `${event.type} ${event.id} (resource ${event.resourceId}, sequence ${event.metadata.sequenceNumber}) ` +
+          'records no wasAttributedTo',
+      );
+    }
+    return attribution;
   }
 
   /**

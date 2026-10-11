@@ -113,10 +113,7 @@ fi
 # party that SENT the event, so the graph named the model as the creator of
 # what a person had asked for.
 #
-# `Date.now()` is not a stored value: it bounds a wait. And one `didToAgent`
-# remains by name: a `yield:created` from before the record derived any
-# attribution carries none, and the graph then says what the Archivist's view
-# says of the same event.
+# `Date.now()` is not a stored value: it bounds a wait.
 # ---------------------------------------------------------------------------
 G7_CLOCK=$(grep -nE "new Date\(" "$WEAVER" || true)
 if [ -n "$G7_CLOCK" ]; then
@@ -124,7 +121,7 @@ if [ -n "$G7_CLOCK" ]; then
   echo "$G7_CLOCK"
   FAIL=1
 fi
-G7_AGENT=$(grep -nE "didToAgent\(" "$WEAVER" | grep -v "event\.payload\.wasAttributedTo ?? \[didToAgent(event\.userId)\]" || true)
+G7_AGENT=$(grep -nE "didToAgent" "$WEAVER" || true)
 if [ -n "$G7_AGENT" ]; then
   echo "❌ G7: weaver.ts derives an agent from who sent an event. The record carries who it is by:"
   echo "$G7_AGENT"

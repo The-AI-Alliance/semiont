@@ -154,8 +154,9 @@ updates:
       prefix: "sdk-go"
       include: "scope"
 
-  # The Python projects: the SDK, the inference drivers Semiont's Python
-  # services are built from, and the Worker service (apps/worker). Their
+  # The Python projects: the SDK, the inference drivers and the graph stores
+  # Semiont's Python services are built from, and the two services themselves,
+  # the Worker (apps/worker) and the Weaver (apps/weaver). Their
   # runtime dependencies, and the tools their gates are made of. The type
   # checkers, the formatter and the SDK's model generator are pinned to a
   # version each, because what they say of a package, and what the generator
@@ -163,15 +164,17 @@ updates:
   # generator or the formatter it comes with a regenerated types.py. A bump of
   # Anthropic's library is a change to read too: anthropic.py lists what the
   # driver leans on in it.
-  # One entry for the three, and a group for each tool they all pin: the
-  # inference package's tests and the worker's hold their pins to the SDK's,
+  # One entry for them all, and a group for each tool they all pin: every
+  # project's tests but the SDK's hold its pins to the SDK's,
   # so a tool moves in every manifest in one PR, and a gate that goes red
   # names the tool.
   - package-ecosystem: "uv"
     directories:
       - "/packages/sdk-python"
       - "/packages/inference-python"
+      - "/packages/graph-python"
       - "/apps/worker"
+      - "/apps/weaver"
     cooldown:
       default-days: 5
     schedule:

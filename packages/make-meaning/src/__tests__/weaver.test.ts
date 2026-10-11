@@ -70,12 +70,12 @@ function createEventLog(bus: EventBus) {
 const tick = (ms = 350) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
- * Who a recorded annotation is by. The knowledge base derives a creator for
- * every annotation it records, and the fold stores that one: an annotation
- * with none is refused, so every `mark:added` here carries it, as a recorded
- * one does.
+ * Who a recorded annotation or resource is by. The knowledge base derives it
+ * for everything it records, and the fold stores that: an event that records
+ * none is refused, so every `mark:added` and `yield:created` here carries it,
+ * as a recorded one does.
  */
-const RECORDED_CREATOR = { '@type': 'Person' as const, '@id': 'did:web:test:users:asker', name: 'Asker' };
+const RECORDED_CREATOR = { '@type': 'Person' as const, '@id': 'did:web:test:users:asker' };
 
 // Mock logger
 const mockLogger: Logger = {
@@ -215,6 +215,7 @@ describe('Weaver', () => {
           format: 'text/plain',
           contentChecksum: 'h1',
           storageUri: 'file://docs/has-bytes.md',
+          wasAttributedTo: RECORDED_CREATOR,
         },
       });
 
@@ -236,7 +237,7 @@ describe('Weaver', () => {
         resourceId: docId,
         userId: userId('did:web:test:users:user1'),
         version: 1,
-        payload: { name: 'No bytes', format: 'text/plain', contentChecksum: 'h2' },
+        payload: { name: 'No bytes', format: 'text/plain', contentChecksum: 'h2', wasAttributedTo: RECORDED_CREATOR },
       });
 
       await tick();
@@ -259,7 +260,7 @@ describe('Weaver', () => {
         resourceId: docId,
         userId: userId('did:web:test:users:user1'),
         version: 1,
-        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
+        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', wasAttributedTo: RECORDED_CREATOR },
       });
 
       await tick();
@@ -276,7 +277,7 @@ describe('Weaver', () => {
         resourceId: docId,
         userId: userId('did:web:test:users:user1'),
         version: 1,
-        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
+        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', wasAttributedTo: RECORDED_CREATOR },
       });
       await tick();
       vi.clearAllMocks();
@@ -310,7 +311,7 @@ describe('Weaver', () => {
         resourceId: docId,
         userId: userId('did:web:test:users:user1'),
         version: 1,
-        payload: { name: 'My Doc', format: 'text/plain', contentChecksum: 'abc' },
+        payload: { name: 'My Doc', format: 'text/plain', contentChecksum: 'abc', wasAttributedTo: RECORDED_CREATOR },
       });
 
       await tick();
@@ -329,7 +330,7 @@ describe('Weaver', () => {
         resourceId: docId,
         userId: userId('did:web:test:users:user1'),
         version: 1,
-        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
+        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', wasAttributedTo: RECORDED_CREATOR },
       });
       await tick();
       vi.clearAllMocks();
@@ -358,7 +359,7 @@ describe('Weaver', () => {
         resourceId: docId,
         userId: userId('did:web:test:users:user1'),
         version: 1,
-        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
+        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', wasAttributedTo: RECORDED_CREATOR },
       });
       await tick();
       vi.clearAllMocks();
@@ -387,7 +388,7 @@ describe('Weaver', () => {
         resourceId: docId,
         userId: userId('did:web:test:users:user1'),
         version: 1,
-        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
+        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', wasAttributedTo: RECORDED_CREATOR },
       });
       await tick();
       vi.clearAllMocks();
@@ -434,7 +435,7 @@ describe('Weaver', () => {
         resourceId: docId,
         userId: userId('did:web:test:users:user1'),
         version: 1,
-        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
+        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', wasAttributedTo: RECORDED_CREATOR },
       });
       await tick();
       vi.clearAllMocks();
@@ -463,7 +464,7 @@ describe('Weaver', () => {
         resourceId: docId,
         userId: userId('did:web:test:users:user1'),
         version: 1,
-        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
+        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', wasAttributedTo: RECORDED_CREATOR },
       });
       await tick();
 
@@ -508,7 +509,7 @@ describe('Weaver', () => {
         resourceId: docId,
         userId: userId('did:web:test:users:user1'),
         version: 1,
-        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
+        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', wasAttributedTo: RECORDED_CREATOR },
       });
       await tick();
 
@@ -548,7 +549,7 @@ describe('Weaver', () => {
         resourceId: docId,
         userId: userId('did:web:test:users:user1'),
         version: 1,
-        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
+        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', wasAttributedTo: RECORDED_CREATOR },
       });
       await tick();
 
@@ -589,7 +590,7 @@ describe('Weaver', () => {
         resourceId: docId,
         userId: userId('did:web:test:users:user1'),
         version: 1,
-        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
+        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', wasAttributedTo: RECORDED_CREATOR },
       });
       await tick();
 
@@ -622,7 +623,7 @@ describe('Weaver', () => {
         resourceId: docId,
         userId: userId('did:web:test:users:user1'),
         version: 1,
-        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
+        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', wasAttributedTo: RECORDED_CREATOR },
       });
       await tick();
 
@@ -688,7 +689,7 @@ describe('Weaver', () => {
         resourceId: docId,
         userId: userId('did:web:test:users:user1'),
         version: 1,
-        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
+        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', wasAttributedTo: RECORDED_CREATOR },
       });
       await tick();
 
@@ -736,7 +737,7 @@ describe('Weaver', () => {
         resourceId: docId,
         userId: userId('did:web:test:users:user1'),
         version: 1,
-        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
+        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', wasAttributedTo: RECORDED_CREATOR },
       });
 
       await eventStore.appendEvent({
@@ -767,7 +768,7 @@ describe('Weaver', () => {
         resourceId: docId,
         userId: userId('did:web:test:users:user1'),
         version: 1,
-        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
+        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', wasAttributedTo: RECORDED_CREATOR },
       });
       await tick();
       vi.clearAllMocks();
@@ -839,7 +840,7 @@ describe('Weaver', () => {
         resourceId: docId,
         userId: userId('did:web:test:users:user1'),
         version: 1,
-        payload: { name: 'Before Stop', format: 'text/plain', contentChecksum: 'h1' },
+        payload: { name: 'Before Stop', format: 'text/plain', contentChecksum: 'h1', wasAttributedTo: RECORDED_CREATOR },
       });
       await tick();
       expect(localGraphDb.createResource).toHaveBeenCalledTimes(1);
@@ -855,7 +856,7 @@ describe('Weaver', () => {
         resourceId: docId2,
         userId: userId('did:web:test:users:user1'),
         version: 1,
-        payload: { name: 'After Stop', format: 'text/plain', contentChecksum: 'h2' },
+        payload: { name: 'After Stop', format: 'text/plain', contentChecksum: 'h2', wasAttributedTo: RECORDED_CREATOR },
       });
       await tick();
 
@@ -907,7 +908,7 @@ describe('Weaver', () => {
     };
 
     const createdEvent = (rid: string) =>
-      stored('yield:created', rid, { name: 'Dup Test', format: 'text/plain', contentChecksum: 'h-dup' });
+      stored('yield:created', rid, { name: 'Dup Test', format: 'text/plain', contentChecksum: 'h-dup', wasAttributedTo: RECORDED_CREATOR });
 
     const annotation = (aid: string, rid: string) => ({
       id: annotationId(aid),
@@ -1078,7 +1079,7 @@ describe('Weaver', () => {
         resourceId: resourceId(rid),
         userId: userId('did:web:test:users:user1'),
         version: 1,
-        payload: { name: 'Missed While Down', format: 'text/plain', contentChecksum: 'h-cu' },
+        payload: { name: 'Missed While Down', format: 'text/plain', contentChecksum: 'h-cu', wasAttributedTo: RECORDED_CREATOR },
       });
       await eventStore.appendEvent({
         type: 'mark:archived',
@@ -1116,7 +1117,7 @@ describe('Weaver', () => {
         resourceId: resourceId(rid),
         userId: userId('did:web:test:users:user1'),
         version: 1,
-        payload: { name: 'Restored', format: 'text/plain', contentChecksum: 'h-rw' },
+        payload: { name: 'Restored', format: 'text/plain', contentChecksum: 'h-rw', wasAttributedTo: RECORDED_CREATOR },
       });
 
       // A checkpoint claiming we are FAR ahead of the log — the restore shape.
@@ -1144,7 +1145,7 @@ describe('Weaver', () => {
         resourceId: resourceId(rid),
         userId: userId('did:web:test:users:user1'),
         version: 1,
-        payload: { name: 'Rebuilt', format: 'text/plain', contentChecksum: 'h-rb' },
+        payload: { name: 'Rebuilt', format: 'text/plain', contentChecksum: 'h-rb', wasAttributedTo: RECORDED_CREATOR },
       });
       await tick();
 
@@ -1169,7 +1170,7 @@ describe('Weaver', () => {
         resourceId: resourceId(rid),
         userId: userId('did:web:test:users:user1'),
         version: 1,
-        payload: { name: 'Rebuilt One', format: 'text/plain', contentChecksum: 'h-r1' },
+        payload: { name: 'Rebuilt One', format: 'text/plain', contentChecksum: 'h-r1', wasAttributedTo: RECORDED_CREATOR },
       });
       await tick();
 
@@ -1201,7 +1202,7 @@ describe('Weaver', () => {
         resourceId: resourceId(rid),
         userId: userId('did:web:test:users:user1'),
         version: 1,
-        payload: { name: 'Authored', format: 'text/plain', contentChecksum: 'h-ac' },
+        payload: { name: 'Authored', format: 'text/plain', contentChecksum: 'h-ac', wasAttributedTo: RECORDED_CREATOR },
       });
       await eventStore.appendEvent({
         type: 'mark:added',
@@ -1253,7 +1254,7 @@ describe('Weaver', () => {
         resourceId: resourceId(rid),
         userId: userId('did:web:test:users:user1'),
         version: 1,
-        payload: { name: 'Dropped', format: 'text/plain', contentChecksum: 'h-af' },
+        payload: { name: 'Dropped', format: 'text/plain', contentChecksum: 'h-af', wasAttributedTo: RECORDED_CREATOR },
       });
       await tick();
       signalSub.unsubscribe();
@@ -1274,7 +1275,7 @@ describe('Weaver', () => {
         resourceId: resourceId(rid),
         userId: userId('did:web:test:users:user1'),
         version: 1,
-        payload: { name: 'Batch Base', format: 'text/plain', contentChecksum: 'h-ab' },
+        payload: { name: 'Batch Base', format: 'text/plain', contentChecksum: 'h-ab', wasAttributedTo: RECORDED_CREATOR },
       });
       await tick();
       const seqAfterCreate = consumer.appliedUpTo(rid);
@@ -1316,7 +1317,7 @@ describe('Weaver', () => {
         resourceId: resourceId(rid),
         userId: userId('did:web:test:users:user1'),
         version: 1,
-        payload: { name: 'Will Drop', format: 'text/plain', contentChecksum: 'h-ar' },
+        payload: { name: 'Will Drop', format: 'text/plain', contentChecksum: 'h-ar', wasAttributedTo: RECORDED_CREATOR },
       });
       await tick();
 
@@ -1337,7 +1338,7 @@ describe('Weaver', () => {
         resourceId: resourceId(rid),
         userId: userId('did:web:test:users:user1'),
         version: 1,
-        payload: { name: 'Retry Me', format: 'text/plain', contentChecksum: 'h-ac' },
+        payload: { name: 'Retry Me', format: 'text/plain', contentChecksum: 'h-ac', wasAttributedTo: RECORDED_CREATOR },
       });
 
       graphDb = new MemoryGraphDatabase();
@@ -1368,7 +1369,7 @@ describe('Weaver', () => {
         resourceId: resourceId(rid),
         userId: userId('did:web:test:users:user1'),
         version: 1,
-        payload: { name: 'Healed', format: 'text/plain', contentChecksum: 'h-rh' },
+        payload: { name: 'Healed', format: 'text/plain', contentChecksum: 'h-rh', wasAttributedTo: RECORDED_CREATOR },
       });
       await tick();
       expect((await graphDb.getResource(resourceId(rid)))?.name).toBe('Healed');
@@ -1440,7 +1441,7 @@ describe('Weaver', () => {
     const seedOneAnnotation = async (rid: string) => {
       await eventStore.appendEvent({
         type: 'yield:created', resourceId: resourceId(rid), userId: userId('did:web:test:users:user1'), version: 1,
-        payload: { name: 'Div', format: 'text/plain', contentChecksum: 'h-dv' },
+        payload: { name: 'Div', format: 'text/plain', contentChecksum: 'h-dv', wasAttributedTo: RECORDED_CREATOR },
       });
       await eventStore.appendEvent({
         type: 'mark:added', resourceId: resourceId(rid), userId: userId('did:web:test:users:user1'), version: 1,
@@ -1515,7 +1516,7 @@ describe('Weaver', () => {
         resourceId: resourceId(rid),
         userId: userId('did:web:test:users:user1'),
         version: 1,
-        payload: { name: 'Clean', format: 'text/plain', contentChecksum: 'h-rc' },
+        payload: { name: 'Clean', format: 'text/plain', contentChecksum: 'h-rc', wasAttributedTo: RECORDED_CREATOR },
       });
       await tick();
 

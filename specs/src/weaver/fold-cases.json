@@ -17,14 +17,12 @@
             "contentChecksum": "sha256:res-1",
             "creator": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             },
             "wasAttributedTo": [
               {
                 "@type": "Person",
-                "@id": "did:web:example.org:users:ada",
-                "name": "Ada"
+                "@id": "did:web:example.org:users:ada"
               },
               {
                 "@type": "Software",
@@ -66,8 +64,7 @@
             "wasAttributedTo": [
               {
                 "@type": "Person",
-                "@id": "did:web:example.org:users:ada",
-                "name": "Ada"
+                "@id": "did:web:example.org:users:ada"
               },
               {
                 "@type": "Software",
@@ -87,7 +84,7 @@
       }
     },
     {
-      "why": "a created event that records no attribution, as events did before the record derived any, is attributed to the party that sent it, as the record's own view attributes it",
+      "why": "a created event that records no attribution is refused, as an annotation with no creator is: the graph derives none from who sent the event, the resource is not in the graph, and nothing is applied for it",
       "history": [
         {
           "id": "evt-2",
@@ -107,38 +104,12 @@
         }
       ],
       "graph": {
-        "resources": [
-          {
-            "@context": "https://schema.org/",
-            "@id": "res-1",
-            "name": "Name of res-1",
-            "entityTypes": [],
-            "representations": [
-              {
-                "mediaType": "text/markdown",
-                "checksum": "sha256:res-1",
-                "rel": "original"
-              }
-            ],
-            "archived": false,
-            "dateCreated": "2020-03-04T05:06:01.000Z",
-            "wasAttributedTo": [
-              {
-                "@type": "Software",
-                "@id": "did:web:example.org:agents:anthropic:model",
-                "name": "anthropic model",
-                "provider": "anthropic",
-                "model": "model"
-              }
-            ]
-          }
-        ],
+        "resources": [],
         "annotations": [],
         "entityTypesAdded": []
       },
-      "applied": {
-        "res-1": 1
-      }
+      "applied": {},
+      "refused": 1
     },
     {
       "why": "the same event delivered twice is applied once",
@@ -156,13 +127,11 @@
             "contentChecksum": "sha256:res-1",
             "creator": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             },
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           },
           "metadata": {
@@ -182,13 +151,11 @@
             "contentChecksum": "sha256:res-1",
             "creator": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             },
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           },
           "metadata": {
@@ -214,8 +181,7 @@
             "dateCreated": "2020-03-04T05:06:01.000Z",
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           }
         ],
@@ -242,13 +208,11 @@
             "contentChecksum": "sha256:res-1",
             "creator": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             },
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           },
           "metadata": {
@@ -312,8 +276,7 @@
             "dateCreated": "2020-03-04T05:06:01.000Z",
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           }
         ],
@@ -340,13 +303,11 @@
             "contentChecksum": "sha256:res-1",
             "creator": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             },
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           },
           "metadata": {
@@ -375,8 +336,7 @@
               },
               "creator": {
                 "@type": "Person",
-                "@id": "did:web:example.org:users:ada",
-                "name": "Ada"
+                "@id": "did:web:example.org:users:ada"
               },
               "created": "2020-03-04T05:06:30.000Z",
               "generator": {
@@ -389,8 +349,7 @@
               "wasAttributedTo": [
                 {
                   "@type": "Person",
-                  "@id": "did:web:example.org:users:ada",
-                  "name": "Ada"
+                  "@id": "did:web:example.org:users:ada"
                 },
                 {
                   "@type": "Software",
@@ -425,8 +384,7 @@
             "dateCreated": "2020-03-04T05:06:01.000Z",
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           }
         ],
@@ -445,8 +403,7 @@
             },
             "creator": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             },
             "created": "2020-03-04T05:06:30.000Z",
             "generator": {
@@ -480,13 +437,11 @@
             "contentChecksum": "sha256:res-1",
             "creator": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             },
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           },
           "metadata": {
@@ -511,8 +466,7 @@
               },
               "creator": {
                 "@type": "Person",
-                "@id": "did:web:example.org:users:ada",
-                "name": "Ada"
+                "@id": "did:web:example.org:users:ada"
               },
               "created": "2020-03-04T05:06:30.000Z"
             }
@@ -539,8 +493,7 @@
               },
               "creator": {
                 "@type": "Person",
-                "@id": "did:web:example.org:users:ada",
-                "name": "Ada"
+                "@id": "did:web:example.org:users:ada"
               },
               "created": "2020-03-04T05:06:30.000Z"
             }
@@ -568,8 +521,7 @@
             "dateCreated": "2020-03-04T05:06:01.000Z",
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           }
         ],
@@ -584,8 +536,7 @@
             },
             "creator": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             },
             "created": "2020-03-04T05:06:30.000Z"
           }
@@ -612,13 +563,11 @@
             "contentChecksum": "sha256:res-1",
             "creator": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             },
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           },
           "metadata": {
@@ -667,8 +616,7 @@
             "dateCreated": "2020-03-04T05:06:01.000Z",
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           }
         ],
@@ -696,13 +644,11 @@
             "contentChecksum": "sha256:res-1",
             "creator": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             },
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           },
           "metadata": {
@@ -727,8 +673,7 @@
               },
               "creator": {
                 "@type": "Person",
-                "@id": "did:web:example.org:users:ada",
-                "name": "Ada"
+                "@id": "did:web:example.org:users:ada"
               },
               "created": "2020-03-04T05:06:30.000Z"
             }
@@ -778,8 +723,7 @@
               },
               "creator": {
                 "@type": "Person",
-                "@id": "did:web:example.org:users:ada",
-                "name": "Ada"
+                "@id": "did:web:example.org:users:ada"
               },
               "created": "2020-03-04T05:06:30.000Z"
             }
@@ -807,8 +751,7 @@
             "dateCreated": "2020-03-04T05:06:01.000Z",
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           }
         ],
@@ -823,8 +766,7 @@
             },
             "creator": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             },
             "created": "2020-03-04T05:06:30.000Z"
           },
@@ -838,8 +780,7 @@
             },
             "creator": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             },
             "created": "2020-03-04T05:06:30.000Z"
           }
@@ -867,13 +808,11 @@
             "contentChecksum": "sha256:res-1",
             "creator": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             },
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           },
           "metadata": {
@@ -898,8 +837,7 @@
               },
               "creator": {
                 "@type": "Person",
-                "@id": "did:web:example.org:users:ada",
-                "name": "Ada"
+                "@id": "did:web:example.org:users:ada"
               },
               "created": "2020-03-04T05:06:30.000Z"
             }
@@ -926,8 +864,7 @@
               },
               "creator": {
                 "@type": "Person",
-                "@id": "did:web:example.org:users:ada",
-                "name": "Ada"
+                "@id": "did:web:example.org:users:ada"
               },
               "created": "2020-03-04T05:06:30.000Z"
             }
@@ -983,8 +920,7 @@
             "dateCreated": "2020-03-04T05:06:01.000Z",
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           }
         ],
@@ -999,8 +935,7 @@
             },
             "creator": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             },
             "created": "2020-03-04T05:06:30.000Z"
           }
@@ -1027,13 +962,11 @@
             "contentChecksum": "sha256:res-1",
             "creator": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             },
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           },
           "metadata": {
@@ -1053,13 +986,11 @@
             "contentChecksum": "sha256:res-2",
             "creator": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             },
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           },
           "metadata": {
@@ -1084,8 +1015,7 @@
               },
               "creator": {
                 "@type": "Person",
-                "@id": "did:web:example.org:users:ada",
-                "name": "Ada"
+                "@id": "did:web:example.org:users:ada"
               },
               "created": "2020-03-04T05:06:30.000Z"
             }
@@ -1137,8 +1067,7 @@
             "dateCreated": "2020-03-04T05:06:01.000Z",
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           },
           {
@@ -1157,8 +1086,7 @@
             "dateCreated": "2020-03-04T05:06:01.000Z",
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           }
         ],
@@ -1173,8 +1101,7 @@
             },
             "creator": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             },
             "created": "2020-03-04T05:06:30.000Z",
             "body": [
@@ -1210,13 +1137,11 @@
             "contentChecksum": "sha256:res-1",
             "creator": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             },
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           },
           "metadata": {
@@ -1236,13 +1161,11 @@
             "contentChecksum": "sha256:res-2",
             "creator": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             },
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           },
           "metadata": {
@@ -1267,8 +1190,7 @@
               },
               "creator": {
                 "@type": "Person",
-                "@id": "did:web:example.org:users:ada",
-                "name": "Ada"
+                "@id": "did:web:example.org:users:ada"
               },
               "created": "2020-03-04T05:06:30.000Z"
             }
@@ -1352,8 +1274,7 @@
             "dateCreated": "2020-03-04T05:06:01.000Z",
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           },
           {
@@ -1372,8 +1293,7 @@
             "dateCreated": "2020-03-04T05:06:01.000Z",
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           }
         ],
@@ -1388,8 +1308,7 @@
             },
             "creator": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             },
             "created": "2020-03-04T05:06:30.000Z",
             "body": [
@@ -1425,13 +1344,11 @@
             "contentChecksum": "sha256:res-1",
             "creator": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             },
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           },
           "metadata": {
@@ -1451,13 +1368,11 @@
             "contentChecksum": "sha256:res-2",
             "creator": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             },
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           },
           "metadata": {
@@ -1477,13 +1392,11 @@
             "contentChecksum": "sha256:res-3",
             "creator": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             },
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           },
           "metadata": {
@@ -1508,8 +1421,7 @@
               },
               "creator": {
                 "@type": "Person",
-                "@id": "did:web:example.org:users:ada",
-                "name": "Ada"
+                "@id": "did:web:example.org:users:ada"
               },
               "created": "2020-03-04T05:06:30.000Z",
               "body": [
@@ -1586,8 +1498,7 @@
             "dateCreated": "2020-03-04T05:06:01.000Z",
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           },
           {
@@ -1606,8 +1517,7 @@
             "dateCreated": "2020-03-04T05:06:01.000Z",
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           },
           {
@@ -1626,8 +1536,7 @@
             "dateCreated": "2020-03-04T05:06:01.000Z",
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           }
         ],
@@ -1642,8 +1551,7 @@
             },
             "creator": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             },
             "created": "2020-03-04T05:06:30.000Z",
             "body": [
@@ -1685,13 +1593,11 @@
             "contentChecksum": "sha256:res-1",
             "creator": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             },
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           },
           "metadata": {
@@ -1716,8 +1622,7 @@
               },
               "creator": {
                 "@type": "Person",
-                "@id": "did:web:example.org:users:ada",
-                "name": "Ada"
+                "@id": "did:web:example.org:users:ada"
               },
               "created": "2020-03-04T05:06:30.000Z",
               "body": [
@@ -1776,8 +1681,7 @@
             "dateCreated": "2020-03-04T05:06:01.000Z",
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           }
         ],
@@ -1792,8 +1696,7 @@
             },
             "creator": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             },
             "created": "2020-03-04T05:06:30.000Z",
             "body": [
@@ -1828,13 +1731,11 @@
             "contentChecksum": "sha256:res-1",
             "creator": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             },
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             },
             "entityTypes": [
               "Place"
@@ -1936,8 +1837,7 @@
             "dateCreated": "2020-03-04T05:06:01.000Z",
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           }
         ],
@@ -2003,13 +1903,11 @@
             "contentChecksum": "sha256:res-1",
             "creator": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             },
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           },
           "metadata": {
@@ -2034,8 +1932,7 @@
               },
               "creator": {
                 "@type": "Person",
-                "@id": "did:web:example.org:users:ada",
-                "name": "Ada"
+                "@id": "did:web:example.org:users:ada"
               },
               "created": "2020-03-04T05:06:30.000Z",
               "body": [
@@ -2064,13 +1961,11 @@
             "contentChecksum": "sha256:res-2",
             "creator": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             },
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           },
           "metadata": {
@@ -2096,8 +1991,7 @@
             "dateCreated": "2020-03-04T05:06:01.000Z",
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           },
           {
@@ -2116,8 +2010,7 @@
             "dateCreated": "2020-03-04T05:06:01.000Z",
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           }
         ],
@@ -2132,8 +2025,7 @@
             },
             "creator": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             },
             "created": "2020-03-04T05:06:30.000Z",
             "body": [
@@ -2168,13 +2060,11 @@
             "contentChecksum": "sha256:res-1",
             "creator": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             },
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           },
           "metadata": {
@@ -2199,8 +2089,7 @@
               },
               "creator": {
                 "@type": "Person",
-                "@id": "did:web:example.org:users:ada",
-                "name": "Ada"
+                "@id": "did:web:example.org:users:ada"
               },
               "created": "2020-03-04T05:06:30.000Z",
               "body": [
@@ -2235,8 +2124,7 @@
             "dateCreated": "2020-03-04T05:06:01.000Z",
             "wasAttributedTo": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             }
           }
         ],
@@ -2251,8 +2139,7 @@
             },
             "creator": {
               "@type": "Person",
-              "@id": "did:web:example.org:users:ada",
-              "name": "Ada"
+              "@id": "did:web:example.org:users:ada"
             },
             "created": "2020-03-04T05:06:30.000Z",
             "body": [

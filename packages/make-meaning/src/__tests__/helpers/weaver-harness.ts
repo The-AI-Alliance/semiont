@@ -87,6 +87,13 @@ export function storedEvent<K extends PersistedEventType>(
   } as unknown as StoredEvent<EventOfType<K>>;
 }
 
+/**
+ * Who a recorded resource is by. The knowledge base derives it when it records
+ * a `yield:created`, and the fold refuses an event that records none, so every
+ * created event a suite builds carries it, as a recorded one does.
+ */
+export const RECORDED_BY = { '@type': 'Person' as const, '@id': 'did:web:test:users:axioms' };
+
 export const makeAnnotationPayload = (aid: string, rid: string): Annotation => ({
   '@context': 'http://www.w3.org/ns/anno.jsonld',
   type: 'Annotation',
@@ -101,7 +108,8 @@ export const makeAnnotationPayload = (aid: string, rid: string): Annotation => (
   // axioms compare a replayed projection against a reference fold, and a
   // clock-derived value would differ between the two.
   created: '2026-01-01T00:00:00.000Z',
-  creator: { '@type': 'Person', '@id': 'did:web:test:users:axioms', name: 'axioms' },
+  // As the record names a person: by who they are. A name is the directory's.
+  creator: RECORDED_BY,
 });
 
 // ── The reference fold (the model M in W4/W5) ───────────────────────────────

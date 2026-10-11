@@ -1,5 +1,5 @@
 import { defineConfig } from 'vitest/config';
-import { ARCHIVIST_COMMAND, DISPATCHER_COMMAND, GATEWAY_COMMAND, SDK_DRIVERS, WORKER_SERVICES } from './harness/paths';
+import { ARCHIVIST_COMMAND, DISPATCHER_COMMAND, GATEWAY_COMMAND, SDK_DRIVERS, WEAVER_SERVICES, WORKER_SERVICES } from './harness/paths';
 
 // Every file boots its own processes, issuer, Archivist and broker on ports of
 // its own, so files run in parallel; the cases inside a file share them and
@@ -63,6 +63,19 @@ export default defineConfig({
           include: ['worker-service/**/*.test.ts'],
           provide: { gatewayCommand: GATEWAY_COMMAND, workerServices: WORKER_SERVICES },
           globalSetup: ['harness/global-setup.ts', 'harness/worker-service-setup.ts'],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'weaver',
+          include: ['weaver/**/*.test.ts'],
+          provide: { gatewayCommand: GATEWAY_COMMAND, archivistCommand: ARCHIVIST_COMMAND, weaverServices: WEAVER_SERVICES },
+          globalSetup: ['harness/global-setup.ts', 'harness/archivist-setup.ts', 'harness/weaver-setup.ts'],
+          // One file at a time: the files share one graph database, which a
+          // rebuild of the whole graph clears, and the TypeScript Weaver's
+          // health port is a constant, so two cannot run at once.
+          fileParallelism: false,
         },
       },
     ],

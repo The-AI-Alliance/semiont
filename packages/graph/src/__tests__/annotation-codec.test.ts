@@ -25,7 +25,8 @@ import { vertexToAnnotation as neptuneVertexToAnnotation } from '../implementati
 import { vertexToAnnotation as janusVertexToAnnotation } from '../implementations/janusgraph';
 import { MemoryGraphDatabase } from '../implementations/memorygraph';
 
-const CREATOR = { '@type': 'Person' as const, id: 'did:web:example.org:users:u1', name: 'Ada' };
+/** A person as the record names one: by who they are. A name is the directory's, joined on at a read. */
+const CREATOR = { '@type': 'Person' as const, '@id': 'did:web:example.org:users:u1' };
 const CREATED = '2026-08-21T10:00:00.000Z';
 
 /**

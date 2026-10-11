@@ -1008,6 +1008,21 @@ func (e HighlightingJobParamsMotivation) Valid() bool {
 	}
 }
 
+// Defines values for JanusGraphConfigType.
+const (
+	Janusgraph JanusGraphConfigType = "janusgraph"
+)
+
+// Valid indicates whether the value is a known member of the JanusGraphConfigType enum.
+func (e JanusGraphConfigType) Valid() bool {
+	switch e {
+	case Janusgraph:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for JobCancelledStatus.
 const (
 	JobCancelledStatusCancelled JobCancelledStatus = "cancelled"
@@ -1524,6 +1539,21 @@ func (e MatchResourcesResponseMatchKind) Valid() bool {
 	}
 }
 
+// Defines values for MemoryGraphConfigType.
+const (
+	Memory MemoryGraphConfigType = "memory"
+)
+
+// Valid indicates whether the value is a known member of the MemoryGraphConfigType enum.
+func (e MemoryGraphConfigType) Valid() bool {
+	switch e {
+	case Memory:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for Motivation.
 const (
 	MotivationAssessing    Motivation = "assessing"
@@ -1545,6 +1575,36 @@ func (e Motivation) Valid() bool {
 	case MotivationLinking:
 		return true
 	case MotivationTagging:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for Neo4jGraphConfigType.
+const (
+	Neo4j Neo4jGraphConfigType = "neo4j"
+)
+
+// Valid indicates whether the value is a known member of the Neo4jGraphConfigType enum.
+func (e Neo4jGraphConfigType) Valid() bool {
+	switch e {
+	case Neo4j:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NeptuneGraphConfigType.
+const (
+	Neptune NeptuneGraphConfigType = "neptune"
+)
+
+// Valid indicates whether the value is a known member of the NeptuneGraphConfigType enum.
+func (e NeptuneGraphConfigType) Valid() bool {
+	switch e {
+	case Neptune:
 		return true
 	default:
 		return false
@@ -3884,6 +3944,11 @@ type GraphAnnotationNode struct {
 // GraphAnnotationNodeType defines model for GraphAnnotationNode.Type.
 type GraphAnnotationNodeType string
 
+// GraphConfig The graph database a service writes or reads, and what that kind of database needs to be reached: one of the kinds `semiont-graph` has a store for, told apart by `type`. A secret is never a value here: a database's password is named by the environment variable that holds it.
+type GraphConfig struct {
+	union json.RawMessage
+}
+
 // GraphResourceNode A resource's presence in the gathered knowledge graph.
 type GraphResourceNode struct {
 	// EntityTypes Entity types on the resource
@@ -3958,6 +4023,19 @@ type InferencePairLimits struct {
 	// Provider The inference provider, as the KB config names it (e.g. anthropic, ollama).
 	Provider string `json:"provider"`
 }
+
+// JanusGraphConfig A graph kept in a JanusGraph server, asked in Gremlin. No service has been run against one.
+type JanusGraphConfig struct {
+	// Host The server's host.
+	Host string `json:"host"`
+
+	// Port The port its Gremlin endpoint listens on.
+	Port int                  `json:"port"`
+	Type JanusGraphConfigType `json:"type"`
+}
+
+// JanusGraphConfigType defines model for JanusGraphConfig.Type.
+type JanusGraphConfigType string
 
 // Job A job as the dispatcher holds it. Its `status` decides which timestamps and outcome fields it carries. It is what a claim returns (`job:claimed`, always `running`) and what the queue stores, inside a JobRecord.
 type Job struct {
@@ -5087,8 +5165,48 @@ type MediaTokenResponse struct {
 	Token string `json:"token"`
 }
 
+// MemoryGraphConfig A graph held in the memory of the one process that is given it: for a test. It cannot be shared between processes, so a service that writes the graph for another to read, or reads what another wrote, refuses it.
+type MemoryGraphConfig struct {
+	Type MemoryGraphConfigType `json:"type"`
+}
+
+// MemoryGraphConfigType defines model for MemoryGraphConfig.Type.
+type MemoryGraphConfigType string
+
 // Motivation Semiont-supported W3C Web Annotation motivations - https://www.w3.org/TR/annotation-vocab/#motivation
 type Motivation string
+
+// Neo4jGraphConfig A graph kept in a Neo4j database.
+type Neo4jGraphConfig struct {
+	// Database Which of the server's databases holds the graph.
+	Database string `json:"database"`
+
+	// PasswordEnv The environment variable holding that user's password. The password is never a value here.
+	PasswordEnv string               `json:"passwordEnv"`
+	Type        Neo4jGraphConfigType `json:"type"`
+
+	// Uri Where the database is reached (`bolt://host:7687`).
+	Uri string `json:"uri"`
+
+	// Username The user the service connects as.
+	Username string `json:"username"`
+}
+
+// Neo4jGraphConfigType defines model for Neo4jGraphConfig.Type.
+type Neo4jGraphConfigType string
+
+// NeptuneGraphConfig A graph kept in Amazon Neptune, asked in Gremlin. No service has been run against one.
+type NeptuneGraphConfig struct {
+	// Endpoint The cluster's endpoint: its host name.
+	Endpoint string `json:"endpoint"`
+
+	// Port The port its Gremlin endpoint listens on.
+	Port int                    `json:"port"`
+	Type NeptuneGraphConfigType `json:"type"`
+}
+
+// NeptuneGraphConfigType defines model for NeptuneGraphConfig.Type.
+type NeptuneGraphConfigType string
 
 // PdfTextItem One positioned text run. Coordinates are PDF points with the origin at the bottom-left of the page, Y increasing upward; the flip to canvas pixels happens in the browser.
 type PdfTextItem struct {
@@ -6160,6 +6278,33 @@ type WeaveRebuildCommand struct {
 
 	// ResourceId When present, rebuild only this resource; otherwise clear and rebuild the entire graph.
 	ResourceId *ResourceId `json:"resourceId,omitempty"`
+}
+
+// WeaverConfig Everything a Weaver reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the Weaver. The launcher writes it for the Weaver it starts, from the environment the knowledge base's config selects, and the Weaver reads it from the path its `--config` flag names (its image passes `/etc/semiont/weaver.json`). Whoever starts a Weaver another way writes the same document: this schema is the contract, and a Weaver needs no launcher. Started without `--config`, or with a path that names no file, the Weaver refuses to start and says which. No secret is a value here: the graph database's password is named by the environment variable that holds it, and the Weaver's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` in its environment. A document that does not validate is refused at boot, naming each failing field.
+type WeaverConfig struct {
+	// CheckpointPath The file the Weaver keeps its marks in: for each resource, the sequence number it has applied up to. Never a correctness input: a Weaver that finds none applies the whole record again.
+	CheckpointPath string `json:"checkpointPath"`
+
+	// GatewayUrl The URL the Weaver reaches the gateway at: its route to the bus, and the only address of the knowledge base it holds.
+	GatewayUrl string `json:"gatewayUrl"`
+
+	// Graph The graph database a service writes or reads, and what that kind of database needs to be reached: one of the kinds `semiont-graph` has a store for, told apart by `type`. A secret is never a value here: a database's password is named by the environment variable that holds it.
+	Graph GraphConfig `json:"graph"`
+
+	// Identity The issuer the Weaver's service account signs in at.
+	Identity struct {
+		// Issuer The issuer URL, exactly as tokens carry it in `iss`.
+		Issuer string `json:"issuer"`
+	} `json:"identity"`
+
+	// LogFormat How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON.
+	LogFormat LogFormat `json:"logFormat"`
+
+	// LogLevel How much a service logs: the least severe level it writes, from error, the most severe, to debug.
+	LogLevel LogLevel `json:"logLevel"`
+
+	// Port The port the Weaver answers `/health` on.
+	Port int `json:"port"`
 }
 
 // WorkerAgentConfig One agent a worker works as: who it is, the jobs it claims, and where its provider is reached.
@@ -9764,6 +9909,155 @@ func (t GatheredContext_Focus) MarshalJSON() ([]byte, error) {
 }
 
 func (t *GatheredContext_Focus) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsNeo4jGraphConfig returns the union data inside the GraphConfig as a Neo4jGraphConfig
+func (t GraphConfig) AsNeo4jGraphConfig() (Neo4jGraphConfig, error) {
+	var body Neo4jGraphConfig
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromNeo4jGraphConfig overwrites any union data inside the GraphConfig as the provided Neo4jGraphConfig
+func (t *GraphConfig) FromNeo4jGraphConfig(v Neo4jGraphConfig) error {
+	v.Type = "neo4j"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeNeo4jGraphConfig performs a merge with any union data inside the GraphConfig, using the provided Neo4jGraphConfig
+func (t *GraphConfig) MergeNeo4jGraphConfig(v Neo4jGraphConfig) error {
+	v.Type = "neo4j"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsJanusGraphConfig returns the union data inside the GraphConfig as a JanusGraphConfig
+func (t GraphConfig) AsJanusGraphConfig() (JanusGraphConfig, error) {
+	var body JanusGraphConfig
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromJanusGraphConfig overwrites any union data inside the GraphConfig as the provided JanusGraphConfig
+func (t *GraphConfig) FromJanusGraphConfig(v JanusGraphConfig) error {
+	v.Type = "janusgraph"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeJanusGraphConfig performs a merge with any union data inside the GraphConfig, using the provided JanusGraphConfig
+func (t *GraphConfig) MergeJanusGraphConfig(v JanusGraphConfig) error {
+	v.Type = "janusgraph"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsNeptuneGraphConfig returns the union data inside the GraphConfig as a NeptuneGraphConfig
+func (t GraphConfig) AsNeptuneGraphConfig() (NeptuneGraphConfig, error) {
+	var body NeptuneGraphConfig
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromNeptuneGraphConfig overwrites any union data inside the GraphConfig as the provided NeptuneGraphConfig
+func (t *GraphConfig) FromNeptuneGraphConfig(v NeptuneGraphConfig) error {
+	v.Type = "neptune"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeNeptuneGraphConfig performs a merge with any union data inside the GraphConfig, using the provided NeptuneGraphConfig
+func (t *GraphConfig) MergeNeptuneGraphConfig(v NeptuneGraphConfig) error {
+	v.Type = "neptune"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsMemoryGraphConfig returns the union data inside the GraphConfig as a MemoryGraphConfig
+func (t GraphConfig) AsMemoryGraphConfig() (MemoryGraphConfig, error) {
+	var body MemoryGraphConfig
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromMemoryGraphConfig overwrites any union data inside the GraphConfig as the provided MemoryGraphConfig
+func (t *GraphConfig) FromMemoryGraphConfig(v MemoryGraphConfig) error {
+	v.Type = "memory"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeMemoryGraphConfig performs a merge with any union data inside the GraphConfig, using the provided MemoryGraphConfig
+func (t *GraphConfig) MergeMemoryGraphConfig(v MemoryGraphConfig) error {
+	v.Type = "memory"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t GraphConfig) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"type"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t GraphConfig) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "janusgraph":
+		return t.AsJanusGraphConfig()
+	case "memory":
+		return t.AsMemoryGraphConfig()
+	case "neo4j":
+		return t.AsNeo4jGraphConfig()
+	case "neptune":
+		return t.AsNeptuneGraphConfig()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t GraphConfig) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *GraphConfig) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }

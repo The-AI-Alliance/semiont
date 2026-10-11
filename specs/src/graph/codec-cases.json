@@ -1,8 +1,8 @@
 {
-  "$comment": "What the graph holds of an annotation and of a resource, as every implementation of the graph's two codecs must say it. TypeScript (@semiont/graph: annotation-codec.ts, resource-codec.ts) runs every case; Python (semiont_graph) runs every case when it is written, and a third implementation would. A store keeps its own dialect (a map set on a node, a chain of properties, a list kept as a JSON string); what is stored, what each stored thing is called, which are required and what is refused are stated here, once. Each case has one of six parts. `annotationStored`: an annotation as the record gives it; the `properties` of its row that are plain strings; the properties that are JSON, each given under `json` as the value the stored string must parse to (a serializer is free in its spacing and its key order); its `tags`, which are edges and not properties, as a set; the resource it `linksTo`, where the reference edge goes; and what the graph `holds`, which is what reading the row back answers. `annotationRead`: a row's `properties` (JSON ones as the strings a store holds) and its `tags` in whatever order a store answers them, and the `annotation` read. `annotationUpdated`: the `current` annotation as the graph holds it, the `updates`, and the `annotation` the update leaves; a store writes that annotation whole. `referenceResolved`: the `current` annotation, the `source` it is resolved to, and the `body` it then has. `resourceStored` and `resourceRead` say the same of a resource. Where an implementation must refuse, the part has `refused`: a word the refusal names (the missing field, or the resource an update tried to move to). Text here is carried and never counted, so a character outside the basic plane is in the table to be carried as itself. Add a case here before changing an implementation.",
+  "$comment": "What the graph holds of an annotation and of a resource, as every implementation of the graph's two codecs must say it. TypeScript (@semiont/graph: annotation-codec.ts, resource-codec.ts) runs every case; Python (semiont_graph) runs every case when it is written, and a third implementation would. A store keeps its own dialect (a map set on a node, a chain of properties, a list kept as a JSON string); what is stored, what each stored thing is called, which are required and what is refused are stated here, once. Each case has one of six parts. `annotationStored`: an annotation as the record gives it; the `properties` of its row that are plain strings; the properties that are JSON, each given under `json` as the value the stored string must parse to (a serializer is free in its spacing and its key order); its `tags`, which are edges and not properties, as a set; the resource it `linksTo`, where the reference edge goes; and what the graph `holds`, which is what reading the row back answers. `annotationRead`: a row's `properties` (JSON ones as the strings a store holds) and its `tags` in whatever order a store answers them, and the `annotation` read. `annotationUpdated`: the `current` annotation as the graph holds it, the `updates`, and the `annotation` the update leaves; a store writes that annotation whole. `referenceResolved`: the `current` annotation, the `source` it is resolved to, and the `body` it then has. `resourceStored` and `resourceRead` say the same of a resource. Where an implementation must refuse, the part has `refused`: a word the refusal names (the missing field, or the resource an update tried to move to). An annotation a case gives is as a read answers it, with a person named; the graph's side of every case holds that person without the name. Text here is carried and never counted, so a character outside the basic plane is in the table to be carried as itself. Add a case here before changing an implementation.",
   "cases": [
     {
-      "why": "a highlight is its row and nothing else: no link, no tags, and the quoted text pulled out beside the selector",
+      "why": "a highlight is its row and nothing else: no link, no tags, and the quoted text pulled out beside the selector. Who it is by is stored as who, without a person's name: the name is the directory's, which a read joins on and a person can change",
       "annotationStored": {
         "annotation": {
           "@context": "http://www.w3.org/ns/anno.jsonld",
@@ -36,8 +36,7 @@
         "json": {
           "creator": {
             "@type": "Person",
-            "@id": "did:web:example.org:users:ada",
-            "name": "Ada"
+            "@id": "did:web:example.org:users:ada"
           },
           "selector": {
             "type": "TextQuoteSelector",
@@ -64,8 +63,7 @@
           },
           "creator": {
             "@type": "Person",
-            "@id": "did:web:example.org:users:ada",
-            "name": "Ada"
+            "@id": "did:web:example.org:users:ada"
           },
           "created": "2020-03-04T05:06:07.000Z"
         }
@@ -107,8 +105,7 @@
         "json": {
           "creator": {
             "@type": "Person",
-            "@id": "did:web:example.org:users:ada",
-            "name": "Ada"
+            "@id": "did:web:example.org:users:ada"
           }
         },
         "tags": [],
@@ -123,8 +120,7 @@
           },
           "creator": {
             "@type": "Person",
-            "@id": "did:web:example.org:users:ada",
-            "name": "Ada"
+            "@id": "did:web:example.org:users:ada"
           },
           "created": "2020-03-04T05:06:07.000Z",
           "body": [
@@ -183,8 +179,7 @@
         "json": {
           "creator": {
             "@type": "Person",
-            "@id": "did:web:example.org:users:ada",
-            "name": "Ada"
+            "@id": "did:web:example.org:users:ada"
           }
         },
         "tags": [
@@ -202,8 +197,7 @@
           },
           "creator": {
             "@type": "Person",
-            "@id": "did:web:example.org:users:ada",
-            "name": "Ada"
+            "@id": "did:web:example.org:users:ada"
           },
           "created": "2020-03-04T05:06:07.000Z",
           "body": [
@@ -273,8 +267,7 @@
         "json": {
           "creator": {
             "@type": "Person",
-            "@id": "did:web:example.org:users:ada",
-            "name": "Ada"
+            "@id": "did:web:example.org:users:ada"
           }
         },
         "tags": [],
@@ -289,8 +282,7 @@
           },
           "creator": {
             "@type": "Person",
-            "@id": "did:web:example.org:users:ada",
-            "name": "Ada"
+            "@id": "did:web:example.org:users:ada"
           },
           "created": "2020-03-04T05:06:07.000Z"
         }
@@ -337,8 +329,7 @@
         "json": {
           "creator": {
             "@type": "Person",
-            "@id": "did:web:example.org:users:ada",
-            "name": "Ada"
+            "@id": "did:web:example.org:users:ada"
           },
           "generator": {
             "@type": "Software",
@@ -358,8 +349,7 @@
           },
           "creator": {
             "@type": "Person",
-            "@id": "did:web:example.org:users:ada",
-            "name": "Ada"
+            "@id": "did:web:example.org:users:ada"
           },
           "created": "2020-03-04T05:06:07.000Z",
           "body": [
@@ -418,8 +408,7 @@
         "json": {
           "creator": {
             "@type": "Person",
-            "@id": "did:web:example.org:users:ada",
-            "name": "Ada"
+            "@id": "did:web:example.org:users:ada"
           },
           "selector": [
             {
@@ -456,8 +445,7 @@
           },
           "creator": {
             "@type": "Person",
-            "@id": "did:web:example.org:users:ada",
-            "name": "Ada"
+            "@id": "did:web:example.org:users:ada"
           },
           "created": "2020-03-04T05:06:07.000Z"
         }
@@ -492,8 +480,7 @@
         "json": {
           "creator": {
             "@type": "Person",
-            "@id": "did:web:example.org:users:ada",
-            "name": "Ada"
+            "@id": "did:web:example.org:users:ada"
           }
         },
         "tags": [],
@@ -508,8 +495,7 @@
           },
           "creator": {
             "@type": "Person",
-            "@id": "did:web:example.org:users:ada",
-            "name": "Ada"
+            "@id": "did:web:example.org:users:ada"
           },
           "created": "2020-03-04T05:06:07.000Z"
         }
@@ -527,7 +513,7 @@
           "source": "res-2",
           "selector": "{\"type\": \"TextQuoteSelector\", \"exact\": \"Black Hawk\", \"prefix\": \"Chief \", \"suffix\": \" led\"}",
           "exact": "Black Hawk",
-          "creator": "{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}"
+          "creator": "{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\"}"
         },
         "tags": [
           "Place",
@@ -549,8 +535,7 @@
           },
           "creator": {
             "@type": "Person",
-            "@id": "did:web:example.org:users:ada",
-            "name": "Ada"
+            "@id": "did:web:example.org:users:ada"
           },
           "created": "2020-03-04T05:06:07.000Z",
           "body": [
@@ -582,7 +567,7 @@
           "type": "SpecificResource",
           "motivation": "linking",
           "created": "2020-03-04T05:06:07.000Z",
-          "creator": "{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}"
+          "creator": "{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\"}"
         },
         "tags": [
           "",
@@ -598,8 +583,7 @@
           },
           "creator": {
             "@type": "Person",
-            "@id": "did:web:example.org:users:ada",
-            "name": "Ada"
+            "@id": "did:web:example.org:users:ada"
           },
           "created": "2020-03-04T05:06:07.000Z",
           "body": [
@@ -620,7 +604,7 @@
           "type": "SpecificResource",
           "motivation": "linking",
           "created": "2020-03-04T05:06:07.000Z",
-          "creator": "{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}"
+          "creator": "{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\"}"
         },
         "tags": [],
         "refused": "id"
@@ -634,7 +618,7 @@
           "type": "SpecificResource",
           "motivation": "linking",
           "created": "2020-03-04T05:06:07.000Z",
-          "creator": "{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}"
+          "creator": "{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\"}"
         },
         "tags": [],
         "refused": "resourceId"
@@ -662,7 +646,7 @@
           "resourceId": "res-1",
           "type": "SpecificResource",
           "created": "2020-03-04T05:06:07.000Z",
-          "creator": "{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}"
+          "creator": "{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\"}"
         },
         "tags": [],
         "refused": "motivation"
@@ -676,7 +660,7 @@
           "resourceId": "res-1",
           "type": "SpecificResource",
           "motivation": "linking",
-          "creator": "{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}"
+          "creator": "{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\"}"
         },
         "tags": [],
         "refused": "created"
@@ -701,8 +685,7 @@
           },
           "creator": {
             "@type": "Person",
-            "@id": "did:web:example.org:users:ada",
-            "name": "Ada"
+            "@id": "did:web:example.org:users:ada"
           },
           "created": "2020-03-04T05:06:07.000Z",
           "body": [
@@ -748,8 +731,7 @@
           },
           "creator": {
             "@type": "Person",
-            "@id": "did:web:example.org:users:ada",
-            "name": "Ada"
+            "@id": "did:web:example.org:users:ada"
           },
           "created": "2020-03-04T05:06:07.000Z",
           "body": [
@@ -786,8 +768,7 @@
           },
           "creator": {
             "@type": "Person",
-            "@id": "did:web:example.org:users:ada",
-            "name": "Ada"
+            "@id": "did:web:example.org:users:ada"
           },
           "created": "2020-03-04T05:06:07.000Z",
           "body": [
@@ -822,8 +803,7 @@
           },
           "creator": {
             "@type": "Person",
-            "@id": "did:web:example.org:users:ada",
-            "name": "Ada"
+            "@id": "did:web:example.org:users:ada"
           },
           "created": "2020-03-04T05:06:07.000Z"
         }
@@ -848,8 +828,7 @@
           },
           "creator": {
             "@type": "Person",
-            "@id": "did:web:example.org:users:ada",
-            "name": "Ada"
+            "@id": "did:web:example.org:users:ada"
           },
           "created": "2020-03-04T05:06:07.000Z",
           "body": [
@@ -884,8 +863,7 @@
           },
           "creator": {
             "@type": "Person",
-            "@id": "did:web:example.org:users:ada",
-            "name": "Ada"
+            "@id": "did:web:example.org:users:ada"
           },
           "created": "2020-03-04T05:06:07.000Z",
           "body": [
@@ -923,8 +901,7 @@
           },
           "creator": {
             "@type": "Person",
-            "@id": "did:web:example.org:users:ada",
-            "name": "Ada"
+            "@id": "did:web:example.org:users:ada"
           },
           "created": "2020-03-04T05:06:07.000Z",
           "body": [
@@ -963,8 +940,7 @@
           },
           "creator": {
             "@type": "Person",
-            "@id": "did:web:example.org:users:ada",
-            "name": "Ada"
+            "@id": "did:web:example.org:users:ada"
           },
           "created": "2020-03-04T05:06:07.000Z",
           "body": [
@@ -1001,8 +977,7 @@
           },
           "creator": {
             "@type": "Person",
-            "@id": "did:web:example.org:users:ada",
-            "name": "Ada"
+            "@id": "did:web:example.org:users:ada"
           },
           "created": "2020-03-04T05:06:07.000Z",
           "body": [
@@ -1045,8 +1020,7 @@
           },
           "creator": {
             "@type": "Person",
-            "@id": "did:web:example.org:users:ada",
-            "name": "Ada"
+            "@id": "did:web:example.org:users:ada"
           },
           "created": "2020-03-04T05:06:07.000Z",
           "body": [
@@ -1082,8 +1056,7 @@
           },
           "creator": {
             "@type": "Person",
-            "@id": "did:web:example.org:users:ada",
-            "name": "Ada"
+            "@id": "did:web:example.org:users:ada"
           },
           "created": "2020-03-04T05:06:07.000Z"
         }
@@ -1108,8 +1081,7 @@
           },
           "creator": {
             "@type": "Person",
-            "@id": "did:web:example.org:users:ada",
-            "name": "Ada"
+            "@id": "did:web:example.org:users:ada"
           },
           "created": "2020-03-04T05:06:07.000Z",
           "body": [
@@ -1153,8 +1125,7 @@
           },
           "creator": {
             "@type": "Person",
-            "@id": "did:web:example.org:users:ada",
-            "name": "Ada"
+            "@id": "did:web:example.org:users:ada"
           },
           "created": "2020-03-04T05:06:07.000Z"
         },

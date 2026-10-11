@@ -75,6 +75,24 @@ export function buildAnnotation(input: CreateAnnotationInternal): Annotation {
   return annotation;
 }
 
+type Agent = NonNullable<Annotation['creator']>;
+
+/**
+ * An agent as the graph holds it: who, and not what a person is called.
+ *
+ * A person's name is the directory's. The record's annotation carries none
+ * for the one who asked; the Archivist joins it onto every read from the
+ * people projection, where a person can change it. A graph that stored the
+ * name would hold a copy that goes stale, and a check of the graph against a
+ * read would call every annotation by a named person wrong. Software is not
+ * named on a read: its agent is stored as the record gives it.
+ */
+function storedAgent(agent: Agent): Agent {
+  if (agent['@type'] !== 'Person') return agent;
+  const { name: _theDirectorys, ...who } = agent;
+  return who;
+}
+
 /**
  * The annotation's stored properties. Entity tags are not among them — those
  * are edges, and the store writes them from `getEntityTypes(annotation)`.
@@ -91,14 +109,18 @@ export function encodeAnnotation(annotation: Annotation): Record<string, string>
     resourceId,
     type: storedAnnotationType(annotation.motivation),
     motivation: annotation.motivation,
-    creator: JSON.stringify(annotation.creator),
+    creator: JSON.stringify(annotation.creator === undefined ? undefined : storedAgent(annotation.creator)),
     created: annotation.created,
   };
 
   if (selector) Object.assign(props, encodeSelector(selector));
   if (bodySource) props.source = bodySource;
   if (annotation.modified) props.modified = annotation.modified;
-  if (annotation.generator) props.generator = JSON.stringify(annotation.generator);
+  if (annotation.generator) {
+    props.generator = JSON.stringify(
+      Array.isArray(annotation.generator) ? annotation.generator.map(storedAgent) : storedAgent(annotation.generator),
+    );
+  }
 
   return props;
 }

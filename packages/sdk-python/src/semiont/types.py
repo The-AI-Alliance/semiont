@@ -201,6 +201,7 @@ __all__ = [
     "GetResourceResponse",
     "GetTagSchemasResponse",
     "GraphAnnotationNode",
+    "GraphConfig",
     "GraphResourceNode",
     "HealthResponse",
     "HighlightingJobParams",
@@ -209,6 +210,7 @@ __all__ = [
     "InferenceLimitsResult",
     "InferenceLimitsResultResponse",
     "InferencePairLimits",
+    "JanusGraphConfig",
     "Job",
     "JobAssignCommand",
     "JobAssignedPayload",
@@ -314,7 +316,10 @@ __all__ = [
     "MatchSearchResult",
     "MediaTokenRequest",
     "MediaTokenResponse",
+    "MemoryGraphConfig",
     "Motivation",
+    "Neo4jGraphConfig",
+    "NeptuneGraphConfig",
     "PdfTextItem",
     "PeopleProjection",
     "PeopleProjectionPeopleValue",
@@ -382,6 +387,8 @@ __all__ = [
     "UserResponse",
     "WeaveApplied",
     "WeaveRebuildCommand",
+    "WeaverConfig",
+    "WeaverConfigIdentity",
     "WorkerAgentConfig",
     "WorkerConfig",
     "WorkerConfigIdentity",
@@ -2589,6 +2596,69 @@ type LogFormat = Annotated[
 ]
 
 
+class Neo4jGraphConfig(WireModel, frozen=True, extra="forbid"):
+    """
+    A graph kept in a Neo4j database.
+    """
+
+    type: Literal["neo4j"]
+    uri: Annotated[
+        str,
+        Field(
+            description="Where the database is reached (`bolt://host:7687`).",
+            min_length=1,
+        ),
+    ]
+    username: Annotated[str, Field(description="The user the service connects as.", min_length=1)]
+    password_env: Annotated[
+        str,
+        Field(
+            alias="passwordEnv",
+            description="The environment variable holding that user's password. The password is never a value here.",
+            min_length=1,
+        ),
+    ]
+    database: Annotated[
+        str,
+        Field(description="Which of the server's databases holds the graph.", min_length=1),
+    ]
+
+
+class JanusGraphConfig(WireModel, frozen=True, extra="forbid"):
+    """
+    A graph kept in a JanusGraph server, asked in Gremlin. No service has been run against one.
+    """
+
+    type: Literal["janusgraph"]
+    host: Annotated[str, Field(description="The server's host.", min_length=1)]
+    port: Annotated[
+        int,
+        Field(description="The port its Gremlin endpoint listens on.", ge=1, le=65535),
+    ]
+
+
+class NeptuneGraphConfig(WireModel, frozen=True, extra="forbid"):
+    """
+    A graph kept in Amazon Neptune, asked in Gremlin. No service has been run against one.
+    """
+
+    type: Literal["neptune"]
+    endpoint: Annotated[str, Field(description="The cluster's endpoint: its host name.", min_length=1)]
+    port: Annotated[
+        int,
+        Field(description="The port its Gremlin endpoint listens on.", ge=1, le=65535),
+    ]
+    region: Annotated[str, Field(description="The AWS region the cluster is in.", min_length=1)]
+
+
+class MemoryGraphConfig(WireModel, frozen=True, extra="forbid"):
+    """
+    A graph held in the memory of the one process that is given it: for a test. It cannot be shared between processes, so a service that writes the graph for another to read, or reads what another wrote, refuses it.
+    """
+
+    type: Literal["memory"]
+
+
 class DispatcherHealth(WireModel, frozen=True, extra="forbid"):
     """
     The dispatcher's liveness answer. It answers only once its queue has connected and its bus pumps are attached, so a 200 means it can take work.
@@ -3282,6 +3352,20 @@ class DispatcherConfigTiming(WireModel, frozen=True, extra="forbid"):
 class WorkerConfigIdentity(WireModel, frozen=True, extra="forbid"):
     """
     The issuer the worker's service account signs in at.
+    """
+
+    issuer: Annotated[
+        str,
+        Field(
+            description="The issuer URL, exactly as tokens carry it in `iss`.",
+            min_length=1,
+        ),
+    ]
+
+
+class WeaverConfigIdentity(WireModel, frozen=True, extra="forbid"):
+    """
+    The issuer the Weaver's service account signs in at.
     """
 
     issuer: Annotated[
@@ -4699,6 +4783,15 @@ class DispatcherConfig(WireModel, frozen=True, extra="forbid"):
     log_format: Annotated[LogFormat, Field(alias="logFormat")]
 
 
+type GraphConfig = Annotated[
+    Neo4jGraphConfig | JanusGraphConfig | NeptuneGraphConfig | MemoryGraphConfig,
+    Field(
+        description="The graph database a service writes or reads, and what that kind of database needs to be reached: one of the kinds `semiont-graph` has a store for, told apart by `type`. A secret is never a value here: a database's password is named by the environment variable that holds it.",
+        discriminator="type",
+    ),
+]
+
+
 class PeopleProjection(WireModel, frozen=True, extra="forbid"):
     """
     What the people of a knowledge base are called: the file `projections/__system__/people.json` under the state directory, the sum of the `person:profiled` events. The Archivist writes it; the Archivist and the Librarian read it to name the people a reply mentions. Written as JSON indented by two spaces.
@@ -5363,6 +5456,37 @@ class WorkerAgentConfig(WireModel, frozen=True, extra="forbid"):
             min_length=1,
         ),
     ] = None
+
+
+class WeaverConfig(WireModel, frozen=True, extra="forbid"):
+    """
+    Everything a Weaver reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the Weaver. The launcher writes it for the Weaver it starts, from the environment the knowledge base's config selects, and the Weaver reads it from the path its `--config` flag names (its image passes `/etc/semiont/weaver.json`). Whoever starts a Weaver another way writes the same document: this schema is the contract, and a Weaver needs no launcher. Started without `--config`, or with a path that names no file, the Weaver refuses to start and says which. No secret is a value here: the graph database's password is named by the environment variable that holds it, and the Weaver's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` in its environment. A document that does not validate is refused at boot, naming each failing field.
+    """
+
+    gateway_url: Annotated[
+        str,
+        Field(
+            alias="gatewayUrl",
+            description="The URL the Weaver reaches the gateway at: its route to the bus, and the only address of the knowledge base it holds.",
+            min_length=1,
+        ),
+    ]
+    identity: WeaverConfigIdentity
+    graph: GraphConfig
+    checkpoint_path: Annotated[
+        str,
+        Field(
+            alias="checkpointPath",
+            description="The file the Weaver keeps its marks in: for each resource, the sequence number it has applied up to. Never a correctness input: a Weaver that finds none applies the whole record again.",
+            min_length=1,
+        ),
+    ]
+    port: Annotated[
+        int,
+        Field(description="The port the Weaver answers `/health` on.", ge=1, le=65535),
+    ]
+    log_level: Annotated[LogLevel, Field(alias="logLevel")]
+    log_format: Annotated[LogFormat, Field(alias="logFormat")]
 
 
 class AnchoredTextExtractedEntry(WireModel, frozen=True, extra="forbid"):

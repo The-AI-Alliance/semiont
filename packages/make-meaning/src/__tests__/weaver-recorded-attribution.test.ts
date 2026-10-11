@@ -21,7 +21,7 @@ import {
   storedEvent,
 } from './helpers/weaver-harness';
 
-const ASKER = { '@type': 'Person' as const, '@id': 'did:web:test:users:asker', name: 'asker' };
+const ASKER = { '@type': 'Person' as const, '@id': 'did:web:test:users:asker' };
 const WORKER_AGENT = { '@type': 'Software' as const, '@id': 'did:web:test:agents:anthropic:model', name: 'model' };
 const WORKER = WORKER_AGENT['@id'];
 const RECORDED_AT = '2020-03-04T05:06:07.000Z';
@@ -122,6 +122,22 @@ describe('a resource\'s attribution and date', () => {
   });
 });
 
+describe('a resource recorded with no attribution', () => {
+  it('is refused: the graph derives none from who sent the event', async () => {
+    const rig = await buildWeaverRig();
+    const history = [created('res-unattributed', 1)];
+    try {
+      for (const e of history) rig.push(e);
+      expect(await awaitMarks(rig.weaver, maxSeqs(history), 200)).toBe(false);
+
+      expect(await rig.graph.getResource(resourceId('res-unattributed'))).toBeNull();
+      expect(rig.weaver.getHealthMetrics().applyFailures).toBeGreaterThanOrEqual(1);
+    } finally {
+      await rig.dispose();
+    }
+  });
+});
+
 describe('a graph the fold has just built', () => {
   // Reconcile compares the graph with what the codec says it should hold for
   // each annotation of the VIEW. So whatever the view holds that the codec
@@ -148,6 +164,32 @@ describe('a graph the fold has just built', () => {
 
       expect((await rig.graph.getAnnotation(annotationId('ann-generated')))?.generator).toEqual(WORKER_AGENT);
       expect(await rig.weaver.reconcile()).toMatchObject({ divergent: 0, healed: 0 });
+    } finally {
+      stopServing();
+      await rig.dispose();
+    }
+  });
+
+  it('is one reconcile finds nothing wrong with: a read names a person, and the graph does not hold the name', async () => {
+    // The Archivist names every person a reply mentions, from the people
+    // projection, when it answers; the record's annotation carries no name,
+    // and a name can change. A graph that held one, or a check that expected
+    // one, would call every annotation by a named person divergent.
+    const rig = await buildWeaverRig();
+    const rid = 'res-named';
+    const recorded: Annotation = { ...makeAnnotationPayload('ann-named', rid), creator: { '@type': 'Person', '@id': ASKER['@id'] } };
+    const asRead: Annotation = { ...recorded, creator: { '@type': 'Person', '@id': ASKER['@id'], name: 'Ada Lovelace' } };
+    const history = [
+      created(rid, 1, { wasAttributedTo: ASKER }),
+      storedEvent('mark:added', rid, { annotation: recorded }, 2),
+    ];
+    const stopServing = serveHistory(rig.eventBus, history, { [rid]: [asRead] });
+    try {
+      for (const e of history) rig.push(e);
+      expect(await awaitMarks(rig.weaver, maxSeqs(history))).toBe(true);
+
+      expect(await rig.weaver.reconcile()).toMatchObject({ divergent: 0, healed: 0 });
+      expect((await rig.graph.getAnnotation(annotationId('ann-named')))?.creator).toEqual({ '@type': 'Person', '@id': ASKER['@id'] });
     } finally {
       stopServing();
       await rig.dispose();

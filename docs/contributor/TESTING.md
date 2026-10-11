@@ -18,6 +18,7 @@ How Semiont's test suites are organized, configured and run, and what CI gates o
 | SDK conformance | [`tests/conformance/sdk`](../../tests/conformance/sdk/README.md) | Every SDK, through a driver, as a client of a real gateway: one corpus of cases, on the wire and in live queries | A built gateway and the Rust drivers; `@semiont/sdk` built; `uv` and Python 3.12 or later, for the Python drivers; `nats-server` |
 | Worker conformance | [`tests/conformance/worker`](../../tests/conformance/worker/README.md) | A worker written on each SDK, through a driver, with the suite playing the dispatcher, against [WORKER-CONTRACT.md](../protocol/WORKER-CONTRACT.md) | A built gateway and the Rust drivers; the packages built; `uv` and Python 3.12 or later, for the Python driver; `nats-server` |
 | Worker-service conformance | [`tests/conformance/worker-service`](../../tests/conformance/worker-service/README.md) | The Worker service as a running process, black-box, behind a real gateway, with the suite playing the dispatcher, the record, the Smelter and the model's provider, against [WORKER-SERVICE.md](../protocol/WORKER-SERVICE.md) | A built gateway; `@semiont/core` built; the Worker service's environment, which `uv` makes; `nats-server` |
+| Weaver conformance | [`tests/conformance/weaver`](../../tests/conformance/weaver/README.md) | The Weaver as a running process, black-box, behind a real gateway and a real Archivist, writing a real neo4j that the suite reads back, against [WEAVER.md](../protocol/WEAVER.md) | A built gateway and Archivist; the packages built; `git`; `nats-server`; a neo4j of its own, named in `NEO4J_HOST` and `NEO4J_PASSWORD` |
 | End-to-end | [`tests/e2e`](../../tests/e2e/README.md) | The live Browser against a live gateway and knowledge base | A running stack and a user at its issuer |
 
 The conformance suites import nothing from what they check. One line per service and per SDK in [`harness/paths.ts`](../../tests/conformance/harness/paths.ts) names the implementation, so the same cases judge any implementation of the same spec.
@@ -77,7 +78,7 @@ Workspace suites run with nothing listening. CI's package matrix starts no datab
 
 ### How the conformance suites are configured
 
-[`tests/conformance/vitest.config.ts`](../../tests/conformance/vitest.config.ts) is its own config, not derived from the shared one. It holds six projects over one shared harness: `gateway`, `dispatcher`, `archivist`, `sdk`, `worker` and `worker-service`. It uses the `forks` pool with up to four workers, since each file boots its own gateways, issuer and broker, and a 60-second test timeout.
+[`tests/conformance/vitest.config.ts`](../../tests/conformance/vitest.config.ts) is its own config, not derived from the shared one. It holds seven projects over one shared harness: `gateway`, `dispatcher`, `archivist`, `sdk`, `worker`, `worker-service` and `weaver`. It uses the `forks` pool with up to four workers, since each file boots its own gateways, issuer and broker, and a 60-second test timeout.
 
 Each gateway the suite starts gets a fresh temporary directory holding its `GatewayConfig` document, and an environment of `PATH` plus the variables the case sets, such as `JWT_SECRET` and `SEMIONT_OIDC_CLIENT_ID`. Nothing else from your shell reaches it.
 
@@ -130,7 +131,7 @@ cargo build --release -p semiont-gateway -p semiont-dispatcher -p semiont-archiv
 npm run build:packages
 cd tests/conformance
 npm ci
-npm run test:gateway        # or test:dispatcher, test:archivist, test:sdk, test:worker, test:worker-service; npm test runs all six
+npm run test:gateway        # or test:dispatcher, test:archivist, test:sdk, test:worker, test:worker-service, test:weaver; npm test runs all seven
 ```
 
 Each script typechecks the cases first. What each suite checks is in its README, linked in the table above, and the gateway's is also described in [apps/gateway/docs/TESTING.md](../../apps/gateway/docs/TESTING.md).
@@ -302,6 +303,7 @@ Excluded from coverage: what the shared config excludes (see [One shared Vitest 
 | `sdk-conformance` | Builds the gateway, the Rust drivers and `@semiont/sdk`, installs the Python SDK's locked environment, and runs the `sdk` project |
 | `worker-conformance` | Builds the gateway, the Rust drivers and the packages, installs the Python SDK's locked environment, and runs the `worker` project |
 | `worker-service-conformance` | Builds the gateway and `@semiont/core`, makes the Worker service's locked environment with every provider's library, and runs the `worker-service` project |
+| `weaver-conformance` | Builds the gateway, the Archivist and the packages, starts the neo4j the launcher runs, and runs the `weaver` project |
 | `test-sdk-python` | `mypy` and `pyright`, each as Linux and as Windows, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `packages/sdk-python`; the distributions a release uploads are built and checked |
 | `test-sdk-python-windows` | The Python SDK's sign-in store and state directory tests, on Windows |
 | `test-inference-python` | `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `packages/inference-python` |
@@ -318,7 +320,7 @@ Four other workflows gate the same pushes and pull requests:
 
 | Workflow | What it runs |
 |---|---|
-| [`package-tests.yml`](../../.github/workflows/package-tests.yml) | A matrix over every package with a suite: typecheck, `npm test`, then `test:coverage` and the Codecov upload, neither of which fails the job |
+| [`package-tests.yml`](../../.github/workflows/package-tests.yml) | A matrix over every package with a suite: typecheck, `npm test`, then `test:coverage` and the Codecov upload, neither of which fails the job. A job beside it, "Graph Stores (neo4j)", starts the neo4j the launcher runs and holds `@semiont/graph`'s neo4j store to it (`npm run test:neo4j` in `packages/graph`, which reads `NEO4J_HOST` and `NEO4J_PASSWORD` and fails without them) |
 | [`security-tests.yml`](../../.github/workflows/security-tests.yml) | The Browser's `test:security` and `test:coverage`; a built Browser probed for privileged content in its shell; a built gateway probed for 401s on protected routes, the error shape, and leaked secrets |
 | [`accessibility-tests.yml`](../../.github/workflows/accessibility-tests.yml) | react-ui's `test:a11y`; the Browser's suite; Lighthouse against a built Browser, failing below an accessibility score of 90. Also daily |
 | [`architecture-compliance.yml`](../../.github/workflows/architecture-compliance.yml) | The audits in [`scripts/compliance/`](../../scripts/compliance/) and the `lint:*` gates: the doc snippets, raw bus use, the state-unit axioms, the boot contract, the spec's own consistency, the operator's telemetry tables (`lint:telemetry-doc`), and more. Also on pushes to `feature/**` |

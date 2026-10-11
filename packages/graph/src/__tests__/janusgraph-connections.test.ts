@@ -12,7 +12,8 @@ import { annotationId, getResourceId, resourceId } from '@semiont/core';
 import type { CreateAnnotationInternal, ResourceDescriptor } from '@semiont/core';
 import { JanusGraphDatabase } from '../implementations/janusgraph';
 
-const CREATOR = { '@type': 'Person' as const, id: 'did:web:example.org:users:u1', name: 'Ada' };
+/** A person as the record names one: by who they are. A name is the directory's, joined on at a read. */
+const CREATOR = { '@type': 'Person' as const, '@id': 'did:web:example.org:users:u1' };
 
 function resource(id: string): ResourceDescriptor {
   return {

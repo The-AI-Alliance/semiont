@@ -41,7 +41,8 @@ function connection(): { uri: string; password: string } {
   return { uri: `bolt://${host}:${BOLT_PORT}`, password };
 }
 
-export const CREATOR = { '@type': 'Person' as const, '@id': 'did:web:example.org:users:ada', name: 'Ada' };
+/** A person as the record names one: by who they are. A name is the directory's, joined on at a read. */
+export const CREATOR = { '@type': 'Person' as const, '@id': 'did:web:example.org:users:ada' };
 
 /** The authoring moment, long past, so a store's own clock can never pass for it. */
 export const AUTHORED = '2020-03-04T05:06:07.000Z';

@@ -14,6 +14,7 @@ import {
   buildWeaverRig,
   makeAnnotationPayload,
   maxSeqs,
+  RECORDED_BY,
   serveHistory,
   storedEvent,
 } from './helpers/weaver-harness';
@@ -27,8 +28,8 @@ describe('rebuilding one resource', () => {
       body: [{ type: 'SpecificResource', source: resourceId('res-to'), purpose: 'linking' }],
     };
     const history = [
-      storedEvent('yield:created', 'res-to', { name: 'To', format: 'text/plain', contentChecksum: 'cs-to' }, 1),
-      storedEvent('yield:created', 'res-from', { name: 'From', format: 'text/plain', contentChecksum: 'cs-from' }, 1),
+      storedEvent('yield:created', 'res-to', { name: 'To', format: 'text/plain', contentChecksum: 'cs-to', wasAttributedTo: RECORDED_BY }, 1),
+      storedEvent('yield:created', 'res-from', { name: 'From', format: 'text/plain', contentChecksum: 'cs-from', wasAttributedTo: RECORDED_BY }, 1),
       storedEvent('mark:added', 'res-from', { annotation: link }, 2),
     ];
     const stopServing = serveHistory(rig.eventBus, history);

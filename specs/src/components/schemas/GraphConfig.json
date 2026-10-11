@@ -1,0 +1,26 @@
+{
+  "description": "The graph database a service writes or reads, and what that kind of database needs to be reached: one of the kinds `semiont-graph` has a store for, told apart by `type`. A secret is never a value here: a database's password is named by the environment variable that holds it.",
+  "oneOf": [
+    {
+      "$ref": "./Neo4jGraphConfig.json"
+    },
+    {
+      "$ref": "./JanusGraphConfig.json"
+    },
+    {
+      "$ref": "./NeptuneGraphConfig.json"
+    },
+    {
+      "$ref": "./MemoryGraphConfig.json"
+    }
+  ],
+  "discriminator": {
+    "propertyName": "type",
+    "mapping": {
+      "neo4j": "./Neo4jGraphConfig.json",
+      "janusgraph": "./JanusGraphConfig.json",
+      "neptune": "./NeptuneGraphConfig.json",
+      "memory": "./MemoryGraphConfig.json"
+    }
+  }
+}

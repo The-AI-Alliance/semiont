@@ -25,7 +25,8 @@ import { Neo4jGraphDatabase } from '../implementations/neo4j';
 import { NeptuneGraphDatabase } from '../implementations/neptune';
 import { JanusGraphDatabase } from '../implementations/janusgraph';
 
-const CREATOR = { '@type': 'Person' as const, id: 'did:web:example.org:users:u1', name: 'Ada' };
+/** A person as the record names one: by who they are. A name is the directory's, joined on at a read. */
+const CREATOR = { '@type': 'Person' as const, '@id': 'did:web:example.org:users:u1' };
 
 /**
  * The AUTHORING moment, deliberately long past. A store that stamps its own

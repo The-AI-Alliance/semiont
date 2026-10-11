@@ -53,7 +53,7 @@ export function createTestHighlight(
     },
     creator: {
       '@type': 'Person' as const,
-      name: `User ${uuidv4()}`,
+      '@id': `did:web:example.org:users:${uuidv4()}`,
     },
     created: new Date().toISOString(),
     ...overrides,
@@ -82,7 +82,7 @@ export function createTestReference(
     body: [{ type: 'TextualBody', value: 'StubEntityType', purpose: 'tagging' }],
     creator: {
       '@type': 'Person' as const,
-      name: `User ${uuidv4()}`,
+      '@id': `did:web:example.org:users:${uuidv4()}`,
     },
     created: new Date().toISOString(),
     ...overrides,
@@ -118,7 +118,7 @@ export function createTestEntityReference(
     ],
     creator: {
       '@type': 'Person' as const,
-      name: `User ${uuidv4()}`,
+      '@id': `did:web:example.org:users:${uuidv4()}`,
     },
     created: new Date().toISOString(),
     ...overrides,

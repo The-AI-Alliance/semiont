@@ -524,6 +524,108 @@ jobs:
         env:
           CI: true
 
+  # The Weaver, held to docs/protocol/WEAVER.md: the process a weaver image
+  # runs, behind a real gateway and a real Archivist, writing a real neo4j,
+  # which the suite reads back.
+  weaver-conformance:
+    name: Weaver Conformance
+    runs-on: ubuntu-latest
+    env:
+      # Where the suite finds its graph database, and the password it is
+      # started with below: a container this job makes, and the suite clears.
+      NEO4J_HOST: localhost
+      NEO4J_PASSWORD: weaver-conformance-ci
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Install the pinned Rust toolchain
+        run: |
+          rustup toolchain install
+
+      # The workspace's release build, shared with Gateway Conformance.
+      - name: Cache cargo
+        uses: actions/cache@v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-gateway-release-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-gateway-release-
+
+      # The Weaver reaches the bus through a gateway, and is given its events
+      # and its history by an Archivist.
+      - name: Build the gateway and the Archivist
+        run: cargo build --release --locked -p semiont-gateway -p semiont-archivist
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            tests/conformance/package-lock.json
+
+      # The TypeScript Weaver is the built entry point of @semiont/make-meaning,
+      # and the suite reads the graph with the built @semiont/graph.
+      - name: Install dependencies
+        run: |
+          npm ci --include=optional
+          npm run build:packages
+
+      # The harness's global setup refuses to run without a broker on PATH.
+      - name: Install nats-server
+        run: |
+          NATS_VERSION=v2.14.0
+          curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
+          sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
+          nats-server --version
+
+      # The neo4j the launcher starts for an operator, whose image
+      # scripts/ci/neo4j-image.sh reads from the launcher's own descriptor.
+      - name: Start neo4j
+        run: |
+          image=$(scripts/ci/neo4j-image.sh)
+          docker run -d --name neo4j -p 7687:7687 -e NEO4J_AUTH="neo4j/${NEO4J_PASSWORD}" "$image"
+          for attempt in $(seq 1 60); do
+            if docker exec neo4j cypher-shell -u neo4j -p "$NEO4J_PASSWORD" 'RETURN 1' > /dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs neo4j
+          echo "neo4j did not answer within two minutes"
+          exit 1
+
+      # The suite starts the Python Weaver by the interpreter of its project's
+      # locked environment (harness/paths.ts): the environment its image has, on
+      # the Python the SDK's floor names, without the development group, with
+      # every database's client.
+      - name: Setup Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.2.0
+
+      - name: Make the Python Weaver's environment
+        run: uv sync --locked --no-dev --all-extras --project apps/weaver
+
+      # Black-box: it starts Weaver processes behind a gateway and an
+      # Archivist, records through the Archivist, and reads the graph.
+      - name: Run the Weaver conformance suite
+        run: |
+          cd tests/conformance
+          npm ci
+          npm run test:weaver
+        env:
+          CI: true
+
   # The Worker service, held to docs/protocol/WORKER-SERVICE.md: the process a
   # worker image runs, behind a real gateway, with the suite playing the
   # dispatcher, the record, the Smelter and its provider.
@@ -804,6 +906,155 @@ jobs:
           docker rm typst
           "$RUNNER_TEMP/typst/typst" --version
           echo "$RUNNER_TEMP/typst" >> "$GITHUB_PATH"
+
+      - name: Run the tests
+        run: uv run pytest
+
+  # The Python graph stores (packages/graph-python), as the Python SDK is
+  # checked: both type checkers, strict, on the oldest Python supported, and
+  # the tests on every one. The locked environment takes the SDK from this
+  # checkout. These tests need no database: they run the codecs' case table of
+  # specs/, the store contract against the in-memory store, and the two
+  # Gremlin stores against fake clients.
+  test-graph-python:
+    name: Python Graph Stores
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.12', '3.13', '3.14']
+
+    defaults:
+      run:
+        working-directory: packages/graph-python
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.2.0
+
+      - name: Install the locked environment
+        run: uv sync --locked
+
+      - name: Type-check with mypy (strict)
+        if: matrix.python-version == '3.12'
+        run: uv run mypy
+
+      # pyright runs on Node, which the runner has.
+      - name: Type-check with pyright (strict)
+        if: matrix.python-version == '3.12'
+        run: uv run pyright
+
+      - name: Lint and check formatting
+        if: matrix.python-version == '3.12'
+        run: |
+          uv run ruff check
+          uv run ruff format --check
+
+      - name: Run the tests
+        run: uv run pytest
+
+  # The Python neo4j store against a real neo4j: the same store contract the
+  # in-memory store is held to, asked of the database. It starts the neo4j the
+  # launcher starts for an operator, whose image scripts/ci/neo4j-image.sh
+  # reads from the launcher's own descriptor.
+  test-graph-python-neo4j:
+    name: Python Graph Stores (neo4j)
+    runs-on: ubuntu-latest
+    env:
+      # Where the run finds its database, and the password it was started
+      # with below: a container this job makes and discards.
+      NEO4J_HOST: localhost
+      NEO4J_PASSWORD: graph-stores-ci
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.2.0
+
+      - name: Install the locked environment
+        working-directory: packages/graph-python
+        run: uv sync --locked
+
+      - name: Start neo4j
+        run: |
+          image=$(scripts/ci/neo4j-image.sh)
+          docker run -d --name neo4j -p 7687:7687 -e NEO4J_AUTH="neo4j/${NEO4J_PASSWORD}" "$image"
+          for attempt in $(seq 1 60); do
+            if docker exec neo4j cypher-shell -u neo4j -p "$NEO4J_PASSWORD" 'RETURN 1' > /dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs neo4j
+          echo "neo4j did not answer within two minutes"
+          exit 1
+
+      - name: Run the store contract against it
+        working-directory: packages/graph-python
+        run: uv run pytest tests/neo4j_live.py
+
+  # The Weaver's Python code (apps/weaver), as the Python SDK is checked: both
+  # type checkers, strict, on the oldest Python supported, and the tests on
+  # every one. The locked environment takes the SDK and the graph stores from
+  # this checkout. The tests run the fold's case table of specs/ and the
+  # Weaver over a scripted transport and a graph in the process; they start no
+  # service and reach no database. The process is held by Weaver Conformance.
+  test-weaver-python:
+    name: Python Weaver
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.12', '3.13', '3.14']
+
+    defaults:
+      run:
+        working-directory: apps/weaver
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.2.0
+
+      - name: Install the locked environment
+        run: uv sync --locked
+
+      - name: Type-check with mypy (strict)
+        if: matrix.python-version == '3.12'
+        run: uv run mypy
+
+      # pyright runs on Node, which the runner has.
+      - name: Type-check with pyright (strict)
+        if: matrix.python-version == '3.12'
+        run: uv run pyright
+
+      - name: Lint and check formatting
+        if: matrix.python-version == '3.12'
+        run: |
+          uv run ruff check
+          uv run ruff format --check
 
       - name: Run the tests
         run: uv run pytest
