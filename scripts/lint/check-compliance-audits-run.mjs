@@ -2,16 +2,18 @@
 /**
  * Every audit under scripts/compliance is run by a workflow.
  *
- * An audit is a shell script that exits 1 when the tree breaks its rule.
- * Writing one does not run it: a workflow step has to name it. Five were
+ * An audit is a script that exits 1 when the tree breaks its rule. Writing
+ * one does not run it: a workflow step has to name it. Five shell audits were
  * once named by no workflow, and reached only through
  * scripts/compliance/audit-all-compliance.sh, which a developer runs by hand
  * and no workflow runs. One of the five had been failing for months, since
- * the Worker became a Python service, and nothing said so.
+ * the Worker became a Python service, and nothing said so. A sixth, written
+ * in TypeScript, was found the same way later: the first form of this check
+ * read shell scripts alone.
  *
- * So: each `scripts/compliance/audit-*.sh` is named on a line of a workflow
- * that is not a comment. The one script of that name that is no audit is
- * listed below, with what it is.
+ * So: each `scripts/compliance/audit-*.sh` and `audit-*.ts` is named on a
+ * line of a workflow that is not a comment. The files of that name that no
+ * workflow is to name are listed below, each with what it is.
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -20,17 +22,19 @@ import { repositoryFiles } from './repository-files.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 
-/** Scripts named like an audit that are not one, each with why no workflow runs it. */
+/** Files named like an audit that no workflow names, each with why. */
 const NOT_AN_AUDIT = {
   'scripts/compliance/audit-all-compliance.sh': 'runs the audits, one after another, for a developer at a checkout',
+  'scripts/compliance/audit-dependency-arrays.ts': 'a module of batch-audit.ts, which the React-UI and Browser compliance audits run',
+  'scripts/compliance/audit-test-files.ts': 'a module of batch-audit-tests.ts, which audit-compliance-gate.sh runs',
 };
 
 const files = repositoryFiles(ROOT);
-const audits = files.filter((file) => /^scripts\/compliance\/audit-[^/]+\.sh$/.test(file));
+const audits = files.filter((file) => /^scripts\/compliance\/audit-[^/]+\.(sh|ts)$/.test(file));
 const workflows = files.filter((file) => /^\.github\/workflows\/[^/]+\.ya?ml$/.test(file));
 
 const failures = [];
-if (audits.length === 0) failures.push('no scripts/compliance/audit-*.sh was found: the check has lost what it reads');
+if (audits.length === 0) failures.push('no scripts/compliance/audit-*.sh or audit-*.ts was found: the check has lost what it reads');
 if (workflows.length === 0) failures.push('no workflow was found under .github/workflows: the check has lost what it reads');
 
 // What a workflow runs: its lines, without the ones that are comments. An audit named only in a comment is not run.

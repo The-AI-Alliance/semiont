@@ -19,6 +19,11 @@ What it stores:
   Storing the resource fills it in, and the mark goes;
 - the vocabulary is one node, `(:TagCollection {type: "entity-types"})`.
 
+The database's schema is this store's to make, and it makes it each time it
+connects: an id is unique among resources and among annotations, and what a
+reader looks a row up by is indexed. No reader of the graph makes any
+(`@semiont/graph` makes none when it connects).
+
 Every date is stored as the text the codec gives, never as one of Neo4j's own
 temporal values: the client hands one of those back in another spelling. And
 the store reads no clock.

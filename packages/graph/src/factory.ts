@@ -1,4 +1,5 @@
-// Factory for creating graph database instances based on configuration
+// The graph database a knowledge base's configuration names: one connection
+// for the process.
 
 import { GraphDatabase } from './interface';
 import { NeptuneGraphDatabase } from './implementations/neptune';
@@ -6,63 +7,24 @@ import { Neo4jGraphDatabase } from './implementations/neo4j';
 import { JanusGraphDatabase } from './implementations/janusgraph';
 import type { GraphServiceConfig } from '@semiont/core';
 
-export type GraphDatabaseType = 'neptune' | 'neo4j' | 'janusgraph' | 'memory';
-
-export interface GraphDatabaseConfig {
-  type: GraphDatabaseType;
-
-  // Neptune config
-  neptuneEndpoint?: string;
-  neptunePort?: number;
-  neptuneRegion?: string;
-
-  // Neo4j config
-  neo4jUri?: string;
-  neo4jUsername?: string;
-  neo4jPassword?: string;
-  neo4jDatabase?: string;
-
-  // JanusGraph config
-  janusHost?: string;
-  janusPort?: number;
-  janusStorageBackend?: 'cassandra' | 'hbase' | 'berkeleydb';
-  janusIndexBackend?: 'elasticsearch' | 'solr' | 'lucene';
-}
-
-// Singleton instance
 let graphDatabaseInstance: GraphDatabase | null = null;
 
-export function createGraphDatabase(config: GraphDatabaseConfig): GraphDatabase {
+/**
+ * The store a configuration names, given what the configuration says of it.
+ * A store says what it was not given when it connects.
+ *
+ * `memory` is a graph a test makes, with what it holds (MemoryGraphDatabase).
+ * No configuration yields one: it could not be shared with the Weaver that
+ * writes the graph, and the Weaver and the Librarian each refuse it.
+ */
+function storeOf(config: GraphServiceConfig): GraphDatabase {
   switch (config.type) {
-    case 'neptune': {
-      const neptuneConfig: any = {};
-      if (config.neptuneEndpoint !== undefined) neptuneConfig.endpoint = config.neptuneEndpoint;
-      if (config.neptunePort !== undefined) neptuneConfig.port = config.neptunePort;
-      if (config.neptuneRegion !== undefined) neptuneConfig.region = config.neptuneRegion;
-      return new NeptuneGraphDatabase(neptuneConfig);
-    }
-
-    case 'neo4j': {
-      const neo4jConfig: any = {};
-      if (config.neo4jUri !== undefined) neo4jConfig.uri = config.neo4jUri;
-      if (config.neo4jUsername !== undefined) neo4jConfig.username = config.neo4jUsername;
-      if (config.neo4jPassword !== undefined) neo4jConfig.password = config.neo4jPassword;
-      if (config.neo4jDatabase !== undefined) neo4jConfig.database = config.neo4jDatabase;
-      return new Neo4jGraphDatabase(neo4jConfig);
-    }
-
-    case 'janusgraph': {
-      const janusConfig: any = {};
-      if (config.janusHost !== undefined) janusConfig.host = config.janusHost;
-      if (config.janusPort !== undefined) janusConfig.port = config.janusPort;
-      if (config.janusStorageBackend !== undefined) janusConfig.storageBackend = config.janusStorageBackend;
-      if (config.janusIndexBackend !== undefined) janusConfig.indexBackend = config.janusIndexBackend;
-      return new JanusGraphDatabase(janusConfig);
-    }
-
-    // `memory` is a graph a test makes, with what it holds (MemoryGraphDatabase).
-    // No configuration yields one: it could not be shared with the Weaver that
-    // writes the graph, and the Weaver and the Librarian each refuse it.
+    case 'neptune':
+      return new NeptuneGraphDatabase({ endpoint: config.endpoint, port: config.port, region: config.region });
+    case 'neo4j':
+      return new Neo4jGraphDatabase({ uri: config.uri, username: config.username, password: config.password, database: config.database });
+    case 'janusgraph':
+      return new JanusGraphDatabase({ host: config.host, port: config.port });
     default:
       throw new Error(`Unsupported graph database type: ${config.type}`);
   }
@@ -70,51 +32,7 @@ export function createGraphDatabase(config: GraphDatabaseConfig): GraphDatabase 
 
 export async function getGraphDatabase(graphConfig: GraphServiceConfig): Promise<GraphDatabase> {
   if (!graphDatabaseInstance) {
-    const config: GraphDatabaseConfig = {
-      type: graphConfig.type,
-    };
-
-    // Apply configuration based on type
-    if (graphConfig.type === 'janusgraph') {
-      if (graphConfig.host) {
-        config.janusHost = graphConfig.host;
-      }
-      if (graphConfig.port) {
-        config.janusPort = graphConfig.port;
-      }
-      if (graphConfig.storage) {
-        config.janusStorageBackend = graphConfig.storage as any;
-      }
-      if (graphConfig.index && graphConfig.index !== 'none') {
-        config.janusIndexBackend = graphConfig.index as any;
-      }
-    } else if (graphConfig.type === 'neptune') {
-      if (graphConfig.endpoint) {
-        config.neptuneEndpoint = graphConfig.endpoint;
-      }
-      if (graphConfig.port) {
-        config.neptunePort = graphConfig.port;
-      }
-      if (graphConfig.region) {
-        config.neptuneRegion = graphConfig.region;
-      }
-    } else if (graphConfig.type === 'neo4j') {
-      if (graphConfig.uri) {
-        config.neo4jUri = graphConfig.uri;
-      }
-      if (graphConfig.username) {
-        config.neo4jUsername = graphConfig.username;
-      }
-      if (graphConfig.password) {
-        config.neo4jPassword = graphConfig.password;
-      }
-      if (graphConfig.database) {
-        config.neo4jDatabase = graphConfig.database;
-      }
-    }
-
-    graphDatabaseInstance = createGraphDatabase(config);
-    await graphDatabaseInstance.connect();
+    graphDatabaseInstance = storeOf(graphConfig);
   }
 
   if (!graphDatabaseInstance.isConnected()) {

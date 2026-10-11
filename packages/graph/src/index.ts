@@ -15,7 +15,7 @@
 export type { GraphDatabase } from './interface';
 
 // Factory pattern (singleton)
-export { getGraphDatabase, createGraphDatabase } from './factory';
+export { getGraphDatabase } from './factory';
 
 // Implementations (for direct use if needed)
 export { intendedGraphAnnotation } from './annotation-codec';

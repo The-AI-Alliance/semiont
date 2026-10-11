@@ -101,9 +101,8 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       await session.run('RETURN 1 as test');
       await session.close();
 
-      // Create constraints and indexes if they don't exist
-      await this.ensureSchemaExists();
-
+      // No constraint and no index is made here. The database's schema is its
+      // writer's: the Weaver's store makes it when the Weaver connects.
       this.logger?.info('Successfully connected to Neo4j');
       this.connected = true;
     } catch (error) {
@@ -134,50 +133,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     return this.driver.session({
       database: this.config.database
     });
-  }
-
-  private async ensureSchemaExists(): Promise<void> {
-    const session = this.getSession();
-    try {
-      // Create constraints for unique IDs
-      const constraints = [
-        'CREATE CONSTRAINT doc_id IF NOT EXISTS FOR (d:Resource) REQUIRE d.id IS UNIQUE',
-        'CREATE CONSTRAINT sel_id IF NOT EXISTS FOR (s:Annotation) REQUIRE s.id IS UNIQUE',
-        'CREATE CONSTRAINT tag_id IF NOT EXISTS FOR (t:TagCollection) REQUIRE t.type IS UNIQUE'
-      ];
-
-      for (const constraint of constraints) {
-        try {
-          await session.run(constraint);
-        } catch (error: any) {
-          // Ignore if constraint already exists
-          if (!error.message?.includes('already exists')) {
-            this.logger?.warn('Schema creation warning', { message: error.message });
-          }
-        }
-      }
-
-      // Create indexes for common queries
-      const indexes = [
-        'CREATE INDEX doc_name IF NOT EXISTS FOR (d:Resource) ON (d.name)',
-        'CREATE INDEX doc_entity_types IF NOT EXISTS FOR (d:Resource) ON (d.entityTypes)',
-        'CREATE INDEX sel_doc_id IF NOT EXISTS FOR (s:Annotation) ON (s.resourceId)',
-        'CREATE INDEX sel_resolved_id IF NOT EXISTS FOR (s:Annotation) ON (s.resolvedResourceId)'
-      ];
-
-      for (const index of indexes) {
-        try {
-          await session.run(index);
-        } catch (error: any) {
-          // Ignore if index already exists
-          if (!error.message?.includes('already exists')) {
-            this.logger?.warn('Index creation warning', { message: error.message });
-          }
-        }
-      }
-    } finally {
-      await session.close();
-    }
   }
 
   async getResource(id: ResourceId): Promise<ResourceDescriptor | null> {

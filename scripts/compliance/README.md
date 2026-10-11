@@ -128,6 +128,22 @@ const handler = useCallback(() => {
 }, []); // ✅ onCallback NOT in deps - it's in a ref
 ```
 
+### audit-hooks-ordering.ts
+
+**Purpose**: Find a React hook called where React's rules forbid one, in `packages/react-ui/src` and `apps/browser/src`.
+
+**Usage**:
+```bash
+npx tsx scripts/compliance/audit-hooks-ordering.ts
+```
+
+**What it checks**:
+- ❌ A hook called inside a callback (the body of a `useCallback` or a `useMemo`): an error.
+- ❌ A hook called inline in a conditional render, such as `prop={useCallback(...)}` inside a ternary: an error.
+- ⚠️ More than one `useEventSubscriptions` call in a file, where one call takes them all: a warning.
+
+It takes no arguments and writes no report. It exits 1 on an error, and 0 with warnings alone. The compliance workflow runs it as a step of its own.
+
 ## Workspace Wrappers
 
 Thin shell scripts that call shared core with workspace-specific paths.
