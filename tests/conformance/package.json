@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Black-box conformance suites for the gateway, the dispatcher, the Archivist, the Worker service, the Weaver and the SDKs: they start the processes and check them against specs/. They import nothing from any implementation but the graph's reader, which the Weaver suite reads the graph with; see README.md.",
+  "description": "Black-box conformance suites for the gateway, the dispatcher, the Archivist, the Worker service, the Weaver and the SDKs: they start the processes and check them against specs/. They import nothing from any implementation but the graph's reader, which the Weaver suite reads the graph with; what that suite does to the database itself it does in Cypher. See README.md.",
   "scripts": {
     "typecheck": "tsc --noEmit",
     "typecheck:weaver": "tsc --noEmit -p tsconfig.weaver.json",
@@ -30,6 +30,7 @@
     "ajv-formats": "^3.0.1",
     "jose": "^6.2.12",
     "nats": "^2.29.3",
+    "neo4j-driver": "^6.2.0",
     "typescript": "^6.0.2",
     "vitest": "^4.1.11"
   }

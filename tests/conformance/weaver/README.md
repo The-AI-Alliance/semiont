@@ -16,7 +16,11 @@ It does import one thing that is not the harness's: `@semiont/graph`, which it
 reads the graph with, as the Librarian does. What a store holds is stated by
 [`specs/src/graph/codec-cases.json`](../../../specs/src/graph/codec-cases.json);
 the suite reads it back through the reader the rest of Semiont uses and does
-not parse rows of its own. The other suites' type check leaves these files
+not parse rows of its own. That reader writes nothing. Three things the suite
+does in the database itself, in Cypher, through a connection of its own
+([harness/weaver-world.ts](../harness/weaver-world.ts)): it empties it, it
+takes one annotation out of it behind a Weaver's back, and it reads the
+vocabulary of entity types, which no reader reads. The other suites' type check leaves these files
 out (`tsconfig.json`), so they build no graph package; `npm run test:weaver`
 checks them with `tsconfig.weaver.json`.
 

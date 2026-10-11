@@ -1,19 +1,21 @@
 /**
  * @semiont/graph
  *
- * Graph database abstraction with multiple implementations
+ * The graph, as a reader of it reads it. The one writer of the graph is the
+ * Weaver, which writes through `semiont_graph` (packages/graph-python).
  *
  * Provides:
  * - GraphDatabase interface
  * - Singleton factory pattern for runtime selection
- * - 4 implementations: Neo4j, Neptune, JanusGraph, MemoryGraph
+ * - 3 stores a configuration selects (Neo4j, Neptune, JanusGraph), and one a
+ *   test makes with what it holds (MemoryGraph)
  */
 
 // Graph Database interface
 export type { GraphDatabase } from './interface';
 
 // Factory pattern (singleton)
-export { getGraphDatabase, createGraphDatabase, closeGraphDatabase } from './factory';
+export { getGraphDatabase, createGraphDatabase } from './factory';
 
 // Implementations (for direct use if needed)
 export { intendedGraphAnnotation } from './annotation-codec';

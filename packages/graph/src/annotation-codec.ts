@@ -13,12 +13,17 @@
  *
  * The codec manufactures nothing. Absence is stored as absence and read back
  * as absence, in both directions.
+ *
+ * No store in this package writes: the graph's writer is the Weaver, whose
+ * codec is `semiont_graph`'s, and specs/src/graph/codec-cases.json holds the
+ * two to one answer. The encoding half is here for `intendedGraphAnnotation`,
+ * which says what a reader is to read back.
  */
 
 import { annotationId as makeAnnotationId, resourceId as makeResourceId } from '@semiont/core';
 import { getBodySource, getExactText, getTargetSelector, getTargetSource } from '@semiont/core';
 import { getEntityTypes } from '@semiont/core';
-import type { Annotation, AnnotationCategory, CreateAnnotationInternal, ResourceId } from '@semiont/core';
+import type { Annotation, AnnotationCategory } from '@semiont/core';
 
 /**
  * A store's property bag, flattened. Producing this is the store's job:
@@ -44,35 +49,6 @@ export function storedAnnotationType(motivation: Annotation['motivation']): stri
 /** The category a caller filters by, in the vocabulary the annotation stores. */
 export function motivationForCategory(category: AnnotationCategory): Annotation['motivation'] {
   return category === 'highlight' ? 'highlighting' : 'linking';
-}
-
-/**
- * Mint the annotation a create request describes.
- *
- * `created` comes from the input, which carries the AUTHORED moment from the
- * event. A store stamping `new Date().toISOString()` instead would record the
- * graph's own write time, and a rebuild would collapse every annotation to
- * the rebuild moment.
- */
-export function buildAnnotation(input: CreateAnnotationInternal): Annotation {
-  const annotation: Annotation = {
-    '@context': 'http://www.w3.org/ns/anno.jsonld',
-    type: 'Annotation',
-    id: input.id,
-    motivation: input.motivation,
-    target: input.target,
-    creator: input.creator,
-    created: input.created,
-  };
-  if (input.body && (!Array.isArray(input.body) || input.body.length > 0)) {
-    annotation.body = input.body;
-  }
-  // What the encoder stores, the builder carries: an annotation created
-  // without the generator and the `modified` its record has is one the graph
-  // then disagrees with the record about.
-  if (input.generator) annotation.generator = input.generator;
-  if (input.modified) annotation.modified = input.modified;
-  return annotation;
 }
 
 type Agent = NonNullable<Annotation['creator']>;
@@ -127,10 +103,9 @@ export function encodeAnnotation(annotation: Annotation): Record<string, string>
 
 /**
  * The properties a selector contributes: its serialization, plus the quoted
- * text pulled out beside it. Targeted selector updates go through here too,
- * so no store decides on its own what a selector is called on disk.
+ * text pulled out beside it.
  */
-export function encodeSelector(selector: AnnotationSelector): Record<string, string> {
+function encodeSelector(selector: AnnotationSelector): Record<string, string> {
   const props: Record<string, string> = { selector: JSON.stringify(selector) };
   const exact = getExactText(selector);
   if (exact) props.exact = exact;
@@ -231,43 +206,4 @@ function decodeSelector(raw: string | undefined): AnnotationSelector | undefined
  */
 export function intendedGraphAnnotation(annotation: Annotation): Annotation {
   return decodeAnnotation(encodeAnnotation(annotation), getEntityTypes(annotation));
-}
-
-/**
- * The annotation an update leaves, as the graph is to hold it.
- *
- * An update names the fields that changed. What it leaves is the current
- * annotation with those fields replaced, and a store writes THAT, whole: the
- * codec's bag for it, its entity tags, its link. A store that writes "only
- * what changed" has to know which stored things a field owns, and a body owns
- * three in three places: `source`, the tag edges and the reference edge.
- * neo4j's update path knew none of them. It wrote the body to a property
- * nothing reads, so a link or a tag added after an annotation was made was
- * never read back, and a link taken away was still followed.
- *
- * An annotation belongs to one resource for good: the edge to it is written
- * at creation and nothing rewrites it. An update that names another is
- * refused here rather than leaving a row that says one resource and an edge
- * that says another.
- */
-export function updatedAnnotation(current: Annotation, updates: Partial<Annotation>): Annotation {
-  const updated = intendedGraphAnnotation({ ...current, ...updates, id: current.id });
-  const from = getTargetSource(current.target);
-  const to = getTargetSource(updated.target);
-  if (from !== to) {
-    throw new Error(`Annotation ${current.id} belongs to ${from}; an update cannot move it to ${to}`);
-  }
-  return updated;
-}
-
-/**
- * What a reference resolved to `source` is: the annotation's body with its
- * link replaced by one to `source`, and its entity tags kept. Resolving is an
- * update like any other, so it stores what `updatedAnnotation` says and
- * nothing of its own.
- */
-export function resolvedBody(current: Annotation, source: ResourceId): AnnotationBody {
-  const items = current.body === undefined ? [] : Array.isArray(current.body) ? current.body : [current.body];
-  const kept = items.filter((item) => item.type !== 'SpecificResource');
-  return [...kept, { type: 'SpecificResource', source, purpose: 'linking' }];
 }

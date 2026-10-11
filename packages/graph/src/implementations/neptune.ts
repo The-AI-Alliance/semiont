@@ -2,25 +2,18 @@
 // Uses Gremlin for graph traversal
 
 import { GraphDatabase } from '../interface';
-import { assertMutableResourceUpdate } from '../interface';
 import { queryResources } from '../resource-query';
-import { getEntityTypes } from '@semiont/core';
 import type { Logger } from '@semiont/core';
 import {
-  buildAnnotation,
   decodeAnnotation,
-  encodeAnnotation,
-  encodeSelector,
   type AnnotationProperties,
 } from '../annotation-codec';
-import { decodeResource, encodeResource, type ResourceProperties } from '../resource-codec';
+import { decodeResource, type ResourceProperties } from '../resource-codec';
 import type {
   GraphConnection,
   GraphPath,
   EntityTypeStats,
   ResourceFilter,
-  UpdateResourceInput,
-  CreateAnnotationInternal,
   ResourceId,
   AnnotationId,
 } from '@semiont/core';
@@ -33,8 +26,6 @@ let NeptuneClient: any;
 let DescribeDBClustersCommand: any;
 let gremlin: any;
 let process: any;
-let cardinality: any;
-let __: any;
 
 async function loadDependencies() {
   if (!NeptuneClient) {
@@ -46,8 +37,6 @@ async function loadDependencies() {
     // @ts-ignore - gremlin module has no types
     gremlin = await import('gremlin');
     process = gremlin.process;
-    cardinality = process.cardinality;
-    __ = process.statics;
   }
 }
 
@@ -276,24 +265,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     return this.connected;
   }
 
-  async createResource(resource: ResourceDescriptor): Promise<ResourceDescriptor> {
-    // The resource codec's bag, property by property; a list rides as JSON.
-    const props = encodeResource(resource);
-    try {
-      let vertex = this.g.addV('Resource');
-      for (const [key, value] of Object.entries(props)) {
-        vertex = vertex.property(key, Array.isArray(value) ? JSON.stringify(value) : value);
-      }
-      await vertex.next();
-
-      this.logger?.info('Created resource vertex in Neptune', { id: props.id });
-      return decodeResource(props);
-    } catch (error) {
-      this.logger?.error('Failed to create resource in Neptune', { error });
-      throw error;
-    }
-  }
-  
   async getResource(id: ResourceId): Promise<ResourceDescriptor | null> {
     try {
       const result = await this.g.V()
@@ -309,51 +280,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       return vertexToResource(result.value);
     } catch (error) {
       this.logger?.error('Failed to get resource from Neptune', { error });
-      throw error;
-    }
-  }
-  
-  async updateResource(id: ResourceId, input: UpdateResourceInput): Promise<ResourceDescriptor> {
-    assertMutableResourceUpdate(input);
-
-    try {
-      let traversal = this.g.V()
-        .hasLabel('Resource')
-        .has('id', id);
-      if (input.archived !== undefined) {
-        traversal = traversal.property('archived', input.archived);
-      }
-      if (input.entityTypes !== undefined) {
-        // Mirrors createResource's storage idiom: entityTypes ride as JSON.
-        traversal = traversal.property('entityTypes', JSON.stringify(input.entityTypes));
-      }
-      const result = await traversal
-        .elementMap()
-        .next();
-
-      if (!result.value) {
-        throw new Error('Resource not found');
-      }
-
-      return vertexToResource(result.value);
-    } catch (error) {
-      this.logger?.error('Failed to update resource in Neptune', { error });
-      throw error;
-    }
-  }
-  
-  async deleteResource(id: ResourceId): Promise<void> {
-    try {
-      // Delete the resource vertex and all connected edges
-      await this.g.V()
-        .hasLabel('Resource')
-        .has('id', id)
-        .drop()
-        .iterate();
-
-      this.logger?.info('Deleted resource from Neptune', { id });
-    } catch (error) {
-      this.logger?.error('Failed to delete resource from Neptune', { error });
       throw error;
     }
   }
@@ -386,68 +312,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
 
-  
-  async createAnnotation(input: CreateAnnotationInternal): Promise<Annotation> {
-    // The caller's id is the system of record's — never mint a fresh one
-    // (the event-log id is what deletes and lookups arrive under).
-    const annotation = buildAnnotation(input);
-    const props = encodeAnnotation(annotation);
-    const targetSource = props.resourceId!;
-    const bodySource = props.source;
-    const entityTypes = getEntityTypes(input);
 
-    try {
-      // Create Annotation vertex — every property comes from the codec, so
-      // a source-only target contributes no `selector` property at all.
-      let vertex = this.g.addV('Annotation');
-      for (const [key, value] of Object.entries(props)) {
-        vertex = vertex.property(key, value);
-      }
-
-      const newVertex = await vertex.next();
-
-      // Create edge from Annotation to Resource (BELONGS_TO)
-      await this.g.V(newVertex.value)
-        .addE('BELONGS_TO')
-        .to(this.g.V().hasLabel('Resource').has('id', targetSource)) // Use full URI
-        .next();
-
-      // If it's a resolved reference, create edge to target resource (REFERENCES)
-      if (bodySource) {
-        await this.g.V(newVertex.value)
-          .addE('REFERENCES')
-          .to(this.g.V().hasLabel('Resource').has('id', bodySource)) // Use full URI
-          .next();
-      }
-
-      // Create TAGGED_AS relationships for entity types
-      for (const entityType of entityTypes) {
-        // Get or create EntityType vertex
-        const etVertex = await this.g.V()
-          .hasLabel('EntityType')
-          .has('name', entityType)
-          .fold()
-          .coalesce(
-            __.unfold(),
-            this.g.addV('EntityType').property('name', entityType)
-          )
-          .next();
-
-        // Create TAGGED_AS edge from Annotation to EntityType
-        await this.g.V(newVertex.value)
-          .addE('TAGGED_AS')
-          .to(this.g.V(etVertex.value))
-          .next();
-      }
-
-      this.logger?.info('Created annotation vertex in Neptune', { id: annotation.id });
-      return annotation;
-    } catch (error) {
-      this.logger?.error('Failed to create annotation in Neptune', { error });
-      throw error;
-    }
-  }
-  
   async getAnnotation(id: AnnotationId): Promise<Annotation | null> {
     try {
       const result = await this.g.V()
@@ -474,152 +339,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       return vertexToAnnotation(result.value, entityTypes);
     } catch (error) {
       this.logger?.error('Failed to get annotation from Neptune', { error });
-      throw error;
-    }
-  }
-  
-  async updateAnnotation(id: AnnotationId, updates: Partial<Annotation>): Promise<Annotation> {
-    try {
-      let traversal = this.g.V()
-        .hasLabel('Annotation')
-        .has('id', id);
-
-      // Update target properties
-      if (updates.target !== undefined && typeof updates.target !== 'string') {
-        if (updates.target.selector !== undefined) {
-          for (const [key, value] of Object.entries(encodeSelector(updates.target.selector))) {
-            traversal = traversal.property(key, value);
-          }
-        }
-      }
-
-      // Update body properties and entity types
-      if (updates.body !== undefined) {
-        const bodySource = getBodySource(updates.body);
-        const entityTypes = getEntityTypes({ body: updates.body });
-
-        if (bodySource) {
-          traversal = traversal.property('source', bodySource);
-        }
-
-        // Update entity type relationships - remove old ones and create new ones
-        if (entityTypes.length >= 0) {
-          // Remove existing TAGGED_AS edges
-          await this.g.V()
-            .hasLabel('Annotation')
-            .has('id', id)
-            .outE('TAGGED_AS')
-            .drop()
-            .iterate();
-
-          // Create new TAGGED_AS edges
-          for (const entityType of entityTypes) {
-            const etVertex = await this.g.V()
-              .hasLabel('EntityType')
-              .has('name', entityType)
-              .fold()
-              .coalesce(
-                __.unfold(),
-                this.g.addV('EntityType').property('name', entityType)
-              )
-              .next();
-
-            await this.g.V()
-              .hasLabel('Annotation')
-              .has('id', id)
-              .addE('TAGGED_AS')
-              .to(this.g.V(etVertex.value))
-              .next();
-          }
-        }
-      }
-
-      if (updates.modified !== undefined) {
-        traversal = traversal.property('modified', updates.modified);
-      }
-      if (updates.generator !== undefined) {
-        traversal = traversal.property('generator', JSON.stringify(updates.generator));
-      }
-
-      const result = await traversal.elementMap().next();
-
-      if (!result.value) {
-        throw new Error('Annotation not found');
-      }
-
-      // Fetch entity types from TAGGED_AS relationships
-      const entityTypesResult = await this.g.V()
-        .hasLabel('Annotation')
-        .has('id', id)
-        .out('TAGGED_AS')
-        .hasLabel('EntityType')
-        .values('name')
-        .toList();
-
-      const entityTypes = entityTypesResult || [];
-
-      return vertexToAnnotation(result.value, entityTypes);
-    } catch (error) {
-      this.logger?.error('Failed to update annotation in Neptune', { error });
-      throw error;
-    }
-  }
-  
-  async deleteAnnotation(id: AnnotationId): Promise<void> {
-    try {
-      await this.g.V()
-        .hasLabel('Annotation')
-        .has('id', id)
-        .drop()
-        .iterate();
-
-      this.logger?.info('Deleted annotation from Neptune', { id });
-    } catch (error) {
-      this.logger?.error('Failed to delete annotation from Neptune', { error });
-      throw error;
-    }
-  }
-  
-  
-  async resolveReference(annotationId: AnnotationId, source: ResourceId): Promise<Annotation> {
-    try {
-      // Update the existing Annotation vertex
-      const traversal = this.g.V()
-        .hasLabel('Annotation')
-        .has('id', annotationId)
-        .property('source', source);
-
-      const result = await traversal.elementMap().next();
-
-      if (!result.value) {
-        throw new Error('Annotation not found');
-      }
-
-      // Create REFERENCES edge to the resolved resource
-      const annVertex = await this.g.V()
-        .hasLabel('Annotation')
-        .has('id', annotationId)
-        .next();
-
-      await this.g.V(annVertex.value)
-        .addE('REFERENCES')
-        .to(this.g.V().hasLabel('Resource').has('id', source))
-        .next();
-
-      // Fetch entity types from TAGGED_AS relationships
-      const entityTypesResult = await this.g.V()
-        .hasLabel('Annotation')
-        .has('id', annotationId)
-        .out('TAGGED_AS')
-        .hasLabel('EntityType')
-        .values('name')
-        .toList();
-
-      const entityTypes = entityTypesResult || [];
-
-      return vertexToAnnotation(result.value, entityTypes);
-    } catch (error) {
-      this.logger?.error('Failed to resolve reference in Neptune', { error });
       throw error;
     }
   }
@@ -898,139 +617,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       };
     } catch (error) {
       this.logger?.error('Failed to get stats from Neptune', { error });
-      throw error;
-    }
-  }
-  
-  async batchCreateResources(resources: ResourceDescriptor[]): Promise<ResourceDescriptor[]> {
-    const results: ResourceDescriptor[] = [];
-    for (const resource of resources) {
-      results.push(await this.createResource(resource));
-    }
-    return results;
-  }
-
-  async createAnnotations(inputs: CreateAnnotationInternal[]): Promise<Annotation[]> {
-    const results: Annotation[] = [];
-
-    try {
-      for (const input of inputs) {
-        const annotation = await this.createAnnotation(input);
-        results.push(annotation);
-      }
-
-      return results;
-    } catch (error) {
-      this.logger?.error('Failed to create annotations in Neptune', { error });
-      throw error;
-    }
-  }
-
-
-  // Tag Collections - stored as special vertices in the graph
-  private entityTypesCollection: Set<string> | null = null;
-  
-  async getEntityTypes(): Promise<string[]> {
-    // Initialize if not already loaded
-    if (this.entityTypesCollection === null) {
-      await this.initializeTagCollections();
-    }
-    return Array.from(this.entityTypesCollection!).sort();
-  }
-  
-  async addEntityType(tag: string): Promise<void> {
-    if (this.entityTypesCollection === null) {
-      await this.initializeTagCollections();
-    }
-    this.entityTypesCollection!.add(tag);
-    // Persist to Neptune
-    try {
-      await this.g.V()
-        .has('tagCollection', 'type', 'entity-types')
-        .fold()
-        .coalesce(
-          __.unfold(),
-          __.addV('TagCollection').property('type', 'entity-types')
-        )
-        .property(cardinality.set, 'tags', tag)
-        .iterate();
-    } catch (error) {
-      this.logger?.error('Failed to add entity type', { error });
-    }
-  }
-  
-  async addEntityTypes(tags: string[]): Promise<void> {
-    if (this.entityTypesCollection === null) {
-      await this.initializeTagCollections();
-    }
-    tags.forEach(tag => this.entityTypesCollection!.add(tag));
-    // Persist to Neptune
-    try {
-      const vertex = await this.g.V()
-        .has('tagCollection', 'type', 'entity-types')
-        .fold()
-        .coalesce(
-          __.unfold(),
-          __.addV('TagCollection').property('type', 'entity-types')
-        );
-      
-      for (const tag of tags) {
-        await vertex.property(cardinality.set, 'tags', tag).iterate();
-      }
-    } catch (error) {
-      this.logger?.error('Failed to add entity types', { error });
-    }
-  }
-  
-  private async initializeTagCollections(): Promise<void> {
-    try {
-      // Check Neptune for existing collections
-      const collections = await this.g.V()
-        .hasLabel('TagCollection')
-        .project('type', 'tags')
-        .by('type')
-        .by(__.values('tags').fold())
-        .toList();
-
-      // Process existing collections
-      for (const col of collections) {
-        if (col.type === 'entity-types') {
-          this.entityTypesCollection = new Set(col.tags as string[]);
-        }
-      }
-    } catch (error) {
-      this.logger?.debug('No existing tag collections found, will initialize with defaults');
-    }
-
-    // Initialize with defaults if not present
-    if (this.entityTypesCollection === null) {
-      const { DEFAULT_ENTITY_TYPES } = await import('@semiont/ontology');
-      this.entityTypesCollection = new Set(DEFAULT_ENTITY_TYPES);
-      // Persist defaults to Neptune
-      try {
-        const vertex = await this.g.addV('TagCollection')
-          .property('type', 'entity-types')
-          .next();
-        for (const tag of DEFAULT_ENTITY_TYPES) {
-          await this.g.V(vertex.value.id)
-            .property(cardinality.set, 'tags', tag)
-            .iterate();
-        }
-      } catch (error) {
-        this.logger?.error('Failed to initialize entity types', { error });
-      }
-    }
-  }
-  
-  async clearDatabase(): Promise<void> {
-    try {
-      // CAREFUL! This clears the entire graph
-      await this.g.V().drop().iterate();
-      this.logger?.info('Cleared all data from Neptune');
-      // Reset tag collections
-      this.entityTypesCollection = null;
-    } catch (error) {
-      this.logger?.error('Failed to clear Neptune database', { error });
       throw error;
     }
   }

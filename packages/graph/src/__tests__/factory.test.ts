@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { createGraphDatabase, getGraphDatabase, closeGraphDatabase } from '../factory.js';
+import { describe, it, expect, vi } from 'vitest';
+import { createGraphDatabase, getGraphDatabase } from '../factory.js';
 
 // What the Neo4j driver is handed: the only place a credential's final value
 // is visible.
@@ -22,13 +22,8 @@ vi.mock('neo4j-driver', () => {
 
 describe('@semiont/graph - factory', () => {
   describe('createGraphDatabase', () => {
-    it('should create a memory graph database', () => {
-      const db = createGraphDatabase({ type: 'memory' });
-
-      expect(db).toBeDefined();
-      expect(db).toHaveProperty('connect');
-      expect(db).toHaveProperty('disconnect');
-      expect(db).toHaveProperty('isConnected');
+    it('makes no graph from the type a test alone uses', () => {
+      expect(() => createGraphDatabase({ type: 'memory' })).toThrow('Unsupported graph database type: memory');
     });
 
     it('should throw error for unsupported graph types', () => {
@@ -40,8 +35,6 @@ describe('@semiont/graph - factory', () => {
   });
 
   describe('getGraphDatabase', () => {
-    afterEach(() => closeGraphDatabase());
-
     // By the time this config exists the config loader has resolved every
     // ${VAR}. A value that still contains `${…}` is the value, taken as given,
     // and a second pass over it would throw on a password like this one.

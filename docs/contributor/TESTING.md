@@ -326,7 +326,7 @@ Four other workflows gate the same pushes and pull requests:
 
 | Workflow | What it runs |
 |---|---|
-| [`package-tests.yml`](../../.github/workflows/package-tests.yml) | A matrix over every package with a suite: typecheck, `npm test`, then `test:coverage` and the Codecov upload, neither of which fails the job. A job beside it, "Graph Stores (neo4j)", starts the neo4j the launcher runs and holds `@semiont/graph`'s neo4j store to it (`npm run test:neo4j` in `packages/graph`, which reads `NEO4J_HOST` and `NEO4J_PASSWORD` and fails without them) |
+| [`package-tests.yml`](../../.github/workflows/package-tests.yml) | A matrix over every package with a suite: typecheck, `npm test`, then `test:coverage` and the Codecov upload, neither of which fails the job |
 | [`security-tests.yml`](../../.github/workflows/security-tests.yml) | The Browser's `test:security` and `test:coverage`; a built Browser probed for privileged content in its shell; a built gateway probed for 401s on protected routes, the error shape, and leaked secrets |
 | [`accessibility-tests.yml`](../../.github/workflows/accessibility-tests.yml) | react-ui's `test:a11y`; the Browser's suite; Lighthouse against a built Browser, failing below an accessibility score of 90. Also daily |
 | [`architecture-compliance.yml`](../../.github/workflows/architecture-compliance.yml) | The audits in [`scripts/compliance/`](../../scripts/compliance/) and the `lint:*` gates: the doc snippets, raw bus use, the state-unit axioms, the boot contract, the spec's own consistency, the operator's telemetry tables (`lint:telemetry-doc`), and more. Also on pushes to `feature/**` |

@@ -66,7 +66,7 @@ eachWeaver('a Weaver, bringing the graph back', (world) => {
     const made = (await world().graph.getAnnotation(annotationId(lost)))!.created;
 
     await world().stop();
-    await world().graph.deleteAnnotation(annotationId(lost));
+    await world().lose(lost);
     await world().start();
 
     const health = await world().weaver.health();
@@ -87,7 +87,7 @@ eachWeaver('a Weaver, bringing the graph back', (world) => {
     await world().caughtUp(id, linkedTo);
 
     await world().stop();
-    await world().graph.clearDatabase();
+    await world().clean();
     await world().start();
 
     const health = await world().weaver.health();
@@ -130,6 +130,6 @@ eachWeaver('a Weaver, bringing the graph back', (world) => {
     expect(answer).toMatchObject({ ok: true, channel: 'weave:rebuild-ok' });
     await asTheRecordSays(world(), id);
     // The vocabulary is no resource's: a rebuild keeps what it held.
-    expect(await world().freshReader((graph) => graph.getEntityTypes())).toContain('Kept across a rebuild');
+    expect(await world().vocabulary()).toContain('Kept across a rebuild');
   });
 });

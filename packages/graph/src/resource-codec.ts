@@ -1,25 +1,25 @@
 /**
- * The resource codec — the one module that decides how a resource becomes
- * stored properties and back.
+ * The resource codec — the one module that decides how a resource is read
+ * back from its stored properties.
  *
- * Every store keeps its own dialect: Cypher sets a map on a node, Gremlin
- * chains `.property()` calls and keeps a list as a JSON string. What none of
- * them owns is WHICH properties a resource has and what each is called. The
- * stores once each decided that for themselves, and decided differently: one
- * media type was `format` in one store, `contentType` in another and
- * `mediaType` in a third.
+ * Every store keeps its own dialect: Cypher reads a map off a node, Gremlin
+ * keeps a list as a JSON string. What none of them owns is WHICH properties a
+ * resource has and what each is called. The stores once each decided that for
+ * themselves, and decided differently: one media type was `format` in one
+ * store, `contentType` in another and `mediaType` in a third.
  *
  * The graph is a purpose-built projection, not a copy of the views. It holds
  * of a resource what its queries need: the name, entity types and storage
  * location a search matches; the format and the date a listing reports and
  * orders by; whether it is archived; and who it is by.
  *
- * The codec manufactures nothing. A resource with no date, no attribution or
- * no checksum is refused on the way in, by the field's name, rather than
- * stored and found unreadable on the way out.
+ * The codec manufactures nothing. A row with no date, no attribution or no
+ * checksum is refused by the field's name. The properties are written by the
+ * Weaver, whose codec is `semiont_graph`'s; specs/src/graph/codec-cases.json
+ * holds this half to that one.
  */
 
-import { getPrimaryRepresentation, getResourceEntityTypes, getResourceId, resourceId as makeResourceId } from '@semiont/core';
+import { resourceId as makeResourceId } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
 
 /** A resource's stored properties, in the codec's names and types. */
@@ -44,31 +44,6 @@ export interface ResourceProperties {
  * trusted until `decodeResource` has checked it.
  */
 export type StoredResourceProperties = { [K in keyof ResourceProperties]?: ResourceProperties[K] | null };
-
-export function encodeResource(resource: ResourceDescriptor): ResourceProperties {
-  const id = getResourceId(resource);
-  if (!id) throw new Error('Resource missing required field: @id');
-
-  const representation = getPrimaryRepresentation(resource);
-  if (!representation) throw new Error(`Resource ${id} missing required field: representations`);
-
-  const refuse = (field: string): never => {
-    throw new Error(`Resource ${id} missing required field: ${field}`);
-  };
-
-  const props: ResourceProperties = {
-    id,
-    name: resource.name || refuse('name'),
-    entityTypes: getResourceEntityTypes(resource),
-    format: representation.mediaType || refuse('representations.mediaType'),
-    archived: resource.archived === true,
-    created: resource.dateCreated || refuse('dateCreated'),
-    creator: JSON.stringify(resource.wasAttributedTo ?? refuse('wasAttributedTo')),
-    contentChecksum: representation.checksum || refuse('representations.checksum'),
-  };
-  if (representation.storageUri) props.storageUri = representation.storageUri;
-  return props;
-}
 
 export function decodeResource(props: StoredResourceProperties): ResourceDescriptor {
   const id = props.id;

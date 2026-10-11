@@ -117,7 +117,7 @@ Candidate search and scoring for the match flow: retrieves candidates by name, e
 
 ### Weaver (projection pipeline)
 
-Follows the domain events and keeps the graph projection in sync; beyond the bus its single privileged attachment is Neo4j. Bursts are batched per resource (`groupBy` + burst buffer + `concatMap`), every apply emits `weave:applied`, and the `whenApplied` barrier lets graph readers wait out projection lag. Startup runs a checkpointed catch-up over `browse:*` (no event-store attachment); `weave:rebuild` is the full rebuild command.
+Follows the domain events and keeps the graph projection in sync; beyond the bus its single privileged attachment is Neo4j. One resource's events are applied one at a time and in the order they were recorded, resources beside one another; every apply emits `weave:applied`, and the `whenApplied` barrier lets graph readers wait out projection lag. Startup runs a checkpointed catch-up over `browse:*` (no event-store attachment); `weave:rebuild` is the full rebuild command.
 
 ### Smelter (projection pipeline)
 

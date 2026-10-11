@@ -36,7 +36,7 @@ echo "🔍 Auditing the graph annotation codec..."
 if envelope=$(grep -rn "anno\.jsonld" "$IMPLEMENTATIONS" 2>/dev/null); then
   echo ""
   echo "❌ A1: a W3C annotation envelope is built inside an implementation file."
-  echo "   Build it in annotation-codec.ts (buildAnnotation/decodeAnnotation) instead."
+  echo "   Build it in annotation-codec.ts (decodeAnnotation) instead."
   echo "$envelope" | sed 's|^|   |'
   violations=$((violations + 1))
 fi
@@ -56,7 +56,7 @@ fi
 if envelope=$(grep -rn "schema\.org" "$IMPLEMENTATIONS" 2>/dev/null); then
   echo ""
   echo "❌ A1: a resource envelope is built inside an implementation file."
-  echo "   Build it in resource-codec.ts (encodeResource/decodeResource) instead."
+  echo "   Build it in resource-codec.ts (decodeResource) instead."
   echo "$envelope" | sed 's|^|   |'
   violations=$((violations + 1))
 fi

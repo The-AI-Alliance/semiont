@@ -3,21 +3,19 @@
  * every implementation of them runs, so that what the graph stores of an
  * annotation and of a resource, what it reads back and what it refuses are
  * stated once and not once per language.
+ *
+ * This package reads the graph and does not write it, so it runs the parts a
+ * reader has: what an annotation is stored as and read back as, a row read,
+ * and a resource row read. The parts that are the writer's alone (an
+ * annotation updated, a reference resolved, a resource stored) are run by the
+ * writer's codec, in packages/graph-python.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { getBodySource, getEntityTypes } from '@semiont/core';
-import type { Annotation, ResourceDescriptor, ResourceId } from '@semiont/core';
-import {
-  buildAnnotation,
-  decodeAnnotation,
-  encodeAnnotation,
-  intendedGraphAnnotation,
-  resolvedBody,
-  updatedAnnotation,
-  type AnnotationProperties,
-} from '../annotation-codec';
-import { decodeResource, encodeResource, type StoredResourceProperties } from '../resource-codec';
+import type { Annotation, ResourceDescriptor } from '@semiont/core';
+import { decodeAnnotation, encodeAnnotation, intendedGraphAnnotation, type AnnotationProperties } from '../annotation-codec';
+import { decodeResource, type StoredResourceProperties } from '../resource-codec';
 
 type Json = Record<string, unknown>;
 
@@ -32,9 +30,9 @@ interface Case {
     holds: Annotation;
   };
   annotationRead?: { properties: AnnotationProperties; tags: string[]; annotation?: Annotation; refused?: string };
-  annotationUpdated?: { current: Annotation; updates: Partial<Annotation>; annotation?: Annotation; refused?: string };
-  referenceResolved?: { current: Annotation; source: ResourceId; body: Annotation['body'] };
-  resourceStored?: { resource: ResourceDescriptor; properties?: Json; json?: Json; holds?: ResourceDescriptor; refused?: string };
+  annotationUpdated?: Json;
+  referenceResolved?: Json;
+  resourceStored?: Json;
   resourceRead?: { properties: StoredResourceProperties; resource?: ResourceDescriptor; refused?: string };
 }
 
@@ -77,14 +75,6 @@ describe('specs/src/graph/codec-cases.json', () => {
       expect(getBodySource(given.annotation.body)).toBe(given.linksTo);
       expect(intendedGraphAnnotation(given.annotation)).toEqual(given.holds);
       expect(decodeAnnotation(stored, given.tags)).toEqual(given.holds);
-
-      // A store is given an annotation to create, and builds what it stores
-      // from that. What it builds stores as the same row: a builder that
-      // leaves out a field the encoder writes makes a graph that disagrees
-      // with the record from the first write.
-      const { creator } = given.annotation;
-      if (!creator) throw new Error('an annotation the graph is given has a creator');
-      expect(encodeAnnotation(buildAnnotation({ ...given.annotation, creator }))).toEqual(stored);
     });
   });
 
@@ -95,35 +85,6 @@ describe('specs/src/graph/codec-cases.json', () => {
       } else {
         expect(decodeAnnotation(given.properties, given.tags)).toEqual(given.annotation);
       }
-    });
-  });
-
-  describe('an annotation, updated', () => {
-    it.each(part('annotationUpdated'))('$why', ({ given }) => {
-      if (given.refused !== undefined) {
-        expect(() => updatedAnnotation(given.current, given.updates)).toThrow(given.refused);
-      } else {
-        expect(updatedAnnotation(given.current, given.updates)).toEqual(given.annotation);
-      }
-    });
-  });
-
-  describe('a reference, resolved', () => {
-    it.each(part('referenceResolved'))('$why', ({ given }) => {
-      expect(resolvedBody(given.current, given.source)).toEqual(given.body);
-    });
-  });
-
-  describe('a resource, stored', () => {
-    it.each(part('resourceStored'))('$why', ({ given }) => {
-      if (given.refused !== undefined) {
-        expect(() => encodeResource(given.resource)).toThrow(given.refused);
-        return;
-      }
-      const stored = encodeResource(given.resource);
-
-      expect(stated({ ...stored }, Object.keys(given.json ?? {}))).toEqual({ properties: given.properties, json: given.json });
-      expect(decodeResource(stored)).toEqual(given.holds);
     });
   });
 

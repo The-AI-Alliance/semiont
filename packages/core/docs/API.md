@@ -135,36 +135,6 @@ import {
 
 Selector helpers cover text position, text quote, SVG, and PDF-viewrect fragment selectors (`getTextPositionSelector`, `getSvgSelector`, `createFragmentSelector`, `parseSvgSelector`, …).
 
-## Annotation body matcher
-
-`findBodyItem` locates a body item in an annotation body by identity
-(type + source for `SpecificResource`, type + value for `TextualBody`).
-Used by the `mark:body-updated` event replay path to apply add / remove /
-replace operations.
-
-```typescript
-import { findBodyItem, type BodyItemIdentity } from '@semiont/core';
-
-// Loose match: any body item with this source, regardless of purpose.
-// This is the common case for Semiont's bind/unbind flow.
-const index = findBodyItem(annotation.body, {
-  type: 'SpecificResource',
-  source: '5bcd259ab1464cf68a556bbad21f513f',
-});
-
-// Strict match: disambiguate among same-source bodies under different
-// purposes. Needed when an annotation has multiple SpecificResource bodies
-// pointing at the same target under different W3C purposes.
-const linkingIdx = findBodyItem(annotation.body, {
-  type: 'SpecificResource',
-  source: '5bcd259ab1464cf68a556bbad21f513f',
-  purpose: 'linking',
-});
-```
-
-`purpose` is optional in the identity. Omit it to match on identity alone;
-provide it when the caller knows which purpose to target.
-
 ## Anchoring
 
 Re-anchor annotations after content edits — fuzzy text matching plus a render-time strategy that combines position and quote selectors with confidence scoring:
@@ -288,9 +258,7 @@ Types not in the OpenAPI spec:
 
 ```typescript
 import type {
-  UpdateResourceInput,
   ResourceFilter,
-  CreateAnnotationInternal,
   AnnotationCategory,
   GraphConnection,
   GraphPath,

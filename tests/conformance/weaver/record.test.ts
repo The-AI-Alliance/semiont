@@ -52,6 +52,13 @@ eachWeaver('the graph a Weaver builds', (world) => {
     expect(bound?.modified).toBe(world().recorded(id, 'mark:body-updated')[0]!.timestamp);
     expect((await world().graph.getResourceReferencedBy(resourceId(linkedTo))).map((a) => a.id)).toEqual([reference]);
 
+    // The link is a connection of the resource it is on, to the resource it is to; and a resource is found by its name.
+    const connections = await world().graph.getResourceConnections(resourceId(id));
+    expect(connections.map((connection) => connection.targetResource['@id'])).toEqual([linkedTo]);
+    expect(connections[0]!.annotations.map((a) => a.id)).toEqual([reference]);
+    const named = await world().graph.listResources({ search: 'Linked to' });
+    expect(named.resources.map((resource) => resource['@id'])).toContain(linkedTo);
+
     // The resource is dated and attributed as its event records.
     const created = world().recorded(id, 'yield:created')[0]!;
     expect(await world().graph.getResource(resourceId(id))).toMatchObject({
@@ -87,8 +94,9 @@ eachWeaver('the graph a Weaver builds', (world) => {
 
     expect((await world().graph.getResourceAnnotations(resourceId(id))).map((a) => a.id)).toEqual([kept]);
     expect(await world().graph.getResource(resourceId(id))).toMatchObject({ archived: true, entityTypes: ['Pangram'] });
+    expect(await world().graph.getEntityTypeStats()).toContainEqual({ type: 'Pangram', count: 1 });
     await eventually('the vocabulary to hold the new entity types', 10_000, async () => {
-      const vocabulary = await world().freshReader((graph) => graph.getEntityTypes());
+      const vocabulary = await world().vocabulary();
       return vocabulary.includes('Fable') && vocabulary.includes('Pangram') ? true : undefined;
     });
 

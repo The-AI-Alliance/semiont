@@ -5,7 +5,7 @@
     "node": ">=24.15.0"
   },
   "type": "module",
-  "description": "Graph database abstraction with Neo4j, Neptune, JanusGraph, and in-memory implementations",
+  "description": "The knowledge graph as a reader reads it, over Neo4j, Neptune, JanusGraph, and an in-memory store for tests",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -24,13 +24,10 @@
     "clean": "rm -rf dist dist-types",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
-    "test:neo4j": "vitest run --config vitest.neo4j.config.ts"
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@semiont/core": "*",
-    "@semiont/http-transport": "*",
-    "@semiont/ontology": "*"
+    "@semiont/core": "*"
   },
   "peerDependencies": {
     "gremlin": "^3.7.4",
@@ -55,7 +52,6 @@
     "rollup-plugin-dts": "^6.4.1",
     "tsup": "^8.0.1",
     "typescript": "^6.0.2",
-    "uuid": "^14.0.2",
     "vitest": "^4.1.11"
   },
   "publishConfig": {

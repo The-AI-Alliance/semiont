@@ -9,11 +9,17 @@
  * signals what it has applied and answers a rebuild; and at its health port.
  * Nothing is recorded but through the Archivist, as people, workers and
  * services record: the Weaver is given the events the record gives it.
+ *
+ * The graph's reader writes nothing, and a Weaver is the graph's one writer.
+ * What a case does to the database behind a Weaver's back (empty it, lose an
+ * annotation from it), and the one thing no reader reads (the vocabulary of
+ * entity types), the world does itself, in Cypher.
  */
 import { randomBytes, randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import neo4j, { type Driver } from 'neo4j-driver';
 import { afterAll, afterEach, beforeAll, describe, expect, inject } from 'vitest';
 import { Neo4jGraphDatabase } from '@semiont/graph';
 import { ArchivistWorld, type Answer, type StoredEvent } from './archivist-world';
@@ -62,6 +68,9 @@ export class WeaverWorld {
     private readonly env: WeaverEnvironment,
     private home: string,
     private readonly signals: BusStream,
+    /** The world's own connection to the database, for what it does there itself. */
+    private readonly hand: Driver,
+    private readonly database: string,
   ) {}
 
   static async create(service: WeaverService): Promise<WeaverWorld> {
@@ -69,10 +78,9 @@ export class WeaverWorld {
     const secret = randomBytes(24).toString('hex');
     const kb = await ArchivistWorld.create({ gitSync: false, accounts: { [WEAVER_CLIENT]: { secret, roles: [SERVICE_ROLE] } } });
 
-    const neo4j = { uri: `bolt://${host}:7687`, username: 'neo4j', database: 'neo4j' };
-    const graph = new Neo4jGraphDatabase({ ...neo4j, password });
+    const at = { uri: `bolt://${host}:7687`, username: 'neo4j', database: 'neo4j' };
+    const graph = new Neo4jGraphDatabase({ ...at, password });
     await graph.connect();
-    await graph.clearDatabase();
 
     // A standing stream of what the Weaver says it has applied, open before any Weaver is.
     const { token } = await kb.world.agent('conformance', 'weaver-watch', [SERVICE_ROLE]);
@@ -82,11 +90,14 @@ export class WeaverWorld {
       kb,
       graph,
       service,
-      { gatewayUrl: kb.world.origin, issuer: kb.world.issuer.origin, graph: { ...neo4j, passwordEnv: GRAPH_PASSWORD } },
+      { gatewayUrl: kb.world.origin, issuer: kb.world.issuer.origin, graph: { ...at, passwordEnv: GRAPH_PASSWORD } },
       { SEMIONT_OIDC_CLIENT_ID: WEAVER_CLIENT, SEMIONT_OIDC_CLIENT_SECRET: secret, [GRAPH_PASSWORD]: password },
       mkdtempSync(join(tmpdir(), 'conformance-weaver-')),
       signals,
+      neo4j.driver(at.uri, neo4j.auth.basic(at.username, password)),
+      at.database,
     );
+    await world.clean();
     await world.start();
     return world;
   }
@@ -134,20 +145,27 @@ export class WeaverWorld {
     return refusedWeaverBoot({ ...this.launch(change), home: mkdtempSync(join(tmpdir(), 'conformance-weaver-refused-')) });
   }
 
-  /**
-   * A reader of the graph that has read nothing yet. The world's own keeps
-   * the vocabulary it first read, as a long-lived reader does; a case that
-   * asks what the vocabulary is NOW asks one of these.
-   */
-  async freshReader<T>(read: (graph: Neo4jGraphDatabase) => Promise<T>): Promise<T> {
-    const { host, password } = inject('graphDatabase');
-    const graph = new Neo4jGraphDatabase({ uri: `bolt://${host}:7687`, username: 'neo4j', database: 'neo4j', password });
-    await graph.connect();
-    try {
-      return await read(graph);
-    } finally {
-      await graph.disconnect();
-    }
+  // ── What the world does in the database itself ────────────────────────────
+
+  private async cypher(statement: string, parameters: Record<string, string>) {
+    const { records } = await this.hand.executeQuery(statement, parameters, { database: this.database });
+    return records;
+  }
+
+  /** Empty the database: every node, and with it every edge. */
+  async clean(): Promise<void> {
+    await this.cypher('MATCH (n) DETACH DELETE n', {});
+  }
+
+  /** Take one annotation out of the graph, edges and all, as one lost behind a Weaver's back is. */
+  async lose(annotationId: string): Promise<void> {
+    await this.cypher('MATCH (a:Annotation {id: $id}) DETACH DELETE a', { id: annotationId });
+  }
+
+  /** The graph's vocabulary of entity types, as the database holds it now. */
+  async vocabulary(): Promise<string[]> {
+    const held = await this.cypher("MATCH (t:TagCollection {type: 'entity-types'}) RETURN t.tags AS tags", {});
+    return held.flatMap((record): string[] => record.get('tags'));
   }
 
   // ── What it says it has applied ───────────────────────────────────────────
@@ -199,6 +217,7 @@ export class WeaverWorld {
   async close(): Promise<void> {
     if (this.weaverProcess) await this.weaverProcess.stop();
     await this.graph.disconnect();
+    await this.hand.close();
     await this.kb.close();
     rmSync(this.home, { recursive: true, force: true });
   }

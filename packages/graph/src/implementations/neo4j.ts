@@ -3,7 +3,6 @@
 
 import type { Driver, Integer, Node as Neo4jNode, Session } from 'neo4j-driver';
 import { GraphDatabase } from '../interface';
-import { assertMutableResourceUpdate } from '../interface';
 import { searchTerms } from '../resource-query';
 import type { Logger } from '@semiont/core';
 import type {
@@ -11,23 +10,15 @@ import type {
   GraphPath,
   EntityTypeStats,
   ResourceFilter,
-  UpdateResourceInput,
-  CreateAnnotationInternal,
   ResourceId,
   AnnotationId,
 } from '@semiont/core';
-import { getBodySource } from '@semiont/core';
-import { getEntityTypes } from '@semiont/core';
 import {
-  buildAnnotation,
   decodeAnnotation,
-  encodeAnnotation,
   motivationForCategory,
-  resolvedBody,
-  updatedAnnotation,
   type AnnotationProperties,
 } from '../annotation-codec';
-import { decodeResource, encodeResource } from '../resource-codec';
+import { decodeResource } from '../resource-codec';
 
 import type { ResourceDescriptor } from '@semiont/core';
 import type { Annotation } from '@semiont/core';
@@ -62,9 +53,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     password?: string;
     database?: string;
   };
-
-  // Tag Collections - cached in memory for performance
-  private entityTypesCollection: Set<string> | null = null;
 
   constructor(config: {
     uri?: string;
@@ -194,28 +182,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async createResource(resource: ResourceDescriptor): Promise<ResourceDescriptor> {
-    const session = this.getSession();
-    try {
-      const props = encodeResource(resource);
-
-      // MERGE, not CREATE: the write is idempotent, and it fills in a stub a
-      // link made before this resource's own event arrived. The node becomes
-      // exactly the codec's bag, so a stub's mark goes with the rest.
-      const result = await session.run(
-        `MERGE (d:Resource {id: $id})
-         SET d = $props
-         RETURN d`,
-        { id: props.id, props }
-      );
-
-      this.logger?.info('Resource created/enriched', { id: props.id });
-      return this.parseResourceNode(result.records[0]!.get('d'));
-    } finally {
-      await session.close();
-    }
-  }
-
   async getResource(id: ResourceId): Promise<ResourceDescriptor | null> {
     const session = this.getSession();
     try {
@@ -233,81 +199,13 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async updateResource(id: ResourceId, input: UpdateResourceInput): Promise<ResourceDescriptor> {
-    assertMutableResourceUpdate(input);
-
-    const sets: string[] = [];
-    const params: Record<string, unknown> = { id };
-    if (input.archived !== undefined) {
-      sets.push('d.archived = $archived');
-      params.archived = input.archived;
-    }
-    if (input.entityTypes !== undefined) {
-      sets.push('d.entityTypes = $entityTypes');
-      params.entityTypes = input.entityTypes;
-    }
-
-    const session = this.getSession();
-    try {
-      const result = await session.run(
-        `MATCH (d:Resource {id: $id})
-         SET ${sets.join(', ')}
-         RETURN d`,
-        params
-      );
-
-      if (result.records.length === 0) {
-        throw new Error('Resource not found');
-      }
-
-      return this.parseResourceNode(result.records[0]!.get('d'));
-    } finally {
-      await session.close();
-    }
-  }
-
-  /**
-   * Remove a resource and the annotations on it.
-   *
-   * Another resource's annotation that links here is that resource's, and
-   * stays. So does what it links to: where such a link exists the node is
-   * left as a stub, an id with the edge still on it, exactly as when a link
-   * arrives before its target. `createResource` fills a stub in, so a
-   * resource deleted and created again is followed by the same links.
-   */
-  async deleteResource(id: ResourceId): Promise<void> {
-    const session = this.getSession();
-    try {
-      await session.executeWrite(async (tx) => {
-        await tx.run(
-          `MATCH (own:Annotation)-[:BELONGS_TO]->(:Resource {id: $id})
-           DETACH DELETE own`,
-          { id }
-        );
-        await tx.run(
-          `MATCH (d:Resource {id: $id})
-           WHERE NOT EXISTS { (:Annotation)-[:REFERENCES]->(d) }
-           DETACH DELETE d`,
-          { id }
-        );
-        await tx.run(
-          `MATCH (d:Resource {id: $id})
-           SET d = {id: $id, stub: true}`,
-          { id }
-        );
-      });
-    } finally {
-      await session.close();
-    }
-  }
-
   async listResources(filter: ResourceFilter): Promise<{ resources: ResourceDescriptor[]; total: number }> {
     const session = this.getSession();
     try {
       let whereClause = '';
       const params: any = {};
-      // Stub nodes are id-only placeholders that `MERGE` creates when a
-      // REFERENCES edge points at a resource whose `resource.created` event
+      // Stub nodes are id-only placeholders the Weaver makes when a
+      // REFERENCES edge points at a resource whose `yield:created` event
       // hasn't landed yet. They carry no name, so they are not listable — and
       // `parseResourceNode` throws on the missing field rather than inventing one.
       const conditions: string[] = ['coalesce(d.stub, false) = false'];
@@ -382,62 +280,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-
-  async createAnnotation(input: CreateAnnotationInternal): Promise<Annotation> {
-    const session = this.getSession();
-    try {
-      const annotation = buildAnnotation(input);
-      const props = encodeAnnotation(annotation);
-      const targetSource = props.resourceId!;
-      const bodySource = props.source;
-
-      // Entity tags are edges, not properties, so they travel beside the bag.
-      const entityTypes = getEntityTypes(input);
-
-      // Convert motivation to label (e.g., "linking" -> "Linking")
-      const motivationLabel = motivationToLabel(annotation.motivation);
-
-      // The codec's property bag is applied verbatim, `created` included:
-      // it is stored as the codec's string, not as a native temporal.
-      const cypher = bodySource
-        ? `MATCH (from:Resource {id: $targetSource})
-           MATCH (to:Resource {id: $bodySource})
-           CREATE (a:Annotation:${motivationLabel})
-           SET a = $props
-           CREATE (a)-[:BELONGS_TO]->(from)
-           CREATE (a)-[:REFERENCES]->(to)
-           FOREACH (entityType IN $entityTypes |
-             MERGE (et:EntityType {name: entityType})
-             CREATE (a)-[:TAGGED_AS]->(et)
-           )
-           RETURN a`
-        : `MATCH (d:Resource {id: $targetSource})
-           CREATE (a:Annotation:${motivationLabel})
-           SET a = $props
-           CREATE (a)-[:BELONGS_TO]->(d)
-           FOREACH (entityType IN $entityTypes |
-             MERGE (et:EntityType {name: entityType})
-             CREATE (a)-[:TAGGED_AS]->(et)
-           )
-           RETURN a`;
-
-      const result = await session.run(cypher, {
-        props,
-        targetSource,
-        bodySource: bodySource ?? null,
-        entityTypes,
-      });
-
-      if (result.records.length === 0) {
-        throw new Error(`Failed to create annotation: Resource ${targetSource} not found in graph database`);
-      }
-
-      return parseAnnotationNode(result.records[0]!.get('a'), entityTypes);
-    } finally {
-      await session.close();
-    }
-  }
-
   async getAnnotation(id: AnnotationId): Promise<Annotation | null> {
     this.logger?.debug('Getting annotation', { id });
     const session = this.getSession();
@@ -461,92 +303,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     } finally {
       await session.close();
     }
-  }
-
-  async updateAnnotation(id: AnnotationId, updates: Partial<Annotation>): Promise<Annotation> {
-    const session = this.getSession();
-    try {
-      // One transaction: the row is replaced by what the codec says the
-      // updated annotation is, so the read it is computed from must be the
-      // row the write replaces.
-      return await session.executeWrite(async (tx) => {
-        const found = await tx.run(
-          `MATCH (a:Annotation {id: $id})
-           OPTIONAL MATCH (a)-[:TAGGED_AS]->(et:EntityType)
-           RETURN a, collect(et.name) as entityTypes`,
-          { id }
-        );
-        if (found.records.length === 0) {
-          throw new Error('Annotation not found');
-        }
-        const current = parseAnnotationNode(
-          found.records[0]!.get('a'),
-          found.records[0]!.get('entityTypes')
-        );
-
-        const updated = updatedAnnotation(current, updates);
-        const entityTypes = getEntityTypes(updated);
-        const linked = getBodySource(updated.body);
-
-        // The label restates the motivation, so it follows it.
-        const relabel = updated.motivation === current.motivation
-          ? ''
-          : `REMOVE a:${motivationToLabel(current.motivation)} SET a:${motivationToLabel(updated.motivation)}`;
-
-        // The row becomes exactly the codec's bag, and its tag and reference
-        // edges exactly what that annotation has: a tag or a link the update
-        // took away goes with it. A link's target is merged, as a stub when
-        // its own `yield:created` has not been folded yet; `createResource`
-        // fills a stub in.
-        const written = await tx.run(
-          `MATCH (a:Annotation {id: $id})
-           SET a = $props
-           ${relabel}
-           WITH a
-           OPTIONAL MATCH (a)-[stale:TAGGED_AS|REFERENCES]->()
-           DELETE stale
-           WITH DISTINCT a
-           FOREACH (entityType IN $entityTypes |
-             MERGE (et:EntityType {name: entityType})
-             CREATE (a)-[:TAGGED_AS]->(et)
-           )
-           FOREACH (target IN $linked |
-             MERGE (to:Resource {id: target})
-             ON CREATE SET to.stub = true
-             CREATE (a)-[:REFERENCES]->(to)
-           )
-           RETURN a`,
-          {
-            id,
-            props: encodeAnnotation(updated),
-            entityTypes,
-            linked: linked ? [linked] : [],
-          }
-        );
-
-        return parseAnnotationNode(written.records[0]!.get('a'), entityTypes);
-      });
-    } finally {
-      await session.close();
-    }
-  }
-
-  async deleteAnnotation(id: AnnotationId): Promise<void> {
-    const session = this.getSession();
-    try {
-      await session.run(
-        'MATCH (a:Annotation {id: $id}) DETACH DELETE a',
-        { id }
-      );
-    } finally {
-      await session.close();
-    }
-  }
-
-  async resolveReference(annotationId: AnnotationId, source: ResourceId): Promise<Annotation> {
-    const current = await this.getAnnotation(annotationId);
-    if (!current) throw new Error('Annotation not found');
-    return this.updateAnnotation(annotationId, { body: resolvedBody(current, source) });
   }
 
   async getResourceAnnotations(resourceId: ResourceId): Promise<Annotation[]> {
@@ -801,111 +557,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         entityTypes,
         contentTypes
       };
-    } finally {
-      await session.close();
-    }
-  }
-
-  async batchCreateResources(resources: ResourceDescriptor[]): Promise<ResourceDescriptor[]> {
-    if (resources.length === 0) return [];
-    const session = this.getSession();
-    try {
-      const result = await session.run(
-        `UNWIND $resources AS props
-         MERGE (d:Resource {id: props.id})
-         SET d = props
-         RETURN d`,
-        { resources: resources.map(encodeResource) }
-      );
-
-      this.logger?.info('Batch created/enriched resources', { count: resources.length });
-      return result.records.map(record => this.parseResourceNode(record.get('d')));
-    } finally {
-      await session.close();
-    }
-  }
-
-  async createAnnotations(inputs: CreateAnnotationInternal[]): Promise<Annotation[]> {
-    const results: Annotation[] = [];
-    for (const input of inputs) {
-      results.push(await this.createAnnotation(input));
-    }
-    return results;
-  }
-
-  // Tag Collections
-  async getEntityTypes(): Promise<string[]> {
-    if (this.entityTypesCollection === null) {
-      await this.initializeTagCollections();
-    }
-    return Array.from(this.entityTypesCollection!).sort();
-  }
-
-  async addEntityType(tag: string): Promise<void> {
-    if (this.entityTypesCollection === null) {
-      await this.initializeTagCollections();
-    }
-    this.entityTypesCollection!.add(tag);
-    await this.persistTagCollection('entity-types', this.entityTypesCollection!);
-  }
-
-  async addEntityTypes(tags: string[]): Promise<void> {
-    if (this.entityTypesCollection === null) {
-      await this.initializeTagCollections();
-    }
-    tags.forEach(tag => this.entityTypesCollection!.add(tag));
-    await this.persistTagCollection('entity-types', this.entityTypesCollection!);
-  }
-
-  private async initializeTagCollections(): Promise<void> {
-    const session = this.getSession();
-    try {
-      // Load existing collections from Neo4j
-      const result = await session.run(
-        'MATCH (t:TagCollection {type: "entity-types"}) RETURN t.tags as tags'
-      );
-
-      let entityTypesFromDb: string[] = [];
-
-      if (result.records.length > 0) {
-        const record = result.records[0];
-        if (record) {
-          const tags = record.get('tags');
-          entityTypesFromDb = tags || [];
-        }
-      }
-
-      // Load defaults
-      const { DEFAULT_ENTITY_TYPES } = await import('@semiont/ontology');
-
-      // Merge with defaults
-      this.entityTypesCollection = new Set([...DEFAULT_ENTITY_TYPES, ...entityTypesFromDb]);
-
-      // Persist merged collection back to Neo4j
-      await this.persistTagCollection('entity-types', this.entityTypesCollection);
-    } finally {
-      await session.close();
-    }
-  }
-
-  private async persistTagCollection(type: string, collection: Set<string>): Promise<void> {
-    const session = this.getSession();
-    try {
-      await session.run(
-        'MERGE (t:TagCollection {type: $type}) SET t.tags = $tags',
-        { type, tags: Array.from(collection) }
-      );
-    } finally {
-      await session.close();
-    }
-  }
-
-  async clearDatabase(): Promise<void> {
-    const session = this.getSession();
-    try {
-      // CAREFUL! This clears the entire database
-      await session.run('MATCH (n) DETACH DELETE n');
-      this.entityTypesCollection = null;
     } finally {
       await session.close();
     }
