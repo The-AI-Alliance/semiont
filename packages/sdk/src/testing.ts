@@ -60,19 +60,6 @@ export {
  */
 export function inMemoryContent(): IContentTransport {
   const store = new Map<string, { data: ArrayBuffer; contentType: string }>();
-  // The read-side stand-in for the gateway's view index: the producer writes
-  // under the checksum of the bytes it read, and this map lets a reader
-  // holding only the resource id find that entry — same SHA-256 the real
-  // producer computes (@semiont/content calculateChecksum; not imported here
-  // because that package carries the extractor tree).
-  const ridToChecksum = new Map<string, string>();
-  // WebCrypto, not node:crypto — this subpath stays free of node: builtins so
-  // the double runs anywhere the sdk does (browser, node, jsdom); same digest
-  // as the real producer's calculateChecksum.
-  const sha256Hex = async (data: ArrayBuffer): Promise<string> =>
-    [...new Uint8Array(await crypto.subtle.digest('SHA-256', data))]
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('');
   let seq = 0;
   const toBuffer = (file: File | Buffer): Promise<ArrayBuffer> =>
     file instanceof Uint8Array
@@ -92,7 +79,6 @@ export function inMemoryContent(): IContentTransport {
         data,
         contentType: String(request.format),
       });
-      ridToChecksum.set(rId as string, await sha256Hex(data));
       return { resourceId: rId };
     },
     async getBinary(rId: ResourceId): Promise<{ data: ArrayBuffer; contentType: string }> {
