@@ -300,7 +300,7 @@ Weaver once applied to it.
 - **An event it logs while a span is current carries that span's trace and
   its own id** (`trace_id` and `span_id`), in either form of its log. One
   logged in no span carries neither.
-  *Held by `apps/weaver/tests/test_log.py`.*
+  *Held by `packages/service-python/tests/test_log.py`.*
 
 ## Environment
 

@@ -49,7 +49,7 @@ Two things make the stack use your build:
 
 - A Node image installs its packages from the local registry, so a change to package source reaches an image only after that package is rebuilt and republished. `--images-only` skips that step: use it when the package has not changed.
 - The gateway, dispatcher and archivist images compile the Rust workspace from the working tree every time, so `--images-only --image gateway` picks up a Rust change.
-- The worker image is built from the working tree every time too: the Python service in `apps/worker` and the two Python packages it runs on, with what `apps/worker/uv.lock` pins. `--images-only --image worker` picks up a change to any of the three.
+- The worker image is built from the working tree every time too: the Python service in `apps/worker` and the three Python packages it runs on, with what `apps/worker/uv.lock` pins. `--images-only --image worker` picks up a change to any of the four.
 - `--package` takes a package's directory name (`core`, `make-meaning`), as `version.json` lists them. An unknown name is refused with the list.
 
 The script's own README, [scripts/ci/README.md](../../scripts/ci/README.md), covers the rest.

@@ -1,7 +1,8 @@
 """The health endpoint: `GET /health`, and nothing else.
 
-`docs/protocol/WORKER-SERVICE.md` H1 states it. The endpoint is HTTP written
-out by hand, so each request here is written out by hand too.
+Each service's page of `docs/protocol` states what its endpoint says. Here is
+how any of them is asked and answered. The endpoint is HTTP written out by
+hand, so each request here is written out by hand too.
 """
 
 import asyncio
@@ -12,7 +13,7 @@ import pytest
 from aio import pass_time, run, turns
 from pydantic import JsonValue
 
-from semiont_worker.health import Health, bind_health
+from semiont_service.health import Health, bind_health
 
 SAID: JsonValue = {"status": "ok", "agents": 1, "workers": [{"provider": "ollama", "model": "gemma2:27b", "jobsCompleted": 0}]}
 

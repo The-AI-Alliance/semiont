@@ -11,6 +11,7 @@ How Semiont's test suites are organized, configured and run, and what CI gates o
 | Go | `apps/launcher`, `packages/sdk-go` | The launcher driving a fake runtime through real start and stop lifecycles; the Go bus client's wire contract | The Go toolchain each `go.mod` names |
 | Python | `packages/sdk-python` (`uv run pytest`) | The Python SDK: its transport, sign-in and session, its client, cache and live queries, the shared case tables, and the programs its README shows, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
 | Python | `packages/inference-python` (`uv run pytest`) | The Python inference drivers: each driver against a provider the test plays over HTTP, what a driver raises, the extras, the telemetry rows against the spec, and the program its README shows, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
+| Python | `packages/service-python` (`uv run pytest`) | What every Python service is built on: a configuration document read and refused, the health endpoint asked over a socket, each form of the log, the readings a process takes of itself against the telemetry table, and what the package is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
 | Python | `apps/worker` (`uv run pytest`) | The Worker service's Python code: the case tables that state how a failure is classed, where a text is cut and how its pieces are planned, and what the project is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
 | Python | `packages/graph-python` (`uv run pytest`) | The Python graph stores: the codecs against the case table of what the graph holds, one store contract against the in-memory store, the two Gremlin stores against fake clients, the extras, and what the package is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
 | Python | `packages/graph-python` (`uv run pytest tests/neo4j_live.py`) | The same store contract against a real neo4j, which it clears | The above, and a neo4j of its own, named in `NEO4J_HOST` and `NEO4J_PASSWORD` |
@@ -152,7 +153,7 @@ The launcher's suite takes minutes; its notes are in [apps/launcher/README.md](.
 
 ### Python
 
-As CI runs them, from `packages/sdk-python`, and the same from `packages/inference-python`, `packages/graph-python`, `apps/worker` and `apps/weaver`:
+As CI runs them, from `packages/sdk-python`, and the same from `packages/inference-python`, `packages/graph-python`, `packages/service-python`, `apps/worker` and `apps/weaver`:
 
 ```bash
 uv sync --locked
@@ -310,6 +311,7 @@ Excluded from coverage: what the shared config excludes (see [One shared Vitest 
 | `test-sdk-python` | `mypy` and `pyright`, each as Linux and as Windows, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `packages/sdk-python`; the distributions a release uploads are built and checked |
 | `test-sdk-python-windows` | The Python SDK's sign-in store and state directory tests, on Windows |
 | `test-inference-python` | `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `packages/inference-python` |
+| `test-service-python` | `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `packages/service-python` |
 | `test-worker-python` | `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `apps/worker` |
 | `test-graph-python` | `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `packages/graph-python` |
 | `test-graph-python-neo4j` | Starts the neo4j the launcher runs and holds the Python neo4j store to the store contract against it |

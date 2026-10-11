@@ -1,19 +1,18 @@
 """Where the process's telemetry goes, and the readings the process takes of itself.
 
-The environment says whether anything is exported, and where
-(`docs/protocol/WORKER-SERVICE.md` § Environment). With a collector's
-endpoint, spans and metrics are exported there over OTLP/HTTP. With the
-console exporter instead, they are written to the process's output. With
-neither, or with the SDK disabled, nothing is installed: every span and every
-count the process's code makes then goes nowhere, and no trace context
-travels.
+The environment says whether anything is exported, and where (§ Environment
+of the service's page of `docs/protocol`). With a collector's endpoint, spans
+and metrics are exported there over OTLP/HTTP. With the console exporter
+instead, they are written to the process's output. With neither, or with the
+SDK disabled, nothing is installed: every span and every count the process's
+code makes then goes nowhere, and no trace context travels.
 
 What is installed is the process's: OpenTelemetry's API reports to it, so the
-SDK's spans, the drivers' counts and the worker's own
-(`semiont_worker.telemetry`) are exported with no word from any of them. The
-endpoint and the service's name are read here and handed to the SDK, and the
+spans Semiont's SDK makes, and whatever the service and the packages it is
+built on record, are exported with no word from any of them. The endpoint and
+the service's name are read here and handed to OpenTelemetry's SDK, and the
 resource is the two attributes stated here, so that no other variable changes
-what the telemetry table promises of the service. The SDK reads the standard
+what the telemetry table promises of the service. That SDK reads the standard
 variables it reads on its own, such as how long a finished span waits to be
 exported.
 
@@ -34,10 +33,9 @@ from typing import Final, final
 from opentelemetry import metrics, trace
 from opentelemetry.metrics import CallbackOptions, Meter, Observation
 
-from semiont_worker.config import set_in
+from semiont_service.config import set_in
 
-_SERVICE_NAME: Final = "semiont-worker"
-"""The name the service's telemetry is exported under, unless its environment states another."""
+__all__ = ["Exporting", "Lag", "install", "interval_ms", "lives_less_one", "memory", "report_the_process"]
 
 _METRIC_EXPORT_INTERVAL_MS: Final = 30_000
 """How often metrics are exported, unless the environment states another interval."""
@@ -199,10 +197,13 @@ def report_the_process(meter: Meter, lag: Lag, environment: Mapping[str, str]) -
         )
 
 
-def install(environment: Mapping[str, str]) -> Exporting | None:
+def install(service: str, environment: Mapping[str, str]) -> Exporting | None:
     """Start exporting the process's telemetry as `environment` says, or do nothing where it says to export none.
 
-    Called once, before anything the process does is to be told.
+    Called once, before anything the process does is to be told. `service` is
+    the service's word for itself: its telemetry is exported under that word
+    after `semiont-`, unless its environment states another name, and at the
+    version of the distribution of that name.
     """
     if environment.get("OTEL_SDK_DISABLED") == "true":
         return None
@@ -218,8 +219,9 @@ def install(environment: Mapping[str, str]) -> Exporting | None:
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter, SpanExporter
 
+    distribution = f"semiont-{service}"
     resource = Resource(
-        {"service.name": set_in(environment, "OTEL_SERVICE_NAME") or _SERVICE_NAME, "service.version": version("semiont-worker")}
+        {"service.name": set_in(environment, "OTEL_SERVICE_NAME") or distribution, "service.version": version(distribution)}
     )
 
     spans: SpanExporter = ConsoleSpanExporter(out=sys.stdout)

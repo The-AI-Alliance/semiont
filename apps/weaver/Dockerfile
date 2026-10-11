@@ -1,4 +1,4 @@
-# The weaver image: the Weaver service (apps/weaver, Python) and the two
+# The weaver image: the Weaver service (apps/weaver, Python) and the three
 # packages of this repository it runs on, built here from the repository, in
 # an environment of exactly what apps/weaver/uv.lock pins. Nothing is built,
 # installed or fetched when the container starts: the entrypoint runs the
@@ -22,13 +22,16 @@ COPY --from=uv /uv /usr/local/bin/uv
 WORKDIR /build
 # Each package below takes its version from version.json when it is built.
 COPY version.json ./
-# The SDK and the graph stores are this repository's, and no index holds the
-# version the service is written against: each is built from its manifest,
-# the README its manifest names, and its source.
+# The SDK, the graph stores and what every Python service is built on are
+# this repository's, and no index holds the version the service is written
+# against: each is built from its manifest, the README its manifest names,
+# where it names one, and its source.
 COPY packages/sdk-python/pyproject.toml packages/sdk-python/README.md packages/sdk-python/
 COPY packages/sdk-python/src packages/sdk-python/src
 COPY packages/graph-python/pyproject.toml packages/graph-python/README.md packages/graph-python/
 COPY packages/graph-python/src packages/graph-python/src
+COPY packages/service-python/pyproject.toml packages/service-python/
+COPY packages/service-python/src packages/service-python/src
 COPY apps/weaver/pyproject.toml apps/weaver/uv.lock apps/weaver/
 COPY apps/weaver/src apps/weaver/src
 # The environment is made on this stage's Python and no other, with its
@@ -42,7 +45,7 @@ ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
     UV_COMPILE_BYTECODE=1
 # What the lockfile pins and nothing else: --locked refuses a lockfile that no
 # longer agrees with the manifests, --no-dev leaves the checkers and the tests'
-# tools out, and --no-editable installs the three packages above as built
+# tools out, and --no-editable installs the four packages above as built
 # wheels, so the environment is whole without this stage's tree.
 #
 # --all-extras is every graph database's client: each extra of semiont-weaver

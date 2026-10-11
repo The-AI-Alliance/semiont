@@ -1,9 +1,9 @@
 """The service's health endpoint: `GET /health`, answered with no token asked.
 
-What it says is `docs/protocol/WORKER-SERVICE.md` H1's: that the service is
-up, how many agents it works as, and what each can say of itself. Whatever
-watches the service reads it: an image's health check, a launcher waiting for
-the service to start, an operator looking for a job that is stuck.
+What it says is the service's to say, asked afresh for each request: that it
+is up, and whatever its protocol's page states beside that. Whatever watches
+the service reads it: an image's health check, a launcher waiting for the
+service to start, an operator asking how it is doing.
 
 It is HTTP/1.1 as far as that one answer needs. A request is read as far as
 the end of its head, answered, and its connection closed.
@@ -16,6 +16,8 @@ from collections.abc import Callable
 from typing import Final
 
 from pydantic import JsonValue
+
+__all__ = ["Health", "bind_health"]
 
 type Health = Callable[[], JsonValue]
 """What the endpoint answers with, asked afresh for each request."""

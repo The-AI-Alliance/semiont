@@ -104,10 +104,13 @@ that finds none applies the whole record again and ends with the same graph.
 
 ## What the image carries
 
-The service, and the two Python packages of this repository it runs on: the SDK
-([`packages/sdk-python`](../../packages/sdk-python/)), its client of the gateway, and the
+The service, and the three Python packages of this repository it runs on: the SDK
+([`packages/sdk-python`](../../packages/sdk-python/)), its client of the gateway; the
 graph stores ([`packages/graph-python`](../../packages/graph-python/)), which ask a graph
-database. All three are built into the image from the commit it is published from, and carry
+database; and what every Python service is built on
+([`packages/service-python`](../../packages/service-python/)), which reads its configuration,
+answers for its health, writes its log and exports its telemetry. All four are built into
+the image from the commit it is published from, and carry
 [`version.json`](../../version.json)'s version. Everything else in its environment is what
 [`uv.lock`](./uv.lock) pins. Nothing is built, installed or fetched when the container
 starts.

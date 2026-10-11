@@ -12,11 +12,11 @@ that makes a store, and no store. It requires no database's client: each is
 an extra, and its image asks for every one.
 
 What it copies from the protocol, it copies under a gate: the events it
-follows are the ones the protocol's page lists. What installs its telemetry
-is a copy of the Worker service's module, and is held to it.
+follows are the ones the protocol's page lists. How its document is read, how
+its log is written and what exports its telemetry are every Python service's,
+in the package the service is built on (`packages/service-python`).
 """
 
-import ast
 import re
 import tomllib
 from pathlib import Path
@@ -24,11 +24,13 @@ from pathlib import Path
 from pydantic import JsonValue, TypeAdapter
 from spec import PROJECT, ROOT, SDK
 
+from semiont_weaver.config import SERVICE
 from semiont_weaver.recorded import FOLLOWED
 
 SRC = PROJECT / "src/semiont_weaver"
 SOURCES = sorted(path for top in ("src", "tests") for path in (PROJECT / top).rglob("*.py"))
 GRAPH = ROOT / "packages/graph-python"
+SHARED = ROOT / "packages/service-python"
 
 FORCED = re.compile(r"\bcast\(|#\s*type:\s*ignore|#\s*pyright:\s*ignore|#\s*noqa\b|\btyping\.Any\b|^\s*from typing import [^\n]*\bAny\b")
 
@@ -117,25 +119,12 @@ def test_the_checkers_and_their_strictness_are_the_sdks() -> None:
 
 def test_what_the_manifest_requires_is_what_the_source_imports() -> None:
     requirements = listed(table(MANIFEST["project"], "project")["dependencies"], "dependencies")
-    assert {name_of(requirement) for requirement in requirements} == {
-        "opentelemetry-api",
-        "opentelemetry-exporter-otlp-proto-http",
-        "opentelemetry-sdk",
-        "pydantic",
-        "semiont",
-        "semiont-graph",
-    }
-    # OpenTelemetry's API, its SDK and its OTLP exporter are three distributions, and each a part of the one package.
-    imported = (
-        "opentelemetry",
-        r"opentelemetry\.sdk",
-        r"opentelemetry\.exporter\.otlp\.proto\.http",
-        "pydantic",
-        "semiont",
-        "semiont_graph",
-    )
-    for library in imported:
+    assert {name_of(requirement) for requirement in requirements} == {"pydantic", "semiont", "semiont-graph", "semiont-service"}
+    for library in ("pydantic", "semiont", "semiont_graph", "semiont_service"):
         assert importing(library), f"{library} is required and nothing imports it"
+    # It tells OpenTelemetry nothing of its own. What exports the spans the SDK makes is the shared package's to
+    # require, at the versions its own manifest states, and to import.
+    assert importing("opentelemetry") == []
     # A dependency the SDK bounds is named here without a bound of its own.
     sdk = toml(SDK / "pyproject.toml")
     bounded = {name_of(requirement) for requirement in listed(table(sdk["project"], "project")["dependencies"], "its")}
@@ -143,45 +132,24 @@ def test_what_the_manifest_requires_is_what_the_source_imports() -> None:
     for requirement in requirements:
         if name_of(requirement) in bounded:
             assert requirement == name_of(requirement), f"{requirement}: the SDK states the versions of {name_of(requirement)}"
-    # OpenTelemetry's SDK and its exporter are no dependency of the SDK's: only a process that exports takes them.
-    # The SDK states their versions once, for the drivers its conformance suite runs, and this manifest says the same.
-    for_its_drivers = listed(table(sdk["dependency-groups"], "dependency-groups")["conformance"], "conformance")
-    assert {name_of(requirement) for requirement in for_its_drivers} == {"opentelemetry-sdk", "opentelemetry-exporter-otlp-proto-http"}
-    assert set(for_its_drivers) <= set(requirements)
 
 
-def test_what_installs_the_telemetry_is_the_worker_service_s_under_this_one_s_name() -> None:
-    # A second copy of one module. It is held to the first: the same code, with the Weaver's name where the
-    # Worker's has its own. What the code does is held where the first is, by the Worker's tests.
-    def code(source: str) -> str:
-        """A module's code, without the words written beside it: its documentation is each service's own."""
-        tree = ast.parse(source)
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
-                node.body = [
-                    statement
-                    for statement in node.body
-                    if not (
-                        isinstance(statement, ast.Expr)
-                        and isinstance(statement.value, ast.Constant)
-                        and isinstance(statement.value.value, str)
-                    )
-                ]
-        return ast.dump(tree)
-
-    theirs = (ROOT / "apps/worker/src/semiont_worker/observability.py").read_text(encoding="utf-8")
-    ours = (SRC / "observability.py").read_text(encoding="utf-8")
-    assert code(ours) == code(theirs.replace("semiont_worker", "semiont_weaver").replace("semiont-worker", "semiont-weaver"))
-
-
-def test_the_sdk_and_the_graph_stores_are_the_ones_in_this_repository() -> None:
+def test_the_sdk_the_graph_stores_and_the_service_package_are_the_ones_in_this_repository() -> None:
     sources = table(table(table(MANIFEST["tool"], "tool")["uv"], "uv")["sources"], "sources")
     assert sources == {
         "semiont": {"path": "../../packages/sdk-python", "editable": True},
         "semiont-graph": {"path": "../../packages/graph-python", "editable": True},
+        "semiont-service": {"path": "../../packages/service-python", "editable": True},
     }
     assert (PROJECT / "../../packages/sdk-python/pyproject.toml").resolve() == SDK / "pyproject.toml"
     assert (PROJECT / "../../packages/graph-python/pyproject.toml").resolve() == GRAPH / "pyproject.toml"
+    assert (PROJECT / "../../packages/service-python/pyproject.toml").resolve() == SHARED / "pyproject.toml"
+
+
+def test_the_distribution_is_named_for_the_service() -> None:
+    # Its telemetry is exported under its word for itself after `semiont-`, at the version of the distribution of
+    # that name (`semiont_service.observability`): the manifest's name is that, or an exporting service does not start.
+    assert table(MANIFEST["project"], "project")["name"] == f"semiont-{SERVICE}"
 
 
 def test_it_is_a_service_s_code_and_no_library() -> None:
@@ -251,15 +219,14 @@ def naming(text: str) -> list[str]:
 
 
 def test_it_opens_no_file_of_the_record() -> None:
-    # It reads history from the Archivist, over the bus. What touches a file is the module that keeps its marks, the
-    # one that reads its document, the one that reads the process's environment and names where the marks go, and
-    # the one that reads what the kernel and the supervisor say of the process, for its telemetry.
+    # It reads history from the Archivist, over the bus. What touches a file is the module that keeps its marks,
+    # and the one that reads the process's environment and names where the marks go.
     touching = sorted(
         str(path.relative_to(SRC))
         for path in SRC.rglob("*.py")
         if re.search(r"\bPath\b|\bopen\(|\bos\.\w", path.read_text(encoding="utf-8"))
     )
-    assert touching == ["checkpoint.py", "config.py", "observability.py", "service.py"]
+    assert touching == ["checkpoint.py", "service.py"]
 
 
 def test_the_marks_have_one_writer_and_the_signal_one_emitter() -> None:
@@ -292,9 +259,10 @@ def test_the_variables_it_reads_by_name_are_the_ones_the_protocol_lists() -> Non
         if row.startswith("| ") and not row.startswith("| Variable")
         for name in re.findall(r"`([A-Z][A-Z0-9_]+)`", row.split("|")[1])
     }
-    read_here = {
-        name for path in SRC.rglob("*.py") for name in re.findall(r'"([A-Z][A-Z0-9]*_[A-Z0-9_]+)"', path.read_text(encoding="utf-8"))
-    }
+    # Every variable the service's code names: its own, and the shared package's it is built on.
+    sources = sorted([*SRC.rglob("*.py"), *(SHARED / "src").rglob("*.py")])
+    assert any(path.is_relative_to(SHARED) for path in sources), "packages/service-python has no source"
+    read_here = {name for path in sources for name in re.findall(r'"([A-Z][A-Z0-9]*_[A-Z0-9_]+)"', path.read_text(encoding="utf-8"))}
     assert read_here == listed_there
     # Its service account, and what says where its telemetry goes and under what name.
     assert read_here == {

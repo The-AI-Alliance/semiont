@@ -144,7 +144,9 @@ Four crates are published to crates.io: `semiont`, `semiont-http-transport`, `se
 
 `packages/inference-python` is `semiont-inference`: the model providers a Python service asks, behind one interface. It depends on `semiont`, and each provider's own library is an extra of it, required by nothing.
 
-`apps/worker` is `semiont-worker`, the Worker service. It depends on the two above, and nothing depends on it: it is a service's code, run from its image, and published to no index.
+`packages/service-python` is `semiont-service`: what every Python service does to be one, which is to read its configuration document, answer for its health, write its log and export its telemetry. It depends on `semiont`, and on OpenTelemetry's SDK and OTLP exporter, which only a process that exports takes. It is the services' own code, built into their images and published to no index.
+
+`apps/worker` is `semiont-worker`, the Worker service. It depends on the three above, and nothing depends on it: it is a service's code, run from its image, and published to no index.
 
 ## What each service image runs
 

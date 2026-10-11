@@ -17,18 +17,15 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
 ]
-# OpenTelemetry's API and pydantic are the SDK's dependencies too, and the SDK
-# states their versions: a bound written here would be a second copy of its.
-# OpenTelemetry's SDK and its OTLP exporter are what the service exports its
-# telemetry with, at the versions the SDK states for its conformance drivers:
-# tests/test_census.py holds the two to each other.
+# Pydantic is the SDK's dependency too, and the SDK states its versions: a
+# bound written here would be a second copy of its. What the service exports
+# its telemetry with, OpenTelemetry's SDK and its OTLP exporter, is required
+# by semiont-service, which installs it.
 dependencies = [
-    "opentelemetry-api",
-    "opentelemetry-exporter-otlp-proto-http>=1.30,<2",
-    "opentelemetry-sdk>=1.30,<2",
     "pydantic",
     "semiont",
     "semiont-graph",
+    "semiont-service",
 ]
 
 # A database's own client is not required: the service asks for a store by the
@@ -41,13 +38,14 @@ janusgraph = ["semiont-graph[janusgraph]"]
 neo4j = ["semiont-graph[neo4j]"]
 neptune = ["semiont-graph[neptune]"]
 
-# The SDK and the graph stores are the ones in this repository: the service is
-# checked and tested against the types the tree's spec generates. Both are
-# named, because a source the graph package states for the SDK is read only
-# where that package is the project.
+# The SDK, the graph stores and what every Python service is built on are the
+# ones in this repository: the service is checked and tested against the types
+# the tree's spec generates. Each is named, because a source another package
+# states for the SDK is read only where that package is the project.
 [tool.uv.sources]
 semiont = { path = "../../packages/sdk-python", editable = true }
 semiont-graph = { path = "../../packages/graph-python", editable = true }
+semiont-service = { path = "../../packages/service-python", editable = true }
 
 # The checkers and the formatter are the SDK's, at the SDK's versions:
 # tests/test_census.py holds these pins, and the strictness below, to
