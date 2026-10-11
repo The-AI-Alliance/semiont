@@ -166,8 +166,20 @@ jobs:
       # version, and cargo never rebuilds a registry package it has built. In
       # the cached `target`, a crate built from another crate's packaged form
       # would be built against what that crate was when the cache was saved.
+      #
+      # And with no copy of these crates in cargo's home, which the cache above
+      # does restore. Cargo unpacks a registry package into its home once, and
+      # never unpacks one it finds there. So a crate whose API changed at a
+      # version it already had would be read from the copy an earlier run left,
+      # and the crates that use the new API would not build against it.
       - name: Package and build every published crate
-        run: cargo publish --dry-run --workspace --locked --target-dir "$RUNNER_TEMP/packaged"
+        run: |
+          cargo metadata --locked --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.publish == null) | "\(.name)-\(.version)"' \
+            | while read -r crate; do
+                rm -rf "${CARGO_HOME:-$HOME/.cargo}"/registry/src/*/"$crate" "${CARGO_HOME:-$HOME/.cargo}"/registry/cache/*/"$crate.crate"
+              done
+          cargo publish --dry-run --workspace --locked --target-dir "$RUNNER_TEMP/packaged"
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
