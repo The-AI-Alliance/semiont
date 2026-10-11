@@ -12,8 +12,7 @@
  *
  * The graph's reader writes nothing, and a Weaver is the graph's one writer.
  * What a case does to the database behind a Weaver's back (empty it, lose an
- * annotation from it), and the one thing no reader reads (the vocabulary of
- * entity types), the world does itself, in Cypher.
+ * annotation from it), the world does itself, in Cypher.
  */
 import { randomBytes, randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -47,7 +46,6 @@ export const FOLLOWED: readonly string[] = [
   'mark:body-updated',
   'mark:entity-tag-added',
   'mark:entity-tag-removed',
-  'frame:entity-type-added',
 ];
 
 export interface Applied {
@@ -147,9 +145,8 @@ export class WeaverWorld {
 
   // ── What the world does in the database itself ────────────────────────────
 
-  private async cypher(statement: string, parameters: Record<string, string>) {
-    const { records } = await this.hand.executeQuery(statement, parameters, { database: this.database });
-    return records;
+  private async cypher(statement: string, parameters: Record<string, string>): Promise<void> {
+    await this.hand.executeQuery(statement, parameters, { database: this.database });
   }
 
   /** Empty the database: every node, and with it every edge. */
@@ -160,12 +157,6 @@ export class WeaverWorld {
   /** Take one annotation out of the graph, edges and all, as one lost behind a Weaver's back is. */
   async lose(annotationId: string): Promise<void> {
     await this.cypher('MATCH (a:Annotation {id: $id}) DETACH DELETE a', { id: annotationId });
-  }
-
-  /** The graph's vocabulary of entity types, as the database holds it now. */
-  async vocabulary(): Promise<string[]> {
-    const held = await this.cypher("MATCH (t:TagCollection {type: 'entity-types'}) RETURN t.tags AS tags", {});
-    return held.flatMap((record): string[] => record.get('tags'));
   }
 
   // ── What it says it has applied ───────────────────────────────────────────

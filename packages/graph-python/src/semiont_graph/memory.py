@@ -11,7 +11,7 @@ here what the real stores do.
 """
 
 from collections import deque
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from typing import Final, final, override
 
 from pydantic import JsonValue
@@ -21,7 +21,6 @@ from semiont.model import written
 from semiont.types import Annotation, Motivation, ResourceDescriptor
 
 from semiont_graph._query import query_resources
-from semiont_graph._vocabulary import DEFAULT_ENTITY_TYPES
 from semiont_graph.codec import (
     LINKING,
     decode_resource,
@@ -59,7 +58,6 @@ class MemoryGraphDatabase(GraphDatabase):
         self._connected = False
         self._resources: Final[dict[str, ResourceDescriptor]] = {}
         self._annotations: Final[dict[str, Annotation]] = {}
-        self._entity_types: Final[set[str]] = set(DEFAULT_ENTITY_TYPES)
 
     @override
     async def connect(self) -> None:
@@ -238,25 +236,9 @@ class MemoryGraphDatabase(GraphDatabase):
             content_types=content_types,
         )
 
-    # ── The vocabulary ─────────────────────────────────────────────────
-
-    @override
-    async def get_entity_types(self) -> list[str]:
-        return sorted(self._entity_types)
-
-    @override
-    async def add_entity_type(self, tag: str) -> None:
-        self._entity_types.add(tag)
-
-    @override
-    async def add_entity_types(self, tags: Sequence[str]) -> None:
-        self._entity_types.update(tags)
-
     # ── Everything ─────────────────────────────────────────────────────
 
     @override
     async def clear_database(self) -> None:
         self._resources.clear()
         self._annotations.clear()
-        self._entity_types.clear()
-        self._entity_types.update(DEFAULT_ENTITY_TYPES)

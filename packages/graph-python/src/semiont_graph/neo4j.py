@@ -16,8 +16,7 @@ What it stores:
 - a link's target the graph has not been given yet is a **stub**: a
   `(:Resource)` with its id and `stub: true` and nothing else. It is not a
   resource the graph has: it is never read, listed, counted or followed.
-  Storing the resource fills it in, and the mark goes;
-- the vocabulary is one node, `(:TagCollection {type: "entity-types"})`.
+  Storing the resource fills it in, and the mark goes.
 
 The database's schema is this store's to make, and it makes it each time it
 connects: an id is unique among resources and among annotations, and what a
@@ -39,7 +38,6 @@ from semiont.model import written
 from semiont.types import Annotation, Motivation, ResourceDescriptor
 
 from semiont_graph._query import search_terms
-from semiont_graph._vocabulary import DEFAULT_ENTITY_TYPES
 from semiont_graph.codec import (
     LINKING,
     decode_annotation,
@@ -83,7 +81,6 @@ _TEXT: Final = TypeAdapter[str](str)
 _SCHEMA: Final[tuple[LiteralString, ...]] = (
     "CREATE CONSTRAINT doc_id IF NOT EXISTS FOR (d:Resource) REQUIRE d.id IS UNIQUE",
     "CREATE CONSTRAINT sel_id IF NOT EXISTS FOR (s:Annotation) REQUIRE s.id IS UNIQUE",
-    "CREATE CONSTRAINT tag_id IF NOT EXISTS FOR (t:TagCollection) REQUIRE t.type IS UNIQUE",
     "CREATE INDEX doc_name IF NOT EXISTS FOR (d:Resource) ON (d.name)",
     "CREATE INDEX doc_entity_types IF NOT EXISTS FOR (d:Resource) ON (d.entityTypes)",
     "CREATE INDEX sel_doc_id IF NOT EXISTS FOR (s:Annotation) ON (s.resourceId)",
@@ -456,27 +453,6 @@ class Neo4jGraphDatabase(GraphDatabase):
             entity_reference_count=_COUNT.validate_python(annotations["tagged"]),
             entity_types=await self._resources_by_entity_type(),
             content_types=await self._counted("MATCH (d:Resource) WHERE " + _HELD + " RETURN d.format AS name, count(*) AS count"),
-        )
-
-    # ── The vocabulary ─────────────────────────────────────────────────
-
-    @override
-    async def get_entity_types(self) -> list[str]:
-        records = await self._ask("MATCH (t:TagCollection {type: 'entity-types'}) RETURN t.tags AS tags")
-        added = _NAMES.validate_python(records[0]["tags"]) if records else []
-        return sorted({*DEFAULT_ENTITY_TYPES, *added})
-
-    @override
-    async def add_entity_type(self, tag: str) -> None:
-        await self.add_entity_types([tag])
-
-    @override
-    async def add_entity_types(self, tags: Sequence[str]) -> None:
-        # One statement, so that two writers adding at once lose neither's: the list is read and written where it is kept.
-        await self._ask(
-            "MERGE (t:TagCollection {type: 'entity-types'}) "
-            "SET t.tags = coalesce(t.tags, []) + [tag IN $tags WHERE NOT tag IN coalesce(t.tags, [])]",
-            tags=list(dict.fromkeys(tags)),
         )
 
     # ── Everything ─────────────────────────────────────────────────────

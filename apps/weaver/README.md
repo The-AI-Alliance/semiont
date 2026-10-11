@@ -18,9 +18,9 @@ page is the image, and how it is run.
 
 ## What it does
 
-It follows nine of the events a knowledge base records and writes each into the graph: a
-resource, an annotation, an annotation's link to another resource and its entity tags, a
-resource's archiving and entity types, and the vocabulary. That graph is what
+It follows eight of the events a knowledge base records and writes each into the graph: a
+resource, an annotation, an annotation's link to another resource and its entity tags, and a
+resource's archiving and entity types. That graph is what
 `gather.referencedBy` answers from, and what gather's knowledge-graph traversal walks.
 
 It reaches two things: the gateway, for the bus, and the graph database. It mounts no piece

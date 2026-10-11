@@ -207,10 +207,10 @@ def test_nothing_in_the_fold_or_the_weaver_reads_a_clock_or_derives_who_a_thing_
 
 def test_the_events_it_follows_are_the_ones_the_protocol_lists() -> None:
     page = (ROOT / "docs/protocol/WEAVER.md").read_text(encoding="utf-8")
-    rule = re.search(r"\*\*It follows nine recorded events:\*\*(.*?)\. Every other event", page, re.DOTALL)
+    rule = re.search(r"\*\*It follows eight recorded events:\*\*(.*?)\. Every other event", page, re.DOTALL)
     assert rule is not None, "docs/protocol/WEAVER.md no longer lists what a Weaver follows"
     assert sorted(re.findall(r"`([a-z]+:[a-z-]+)`", rule.group(1))) == sorted(FOLLOWED)
-    assert len(FOLLOWED) == 9
+    assert len(FOLLOWED) == 8
 
 
 def naming(text: str) -> list[str]:

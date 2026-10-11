@@ -71,7 +71,6 @@ def test_its_stream_names_what_it_follows_the_command_it_answers_and_the_replies
             "mark:body-updated",
             "mark:entity-tag-added",
             "mark:entity-tag-removed",
-            "frame:entity-type-added",
             "weave:rebuild",
             "browse:resources-result",
             "browse:resources-failed",

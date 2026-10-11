@@ -19,7 +19,6 @@ from typing import Final, final
 
 from pydantic import JsonValue
 from semiont.channels import (
-    FRAME_ENTITY_TYPE_ADDED,
     MARK_ADDED,
     MARK_BODY_UPDATED,
     MARK_ENTITY_TAG_ADDED,
@@ -163,7 +162,5 @@ async def apply(graph: GraphDatabase, event: StoredEventResponse) -> None:
             if resource is not None:
                 kept = [held for held in resource.entity_types or () if held != tag]
                 await graph.update_resource(resource_id, ResourceChange(entity_types=kept))
-        case "frame:entity-type-added":
-            await graph.add_entity_type(FRAME_ENTITY_TYPE_ADDED.event(event).entity_type)
         case _:
             pass

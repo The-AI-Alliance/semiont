@@ -1,6 +1,6 @@
 """The recorded events a Weaver follows, as it reads them off the bus.
 
-A Weaver follows nine of the events a knowledge base records
+A Weaver follows eight of the events a knowledge base records
 (`docs/protocol/WEAVER.md` § What it follows). Each reaches it as a stored
 event, on the channel named for the event's type. The event's own payload is
 that channel's to give (`semiont.channels`), typed as the bus registry names
@@ -24,7 +24,6 @@ from typing import Final
 from semiont.bus import decoded
 from semiont.channel import RecordedChannel, ScopedChannel
 from semiont.channels import (
-    FRAME_ENTITY_TYPE_ADDED,
     MARK_ADDED,
     MARK_ARCHIVED,
     MARK_BODY_UPDATED,
@@ -47,7 +46,6 @@ PLAIN: Final[tuple[RecordedChannel[StoredEventResponse, WireModel] | ScopedChann
     MARK_REMOVED,
     MARK_ENTITY_TAG_ADDED,
     MARK_ENTITY_TAG_REMOVED,
-    FRAME_ENTITY_TYPE_ADDED,
 )
 """The followed channels that carry a stored event and nothing beside it."""
 
@@ -55,7 +53,7 @@ ENRICHED: Final[tuple[ScopedChannel[EnrichedResourceEvent, WireModel], ...]] = (
 """The followed channels whose stored event carries, beside it, the annotation as a view holds it. A Weaver reads the event alone."""
 
 FOLLOWED: Final[tuple[str, ...]] = tuple(channel.name for channel in (*PLAIN, *ENRICHED))
-"""The nine events a Weaver follows, by the name each is recorded and published under."""
+"""The eight events a Weaver follows, by the name each is recorded and published under."""
 
 _PLAIN: Final = {channel.name: channel for channel in PLAIN}
 _ENRICHED: Final = {channel.name: channel for channel in ENRICHED}

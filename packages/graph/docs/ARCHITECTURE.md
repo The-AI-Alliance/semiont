@@ -24,7 +24,6 @@ It is not asked for anything about a single document. A resource, its annotation
 | `Resource` | A resource's description: its name, entity types, format, checksum, storage URI, whether it is archived, when the record says it was created, and who the record says it is by. [`src/resource-codec.ts`](../src/resource-codec.ts) names each property, once, for every store |
 | `Annotation` | An annotation. In Neo4j it also carries a label for its motivation (`:Linking`, for one), so a query by motivation is a label match |
 | `EntityType` | One per entity type in use |
-| `TagCollection` | The knowledge base's entity-type vocabulary |
 
 | Edge | From, to |
 |---|---|

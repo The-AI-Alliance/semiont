@@ -377,11 +377,10 @@ def test_a_rebuild_of_one_resource_applies_its_record_again_and_leaves_anothers_
     run(scenario())
 
 
-def test_a_rebuild_of_everything_clears_the_graph_keeps_its_vocabulary_and_applies_the_whole_record() -> None:
+def test_a_rebuild_of_everything_clears_the_graph_and_applies_the_whole_record() -> None:
     async def scenario() -> None:
         async with Rig() as rig:
             await rig.happened(
-                event("frame:entity-type-added", None, 1, {"entityType": "Dynasty"}),
                 created("res-1"),
                 created("res-2"),
                 added("res-1", 2, "ann-1", link("res-2")),
@@ -396,7 +395,6 @@ def test_a_rebuild_of_everything_clears_the_graph_keeps_its_vocabulary_and_appli
             (answer,) = rig.answered("weave:rebuild-ok")
             assert answer.correlation_id == "c-all"
             await rig.same_as_the_views()
-            assert "Dynasty" in await rig.graph.get_entity_types()
             assert rig.weaver.apply_failures == 0
 
     run(scenario())

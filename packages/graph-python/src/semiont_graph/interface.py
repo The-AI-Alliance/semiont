@@ -225,18 +225,8 @@ class GraphDatabase(Protocol):
 
     async def get_stats(self) -> GraphStats: ...
 
-    # ── The vocabulary ─────────────────────────────────────────────────
-
-    async def get_entity_types(self) -> list[str]:
-        """The entity types the graph knows, sorted: those every knowledge base starts with, and each one added."""
-        ...
-
-    async def add_entity_type(self, tag: str) -> None: ...
-
-    async def add_entity_types(self, tags: Sequence[str]) -> None: ...
-
     # ── Everything ─────────────────────────────────────────────────────
 
     async def clear_database(self) -> None:
-        """Remove everything the graph holds, its vocabulary included."""
+        """Remove everything the graph holds."""
         ...

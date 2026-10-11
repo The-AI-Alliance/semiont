@@ -17,9 +17,8 @@ import tomllib
 from pathlib import Path
 
 from pydantic import JsonValue, TypeAdapter
-from spec import PACKAGE, ROOT, SDK
+from spec import PACKAGE, SDK
 
-from semiont_graph._vocabulary import DEFAULT_ENTITY_TYPES
 from semiont_graph.interface import GraphDatabase
 from semiont_graph.janusgraph import JanusGraphDatabase
 from semiont_graph.memory import MemoryGraphDatabase
@@ -137,7 +136,7 @@ def test_a_public_name_is_imported_from_its_module_and_not_from_the_packages_roo
 
 def test_a_store_has_the_members_of_a_graph_database_and_no_others() -> None:
     members = public(GraphDatabase)
-    assert len(members) == 23
+    assert len(members) == 20
     # Making a store dials nothing: each reaches its database when it is connected.
     assert public(MemoryGraphDatabase()) == members
     assert public(Neo4jGraphDatabase(uri="bolt://127.0.0.1:1", username="u", password="p", database="d")) == members
@@ -168,7 +167,7 @@ def test_a_client_is_named_only_by_the_module_that_asks_through_it() -> None:
     # The interface, the codec and what they share import no store, and so no client.
     for store in ("neo4j", "janusgraph", "neptune", "memory", "_gremlin", "factory"):
         imported_by = set(importing(rf"semiont_graph\.{store}"))
-        assert not imported_by & {"interface.py", "codec.py", "_query.py", "_vocabulary.py"}, store
+        assert not imported_by & {"interface.py", "codec.py", "_query.py"}, store
 
 
 def test_the_factory_imports_a_store_where_its_database_is_asked_for_and_not_before() -> None:
@@ -189,15 +188,6 @@ def test_no_module_reads_a_clock() -> None:
 def test_the_package_holds_nothing_beside_its_modules_but_its_typed_marker() -> None:
     beside = sorted(str(path.relative_to(SRC)) for path in SRC.rglob("*") if path.is_file() and path.suffix not in (".py", ".pyc"))
     assert beside == ["py.typed"]
-
-
-def test_the_entity_types_every_knowledge_base_starts_with_are_the_ones_the_ontology_package_lists() -> None:
-    # This package's list is a copy: `@semiont/ontology` is where TypeScript's stores read theirs. A type added
-    # there and not here fails here.
-    source = (ROOT / "packages/ontology/src/entity-types.ts").read_text(encoding="utf-8")
-    listing = re.search(r"export const DEFAULT_ENTITY_TYPES = \[(.*?)\];", source, re.DOTALL)
-    assert listing is not None, "packages/ontology/src/entity-types.ts no longer states DEFAULT_ENTITY_TYPES"
-    assert re.findall(r"'([^']+)'", listing.group(1)) == list(DEFAULT_ENTITY_TYPES)
 
 
 def test_the_checkers_and_their_strictness_are_the_sdks() -> None:

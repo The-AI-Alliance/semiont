@@ -40,7 +40,7 @@ from semiont_weaver.recorded import stored_event
 __all__ = ["CaughtUp", "Rebuilt", "Reconciled", "Weaver"]
 
 _NO_RESOURCE: Final = "__system__"
-"""The lane of the events that are of no resource: the knowledge base's own."""
+"""The lane of an event that names no resource. Every event a Weaver follows is a resource's: one that names none has no mark to move."""
 
 _KEEP_SECONDS: Final = 5.0
 """How often the marks are kept, when one has risen."""
@@ -428,17 +428,10 @@ class Weaver:
         return Rebuilt(events=len(events), failed=failed)
 
     async def rebuild_all(self) -> Rebuilt:
-        """Rebuild the whole graph from the record, with no lane working (`docs/protocol/WEAVER.md` § Rebuild).
-
-        The vocabulary is kept across the clearing. It is made of events of
-        no resource, which the catalog lists none of: nothing that is read
-        here could bring it back.
-        """
+        """Rebuild the whole graph from the record, with no lane working (`docs/protocol/WEAVER.md` § Rebuild)."""
         async with self._lanes.alone():
             LOG.info("Rebuilding the whole graph from the record")
-            vocabulary = await self._graph.get_entity_types()
             await self._graph.clear_database()
-            await self._graph.add_entity_types(vocabulary)
 
             applied = failed = 0
             for resource in await self._history.resources():

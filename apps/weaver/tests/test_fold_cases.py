@@ -18,7 +18,6 @@ from rig import Rig
 from semiont.model import written
 from semiont.types import Annotation, ResourceDescriptor, StoredEventResponse
 from semiont_graph.interface import GraphDatabase, ResourceQuery
-from semiont_graph.memory import MemoryGraphDatabase
 from spec import SPEC, JsonObject, objects, read, strings, text, thing, whole
 
 from semiont_weaver.recorded import ENRICHED, PLAIN
@@ -39,12 +38,7 @@ def ordered(graph: JsonObject) -> JsonObject:
     for resource in objects(graph["resources"], "resources"):
         entity_types: list[JsonValue] = [*sorted(strings(resource["entityTypes"], "entityTypes"))]
         resources.append({**resource, "entityTypes": entity_types})
-    added: list[JsonValue] = [*sorted(strings(graph["entityTypesAdded"], "entityTypesAdded"))]
-    return {
-        "resources": by_id(resources, "@id"),
-        "annotations": by_id(objects(graph["annotations"], "annotations"), "id"),
-        "entityTypesAdded": added,
-    }
+    return {"resources": by_id(resources, "@id"), "annotations": by_id(objects(graph["annotations"], "annotations"), "id")}
 
 
 async def held(graph: GraphDatabase) -> JsonObject:
@@ -53,11 +47,8 @@ async def held(graph: GraphDatabase) -> JsonObject:
     annotations: list[JsonValue] = []
     for resource in resources:
         annotations.extend(written(annotation) for annotation in await graph.get_resource_annotations(resource.id))
-    # What every knowledge base starts with is what a graph nothing was added to has.
-    starts_with = await MemoryGraphDatabase().get_entity_types()
-    added: list[JsonValue] = [name for name in await graph.get_entity_types() if name not in starts_with]
     described: list[JsonValue] = [written(resource) for resource in resources]
-    return ordered({"resources": described, "annotations": annotations, "entityTypesAdded": added})
+    return ordered({"resources": described, "annotations": annotations})
 
 
 def test_every_event_of_the_table_is_one_the_bus_could_carry_and_every_graph_one_the_spec_allows() -> None:
