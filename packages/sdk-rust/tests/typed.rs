@@ -4,7 +4,8 @@
 use semiont::bus::{Bus, StreamError};
 use semiont::channels::{
     BeckonFocus, BrowseEntityTypesRequested, BrowseEntityTypesResult, Channel, JobCreate,
-    MarkAdded, MarkArchived, Recorded, Request, YieldCreate,
+    MarkAdded, MarkArchived, MarkEntityTagAdded, MarkEntityTagRemoved, Recorded, Request,
+    YieldCreate,
 };
 use semiont::errors::SemiontError;
 use semiont::testing::FaultyTransport;
@@ -220,4 +221,29 @@ fn a_recorded_channel_gives_the_events_own_payload() {
         serde_json::from_value(stored).expect("a stored event decodes");
     let event = MarkAdded::event(&stored).expect("its payload is the channel's");
     assert_eq!(event.annotation.id, "ann-1");
+}
+
+#[test]
+fn a_recorded_channel_refuses_a_stored_event_of_another_type() {
+    // A tag's adding and its removal carry the same payload: read by its
+    // payload alone, one would be taken for the other.
+    let stored = json!({
+        "id": "e-7",
+        "type": "mark:entity-tag-removed",
+        "timestamp": "2026-10-01T12:00:00.000Z",
+        "userId": "did:web:example.org:users:alice",
+        "resourceId": "res-1",
+        "version": 1,
+        "payload": { "entityType": "Person" },
+        "metadata": { "sequenceNumber": 4 },
+    });
+    let stored: <MarkEntityTagRemoved as Channel>::Payload =
+        serde_json::from_value(stored).expect("a stored event decodes");
+    let refused = MarkEntityTagAdded::event(&stored).expect_err("it is another channel's event");
+    assert_eq!(
+        refused.to_string(),
+        "mark:entity-tag-removed e-7 is not a mark:entity-tag-added event"
+    );
+    let event = MarkEntityTagRemoved::event(&stored).expect("its payload is the channel's");
+    assert_eq!(event.entity_type, "Person");
 }

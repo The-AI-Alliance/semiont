@@ -16,11 +16,10 @@ It does import one thing that is not the harness's: `@semiont/graph`, which it
 reads the graph with, as the Librarian does. What a store holds is stated by
 [`specs/src/graph/codec-cases.json`](../../../specs/src/graph/codec-cases.json);
 the suite reads it back through the reader the rest of Semiont uses and does
-not parse rows of its own. That reader writes nothing. Three things the suite
+not parse rows of its own. That reader writes nothing. Two things the suite
 does in the database itself, in Cypher, through a connection of its own
-([harness/weaver-world.ts](../harness/weaver-world.ts)): it empties it, it
-takes one annotation out of it behind a Weaver's back, and it reads the
-vocabulary of entity types, which no reader reads. The other suites' type check leaves these files
+([harness/weaver-world.ts](../harness/weaver-world.ts)): it empties it, and it
+takes one annotation out of it behind a Weaver's back. The other suites' type check leaves these files
 out (`tsconfig.json`), so they build no graph package; `npm run test:weaver`
 checks them with `tsconfig.weaver.json`.
 
@@ -72,9 +71,8 @@ that is replaced starts with nothing.
   worker for, each held to what the graph is to hold of the Archivist's view;
   who each is by, the software that made it, and when it was changed; a
   resource's date and attribution; a resource followed through archiving, its
-  entity types and an annotation's removal, and the vocabulary through an
-  addition; what it says it has applied; and that its own reconcile finds
-  nothing to repair in a graph it has just built.
+  entity types and an annotation's removal; what it says it has applied; and
+  that its own reconcile finds nothing to repair in a graph it has just built.
 - **Bringing the graph back** (`repair.test.ts`): what was recorded while it
   was down, with its checkpoint and with nothing kept; what was lost from the
   graph behind its back, and a graph that was cleaned whole; a rebuild of one

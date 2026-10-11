@@ -18,11 +18,14 @@ Worker service to each rule. This page is the image, and how it is run.
 
 ## What the image carries
 
-The service, and the two Python packages of this repository it runs on: the SDK
-([`packages/sdk-python`](../../packages/sdk-python/)), its client of the gateway, and the
+The service, and the three Python packages of this repository it runs on: the SDK
+([`packages/sdk-python`](../../packages/sdk-python/)), its client of the gateway; the
 inference drivers ([`packages/inference-python`](../../packages/inference-python/)), which
-ask a model provider. All three are built into the image from the commit it is published
-from, and carry [`version.json`](../../version.json)'s version. Everything else in its
+ask a model provider; and what every Python service is built on
+([`packages/service-python`](../../packages/service-python/)), which reads its configuration,
+answers for its health, writes its log and exports its telemetry. All four are built into
+the image from the commit it is published from, and carry
+[`version.json`](../../version.json)'s version. Everything else in its
 environment is what [`uv.lock`](./uv.lock) pins. Nothing is built, installed or fetched when
 the container starts.
 

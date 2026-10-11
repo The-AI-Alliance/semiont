@@ -1,8 +1,9 @@
 """How the process's log is written: an event a line, on stdout, in the form and from the level its configuration document names.
 
-`docs/protocol/WORKER-SERVICE.md` O1 states it, and the worker service's
+Each service's page of `docs/protocol` states it, and that service's
 conformance suite holds the lines a started service writes. Here is each
-form's own shape, and what is and is not written.
+form's own shape, and what is and is not written. The service that writes
+here is the Worker, as an example: its word, and the loggers that are its own.
 """
 
 import json
@@ -16,7 +17,10 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from pydantic import JsonValue, TypeAdapter
 from semiont.types import LogFormat, LogLevel
 
-from semiont_worker.log import LOG, configure
+from semiont_service.log import configure
+
+LOG = logging.getLogger("semiont_worker")
+OWN = ("semiont_worker", "semiont_inference", "semiont")
 
 _LINE = TypeAdapter[dict[str, JsonValue]](dict[str, JsonValue])
 
@@ -29,7 +33,7 @@ def lines(capsys: pytest.CaptureFixture[str]) -> list[str]:
 
 
 def configured(level: LogLevel, log_format: LogFormat) -> None:
-    configure(level, log_format)
+    configure("worker", level, log_format, own=OWN)
 
 
 @pytest.mark.usefixtures("unconfigured")
@@ -51,6 +55,27 @@ def test_as_json_an_event_is_one_object_with_its_level_its_message_when_who_said
         "serves": [{"jobType": "yield"}],
         "attempt": 2,
     }
+
+
+@pytest.mark.usefixtures("unconfigured")
+@pytest.mark.parametrize("log_format", ["json", "simple"])
+def test_who_said_an_event_is_the_service_the_log_was_configured_for(capsys: pytest.CaptureFixture[str], log_format: LogFormat) -> None:
+    configure("weaver", "info", log_format, own=OWN)
+    LOG.info("Following the record")
+    (line,) = lines(capsys)
+    if log_format == "json":
+        assert _LINE.validate_json(line)["component"] == "weaver"
+    else:
+        assert line.endswith(" [INFO] [weaver] Following the record")
+
+
+@pytest.mark.usefixtures("unconfigured")
+def test_a_logger_the_service_did_not_name_as_its_own_is_written_from_warnings_up(capsys: pytest.CaptureFixture[str]) -> None:
+    configure("worker", "debug", "json", own=("semiont_worker",))
+    for name in ("semiont_worker", "semiont_inference"):
+        logging.getLogger(name).info("said")
+        logging.getLogger(name).warning("warned")
+    assert [_LINE.validate_json(line)["message"] for line in lines(capsys)] == ["said", "warned", "warned"]
 
 
 @pytest.mark.usefixtures("unconfigured")

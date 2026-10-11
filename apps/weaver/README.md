@@ -18,9 +18,9 @@ page is the image, and how it is run.
 
 ## What it does
 
-It follows nine of the events a knowledge base records and writes each into the graph: a
-resource, an annotation, an annotation's link to another resource and its entity tags, a
-resource's archiving and entity types, and the vocabulary. That graph is what
+It follows eight of the events a knowledge base records and writes each into the graph: a
+resource, an annotation, an annotation's link to another resource and its entity tags, and a
+resource's archiving and entity types. That graph is what
 `gather.referencedBy` answers from, and what gather's knowledge-graph traversal walks.
 
 It reaches two things: the gateway, for the bus, and the graph database. It mounts no piece
@@ -104,10 +104,13 @@ that finds none applies the whole record again and ends with the same graph.
 
 ## What the image carries
 
-The service, and the two Python packages of this repository it runs on: the SDK
-([`packages/sdk-python`](../../packages/sdk-python/)), its client of the gateway, and the
+The service, and the three Python packages of this repository it runs on: the SDK
+([`packages/sdk-python`](../../packages/sdk-python/)), its client of the gateway; the
 graph stores ([`packages/graph-python`](../../packages/graph-python/)), which ask a graph
-database. All three are built into the image from the commit it is published from, and carry
+database; and what every Python service is built on
+([`packages/service-python`](../../packages/service-python/)), which reads its configuration,
+answers for its health, writes its log and exports its telemetry. All four are built into
+the image from the commit it is published from, and carry
 [`version.json`](../../version.json)'s version. Everything else in its environment is what
 [`uv.lock`](./uv.lock) pins. Nothing is built, installed or fetched when the container
 starts.

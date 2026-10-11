@@ -19,16 +19,14 @@ classifiers = [
 ]
 # OpenTelemetry's API and pydantic are the SDK's dependencies too, and the SDK
 # states their versions: a bound written here would be a second copy of its.
-# OpenTelemetry's SDK and its OTLP exporter are what the service exports its
-# telemetry with, at the versions the SDK states for its conformance drivers:
-# tests/test_census.py holds the two to each other.
+# What the service exports its telemetry with, OpenTelemetry's SDK and its
+# OTLP exporter, is required by semiont-service, which installs it.
 dependencies = [
     "opentelemetry-api",
-    "opentelemetry-exporter-otlp-proto-http>=1.30,<2",
-    "opentelemetry-sdk>=1.30,<2",
     "pydantic",
     "semiont",
     "semiont-inference",
+    "semiont-service",
 ]
 
 # A provider's own library is not required: the service asks for a client by
@@ -44,13 +42,14 @@ openai = ["semiont-inference[openai]"]
 together = ["semiont-inference[together]"]
 vllm = ["semiont-inference[vllm]"]
 
-# The SDK and the inference drivers are the ones in this repository: the
-# service is checked and tested against the types the tree's spec generates.
-# Both are named, because a source the inference package states for the SDK
-# is read only where that package is the project.
+# The SDK, the inference drivers and what every Python service is built on
+# are the ones in this repository: the service is checked and tested against
+# the types the tree's spec generates. Each is named, because a source another
+# package states for the SDK is read only where that package is the project.
 [tool.uv.sources]
 semiont = { path = "../../packages/sdk-python", editable = true }
 semiont-inference = { path = "../../packages/inference-python", editable = true }
+semiont-service = { path = "../../packages/service-python", editable = true }
 
 # The checkers and the formatter are the SDK's, at the SDK's versions:
 # tests/test_census.py holds these pins, and the strictness below, to

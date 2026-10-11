@@ -218,8 +218,8 @@ implicitly) — see `packages/observability/src/node.ts`.
 ## Relationship to the structured logger and `busLog`
 
 - **Structured logger** (the Rust services', in `packages/observability-rust/src/logging.rs`;
-  `createProcessLogger()` in the Node services; the Worker service's and the Weaver's, in
-  `apps/worker/src/semiont_worker/log.py` and `apps/weaver/src/semiont_weaver/log.py`) — JSON-line,
+  `createProcessLogger()` in the Node services; the Python services', in
+  `packages/service-python/src/semiont_service/log.py`) — JSON-line,
   level-filtered, always on. Logs semantic events (validation failed,
   user authenticated). Goes to log aggregator. Every line is auto-
   tagged with the active span's `trace_id` / `span_id` when one

@@ -665,7 +665,7 @@ fn typed_channels(registry: &Value, definitions: &Value) -> String {
         if channel["shape"] == "storedEvent" {
             let _ = writeln!(
                 code,
-                "impl Recorded for {marker} {{\n    type Event = crate::types::{};\n    fn event(stored: &Self::Payload) -> Result<Self::Event, serde_json::Error> {{\n        serde_json::from_value(serde_json::Value::Object(stored.payload.clone()))\n    }}\n}}",
+                "impl Recorded for {marker} {{\n    type Event = crate::types::{};\n    fn event(stored: &Self::Payload) -> Result<Self::Event, serde_json::Error> {{\n        own(Self::NAME, &stored.r#type, &stored.id, &stored.payload)\n    }}\n}}",
                 text(channel, "payload", name)
             );
         }

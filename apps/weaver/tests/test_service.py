@@ -15,8 +15,8 @@ import pytest
 from pydantic import JsonValue
 from semiont.http import Credential
 from semiont_graph.memory import MemoryGraphDatabase
+from semiont_service.config import Refused
 
-from semiont_weaver.config import Refused
 from semiont_weaver.service import CHANNELS, boot, main
 
 pytestmark = pytest.mark.usefixtures("the_log_as_it_was")
@@ -71,7 +71,6 @@ def test_its_stream_names_what_it_follows_the_command_it_answers_and_the_replies
             "mark:body-updated",
             "mark:entity-tag-added",
             "mark:entity-tag-removed",
-            "frame:entity-type-added",
             "weave:rebuild",
             "browse:resources-result",
             "browse:resources-failed",

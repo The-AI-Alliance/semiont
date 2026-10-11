@@ -58,8 +58,6 @@ export class JanusGraphDatabase implements GraphDatabase {
     private graphConfig: {
       host?: string;
       port?: number;
-      storageBackend?: 'cassandra' | 'hbase' | 'berkeleydb';
-      indexBackend?: 'elasticsearch' | 'solr' | 'lucene';
       logger?: Logger;
     },
   ) {
@@ -96,9 +94,6 @@ export class JanusGraphDatabase implements GraphDatabase {
 
     this.connected = true;
     this.logger?.info('Successfully connected to JanusGraph');
-
-    // Initialize schema if needed
-    await this.initializeSchema();
   }
   
   async disconnect(): Promise<void> {
@@ -110,13 +105,6 @@ export class JanusGraphDatabase implements GraphDatabase {
   
   isConnected(): boolean {
     return this.connected;
-  }
-  
-  private async initializeSchema(): Promise<void> {
-    // Note: Schema management in JanusGraph typically requires direct access
-    // to the management API, which isn't available through Gremlin.
-    // In production, you'd run schema initialization scripts separately.
-    this.logger?.debug('Schema initialization would happen here in production');
   }
   
   // Helper function to convert vertex to Resource

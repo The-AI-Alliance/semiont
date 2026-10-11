@@ -19,9 +19,7 @@ What it stores:
 - an annotation is a vertex `Annotation` whose properties are exactly the
   codec's; an edge `BELONGS_TO` to the resource it is on; an edge
   `REFERENCES` to the resource it links to; and an edge `TAGGED_AS` to an
-  `EntityType` vertex, by its `name`, for each entity tag;
-- the vocabulary is one vertex, `TagCollection`, whose `type` is
-  `entity-types` and whose `tags` are a JSON string.
+  `EntityType` vertex, by its `name`, for each entity tag.
 
 The store reads no clock.
 
@@ -40,8 +38,7 @@ It does what its source does, and that is not everywhere what
 - annotations are answered in the order the server gives them, and those
   that link to a resource whatever motivation is asked for; a connection
   holds every annotation that is not a highlight and is never bidirectional;
-  no path is found; and entity types are counted in no order;
-- the vocabulary is read once, and kept by the store from then on.
+  no path is found; and entity types are counted in no order.
 """
 
 import asyncio
@@ -57,7 +54,6 @@ from semiont.types import Annotation, Motivation, ResourceDescriptor
 
 from semiont_graph._gremlin import GremlinClient, answered, gremlin_client
 from semiont_graph._query import query_resources
-from semiont_graph._vocabulary import DEFAULT_ENTITY_TYPES
 from semiont_graph.codec import (
     LINKING,
     decode_annotation,
@@ -94,9 +90,6 @@ _NAMES: Final = TypeAdapter[list[str]](list[str])
 # A resource and an annotation, each by its id, however a traversal goes on from it.
 _RESOURCE: Final = "g.V().has('Resource', 'id', rid)"
 _ANNOTATION: Final = "g.V().has('Annotation', 'id', aid)"
-
-# The vocabulary's one vertex.
-_VOCABULARY: Final = "g.V().hasLabel('TagCollection').has('type', 'entity-types')"
 
 
 def _setting(row: Mapping[str, object]) -> tuple[str, dict[str, object]]:
@@ -164,7 +157,6 @@ class JanusGraphDatabase(GraphDatabase):
         self._port: Final = port
         self._client: GremlinClient | None = None
         self._turn: Final = asyncio.Lock()
-        self._entity_types: set[str] | None = None
 
     async def _in_turn[**P, T](self, call: Callable[P, T], *arguments: P.args, **named: P.kwargs) -> T:
         """Run one call of the client off the loop: on a thread, after every call asked before it."""
@@ -389,47 +381,8 @@ class JanusGraphDatabase(GraphDatabase):
             content_types=content_types,
         )
 
-    # ── The vocabulary ─────────────────────────────────────────────────
-
-    async def _keep_vocabulary(self, vocabulary: set[str]) -> None:
-        """Write the vocabulary to its one vertex, which is made where the graph has none."""
-        steps, bound = _setting({"tags": sorted(vocabulary)})
-        if await self._ask(_VOCABULARY):
-            await self._ask(_VOCABULARY + steps, **bound)
-        else:
-            await self._ask("g.addV('TagCollection').property('type', 'entity-types')" + steps, **bound)
-
-    async def _vocabulary(self) -> set[str]:
-        """The vocabulary: read from the graph the first time it is asked for, and the store's own from then on."""
-        if self._entity_types is None:
-            held: list[str] = []
-            for vertex in await self._vertices("g.V().hasLabel('TagCollection').valueMap()"):
-                properties = _first(vertex)
-                if properties.get("type") == "entity-types":
-                    tags = properties.get("tags")
-                    held = _NAMES.validate_json(tags) if isinstance(tags, str) and tags else []
-            self._entity_types = {*DEFAULT_ENTITY_TYPES, *held}
-            if not held:
-                await self._keep_vocabulary(self._entity_types)
-        return self._entity_types
-
-    @override
-    async def get_entity_types(self) -> list[str]:
-        return sorted(await self._vocabulary())
-
-    @override
-    async def add_entity_type(self, tag: str) -> None:
-        await self.add_entity_types([tag])
-
-    @override
-    async def add_entity_types(self, tags: Sequence[str]) -> None:
-        vocabulary = await self._vocabulary()
-        vocabulary.update(tags)
-        await self._keep_vocabulary(vocabulary)
-
     # ── Everything ─────────────────────────────────────────────────────
 
     @override
     async def clear_database(self) -> None:
         await self._ask("g.V().drop()")
-        self._entity_types = None

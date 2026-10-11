@@ -143,7 +143,7 @@ async def _result_of(transport: Transport, operation: AnyOperation, payload: Map
 # ── By type ─────────────────────────────────────────────────────────────
 
 
-def decoded[P: WireModel](channel: Channel[P] | ScopedChannel[P], payload: Mapping[str, JsonValue]) -> P:
+def decoded[P: WireModel](channel: Channel[P] | ScopedChannel[P, WireModel], payload: Mapping[str, JsonValue]) -> P:
     """A payload as `channel` types it. Raises `ValidationError` for one that is not that channel's.
 
     What the gateway stamps on a payload (a member whose name begins `_`) is
@@ -166,7 +166,7 @@ class Delivered[P: WireModel]:
     trace: TraceContext | None = None
 
 
-def _delivered[P: WireModel](channel: Channel[P] | ScopedChannel[P], frame: Frame) -> Delivered[P]:
+def _delivered[P: WireModel](channel: Channel[P] | ScopedChannel[P, WireModel], frame: Frame) -> Delivered[P]:
     """`frame`, its payload as `channel` types it. Raises `ValidationError` for a payload that is not that channel's."""
     stamped = frame.payload.get(_EMITTED_BY)
     return Delivered(
@@ -178,7 +178,7 @@ def _delivered[P: WireModel](channel: Channel[P] | ScopedChannel[P], frame: Fram
     )
 
 
-def _refused[P: WireModel](channel: Channel[P] | ScopedChannel[P], error: ValidationError) -> str:
+def _refused[P: WireModel](channel: Channel[P] | ScopedChannel[P, WireModel], error: ValidationError) -> str:
     """What is said of a payload on `channel` that was refused as not that channel's: what it lacks, and none of what it holds."""
     return f"a payload on {channel.name} is not that channel's: {lacks(channel.members, error, "that channel's payload")}"
 
@@ -198,7 +198,7 @@ class Typed[P: WireModel]:
 
     def __init__(
         self,
-        channel: Channel[P] | ScopedChannel[P],
+        channel: Channel[P] | ScopedChannel[P, WireModel],
         frames: Events[Frame],
         *,
         resource: ResourceId | None = None,
@@ -254,9 +254,9 @@ class Bus:
     def frames[P: WireModel](self, channel: Channel[P]) -> Typed[P]: ...
 
     @overload
-    def frames[P: WireModel](self, channel: ScopedChannel[P], resource: ResourceId) -> Typed[P]: ...
+    def frames[P: WireModel](self, channel: ScopedChannel[P, WireModel], resource: ResourceId) -> Typed[P]: ...
 
-    def frames[P: WireModel](self, channel: Channel[P] | ScopedChannel[P], resource: ResourceId | None = None) -> Typed[P]:
+    def frames[P: WireModel](self, channel: Channel[P] | ScopedChannel[P, WireModel], resource: ResourceId | None = None) -> Typed[P]:
         """The frames delivered on `channel` from now on. Refused, as `bus.unsubscribed`, for a channel this transport can never deliver.
 
         A channel a resource's scope carries is read for a `resource`: the

@@ -36,10 +36,6 @@ class TestNeo4jGraph(GraphContract):
     def make(self) -> GraphDatabase:
         return store()
 
-    @override
-    def shared_with(self, first: GraphDatabase) -> GraphDatabase | None:
-        return store()
-
 
 _ROWS: Final = TypeAdapter[list[dict[str, JsonValue]]](list[dict[str, JsonValue]])
 

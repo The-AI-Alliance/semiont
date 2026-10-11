@@ -1413,15 +1413,42 @@ dev = [
 ]
 
 [[package]]
-name = "semiont-worker"
-source = { editable = "." }
+name = "semiont-service"
+source = { editable = "../../packages/service-python" }
 dependencies = [
     { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-otlp-proto-http" },
     { name = "opentelemetry-sdk" },
     { name = "pydantic" },
     { name = "semiont" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.30,<2" },
+    { name = "opentelemetry-sdk", specifier = ">=1.30,<2" },
+    { name = "pydantic" },
+    { name = "semiont", editable = "../../packages/sdk-python" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "mypy", specifier = "==2.4.0" },
+    { name = "pyright", specifier = "==1.1.414" },
+    { name = "pytest", specifier = ">=9.1,<10" },
+    { name = "ruff", specifier = "==0.16.10" },
+]
+
+[[package]]
+name = "semiont-worker"
+source = { editable = "." }
+dependencies = [
+    { name = "opentelemetry-api" },
+    { name = "pydantic" },
+    { name = "semiont" },
     { name = "semiont-inference" },
+    { name = "semiont-service" },
 ]
 
 [package.optional-dependencies]
@@ -1456,8 +1483,6 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "opentelemetry-api" },
-    { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.30,<2" },
-    { name = "opentelemetry-sdk", specifier = ">=1.30,<2" },
     { name = "pydantic" },
     { name = "semiont", editable = "../../packages/sdk-python" },
     { name = "semiont-inference", editable = "../../packages/inference-python" },
@@ -1467,6 +1492,7 @@ requires-dist = [
     { name = "semiont-inference", extras = ["openai"], marker = "extra == 'openai'", editable = "../../packages/inference-python" },
     { name = "semiont-inference", extras = ["together"], marker = "extra == 'together'", editable = "../../packages/inference-python" },
     { name = "semiont-inference", extras = ["vllm"], marker = "extra == 'vllm'", editable = "../../packages/inference-python" },
+    { name = "semiont-service", editable = "../../packages/service-python" },
 ]
 provides-extras = ["anthropic", "google", "llamacpp", "openai", "together", "vllm"]
 

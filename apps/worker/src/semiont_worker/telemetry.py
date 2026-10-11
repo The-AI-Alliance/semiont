@@ -2,9 +2,9 @@
 
 It takes OpenTelemetry's API and nothing more, so recording does nothing
 until the process it runs in installs a provider
-(`semiont_worker.observability`). What a driver records of a generation, the
+(`semiont_service.observability`). What a driver records of a generation, the
 `semiont.inference.*` rows, is the driver's own, and what the process says of
-itself is `semiont_worker.observability`'s.
+itself is `semiont_service.observability`'s.
 """
 
 import time
@@ -57,14 +57,6 @@ cleanly and found a fraction of what a count says is there. The two are told
 apart, though a piece that suffers either is asked again in smaller pieces:
 one is a reply that overflowed, and the other a silent under-report.
 """
-
-
-def active_span() -> tuple[str, str] | None:
-    """The trace and the span this code is running in, each as the hex text a trace's readers know it by. Nothing where it runs in none."""
-    context = trace.get_current_span().get_span_context()
-    if not context.is_valid:
-        return None
-    return trace.format_trace_id(context.trace_id), trace.format_span_id(context.span_id)
 
 
 def _of_job(job_type: JobType, motivation: Motivation | None) -> dict[str, str]:

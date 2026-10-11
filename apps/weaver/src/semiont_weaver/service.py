@@ -38,13 +38,15 @@ from semiont.http import AgentToken, Credential, HttpTransport, ServiceToken
 from semiont.types import WeaverConfig
 from semiont_graph.factory import create_graph_database
 from semiont_graph.interface import GraphDatabase
+from semiont_service.config import Refused, config_path_of, service_account_of
+from semiont_service.health import Health, bind_health
+from semiont_service.log import configure
+from semiont_service.observability import Exporting, install
 
 from semiont_weaver.checkpoint import Checkpoint
-from semiont_weaver.config import Refused, config_path_of, graph_password_of, read_weaver_config, service_account_of
-from semiont_weaver.health import Health, bind_health
+from semiont_weaver.config import SERVICE, graph_password_of, read_weaver_config
 from semiont_weaver.history import READ
-from semiont_weaver.log import LOG, configure
-from semiont_weaver.observability import Exporting, install
+from semiont_weaver.log import LOG
 from semiont_weaver.recorded import FOLLOWED
 from semiont_weaver.weaver import CaughtUp, Reconciled, Weaver, words_of
 
@@ -71,9 +73,10 @@ class _Started:
 
 def boot(arguments: Sequence[str], environment: Mapping[str, str]) -> _Started:
     """Read everything the service is started with, and raise for what it cannot start on. Nothing is dialled."""
-    config = read_weaver_config(config_path_of(arguments))
-    configure(config.log_level, config.log_format)
-    credential = service_account_of(config, environment)
+    config = read_weaver_config(config_path_of(SERVICE, arguments))
+    # What is written from the document's level: the service's own code, the graph stores' and the SDK's.
+    configure(SERVICE, config.log_level, config.log_format, own=(LOG.name, "semiont_graph", "semiont"))
+    credential = service_account_of(SERVICE, config.identity.issuer, environment)
     graph = create_graph_database(config.graph, password=graph_password_of(config, environment))
     return _Started(config=config, credential=credential, graph=graph)
 
@@ -174,7 +177,7 @@ def main() -> int:
     exporting: Exporting | None = None
     try:
         started = boot(sys.argv[1:], os.environ)
-        exporting = install(os.environ)
+        exporting = install(SERVICE, os.environ)
         asyncio.run(_serve(started, exporting))
     except Exception as failure:
         # Whatever ends the service that was not its being told to stop is said once, as every service says it.

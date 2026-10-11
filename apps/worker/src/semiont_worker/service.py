@@ -33,13 +33,15 @@ from semiont.model import written
 from semiont.types import WorkerConfig
 from semiont_inference.factory import create_inference_client
 from semiont_inference.interface import InferenceClient
+from semiont_service.config import Refused, config_path_of, read_config, service_account_of
+from semiont_service.health import bind_health
+from semiont_service.log import configure
+from semiont_service.observability import Exporting, install
 
 from semiont_worker.agent import AgentWorker, exit_for_restart
-from semiont_worker.config import Refused, api_key_of, config_path_of, read_worker_config, service_account_of
+from semiont_worker.config import SERVICE, api_key_of
 from semiont_worker.failure_class import words_of
-from semiont_worker.health import bind_health
-from semiont_worker.log import LOG, configure
-from semiont_worker.observability import Exporting, install
+from semiont_worker.log import LOG
 
 
 @final
@@ -54,9 +56,10 @@ class _Started:
 
 def boot(arguments: Sequence[str], environment: Mapping[str, str]) -> _Started:
     """Read everything the service is started with, and raise for what it cannot start on. Nothing is dialled."""
-    config = read_worker_config(config_path_of(arguments))
-    configure(config.log_level, config.log_format)
-    credential = service_account_of(config, environment)
+    config = read_config(SERVICE, WorkerConfig, config_path_of(SERVICE, arguments))
+    # What is written from the document's level: the service's own code, the inference drivers' and the SDK's.
+    configure(SERVICE, config.log_level, config.log_format, own=(LOG.name, "semiont_inference", "semiont"))
+    credential = service_account_of(SERVICE, config.identity.issuer, environment)
     clients = [
         create_inference_client(
             provider=entry.agent.provider, model=entry.agent.model, base_url=entry.base_url, api_key=api_key_of(config, index, environment)
@@ -162,7 +165,7 @@ def main() -> int:
     exporting: Exporting | None = None
     try:
         started = boot(sys.argv[1:], os.environ)
-        exporting = install(os.environ)
+        exporting = install(SERVICE, os.environ)
         asyncio.run(_serve(started, exporting))
     except Exception as failure:
         # Whatever ends the service that was not its being told to stop is said once, as every service says it.

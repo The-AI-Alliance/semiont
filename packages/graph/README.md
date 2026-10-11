@@ -56,7 +56,7 @@ const { resources } = await graph.listResources({ entityTypes: ['Person'] });
 
 ## What a change must keep
 
-- **The graph is derived, and this package never writes it.** Everything in it can be made again from the record, and the Weaver catches it up when it starts. No store here has a method that changes the graph.
+- **The graph is derived, and this package never writes it.** Everything in it can be made again from the record, and the Weaver catches it up when it starts. No store here has a method that changes the graph, and none makes a constraint or an index when it connects: the schema is the Weaver's store's to make. `scripts/compliance/audit-graph-reader-writes-nothing.sh` holds that.
 - **Reading a single document needs no graph.** A resource, its annotations and their changes come from the record's views. The graph answers what crosses documents, and a reader degrades, rather than fails, when it lags.
 - **Callers never ask which database they hold.** They are written to `GraphDatabase`.
 - **What a row means is the codecs' alone.** [`src/annotation-codec.ts`](src/annotation-codec.ts) and [`src/resource-codec.ts`](src/resource-codec.ts) are the only places that decide what a stored property is called and which are required. The Weaver's codec is `semiont_graph`'s, and [`specs/src/graph/codec-cases.json`](../../specs/src/graph/codec-cases.json) holds the two to one answer: both run it.

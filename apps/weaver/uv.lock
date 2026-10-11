@@ -1562,15 +1562,41 @@ dev = [
 ]
 
 [[package]]
-name = "semiont-weaver"
-source = { editable = "." }
+name = "semiont-service"
+source = { editable = "../../packages/service-python" }
 dependencies = [
     { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-otlp-proto-http" },
     { name = "opentelemetry-sdk" },
     { name = "pydantic" },
     { name = "semiont" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.30,<2" },
+    { name = "opentelemetry-sdk", specifier = ">=1.30,<2" },
+    { name = "pydantic" },
+    { name = "semiont", editable = "../../packages/sdk-python" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "mypy", specifier = "==2.4.0" },
+    { name = "pyright", specifier = "==1.1.414" },
+    { name = "pytest", specifier = ">=9.1,<10" },
+    { name = "ruff", specifier = "==0.16.10" },
+]
+
+[[package]]
+name = "semiont-weaver"
+source = { editable = "." }
+dependencies = [
+    { name = "pydantic" },
+    { name = "semiont" },
     { name = "semiont-graph" },
+    { name = "semiont-service" },
 ]
 
 [package.optional-dependencies]
@@ -1596,15 +1622,13 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "opentelemetry-api" },
-    { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.30,<2" },
-    { name = "opentelemetry-sdk", specifier = ">=1.30,<2" },
     { name = "pydantic" },
     { name = "semiont", editable = "../../packages/sdk-python" },
     { name = "semiont-graph", editable = "../../packages/graph-python" },
     { name = "semiont-graph", extras = ["janusgraph"], marker = "extra == 'janusgraph'", editable = "../../packages/graph-python" },
     { name = "semiont-graph", extras = ["neo4j"], marker = "extra == 'neo4j'", editable = "../../packages/graph-python" },
     { name = "semiont-graph", extras = ["neptune"], marker = "extra == 'neptune'", editable = "../../packages/graph-python" },
+    { name = "semiont-service", editable = "../../packages/service-python" },
 ]
 provides-extras = ["janusgraph", "neo4j", "neptune"]
 

@@ -1,10 +1,10 @@
 """What the process exports of itself: when it exports nothing, and the readings it takes of itself.
 
-`docs/protocol/WORKER-SERVICE.md` § Environment states what each variable
-does, and the worker service's conformance suite holds a started service to
-it, exporter by exporter. A process installs its telemetry once, so what is
-installed is that suite's to hold. Here is what is decided before anything is
-installed, and each reading, held to the rows of
+§ Environment of each service's page of `docs/protocol` states what each
+variable does, and that service's conformance suite holds a started service
+to it, exporter by exporter. A process installs its telemetry once, so what
+is installed is those suites' to hold. Here is what is decided before
+anything is installed, and each reading, held to the rows of
 `specs/src/service-telemetry/telemetry.json` that every service exports.
 """
 
@@ -20,9 +20,9 @@ from counted import counted
 from opentelemetry.metrics import CallbackOptions
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import Gauge, InMemoryMetricReader, Metric, NumberDataPoint
-from telemetry_rows import MetricRow, as_the_table_writes, worker_metrics
+from telemetry_rows import MetricRow, as_the_table_writes, metrics_named
 
-from semiont_worker.observability import Exporting, Lag, install, interval_ms, lives_less_one, memory, report_the_process
+from semiont_service.observability import Exporting, Lag, install, interval_ms, lives_less_one, memory, report_the_process
 
 
 def exported(environment: Mapping[str, str], lag: Lag) -> dict[str, Metric]:
@@ -75,7 +75,7 @@ def held_to(row: MetricRow, metric: Metric) -> None:
     ],
 )
 def test_with_no_endpoint_and_no_console_exporter_or_with_the_sdk_disabled_nothing_is_installed(environment: dict[str, str]) -> None:
-    assert install(environment) is None
+    assert install("worker", environment) is None
 
 
 # ── how often metrics are exported ──────────────────────────────────────
@@ -111,7 +111,7 @@ def test_a_process_reports_when_it_started_how_late_its_loop_runs_and_its_memory
     for late in (0.0, 1.0, 4.0):
         lag.note(late)
     metrics = exported({}, lag)
-    rows = {**worker_metrics("semiont.process."), **worker_metrics("semiont.runtime.")}
+    rows = {**metrics_named("semiont.process."), **metrics_named("semiont.runtime.")}
     assert sorted(metrics) == ["semiont.process.start_time", "semiont.runtime.event_loop.lag", "semiont.runtime.heap"]
     for name, metric in metrics.items():
         held_to(rows[name], metric)
@@ -171,7 +171,7 @@ def test_under_a_supervisor_a_process_reports_the_lives_its_log_records_less_one
 
     supervised = {"SUPERVISE_EVENTS": str(events), "SUPERVISE_NAME": "worker"}
     restarts = "semiont.process.restarts"
-    (row,) = worker_metrics(restarts).values()
+    (row,) = metrics_named(restarts).values()
 
     # One life is no restart, and another service's lives are not this one's.
     events.write_text("\n".join([life(0), life(1, "gateway"), "something else"]) + "\n", encoding="utf-8")
@@ -204,7 +204,7 @@ def test_without_either_of_the_supervisor_s_two_variables_the_restarts_do_not_ex
 
 
 def test_a_failure_nothing_caught_is_counted_once_under_the_reason_the_table_lists(metric_reader: InMemoryMetricReader) -> None:
-    (row,) = worker_metrics("semiont.process.abnormal_exit").values()
+    (row,) = metrics_named("semiont.process.abnormal_exit").values()
     assert row.instrument == "counter"
     (listed,) = row.attributes
     assert listed.key == "reason"

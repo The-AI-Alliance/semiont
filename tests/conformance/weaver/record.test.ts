@@ -10,7 +10,6 @@
 import { annotationId, resourceId } from '@semiont/core';
 import { intendedGraphAnnotation } from '@semiont/graph';
 import { expect, it } from 'vitest';
-import { eventually } from '../harness/net';
 import { eachWeaver } from '../harness/weaver-world';
 import { delegated, highlighted, link, referenced, tag, uploaded, whole } from './support';
 
@@ -76,7 +75,7 @@ eachWeaver('the graph a Weaver builds', (world) => {
     expect(health.applyFailures).toBe(0);
   });
 
-  it('follows a resource through archiving, its entity types and an annotation\'s removal, and the vocabulary through an addition', async () => {
+  it('follows a resource through archiving, its entity types and an annotation\'s removal', async () => {
     const kb = world().kb;
     const id = await uploaded(world(), 'Followed');
     const grace = await kb.person('grace');
@@ -84,7 +83,7 @@ eachWeaver('the graph a Weaver builds', (world) => {
     const removed = await highlighted(grace, id, 'lazy dog');
 
     await grace.ask('mark:delete', { resourceId: id, annotationId: removed });
-    // An entity type is added to the vocabulary before a resource is given it.
+    // An entity type joins the knowledge base's list before a resource is given it: the Archivist refuses one that has not.
     await grace.ask('frame:add-entity-type', { tag: 'Fable' });
     await grace.ask('frame:add-entity-type', { tag: 'Pangram' });
     await grace.ask('mark:update-entity-types', { resourceId: id, currentEntityTypes: [], updatedEntityTypes: ['Fable', 'Pangram'] });
@@ -95,10 +94,6 @@ eachWeaver('the graph a Weaver builds', (world) => {
     expect((await world().graph.getResourceAnnotations(resourceId(id))).map((a) => a.id)).toEqual([kept]);
     expect(await world().graph.getResource(resourceId(id))).toMatchObject({ archived: true, entityTypes: ['Pangram'] });
     expect(await world().graph.getEntityTypeStats()).toContainEqual({ type: 'Pangram', count: 1 });
-    await eventually('the vocabulary to hold the new entity types', 10_000, async () => {
-      const vocabulary = await world().vocabulary();
-      return vocabulary.includes('Fable') && vocabulary.includes('Pangram') ? true : undefined;
-    });
 
     await grace.ask('mark:unarchive', { resourceId: id });
     await world().caughtUp(id);

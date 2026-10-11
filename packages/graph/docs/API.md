@@ -20,7 +20,7 @@ const graph = await getGraphDatabase(graphConfig);
 await graph.disconnect();
 ```
 
-`createGraphDatabase(config)` is the non-singleton variant; it takes the factory's own flat config (`{ type, neo4jUri, neo4jUsername, … }`) rather than a `GraphServiceConfig`, and instantiates without connecting.
+It answers the process's one connection: asked again, it answers the store it made the first time.
 
 ## The stores
 
@@ -43,7 +43,7 @@ const graph = new Neo4jGraphDatabase({
 await graph.connect();
 ```
 
-All four fields are required at connect time.
+All four fields are required at connect time. Connecting makes no constraint and no index: the database's schema is its writer's, and the Weaver's store makes it when the Weaver connects.
 
 ### AWS Neptune
 
@@ -72,9 +72,7 @@ import { JanusGraphDatabase } from '@semiont/graph';
 
 const graph = new JanusGraphDatabase({
   host: 'localhost',
-  port: 8182,
-  storageBackend: 'cassandra',    // 'cassandra' | 'hbase' | 'berkeleydb'
-  indexBackend: 'elasticsearch'   // 'elasticsearch' | 'solr' | 'lucene'
+  port: 8182
 });
 
 await graph.connect();

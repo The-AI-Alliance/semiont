@@ -21,9 +21,7 @@ What it stores:
 - an annotation is a vertex `Annotation` whose properties are exactly the
   codec's; an edge `BELONGS_TO` to the resource it is on; an edge
   `REFERENCES` to the resource it links to; and an edge `TAGGED_AS` to an
-  `EntityType` vertex, by its `name`, for each entity tag;
-- the vocabulary is a vertex `TagCollection` whose `type` is `entity-types`,
-  with each tag a value of its `tags`.
+  `EntityType` vertex, by its `name`, for each entity tag.
 
 The store reads no clock, and sends no credentials.
 
@@ -47,15 +45,13 @@ It does what its source does, and that is not everywhere what
 - a path is looked for along `REFERENCES` edges alone, in both directions,
   to a number of steps and not of resources: up to ten are answered, and no
   annotation with them;
-- entity types are counted in no order;
-- the vocabulary is read once and kept by the store from then on, and a tag
-  added is looked for under a label, `tagCollection`, that no vertex has.
+- entity types are counted in no order.
 """
 
 import asyncio
 import json
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from typing import Final, TypedDict, final, override
+from typing import Final, final, override
 
 from pydantic import BaseModel, JsonValue, TypeAdapter
 from semiont.annotations import body_source, entity_types, target_source
@@ -65,7 +61,6 @@ from semiont.types import Annotation, Motivation, ResourceDescriptor
 
 from semiont_graph._gremlin import GremlinClient, answered, gremlin_client
 from semiont_graph._query import query_resources
-from semiont_graph._vocabulary import DEFAULT_ENTITY_TYPES
 from semiont_graph.codec import (
     decode_annotation,
     decode_resource,
@@ -94,13 +89,6 @@ type _Vertex = dict[str, list[JsonValue]]
 """A vertex's properties as `valueMap()` answers them: each a list of its values."""
 
 
-class _TagCollection(TypedDict):
-    """A vocabulary vertex, as the traversal that reads the vocabulary projects one."""
-
-    type: str
-    tags: list[str]
-
-
 class _Path(BaseModel, frozen=True, from_attributes=True):
     """A path as the client hands one back: an object whose `objects` are what the traversal met on its way, in order."""
 
@@ -111,18 +99,11 @@ _VERTICES: Final = TypeAdapter[list[_Vertex]](list[_Vertex])
 _NAMES: Final = TypeAdapter[list[str]](list[str])
 _COUNTS: Final = TypeAdapter[list[int]](list[int])
 _GROUPS: Final = TypeAdapter[list[dict[str, int]]](list[dict[str, int]])
-_COLLECTIONS: Final = TypeAdapter[list[_TagCollection]](list[_TagCollection])
 _PATHS: Final = TypeAdapter[list[_Path]](list[_Path])
 
 # A resource and an annotation, each by its id, however a traversal goes on from it.
 _RESOURCE: Final = "g.V().hasLabel('Resource').has('id', rid)"
 _ANNOTATION: Final = "g.V().hasLabel('Annotation').has('id', aid)"
-
-# The vocabulary's vertex, made where the traversal finds none.
-_VOCABULARY: Final = (
-    "g.V().has('tagCollection', 'type', 'entity-types').fold()"
-    ".coalesce(__.unfold(), __.addV('TagCollection').property('type', 'entity-types'))"
-)
 
 
 def _setting(row: Mapping[str, object]) -> tuple[str, dict[str, object]]:
@@ -181,7 +162,6 @@ class NeptuneGraphDatabase(GraphDatabase):
         self._port: Final = port
         self._client: GremlinClient | None = None
         self._turn: Final = asyncio.Lock()
-        self._entity_types: set[str] | None = None
 
     async def _in_turn[**P, T](self, call: Callable[P, T], *arguments: P.args, **named: P.kwargs) -> T:
         """Run one call of the client off the loop: on a thread, after every call asked before it."""
@@ -426,47 +406,8 @@ class NeptuneGraphDatabase(GraphDatabase):
             content_types=content_types,
         )
 
-    # ── The vocabulary ─────────────────────────────────────────────────
-
-    async def _vocabulary(self) -> set[str]:
-        """The vocabulary: read from the graph the first time it is asked for, and the store's own from then on.
-
-        Where the graph holds none, it is what every knowledge base starts
-        with, and that is written.
-        """
-        if self._entity_types is None:
-            held: set[str] | None = None
-            for collection in _COLLECTIONS.validate_python(
-                await self._ask("g.V().hasLabel('TagCollection').project('type', 'tags').by('type').by(__.values('tags').fold())")
-            ):
-                if collection["type"] == "entity-types":
-                    held = set(collection["tags"])
-            if held is None:
-                held = set(DEFAULT_ENTITY_TYPES)
-                steps = "".join(f".property(set, 'tags', t{index})" for index in range(len(DEFAULT_ENTITY_TYPES)))
-                starting = {f"t{index}": tag for index, tag in enumerate(DEFAULT_ENTITY_TYPES)}
-                await self._ask("g.addV('TagCollection').property('type', 'entity-types')" + steps, **starting)
-            self._entity_types = held
-        return self._entity_types
-
-    @override
-    async def get_entity_types(self) -> list[str]:
-        return sorted(await self._vocabulary())
-
-    @override
-    async def add_entity_type(self, tag: str) -> None:
-        await self.add_entity_types([tag])
-
-    @override
-    async def add_entity_types(self, tags: Sequence[str]) -> None:
-        vocabulary = await self._vocabulary()
-        vocabulary.update(tags)
-        for tag in tags:
-            await self._ask(_VOCABULARY + ".property(set, 'tags', tag)", tag=tag)
-
     # ── Everything ─────────────────────────────────────────────────────
 
     @override
     async def clear_database(self) -> None:
         await self._ask("g.V().drop()")
-        self._entity_types = None

@@ -16,8 +16,8 @@ rig folds from the record in the order it was recorded: a delivery in another
 order, with events delivered twice, must leave the same graph. The second is
 a fold written here, which shares nothing with the Weaver's and reads less of
 each event: which resources there are, whether each is archived, its entity
-types, which annotations are on it, and what was added to the vocabulary. A
-fold that agrees with itself and is wrong is caught by the second.
+types, and which annotations are on it. A fold that agrees with itself and is
+wrong is caught by the second.
 """
 
 import itertools
@@ -31,15 +31,12 @@ from hypothesis import strategies as st
 from pydantic import JsonValue
 from rig import Rig, added, archived, body_updated, created, event, link, removed, tag, tagged
 from semiont_graph.interface import GraphDatabase, ResourceQuery
-from semiont_graph.memory import MemoryGraphDatabase
 from spec import JsonObject
 
 RESOURCES: Final = ("res-a", "res-b", "res-c")
 ENTITY_TYPES: Final = ("Place", "County", "River")
-VOCABULARY: Final = ("Steamboat", "Levee", "Ferry")
-"""Entity types no knowledge base starts with, so that one in a graph's vocabulary was added to it."""
 
-type Kind = Literal["created", "archived", "unarchived", "tagged", "untagged", "added", "removed", "body-updated", "type-added"]
+type Kind = Literal["created", "archived", "unarchived", "tagged", "untagged", "added", "removed", "body-updated"]
 
 _OF_A_NEW_RESOURCE: Final[tuple[Kind, ...]] = ("archived", "unarchived", "tagged", "untagged", "added")
 _OF_AN_ANNOTATED_RESOURCE: Final[tuple[Kind, ...]] = (*_OF_A_NEW_RESOURCE, "removed", "body-updated")
@@ -55,8 +52,8 @@ class Step:
     """One recorded event, and what the reference fold reads of it."""
 
     kind: Kind
-    resource: str | None
-    """The resource it is of. None for an event of the knowledge base's own."""
+    resource: str
+    """The resource it is of."""
     sequence: int
     subject: str
     """The entity type or the annotation it names. Empty where it names neither."""
@@ -76,7 +73,7 @@ class History:
 
     def last(self) -> dict[str, int]:
         """The sequence number of each resource's last event."""
-        return {step.resource: step.sequence for step in self.recorded if step.resource is not None}
+        return {step.resource: step.sequence for step in self.recorded}
 
     def as_recorded(self) -> Iterator[JsonObject]:
         return (step.recorded for step in self.recorded)
@@ -127,7 +124,7 @@ def _step(draw: st.DrawFn, kind: Kind, resource: str, sequence: int, made: list[
             annotation = draw(st.sampled_from(made))
             operations = draw(st.lists(_OPERATIONS, min_size=1, max_size=3))
             return of(annotation, body_updated(resource, sequence, annotation, *operations, at=f"2020-03-05T00:00:{sequence:02d}.000Z"))
-        case "created" | "type-added":
+        case "created":
             raise AssertionError(f"{kind} is not an event of a resource that has been created")
 
 
@@ -153,20 +150,6 @@ def histories(draw: st.DrawFn) -> History:
             kind = draw(st.sampled_from(_OF_AN_ANNOTATED_RESOURCE if made else _OF_A_NEW_RESOURCE))
             stream.append(_step(draw, kind, resource, sequence, made, minted))
         streams.append(stream)
-    # The vocabulary's events are of no resource, and are numbered on their own.
-    streams.append(
-        [
-            Step(
-                kind="type-added",
-                resource=None,
-                sequence=sequence,
-                subject=name,
-                starts_with=(),
-                recorded=event("frame:entity-type-added", None, sequence, {"entityType": name}),
-            )
-            for sequence, name in enumerate(draw(st.lists(st.sampled_from(VOCABULARY), max_size=3)), start=1)
-        ]
-    )
 
     # Which stream each delivery is taken from: every stream's events in their order, and the streams' in any.
     turns = draw(st.permutations([index for index, stream in enumerate(streams) for _ in stream]))
@@ -179,9 +162,9 @@ def histories(draw: st.DrawFn) -> History:
     return History(recorded=tuple(step for stream in streams for step in stream), delivered=tuple(delivered))
 
 
-type Held = tuple[dict[str, tuple[bool, list[str], list[str]]], list[str]]
+type Held = dict[str, tuple[bool, list[str], list[str]]]
 """What a graph holds, as far as the reference reads it: for each resource whether it is archived, its entity types and
-the annotations on it; and the entity types added to the vocabulary."""
+the annotations on it."""
 
 
 def folded(steps: Sequence[Step]) -> Held:
@@ -189,12 +172,8 @@ def folded(steps: Sequence[Step]) -> Held:
     is_archived: dict[str, bool] = {}
     entity_types: dict[str, set[str]] = {}
     annotations: dict[str, set[str]] = {}
-    vocabulary: set[str] = set()
     for step in steps:
         resource = step.resource
-        if resource is None:
-            vocabulary.add(step.subject)
-            continue
         match step.kind:
             case "created":
                 is_archived[resource] = False
@@ -212,10 +191,9 @@ def folded(steps: Sequence[Step]) -> Held:
                 annotations[resource].add(step.subject)
             case "removed":
                 annotations[resource].discard(step.subject)
-            case "body-updated" | "type-added":
+            case "body-updated":
                 pass
-    resources = {name: (is_archived[name], sorted(entity_types[name]), sorted(annotations[name])) for name in is_archived}
-    return resources, sorted(vocabulary)
+    return {name: (is_archived[name], sorted(entity_types[name]), sorted(annotations[name])) for name in is_archived}
 
 
 async def held(graph: GraphDatabase) -> Held:
@@ -224,9 +202,7 @@ async def held(graph: GraphDatabase) -> Held:
     for resource in (await graph.list_resources(ResourceQuery(limit=1_000))).resources:
         on_it = sorted(str(annotation.id) for annotation in await graph.get_resource_annotations(resource.id))
         resources[str(resource.id)] = (resource.archived is True, sorted(resource.entity_types or ()), on_it)
-    # What every knowledge base starts with is what a graph nothing was added to has.
-    starts_with = await MemoryGraphDatabase().get_entity_types()
-    return resources, sorted(name for name in await graph.get_entity_types() if name not in starts_with)
+    return resources
 
 
 async def as_the_record_says(rig: Rig, history: History) -> None:

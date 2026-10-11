@@ -43,6 +43,7 @@ from semiont.channels import (
 )
 from semiont.events import Events
 from semiont.identifiers import AnnotationId, ResourceId
+from semiont.model import WireModel
 from semiont.namespaces.links import Links
 from semiont.namespaces.live import WHOLE, Live, Subject
 from semiont.refresh import CACHE_QUERIES, CACHE_REFRESH, CacheQuery, CacheRefreshReach, CacheRefreshTrigger
@@ -105,7 +106,9 @@ def _annotation_named(payload: Mapping[str, JsonValue]) -> AnnotationId | None:
     return AnnotationId.parse(named) if isinstance(named, str) else None
 
 
-def _recorded(channel: Channel[StoredEventResponse] | ScopedChannel[StoredEventResponse], payload: Mapping[str, JsonValue]) -> Subject:
+def _recorded(
+    channel: Channel[StoredEventResponse] | ScopedChannel[StoredEventResponse, WireModel], payload: Mapping[str, JsonValue]
+) -> Subject:
     return Subject(resource=decoded(channel, payload).resource_id)
 
 

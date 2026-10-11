@@ -11,6 +11,10 @@
 // language reads. The payload classes themselves are the OpenAPI schemas',
 // generated into semiont/types.py.
 //
+// A channel that carries a stored event names the type of the event's own
+// payload too, from the entry's `payload`, as the Rust generator's `Recorded`
+// does (packages/sdk-rust/build.rs).
+//
 // --check compares without writing (the CI drift gate).
 
 import { validateRegistry, validateRegistryFormat } from './validate-registry.mjs';
@@ -32,7 +36,8 @@ validateRegistry(reg);
 
 const SCRIPT = 'scripts/bus/generate-python.mjs';
 
-/** The Python type of a channel's payload, and the schemas it names. */
+/** The Python type of a channel's payload, the schemas it names, and for a
+ *  stored event the type of the event's own payload. */
 function payloadOf(c) {
   switch (c.shape) {
     case 'schema':
@@ -41,7 +46,7 @@ function payloadOf(c) {
       return { type: `Response[${c.schema}]`, names: [c.schema] };
     case 'storedEvent': {
       const event = c.enriched === true ? 'EnrichedResourceEvent' : 'StoredEventResponse';
-      return { type: event, names: [event] };
+      return { type: event, names: [event, c.payload], recorded: c.payload };
     }
     case 'void':
     case 'empty':
@@ -72,6 +77,12 @@ if (twice !== undefined) {
   throw new Error(`registry: "${twice}" is delivered both globally and per scope: a client would be given it twice`);
 }
 const names = (channels) => channels.map((channel) => `    ${pyString(channel)},`).join('\n');
+
+// A scoped channel is a stored event: validate-registry.mjs refuses one that is not.
+const declaration = (p) =>
+  p.recorded === undefined
+    ? `${p.constant}: Final = Channel[${p.type}](${pyString(p.channel)}, ${p.type})`
+    : `${p.constant}: Final = ${scoped.includes(p.channel) ? 'ScopedChannel' : 'RecordedChannel'}[${p.type}, ${p.recorded}](${pyString(p.channel)}, ${p.type}, ${p.recorded})`;
 const schemaNames = [...new Set(payloads.flatMap((p) => p.names))].sort();
 
 const channelsPy = `${pyBanner('specs/src/bus/registry.json', SCRIPT)}
@@ -83,16 +94,22 @@ checker. The payload types are the protocol's own (\`semiont.types\`); which
 belongs to which channel is the registry's to say, and is derived here from
 each channel's shape.
 
-A channel a resource's scope carries is a \`ScopedChannel[P]\`, by the
+A channel a resource's scope carries is a \`ScopedChannel[P, E]\`, by the
 registry's \`audience\`: it is read for a resource, and a type checker refuses
 a read of one that names none.
+
+A channel that carries events of the record carries the stored event, and
+names the type \`E\` of the event's own payload too, by the registry's
+\`payload\`: a \`ScopedChannel[P, E]\`, or a \`RecordedChannel[P, E]\` where
+the event concerns the whole knowledge base. \`MARK_ADDED.event(stored)\` is
+an \`AnnotationAddedPayload\`, and a stored event of another type is refused.
 """
 
 from collections.abc import Mapping
 from types import MappingProxyType
 from typing import Final, Literal
 
-from semiont.channel import AnyChannel, Channel, Empty, Response, ScopedChannel
+from semiont.channel import AnyChannel, Channel, Empty, RecordedChannel, Response, ScopedChannel
 from semiont.types import (
 ${schemaNames.map((name) => `    ${name},`).join('\n')}
 )
@@ -119,7 +136,7 @@ CHANNEL_NAMES: Final[tuple[ChannelName, ...]] = (
 ${reg.channels.map((c) => `    ${pyString(c.channel)},`).join('\n')}
 )
 
-${payloads.map((p) => `${p.constant}: Final = ${scoped.includes(p.channel) ? 'ScopedChannel' : 'Channel'}[${p.type}](${pyString(p.channel)}, ${p.type})`).join('\n')}
+${payloads.map(declaration).join('\n')}
 
 # Every channel, by its name: for code that is given a name and not a constant.
 CHANNELS: Final[Mapping[str, AnyChannel]] = MappingProxyType(

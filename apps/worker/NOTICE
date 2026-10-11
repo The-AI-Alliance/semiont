@@ -30,14 +30,15 @@ components:
   Python packages built into the image from this repository:
     semiont - Apache-2.0 License (The AI Alliance)
     semiont-inference - Apache-2.0 License (The AI Alliance)
+    semiont-service - Apache-2.0 License (The AI Alliance)
     semiont-worker - Apache-2.0 License (The AI Alliance)
 
   Python packages installed at build time from https://pypi.org, each at the
-  version apps/worker/uv.lock pins: what those three require, and with every
+  version apps/worker/uv.lock pins: what those four require, and with every
   extra of semiont-inference the library each model provider is asked
   through, with what that library requires.
 
 Each package from pypi.org carries its license text in its
 <name>-<version>.dist-info directory within the image, under the
-site-packages directory of /opt/venv. The three built from this repository
+site-packages directory of /opt/venv. The four built from this repository
 are under the license beside this file.

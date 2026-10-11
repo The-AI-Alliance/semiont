@@ -122,14 +122,11 @@ eachWeaver('a Weaver, bringing the graph back', (world) => {
     const id = await uploaded(world(), 'Rebuilt with all');
     const grace = await world().kb.person('grace');
     await highlighted(grace, id, 'brown');
-    await grace.ask('frame:add-entity-type', { tag: 'Kept across a rebuild' });
     await world().caughtUp(id);
 
     const answer = await world().rebuild();
 
     expect(answer).toMatchObject({ ok: true, channel: 'weave:rebuild-ok' });
     await asTheRecordSays(world(), id);
-    // The vocabulary is no resource's: a rebuild keeps what it held.
-    expect(await world().vocabulary()).toContain('Kept across a rebuild');
   });
 });

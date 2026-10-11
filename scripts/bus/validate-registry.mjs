@@ -290,6 +290,12 @@ export function validateRegistry(reg) {
     if (c.system !== undefined && (c.system !== true || c.shape !== 'storedEvent')) {
       problems.push(`"${c.channel}" sets system: ${JSON.stringify(c.system)} — it is a flag (true or absent), and only a stored event can carry it`);
     }
+    // A resource's scope carries the events of that resource's record and
+    // nothing else, and the SDKs type a scoped channel as one: its constant
+    // names the payload of the event it records.
+    if (audienceOf.get(c.channel) === 'scoped' && c.shape !== 'storedEvent') {
+      problems.push(`"${c.channel}" has audience=scoped and is ${SHAPES[c.shape]} — a resource's scope carries the events of its record, so a scoped channel is a stored event`);
+    }
     if (c.enriched !== undefined && (c.enriched !== true || c.shape !== 'storedEvent')) {
       problems.push(`"${c.channel}" sets enriched: ${JSON.stringify(c.enriched)} — it is a flag (true or absent), and only a stored event can carry it`);
     }

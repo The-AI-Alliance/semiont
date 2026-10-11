@@ -68,11 +68,11 @@ it: the launcher for the Weaver it starts, and anyone else to the same schema.
 A Weaver signs in as its service account and works as the agent `(semiont,
 weaver)`, and reaches everything but the graph through the gateway.
 
-- **It follows nine recorded events:** `yield:created`, `mark:archived`,
+- **It follows eight recorded events:** `yield:created`, `mark:archived`,
   `mark:unarchived`, `mark:added`, `mark:removed`, `mark:body-updated`,
-  `mark:entity-tag-added`, `mark:entity-tag-removed` and
-  `frame:entity-type-added`. Every other event of a resource's stream passes
-  it by, and moves no mark of its. *Held by `weaver/record`.*
+  `mark:entity-tag-added` and `mark:entity-tag-removed`. Every other event of
+  a resource's stream passes it by, and moves no mark of its.
+  *Held by `weaver/record`.*
 - **It reads history from the Archivist, over the bus:** the catalog
   (`browse:resources-requested`, a page at a time), a resource's events
   (`browse:events-requested`) and a resource's annotations
@@ -127,9 +127,6 @@ second fold, which shares nothing with it, says the record leaves.
   *Held by `apps/weaver/tests/test_fold_cases.py` and `weaver/record`.*
 - **`mark:entity-tag-added` and `mark:entity-tag-removed` change the
   resource's entity types, which are a set.**
-  *Held by `apps/weaver/tests/test_fold_cases.py` and `weaver/record`.*
-- **`frame:entity-type-added` adds to the graph's vocabulary,** beside the
-  entity types every knowledge base starts with.
   *Held by `apps/weaver/tests/test_fold_cases.py` and `weaver/record`.*
 
 ### What the graph holds
@@ -262,8 +259,8 @@ Weaver once applied to it.
   touched,** and is followed to it afterwards as before.
   *Held by `weaver/repair` and `apps/weaver/tests/test_weaver.py`.*
 - **`weave:rebuild` naming none rebuilds the whole graph:** the graph is
-  cleared, its vocabulary kept, and every resource of the catalog applied
-  again. *Held by `weaver/repair` and `apps/weaver/tests/test_properties.py`.*
+  cleared, and every resource of the catalog applied again.
+  *Held by `weaver/repair` and `apps/weaver/tests/test_properties.py`.*
 - **It answers `weave:rebuild-ok` when every event was applied, and
   `weave:rebuild-failed`, saying how many were not, otherwise.**
   *Held by `weaver/repair` and `apps/weaver/tests/test_weaver.py`.*
@@ -300,7 +297,7 @@ Weaver once applied to it.
 - **An event it logs while a span is current carries that span's trace and
   its own id** (`trace_id` and `span_id`), in either form of its log. One
   logged in no span carries neither.
-  *Held by `apps/weaver/tests/test_log.py`.*
+  *Held by `packages/service-python/tests/test_log.py`.*
 
 ## Environment
 
@@ -341,6 +338,9 @@ it is the Worker's, held to it by `apps/weaver/tests/test_census.py`.
   `yield:moved`, `yield:representation-added` and
   `yield:representation-removed` change what a view holds of a resource, and
   the graph is not told: a moved resource's storage URI in the graph is the
-  old one.
+  old one. `frame:entity-type-added` and `frame:tag-schema-added` are of no
+  resource, and the graph is not told of them either: the list of entity
+  types a knowledge base has is the record's, which the Archivist answers
+  from, and the graph keeps no copy of it.
 - **A body update that fails.** A `mark:body-updated` whose annotation the
   graph does not hold is passed by, and counted as applied.

@@ -254,6 +254,20 @@ describe('registry payloads — stated by shape, never as a TypeScript string', 
     expect(complains(reg, 'names no payload')).toBe(true);
   });
 
+  // A scoped channel's constant names the payload of the event it records,
+  // in every SDK: one that records nothing has no such constant to be.
+  test('refuses a scoped channel that is not a stored event', () => {
+    const stored = baseRegistry();
+    const scoped = (entry: Record<string, unknown>) => ({
+      ...stored,
+      channels: [...stored.channels, { channel: 'demo:scoped', ...entry }],
+      kind: { ...stored.kind, event: [...stored.kind.event, 'demo:scoped'] },
+      audience: { ...stored.audience, scoped: ['demo:scoped'] },
+    });
+    expect(problemsFor(scoped({ shape: 'storedEvent', event: 'demo:scoped', payload: 'DemoScopedPayload', validate: null }))).toBe('');
+    expect(complains(scoped({ shape: 'schema', schema: 'DemoScoped', validate: null }), 'so a scoped channel is a stored event')).toBe(true);
+  });
+
   test('refuses the system flag anywhere but on a stored event, and as anything but true', () => {
     expect(complains(withChannel({ shape: 'empty', system: true, validate: null }), 'only a stored event can carry it')).toBe(true);
     const reg = withChannel({ shape: 'storedEvent', event: 'demo:extra', payload: 'DemoPayload', system: false, validate: null });

@@ -15,8 +15,8 @@ from typing import Final
 import pytest
 from pydantic import JsonValue
 from semiont.http import Credential
+from semiont_service.config import Refused
 
-from semiont_worker.config import Refused
 from semiont_worker.log import LOG
 from semiont_worker.service import boot, main
 

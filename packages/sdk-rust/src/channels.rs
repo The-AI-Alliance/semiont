@@ -9,7 +9,8 @@
 //!   payload and nothing else: a wrong payload for a channel does not
 //!   compile. An operation's request is tied to its result and its failure
 //!   (`Request`), and a channel that carries an event of the record names the
-//!   type of the event's own payload (`Recorded`).
+//!   type of the event's own payload (`Recorded`), and gives it out of a
+//!   stored event of its own type and of no other.
 //! - How each channel is delivered, as a trait of its type: `Scoped` for one a
 //!   resource's scope carries, `Unscoped` for every other. A read of a scoped
 //!   channel names its resource, and one that names none does not compile.
@@ -50,7 +51,26 @@ pub trait Recorded: Channel {
     type Event: DeserializeOwned;
 
     /// The event's own payload, out of the stored event that carries it.
+    /// Refused for a stored event of another type: two events can carry
+    /// payloads of one shape (a tag added, a tag removed), and read by its
+    /// payload alone one would be taken for the other.
     fn event(stored: &Self::Payload) -> Result<Self::Event, serde_json::Error>;
+}
+
+/// The own payload of a stored event, where the event is of the type
+/// `recorded`, which is its channel's name. `kind`, `id` and `payload` are
+/// the stored event's.
+fn own<E: DeserializeOwned>(
+    recorded: &str,
+    kind: &str,
+    id: &str,
+    payload: &serde_json::Map<String, serde_json::Value>,
+) -> Result<E, serde_json::Error> {
+    if kind != recorded {
+        let refused = format!("{kind} {id} is not a {recorded} event");
+        return Err(<serde_json::Error as serde::de::Error>::custom(refused));
+    }
+    serde_json::from_value(serde_json::Value::Object(payload.clone()))
 }
 
 /// The payload of a reply that carries a response.

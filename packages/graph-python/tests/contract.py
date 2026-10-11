@@ -651,66 +651,19 @@ class GraphContract:
 
         self.held(scenario)
 
-    # ── The vocabulary ─────────────────────────────────────────────────
-
-    def test_the_vocabulary_is_what_every_knowledge_base_starts_with_and_each_type_added_sorted(self) -> None:
-        async def scenario(db: GraphDatabase) -> None:
-            start = await db.get_entity_types()
-            assert "Person" in start
-            assert start == sorted(start)
-
-            await db.add_entity_type("Zebra")
-            await db.add_entity_type("Aardvark")
-            await db.add_entity_type("Zebra")
-            await db.add_entity_types(["Mango", "Aardvark"])
-            await db.add_entity_types([])
-
-            assert await db.get_entity_types() == sorted({*start, "Zebra", "Aardvark", "Mango"})
-
-        self.held(scenario)
-
-    def test_the_vocabulary_is_the_databases_and_not_one_connections(self) -> None:
-        async def whole() -> None:
-            first = self.make()
-            await first.connect()
-            try:
-                await first.clear_database()
-                await first.add_entity_type("Kept")
-            finally:
-                await first.disconnect()
-            second = self.shared_with(first)
-            if second is None:
-                return
-            await second.connect()
-            try:
-                assert "Kept" in await second.get_entity_types()
-            finally:
-                await second.clear_database()
-                await second.disconnect()
-
-        run(whole())
-
-    def shared_with(self, first: GraphDatabase) -> GraphDatabase | None:
-        """Another store on the database `first` is on. None for a store whose graph is its own process's."""
-        del first
-        return None
-
     # ── Everything ─────────────────────────────────────────────────────
 
-    def test_clearing_removes_everything_the_vocabulary_added_included(self) -> None:
+    def test_clearing_removes_everything(self) -> None:
         async def scenario(db: GraphDatabase) -> None:
             on = resource(rid("on"))
             await db.create_resource(on)
             await db.create_annotation(highlight(on.id))
-            await db.add_entity_type("Custom")
-            start = sorted(set(await db.get_entity_types()) - {"Custom"})
 
             await db.clear_database()
 
             stats = await db.get_stats()
             assert stats.resource_count == 0
             assert stats.annotation_count == 0
-            assert await db.get_entity_types() == start
             assert await db.get_annotation(aid("nobody")) is None
 
         self.held(scenario)

@@ -5,15 +5,18 @@ from typing import Annotated, Literal, get_args
 
 import pytest
 from pydantic import Field, JsonValue, ValidationError
-from spec import SPEC, objects, read, text
+from spec import SPEC, objects, read, strings, text
 
 import semiont.types
 from semiont import channels, operations
-from semiont.channel import Channel, Empty, Operation
+from semiont.channel import Channel, Empty, Operation, RecordedChannel, ScopedChannel
 from semiont.identifiers import AnnotationId, JobId, ResourceId, UserId
 from semiont.model import WireModel
 from semiont.types import (
+    AnnotationRemovedPayload,
     EnrichedResourceEvent,
+    EntityTagChangedPayload,
+    EntityTypeAddedPayload,
     GatheredContext,
     GenerationJobParams,
     GenerationJobRequest,
@@ -70,6 +73,64 @@ def test_a_channel_s_payload_is_what_its_shape_says() -> None:
                 assert payload is Empty
             case other:
                 raise AssertionError(f"a shape this test does not know: {other!r}")
+
+
+def test_a_channel_of_the_record_names_its_event_s_own_payload_and_no_other_channel_names_one() -> None:
+    audience = REGISTRY["audience"]
+    assert isinstance(audience, dict)
+    scoped = strings(audience["scoped"], "audience.scoped")
+    recorded: list[str] = []
+    for stated in STATED:
+        name = text(stated["channel"], "a channel's name")
+        if stated["shape"] != "storedEvent":
+            assert type(BY_NAME[name]) is Channel
+            continue
+        recorded.append(name)
+        # A resource's scope carries its record's events, and the rest of the record is heard on no scope.
+        assert type(BY_NAME[name]) is (ScopedChannel if name in scoped else RecordedChannel)
+        # Read off the constant, as untyped code reads it: by its name, a channel is one that says nothing of an event.
+        payload = getattr(semiont.types, text(stated["payload"], "a stored event's payload"))
+        assert getattr(channels, constant(name)).event_payload is payload
+    assert recorded, "no channel carries a stored event: this reads nothing"
+    assert set(scoped) <= set(recorded)
+
+
+STORED: dict[str, JsonValue] = {
+    "id": "0e2f8c0a-4a34-4a8e-9b47-0d6d5a3f8a11",
+    "timestamp": "2026-10-01T12:00:00.000Z",
+    "userId": "did:web:example.org:users:alice",
+    "resourceId": "res-1",
+    "version": 1,
+    "metadata": {"sequenceNumber": 3},
+}
+
+
+def test_a_channel_of_the_record_gives_the_event_s_own_payload() -> None:
+    tagged = StoredEventResponse.model_validate({**STORED, "type": "mark:entity-tag-added", "payload": {"entityType": "Person"}})
+    assert channels.MARK_ENTITY_TAG_ADDED.event(tagged) == EntityTagChangedPayload(entity_type="Person")
+    # A frame of the channel, which may carry more than the stored event, and an event no channel carried: one of a history.
+    removed = channels.MARK_REMOVED.decode({**STORED, "type": "mark:removed", "payload": {"annotationId": "a-1"}})
+    assert channels.MARK_REMOVED.event(removed) == AnnotationRemovedPayload(annotation_id=AnnotationId("a-1"))
+    changed: dict[str, JsonValue] = {"annotationId": "a-1", "operations": []}
+    updated = channels.MARK_BODY_UPDATED.decode({**STORED, "type": "mark:body-updated", "payload": changed})
+    assert type(updated) is EnrichedResourceEvent
+    assert channels.MARK_BODY_UPDATED.event(updated).annotation_id == AnnotationId("a-1")
+    # And an event of the whole knowledge base, which no resource's scope carries.
+    named = StoredEventResponse.model_validate({**STORED, "type": "frame:entity-type-added", "payload": {"entityType": "Person"}})
+    assert channels.FRAME_ENTITY_TYPE_ADDED.event(named) == EntityTypeAddedPayload(entity_type="Person")
+
+
+def test_a_channel_of_the_record_refuses_a_stored_event_of_another_type_and_a_payload_that_is_not_its_event_s() -> None:
+    # A tag's adding and its removal carry the same payload: read by its payload alone, one would be taken for the other.
+    untagged = StoredEventResponse.model_validate({**STORED, "type": "mark:entity-tag-removed", "payload": {"entityType": "Person"}})
+    with pytest.raises(ValueError, match=r"mark:entity-tag-removed 0e2f8c0a-.* is not a mark:entity-tag-added event"):
+        channels.MARK_ENTITY_TAG_ADDED.event(untagged)
+    assert channels.MARK_ENTITY_TAG_REMOVED.event(untagged) == EntityTagChangedPayload(entity_type="Person")
+    named = StoredEventResponse.model_validate({**STORED, "type": "frame:entity-type-added", "payload": {"entityType": "Person"}})
+    with pytest.raises(ValueError, match=r"frame:entity-type-added 0e2f8c0a-.* is not a frame:tag-schema-added event"):
+        channels.FRAME_TAG_SCHEMA_ADDED.event(named)
+    with pytest.raises(ValidationError):
+        channels.MARK_REMOVED.event(StoredEventResponse.model_validate({**STORED, "type": "mark:removed", "payload": {}}))
 
 
 def test_a_channel_whose_schema_is_one_of_several_carries_each_of_them() -> None:
