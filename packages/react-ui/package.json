@@ -100,7 +100,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitest/coverage-v8": "^4.1.11",
     "autoprefixer": "^10.6.1",
-    "axe-core": "^4.12.1",
+    "axe-core": "^4.14.0",
     "cssnano": "^9.3.2",
     "fast-check": "^4.10.0",
     "jest-axe": "^11.0.0",
