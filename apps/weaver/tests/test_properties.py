@@ -113,7 +113,8 @@ def _step(draw: st.DrawFn, kind: Kind, resource: str, sequence: int, made: list[
             return of(entity_type, event("mark:entity-tag-removed", resource, sequence, {"entityType": entity_type}))
         case "added":
             # One made before, which is added again, or a new one. An annotation is on one resource for good.
-            annotation = draw(st.sampled_from(made)) if made and draw(st.booleans()) else f"ann-{next(minted)}"
+            again = draw(st.booleans()) if made else False
+            annotation = draw(st.sampled_from(made)) if again else f"ann-{next(minted)}"
             if annotation not in made:
                 made.append(annotation)
             tags = draw(st.lists(st.sampled_from(ENTITY_TYPES), unique=True, max_size=2))
