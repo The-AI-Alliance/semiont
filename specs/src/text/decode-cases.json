@@ -1,0 +1,119 @@
+{
+  "$comment": "What text a resource's bytes are, as every reader of one must read them. An offset counts the code points of this text (offset-cases.json), so two readers that make different texts of the same bytes put one annotation in two places: a reader that kept a leading byte-order mark would have every offset one further on than a reader that left it out. THE RULE. The bytes are read in the charset their content type states in its `charset` parameter, whose name and whose value are read in any case, and as UTF-8 when it states none. `iso-8859-1` and `latin1` are read as windows-1252, of which Latin-1 is a part, as a browser reads them. A byte-order mark at the very start of the bytes, when it is the mark of the encoding they are read in (EF BB BF in UTF-8, FF FE in UTF-16LE, FE FF in UTF-16BE), is not part of the text: it is left out, once. A mark anywhere else is U+FEFF, a character of the text like any other, and so is a second mark after the first. The bytes of another encoding's mark are what they are in the encoding read. A sequence the encoding does not have is U+FFFD, the replacement character, one for the sequence, and the reading goes on. A charset the reader does not decode is refused: nothing is read as something it is not, and the bytes are still there to read. A CASE is the `contentType` the bytes came with, the `bytes` in hexadecimal, two digits to a byte and a space between bytes, and either the `text` they are or `refused`: true. In this file U+FEFF and U+FFFD are written as escapes, so that each can be seen. The cases keep to charsets every runner decodes, and decodes alike: UTF-8, UTF-16LE and UTF-16BE, windows-1252 by three of its labels, and KOI8-R. Which other charsets a reader decodes, and under which names, is not held here. RUN BY TypeScript in packages/core (decode-cases.test.ts) against `decodeWithCharset`, by which the TypeScript SDK and the Browser read a resource's text, and against `decodeRepresentation`, by which the Smelter and the Librarian do; by the Rust SDK (tests/decode_cases.rs) and by the Python SDK (tests/test_decode_cases.py), each through its client's `browse.resource_content`, by which a worker reads the text it counts offsets in. The Rust SDK decodes UTF-8 alone without its `charsets` feature and refuses every other charset; it runs these cases with the feature. A reader in another language runs them too. Add a case here before changing a reader.",
+  "cases": [
+    {
+      "why": "a content type that states no charset: the bytes are UTF-8, and a character outside the basic plane is one character",
+      "contentType": "text/plain",
+      "bytes": "63 61 66 c3 a9 20 f0 9f 98 80",
+      "text": "café 😀"
+    },
+    {
+      "why": "a charset stated in capitals is the charset it is in lower case",
+      "contentType": "text/markdown; charset=UTF-8",
+      "bytes": "6e 61 c3 af 76 65",
+      "text": "naïve"
+    },
+    {
+      "why": "a leading byte-order mark is not part of the text",
+      "contentType": "text/plain; charset=utf-8",
+      "bytes": "ef bb bf 68 65 6c 6c 6f",
+      "text": "hello"
+    },
+    {
+      "why": "a leading mark is left out where no charset is stated too",
+      "contentType": "text/markdown",
+      "bytes": "ef bb bf 68 69",
+      "text": "hi"
+    },
+    {
+      "why": "a mark that is not leading is a character of the text",
+      "contentType": "text/plain",
+      "bytes": "61 ef bb bf 62",
+      "text": "a\ufeffb"
+    },
+    {
+      "why": "two marks at the start: the first is left out, and the second is a character of the text",
+      "contentType": "text/plain",
+      "bytes": "ef bb bf ef bb bf 78",
+      "text": "\ufeffx"
+    },
+    {
+      "why": "nothing but a mark is the empty text",
+      "contentType": "text/plain",
+      "bytes": "ef bb bf",
+      "text": ""
+    },
+    {
+      "why": "a byte UTF-8 does not have is U+FFFD, and the reading goes on",
+      "contentType": "text/plain; charset=utf-8",
+      "bytes": "61 ff 62",
+      "text": "a\ufffdb"
+    },
+    {
+      "why": "a sequence cut short is one U+FFFD, not one for each of its bytes",
+      "contentType": "text/plain; charset=utf-8",
+      "bytes": "61 e2 82 62",
+      "text": "a\ufffdb"
+    },
+    {
+      "why": "iso-8859-1 is read as windows-1252, as a browser reads it: 93 and 94 are quotation marks, not controls",
+      "contentType": "text/plain; charset=iso-8859-1",
+      "bytes": "63 61 66 e9 20 93 71 94",
+      "text": "café “q”"
+    },
+    {
+      "why": "latin1 is the same encoding by another name, and the parameter needs no space before it",
+      "contentType": "text/plain;charset=latin1",
+      "bytes": "80 20 35",
+      "text": "€ 5"
+    },
+    {
+      "why": "the parameter's own name is read in any case, and other parameters may follow it",
+      "contentType": "text/html; Charset=ISO-8859-1; boundary=x",
+      "bytes": "e9",
+      "text": "é"
+    },
+    {
+      "why": "UTF-8's mark is no mark in windows-1252: its three bytes are three characters of the text",
+      "contentType": "text/plain; charset=windows-1252",
+      "bytes": "ef bb bf 68 69",
+      "text": "ï»¿hi"
+    },
+    {
+      "why": "UTF-16LE: its leading mark is left out",
+      "contentType": "text/plain; charset=utf-16le",
+      "bytes": "ff fe 68 00 69 00",
+      "text": "hi"
+    },
+    {
+      "why": "UTF-16LE: a mark that is not leading is a character of the text",
+      "contentType": "text/plain; charset=utf-16le",
+      "bytes": "68 00 ff fe 69 00",
+      "text": "h\ufeffi"
+    },
+    {
+      "why": "UTF-16LE: a character outside the basic plane is two units and one character",
+      "contentType": "text/plain; charset=utf-16le",
+      "bytes": "3d d8 00 de",
+      "text": "😀"
+    },
+    {
+      "why": "UTF-16BE: its leading mark is left out",
+      "contentType": "text/plain; charset=utf-16be",
+      "bytes": "fe ff 00 68 00 69",
+      "text": "hi"
+    },
+    {
+      "why": "another charset, stated in capitals: KOI8-R",
+      "contentType": "text/plain;charset=KOI8-R",
+      "bytes": "d0 d2 c9 d7 c5 d4",
+      "text": "привет"
+    },
+    {
+      "why": "a charset no reader decodes is refused, and nothing is read as UTF-8 in its place",
+      "contentType": "text/plain; charset=x-no-such-charset",
+      "bytes": "68 69",
+      "refused": true
+    }
+  ]
+}

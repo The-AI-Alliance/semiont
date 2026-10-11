@@ -392,7 +392,7 @@ const draft = isDraft(resource);
 
 ### Decode Resource Content
 
-Decode representation buffer using correct charset:
+Read a representation's bytes as the text they are, for a media type whose bytes are its text. The reading is the one [`specs/src/text/decode-cases.json`](../../../specs/src/text/decode-cases.json) states and every reader of a resource's text runs: in the charset the media type states, UTF-8 when it states none, with a leading byte-order mark left out and a sequence the encoding does not have read as U+FFFD. An offset counts the code points of that text, so every reader makes the same text of the same bytes.
 
 ```typescript
 import { decodeRepresentation, getPrimaryRepresentation, getPrimaryMediaType, type ResourceDescriptor } from '@semiont/core';
@@ -403,7 +403,7 @@ const buffer: Buffer = /* raw bytes from storage */;
 // Get media type with charset
 const mediaType = getPrimaryMediaType(resource) || 'text/plain';
 
-// Decode using correct charset
+// Throws for a media type whose bytes are not its text (a PDF, an image),
+// and for a charset that is not decoded
 const content = decodeRepresentation(buffer, mediaType);
-// Handles UTF-8, ISO-8859-1, Windows-1252, etc.
 ```

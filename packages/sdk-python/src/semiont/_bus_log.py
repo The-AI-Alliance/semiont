@@ -14,9 +14,11 @@ Set is any value that is not empty. The variable is read once, when the
 first line would be written, and it is the one environment variable this
 package reads.
 
-No line holds a credential. One rides the bus, the token a resource is
-cloned by, and the spec names it `token` wherever a payload carries it: the
-value of a member of that name is not written, wherever in a payload it is.
+No line holds a credential. The value of a member whose whole name is one a
+credential goes by (`token`, which is what the spec names the token a
+resource is cloned by, and the rest of `_CREDENTIALS` below) is not written,
+wherever in a payload it is: `[withheld]` is written in its place, as every
+bus log writes it (`specs/src/bus/log-cases.json`).
 """
 
 import json
@@ -33,8 +35,31 @@ from semiont.identifiers import ResourceId
 _WITHHELD: Final = "[withheld]"
 """What a line says in place of a credential."""
 
-_CREDENTIAL: Final = "token"
-"""The name of the member whose value is one."""
+_CREDENTIALS: Final = frozenset(
+    {
+        "token",
+        "cloneToken",
+        "accessToken",
+        "access_token",
+        "refreshToken",
+        "refresh_token",
+        "apiKey",
+        "api_key",
+        "clientSecret",
+        "client_secret",
+        "secret",
+        "password",
+        "authorization",
+        "Authorization",
+        "x-api-key",
+        "x-goog-api-key",
+    }
+)
+"""The names of the members whose value is one.
+
+The list `specs/src/bus/log-cases.json` states for every bus log, which this
+package's tests hold this one to.
+"""
 
 
 @cache
@@ -46,7 +71,7 @@ def enabled() -> bool:
 def _shown(value: JsonValue) -> JsonValue:
     """A payload as a line shows it: as it is, less the value of each credential."""
     if isinstance(value, dict):
-        return {name: _WITHHELD if name == _CREDENTIAL else _shown(member) for name, member in value.items()}
+        return {name: _WITHHELD if name in _CREDENTIALS else _shown(member) for name, member in value.items()}
     if isinstance(value, list):
         return [_shown(item) for item in value]
     return value

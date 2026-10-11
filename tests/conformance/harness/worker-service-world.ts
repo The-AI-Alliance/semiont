@@ -448,7 +448,8 @@ export class WorkerServiceWorld {
         const held = this.recorded.get(resourceId) ?? [];
         const fresh = annotations.filter((a) => !held.some((h) => h.id === a.id));
         this.recorded.set(resourceId, [...held, ...fresh]);
-        return { channel: 'mark:commit-ok', payload: { response: { persisted: fresh.length, annotationIds: annotations.map((a) => a.id) } } };
+        // `persisted` is how many of the batch are in the record, appended now or held already: never an append tally.
+        return { channel: 'mark:commit-ok', payload: { response: { persisted: annotations.length, annotationIds: annotations.map((a) => a.id) } } };
       }
       case 'browse:annotation-requested': {
         const annotation = (this.recorded.get(resourceId) ?? []).find((a) => a.id === payload['annotationId']);

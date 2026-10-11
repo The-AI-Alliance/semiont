@@ -1,10 +1,12 @@
 """The rules read from the media types a knowledge base admits, as every SDK reads them (`specs/src/media-types/cases.json`)."""
 
+from typing import get_args
+
 import pytest
-from spec import SPEC, JsonObject, objects, read, text
+from spec import SPEC, JsonObject, objects, read, strings, text
 
 from semiont.media_types import base_media_type, capabilities_of, clone_format, primary_media_type, storage_file_name, storage_uri
-from semiont.media_types_table import MEDIA_TYPES
+from semiont.media_types_table import MEDIA_TYPES, TextSource
 from semiont.types import ResourceDescriptor
 
 TABLE = read(SPEC / "media-types/cases.json")
@@ -39,9 +41,21 @@ def test_the_table_was_read() -> None:
 
 def test_this_sdks_rows_are_the_registrys() -> None:
     rows = objects(REGISTRY["mediaTypes"], "mediaTypes")
-    assert [(row.media_type, row.extension, row.authorable) for row in MEDIA_TYPES] == [
-        (row["mediaType"], row["extension"], row["authorable"]) for row in rows
+    assert [(row.media_type, row.extension, row.text_source, row.authorable, row.generatable) for row in MEDIA_TYPES] == [
+        (row["mediaType"], row["extension"], row["textSource"], row["authorable"], row["generatable"]) for row in rows
     ]
+
+
+def test_where_a_types_text_comes_from_is_one_of_the_registrys_words_and_each_word_is_some_rows() -> None:
+    words = list(get_args(TextSource.__value__))
+    assert words == strings(REGISTRY["textSource"], "textSource")
+    # Each word is some row's, so the rows above tell each from the others.
+    assert {row.text_source for row in MEDIA_TYPES} == set(words)
+
+
+def test_some_types_can_be_generated_and_some_cannot() -> None:
+    # The rows above tell the column from one that is all one answer.
+    assert {row.generatable for row in MEDIA_TYPES} == {True, False}
 
 
 def test_a_format_is_read_without_its_parameters_and_in_lower_case() -> None:

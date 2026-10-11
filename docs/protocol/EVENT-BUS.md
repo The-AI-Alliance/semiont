@@ -249,24 +249,37 @@ This is the *fan-in* set — what the transport pushes onto the client's bus. Th
 
 ## Wire format: the bus log
 
-When `__SEMIONT_BUS_LOG__ = true` (browser) or `SEMIONT_BUS_LOG=1` (Node), every cross-transport event prints one grep-friendly line:
+With the bus log switched on, every cross-transport event prints one grep-friendly line, in the same form in every process:
 
 ```
-[bus EMIT] mark:create-request [scope=res-1] [cid=a89a670a] [trace=8f3ca4ed] {...}
-[bus RECV] mark:create-ok      [scope=res-1] [cid=a89a670a] [trace=8f3ca4ed] {...}
-[bus SSE]  mark:added          [scope=res-1] [cid=a89a670a] [trace=8f3ca4ed] {...}
-[bus PUT]  content                        [cid=a89a670a] [trace=8f3ca4ed] {size: 14823, ...}
-[bus GET]  content                        [cid=a89a670a] [trace=8f3ca4ed] {size: 14823, ...}
+[bus EMIT] mark:create-request scope=res-1 cid=a89a670a trace=8f3ca4ed {...}
+[bus RECV] mark:create-ok scope=res-1 cid=a89a670a trace=8f3ca4ed {...}
+[bus SSE] mark:added scope=res-1 trace=8f3ca4ed {...}
+[bus PUT] content trace=8f3ca4ed {name, format, storageUri, sizeBytes}
+[bus GET] content trace=8f3ca4ed {resourceId}
 ```
 
-Five operations, all logged at transport-contract choke points (not in the SDK's namespace methods or the `ActorStateUnit` SSE machinery — those ride on the transport):
+A line is the operation, the channel (`content` for a write or a read of bytes), and then `scope=` (the resource a frame is about), `cid=` (the first eight characters of the correlation id) and `trace=` (the first eight of the active trace's id), each written only where there is one. The payload is the last thing on it.
+
+**No line holds a credential.** Every bus log writes the value of a member whose whole name is one a credential goes by as `[withheld]`, wherever in a payload the member is and whatever its value is. The names are a short list, the `names` of [`specs/src/bus/log-cases.json`](../../specs/src/bus/log-cases.json). One is `token`, which is what the bus's own payloads name the one credential they declare: the token a resource is cloned by (`yield:clone-resource-requested`, `yield:clone-create`, and the `response` of `yield:clone-token-generated`). The rest are the names a credential has elsewhere (`password`, `apiKey`, `refreshToken` and `authorization` among them): some payloads take any member, and a credential put in one is withheld under such a name too. A name is matched whole and in the same case, so a member whose name only contains one (`maxTokens`, `apiKeyEnv`) is written as it is, and so is everything else. That table is the rule, and each implementation's tests run it.
+
+Three implementations write the log. Each is switched on for a whole process, and each writes to its own place:
+
+| Implementation | Switched on by | Written to |
+|---|---|---|
+| TypeScript, in Node ([`bus-log.ts`](../../packages/core/src/bus-log.ts)) | `SEMIONT_BUS_LOG` set to any value that is not empty | stdout, with `console.debug` |
+| TypeScript, in a browser | `window.__SEMIONT_BUS_LOG__ = true` | the console, with `console.debug` |
+| Rust: the gateway, and a client of the Rust SDK ([`bus_log.rs`](../../packages/sdk-rust/src/bus_log.rs)) | `SEMIONT_BUS_LOG` set to any value that is not empty | stderr |
+| Python: a client of the Python SDK, the Worker among them ([`_bus_log.py`](../../packages/sdk-python/src/semiont/_bus_log.py)) | `SEMIONT_BUS_LOG` set to any value that is not empty | stdout |
+
+Five operations, all logged at transport-contract choke points (not in the SDK's namespace methods or the `ActorStateUnit` SSE machinery — those ride on the transport). The Rust and Python transports log at the same points as the TypeScript one this table names:
 
 | Op | Site |
 |---|---|
 | `EMIT` | `HttpTransport.emit()`, gateway `/bus/emit` route |
 | `RECV` | HttpTransport SSE-side fan-in |
-| `SSE` | Gateway `Connection::deliver` in `apps/gateway/src/routes/stream.rs` (on stderr) |
-| `PUT` | `HttpContentTransport.putBinary()` + matching gateway route |
+| `SSE` | Gateway `Connection::deliver` in `apps/gateway/src/routes/stream.rs` |
+| `PUT` | `HttpContentTransport.putBinary()`. The gateway writes none for an upload |
 | `GET` | `HttpContentTransport.getBinary()` / `getBinaryStream()` + matching gateway route |
 
 The full capture API and per-test fixture are in **[../../tests/e2e/docs/bus-logging.md](../../tests/e2e/docs/bus-logging.md)**.

@@ -71,6 +71,9 @@ export const LONG_TEXT =
 /** A context length small enough that `LONG_TEXT` is cut into pieces. */
 export const SMALL_CONTEXT_LENGTH = 1200;
 
+/** A context length at which a linking job and a tagging job each cut `LONG_TEXT` into two pieces. */
+export const MIDDLING_CONTEXT_LENGTH = 2400;
+
 /** The context length the stand-in Ollama reports unless a case sets another. */
 export const CONTEXT_LENGTH = 8192;
 

@@ -4,13 +4,20 @@
  * One line per event that crosses a process boundary, in a grep-able
  * format that's the same in every process:
  *
- *   [bus EMIT] <channel> [scope=X] [cid=<first8>] <payload>
- *   [bus RECV] <channel> [scope=X] [cid=<first8>] <payload>
- *   [bus SSE]  <channel> [scope=X] [cid=<first8>] <payload>
+ *   [bus EMIT] <channel> scope=<resource> cid=<first8> <payload>
+ *   [bus RECV] <channel> scope=<resource> cid=<first8> <payload>
+ *   [bus SSE] <channel> scope=<resource> cid=<first8> <payload>
+ *
+ * `scope=` and `cid=` are each written where the frame has one.
  *
  * Tier 1 of the observability stack. With a Tier 2 trace-id provider
  * registered, each line also carries `trace=<first8>` of the active span's
  * W3C trace-id.
+ *
+ * No line holds a credential. The value of a member whose whole name is one
+ * a credential goes by (`token`, which is what a payload names the token a
+ * resource is cloned by, and the rest of `CREDENTIALS` below) is written as
+ * `[withheld]`, as every bus log writes it (specs/src/bus/log-cases.json).
  *
  * Cost when disabled: one property read per call, zero allocations.
  *
@@ -20,6 +27,7 @@
  */
 
 import { BRIDGED_CHANNELS } from './bridged-channels';
+import { isObject } from './type-guards';
 
 const NODE_BUS_LOG =
   typeof process !== 'undefined' && !!process.env?.SEMIONT_BUS_LOG;
@@ -52,6 +60,67 @@ export function setBusLogTraceIdProvider(fn: (() => string | undefined) | undefi
   traceIdProvider = fn;
 }
 
+/** What a line says in place of a credential. */
+const WITHHELD = '[withheld]';
+
+/**
+ * The names of the members whose value is one: the list
+ * specs/src/bus/log-cases.json states for every bus log, which this
+ * package's tests hold this one to.
+ */
+const CREDENTIALS: ReadonlySet<string> = new Set([
+  'token',
+  'cloneToken',
+  'accessToken',
+  'access_token',
+  'refreshToken',
+  'refresh_token',
+  'apiKey',
+  'api_key',
+  'clientSecret',
+  'client_secret',
+  'secret',
+  'password',
+  'authorization',
+  'Authorization',
+  'x-api-key',
+  'x-goog-api-key',
+]);
+
+/**
+ * A payload as a line shows it: as it is, less the value of each credential.
+ *
+ * Arrays and plain objects are read through and shown as copies, so the
+ * payload itself, which its bus goes on to deliver, is left as it was.
+ * Anything else (a date, a DOM rectangle, a callback) is shown as it is.
+ * `copies` holds what has been read so far, so a payload that holds itself
+ * is read once.
+ */
+function shown(value: unknown, copies: Map<unknown, unknown>): unknown {
+  if (copies.has(value)) return copies.get(value);
+  if (Array.isArray(value)) {
+    const items: unknown[] = [];
+    copies.set(value, items);
+    for (const item of value) items.push(shown(item, copies));
+    return items;
+  }
+  if (!isObject(value)) return value;
+  const prototype: unknown = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) return value;
+  const members: Record<string, unknown> = {};
+  copies.set(value, members);
+  for (const [name, member] of Object.entries(value)) {
+    // Defined, not assigned: assigning a member named `__proto__` would set the copy's prototype.
+    Object.defineProperty(members, name, {
+      value: CREDENTIALS.has(name) ? WITHHELD : shown(member, copies),
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+  }
+  return members;
+}
+
 export function busLog(
   op: BusOp,
   channel: string,
@@ -71,7 +140,7 @@ export function busLog(
     (cid ? ` cid=${cid}` : '') +
     (traceId ? ` trace=${traceId.slice(0, 8)}` : '');
   // eslint-disable-next-line no-console
-  console.debug(tag, payload);
+  console.debug(tag, shown(payload, new Map()));
 }
 
 /**

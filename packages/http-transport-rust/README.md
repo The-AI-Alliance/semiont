@@ -398,8 +398,11 @@ is delivered with the trace it was sent under. The spans are made by
 OpenTelemetry the application installed. Its README says how to turn that
 on. With none installed, nothing is recorded and no `traceparent` is sent.
 
-With `SEMIONT_BUS_LOG` set, each emit and each frame received is also a line
-on stderr.
+With `SEMIONT_BUS_LOG` set, each emit, each frame received and each read or
+upload of content is also a line on stderr. A line shows the payload, and
+never a credential in it: the value of a member whose name is one a
+credential goes by (`token`, `password`, `apiKey` and the rest of the list in
+`specs/src/bus/log-cases.json`) is written as `[withheld]`.
 
 ## What is in the crate
 

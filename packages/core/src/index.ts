@@ -233,7 +233,6 @@ export {
   isArchived,
   getResourceEntityTypes,
   isDraft,
-  getNodeEncoding,
   decodeRepresentation,
   compareByRecencyThenId,
 } from './resource-utils';

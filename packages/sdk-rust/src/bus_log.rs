@@ -1,10 +1,17 @@
 //! `SEMIONT_BUS_LOG`: with any non-empty value, one line per frame a process
-//! sends or receives, and per content read, grep-able alike across processes:
-//! `[bus <op>] <channel> [scope=X] [cid=<first 8>] [trace=<first 8>] <payload>`.
+//! sends or receives, and per read or upload of content, grep-able alike across
+//! processes:
+//! `[bus <op>] <channel> scope=<resource> cid=<first 8> trace=<first 8> <payload>`,
+//! with `scope=`, `cid=` and `trace=` each written where there is one.
 //! On stderr, so the log lines on stdout stay one format.
 //!
 //! The trace is the active span's, when a telemetry layer has said how to read
 //! it (`set_trace_id_provider`); this crate depends on none.
+//!
+//! No line holds a credential. The value of a member whose whole name is one
+//! a credential goes by (`token`, which is what a payload names the token a
+//! resource is cloned by, and the rest of `CREDENTIALS` below) is written as
+//! `[withheld]`, as every bus log writes it (specs/src/bus/log-cases.json).
 
 use serde_json::Value;
 use std::io::Write;
@@ -12,6 +19,31 @@ use std::sync::OnceLock;
 
 static ENABLED: OnceLock<bool> = OnceLock::new();
 static TRACE_ID: OnceLock<fn() -> Option<String>> = OnceLock::new();
+
+/// What a line says in place of a credential.
+const WITHHELD: &str = "[withheld]";
+
+/// The names of the members whose value is one: the list
+/// specs/src/bus/log-cases.json states for every bus log, which this file's
+/// tests hold this one to.
+const CREDENTIALS: [&str; 16] = [
+    "token",
+    "cloneToken",
+    "accessToken",
+    "access_token",
+    "refreshToken",
+    "refresh_token",
+    "apiKey",
+    "api_key",
+    "clientSecret",
+    "client_secret",
+    "secret",
+    "password",
+    "authorization",
+    "Authorization",
+    "x-api-key",
+    "x-goog-api-key",
+];
 
 /// The lines a test asked to be given in place of stderr.
 #[cfg(feature = "testing")]
@@ -66,6 +98,27 @@ pub fn bus_note(op: &str, channel: &str, note: &str) {
     }
 }
 
+/// A payload as a line shows it: as it is, less the value of each credential.
+fn shown(value: &Value) -> Value {
+    match value {
+        Value::Object(members) => Value::Object(
+            members
+                .iter()
+                .map(|(name, member)| {
+                    let member = if CREDENTIALS.contains(&name.as_str()) {
+                        Value::from(WITHHELD)
+                    } else {
+                        shown(member)
+                    };
+                    (name.clone(), member)
+                })
+                .collect(),
+        ),
+        Value::Array(items) => Value::Array(items.iter().map(shown).collect()),
+        other => other.clone(),
+    }
+}
+
 pub fn bus_log(
     op: &str,
     channel: &str,
@@ -89,5 +142,136 @@ pub fn bus_log(
             trace.chars().take(8).collect::<String>()
         ));
     }
-    write(format!("{tag} {payload}"));
+    write(format!("{tag} {}", shown(payload)));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    use std::sync::Once;
+
+    /// The lines of this file's tests are kept, from the first of them on.
+    fn capturing() {
+        static ONCE: Once = Once::new();
+        ONCE.call_once(capture);
+    }
+
+    /// The one line written under `tag`.
+    fn line_under(tag: &str) -> String {
+        let lines: Vec<String> = captured()
+            .into_iter()
+            .filter(|line| line.starts_with(tag))
+            .collect();
+        assert_eq!(lines.len(), 1, "the lines under {tag}: {lines:?}");
+        lines.concat()
+    }
+
+    /// What the line `bus_log` writes on `channel` shows of `payload`.
+    fn shown_of(channel: &str, payload: &Value) -> Value {
+        capturing();
+        bus_log("EMIT", channel, payload, None, None);
+        let tag = format!("[bus EMIT] {channel} ");
+        let line = line_under(&tag);
+        serde_json::from_str(&line[tag.len()..])
+            .unwrap_or_else(|error| panic!("{line}: its payload is not JSON: {error}"))
+    }
+
+    /// What a bus log shows of a payload is one table,
+    /// specs/src/bus/log-cases.json, which every bus log runs.
+    fn table() -> Value {
+        serde_json::from_str(include_str!("../specs/bus/log-cases.json"))
+            .expect("the table is JSON")
+    }
+
+    /// The names the table lists.
+    fn names(table: &Value) -> Vec<&str> {
+        table["names"]
+            .as_array()
+            .expect("names")
+            .iter()
+            .map(|name| name.as_str().expect("a name"))
+            .collect()
+    }
+
+    #[test]
+    fn the_names_this_log_withholds_under_are_the_tables_and_no_others() {
+        assert_eq!(names(&table()), CREDENTIALS);
+    }
+
+    #[test]
+    fn the_value_of_a_member_under_each_name_of_the_table_is_withheld() {
+        let table = table();
+        let mut shown = Vec::new();
+        for (at, name) in names(&table).into_iter().enumerate() {
+            let payload = json!({ (name): "a-credential", "beside": "shown" });
+            let written = shown_of(&format!("name:{at}"), &payload);
+            if written != json!({ (name): WITHHELD, "beside": "shown" }) {
+                shown.push(format!("{name}: shown as {written}"));
+            }
+        }
+        assert!(shown.is_empty(), "{shown:#?}");
+    }
+
+    #[test]
+    fn every_payload_of_the_table_is_shown_as_the_table_says() {
+        let table = table();
+        let cases = table["cases"].as_array().expect("cases");
+        assert!(!cases.is_empty());
+        let mut carrying = 0;
+        let mut wrong = Vec::new();
+        for (at, case) in cases.iter().enumerate() {
+            let why = case["why"].as_str().expect("why");
+            let stated = |member: &str| {
+                case.get(member)
+                    .unwrap_or_else(|| panic!("{why}: no {member}"))
+            };
+            let (payload, shown) = (stated("payload"), stated("shown"));
+            // The rule reads a name and no channel: a case's is its place in the table.
+            let written = shown_of(&format!("case:{at}"), payload);
+            if &written != shown {
+                wrong.push(format!("{why}: shown as {written}"));
+            }
+            carrying += usize::from(payload != shown);
+        }
+        assert!(wrong.is_empty(), "{wrong:#?}");
+        assert!(
+            (1..cases.len()).contains(&carrying),
+            "the table has no case that carries a credential, or none that carries none"
+        );
+    }
+
+    // A frame's payload is an object, and so is every case's. This function
+    // can be given any JSON.
+    #[test]
+    fn a_payload_that_is_an_array_is_read_by_the_same_rule_and_any_other_is_shown_as_it_is() {
+        assert_eq!(
+            shown_of(
+                "no-frame:array",
+                &json!([{ "token": "clone-token", "name": "first" }, "token", ["token"]])
+            ),
+            json!([{ "token": "[withheld]", "name": "first" }, "token", ["token"]])
+        );
+        assert_eq!(shown_of("no-frame:text", &json!("token")), json!("token"));
+        assert_eq!(shown_of("no-frame:number", &json!(7)), json!(7));
+        assert_eq!(shown_of("no-frame:null", &Value::Null), Value::Null);
+    }
+
+    #[test]
+    fn a_line_is_its_tag_and_the_payload_as_the_rule_shows_it() {
+        capturing();
+        bus_log(
+            "RECV",
+            "yield:clone-token-generated",
+            &json!({ "response": { "expiresAt": "2026-10-11T00:00:00.000Z", "token": "clone-token" } }),
+            Some("res-1"),
+            Some("a89a670a-1b2c-4d3e-8f90-123456789abc"),
+        );
+        // The members are given in the order of their names, so the line is
+        // the same whether or not a build keeps a payload's own order.
+        assert_eq!(
+            line_under("[bus RECV] yield:clone-token-generated "),
+            r#"[bus RECV] yield:clone-token-generated scope=res-1 cid=a89a670a {"response":{"expiresAt":"2026-10-11T00:00:00.000Z","token":"[withheld]"}}"#
+        );
+    }
 }

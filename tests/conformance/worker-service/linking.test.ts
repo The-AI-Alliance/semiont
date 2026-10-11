@@ -6,7 +6,7 @@
  */
 import { expect, it } from 'vitest';
 import { eachWorkerService } from '../harness/worker-service-world';
-import { expectGenerations, expectProgress, FORMATS, generation, identity, markJob, report, settled, TEXT, textAnnotation, withoutCreated } from './support';
+import { expectGenerations, expectProgress, FORMATS, generation, identity, LONG_TEXT, markJob, MIDDLING_CONTEXT_LENGTH, report, settled, TEXT, textAnnotation, withoutCreated } from './support';
 
 const EXTRACTION = { num_predict: 5318, num_ctx: 5758, temperature: 0 };
 const COUNT = { num_predict: 16, num_ctx: 244, temperature: 0 };
@@ -267,5 +267,75 @@ eachWorkerService('a linking job', (world) => {
       report(job, 100, { code: 'complete-created', count: 1, motivation: 'linking' }, { entitiesExpected: 9, completedItems: [place], requestParams }),
     ]);
     expect(completion).toEqual({ ...identity(job), result: { found: 1, persisted: 1, underReportedPieces: 1 }, durability: 'acknowledged' });
+  });
+
+  it('says where it stands once more at the boundary between two pieces of the text', async () => {
+    const w = world();
+    w.ollama.show = { contextLength: MIDDLING_CONTEXT_LENGTH };
+    const job = markJob(w, 'linking-pieces', { motivation: 'linking', entityTypes: ['Person'] }, {}, LONG_TEXT);
+    const resourceId = String(job.params.resourceId);
+    // The text is two pieces, each an extraction and a count. Neither answer names a marker of the overlap.
+    w.ollama.script(
+      { response: JSON.stringify([{ exact: 'marker 103', entityType: 'Person' }, { exact: 'marker 601', entityType: 'Person' }]) },
+      { response: '2' },
+      { response: JSON.stringify([{ exact: 'marker 702', entityType: 'Person' }]) },
+      { response: '1' },
+    );
+    const served = await w.start();
+    const completion = await settled(served, job);
+
+    expect(w.ollama.generations).toHaveLength(4);
+    expect(served.sequence()).toEqual([
+      'emit job:claim',
+      'emit job:start',
+      'emit browse:resource-requested',
+      `GET /resources/${resourceId}`,
+      'emit mark:commit',
+      'emit job:checkpoint',
+      'emit mark:commit',
+      'emit job:checkpoint',
+      'emit job:checkpoint',
+      'emit job:complete',
+      'emit job:claim',
+    ]);
+    expect(w.commits.map((c) => c.annotations.length)).toEqual([2, 1]);
+
+    // The first piece ends where the sixth paragraph does, and the second starts 256 code points before that.
+    const cursor = (next: number, found: number) => ({ next, size: 728, found, emitted: found, errors: 0 });
+    expect(served.payloads('job:checkpoint')).toEqual([
+      { jobId: job.metadata.id, completedUnits: [], unitCursors: { Person: cursor(2628, 2) } },
+      { jobId: job.metadata.id, completedUnits: [], unitCursors: { Person: cursor(LONG_TEXT.length, 3) } },
+      { jobId: job.metadata.id, completedUnits: ['Person'], unitCursors: { Person: cursor(LONG_TEXT.length, 3) } },
+    ]);
+
+    const requestParams = [{ label: 'entity-types', value: 'Person' }];
+    const person = { value: 'Person', foundCount: 3, persistedCount: 3 };
+    const standing = (percentage: number, processed: number, found: number, expected: number | undefined, completedItems: unknown[]) =>
+      report(job, percentage, { code: 'detecting-entities', entityType: 'Person' }, {
+        current: { kind: 'entity-type', value: 'Person' },
+        processed,
+        total: 1,
+        entitiesFound: found,
+        ...(expected === undefined ? {} : { entitiesExpected: expected }),
+        entitiesEmitted: found,
+        completedItems,
+        requestParams,
+      });
+    expectProgress(served, job, [
+      report(job, 10, { code: 'loading' }, { requestParams }),
+      standing(20, 0, 0, undefined, []),
+      // The first piece: counted, and committed.
+      standing(20, 0, 0, 2, []),
+      standing(20, 0, 2, 2, []),
+      // The boundary. Text remains, and nothing has moved that a linking job's report states: the same report, a second time.
+      standing(20, 0, 2, 2, []),
+      // The second piece: counted, and committed. It is the text's last, so no boundary follows it.
+      standing(20, 0, 2, 3, []),
+      standing(20, 0, 3, 3, []),
+      standing(80, 1, 3, 3, [person]),
+      report(job, 100, { code: 'complete-created', count: 3, motivation: 'linking' }, { entitiesExpected: 3, completedItems: [person], requestParams }),
+    ]);
+
+    expect(completion).toEqual({ ...identity(job), result: { found: 3, persisted: 3 }, durability: 'acknowledged' });
   });
 });

@@ -47,6 +47,7 @@
     "lint:spec-reference-forms": "node scripts/spec/check-reference-forms.mjs",
     "lint:spec-offset-units": "node scripts/spec/check-offset-units.mjs",
     "lint:service-environment": "node scripts/lint/check-service-environment.mjs",
+    "lint:telemetry-doc": "node scripts/lint/check-telemetry-doc.mjs",
     "lint:rust-images": "node scripts/lint/check-rust-images.mjs",
     "lint:rust-toolchain": "node scripts/lint/check-rust-toolchain.mjs",
     "lint:go-toolchain": "node scripts/lint/check-go-toolchain.mjs",

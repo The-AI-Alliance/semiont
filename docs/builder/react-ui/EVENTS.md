@@ -174,8 +174,8 @@ Set a flag, get a grep-friendly line for every event that crosses
 the wire:
 
 ```
-[bus EMIT] <channel> [scope=X] [cid=<first8>] <payload>
-[bus RECV] <channel> [scope=X] [cid=<first8>] <payload>
+[bus EMIT] <channel> scope=<resource> cid=<first8> <payload>
+[bus RECV] <channel> scope=<resource> cid=<first8> <payload>
 ```
 
 **Enable in a browser:**

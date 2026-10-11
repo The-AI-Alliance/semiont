@@ -158,7 +158,7 @@ uv run ruff check && uv run ruff format --check
 uv run pytest
 ```
 
-Both type checkers are part of the suite: `tests/refusals` holds programs that must not type-check, and `tests/readme` the programs the package's README shows, which `tests/test_readme.py` runs. The Python block of the [`semiont-worker` skill](../builder/skills/semiont-worker/SKILL.md) is held to one of them, word for word, by the same file. The package's own tests are built on `semiont.testing`, the doubles it ships.
+Both type checkers are part of the suite: `tests/refusals` holds programs that must not type-check, and `tests/readme` the programs the package's README shows, which `tests/test_readme.py` runs. The Python block of the [`semiont-worker` skill](../builder/skills/semiont-worker/SKILL.md) is held to one of them, word for word, by the same file. The skill's complete TypeScript worker is run, as the skill shows it, by `packages/sdk/src/__tests__/worker-skill.test.ts`, which needs the packages built. The package's own tests are built on `semiont.testing`, the doubles it ships.
 
 ### In a container
 
@@ -321,7 +321,7 @@ Four other workflows gate the same pushes and pull requests:
 | [`package-tests.yml`](../../.github/workflows/package-tests.yml) | A matrix over every package with a suite: typecheck, `npm test`, then `test:coverage` and the Codecov upload, neither of which fails the job |
 | [`security-tests.yml`](../../.github/workflows/security-tests.yml) | The Browser's `test:security` and `test:coverage`; a built Browser probed for privileged content in its shell; a built gateway probed for 401s on protected routes, the error shape, and leaked secrets |
 | [`accessibility-tests.yml`](../../.github/workflows/accessibility-tests.yml) | react-ui's `test:a11y`; the Browser's suite; Lighthouse against a built Browser, failing below an accessibility score of 90. Also daily |
-| [`architecture-compliance.yml`](../../.github/workflows/architecture-compliance.yml) | The audits in [`scripts/compliance/`](../../scripts/compliance/) and the `lint:*` gates: the doc snippets, raw bus use, the state-unit axioms, the boot contract, the spec's own consistency, and more. Also on pushes to `feature/**` |
+| [`architecture-compliance.yml`](../../.github/workflows/architecture-compliance.yml) | The audits in [`scripts/compliance/`](../../scripts/compliance/) and the `lint:*` gates: the doc snippets, raw bus use, the state-unit axioms, the boot contract, the spec's own consistency, the operator's telemetry tables (`lint:telemetry-doc`), and more. Also on pushes to `feature/**` |
 
 [`stack-smoke.yml`](../../.github/workflows/stack-smoke.yml) is not a gate on every pull request. On manual dispatch it builds every image and the launcher from the commit, or takes a published tag, and runs [`scripts/release/smoke-stack.sh`](../../scripts/release/smoke-stack.sh), which boots a real stack and says what it checks.
 

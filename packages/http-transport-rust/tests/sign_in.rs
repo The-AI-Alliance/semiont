@@ -2906,9 +2906,14 @@ async fn the_worker_claims_as_its_agent_says_the_lifecycle_of_the_job_it_is_hand
             "name": "ollama gemma3:4b", "provider": "ollama", "model": "gemma3:4b",
         })
     );
+    // And it reports what it proposed and what the record holds, established
+    // by the record's acknowledgement.
     assert_eq!(
-        emitted[4]["payload"]["result"],
-        json!({ "found": 1, "persisted": 1 })
+        emitted[4]["payload"],
+        json!({
+            "resourceId": "res-1", "jobId": "job-1", "jobType": "mark", "attempt": 1,
+            "result": { "found": 1, "persisted": 1 }, "durability": "acknowledged",
+        })
     );
     // Its stream names what claiming and committing read, and nothing else.
     let named: Vec<&str> = JOB_CLAIM_CHANNELS

@@ -562,7 +562,7 @@ Each module is documented on [docs.rs](https://docs.rs/semiont).
 | `media_types` | The media types a knowledge base admits, and what the system can do with each |
 | `discovery` | The knowledge bases a launcher manages |
 | `identity`, `roles` | How a knowledge base names its people and agents, and the realm's roles |
-| `bus_log` | With `SEMIONT_BUS_LOG` set, one line on stderr per frame the process sends or receives, and per content read |
+| `bus_log` | With `SEMIONT_BUS_LOG` set, one line on stderr per frame the process sends or receives, and per read or upload of content. A line shows the frame's payload, and never a credential in it: the value of a member whose name is one a credential goes by (`token`, `password`, `apiKey` and the rest of the list in [`specs/src/bus/log-cases.json`](../../specs/src/bus/log-cases.json)) is written as `[withheld]` |
 | `testing` | The doubles and harnesses, behind the `testing` feature |
 
 `SEMIONT_BUS_LOG` is the only environment variable the crate reads.

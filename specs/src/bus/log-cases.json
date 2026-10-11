@@ -1,0 +1,244 @@
+{
+  "$comment": "What a bus log shows of a payload, as every bus log must show it. With SEMIONT_BUS_LOG set, a Semiont SDK or service writes one line for each frame it sends or receives, and the last thing on a line is the frame's payload. No line holds a credential. THE RULE reads a name and no channel: the value of a member whose whole name is one of `names`, letter for letter and in the same case, is shown as the text `[withheld]`, wherever in a payload the member is (in the payload itself, in an object within it at any depth, in an object inside an array) and whatever its value is (text, a number, null, an object, an array: the whole value is replaced, and nothing within it is read). THE NAMES are the ones a credential goes by. The registry's payloads declare one credential, the token a resource is cloned by, and name it `token` (`yield:clone-resource-requested` and `yield:clone-create`, which a client sends, and the `response` of `yield:clone-token-generated`, which it receives). But some payloads take any member (an agent's `parameters`, a job's `params` and its `result`, a graph's `metadata`, what a description of a resource or of a representation adds), and a credential put in one is withheld under the name it has elsewhere: `cloneToken`, an upload's name for the token a resource is cloned by; `accessToken` and `refreshToken`, a sign-in's two tokens, and `access_token` and `refresh_token`, as an issuer names them; `apiKey`, an inference provider's key as a knowledge base's configuration names it, and `api_key`, as a Python program does; `clientSecret` and `client_secret`, a service's secret at its issuer, as a program and as the grant that spends it name it; `secret` and `password`; and the header a credential is sent under, which is `authorization` and `Authorization` (two spellings of one header) and, for a provider's key, `x-api-key` and `x-goog-api-key`. A name that only contains one of them is another name, and is shown: a count of a model's tokens (`maxTokens`), a plural (`tokens`), another case (`Token`), the member that names the environment variable a credential is read from (`apiKeyEnv`, `passwordEnv`), an endpoint (`tokenEndpoint`). Everything else is shown as it is: every other member, an array's items in their order, a value that happens to be one of the names. A frame's payload is an object, and so is every case's. A log that can be given a payload that is not one reads an array by the same rule and shows anything else as it is, and holds that in its own tests. A case is a `payload` and what is `shown` of it. How a log writes what it shows (as JSON, as a console's rendering of an object) is its own, so a runner compares values and never text. Every name has a case of its own, and no case withholds under a name that is not listed. A case that is a channel's own payload names the `channel`, and its `payload` is one the registry's schema for that channel admits. TypeScript runs this in packages/core (bus-log-cases.test.ts) against busLog, which the Node services and the Browser write with. Rust runs it in packages/sdk-rust (src/bus_log.rs) against bus_log, which the Rust transport and the gateway write with. Python runs it in packages/sdk-python (tests/test_bus_log.py) against its own bus log, and holds each case that names a channel to that channel's payload type, the cases to `names`, and `names` to the members the registry's payloads declare. A bus log in another language runs it too. Add a name and its case here before changing an implementation.",
+  "names": [
+    "token",
+    "cloneToken",
+    "accessToken",
+    "access_token",
+    "refreshToken",
+    "refresh_token",
+    "apiKey",
+    "api_key",
+    "clientSecret",
+    "client_secret",
+    "secret",
+    "password",
+    "authorization",
+    "Authorization",
+    "x-api-key",
+    "x-goog-api-key"
+  ],
+  "cases": [
+    {
+      "why": "yield:clone-resource-requested, as a client sends it: the request is its token",
+      "channel": "yield:clone-resource-requested",
+      "payload": { "token": "clone-token-of-the-request" },
+      "shown": { "token": "[withheld]" }
+    },
+    {
+      "why": "yield:clone-create, as the gateway has it: the token is withheld, and what it rides with is shown, the gateway's stamp included",
+      "channel": "yield:clone-create",
+      "payload": {
+        "_userId": "did:web:example.org:users:alice",
+        "token": "clone-token-of-the-command",
+        "name": "A clone",
+        "storageUri": "file://clones/a-clone.md",
+        "contentChecksum": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+        "byteSize": 4,
+        "format": "text/markdown"
+      },
+      "shown": {
+        "_userId": "did:web:example.org:users:alice",
+        "token": "[withheld]",
+        "name": "A clone",
+        "storageUri": "file://clones/a-clone.md",
+        "contentChecksum": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+        "byteSize": 4,
+        "format": "text/markdown"
+      }
+    },
+    {
+      "why": "yield:clone-token-generated, as a client receives it: the token is a member of the reply's response",
+      "channel": "yield:clone-token-generated",
+      "payload": {
+        "response": {
+          "token": "clone-token-of-the-reply",
+          "expiresAt": "2026-10-11T00:00:00.000Z",
+          "resource": { "@context": "https://schema.org/", "@id": "res-1", "name": "A resource", "representations": [] }
+        }
+      },
+      "shown": {
+        "response": {
+          "token": "[withheld]",
+          "expiresAt": "2026-10-11T00:00:00.000Z",
+          "resource": { "@context": "https://schema.org/", "@id": "res-1", "name": "A resource", "representations": [] }
+        }
+      }
+    },
+    {
+      "why": "a token deep in a payload is withheld, and the members beside it at each depth are shown",
+      "payload": { "result": { "kind": "clone", "made": { "by": "a worker", "with": { "token": "deep-clone-token", "uses": 1 } } } },
+      "shown": { "result": { "kind": "clone", "made": { "by": "a worker", "with": { "token": "[withheld]", "uses": 1 } } } }
+    },
+    {
+      "why": "a token in an object inside an array is withheld, in each object that has one, and the array keeps its order",
+      "payload": { "clones": [{ "token": "first-clone-token", "name": "first" }, { "name": "second" }, { "token": "third-clone-token", "name": "third" }] },
+      "shown": { "clones": [{ "token": "[withheld]", "name": "first" }, { "name": "second" }, { "token": "[withheld]", "name": "third" }] }
+    },
+    {
+      "why": "an array inside an array is read too",
+      "payload": { "rows": [[{ "token": "row-clone-token" }, "kept"], []] },
+      "shown": { "rows": [[{ "token": "[withheld]" }, "kept"], []] }
+    },
+    {
+      "why": "a token that is a number is withheld, and is shown as the same text",
+      "payload": { "token": 8675309 },
+      "shown": { "token": "[withheld]" }
+    },
+    {
+      "why": "a token that is null is withheld: the name decides, not the value",
+      "payload": { "token": null, "name": "A clone" },
+      "shown": { "token": "[withheld]", "name": "A clone" }
+    },
+    {
+      "why": "a token that is true or false is withheld",
+      "payload": { "asked": { "token": true }, "answered": { "token": false } },
+      "shown": { "asked": { "token": "[withheld]" }, "answered": { "token": "[withheld]" } }
+    },
+    {
+      "why": "a token that is the empty text is withheld",
+      "payload": { "token": "" },
+      "shown": { "token": "[withheld]" }
+    },
+    {
+      "why": "a token that is an object is withheld whole: nothing within it is read or shown",
+      "payload": { "token": { "value": "clone-token-in-an-object", "token": "clone-token-within-it", "expiresAt": "2026-10-11T00:00:00.000Z" } },
+      "shown": { "token": "[withheld]" }
+    },
+    {
+      "why": "a token that is an array is withheld whole",
+      "payload": { "token": ["clone-token-in-an-array", { "token": "clone-token-within-it" }] },
+      "shown": { "token": "[withheld]" }
+    },
+    {
+      "why": "a name that only contains the word is another name, and is shown: the counts of a model's tokens the protocol carries, a plural, another case",
+      "payload": {
+        "params": { "maxTokens": 4096 },
+        "limits": { "contextTokens": 200000, "maxOutputTokens": 8192 },
+        "tokens": ["shown", "as", "they", "are"],
+        "Token": "shown as it is"
+      },
+      "shown": {
+        "params": { "maxTokens": 4096 },
+        "limits": { "contextTokens": 200000, "maxOutputTokens": 8192 },
+        "tokens": ["shown", "as", "they", "are"],
+        "Token": "shown as it is"
+      }
+    },
+    {
+      "why": "a value that is the word, or the text a token is shown as, is no member of the name",
+      "payload": { "kind": "token", "words": ["token", "[withheld]"] },
+      "shown": { "kind": "token", "words": ["token", "[withheld]"] }
+    },
+    {
+      "why": "a payload with no token is shown as it is: text of any script, numbers, null, and what is empty",
+      "payload": {
+        "annotationId": "ann-1",
+        "said": "two\nlines, naïve, 日本語",
+        "counted": [1, 2.5, -3, { "left": null, "right": true }],
+        "nothing": { "members": {}, "items": [] }
+      },
+      "shown": {
+        "annotationId": "ann-1",
+        "said": "two\nlines, naïve, 日本語",
+        "counted": [1, 2.5, -3, { "left": null, "right": true }],
+        "nothing": { "members": {}, "items": [] }
+      }
+    },
+    {
+      "why": "the empty payload is shown as it is",
+      "payload": {},
+      "shown": {}
+    },
+    {
+      "why": "cloneToken, which is what an upload names the token a resource is cloned by",
+      "payload": { "params": { "cloneToken": "clone-token-of-an-upload", "archiveOriginal": true } },
+      "shown": { "params": { "cloneToken": "[withheld]", "archiveOriginal": true } }
+    },
+    {
+      "why": "accessToken, a sign-in's access token as a program's record of it names it",
+      "payload": { "result": { "accessToken": "access-token-in-a-record", "expiresAt": "2026-10-11T00:00:00.000Z" } },
+      "shown": { "result": { "accessToken": "[withheld]", "expiresAt": "2026-10-11T00:00:00.000Z" } }
+    },
+    {
+      "why": "access_token, the same as an issuer's reply names it: what says its kind and how long it lasts is shown",
+      "payload": { "result": { "access_token": "access-token-in-a-reply", "token_type": "Bearer", "expires_in": 300 } },
+      "shown": { "result": { "access_token": "[withheld]", "token_type": "Bearer", "expires_in": 300 } }
+    },
+    {
+      "why": "refreshToken, a sign-in's refresh token as the sign-in store names it",
+      "payload": { "metadata": { "refreshToken": "refresh-token-in-a-store", "issuer": "https://issuer.example/realms/kb" } },
+      "shown": { "metadata": { "refreshToken": "[withheld]", "issuer": "https://issuer.example/realms/kb" } }
+    },
+    {
+      "why": "refresh_token, the same as an issuer and a refresh grant name it: the grant's kind, whose value is the name, is shown",
+      "payload": { "params": { "grant_type": "refresh_token", "refresh_token": "refresh-token-in-a-grant" } },
+      "shown": { "params": { "grant_type": "refresh_token", "refresh_token": "[withheld]" } }
+    },
+    {
+      "why": "apiKey, an inference provider's key as a knowledge base's configuration names it, among an agent's parameters",
+      "payload": { "generator": { "@type": "Software", "name": "A model", "parameters": { "temperature": 0.2, "apiKey": "provider-key-in-a-configuration" } } },
+      "shown": { "generator": { "@type": "Software", "name": "A model", "parameters": { "temperature": 0.2, "apiKey": "[withheld]" } } }
+    },
+    {
+      "why": "api_key, the same as a Python program names it",
+      "payload": { "params": { "provider": "anthropic", "base_url": "https://api.example", "api_key": "provider-key-in-a-program" } },
+      "shown": { "params": { "provider": "anthropic", "base_url": "https://api.example", "api_key": "[withheld]" } }
+    },
+    {
+      "why": "clientSecret, a service's secret at its issuer as a program's record of it names it",
+      "payload": { "params": { "issuer": "https://issuer.example/realms/kb", "clientId": "semiont-worker", "clientSecret": "client-secret-in-a-record" } },
+      "shown": { "params": { "issuer": "https://issuer.example/realms/kb", "clientId": "semiont-worker", "clientSecret": "[withheld]" } }
+    },
+    {
+      "why": "client_secret, the same as the grant that spends it names it",
+      "payload": { "params": { "grant_type": "client_credentials", "client_id": "semiont-worker", "client_secret": "client-secret-in-a-grant" } },
+      "shown": { "params": { "grant_type": "client_credentials", "client_id": "semiont-worker", "client_secret": "[withheld]" } }
+    },
+    {
+      "why": "secret: a member of that name holds one, whatever it is the secret of",
+      "payload": { "metadata": { "client": "semiont-worker", "secret": "a-secret" } },
+      "shown": { "metadata": { "client": "semiont-worker", "secret": "[withheld]" } }
+    },
+    {
+      "why": "password: a member of that name holds one, whatever it opens",
+      "payload": { "params": { "user": "semiont", "password": "a-password" } },
+      "shown": { "params": { "user": "semiont", "password": "[withheld]" } }
+    },
+    {
+      "why": "authorization, the header a credential is sent under, among the headers of a request a result repeats",
+      "payload": { "result": { "headers": { "authorization": "Bearer a-token-in-a-header", "content-type": "application/json" } } },
+      "shown": { "result": { "headers": { "authorization": "[withheld]", "content-type": "application/json" } } }
+    },
+    {
+      "why": "Authorization, the same header in its other spelling",
+      "payload": { "result": { "headers": { "Authorization": "Bearer another-token-in-a-header", "Content-Type": "application/json" } } },
+      "shown": { "result": { "headers": { "Authorization": "[withheld]", "Content-Type": "application/json" } } }
+    },
+    {
+      "why": "x-api-key, the header one inference provider takes its key under",
+      "payload": { "result": { "headers": { "x-api-key": "provider-key-in-a-header", "anthropic-version": "2023-06-01" } } },
+      "shown": { "result": { "headers": { "x-api-key": "[withheld]", "anthropic-version": "2023-06-01" } } }
+    },
+    {
+      "why": "x-goog-api-key, the header another takes its key under",
+      "payload": { "result": { "headers": { "x-goog-api-key": "another-provider-key-in-a-header", "x-goog-api-client": "a-client/1.0" } } },
+      "shown": { "result": { "headers": { "x-goog-api-key": "[withheld]", "x-goog-api-client": "a-client/1.0" } } }
+    },
+    {
+      "why": "a name that only contains one of the names is another name, and is shown: the member that names the environment variable a credential is read from, an issuer's endpoint, who a request is authenticated as, and where authorization is had",
+      "payload": {
+        "agents": [{ "baseUrl": "https://api.example", "apiKeyEnv": "PROVIDER_API_KEY" }],
+        "broker": { "passwordEnv": "BROKER_PASSWORD" },
+        "signIn": { "tokenEndpoint": "https://issuer.example/realms/kb/token" },
+        "status": { "authenticatedAs": "did:web:example.org:users:alice", "authorization_servers": ["https://issuer.example/realms/kb"] }
+      },
+      "shown": {
+        "agents": [{ "baseUrl": "https://api.example", "apiKeyEnv": "PROVIDER_API_KEY" }],
+        "broker": { "passwordEnv": "BROKER_PASSWORD" },
+        "signIn": { "tokenEndpoint": "https://issuer.example/realms/kb/token" },
+        "status": { "authenticatedAs": "did:web:example.org:users:alice", "authorization_servers": ["https://issuer.example/realms/kb"] }
+      }
+    }
+  ]
+}

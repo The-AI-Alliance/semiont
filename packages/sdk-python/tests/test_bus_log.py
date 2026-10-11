@@ -3,7 +3,9 @@
 Every Semiont SDK writes it, in one form, so that the lines of several
 processes read as one timeline (`docs/protocol/EVENT-BUS.md` § Wire format).
 The form is held here, and so is each place a transport writes one. A line
-never holds a credential: the token a resource is cloned by rides the bus.
+never holds a credential: what a line shows of a payload is the table every
+bus log runs (`specs/src/bus/log-cases.json`), which lists the names a
+credential is withheld under.
 """
 
 import re
@@ -13,11 +15,11 @@ from typing import Final, TypeAliasType, get_args
 import pytest
 from aio import run, settle, soon
 from gateway_server import Answer, GatewayServer
-from pydantic import JsonValue
+from pydantic import JsonValue, TypeAdapter
 from shown import CARRIED, parts_of
-from spec import PACKAGE
+from spec import PACKAGE, SPEC, JsonObject, objects, read, strings, text
 
-from semiont import telemetry
+from semiont import model, telemetry
 from semiont._bus_log import bus_log, bus_note, enabled
 from semiont.channels import CHANNELS
 from semiont.errors import SemiontError
@@ -146,30 +148,76 @@ def test_the_lines_the_readme_shows_are_lines_the_log_writes(capsys: pytest.Capt
 
 # ── a credential ────────────────────────────────────────────────────────
 
-DESCRIBED: Final[dict[str, JsonValue]] = {"@context": "https://schema.org", "@id": "res-1", "name": "A resource", "representations": []}
+TABLE: Final = read(SPEC / "bus/log-cases.json")
+NAMES: Final = strings(TABLE["names"], "the names")
+CASES: Final = objects(TABLE["cases"], "the cases")
+JSON: Final = TypeAdapter[JsonValue](JsonValue)
+
+
+def payload_of(case: JsonObject) -> JsonObject:
+    """A case's payload, which is an object: what a frame carries, and what this log is given."""
+    payload = case["payload"]
+    assert isinstance(payload, dict), f"{case['why']}: its payload is no object"
+    return payload
+
+
+def shown_of(payload: JsonObject, capsys: pytest.CaptureFixture[str]) -> JsonValue:
+    """What the line this log writes of `payload` shows of it."""
+    # The rule reads a name and no channel: every line here is written on this one.
+    bus_log("EMIT", "yield:clone-create", payload)
+    line = capsys.readouterr().out
+    said = "[bus EMIT] yield:clone-create "
+    assert line.startswith(said)
+    assert line.endswith("\n")
+    return JSON.validate_json(line.removeprefix(said))
 
 
 @pytest.mark.usefixtures("logging_the_bus")
-def test_the_token_a_resource_is_cloned_by_is_in_no_line(capsys: pytest.CaptureFixture[str]) -> None:
-    bus_log("EMIT", "yield:clone-resource-requested", {"token": CARRIED}, correlation_id=CORRELATION)
-    bus_log("EMIT", "yield:clone-create", {"token": CARRIED, "name": "A clone", "storageUri": "file://clone.md"})
-    bus_log(
-        "RECV",
-        "yield:clone-token-generated",
-        {"response": {"token": CARRIED, "expiresAt": "2026-10-11T00:00:00.000Z", "resource": DESCRIBED}},
-        correlation_id=CORRELATION,
-    )
-    # Wherever a member of that name is, and whatever it holds.
-    bus_log("EMIT", "job:complete", {"result": [{"token": [CARRIED, {"token": CARRIED}]}]})
-    captured = capsys.readouterr().out
-    assert parts_of(CARRIED, captured) == []
-    assert captured.splitlines() == [
-        '[bus EMIT] yield:clone-resource-requested cid=a89a670a {"token":"[withheld]"}',
-        '[bus EMIT] yield:clone-create {"token":"[withheld]","name":"A clone","storageUri":"file://clone.md"}',
-        '[bus RECV] yield:clone-token-generated cid=a89a670a {"response":{"token":"[withheld]","expiresAt":"2026-10-11T00:00:00.000Z",'
-        '"resource":{"@context":"https://schema.org","@id":"res-1","name":"A resource","representations":[]}}}',
-        '[bus EMIT] job:complete {"result":[{"token":"[withheld]"}]}',
-    ]
+@pytest.mark.parametrize("case", CASES, ids=lambda case: str(case["why"]))
+def test_a_line_shows_of_a_payload_what_the_table_says(case: JsonObject, capsys: pytest.CaptureFixture[str]) -> None:
+    assert shown_of(payload_of(case), capsys) == case["shown"]
+
+
+@pytest.mark.usefixtures("logging_the_bus")
+@pytest.mark.parametrize("name", NAMES)
+def test_the_value_of_a_member_under_each_name_of_the_table_is_withheld(name: str, capsys: pytest.CaptureFixture[str]) -> None:
+    # The names this log withholds under are its own list, and the table's is the one it is held to.
+    assert shown_of({name: "a-credential", "beside": "shown"}, capsys) == {name: "[withheld]", "beside": "shown"}
+
+
+def test_the_table_has_cases_that_carry_a_credential_and_cases_that_carry_none() -> None:
+    carrying = [case for case in CASES if case["payload"] != case["shown"]]
+    assert 0 < len(carrying) < len(CASES)
+
+
+def withheld_under(payload: JsonValue, shown: JsonValue) -> Iterator[str]:
+    """The names a case withholds under: that of each member it shows as withheld, wherever in the payload the member is."""
+    if isinstance(payload, dict) and isinstance(shown, dict):
+        for name, member in payload.items():
+            if shown[name] == "[withheld]" and member != "[withheld]":
+                yield name
+            else:
+                yield from withheld_under(member, shown[name])
+    elif isinstance(payload, list) and isinstance(shown, list):
+        for member, as_shown in zip(payload, shown, strict=True):
+            yield from withheld_under(member, as_shown)
+
+
+def test_the_tables_cases_withhold_under_each_of_its_names_and_under_no_other() -> None:
+    assert len(set(NAMES)) == len(NAMES)
+    assert {name for case in CASES for name in withheld_under(case["payload"], case["shown"])} == set(NAMES)
+    # And what the table says of its names, in words, names each of them.
+    said = text(TABLE["$comment"], "what the table says of itself")
+    assert [name for name in NAMES if f"`{name}`" not in said] == []
+
+
+@pytest.mark.parametrize("case", [case for case in CASES if "channel" in case], ids=lambda case: str(case["channel"]))
+def test_a_case_that_names_a_channel_is_a_payload_that_channel_carries(case: JsonObject) -> None:
+    # What the spec states of the three payloads that carry the token is the spec's: a case that restates one is
+    # held to it here, so a payload that comes to name its token otherwise fails until the table and the rule follow.
+    channel = CHANNELS[text(case["channel"], "a channel")]
+    payload = payload_of(case)
+    assert model.written(channel.decode(payload)) == payload
 
 
 def shapes_within(named: object) -> Iterator[type[WireModel]]:
@@ -197,10 +245,12 @@ def members_of(shape: type[WireModel], seen: set[type[WireModel]]) -> Iterator[t
 
 
 def test_every_member_a_bus_payload_declares_whose_name_reads_as_a_credential_s_is_one_the_log_withholds_or_is_known_to_be_none() -> None:
-    # The log withholds the value of a member named `token`, which is what the spec names the one credential the bus
-    # carries. Nothing in the spec marks a member as a credential, so the rule is held to the names the spec uses: a
-    # payload that comes to declare a member whose name reads as one fails here until it is decided which it is.
+    # The log withholds the value of a member whose name is one of the table's. Nothing in the spec marks a member as
+    # a credential, so the rule is held to the names the spec uses: a payload that comes to declare a member whose name
+    # reads as one fails here until it is decided which it is, a name of the table or one named below as none.
     reads_as_one = re.compile(r"token|secret|password|credential|key|auth", re.IGNORECASE)
+    # Every name of the table reads as one: a member declared under any of them is one this walk finds.
+    assert [name for name in NAMES if not reads_as_one.search(name)] == []
     declared: dict[tuple[str, str], set[str]] = {}
     walked = 0
     for name, channel in CHANNELS.items():
@@ -211,12 +261,15 @@ def test_every_member_a_bus_payload_declares_whose_name_reads_as_a_credential_s_
                 if reads_as_one.search(member):
                     declared.setdefault((owner, member), set()).add(name)
     assert walked > 500, "the walk read next to nothing: this gate holds nothing"
-    credentials = {place: channels for place, channels in declared.items() if place[1] == "token"}
+    credentials = {place: channels for place, channels in declared.items() if place[1] in NAMES}
+    # The payloads declare one credential, the token a resource is cloned by, in three places.
     assert credentials == {
         ("YieldCloneResourceRequest", "token"): {"yield:clone-resource-requested"},
         ("YieldCloneCreateCommand", "token"): {"yield:clone-create"},
         ("CloneResourceWithTokenResponse", "token"): {"yield:clone-token-generated"},
     }
+    # And each channel that carries one is a case of the table, as the channel carries it.
+    assert {text(case["channel"], "a channel") for case in CASES if "channel" in case} == set[str]().union(*credentials.values())
     # The rest count a model's tokens, and are no credential.
     assert {member for _, member in declared.keys() - credentials.keys()} == {"maxTokens", "contextTokens", "maxOutputTokens"}
 
