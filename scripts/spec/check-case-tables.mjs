@@ -23,14 +23,14 @@
 //     the basic plane. An offset counts code points, and so does every length
 //     such a rule states; only a text with such a character tells that count
 //     from a count of UTF-16 code units or of bytes, so a table without one
-//     holds its rule to no count. These are every table here but three: what
+//     holds its rule to no count. These are every table here but four: what
 //     an offset counts, the chunker, the reconciling of a quote, the locating
 //     of a span of a PDF, the builders, the id (whose anchor states a span's
 //     offsets), the chunk plan, the citations, and the reading of a reply
 //     (whose items state where each passage is, and how long a piece was).
-//     The readers' table, the table of failure classes and the bus log's
-//     table count nothing and state no offset, and are held to nothing about
-//     their characters.
+//     The table of what text a resource's bytes are, the readers' table, the
+//     table of failure classes and the bus log's table count nothing and
+//     state no offset, and are held to nothing about their characters.
 //
 // It reads the source files, so it cannot pass on a stale bundle.
 
@@ -60,6 +60,15 @@ const TABLES = [
       'packages/sdk-python/tests/test_offsets.py',
     ],
     countsCodePoints: true,
+  },
+  // What text a resource's bytes are, which an offset is counted in.
+  {
+    table: 'specs/src/text/decode-cases.json',
+    runners: [
+      'packages/core/src/__tests__/decode-cases.test.ts',
+      'packages/sdk-rust/tests/decode_cases.rs',
+      'packages/sdk-python/tests/test_decode_cases.py',
+    ],
   },
   // What an SDK gives a worker's author.
   {

@@ -156,3 +156,4 @@ checks what a built one promises.
 - [WORKER-CONTRACT.md](../../docs/protocol/WORKER-CONTRACT.md) — the contract every worker keeps
 - [JOBS.md](../../docs/protocol/JOBS.md) — the job protocol, and the dispatcher's side of it
 - [`semiont-worker` skill](../../docs/builder/skills/semiont-worker/SKILL.md) — building your own job-claim daemon
+- [Adding a kind of job](../../docs/contributor/ADDING-A-JOB.md) — the path of a new kind of job through the spec, the SDKs, the dispatcher, this service, its suite and its rules

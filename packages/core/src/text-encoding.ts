@@ -21,11 +21,14 @@ export function extractCharset(mediaType: string): string {
 }
 
 /**
- * Decode ArrayBuffer to string using charset from mediaType
+ * Decode bytes to a string using the charset from mediaType.
  *
- * Uses TextDecoder with the charset extracted from mediaType parameter.
- * This ensures the same character space is used for both annotation creation
- * (gateway) and rendering (frontend).
+ * The one place TypeScript turns a resource's bytes into its text
+ * (specs/src/text/decode-cases.json states the rule every language's reader
+ * keeps): the charset the media type states, UTF-8 when it states none; a
+ * leading byte-order mark is not part of the text; a charset that is not
+ * decoded is refused. Every reader sees the same text, so an offset counted
+ * in one is the same place in another.
  *
  * @param buffer - Binary data to decode
  * @param mediaType - Media type with optional charset parameter
@@ -35,7 +38,7 @@ export function extractCharset(mediaType: string): string {
  * const buffer = new Uint8Array([...]);
  * const text = decodeWithCharset(buffer, "text/plain; charset=iso-8859-1");
  */
-export function decodeWithCharset(buffer: ArrayBuffer, mediaType: string): string {
+export function decodeWithCharset(buffer: ArrayBuffer | Uint8Array, mediaType: string): string {
   const charset = extractCharset(mediaType);
 
   // TextDecoder supports standard charset names

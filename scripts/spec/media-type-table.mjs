@@ -1,6 +1,7 @@
 // The media-type registry (specs/src/media-types/registry.json), read and
 // checked once for every generator that takes it: TypeScript
-// (generate-media-types.mjs) and Go (generate-media-types-go.mjs). A registry
+// (generate-media-types.mjs), Go (generate-media-types-go.mjs) and Python
+// (generate-media-types-python.mjs). A registry
 // that cannot be meant is refused here, before anything is written from it.
 
 import { readFileSync } from 'node:fs';

@@ -419,9 +419,10 @@ job is one unit for each of its `categories`.
   *Held by `worker-service/highlighting`, `worker-service/chunks`, `worker-service/commenting`, `worker-service/assessing`, `worker-service/code-points`.*
 - **D18.** A linking job reports `loading` at 10, and then
   `detecting-entities`, naming the entity type, at `20 + round(60 × finished /
-  types)`: when a type is begun, when its mentions have been counted, when a
-  piece's batch is established, and when the type is finished. Each states the
-  type it is on (`current`), the types finished and their number
+  types)`: when a type is begun; for each piece, when its mentions have been
+  counted and when its batch is established, and, when text remains, once more
+  before the next piece is asked about; and when the type is finished. Each
+  states the type it is on (`current`), the types finished and their number
   (`processed`, `total`, `completedItems` with each type's `foundCount` and
   `persistedCount`), and the job's `entitiesFound`, `entitiesEmitted` and,
   once any count has been made, `entitiesExpected`. It ends with
@@ -430,13 +431,18 @@ job is one unit for each of its `categories`.
   finished are those of every attempt: `total` and `requestParams` are of the
   whole job, and a type an earlier attempt finished is among the finished
   from the first report, in `processed`, `completedItems`, `entitiesFound` and
-  `entitiesEmitted` ([U2](#resuming)).
+  `entitiesEmitted` ([U2](#resuming)). A job a cancellation has stopped
+  reports no boundary ([Q5](#cancellation)).
   *Held by `worker-service/linking`, `worker-service/resume`.*
 - **D19.** A tagging job reports `loading` at 10 and `analyzing-tags` at 30;
   for each category, `analyzing-tags` at `30 + round(30 × index / categories)`
   with the category, its index and the categories finished; after each piece,
-  `creating-tag-annotations` at 60 with the count of annotations made so far;
-  and at the end `complete-created` at 100.
+  `creating-tag-annotations` at 60 with the count of annotations made so far,
+  and, when text remains, `analyzing-tags` again, at `30 + round(30 × (index +
+  next / length) / categories)`, the cursor's `next` over the text's length,
+  both in code points, with the category, its index and the categories
+  finished as before; and at the end `complete-created` at 100. A job a
+  cancellation has stopped reports no boundary ([Q5](#cancellation)).
   *Held by `worker-service/tagging`.*
 
 ## The five kinds of mark job
@@ -753,8 +759,8 @@ focused on a resource or on an annotation.
 - **Y2.** A generation to a text format is one request, which asks for no
   array of objects. Its temperature is the job's, or `0.7`, and its length
   the job's `maxTokens`, or `500`. The prompt is made of the job's `title`,
-  `prompt`, `entityTypes`, languages, `structure` and `cite`, and of its
-  context. On an Ollama agent the request is [D1](#the-request)'s with no
+  `task`, `prompt`, `entityTypes`, languages, `structure` and `cite`, and of
+  its context. On an Ollama agent the request is [D1](#the-request)'s with no
   `format`: the length is `num_predict`, and `num_ctx` is as
   [D3](#the-request) works it out. There a job whose prompt and length are
   together over the model's `contextTokens`, in tokens as [D3](#the-request)

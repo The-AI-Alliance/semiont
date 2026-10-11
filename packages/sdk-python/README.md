@@ -808,9 +808,11 @@ payload as JSON:
 [bus RECV] job:claim-failed cid=a89a670a {"code":"none-pending","message":"No pending job matches"}
 ```
 
-The variable is read once, when the first line would be written. The token a
-resource is cloned by is a credential, and no line holds it: the value of a
-payload's member named `token` is written as `[withheld]`.
+The variable is read once, when the first line would be written. No line
+holds a credential: the value of a payload's member whose name is one a
+credential goes by (`token`, which is what a payload names the token a
+resource is cloned by, `password`, `apiKey` and the rest of the
+[short list][bus-log] every bus log keeps) is written as `[withheld]`.
 
 ## What is in the package
 
@@ -832,7 +834,7 @@ payload's member named `token` is written as `[withheld]`.
 | `semiont.transport` | The contract a transport implements: `Transport`, `ContentTransport`, `GatewayOperations` |
 | `semiont.errors`, `semiont.timing`, `semiont.retry` | The failure codes, the deadlines and the retry rules every Semiont SDK shares |
 | `semiont.watched`, `semiont.events` | A value that changes and a sequence of events: what a state and a channel's frames are read as |
-| `semiont.media_types` | The media types a knowledge base admits, and the rules read from them |
+| `semiont.media_types` | The media types a knowledge base admits, with where the text of each comes from and whether it can be authored or generated, and the rules read from them |
 | `semiont.identity` | How a knowledge base is named, and the principals who act in it |
 | `semiont.telemetry` | What the transports tell OpenTelemetry, and `continuing`, which holds the trace a frame or a held job brought |
 | `semiont.testing` | The doubles: `FaultyTransport`, `InMemoryContent`, `StubGateway`, `create_test_client` |

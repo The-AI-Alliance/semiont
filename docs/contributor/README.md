@@ -81,6 +81,7 @@ Each app and package has a README, and most have a `docs/` directory about how t
 |---|---|
 | [LOCAL-DEVELOPMENT.md](LOCAL-DEVELOPMENT.md) | Building your working tree into images and running a stack on them; working on one package without a stack |
 | [TESTING.md](TESTING.md) | The suites, how each is configured and run, the test doubles, and what CI gates |
+| [ADDING-A-JOB.md](ADDING-A-JOB.md) | Adding a kind of job: the path of the change through the spec, the SDKs, the dispatcher, the Worker service, its suite and its rules, and what fails at each step |
 | [DEPENDENCIES.md](DEPENDENCIES.md) | Dependabot, fixing a CVE, the lockfile rule, and how packages in this repository depend on each other |
 | [RELEASE.md](RELEASE.md) | Releasing: one dispatch, what it publishes, and how to verify it |
 

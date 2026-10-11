@@ -1,7 +1,8 @@
 /**
  * What a bus log shows of a payload, held to specs/src/bus/log-cases.json:
- * the table every bus log runs. No line holds the token a resource is cloned
- * by, and nothing else of a line changes.
+ * the table every bus log runs. No line holds a credential: the value of a
+ * member whose name is one of the table's `names` is withheld, and nothing
+ * else of a line changes.
  *
  * `busLog` writes with `console.debug(tag, payload)`, so what it shows of a
  * payload is the second thing it hands the console.
@@ -16,7 +17,7 @@ import { isObject } from '../type-guards';
 interface Case { why: string; payload: unknown; shown: unknown }
 
 const TABLE = 'specs/src/bus/log-cases.json';
-const table: { cases: Case[] } = JSON.parse(readFileSync(resolve(__dirname, '../../../..', TABLE), 'utf8'));
+const table: { names: string[]; cases: Case[] } = JSON.parse(readFileSync(resolve(__dirname, '../../../..', TABLE), 'utf8'));
 
 // The rule reads a name and no channel: every line here is written on this one.
 const CHANNEL = 'yield:clone-create';
@@ -54,7 +55,9 @@ function members(value: unknown): Record<string, unknown> {
 }
 
 describe('what a bus log shows of a payload (specs/src/bus/log-cases.json)', () => {
-  it('has cases that carry a token and cases that carry none, each stating a payload and what is shown of it', () => {
+  it('has names, and cases that carry a credential and cases that carry none, each stating a payload and what is shown of it', () => {
+    expect(table.names.length).toBeGreaterThan(0);
+    expect(new Set(table.names).size).toBe(table.names.length);
     expect(table.cases.length).toBeGreaterThan(0);
     for (const stated of table.cases) {
       expect(typeof stated.why).toBe('string');
@@ -67,6 +70,11 @@ describe('what a bus log shows of a payload (specs/src/bus/log-cases.json)', () 
 
   it.each(table.cases)('$why', ({ payload, shown }) => {
     expect(shownOf(payload)).toStrictEqual(shown);
+  });
+
+  // The names this log withholds under are its own list, and the table's is the one it is held to.
+  it.each(table.names)('withholds the value of a member named %s, and shows the member beside it', (name) => {
+    expect(shownOf({ [name]: 'a-credential', beside: 'shown' })).toStrictEqual({ [name]: '[withheld]', beside: 'shown' });
   });
 });
 

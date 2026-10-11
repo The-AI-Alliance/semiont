@@ -660,7 +660,7 @@ When something on the bus is silently not happening — a job-claim worker that 
 [bus RECV] mark:added scope=res-abc {annotation: ..., ...}
 ```
 
-A line shows the payload, and never the token a resource is cloned by: the value of a member named `token` is written as `[withheld]`.
+A line shows the payload, and never a credential in it: the value of a member whose name is one a credential goes by (`token`, `password`, `apiKey` and the rest of a [short list](../../specs/src/bus/log-cases.json)) is written as `[withheld]`.
 
 Toggle:
 

@@ -15,8 +15,10 @@ the same. Its code is `semiont-observability`'s [logging.rs](../../../packages/o
 
 `SEMIONT_BUS_LOG` lines (`[bus EMIT] …`) and a fatal error's `[fatal] …` go to
 stderr, so stdout stays one format. A `SEMIONT_BUS_LOG` line shows the payload
-of the frame it is about, less one thing: the value of a member named `token`,
-which is the token a resource is cloned by, is written as `[withheld]`
+of the frame it is about, less one thing: the value of a member whose name is
+one a credential goes by (`token`, which is what a payload names the token a
+resource is cloned by, `password`, `apiKey` and the rest of a short list) is
+written as `[withheld]`
 ([EVENT-BUS.md](../../../docs/protocol/EVENT-BUS.md#wire-format-the-bus-log)).
 
 ## What every line carries

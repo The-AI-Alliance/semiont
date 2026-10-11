@@ -14,9 +14,13 @@ the only type that exercises every axis at its hardest setting.
 [`specs/src/media-types/registry.json`](../../specs/src/media-types/registry.json)
 holds one row per supported type. Every SDK generates its table from it:
 TypeScript's is `MEDIA_TYPES` in `packages/core/src/media-types.ts`, Rust's is
-`semiont::media_types`, and Go's is `mediatypes.Rows` in
+`semiont::media_types`, Python's is `MEDIA_TYPES` in
+`semiont.media_types_table`, and Go's is `mediatypes.Rows` in
 `packages/sdk-go/mediatypes`, which the launcher reads to name an upload's
-format from its file extension. A row, as TypeScript reads it:
+format from its file extension. TypeScript's and Rust's tables carry every
+column. Python's carries a type's extension, its `textSource`, and whether it
+is `authorable` and `generatable`; Go's carries the extension alone. A row, as
+TypeScript reads it:
 
 ```ts
 interface MediaTypeCapabilities {
@@ -97,9 +101,17 @@ extending this axis.
 
 Read it with `textSourceOf(format)`. On a registry miss, base types under
 `text/*` fall back to `decode` — RFC 2046 guarantees the `text` top-level type is
-textual — and everything else is `none`.
+textual — and everything else is `none`. The Python worker reads the column
+from the Python SDK's table and answers a registry miss the same way
+(`text_source_of` in `apps/worker`).
 
 - **`decode`** — charset-aware passthrough. The text *is* the bytes. Free.
+  What text the bytes are is stated once, in
+  [`specs/src/text/decode-cases.json`](../../specs/src/text/decode-cases.json),
+  and every reader of a resource's text runs it: the charset the media type
+  states, UTF-8 when it states none, and a leading byte-order mark left out.
+  An offset is counted in that text, so a reader that kept the mark would put
+  every annotation one code point off.
 - **`pdf-text-layer`** — parse the content stream, and where a page has no
   glyphs, rasterize and OCR it. Roughly **2.9 seconds per scanned page**.
 - **`none`** — no text to be had. No embedding, no vector search, no AI detection.

@@ -14,10 +14,10 @@
  * registered, each line also carries `trace=<first8>` of the active span's
  * W3C trace-id.
  *
- * No line holds a credential. One rides the bus, the token a resource is
- * cloned by, which a payload names `token` wherever it carries it: the value
- * of a member of that name is written as `[withheld]`, as every bus log
- * writes it (specs/src/bus/log-cases.json).
+ * No line holds a credential. The value of a member whose whole name is one
+ * a credential goes by (`token`, which is what a payload names the token a
+ * resource is cloned by, and the rest of `CREDENTIALS` below) is written as
+ * `[withheld]`, as every bus log writes it (specs/src/bus/log-cases.json).
  *
  * Cost when disabled: one property read per call, zero allocations.
  *
@@ -63,8 +63,29 @@ export function setBusLogTraceIdProvider(fn: (() => string | undefined) | undefi
 /** What a line says in place of a credential. */
 const WITHHELD = '[withheld]';
 
-/** The name of the member whose value is one. */
-const CREDENTIAL = 'token';
+/**
+ * The names of the members whose value is one: the list
+ * specs/src/bus/log-cases.json states for every bus log, which this
+ * package's tests hold this one to.
+ */
+const CREDENTIALS: ReadonlySet<string> = new Set([
+  'token',
+  'cloneToken',
+  'accessToken',
+  'access_token',
+  'refreshToken',
+  'refresh_token',
+  'apiKey',
+  'api_key',
+  'clientSecret',
+  'client_secret',
+  'secret',
+  'password',
+  'authorization',
+  'Authorization',
+  'x-api-key',
+  'x-goog-api-key',
+]);
 
 /**
  * A payload as a line shows it: as it is, less the value of each credential.
@@ -91,7 +112,7 @@ function shown(value: unknown, copies: Map<unknown, unknown>): unknown {
   for (const [name, member] of Object.entries(value)) {
     // Defined, not assigned: assigning a member named `__proto__` would set the copy's prototype.
     Object.defineProperty(members, name, {
-      value: name === CREDENTIAL ? WITHHELD : shown(member, copies),
+      value: CREDENTIALS.has(name) ? WITHHELD : shown(member, copies),
       enumerable: true,
       writable: true,
       configurable: true,

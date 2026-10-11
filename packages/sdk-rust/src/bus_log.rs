@@ -8,10 +8,10 @@
 //! The trace is the active span's, when a telemetry layer has said how to read
 //! it (`set_trace_id_provider`); this crate depends on none.
 //!
-//! No line holds a credential. One rides the bus, the token a resource is
-//! cloned by, which a payload names `token` wherever it carries it: the value
-//! of a member of that name is written as `[withheld]`, as every bus log
-//! writes it (specs/src/bus/log-cases.json).
+//! No line holds a credential. The value of a member whose whole name is one
+//! a credential goes by (`token`, which is what a payload names the token a
+//! resource is cloned by, and the rest of `CREDENTIALS` below) is written as
+//! `[withheld]`, as every bus log writes it (specs/src/bus/log-cases.json).
 
 use serde_json::Value;
 use std::io::Write;
@@ -23,8 +23,27 @@ static TRACE_ID: OnceLock<fn() -> Option<String>> = OnceLock::new();
 /// What a line says in place of a credential.
 const WITHHELD: &str = "[withheld]";
 
-/// The name of the member whose value is one.
-const CREDENTIAL: &str = "token";
+/// The names of the members whose value is one: the list
+/// specs/src/bus/log-cases.json states for every bus log, which this file's
+/// tests hold this one to.
+const CREDENTIALS: [&str; 16] = [
+    "token",
+    "cloneToken",
+    "accessToken",
+    "access_token",
+    "refreshToken",
+    "refresh_token",
+    "apiKey",
+    "api_key",
+    "clientSecret",
+    "client_secret",
+    "secret",
+    "password",
+    "authorization",
+    "Authorization",
+    "x-api-key",
+    "x-goog-api-key",
+];
 
 /// The lines a test asked to be given in place of stderr.
 #[cfg(feature = "testing")]
@@ -86,7 +105,7 @@ fn shown(value: &Value) -> Value {
             members
                 .iter()
                 .map(|(name, member)| {
-                    let member = if name == CREDENTIAL {
+                    let member = if CREDENTIALS.contains(&name.as_str()) {
                         Value::from(WITHHELD)
                     } else {
                         shown(member)
@@ -158,12 +177,45 @@ mod tests {
             .unwrap_or_else(|error| panic!("{line}: its payload is not JSON: {error}"))
     }
 
-    // What a bus log shows of a payload is one table,
-    // specs/src/bus/log-cases.json, which every bus log runs.
+    /// What a bus log shows of a payload is one table,
+    /// specs/src/bus/log-cases.json, which every bus log runs.
+    fn table() -> Value {
+        serde_json::from_str(include_str!("../specs/bus/log-cases.json"))
+            .expect("the table is JSON")
+    }
+
+    /// The names the table lists.
+    fn names(table: &Value) -> Vec<&str> {
+        table["names"]
+            .as_array()
+            .expect("names")
+            .iter()
+            .map(|name| name.as_str().expect("a name"))
+            .collect()
+    }
+
+    #[test]
+    fn the_names_this_log_withholds_under_are_the_tables_and_no_others() {
+        assert_eq!(names(&table()), CREDENTIALS);
+    }
+
+    #[test]
+    fn the_value_of_a_member_under_each_name_of_the_table_is_withheld() {
+        let table = table();
+        let mut shown = Vec::new();
+        for (at, name) in names(&table).into_iter().enumerate() {
+            let payload = json!({ (name): "a-credential", "beside": "shown" });
+            let written = shown_of(&format!("name:{at}"), &payload);
+            if written != json!({ (name): WITHHELD, "beside": "shown" }) {
+                shown.push(format!("{name}: shown as {written}"));
+            }
+        }
+        assert!(shown.is_empty(), "{shown:#?}");
+    }
+
     #[test]
     fn every_payload_of_the_table_is_shown_as_the_table_says() {
-        let table: Value = serde_json::from_str(include_str!("../specs/bus/log-cases.json"))
-            .expect("the table is JSON");
+        let table = table();
         let cases = table["cases"].as_array().expect("cases");
         assert!(!cases.is_empty());
         let mut carrying = 0;
@@ -185,7 +237,7 @@ mod tests {
         assert!(wrong.is_empty(), "{wrong:#?}");
         assert!(
             (1..cases.len()).contains(&carrying),
-            "the table has no case that carries a token, or none that carries none"
+            "the table has no case that carries a credential, or none that carries none"
         );
     }
 

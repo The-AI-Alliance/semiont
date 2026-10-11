@@ -13,7 +13,6 @@ import {
   isArchived,
   getResourceEntityTypes,
   isDraft,
-  getNodeEncoding,
   decodeRepresentation,
 } from '../resource-utils';
 
@@ -172,45 +171,9 @@ describe('isDraft', () => {
   });
 });
 
-describe('getNodeEncoding', () => {
-  test('maps utf-8', () => {
-    expect(getNodeEncoding('UTF-8')).toBe('utf8');
-  });
-
-  test('maps iso-8859-1 to latin1', () => {
-    expect(getNodeEncoding('ISO-8859-1')).toBe('latin1');
-  });
-
-  test('maps windows-1252 to latin1', () => {
-    expect(getNodeEncoding('Windows-1252')).toBe('latin1');
-  });
-
-  test('maps ascii', () => {
-    expect(getNodeEncoding('US-ASCII')).toBe('ascii');
-  });
-
-  test('defaults to utf8 for unknown', () => {
-    expect(getNodeEncoding('unknown-charset')).toBe('utf8');
-  });
-});
-
-describe('decodeRepresentation', () => {
-  test('decodes utf-8 buffer', () => {
-    const buf = Buffer.from('Hello', 'utf8');
-    expect(decodeRepresentation(buf, 'text/plain; charset=utf-8')).toBe('Hello');
-  });
-
-  test('decodes latin1 buffer', () => {
-    const buf = Buffer.from([0xFC]); // ü in latin1
-    expect(decodeRepresentation(buf, 'text/plain; charset=iso-8859-1')).toBe('ü');
-  });
-
-  test('defaults to utf-8 when no charset', () => {
-    const buf = Buffer.from('Test', 'utf8');
-    expect(decodeRepresentation(buf, 'text/plain')).toBe('Test');
-  });
-});
-
+// What text a media type's bytes are is decode-cases.test.ts's, by the table
+// every reader of a resource's text runs. Here is which media types are read.
+//
 // The chokepoint gate: decoding is only legitimate for media whose text
 // SOURCE is 'decode'. Binary media decoded here would yield megabytes of
 // mojibake (a PDF's raw bytes shipped to inference); it throws instead, so no

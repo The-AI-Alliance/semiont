@@ -6,6 +6,7 @@ import type { components } from './types';
 import type { ResourceDescriptor } from './graph';
 import type { ResourceId } from './identifiers';
 import { derivesTextOf, textSourceOf } from './media-types';
+import { decodeWithCharset } from './text-encoding';
 
 type Representation = components['schemas']['Representation'];
 
@@ -126,39 +127,18 @@ export function isDraft(resource: ResourceDescriptor | undefined): boolean {
 }
 
 /**
- * Map charset names to Node.js Buffer encoding names
- * Node.js Buffer.toString() supports: 'utf8', 'utf16le', 'latin1', 'base64', 'hex', 'ascii', 'binary', 'ucs2'
- *
- * @param charset - Charset name (e.g., "UTF-8", "ISO-8859-1", "Windows-1252")
- * @returns Node.js BufferEncoding
- */
-export function getNodeEncoding(charset: string): BufferEncoding {
-  const normalized = charset.toLowerCase().replace(/[-_]/g, '');
-
-  // Map common charset names to Node.js encodings
-  const charsetMap: Record<string, BufferEncoding> = {
-    'utf8': 'utf8',
-    'iso88591': 'latin1',
-    'latin1': 'latin1',
-    'ascii': 'ascii',
-    'usascii': 'ascii',
-    'utf16le': 'utf16le',
-    'ucs2': 'ucs2',
-    'binary': 'binary',
-    'windows1252': 'latin1', // Windows-1252 is a superset of Latin-1
-    'cp1252': 'latin1',
-  };
-
-  return charsetMap[normalized] || 'utf8';
-}
-
-/**
- * Decode a representation buffer to string using the correct charset
- * Extracts charset from media type and uses appropriate encoding
+ * A representation's bytes as the text they are, for a media type whose bytes
+ * are its text: read as specs/src/text/decode-cases.json states, the table
+ * every reader of a resource's text runs. In the charset the media type
+ * states, UTF-8 when it states none; a leading byte-order mark is not part of
+ * the text; and a sequence the encoding does not have is U+FFFD. An offset
+ * counts the code points of this text, so every reader makes the same text of
+ * the same bytes.
  *
  * @param buffer - The raw representation data
  * @param mediaType - Media type with optional charset (e.g., "text/plain; charset=iso-8859-1")
  * @returns Decoded string
+ * @throws For a media type whose bytes are not its text, and for a charset that is not decoded
  *
  * @example
  * ```typescript
@@ -183,14 +163,7 @@ export function decodeRepresentation(buffer: Buffer, mediaType: string): string 
     );
   }
 
-  // Extract charset from mediaType (e.g., "text/plain; charset=iso-8859-1")
-  const charsetMatch = mediaType.match(/charset=([^\s;]+)/i);
-  const charset = (charsetMatch?.[1] || 'utf-8').toLowerCase();
-
-  // Map to Node.js encoding
-  const encoding = getNodeEncoding(charset);
-
-  return buffer.toString(encoding);
+  return decodeWithCharset(buffer, mediaType);
 }
 
 /**

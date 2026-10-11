@@ -88,6 +88,7 @@ jobs:
           npm run lint:spec-offset-units || fail=1
           npm run openapi:lint || fail=1
           npm run lint:service-environment || fail=1
+          npm run lint:telemetry-doc || fail=1
           npm run lint:rust-images || fail=1
           npm run lint:rust-toolchain || fail=1
           npm run lint:go-toolchain || fail=1

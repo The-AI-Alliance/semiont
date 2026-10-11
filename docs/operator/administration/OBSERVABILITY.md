@@ -17,17 +17,21 @@ headers and SSE `_trace` payload fields.
 
 | Span name              | Site                                      | Kind     |
 |------------------------|-------------------------------------------|----------|
-| `bus.emit:<channel>`   | `HttpTransport.emit`                      | producer |
-| `bus.recv:<channel>`   | Wire-parse / bridge subscriber            | consumer |
-| `actor.<name>:<channel>` | In-process subscriber (Stower / Gatherer / Matcher / Browser / Smelter) | consumer |
-| `content.{put,get}`    | `HttpContentTransport.*`                  | client   |
-| `job:<type>`           | The Worker service, for each job it holds | consumer |
+| `bus.emit:{channel}`   | `HttpTransport.emit`                      | producer |
+| `bus.recv:{channel}`   | Wire-parse / bridge subscriber            | consumer |
+| `actor.{actor}:{channel}` | In-process subscriber (Stower / Gatherer / Matcher / Browser / Smelter) | consumer |
+| `content.put`          | `HttpContentTransport`, for an upload     | client   |
+| `content.get`          | `HttpContentTransport`, for a read of a resource's bytes | client |
+| `job:{jobType}`        | The Worker service, for each job it holds | consumer |
+
+In a span's name `{channel}` is the bus channel, `{jobType}` the job's type, and `{actor}` the
+actor's name.
 
 What the Rust services and the Worker service export is specified, with kinds and attributes, in
 [`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json):
-the gateway's own spans — `bus.dispatch:<channel>`, `sse.deliver:<channel>`,
+the gateway's own spans — `bus.dispatch:{channel}`, `sse.deliver:{channel}`,
 `content.{get,put}.server` and the `archivist.*` client spans — and the Worker's
-`job:<type>`, `detection:prepare` and `inference:*` spans. What an SDK's
+`job:{jobType}`, `detection:prepare` and `inference:*` spans. What an SDK's
 transports export, in any language, is specified in
 [`specs/src/sdk-telemetry/telemetry.json`](../../../specs/src/sdk-telemetry/telemetry.json):
 the `bus.emit` and `bus.recv` spans, the `content.*` client spans, and the
@@ -197,8 +201,10 @@ implicitly) — see `packages/observability/src/node.ts`.
   fixture capture. A line written inside a span carries `trace=`, the
   first 8 hex of the W3C trace-id, so a `busLog` timeline collates with
   traces in the APM UI. A line shows the frame's payload, less the value
-  of a member named `token` (the token a resource is cloned by), which is
-  written as `[withheld]`.
+  of a member whose name is one a credential goes by (`token`, `password`,
+  `apiKey` and the rest of a
+  [short list](../../../specs/src/bus/log-cases.json)), which is written
+  as `[withheld]`.
 - **OTel spans + metrics** (this doc) — distributed tracing and
   metrics over OTLP. Targets a collector + APM gateway.
 
@@ -219,38 +225,64 @@ Librarian, the Smelter and the Weaver.
 | `semiont.inference.tokens`   | counter          | `inference.provider`, `inference.model`, `inference.direction` (`input`/`output`) | Anthropic + Ollama (when usage exposed) |
 | `semiont.inference.duration` | histogram        | `inference.provider`, `inference.model`, `inference.outcome` | Anthropic + Ollama clients               |
 | `semiont.gather.degraded`    | counter          | `projection` (`graph`/`vectors`/`suggestions`)          | Librarian's Gatherer — a gather that came up short: `graph`, the graph projection did not catch up and the gather failed; `vectors`, the vector projection did not settle in time and the context carries no semantic matches; `suggestions`, the summary and suggestions inference call failed and the context carries neither. A rising `graph` or `vectors` rate means the Weaver or the Smelter is not keeping up |
-| `semiont.vector.index.size`  | observable gauge | (none)                                                  | Smelter — the vector store's point count |
-| `semiont.process.start_time` | observable gauge | (none)                                                  | Every service — Unix seconds at which the process started; a change means it restarted |
-| `semiont.process.restarts`   | observable gauge | (none)                                                  | Every supervised service — times the in-container supervisor restarted the process, read back from the supervisor's event log. The series exists only when the run set `SEMIONT_SUPERVISE` (local stacks); absent, not `0`, everywhere else |
+| `semiont.vector.index.size`  | gauge            | (none)                                                  | Smelter — the vector store's point count |
+| `semiont.process.start_time` | gauge            | (none)                                                  | Every service — Unix seconds at which the process started; a change means it restarted |
+| `semiont.process.restarts`   | gauge            | (none)                                                  | Every supervised service — times the in-container supervisor restarted the process, read back from the supervisor's event log. The series exists only when the run set `SEMIONT_SUPERVISE` (local stacks); absent, not `0`, everywhere else |
 | `semiont.process.abnormal_exit` | counter       | `reason` (`unhandledRejection`/`uncaughtException`)     | Every service — a fatal error, counted just before the process exits |
-| `semiont.runtime.event_loop.lag` | observable gauge | `lag.stat` (`mean`/`p99`/`max`)                     | Every service — event-loop delay over the last export interval, in ms: time the process could serve nothing |
-| `semiont.runtime.heap`       | observable gauge | `heap.stat` (`used`/`total`/`limit`/`rss`)              | Every service — process memory in bytes. `limit` is V8's own heap ceiling, which is what the process dies at, not the container's allocation |
+| `semiont.runtime.event_loop.lag` | gauge        | `lag.stat` (`mean`/`p99`/`max`)                     | Every service — event-loop delay over the last export interval, in ms: time the process could serve nothing |
+| `semiont.runtime.heap`       | gauge            | `heap.stat` (`used`/`total`/`limit`/`rss`)              | Every service — process memory in bytes. `limit` is V8's own heap ceiling, which is what the process dies at, not the container's allocation |
 
-The gateway, the dispatcher and the Archivist are Rust and export their own metrics: the
-`semiont.process.*` and `semiont.runtime.*` instruments of the rows above, the
-gateway's counters, `semiont.sse.subscribers` and `semiont.bus.correlation.size`,
-the dispatcher's `semiont.job.queue.size`, and the Archivist's
-`semiont.archivist.fact_pump.depth`, `semiont.git.duration` and
-`semiont.git.staging.failures`. They are specified, with their
-instruments, attributes and attribute values, in
-[`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json).
+The gateway, the dispatcher and the Archivist are Rust and export their own metrics,
+specified with their instruments, attributes and attribute values in
+[`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json):
+the `semiont.process.*` and `semiont.runtime.*` instruments of the rows above, and the rows
+below. **When** is that table's word for when a series is there: `export`, whenever the
+service exports at all; `traffic`, from the first thing of its kind the service has to count.
+
+The gateway:
+
+| Metric                       | Type             | Attributes                                              | When    | What it is                                    |
+|------------------------------|------------------|---------------------------------------------------------|---------|-----------------------------------------------|
+| `semiont.bus.emit`           | counter          | `bus.channel`, and `bus.scope` on an emit in a resource scope | traffic | Emits the gateway accepted |
+| `semiont.bus.reply.suppressed` | counter        | `bus.channel`                                           | traffic | Correlated replies withheld from a subscriber that did not ask for them |
+| `semiont.bus.resume_gap`     | counter          | `bus.resume_gap.reason`                                 | traffic | Resumes answered with a gap, by the gap's reason |
+| `semiont.bus.unanswerable`   | counter          | `bus.channel`                                           | traffic | Requests no participant could answer. Only a plane that can count subscribers counts them: the `in-process` signal plane |
+| `semiont.sse.subscribers`    | up-down counter  | (none)                                                  | traffic | Open bus streams |
+| `semiont.gateway.refused`    | counter          | `refused.reason` (`streams`/`emit-rate`/`unanswered-requests`/`capacity`/`connections`) | traffic | Requests a limit refused — a principal's streams or emit bucket, a client's unanswered requests, the process's queued bytes — and connections closed at its connection cap |
+| `semiont.gateway.unauthenticated` | counter     | `unauthenticated.reason` (`missing_token`/`invalid_token`/`invalid_media_token`) | traffic | Requests answered 401, by why: no bearer token, a bearer token refused, a media token refused |
+| `semiont.bus.correlation.size` | gauge          | `correlation.kind` (`claims`/`claims_max`)              | export  | Outstanding request claims, and the cap on them |
+
 The emits a client sent are a count of their own, `semiont.bus.sent`, a row of
 [`specs/src/sdk-telemetry/telemetry.json`](../../../specs/src/sdk-telemetry/telemetry.json);
 `semiont.bus.emit` is the gateway's count of the emits it accepted.
+
+The dispatcher:
+
+| Metric                       | Type             | Attributes                                              | When    | What it is                                    |
+|------------------------------|------------------|---------------------------------------------------------|---------|-----------------------------------------------|
+| `semiont.job.queue.size`     | gauge            | `job.status` (`pending`/`running`/`complete`/`failed`/`cancelled`) | export | The jobs in the queue, by status |
+
+The Archivist:
+
+| Metric                       | Type             | Attributes                                              | When    | What it is                                    |
+|------------------------------|------------------|---------------------------------------------------------|---------|-----------------------------------------------|
+| `semiont.archivist.fact_pump.depth` | gauge     | (none)                                                  | export  | Events appended to the record and not yet published on the bus. Zero at rest; a rising floor means publishing is behind its transport |
+| `semiont.git.duration`       | histogram        | `git.command` (`add`/`rm`/`rev-parse`)                  | traffic | How long each git command the staging driver ran took, in milliseconds, the failing ones too |
+| `semiont.git.staging.failures` | counter        | `reason` (`index-lock`/`other`)                         | traffic | Staging degradations: changes recorded and not staged, by why |
 
 The Worker service is Python and exports its own too, specified in the same table: the
 `semiont.process.*` and `semiont.runtime.*` instruments of the rows above, the three
 `semiont.inference.*` rows for the generations it asks of its providers, and these:
 
-| Metric                       | Type             | Attributes                                              | Where                                         |
-|------------------------------|------------------|---------------------------------------------------------|-----------------------------------------------|
-| `semiont.job.outcome`        | counter          | `job.type` (`mark` / `yield`), `job.motivation` on a `mark` job, `job.outcome` (`completed` / `failed` / `cancelled`) | Every job a worker held, by how it ended |
-| `semiont.job.duration`       | histogram        | `job.type`, `job.motivation` on a `mark` job, `job.outcome` | How long a worker held each job, in ms    |
-| `semiont.detection.calls`    | counter          | `detection.label`, `detection.outcome` (`success`/`truncated`/`collapsed`/`timeout`/`error`), `detection.depth`, `detection.reroll` | Worker detection — one row per model call, failed attempts included |
-| `semiont.detection.call.duration` | histogram   | same as `semiont.detection.calls`                       | Worker detection per-call wall time           |
-| `semiont.detection.call.items` | histogram      | same as `semiont.detection.calls`                       | Annotations returned per call — against input size, this is yield |
-| `semiont.detection.call.tokens` | histogram     | same, plus `detection.direction` (`input`/`output`)     | Provider-reported tokens per detection call; kept separate from `semiont.inference.tokens` because that series carries no subdivision depth |
-| `semiont.detection.anchors`  | counter          | `detection.label`, `anchor.method` (`unique-match`/`context-recovered`/`first-of-many`/`fuzzy-match`) | Every annotation anchoring — the degraded-method **rate** is the precision signal, so clean outcomes are counted too |
+| Metric                       | Type             | Attributes                                              | When    | What it is                                    |
+|------------------------------|------------------|---------------------------------------------------------|---------|-----------------------------------------------|
+| `semiont.job.outcome`        | counter          | `job.type` (`mark` / `yield`), `job.motivation` on a `mark` job, `job.outcome` (`completed` / `failed` / `cancelled`) | traffic | Every job a worker held, by how it ended |
+| `semiont.job.duration`       | histogram        | `job.type`, `job.motivation` on a `mark` job, `job.outcome` | traffic | How long a worker held each job, in ms    |
+| `semiont.detection.calls`    | counter          | `detection.label`, `detection.outcome` (`success`/`truncated`/`collapsed`/`timeout`/`error`), `detection.depth`, `detection.reroll` | traffic | Worker detection — one row per model call, failed attempts included |
+| `semiont.detection.call.duration` | histogram   | `detection.label`, `detection.outcome`, `detection.depth`, `detection.reroll` | traffic | Worker detection per-call wall time |
+| `semiont.detection.call.items` | histogram      | `detection.label`, `detection.outcome`, `detection.depth`, `detection.reroll` | traffic | Annotations returned per call — against input size, this is yield |
+| `semiont.detection.call.tokens` | histogram     | `detection.label`, `detection.outcome`, `detection.depth`, `detection.reroll`, `detection.direction` (`input`/`output`) | traffic | Provider-reported tokens per detection call; kept separate from `semiont.inference.tokens` because that series carries no subdivision depth |
+| `semiont.detection.anchors`  | counter          | `detection.label`, `anchor.method` (`unique-match`/`context-recovered`/`first-of-many`/`fuzzy-match`) | traffic | Every annotation anchoring — the degraded-method **rate** is the precision signal, so clean outcomes are counted too |
 
 Of its memory (`semiont.runtime.heap`) the Worker service reports `total`, `limit` and `rss`,
 and no `used`: Python keeps no count of how much of its heap is in use. Its `limit` is the

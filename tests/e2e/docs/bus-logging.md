@@ -22,11 +22,12 @@ traces of [Observability](../../../docs/operator/administration/OBSERVABILITY.md
 first 8 hex of the W3C trace-id, so it correlates the grep timeline
 with the span tree in any APM UI.
 
-No line holds a credential. One rides the bus: the token a resource is
-cloned by, which a payload names `token`. Every bus log writes the value
-of a member named `token` as `[withheld]`, wherever in a payload the
-member is; everything else of a payload is written as it is. The rule is
-one table, [`specs/src/bus/log-cases.json`](../../../specs/src/bus/log-cases.json),
+No line holds a credential. Every bus log writes the value of a member
+whose whole name is one a credential goes by (`token`, `password`,
+`apiKey` and the rest of a short list) as `[withheld]`, wherever in a
+payload the member is; everything else of a payload is written as it is.
+The list and the rule are one table,
+[`specs/src/bus/log-cases.json`](../../../specs/src/bus/log-cases.json),
 which the TypeScript, Rust and Python bus logs each run.
 
 Cost when disabled: a single truthy check, zero allocations.

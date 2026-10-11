@@ -6,9 +6,11 @@
 //   packages/sdk-python/src/semiont/media_types_table.py
 //
 // Python reads the registry for the two rules specs/src/media-types/cases.json
-// holds in every SDK: the format a clone takes, and the name content is
-// stored under. So a row carries its media type, its extension and whether a
-// person can author it, and nothing no Python code reads.
+// holds in every SDK (the format a clone takes, and the name content is
+// stored under) and for what a worker asks of a type: where its text comes
+// from, and whether a generation can write it. So a row carries its media
+// type, its extension, where its text comes from, whether a person can author
+// it and whether it can be generated, and nothing no Python code reads.
 //
 // --check compares without writing (the CI drift gate).
 
@@ -24,16 +26,19 @@ const ENUM = resolve(ROOT, 'specs/src/components/schemas/SupportedMediaType.json
 const OUT = resolve(ROOT, 'packages/sdk-python/src/semiont/media_types_table.py');
 const CHECK = process.argv.includes('--check');
 
-const { rows } = readMediaTypeTable(TABLE, ENUM);
+const { table, rows } = readMediaTypeTable(TABLE, ENUM);
 const pyBool = (value) => (value ? 'True' : 'False');
 
 const text = `${pyBanner('specs/src/media-types/registry.json', 'scripts/spec/generate-media-types-python.mjs')}
 """The media types a knowledge base admits, with what this SDK reads of each."""
 
 from dataclasses import dataclass
-from typing import Final, final
+from typing import Final, Literal, final
 
-__all__ = ["MEDIA_TYPES", "MediaType"]
+__all__ = ["MEDIA_TYPES", "MediaType", "TextSource"]
+
+type TextSource = Literal[${table.textSource.map(pyString).join(', ')}]
+"""Where a type's text comes from: decoded from its own bytes, derived by reading them, or nowhere."""
 
 
 @final
@@ -44,13 +49,22 @@ class MediaType:
     media_type: str
     extension: str
     """The extension a stored name takes, with its dot."""
+    text_source: TextSource
     authorable: bool
     """Offered where a person writes a resource."""
+    generatable: bool
+    """The generation worker can produce it."""
 
 
 # The registry, in its own order: ${rows.length} media types.
 MEDIA_TYPES: Final[tuple[MediaType, ...]] = (
-${rows.map((row) => `    MediaType(media_type=${pyString(row.mediaType)}, extension=${pyString(row.extension)}, authorable=${pyBool(row.authorable)}),`).join('\n')}
+${rows
+  .map(
+    (row) =>
+      `    MediaType(media_type=${pyString(row.mediaType)}, extension=${pyString(row.extension)}, ` +
+      `text_source=${pyString(row.textSource)}, authorable=${pyBool(row.authorable)}, generatable=${pyBool(row.generatable)}),`,
+  )
+  .join('\n')}
 )
 `;
 

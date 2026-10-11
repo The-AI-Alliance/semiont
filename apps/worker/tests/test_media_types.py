@@ -1,55 +1,35 @@
 """What the worker reads of a media type, held to the registry of the media types a knowledge base admits.
 
-The registry is `specs/src/media-types/registry.json`. The SDK's table of it
-carries neither where a type's text comes from nor whether the worker can
-generate it. So the module writes both out by hand, and nothing generates
-them: a row the registry gains, loses or changes fails here.
+The registry is `specs/src/media-types/registry.json`, and the SDK's table of
+it carries where a type's text comes from and whether it can be generated. The
+worker reads both from that table, so what it answers for a row is held here to
+the registry itself. Its own rule is the answer for a type the registry lacks.
 """
 
-from typing import Annotated, Final, get_args
+from typing import Annotated, Final
 
 from pydantic import BaseModel, Field
-from semiont.media_types_table import MEDIA_TYPES
 from spec import SPEC
 
-from semiont_worker.media_types import GENERATABLE_MEDIA_TYPES, TEXT_SOURCES, TextSource, text_source_of
+from semiont_worker.media_types import GENERATABLE_MEDIA_TYPES, text_source_of
 
 
-class Row(BaseModel, frozen=True, extra="forbid", strict=True):
+class Row(BaseModel, frozen=True):
     media_type: Annotated[str, Field(alias="mediaType")]
-    extension: str
-    label: str
-    render: str
-    anchoring: str
     text_source: Annotated[str, Field(alias="textSource")]
-    authorable: bool
-    uploadable: bool
     generatable: bool
 
 
-class Registry(BaseModel, frozen=True, extra="forbid", strict=True):
-    comment: Annotated[str, Field(alias="$comment")]
-    render: list[str]
-    anchoring: list[str]
+class Registry(BaseModel, frozen=True):
     text_source: Annotated[list[str], Field(alias="textSource")]
-    extension_aliases: Annotated[dict[str, str], Field(alias="extensionAliases")]
     media_types: Annotated[list[Row], Field(alias="mediaTypes")]
 
 
 REGISTRY: Final = Registry.model_validate_json((SPEC / "media-types/registry.json").read_bytes())
 
 
-def test_the_registry_was_read_and_the_sdk_s_table_is_of_it() -> None:
+def test_where_each_type_s_text_comes_from_is_what_its_row_of_the_registry_says() -> None:
     assert len(REGISTRY.media_types) >= 63
-    assert [row.media_type for row in MEDIA_TYPES] == [row.media_type for row in REGISTRY.media_types]
-
-
-def test_the_places_a_type_s_text_comes_from_are_the_registry_s() -> None:
-    assert list(get_args(TextSource.__value__)) == REGISTRY.text_source
-
-
-def test_where_each_type_s_text_comes_from_is_what_its_row_says_each_type_once_and_in_the_registry_s_order() -> None:
-    assert list(TEXT_SOURCES.items()) == [(row.media_type, row.text_source) for row in REGISTRY.media_types]
     assert [text_source_of(row.media_type) for row in REGISTRY.media_types] == [row.text_source for row in REGISTRY.media_types]
     # Each of the three is some row's, so each is told from the other two here.
     assert {row.text_source for row in REGISTRY.media_types} == set(REGISTRY.text_source)
