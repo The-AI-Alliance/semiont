@@ -5,8 +5,10 @@
 # An installer reads that line itself, and so does ruff. What cannot asks
 # here, so the line is read in one place and one way: scripts/ci/local-build.sh
 # (its Python image is python:<floor>-alpine), the SDK's model generator (the
-# Python its classes are written for), and lint:python-version, which holds
-# every restatement of the floor to it.
+# Python its classes are written for), whatever builds the worker image (the
+# Python it runs on, which apps/worker/Dockerfile takes as PYTHON_FLOOR:
+# local-build.sh and publish-service-images.yml), and lint:python-version,
+# which holds every restatement of the floor to it.
 #
 # With no floor it prints nothing and fails, so a build that cannot name its
 # Python stops. It is plain sh: an image with no bash can run it.

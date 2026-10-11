@@ -10,4 +10,5 @@ async def work(gateway: str, issuer: str, secret: str) -> None:
         AgentToken(gateway, provider="ollama", model="gemma2:27b", service=service) as agent,
         HttpTransport(gateway, token=agent.token, refresher=agent.refresh, channels=reply_channels_for(JOB_CLAIM)) as transport,
     ):
+        print(f"working as {agent.did}")  # who its work is attributed to, as the gateway named it
         print(await reached(transport.state, lambda state: state == "open"))  # its stream is open, as the agent

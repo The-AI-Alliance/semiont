@@ -401,9 +401,12 @@ job is one unit for each of its `categories`.
 - **D16.** A job reports where it stands with `job:report-progress`
   ([WORKER-CONTRACT L2](./WORKER-CONTRACT.md#the-lifecycle)): a `percentage`,
   and a `message` that is a code with its values, never a sentence. The
-  service does not wait for the gateway to take a report before it goes on,
-  so the order in which reports and the messages around them arrive is not
-  fixed; what is fixed is which reports are made, and how many times.
+  service does not wait for the gateway to take a report before it goes on
+  with the job's work, so the order in which reports and the messages around
+  them arrive is not fixed; what is fixed is which reports are made, and how
+  many times. It does wait for every report it has made to be taken before
+  it completes, fails or cancels the job, so none arrives after the job is
+  settled. A report the gateway refuses is not made again, and fails nothing.
   *Held by `worker-service/highlighting`.*
 - **D17.** A highlighting, commenting or assessing job reports `loading` at
   10 and `analyzing` at 30; after each piece, `creating-annotations` at 60
@@ -856,8 +859,14 @@ focused on a resource or on an annotation.
 Beside its document, a Worker service reads its environment for its service
 account (`SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`,
 [B3](#configuration)), for the keys its document names
-([B4](#configuration)), and for the variables of this section. It reads no
-other, beyond the standard variables an OpenTelemetry SDK reads on its own.
+([B4](#configuration)), and for the variables of this section. Its own code
+reads no other. The libraries it is built on read some unasked. Its
+OpenTelemetry SDK and exporter read the standard variables they read on
+their own, but none that would say where its telemetry goes, the name it
+goes under, or what else it says of the service: the first two are this
+section's to say ([E1](#environment), [E3](#environment)), and the rest the
+telemetry table's ([T1](#telemetry)). A provider's library reads those of
+its own, such as a proxy and the certificates it trusts.
 
 - **E1.** `OTEL_EXPORTER_OTLP_ENDPOINT` is the OTLP/HTTP collector the
   service's spans and metrics are exported to ([T1](#telemetry)). Without it,
@@ -872,7 +881,7 @@ other, beyond the standard variables an OpenTelemetry SDK reads on its own.
   makes when it settles a job is not in that job's trace.
   *Held by `worker-service/environment`.*
 - **E3.** `OTEL_SERVICE_NAME` is the `service.name` its spans and metrics
-  carry; `semiont-worker` when unset.
+  carry; `semiont-worker` when unset or empty.
   *Held by `worker-service/environment`.*
 - **E4.** `OTEL_SDK_DISABLED` set to `true` exports nothing, whatever else is
   set.

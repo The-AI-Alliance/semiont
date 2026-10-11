@@ -9,4 +9,4 @@ export { ProviderStatusError, ProviderWithheldError, StructuredReadError, Struct
 export { AnthropicInferenceClient } from './implementations/anthropic';
 export { OllamaInferenceClient } from './implementations/ollama';
 export { MockInferenceClient } from './implementations/mock';
-export { answerLimitsRequests, reportLimits, LIMITS_REPORT_BUDGET_MS, type LimitsSource } from './limits-report';
+export { answerLimitsRequests, reportLimits, LIMITS_REPORT_BUDGET_MS } from './limits-report';

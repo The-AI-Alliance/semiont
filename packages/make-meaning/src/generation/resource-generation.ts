@@ -4,9 +4,6 @@
  * Application-specific resource generation logic:
  * - Resource summary generation
  * - Reference suggestion generation
- *
- * NOTE: generateResourceFromTopic lives in @semiont/jobs (canonical location)
- * because make-meaning depends on jobs, not vice versa.
  */
 
 import type { InferenceClient } from '@semiont/inference';

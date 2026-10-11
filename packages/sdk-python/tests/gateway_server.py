@@ -61,6 +61,8 @@ class Answer:
     """Close the connection without a word."""
     promise: int | None = None
     """State this length for the body, send the body there is, and close: the bytes stop coming."""
+    raw: bytes | None = None
+    """Write these bytes as they are, and close: what is said need not be HTTP."""
 
 
 NOT_FOUND: Final = Answer(status=404, body=b'{"error":"The gateway has no such thing"}')
@@ -199,6 +201,10 @@ class GatewayServer:
                     for waiting in (closed, leaving):
                         waiting.cancel()
                     await asyncio.gather(closed, leaving, return_exceptions=True)
+                    return
+                if answer.raw is not None:
+                    writer.write(answer.raw)
+                    await writer.drain()
                     return
                 stated = {"Content-Type": "application/json", **answer.headers}
                 length = len(answer.body) if answer.promise is None else answer.promise

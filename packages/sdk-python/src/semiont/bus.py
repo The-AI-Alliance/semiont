@@ -38,6 +38,7 @@ from typing import Final, Self, final, overload
 
 from pydantic import JsonValue, ValidationError
 
+from semiont._lacks import lacks
 from semiont.channel import AnyOperation, Channel, Operation, ScopedChannel
 from semiont.errors import BusRequestError, TransportError
 from semiont.events import Events
@@ -177,6 +178,11 @@ def _delivered[P: WireModel](channel: Channel[P] | ScopedChannel[P], frame: Fram
     )
 
 
+def _refused[P: WireModel](channel: Channel[P] | ScopedChannel[P], error: ValidationError) -> str:
+    """What is said of a payload on `channel` that was refused as not that channel's: what it lacks, and none of what it holds."""
+    return f"a payload on {channel.name} is not that channel's: {lacks(channel.members, error, "that channel's payload")}"
+
+
 @final
 class Typed[P: WireModel]:
     """One channel's frames from now on, each with its payload decoded.
@@ -215,7 +221,7 @@ class Typed[P: WireModel]:
             try:
                 return _delivered(self._channel, frame)
             except ValidationError as error:
-                _LOG.warning("a payload on %s is not that channel's: %s", self._channel.name, error)
+                _LOG.warning("%s", _refused(self._channel, error))
                 continue
 
     async def aclose(self) -> None:
@@ -294,4 +300,6 @@ async def answer_of[Q: WireModel, R: WireModel, F: WireModel](
     try:
         return _delivered(operation.result, reply)
     except ValidationError as error:
-        raise TransportError("error", f"a payload on {operation.result.name} is not that channel's: {error}") from error
+        said = _refused(operation.result, error)
+    # Raised from nothing: the decoder's failure shows the payload, and what a failure is raised from is printed with it.
+    raise TransportError("error", said)

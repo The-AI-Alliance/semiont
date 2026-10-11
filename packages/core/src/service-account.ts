@@ -19,6 +19,7 @@
 
 import { HTTP_REQUEST_TIMEOUT_MS } from './generated/client-timing';
 import { isObject, isString } from './type-guards';
+import { UnansweredError, jsonOf } from './unanswered';
 
 export interface ServiceAccountCredential {
   /** The issuer URL, exactly as it appears in tokens' `iss`. */
@@ -55,11 +56,14 @@ async function tokenEndpoint(issuer: string): Promise<string> {
         '.well-known/openid-configuration',
         issuer.endsWith('/') ? issuer : `${issuer}/`,
       );
-      const response = await fetch(url, { signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS) });
+      const unanswered = (error: unknown) => new UnansweredError(`OIDC discovery for ${issuer}`, error);
+      const response = await fetch(url, { signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS) }).catch((error: unknown) => {
+        throw unanswered(error);
+      });
       if (!response.ok) {
         throw new Error(`OIDC discovery for ${issuer} failed: HTTP ${response.status} from ${url}`);
       }
-      const document: unknown = await response.json();
+      const document = await jsonOf(response, unanswered);
       if (!isObject(document) || !isString(document['token_endpoint'])) {
         throw new Error(`OIDC discovery for ${issuer} returned no \`token_endpoint\``);
       }
@@ -98,6 +102,7 @@ export async function serviceAccountToken(credential: ServiceAccountCredential):
 
   const endpoint = await tokenEndpoint(issuer);
 
+  const unanswered = (error: unknown) => new UnansweredError(`Client-credentials grant for ${clientId} at ${issuer}`, error);
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
@@ -107,6 +112,8 @@ export async function serviceAccountToken(credential: ServiceAccountCredential):
       client_secret: clientSecret,
     }),
     signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS),
+  }).catch((error: unknown) => {
+    throw unanswered(error);
   });
 
   if (!response.ok) {
@@ -117,7 +124,7 @@ export async function serviceAccountToken(credential: ServiceAccountCredential):
     );
   }
 
-  const body: unknown = await response.json();
+  const body = await jsonOf(response, unanswered);
   if (!isObject(body) || !isString(body['access_token'])) {
     throw new Error(`Token endpoint for ${issuer} returned no \`access_token\``);
   }

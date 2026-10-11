@@ -10,10 +10,9 @@ The model providers Semiont's services call, behind one interface. An `Inference
 
 ## Who uses it
 
-Two of Semiont's services hold a model credential, and only they create clients:
+One of Semiont's services creates clients from this package: the [Librarian](../../apps/librarian/README.md), through [`@semiont/make-meaning`](../make-meaning/README.md), one for the Matcher and one for the Gatherer.
 
-- the [Worker](../../apps/worker/README.md), through [`@semiont/jobs`](../jobs/README.md): one client for each model its jobs are configured with;
-- the [Librarian](../../apps/librarian/README.md), through [`@semiont/make-meaning`](../make-meaning/README.md): one for the Matcher and one for the Gatherer.
+The [Worker](../../apps/worker/README.md) holds a model credential too. It is Python, and asks its models through this package's Python counterpart, [`semiont-inference`](../inference-python/README.md).
 
 **Building an application?** You do not need this package. An application asks a knowledge base to do the inference, through [`@semiont/sdk`](../sdk/README.md): `mark.delegate`, `yield.delegate`, `gather` and `match`.
 

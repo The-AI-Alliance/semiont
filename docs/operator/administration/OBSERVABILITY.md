@@ -21,7 +21,7 @@ headers and SSE `_trace` payload fields.
 | `bus.recv:<channel>`   | Wire-parse / bridge subscriber            | consumer |
 | `actor.<name>:<channel>` | In-process subscriber (Stower / Gatherer / Matcher / Browser / Smelter) | consumer |
 | `content.{put,get}`    | `HttpContentTransport.*`                  | client   |
-| `job:<type>`           | Worker `handleJob`                        | consumer |
+| `job:<type>`           | The Worker service, for each job it holds | consumer |
 
 What the Rust services and the Worker service export is specified, with kinds and attributes, in
 [`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json):
@@ -49,14 +49,15 @@ bus.emit:browse:resource-requested              [HttpTransport.emit]
          └─ bus.recv:browse:resource-result     [SPA wire-parse]
 ```
 
-A worker job adds:
+A worker's `yield` job adds:
 
 ```
-job:mark                                        [worker handleJob]
-├─ bus.emit:job:report-progress                 [progress emits]
-├─ content.put                                  [yield.resource() upload]
+job:yield                                       [the Worker service]
+├─ inference:text                               [the generation]
+├─ bus.emit:job:report-progress                 [progress]
+├─ content.put                                  [the upload of what was generated]
 │  └─ content.put.server                        [/resources POST]
-└─ bus.emit:mark:create
+└─ bus.emit:mark:commit                         [the link to the new resource]
 ```
 
 ## Configuring an exporter
@@ -66,7 +67,9 @@ job:mark                                        [worker handleJob]
 The standard OpenTelemetry variables, set in each service's environment. The launcher sets the endpoint for every service it starts; on your own platform, set it in each container's environment.
 The Rust services — the gateway, the dispatcher and the Archivist — read the ones their
 environment table lists ([`variables.json`](../../../specs/src/service-environment/variables.json))
-and configure their SDK from them; the table below is the sidecars'.
+and configure their SDK from them. The Worker service reads the ones
+[WORKER-SERVICE.md](../../protocol/WORKER-SERVICE.md#environment) lists. The table below is the
+three Node services': the Librarian's, the Smelter's and the Weaver's.
 
 | Variable                          | Default                                | Purpose                            |
 |-----------------------------------|----------------------------------------|------------------------------------|
@@ -181,7 +184,8 @@ implicitly) — see `packages/observability/src/node.ts`.
 ## Relationship to the structured logger and `busLog`
 
 - **Structured logger** (the Rust services', in `packages/observability-rust/src/logging.rs`;
-  `createProcessLogger()` in the TypeScript services) — JSON-line,
+  `createProcessLogger()` in the Node services; the Worker service's, in
+  `apps/worker/src/semiont_worker/log.py`) — JSON-line,
   level-filtered, always on. Logs semantic events (validation failed,
   user authenticated). Goes to log aggregator. Every line is auto-
   tagged with the active span's `trace_id` / `span_id` when one
@@ -202,23 +206,16 @@ Alongside traces, every service exports metrics through the same OTLP
 endpoint. No extra config required — the `OTEL_EXPORTER_OTLP_ENDPOINT`
 you set for traces also drives metrics. The Browser exports spans only.
 
-The table is what the TypeScript services export: the
-Librarian, the Smelter, the Weaver and the worker.
+The table is what the Node services export: the
+Librarian, the Smelter and the Weaver.
 
 | Metric                       | Type             | Attributes                                              | Where                                         |
 |------------------------------|------------------|---------------------------------------------------------|-----------------------------------------------|
 | `semiont.bus.sent`           | counter          | `bus.channel`, and `bus.scope` on a scoped emit         | Every transport `emit` (`HttpTransport`): an emit a client sent |
 | `semiont.handler.duration`   | histogram        | `actor`, `bus.channel`                                  | Every actor handler (Stower / Gatherer / Matcher / Browser / Smelter) |
-| `semiont.job.outcome`        | counter          | `job.type` (`mark` / `yield`), `job.motivation` on a `mark` job, `job.outcome` (`completed` / `failed` / `cancelled`) | Worker `handleJob`                       |
-| `semiont.job.duration`       | histogram        | `job.type`, `job.motivation` on a `mark` job, `job.outcome` | Worker `handleJob`                            |
 | `semiont.inference.calls`    | counter          | `inference.provider`, `inference.model`, `inference.outcome` | Anthropic + Ollama clients               |
 | `semiont.inference.tokens`   | counter          | `inference.provider`, `inference.model`, `inference.direction` (`input`/`output`) | Anthropic + Ollama (when usage exposed) |
 | `semiont.inference.duration` | histogram        | `inference.provider`, `inference.model`, `inference.outcome` | Anthropic + Ollama clients               |
-| `semiont.detection.calls`    | counter          | `detection.label`, `detection.outcome` (`success`/`truncated`/`collapsed`/`timeout`/`error`), `detection.depth`, `detection.reroll` | Worker detection — one row per model call, failed attempts included |
-| `semiont.detection.call.duration` | histogram   | same as `semiont.detection.calls`                       | Worker detection per-call wall time           |
-| `semiont.detection.call.items` | histogram      | same as `semiont.detection.calls`                       | Annotations returned per call — against input size, this is yield |
-| `semiont.detection.call.tokens` | histogram     | same, plus `detection.direction` (`input`/`output`)     | Provider-reported tokens per detection call; kept separate from `semiont.inference.tokens` because that series carries no subdivision depth |
-| `semiont.detection.anchors`  | counter          | `detection.label`, `anchor.method` (`unique-match`/`context-recovered`/`first-of-many`/`fuzzy-match`) | Every annotation anchoring — the degraded-method **rate** is the precision signal, so clean outcomes are counted too |
 | `semiont.gather.degraded`    | counter          | `projection` (`graph`/`vectors`/`suggestions`)          | Librarian's Gatherer — a gather that came up short: `graph`, the graph projection did not catch up and the gather failed; `vectors`, the vector projection did not settle in time and the context carries no semantic matches; `suggestions`, the summary and suggestions inference call failed and the context carries neither. A rising `graph` or `vectors` rate means the Weaver or the Smelter is not keeping up |
 | `semiont.vector.index.size`  | observable gauge | (none)                                                  | Smelter — the vector store's point count |
 | `semiont.process.start_time` | observable gauge | (none)                                                  | Every service — Unix seconds at which the process started; a change means it restarted |
@@ -239,6 +236,25 @@ The emits a client sent are a count of their own, `semiont.bus.sent`, a row of
 [`specs/src/sdk-telemetry/telemetry.json`](../../../specs/src/sdk-telemetry/telemetry.json);
 `semiont.bus.emit` is the gateway's count of the emits it accepted.
 
+The Worker service is Python and exports its own too, specified in the same table: the
+`semiont.process.*` and `semiont.runtime.*` instruments of the rows above, the three
+`semiont.inference.*` rows for the generations it asks of its providers, and these:
+
+| Metric                       | Type             | Attributes                                              | Where                                         |
+|------------------------------|------------------|---------------------------------------------------------|-----------------------------------------------|
+| `semiont.job.outcome`        | counter          | `job.type` (`mark` / `yield`), `job.motivation` on a `mark` job, `job.outcome` (`completed` / `failed` / `cancelled`) | Every job a worker held, by how it ended |
+| `semiont.job.duration`       | histogram        | `job.type`, `job.motivation` on a `mark` job, `job.outcome` | How long a worker held each job, in ms    |
+| `semiont.detection.calls`    | counter          | `detection.label`, `detection.outcome` (`success`/`truncated`/`collapsed`/`timeout`/`error`), `detection.depth`, `detection.reroll` | Worker detection — one row per model call, failed attempts included |
+| `semiont.detection.call.duration` | histogram   | same as `semiont.detection.calls`                       | Worker detection per-call wall time           |
+| `semiont.detection.call.items` | histogram      | same as `semiont.detection.calls`                       | Annotations returned per call — against input size, this is yield |
+| `semiont.detection.call.tokens` | histogram     | same, plus `detection.direction` (`input`/`output`)     | Provider-reported tokens per detection call; kept separate from `semiont.inference.tokens` because that series carries no subdivision depth |
+| `semiont.detection.anchors`  | counter          | `detection.label`, `anchor.method` (`unique-match`/`context-recovered`/`first-of-many`/`fuzzy-match`) | Every annotation anchoring — the degraded-method **rate** is the precision signal, so clean outcomes are counted too |
+
+Of its memory (`semiont.runtime.heap`) the Worker service reports `total`, `limit` and `rss`,
+and no `used`: Python keeps no count of how much of its heap is in use. Its `limit` is the
+container's own memory limit. It counts a `semiont.process.abnormal_exit` for a failure
+nothing caught once it had started, as `uncaughtException`.
+
 Additional vars:
 
 | Variable                          | Default | Purpose                                       |
@@ -253,8 +269,8 @@ metric snapshots also print to the service's output at each export interval.
 
 Every log line a service writes is tagged with `trace_id` and `span_id`
 when an active span exists: the Rust services — the gateway, the
-dispatcher and the Archivist — by their logger, the TypeScript services by
-`createProcessLogger()`. Log queries in CloudWatch / Loki / Datadog
+dispatcher and the Archivist — and the Worker service by their loggers, the
+Node services by `createProcessLogger()`. Log queries in CloudWatch / Loki / Datadog
 can be filtered by `trace_id` and joined with the trace UI.
 
 ```json

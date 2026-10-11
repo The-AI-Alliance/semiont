@@ -106,7 +106,7 @@ for (const { service, binary, notice: noticePath } of IMAGES) {
   for (const [name, license] of linked) {
     const judged = license ?? policy.exceptionFor(name);
     if (!judged) problems.push(`${name} declares no license`);
-    else if (!policy.allows(spdx(judged))) problems.push(`${name} is ${judged}, which .github/licenses/allowlist.txt does not permit`);
+    else if (!policy.allows(spdx(judged), name)) problems.push(`${name} is ${judged}, which .github/licenses/allowlist.txt does not permit`);
   }
   for (const name of [...native].sort()) {
     if (!(name in NATIVE)) problems.push(`${name} compiles native code into ${binary}, and NATIVE does not say what: read its source, then describe it`);
@@ -147,7 +147,7 @@ for (const { service, binary, notice: noticePath } of IMAGES) {
 }
 for (const [crate, library] of Object.entries(NATIVE)) {
   if (!nativeAnywhere.has(crate)) problems.push(`NATIVE describes ${crate}, which no image's binary links`);
-  else if (library && !policy.allows(library.license)) problems.push(`${crate} compiles in ${library.name}, ${library.license}, which .github/licenses/allowlist.txt does not permit`);
+  else if (library && !policy.allows(library.license, library.name)) problems.push(`${crate} compiles in ${library.name}, ${library.license}, which .github/licenses/allowlist.txt does not permit`);
 }
 for (const line of rewritten) console.log(`✓ rewrote ${line}`);
 

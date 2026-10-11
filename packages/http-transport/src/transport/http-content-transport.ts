@@ -58,7 +58,8 @@ export class HttpContentTransport implements IContentTransport {
       async () => {
         const formData = buildFormData(request);
         const headers = this.requestHeaders(options?.auth);
-        const url = `${this.transport.baseUrl}/resources`;
+        const path = '/resources';
+        const url = `${this.transport.baseUrl}${path}`;
 
         if (typeof XMLHttpRequest !== 'undefined' && (options?.onProgress || options?.signal)) {
           return uploadViaXhr({
@@ -74,14 +75,15 @@ export class HttpContentTransport implements IContentTransport {
         const sent = options?.onProgress
           ? await inPieces(formData, options.onProgress, options.signal)
           : { body: formData, headers: {} };
-        const result = await this.transport.rawHttp
-          .post(url, {
-            body: sent.body,
-            headers: { ...headers, ...sent.headers },
-            timeout: false,
-            ...(options?.signal ? { signal: options.signal } : {}),
-          })
-          .json<components['schemas']['CreateResourceResponse']>();
+        const result = await this.transport.ask('POST', path, (http) =>
+          http
+            .post(url, {
+              body: sent.body,
+              headers: { ...headers, ...sent.headers },
+              timeout: false,
+              ...(options?.signal ? { signal: options.signal } : {}),
+            })
+            .json<components['schemas']['CreateResourceResponse']>());
 
         return { resourceId: result.resourceId };
       },
@@ -105,9 +107,9 @@ export class HttpContentTransport implements IContentTransport {
       async () => {
         // Pure pipe: no Accept header — the route serves the stored bytes
         // verbatim with their real Content-Type.
-        const response = await this.transport.rawHttp.get(this.urlOf(resourceId), {
-          headers: this.requestHeaders(options?.auth),
-        });
+        const path = this.pathOf(resourceId);
+        const response = await this.transport.ask('GET', path, (http) =>
+          http.get(`${this.transport.baseUrl}${path}`, { headers: this.requestHeaders(options?.auth) }));
         const contentType = response.headers.get('content-type') || 'application/octet-stream';
         const data = await response.arrayBuffer();
         return { data, contentType };
@@ -125,9 +127,9 @@ export class HttpContentTransport implements IContentTransport {
       'content.get',
       async () => {
         // Pure pipe: no Accept header (see getBinary).
-        const response = await this.transport.rawHttp.get(this.urlOf(resourceId), {
-          headers: this.requestHeaders(options?.auth),
-        });
+        const path = this.pathOf(resourceId);
+        const response = await this.transport.ask('GET', path, (http) =>
+          http.get(`${this.transport.baseUrl}${path}`, { headers: this.requestHeaders(options?.auth) }));
         const contentType = response.headers.get('content-type') || 'application/octet-stream';
         if (!response.body) {
           throw new Error('Response body is null - cannot create stream');
@@ -153,12 +155,11 @@ export class HttpContentTransport implements IContentTransport {
     busLog('GET', 'content', { resourceId, graph: true });
     return withSpan(
       'content.get_graph',
-      () =>
-        this.transport.rawHttp
-          .get(`${this.urlOf(resourceId)}/jsonld`, {
-            headers: this.requestHeaders(options?.auth),
-          })
-          .json<GetResourceResponse>(),
+      () => {
+        const path = `${this.pathOf(resourceId)}/jsonld`;
+        return this.transport.ask('GET', path, (http) =>
+          http.get(`${this.transport.baseUrl}${path}`, { headers: this.requestHeaders(options?.auth) }).json<GetResourceResponse>());
+      },
       { kind: SpanKind.CLIENT, attrs: { 'resource.id': resourceId as unknown as string } },
     );
   }
@@ -173,8 +174,8 @@ export class HttpContentTransport implements IContentTransport {
    * `ResourceId` needs no encoding, by its rule; a caller with no type
    * checker can hand over any text, and that text is one segment too.
    */
-  private urlOf(resourceId: ResourceId): string {
-    return `${this.transport.baseUrl}/resources/${encodeURIComponent(resourceId)}`;
+  private pathOf(resourceId: ResourceId): string {
+    return `/resources/${encodeURIComponent(resourceId)}`;
   }
 
   /** Auth header + W3C trace propagation for the active span. */
@@ -298,9 +299,18 @@ function uploadViaXhr(opts: XhrUploadOptions): Promise<{ resourceId: ResourceId 
       return;
     }
 
-    xhr.open('POST', url);
-    for (const [name, value] of Object.entries(headers)) {
-      xhr.setRequestHeader(name, value);
+    try {
+      xhr.open('POST', url);
+      for (const [name, value] of Object.entries(headers)) {
+        xhr.setRequestHeader(name, value);
+      }
+    } catch (error) {
+      // What a browser will not make a request of, it refuses in words that
+      // say it: a token that is no header value among them.
+      const unanswered = APIError.unanswered('POST /resources', error);
+      onApiError(unanswered);
+      reject(unanswered);
+      return;
     }
 
     if (onProgress) {

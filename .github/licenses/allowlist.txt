@@ -1,7 +1,8 @@
 # Permissive SPDX license allowlist for the published service images.
 #
-# The license-policy gates check every bundled npm dependency's SPDX license
-# (.github/scripts/check-licenses.mjs, over an image's SBOM) and every crate
+# The license-policy gates check the SPDX license of every package an image
+# installs from npm or from PyPI (.github/scripts/check-licenses.mjs, over an
+# image's SBOM) and of every crate
 # a Rust service binary links (scripts/lint/check-image-crates.mjs) against this
 # list, and fail if anything is unlisted. Approved (permissive) licenses pass silently;
 # copyleft / unknown / unusual licenses trip CI and get a human review — at
@@ -11,9 +12,8 @@
 # One SPDX license ID per line. Blank lines and #-comments are ignored. A
 # trailing `*` is a prefix wildcard (e.g. `Foo-*`). Matching is case-insensitive.
 #
-# Seeded 2026-07-15 from the actual union of the images' dependency trees
-# (`license-checker` over @semiont/gateway + @semiont/jobs +
-# @semiont/make-meaning + neo4j-driver + @qdrant/js-client-rest): MIT, Apache-2.0,
+# Seeded 2026-07-15 from the union of the Node images' dependency trees
+# (`license-checker` over the npm packages they install): MIT, Apache-2.0,
 # ISC, BSD-3-Clause, BSD-2-Clause, 0BSD, Unlicense, Python-2.0, and one
 # (MIT OR CC0-1.0) dual. All permissive; no copyleft present.
 
@@ -46,6 +46,23 @@ Unicode-3.0
 Zlib
 CDLA-Permissive-2.0
 
+# The worker image's Python packages (check-licenses.mjs reads the PyPI packages
+# of an image's SBOM as it reads the npm ones). One license is new with them,
+# and permissive: PSF-2.0 — the Python Software Foundation License, on
+# typing_extensions, which pydantic and the model providers' libraries require.
+# Added 2026-10-10.
+PSF-2.0
+
 # Deliberately NOT wildcarded to `BSD-*`: BSD-4-Clause carries the advertising
 # clause and should trip a review rather than pass silently. Add BSD-2/3-Clause
 # explicitly above instead.
+
+# Allowed on one package and on no other: a line `<SPDX-id> for <package-name>`.
+# The license is not otherwise on this list, so another package that has it is
+# still refused.
+#
+# certifi: Mozilla's root certificates as a Python package. httpx, which the
+# Python SDK requires, requires it, so every Python image carries it. It is
+# MPL-2.0, a file-level copyleft, on data the images carry unmodified. MPL-2.0
+# is not allowed generally. Added 2026-10-10.
+MPL-2.0 for certifi

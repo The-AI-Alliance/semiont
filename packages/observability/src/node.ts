@@ -1,6 +1,6 @@
 /**
  * Node SDK initialization. Call once at the process entry point
- * (`worker-main.ts`, `smelter-main.ts`, and the other sidecars').
+ * (`smelter-main.ts`, `weaver-main.ts`, `librarian-main.ts`).
  *
  * Configuration is via standard `OTEL_*` env vars:
  *   - `OTEL_SERVICE_NAME`           — service identity (e.g. `semiont-archivist`)

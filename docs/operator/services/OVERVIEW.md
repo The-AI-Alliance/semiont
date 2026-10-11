@@ -14,7 +14,7 @@ All eight are published to `ghcr.io/the-ai-alliance/`, for `linux/amd64` and `li
 | [dispatcher](../../../apps/dispatcher/README.md) | `semiont-dispatcher` | 24105 | Rust, `apps/dispatcher` | Owns the job queue and answers the `job:*` lifecycle. No content flows through it |
 | [archivist](../../../apps/archivist/README.md) | `semiont-archivist` | 24103 | Rust, `apps/archivist` | Keeps the record. The only service that mounts the knowledge base's working tree: it appends the event log, writes content, and keeps the views |
 | [librarian](../../../apps/librarian/README.md) | `semiont-librarian` | 24104 | `@semiont/make-meaning` | Searches the knowledge base: finds resources by text, gathers context, lists what refers to a resource, and matches candidates |
-| [worker](../../../apps/worker/README.md) | `semiont-worker` | 24100 | `@semiont/jobs` | The worker pool: claims annotation and generation jobs and runs them against a model |
+| [worker](../../../apps/worker/README.md) | `semiont-worker` | 24100 | Python, `apps/worker` | The worker pool: claims annotation and generation jobs and runs them against a model |
 | [smelter](../../../apps/smelter/README.md) | `semiont-smelter` | 24101 | `@semiont/make-meaning` | Computes embeddings, keeps the vector index, and extracts anchored text |
 | [weaver](../../../apps/weaver/README.md) | `semiont-weaver` | 24102 | `@semiont/make-meaning` | Keeps the graph projection of the event log |
 | [browser](../../../apps/browser/README.md) | `semiont-browser` | 3000 | `apps/browser` | Serves the Semiont Browser's static files. The app itself runs in the user's web browser and connects to gateways from there |

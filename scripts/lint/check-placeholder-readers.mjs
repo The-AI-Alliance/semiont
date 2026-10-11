@@ -45,6 +45,9 @@ const ALLOWED = {
   'scripts/lint/check-rust-toolchain.mjs': [
     "holds a Dockerfile's FROM to rust:${RUST_TOOLCHAIN}-<variant>, a build argument — not a config placeholder",
   ],
+  'scripts/lint/check-python-version.mjs': [
+    "holds a Dockerfile's FROM to python:${PYTHON_FLOOR}-<variant>, a build argument — not a config placeholder",
+  ],
 };
 
 const SOURCE = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|go|rs)$/;

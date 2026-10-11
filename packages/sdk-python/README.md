@@ -42,7 +42,9 @@ at most five minutes before, and at once when the gateway refuses it.
 
 **An agent** is a service account's token exchanged at the gateway for the
 token of the agent `(provider, model)`. It is what a service holds: a
-transport, its agent's token, and the channels it awaits replies on.
+transport, its agent's token, and the channels it awaits replies on. The
+gateway answers the exchange with the agent's DID, which is who its work is
+attributed to: `agent.did`, once it is signed in, as the gateway minted it.
 
 ```python
 from semiont.bus import reply_channels_for
@@ -57,6 +59,7 @@ async def work(gateway: str, issuer: str, secret: str) -> None:
         AgentToken(gateway, provider="ollama", model="gemma2:27b", service=service) as agent,
         HttpTransport(gateway, token=agent.token, refresher=agent.refresh, channels=reply_channels_for(JOB_CLAIM)) as transport,
     ):
+        print(f"working as {agent.did}")  # who its work is attributed to, as the gateway named it
         print(await reached(transport.state, lambda state: state == "open"))  # its stream is open, as the agent
 ```
 
@@ -106,8 +109,10 @@ async def as_me(gateway: str, home: str) -> None:
   here serves the launcher's verbs, and one it renewed serves this session.
   `MemorySignIn` keeps one for the life of the process instead, and
   `sign_out` revokes one at its issuer and forgets it.
-- **Nothing here reads the environment.** An application reads its own
-  (`HOME`, a secret, an address) and says what it found.
+- **`SEMIONT_BUS_LOG` is the only environment variable the package reads**
+  ([Telemetry](#telemetry)). Everything else it needs, it is given: an
+  application reads its own environment (`HOME`, a secret, an address) and
+  says what it found.
 
 ## Eight verbs
 
@@ -406,9 +411,9 @@ async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
         # Leaving this block stops the worker: a job it still holds is failed first, and the queue retries it.
         client.job.claim(accepts) as claims,
     ):
-        # What made the annotations it commits: the agent the gateway says this token is.
-        me = await transport.get_current_user()
-        generator = AgentSoftware(type="Software", id=me.did, name=agent_name(PROVIDER, MODEL), provider=PROVIDER, model=MODEL)
+        print(f"working as {agent.did}")
+        # What made the annotations it commits: the agent the gateway gave it.
+        generator = AgentSoftware(type="Software", id=agent.did, name=agent_name(PROVIDER, MODEL), provider=PROVIDER, model=MODEL)
         # Each job the worker comes to hold, one at a time. The next is claimed when this one settles.
         async for handed in claims:
             match handed:
@@ -791,6 +796,21 @@ A job a worker holds states the trace it is run in (`job.trace`), and runs
 the block that holds it in that trace. `semiont.telemetry.continuing(trace)`
 holds either for as long as its `with` block lasts.
 
+With `SEMIONT_BUS_LOG` set to any value that is not empty, a transport over
+HTTP also writes the [bus log][bus-log], as every Semiont SDK does: one line
+on stdout for each frame it sends and each it receives, and for each read and
+each upload of content. A line says the channel, the resource's scope, the
+first eight characters of the correlation id and of the trace's id, and the
+payload as JSON:
+
+```
+[bus EMIT] job:claim cid=a89a670a {"accepts":[{"jobType":"yield"}]}
+[bus RECV] job:claim-failed cid=a89a670a {"code":"none-pending","message":"No pending job matches"}
+```
+
+The variable is read once, when the first line would be written. The token a
+resource is cloned by is a credential, and no line holds it.
+
 ## What is in the package
 
 | Module | What it holds |
@@ -860,6 +880,7 @@ Apache-2.0. See [LICENSE][license].
 [id-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/annotations/id-cases.json
 [sign-in-store]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/sign-in-store/README.md
 [telemetry]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/sdk-telemetry/telemetry.json
+[bus-log]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/EVENT-BUS.md#wire-format-the-bus-log
 [package]: https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk-python
 [testing]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/contributor/TESTING.md
 [license]: https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE

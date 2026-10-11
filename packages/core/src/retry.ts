@@ -39,6 +39,7 @@
 
 import { BusRequestError } from './bus-request';
 import { RETRY_RULES } from './retry-rules';
+import { UnansweredError } from './unanswered';
 
 export interface RetryPolicy {
   /** Total attempts, including the first one. */
@@ -186,8 +187,9 @@ export function isPeerUnavailable(error: unknown): boolean {
 
 /**
  * True for failures worth another attempt: the connection never landed
- * (`isTransientFetchError`), the server answered "not now"
- * (`RETRY_RULES.boot`), or our own deadline expired.
+ * (`isTransientFetchError`), the request got no answer (`UnansweredError`),
+ * the server answered "not now" (`RETRY_RULES.boot`), or our own deadline
+ * expired.
  *
  * The status half is DERIVED from `RETRY_RULES.boot` rather than restated here.
  * A private set of the same statuses would make the taxonomy a second opinion
@@ -209,7 +211,7 @@ export function isPeerUnavailable(error: unknown): boolean {
  * wait, so the same "it answered" fact points the other way.
  */
 export function isRetryableRequestError(error: unknown): boolean {
-  if (isTransientFetchError(error)) return true;
+  if (isTransientFetchError(error) || error instanceof UnansweredError) return true;
   if (typeof error !== 'object' || error === null) return false;
   if ((error as { name?: unknown }).name === 'TimeoutError') return true;
   const status = (error as { status?: unknown }).status;

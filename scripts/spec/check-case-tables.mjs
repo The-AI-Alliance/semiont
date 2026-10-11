@@ -74,6 +74,8 @@ const TABLES = [
       'packages/core/src/__tests__/pdf-locate-cases.test.ts',
       'packages/sdk-rust/src/annotations/locate.rs',
       'packages/sdk-python/tests/test_pdf_locate.py',
+      // Its `claims`, which are the rule of Semiont's worker alone.
+      'apps/worker/tests/test_claim_cases.py',
     ],
     countsCodePoints: true,
   },
@@ -113,22 +115,22 @@ const TABLES = [
   },
   {
     table: 'specs/src/worker/chunk-plan-cases.json',
-    runners: ['packages/jobs/src/__tests__/chunk-plan-cases.test.ts', 'apps/worker/tests/test_chunk_plan_cases.py'],
+    runners: ['apps/worker/tests/test_chunk_plan_cases.py'],
     countsCodePoints: true,
   },
   {
     table: 'specs/src/worker/parser-cases.json',
-    runners: ['packages/jobs/src/__tests__/parser-cases.test.ts', 'apps/worker/tests/test_parser_cases.py'],
+    runners: ['apps/worker/tests/test_parser_cases.py'],
     countsCodePoints: true,
   },
   {
     table: 'specs/src/worker/citation-cases.json',
-    runners: ['packages/jobs/src/__tests__/citation-cases.test.ts', 'apps/worker/tests/test_citation_cases.py'],
+    runners: ['apps/worker/tests/test_citation_cases.py'],
     countsCodePoints: true,
   },
   {
     table: 'specs/src/worker/failure-class-cases.json',
-    runners: ['packages/jobs/src/__tests__/failure-class-cases.test.ts', 'apps/worker/tests/test_failure_class_cases.py'],
+    runners: ['apps/worker/tests/test_failure_class_cases.py'],
   },
 ];
 

@@ -1,40 +1,70 @@
-# worker image.
+# The worker image: the Worker service (apps/worker, Python) and the two
+# packages of this repository it runs on, built here from the repository, in
+# an environment of exactly what apps/worker/uv.lock pins. Nothing is built,
+# installed or fetched when the container starts: the entrypoint runs the
+# service.
 #
-# THE ENTRYPOINT SOURCE IS NOT IN THIS DIRECTORY. This image installs the
-# published @semiont/jobs and runs `dist/worker-main.js` out of it; the
-# source is packages/jobs/src/worker-main.ts. Only the image
-# recipe lives here — the entrypoint lives in its package deliberately:
-# moving it out would promote ~18 of that package's
-# internals to public API just to satisfy a directory layout. If you change
-# the CMD, change it against that file.
+# Built from the repository root, on the oldest Python the repository's Python
+# packages support, which packages/sdk-python/pyproject.toml states
+# (requires-python), the one place it is written:
 #
-# Stage 1: install (npm runs here, then is discarded).
+#   --build-arg PYTHON_FLOOR=$(scripts/ci/python-floor.sh)
 #
-# Base is node:26-alpine. The make-meaning sidecars stay on node:24 for the
-# qdrant client they carry; @semiont/jobs carries no qdrant client, so the
-# worker does not share that constraint.
-FROM node:26-alpine AS installer
-ARG NPM_REGISTRY=https://registry.npmjs.org
-ARG SEMIONT_VERSION=latest
-RUN npm config set registry $NPM_REGISTRY && \
-    npm install -g @semiont/jobs@${SEMIONT_VERSION} && \
-    npm cache clean --force
+# There is no default: without it a FROM names no image and the build stops,
+# rather than building on a Python nothing pinned.
+ARG PYTHON_FLOOR
 
-# Stage 2: minimal runtime — node only, no npm. The runtime entrypoint is
-# `node worker-main.js`, so npm is build-only baggage. Removing it also drops
-# the picomatch / glob / etc. CVE surface that ships inside npm's bundled
-# node_modules.
-FROM node:26-alpine
-# Patch base-image OS packages so alpine security fixes apply even when the
-# node:26-alpine snapshot hasn't been rebuilt against them yet.
-RUN apk upgrade --no-cache
+# uv makes the environment, in the builder stage alone.
+FROM ghcr.io/astral-sh/uv:0.13.0 AS uv
 
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 semiont
+FROM python:${PYTHON_FLOOR}-alpine AS builder
+COPY --from=uv /uv /usr/local/bin/uv
+WORKDIR /build
+# Each package below takes its version from version.json when it is built.
+COPY version.json ./
+# The SDK and the inference drivers are this repository's, and no index holds
+# the version the service is written against: each is built from its manifest,
+# the README its manifest names, and its source.
+COPY packages/sdk-python/pyproject.toml packages/sdk-python/README.md packages/sdk-python/
+COPY packages/sdk-python/src packages/sdk-python/src
+COPY packages/inference-python/pyproject.toml packages/inference-python/README.md packages/inference-python/
+COPY packages/inference-python/src packages/inference-python/src
+COPY apps/worker/pyproject.toml apps/worker/uv.lock apps/worker/
+COPY apps/worker/src apps/worker/src
+# The environment is made on this stage's Python and no other, with its
+# bytecode written here: the image's user cannot write it. uv keeps no cache,
+# and the stage mounts none: from a cache that outlives a build, uv installs
+# the wheel it built of a package's earlier sources when only its sources have
+# changed since.
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
+    UV_PYTHON_DOWNLOADS=never \
+    UV_NO_CACHE=1 \
+    UV_COMPILE_BYTECODE=1
+# What the lockfile pins and nothing else: --locked refuses a lockfile that no
+# longer agrees with the manifests, --no-dev leaves the checkers and the tests'
+# tools out, and --no-editable installs the three packages above as built
+# wheels, so the environment is whole without this stage's tree.
+#
+# --all-extras is every provider's library: each extra of semiont-worker
+# brings the inference drivers' extra of the same name, and with it the
+# library that provider is asked through. An image for one provider names
+# that provider's extra in its place (`--extra anthropic`), and one for Ollama
+# alone names none: Ollama is asked with what every install has.
+RUN uv sync --project apps/worker --locked --no-dev --no-editable --all-extras
 
-# The global @semiont/jobs (with its hoisted deps) and its bin symlinks.
-COPY --from=installer /usr/local/lib/node_modules /usr/local/lib/node_modules
-COPY --from=installer /usr/local/bin /usr/local/bin
+FROM python:${PYTHON_FLOOR}-alpine
+# Patch base-image OS packages so Alpine's security fixes apply even when the
+# base's snapshot has not been rebuilt against them yet.
+RUN apk upgrade --no-cache && apk add --no-cache tini
+# Nothing is installed in the image once it is built, so it carries no
+# installer.
+RUN pip uninstall --yes --root-user-action=ignore pip
+
+# The uid the launcher's state mount is written as, as in every service image.
+RUN addgroup --system --gid 1001 semiont && \
+    adduser --system --uid 1001 --ingroup semiont --home /home/semiont semiont
+
+COPY --from=builder /opt/venv /opt/venv
 
 # Typst renderer for PDF generation. Pinned to the
 # version whose PDF text-layer geometry was measured — the recorded citation
@@ -50,30 +80,27 @@ COPY --from=installer /usr/local/bin /usr/local/bin
 # same diff as this tag.
 COPY --from=ghcr.io/typst/typst:0.15.1 /bin/typst /usr/local/bin/typst
 
-# Strip npm/npx after the COPY above re-introduces them from the installer tree.
-RUN rm -rf /usr/local/lib/node_modules/npm \
-           /usr/local/bin/npm \
-           /usr/local/bin/npx
-
 COPY LICENSE apps/worker/NOTICE /home/semiont/
-
-WORKDIR /kb
-RUN chown semiont:nodejs /kb
-# Supervision runtime — ROOT-TIME on purpose: apk refuses to run and
-# /usr/local/bin refuses writes once USER drops privileges below.
-RUN apk add --no-cache tini
 COPY scripts/container/supervise.sh /usr/local/bin/supervise.sh
 COPY scripts/container/boot.sh /usr/local/bin/boot.sh
 
+WORKDIR /kb
+RUN chown semiont:semiont /kb
+
 USER semiont
 
-ENV NODE_ENV=production
+# `python` is the environment's.
+ENV PATH=/opt/venv/bin:$PATH
 EXPOSE 24100
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:24100/health', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"
+  CMD wget -q -O /dev/null http://localhost:24100/health || exit 1
 
 ENV SUPERVISE_NAME=worker \
     SUPERVISE_PROBE=http://localhost:24100/health
 ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/boot.sh"]
-CMD ["node", "/usr/local/lib/node_modules/@semiont/jobs/dist/worker-main.js", "--config", "/etc/semiont/worker.json"]
+# --config names where the launcher mounts the worker's document; the
+# launcher's census (TestConfigDocumentsAreWhereTheImagesLook) reads it here.
+# `-P` keeps the working directory off the import path: a file in /kb is never
+# a module the service imports.
+CMD ["python", "-P", "-m", "semiont_worker", "--config", "/etc/semiont/worker.json"]

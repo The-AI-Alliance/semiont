@@ -51,11 +51,6 @@
       "version": "0.6.13",
       "publish": true
     },
-    "@semiont/jobs": {
-      "dir": "packages/jobs",
-      "version": "0.6.13",
-      "publish": true
-    },
     "@semiont/make-meaning": {
       "dir": "packages/make-meaning",
       "version": "0.6.13",

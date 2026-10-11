@@ -2,8 +2,8 @@
  * Knowledge-graph view derivation: the flattened neighborhood views are derived from the graph,
  * not kept as separately built intermediates.
  *
- * A pure function over the core `KnowledgeGraph` type, so both `@semiont/make-meaning` (the matcher)
- * and `@semiont/jobs` (the generation prompt builder) can share one derivation. `buildKnowledgeGraph`
+ * A pure function over the core `KnowledgeGraph` type, so `@semiont/make-meaning` (the Gatherer and
+ * the Matcher) and `@semiont/react-ui` (the context summary) share one derivation. `buildKnowledgeGraph`
  * — which queries the graph DB — stays in make-meaning; this only transforms an already-built graph.
  *
  * Reports the graph as-is: missing-view citers are kept (the citing annotation reflects a

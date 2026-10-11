@@ -41,10 +41,10 @@ semiont/
 │   ├── gateway/            # Rust: verifies tokens, relays the bus, proxies content
 │   ├── dispatcher/         # Rust: owns the job queue
 │   ├── archivist/          # Rust: keeps the record — event log, content, views
-│   ├── librarian/          # Image definitions for the four Node services;
+│   ├── librarian/          # Image definitions for the three Node services;
 │   ├── smelter/            #   their code is in @semiont/make-meaning
-│   ├── weaver/             #   and @semiont/jobs
-│   ├── worker/
+│   ├── weaver/
+│   ├── worker/             # Python: claims jobs and runs them against a model
 │   ├── browser/            # The Semiont Browser: a Vite + React single-page app
 │   ├── desktop/            # The Browser as a desktop app (Tauri)
 │   └── launcher/           # Go: the `semiont` command
@@ -53,8 +53,7 @@ semiont/
 │   ├── sdk/                # The TypeScript SDK
 │   ├── http-transport/     # The SDK's transport over a gateway
 │   ├── react-ui/           # React components and hooks
-│   ├── make-meaning/       # The knowledge-system actors and four services' entry points
-│   ├── jobs/               # The job worker and its entry point
+│   ├── make-meaning/       # The knowledge-system actors and three services' entry points
 │   ├── event-sourcing/     # The event log and the views
 │   ├── content/            # Working-tree storage and text extraction
 │   ├── graph/ vectors/ inference/ ontology/ observability/ mcp-server/
@@ -62,7 +61,8 @@ semiont/
 │   ├── http-transport-rust/ telemetry-rust/ codegen-rust/
 │   ├── core-rust/ observability-rust/ http-service-rust/    # what the Rust services share
 │   ├── sdk-go/             # The Go SDK
-│   └── sdk-python/         # The Python SDK (package `semiont`)
+│   ├── sdk-python/         # The Python SDK (package `semiont`)
+│   └── inference-python/   # The model providers a Python service asks (package `semiont_inference`)
 ├── tests/
 │   ├── conformance/        # Black-box suites: the gateway, the dispatcher, every SDK
 │   ├── e2e/                # Playwright, against a live stack

@@ -13,7 +13,7 @@ A resource's bytes, read from the Archivist, and the text read out of the ones t
 - **The Librarian and the Smelter** hold no store. They read a resource's bytes from the Archivist, through `archivistContentReads()`. The Worker holds none either, and reads bytes on the gateway by its client's own call.
 - **The Smelter** derives text, with `derivingExtractorFor` and the anchored-text store.
 
-Each of those is wired in [`@semiont/make-meaning`](../make-meaning/README.md). [`@semiont/jobs`](../jobs/README.md) takes one value from here, the byte budget a generated PDF may not exceed. The working tree itself is the [Archivist](../../docs/protocol/ARCHIVIST.md)'s: it is the only service that mounts it.
+Each of those is wired in [`@semiont/make-meaning`](../make-meaning/README.md). The working tree itself is the [Archivist](../../docs/protocol/ARCHIVIST.md)'s: it is the only service that mounts it.
 
 **Building an application?** You do not need this package. An application uploads and reads content through [`@semiont/sdk`](../sdk/README.md): `yield.resource` and `browse.resourceContent`.
 
@@ -26,7 +26,6 @@ Each of those is wired in [`@semiont/make-meaning`](../make-meaning/README.md). 
 | `derivingExtractorFor(mediaType)` | The extractor for a media type whose text has to be derived. For a PDF: text layer, OCR for scanned pages, tables, form values |
 | `createAnchoredTextStore` | Where a derived text is kept, by content checksum, so OCR runs once per document |
 | `extractPdfTextLayer` | The lower-level reader of a PDF's native text layer |
-| `MAX_PDF_BYTES`, `withinByteBudget` | The size the extractor accepts, which is also the bound on what a generation may produce |
 
 ## Example
 
@@ -52,7 +51,7 @@ const extractor = derivingExtractorFor('application/pdf');
 - **An item's offsets count code points.** `start` and `end` are counted in Unicode code points from the start of the text, wherever the item is: as it is made, in the store and on the wire. A text assembled piece by piece keeps that count beside it, and a string is sliced at an offset only through `textOffsets(text).indexAt`, since a JavaScript string counts a character outside the Basic Multilingual Plane as two.
 - **The writer states its stamp.** The anchored-text store writes the stamp its entries carry to a `STAMP` file in its directory, so the Archivist, which reads the store, can tell a current entry from a stale one.
 - **No text is a named answer.** An extraction that gives none says why (`no-text-layer`, `encrypted`, `corrupt`, `too-large`). It never returns a bare null.
-- **One byte budget, enforced twice.** `MAX_PDF_BYTES` bounds what the extractor reads and what a generation writes, so Semiont never creates a resource its own extractor would decline.
+- **One byte budget, enforced twice.** `MAX_PDF_BYTES`, in [`src/pdf-extractor.ts`](./src/pdf-extractor.ts), bounds what the extractor reads. The [Worker](../../apps/worker/README.md) refuses to write a generated PDF over the same bound, and its tests hold its number to this one, so Semiont never creates a resource its own extractor would decline.
 - **Geometry's vocabulary lives in `@semiont/core`.** `AnchoredText`, `locate` and `textUnder` are there, so the browser can reason over a page without importing this package, which carries pdf.js, Tesseract and `node:fs`.
 
 ## Documentation

@@ -2,9 +2,11 @@
 // License-policy gate for the published service images.
 //
 // Reads a Trivy SPDX-JSON SBOM and a permissive allowlist, then fails if any
-// bundled npm dependency carries a license that the allowlist doesn't permit.
-// Scope is npm dependencies only (matched by `pkg:npm/` purl) — OS/apk packages
-// (e.g. git) are out of scope here and covered by the per-image NOTICE.
+// bundled language package carries a license that the allowlist doesn't permit.
+// Scope is the packages an image installs from npm (a `pkg:npm/` purl) and from
+// PyPI (`pkg:pypi/`) — OS/apk packages (e.g. git) are out of scope here and
+// covered by the per-image NOTICE, and the crates a Rust binary links are held
+// by scripts/lint/check-image-crates.mjs, since a binary states no license.
 //
 // Usage: node check-licenses.mjs <sbom.spdx.json> <allowlist.txt> [exceptions.txt]
 //
@@ -29,10 +31,18 @@ const policy = loadPolicy(allowlistPath, exceptionsPath);
 const sbom = JSON.parse(readFileSync(sbomPath, 'utf8'));
 const packages = Array.isArray(sbom.packages) ? sbom.packages : [];
 
-function isNpm(pkg) {
-  return (pkg.externalRefs ?? []).some(
-    (ref) => ref.referenceType === 'purl' && String(ref.referenceLocator).startsWith('pkg:npm/'),
-  );
+/** The package indexes whose packages are judged, by the purl each one's package carries. */
+const ECOSYSTEMS = { 'pkg:npm/': 'npm', 'pkg:pypi/': 'PyPI' };
+
+/** The index a package was installed from, when it is one of ECOSYSTEMS. */
+function ecosystemOf(pkg) {
+  for (const ref of pkg.externalRefs ?? []) {
+    if (ref.referenceType !== 'purl') continue;
+    for (const [prefix, ecosystem] of Object.entries(ECOSYSTEMS)) {
+      if (String(ref.referenceLocator).startsWith(prefix)) return ecosystem;
+    }
+  }
+  return undefined;
 }
 
 function licenseOf(pkg) {
@@ -46,12 +56,13 @@ function licenseOf(pkg) {
 const disallowed = [];
 const unknown = [];
 const excepted = [];
-let scanned = 0;
+const scanned = Object.fromEntries(Object.values(ECOSYSTEMS).map((ecosystem) => [ecosystem, 0]));
 
 for (const pkg of packages) {
-  if (!isNpm(pkg)) continue;
-  scanned++;
-  const name = `${pkg.name}@${pkg.versionInfo ?? '?'}`;
+  const ecosystem = ecosystemOf(pkg);
+  if (ecosystem === undefined) continue;
+  scanned[ecosystem]++;
+  const name = `${pkg.name}@${pkg.versionInfo ?? '?'} (${ecosystem})`;
   let license = licenseOf(pkg);
 
   // An exception supplies a verified license ONLY when the scanner found none;
@@ -69,20 +80,21 @@ for (const pkg of packages) {
     unknown.push({ name, license: pkg.licenseDeclared ?? 'NOASSERTION' });
     continue;
   }
-  if (!policy.allows(license)) disallowed.push({ name, license: viaException ? `${license} (exception)` : license });
+  if (!policy.allows(license, pkg.name)) disallowed.push({ name, license: viaException ? `${license} (exception)` : license });
   else if (viaException) excepted.push({ name, license });
 }
 
 // --- Report ----------------------------------------------------------------
 
-console.log(`Scanned ${scanned} npm dependencies against ${policy.size} allowlist entries.`);
+const counted = Object.entries(scanned).map(([ecosystem, count]) => `${count} ${ecosystem}`).join(' and ');
+console.log(`Scanned ${counted} packages against ${policy.size} allowlist entries.`);
 
 for (const e of excepted) {
   console.log(`ℹ️  ${e.name}: no license in metadata; using verified exception → ${e.license}`);
 }
 
 if (disallowed.length === 0 && unknown.length === 0) {
-  console.log('✅ All bundled npm dependency licenses are on the permissive allowlist.');
+  console.log('✅ All bundled package licenses are on the permissive allowlist.');
   process.exit(0);
 }
 

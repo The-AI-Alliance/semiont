@@ -103,9 +103,9 @@ func promSumInt(readout, name string, want map[string]string) (int, bool) {
 // how much work has been done.
 //
 // Two honest limits, both of which the rendering names rather than hides.
-// It counts what a WORKER concluded, and `recordJobOutcome` is called with
-// `completed` or `failed` only — a cancelled job never reaches it, so this is
-// work attempted, not every job that left the queue. And a counter lives with
+// It counts what a WORKER concluded, by how each job ended, and this reads the
+// jobs counted `completed` and `failed` only — a cancelled job is counted apart,
+// so this is work attempted, not every job that left the queue. And a counter lives with
 // its process: it starts at zero when the worker does, which is why the line
 // says since when rather than implying all time.
 func jobsConcluded(readout string) (completed, failed int, ok bool) {

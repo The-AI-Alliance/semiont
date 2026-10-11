@@ -53,7 +53,7 @@ a bus refusal both answer no for different reasons.
 | predicate | true for | lives in |
 |---|---|---|
 | `isTransientFetchError` | `fetch` never connected | core |
-| `isRetryableRequestError` | HTTP 429 / 503 / 504, or a `TimeoutError` | core |
+| `isRetryableRequestError` | HTTP 429 / 503 / 504, a `TimeoutError`, or a request that got no answer (`UnansweredError`) | core |
 | `isPeerUnavailable` | `bus.peer-unavailable` — the channel has no subscriber | core |
 | `notReady` | the model is not pulled, **or** the provider is not listening | `@semiont/vectors` |
 

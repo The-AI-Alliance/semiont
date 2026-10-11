@@ -38,7 +38,6 @@ paths:
   - packages/graph/src
   - packages/inference/src
   - packages/vectors/src
-  - packages/jobs/src
   - packages/make-meaning/src
   - packages/ontology/src
   - packages/react-ui/src

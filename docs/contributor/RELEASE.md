@@ -101,8 +101,8 @@ Dispatching the npm workflow on its own, without `stable_release`, publishes a d
 
 Each image passes these gates before it is pushed, in order. They fail one at a time, so fixing one can reveal the next:
 
-1. **The packages exist.** A Node image installs the published `@semiont/*` packages at its own version, never a working tree, and the workflow refuses to build until every one is installable. The gateway, dispatcher and Archivist images compile from the commit instead, which is why they are published from the release tag.
-2. **The image is what it should be.** The Rust images are checked to carry no source and to start as documented ([`check-gateway-image.sh`](../../scripts/container/check-gateway-image.sh), [`check-document-image.sh`](../../scripts/container/check-document-image.sh) for the dispatcher's and the Archivist's).
+1. **The packages exist.** A Node image installs the published `@semiont/*` packages at its own version, never a working tree, and the workflow refuses to build until every one is installable. The gateway, dispatcher and Archivist images compile from the commit instead, and the worker image is built from it too (its Python service, with what `apps/worker/uv.lock` pins), which is why they are published from the release tag.
+2. **The image is what it should be.** The Rust images are checked to carry no source and to start as documented ([`check-gateway-image.sh`](../../scripts/container/check-gateway-image.sh), [`check-document-image.sh`](../../scripts/container/check-document-image.sh) for the dispatcher's and the Archivist's). The worker image is checked to carry every model provider's library, no installer and no Node, and to refuse by name without its document ([`check-worker-image.sh`](../../scripts/container/check-worker-image.sh)).
 3. **Vulnerabilities.** Trivy scans for `HIGH` and `CRITICAL` findings and fails on any that has a fix.
 4. **Licences.** See [Dependencies](DEPENDENCIES.md#licences).
 

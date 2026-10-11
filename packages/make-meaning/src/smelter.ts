@@ -57,7 +57,7 @@ import type { SmelterEvent } from './smelter-fan-in';
  * the operations this module awaits over the wire. The `satisfies` at each
  * call site keeps a declaration and its operation from drifting; the census
  * beside the list fails COMPILATION naming the operation when the list and
- * these declarations disagree (the worker-runtime pattern).
+ * these declarations disagree.
  */
 export type SmelterResourceReadAwaits = 'browse:resource-requested';
 export type SmelterAnnotationsReadAwaits = 'browse:annotations-requested';

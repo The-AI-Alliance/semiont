@@ -6,7 +6,7 @@ How Semiont's test suites are organized, configured and run, and what CI gates o
 
 | Suite | Where | What it exercises | Needs |
 |---|---|---|---|
-| Workspace suites | every npm workspace in `apps/*` and `packages/*` with a `test` script | Units and in-process integration: components, hooks, SDK namespaces, services composed over test doubles | Nothing running, except `nats-server` on `PATH` for `@semiont/jobs` |
+| Workspace suites | every npm workspace in `apps/*` and `packages/*` with a `test` script | Units and in-process integration: components, hooks, SDK namespaces, services composed over test doubles | Nothing running |
 | Rust | the Cargo workspace (`cargo test --workspace`) | The Rust SDK (its session, cache, bus and live queries, and the shared case tables), its transport, and the gateway's and dispatcher's own crates | The toolchain [`rust-toolchain.toml`](../../rust-toolchain.toml) names |
 | Go | `apps/launcher`, `packages/sdk-go` | The launcher driving a fake runtime through real start and stop lifecycles; the Go bus client's wire contract | The Go toolchain each `go.mod` names |
 | Python | `packages/sdk-python` (`uv run pytest`) | The Python SDK: its transport, sign-in and session, its client, cache and live queries, the shared case tables, and the programs its README shows, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
@@ -17,7 +17,7 @@ How Semiont's test suites are organized, configured and run, and what CI gates o
 | Archivist conformance | [`tests/conformance/archivist`](../../tests/conformance/archivist/README.md) | A running Archivist, black-box, on the bus through a real gateway, at its HTTP surface and in the files it keeps, against [ARCHIVIST.md](../protocol/ARCHIVIST.md) | A built gateway and Archivist; `git`; `nats-server` |
 | SDK conformance | [`tests/conformance/sdk`](../../tests/conformance/sdk/README.md) | Every SDK, through a driver, as a client of a real gateway: one corpus of cases, on the wire and in live queries | A built gateway and the Rust drivers; `@semiont/sdk` built; `uv` and Python 3.12 or later, for the Python drivers; `nats-server` |
 | Worker conformance | [`tests/conformance/worker`](../../tests/conformance/worker/README.md) | A worker written on each SDK, through a driver, with the suite playing the dispatcher, against [WORKER-CONTRACT.md](../protocol/WORKER-CONTRACT.md) | A built gateway and the Rust drivers; the packages built; `uv` and Python 3.12 or later, for the Python driver; `nats-server` |
-| Worker-service conformance | [`tests/conformance/worker-service`](../../tests/conformance/worker-service/README.md) | The Worker service as a running process, black-box, behind a real gateway, with the suite playing the dispatcher, the record, the Smelter and the model's provider, against [WORKER-SERVICE.md](../protocol/WORKER-SERVICE.md) | A built gateway; the packages built; `nats-server` |
+| Worker-service conformance | [`tests/conformance/worker-service`](../../tests/conformance/worker-service/README.md) | The Worker service as a running process, black-box, behind a real gateway, with the suite playing the dispatcher, the record, the Smelter and the model's provider, against [WORKER-SERVICE.md](../protocol/WORKER-SERVICE.md) | A built gateway; `@semiont/core` built; the Worker service's environment, which `uv` makes; `nats-server` |
 | End-to-end | [`tests/e2e`](../../tests/e2e/README.md) | The live Browser against a live gateway and knowledge base | A running stack and a user at its issuer |
 
 The conformance suites import nothing from what they check. One line per service and per SDK in [`harness/paths.ts`](../../tests/conformance/harness/paths.ts) names the implementation, so the same cases judge any implementation of the same spec.
@@ -50,7 +50,7 @@ Each workspace's `vitest.config.*` merges it with `mergeConfig` and adds only wh
 | `packages/content` | a global setup that regenerates the gitignored PDF fixtures before every run |
 | `packages/event-sourcing`, `packages/make-meaning` | a setup file that points `XDG_STATE_HOME` into the OS temp directory; make-meaning's also sets a 10-second test timeout |
 | `packages/mcp-server` | test files limited to `src/**/*.test.ts`; a coverage `include` of `src/**/*.ts`, less `src/index.ts`, which boots a stdio server on import and is tested as a process |
-| `packages/` `graph`, `http-transport`, `inference`, `jobs`, `observability`, `ontology`, `sdk`, `vectors` | nothing |
+| `packages/` `graph`, `http-transport`, `inference`, `observability`, `ontology`, `sdk`, `vectors` | nothing |
 
 A coverage `include` also reports the files it matches that no test loads; without one, a report covers only the files the tests load.
 
@@ -73,7 +73,7 @@ Workspace suites run with nothing listening. CI's package matrix starts no datab
 - **React.** `@semiont/react-ui/test-utils` assembles those doubles into providers: `renderWithProviders` renders inside a real `SemiontBrowser` whose active session runs on them. The Browser's tests import it directly.
 - **Property axioms.** `@semiont/core/testing/axioms` holds the StateUnit and liveness axiom harnesses. It needs `fast-check` in the importing package's devDependencies.
 - **An identity provider.** `@semiont/core/testing/issuer` is an in-process OIDC issuer: signing keys, signed tokens, and the discovery and JWKS documents. It serves nothing; the consumer answers the two URLs.
-- **A real broker where a mock would prove nothing.** `@semiont/jobs`' JetStream tests and the conformance suite's NATS plane spawn `nats-server` from `PATH`. A missing binary fails the run with instructions; it never skips.
+- **A real broker where a mock would prove nothing.** The conformance suite's NATS plane spawns `nats-server` from `PATH`. A missing binary fails the run with instructions; it never skips.
 
 ### How the conformance suites are configured
 
@@ -171,12 +171,7 @@ container run --rm -v "$(pwd)":/work -w /work "node:$(scripts/ci/node-version.sh
   sh -c 'npm test --workspace=@semiont/make-meaning'
 ```
 
-**`@semiont/jobs` and the conformance suites need `nats-server`**, which Alpine packages:
-
-```bash
-container run --rm -v "$(pwd)":/work -w /work "node:$(scripts/ci/node-version.sh)-alpine" \
-  sh -c 'apk add --no-cache nats-server && npm test --workspace=@semiont/jobs'
-```
+**The conformance suites need `nats-server`**, which Alpine packages: `apk add --no-cache nats-server` in the same container, before the suite.
 
 For Go, use the `golang` image whose tag satisfies the `toolchain` line in the module's `go.mod`. For Python, use a `python` image at or above the `requires-python` of `packages/sdk-python/pyproject.toml`, with `uv` and, for `pyright`, Node.js.
 
@@ -306,7 +301,7 @@ Excluded from coverage: what the shared config excludes (see [One shared Vitest 
 | `archivist-conformance` | Builds the gateway and the Archivist and runs the `archivist` project |
 | `sdk-conformance` | Builds the gateway, the Rust drivers and `@semiont/sdk`, installs the Python SDK's locked environment, and runs the `sdk` project |
 | `worker-conformance` | Builds the gateway, the Rust drivers and the packages, installs the Python SDK's locked environment, and runs the `worker` project |
-| `worker-service-conformance` | Builds the gateway and the packages and runs the `worker-service` project |
+| `worker-service-conformance` | Builds the gateway and `@semiont/core`, makes the Worker service's locked environment with every provider's library, and runs the `worker-service` project |
 | `test-sdk-python` | `mypy` and `pyright`, each as Linux and as Windows, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `packages/sdk-python`; the distributions a release uploads are built and checked |
 | `test-sdk-python-windows` | The Python SDK's sign-in store and state directory tests, on Windows |
 | `test-inference-python` | `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `packages/inference-python` |

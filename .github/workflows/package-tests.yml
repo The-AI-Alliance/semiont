@@ -22,7 +22,6 @@ jobs:
           - event-sourcing
           - graph
           - inference
-          - jobs
           - make-meaning
           - mcp-server
           - observability
@@ -44,17 +43,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci --include=optional
-
-      # The JetStream job-queue driver's conformance suite runs against a
-      # real nats-server spawned from PATH — a mocked broker would prove
-      # nothing about claim atomicity, CAS merges, or redelivery.
-      - name: Install nats-server (jobs only)
-        if: matrix.package == 'jobs'
-        run: |
-          NATS_VERSION=v2.14.0
-          curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
-          sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
-          nats-server --version
 
       - name: Build package dependencies only
         run: |
@@ -91,16 +79,6 @@ jobs:
               npm run build --workspace=@semiont/core
               npm run build --workspace=@semiont/ontology
               npm run build --workspace=@semiont/http-transport
-              ;;
-            jobs)
-              npm run openapi:bundle
-              npm run build --workspace=@semiont/core
-              npm run build --workspace=@semiont/ontology
-              npm run build --workspace=@semiont/http-transport
-              npm run build --workspace=@semiont/sdk
-              npm run build --workspace=@semiont/content
-              npm run build --workspace=@semiont/inference
-              npm run build --workspace=@semiont/vectors
               ;;
             make-meaning)
               npm run openapi:bundle

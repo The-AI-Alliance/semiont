@@ -252,8 +252,9 @@ export const EMBEDDABLE_MEDIA_TYPES: readonly SupportedMediaType[] = REGISTRY_KE
   (type) => MEDIA_TYPES[type].textSource !== 'none',
 );
 
-/** Types the generation worker can produce as a yield artifact — the
- *  `outputMediaType` gate reads this, not a local table. */
+/** Types the generation worker can produce as a yield artifact — what the
+ *  Browser offers as a generation's `outputMediaType` reads this, not a local
+ *  table. */
 export const GENERATABLE_MEDIA_TYPES: readonly SupportedMediaType[] = REGISTRY_KEYS.filter(
   (type) => MEDIA_TYPES[type].generatable,
 );

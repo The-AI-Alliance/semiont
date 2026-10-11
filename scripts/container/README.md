@@ -6,7 +6,7 @@ Scripts that build Semiont's container images, run inside them, or check them.
 
 | Script | Purpose |
 |--------|---------|
-| `build-images.js` | Builds the gateway, dispatcher, archivist and Browser images — the three Rust services with the toolchain `rust-toolchain.toml` pins. The four Node service images are built by `scripts/ci/local-build.sh` and the image publish workflow, not here. |
+| `build-images.js` | Builds the gateway, dispatcher, archivist and Browser images — the three Rust services with the toolchain `rust-toolchain.toml` pins. The three Node service images and the Python worker image are built by `scripts/ci/local-build.sh` and the image publish workflow, not here. |
 | `container-utils.js` | Lists and removes semiont images. |
 
 Both auto-detect Apple Container, Docker, or Podman (in that order). Override with
@@ -42,3 +42,4 @@ Copied into images by their Dockerfiles; the build context is the repository roo
 |--------|---------|
 | `check-gateway-image.sh <image> [runtime]` | Checks what a built gateway image promises: no source in it, a first `/api/health` 200 within its start bound, and its `HEALTHCHECK` passing against the serving gateway. Run by `scripts/ci/local-build.sh` and the image publish workflow. |
 | `check-document-image.sh <service> <image> [runtime]` | Checks what the built image of a Rust service that only reads a configuration document promises (the dispatcher's, the archivist's): no source and no Node in it, and, run as its `CMD` says with no document mounted, a refusal by name (exit 1, `Cannot read the <service>'s configuration document`) within its bound. Run by `scripts/ci/local-build.sh` and the image publish workflow. |
+| `check-worker-image.sh <image> [runtime]` | Checks what a built worker image promises: no installer and no Node in it; every module of the Python packages built into it importing there, each inference driver with its provider's library; and, run as its `CMD` says with no document mounted, a refusal by name (exit 1, `Cannot read the worker's configuration document`). Run by `scripts/ci/local-build.sh` and the image publish workflow. |

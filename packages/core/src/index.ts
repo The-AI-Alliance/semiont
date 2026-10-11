@@ -218,7 +218,6 @@ export type { PdfCoordinate } from './pdf-coordinates';
 
 // PDF text <-> geometry anchoring (locate/textUnder are inverses)
 export { locate, textUnder, anchorRuns, isTextRun } from './pdf-anchoring';
-export { findClaimSpan } from './pdf-citation-search';
 export type { AnchoredText, AnchoredTextAnswer, ExtractionOutcome, PdfTextItem, PdfTextRun } from './pdf-anchoring';
 
 // ResourceDescriptor accessors
@@ -325,7 +324,6 @@ export {
   LOCALE_CODES,
   getLocaleInfo,
   getLocaleNativeName,
-  getLocaleEnglishName,
   formatLocaleDisplay,
 } from './locales';
 export type { LocaleCode, LocaleInfo } from './locales';
@@ -392,7 +390,7 @@ export type { TagSchema, TagCategory } from './tag-schemas';
 
 // ID generation
 export { generateUuid, uuidV4 } from './id-generation';
-export { chunkText, cutChunk, estimateTokens, DEFAULT_CHUNKING_CONFIG } from './chunking';
+export { chunkText, estimateTokens, DEFAULT_CHUNKING_CONFIG } from './chunking';
 export type { ChunkingConfig } from './chunking';
 
 // State-unit pattern — the disposable contract shared by every layer (sdk,
@@ -405,6 +403,7 @@ export * from './type-guards';
 export * from './errors';
 export * from './did-utils';
 export * from './service-account';
+export { UnansweredError, jsonOf, whyUnanswered } from './unanswered';
 
 // Configuration types
 export type {
@@ -448,7 +447,7 @@ export type {
 } from './config/config.types';
 
 // Knowledge-graph view derivation — pure fn over the KnowledgeGraph type,
-// shared by @semiont/make-meaning (matcher) and @semiont/jobs (generation).
+// shared by @semiont/make-meaning (the Gatherer and the Matcher) and @semiont/react-ui.
 export { deriveViews } from './knowledge-graph-views';
 export type { GraphViews } from './knowledge-graph-views';
 

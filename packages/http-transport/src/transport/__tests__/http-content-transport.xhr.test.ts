@@ -10,6 +10,7 @@
  * test drive the lifecycle deterministically.
  */
 
+import util from 'node:util';
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import { baseUrl, resourceId } from '@semiont/core';
 import type { KyInstance } from 'ky';
@@ -122,6 +123,33 @@ describe('HttpContentTransport.putBinary — XHR path', () => {
   afterEach(() => {
     globalThis.XMLHttpRequest = originalXHR;
     vi.clearAllMocks();
+  });
+
+  test('a token the browser will not carry: the upload got no answer, said by the kind of error and in none of the token', async () => {
+    // A browser refuses a header value that is none, in words that say the value. This stand-in refuses as one does.
+    const carried = 'eyJhbGciOiJSUzI1NiJ9.eyJuIjo3fQ.c2lnbmF0dXJl';
+    class RefusingXHR extends FakeXHR {
+      override setRequestHeader(name: string, value: string): void {
+        if (name === 'Authorization') {
+          throw new DOMException(`Failed to execute 'setRequestHeader' on 'XMLHttpRequest': '${value}' is not a valid HTTP header field value.`, 'SyntaxError');
+        }
+        super.setRequestHeader(name, value);
+      }
+    }
+    (globalThis as unknown as { XMLHttpRequest: typeof FakeXHR }).XMLHttpRequest = RefusingXHR;
+    const { transport, content, token$ } = makeTransportAndContent();
+    token$.next(`one line\nand ${carried}`);
+    const reported: unknown[] = [];
+    transport.errors$.subscribe((error) => reported.push(error));
+
+    const failure: unknown = await content
+      .putBinary({ name: 'a note', file: Buffer.from('a note'), format: 'text/plain', storageUri: 'file://a-note.txt' }, { onProgress: vi.fn() })
+      .catch((e: unknown) => e);
+
+    expect(util.inspect(failure, { depth: 6 })).not.toContain(carried.slice(0, 6));
+    expect(failure).toMatchObject({ name: 'APIError', code: 'unavailable', message: 'POST /resources got no answer: SyntaxError' });
+    expect(reported).toEqual([failure]);
+    expect(FakeXHR.instances[0]!.sendCalls).toEqual([]);
   });
 
   test('sends the cited job as a form field, beside the other provenance fields', async () => {

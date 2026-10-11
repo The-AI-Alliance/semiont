@@ -19,9 +19,11 @@
 import {
   HTTP_REQUEST_TIMEOUT_MS,
   STARTUP_FETCH_RETRY,
+  UnansweredError,
   isObject,
   isRetryableRequestError,
   isString,
+  jsonOf,
   retryWithBackoff,
   serviceAccountToken,
   userId,
@@ -67,13 +69,17 @@ export async function agentToken(opts: AgentSignIn): Promise<components['schemas
       // independently of this process, and of each other.
       const caller = await serviceAccountToken(credential);
 
-      const response = await fetch(`${baseUrl.replace(/\/$/, '')}/api/tokens/agent`, {
+      const url = `${baseUrl.replace(/\/$/, '')}/api/tokens/agent`;
+      const unanswered = (error: unknown) => new UnansweredError(url, error);
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${caller}` },
         body: JSON.stringify(request),
         signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS),
+      }).catch((error: unknown) => {
+        throw unanswered(error);
       });
-      const answer: unknown = await response.json().catch(() => undefined);
+      const answer = await jsonOf(response, unanswered);
 
       if (!response.ok) {
         const said = isObject(answer) && isString(answer['error']) ? answer['error'] : `HTTP ${response.status} ${response.statusText}`;
@@ -90,10 +96,9 @@ export async function agentToken(opts: AgentSignIn): Promise<components['schemas
       }
       return { token: answer['token'], did: userId(answer['did']) };
     },
-    // Not `isTransientFetchError` alone: a request that bounds itself is
-    // rejected with a `TimeoutError` when the bound fires, which that
-    // predicate cannot see, and a sign-in against a gateway that accepts a
-    // connection and never answers would not be tried again.
+    // A request that got no answer, its deadline passing among the ways it
+    // gets none, and a status that says "not now": a sign-in against a
+    // gateway that accepts a connection and never answers is tried again.
     isRetryableRequestError,
     STARTUP_FETCH_RETRY,
     onRetry,

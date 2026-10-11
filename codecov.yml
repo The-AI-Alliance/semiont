@@ -71,10 +71,6 @@ component_management:
       name: "@semiont/inference"
       paths:
         - packages/inference/**
-    - component_id: jobs
-      name: "@semiont/jobs"
-      paths:
-        - packages/jobs/**
     - component_id: make-meaning
       name: "@semiont/make-meaning"
       paths:
@@ -170,11 +166,6 @@ flags:
   inference:
     paths:
       - packages/inference/**
-    carryforward: true
-
-  jobs:
-    paths:
-      - packages/jobs/**
     carryforward: true
 
   make-meaning:

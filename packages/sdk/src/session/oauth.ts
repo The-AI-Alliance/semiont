@@ -18,7 +18,9 @@ import {
   baseUrl,
   isObject,
   isString,
+  jsonOf,
   retryWithBackoff,
+  whyUnanswered,
 } from '@semiont/core';
 import type { SignInErrorCode } from '@semiont/core';
 import type { HttpEndpoint } from './knowledge-base';
@@ -91,14 +93,18 @@ export async function discoverIssuer(target: HttpEndpoint): Promise<IssuerEndpoi
     transport.dispose();
   }
 
+  const unanswered = (error: unknown) =>
+    new SignInError('discovery', `Issuer ${issuer}: discovery was not answered: ${whyUnanswered(error)}`);
   const response = await fetch(`${issuer.replace(/\/$/, '')}/.well-known/openid-configuration`, {
     headers: { Accept: 'application/json' },
     signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS),
+  }).catch((error: unknown) => {
+    throw unanswered(error);
   });
   if (!response.ok) {
     throw new SignInError('discovery', `Issuer ${issuer}: discovery answered HTTP ${response.status}`);
   }
-  const doc: unknown = await response.json();
+  const doc = await jsonOf(response, unanswered);
   if (
     !isObject(doc)
     || doc['issuer'] !== issuer
@@ -291,13 +297,16 @@ async function postForm(
   endpoint: string,
   form: Record<string, string>,
 ): Promise<{ status: number; body: Record<string, unknown> | null }> {
+  const unanswered = (error: unknown) => new SignInError('exchange', `The issuer did not answer: ${whyUnanswered(error)}`);
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
     body: new URLSearchParams(form),
     signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS),
+  }).catch((error: unknown) => {
+    throw unanswered(error);
   });
-  const body: unknown = await response.json().catch(() => null);
+  const body = await jsonOf(response, unanswered);
   return { status: response.status, body: isObject(body) ? body : null };
 }
 

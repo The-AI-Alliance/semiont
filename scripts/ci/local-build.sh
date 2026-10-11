@@ -7,8 +7,9 @@ set -euo pipefail
 # compose via SEMIONT_VERSION=local; never pushed). Also builds the semiont
 # launcher itself (apps/launcher/dist/semiont, a host binary) so one run
 # yields everything a fully-local stack needs. And it builds the Python SDK's
-# distributions (packages/sdk-python/dist), which no image installs and
-# Verdaccio cannot hold, so they are built and checked and published nowhere.
+# distributions (packages/sdk-python/dist), which no image installs (the
+# worker image builds the SDK from the working tree) and Verdaccio cannot
+# hold, so they are built and checked and published nowhere.
 # No npm, Go or Python required on the host — everything runs inside containers.
 #
 # Each run starts a fresh Verdaccio (no stale state), registers a user,
@@ -223,7 +224,7 @@ while [[ $# -gt 0 ]]; do
       echo "                     such as a CI runner, has no use for the copies)"
       echo "  --images-only      Build ONLY container images, against the Verdaccio a"
       echo "                     previous run left running. Skips the npm build+publish,"
-      echo "                     the drift gates, the Python SDK and the launcher. Pair"
+      echo "                     the drift and lockfile gates, the Python SDK and the launcher. Pair"
       echo "                     with --image to rebuild one service in ~a minute instead"
       echo "                     of the lot."
       echo "  -h, --help         Show this help"
@@ -234,9 +235,10 @@ while [[ $# -gt 0 ]]; do
       echo ""
       echo "  --images-only reuses the packages already in Verdaccio, so it picks up a"
       echo "  code change ONLY if that package was republished. Change package source"
-      echo "  and you want a full run (or --package <pkg>) first. The gateway,"
-      echo "  dispatcher and archivist images are the exception: they compile the Rust"
-      echo "  workspace from the working tree every time."
+      echo "  and you want a full run (or --package <pkg>) first. Four images are the"
+      echo "  exception, each built from the working tree every time: the gateway,"
+      echo "  dispatcher and archivist compile the Rust workspace, and the worker"
+      echo "  installs its Python service from apps/worker."
       echo ""
       echo "Packages build in the order version.json lists them; an unknown"
       echo "--package name is refused with the list."
@@ -400,6 +402,58 @@ else
   echo ""
   exit 1
 fi
+
+# --- Python lockfile gate ---
+#
+# The inference drivers (packages/inference-python) and the Worker service
+# (apps/worker) are Python projects with a lockfile each and nothing
+# generated from specs/src, so what can go stale in them is the lockfile: a
+# manifest changed without `uv lock`. CI's job for each refuses that first
+# (`uv sync --locked`), and so does the worker image's build, minutes into a
+# run. This refuses it here, for both, in seconds: `uv lock --check` makes no
+# environment and writes nothing, and the one a working tree may hold from a
+# run on the host is not looked at.
+
+banner "PYTHON LOCKFILE GATE"
+
+for PYTHON_PROJECT in packages/inference-python apps/worker; do
+  step "Checking ${PYTHON_PROJECT}/uv.lock against its manifests (in ${PYTHON_IMAGE})..."
+  # Installing uv and checking report SEPARATELY, as above: a failed download
+  # is not a stale lockfile.
+  LOCK_RC=0
+  $RT run --rm \
+    -v "$REPO_ROOT":/workspace \
+    -v "$UVCACHE_DIR":/root/.cache/uv \
+    -e UV_PROJECT_ENVIRONMENT=/venv \
+    -e UV_PYTHON_DOWNLOADS=never \
+    -e PYTHONDONTWRITEBYTECODE=1 \
+    -w /workspace \
+    "$PYTHON_IMAGE" \
+    sh -c 'pip install --quiet --disable-pip-version-check --root-user-action=ignore uv || exit 3
+           uv lock --check --project "$1" || exit 4' sh "$PYTHON_PROJECT" \
+    || LOCK_RC=$?
+  if [[ "$LOCK_RC" == 0 ]]; then
+    ok "${PYTHON_PROJECT}/uv.lock agrees with its manifests"
+  elif [[ "$LOCK_RC" == 4 ]]; then
+    fail "${PYTHON_PROJECT}/uv.lock does not agree with its manifests (uv says how, above)."
+    echo ""
+    echo -e "  Lock it again and commit the lockfile:"
+    echo ""
+    echo -e "    ${BOLD}cd ${PYTHON_PROJECT} && uv lock${RESET}"
+    echo ""
+    echo -e "  A project takes the SDK, and the worker the inference drivers too, from this"
+    echo -e "  repository, so a change to one of their manifests is a change to its lockfile."
+    echo ""
+    exit 1
+  else
+    fail "The lockfile gate could not RUN for ${PYTHON_PROJECT} (exit $LOCK_RC; its output is above)."
+    echo ""
+    echo -e "  This says nothing about whether the lockfile is stale: ${BOLD}uv${RESET} could not be"
+    echo -e "  installed in ${BOLD}${PYTHON_IMAGE}${RESET}. A failed download is the usual cause."
+    echo ""
+    exit 1
+  fi
+done
 
 # --- sdk-go drift gate ---
 #
@@ -782,12 +836,14 @@ BUILD_REGISTRY="http://$HOST_ADDR:4873"
 
 # --- Build container images ---
 #
-# Same production Dockerfiles as the publish workflows, installed from the
-# local Verdaccio, tagged ghcr.io/the-ai-alliance/semiont-<svc>:local. The
+# Same production Dockerfiles as the publish workflows, tagged
+# ghcr.io/the-ai-alliance/semiont-<svc>:local. The Node images install from
+# the local Verdaccio; the gateway, the dispatcher, the archivist and the
+# worker are built from the working tree. The
 # :local tag is what `semiont start` / compose consume via
 # SEMIONT_VERSION=local (it skips the registry pull), and it is never pushed.
 #
-# --no-cache is required for correctness, not caution: iterating republishes
+# For a Node image --no-cache is required for correctness, not caution: iterating republishes
 # the SAME version to Verdaccio, so the `npm install` RUN line is byte-identical
 # and a cached layer would silently reuse the stale packages.
 
@@ -853,7 +909,8 @@ fanout_all() {
 
 # --- Skip unchanged images ---
 # An image is a function of its Dockerfile, the files it COPYs from the
-# repository (the gateway's crate and the spec, the shared supervisor, the
+# repository (the gateway's crate and the spec, the worker's Python projects
+# and their lockfile, the shared supervisor, the
 # NOTICE), and the @semiont/* packages it installs — DIRECTLY OR TRANSITIVELY. "Unchanged" is decided by package
 # INTEGRITY against the freshly-published Verdaccio — versions and mtimes are
 # useless because every run republishes (check-semiont-drift.mjs reasons the
@@ -862,12 +919,12 @@ fanout_all() {
 # rebuild (explicit wins, and it also refreshes the recorded signature). The
 # @semiont/* set is DERIVED from the Dockerfile text, not restated here.
 #
-# The closure is the whole point. Each
-# sidecar installs ONE package (`npm install -g @semiont/jobs`) and inherits
-# six more through it, all pinned "*" so they resolve to latest at install
+# The closure is the whole point. Each of the three
+# Node services installs ONE of them (`npm install -g @semiont/make-meaning`) and inherits
+# the rest through it, all pinned "*" so they resolve to latest at install
 # time. Signing only the named package would let a fix landing in
-# @semiont/inference leave @semiont/jobs byte-identical, the signature match,
-# and all six sidecars skip — while a rebuild would pick the fix up: correct
+# @semiont/inference leave @semiont/make-meaning byte-identical, the signature match,
+# and all three skip — while a rebuild would pick the fix up: correct
 # about the package it watches and wrong about the image it produces.
 
 # One line capturing everything a rebuild depends on; EMPTY when any
@@ -878,8 +935,9 @@ image_signature() {
   df="$REPO_ROOT/$(image_dockerfile "$1")"
   # Install lines only — comments mention packages that are not installed.
   # Those seed a walk over each package's @semiont/* dependencies, because the
-  # install line names the root of a tree, not the tree. The gateway's
-  # Dockerfile installs none, and under pipefail an empty grep ends the run.
+  # install line names the root of a tree, not the tree. A Dockerfile built
+  # from the working tree installs none, and under pipefail an empty grep ends
+  # the run.
   { grep 'npm install' "$df" | grep -ohE '@semiont/[a-z-]+' || true; } | sort -u \
     | REGISTRY="$REGISTRY" DOCKERFILE="$df" REPO_ROOT="$REPO_ROOT" python3 -c '
 import hashlib, json, os, sys, urllib.parse, urllib.request
@@ -984,7 +1042,7 @@ fi
 # Up to three builds at a time, and the next one starts as soon as any
 # finishes: ~30s of EVERY build is fixed buildkit-shim latency (10s
 # "transferring" round-trips for byte-sized payloads), which overlapping
-# absorbs, and the npm images build while the Rust one compiles. Three, not
+# absorbs, and the npm and Python images build while the Rust one compiles. Three, not
 # six: the builder VM has 2G. The one heavy build is the Rust builder stage,
 # which the gateway, dispatcher and archivist images share, so it compiles once
 # however they overlap. Build output goes to a per-image log; a failure tails it and
@@ -1014,12 +1072,14 @@ while [ $next -lt ${#BUILD_IMGS[@]} ] || [ $running -gt 0 ]; do
     LOG=$(mktemp "$TMP_DIR/semiont-build-${img}.XXXXXX")
     step "Building ${TAG} from ${DF}..."
     # The gateway, the dispatcher and the archivist compile from the repository
-    # with the pinned toolchain, and their layers are keyed by what they copy, so a
-    # cached one is never stale.
+    # with the pinned toolchain, and the worker is installed from it on the
+    # Python floor, with what its lockfile pins. Their layers are keyed by what
+    # they copy, so a cached one is never stale.
     # Every other image installs from Verdaccio, where --no-cache is what keeps
     # a republished same-version package from being reused stale (above).
     case "$img" in
       gateway|dispatcher|archivist) BUILD_FLAGS=(--build-arg "RUST_TOOLCHAIN=$RUST_TOOLCHAIN") ;;
+      worker)             BUILD_FLAGS=(--build-arg "PYTHON_FLOOR=$PYTHON_FLOOR") ;;
       *)                  BUILD_FLAGS=(--no-cache --build-arg "NPM_REGISTRY=$BUILD_REGISTRY") ;;
     esac
     $RT build "${BUILD_FLAGS[@]}" --tag "$TAG" \
@@ -1056,10 +1116,13 @@ while [ $next -lt ${#BUILD_IMGS[@]} ] || [ $running -gt 0 ]; do
     ok "${TAGS[$j]} built ${DIM}($(( $(date +%s) - ${STARTS[$j]} ))s)${RESET}"
     beat=$(date +%s)
     rm -f "${LOGS[$j]}"
-    # The Rust images carry no source and start (or refuse) quickly, or they are not built.
+    # The Rust images carry no source and start (or refuse) quickly, and the
+    # worker image carries every provider's library and refuses by name, or
+    # they are not built.
     case "${NAMES[$j]}" in
       gateway)              kept=("$REPO_ROOT/scripts/container/check-gateway-image.sh" "${TAGS[$j]}" "$RT") ;;
       dispatcher|archivist) kept=("$REPO_ROOT/scripts/container/check-document-image.sh" "${NAMES[$j]}" "${TAGS[$j]}" "$RT") ;;
+      worker)               kept=("$REPO_ROOT/scripts/container/check-worker-image.sh" "${TAGS[$j]}" "$RT") ;;
       *)                    kept=(true) ;;
     esac
     if ! "${kept[@]}"; then
@@ -1153,7 +1216,7 @@ if [[ "$IMAGES_ONLY" == true ]]; then
   echo -e "  Restart the affected service(s) to pick them up, e.g."
   echo -e "    ${BOLD}SEMIONT_VERSION=local <your-kb>/semiont restart${RESET}"
   echo ""
-  echo -e "${DIM}Skipped (use a full run for these): npm build+publish, bus/sdk-go drift gates, Python SDK, launcher.${RESET}"
+  echo -e "${DIM}Skipped (use a full run for these): npm build+publish, the drift and lockfile gates, Python SDK, launcher.${RESET}"
   echo ""
   echo -e "\033[2m[$(date '+%Y-%m-%d %H:%M:%S')] local-build finished (--images-only)\033[0m"
   exit 0
@@ -1204,8 +1267,9 @@ ok "apps/launcher/dist/semiont built"
 # with its uv cache.
 #
 # It is published nowhere. Verdaccio holds npm packages and nothing else, and
-# no image installs this package, so nothing in a local stack would read it
-# from an index. What is left in packages/sdk-python/dist installs by path.
+# the one image that carries the SDK, the worker's, builds it from the working
+# tree, so nothing in a local stack would read it from an index. What is left
+# in packages/sdk-python/dist installs by path.
 #
 # Last, since the stack needs nothing of it: a run that fails here has built
 # everything a local stack runs on.

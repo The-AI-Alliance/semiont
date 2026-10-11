@@ -10,6 +10,7 @@ import pytest
 from aio import pass_time, run, soon, turns
 from kb import refusing, silent
 from pydantic import JsonValue, TypeAdapter, ValidationError
+from shown import CARRIED, parts_of, printed
 from spec import JsonObject
 
 from semiont.client import ClientTiming, SemiontClient
@@ -404,12 +405,15 @@ def test_a_status_whose_completion_is_not_the_verb_s_ends_the_follower_and_is_no
 def test_a_status_whose_completion_is_not_the_verb_s_is_told_as_what_it_is() -> None:
     async def scenario() -> None:
         client, transport = world()
-        transport.queue_reply("job:status-requested", [status("complete", result=GENERATED)])
+        transport.queue_reply("job:status-requested", [status("complete", result={**GENERATED, "resourceName": CARRIED})])
         awaiting = asyncio.ensure_future(_awaited(highlighting(client)))
         await turns()
         await pass_time(SILENCE + 0.1, step=0.5)
-        with pytest.raises(TransportError, match="The status of job job-1 is not a completed mark job's") as ended:
+        with pytest.raises(TransportError) as ended:
             await soon(awaiting)
+        # It is said by what it lacks, and in none of the words of what the job made.
+        assert ended.value.message == "The status of job job-1 is not a completed mark job's: its `result` is malformed"
+        assert parts_of(CARRIED, printed(ended.value)) == []
         assert ended.value.code == "error"
         await client.close()
 

@@ -46,9 +46,8 @@ export type YieldJobResult = components['schemas']['YieldJobResult'];
  */
 export type UnitCursor = components['schemas']['UnitCursor'];
 /**
- * A `yield` job's parameters — one type shared by the write side (the SDK's
- * `yield.delegate`) and the read side (the worker's `isGenerationJobParams`
- * narrowing), so the two ends of the wire cannot drift a field apart silently.
+ * A `yield` job's parameters, as the spec states them: what the SDK's
+ * `yield.delegate` writes and what a worker is handed with the job.
  */
 export type GenerationJobParams = components['schemas']['GenerationJobParams'];
 export type SelectionData = components['schemas']['SelectionData'];

@@ -17,12 +17,6 @@ export {
   type ExtractionCache,
 } from './text-extractor';
 
-// Extraction byte budget. Also the generation output bound: an
-// artifact we generate must stay within the budget our own extractor
-// accepts, or we would mint resources the Smelter declines as 'too-large'.
-// One threshold, two enforcement points.
-export { MAX_PDF_BYTES, withinByteBudget } from './pdf-extractor';
-
 // Persistent recognition cache. Derived values only — everything in it is
 // reproducible from the source bytes, and master data never belongs here.
 export {

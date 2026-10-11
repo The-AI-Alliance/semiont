@@ -35,6 +35,8 @@ import httpx
 from pydantic import JsonValue, ValidationError
 
 from semiont import telemetry
+from semiont._bus_log import bus_log, bus_note
+from semiont._lacks import lacks
 from semiont.channels import RESOURCE_SCOPED_CHANNELS
 from semiont.errors import SemiontError, TransportError
 from semiont.events import Broadcast
@@ -342,8 +344,17 @@ class Stream:
                         break
                     self._reported(tasks, report, loop.time())
                 watching.cancel()
-                for connection in self._connections.values():
-                    connection.task.cancel()
+                # A connection is cancelled until its task has ended. Once is not always enough: while a connection is
+                # being made, the HTTP library cancels a scope of its own that the task is in, and a cancellation of
+                # the task asked for in that same turn of the loop is delivered as the library's. The library takes it,
+                # and the task goes on. So whatever a turn of the loop has not ended is cancelled again. A connection
+                # that ended at the first is cancelled no more; one still closing its response when the second comes
+                # leaves the rest of that to the client's own closing.
+                reading = {connection.task for connection in self._connections.values()}
+                while reading:
+                    for task in reading:
+                        task.cancel()
+                    _, reading = await asyncio.wait(reading, timeout=0)
         finally:
             # However its task ended, by `stop` or not, the stream is over.
             self._closed()
@@ -514,8 +525,12 @@ class Stream:
             carried = _Carried.model_validate_json(data)
         except ValidationError as error:
             # What is not a frame is not delivered, and is said so.
-            _LOG.warning("the stream carried what is not a frame (id %s): %s", event_id, error)
+            _LOG.warning("the stream carried what is not a frame (id %s): %s", event_id, lacks((_Carried,), error, "a frame"))
             return
+        bus_log("RECV", carried.channel, carried.payload, scope=carried.scope, correlation_id=carried.correlation_id)
+        if conn in self._superseded:
+            # What closing a retired connection at once would have lost.
+            bus_note("LINGER", carried.channel, "delivered on superseded connection")
         payload = carried.payload
         sent_under: TraceContext | None = None
         if _TRACE_FIELD in payload:

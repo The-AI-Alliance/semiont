@@ -1,0 +1,282 @@
+"""The worker's configuration document, and what its environment holds beside it.
+
+`docs/protocol/WORKER-SERVICE.md` § Configuration states each refusal, and
+the worker service's conformance suite holds the words of each to a started
+process. Here is what the suite cannot reach: that the schema is held as it
+is written, and that a refusal repeats nothing the document held.
+"""
+
+import json
+from pathlib import Path
+from typing import Final
+
+import pytest
+from pydantic import JsonValue
+from semiont.http import Credential
+from semiont.types import WorkerConfig
+
+from semiont_worker.config import Refused, api_key_of, config_path_of, read_worker_config, service_account_of, set_in
+
+DOCUMENT: Final[dict[str, JsonValue]] = {
+    "gatewayUrl": "http://gateway:4000",
+    "identity": {"issuer": "http://issuer:8080/realms/semiont"},
+    "agents": [
+        {
+            "agent": {"provider": "anthropic", "model": "claude-test"},
+            "accepts": [{"jobType": "mark", "params": {"motivation": "highlighting"}}, {"jobType": "yield"}],
+            "baseUrl": "https://api.anthropic.com",
+            "apiKeyEnv": "ANTHROPIC_API_KEY",
+        },
+        {"agent": {"provider": "ollama", "model": "gemma2:27b"}, "accepts": [{"jobType": "yield"}], "baseUrl": "http://ollama:11434"},
+    ],
+    "port": 24100,
+    "logLevel": "info",
+    "logFormat": "json",
+}
+
+
+DOCUMENT_AGENT: Final[dict[str, JsonValue]] = {
+    "agent": {"provider": "ollama", "model": "m"},
+    "accepts": [{"jobType": "yield"}],
+    "baseUrl": "http://ollama",
+}
+
+
+def written(tmp_path: Path, document: object) -> str:
+    """The path of a file holding `document`: as JSON, or as it is where it is text."""
+    path = tmp_path / "worker.json"
+    path.write_text(document if isinstance(document, str) else json.dumps(document), encoding="utf-8")
+    return str(path)
+
+
+def changed(**members: JsonValue) -> dict[str, JsonValue]:
+    return {**DOCUMENT, **members}
+
+
+def refusal_of(tmp_path: Path, document: object) -> str:
+    with pytest.raises(Refused) as refused:
+        read_worker_config(written(tmp_path, document))
+    return str(refused.value)
+
+
+# ── where the document is ───────────────────────────────────────────────
+
+
+def test_the_path_is_what_follows_the_flag_or_is_joined_to_it() -> None:
+    assert config_path_of(["--config", "/etc/semiont/worker.json"]) == "/etc/semiont/worker.json"
+    assert config_path_of(["--config=/etc/semiont/worker.json"]) == "/etc/semiont/worker.json"
+    assert config_path_of(["--verbose", "--config", "worker.json", "--more"]) == "worker.json"
+
+
+@pytest.mark.parametrize("arguments", [[], ["--config"], ["--config="], ["--config", ""], ["--config", "--other"], ["worker.json"]])
+def test_a_path_that_is_not_named_is_refused_and_never_guessed(arguments: list[str]) -> None:
+    with pytest.raises(Refused) as refused:
+        config_path_of(arguments)
+    assert str(refused.value) == "The worker's configuration document is not named: start it with --config <path>"
+
+
+def test_a_flag_with_no_path_does_not_hide_one_named_after_it() -> None:
+    assert config_path_of(["--config=", "--config", "worker.json"]) == "worker.json"
+
+
+# ── reading the document ────────────────────────────────────────────────
+
+
+def test_the_document_is_read_as_the_protocol_s_shape(tmp_path: Path) -> None:
+    config = read_worker_config(written(tmp_path, DOCUMENT))
+    assert config == WorkerConfig.model_validate(DOCUMENT)
+    assert (config.gateway_url, config.port, config.log_level, config.log_format) == ("http://gateway:4000", 24100, "info", "json")
+    assert [(entry.agent.provider, entry.agent.model, entry.api_key_env) for entry in config.agents] == [
+        ("anthropic", "claude-test", "ANTHROPIC_API_KEY"),
+        ("ollama", "gemma2:27b", None),
+    ]
+
+
+def test_a_path_that_names_no_file_is_refused_saying_where_it_looked_and_who_writes_the_document(tmp_path: Path) -> None:
+    absent = str(tmp_path / "absent.json")
+    with pytest.raises(Refused) as refused:
+        read_worker_config(absent)
+    said = str(refused.value)
+    assert said.startswith(f"Cannot read the worker's configuration document at {absent} (")
+    assert said.endswith("). The launcher writes it; a worker started another way is given one (WorkerConfig in specs/).")
+
+
+def test_what_is_not_json_is_refused_as_that_naming_the_file(tmp_path: Path) -> None:
+    # A knowledge base's own config is TOML, and is not the worker's document.
+    said = refusal_of(tmp_path, '[workers]\ndefault = "ollama"\n')
+    path = str(tmp_path / "worker.json")
+    assert said.startswith(f"{path} is not JSON: ")
+    assert len(said) > len(f"{path} is not JSON: ")
+    assert "ollama" not in said
+
+
+def test_bytes_that_are_no_text_are_refused_as_not_json(tmp_path: Path) -> None:
+    path = tmp_path / "worker.json"
+    path.write_bytes(b"\xff\xfe\x00{")
+    with pytest.raises(Refused) as refused:
+        read_worker_config(str(path))
+    assert str(refused.value).startswith(f"{path} is not JSON: ")
+
+
+@pytest.mark.parametrize(
+    ("member", "document"),
+    [
+        ("gatewayUrl", {name: value for name, value in DOCUMENT.items() if name != "gatewayUrl"}),
+        ("port", {name: value for name, value in DOCUMENT.items() if name != "port"}),
+        ("issuer", changed(identity={})),
+        ("accepts", changed(agents=[{"agent": {"provider": "ollama", "model": "m"}, "baseUrl": "http://ollama"}])),
+        ("model", changed(agents=[{"agent": {"provider": "ollama"}, "accepts": [{"jobType": "yield"}], "baseUrl": "http://ollama"}])),
+    ],
+)
+def test_a_member_the_document_lacks_is_named_on_a_line_of_its_own(tmp_path: Path, member: str, document: dict[str, JsonValue]) -> None:
+    head, *reasons = refusal_of(tmp_path, document).split("\n")
+    assert head == f"{tmp_path / 'worker.json'} is not a worker configuration document (WorkerConfig):"
+    assert f"  Missing required property: {member}" in reasons
+    assert all(reason.startswith("  ") for reason in reasons)
+
+
+def test_every_reason_is_said_and_not_the_first_alone(tmp_path: Path) -> None:
+    lacking = {name: value for name, value in DOCUMENT.items() if name not in ("port", "logLevel")}
+    reasons = refusal_of(tmp_path, {**lacking, "dispatcherUrl": "http://dispatcher"}).split("\n")[1:]
+    assert sorted(reasons) == [
+        "  Missing required property: logLevel",
+        "  Missing required property: port",
+        "  root: unknown property dispatcherUrl",
+    ]
+
+
+def test_a_member_is_known_by_the_name_the_document_gives_it_and_by_no_other(tmp_path: Path) -> None:
+    # The SDK's shapes are built in Python by Python's names. A document is held to the wire's.
+    renamed = {("gateway_url" if name == "gatewayUrl" else name): value for name, value in DOCUMENT.items()}
+    reasons = refusal_of(tmp_path, renamed).split("\n")[1:]
+    assert reasons == ["  Missing required property: gatewayUrl"]
+
+
+@pytest.mark.parametrize(
+    ("document", "member"),
+    [
+        (changed(port="24100"), "port"),
+        (changed(port=24100.5), "port"),
+        (changed(port=True), "port"),
+        (changed(port=0), "port"),
+        (changed(port=70000), "port"),
+        (changed(gatewayUrl=""), "gatewayUrl"),
+        (changed(gatewayUrl=4000), "gatewayUrl"),
+        (changed(logLevel="verbose"), "logLevel"),
+        (changed(logFormat="pretty"), "logFormat"),
+        (changed(agents=[]), "agents"),
+        (changed(agents={}), "agents"),
+        (changed(identity="http://issuer"), "identity"),
+    ],
+)
+def test_a_value_that_is_not_the_kind_the_schema_states_is_refused_naming_its_member(
+    tmp_path: Path, document: dict[str, JsonValue], member: str
+) -> None:
+    reasons = refusal_of(tmp_path, document).split("\n")[1:]
+    assert len(reasons) == 1
+    assert reasons[0].startswith(f"  {member}: ")
+
+
+def test_a_member_inside_an_agent_is_named_by_its_place_in_the_document(tmp_path: Path) -> None:
+    second: dict[str, JsonValue] = {**DOCUMENT_AGENT, "accepts": [], "apiKey": "hunter2-not-a-name"}
+    reasons = refusal_of(tmp_path, changed(agents=[DOCUMENT_AGENT, second])).split("\n")[1:]
+    assert sorted(reason.split(": ", 1)[0] for reason in reasons) == ["  agents[1]", "  agents[1].accepts"]
+    assert "  agents[1]: unknown property apiKey" in reasons
+
+
+SECRET: Final = "sk-conformance-0123456789abcdef"
+
+
+@pytest.mark.parametrize(
+    "document",
+    [
+        # A key written where a member the schema does not have was invented for it.
+        changed(agents=[{**DOCUMENT_AGENT, "apiKey": SECRET}]),
+        # A value of every wrong kind, each of them the secret.
+        changed(port=SECRET),
+        changed(logLevel=SECRET),
+        changed(logFormat=SECRET),
+        changed(identity=SECRET),
+        changed(agents=SECRET),
+        changed(agents=[SECRET]),
+        changed(agents=[{"agent": {"provider": SECRET, "model": "m"}, "accepts": [{"jobType": "yield"}], "baseUrl": "http://ollama"}]),
+        changed(agents=[{"agent": {"provider": "ollama", "model": "m"}, "accepts": [{"jobType": SECRET}], "baseUrl": "http://ollama"}]),
+        changed(
+            agents=[
+                {
+                    "agent": {"provider": "ollama", "model": "m"},
+                    "accepts": [{"jobType": "mark", "params": {"motivation": SECRET}}],
+                    "baseUrl": "http://ollama",
+                }
+            ]
+        ),
+        {SECRET: SECRET, **DOCUMENT},
+    ],
+)
+def test_no_refusal_repeats_a_value_the_document_held(tmp_path: Path, document: dict[str, JsonValue]) -> None:
+    said = refusal_of(tmp_path, document)
+    held_only_as_a_members_name = said.replace(f"unknown property {SECRET}", "")
+    assert SECRET not in held_only_as_a_members_name
+
+
+def test_a_filter_that_states_no_job_type_the_protocol_has_is_refused_by_what_was_expected(tmp_path: Path) -> None:
+    agent: dict[str, JsonValue] = {**DOCUMENT_AGENT, "accepts": [{"jobType": "smelt"}]}
+    (reason,) = refusal_of(tmp_path, changed(agents=[agent])).split("\n")[1:]
+    assert reason.startswith("  agents[0].accepts[0]: ")
+    assert "smelt" not in reason
+
+
+# ── what the document names and the environment holds ───────────────────
+
+
+def config() -> WorkerConfig:
+    return WorkerConfig.model_validate(DOCUMENT)
+
+
+def test_an_agent_s_key_is_the_value_of_the_variable_the_document_names() -> None:
+    assert api_key_of(config(), 0, {"ANTHROPIC_API_KEY": "sk-held", "OTHER": "x"}) == "sk-held"
+
+
+def test_an_agent_whose_provider_takes_no_key_has_none() -> None:
+    assert api_key_of(config(), 1, {"ANTHROPIC_API_KEY": "sk-held"}) is None
+
+
+@pytest.mark.parametrize("environment", [{}, {"ANTHROPIC_API_KEY": ""}])
+def test_a_variable_that_is_not_set_or_is_set_to_nothing_is_refused_by_the_member_that_named_it(environment: dict[str, str]) -> None:
+    with pytest.raises(Refused) as refused:
+        api_key_of(config(), 0, environment)
+    assert str(refused.value) == "agents[0].apiKeyEnv names a variable that is not set in the worker's environment"
+
+
+def test_the_refusal_never_repeats_what_the_document_gave_as_the_variable_s_name() -> None:
+    named = WorkerConfig.model_validate(changed(agents=[{**DOCUMENT_AGENT, "apiKeyEnv": SECRET}]))
+    with pytest.raises(Refused) as refused:
+        api_key_of(named, 0, {})
+    assert SECRET not in str(refused.value)
+
+
+def test_the_service_account_is_the_two_variables_every_service_signs_in_with() -> None:
+    environment = {"SEMIONT_OIDC_CLIENT_ID": "semiont-worker", "SEMIONT_OIDC_CLIENT_SECRET": "s3cret"}
+    assert service_account_of(config(), environment) == Credential(
+        issuer="http://issuer:8080/realms/semiont", client_id="semiont-worker", client_secret="s3cret"
+    )
+
+
+@pytest.mark.parametrize("variable", ["SEMIONT_OIDC_CLIENT_ID", "SEMIONT_OIDC_CLIENT_SECRET"])
+@pytest.mark.parametrize("left", ["unset", "empty"])
+def test_either_variable_of_the_account_unset_or_empty_is_refused_by_name_and_the_secret_is_not_said(variable: str, left: str) -> None:
+    environment = {"SEMIONT_OIDC_CLIENT_ID": "semiont-worker", "SEMIONT_OIDC_CLIENT_SECRET": "s3cret"}
+    if left == "unset":
+        del environment[variable]
+    else:
+        environment[variable] = ""
+    with pytest.raises(Refused) as refused:
+        service_account_of(config(), environment)
+    assert str(refused.value) == f"{variable} is not set in the worker's environment: a worker signs in as a service account"
+    assert "s3cret" not in str(refused.value)
+
+
+def test_a_variable_set_to_nothing_is_one_that_is_not_set() -> None:
+    assert set_in({"A": "", "B": "b"}, "A") is None
+    assert set_in({"A": "", "B": "b"}, "B") == "b"
+    assert set_in({}, "A") is None

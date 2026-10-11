@@ -1,8 +1,10 @@
 # Per-package license exceptions.
 #
-# Some npm packages omit a machine-readable `license` field in package.json (so
-# the SBOM scanner reports NOASSERTION) yet ship a LICENSE file whose terms a
-# human has verified. Each entry here supplies that verified SPDX id.
+# Some packages state no machine-readable license in their metadata (an npm
+# package's `license` field in package.json, a PyPI distribution's
+# `License-Expression`), so the SBOM scanner reports NOASSERTION, yet ship a
+# LICENSE file whose terms a human has verified. Each entry here supplies that
+# verified SPDX id.
 #
 # Two guardrails keep this honest:
 #   1. An exception is applied ONLY when the scanner reports no license. If a
@@ -17,3 +19,10 @@
 # only where the package name is not stable by construction — a generator that
 # embeds a content hash in its output name — never to blanket a family of
 # third-party packages.
+
+# PyPI, required by Together's library (the worker image has every provider's).
+# Its metadata names a license file and no license. That file, in the wheel as
+# detect_agent-<version>.dist-info/licenses/LICENSE, is the Apache License 2.0
+# text; the project is Together's, github.com/togethercomputer/detect_agent.
+# Read at 0.6.0, 2026-10-10.
+detect_agent Apache-2.0

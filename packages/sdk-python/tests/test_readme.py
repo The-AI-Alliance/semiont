@@ -36,7 +36,7 @@ from semiont.bus import reply_channels_for
 from semiont.claims import JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS
 from semiont.http import HttpTransport
 from semiont.identifiers import AnnotationId, ResourceId
-from semiont.identity import agent_address, agent_did
+from semiont.identity import agent_did
 from semiont.operations import JOB_CLAIM
 from semiont.sign_in_store import FILE_NAME, SignInStore, state_dir, this_system
 from semiont.testing import FaultyTransport, PutBinary, create_test_client
@@ -343,7 +343,8 @@ def test_an_agent_opens_its_stream_as_the_agent_its_service_account_was_exchange
             assert subscribed.json()["global"] == list(reply_channels_for(JOB_CLAIM))
 
     run(scenario())
-    assert capsys.readouterr().out.splitlines() == ["open"]
+    # It says who it works as, as the gateway named it, and then that its stream is open.
+    assert capsys.readouterr().out.splitlines() == [f"working as {agent_did('example.org', 'ollama', 'gemma2:27b')}", "open"]
 
 
 def test_a_worker_claims_as_its_agent_commits_a_highlight_it_built_says_the_job_s_lifecycle_and_claims_again(
@@ -374,15 +375,8 @@ def test_a_worker_claims_as_its_agent_commits_a_highlight_it_built_says_the_job_
         async with GatewayServer() as gateway:
             trusting(gateway)
             gateway.answers[TOKEN] = {"access_token": token(3600, 0)}
-            gateway.scripted[("POST", AGENT)] = [agent_token(1)]
-            # Who the gateway says the agent's token is.
-            gateway.answers[ME] = {
-                "did": did,
-                "email": agent_address("example.org", "ollama", "gemma3:4b"),
-                "name": "ollama gemma3:4b",
-                "image": None,
-                "domain": "example.org",
-            }
+            # The gateway's answer to the exchange: the agent's token, and who the agent is.
+            gateway.scripted[("POST", AGENT)] = [says({"token": token(3600, 1), "did": did})]
             gateway.stored["res-1"] = ("text/plain", page.encode())
             # The dispatcher: the first claim is handed a job, the second is refused, and no other is answered.
             answers: list[tuple[str, JsonObject]] = [
@@ -454,7 +448,7 @@ def test_a_worker_claims_as_its_agent_commits_a_highlight_it_built_says_the_job_
             assert said().count("job:fail") == 0
 
     run(scenario())
-    assert capsys.readouterr().out.splitlines() == ["claim refused: the queue is being moved"]
+    assert capsys.readouterr().out.splitlines() == [f"working as {did}", "claim refused: the queue is being moved"]
 
 
 def test_a_person_signs_in_by_the_device_grant_once_and_is_that_person_from_then_on(

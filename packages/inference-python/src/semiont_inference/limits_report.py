@@ -10,19 +10,34 @@ among the callers that ask at once, and forgets a failure, so a provider that
 was down for a moment is asked again at the next report. A report never fails
 and never waits on a provider: a pair whose limits could not be learned, or
 were not learned in time, is left out of it.
+
+The request is one of the bus's limits operations, one for each service that
+holds a key: the Worker answers `job:limits-requested`, and the Librarian
+`gather:limits-requested` and `match:limits-requested`.
 """
 
 import asyncio
 from collections.abc import Sequence
 from typing import Final
 
+from semiont import telemetry
+from semiont.bus import Bus, Delivered
+from semiont.channel import Operation
+from semiont.errors import SemiontError
 from semiont.model import stated
-from semiont.types import InferenceLimits, InferencePairLimits
+from semiont.types import (
+    CommandError,
+    InferenceLimits,
+    InferenceLimitsRequest,
+    InferenceLimitsResult,
+    InferenceLimitsResultResponse,
+    InferencePairLimits,
+)
 
 from semiont_inference._log import LOG
 from semiont_inference.interface import InferenceClient
 
-__all__ = ["report_limits"]
+__all__ = ["answer_limits_requests", "report_limits"]
 
 # How long one client is waited on, in seconds. A discovery states no bound of
 # its own that is this short, and without one a provider that hangs would hold
@@ -70,3 +85,46 @@ async def report_limits(clients: Sequence[InferenceClient]) -> list[InferencePai
         for (provider, model), limits in zip(distinct, consulted, strict=True)
         if limits is not None
     ]
+
+
+async def _answer(
+    bus: Bus,
+    operation: Operation[InferenceLimitsRequest, InferenceLimitsResult, CommandError],
+    clients: Sequence[InferenceClient],
+    request: Delivered[InferenceLimitsRequest],
+) -> None:
+    """Answer one request: a report on the operation's result channel, or, where that could not be sent, why on its failure channel."""
+    with telemetry.continuing(request.trace):
+        try:
+            limits = await report_limits(clients)
+            await bus.emit(
+                operation.result,
+                InferenceLimitsResult(response=InferenceLimitsResultResponse(limits=limits)),
+                correlation_id=request.correlation_id,
+            )
+        except Exception as failed:
+            LOG.error("Limits report failed", extra={"operation": operation.request.name, "error": str(failed)})
+            try:
+                await bus.emit(operation.failure, CommandError(message=str(failed)), correlation_id=request.correlation_id)
+            except SemiontError:
+                # A failure that cannot be sent either is told where every emit that could not be sent is: by the transport.
+                return
+
+
+async def answer_limits_requests(
+    bus: Bus, operation: Operation[InferenceLimitsRequest, InferenceLimitsResult, CommandError], clients: Sequence[InferenceClient]
+) -> None:
+    """Answer every request of `operation` that `bus` delivers with the limits of `clients`, for as long as this is awaited.
+
+    Each request is answered once, on the operation's result channel, with
+    the request's correlation id, in the trace it was sent under. Each is
+    answered as its own report is made, so a provider that is slow to one
+    request holds up no other. The bus's stream must name the operation's
+    request channel.
+
+    It returns when the bus's frames end, once the answers under way are
+    sent. Cancelled, it stops listening and ends the reports it was making.
+    """
+    async with bus.frames(operation.request) as requests, asyncio.TaskGroup() as answering:
+        async for request in requests:
+            answering.create_task(_answer(bus, operation, clients, request))

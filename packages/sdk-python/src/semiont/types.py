@@ -3851,7 +3851,7 @@ class JobFailCommand(WireModel, frozen=True):
         bool | None,
         Field(
             alias="willRetry",
-            description="Whether the queue will re-queue this job for another attempt. Computed by the worker from the SAME predicate the queue applies at failJob (one decision site, `willRetryAfter` in @semiont/jobs) using the retry budget carried on the claimed record. FALSE (or absent) means this failure is TERMINAL: a client's job-watch stream ends here. TRUE means the work continues on a fresh attempt — the failure is an event, not the end, and a stream that terminated on it would report a recovering run as a failed one.",
+            description="Whether the queue will re-queue this job for another attempt. Computed by the worker from the SAME rule the queue applies when it takes the failure (specs/src/jobs/retry-cases.json, which every SDK and the dispatcher run) using the retry budget carried on the claimed record. FALSE (or absent) means this failure is TERMINAL: a client's job-watch stream ends here. TRUE means the work continues on a fresh attempt — the failure is an event, not the end, and a stream that terminated on it would report a recovering run as a failed one.",
         ),
     ] = None
     durability: DurabilityEvidence | None = None
@@ -5123,7 +5123,7 @@ type JobProgressMessage = Annotated[
     | JobProgressCreatingTagAnnotations
     | JobProgressCompleteCreated,
     Field(
-        description="What a running job is doing right now, as a code plus typed params — never a prose sentence. The producer reports what happened; each client renders it in the user's language (react-ui from its translations, the Go launcher from its English map). One named schema per code, discriminated on `code`, so generated clients get typed variants and copy-map completeness is statically checkable. The vocabulary is the census of every onProgress call site in @semiont/jobs; extending it means adding a named variant here and copy in every client, gated by the locale-completeness check.",
+        description="What a running job is doing right now, as a code plus typed params — never a prose sentence. The producer reports what happened; each client renders it in the user's language (react-ui from its translations, the Go launcher from its English map). One named schema per code, discriminated on `code`, so generated clients get typed variants and copy-map completeness is statically checkable. The vocabulary is every report Semiont's worker makes (docs/protocol/WORKER-SERVICE.md, D16 to D19 and Y8); extending it means adding a named variant here and copy in every client, gated by the locale-completeness check.",
         discriminator="code",
     ),
 ]

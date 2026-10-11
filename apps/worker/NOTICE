@@ -10,7 +10,7 @@ This container image (semiont-worker) includes the following third-party
 components:
 
   Alpine Linux - MIT License
-  Node.js - MIT License
+  Python - Python Software Foundation License
   tini - MIT License
 
   Typst (typesetting compiler, v0.15.1) - Apache-2.0 License
@@ -27,9 +27,17 @@ components:
         Bitstream Vera is a trademark of Bitstream, Inc.
         DejaVu changes are in the public domain.
 
-  npm dependencies (installed at build time from https://registry.npmjs.org):
-    @semiont/jobs - Apache-2.0 License (The AI Alliance)
+  Python packages built into the image from this repository:
+    semiont - Apache-2.0 License (The AI Alliance)
+    semiont-inference - Apache-2.0 License (The AI Alliance)
+    semiont-worker - Apache-2.0 License (The AI Alliance)
 
-Each npm dependency's full license text is available in its respective
-node_modules/<package>/LICENSE file within the image, under
-/usr/local/lib/node_modules.
+  Python packages installed at build time from https://pypi.org, each at the
+  version apps/worker/uv.lock pins: what those three require, and with every
+  extra of semiont-inference the library each model provider is asked
+  through, with what that library requires.
+
+Each package from pypi.org carries its license text in its
+<name>-<version>.dist-info directory within the image, under the
+site-packages directory of /opt/venv. The three built from this repository
+are under the license beside this file.

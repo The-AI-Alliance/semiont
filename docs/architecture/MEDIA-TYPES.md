@@ -136,7 +136,7 @@ They are independent — `application/pdf` is generatable but not authorable,
 because a model can write one and a person cannot type one.
 
 `generatable` lives in the registry for the same reason as everything else
-here: a local constant inside `processGenerationJob` would be a second
+here: a constant kept where a generation is asked for would be a second
 media-type table of exactly the kind this registry exists to prevent.
 
 ## Authored PDFs: geometry chosen, not recovered

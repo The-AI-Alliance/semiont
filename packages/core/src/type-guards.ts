@@ -73,31 +73,6 @@ export function isDefined<T>(value: T | null | undefined): value is T {
 }
 
 /**
- * Boundary guard for `job:create` generation params.
- *
- * Checks the REQUIRED trio the schema declares (`title`, `storageUri`,
- * `context`) plus basic shape — deliberately NOT a full schema validation
- * (that depth belongs to the spec and its generated types); this is the
- * runtime half of the contract for values whose type history was severed:
- * wire JSON, storage, casts. For well-typed callers it is dead code, and
- * that is the correct price for a trust-boundary check.
- */
-export function isGenerationJobParams(
-  value: unknown,
-): value is import('./payload-types').GenerationJobParams {
-  if (!isObject(value)) return false;
-  // Non-empty, not merely present: the worker has no fallback, so
-  // `storageUri: ''` would write to a bare `file://` and `title: ''` would
-  // name the resource nothing. The gateway holds a `job:create` to the same
-  // rule; this holds what a worker is handed, which nothing validated since.
-  return (
-    typeof value.title === 'string' && value.title.length > 0
-    && typeof value.storageUri === 'string' && value.storageUri.length > 0
-    && isObject(value.context)
-  );
-}
-
-/**
  * Whether a completed job's stored result is one its worker reported
  * (`JobStoredResult`): a job completed without a result is stored with an
  * empty one, and every `JobResult` requires a member.

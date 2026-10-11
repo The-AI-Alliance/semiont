@@ -87,7 +87,7 @@ A job given a param its motivation does not take is refused when it is created, 
 
 A `mark` job's result is one of two ([`MarkJobResult`](../../../specs/src/components/schemas/MarkJobResult.json)). A job that did its work reports its counts, the same whatever its motivation: `found`, what the model proposed; `persisted`, what the log holds; and `errors`, how many of the proposed could not be anchored in the text, absent when none. A job whose resource could not be read reports a decline, with the reason.
 
-The whole document is read: a long one is processed in pieces sized to the model's limits, never truncated. How detection is done is the worker's: see [the job types](../../../packages/jobs/docs/JobTypes.md).
+The whole document is read: a long one is processed in pieces sized to the model's limits, never truncated. How detection is done is the worker's: see [Detection](../WORKER-SERVICE.md#detection) and [the five kinds of mark job](../WORKER-SERVICE.md#the-five-kinds-of-mark-job).
 
 ## Example
 
@@ -124,6 +124,6 @@ From the launcher: `semiont mark --delegate <resourceId> --motivation linking --
 
 - The SDK namespace: [packages/sdk/src/namespaces/mark.ts](../../../packages/sdk/src/namespaces/mark.ts)
 - What records the events: [the Archivist](../ARCHIVIST.md), in [apps/archivist/src/commands.rs](../../../apps/archivist/src/commands.rs)
-- The detection workers: [packages/jobs](../../../packages/jobs/README.md)
+- The Worker service, which runs the detections: [apps/worker](../../../apps/worker/README.md), held to [WORKER-SERVICE.md](../WORKER-SERVICE.md)
 - The launcher verb: [apps/launcher/internal/verbs/mark.go](../../../apps/launcher/internal/verbs/mark.go)
 - The channels and their payloads: [specs/src/bus/registry.json](../../../specs/src/bus/registry.json)

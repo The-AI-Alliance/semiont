@@ -1,16 +1,15 @@
 /**
- * Locating a span of a PDF's text, held to
- * specs/src/annotations/pdf-locate-cases.json: the table every worker runs, so
- * that a span is anchored to the same rectangles, written as the same
- * selectors, and a claim found at the same place, whoever does it.
+ * Locating a span of a PDF's text, held to the `cases` of
+ * specs/src/annotations/pdf-locate-cases.json: the table every implementation
+ * runs, so that a span is anchored to the same rectangles and written as the
+ * same selectors, whoever does it. The table's `claims` are the rule of
+ * Semiont's worker alone, and are run there.
  */
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { locate, type AnchoredText, type PdfTextItem } from '../pdf-anchoring';
 import { createFragmentSelector, type PdfCoordinate } from '../pdf-coordinates';
-import { findClaimSpan } from '../pdf-citation-search';
-import { textOffsets } from '../text-offsets';
 
 interface Span {
   start: number;
@@ -27,22 +26,13 @@ interface LocateCase {
   fragments: string[];
 }
 
-interface ClaimCase {
-  why: string;
-  text: string;
-  claim: string;
-  /** `null` when the claim is not found. */
-  span: Span | null;
-}
-
-const table: { cases: LocateCase[]; claims: ClaimCase[] } = JSON.parse(
+const table: { cases: LocateCase[] } = JSON.parse(
   readFileSync(new URL('../../../../specs/src/annotations/pdf-locate-cases.json', import.meta.url), 'utf8'),
 );
 
 describe('locating a span of a PDF (specs/src/annotations/pdf-locate-cases.json)', () => {
-  it('has cases of each kind', () => {
+  it('has cases', () => {
     expect(table.cases.length).toBeGreaterThan(0);
-    expect(table.claims.length).toBeGreaterThan(0);
   });
 
   for (const { why, anchored, span, overlapping, rects, fragments } of table.cases) {
@@ -51,12 +41,6 @@ describe('locating a span of a PDF (specs/src/annotations/pdf-locate-cases.json)
       expect(located.overlap, 'overlapping').toStrictEqual(overlapping);
       expect(located.rects, 'rects').toStrictEqual(rects);
       expect(rects.map(createFragmentSelector), 'fragments').toStrictEqual(fragments);
-    });
-  }
-
-  for (const { why, text, claim, span } of table.claims) {
-    it(why, () => {
-      expect(findClaimSpan({ text, items: [] }, textOffsets(text), claim)).toStrictEqual(span);
     });
   }
 });

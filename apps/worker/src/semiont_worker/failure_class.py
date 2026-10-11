@@ -44,6 +44,11 @@ outright, and 429 the server saying not now.
 """
 
 
+def words_of(failure: BaseException) -> str:
+    """A failure as text, for whoever reads of it: its own words, or its kind where it has none."""
+    return str(failure) or type(failure).__name__
+
+
 def classify_failure(failure: object) -> FailureClass | None:
     """The class `failure` is reported in on `job:fail`, or `None` where it is not classified.
 

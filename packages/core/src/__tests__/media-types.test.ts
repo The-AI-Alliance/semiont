@@ -122,8 +122,9 @@ describe('media-types registry', () => {
   });
 
   describe('generatable capability', () => {
-    // The generation worker's gate reads the registry, not a local table —
-    // a second media-type table is what the one registry exists to prevent.
+    // What may be asked of a generation is read from the registry, not from a
+    // local table — a second media-type table is what the one registry exists
+    // to prevent.
     it('derives GENERATABLE_MEDIA_TYPES from the registry', () => {
       expect(GENERATABLE_MEDIA_TYPES).toEqual(['text/markdown', 'text/plain', 'application/pdf']);
     });
