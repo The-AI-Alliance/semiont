@@ -21,9 +21,11 @@ from semiont_graph.interface import GraphDatabase, ResourceQuery
 from semiont_graph.memory import MemoryGraphDatabase
 from spec import SPEC, JsonObject, objects, read, strings, text, thing, whole
 
-from semiont_weaver.recorded import PAYLOADS
+from semiont_weaver.recorded import ENRICHED, PLAIN
 
 CASES = objects(read(SPEC / "weaver/fold-cases.json")["cases"], "cases")
+READ = {channel.name: channel for channel in (*PLAIN, *ENRICHED)}
+"""The channel of each event a Weaver follows, which reads the event's own payload."""
 
 
 def by_id(things: list[JsonObject], name: str) -> list[JsonValue]:
@@ -62,7 +64,7 @@ def test_every_event_of_the_table_is_one_the_bus_could_carry_and_every_graph_one
     for case in CASES:
         for event in objects(case["history"], "history"):
             stored = StoredEventResponse.model_validate(event)
-            assert written(PAYLOADS[stored.type].model_validate(stored.payload)) == stored.payload, f"{stored.type} {stored.id}"
+            assert written(READ[stored.type].event(stored)) == stored.payload, f"{stored.type} {stored.id}"
         graph = thing(case["graph"], "graph")
         for resource in objects(graph["resources"], "resources"):
             assert written(ResourceDescriptor.model_validate(resource)) == resource

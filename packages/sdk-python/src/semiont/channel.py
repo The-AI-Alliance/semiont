@@ -7,8 +7,9 @@ from typing import Annotated, Protocol, TypeAliasType, Union, final, get_args, g
 from pydantic import JsonValue, TypeAdapter
 
 from semiont.model import WireModel, written
+from semiont.types import StoredEventResponse
 
-__all__ = ["AnyChannel", "AnyOperation", "Channel", "Empty", "Operation", "Response", "ScopedChannel"]
+__all__ = ["AnyChannel", "AnyOperation", "Channel", "Empty", "Operation", "RecordedChannel", "Response", "ScopedChannel"]
 
 
 @final
@@ -105,7 +106,18 @@ class _OfPayload[P: WireModel]:
         return written(payload)
 
 
-@final
+def _own[E: WireModel](recorded: str, shape: type[E], stored: StoredEventResponse) -> E:
+    """A stored event's own payload as `shape`, where the event is of the type `recorded`.
+
+    Two events can carry payloads of one shape (a tag added, a tag removed),
+    so the event's type is asked first: the payload alone would be read as
+    either.
+    """
+    if stored.type != recorded:
+        raise ValueError(f"{stored.type} {stored.id} is not a {recorded} event")
+    return shape.model_validate(stored.payload)
+
+
 @dataclass(frozen=True, slots=True)
 class Channel[P: WireModel](_OfPayload[P]):
     """A channel of no resource's scope: delivered to every client whose stream names it, or never sent at all.
@@ -117,13 +129,50 @@ class Channel[P: WireModel](_OfPayload[P]):
 
 @final
 @dataclass(frozen=True, slots=True)
-class ScopedChannel[P: WireModel](_OfPayload[P]):
+class RecordedChannel[P: WireModel, E: WireModel](Channel[P]):
+    """A `Channel` that carries events of the record: one that concerns the whole knowledge base, heard on no scope.
+
+    Its payload is the stored event, which holds the event's own payload as
+    JSON. `event_payload` is the type of that payload, by the registry's
+    `payload`, and `event` reads it.
+    """
+
+    event_payload: type[E]
+
+    def event(self, stored: StoredEventResponse) -> E:
+        """The event's own payload, out of the stored event that carries it: a frame of this channel, or one of a history's.
+
+        Raises `ValueError` for a stored event of another type, and pydantic's
+        `ValidationError`, which is a `ValueError` too, for a payload that is
+        not this event's.
+        """
+        return _own(self.name, self.event_payload, stored)
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class ScopedChannel[P: WireModel, E: WireModel](_OfPayload[P]):
     """A channel a resource's scope carries: an event of the record, delivered to the clients that hold its resource's scope.
 
     It is not a `Channel`. So a read of one names its resource
     (`semiont.bus.Bus.frames`), whose scope the read holds, and a read that
     names none does not type-check: nothing would ever be delivered to it.
+
+    Its payload is the stored event, which holds the event's own payload as
+    JSON. `event_payload` is the type of that payload, by the registry's
+    `payload`, and `event` reads it.
     """
+
+    event_payload: type[E]
+
+    def event(self, stored: StoredEventResponse) -> E:
+        """The event's own payload, out of the stored event that carries it: a frame of this channel, or one of a history's.
+
+        Raises `ValueError` for a stored event of another type, and pydantic's
+        `ValidationError`, which is a `ValueError` too, for a payload that is
+        not this event's.
+        """
+        return _own(self.name, self.event_payload, stored)
 
 
 class AnyOperation(Protocol):

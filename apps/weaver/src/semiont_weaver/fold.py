@@ -18,19 +18,22 @@ resource is rebuilt.
 from typing import Final, final
 
 from pydantic import JsonValue
+from semiont.channels import (
+    FRAME_ENTITY_TYPE_ADDED,
+    MARK_ADDED,
+    MARK_BODY_UPDATED,
+    MARK_ENTITY_TAG_ADDED,
+    MARK_ENTITY_TAG_REMOVED,
+    MARK_REMOVED,
+    YIELD_CREATED,
+)
 from semiont.identifiers import ResourceId
 from semiont.model import written
 from semiont.types import (
-    AnnotationAddedPayload,
     AnnotationBody,
-    AnnotationBodyUpdatedPayload,
-    AnnotationRemovedPayload,
     BodyOperationAdd,
     BodyOperationRemove,
-    EntityTagChangedPayload,
-    EntityTypeAddedPayload,
     Representation,
-    ResourceCreatedPayload,
     ResourceDescriptor,
     SpecificResource,
     StoredEventResponse,
@@ -39,7 +42,6 @@ from semiont.types import (
 from semiont_graph.interface import GraphDatabase, ResourceChange
 
 from semiont_weaver.log import LOG
-from semiont_weaver.recorded import payload_of
 
 __all__ = ["Refused", "apply", "said_of"]
 
@@ -62,7 +64,7 @@ def _resource_of(event: StoredEventResponse) -> ResourceId:
 
 def _created(event: StoredEventResponse) -> ResourceDescriptor:
     """The resource a `yield:created` records, as the graph is given it."""
-    payload = payload_of(event, ResourceCreatedPayload)
+    payload = YIELD_CREATED.event(event)
     if payload.was_attributed_to is None:
         # Who it is by is the record's to say, derived when the event was recorded. The graph makes none up.
         raise Refused(f"{said_of(event)} records no wasAttributedTo")
@@ -97,7 +99,7 @@ _PASSED_BY: Final = "Annotation not in the graph: its body update is passed by"
 
 
 async def _update_body(graph: GraphDatabase, event: StoredEventResponse) -> None:
-    payload = payload_of(event, AnnotationBodyUpdatedPayload)
+    payload = MARK_BODY_UPDATED.event(event)
     current = await graph.get_annotation(payload.annotation_id)
     if current is None:
         LOG.warning(_PASSED_BY, extra={"annotationId": payload.annotation_id, "event": said_of(event)})
@@ -137,7 +139,7 @@ async def apply(graph: GraphDatabase, event: StoredEventResponse) -> None:
         case "mark:unarchived":
             await graph.update_resource(_resource_of(event), ResourceChange(archived=False))
         case "mark:added":
-            annotation = payload_of(event, AnnotationAddedPayload).annotation
+            annotation = MARK_ADDED.event(event).annotation
             # Made once: an annotation added again would lose every change made to its body since.
             if await graph.get_annotation(annotation.id) is not None:
                 return
@@ -146,22 +148,22 @@ async def apply(graph: GraphDatabase, event: StoredEventResponse) -> None:
                 raise Refused(f"{said_of(event)} records annotation {annotation.id} with no creator")
             await graph.create_annotation(annotation)
         case "mark:removed":
-            await graph.delete_annotation(payload_of(event, AnnotationRemovedPayload).annotation_id)
+            await graph.delete_annotation(MARK_REMOVED.event(event).annotation_id)
         case "mark:body-updated":
             await _update_body(graph, event)
         case "mark:entity-tag-added":
-            resource_id, tag = _resource_of(event), payload_of(event, EntityTagChangedPayload).entity_type
+            resource_id, tag = _resource_of(event), MARK_ENTITY_TAG_ADDED.event(event).entity_type
             resource = await graph.get_resource(resource_id)
             # A resource's entity types are a set: one added twice is there once.
             if resource is not None and tag not in (resource.entity_types or ()):
                 await graph.update_resource(resource_id, ResourceChange(entity_types=[*(resource.entity_types or ()), tag]))
         case "mark:entity-tag-removed":
-            resource_id, tag = _resource_of(event), payload_of(event, EntityTagChangedPayload).entity_type
+            resource_id, tag = _resource_of(event), MARK_ENTITY_TAG_REMOVED.event(event).entity_type
             resource = await graph.get_resource(resource_id)
             if resource is not None:
                 kept = [held for held in resource.entity_types or () if held != tag]
                 await graph.update_resource(resource_id, ResourceChange(entity_types=kept))
         case "frame:entity-type-added":
-            await graph.add_entity_type(payload_of(event, EntityTypeAddedPayload).entity_type)
+            await graph.add_entity_type(FRAME_ENTITY_TYPE_ADDED.event(event).entity_type)
         case _:
             pass

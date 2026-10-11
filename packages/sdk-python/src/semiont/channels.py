@@ -9,17 +9,26 @@ checker. The payload types are the protocol's own (`semiont.types`); which
 belongs to which channel is the registry's to say, and is derived here from
 each channel's shape.
 
-A channel a resource's scope carries is a `ScopedChannel[P]`, by the
+A channel a resource's scope carries is a `ScopedChannel[P, E]`, by the
 registry's `audience`: it is read for a resource, and a type checker refuses
 a read of one that names none.
+
+A channel that carries events of the record carries the stored event, and
+names the type `E` of the event's own payload too, by the registry's
+`payload`: a `ScopedChannel[P, E]`, or a `RecordedChannel[P, E]` where
+the event concerns the whole knowledge base. `MARK_ADDED.event(stored)` is
+an `AnnotationAddedPayload`, and a stored event of another type is refused.
 """
 
 from collections.abc import Mapping
 from types import MappingProxyType
 from typing import Final, Literal
 
-from semiont.channel import AnyChannel, Channel, Empty, Response, ScopedChannel
+from semiont.channel import AnyChannel, Channel, Empty, RecordedChannel, Response, ScopedChannel
 from semiont.types import (
+    AnnotationAddedPayload,
+    AnnotationBodyUpdatedPayload,
+    AnnotationRemovedPayload,
     BeckonFocusEvent,
     BeckonHoverEvent,
     BeckonSparkleEvent,
@@ -67,6 +76,8 @@ from semiont.types import (
     CommandError,
     ContextualSummaryResponse,
     EnrichedResourceEvent,
+    EntityTagChangedPayload,
+    EntityTypeAddedPayload,
     FrameAddEntityTypeCommand,
     FrameAddTagSchemaCommand,
     GatherAnnotationComplete,
@@ -82,6 +93,7 @@ from semiont.types import (
     InferenceLimitsRequest,
     InferenceLimitsResult,
     JobAssignCommand,
+    JobAssignedPayload,
     JobCancelCommand,
     JobCancelRequest,
     JobCancelResult,
@@ -89,12 +101,15 @@ from semiont.types import (
     JobClaimCommand,
     JobClaimedResult,
     JobCompleteCommand,
+    JobCompletedPayload,
     JobCreateCommand,
     JobCreatedResult,
     JobFailCommand,
+    JobFailedPayload,
     JobQueuedEvent,
     JobReportProgressCommand,
     JobStartCommand,
+    JobStartedPayload,
     JobStatusRequest,
     JobStatusResult,
     MarkArchiveCommand,
@@ -117,7 +132,16 @@ from semiont.types import (
     MatchSearchRequest,
     MatchSearchResult,
     PersonProfileCommand,
+    PersonProfiledPayload,
+    RepresentationAddedPayload,
+    RepresentationRemovedPayload,
+    ResourceArchivedPayload,
+    ResourceClonedPayload,
+    ResourceCreatedPayload,
     ResourceErrorEvent,
+    ResourceMovedPayload,
+    ResourceUnarchivedPayload,
+    ResourceUpdatedPayload,
     SelectionData,
     SessionJoinedEvent,
     SessionLeftEvent,
@@ -127,6 +151,7 @@ from semiont.types import (
     SmeltRebuildAnchorsCommand,
     SmeltSettled,
     StoredEventResponse,
+    TagSchemaAddedPayload,
     WeaveApplied,
     WeaveRebuildCommand,
     YieldCloneCreateCommand,
@@ -747,12 +772,12 @@ CHANNEL_NAMES: Final[tuple[ChannelName, ...]] = (
     "session:left",
 )
 
-YIELD_CREATED: Final = Channel[StoredEventResponse]("yield:created", StoredEventResponse)
-YIELD_CLONED: Final = Channel[StoredEventResponse]("yield:cloned", StoredEventResponse)
-YIELD_UPDATED: Final = Channel[StoredEventResponse]("yield:updated", StoredEventResponse)
-YIELD_MOVED: Final = Channel[StoredEventResponse]("yield:moved", StoredEventResponse)
-YIELD_REPRESENTATION_ADDED: Final = ScopedChannel[StoredEventResponse]("yield:representation-added", StoredEventResponse)
-YIELD_REPRESENTATION_REMOVED: Final = ScopedChannel[StoredEventResponse]("yield:representation-removed", StoredEventResponse)
+YIELD_CREATED: Final = RecordedChannel[StoredEventResponse, ResourceCreatedPayload]("yield:created", StoredEventResponse, ResourceCreatedPayload)
+YIELD_CLONED: Final = RecordedChannel[StoredEventResponse, ResourceClonedPayload]("yield:cloned", StoredEventResponse, ResourceClonedPayload)
+YIELD_UPDATED: Final = RecordedChannel[StoredEventResponse, ResourceUpdatedPayload]("yield:updated", StoredEventResponse, ResourceUpdatedPayload)
+YIELD_MOVED: Final = RecordedChannel[StoredEventResponse, ResourceMovedPayload]("yield:moved", StoredEventResponse, ResourceMovedPayload)
+YIELD_REPRESENTATION_ADDED: Final = ScopedChannel[StoredEventResponse, RepresentationAddedPayload]("yield:representation-added", StoredEventResponse, RepresentationAddedPayload)
+YIELD_REPRESENTATION_REMOVED: Final = ScopedChannel[StoredEventResponse, RepresentationRemovedPayload]("yield:representation-removed", StoredEventResponse, RepresentationRemovedPayload)
 YIELD_CREATE: Final = Channel[YieldCreateCommand]("yield:create", YieldCreateCommand)
 YIELD_CLONE_PERSIST: Final = Channel[YieldClonePersistCommand]("yield:clone-persist", YieldClonePersistCommand)
 YIELD_UPDATE: Final = Channel[YieldUpdateCommand]("yield:update", YieldUpdateCommand)
@@ -772,13 +797,13 @@ YIELD_CLONE_RESOURCE_RESULT: Final = Channel[Response[GetResourceByTokenResponse
 YIELD_CLONE_RESOURCE_FAILED: Final = Channel[CommandError]("yield:clone-resource-failed", CommandError)
 YIELD_CLONE_CREATED: Final = Channel[YieldCloneCreated]("yield:clone-created", YieldCloneCreated)
 YIELD_CLONE_CREATE_FAILED: Final = Channel[CommandError]("yield:clone-create-failed", CommandError)
-MARK_ADDED: Final = ScopedChannel[EnrichedResourceEvent]("mark:added", EnrichedResourceEvent)
-MARK_REMOVED: Final = ScopedChannel[StoredEventResponse]("mark:removed", StoredEventResponse)
-MARK_BODY_UPDATED: Final = ScopedChannel[EnrichedResourceEvent]("mark:body-updated", EnrichedResourceEvent)
-MARK_ENTITY_TAG_ADDED: Final = ScopedChannel[StoredEventResponse]("mark:entity-tag-added", StoredEventResponse)
-MARK_ENTITY_TAG_REMOVED: Final = ScopedChannel[StoredEventResponse]("mark:entity-tag-removed", StoredEventResponse)
-MARK_ARCHIVED: Final = ScopedChannel[StoredEventResponse]("mark:archived", StoredEventResponse)
-MARK_UNARCHIVED: Final = ScopedChannel[StoredEventResponse]("mark:unarchived", StoredEventResponse)
+MARK_ADDED: Final = ScopedChannel[EnrichedResourceEvent, AnnotationAddedPayload]("mark:added", EnrichedResourceEvent, AnnotationAddedPayload)
+MARK_REMOVED: Final = ScopedChannel[StoredEventResponse, AnnotationRemovedPayload]("mark:removed", StoredEventResponse, AnnotationRemovedPayload)
+MARK_BODY_UPDATED: Final = ScopedChannel[EnrichedResourceEvent, AnnotationBodyUpdatedPayload]("mark:body-updated", EnrichedResourceEvent, AnnotationBodyUpdatedPayload)
+MARK_ENTITY_TAG_ADDED: Final = ScopedChannel[StoredEventResponse, EntityTagChangedPayload]("mark:entity-tag-added", StoredEventResponse, EntityTagChangedPayload)
+MARK_ENTITY_TAG_REMOVED: Final = ScopedChannel[StoredEventResponse, EntityTagChangedPayload]("mark:entity-tag-removed", StoredEventResponse, EntityTagChangedPayload)
+MARK_ARCHIVED: Final = ScopedChannel[StoredEventResponse, ResourceArchivedPayload]("mark:archived", StoredEventResponse, ResourceArchivedPayload)
+MARK_UNARCHIVED: Final = ScopedChannel[StoredEventResponse, ResourceUnarchivedPayload]("mark:unarchived", StoredEventResponse, ResourceUnarchivedPayload)
 MARK_CREATE_REQUEST: Final = Channel[MarkCreateRequest]("mark:create-request", MarkCreateRequest)
 MARK_DELETE: Final = Channel[MarkDeleteCommand]("mark:delete", MarkDeleteCommand)
 MARK_UPDATE_BODY: Final = Channel[MarkUpdateBodyCommand]("mark:update-body", MarkUpdateBodyCommand)
@@ -812,15 +837,15 @@ MARK_DELEGATE_TIMEOUT: Final = Channel[MarkDelegateTimeoutEvent]("mark:delegate-
 MARK_CREATE_ERROR: Final = Channel[ResourceErrorEvent]("mark:create-error", ResourceErrorEvent)
 MARK_DELETE_ERROR: Final = Channel[ResourceErrorEvent]("mark:delete-error", ResourceErrorEvent)
 BIND_BODY_ERROR: Final = Channel[ResourceErrorEvent]("bind:body-error", ResourceErrorEvent)
-FRAME_ENTITY_TYPE_ADDED: Final = Channel[StoredEventResponse]("frame:entity-type-added", StoredEventResponse)
-FRAME_TAG_SCHEMA_ADDED: Final = Channel[StoredEventResponse]("frame:tag-schema-added", StoredEventResponse)
+FRAME_ENTITY_TYPE_ADDED: Final = RecordedChannel[StoredEventResponse, EntityTypeAddedPayload]("frame:entity-type-added", StoredEventResponse, EntityTypeAddedPayload)
+FRAME_TAG_SCHEMA_ADDED: Final = RecordedChannel[StoredEventResponse, TagSchemaAddedPayload]("frame:tag-schema-added", StoredEventResponse, TagSchemaAddedPayload)
 FRAME_ADD_ENTITY_TYPE: Final = Channel[FrameAddEntityTypeCommand]("frame:add-entity-type", FrameAddEntityTypeCommand)
 FRAME_ADD_TAG_SCHEMA: Final = Channel[FrameAddTagSchemaCommand]("frame:add-tag-schema", FrameAddTagSchemaCommand)
 FRAME_ENTITY_TYPE_ADD_OK: Final = Channel[Empty]("frame:entity-type-add-ok", Empty)
 FRAME_ENTITY_TYPE_ADD_FAILED: Final = Channel[CommandError]("frame:entity-type-add-failed", CommandError)
 FRAME_TAG_SCHEMA_ADD_OK: Final = Channel[Empty]("frame:tag-schema-add-ok", Empty)
 FRAME_TAG_SCHEMA_ADD_FAILED: Final = Channel[CommandError]("frame:tag-schema-add-failed", CommandError)
-PERSON_PROFILED: Final = Channel[StoredEventResponse]("person:profiled", StoredEventResponse)
+PERSON_PROFILED: Final = RecordedChannel[StoredEventResponse, PersonProfiledPayload]("person:profiled", StoredEventResponse, PersonProfiledPayload)
 PERSON_PROFILE: Final = Channel[PersonProfileCommand]("person:profile", PersonProfileCommand)
 BIND_INITIATE: Final = Channel[BindInitiateCommand]("bind:initiate", BindInitiateCommand)
 BIND_UPDATE_BODY: Final = Channel[BindUpdateBodyCommand]("bind:update-body", BindUpdateBodyCommand)
@@ -902,10 +927,10 @@ NAV_EXTERNAL: Final = Channel[BrowseExternalNavigateEvent]("nav:external", Brows
 BECKON_HOVER: Final = Channel[BeckonHoverEvent]("beckon:hover", BeckonHoverEvent)
 BECKON_FOCUS: Final = Channel[BeckonFocusEvent]("beckon:focus", BeckonFocusEvent)
 BECKON_SPARKLE: Final = Channel[BeckonSparkleEvent]("beckon:sparkle", BeckonSparkleEvent)
-JOB_STARTED: Final = ScopedChannel[StoredEventResponse]("job:started", StoredEventResponse)
-JOB_ASSIGNED: Final = ScopedChannel[StoredEventResponse]("job:assigned", StoredEventResponse)
-JOB_COMPLETED: Final = ScopedChannel[StoredEventResponse]("job:completed", StoredEventResponse)
-JOB_FAILED: Final = ScopedChannel[StoredEventResponse]("job:failed", StoredEventResponse)
+JOB_STARTED: Final = ScopedChannel[StoredEventResponse, JobStartedPayload]("job:started", StoredEventResponse, JobStartedPayload)
+JOB_ASSIGNED: Final = ScopedChannel[StoredEventResponse, JobAssignedPayload]("job:assigned", StoredEventResponse, JobAssignedPayload)
+JOB_COMPLETED: Final = ScopedChannel[StoredEventResponse, JobCompletedPayload]("job:completed", StoredEventResponse, JobCompletedPayload)
+JOB_FAILED: Final = ScopedChannel[StoredEventResponse, JobFailedPayload]("job:failed", StoredEventResponse, JobFailedPayload)
 JOB_START: Final = Channel[JobStartCommand]("job:start", JobStartCommand)
 JOB_ASSIGN: Final = Channel[JobAssignCommand]("job:assign", JobAssignCommand)
 JOB_REPORT_PROGRESS: Final = Channel[JobReportProgressCommand]("job:report-progress", JobReportProgressCommand)

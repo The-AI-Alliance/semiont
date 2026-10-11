@@ -1,9 +1,10 @@
-"""The recorded events a Weaver follows, and the payload each carries.
+"""The recorded events a Weaver follows, as it reads them off the bus.
 
 A Weaver follows nine of the events a knowledge base records
 (`docs/protocol/WEAVER.md` § What it follows). Each reaches it as a stored
-event, on the channel named for the event's type, and its payload is the one
-the bus registry names for that type.
+event, on the channel named for the event's type. The event's own payload is
+that channel's to give (`semiont.channels`), typed as the bus registry names
+it, and the fold reads each one there.
 
 The Archivist publishes every recorded event twice: on its resource's scope,
 for whoever holds that scope, and on no scope, for whoever follows the record
@@ -18,12 +19,10 @@ making: the making would then be passed by, and the graph would hold what the
 record does not.
 """
 
-from collections.abc import Mapping
-from types import MappingProxyType
 from typing import Final
 
 from semiont.bus import decoded
-from semiont.channel import Channel, ScopedChannel
+from semiont.channel import RecordedChannel, ScopedChannel
 from semiont.channels import (
     FRAME_ENTITY_TYPE_ADDED,
     MARK_ADDED,
@@ -37,22 +36,11 @@ from semiont.channels import (
 )
 from semiont.model import WireModel
 from semiont.transport import Frame
-from semiont.types import (
-    AnnotationAddedPayload,
-    AnnotationBodyUpdatedPayload,
-    AnnotationRemovedPayload,
-    EnrichedResourceEvent,
-    EntityTagChangedPayload,
-    EntityTypeAddedPayload,
-    ResourceArchivedPayload,
-    ResourceCreatedPayload,
-    ResourceUnarchivedPayload,
-    StoredEventResponse,
-)
+from semiont.types import EnrichedResourceEvent, StoredEventResponse
 
-__all__ = ["FOLLOWED", "PAYLOADS", "payload_of", "stored_event"]
+__all__ = ["ENRICHED", "FOLLOWED", "PLAIN", "stored_event"]
 
-PLAIN: Final[tuple[Channel[StoredEventResponse] | ScopedChannel[StoredEventResponse], ...]] = (
+PLAIN: Final[tuple[RecordedChannel[StoredEventResponse, WireModel] | ScopedChannel[StoredEventResponse, WireModel], ...]] = (
     YIELD_CREATED,
     MARK_ARCHIVED,
     MARK_UNARCHIVED,
@@ -63,7 +51,7 @@ PLAIN: Final[tuple[Channel[StoredEventResponse] | ScopedChannel[StoredEventRespo
 )
 """The followed channels that carry a stored event and nothing beside it."""
 
-ENRICHED: Final[tuple[ScopedChannel[EnrichedResourceEvent], ...]] = (MARK_ADDED, MARK_BODY_UPDATED)
+ENRICHED: Final[tuple[ScopedChannel[EnrichedResourceEvent, WireModel], ...]] = (MARK_ADDED, MARK_BODY_UPDATED)
 """The followed channels whose stored event carries, beside it, the annotation as a view holds it. A Weaver reads the event alone."""
 
 FOLLOWED: Final[tuple[str, ...]] = tuple(channel.name for channel in (*PLAIN, *ENRICHED))
@@ -71,27 +59,6 @@ FOLLOWED: Final[tuple[str, ...]] = tuple(channel.name for channel in (*PLAIN, *E
 
 _PLAIN: Final = {channel.name: channel for channel in PLAIN}
 _ENRICHED: Final = {channel.name: channel for channel in ENRICHED}
-
-PAYLOADS: Final[Mapping[str, type[WireModel]]] = MappingProxyType(
-    {
-        "yield:created": ResourceCreatedPayload,
-        "mark:archived": ResourceArchivedPayload,
-        "mark:unarchived": ResourceUnarchivedPayload,
-        "mark:added": AnnotationAddedPayload,
-        "mark:removed": AnnotationRemovedPayload,
-        "mark:body-updated": AnnotationBodyUpdatedPayload,
-        "mark:entity-tag-added": EntityTagChangedPayload,
-        "mark:entity-tag-removed": EntityTagChangedPayload,
-        "frame:entity-type-added": EntityTypeAddedPayload,
-    }
-)
-"""The payload of each followed event, as `specs/src/bus/registry.json` names it.
-
-The registry is where this is stated. The SDK does not yet type a recorded
-event's payload by its channel, so this is a copy, and `tests/test_census.py`
-holds it to the registry: an event whose payload the registry renames fails
-there.
-"""
 
 
 def stored_event(frame: Frame) -> StoredEventResponse | None:
@@ -107,16 +74,3 @@ def stored_event(frame: Frame) -> StoredEventResponse | None:
     if enriched is not None:
         return decoded(enriched, frame.payload)
     return None
-
-
-def payload_of[P: WireModel](event: StoredEventResponse, shape: type[P]) -> P:
-    """A followed event's own payload, as the type the registry names for it.
-
-    `shape` is the type its caller reads the payload as. It is the one this
-    module states for the event's type, or the caller is wrong about what it
-    was handed. Raises pydantic's `ValidationError` for a payload that is not
-    that event's.
-    """
-    if PAYLOADS.get(event.type) is not shape:
-        raise TypeError(f"{event.type} does not carry a {shape.__name__}")
-    return shape.model_validate(event.payload)

@@ -710,6 +710,11 @@ async def read(origin: str, token: str, resource: ResourceId) -> None:
   holds that scope until the read ends, and gives that resource's frames and
   no other's. With no resource it does not type-check: such a read would be
   given nothing, and say nothing of it.
+- **A recorded event's own payload is its channel's to give.** A frame of
+  `mark:added` carries the stored event, which holds the event's own payload
+  as JSON. `MARK_ADDED.event(stored)` is that payload as an
+  `AnnotationAddedPayload`, for the stored event of a frame or of a history
+  (`browse:events-requested`). A stored event of another type is refused.
 - **The connection's state** (`transport.state`) is a value: what it is now,
   and each thing it becomes. A dropped stream is a state, never an error, and
   opens again by itself.

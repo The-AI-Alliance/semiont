@@ -67,7 +67,7 @@ class EventBus(FrameSink):
 
     def publish[P: WireModel](
         self,
-        channel: Channel[P] | ScopedChannel[P],
+        channel: Channel[P] | ScopedChannel[P, WireModel],
         payload: P,
         *,
         scope: ResourceId | None = None,
@@ -87,7 +87,7 @@ class EventBus(FrameSink):
                 self._views[channel, scope] = view
         return view.listen()
 
-    def frames[P: WireModel](self, channel: Channel[P] | ScopedChannel[P], *, scope: ResourceId | None = None) -> Typed[P]:
+    def frames[P: WireModel](self, channel: Channel[P] | ScopedChannel[P, WireModel], *, scope: ResourceId | None = None) -> Typed[P]:
         """The frames published on `channel` from now on, each with its payload decoded: to everyone, or into `scope`."""
         return Typed(channel, self.frames_on(channel.name, scope=scope))
 

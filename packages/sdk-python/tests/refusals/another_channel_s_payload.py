@@ -4,7 +4,7 @@ from semiont import channels, operations
 from semiont.channel import Channel, Operation
 from semiont.identifiers import AnnotationId
 from semiont.model import WireModel
-from semiont.types import MarkDeleteCommand, MarkJobCreateCommand, MarkSubmitEvent
+from semiont.types import AnnotationRemovedPayload, MarkDeleteCommand, MarkJobCreateCommand, MarkSubmitEvent, StoredEventResponse
 
 
 def emit[P: WireModel](channel: Channel[P], payload: P) -> None:
@@ -43,3 +43,7 @@ def one_channel_taken_for_another() -> Channel[MarkDeleteCommand]:
 
 def a_channel_whose_two_statements_of_its_payload_disagree() -> Channel[MarkDeleteCommand]:
     return Channel[MarkDeleteCommand]("mark:delete", MarkSubmitEvent)  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]
+
+
+def an_event_s_own_payload_taken_for_another_event_s(stored: StoredEventResponse) -> AnnotationRemovedPayload:
+    return channels.MARK_ADDED.event(stored)  # type: ignore[return-value]  # pyright: ignore[reportReturnType]

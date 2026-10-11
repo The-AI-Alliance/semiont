@@ -12,9 +12,8 @@ that makes a store, and no store. It requires no database's client: each is
 an extra, and its image asks for every one.
 
 What it copies from the protocol, it copies under a gate: the events it
-follows are the ones the protocol's page lists, and the payload it reads
-each as is the one the bus registry names. What installs its telemetry is a
-copy of the Worker service's module, and is held to it.
+follows are the ones the protocol's page lists. What installs its telemetry
+is a copy of the Worker service's module, and is held to it.
 """
 
 import ast
@@ -23,9 +22,9 @@ import tomllib
 from pathlib import Path
 
 from pydantic import JsonValue, TypeAdapter
-from spec import PROJECT, ROOT, SDK, SPEC, objects, read
+from spec import PROJECT, ROOT, SDK
 
-from semiont_weaver.recorded import FOLLOWED, PAYLOADS
+from semiont_weaver.recorded import FOLLOWED
 
 SRC = PROJECT / "src/semiont_weaver"
 SOURCES = sorted(path for top in ("src", "tests") for path in (PROJECT / top).rglob("*.py"))
@@ -244,13 +243,6 @@ def test_the_events_it_follows_are_the_ones_the_protocol_lists() -> None:
     assert rule is not None, "docs/protocol/WEAVER.md no longer lists what a Weaver follows"
     assert sorted(re.findall(r"`([a-z]+:[a-z-]+)`", rule.group(1))) == sorted(FOLLOWED)
     assert len(FOLLOWED) == 9
-
-
-def test_the_payload_it_reads_each_followed_event_as_is_the_one_the_bus_registry_names() -> None:
-    registry = objects(read(SPEC / "bus/registry.json")["channels"], "channels")
-    named = {row["event"]: row["payload"] for row in registry if row.get("shape") == "storedEvent" and row.get("event") in FOLLOWED}
-    assert {event: shape.__name__ for event, shape in PAYLOADS.items()} == named
-    assert sorted(PAYLOADS) == sorted(FOLLOWED)
 
 
 def naming(text: str) -> list[str]:
