@@ -809,7 +809,8 @@ payload as JSON:
 ```
 
 The variable is read once, when the first line would be written. The token a
-resource is cloned by is a credential, and no line holds it.
+resource is cloned by is a credential, and no line holds it: the value of a
+payload's member named `token` is written as `[withheld]`.
 
 ## What is in the package
 

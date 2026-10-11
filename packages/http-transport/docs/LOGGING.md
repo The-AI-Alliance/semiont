@@ -57,7 +57,7 @@ The bus log is one line for everything that crosses the wire, in the same form i
 [bus GET] content { resourceId: 'res-7f3a' }
 ```
 
-`EMIT` is a frame this transport sent, `RECV` one it received, and `PUT` and `GET` a write and a read of content. `scope` is the resource a frame is about, where it has one. `cid` is the first eight characters of the correlation id that ties a reply to its request. `trace` is the first eight of the active trace, present when the process has telemetry running. The rest of the line is the payload.
+`EMIT` is a frame this transport sent, `RECV` one it received, and `PUT` and `GET` a write and a read of content. `scope` is the resource a frame is about, where it has one. `cid` is the first eight characters of the correlation id that ties a reply to its request. `trace` is the first eight of the active trace, present when the process has telemetry running. The rest of the line is the payload. One thing in a payload is never shown: the value of a member named `token`, the token a resource is cloned by, is written as `[withheld]` (`specs/src/bus/log-cases.json`).
 
 It is off until switched on, for the whole process:
 

@@ -398,8 +398,10 @@ is delivered with the trace it was sent under. The spans are made by
 OpenTelemetry the application installed. Its README says how to turn that
 on. With none installed, nothing is recorded and no `traceparent` is sent.
 
-With `SEMIONT_BUS_LOG` set, each emit and each frame received is also a line
-on stderr.
+With `SEMIONT_BUS_LOG` set, each emit, each frame received and each read or
+upload of content is also a line on stderr. A line shows the payload, and
+never the token a resource is cloned by: the value of a member named `token`
+is written as `[withheld]`.
 
 ## What is in the crate
 

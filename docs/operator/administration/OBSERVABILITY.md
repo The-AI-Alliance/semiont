@@ -196,7 +196,9 @@ implicitly) — see `packages/observability/src/node.ts`.
   cross-process bus event. Targets developer terminal / stderr / e2e
   fixture capture. A line written inside a span carries `trace=`, the
   first 8 hex of the W3C trace-id, so a `busLog` timeline collates with
-  traces in the APM UI.
+  traces in the APM UI. A line shows the frame's payload, less the value
+  of a member named `token` (the token a resource is cloned by), which is
+  written as `[withheld]`.
 - **OTel spans + metrics** (this doc) — distributed tracing and
   metrics over OTLP. Targets a collector + APM gateway.
 

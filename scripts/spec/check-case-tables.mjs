@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 // lint:spec-case-tables — the case tables that state what a worker does to a
-// text and to a model's reply, and the runners each must have.
+// text and to a model's reply and what a bus log shows of a payload, and the
+// runners each must have.
 //
 // A rule that lives only in one implementation's code is that
 // implementation's. These tables are the rules a worker in any language is
-// held to. What an SDK gives a worker's author (what an offset counts, the
-// reconciling of a quote, the locating of a span of a PDF, the builders, the
-// id, the readers) is run by the TypeScript, Rust and Python SDKs, each
-// through its own code. What Semiont's worker alone does is run by that
-// worker.
+// held to, and the one every bus log is. What an SDK gives a worker's author
+// (what an offset counts, the reconciling of a quote, the locating of a span
+// of a PDF, the builders, the id, the readers) is run by the TypeScript, Rust
+// and Python SDKs, each through its own code. What Semiont's worker alone
+// does is run by that worker. What a bus log shows of a payload is run by
+// each bus log: TypeScript's, Rust's and Python's.
 //
 // It fails when:
 //   - a table listed here does not exist, is not JSON, states no `$comment`
@@ -21,13 +23,14 @@
 //     the basic plane. An offset counts code points, and so does every length
 //     such a rule states; only a text with such a character tells that count
 //     from a count of UTF-16 code units or of bytes, so a table without one
-//     holds its rule to no count. These are every table here but one: what an
-//     offset counts, the chunker, the reconciling of a quote, the locating of
-//     a span of a PDF, the builders, the id (whose anchor states a span's
+//     holds its rule to no count. These are every table here but three: what
+//     an offset counts, the chunker, the reconciling of a quote, the locating
+//     of a span of a PDF, the builders, the id (whose anchor states a span's
 //     offsets), the chunk plan, the citations, and the reading of a reply
 //     (whose items state where each passage is, and how long a piece was).
-//     The readers' table and the table of failure classes count nothing and
-//     state no offset, and are held to nothing about their characters.
+//     The readers' table, the table of failure classes and the bus log's
+//     table count nothing and state no offset, and are held to nothing about
+//     their characters.
 //
 // It reads the source files, so it cannot pass on a stale bundle.
 
@@ -38,7 +41,7 @@ import { fileURLToPath } from 'node:url';
 const REPO = resolve(fileURLToPath(import.meta.url), '../../..');
 
 /** Where these tables live. Every `*-cases.json` in one of them is listed below. */
-const DIRECTORIES = ['specs/src/text', 'specs/src/annotations', 'specs/src/worker'];
+const DIRECTORIES = ['specs/src/text', 'specs/src/annotations', 'specs/src/worker', 'specs/src/bus'];
 
 /**
  * Each table, and the files that run it.
@@ -131,6 +134,15 @@ const TABLES = [
   {
     table: 'specs/src/worker/failure-class-cases.json',
     runners: ['apps/worker/tests/test_failure_class_cases.py'],
+  },
+  // What a bus log shows of a payload.
+  {
+    table: 'specs/src/bus/log-cases.json',
+    runners: [
+      'packages/core/src/__tests__/bus-log-cases.test.ts',
+      'packages/sdk-rust/src/bus_log.rs',
+      'packages/sdk-python/tests/test_bus_log.py',
+    ],
   },
 ];
 

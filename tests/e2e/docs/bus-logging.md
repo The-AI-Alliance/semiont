@@ -2,21 +2,32 @@
 
 Protocol-level visibility into every bus and content event that crosses
 a transport boundary, in either direction. Each event is logged as a
-single `console.debug` line in a grep-friendly format:
+single line in a grep-friendly format, the same in every process:
 
 ```
-[bus EMIT] <channel> [scope=X] [cid=<first8>] [trace=<first8>] <payload>
-[bus RECV] <channel> [scope=X] [cid=<first8>] [trace=<first8>] <payload>
-[bus SSE]  <channel> [scope=X] [cid=<first8>] [trace=<first8>] <payload>
-[bus PUT]  content   [cid=<first8>] [trace=<first8>] <payload>
-[bus GET]  content   [cid=<first8>] [trace=<first8>] <payload>
+[bus EMIT] <channel> scope=<resource> cid=<first8> trace=<first8> <payload>
+[bus RECV] <channel> scope=<resource> cid=<first8> trace=<first8> <payload>
+[bus SSE] <channel> scope=<resource> cid=<first8> trace=<first8> <payload>
+[bus PUT] content trace=<first8> <payload>
+[bus GET] content trace=<first8> <payload>
 ```
+
+`scope=`, `cid=` and `trace=` are each written only where there is one:
+a frame that is about no resource has no `scope=`, and one that answers
+no request has no `cid=`.
 
 The `trace=` suffix is present only when an OTel SDK is initialized in
 the process and a span is active when the line is emitted (Tier 2, the
 traces of [Observability](../../../docs/operator/administration/OBSERVABILITY.md)). It's the
 first 8 hex of the W3C trace-id, so it correlates the grep timeline
 with the span tree in any APM UI.
+
+No line holds a credential. One rides the bus: the token a resource is
+cloned by, which a payload names `token`. Every bus log writes the value
+of a member named `token` as `[withheld]`, wherever in a payload the
+member is; everything else of a payload is written as it is. The rule is
+one table, [`specs/src/bus/log-cases.json`](../../../specs/src/bus/log-cases.json),
+which the TypeScript, Rust and Python bus logs each run.
 
 Cost when disabled: a single truthy check, zero allocations.
 
@@ -46,6 +57,9 @@ event flows through one of these.
 **not** choke points. Namespace methods ride on top of the transport;
 their traffic shows up as the transport calls they make.
 
+The table names the TypeScript transport's sites. The Rust and Python
+transports log at the same points, in the same form.
+
 ## Enable
 
 ### Browser
@@ -60,12 +74,19 @@ Clears on refresh.
 
 ### Processes (gateway, worker, smelter, MCP, tests)
 
-Process-env toggle, read once at start (in Node, at module load); the
-gateway writes its lines to stderr:
+Process-env toggle, set to any value that is not empty and read once (in
+Node at module load, in Rust and Python when the first line would be
+written):
 
 ```bash
 SEMIONT_BUS_LOG=1 <command>
 ```
+
+Where the lines go depends on what the process is written in. A Node
+process writes them with `console.debug`, to stdout. A Rust process (the
+gateway, and a client of the Rust SDK) writes them to stderr. A Python
+process (the Worker, and any client of the Python SDK) writes them to
+stdout.
 
 The gateway runs in a container, so the variable has to reach the
 container — and the launcher passes a container only the variables its
@@ -79,8 +100,8 @@ With both flags on, opening a resource produces a contiguous timeline:
 ```
 [browser] [bus EMIT] browse:resource-requested cid=a89a670a {resourceId, ...}
 [gateway]  [bus EMIT] browse:resource-requested cid=a89a670a {resourceId, _userId, ...}
-[gateway]  [bus SSE]  browse:resource-result    cid=a89a670a {correlationId, response}
-[browser] [bus RECV] browse:resource-result    cid=a89a670a {correlationId, response}
+[gateway]  [bus SSE]  browse:resource-result    cid=a89a670a {response}
+[browser] [bus RECV] browse:resource-result    cid=a89a670a {response}
 ```
 
 A worker generation that uploads new content adds a content line; the

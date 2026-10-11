@@ -1,0 +1,136 @@
+{
+  "$comment": "What a bus log shows of a payload, as every bus log must show it. With SEMIONT_BUS_LOG set, a Semiont SDK or service writes one line for each frame it sends or receives, and the last thing on a line is the frame's payload. No line holds a credential. One rides the bus: the token a resource is cloned by, which the registry's payloads name `token` wherever they carry it (`yield:clone-resource-requested` and `yield:clone-create`, which a client sends, and the `response` of `yield:clone-token-generated`, which it receives). THE RULE reads a name and no channel: the value of a member named `token` is shown as the text `[withheld]`, wherever in a payload the member is (in the payload itself, in an object within it at any depth, in an object inside an array) and whatever its value is (text, a number, null, an object, an array: the whole value is replaced, and nothing within it is read). The name is matched whole and as it is written: `maxTokens`, `tokens` and `Token` are other names, and are shown. Everything else is shown as it is: every other member, an array's items in their order, a value that happens to be the word. A frame's payload is an object, and so is every case's. A log that can be given a payload that is not one reads an array by the same rule and shows anything else as it is, and holds that in its own tests. A case is a `payload` and what is `shown` of it. How a log writes what it shows (as JSON, as a console's rendering of an object) is its own, so a runner compares values and never text. A case that is a channel's own payload names the `channel`, and its `payload` is one the registry's schema for that channel admits. TypeScript runs this in packages/core (bus-log-cases.test.ts) against busLog, which the Node services and the Browser write with. Rust runs it in packages/sdk-rust (src/bus_log.rs) against bus_log, which the Rust transport and the gateway write with. Python runs it in packages/sdk-python (tests/test_bus_log.py) against its own bus log, and holds each case that names a channel to that channel's payload type. A bus log in another language runs it too. Add a case here before changing an implementation.",
+  "cases": [
+    {
+      "why": "yield:clone-resource-requested, as a client sends it: the request is its token",
+      "channel": "yield:clone-resource-requested",
+      "payload": { "token": "clone-token-of-the-request" },
+      "shown": { "token": "[withheld]" }
+    },
+    {
+      "why": "yield:clone-create, as the gateway has it: the token is withheld, and what it rides with is shown, the gateway's stamp included",
+      "channel": "yield:clone-create",
+      "payload": {
+        "_userId": "did:web:example.org:users:alice",
+        "token": "clone-token-of-the-command",
+        "name": "A clone",
+        "storageUri": "file://clones/a-clone.md",
+        "contentChecksum": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+        "byteSize": 4,
+        "format": "text/markdown"
+      },
+      "shown": {
+        "_userId": "did:web:example.org:users:alice",
+        "token": "[withheld]",
+        "name": "A clone",
+        "storageUri": "file://clones/a-clone.md",
+        "contentChecksum": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+        "byteSize": 4,
+        "format": "text/markdown"
+      }
+    },
+    {
+      "why": "yield:clone-token-generated, as a client receives it: the token is a member of the reply's response",
+      "channel": "yield:clone-token-generated",
+      "payload": {
+        "response": {
+          "token": "clone-token-of-the-reply",
+          "expiresAt": "2026-10-11T00:00:00.000Z",
+          "resource": { "@context": "https://schema.org/", "@id": "res-1", "name": "A resource", "representations": [] }
+        }
+      },
+      "shown": {
+        "response": {
+          "token": "[withheld]",
+          "expiresAt": "2026-10-11T00:00:00.000Z",
+          "resource": { "@context": "https://schema.org/", "@id": "res-1", "name": "A resource", "representations": [] }
+        }
+      }
+    },
+    {
+      "why": "a token deep in a payload is withheld, and the members beside it at each depth are shown",
+      "payload": { "result": { "kind": "clone", "made": { "by": "a worker", "with": { "token": "deep-clone-token", "uses": 1 } } } },
+      "shown": { "result": { "kind": "clone", "made": { "by": "a worker", "with": { "token": "[withheld]", "uses": 1 } } } }
+    },
+    {
+      "why": "a token in an object inside an array is withheld, in each object that has one, and the array keeps its order",
+      "payload": { "clones": [{ "token": "first-clone-token", "name": "first" }, { "name": "second" }, { "token": "third-clone-token", "name": "third" }] },
+      "shown": { "clones": [{ "token": "[withheld]", "name": "first" }, { "name": "second" }, { "token": "[withheld]", "name": "third" }] }
+    },
+    {
+      "why": "an array inside an array is read too",
+      "payload": { "rows": [[{ "token": "row-clone-token" }, "kept"], []] },
+      "shown": { "rows": [[{ "token": "[withheld]" }, "kept"], []] }
+    },
+    {
+      "why": "a token that is a number is withheld, and is shown as the same text",
+      "payload": { "token": 8675309 },
+      "shown": { "token": "[withheld]" }
+    },
+    {
+      "why": "a token that is null is withheld: the name decides, not the value",
+      "payload": { "token": null, "name": "A clone" },
+      "shown": { "token": "[withheld]", "name": "A clone" }
+    },
+    {
+      "why": "a token that is true or false is withheld",
+      "payload": { "asked": { "token": true }, "answered": { "token": false } },
+      "shown": { "asked": { "token": "[withheld]" }, "answered": { "token": "[withheld]" } }
+    },
+    {
+      "why": "a token that is the empty text is withheld",
+      "payload": { "token": "" },
+      "shown": { "token": "[withheld]" }
+    },
+    {
+      "why": "a token that is an object is withheld whole: nothing within it is read or shown",
+      "payload": { "token": { "value": "clone-token-in-an-object", "token": "clone-token-within-it", "expiresAt": "2026-10-11T00:00:00.000Z" } },
+      "shown": { "token": "[withheld]" }
+    },
+    {
+      "why": "a token that is an array is withheld whole",
+      "payload": { "token": ["clone-token-in-an-array", { "token": "clone-token-within-it" }] },
+      "shown": { "token": "[withheld]" }
+    },
+    {
+      "why": "a name that only contains the word is another name, and is shown: the counts of a model's tokens the protocol carries, a plural, another case",
+      "payload": {
+        "params": { "maxTokens": 4096 },
+        "limits": { "contextTokens": 200000, "maxOutputTokens": 8192 },
+        "tokens": ["shown", "as", "they", "are"],
+        "Token": "shown as it is"
+      },
+      "shown": {
+        "params": { "maxTokens": 4096 },
+        "limits": { "contextTokens": 200000, "maxOutputTokens": 8192 },
+        "tokens": ["shown", "as", "they", "are"],
+        "Token": "shown as it is"
+      }
+    },
+    {
+      "why": "a value that is the word, or the text a token is shown as, is no member of the name",
+      "payload": { "kind": "token", "words": ["token", "[withheld]"] },
+      "shown": { "kind": "token", "words": ["token", "[withheld]"] }
+    },
+    {
+      "why": "a payload with no token is shown as it is: text of any script, numbers, null, and what is empty",
+      "payload": {
+        "annotationId": "ann-1",
+        "said": "two\nlines, naïve, 日本語",
+        "counted": [1, 2.5, -3, { "left": null, "right": true }],
+        "nothing": { "members": {}, "items": [] }
+      },
+      "shown": {
+        "annotationId": "ann-1",
+        "said": "two\nlines, naïve, 日本語",
+        "counted": [1, 2.5, -3, { "left": null, "right": true }],
+        "nothing": { "members": {}, "items": [] }
+      }
+    },
+    {
+      "why": "the empty payload is shown as it is",
+      "payload": {},
+      "shown": {}
+    }
+  ]
+}

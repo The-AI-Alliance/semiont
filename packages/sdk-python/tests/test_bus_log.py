@@ -3,7 +3,9 @@
 Every Semiont SDK writes it, in one form, so that the lines of several
 processes read as one timeline (`docs/protocol/EVENT-BUS.md` § Wire format).
 The form is held here, and so is each place a transport writes one. A line
-never holds a credential: the token a resource is cloned by rides the bus.
+never holds a credential: the token a resource is cloned by rides the bus, and
+what a line shows of a payload is the table every bus log runs
+(`specs/src/bus/log-cases.json`).
 """
 
 import re
@@ -13,11 +15,11 @@ from typing import Final, TypeAliasType, get_args
 import pytest
 from aio import run, settle, soon
 from gateway_server import Answer, GatewayServer
-from pydantic import JsonValue
+from pydantic import JsonValue, TypeAdapter
 from shown import CARRIED, parts_of
-from spec import PACKAGE
+from spec import PACKAGE, SPEC, JsonObject, objects, read, text
 
-from semiont import telemetry
+from semiont import model, telemetry
 from semiont._bus_log import bus_log, bus_note, enabled
 from semiont.channels import CHANNELS
 from semiont.errors import SemiontError
@@ -146,30 +148,41 @@ def test_the_lines_the_readme_shows_are_lines_the_log_writes(capsys: pytest.Capt
 
 # ── a credential ────────────────────────────────────────────────────────
 
-DESCRIBED: Final[dict[str, JsonValue]] = {"@context": "https://schema.org", "@id": "res-1", "name": "A resource", "representations": []}
+CASES: Final = objects(read(SPEC / "bus/log-cases.json")["cases"], "the cases")
+JSON: Final = TypeAdapter[JsonValue](JsonValue)
+
+
+def payload_of(case: JsonObject) -> JsonObject:
+    """A case's payload, which is an object: what a frame carries, and what this log is given."""
+    payload = case["payload"]
+    assert isinstance(payload, dict), f"{case['why']}: its payload is no object"
+    return payload
 
 
 @pytest.mark.usefixtures("logging_the_bus")
-def test_the_token_a_resource_is_cloned_by_is_in_no_line(capsys: pytest.CaptureFixture[str]) -> None:
-    bus_log("EMIT", "yield:clone-resource-requested", {"token": CARRIED}, correlation_id=CORRELATION)
-    bus_log("EMIT", "yield:clone-create", {"token": CARRIED, "name": "A clone", "storageUri": "file://clone.md"})
-    bus_log(
-        "RECV",
-        "yield:clone-token-generated",
-        {"response": {"token": CARRIED, "expiresAt": "2026-10-11T00:00:00.000Z", "resource": DESCRIBED}},
-        correlation_id=CORRELATION,
-    )
-    # Wherever a member of that name is, and whatever it holds.
-    bus_log("EMIT", "job:complete", {"result": [{"token": [CARRIED, {"token": CARRIED}]}]})
-    captured = capsys.readouterr().out
-    assert parts_of(CARRIED, captured) == []
-    assert captured.splitlines() == [
-        '[bus EMIT] yield:clone-resource-requested cid=a89a670a {"token":"[withheld]"}',
-        '[bus EMIT] yield:clone-create {"token":"[withheld]","name":"A clone","storageUri":"file://clone.md"}',
-        '[bus RECV] yield:clone-token-generated cid=a89a670a {"response":{"token":"[withheld]","expiresAt":"2026-10-11T00:00:00.000Z",'
-        '"resource":{"@context":"https://schema.org","@id":"res-1","name":"A resource","representations":[]}}}',
-        '[bus EMIT] job:complete {"result":[{"token":"[withheld]"}]}',
-    ]
+@pytest.mark.parametrize("case", CASES, ids=lambda case: str(case["why"]))
+def test_a_line_shows_of_a_payload_what_the_table_says(case: JsonObject, capsys: pytest.CaptureFixture[str]) -> None:
+    # The rule reads a name and no channel: every line here is written on this one.
+    bus_log("EMIT", "yield:clone-create", payload_of(case))
+    line = capsys.readouterr().out
+    said = "[bus EMIT] yield:clone-create "
+    assert line.startswith(said)
+    assert line.endswith("\n")
+    assert JSON.validate_json(line.removeprefix(said)) == case["shown"]
+
+
+def test_the_table_has_cases_that_carry_a_token_and_cases_that_carry_none() -> None:
+    carrying = [case for case in CASES if case["payload"] != case["shown"]]
+    assert 0 < len(carrying) < len(CASES)
+
+
+@pytest.mark.parametrize("case", [case for case in CASES if "channel" in case], ids=lambda case: str(case["channel"]))
+def test_a_case_that_names_a_channel_is_a_payload_that_channel_carries(case: JsonObject) -> None:
+    # What the spec states of the three payloads that carry the token is the spec's: a case that restates one is
+    # held to it here, so a payload that comes to name its token otherwise fails until the table and the rule follow.
+    channel = CHANNELS[text(case["channel"], "a channel")]
+    payload = payload_of(case)
+    assert model.written(channel.decode(payload)) == payload
 
 
 def shapes_within(named: object) -> Iterator[type[WireModel]]:
@@ -217,6 +230,8 @@ def test_every_member_a_bus_payload_declares_whose_name_reads_as_a_credential_s_
         ("YieldCloneCreateCommand", "token"): {"yield:clone-create"},
         ("CloneResourceWithTokenResponse", "token"): {"yield:clone-token-generated"},
     }
+    # And each channel that carries one is a case of the table, as the channel carries it.
+    assert {text(case["channel"], "a channel") for case in CASES if "channel" in case} == set[str]().union(*credentials.values())
     # The rest count a model's tokens, and are no credential.
     assert {member for _, member in declared.keys() - credentials.keys()} == {"maxTokens", "contextTokens", "maxOutputTokens"}
 

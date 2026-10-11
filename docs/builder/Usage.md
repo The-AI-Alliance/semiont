@@ -653,17 +653,19 @@ The client's transport must name `JOB_CLAIM_CHANNELS` in its stream: the two bro
 
 When something on the bus is silently not happening — a job-claim worker that isn't claiming, an SSE connection that dropped, a `mark:create-request` emit that didn't reach the gateway — there are two complementary tools.
 
-**Wire-level event logging.** Every event that crosses a transport boundary is logged as a single grep-friendly line on stdout / `console.debug`:
+**Wire-level event logging.** Every event that crosses a transport boundary is logged as a single grep-friendly line: on stdout from a Node or a Python process, on stderr from a Rust one, and by `console.debug` in a browser:
 
 ```
-[bus EMIT] mark:create-request [scope=res-abc] [cid=a89a670a] {resourceId: ..., request: ...}
-[bus RECV] mark:added [scope=res-abc] [cid=a89a670a] {annotation: ..., ...}
+[bus EMIT] mark:create-request scope=res-abc cid=a89a670a {resourceId: ..., request: ...}
+[bus RECV] mark:added scope=res-abc {annotation: ..., ...}
 ```
+
+A line shows the payload, and never the token a resource is cloned by: the value of a member named `token` is written as `[withheld]`.
 
 Toggle:
 
 ```bash
-SEMIONT_BUS_LOG=1 <command>          # Node (gateway, workers, smelter, CLI, MCP, scripts)
+SEMIONT_BUS_LOG=1 <command>          # A process (the services, a worker, the CLI, MCP, scripts)
 window.__SEMIONT_BUS_LOG__ = true;   # Browser (DevTools or e2e init)
 ```
 
