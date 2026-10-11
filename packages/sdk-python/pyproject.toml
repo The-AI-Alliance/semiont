@@ -80,6 +80,7 @@ xfail_strict = true
 line-length = 140
 # Generated, each held by its own drift gate.
 extend-exclude = [
+    "src/semiont/_encodings.py",
     "src/semiont/channels.py",
     "src/semiont/error_codes.py",
     "src/semiont/identifiers.py",

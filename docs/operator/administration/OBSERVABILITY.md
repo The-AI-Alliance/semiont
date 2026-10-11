@@ -15,31 +15,61 @@ emit, content put/get, in-process actor handler, and worker job
 becomes a span. Trace context propagates over HTTP `traceparent`
 headers and SSE `_trace` payload fields.
 
-| Span name              | Site                                      | Kind     |
-|------------------------|-------------------------------------------|----------|
-| `bus.emit:{channel}`   | `HttpTransport.emit`                      | producer |
-| `bus.recv:{channel}`   | Wire-parse / bridge subscriber            | consumer |
-| `actor.{actor}:{channel}` | In-process subscriber (Stower / Gatherer / Matcher / Browser / Smelter) | consumer |
-| `content.put`          | `HttpContentTransport`, for an upload     | client   |
-| `content.get`          | `HttpContentTransport`, for a read of a resource's bytes | client |
-| `job:{jobType}`        | The Worker service, for each job it holds | consumer |
+The spans are in the tables below, by who exports them. What the Rust services and the
+Worker service export is specified, with kinds and attributes, in
+[`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json),
+and what an SDK's transports export, in any language, in
+[`specs/src/sdk-telemetry/telemetry.json`](../../../specs/src/sdk-telemetry/telemetry.json),
+which also has the count of emits a client sends. Each service's conformance suite holds it
+to its rows in both directions, and the SDK suite holds each SDK to the SDK table.
 
 In a span's name `{channel}` is the bus channel, `{jobType}` the job's type, and `{actor}` the
-actor's name.
+actor's name. **When** is the services' table's word for when a span is there: `traffic`, once
+the service has had something of its kind to do.
 
-What the Rust services and the Worker service export is specified, with kinds and attributes, in
-[`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json):
-the gateway's own spans — `bus.dispatch:{channel}`, `sse.deliver:{channel}`,
-`content.{get,put}.server` and the `archivist.*` client spans — and the Worker's
-`job:{jobType}`, `detection:prepare` and `inference:*` spans. What an SDK's
-transports export, in any language, is specified in
-[`specs/src/sdk-telemetry/telemetry.json`](../../../specs/src/sdk-telemetry/telemetry.json):
-the `bus.emit` and `bus.recv` spans, the `content.*` client spans, and the
-count of emits a client sends. The dispatcher and the Archivist reach the bus through the Rust
-SDK, so each exports the bus rows of that table beside its own; the Worker service exports
-its bus rows and the content rows for the uploads and reads it makes. Each service's
-conformance suite holds it to its rows in both directions, and the SDK suite
-holds each SDK to the SDK table.
+An SDK's transports, in whatever process they run: the Browser, the Node services, and the
+services that reach the bus through an SDK. The dispatcher and the Archivist make no span of
+their own and export the two bus rows; the Worker service exports those and `content.put` and
+`content.get`, for the uploads and reads it makes.
+
+| Span                   | Kind     | Attributes                                              | What it is                                    |
+|------------------------|----------|---------------------------------------------------------|-----------------------------------------------|
+| `bus.emit:{channel}`   | producer | `bus.channel`, and `bus.scope` on a frame in a resource scope | A frame the client sent, in the trace of the work that sent it |
+| `bus.recv:{channel}`   | consumer | `bus.channel`, and `bus.scope` on a frame in a resource scope | A frame the client received, and the work done for it, in the trace the frame was sent under |
+| `content.put`          | client   | `content.format`, `content.size_bytes`                  | An upload |
+| `content.get`          | client   | `resource.id`, and `content.stream` (`true`) on a read taken as a stream | A read of a resource's bytes |
+| `content.get_graph`    | client   | `resource.id`                                           | A read of a resource's description |
+
+The Librarian and the Smelter, for each thing one of their actors handles. For the Gatherer and
+the Matcher that is a request, and `{channel}` is its channel. For the Smelter it is an event,
+named by its channel; a piece of its reconcile work, named `smelt:…`; or a burst of one
+resource's events handled together, named `batch`:
+
+| Span                   | Kind     | Attributes                                              | What it is                                    |
+|------------------------|----------|---------------------------------------------------------|-----------------------------------------------|
+| `actor.{actor}:{channel}` | consumer | `actor`, `bus.channel`, and `batch.size` on a Smelter batch | One request the Gatherer or the Matcher answered, or one piece of the Smelter's work |
+
+The gateway:
+
+| Span                   | Kind     | Attributes                                              | When    | What it is                                    |
+|------------------------|----------|---------------------------------------------------------|---------|-----------------------------------------------|
+| `bus.dispatch:{channel}` | server | `bus.channel`                                           | traffic | An emit the gateway accepted, in the caller's trace when the request carried one |
+| `sse.deliver:{channel}` | producer | `bus.channel`, `bus.cid`, and `bus.scope` on a reply in a resource scope | traffic | A correlated reply written to the stream of the client whose request it answers |
+| `content.get.server`   | server   | `resource.id`                                           | traffic | A read of a resource's bytes |
+| `content.put.server`   | server   | (none)                                                  | traffic | An upload |
+| `archivist.resources.record` | client | `peer.service` (`archivist`)                      | traffic | An upload forwarded to the Archivist |
+| `archivist.resources.describe` | client | `peer.service` (`archivist`)                    | traffic | A JSON-LD description asked of the Archivist |
+| `archivist.content.get` | client  | `peer.service` (`archivist`)                            | traffic | Bytes read from the Archivist |
+| `archivist.events.replay` | client | `peer.service` (`archivist`)                           | traffic | A scope's persisted events read from the Archivist for a replay |
+
+The Worker service:
+
+| Span                   | Kind     | Attributes                                              | When    | What it is                                    |
+|------------------------|----------|---------------------------------------------------------|---------|-----------------------------------------------|
+| `job:{jobType}`        | consumer | `job.type` (`mark`/`yield`), `job.motivation` on a `mark` job, `job.id`, `resource.id` | traffic | A job a worker held, from the claim that handed it over to its conclusion |
+| `detection:prepare`    | internal | `resource.id`, `media.type`                             | traffic | A `mark` job's reading of its resource: the description's media type, and the text read by it |
+| `inference:structured` | internal | `inference.provider` (`anthropic`/`ollama`), `inference.model`, `inference.max_tokens` | traffic | One generation a worker asked of its provider for an array of objects, from the request to its answer or its time bound |
+| `inference:text`       | internal | `inference.provider` (`anthropic`/`ollama`), `inference.model`, `inference.max_tokens` | traffic | One generation a worker asked of its provider for text, from the request to its answer or its time bound |
 
 The `archivist.*` spans are the third hop on the byte path. The gateway's `content.{put,get}.server` span makes a network call to the archivist, and without a span of its own, a slow archivist would read as a slow gateway.
 
@@ -48,8 +78,8 @@ A typical "open resource" trace, parented by the SPA's transport call:
 ```
 bus.emit:browse:resource-requested              [HttpTransport.emit]
 └─ bus.dispatch:browse:resource-requested       [/bus/emit handler]
-   └─ actor.browser:browse:resource-requested   [Browser handler]
-      └─ bus.emit:browse:resource-result        [Browser → bus]
+   └─ bus.recv:browse:resource-requested        [the Archivist, answering]
+      └─ bus.emit:browse:resource-result        [the Archivist's reply]
          └─ bus.recv:browse:resource-result     [SPA wire-parse]
 ```
 

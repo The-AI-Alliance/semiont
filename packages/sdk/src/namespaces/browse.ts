@@ -382,7 +382,8 @@ export class BrowseNamespace implements IBrowseNamespace {
 
   async resourceContent(resourceId: ResourceId): Promise<string> {
     const result = await this.content.getBinary(resourceId);
-    // Decode with the charset the response advertises — no blind UTF-8.
+    // The text the bytes are, as docs/protocol/W3C-SELECTORS.md states it: a byte-order mark decides, then the
+    // charset the response states, then UTF-8.
     return decodeWithCharset(result.data, result.contentType);
   }
 

@@ -356,56 +356,24 @@ def test_a_jobs_status_is_asked_for_until_it_has_ended_and_each_answer_is_given_
 
 
 # ── Text ────────────────────────────────────────────────────────────────
+#
+# What text a resource's bytes are is test_decode_cases.py's, by the two tables every reader of one runs.
 
 
-def text_of(data: bytes, content_type: str) -> str:
-    async def scenario() -> str:
+def test_a_resources_representation_is_its_bytes_as_stored_whatever_text_they_are() -> None:
+    # UTF-16LE behind its mark, stored as UTF-8: the representation is the bytes and what they were stored as,
+    # and the content is the text the bytes are.
+    data, content_type = b"\xff\xfeh\x00i\x00", "text/plain; charset=utf-8"
+
+    async def scenario() -> None:
         made = create_test_client()
         made.content.seed(RESOURCE, Content(data=data, content_type=content_type))
         client = made.client
         try:
             representation = await client.browse.resource_representation(RESOURCE)
             assert (representation.data, representation.content_type) == (data, content_type)
-            return await client.browse.resource_content(RESOURCE)
+            assert await client.browse.resource_content(RESOURCE) == "hi"
         finally:
             await client.close()
 
-    return run(scenario())
-
-
-@pytest.mark.parametrize(
-    ("data", "content_type", "text"),
-    [
-        ("naïve café".encode(), "text/plain", "naïve café"),
-        ("naïve café".encode(), "text/markdown; charset=UTF-8", "naïve café"),
-        ("naïve café".encode("utf-16"), "text/plain; charset=utf-16", "naïve café"),
-        # A leading byte-order mark is not part of the text.
-        (b"\xef\xbb\xbfhello", "text/plain; charset=utf-8", "hello"),
-        # A sequence the encoding does not have becomes U+FFFD.
-        (b"caf\xe9", "text/plain; charset=utf-8", "caf\ufffd"),
-        # What a browser reads Latin-1 as: windows-1252, of which it is a part.
-        (b"caf\xe9 \x93quoted\x94", "text/plain; charset=iso-8859-1", "café “quoted”"),
-        (b"caf\xe9", 'text/html; charset="latin1"; boundary=x', "café"),
-        ("привет".encode("koi8-r"), "text/plain;charset=KOI8-R", "привет"),
-    ],
-    ids=[
-        "no charset is UTF-8",
-        "UTF-8",
-        "UTF-16",
-        "a byte-order mark",
-        "a byte UTF-8 has not",
-        "Latin-1",
-        "quoted, with more after it",
-        "KOI8-R",
-    ],
-)
-def test_a_resources_text_is_read_in_the_charset_its_media_type_states(data: bytes, content_type: str, text: str) -> None:
-    assert text_of(data, content_type) == text
-
-
-def test_a_charset_there_is_no_decoder_for_is_refused_by_name() -> None:
-    with pytest.raises(
-        TransportError, match="The resource's text is x-unheard-of, which this build decodes no text from: read its bytes instead"
-    ) as refused:
-        text_of(b"hello", "text/plain; charset=x-unheard-of")
-    assert refused.value.code == "error"
+    run(scenario())

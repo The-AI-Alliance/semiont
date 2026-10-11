@@ -106,12 +106,14 @@ from the Python SDK's table and answers a registry miss the same way
 (`text_source_of` in `apps/worker`).
 
 - **`decode`** — charset-aware passthrough. The text *is* the bytes. Free.
-  What text the bytes are is stated once, in
-  [`specs/src/text/decode-cases.json`](../../specs/src/text/decode-cases.json),
-  and every reader of a resource's text runs it: the charset the media type
-  states, UTF-8 when it states none, and a leading byte-order mark left out.
-  An offset is counted in that text, so a reader that kept the mark would put
-  every annotation one code point off.
+  What text the bytes are is protocol:
+  [the text of a resource](../protocol/W3C-SELECTORS.md#the-text-of-a-resource)
+  states it, as a browser reads a content type and the bytes behind it, and
+  two tables every reader runs hold it
+  ([`decode-cases.json`](../../specs/src/text/decode-cases.json) and
+  [`encoding-cases.json`](../../specs/src/text/encoding-cases.json)). An offset
+  is counted in that text, so a reader that made another text of the same
+  bytes would put its annotations somewhere else.
 - **`pdf-text-layer`** — parse the content stream, and where a page has no
   glyphs, rasterize and OCR it. Roughly **2.9 seconds per scanned page**.
 - **`none`** — no text to be had. No embedding, no vector search, no AI detection.
