@@ -29,8 +29,8 @@ the service has had something of its kind to do.
 
 An SDK's transports, in whatever process they run: the Browser, the Node services, and the
 services that reach the bus through an SDK. The dispatcher, the Archivist and the Weaver make no span of
-their own and export the two bus rows; the Worker service exports those and `content.put` and
-`content.get`, for the uploads and reads it makes.
+their own and export the two bus rows; the Worker service exports those and `content.put`,
+`content.get` and `content.get_anchored_text`, for the uploads and reads it makes.
 
 | Span                   | Kind     | Attributes                                              | What it is                                    |
 |------------------------|----------|---------------------------------------------------------|-----------------------------------------------|
@@ -39,6 +39,7 @@ their own and export the two bus rows; the Worker service exports those and `con
 | `content.put`          | client   | `content.format`, `content.size_bytes`                  | An upload |
 | `content.get`          | client   | `resource.id`, and `content.stream` (`true`) on a read taken as a stream | A read of a resource's bytes |
 | `content.get_graph`    | client   | `resource.id`                                           | A read of a resource's description |
+| `content.get_anchored_text` | client | `resource.id`                                        | A read of a resource's anchored text |
 
 The Librarian and the Smelter, for each thing one of their actors handles. For the Gatherer and
 the Matcher that is a request, and `{channel}` is its channel. For the Smelter it is an event,
@@ -59,6 +60,7 @@ The gateway:
 | `content.put.server`   | server   | (none)                                                  | traffic | An upload |
 | `archivist.resources.record` | client | `peer.service` (`archivist`)                      | traffic | An upload forwarded to the Archivist |
 | `archivist.resources.describe` | client | `peer.service` (`archivist`)                    | traffic | A JSON-LD description asked of the Archivist |
+| `archivist.resources.anchored_text` | client | `peer.service` (`archivist`)               | traffic | A resource's anchored text asked of the Archivist |
 | `archivist.content.get` | client  | `peer.service` (`archivist`)                            | traffic | Bytes read from the Archivist |
 | `archivist.events.replay` | client | `peer.service` (`archivist`)                           | traffic | A scope's persisted events read from the Archivist for a replay |
 

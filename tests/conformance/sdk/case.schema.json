@@ -333,6 +333,7 @@
                 "record",
                 "content",
                 "description",
+                "anchored-text",
                 "uploaded",
                 "refuse",
                 "hold",

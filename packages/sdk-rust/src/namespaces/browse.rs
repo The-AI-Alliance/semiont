@@ -18,11 +18,10 @@ use crate::cache::{
 };
 use crate::cached::{Cached, Keyed, Observed, Source};
 use crate::channels::{
-    BrowseAgentsRequested, BrowseAnchoredTextRequested, BrowseAnnotationHistoryRequested,
-    BrowseAnnotationRequested, BrowseAnnotationsRequested, BrowseClick, BrowseDirectoryRequested,
-    BrowseEntityTypesRequested, BrowseEventsRequested, BrowseKbRequested, BrowseResourceOpen,
-    BrowseResourceRequested, BrowseResourceViewed, BrowseResourcesRequested,
-    BrowseTagSchemasRequested,
+    BrowseAgentsRequested, BrowseAnnotationHistoryRequested, BrowseAnnotationRequested,
+    BrowseAnnotationsRequested, BrowseClick, BrowseDirectoryRequested, BrowseEntityTypesRequested,
+    BrowseEventsRequested, BrowseKbRequested, BrowseResourceOpen, BrowseResourceRequested,
+    BrowseResourceViewed, BrowseResourcesRequested, BrowseTagSchemasRequested,
 };
 use crate::client::{CachePersistence, Links};
 use crate::errors::{
@@ -34,8 +33,8 @@ use crate::state_unit::StateUnit;
 use crate::transport::{BoxFuture, Content, ContentStream, ContentTransport, Envelope};
 use crate::types::{
     Agent, AnchoredTextAnswer, Annotation, AttributedEvent, BrowseAgentsRequest,
-    BrowseAnchoredTextRequest, BrowseAnnotationHistoryRequest, BrowseAnnotationRequest,
-    BrowseAnnotationsRequest, BrowseClickEvent, BrowseDirectoryRequest, BrowseDirectoryRequestSort,
+    BrowseAnnotationHistoryRequest, BrowseAnnotationRequest, BrowseAnnotationsRequest,
+    BrowseClickEvent, BrowseDirectoryRequest, BrowseDirectoryRequestSort,
     BrowseDirectoryResultResponse, BrowseEntityTypesRequest, BrowseEventsRequest, BrowseKbRequest,
     BrowseResourceOpenEvent, BrowseResourceRequest, BrowseResourceViewedEvent,
     BrowseResourcesRequest, BrowseTagSchemasRequest, CollaboratorEntry,
@@ -870,18 +869,13 @@ impl BrowseNamespace {
     }
 
     /// A resource's recovered text and the runs that index it, or the named
-    /// reason there is none.
+    /// reason there is none. Read as content is, and not over the bus: it is
+    /// as large as the resource.
     pub async fn resource_anchored_text(
         &self,
         resource_id: &ResourceId,
     ) -> Result<AnchoredTextAnswer, SemiontError> {
-        let answer = self
-            .links
-            .request::<BrowseAnchoredTextRequested>(&BrowseAnchoredTextRequest {
-                resource_id: resource_id.clone(),
-            })
-            .await?;
-        Ok(answer.response)
+        Ok(self.content.get_anchored_text(resource_id).await?)
     }
 
     /// A resource's bytes, unchanged, with their media type.

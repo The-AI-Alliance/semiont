@@ -18,7 +18,7 @@ from collections.abc import AsyncIterable, Awaitable, Callable, Coroutine
 from typing import Final, final
 
 import httpx
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 
 from semiont import telemetry
 from semiont._lacks import lacks
@@ -184,6 +184,36 @@ class Exchange:
 
         The answer, once begun, is read within the same deadline.
         """
+        return await self._answer(
+            declared.model_validate_json,
+            (declared,),
+            method,
+            path,
+            authenticated=authenticated,
+            headers=headers,
+            content=content,
+            at_length=at_length,
+        )
+
+    async def answer_one_of[T](self, declared: TypeAdapter[T], shapes: tuple[type[WireModel], ...], method: str, path: str) -> T:
+        """The same, of an operation that declares one of several shapes: `declared` reads the body, and `shapes` are what it may be."""
+        return await self._answer(
+            declared.validate_json, shapes, method, path, authenticated=True, headers=None, content=None, at_length=False
+        )
+
+    async def _answer[T](
+        self,
+        read: Callable[[bytes], T],
+        shapes: tuple[type[WireModel], ...],
+        method: str,
+        path: str,
+        *,
+        authenticated: bool,
+        headers: dict[str, str] | None,
+        content: bytes | Callable[[], AsyncIterable[bytes]] | None,
+        at_length: bool,
+    ) -> T:
+        """Make a request, and read its answer with `read`. An answer `read` refuses fails, saying what it lacks to be one of `shapes`."""
         response = await self.begin(method, path, authenticated=authenticated, headers=headers, content=content, at_length=at_length)
         try:
             async with asyncio.timeout(None if at_length else self._deadline_ms / 1000):
@@ -196,9 +226,9 @@ class Exchange:
         finally:
             await response.aclose()
         try:
-            return declared.model_validate_json(body)
+            return read(body)
         except ValidationError as error:
-            lacking = lacks((declared,), error, "its declared body")
+            lacking = lacks(shapes, error, "its declared body")
         # Raised from nothing: the decoder's failure shows the answer, and what a failure is raised from is printed with it.
         raise self.failed(
             TransportError("error", f"{method} {path} answered what is not its declared body: {lacking}", status=response.status_code)

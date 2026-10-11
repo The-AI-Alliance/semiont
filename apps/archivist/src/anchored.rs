@@ -9,6 +9,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 use tokio::sync::oneshot;
 
@@ -34,9 +35,18 @@ struct Waiter {
 pub struct SmeltProgress {
     settled: Mutex<HashMap<String, Settled>>,
     waiting: Mutex<Vec<Waiter>>,
+    stopping: AtomicBool,
 }
 
 impl SmeltProgress {
+    /// The process is stopping. Every read waiting for the Smelter is
+    /// answered now, as one whose wait ran out, and none waits after: a read
+    /// is an HTTP request, and a held one would hold the stop for as long.
+    pub fn stop_waiting(&self) {
+        self.stopping.store(true, Ordering::SeqCst);
+        locked(&self.waiting).clear();
+    }
+
     /// The Smelter settled this content of this resource.
     pub fn settle(&self, resource_id: &str, checksum: &str, outcome: &str) {
         {
@@ -70,7 +80,11 @@ impl SmeltProgress {
                 return Some(held.outcome.clone());
             }
             let (tell, wait) = oneshot::channel();
-            locked(&self.waiting).push(Waiter {
+            let mut waiting = locked(&self.waiting);
+            if self.stopping.load(Ordering::SeqCst) {
+                return None;
+            }
+            waiting.push(Waiter {
                 resource_id: resource_id.to_owned(),
                 checksum: checksum.to_owned(),
                 tell,

@@ -1,0 +1,67 @@
+{
+  "get": {
+    "operationId": "getResourceAnchoredText",
+    "summary": "Get a resource's anchored text",
+    "description": "The text extracted from the resource's content, with where each run of it is on a page: the Archivist's answer, passed through as it arrives. It is always one of the members of `AnchoredTextAnswer`, and `kind` says which: the text (`extracted`), a stored decline (`declined`), or why there is none (`not-yet`, `no-map`, `unknown`). An absence is an answer and not an error: `not-yet` says to ask again, and the other two do not.\n\nThis is a read of content, so it is here and not on the bus: an anchored text is as large as its document, and bytes do not ride the bus.",
+    "tags": [
+      "Resources"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "parameters": [
+      {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "../components/schemas/ResourceId.json"
+        }
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "The anchored text, a stored decline, or why there is none.",
+        "headers": {
+          "Cache-Control": {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "no-cache"
+              ]
+            },
+            "description": "An answer of `not-yet` becomes the text once the Smelter has read the content, so a cache must revalidate."
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/AnchoredTextAnswer.json"
+            }
+          }
+        }
+      },
+      "401": {
+        "$ref": "../components/responses/Unauthorized.json"
+      },
+      "404": {
+        "description": "The path's `{id}` is not a `ResourceId` and so names no resource. A resource the knowledge base does not hold is not a 404 here: it is answered `unknown`.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      },
+      "500": {
+        "$ref": "../components/responses/InternalError.json"
+      },
+      "503": {
+        "$ref": "../components/responses/ServiceUnavailable.json"
+      }
+    }
+  }
+}

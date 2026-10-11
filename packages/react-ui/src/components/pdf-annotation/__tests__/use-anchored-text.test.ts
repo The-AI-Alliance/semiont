@@ -6,7 +6,9 @@
  * was to render a whole `PdfAnnotationCanvas`: stub `IntersectionObserver`,
  * stub pdf.js, wait for slots, and then assert on timers threaded through all
  * of it. Here the machine is driven directly, on fake timers, over a REAL
- * `SemiontSession` from `@semiont/sdk/testing`.
+ * `SemiontSession` from `@semiont/sdk/testing`. The one read the hook makes,
+ * `browse.resourceAnchoredText`, is answered by a spy on the session's own
+ * client: the hook depends on that method's answer, not on what carries it.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -14,24 +16,23 @@ import { renderHook, act } from '@testing-library/react';
 import { createTestSession } from '@semiont/sdk/testing';
 import { useAnchoredText, ANCHORED_RETRY_LADDER_MS } from '../use-anchored-text';
 import { resourceId } from '@semiont/core';
+import type { AnchoredTextAnswer } from '@semiont/core';
 
 const RESOURCE = 'res-anchored-1';
 
-/** A session whose anchored-text op answers with `kinds`, one per call, the
- *  last repeating — so "not-yet, then extracted" is one array. */
-function sessionAnswering(kinds: string[]) {
+const NOT_YET: AnchoredTextAnswer = { kind: 'not-yet' };
+const EXTRACTED: AnchoredTextAnswer = { kind: 'extracted', method: 'pdf-text-layer', text: '', items: [] };
+const DECLINED: AnchoredTextAnswer = { kind: 'declined', declined: 'no-text-layer' };
+
+/** A session whose anchored-text read answers with `answers`, one per call,
+ *  the last repeating — so "not-yet, then extracted" is one array. */
+function sessionAnswering(answers: AnchoredTextAnswer[]) {
+  const made = createTestSession();
   let call = 0;
-  return createTestSession({
-    transport: {
-      makeResponse: (operation: string) => {
-        if (operation !== 'browse:anchored-text-requested') {
-          throw new Error(`unexpected operation ${operation}`);
-        }
-        const kind = kinds[Math.min(call++, kinds.length - 1)]!;
-        return kind === 'extracted' ? { kind, runs: [] } : { kind };
-      },
-    },
-  });
+  vi.spyOn(made.client.browse, 'resourceAnchoredText').mockImplementation(
+    async () => answers[Math.min(call++, answers.length - 1)]!,
+  );
+  return made;
 }
 
 describe('useAnchoredText', () => {
@@ -39,10 +40,10 @@ describe('useAnchoredText', () => {
   afterEach(() => vi.useRealTimers());
 
   it('defers annotate while the answer is `not-yet`, and stands down when the map lands', async () => {
-    const { session } = sessionAnswering(['not-yet', 'extracted']);
+    const { session } = sessionAnswering([NOT_YET, EXTRACTED]);
     const { result } = renderHook(() => useAnchoredText(session, resourceId(RESOURCE)));
 
-    // Nobody has asked yet: a text document never asks and is never gated.
+    // Nobody has asked yet.
     expect(result.current.anchoredKind).toBeNull();
     expect(result.current.annotateDeferred).toBe(false);
 
@@ -67,7 +68,7 @@ describe('useAnchoredText', () => {
   });
 
   it('does not re-ask a terminal answer — `declined` is not `not-yet`', async () => {
-    const { session } = sessionAnswering(['declined']);
+    const { session } = sessionAnswering([DECLINED]);
     const { result } = renderHook(() => useAnchoredText(session, resourceId(RESOURCE)));
 
     await act(async () => {

@@ -47,11 +47,20 @@ function yieldJob(w: WorkerServiceWorld): RunningJob {
   });
 }
 
+const PDF = 'res-ws-telemetry-pdf';
+
+/** A `mark` job on a PDF the Smelter declined, queued: its text is asked of the gateway, and nothing is asked of the model. */
+function pdfJob(w: WorkerServiceWorld): RunningJob {
+  w.describe(PDF, 'application/pdf');
+  w.world.archivist.anchoredTexts.set(PDF, { kind: 'declined', declined: 'no-text-layer' });
+  return w.queued('job-ws-telemetry-pdf', 'mark', { resourceId: PDF, motivation: 'highlighting' });
+}
+
 /**
- * One job of each motivation, a generation, and each way a job ends that a
- * case can make: failed by its provider, declined, cut off twice, kept though
- * its count says it missed mentions, and cancelled. They are queued in this
- * order and run one at a time.
+ * One job of each motivation, a generation, a job on a PDF, and each way a
+ * job ends that a case can make: failed by its provider, declined, cut off
+ * twice, kept though its count says it missed mentions, and cancelled. They
+ * are queued in this order and run one at a time.
  */
 async function traffic(w: WorkerServiceWorld): Promise<{ served: Served; jobs: Record<string, RunningJob> }> {
   const jobs: Record<string, RunningJob> = {
@@ -61,6 +70,7 @@ async function traffic(w: WorkerServiceWorld): Promise<{ served: Served; jobs: R
     linking: markJob(w, 'telemetry-linking', { motivation: 'linking', entityTypes: ['Person'] }),
     tagging: markJob(w, 'telemetry-tagging', { motivation: 'tagging', schemaId: SCHEMA.id, categories: ['Claim'], schema: SCHEMA }),
     yield: yieldJob(w),
+    pdf: pdfJob(w),
     failed: markJob(w, 'telemetry-failed', { motivation: 'highlighting' }),
     declined: markJob(w, 'telemetry-declined', { motivation: 'highlighting' }, {}, ' \n'),
     cutOff: markJob(w, 'telemetry-cut-off', { motivation: 'highlighting' }),
@@ -101,7 +111,7 @@ async function traffic(w: WorkerServiceWorld): Promise<{ served: Served; jobs: R
     { response: '1' },
   );
   const served = await w.start({ env: { OTEL_EXPORTER_OTLP_ENDPOINT: otlp().endpoint, OTEL_METRIC_EXPORT_INTERVAL: '500', OTEL_BSP_SCHEDULE_DELAY: '100' } });
-  for (const name of ['highlighting', 'commenting', 'assessing', 'linking', 'tagging', 'yield']) await settled(served, jobs[name]!);
+  for (const name of ['highlighting', 'commenting', 'assessing', 'linking', 'tagging', 'yield', 'pdf']) await settled(served, jobs[name]!);
   await settled(served, jobs['failed']!, 'job:fail');
   await settled(served, jobs['declined']!);
   await settled(served, jobs['cutOff']!, 'job:fail');
@@ -167,7 +177,7 @@ eachWorkerService('what a worker exports', (world) => {
       expect(span.attributes).toEqual({ ...attributes, 'job.id': job.metadata.id, 'resource.id': job.params.resourceId });
     }
 
-    // Its jobs counted and timed by how they ended: seven completed, the declined one among them, two failed, and one cancelled.
+    // Its jobs counted and timed by how they ended: nine completed, the two declined among them, two failed, and one cancelled.
     for (const metric of ['semiont.job.outcome', 'semiont.job.duration']) {
       const seen = await eventually(`${metric} with every outcome and every motivation`, 15_000, () => {
         const got = otlp().metrics.get(metricName(metric));

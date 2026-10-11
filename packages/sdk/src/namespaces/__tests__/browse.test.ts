@@ -3,7 +3,7 @@ import { map, firstValueFrom, filter, BehaviorSubject } from 'rxjs';
 import { EventBus, resourceId, annotationId } from '@semiont/core';
 import { BrowseNamespace } from '../browse';
 import { isReady } from '../../cache';
-import type { ConnectionState, ITransport, IContentTransport } from '@semiont/core';
+import type { AnchoredTextAnswer, ConnectionState, ITransport, IContentTransport } from '@semiont/core';
 
 import type { Annotation } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
@@ -113,6 +113,7 @@ function makeContent(): IContentTransport {
     getBinary: vi.fn().mockResolvedValue({ data: new ArrayBuffer(0), contentType: 'text/plain' }),
     getBinaryStream: vi.fn().mockResolvedValue({ stream: new ReadableStream(), contentType: 'text/plain' }),
     getResourceGraph: vi.fn(),
+    getAnchoredText: vi.fn(),
     dispose: vi.fn(),
   };
 }
@@ -216,30 +217,20 @@ describe('BrowseNamespace', () => {
 
   // ── Entity types ──────────────────────────────────────────────────────
 
-  // ── Anchored text over the bus ────────────────────────────────────────
-  // The anchored-text read is a bus operation answered by the Archivist;
-  // the gateway has no anchored-text route for the SDK to reach for.
+  // ── Anchored text through the content transport ───────────────────────
+  // An anchored text is as large as its document, and bytes do not ride the
+  // bus: the read is the content transport's, and the answer is what it gave.
 
-  it('resourceAnchoredText emits the bus operation, NOT the content transport route', async () => {
-    const OUTCOME = { kind: 'extracted', text: 'hello', method: 'pdf-text-layer', items: [] };
-    const responses = defaultResponses();
-    responses['browse:anchored-text-requested'] = () => ({
-      resultChannel: 'browse:anchored-text-result',
-      response: OUTCOME,
-    });
-    const mock = createMockTransport(responses);
-    const content = makeContent();
-    const b = new BrowseNamespace(mock.transport, new EventBus(), content);
+  it('resourceAnchoredText asks the content transport, and puts nothing on the bus', async () => {
+    const ANSWER: AnchoredTextAnswer = { kind: 'extracted', text: 'hello', method: 'pdf-text-layer', items: [] };
+    const mock = createMockTransport(defaultResponses());
+    const getAnchoredText = vi.fn<IContentTransport['getAnchoredText']>().mockResolvedValue(ANSWER);
+    const b = new BrowseNamespace(mock.transport, new EventBus(), { ...makeContent(), getAnchoredText });
 
-    await expect(b.resourceAnchoredText(RID)).resolves.toEqual(OUTCOME);
+    await expect(b.resourceAnchoredText(RID)).resolves.toBe(ANSWER);
 
-    expect(mock.emitSpy).toHaveBeenCalledWith(
-      'browse:anchored-text-requested',
-      expect.objectContaining({ resourceId: RID }),
-      expect.objectContaining({ correlationId: expect.any(String) }),
-    );
-    // No HTTP hop through the gateway: the reply arrives on the bridged
-    // result channel like every other bus reply.
+    expect(getAnchoredText).toHaveBeenCalledWith(RID);
+    expect(mock.emitSpy).not.toHaveBeenCalled();
   });
 
   it('kb() asks on every call: a branch changes with no event to invalidate a kept answer', async () => {

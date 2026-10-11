@@ -73,6 +73,17 @@
           "key": "resource.id"
         }
       ]
+    },
+    {
+      "name": "content.get_anchored_text",
+      "transport": "content",
+      "kind": "client",
+      "meaning": "A read of a resource's anchored text.",
+      "attributes": [
+        {
+          "key": "resource.id"
+        }
+      ]
     }
   ],
   "metrics": [

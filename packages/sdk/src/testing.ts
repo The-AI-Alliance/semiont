@@ -20,6 +20,7 @@
 import { BehaviorSubject } from 'rxjs';
 import type {
   AccessToken,
+  AnchoredTextAnswer,
   IGatewayOperations,
   IContentTransport,
   PutBinaryOptions,
@@ -53,7 +54,9 @@ export {
  * Minimal in-memory `IContentTransport`. Stores what `putBinary` receives;
  * `getBinary` throws on unknown ids the way a real transport 404s, so a
  * test that forgets to seed content fails loudly instead of returning
- * fabricated bytes.
+ * fabricated bytes. `getAnchoredText` throws for every id: nothing here
+ * derives text, and an answer is a test's to give. A test that needs an
+ * anchored text passes its own `content`.
  */
 export function inMemoryContent(): IContentTransport {
   const store = new Map<string, { data: ArrayBuffer; contentType: string }>();
@@ -113,6 +116,9 @@ export function inMemoryContent(): IContentTransport {
     },
     async getResourceGraph(rId: ResourceId): Promise<GetResourceResponse> {
       return { resource: { '@id': String(rId) } } as unknown as GetResourceResponse;
+    },
+    async getAnchoredText(rId: ResourceId): Promise<AnchoredTextAnswer> {
+      throw new Error(`inMemoryContent: no anchored text for ${String(rId)}`);
     },
     dispose(): void {
       store.clear();

@@ -2710,22 +2710,6 @@ type BrowseAgentsResult struct {
 	} `json:"response"`
 }
 
-// BrowseAnchoredTextRequest Request a resource's derived coordinate map — the text recovered from its bytes plus the geometry indexing it. Read-only: the Smelter is the sole producer and writes the anchored-text store directly, never over this channel.
-type BrowseAnchoredTextRequest struct {
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
-	ResourceId ResourceId `json:"resourceId"`
-}
-
-// BrowseAnchoredTextResult A resource's coordinate map, a stored decline, or a named reason there is none. Never null: a bare null would cover four different facts — barrier expired, settled-skipped, no content identity, fold disposed — two of which a caller should retry and two of which it should not.
-type BrowseAnchoredTextResult struct {
-	// Response What a reader gets when it asks for a resource's coordinate map: the map, a stored decline, or a named absence.
-	//
-	// Distinct from `ExtractionOutcome` on purpose. That type is what the STORE holds and what an extractor RETURNS — neither of which can ever be 'not yet'. This is the read answer, which can, so widening ExtractionOutcome itself would have put an impossible state into the store's own type.
-	//
-	// Flat, one discriminant: every member carries `kind`, rather than nesting an outcome inside a status envelope and giving the wire two `kind` fields at different depths.
-	Response AnchoredTextAnswer `json:"response"`
-}
-
 // BrowseAnnotationHistoryRequest Request to browse the history of an annotation
 type BrowseAnnotationHistoryRequest struct {
 	// AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
@@ -13691,6 +13675,9 @@ type ClientInterface interface {
 	// GetResourceRepresentation request
 	GetResourceRepresentation(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetResourceAnchoredText request
+	GetResourceAnchoredText(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetResourceJsonLd request
 	GetResourceJsonLd(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
@@ -13889,6 +13876,18 @@ func (c *Client) UploadResourceWithBody(ctx context.Context, contentType string,
 
 func (c *Client) GetResourceRepresentation(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetResourceRepresentationRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetResourceAnchoredText(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetResourceAnchoredTextRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -14330,6 +14329,40 @@ func NewGetResourceRepresentationRequest(server string, id ResourceId) (*http.Re
 	return req, nil
 }
 
+// NewGetResourceAnchoredTextRequest generates requests for GetResourceAnchoredText
+func NewGetResourceAnchoredTextRequest(server string, id ResourceId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/resources/%s/anchored-text", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetResourceJsonLdRequest generates requests for GetResourceJsonLd
 func NewGetResourceJsonLdRequest(server string, id ResourceId) (*http.Request, error) {
 	var err error
@@ -14453,6 +14486,9 @@ type ClientWithResponsesInterface interface {
 
 	// GetResourceRepresentationWithResponse request
 	GetResourceRepresentationWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetResourceRepresentationResponse, error)
+
+	// GetResourceAnchoredTextWithResponse request
+	GetResourceAnchoredTextWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetResourceAnchoredTextResponse, error)
 
 	// GetResourceJsonLdWithResponse request
 	GetResourceJsonLdWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetResourceJsonLdResponse, error)
@@ -14786,6 +14822,32 @@ func (r GetResourceRepresentationResponse) StatusCode() int {
 	return 0
 }
 
+type GetResourceAnchoredTextResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AnchoredTextAnswer
+	JSON401      *Unauthorized
+	JSON404      *ErrorResponse
+	JSON500      *InternalError
+	JSON503      *ServiceUnavailable
+}
+
+// Status returns HTTPResponse.Status
+func (r GetResourceAnchoredTextResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetResourceAnchoredTextResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetResourceJsonLdResponse struct {
 	Body                 []byte
 	HTTPResponse         *http.Response
@@ -14959,6 +15021,15 @@ func (c *ClientWithResponses) GetResourceRepresentationWithResponse(ctx context.
 		return nil, err
 	}
 	return ParseGetResourceRepresentationResponse(rsp)
+}
+
+// GetResourceAnchoredTextWithResponse request returning *GetResourceAnchoredTextResponse
+func (c *ClientWithResponses) GetResourceAnchoredTextWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetResourceAnchoredTextResponse, error) {
+	rsp, err := c.GetResourceAnchoredText(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetResourceAnchoredTextResponse(rsp)
 }
 
 // GetResourceJsonLdWithResponse request returning *GetResourceJsonLdResponse
@@ -15545,6 +15616,60 @@ func ParseGetResourceRepresentationResponse(rsp *http.Response) (*GetResourceRep
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ServiceUnavailable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetResourceAnchoredTextResponse parses an HTTP response from a GetResourceAnchoredTextWithResponse call
+func ParseGetResourceAnchoredTextResponse(rsp *http.Response) (*GetResourceAnchoredTextResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetResourceAnchoredTextResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AnchoredTextAnswer
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Unauthorized
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

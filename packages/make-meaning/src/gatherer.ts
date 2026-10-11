@@ -35,7 +35,7 @@ import { LLMContext, type ResourceGatherReads } from './llm-context';
  * The Gatherer's capability slice — DERIVED as the intersection of the two
  * gather paths' reads, never restated. The Librarian builds it from the
  * shared stateDir (views), network clients (graph/vectors/content), bus-fed
- * progress folds, and the anchored-text bus read.
+ * progress folds, and the gateway's anchored-text read.
  */
 export type GathererStores = AnnotationGatherReads & ResourceGatherReads;
 

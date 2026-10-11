@@ -30,8 +30,9 @@ Everything it emits goes back over the bus.
 It also **owns anchored-text extraction** — the coordinate map that lets an annotation anchor
 to a position in a PDF or a scan — and holds that store outright, as its sole writer, on its
 own mount. Deriving and holding are the same process on purpose: it reaches its own output
-without a round trip. Nothing else mounts that directory; other processes read the map over
-the bus (`browse:anchored-text-requested`), which the Archivist answers.
+without a round trip. The Archivist mounts the same directory to read it, and never writes
+there. Every other process asks the gateway for a resource's anchored text
+(`GET /resources/{id}/anchored-text`), and the gateway asks the Archivist.
 
 **Bytes arrive verbatim over HTTP from the Archivist**, not from a local mount. That is not
 incidental: every vector upsert is stamped with the embedded bytes' checksum, so any

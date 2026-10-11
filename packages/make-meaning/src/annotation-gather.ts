@@ -35,7 +35,7 @@ type ViewGet = { views: Pick<ViewStorage, 'get'> };
 export interface AnnotationGatherReads {
   views: Pick<ViewStorage, 'get'>;
   content: ContentReads;
-  /** Derived text for `pdf-text-layer` media — the anchored-text bus read. */
+  /** Derived text for `pdf-text-layer` media — the anchored-text read. */
   anchoredText: AnchoredTextAsk;
   graph: KnowledgeGraphReads['graph'] & Pick<GraphDatabase, 'getEntityTypeStats'>;
   vectors: Pick<VectorStore, 'searchAnnotations'>;

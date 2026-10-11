@@ -30,6 +30,7 @@ from semiont.model import WireModel, written
 from semiont.testing import (
     ContentCall,
     FaultyTransport,
+    GetAnchoredText,
     GetBinary,
     GetBinaryStream,
     GetResourceGraph,
@@ -359,6 +360,8 @@ def content_call(call: ContentCall) -> tuple[str, JsonObject]:
             return "getBinaryStream", {"resourceId": resource_id}
         case GetResourceGraph(resource_id=resource_id):
             return "getResourceGraph", {"resourceId": resource_id}
+        case GetAnchoredText(resource_id=resource_id):
+            return "getAnchoredText", {"resourceId": resource_id}
 
 
 GATEWAY: Final = {

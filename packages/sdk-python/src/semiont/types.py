@@ -69,8 +69,6 @@ __all__ = [
     "BrowseAgentsRequest",
     "BrowseAgentsResult",
     "BrowseAgentsResultResponse",
-    "BrowseAnchoredTextRequest",
-    "BrowseAnchoredTextResult",
     "BrowseAnnotationHistoryRequest",
     "BrowseAnnotationHistoryResult",
     "BrowseAnnotationRequest",
@@ -730,14 +728,6 @@ class PdfTextItem(WireModel, frozen=True):
     y: float
     width: float
     height: float
-
-
-class BrowseAnchoredTextRequest(WireModel, frozen=True):
-    """
-    Request a resource's derived coordinate map — the text recovered from its bytes plus the geometry indexing it. Read-only: the Smelter is the sole producer and writes the anchored-text store directly, never over this channel.
-    """
-
-    resource_id: Annotated[ResourceId, Field(alias="resourceId")]
 
 
 class BrowseResourceRequest(WireModel, frozen=True):
@@ -5600,14 +5590,6 @@ class AnnotationAddedPayload(WireModel, frozen=True):
             description="SHA-256 of resource content at annotation time",
         ),
     ] = None
-
-
-class BrowseAnchoredTextResult(WireModel, frozen=True):
-    """
-    A resource's coordinate map, a stored decline, or a named reason there is none. Never null: a bare null would cover four different facts — barrier expired, settled-skipped, no content identity, fold disposed — two of which a caller should retry and two of which it should not.
-    """
-
-    response: AnchoredTextAnswer
 
 
 class BrowseResourcesResult(WireModel, frozen=True):

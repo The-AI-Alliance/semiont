@@ -1,9 +1,10 @@
 //! The gateway's calls onto the Archivist's HTTP surface
 //! (specs/src/archivist/openapi.json): an upload is stored and recorded there,
-//! bytes and a resource's JSON-LD description are read back, and a scope's
-//! persisted events are read for a replay. The gateway parses none of it; it
-//! forwards, and maps the answer onto its own responses. It reaches the
-//! Archivist as itself, with its service account's token.
+//! bytes, a resource's JSON-LD description and its anchored text are read
+//! back, and a scope's persisted events are read for a replay. The gateway
+//! parses none of it; it forwards, and maps the answer onto its own
+//! responses. It reaches the Archivist as itself, with its service account's
+//! token.
 
 use crate::http::ApiError;
 use axum::body::Body;
@@ -19,10 +20,11 @@ use serde_json::{Value, json};
 
 /// The Archivist operations the gateway calls. The embedded Archivist
 /// document must declare each, or the gateway does not start.
-const CALLS: [(&str, &str); 4] = [
+const CALLS: [(&str, &str); 5] = [
     ("POST", "/resources"),
     ("GET", "/resources/{id}/content"),
     ("GET", "/resources/{id}/jsonld"),
+    ("GET", "/resources/{id}/anchored-text"),
     ("GET", "/events/{resourceId}"),
 ];
 
@@ -189,6 +191,38 @@ impl Archivist {
                 Err(unavailable())
             }
         }
+    }
+
+    /// A resource's anchored text: the Archivist's answer, streamed as it
+    /// arrives and never read.
+    pub async fn anchored_text(&self, resource_id: &ResourceId) -> Result<Body, ApiError> {
+        let authorization = self.authorized("resources.anchored_text").await?;
+        let request = self
+            .http
+            .get(format!(
+                "{}{}",
+                self.base,
+                path("/resources/{id}/anchored-text", resource_id)
+            ))
+            .header("authorization", authorization);
+        let response = in_client_span("resources.anchored_text", request.send())
+            .await
+            .map_err(|e| {
+                logging::error(
+                    "Archivist unreachable for an anchored text",
+                    client(json!({ "resourceId": resource_id, "error": logging::chain(&e) })),
+                );
+                unavailable()
+            })?;
+        let status = response.status();
+        if status != StatusCode::OK {
+            logging::error(
+                "Archivist anchored-text read failed",
+                client(json!({ "resourceId": resource_id, "status": status.as_u16() })),
+            );
+            return Err(unavailable());
+        }
+        Ok(Body::from_stream(response.bytes_stream()))
     }
 
     /// A representation's bytes, streamed as they arrive, and their media

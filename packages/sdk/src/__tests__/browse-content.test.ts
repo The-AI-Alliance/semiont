@@ -6,11 +6,14 @@
  *   `accept` option (the route is a pure byte pipe).
  * - `resourceGraph` dereferences the metadata graph through the content
  *   transport's `getResourceGraph` (the HTTP `/jsonld` face), uncached.
+ * - `resourceAnchoredText` reads the anchored text through the content
+ *   transport's `getAnchoredText`, uncached: an answer of `not-yet` becomes
+ *   the text, so a kept answer would be a stale one.
  */
 
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { EventBus, resourceId as makeResourceId } from '@semiont/core';
-import type { IContentTransport, ITransport, ResourceId } from '@semiont/core';
+import type { AnchoredTextAnswer, IContentTransport, ITransport, ResourceId } from '@semiont/core';
 import { BrowseNamespace } from '../namespaces/browse';
 import { inMemoryTransport } from './helpers/in-memory-transport';
 
@@ -73,5 +76,30 @@ describe('browse content reads — pure pipe', () => {
     expect(getResourceGraph).toHaveBeenCalledWith(rId);
     // Uncached / HTTP-not-bus: each await hits the transport afresh.
     expect(getResourceGraph).toHaveBeenCalledTimes(2);
+  });
+
+  it('resourceAnchoredText reads via the content transport, uncached', async () => {
+    const text: AnchoredTextAnswer = { kind: 'extracted', text: 'hello', method: 'pdf-text-layer', items: [] };
+    const getAnchoredText = vi.fn<IContentTransport['getAnchoredText']>()
+      .mockResolvedValueOnce({ kind: 'not-yet' })
+      .mockResolvedValueOnce(text);
+    const content = {
+      putBinary: vi.fn(),
+      getBinary: vi.fn(),
+      getBinaryStream: vi.fn(),
+      getResourceGraph: vi.fn(),
+      getAnchoredText,
+      dispose: vi.fn(),
+    } as unknown as IContentTransport;
+
+    const browse = makeBrowse(content);
+    const rId: ResourceId = makeResourceId('r1');
+
+    // Asked again, it is read again: the first answer was not kept.
+    expect(await browse.resourceAnchoredText(rId)).toEqual({ kind: 'not-yet' });
+    expect(await browse.resourceAnchoredText(rId)).toBe(text);
+
+    expect(getAnchoredText).toHaveBeenCalledWith(rId);
+    expect(getAnchoredText).toHaveBeenCalledTimes(2);
   });
 });

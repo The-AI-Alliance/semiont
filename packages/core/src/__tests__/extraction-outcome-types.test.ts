@@ -4,9 +4,9 @@
  *
  * The stored anchored-text RECORD is the full extraction outcome — success
  * (`AnchoredText` + `method`/`pdfClass`/`ocrConfidence`/`unreadPages`) or a
- * named decline — not the bare `AnchoredText`. The store is reached only over
- * the bus, so the one wire surface is the `browse:anchored-text-result`
- * reply: `BrowseAnchoredTextResult.response` is `AnchoredTextAnswer`, which
+ * named decline — not the bare `AnchoredText`. A reader reaches the store
+ * only by the content read, so the one wire surface is the body of
+ * `GET /resources/{id}/anchored-text`: an `AnchoredTextAnswer`, which
  * widens this union with named absences and is never null. `AnchoredText`
  * itself is the base vocabulary shape; what this guard forbids is
  * the record carrying it bare (a body without `method` or `declined` must not
@@ -17,12 +17,12 @@
  * well a scan was read stays an open question). Enforced by `tsc --noEmit`.
  */
 import { describe, it, expect } from 'vitest';
-import type { components } from '../types';
+import type { components, paths } from '../types';
 
-// The store is reached only over the bus, so the wire shapes this pins are
-// the CHANNEL payloads.
+// A reader reaches the store only by the content read, so the wire shape
+// this pins is the ROUTE's body.
 type Outcome = components['schemas']['ExtractionOutcome'];
-type BrowseReply = components['schemas']['BrowseAnchoredTextResult']['response'];
+type Answer = paths['/resources/{id}/anchored-text']['get']['responses'][200]['content']['application/json'];
 
 /**
  * Axioms A2 and A3 of job-result-types.test.ts, for THIS union. Both members
@@ -72,30 +72,30 @@ describe('anchored-text record — extraction outcome guard', () => {
     expect(decline).toBeDefined();
   });
 
-  it('the bus reply carries the outcome', () => {
+  it('the answer carries the outcome', () => {
     const outcome: Outcome = { kind: 'extracted', text: 't', items: [], method: 'pdf-text-layer' };
-    const browse: BrowseReply = outcome;
-    expect(browse).toBeDefined();
+    const answer: Answer = outcome;
+    expect(answer).toBeDefined();
   });
 
-  it('the bus reply is NEVER null — absence is named', () => {
+  it('the answer is NEVER null — absence is named', () => {
     // One `null` would cover four facts — barrier expired, settled-skipped,
     // no content identity, fold disposed — two of which a caller should
     // retry and two of which are terminal, and a reader that blocks on this
     // read cannot classify its own failure without knowing which.
     // `AnchoredTextAnswer` names them instead.
-    // @ts-expect-error null is not an inhabitant of the reply type
-    const browseNull: BrowseReply = null;
-    expect(browseNull).toBeNull();
+    // @ts-expect-error null is not an inhabitant of the answer type
+    const answerNull: Answer = null;
+    expect(answerNull).toBeNull();
   });
 
-  it('the reply widens ExtractionOutcome rather than replacing it', () => {
+  it('the answer widens ExtractionOutcome rather than replacing it', () => {
     // The stored record is unchanged: an outcome is still a valid answer, and
     // the store's own type never gains the absence members — it can hold an
     // extraction or a decline, never a "not yet".
     const stored: Outcome = { kind: 'declined', declined: 'encrypted' };
-    const asReply: BrowseReply = stored;
-    const absent: BrowseReply = { kind: 'not-yet' };
-    expect({ asReply, absent }).toBeDefined();
+    const asAnswer: Answer = stored;
+    const absent: Answer = { kind: 'not-yet' };
+    expect({ asAnswer, absent }).toBeDefined();
   });
 });

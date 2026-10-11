@@ -81,8 +81,9 @@ and reports where the job stands.
 ## What it talks to
 
 The bus (SSE in for `job:queued`, `POST /bus/emit` out for claims and lifecycle), the gateway's
-`GET /resources/{id}` for a resource's bytes, and an inference provider. The gateway is the
-only address of the knowledge base it holds. It **pulls**: at every moment it becomes
+`GET /resources/{id}` for a resource's bytes and `GET /resources/{id}/anchored-text` for a PDF's
+text, and an inference provider. The gateway is the only address of the knowledge base it holds.
+It **pulls**: at every moment it becomes
 idle — start, settle, a matching `job:queued` while parked, reconnect — it asks the dispatcher
 for the next job among those it serves, and parks when told nothing is pending. `job:queued` is a
 wake-up with no memory, not a reservation. Claims are atomic, so several workers can run against

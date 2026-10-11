@@ -6,8 +6,8 @@
 //! - `Transport`: the bus. An emit out, frames in, the connection's state,
 //!   the failures it met, the resource scopes it holds and the replies it
 //!   awaits.
-//! - `ContentTransport`: bytes, which never ride the bus, and a resource's
-//!   description.
+//! - `ContentTransport`: bytes, which never ride the bus, a resource's
+//!   description and its anchored text.
 //! - `GatewayOperations`: what a gateway answers for itself. A transport with
 //!   no gateway behind it does not implement it.
 //!
@@ -22,11 +22,11 @@ use crate::errors::{BusRequestError, BusRequestErrorCode, TransportError};
 use crate::event_bus::EventBus;
 use crate::locked;
 use crate::types::ResourceId;
-use crate::types::{AnnotationId, JobId};
 use crate::types::{
-    CreateResourceResponse, GetResourceResponse, HealthResponse, MediaTokenResponse,
-    ProtectedResourceMetadata, StatusResponse, UserResponse,
+    AnchoredTextAnswer, CreateResourceResponse, GetResourceResponse, HealthResponse,
+    MediaTokenResponse, ProtectedResourceMetadata, StatusResponse, UserResponse,
 };
+use crate::types::{AnnotationId, JobId};
 use bytes::Bytes;
 use futures_core::Stream;
 use serde_json::{Map, Value};
@@ -614,8 +614,8 @@ pub struct ContentStream {
     pub content_type: String,
 }
 
-/// Bytes, which never ride the bus, and a resource's description as linked
-/// data.
+/// Bytes, which never ride the bus, a resource's description as linked data
+/// and its anchored text.
 pub trait ContentTransport: Send + Sync + 'static {
     /// Upload `request`'s bytes as a new resource.
     fn put_binary(&self, request: PutBinaryRequest) -> Upload;
@@ -638,6 +638,13 @@ pub trait ContentTransport: Send + Sync + 'static {
         &'a self,
         resource_id: &'a ResourceId,
     ) -> BoxFuture<'a, Result<GetResourceResponse, TransportError>>;
+
+    /// A resource's anchored text: the text read from its content with where
+    /// each run of it is on a page, a stored decline, or why there is none.
+    fn get_anchored_text<'a>(
+        &'a self,
+        resource_id: &'a ResourceId,
+    ) -> BoxFuture<'a, Result<AnchoredTextAnswer, TransportError>>;
 }
 
 // ── The gateway's own operations ────────────────────────────────────────

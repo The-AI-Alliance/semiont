@@ -21,7 +21,7 @@ How the TypeScript SDK reaches a knowledge base over HTTP. It implements the thr
 | | |
 |---|---|
 | `HttpTransport` | The bus over a gateway: `POST /bus/emit` for what a client sends, one stream (`POST /bus/subscribe`) for what it receives, and the gateway's plain operations |
-| `HttpContentTransport` | A resource's bytes, up with progress and cancellation, and down whole or as a stream |
+| `HttpContentTransport` | A resource's bytes, up with progress and cancellation, and down whole or as a stream; its linked-data description; and its anchored text |
 | `HttpTransportConfig` | What a transport is given: the gateway's address, a token source, a `TokenRefresher`, and the channels its stream names |
 | `currentUserOf(baseUrl, token)` | One request asking the gateway who a token is, with no transport behind it. A session asks this of a stored credential before it trusts it |
 | `APIError` | What an HTTP failure is thrown as |

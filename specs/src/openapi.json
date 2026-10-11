@@ -63,6 +63,9 @@
     "/resources/{id}/jsonld": {
       "$ref": "paths/resources_{id}_jsonld.json"
     },
+    "/resources/{id}/anchored-text": {
+      "$ref": "paths/resources_{id}_anchored-text.json"
+    },
     "/api/resources/{id}": {
       "$ref": "paths/api_resources_{id}.json"
     }
@@ -272,12 +275,6 @@
       },
       "PdfTextItem": {
         "$ref": "components/schemas/PdfTextItem.json"
-      },
-      "BrowseAnchoredTextRequest": {
-        "$ref": "components/schemas/BrowseAnchoredTextRequest.json"
-      },
-      "BrowseAnchoredTextResult": {
-        "$ref": "components/schemas/BrowseAnchoredTextResult.json"
       },
       "AnchoredTextAnswer": {
         "$ref": "components/schemas/AnchoredTextAnswer.json"

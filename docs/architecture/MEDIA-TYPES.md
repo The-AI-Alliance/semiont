@@ -260,22 +260,30 @@ textUnder(anchored, rect)    → string    a person drew a box; find its text
 
 ### When is it annotatable?
 
-A `spatial` type has three readiness moments, deliberately decoupled:
+A `spatial` type has two readiness moments:
 
-- **Geometry: immediately.** Once the view exists you can drag a rectangle and it
-  persists — whether or not anything knows what is under it.
-- **Born-digital PDF, with quotes: immediately, with no server involvement.** The
-  canvas calls `getTextContent()`, gets runs from pdf.js in the browser, and
-  builds the map locally with `anchorRuns`. It asks no service.
-- **Scanned PDF, with quotes: once smelt settles.** No runs, so the canvas calls
-  `browse.resourceAnchoredText(resourceId)`. Server-side: resolve the view → take
-  the primary representation's checksum → read the store → on a miss wait on
-  `whenSettled(resourceId, checksum, 15_000)` → re-read if `indexed`, else
-  `null`. A timeout or a decline yields no quote, and the annotation ships with
-  geometry alone.
+- **Geometry: immediately.** Once the view exists a rectangle can be dragged
+  and it persists — nothing has to know what is under it.
+- **Quotes: once smelt settles.** A PDF's text has one producer. The Smelter
+  derives it, the Archivist serves it, and the canvas asks for it with
+  `browse.resourceAnchoredText(resourceId)` for every PDF, born-digital or
+  scanned. pdf.js draws the pages in the browser and is never asked for their
+  text: a second reading would be a second answer to what a rectangle quotes,
+  kept in step with the first forever. Server-side: resolve the view → take
+  the primary representation's checksum → read the store → on a miss wait up
+  to 15 seconds for the Smelter to settle that content → re-read if `indexed`.
+  The answer is the map, a stored decline, or a named absence: `not-yet`,
+  `no-map` or `unknown`.
+
+**The PDF canvas joins the two on purpose.** A quote is captured when an
+annotation is made (step 14), so a rectangle drawn before the map exists would
+keep none. While the answer is `not-yet` — a document just uploaded, until the
+Smelter has read it — the canvas holds off annotating, and asks again when
+`smelt:settled` arrives for the resource, and on a timer in case that is
+missed. Every other answer is final, and annotating proceeds.
 
 **Failure degrades; it does not break.** No map — because the document has none,
-because extraction declined, or because the barrier timed out — means an
+because extraction declined, or because the read failed — means an
 annotation with geometry and no quote. That is how a `spatial` type behaves
 with no text recovery at all, so the failure mode is "no improvement", never
 "broken".
@@ -331,8 +339,8 @@ offsets into the text directly. Steps 1–2, 9, and 13–14 are identical.
 
 **An image** (`spatial`, `none`) takes the geometry half and none of the text
 half. It is annotatable the moment the view exists, and a rectangle over it is
-always geometry-only — there is no map, so no quote, ever. The "three readiness
-moments" collapse to one.
+always geometry-only — there is no map, so no quote, ever. The two readiness
+moments collapse to one.
 
 **Stored types** (`none`, `none`) are catalogued, named and downloadable.
 Stored text types additionally decode, so they are embedded and searchable while
@@ -371,10 +379,13 @@ exists only during an interval.
   written once at ingest, consulted before re-deriving, stored where `clean` can
   reclaim it, re-derivable when missing. ASR on a three-hour recording makes
   this *more* necessary than OCR did, not less.
-- **The settle barrier and the readiness split.** An embedded caption track is
-  readable in the browser through `TextTrack`, exactly as pdf.js reads a native
-  text layer — so the "three readiness moments" structure holds, with WebVTT
-  playing pdf.js's role and ASR playing OCR's.
+- **The settle barrier and the readiness split.** A place in time is
+  annotatable at once; its quote waits for the transcript to settle. An
+  embedded caption track is readable in the browser through `TextTrack`, as a
+  PDF's text layer is through pdf.js — and the PDF path does not read it
+  there, because a second reader is a second answer to keep in step. The same
+  holds here: one producer, with a caption track playing the text layer's
+  role and ASR playing OCR's.
 - **Selectors fixed at birth.** Unchanged, and for the same reason.
 
 ### What does not carry over

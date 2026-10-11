@@ -225,6 +225,55 @@ def test_a_description_is_what_the_gateway_answers_and_an_answer_that_is_not_the
     assert (undeclared.code, undeclared.status) == ("error", 200)
 
 
+def test_an_anchored_text_is_the_gateway_s_answer_whichever_shape_it_is_and_an_answer_that_is_none_of_them_is_a_failure() -> None:
+    path = "/resources/res-1/anchored-text"
+    answers: list[dict[str, JsonValue]] = [
+        {
+            "kind": "extracted",
+            "method": "pdf-text-layer",
+            "text": "Ada Lovelace",
+            "items": [{"start": 0, "end": 12, "page": 1, "x": 72, "y": 700, "width": 80, "height": 12}],
+        },
+        {"kind": "declined", "declined": "too-large"},
+        {"kind": "not-yet"},
+        {"kind": "no-map"},
+        {"kind": "unknown"},
+    ]
+
+    async def scenario() -> tuple[list[JsonValue], list[str | None], list[TransportError], int]:
+        async with GatewayServer() as gateway, transport_to(gateway, token="the-token") as transport:
+            answered: list[JsonValue] = []
+            for answer in answers:
+                gateway.anchored_texts[RESOURCE] = answer
+                answered.append((await transport.content.get_anchored_text(RESOURCE)).model_dump(mode="json", exclude_unset=True))
+            carried = [asked.headers.get("authorization") for asked in gateway.of("GET", path)]
+            failed: list[TransportError] = []
+            for said in (
+                # A member of the shape it names is missing; and the answer inside a `response`, as a reply on the bus has one.
+                b'{"kind": "extracted", "method": "pdf-text-layer", "items": []}',
+                b'{"response": {"kind": "unknown"}}',
+            ):
+                gateway.scripted[("GET", path)] = [Answer(body=said)]
+                with pytest.raises(TransportError) as undeclared:
+                    await transport.content.get_anchored_text(RESOURCE)
+                failed.append(undeclared.value)
+            # The gateway cannot reach the Archivist: asked a second time, as any read is, and refused again.
+            gateway.scripted[("GET", path)] = [Answer(status=503, body=b'{"error":"The Archivist cannot be reached"}')] * 2
+            with pytest.raises(TransportError) as refused:
+                await transport.content.get_anchored_text(RESOURCE)
+            return answered, carried, [*failed, refused.value], len(gateway.of("GET", path))
+
+    answered, carried, (lacking, wrapped, refused), asked = run(scenario())
+    # An absence is an answer as the text is: each is given to the caller as the gateway said it.
+    assert answered == answers
+    assert carried == ["Bearer the-token"] * len(answers)
+    assert (lacking.code, lacking.status) == (wrapped.code, wrapped.status) == ("error", 200)
+    assert lacking.message == f"GET {path} answered what is not its declared body: it has no `text`"
+    assert wrapped.message == f"GET {path} answered what is not its declared body: it is not the JSON object its declared body is"
+    assert (refused.code, refused.status, refused.message) == ("unavailable", 503, "The Archivist cannot be reached")
+    assert asked == len(answers) + 2 + 2
+
+
 def test_each_gateway_operation_is_one_request_to_its_own_path_and_carries_the_token_where_it_needs_one() -> None:
     answers: dict[str, dict[str, JsonValue]] = {
         "/api/health": {"status": "ok", "message": "serving", "version": "0.0.0", "timestamp": "2026-10-06T05:04:06.111Z"},

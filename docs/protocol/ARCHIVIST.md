@@ -422,24 +422,14 @@ names no one.
 | `browse:annotation-requested` `{annotationId, resourceId}` | `{annotation, resource, resolvedResource}`: the annotation, its resource's descriptor, and the descriptor of the resource its body links to, if any. `Annotation not found` |
 | `browse:annotation-history-requested` `{annotationId, resourceId}` | `{events, total, annotationId, resourceId}`: the resource's events about that annotation, in sequence order. The annotation must be in the view: `Annotation not found` |
 | `browse:events-requested` `{resourceId, type?, userId?, limit?}` | `{events, total, resourceId}`: the resource's events in log order, filtered, then the first `limit`. Each event carries `agent`, its sender as an agent |
-| `browse:anchored-text-requested` `{resourceId}` | The resource's anchored text; see below |
 | `browse:entity-types-requested` | `{entityTypes}` from `entitytypes.json` |
 | `browse:tag-schemas-requested` | `{tagSchemas}` from `tagschemas.json` |
 | `browse:agents-requested` | `{agents}`: the roster; see below |
 | `browse:kb-requested` | `{name, domain, gitBranch?}`, the domain and the branch read when asked |
 | `browse:directory-requested` `{path, sort?}` | `{path, entries}`: the directories and regular files at a path of the working tree, without names that begin `.`. A file that is a resource's content, by its storage URI, is `tracked` and carries the resource's id, entity types, annotation count and creator. Sorted by `name` in dictionary order (the default), by `mtime` newest first, or by `annotationCount` highest first. A path outside the root: `path escapes project root`. No such path: `path not found` |
 
-**Anchored text.** The answer is the stored entry for the checksum of the resource's first
-representation: the extracted text with each word's place, or the decline. Otherwise:
-
-- `{kind: "unknown"}` when the resource has no view or no checksum.
-- With no entry, the Archivist waits up to 15 seconds for the Smelter to say it has settled that
-  content (`smelt:settled`, naming the resource and the checksum). If the Smelter skipped it:
-  `{kind: "no-map"}`. If it indexed it, the entry is read again. In every other case, the wait
-  running out included: `{kind: "not-yet"}`.
-
-The Archivist remembers the latest `smelt:settled` for each resource for five minutes, so a request
-that follows the signal does not wait.
+**Anchored text** is not read on the bus. An answer is as large as its document, and a frame has a
+size limit, so it is a route of [the HTTP surface](#the-http-surface).
 
 **Agents.** The roster lists each agent once, in the order its first role appears: a `mark` job of
 each motivation (`highlighting`, `commenting`, `assessing`, `linking`, `tagging`), a `yield` job,
@@ -469,7 +459,7 @@ published is reported as a gauge.
 
 ## The HTTP surface
 
-The Archivist serves five routes on its port. Every route but `/health` requires `Authorization:
+The Archivist serves six routes on its port. Every route but `/health` requires `Authorization:
 Bearer <token>`: a token of the knowledge base's issuer, for the knowledge base's audience, whose
 flat `roles` claim includes `semiont-service`. Every refusal is `401` with body
 `{"error":"unauthorized"}` and a `WWW-Authenticate` header: `Bearer error="invalid_token"` when a
@@ -481,9 +471,30 @@ token was presented, `Bearer` when none was.
 | `GET` `/events/{resourceId}`, with `?fromSequence=N` | `200` `{"events": […]}`: the stream's stored events from sequence `N` on, in log order. Empty for a resource with none. `N` must be an integer of at least 1, in decimal digits, and the id an id: `400` `{"error":"resourceId path segment and integer fromSequence >= 1 are required"}`. A failed read: `500` `{"error":"event read failed"}` |
 | `GET` `/resources/{id}/content` | `200` with the content streamed, and `Content-Type` the media type recorded. A file missing from the tree: `500` `{"error":"content read failed"}`. No view: `404` `{"error":"Resource not found: <id>","code":"resource"}`. A view with no storage URI: `404` `{"error":"Resource representation not found: no storageUri for <id>","code":"representation"}` |
 | `GET` `/resources/{id}/jsonld` | `200`, `Content-Type: application/ld+json; charset=utf-8`: what `browse:resource-requested` answers. `404` `{"error":"Resource not found"}` |
+| `GET` `/resources/{id}/anchored-text` | `200`, `Content-Type: application/json`: the resource's anchored text, or why there is none; see below. A failed read: `500` `{"error":"anchored-text read failed"}` |
 | `POST` `/resources` | Stores content and records it; see below |
 
 Any other request is `404` with no body.
+
+**`GET /resources/{id}/anchored-text`** answers one
+[`AnchoredTextAnswer`](../../specs/src/components/schemas/AnchoredTextAnswer.json), and the answer
+is the whole body, with nothing around it. No answer is too large: one larger than the largest
+frame the bus carries is answered whole.
+
+The answer is the stored entry for the checksum of the resource's first representation: the
+extracted text with each word's place, or the decline. Otherwise:
+
+- `{"kind":"unknown"}` when the resource has no view or no checksum, or when the path's id is not
+  an id. That there is no resource is an answer here, and never a `404`.
+- With no entry, the Archivist waits up to 15 seconds for the Smelter to say on the bus that it has
+  settled that content (`smelt:settled`, naming the resource and the checksum). If the Smelter
+  skipped it: `{"kind":"no-map"}`. If it indexed it, the entry is read again. In every other case,
+  the wait running out included: `{"kind":"not-yet"}`.
+- A wait ends when the Archivist is told to stop: every read it is holding is answered
+  `{"kind":"not-yet"}` at once, and the process does not wait the reads out before it exits.
+
+The Archivist remembers the latest `smelt:settled` for each resource for five minutes, so a request
+that follows the signal does not wait.
 
 **`POST /resources`** takes `multipart/form-data` with a `file` part and the fields of a
 [`ResourceUpload`](../../specs/src/components/schemas/ResourceUpload.json).

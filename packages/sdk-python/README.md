@@ -767,6 +767,12 @@ async def store(transport: HttpTransport, page: bytes) -> ResourceId:
 - **What is read is what was stored**, byte for byte, with its media type. A
   time or a URI in an answer is the text the gateway sent, and a field it sent
   as null is `None`.
+- **A resource's description and its anchored text are read here too**, by
+  `get_resource_graph` and `get_anchored_text`, which are what
+  `client.browse.resource_graph` and `client.browse.resource_anchored_text`
+  call. An anchored text is answered as the text with where each run of it is
+  on a page, as a stored decline, or as why there is none: an absence is an
+  answer, and no failure.
 - **A read is asked a second time** when the gateway says it will recover, or
   says nothing. A request that may already have had its effect is not.
 

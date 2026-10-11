@@ -1,15 +1,16 @@
 /**
  * Bytes in and out: `POST /resources`, the pipe at `GET /resources/{id}` and
- * its media-token alias, and the JSON-LD description. The gateway stores
- * nothing and records nothing: it forwards an upload to the Archivist, which
- * stores the bytes and records the resource, and reads bytes and descriptions
- * back from it (the fake Archivist in harness/archivist.ts).
+ * its media-token alias, the JSON-LD description, and a resource's anchored
+ * text. The gateway stores nothing and records nothing: it forwards an upload
+ * to the Archivist, which stores the bytes and records the resource, and
+ * reads bytes, descriptions and anchored text back from it (the fake
+ * Archivist in harness/archivist.ts).
  */
 import { randomUUID } from 'node:crypto';
 import { beforeAll, expect, it } from 'vitest';
 import { call, nonConformance } from '../harness/http';
 import { SERVICE_ROLE, WORKER_ROLE } from '../harness/roles';
-import { identifiers } from '../harness/spec';
+import { identifiers, spec } from '../harness/spec';
 import { eachPlane, GATEWAY_CLIENT } from '../harness/world';
 import type { BusStream } from '../harness/stream';
 
@@ -214,9 +215,10 @@ eachPlane('content', (world) => {
           annotations: [],
           entityReferences: [],
         });
+        world().archivist.anchoredTexts.set(id, { kind: 'no-map' });
       }
       const asked = world().archivist.calls.length;
-      for (const path of ['/resources/{id}', '/resources/{id}/jsonld', '/api/resources/{id}'] as const) {
+      for (const path of ['/resources/{id}', '/resources/{id}/jsonld', '/resources/{id}/anchored-text', '/api/resources/{id}'] as const) {
         const reply = await call(world().origin, 'GET', path.replace('{id}', segment), { token });
         expect(reply.status, `${path} with ${segment}: ${why}`).toBe(404);
         expect(nonConformance('get', path, reply), `${path} with ${segment}: ${why}`).toEqual([]);
@@ -225,11 +227,11 @@ eachPlane('content', (world) => {
     }
   });
 
-  it('the pipe and the description answer 503 when the Archivist cannot serve them', async () => {
+  it('the pipe, the description and the anchored text answer 503 when the Archivist cannot serve them', async () => {
     const token = await world().person('reader');
     world().archivist.mode.refusesGateway = true;
     try {
-      for (const path of ['/resources/{id}', '/resources/{id}/jsonld'] as const) {
+      for (const path of ['/resources/{id}', '/resources/{id}/jsonld', '/resources/{id}/anchored-text'] as const) {
         const reply = await call(world().origin, 'GET', path.replace('{id}', `res-${randomUUID()}`), { token });
         expect(reply.status, path).toBe(503);
         expect(nonConformance('get', path, reply), path).toEqual([]);
@@ -260,6 +262,109 @@ eachPlane('content', (world) => {
     const reply = await call(world().origin, 'GET', `/resources/res-${randomUUID()}/jsonld`, { token });
     expect(reply.status).toBe(404);
     expect(nonConformance('get', '/resources/{id}/jsonld', reply)).toEqual([]);
+  });
+
+  it('the anchored text is the Archivist\'s answer, byte for byte, never cached, and asked for as the gateway itself', async () => {
+    const id = `res-${randomUUID()}`;
+    // Its members in an order of their own, and an emoji: what reading the answer and writing it again could change.
+    const answer = {
+      kind: 'extracted',
+      text: '😀 alpha',
+      items: [
+        { start: 0, end: 1, page: 1, x: 72, y: 700, width: 6, height: 12 },
+        { start: 2, end: 7, page: 1, x: 72, y: 686, width: 30, height: 12 },
+      ],
+      method: 'ocr',
+    };
+    world().archivist.anchoredTexts.set(id, answer);
+    const token = await world().person('reader');
+
+    const reply = await call(world().origin, 'GET', `/resources/${id}/anchored-text`, { token });
+    expect(reply.status, reply.text).toBe(200);
+    expect(nonConformance('get', '/resources/{id}/anchored-text', reply)).toEqual([]);
+    expect(reply.bytes.equals(Buffer.from(JSON.stringify(answer)))).toBe(true);
+    expect(reply.headers.get('content-type')).toBe('application/json');
+    expect(reply.headers.get('cache-control')).toBe('no-cache');
+
+    const read = world().archivist.calls.findLast((c) => c.path === `/resources/${id}/anchored-text`);
+    expect(read?.claims?.['azp']).toBe(GATEWAY_CLIENT);
+  });
+
+  it('the anchored text is read from the Archivist each time it is asked for: not-yet, and then the text', async () => {
+    const id = `res-${randomUUID()}`;
+    const text = { kind: 'extracted', text: 'alpha', items: [{ start: 0, end: 5, page: 1, x: 72, y: 700, width: 30, height: 12 }], method: 'pdf-text-layer' };
+    let reads = 0;
+    world().archivist.anchoredTexts.set(id, () => (reads++ === 0 ? { kind: 'not-yet' } : text));
+    const token = await world().person('reader');
+
+    for (const answer of [{ kind: 'not-yet' }, text]) {
+      const reply = await call(world().origin, 'GET', `/resources/${id}/anchored-text`, { token });
+      expect(reply.status, reply.text).toBe(200);
+      expect(nonConformance('get', '/resources/{id}/anchored-text', reply)).toEqual([]);
+      expect(reply.json).toEqual(answer);
+    }
+  });
+
+  it('an absence and a decline are answers, not errors: unknown for a resource the Archivist does not hold, and what it answers for one it does', async () => {
+    const token = await world().person('reader');
+    const answered = async (id: string): Promise<unknown> => {
+      const reply = await call(world().origin, 'GET', `/resources/${id}/anchored-text`, { token });
+      expect(reply.status, reply.text).toBe(200);
+      expect(nonConformance('get', '/resources/{id}/anchored-text', reply)).toEqual([]);
+      return reply.json;
+    };
+    expect(await answered(`res-${randomUUID()}`)).toEqual({ kind: 'unknown' });
+    for (const answer of [{ kind: 'no-map' }, { kind: 'declined', declined: 'encrypted' }]) {
+      const id = `res-${randomUUID()}`;
+      world().archivist.anchoredTexts.set(id, answer);
+      expect(await answered(id)).toEqual(answer);
+    }
+  });
+
+  it('the anchored text answers 503 when the Archivist\'s read of it fails', async () => {
+    const token = await world().person('reader');
+    world().archivist.mode.anchoredTextFails = true;
+    try {
+      const reply = await call(world().origin, 'GET', `/resources/res-${randomUUID()}/anchored-text`, { token });
+      expect(reply.status).toBe(503);
+      expect(nonConformance('get', '/resources/{id}/anchored-text', reply)).toEqual([]);
+    } finally {
+      world().archivist.mode.anchoredTextFails = false;
+    }
+  });
+
+  it('the anchored text is refused without a token: a 401, and the Archivist is not asked', async () => {
+    const id = `res-${randomUUID()}`;
+    world().archivist.anchoredTexts.set(id, { kind: 'no-map' });
+    const asked = world().archivist.calls.length;
+    const reply = await call(world().origin, 'GET', `/resources/${id}/anchored-text`);
+    expect(reply.status).toBe(401);
+    expect(nonConformance('get', '/resources/{id}/anchored-text', reply)).toEqual([]);
+    expect(world().archivist.calls.slice(asked).map((c) => c.path)).toEqual([]);
+  });
+
+  it('an anchored text larger than the largest bus message comes through whole', async () => {
+    // No emit may be larger than this, so no reply on the bus could carry the answer below.
+    const busMessageBytes = spec().limits('post', '/bus/emit')['maxBodyBytes']!;
+    // Plain ASCII, forty lines to a page and one word to a line: each item's offsets index its word.
+    const words = Array.from({ length: 20_000 }, (_, index) => `word${index}`);
+    let offset = 0;
+    const items = words.map((word, index) => {
+      const item = { start: offset, end: offset + word.length, page: Math.floor(index / 40) + 1, x: 72, y: 700 - (index % 40) * 14, width: word.length * 6, height: 12 };
+      offset += word.length + 1;
+      return item;
+    });
+    const answer = { kind: 'extracted', text: words.join(' '), items, method: 'pdf-text-layer' };
+    const stored = Buffer.from(JSON.stringify(answer));
+    expect(stored.length).toBeGreaterThan(busMessageBytes);
+
+    const id = `res-${randomUUID()}`;
+    world().archivist.anchoredTexts.set(id, answer);
+    const reply = await call(world().origin, 'GET', `/resources/${id}/anchored-text`, { token: await world().person('reader') });
+    expect(reply.status, reply.text.slice(0, 200)).toBe(200);
+    expect(nonConformance('get', '/resources/{id}/anchored-text', reply)).toEqual([]);
+    expect(reply.bytes.length).toBe(stored.length);
+    expect(reply.bytes.equals(stored)).toBe(true);
   });
 
   it('the gateway makes no bus request of its own: an upload and a description ask the Archivist over HTTP', async () => {

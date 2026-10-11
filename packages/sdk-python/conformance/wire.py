@@ -215,6 +215,9 @@ class Wire:
     async def graph(self, _: int, args: Arguments) -> JsonValue:
         return _answered(await self._opened().content.get_resource_graph(_resource(args, "resource")))
 
+    async def anchored_text(self, _: int, args: Arguments) -> JsonValue:
+        return _answered(await self._opened().content.get_anchored_text(_resource(args, "resource")))
+
     async def health(self, _: int, __: Arguments) -> JsonValue:
         return _answered(await self._opened().health_check())
 
@@ -256,6 +259,7 @@ class Wire:
             "get": Operation(self.get),
             "get-stream": Operation(self.get_stream),
             "graph": Operation(self.graph),
+            "anchored-text": Operation(self.anchored_text),
             "health": Operation(self.health),
             "status": Operation(self.status),
             "current-user": Operation(self.current_user),

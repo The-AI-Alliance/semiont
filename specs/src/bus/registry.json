@@ -108,9 +108,6 @@
       "browse:resource-requested",
       "browse:resource-result",
       "browse:resource-failed",
-      "browse:anchored-text-requested",
-      "browse:anchored-text-result",
-      "browse:anchored-text-failed",
       "browse:resources-requested",
       "browse:resources-result",
       "browse:resources-failed",
@@ -307,9 +304,6 @@
       "browse:resource-requested",
       "browse:resource-result",
       "browse:resource-failed",
-      "browse:anchored-text-requested",
-      "browse:anchored-text-result",
-      "browse:anchored-text-failed",
       "browse:resources-requested",
       "browse:resources-result",
       "browse:resources-failed",
@@ -2067,62 +2061,6 @@
       }
     },
     {
-      "channel": "browse:anchored-text-requested",
-      "shape": "schema",
-      "schema": "BrowseAnchoredTextRequest",
-      "validate": "BrowseAnchoredTextRequest",
-      "docs": {
-        "lead": [
-          "",
-          "  // A resource's derived coordinate map — the text recovered from its bytes",
-          "  // plus the geometry that indexes it — served whole for the resource.",
-          "  // Answering never runs the OCR engine.",
-          "  //",
-          "  // Read-only over the wire: the Smelter is the sole producer, and this is",
-          "  // the ONLY way a reader reaches the store."
-        ],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": ""
-      }
-    },
-    {
-      "channel": "browse:anchored-text-result",
-      "shape": "schema",
-      "validate": "BrowseAnchoredTextResult",
-      "docs": {
-        "lead": [
-          "",
-          "  // Never null: absence is NAMED, so a caller can tell \"not yet\" (retry)",
-          "  // from \"never\" (terminal). Declared BY SCHEMA rather than as a custom",
-          "  // inline type: an inline form restates the schema and goes stale the",
-          "  // moment it widens."
-        ],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": ""
-      },
-      "schema": "BrowseAnchoredTextResult"
-    },
-    {
-      "channel": "browse:anchored-text-failed",
-      "shape": "schema",
-      "schema": "CommandError",
-      "validate": null,
-      "docs": {
-        "lead": [],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": "// CommandError"
-      }
-    },
-    {
       "channel": "browse:resources-requested",
       "shape": "schema",
       "schema": "BrowseResourcesRequest",
@@ -3515,15 +3453,6 @@
       }
     },
     {
-      "request": "browse:anchored-text-requested",
-      "result": "browse:anchored-text-result",
-      "failure": "browse:anchored-text-failed",
-      "docs": {
-        "lead": [],
-        "trailing": ""
-      }
-    },
-    {
       "request": "browse:resources-requested",
       "result": "browse:resources-result",
       "failure": "browse:resources-failed",
@@ -4088,7 +4017,6 @@
     ],
     "reads": [
       "browse:agents-requested",
-      "browse:anchored-text-requested",
       "browse:annotation-history-requested",
       "browse:annotation-requested",
       "browse:annotations-requested",

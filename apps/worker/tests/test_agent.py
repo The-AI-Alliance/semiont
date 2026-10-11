@@ -43,7 +43,7 @@ def logged(caplog: pytest.LogCaptureFixture, message: str) -> list[logging.LogRe
 
 def test_a_worker_s_stream_names_the_replies_of_what_a_worker_awaits_and_the_two_broadcasts_it_reads_and_nothing_else() -> None:
     # The reply channels of every operation a client can ask reach every stream that names them: a worker names its own.
-    awaited = ("job:claim", "mark:commit", "browse:annotation-requested", "browse:resource-requested", "browse:anchored-text-requested")
+    awaited = ("job:claim", "mark:commit", "browse:annotation-requested", "browse:resource-requested")
     replies = [channel.name for operation in awaited for channel in (OPERATIONS[operation].result, OPERATIONS[operation].failure)]
     assert sorted(WORKER_CHANNELS) == sorted([*replies, "job:queued", "job:cancel-requested"])
     assert len(set(WORKER_CHANNELS)) == len(WORKER_CHANNELS)

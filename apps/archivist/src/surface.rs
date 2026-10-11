@@ -1,9 +1,9 @@
 //! The Archivist's HTTP surface: its health, a stream's stored events, a
-//! resource's content and description, and the upload that stores content
-//! and records it.
+//! resource's content, description and anchored text, and the upload that
+//! stores content and records it.
 
 use crate::archivist::{Archivist, Refusal, primary_representation, text};
-use crate::{browse, commands};
+use crate::{anchored, browse, commands};
 use axum::Router;
 use axum::body::{Body, Bytes};
 use axum::extract::{DefaultBodyLimit, FromRequest, Multipart, Path, Query, Request, State};
@@ -207,6 +207,34 @@ async fn described(
     }
 }
 
+async fn anchored_text(
+    State(surface): Shared,
+    Path(resource_id): Path<String>,
+    headers: HeaderMap,
+) -> Response {
+    if let Some(refusal) = refusal(&surface, &headers).await {
+        return refusal;
+    }
+    // An absence is an answer here, never a 404: an id the record cannot
+    // hold is as unknown as one it does not.
+    if !ids::is_safe(&resource_id) {
+        return json_reply(StatusCode::OK, json!({ "kind": "unknown" }));
+    }
+    match anchored::anchored_text(&surface.archivist, &resource_id).await {
+        Ok(answer) => json_reply(StatusCode::OK, Value::Object(answer)),
+        Err(refusal) => {
+            logging::error(
+                "Anchored-text read failed",
+                json!({ "component": "archivist", "resourceId": resource_id, "error": refusal.message }),
+            );
+            error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "anchored-text read failed",
+            )
+        }
+    }
+}
+
 fn bad(message: impl AsRef<str>) -> Response {
     error(StatusCode::BAD_REQUEST, message.as_ref())
 }
@@ -389,6 +417,7 @@ pub fn router(surface: Arc<Surface>) -> Router {
         .route("/resources", post(upload))
         .route("/resources/{id}/content", get(content))
         .route("/resources/{id}/jsonld", get(described))
+        .route("/resources/{id}/anchored-text", get(anchored_text))
         .fallback(not_found)
         .method_not_allowed_fallback(not_found)
         .layer(DefaultBodyLimit::disable())

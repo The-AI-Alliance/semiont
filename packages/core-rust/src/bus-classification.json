@@ -542,22 +542,6 @@
       "direction": "inbound",
       "delivery": "correlated"
     },
-    "browse:anchored-text-requested": {
-      "recorded": false,
-      "direction": "outbound",
-      "writes": false,
-      "delivery": "passing"
-    },
-    "browse:anchored-text-result": {
-      "recorded": false,
-      "direction": "inbound",
-      "delivery": "correlated"
-    },
-    "browse:anchored-text-failed": {
-      "recorded": false,
-      "direction": "inbound",
-      "delivery": "correlated"
-    },
     "browse:resources-requested": {
       "recorded": false,
       "direction": "outbound",

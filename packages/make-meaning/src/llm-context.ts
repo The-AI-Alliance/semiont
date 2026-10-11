@@ -29,7 +29,7 @@ import type { ResourceDescriptor } from '@semiont/core';
 export interface ResourceGatherReads {
   views: Pick<ViewStorage, 'get'>;
   content: ContentReads;
-  /** Derived text for `pdf-text-layer` media — the anchored-text bus read. */
+  /** Derived text for `pdf-text-layer` media — the anchored-text read. */
   anchoredText: AnchoredTextAsk;
   graph: KnowledgeGraphReads['graph'];
   vectors: Pick<VectorStore, 'searchByResource'>;

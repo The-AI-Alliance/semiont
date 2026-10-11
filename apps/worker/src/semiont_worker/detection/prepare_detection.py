@@ -41,7 +41,7 @@ type ReadText = Callable[[ResourceId], Awaitable[str]]
 """How a detection reads a resource's bytes as text: the client's `browse.resource_content`, on the gateway, as the worker's agent."""
 
 type ConsultAnchoredText = Callable[[ResourceId], Awaitable[AnchoredTextAnswer]]
-"""How a detection asks for the Smelter's text of a resource: the client's `browse.resource_anchored_text`."""
+"""How a detection asks for the Smelter's text of a resource: the client's `browse.resource_anchored_text`, on the gateway."""
 
 type Declined = ExtractionDeclinedDeclined | AnchoredTextAbsentKind | Literal["no-extractor", "empty"]
 """Why a detection has nothing to read.

@@ -12,7 +12,7 @@ The record itself — the event log, the materialized views and the working tree
 
 The package has two service entry points:
 
-- **Librarian** (`librarian-main`) — the reference desk: runs the LLM-bound actors, Matcher and Gatherer, plus the gather-summary handler and the two retrieval handlers, which answer text search (`match:resources-requested`) and what refers to a resource (`gather:referenced-by-requested`) from the graph and the vector index. It reads views from the shared stateDir the Archivist materializes into, bytes from the Archivist (`archivistContentReads` in `@semiont/content`), and runs the weave/smelt progress folds locally off the bus signals. It appends nothing, serves no bytes, and owns no store.
+- **Librarian** (`librarian-main`) — the reference desk: runs the LLM-bound actors, Matcher and Gatherer, plus the gather-summary handler and the two retrieval handlers, which answer text search (`match:resources-requested`) and what refers to a resource (`gather:referenced-by-requested`) from the graph and the vector index. It reads views from the shared stateDir the Archivist materializes into, bytes from the Archivist (`archivistContentReads` in `@semiont/content`) and a resource's anchored text from the gateway, and runs the weave/smelt progress folds locally off the bus signals. It appends nothing, serves no bytes, and owns no store.
 - **Smelter** (`smelter-main`) — the vector projection, its own process. The graph projection is the Weaver's, a Python service that is no part of this package ([apps/weaver](../../../apps/weaver/README.md)).
 
 Each actor's constructor takes a Pick-derived **capability slice** (`GathererStores`, `MatcherStores`) naming exactly the store operations it uses. Each actor's inbound channel roster is exported from `service-channels.ts` (`GATHERER_CHANNELS`, `MATCHER_CHANNELS`, `RETRIEVAL_HANDLER_CHANNELS`) and pinned to its real subscriptions by a census gate in the decoupling tests.
@@ -134,7 +134,7 @@ Because Qdrant is an ephemeral projection of the event log, `Smelter.reconcile()
 | The views | A resource's descriptor and annotations, materialized by the Archivist | Librarian reads, through [`@semiont/event-sourcing`](../../event-sourcing/README.md) |
 | The people projection | What each DID is called | Librarian reads (`views/people-reader.ts`) |
 | Resource bytes | A resource's files | Librarian and Smelter read from the Archivist, through [`@semiont/content`](../../content/README.md) |
-| Anchored text | Text derived from files that carry none, with its geometry | Smelter writes; the Librarian asks the Archivist over the bus |
+| Anchored text | Text derived from files that carry none, with its geometry | Smelter writes; the Librarian asks the gateway, which asks the Archivist (`GET /resources/{id}/anchored-text`) |
 | The graph | Eventually consistent | Weaver writes; Librarian reads ([`@semiont/graph`](../../graph/README.md)) |
 | The vector index | Required | Smelter writes; Librarian reads ([`@semiont/vectors`](../../vectors/README.md)) |
 
@@ -155,7 +155,7 @@ The readers the actors and handlers are built from. Each takes the slice of the 
 | `LLMContext.getResourceContext` | The `GatheredContext` for a resource | Gatherer |
 | `GraphContext.buildKnowledgeGraph` | A resource's neighbourhood as a `KnowledgeGraph`: resources and annotations as typed nodes, typed directed edges, inbound citations included | Both gather paths |
 
-The gather paths take no working tree. Their `content` is a read by `ResourceId` (`ContentReads`) and their `anchoredText` is a read over the bus, because the Librarian mounts nothing.
+The gather paths take no working tree. Their `content` is a read by `ResourceId` (`ContentReads`) and their `anchoredText` is a read of the gateway's content routes (`anchoredTextOverContent`), because the Librarian mounts nothing.
 
 A gather waits for the projections it reads, within bounds. A graph read waits at `weaveProgress.whenApplied` for under a second. A resource gather waits at `smeltProgress.whenSettled` for up to `gather.settleTimeoutMs`. Past either bound the gather goes on without that part, and counts the degrade (`recordGatherDegrade`).
 

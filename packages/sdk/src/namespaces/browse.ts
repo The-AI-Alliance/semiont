@@ -391,26 +391,22 @@ export class BrowseNamespace implements IBrowseNamespace {
    * A resource's coordinate map — its recovered text plus the runs that index
    * it — a stored decline, or a named absence. Never `null`.
    *
-   * A derived, server-computed view, not the resource's bytes, asked over the
-   * bus (`browse:anchored-text-requested`). Whole-resource, because a
-   * consumer analysing a document needs all of it, not whichever page is on
-   * screen.
+   * A derived, server-computed view and not the resource's bytes, yet as
+   * large as its document, so it is a read of content: the content
+   * transport's `getAnchoredText` (over HTTP, the gateway's
+   * `GET /resources/:id/anchored-text`). One-shot and uncached.
+   * Whole-resource, because a consumer analysing a document needs all of it,
+   * not whichever page is on screen.
    *
    * An absence is not an error, and its `kind` says whether to come back:
    * `not-yet` (the Smelter has not settled this content; retry), `no-map`
-   * (the media type derives no geometry) or `unknown` (the resource has no
-   * content identity). Callers degrade — a PDF annotation drawn over an
-   * unmapped page carries geometry with no quoted text.
+   * (the media type derives no geometry) or `unknown` (no such resource is
+   * held, or its content has no checksum). Callers degrade — a PDF
+   * annotation drawn over an unmapped page carries geometry with no quoted
+   * text.
    */
   async resourceAnchoredText(resourceId: ResourceId): Promise<AnchoredTextAnswer> {
-    // A bus operation, not an HTTP route: the Archivist answers it and the
-    // reply arrives on the bridged result channel like every other reply.
-    return busRequest(
-      this.transport,
-      'browse:anchored-text-requested',
-      { resourceId },
-      this.busTimeoutMs,
-    );
+    return this.content.getAnchoredText(resourceId);
   }
 
   /**

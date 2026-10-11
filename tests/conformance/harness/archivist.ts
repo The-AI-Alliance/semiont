@@ -1,8 +1,9 @@
 /**
  * A stand-in Archivist: the knowledge base's record and bytes, over the HTTP
  * surface the Archivist serves (`specs/src/archivist/openapi.json`) — the
- * recording upload, byte reads by resource, the linked-data description, and
- * the sequence-ranged event read that backs replay. It checks the caller's
+ * recording upload, byte reads by resource, the linked-data description, a
+ * resource's anchored text, and the sequence-ranged event read that backs
+ * replay. It checks the caller's
  * token as the real one does (an issuer token carrying the service role) and
  * records every call, so a case can see what the gateway sent it.
  *
@@ -39,6 +40,9 @@ export interface ArchivistCall {
   headers: Record<string, string | string[] | undefined>;
 }
 
+/** One answer to a read of a resource's anchored text: a member of the spec's `AnchoredTextAnswer`. */
+export type AnchoredTextAnswered = Record<string, unknown>;
+
 /** An upload the stand-in stored and recorded: the multipart fields, the file, and who the gateway named. */
 export interface RecordedUpload {
   fields: Record<string, string>;
@@ -62,6 +66,13 @@ export interface FakeArchivist {
   readonly events: Map<string, StoredEvent[]>;
   /** Linked-data descriptions, per resource. */
   readonly descriptions: Map<string, unknown>;
+  /**
+   * What a read of a resource's anchored text is answered: an answer, or a
+   * function asked afresh at each read, so a case can say `not-yet` and then
+   * the text. A resource with no entry is answered `{ kind: 'unknown' }`, as
+   * the Archivist answers a resource it does not hold.
+   */
+  readonly anchoredTexts: Map<string, AnchoredTextAnswered | (() => AnchoredTextAnswered | Promise<AnchoredTextAnswered>)>;
   /** Every upload recorded, in order. */
   readonly uploads: RecordedUpload[];
   /** Behaviour switches a case flips. */
@@ -80,6 +91,8 @@ export interface FakeArchivist {
     replayAnswer: unknown;
     /** An upload is refused by the record: answered 500 with this reason. */
     refuseUploads: string | undefined;
+    /** A read of anchored text answers 500. */
+    anchoredTextFails: boolean;
   };
   close(): Promise<void>;
 }
@@ -134,8 +147,16 @@ export async function startArchivist(issuer: IssuerServer, audience: string): Pr
   const resources = new Map<string, { storageUri: string; mediaType: string }>();
   const events = new Map<string, StoredEvent[]>();
   const descriptions = new Map<string, unknown>();
+  const anchoredTexts: FakeArchivist['anchoredTexts'] = new Map();
   const uploads: RecordedUpload[] = [];
-  const mode: FakeArchivist['mode'] = { refusesGateway: false, replayDelayMs: 0, replayFails: false, replayAnswer: undefined, refuseUploads: undefined };
+  const mode: FakeArchivist['mode'] = {
+    refusesGateway: false,
+    replayDelayMs: 0,
+    replayFails: false,
+    replayAnswer: undefined,
+    refuseUploads: undefined,
+    anchoredTextFails: false,
+  };
   const supported = new Set(spec().schema('SupportedMediaType')['enum'] as string[]);
   const uploadRequired = archivistSpec().schema('ResourceUpload')['required'] as string[];
 
@@ -239,6 +260,12 @@ export async function startArchivist(issuer: IssuerServer, audience: string): Pr
         return reply(200, { 'content-type': 'application/ld+json; charset=utf-8' }, Buffer.from(JSON.stringify(description)));
       }
 
+      if (operation.path === '/resources/{id}/anchored-text') {
+        if (mode.anchoredTextFails) return json(500, { error: 'anchored-text read failed' });
+        const held = anchoredTexts.get(id);
+        return json(200, (typeof held === 'function' ? await held() : held) ?? { kind: 'unknown' });
+      }
+
       if (operation.path === '/resources/{id}/content') {
         const stored = resources.get(id);
         if (!stored) return json(404, { error: `Resource not found: ${id}`, code: 'resource' });
@@ -277,6 +304,7 @@ export async function startArchivist(issuer: IssuerServer, audience: string): Pr
     resources,
     events,
     descriptions,
+    anchoredTexts,
     uploads,
     mode,
     close: () =>

@@ -19,16 +19,19 @@ from pydantic import ValidationError
 from semiont.model import WireModel
 
 
-def _shapes(named: object) -> tuple[type[WireModel], ...]:
-    """The shapes a member's type names, whether or not the member may be absent. None, when it names anything else."""
+def shapes_of(named: object) -> tuple[type[WireModel], ...]:
+    """The shapes a type names: itself, or each member of the union it names, whether or not it may be absent.
+
+    None, when it names anything else.
+    """
     if isinstance(named, type):
         return (named,) if issubclass(named, WireModel) else ()
     if isinstance(named, TypeAliasType):
-        return _shapes(named.__value__)
+        return shapes_of(named.__value__)
     if get_origin(named) is Annotated:
-        return _shapes(get_args(named)[0])
+        return shapes_of(get_args(named)[0])
     if get_origin(named) in (Union, UnionType):
-        parts = [_shapes(part) for part in get_args(named) if part is not NoneType]
+        parts = [shapes_of(part) for part in get_args(named) if part is not NoneType]
         return tuple(shape for part in parts for shape in part) if all(parts) else ()
     return ()
 
@@ -49,7 +52,7 @@ def _place(shapes: tuple[type[WireModel], ...], way: tuple[int | str, ...]) -> t
         names.append(member[0])
         left = left[1:]
         # A member that is one of several shapes is as far as the way is named: the decoder accounts for each of them.
-        within = _shapes(member[1].annotation)
+        within = shapes_of(member[1].annotation)
         shapes = within if len(within) == 1 else ()
     return ".".join(names), left
 

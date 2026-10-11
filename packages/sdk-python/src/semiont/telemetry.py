@@ -22,10 +22,31 @@ from opentelemetry.context import Context, attach, detach, get_current
 from opentelemetry.trace import SpanKind
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
-from semiont.telemetry_table import BUS_EMIT, BUS_RECV, CONTENT_GET, CONTENT_GET_GRAPH, CONTENT_PUT, SEMIONT_BUS_SENT, SpanKindName, SpanRow
+from semiont.telemetry_table import (
+    BUS_EMIT,
+    BUS_RECV,
+    CONTENT_GET,
+    CONTENT_GET_ANCHORED_TEXT,
+    CONTENT_GET_GRAPH,
+    CONTENT_PUT,
+    SEMIONT_BUS_SENT,
+    SpanKindName,
+    SpanRow,
+)
 from semiont.transport import TraceContext
 
-__all__ = ["active", "continuing", "emitting", "getting", "getting_graph", "putting", "received", "trace_headers", "untraced"]
+__all__ = [
+    "active",
+    "continuing",
+    "emitting",
+    "getting",
+    "getting_anchored_text",
+    "getting_graph",
+    "putting",
+    "received",
+    "trace_headers",
+    "untraced",
+]
 
 _SCOPE: Final = "semiont"
 _TRACER: Final = trace.get_tracer(_SCOPE)
@@ -152,3 +173,8 @@ def getting(resource_id: str, *, stream: bool) -> AbstractContextManager[None]:
 def getting_graph(resource_id: str) -> AbstractContextManager[None]:
     """A read of a resource's description, in a span for as long as it is held."""
     return _span(CONTENT_GET_GRAPH, {"resource.id": resource_id})
+
+
+def getting_anchored_text(resource_id: str) -> AbstractContextManager[None]:
+    """A read of a resource's anchored text, in a span for as long as it is held."""
+    return _span(CONTENT_GET_ANCHORED_TEXT, {"resource.id": resource_id})

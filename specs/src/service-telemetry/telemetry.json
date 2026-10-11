@@ -10,7 +10,8 @@
     "worker": [
       "bus",
       "content.put",
-      "content.get"
+      "content.get",
+      "content.get_anchored_text"
     ],
     "weaver": [
       "bus"
@@ -101,6 +102,23 @@
       "kind": "client",
       "when": "traffic",
       "meaning": "A JSON-LD description asked of the Archivist.",
+      "attributes": [
+        {
+          "key": "peer.service",
+          "values": [
+            "archivist"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "archivist.resources.anchored_text",
+      "services": [
+        "gateway"
+      ],
+      "kind": "client",
+      "when": "traffic",
+      "meaning": "A resource's anchored text asked of the Archivist.",
       "attributes": [
         {
           "key": "peer.service",

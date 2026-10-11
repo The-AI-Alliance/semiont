@@ -10,10 +10,11 @@
  * annotation the deferral exists to protect.
  */
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
-import { act } from '@testing-library/react';
+import { act, fireEvent } from '@testing-library/react';
 import { renderInEnglish } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import { resourceId } from '@semiont/core';
+import type { AnchoredTextAnswer } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
 
 vi.mock('../../../lib/browser-pdfjs', () => ({
@@ -21,7 +22,6 @@ vi.mock('../../../lib/browser-pdfjs', () => ({
     numPages: 2,
     getPage: vi.fn().mockResolvedValue({
       getViewport: vi.fn().mockReturnValue({ width: 612, height: 792, scale: 1.0, rotation: 0 }),
-      getTextContent: vi.fn().mockResolvedValue({ items: [] }),
     }),
   }),
   renderPdfPageToDataUrl: vi.fn().mockResolvedValue({
@@ -43,9 +43,21 @@ const busSubs: Fired[] = [];
 const fireBus = (channel: string, payload: unknown) =>
   act(async () => { for (const s of busSubs) if (s.channel === channel) s.cb(payload); });
 
-function mount(resourceAnchoredText: ReturnType<typeof vi.fn>) {
+/** The map once it lands: "Hello world" on one line of page 1, at y=700 in PDF
+ *  points — canvas y=80..92 on this 792pt page. */
+const HELLO_WORLD: AnchoredTextAnswer = {
+  kind: 'extracted',
+  method: 'pdf-text-layer',
+  text: 'Hello world\n',
+  items: [
+    { start: 0, end: 5, page: 1, x: 72, y: 700, width: 30, height: 12 },
+    { start: 6, end: 11, page: 1, x: 106, y: 700, width: 32, height: 12 },
+  ],
+};
+
+function mount(resourceAnchoredText: ReturnType<typeof vi.fn>, request = vi.fn()) {
   const session = {
-    client: { browse: { resourceAnchoredText } },
+    client: { browse: { resourceAnchoredText }, mark: { request }, beckon: { hover: vi.fn() } },
     subscribe: (channel: string, cb: (p: unknown) => void) => {
       const entry = { channel, cb };
       busSubs.push(entry);
@@ -57,9 +69,26 @@ function mount(resourceAnchoredText: ReturnType<typeof vi.fn>) {
       resourceUri={resourceId(String(resourceId('123')))}
       pdfUrl="https://example.com/resources/123.pdf"
       drawingMode="rectangle"
+      selectedMotivation="highlighting"
       session={session}
     />,
   );
+}
+
+/** Drag a box a little larger than the "Hello world" line. jsdom lays nothing
+ *  out, so the image is first given the page's own size: display pixels are
+ *  then PDF points, and the drag's coordinates the canvas's. */
+function dragAroundHelloWorld() {
+  const img = document.querySelector('.semiont-pdf-annotation-canvas__image') as HTMLImageElement;
+  expect(img).toBeInTheDocument();
+  Object.defineProperty(img, 'clientWidth', { value: 612, configurable: true });
+  Object.defineProperty(img, 'clientHeight', { value: 792, configurable: true });
+  fireEvent.load(img);
+
+  const container = document.querySelector('.semiont-pdf-annotation-canvas__container')!;
+  fireEvent.mouseDown(container, { clientX: 70, clientY: 78 });
+  fireEvent.mouseMove(container, { clientX: 146, clientY: 96 });
+  fireEvent.mouseUp(container, { clientX: 146, clientY: 96 });
 }
 
 describe('PdfAnnotationCanvas — bounded retry on not-yet', () => {
@@ -93,7 +122,7 @@ describe('PdfAnnotationCanvas — bounded retry on not-yet', () => {
   test('a retry that lands the map flips the gate AND re-resolves the mounted page', async () => {
     const ask = vi.fn()
       .mockResolvedValueOnce({ kind: 'not-yet' })
-      .mockResolvedValue({ kind: 'extracted', pages: [] });
+      .mockResolvedValue(HELLO_WORLD);
     mount(ask);
     await flush();
     expect(root()).toHaveAttribute('data-annotate-deferred', 'true');
@@ -110,6 +139,37 @@ describe('PdfAnnotationCanvas — bounded retry on not-yet', () => {
     // And the retrying stopped: the map is definitive.
     await advance(120_000);
     expect(ask).toHaveBeenCalledTimes(2);
+  });
+
+  /**
+   * Any PDF can be the one waiting, not only a scan: pdf.js is never asked for
+   * a page's text, so a document just uploaded has no quote to give until the
+   * Smelter has read it. While it waits a drag draws nothing — a rectangle
+   * made now would have no quote for good. Once the map lands, the first
+   * rectangle carries its quote.
+   */
+  test('a PDF whose text is not there yet defers annotating, and quotes once it lands', async () => {
+    const request = vi.fn();
+    const ask = vi.fn()
+      .mockResolvedValueOnce({ kind: 'not-yet' })
+      .mockResolvedValue(HELLO_WORLD);
+    mount(ask, request);
+    await flush();
+    expect(root()).toHaveAttribute('data-annotate-deferred', 'true');
+
+    dragAroundHelloWorld();
+    expect(request).not.toHaveBeenCalled();
+
+    await advance(5_000);
+    await flush();
+    expect(root()).toHaveAttribute('data-annotate-deferred', 'false');
+
+    dragAroundHelloWorld();
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request.mock.calls[0]?.[1]).toEqual([
+      expect.objectContaining({ type: 'FragmentSelector', value: expect.stringContaining('page=1&viewrect=') }),
+      { type: 'TextQuoteSelector', exact: 'Hello world' },
+    ]);
   });
 
   test('terminal answers never schedule a retry', async () => {
@@ -143,7 +203,7 @@ describe('PdfAnnotationCanvas — bounded retry on not-yet', () => {
     test('a matching settle while deferred re-asks immediately and flips the gate', async () => {
       const ask = vi.fn()
         .mockResolvedValueOnce({ kind: 'not-yet' })
-        .mockResolvedValue({ kind: 'extracted', pages: [] });
+        .mockResolvedValue(HELLO_WORLD);
       mount(ask);
       await flush();
       expect(root()).toHaveAttribute('data-annotate-deferred', 'true');
@@ -169,7 +229,7 @@ describe('PdfAnnotationCanvas — bounded retry on not-yet', () => {
     test('a skipped settle re-asks once and lands terminal — the decline is now servable', async () => {
       const ask = vi.fn()
         .mockResolvedValueOnce({ kind: 'not-yet' })
-        .mockResolvedValue({ kind: 'declined', reason: 'no-text-layer' });
+        .mockResolvedValue({ kind: 'declined', declined: 'no-text-layer' });
       mount(ask);
       await flush();
 

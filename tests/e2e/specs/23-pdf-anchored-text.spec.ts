@@ -7,26 +7,27 @@ import { signInSession } from '../fixtures/sdk-session';
 /**
  * A rectangle drawn on a SCANNED page quotes the text the server recovered.
  *
- * A scanned page has no text in the browser — pdf.js reads glyphs, and there
- * are none, only pixels. The map comes from the server instead: the Smelter
- * OCRs at ingest, publishes through `IContentTransport`, and the canvas fetches
- * it when `getTextContent()` yields no runs. That fetch is the one seam nothing
- * else exercises — the bus channel trio, the correlation reply and the JSON
- * serialisation meet only in `GET /resources/:id/anchored-text`.
+ * The browser reads no PDF's text itself: pdf.js draws the pages, and the text
+ * under a rectangle comes from the map the Smelter derives at ingest — by OCR
+ * for a scan, whose characters exist only as pixels. The canvas fetches that
+ * map for every PDF. The fetch is the seam: the gateway's route, the
+ * Archivist's read behind it and the JSON serialisation meet only in
+ * `GET /resources/:id/anchored-text`.
  *
- * **Why the map is injected in the second test rather than OCR'd.** The seeded
- * "Scanned Smoke PDF" is a raster of dark bars, chosen precisely so recognition
- * finds nothing (see `scripts/seed.ts`, and `22-pdf-scanned-decline.spec.ts`
- * which pins that outcome). A synthetic bitmap font is not a typeface and
- * tesseract misreads it, so asserting recognized text against a seed constant
- * would pin engine noise. The two tests therefore split the seam:
+ * **Why there are two fixtures.** The seeded "Scanned Smoke PDF" is a raster of
+ * dark bars, chosen precisely so recognition finds nothing (see
+ * `scripts/seed.ts`, and `22-pdf-scanned-decline.spec.ts` which pins that
+ * outcome). The "Legible Scan PDF" is a scan made to be read. The two tests
+ * split the seam between them, and neither mocks anything:
  *
- *   1. the canvas really asks the server, over the real wire — unmocked;
- *   2. a map that exists really becomes a quote — deterministic, injected.
+ *   1. the canvas really asks the server, over the real wire, whatever the
+ *      answer for the unreadable scan turns out to be;
+ *   2. the map the Smelter really derived for the legible scan becomes a
+ *      quote, asserted as two words it reads with high confidence.
  *
  * Neither half is interesting alone. Together they cover the path a real
- * scanned document takes, without making the suite depend on how well
- * tesseract reads a fixture nobody intended it to read.
+ * scanned document takes, without pinning how tesseract formats what it
+ * reads.
  */
 
 const IMG = '.semiont-pdf-annotation-canvas__image';
@@ -40,6 +41,9 @@ const CONTAINER = '.semiont-pdf-annotation-canvas__container';
  * and line breaks would pin the engine's formatting rather than the seam.
  */
 const QUOTE_WORDS = ['RECOVERED', 'PIXELS'];
+
+/** The path of the anchored-text read, whatever the gateway's origin. */
+const ANCHORED_TEXT_PATH = /\/resources\/[^/]+\/anchored-text$/;
 
 const resourceIdFromUrl = (page: Page) => page.url().split('/').pop()!.split('?')[0];
 
@@ -103,36 +107,38 @@ async function drawOver(page: Page, top: number, height: number, left = 60, righ
 }
 
 test.describe('scanned PDF annotations quote the server-derived map', () => {
-  test('the canvas asks the server for a map when the page has no text layer', async ({ signedInPage: page, bus }) => {
+  test('the canvas asks the server for the map', async ({ signedInPage: page }) => {
     test.setTimeout(120_000);
 
-    // The ask is a BUS request, not an HTTP GET. `browse.resourceAnchoredText`
-    // became `browse:anchored-text-requested` in #1256 ("the gateway's proxy
-    // hop is gone"); this test kept waiting for the deleted
-    // `GET /resources/:id/anchored-text` and timed out at 60s while the canvas
-    // was asking correctly the whole time.
-    bus.clear();
+    // The ask is an HTTP GET, not a bus request: an anchored text is as large
+    // as its document. Listening starts before the resource opens, because
+    // the canvas asks as soon as its first page loads.
+    const answered = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        ANCHORED_TEXT_PATH.test(new URL(response.url()).pathname),
+      { timeout: 60_000 },
+    );
     await openScannedPdfInAnnotateMode(page);
 
-    // Request AND reply: the round trip is what proves the channel pair, the
-    // Archivist's handler and the correlation reply all work. Which outcome
-    // comes back — a map or a decline — is a fact about the seeded scan, not
-    // about the seam under test, so it is deliberately not pinned.
-    await bus.expectRequestResponse(
-      'browse:anchored-text-requested',
-      'browse:anchored-text-result',
-      60_000,
-    );
+    // Request AND answer: the round trip is what proves the gateway's route,
+    // the Archivist's read behind it and the JSON that comes back all work.
+    // Which answer comes back — a map, a decline, an absence — is a fact about
+    // the seeded scan, not about the seam under test, so it is deliberately
+    // not pinned: only that it is one answer, naming its kind.
+    const response = await answered;
+    expect(response.status()).toBe(200);
+    expect(typeof (await response.json()).kind).toBe('string');
   });
 
   test('a rectangle quotes the map the server returned', async ({ signedInPage: page, bus }) => {
     test.setTimeout(120_000);
 
     // NOTHING IS MOCKED. The Smelter OCR'd this fixture at ingest and the
-    // canvas fetches that map over the bus; the rectangle then quotes it.
+    // canvas fetches that map from the gateway; the rectangle then quotes it.
     //
-    // The previous version injected a map with `page.route('**\/anchored-text')`.
-    // #1256 moved the read onto the bus, so the interception silently stopped
+    // An earlier version injected a map by intercepting the request. When the
+    // read stopped being that request the interception silently stopped
     // matching — and because the assertion ran over EVERY stored annotation,
     // leftovers from earlier runs kept it green for a week. Depending on the
     // real OCR removes the mock, and scoping to this run's annotations removes

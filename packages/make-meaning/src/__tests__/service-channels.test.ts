@@ -4,8 +4,8 @@
  *
  * Each service's HttpTransport subscribes exactly what it consumes: the
  * smelter the reply channels of the operations it awaits, the
- * librarian its inbound request/signal roster with the reply channels of the
- * one read it awaits. These pins
+ * librarian its inbound request/signal roster and no reply channel, since
+ * it awaits no operation. These pins
  * are census gates: grow a roster (or add a `busRequest` call site) and the
  * exact-set assertion fails, forcing the subscription change to be
  * acknowledged here rather than drifting silently. The runtime backstop is
@@ -14,6 +14,9 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 import { BRIDGED_CHANNELS, BUS_OPERATIONS } from '@semiont/core';
 import {
   SMELTER_REPLY_CHANNELS,
@@ -65,6 +68,15 @@ describe('librarian transport channels', () => {
       expect(LIBRARIAN_INBOUND_CHANNELS).not.toContain(op.result);
       expect(LIBRARIAN_INBOUND_CHANNELS).not.toContain(op.failure);
     }
+  });
+
+  it('main constructs the transport with the inbound roster alone', () => {
+    // The Librarian awaits no reply over the bus, so nothing is spread in
+    // beside its roster: a reply channel added there is an await to account
+    // for here.
+    const main = join(dirname(fileURLToPath(import.meta.url)), '..', 'librarian-main.ts');
+    const source = readFileSync(main, 'utf-8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    expect(source).toMatch(/channels:\s*LIBRARIAN_INBOUND_CHANNELS\s*,/);
   });
 
   it('nothing echoes: the outbound reply pump and the inbound subscription are disjoint', () => {

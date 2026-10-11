@@ -174,21 +174,22 @@ export function PdfAnnotationCanvas({
   }, [pdfUrl, scale]);
 
   /**
-   * The server-derived map, fetched once per document rather than once per
-   * page. The map is WHOLE-RESOURCE — one artifact covering every page — so
-   * re-reading it per page would mean a full refetch and re-decode on every page
-   * turn; on a 400-page scan that is one decode per interaction instead of one
-   * per document. Living on the parent is also what lets a scrolling column
-   * mount many pages against a single fetch.
+   * The server-derived map — every PDF's, since a rectangle on any page is
+   * quoted from it and from nowhere else — fetched once per document rather
+   * than once per page. The map is WHOLE-RESOURCE — one artifact covering
+   * every page — so re-reading it per page would mean a full refetch and
+   * re-decode on every page turn; on a 400-page document that is one decode
+   * per interaction instead of one per document. Living on the parent is also
+   * what lets a scrolling column mount many pages against a single fetch.
    *
    * The cache holds the in-flight promise so concurrent page loads share one
    * fetch. TERMINAL answers cache — "no map", "unknown" and a stored decline
    * are definitive — but the wire names retryability in the kind itself
    * (AnchoredTextAbsent): `not-yet` means the Smelter has not settled this
    * content generation and the caller should come back, so it clears the entry
-   * the way a transport failure does. Pinning it would leave a scan opened
-   * mid-smelt mapless for the whole mount — every annotation drawn on it
-   * permanently mute.
+   * the way a transport failure does. Pinning it would leave a document
+   * opened mid-smelt mapless for the whole mount — every annotation drawn on
+   * it permanently mute.
    *
    * The settled kind rides on the cache entry: the answer, not just the map,
    * is the parent's fact (it is held in state, where it gates Annotate).
@@ -494,10 +495,11 @@ export function PdfAnnotationCanvas({
       ) : (
         pdfDoc && !isLoading && (
           // `key` is load-bearing: without it React reuses this instance
-          // across page changes, so the previous page's raster, text map and
-          // load error survive into the next page — a stale overlay, a quote
-          // taken from the wrong page, and an error that never clears. Each
-          // page is a different thing; mounting it as one resets all of it.
+          // across page changes, so the previous page's raster and load error
+          // survive into the next page — a stale overlay, a rectangle drawn
+          // over one page and recorded against another, and an error that
+          // never clears. Each page is a different thing; mounting it as one
+          // resets all of it.
           <PdfPageView key={pageNumber} doc={pdfDoc} pageNumber={pageNumber} {...pageProps} />
         )
       )}

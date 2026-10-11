@@ -1,11 +1,13 @@
 /**
- * Browse (ARCHIVIST.md § Browse): the reads the Archivist answers from its
- * views, its log, the working tree, the roster and the anchored-text store.
+ * Browse (ARCHIVIST.md § Browse, § The HTTP surface): the reads the Archivist
+ * answers from its views, its log, the working tree and the roster, on the
+ * bus; and from the anchored-text store, over HTTP.
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { anchoredEntry, sha256, shardOf, withArchivist, type Roster } from '../harness/archivist-world';
+import { spec } from '../harness/spec';
 
 // Written out of the order the roster's schema states its roles in: the
 // answer is in the schema's.
@@ -175,9 +177,9 @@ withArchivist('browsing', (world) => {
   });
 
   it('answers anchored text from the store, under the stamp its writer states', async () => {
-    const reader = await world().person('reader');
+    const reader = world().world.personDid('reader');
     const content = Buffer.from('%PDF-1.4 the suite never parses this\n');
-    const id = await world().created(reader.did, { name: 'Scanned', storageUri: 'file://scans/scanned.pdf', format: 'application/pdf', content });
+    const id = await world().created(reader, { name: 'Scanned', storageUri: 'file://scans/scanned.pdf', format: 'application/pdf', content });
     // An emoji and a mathematical letter, each outside the Basic Multilingual
     // Plane: every word after the first is at another place in a count of
     // code points than in one of UTF-16 code units or of bytes.
@@ -185,7 +187,7 @@ withArchivist('browsing', (world) => {
     await world().smelt(id, sha256(content), anchoredEntry(text));
 
     // Each word's offsets are the entry's own, in code points, as stored.
-    const answer = await reader.ask('browse:anchored-text-requested', { resourceId: id });
+    const answer = await world().anchoredText(id);
     expect(answer).toMatchObject({ kind: 'extracted', text, method: 'ocr' });
     expect(answer['items']).toEqual([
       { start: 0, end: 1, page: 1, x: 72, y: 700, width: 6, height: 12 },
@@ -196,16 +198,16 @@ withArchivist('browsing', (world) => {
 
     // The entry stands; the writer moves on to another stamp; the entry is no longer taken.
     writeFileSync(join(world().dirs.anchoredTextDir, 'STAMP'), 'a-newer-smelter\n');
-    const other = await world().created(reader.did, { name: 'Scanned again', storageUri: 'file://scans/again.pdf', format: 'application/pdf', content });
+    const other = await world().created(reader, { name: 'Scanned again', storageUri: 'file://scans/again.pdf', format: 'application/pdf', content });
     await world().smelt(other, sha256(content), undefined, 'indexed');
-    expect(await reader.ask('browse:anchored-text-requested', { resourceId: other })).toEqual({ kind: 'not-yet' });
+    expect(await world().anchoredText(other)).toEqual({ kind: 'not-yet' });
   });
 
   it('takes no anchored-text entry of another version than the store\'s, whatever its stamp', async () => {
-    const reader = await world().person('reader');
+    const reader = world().world.personDid('reader');
     const content = Buffer.from('%PDF-1.4 an entry of another version\n');
     const checksum = sha256(content);
-    const id = await world().created(reader.did, { name: 'Read before', storageUri: 'file://scans/before.pdf', format: 'application/pdf', content });
+    const id = await world().created(reader, { name: 'Read before', storageUri: 'file://scans/before.pdf', format: 'application/pdf', content });
     await world().smelt(id, checksum, anchoredEntry('alpha beta'));
 
     // The same entry, under the stamp its writer states, as version 2.
@@ -214,22 +216,76 @@ withArchivist('browsing', (world) => {
     expect(v).toBe(3);
     writeFileSync(entry, JSON.stringify({ v: 2, ...rest }));
 
-    expect(await reader.ask('browse:anchored-text-requested', { resourceId: id })).toEqual({ kind: 'not-yet' });
+    expect(await world().anchoredText(id)).toEqual({ kind: 'not-yet' });
   });
 
   it('answers a decline, no-map for content the Smelter skipped, and unknown for no resource', async () => {
-    const reader = await world().person('reader');
+    const reader = world().world.personDid('reader');
     const locked = Buffer.from('%PDF-1.4 locked\n');
-    const declined = await world().created(reader.did, { name: 'Locked', storageUri: 'file://scans/locked.pdf', format: 'application/pdf', content: locked });
+    const declined = await world().created(reader, { name: 'Locked', storageUri: 'file://scans/locked.pdf', format: 'application/pdf', content: locked });
     await world().smelt(declined, sha256(locked), { declined: 'encrypted' });
-    expect(await reader.ask('browse:anchored-text-requested', { resourceId: declined })).toEqual({ kind: 'declined', declined: 'encrypted' });
+    expect(await world().anchoredText(declined)).toEqual({ kind: 'declined', declined: 'encrypted' });
 
     const plain = Buffer.from('%PDF-1.4 skipped\n');
-    const skipped = await world().created(reader.did, { name: 'Skipped', storageUri: 'file://scans/skipped.pdf', format: 'application/pdf', content: plain });
+    const skipped = await world().created(reader, { name: 'Skipped', storageUri: 'file://scans/skipped.pdf', format: 'application/pdf', content: plain });
     await world().smelt(skipped, sha256(plain), undefined, 'skipped');
-    expect(await reader.ask('browse:anchored-text-requested', { resourceId: skipped })).toEqual({ kind: 'no-map' });
+    expect(await world().anchoredText(skipped)).toEqual({ kind: 'no-map' });
 
-    expect(await reader.ask('browse:anchored-text-requested', { resourceId: 'c'.repeat(32) })).toEqual({ kind: 'unknown' });
+    expect(await world().anchoredText('c'.repeat(32))).toEqual({ kind: 'unknown' });
+    // An id the record could file nothing under names no resource either.
+    expect(await world().anchoredText('not.an.id')).toEqual({ kind: 'unknown' });
+  });
+
+  it('holds a read of anchored text until the Smelter has settled the content', async () => {
+    const reader = world().world.personDid('reader');
+    const content = Buffer.from('%PDF-1.4 asked for before it is read\n');
+    const id = await world().created(reader, { name: 'Awaited', storageUri: 'file://scans/awaited.pdf', format: 'application/pdf', content });
+
+    // Asked first, with nothing stored and nothing settled; the entry and the signal come while the read waits.
+    const [answer] = await Promise.all([
+      world().anchoredText(id),
+      new Promise((r) => setTimeout(r, 250)).then(() => world().smelt(id, sha256(content), anchoredEntry('alpha beta'))),
+    ]);
+    expect(answer).toMatchObject({ kind: 'extracted', text: 'alpha beta', method: 'ocr' });
+  });
+
+  it('answers a read of anchored text it is holding when it is told to stop, and stops', async () => {
+    const reader = world().world.personDid('reader');
+    const content = Buffer.from('%PDF-1.4 asked for as the Archivist stops\n');
+    const id = await world().created(reader, { name: 'Interrupted', storageUri: 'file://scans/interrupted.pdf', format: 'application/pdf', content });
+
+    // Asked with nothing stored and nothing settled, so the read waits; told to stop while it does.
+    const asked = Date.now();
+    const read = world().anchoredText(id);
+    await new Promise((r) => setTimeout(r, 250));
+    try {
+      const [answer, code] = await Promise.all([read, world().archivist.stop()]);
+
+      expect(answer).toEqual({ kind: 'not-yet' });
+      expect(code).toBe(0);
+      // A held read is given fifteen seconds. The stop ended this one: it did not wait the read out.
+      expect(Date.now() - asked).toBeLessThan(10_000);
+    } finally {
+      await world().restart();
+    }
+  });
+
+  it('answers an anchored text larger than the largest bus message, whole', async () => {
+    const reader = world().world.personDid('reader');
+    const content = Buffer.from('%PDF-1.4 a long document\n');
+    const id = await world().created(reader, { name: 'Long', storageUri: 'file://scans/long.pdf', format: 'application/pdf', content });
+    const words = Array.from({ length: 20_000 }, (_, index) => `word${index}`);
+    const text = words.join(' ');
+    await world().smelt(id, sha256(content), anchoredEntry(text));
+
+    const reply = await world().http('GET', `/resources/${id}/anchored-text`, { route: '/resources/{id}/anchored-text' });
+    expect(reply.status, reply.text.slice(0, 200)).toBe(200);
+    // The gateway takes no emit larger than this, so no reply on the bus could carry this answer.
+    expect(reply.bytes.length).toBeGreaterThan(spec().limits('post', '/bus/emit')['maxBodyBytes']!);
+    const answer = reply.json as { kind: string; text: string; items: Array<{ start: number; end: number }> };
+    expect(answer.kind).toBe('extracted');
+    expect(answer.text).toBe(text);
+    expect(answer.items.map((item) => text.slice(item.start, item.end))).toEqual(words);
   });
 });
 

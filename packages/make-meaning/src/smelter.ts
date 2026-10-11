@@ -282,7 +282,8 @@ export class Smelter {
      * The caller builds it on the Smelter's own mount (`smelter-main`, from
      * `SEMIONT_ANCHORED_TEXT_DIR`), so nothing stands between this process
      * and an artifact it produces itself. The Smelter is the only writer;
-     * every other reader asks the Browser, on `browse:anchored-text-requested`.
+     * the Archivist reads the same mount, and every other reader asks the
+     * gateway (`GET /resources/:id/anchored-text`), which asks the Archivist.
      */
     private anchoredStore: AnchoredTextStore,
     private bus: BusRequestPrimitive,

@@ -58,23 +58,14 @@ describe('generated spec validators', () => {
     expect(validators.BeckonHoverEvent({ annotationId: null })).toBe(true);
   });
 
-  it('the anchored-text reply is a discriminated union with NO null member', () => {
+  it('the anchored-text answer is a discriminated union with NO null member', () => {
     // Absence is named, so a reader can tell "not yet" from "never". Ajv is
     // the check that the `oneOf` actually admits the absence members and
     // rejects null — the generated TS types would agree with a wrong
     // schema, since both derive from it.
-    expect(validators.BrowseAnchoredTextResult({
-      correlationId: 'c-1',
-      response: { kind: 'declined', declined: 'no-text-layer' },
-    })).toBe(true);
-    expect(validators.BrowseAnchoredTextResult({
-      correlationId: 'c-1',
-      response: { kind: 'not-yet' },
-    })).toBe(true);
-    expect(validators.BrowseAnchoredTextResult({
-      correlationId: 'c-1',
-      response: null,
-    })).toBe(false);
+    expect(validators.AnchoredTextAnswer({ kind: 'declined', declined: 'no-text-layer' })).toBe(true);
+    expect(validators.AnchoredTextAnswer({ kind: 'not-yet' })).toBe(true);
+    expect(validators.AnchoredTextAnswer(null)).toBe(false);
   });
 
   it('covers every component schema, so no consumer needs a fallback', () => {

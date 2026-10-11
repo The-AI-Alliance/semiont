@@ -68,7 +68,10 @@ scope?}` and whose `id:` is one of the three formats below; and `ping`,
 the heartbeat, with an empty `data:` and no id.
 
 No other transport is used for bus traffic. Regular HTTP is for
-credentials, health, and a resource's bytes.
+credentials, health, and a resource's content: an upload
+(`POST /resources`), and the reads of its bytes (`GET /resources/{id}`), of
+its description (`GET /resources/{id}/jsonld`) and of its anchored text
+(`GET /resources/{id}/anchored-text`).
 
 ## Every response
 

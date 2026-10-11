@@ -170,7 +170,7 @@ class HttpTransport(Transport, GatewayOperations):
 
     @property
     def content(self) -> ContentTransport:
-        """Bytes, and a resource's description, from the same gateway."""
+        """Bytes, a resource's description and its anchored text, from the same gateway."""
         return self._content
 
     @override

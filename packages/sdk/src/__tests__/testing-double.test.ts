@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { BusRequestError } from '@semiont/core';
+import { BusRequestError, resourceId } from '@semiont/core';
 import { createTestClient, createTestSession } from '../testing';
 
 afterEach(() => {
@@ -83,6 +83,16 @@ describe('createTestClient', () => {
     expect(transport.requestLog[0]!.channel).toBe('browse:entity-types-requested');
 
     sub.unsubscribe();
+    client.dispose();
+  });
+
+  it('refuses a read of an anchored text no test gave it, and asks nothing of the bus', async () => {
+    const { client, transport } = createTestClient();
+
+    await expect(client.browse.resourceAnchoredText(resourceId('res-1'))).rejects.toThrow('no anchored text for res-1');
+    // A read of content: the double's content transport is asked, not the bus.
+    expect(transport.requestLog).toHaveLength(0);
+
     client.dispose();
   });
 });

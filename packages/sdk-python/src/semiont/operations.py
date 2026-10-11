@@ -20,7 +20,6 @@ __all__ = [
     "OPERATIONS",
     "BIND_UPDATE_BODY",
     "BROWSE_AGENTS_REQUESTED",
-    "BROWSE_ANCHORED_TEXT_REQUESTED",
     "BROWSE_ANNOTATIONS_REQUESTED",
     "BROWSE_ANNOTATION_HISTORY_REQUESTED",
     "BROWSE_ANNOTATION_REQUESTED",
@@ -71,11 +70,6 @@ BROWSE_RESOURCE_REQUESTED: Final = Operation(
     request=channels.BROWSE_RESOURCE_REQUESTED,
     result=channels.BROWSE_RESOURCE_RESULT,
     failure=channels.BROWSE_RESOURCE_FAILED,
-)
-BROWSE_ANCHORED_TEXT_REQUESTED: Final = Operation(
-    request=channels.BROWSE_ANCHORED_TEXT_REQUESTED,
-    result=channels.BROWSE_ANCHORED_TEXT_RESULT,
-    failure=channels.BROWSE_ANCHORED_TEXT_FAILED,
 )
 BROWSE_RESOURCES_REQUESTED: Final = Operation(
     request=channels.BROWSE_RESOURCES_REQUESTED,
@@ -278,7 +272,6 @@ OPERATIONS: Final[Mapping[str, AnyOperation]] = MappingProxyType(
     {
         "bind:update-body": BIND_UPDATE_BODY,
         "browse:resource-requested": BROWSE_RESOURCE_REQUESTED,
-        "browse:anchored-text-requested": BROWSE_ANCHORED_TEXT_REQUESTED,
         "browse:resources-requested": BROWSE_RESOURCES_REQUESTED,
         "browse:annotation-requested": BROWSE_ANNOTATION_REQUESTED,
         "browse:annotations-requested": BROWSE_ANNOTATIONS_REQUESTED,

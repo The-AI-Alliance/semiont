@@ -11,14 +11,14 @@ If you only want to *use* the protocol from a script, you don't need this doc �
 
 The authority is **[`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)**; [`packages/core/src/bus-protocol.ts`](../../packages/core/src/bus-protocol.ts) (the `EventMap` type and `CHANNEL_SCHEMAS` map) and the Go and Rust equivalents are GENERATED from it — see "The registry is the authority" below. This doc is the prose explanation; the registry is the truth.
 
-## What rides the bus, and the five things that deliberately do not
+## What rides the bus, and the six things that deliberately do not
 
 **The bus mediates subsystem messaging.** A request between two Semiont processes is a channel, a
 payload and an envelope — not an HTTP call. That is what makes a subsystem relocatable: the
 gateway's own handlers receive their frames from the broker through a queue group, so a handler
 moving to another process costs no extra hop.
 
-Five paths are deliberately not on the bus. They are the whole list; a sixth is a design change,
+Six paths are deliberately not on the bus. They are the whole list; a seventh is a design change,
 not an oversight.
 
 | path | what | why not the bus |
@@ -26,15 +26,16 @@ not an oversight.
 | `POST /resources` (on the Archivist) | an upload: the bytes, and the resource they are recorded as | Bytes ride HTTP, never the bus. Streaming an arbitrarily large body as a frame is the wrong shape; and the Archivist, which writes the tree, records the resource in the same call, so the gateway makes no request of its own. |
 | `GET /resources/:id/content` | byte reads from the Archivist | Same. |
 | `GET /resources/:id/jsonld` | a resource's linked-data description, for an HTTP client following a content response's `Link: rel="describedby"` | A client dereferencing a link speaks HTTP. `browse:resource-requested` remains the bus-side read for everyone else. |
+| `GET /resources/:id/anchored-text` | a resource's anchored text: the text read out of its content, with where each run of it is on a page | It is as large as the document it was read from, and an emit's body is limited in size. It is content, and content rides HTTP. |
 | `GET /events/:resourceId?fromSequence=N` | the `Last-Event-ID` replay behind `/bus/subscribe` | A bulk backlog read at connection setup, not an event. Bounded to one resource from one sequence, one customer. `browse:events-requested` remains the bus-side read for ordinary queries — the duplication is accepted and narrow. |
 | `POST /api/tokens/agent` | a sidecar or worker buying an agent token | Bootstrapping a credential must not depend on the thing the credential is for. |
 
 **Outside this rule by nature**, not exceptions to it: the trusted issuer (token endpoint, admin
 API), datastores (Neo4j, Qdrant, Postgres), `/health` liveness probes, and OTLP telemetry.
 
-The standing rule governing what may live on the Archivist's HTTP surface at all — *"this surface
-serves the KB tree and each resource's linked-data description, and nothing else"* — is stated once, in
-[the Archivist's API](../../specs/src/archivist/README.md). This
+What may live on the Archivist's HTTP surface at all is stated once, in
+[the Archivist's API](../../specs/src/archivist/README.md): its own OpenAPI document, which the
+Archivist and the gateway are each held to. This
 table is the system-level view; that document is the gate.
 
 ## Channel naming
@@ -261,7 +262,7 @@ With the bus log switched on, every cross-transport event prints one grep-friend
 [bus GET] content trace=8f3ca4ed {resourceId}
 ```
 
-A line is the operation, the channel (`content` for a write or a read of bytes), and then `scope=` (the resource a frame is about), `cid=` (the first eight characters of the correlation id) and `trace=` (the first eight of the active trace's id), each written only where there is one. The payload is the last thing on it.
+A line is the operation, the channel (`content` for an upload or a read of content), and then `scope=` (the resource a frame is about), `cid=` (the first eight characters of the correlation id) and `trace=` (the first eight of the active trace's id), each written only where there is one. The payload is the last thing on it.
 
 **No line holds a credential.** Every bus log writes the value of a member whose whole name is one a credential goes by as `[withheld]`, wherever in a payload the member is and whatever its value is. The names are a short list, the `names` of [`specs/src/bus/log-cases.json`](../../specs/src/bus/log-cases.json). One is `token`, which is what the bus's own payloads name the one credential they declare: the token a resource is cloned by (`yield:clone-resource-requested`, `yield:clone-create`, and the `response` of `yield:clone-token-generated`). The rest are the names a credential has elsewhere (`password`, `apiKey`, `refreshToken` and `authorization` among them): some payloads take any member, and a credential put in one is withheld under such a name too. A name is matched whole and in the same case, so a member whose name only contains one (`maxTokens`, `apiKeyEnv`) is written as it is, and so is everything else. That table is the rule, and each implementation's tests run it.
 
@@ -282,7 +283,7 @@ Five operations, all logged at transport-contract choke points (not in the SDK's
 | `RECV` | HttpTransport SSE-side fan-in |
 | `SSE` | Gateway `Connection::deliver` in `apps/gateway/src/routes/stream.rs` |
 | `PUT` | `HttpContentTransport.putBinary()`. The gateway writes none for an upload |
-| `GET` | `HttpContentTransport.getBinary()` / `getBinaryStream()` + matching gateway route |
+| `GET` | `HttpContentTransport.getBinary()`, `getBinaryStream()`, `getResourceGraph()` and `getAnchoredText()`; and, for a read of bytes, the matching gateway route |
 
 The full capture API and per-test fixture are in **[../../tests/e2e/docs/bus-logging.md](../../tests/e2e/docs/bus-logging.md)**.
 

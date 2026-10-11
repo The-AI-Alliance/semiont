@@ -18,7 +18,7 @@ const replies = (operation: string): string[] => {
 };
 const namedByEveryAgent = (): string[] =>
   [
-    ...['job:claim', 'mark:commit', 'browse:annotation-requested', 'browse:resource-requested', 'browse:anchored-text-requested'].flatMap(replies),
+    ...['job:claim', 'mark:commit', 'browse:annotation-requested', 'browse:resource-requested'].flatMap(replies),
     'job:queued',
     'job:cancel-requested',
   ].sort();

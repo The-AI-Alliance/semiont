@@ -366,6 +366,13 @@ export class ArchivistWorld {
     return (reply.json as { resourceId: string }).resourceId;
   }
 
+  /** A resource's anchored text, read as the gateway reads it; the Archivist must answer it. Answers the body. */
+  async anchoredText(resourceId: string): Promise<Record<string, unknown>> {
+    const reply = await this.http('GET', `/resources/${encodeURIComponent(resourceId)}/anchored-text`, { route: '/resources/{id}/anchored-text' });
+    if (reply.status !== 200) throw new Error(`the anchored text was not answered: ${reply.status} ${reply.text}`);
+    return reply.json as Record<string, unknown>;
+  }
+
   // ── The files it keeps ────────────────────────────────────────────────────
 
   /** A resource's stream directory, or the `__system__` stream's. */

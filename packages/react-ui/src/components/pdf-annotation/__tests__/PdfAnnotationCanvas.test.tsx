@@ -17,21 +17,26 @@ import { resourceId, annotationId, parseFragmentSelector } from '@semiont/core';
 import { pdfToCanvasCoordinates } from '../../../lib/pdf-coordinates';
 import { loadPdfDocument, renderPdfPageToDataUrl } from '../../../lib/browser-pdfjs';
 
-import type { Annotation } from '@semiont/core';
+import type { Annotation, AnchoredTextAnswer } from '@semiont/core';
 
-// The page's text layer, as pdf.js reports it. Geometry is PDF points,
-// bottom-left origin: "Hello world" sits on one line at y=700, "elsewhere" a
-// hundred points below it.
-// vi.hoisted: vi.mock's factory is lifted above these declarations.
-const { MOCK_TEXT_ITEMS } = vi.hoisted(() => ({
-  MOCK_TEXT_ITEMS: [
-    { str: 'Hello', transform: [1, 0, 0, 1, 72, 700], width: 30, height: 12, hasEOL: false },
-    { str: 'world', transform: [1, 0, 0, 1, 106, 700], width: 32, height: 12, hasEOL: true },
-    { str: 'elsewhere', transform: [1, 0, 0, 1, 72, 600], width: 54, height: 12, hasEOL: true },
+// The document's anchored text, as Semiont serves it: the canvas asks for it
+// and reads no page's text itself. Geometry is PDF points, bottom-left origin:
+// "Hello world" sits on one line of page 1 at y=700, "elsewhere" a hundred
+// points below it.
+const SERVED_TEXT: AnchoredTextAnswer = {
+  kind: 'extracted',
+  method: 'pdf-text-layer',
+  text: 'Hello world\nelsewhere\n',
+  items: [
+    { start: 0, end: 5, page: 1, x: 72, y: 700, width: 30, height: 12 },
+    { start: 6, end: 11, page: 1, x: 106, y: 700, width: 32, height: 12 },
+    { start: 12, end: 21, page: 1, x: 72, y: 600, width: 54, height: 12 },
   ],
-}));
+};
 
-const mockPage = (textItems: unknown[]) => ({
+// A pdf.js page as the canvas uses one: a viewport to measure and a render to
+// draw. It has no `getTextContent` — a canvas that asked for one would throw.
+const mockPage = () => ({
   getViewport: vi.fn().mockReturnValue({
     width: 612,
     height: 792,
@@ -41,7 +46,6 @@ const mockPage = (textItems: unknown[]) => ({
   render: vi.fn().mockReturnValue({
     promise: Promise.resolve()
   }),
-  getTextContent: vi.fn().mockResolvedValue({ items: textItems })
 });
 
 // Mock browser-pdfjs module
@@ -58,7 +62,6 @@ vi.mock('../../../lib/browser-pdfjs', () => ({
       render: vi.fn().mockReturnValue({
         promise: Promise.resolve()
       }),
-      getTextContent: vi.fn().mockResolvedValue({ items: MOCK_TEXT_ITEMS })
     })
   }),
   renderPdfPageToDataUrl: vi.fn().mockResolvedValue({
@@ -312,7 +315,10 @@ describe('PdfAnnotationCanvas', () => {
   test('passes the annotation rect as browse.click second argument', async () => {
     const click = vi.fn();
     const session = {
-      client: { browse: { click }, beckon: { hover: vi.fn() } },
+      client: {
+        browse: { click, resourceAnchoredText: vi.fn().mockResolvedValue(SERVED_TEXT) },
+        beckon: { hover: vi.fn() },
+      },
     } as unknown as import('@semiont/sdk').SemiontSession;
 
     const mockAnnotations: Annotation[] = [
@@ -374,7 +380,10 @@ describe('PdfAnnotationCanvas', () => {
     // functions the component uses (scale is 1: display 612×792 == page).
     const click = vi.fn();
     const session = {
-      client: { browse: { click }, beckon: { hover: vi.fn() } },
+      client: {
+        browse: { click, resourceAnchoredText: vi.fn().mockResolvedValue(SERVED_TEXT) },
+        beckon: { hover: vi.fn() },
+      },
     } as unknown as import('@semiont/sdk').SemiontSession;
 
     const fragmentValue = 'page=1&viewrect=100,200,150,100';
@@ -443,16 +452,23 @@ describe('PdfAnnotationCanvas', () => {
   });
 
   /**
-   * Drives the drag → mark.request path far enough to inspect the selector.
+   * Drives the drag → mark.request path far enough to inspect the selector,
+   * on a document for which Semiont answers `answer`.
    * `drag` is in canvas pixels; at scale 1 with a 612×792 page these are also
    * display coordinates, since jsdom's getBoundingClientRect returns zeros.
    */
   async function drawRectangle(
     drag: { fromX: number; fromY: number; toX: number; toY: number },
+    answer: AnchoredTextAnswer,
+    onPage = 1,
   ) {
     const request = vi.fn();
     const session = {
-      client: { mark: { request }, beckon: { hover: vi.fn() } },
+      client: {
+        mark: { request },
+        beckon: { hover: vi.fn() },
+        browse: { resourceAnchoredText: vi.fn().mockResolvedValue(answer) },
+      },
     } as unknown as import('@semiont/sdk').SemiontSession;
 
     renderInEnglish(
@@ -465,11 +481,19 @@ describe('PdfAnnotationCanvas', () => {
     );
 
     await waitFor(() => {
-      const img = document.querySelector('.semiont-pdf-annotation-canvas__image');
-      expect(img).toBeInTheDocument();
+      expect(screen.getByText(/page 1 of 3/i)).toBeInTheDocument();
+    });
+    for (let page = 2; page <= onPage; page++) {
+      fireEvent.click(screen.getByRole('button', { name: /next/i }));
+    }
+
+    const pageImage = () =>
+      document.querySelector(`.semiont-pdf-annotation-canvas__image[alt="PDF page ${onPage}"]`);
+    await waitFor(() => {
+      expect(pageImage()).toBeInTheDocument();
     });
 
-    const img = document.querySelector('.semiont-pdf-annotation-canvas__image') as HTMLImageElement;
+    const img = pageImage() as HTMLImageElement;
     Object.defineProperty(img, 'clientWidth', { value: 612, configurable: true });
     Object.defineProperty(img, 'clientHeight', { value: 792, configurable: true });
     fireEvent.load(img);
@@ -482,20 +506,25 @@ describe('PdfAnnotationCanvas', () => {
     return request;
   }
 
+  /** A box a little larger than a line of text: what a hand draws around it. */
+  function aroundLine(line: { page: number; x: number; y: number; width: number; height: number }) {
+    const box = pdfToCanvasCoordinates(line, 792, 1.0);
+    return {
+      fromX: box.x - 2,
+      fromY: box.y - 2,
+      toX: box.x + box.width + 8,
+      toY: box.y + box.height + 4,
+    };
+  }
+
+  // The "Hello world" line: PDF y=700..712 flips to canvas y=80..92 on a
+  // 792pt page.
+  const HELLO_WORLD_LINE = { page: 1, x: 72, y: 700, width: 66, height: 12 };
+
   // A hand-drawn rectangle that stores geometry and nothing else shows blank
   // in every panel that quotes an annotation.
   test('a drawn rectangle carries the text it was drawn around', async () => {
-    // The "Hello world" line in canvas space: PDF y=700..712 flips to
-    // canvas y=80..92 on a 792pt page. Drag a box a little larger than it.
-    const line = pdfToCanvasCoordinates(
-      { page: 1, x: 72, y: 700, width: 60, height: 12 }, 792, 1.0,
-    );
-    const request = await drawRectangle({
-      fromX: line.x - 2,
-      fromY: line.y - 2,
-      toX: line.x + line.width + 8,
-      toY: line.y + line.height + 4,
-    });
+    const request = await drawRectangle(aroundLine(HELLO_WORLD_LINE), SERVED_TEXT);
 
     await waitFor(() => expect(request).toHaveBeenCalledTimes(1));
 
@@ -512,10 +541,34 @@ describe('PdfAnnotationCanvas', () => {
     ]);
   });
 
+  // A PDF's text has one producer. This page has a text layer pdf.js could
+  // read, and it says something ELSE: a canvas that read it would quote the
+  // layer's words, or never ask Semiont at all.
+  test('the quote is cut from the served text — pdf.js is never asked for the page\'s text', async () => {
+    const getTextContent = vi.fn().mockResolvedValue({
+      items: [
+        { str: 'words pdf.js read', transform: [1, 0, 0, 1, 72, 700], width: 66, height: 12, hasEOL: true },
+      ],
+    });
+    vi.mocked(loadPdfDocument).mockResolvedValueOnce({
+      numPages: 3,
+      getPage: vi.fn().mockResolvedValue({ ...mockPage(), getTextContent }),
+    } as unknown as Awaited<ReturnType<typeof loadPdfDocument>>);
+
+    const request = await drawRectangle(aroundLine(HELLO_WORLD_LINE), SERVED_TEXT);
+
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(1));
+    expect(request.mock.calls[0][1]).toEqual([
+      expect.objectContaining({ type: 'FragmentSelector' }),
+      { type: 'TextQuoteSelector', exact: 'Hello world' },
+    ]);
+    expect(getTextContent).not.toHaveBeenCalled();
+  });
+
   test('a rectangle over blank space carries geometry only', async () => {
     // Between the two lines of text — nothing under the box. An empty-string
     // quote would assert the box was drawn around nothing, so emit no quote.
-    const request = await drawRectangle({ fromX: 40, fromY: 120, toX: 200, toY: 150 });
+    const request = await drawRectangle({ fromX: 40, fromY: 120, toX: 200, toY: 150 }, SERVED_TEXT);
 
     await waitFor(() => expect(request).toHaveBeenCalledTimes(1));
 
@@ -524,83 +577,44 @@ describe('PdfAnnotationCanvas', () => {
     expect(selector[0].type).toBe('FragmentSelector');
   });
 
-  // A scanned page has no text
-  // in the browser, but the server derived one at ingest and serves it through
-  // `browse.resourceAnchoredText`. Same `AnchoredText` shape either way, so
-  // `textUnder` and the drag handler do not branch — only the source does.
-  test('a scanned page quotes from the map the server derived', async () => {
-    vi.mocked(loadPdfDocument).mockResolvedValueOnce({
-      numPages: 3,
-      getPage: vi.fn().mockResolvedValue(mockPage([])),
-    } as unknown as Awaited<ReturnType<typeof loadPdfDocument>>);
-
-    const request = vi.fn();
-    const session = {
-      client: {
-        mark: { request },
-        beckon: { hover: vi.fn() },
-        browse: {
-          resourceAnchoredText: vi.fn().mockResolvedValue({
-            kind: 'extracted',
-            text: 'Hello world again',
-            items: [
-              { start: 0, end: 5, page: 1, x: 72, y: 700, width: 30, height: 12 },
-              { start: 6, end: 11, page: 1, x: 106, y: 700, width: 32, height: 12 },
-            ],
-          }),
-        },
+  // The served text is the whole document's, not a page's: offsets run on
+  // from one page into the next, and each run names its page. Both pages
+  // here put a line at the same place, so only a run's page decides which
+  // line a rectangle quotes. The character that ends page 1's line is one
+  // code point and two UTF-16 units, so page 2's offsets are not positions in
+  // the JavaScript string: a canvas that sliced the text itself would cut
+  // "\nsecon" where the word is "second".
+  test('a rectangle on page 2 quotes page 2\'s words out of the whole document\'s text', async () => {
+    const request = await drawRectangle(
+      aroundLine({ ...HELLO_WORLD_LINE, page: 2 }),
+      {
+        kind: 'extracted',
+        method: 'pdf-text-layer',
+        text: 'first \u{1D49C}\nsecond page\n',
+        items: [
+          { start: 0, end: 5, page: 1, x: 72, y: 700, width: 30, height: 12 },
+          { start: 6, end: 7, page: 1, x: 106, y: 700, width: 32, height: 12 },
+          { start: 8, end: 14, page: 2, x: 72, y: 700, width: 30, height: 12 },
+          { start: 15, end: 19, page: 2, x: 106, y: 700, width: 32, height: 12 },
+        ],
       },
-    } as unknown as import('@semiont/sdk').SemiontSession;
-
-    renderInEnglish(
-      <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
-        pdfUrl={mockPdfUrl}
-        drawingMode="rectangle"
-        selectedMotivation="highlighting"
-        session={session}
-      />
+      2,
     );
-
-    await waitFor(() => {
-      expect(document.querySelector('.semiont-pdf-annotation-canvas__image')).toBeInTheDocument();
-    });
-    const img = document.querySelector('.semiont-pdf-annotation-canvas__image') as HTMLImageElement;
-    Object.defineProperty(img, 'clientWidth', { value: 612, configurable: true });
-    Object.defineProperty(img, 'clientHeight', { value: 792, configurable: true });
-    fireEvent.load(img);
-
-    const line = pdfToCanvasCoordinates({ page: 1, x: 72, y: 700, width: 66, height: 12 }, 792, 1.0);
-    const container = document.querySelector('.semiont-pdf-annotation-canvas__container')!;
-    fireEvent.mouseDown(container, { clientX: line.x - 2, clientY: line.y - 2 });
-    fireEvent.mouseMove(container, { clientX: line.x + line.width + 8, clientY: line.y + line.height + 4 });
-    fireEvent.mouseUp(container, { clientX: line.x + line.width + 8, clientY: line.y + line.height + 4 });
 
     await waitFor(() => expect(request).toHaveBeenCalledTimes(1));
     expect(request.mock.calls[0][1]).toEqual([
-      expect.objectContaining({ type: 'FragmentSelector' }),
-      { type: 'TextQuoteSelector', exact: 'Hello world' },
+      expect.objectContaining({ type: 'FragmentSelector', value: expect.stringContaining('page=2&viewrect=') }),
+      { type: 'TextQuoteSelector', exact: 'second page' },
     ]);
   });
 
   // The server map is WHOLE-RESOURCE — one artifact
   // covering every page — so fetching it from inside the per-page load
   // effect would refetch and re-decode the entire document's geometry on every
-  // page turn. On a 400-page scan that is the difference between one decode
-  // and one per interaction.
+  // page turn. On a 400-page document that is the difference between one
+  // decode and one per interaction.
   test('the whole-resource map is fetched once per document, not once per page-turn', async () => {
-    vi.mocked(loadPdfDocument).mockResolvedValueOnce({
-      numPages: 3,
-      getPage: vi.fn().mockResolvedValue(mockPage([])),
-    } as unknown as Awaited<ReturnType<typeof loadPdfDocument>>);
-
-    const resourceAnchoredText = vi.fn().mockResolvedValue({
-      kind: 'extracted',
-      text: 'Hello world again',
-      items: [
-        { start: 0, end: 5, page: 1, x: 72, y: 700, width: 30, height: 12 },
-        { start: 6, end: 11, page: 2, x: 106, y: 700, width: 32, height: 12 },
-      ],
-    });
+    const resourceAnchoredText = vi.fn().mockResolvedValue(SERVED_TEXT);
     const session = {
       client: { beckon: { hover: vi.fn() }, browse: { resourceAnchoredText } },
     } as unknown as import('@semiont/sdk').SemiontSession;
@@ -637,23 +651,15 @@ describe('PdfAnnotationCanvas', () => {
     expect(resourceAnchoredText).toHaveBeenCalledTimes(1);
   });
 
-  test('a scanned page with no server map carries geometry only', async () => {
-    // Class B: pdf.js returns no runs, so the browser cannot do the job and
-    // the annotation stays geometry-only pending async enrichment.
-    vi.mocked(loadPdfDocument).mockResolvedValueOnce({
-      numPages: 3,
-      getPage: vi.fn().mockResolvedValue(mockPage([])),
-    } as unknown as Awaited<ReturnType<typeof loadPdfDocument>>);
-
-    const line = pdfToCanvasCoordinates(
-      { page: 1, x: 72, y: 700, width: 60, height: 12 }, 792, 1.0,
-    );
-    const request = await drawRectangle({
-      fromX: line.x - 2,
-      fromY: line.y - 2,
-      toX: line.x + line.width + 8,
-      toY: line.y + line.height + 4,
-    });
+  // Three answers say there is no text for this document and never will be.
+  // The rectangle is still an annotation: its geometry, and no quote.
+  const NO_TEXT: Array<[string, AnchoredTextAnswer]> = [
+    ['no map', { kind: 'no-map' }],
+    ['a stored decline', { kind: 'declined', declined: 'no-text-layer' }],
+    ['an unknown resource', { kind: 'unknown' }],
+  ];
+  test.each(NO_TEXT)('a document answered with %s is annotated with its rectangle and no quote', async (_name, answer) => {
+    const request = await drawRectangle(aroundLine(HELLO_WORLD_LINE), answer);
 
     await waitFor(() => expect(request).toHaveBeenCalledTimes(1));
 
@@ -699,10 +705,10 @@ describe('PdfAnnotationCanvas', () => {
   // pages is MOUNTED — unmounting is what releases a page's raster, so the
   // window IS the memory budget.
   describe('scroll layout (browse mode)', () => {
-    const scannedDoc = () =>
+    const fivePageDoc = () =>
       vi.mocked(loadPdfDocument).mockResolvedValueOnce({
         numPages: 5,
-        getPage: vi.fn().mockResolvedValue(mockPage([])),
+        getPage: vi.fn().mockResolvedValue(mockPage()),
       } as unknown as Awaited<ReturnType<typeof loadPdfDocument>>);
 
     const mountedPages = () =>
@@ -712,7 +718,7 @@ describe('PdfAnnotationCanvas', () => {
 
     test('gives every page a slot but mounts only the visible window', async () => {
       const io = stubIntersectionObserver();
-      scannedDoc();
+      fivePageDoc();
 
       renderInEnglish(
         <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
@@ -735,7 +741,7 @@ describe('PdfAnnotationCanvas', () => {
 
     test('releases a page that scrolls out of the window', async () => {
       const io = stubIntersectionObserver();
-      scannedDoc();
+      fivePageDoc();
 
       renderInEnglish(
         <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
@@ -764,7 +770,7 @@ describe('PdfAnnotationCanvas', () => {
       // This stub does not notify on observe(), so the loop cannot show here;
       // the re-registration that feeds it can.
       const io = stubIntersectionObserver();
-      scannedDoc();
+      fivePageDoc();
 
       renderInEnglish(
         <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
@@ -788,13 +794,9 @@ describe('PdfAnnotationCanvas', () => {
       // The fetch-once invariant holds across N independent page views, not
       // only within one page's load effect.
       const io = stubIntersectionObserver();
-      scannedDoc();
+      fivePageDoc();
 
-      const resourceAnchoredText = vi.fn().mockResolvedValue({
-        kind: 'extracted',
-        text: 'Hello world again',
-        items: [{ start: 0, end: 5, page: 1, x: 72, y: 700, width: 30, height: 12 }],
-      });
+      const resourceAnchoredText = vi.fn().mockResolvedValue(SERVED_TEXT);
       const session = {
         client: { beckon: { hover: vi.fn() }, browse: { resourceAnchoredText } },
       } as unknown as import('@semiont/sdk').SemiontSession;
@@ -825,7 +827,7 @@ describe('PdfAnnotationCanvas', () => {
       // cursor. The reservation must survive mounting so the column's
       // geometry never depends on which pages are mounted.
       const io = stubIntersectionObserver();
-      scannedDoc();
+      fivePageDoc();
 
       renderInEnglish(
         <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
@@ -861,11 +863,15 @@ describe('PdfAnnotationCanvas', () => {
       // component that owns the pixels rather than from a shared `pageNumber`
       // — the invariant that makes a column safe to draw on at all.
       const io = stubIntersectionObserver();
-      scannedDoc();
+      fivePageDoc();
 
       const request = vi.fn();
       const session = {
-        client: { mark: { request }, beckon: { hover: vi.fn() } },
+        client: {
+          mark: { request },
+          beckon: { hover: vi.fn() },
+          browse: { resourceAnchoredText: vi.fn().mockResolvedValue(SERVED_TEXT) },
+        },
       } as unknown as import('@semiont/sdk').SemiontSession;
 
       renderInEnglish(
@@ -903,7 +909,7 @@ describe('PdfAnnotationCanvas', () => {
     test('annotate mode scrolls too — the primary mode is not left on the pager', async () => {
       // The registries are the seam: both ask for the column.
       const io = stubIntersectionObserver();
-      scannedDoc();
+      fivePageDoc();
 
       renderInEnglish(
         <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
@@ -932,7 +938,7 @@ describe('PdfAnnotationCanvas', () => {
     // pager nor the scrollbar does.
     test('renders one strip rectangle per page, marking the current one', async () => {
       const io = stubIntersectionObserver();
-      scannedDoc();
+      fivePageDoc();
 
       renderInEnglish(
         <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
@@ -964,7 +970,7 @@ describe('PdfAnnotationCanvas', () => {
       // scrollport of 126→846 inside a panel of 126→639. So the scrollport is
       // sized to the scroller that actually clips it.
       const io = stubIntersectionObserver();
-      scannedDoc();
+      fivePageDoc();
 
       const scroller = document.createElement('div');
       scroller.style.overflowY = 'auto';
@@ -991,7 +997,7 @@ describe('PdfAnnotationCanvas', () => {
 
     test('clicking a strip rectangle jumps to that page', async () => {
       const io = stubIntersectionObserver();
-      scannedDoc();
+      fivePageDoc();
       const scrollIntoView = vi
         .spyOn(Element.prototype, 'scrollIntoView')
         .mockImplementation(() => {});
@@ -1023,7 +1029,7 @@ describe('PdfAnnotationCanvas', () => {
       // Taking Up/Down would leave no keyboard way to reach the bottom of a
       // page taller than the viewport.
       const io = stubIntersectionObserver();
-      scannedDoc();
+      fivePageDoc();
       const scrollIntoView = vi
         .spyOn(Element.prototype, 'scrollIntoView')
         .mockImplementation(() => {});
@@ -1067,7 +1073,7 @@ describe('PdfAnnotationCanvas', () => {
 
     test('Left/Right step pages, and never steal keys from a text field', async () => {
       const io = stubIntersectionObserver();
-      scannedDoc();
+      fivePageDoc();
       const scrollIntoView = vi
         .spyOn(Element.prototype, 'scrollIntoView')
         .mockImplementation(() => {});
@@ -1109,7 +1115,7 @@ describe('PdfAnnotationCanvas', () => {
       // when the strip already had it, so scrolling with the mouse never
       // snatches focus away from whatever the reader was doing.
       const io = stubIntersectionObserver();
-      scannedDoc();
+      fivePageDoc();
       vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
 
       renderInEnglish(
@@ -1142,7 +1148,7 @@ describe('PdfAnnotationCanvas', () => {
       // ARIA pattern: the current item is tabbable, the rest are reachable
       // with arrows (which already page the document).
       const io = stubIntersectionObserver();
-      scannedDoc();
+      fivePageDoc();
       vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
 
       renderInEnglish(
@@ -1170,7 +1176,7 @@ describe('PdfAnnotationCanvas', () => {
       // scroll axis — which is also what would make horizontal scrolling a
       // change of one value rather than a second layout.
       const io = stubIntersectionObserver();
-      scannedDoc();
+      fivePageDoc();
       vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
 
       renderInEnglish(
@@ -1206,7 +1212,7 @@ describe('PdfAnnotationCanvas', () => {
       // the strip shows position but not WHICH page, which is most of what a
       // reader wants from it on a long document.
       const io = stubIntersectionObserver();
-      scannedDoc();
+      fivePageDoc();
       vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
 
       renderInEnglish(
@@ -1239,7 +1245,7 @@ describe('PdfAnnotationCanvas', () => {
       // min-height: 0), so the column must not declare a viewport-relative
       // height of its own — that produces scroll-within-scroll.
       const io = stubIntersectionObserver();
-      scannedDoc();
+      fivePageDoc();
       vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
 
       renderInEnglish(
@@ -1270,7 +1276,7 @@ describe('PdfAnnotationCanvas', () => {
       // from that same set makes the indicator name a page that is still
       // off-screen — it must come from actual visibility.
       const io = stubIntersectionObserver();
-      scannedDoc();
+      fivePageDoc();
       vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
 
       renderInEnglish(
@@ -1293,9 +1299,10 @@ describe('PdfAnnotationCanvas', () => {
     test('paged navigation does not carry one page\'s state onto the next', async () => {
       // A single PdfPageView reused in the paged layout as `pageNumber`
       // changes would keep its state across the switch: the previous page's
-      // raster shows briefly under the new page's overlay, a drag could quote
-      // the previous page's text, and a load failure sticks forever because
-      // nothing clears it. Each page is a different thing and must mount as one.
+      // raster shows briefly under the new page's overlay, a drag over it
+      // would be recorded against the new page, and a load failure sticks
+      // forever because nothing clears it. Each page is a different thing and
+      // must mount as one.
       // Reject by PAGE, not by call order: the parent also calls getPage(1)
       // to measure the document's shape, so a `...Once` rejection would be
       // consumed there and never reach the page view.
@@ -1303,7 +1310,7 @@ describe('PdfAnnotationCanvas', () => {
         numPages: 3,
         getPage: vi.fn((n: number) => (n === 1
           ? Promise.reject(new Error('page 1 is broken'))
-          : Promise.resolve(mockPage(MOCK_TEXT_ITEMS)))),
+          : Promise.resolve(mockPage()))),
       };
       vi.mocked(loadPdfDocument).mockResolvedValueOnce(
         failingDoc as unknown as Awaited<ReturnType<typeof loadPdfDocument>>,
@@ -1329,7 +1336,7 @@ describe('PdfAnnotationCanvas', () => {
       // The virtualization is an optimization, not a correctness requirement.
       // An environment without the observer must show the whole document
       // rather than nothing.
-      scannedDoc();
+      fivePageDoc();
       vi.stubGlobal('IntersectionObserver', undefined);
       vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
 
@@ -1347,12 +1354,12 @@ describe('PdfAnnotationCanvas', () => {
       // Answers cache, including "no map". A transport failure must not, or
       // one bad moment pins the whole document to geometry-only.
       const io = stubIntersectionObserver();
-      scannedDoc();
+      fivePageDoc();
       vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
 
       const resourceAnchoredText = vi.fn()
         .mockRejectedValueOnce(new Error('transport down'))
-        .mockResolvedValue({ kind: 'extracted', text: 'later', items: [] });
+        .mockResolvedValue(SERVED_TEXT);
       const session = {
         client: { beckon: { hover: vi.fn() }, browse: { resourceAnchoredText } },
       } as unknown as import('@semiont/sdk').SemiontSession;
@@ -1374,7 +1381,7 @@ describe('PdfAnnotationCanvas', () => {
 
     test('the pager still works in the column, and modifiers are left alone', async () => {
       const io = stubIntersectionObserver();
-      scannedDoc();
+      fivePageDoc();
       const scrollIntoView = vi
         .spyOn(Element.prototype, 'scrollIntoView')
         .mockImplementation(() => {});

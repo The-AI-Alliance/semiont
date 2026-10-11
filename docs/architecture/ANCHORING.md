@@ -86,10 +86,10 @@ failing most of the time.
 ingest    Smelter reads the bytes once, extracts to embed
           └─ carries geometry? → writes its anchored-text store (checksum-keyed)
 store     the Smelter's — it owns the stamp; the Archivist holds a read-only mount
-read      browse:anchored-text-requested  →  bus  →  Archivist's Browser  →  readAnchoredText
-          └─ miss → whenSettled(resourceId, checksum) → re-read
-browser   getTextContent() has runs?  yes → anchorRuns(...)      (born-digital)
-                                      no  → browse.resourceAnchoredText()  (scanned)
+read      GET /resources/{id}/anchored-text  →  gateway  →  Archivist  →  anchored_text
+          └─ miss → when_settled(resourceId, checksum) → re-read
+browser   browse.resourceAnchoredText()   every PDF, every page; pdf.js only draws
+          └─ not-yet → hold off annotating, ask again when smelt settles
 drag      textUnder(map, rect) → [FragmentSelector, TextQuoteSelector]
 ```
 
@@ -97,15 +97,28 @@ drag      textUnder(map, rect) → [FragmentSelector, TextQuoteSelector]
 process that reads a resource's bytes at ingest, so it is the only one
 positioned to derive a map cheaply — it has already decoded the document and
 run the engine in order to embed. It writes the store directly; the Archivist
-mounts it read-only and answers the bus reads. Five detection jobs and the
+mounts it read-only and serves the reads. Five detection jobs and the
 browser all arrive later and would each have to redo that work.
+
+**The browser is no exception, even on a page it could read.** pdf.js, which
+draws the pages, can also report a born-digital page's text layer, and a canvas
+that used it would have a quote without asking anyone. It would also be a
+second producer: two readings of one page, to be kept quoting the same words
+for the same rectangle forever. So the canvas asks for the Smelter's map for
+every PDF, and pdf.js is never asked for a page's text.
+
+**The canvas waits for the map.** A document just uploaded has none until the
+Smelter has read it. A read that comes sooner waits, and past its wait answers
+`not-yet`; the canvas then holds off annotating rather than make an annotation
+that would keep no quote. It asks again when `smelt:settled` arrives for the
+resource, and on a timer in case that broadcast is missed.
 
 **Reading never derives.** A read that finds nothing waits for that resource's
 content generation to settle and then answers "no map". OCR in a request path is
 the thing this design exists to avoid.
 
 **Failure degrades, it does not break.** No map — because the document has none,
-because extraction declined, or because the barrier timed out — means the
+because extraction declined, or because the read failed — means the
 annotation ships with geometry and no quote. That is exactly how an annotation
 behaves with no map at all, so the failure mode is "no improvement", never "broken".
 
@@ -133,7 +146,7 @@ the stored events are `mark:added`, `mark:removed`, `mark:body-updated`,
 It is also unnecessary, because it has the order backwards. Recognition happens
 at **ingest**, not after annotation, so the map already exists when a user draws
 a rectangle and the quote can be computed before the annotation is created —
-exactly as on the born-digital path.
+for a scanned page exactly as for a born-digital one.
 
 So: no new stored event, no mutable targets, and an annotation born without a
 quote keeps none. Annotations are events over an immutable

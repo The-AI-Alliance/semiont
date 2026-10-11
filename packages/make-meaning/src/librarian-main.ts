@@ -15,7 +15,8 @@
  * Neo4j and Qdrant (the retrieval sources), an embedding provider (query
  * embedding), per-actor inference clients, content from the Archivist
  * (bytes ride the byte path, keyed by resource id; this process reads them
- * from the record's storage authority, like the smelter does), and views
+ * from the record's storage authority, like the smelter does), a resource's
+ * anchored text from the gateway's content routes, and views
  * from the shared stateDir the Archivist materializes into (a reader
  * mounts it shared and never rebuilds). The weave/smelt progress folds run
  * locally, fed by the same `weave:applied` / `smelt:settled` signals over
@@ -27,9 +28,9 @@
  *   in  — LIBRARIAN_INBOUND_CHANNELS (the actor and retrieval-handler
  *         rosters, each pinned to its real subscriptions by a census gate,
  *         plus the summary handler's channel and the two progress signals); SSE frames are pushed onto
- *         the local bus. The transport's SSE subscription is this set plus
- *         LIBRARIAN_REPLY_CHANNELS (the replies to the one read this process
- *         awaits) — never the full bridged set.
+ *         the local bus. The transport's SSE subscription is exactly this
+ *         set — never the full bridged set, and no reply channel: this
+ *         process awaits no reply over the bus.
  *   out — LIBRARIAN_OUTBOUND_CHANNELS: every reply channel DERIVED from
  *         BUS_OPERATIONS over the inbound set. No strays: every operation
  *         here is keyed under its own request channel, and the progress
@@ -53,7 +54,7 @@
 
 import { Subscription } from 'rxjs';
 import { createServer } from 'http';
-import { HttpTransport } from '@semiont/http-transport';
+import { HttpContentTransport, HttpTransport } from '@semiont/http-transport';
 import { archivistContentReads } from '@semiont/content';
 import {
   EventBus,
@@ -66,8 +67,8 @@ import { createVectorStore, createEmbeddingProvider } from '@semiont/vectors';
 import { createInferenceClient } from '@semiont/inference';
 import { Matcher } from './matcher';
 import { Gatherer } from './gatherer';
-import { LIBRARIAN_INBOUND_CHANNELS, LIBRARIAN_OUTBOUND_CHANNELS, LIBRARIAN_REPLY_CHANNELS } from './service-channels';
-import { anchoredTextOverBus } from './anchored-text-ask';
+import { LIBRARIAN_INBOUND_CHANNELS, LIBRARIAN_OUTBOUND_CHANNELS } from './service-channels';
+import { anchoredTextOverContent } from './anchored-text-ask';
 import { attachServicePumps } from './service-pumps';
 import { createWeaveProgress } from './weave-progress';
 import { createSmeltProgress } from './smelt-progress';
@@ -198,14 +199,16 @@ async function main() {
     baseUrl: makeBaseUrl(baseUrl),
     token$: session.token$,
     tokenRefresher: session.refresh,
-    // The inbound roster plus the awaited-reply channels — never the full
-    // bridged set (see service-channels.ts). This process awaits ONE wire
-    // reply (the anchored-text ask behind gather's text dispatcher); the
-    // census in service-channels.ts pins the list, and busRequest's
-    // isSubscribed gate fails fast if an await is ever added without
-    // growing it.
-    channels: [...LIBRARIAN_INBOUND_CHANNELS, ...LIBRARIAN_REPLY_CHANNELS],
+    // The inbound roster and nothing else — never the full bridged set
+    // (see service-channels.ts). This process awaits no reply over the bus,
+    // and busRequest's isSubscribed gate fails fast if an await is ever
+    // added without a reply channel here.
+    channels: LIBRARIAN_INBOUND_CHANNELS,
   });
+  // The gateway's content routes, over the same address, token and renewal
+  // as the bus transport: where this process reads a resource's anchored
+  // text.
+  const gatewayContent = new HttpContentTransport(httpTransport);
   // Bytes from the Archivist, not the gateway: the gateway's content routes
   // proxy onto this same call, so dialing it would only add a hop. Throws at
   // boot if the address or the credential is absent: the address is
@@ -233,9 +236,9 @@ async function main() {
     {
       views,
       content: contentReads,
-      // Derived text for pdf-text-layer media: the anchored-text bus read,
-      // over this transport (the Archivist answers).
-      anchoredText: anchoredTextOverBus(httpTransport),
+      // Derived text for pdf-text-layer media: the gateway's anchored-text
+      // read (the gateway asks the Archivist).
+      anchoredText: anchoredTextOverContent(gatewayContent),
       graph: graphDb,
       vectors: vectorStore,
       weaveProgress,
@@ -300,6 +303,7 @@ async function main() {
     session.stop();
     for (const pump of pumps) pump.unsubscribe();
     detachRetrieval();
+    gatewayContent.dispose();
     httpTransport.dispose();
     void Promise.all([matcher.stop(), gatherer.stop()]).then(async () => {
       weaveProgress.dispose();

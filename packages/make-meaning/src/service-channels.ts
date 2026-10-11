@@ -13,21 +13,23 @@
  *     so its transport carries the reply channels DERIVED from
  *     `BUS_OPERATIONS` over the operations it awaits, beside the domain-event
  *     and command channels its fan-in reads (`SMELTER_MANIFEST`).
- *   - The LIBRARIAN answers operations AND awaits one read (the anchored-text
- *     ask behind gather's text dispatcher), so its transport carries its
- *     inbound roster plus that operation's reply channels.
+ *   - The LIBRARIAN answers operations and awaits none, so its transport
+ *     carries its inbound roster and no reply channel. What it reads of
+ *     another service it reads over HTTP: bytes from the Archivist, and a
+ *     resource's anchored text from the gateway.
  *
- * Each awaited-operations list restates a fact the code owns (which
- * operations that service calls `busRequest` on); its gate is the build-time
- * census beside each list: every awaiting site declares its operation next to
+ * The Smelter's awaited-operations list restates a fact the code owns (which
+ * operations it calls `busRequest` on); its gate is the build-time
+ * census beside the list: every awaiting site declares its operation next to
  * the call (a `*Awaits` alias, `satisfies`-tied to the literal), and a drift
- * between a list and its declarations fails COMPILATION with the operation
+ * between the list and its declarations fails COMPILATION with the operation
  * named. `busRequest`'s `isSubscribed` probe is
- * the runtime backstop for an await nobody declared.
+ * the runtime backstop for an await nobody declared, and for any await in
+ * the Librarian: its transport delivers no reply, so the request is refused
+ * at once as `bus.unsubscribed`.
  */
 
 import { replyChannelsFor, type BusOperationKey, type EventMap } from '@semiont/core';
-import type { AnchoredTextAskAwaits } from './anchored-text-ask';
 import type {
   SmelterResourceReadAwaits,
   SmelterAnnotationsReadAwaits,
@@ -98,8 +100,8 @@ export const RETRIEVAL_HANDLER_CHANNELS = [
  * SIGNALS the local folds consume (`weave:applied` for the graph grace,
  * `smelt:settled` for the settle barrier). Signals have no BUS_OPERATIONS
  * entries, so the outbound derivation ignores them and nothing echoes. The
- * Librarian's transport subscribes this set plus `LIBRARIAN_REPLY_CHANNELS`
- * below, the replies to the one read it awaits.
+ * Librarian's transport subscribes exactly this set: it awaits no reply
+ * over the bus.
  */
 export const LIBRARIAN_INBOUND_CHANNELS = [
   ...MATCHER_CHANNELS,
@@ -113,25 +115,3 @@ export const LIBRARIAN_INBOUND_CHANNELS = [
 /** Every reply channel the Librarian's outbound pump forwards — derived over the inbound set. */
 export const LIBRARIAN_OUTBOUND_CHANNELS: readonly (keyof EventMap)[] =
   replyChannelsFor(LIBRARIAN_INBOUND_CHANNELS);
-
-/**
- * The operations the Librarian awaits replies to: the anchored-text ask
- * behind gather's text dispatcher (derived text for `pdf-text-layer` media,
- * answered by the Archivist).
- */
-export const LIBRARIAN_AWAITED_OPERATIONS = [
-  'browse:anchored-text-requested',
-] as const satisfies readonly BusOperationKey[];
-
-/** The Librarian transport's awaited-reply SSE channels, beyond its inbound roster. */
-export const LIBRARIAN_REPLY_CHANNELS: readonly (keyof EventMap)[] =
-  replyChannelsFor(LIBRARIAN_AWAITED_OPERATIONS);
-
-type DeclaredLibrarianAwaits = AnchoredTextAskAwaits;
-type LibrarianAwaitCensusDrift =
-  | Exclude<DeclaredLibrarianAwaits, (typeof LIBRARIAN_AWAITED_OPERATIONS)[number]>
-  | Exclude<(typeof LIBRARIAN_AWAITED_OPERATIONS)[number], DeclaredLibrarianAwaits>;
-/** The build-time census gate — see the header. Drift names the operation. */
-export const librarianAwaitCensus: [LibrarianAwaitCensusDrift] extends [never]
-  ? 'in-census'
-  : LibrarianAwaitCensusDrift = 'in-census';

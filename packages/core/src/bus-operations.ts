@@ -40,7 +40,6 @@ export const BUS_OPERATIONS = {
 
   // ── BROWSE (reads) ──────────────────────────────────────────────
   'browse:resource-requested':           { result: 'browse:resource-result',         failure: 'browse:resource-failed' },
-  'browse:anchored-text-requested':      { result: 'browse:anchored-text-result',    failure: 'browse:anchored-text-failed' },
   'browse:resources-requested':          { result: 'browse:resources-result',        failure: 'browse:resources-failed' },
   'browse:annotation-requested':         { result: 'browse:annotation-result',       failure: 'browse:annotation-failed' },
   'browse:annotations-requested':        { result: 'browse:annotations-result',      failure: 'browse:annotations-failed' },
@@ -124,7 +123,6 @@ export type BusOperationKey = keyof typeof BUS_OPERATIONS;
 export const REPLY_NAMES = {
   'bind:update-body':                    [],
   'browse:resource-requested':           [],
-  'browse:anchored-text-requested':      [],
   'browse:resources-requested':          [],
   'browse:annotation-requested':         [],
   'browse:annotations-requested':        [],

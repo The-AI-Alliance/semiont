@@ -1,6 +1,6 @@
 'use client';
 
-import type { JobId, ResourceId } from '@semiont/core';
+import type { AnchoredTextAnswer, JobId, ResourceId } from '@semiont/core';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { readyValue, type SemiontSession, type YieldOutcome } from '@semiont/sdk';
@@ -93,7 +93,7 @@ export function ResourceInfoPanel({
   // row renders the wire's own vocabulary, translated; `unknown` and
   // not-yet-asked render NO row: no claim, no invented state. The bridged
   // settle for THIS resource refreshes in place.
-  const [textLayerKind, setTextLayerKind] = useState<'extracted' | 'declined' | 'not-yet' | 'no-map' | 'unknown' | null>(null);
+  const [textLayerKind, setTextLayerKind] = useState<AnchoredTextAnswer['kind'] | null>(null);
   const refreshTextLayer = useCallback(() => {
     if (!session) return;
     session.client.browse.resourceAnchoredText(resourceId).then(

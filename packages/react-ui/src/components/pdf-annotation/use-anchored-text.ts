@@ -2,7 +2,7 @@
 
 import type { ResourceId } from '@semiont/core';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AnchoredText } from '@semiont/core';
+import type { AnchoredText, AnchoredTextAnswer } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
 
 /**
@@ -11,14 +11,14 @@ import type { SemiontSession } from '@semiont/sdk';
  * has not produced the map, but it intends to. `declined`, `no-map` and
  * `unknown` are terminal answers — asking again cannot change them.
  */
-export type AnchoredKind = 'extracted' | 'declined' | 'not-yet' | 'no-map' | 'unknown';
+export type AnchoredKind = AnchoredTextAnswer['kind'];
 
 /** The bounded re-ask schedule while the answer is `not-yet`. */
 export const ANCHORED_RETRY_LADDER_MS = [5_000, 15_000, 45_000] as const;
 
 export interface AnchoredTextState {
-  /** The last settled answer's kind. Null until a scanned page first asks —
-   *  text documents never ask and are never gated. */
+  /** The last settled answer's kind. Null until the first ask is answered:
+   *  every page of every PDF asks when it loads, so no PDF is exempt. */
   anchoredKind: AnchoredKind | null;
   /** Bumped when a re-ask LANDS the map, so mounted pages re-resolve. The gate
    *  opening onto a page still holding no map would mint exactly the mute
@@ -26,9 +26,12 @@ export interface AnchoredTextState {
   anchoredEpoch: number;
   /** Annotate defers on `not-yet` — and ONLY on `not-yet`. The quote is
    *  captured at creation, so an annotation drawn before the map lands is
-   *  permanently mute; waiting buys a strictly better annotation. */
+   *  permanently mute; waiting buys a strictly better annotation. Any PDF can
+   *  be waiting, not only a scan: the map is the one source of a quote, and a
+   *  document just uploaded has none until the Smelter has read it. */
   annotateDeferred: boolean;
-  /** Request the map, served from a per-resource cache. */
+  /** Request the map, served from a per-resource cache. Never rejects: a
+   *  failed ask resolves null, as an answer that carries no map does. */
   fetchResourceAnchored: () => Promise<AnchoredText | null>;
 }
 

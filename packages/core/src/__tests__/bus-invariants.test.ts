@@ -58,7 +58,6 @@ import { PERSISTED_EVENT_TYPES } from '../persisted-events';
 const FROZEN_BRIDGED = [
   'browse:resources-result', 'browse:resources-failed',
   'browse:resource-result', 'browse:resource-failed',
-  'browse:anchored-text-result', 'browse:anchored-text-failed',
   'browse:annotations-result', 'browse:annotations-failed',
   'browse:annotation-result', 'browse:annotation-failed',
   'browse:annotation-history-result', 'browse:annotation-history-failed',

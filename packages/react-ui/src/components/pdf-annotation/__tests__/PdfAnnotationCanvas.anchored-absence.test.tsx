@@ -4,9 +4,9 @@
  * `AnchoredTextAnswer` names retryability in the kind itself — `not-yet` means
  * the Smelter has not settled this content generation and the caller should
  * come back; `no-map`, `unknown` and `declined` are definitive. A per-document
- * cache that treats ALL of them as definitive leaves a scan opened mid-smelt
- * mapless for the whole mount: every annotation drawn on it permanently mute,
- * even once the map exists.
+ * cache that treats ALL of them as definitive leaves a document opened
+ * mid-smelt mapless for the whole mount: every annotation drawn on it
+ * permanently mute, even once the map exists.
  *
  * Driven through page navigation: each page load asks the parent for the map,
  * so "the cache does not pin `not-yet`" is observable as one ask PER LOAD,
@@ -18,6 +18,7 @@ import { renderInEnglish } from '../../../test-utils';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { resourceId } from '@semiont/core';
+import type { AnchoredTextAnswer } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
 
 vi.mock('../../../lib/browser-pdfjs', () => ({
@@ -25,8 +26,6 @@ vi.mock('../../../lib/browser-pdfjs', () => ({
     numPages: 2,
     getPage: vi.fn().mockResolvedValue({
       getViewport: vi.fn().mockReturnValue({ width: 612, height: 792, scale: 1.0, rotation: 0 }),
-      // Scanned pages: no text runs, so every page load asks for the map.
-      getTextContent: vi.fn().mockResolvedValue({ items: [] }),
     }),
   }),
   renderPdfPageToDataUrl: vi.fn().mockResolvedValue({
@@ -39,7 +38,10 @@ vi.mock('../../../lib/browser-pdfjs', () => ({
 import { renderPdfPageToDataUrl } from '../../../lib/browser-pdfjs';
 import { PdfAnnotationCanvas } from '../PdfAnnotationCanvas';
 
-function sessionAnswering(answer: Record<string, unknown>) {
+/** The map of a document that has text; what it says is not at issue here. */
+const EXTRACTED: AnchoredTextAnswer = { kind: 'extracted', method: 'pdf-text-layer', text: '', items: [] };
+
+function sessionAnswering(answer: AnchoredTextAnswer) {
   const resourceAnchoredText = vi.fn().mockResolvedValue(answer);
   const session = {
     client: { browse: { resourceAnchoredText } },
@@ -91,7 +93,7 @@ describe('PdfAnnotationCanvas — the anchored cache honors retryability', () =>
   });
 
   test('a stored decline is definitive: one ask per mount', async () => {
-    const { session, resourceAnchoredText } = sessionAnswering({ kind: 'declined', reason: 'no-text-layer' });
+    const { session, resourceAnchoredText } = sessionAnswering({ kind: 'declined', declined: 'no-text-layer' });
 
     await renderAndVisitBothPages(session);
 
@@ -125,7 +127,7 @@ describe('PdfAnnotationCanvas — the anchored cache honors retryability', () =>
     });
 
     test('`extracted` defers nothing', async () => {
-      const { session } = sessionAnswering({ kind: 'extracted', pages: [] });
+      const { session } = sessionAnswering(EXTRACTED);
       renderInEnglish(
         <PdfAnnotationCanvas
           resourceUri={resourceId(String(resourceId('123')))}
@@ -159,11 +161,11 @@ describe('PdfAnnotationCanvas — the anchored cache honors retryability', () =>
     test('the flip: a later `extracted` answer enables Annotate without a remount', async () => {
       const resourceAnchoredText = vi.fn()
         .mockResolvedValueOnce({ kind: 'not-yet' })
-        .mockResolvedValue({ kind: 'extracted', pages: [] });
+        .mockResolvedValue(EXTRACTED);
       const session = {
-    client: { browse: { resourceAnchoredText } },
-    subscribe: () => () => {},
-  } as unknown as SemiontSession;
+        client: { browse: { resourceAnchoredText } },
+        subscribe: () => () => {},
+      } as unknown as SemiontSession;
       renderInEnglish(
         <PdfAnnotationCanvas
           resourceUri={resourceId(String(resourceId('123')))}

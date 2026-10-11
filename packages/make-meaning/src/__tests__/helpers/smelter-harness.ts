@@ -227,6 +227,9 @@ export function createContentTransport(opts: {
     async getResourceGraph(): Promise<never> {
       throw new Error('not used in tests');
     },
+    async getAnchoredText(): Promise<never> {
+      throw new Error('not used in tests');
+    },
     dispose() {},
   };
 }

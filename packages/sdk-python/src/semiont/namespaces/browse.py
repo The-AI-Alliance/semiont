@@ -21,19 +21,13 @@ from semiont.errors import SemiontError, TransportError
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.namespaces.links import Links
 from semiont.namespaces.live import LIMITS_HOLDERS, WHOLE, Live, ResourceFilters
-from semiont.operations import (
-    BROWSE_ANCHORED_TEXT_REQUESTED,
-    BROWSE_ANNOTATION_HISTORY_REQUESTED,
-    BROWSE_DIRECTORY_REQUESTED,
-    BROWSE_KB_REQUESTED,
-)
+from semiont.operations import BROWSE_ANNOTATION_HISTORY_REQUESTED, BROWSE_DIRECTORY_REQUESTED, BROWSE_KB_REQUESTED
 from semiont.transport import Content, ContentStream, ContentTransport, ResourceHold
 from semiont.types import (
     AgentSoftware,
     AnchoredTextAnswer,
     Annotation,
     AttributedEvent,
-    BrowseAnchoredTextRequest,
     BrowseAnnotationHistoryRequest,
     BrowseClickEvent,
     BrowseDirectoryRequest,
@@ -419,9 +413,8 @@ class BrowseNamespace:
         return await self._content.get_resource_graph(resource_id)
 
     async def resource_anchored_text(self, resource_id: ResourceId) -> AnchoredTextAnswer:
-        """A resource's recovered text and the runs that index it, or the named reason there is none."""
-        answer = await self._links.request(BROWSE_ANCHORED_TEXT_REQUESTED, BrowseAnchoredTextRequest(resource_id=resource_id))
-        return answer.response
+        """A resource's anchored text: the text of its content with where each run is on a page, a stored decline, or why there is none."""
+        return await self._content.get_anchored_text(resource_id)
 
     async def resource_representation(self, resource_id: ResourceId) -> Content:
         """A resource's bytes, unchanged, with their media type."""

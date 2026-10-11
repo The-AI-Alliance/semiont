@@ -1,6 +1,7 @@
 //! Bytes in and out, through the Archivist: an upload is forwarded to it
 //! whole; the pipe serves a representation's bytes verbatim, never
-//! negotiated or transcoded; the JSON-LD description is its answer.
+//! negotiated or transcoded; the JSON-LD description is its answer, and so
+//! is a resource's anchored text, passed through unread.
 
 use crate::app::App;
 use crate::http::{ApiError, Authenticated, MediaOrBearer, ResourcePath, json_response};
@@ -136,5 +137,29 @@ pub async fn description(
     response
         .headers_mut()
         .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
+    Ok(response)
+}
+
+/// `GET /resources/{id}/anchored-text`: the Archivist's answer, as it
+/// arrives. An answer of `not-yet` becomes the text: never cached.
+pub async fn anchored_text(
+    State(app): State<Arc<App>>,
+    Authenticated(_): Authenticated,
+    ResourcePath(id): ResourcePath,
+    headers: HeaderMap,
+) -> Result<Response, ApiError> {
+    use opentelemetry::context::FutureExt;
+    let body = app
+        .archivist
+        .anchored_text(&id)
+        .with_context(caller_trace(&headers))
+        .await?;
+    let mut response = Response::new(body);
+    let out = response.headers_mut();
+    out.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/json"),
+    );
+    out.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
     Ok(response)
 }

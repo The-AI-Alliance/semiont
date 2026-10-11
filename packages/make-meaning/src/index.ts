@@ -31,7 +31,7 @@ export {
 
 // Context assembly
 export { ResourceContext } from './resource-context';
-export { anchoredTextOverBus } from './anchored-text-ask';
+export { anchoredTextOverContent } from './anchored-text-ask';
 export type { AnchoredTextAsk } from './anchored-text-ask';
 export { AnnotationContext } from './annotation-context';
 export { AnnotationGather } from './annotation-gather';

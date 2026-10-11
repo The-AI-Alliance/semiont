@@ -3,12 +3,7 @@
 import type { ResourceId } from '@semiont/core';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Annotation, AnchorRect, AnchoredText } from '@semiont/core';
-import {
-  createFragmentSelector,
-  anchorRuns,
-  isTextRun,
-  textUnder,
-} from '@semiont/core';
+import { createFragmentSelector, textUnder } from '@semiont/core';
 import { createHoverHandlers, type SemiontSession } from '@semiont/sdk';
 import { toViewportAnchorRect } from '../../lib/anchor-rect';
 import { rectsForPage } from './rects-for-page';
@@ -55,25 +50,31 @@ interface PdfPageViewProps {
   hoveredAnnotationId?: string | null;
   selectedAnnotationId?: string | null;
   hoverDelayMs: number;
-  /** The document-wide server map, fetched once per resource by the parent. */
+  /** The document's anchored text as Semiont serves it, fetched once per
+   *  resource by the parent. Null when there is none to quote from. Never
+   *  rejects: the parent answers a failed ask with null. */
   fetchResourceAnchored: () => Promise<AnchoredText | null>;
   /** Re-resolve trigger: bumped when a retry lands the map. */
   anchoredEpoch: number;
 }
 
 /**
- * One rendered page: its raster, its text map, its annotation overlay, and
- * the drag that draws on it.
+ * One rendered page: its raster, the text map its rectangles are quoted from,
+ * its annotation overlay, and the drag that draws on it.
  *
  * Everything a page needs lives HERE rather than in the parent, which is what
  * makes a scrolling column possible: mounting a page loads it, and unmounting
  * releases it. The raster is a data-URL string, so the last reference going
  * away IS the memory release — no eviction bookkeeping, no object-URL revoke.
  * The drag lives here too because it needs this page's display dimensions and
- * this page's text; a drag can no more span pages than a rectangle can.
+ * the text under it; a drag can no more span pages than a rectangle can.
+ *
+ * pdf.js draws the page and is never asked for its text. The text comes from
+ * Semiont, for every page: the Smelter derived it, and reading it a second
+ * way here would be a second answer to what a rectangle quotes.
  *
  * @emits browse:click - Annotation clicked on the page. Payload: { annotationId: string, anchorRect?: AnchorRect }
- * @emits mark:requested - New annotation drawn on the page. Payload: { source: ResourceId, selector: [FragmentSelector, TextQuoteSelector?], motivation: SelectionMotivation } — the quote is the text under the rectangle, omitted when the page has no text layer
+ * @emits mark:requested - New annotation drawn on the page. Payload: { source: ResourceId, selector: [FragmentSelector, TextQuoteSelector?], motivation: SelectionMotivation } — the quote is the text under the rectangle, omitted when there is none
  * @emits beckon:hover - Annotation hovered or unhovered. Payload: { annotationId: string | null }
  */
 export function PdfPageView({
@@ -94,11 +95,16 @@ export function PdfPageView({
   const [pageImageUrl, setPageImageUrl] = useState<string | null>(null);
   const [pageDimensions, setPageDimensions] = useState<{ width: number; height: number } | null>(null);
   /**
-   * This page's text and per-run geometry, read once when the page loads so a
-   * drag can be quoted without a round trip. Null while loading; `items` is
-   * empty on a scanned page, which has no text layer for the browser to read.
+   * The DOCUMENT's text and per-run geometry, held from when the page loads so
+   * a drag can be quoted without a round trip. Not this page's alone: offsets
+   * run over the whole document and each run names its page, which is how
+   * `textUnder` finds the ones under a rectangle here.
+   *
+   * Null until the answer arrives, and for good when there is no text to
+   * serve — no map, an unknown resource, a stored decline — or the ask
+   * failed. A rectangle drawn then is annotated with its geometry alone.
    */
-  const [pageAnchored, setPageAnchored] = useState<AnchoredText | null>(null);
+  const [anchored, setAnchored] = useState<AnchoredText | null>(null);
   const [displayDimensions, setDisplayDimensions] = useState<{ width: number; height: number } | null>(null);
   /** Translation KEY, not text: `t` is a new closure each render, so keeping
    *  it out of the load effect's deps is what stops a reload loop. */
@@ -113,43 +119,6 @@ export function PdfPageView({
   useEffect(() => {
     let cancelled = false;
 
-    /**
-     * The map a rectangle on this page quotes from, or null when there is
-     * none to be had.
-     *
-     * Never rejects, which is what lets the render run alongside it: quoting
-     * is the optional half of loading a page, so a failure here degrades to
-     * geometry-only rather than reaching the caller's error path. It is also
-     * the only reason starting it un-awaited below is safe — a failed render
-     * leaves this promise dangling, and only the render can reject.
-     */
-    async function resolveAnchored(page: Awaited<ReturnType<typeof doc.getPage>>): Promise<AnchoredText | null> {
-      try {
-        // The page's text layer, read once here rather than at drag time —
-        // `handleMouseUp` stays synchronous, and a native page costs nothing
-        // extra since pdf.js already parsed it to draw the page.
-        const runs = (await page.getTextContent()).items.filter(isTextRun);
-        if (runs.length > 0) return anchorRuns(runs, pageNumber);
-
-        // No runs means a scanned page: the characters exist only as pixels
-        // and pdf.js has nothing to give. The server derived a map at ingest,
-        // so ask for it rather than leaving the annotation anonymous.
-        // Whole-resource — served once per document by the parent's cache —
-        // and `textUnder` filters by page: the same shape the native branch
-        // produces, so nothing downstream branches.
-        //
-        // `null` is the ordinary answer for a document that has no map and
-        // never will; a failure is equally non-fatal. Either way the
-        // annotation ships with geometry only. The served record is the full
-        // extraction outcome; a stored decline means extraction ran and found
-        // nothing to anchor — for this canvas the same degradation as no map
-        // at all.
-        return await fetchResourceAnchored();
-      } catch {
-        return null;
-      }
-    }
-
     async function loadPage() {
       try {
         const page = await doc.getPage(pageNumber);
@@ -160,21 +129,22 @@ export function PdfPageView({
         setPageDimensions({ width: viewport.width, height: viewport.height });
 
         // Anchoring and rendering are independent, and only one of them the
-        // reader is waiting on. They start together, and the image is set the
-        // moment the render resolves — a `Promise.all` here would put the
-        // OPTIONAL half (the anchored map, a network fetch on exactly the
-        // scanned documents that need it most) in front of the pixels, so a
-        // slow or unanswered map request would hold a finished render off the
-        // screen. The map lands whenever it lands; anchoring "never rejects"
-        // covers its failures, and only the render can reach the catch below.
-        const anchoredPromise = resolveAnchored(page);
+        // reader is waiting on. They start together and each lands when it
+        // lands. A `Promise.all` here would put the OPTIONAL half (the
+        // anchored map, a network fetch the server may hold while the Smelter
+        // is still reading the document) in front of the pixels, so a slow or
+        // unanswered map request would hold a finished render off the screen.
+        // Setting the map only after the render would do the reverse on a
+        // re-resolve: the page is already drawn and Annotate already open, so
+        // a rectangle drawn while it re-rendered would go without its quote.
+        // The map's promise never rejects, so only the render can reach the
+        // catch below.
+        void fetchResourceAnchored().then((served) => {
+          if (!cancelled) setAnchored(served);
+        });
         const { dataUrl } = await renderPdfPageToDataUrl(page, scale);
         if (cancelled) return;
         setPageImageUrl(dataUrl);
-
-        const anchored = await anchoredPromise;
-        if (cancelled) return;
-        setPageAnchored(anchored);
       } catch (err) {
         if (cancelled) return;
 
@@ -348,10 +318,11 @@ export function PdfPageView({
 
     // What the box was drawn around. Without it the annotation is a rectangle
     // with no memory of its own content: the panel entry is blank, search over
-    // annotation text misses it, and an export has nothing to print. Empty on a
-    // scanned page or over an image — emit no quote at all rather than an empty
-    // one, which would assert the box was drawn around nothing.
-    const quoted = pageAnchored ? textUnder(pageAnchored, pdfCoord) : '';
+    // annotation text misses it, and an export has nothing to print. Empty in
+    // a document with no text, and over an image or a margin — emit no quote
+    // at all rather than an empty one, which would assert the box was drawn
+    // around nothing.
+    const quoted = anchored ? textUnder(anchored, pdfCoord) : '';
 
     // Emit annotation:requested event with FragmentSelector
     if (selectedMotivation) {
@@ -374,7 +345,7 @@ export function PdfPageView({
     setIsDrawing(false);
     // Note: We keep selection so the preview remains visible
     // It will be cleared when drawingMode changes or user starts new selection
-  }, [isDrawing, selection, pageNumber, pageDimensions, displayDimensions, selectedMotivation, existingAnnotations, session, resourceUri, pageAnchored]);
+  }, [isDrawing, selection, pageNumber, pageDimensions, displayDimensions, selectedMotivation, existingAnnotations, session, resourceUri, anchored]);
 
   // Every FragmentSelector rect on this page — one per line for a multi-line
   // (multi-selector) annotation, exactly one for a manual annotation.

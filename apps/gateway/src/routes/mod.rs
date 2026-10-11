@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 type Route = (&'static str, &'static str, fn() -> MethodRouter<Arc<App>>);
 
-const ROUTES: [Route; 14] = [
+const ROUTES: [Route; 15] = [
     ("GET", "/", || get(meta::health)),
     ("GET", "/api/health", || get(meta::health)),
     ("GET", "/api/openapi.json", || get(meta::openapi)),
@@ -32,6 +32,9 @@ const ROUTES: [Route; 14] = [
     ("GET", "/resources/{id}", || get(content::pipe)),
     ("GET", "/resources/{id}/jsonld", || {
         get(content::description)
+    }),
+    ("GET", "/resources/{id}/anchored-text", || {
+        get(content::anchored_text)
     }),
     ("GET", "/api/resources/{id}", || get(content::media_pipe)),
     ("POST", "/bus/emit", || post(bus::emit)),

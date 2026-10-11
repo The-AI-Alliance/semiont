@@ -30,7 +30,7 @@ Each of these is appended to the event log and delivered to clients:
 
 ## Rules
 
-**Bytes never ride the bus.** An upload is an HTTP request, and so is every read of content. The bus carries what happened to a resource, never the resource. See [what does not ride the bus](../EVENT-BUS.md#what-rides-the-bus-and-the-five-things-that-deliberately-do-not).
+**Bytes never ride the bus.** An upload is an HTTP request, and so is every read of content. The bus carries what happened to a resource, never the resource. See [what does not ride the bus](../EVENT-BUS.md#what-rides-the-bus-and-the-six-things-that-deliberately-do-not).
 
 **The emitter never names itself.** A resource's `creator` and `wasAttributedTo` are derived by the knowledge base from the verified identity of whoever made the request. For a generated resource the creator is whoever asked for the job, and the model that wrote it is its `generator`.
 
