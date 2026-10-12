@@ -70,7 +70,7 @@ A service that only searches the index is handed a reader. A reader has the
 three searches and nothing that writes, and it makes nothing in its index:
 connecting one to a Qdrant makes no collection. It is told no width and
 needs no provider to be made. A search of a collection that nobody has made
-yet answers nothing.
+yet fails, and says the collection is not there.
 
 ```python
 from semiont_vectors.qdrant import QdrantVectorReader

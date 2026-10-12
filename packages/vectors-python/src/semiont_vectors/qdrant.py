@@ -14,10 +14,10 @@ read from one) is `semiont_vectors.payload`'s to say.
 
 The reader makes nothing: no collection, no index of a payload member, no
 point. It searches as the store does, by the same requests, and is told no
-width. A search of a collection that is not there answers nothing, from the
-reader and from the store alike: a collection nobody has made yet holds no
-point, so no point is near. Only that answer of Qdrant's is read so. Every
-other failure of a search is raised.
+width. A search of a collection that is not there fails, from the reader and
+from the store alike, and says the collection is not there: a store makes
+its collections when it connects, so a reader that finds none has an index
+nobody has started yet, which is no answer to a search.
 
 Every write waits. Qdrant answers a write once it has saved it, and applies
 it afterwards, unless the request says `wait=true`. Each write here says it,
@@ -218,11 +218,6 @@ class _Counted(BaseModel, frozen=True):
 _BATCH: Final = TypeAdapter[list[_Found]](list[_Found])
 
 
-@final
-class _NoCollection(RuntimeError):
-    """Qdrant was asked to read a collection it does not have."""
-
-
 def _result(response: httpx.Response) -> JsonValue:
     """What Qdrant answered, out of the envelope every answer comes in.
 
@@ -240,13 +235,12 @@ def _result(response: httpx.Response) -> JsonValue:
 async def _read(client: httpx.AsyncClient, path: str, body: _Body) -> JsonValue:
     """What Qdrant answers a request that changes nothing: a count, a scroll, a query.
 
-    Each is asked of one collection. Raises `_NoCollection` where Qdrant
-    answers that it is not there, which a search reads as no point found and
-    everything else that reads leaves raised.
+    Each is asked of one collection. Where Qdrant answers that the collection
+    is not there, the failure says so in words: no store has made it yet.
     """
     response = await client.post(path, json=body)
     if response.status_code == _NOT_THERE:
-        raise _NoCollection(f"Qdrant answered {response.status_code} to POST {path}: {response.text}")
+        raise RuntimeError(f"Qdrant has no such collection (it answered {response.status_code} to POST {path}): no store has made it yet")
     return _result(response)
 
 
@@ -375,14 +369,6 @@ async def _search_alike(client: httpx.AsyncClient, resource_id: ResourceId, opti
     return merge_by_resource(hits)[:limit]
 
 
-async def _found_or_nothing(search: Awaitable[list[VectorSearchResult]]) -> list[VectorSearchResult]:
-    """What a search found, and nothing where its collection is not there: no point is near in an index nobody has made."""
-    try:
-        return await search
-    except _NoCollection:
-        return []
-
-
 def _stamps(limit: int) -> _Body:
     """A scroll's body that asks for what a stamp is read from, and for no vector."""
     members: list[JsonValue] = [*STAMP_MEMBERS]
@@ -426,15 +412,15 @@ class _QdrantSearches(VectorReader):
 
     @override
     async def search_resources(self, embedding: Sequence[float], options: SearchOptions) -> list[VectorSearchResult]:
-        return await _found_or_nothing(_search(self._reached(), _RESOURCES, embedding, options))
+        return await _search(self._reached(), _RESOURCES, embedding, options)
 
     @override
     async def search_annotations(self, embedding: Sequence[float], options: SearchOptions) -> list[VectorSearchResult]:
-        return await _found_or_nothing(_search(self._reached(), _ANNOTATIONS, embedding, options))
+        return await _search(self._reached(), _ANNOTATIONS, embedding, options)
 
     @override
     async def search_by_resource(self, resource_id: ResourceId, options: SearchOptions) -> list[VectorSearchResult]:
-        return await _found_or_nothing(_search_alike(self._reached(), resource_id, options))
+        return await _search_alike(self._reached(), resource_id, options)
 
 
 @final

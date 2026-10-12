@@ -21,8 +21,9 @@ with exactly its `payload`, and that the collections are as that table's
 
 The Qdrant reader is held here too: that connecting it makes no collection,
 by the collections the Qdrant then says it has; that a search of a
-collection that is not there answers nothing; that it finds what a store
-wrote; and that a search which fails for any other reason is raised.
+collection that is not there fails, says so, and makes none; that it finds
+what a store wrote; and that a search which fails for another reason is
+raised as Qdrant answered it.
 """
 
 import os
@@ -248,16 +249,19 @@ def test_a_reader_that_connects_makes_no_collection() -> None:
     run(whole())
 
 
-def test_a_search_of_a_collection_that_is_not_there_answers_nothing_and_makes_none() -> None:
+def test_a_search_of_a_collection_that_is_not_there_fails_saying_so_and_makes_none() -> None:
     async def whole() -> None:
         await cleared()
         before = await collections()
         reading = reader()
         await reading.connect()
         try:
-            assert await reading.search_resources([1.0, 0.0], FIVE) == []
-            assert await reading.search_annotations([1.0, 0.0], FIVE) == []
-            assert await reading.search_by_resource(ResourceId("res-a"), FIVE) == []
+            with pytest.raises(RuntimeError, match=r"no such collection"):
+                await reading.search_resources([1.0, 0.0], FIVE)
+            with pytest.raises(RuntimeError, match=r"no such collection"):
+                await reading.search_annotations([1.0, 0.0], FIVE)
+            with pytest.raises(RuntimeError, match=r"no such collection"):
+                await reading.search_by_resource(ResourceId("res-a"), FIVE)
             assert await collections() == before
         finally:
             await reading.disconnect()
@@ -303,7 +307,7 @@ def test_a_reader_finds_what_a_store_wrote() -> None:
     run(whole())
 
 
-def test_a_search_that_fails_for_any_other_reason_is_raised() -> None:
+def test_a_search_that_fails_for_another_reason_is_raised_as_qdrant_answered_it() -> None:
     # The collections are there, as wide as two numbers. A vector of three is one the Qdrant refuses, and
     # that is no answer of a collection that is not there.
     async def whole() -> None:
