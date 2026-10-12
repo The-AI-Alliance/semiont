@@ -21,9 +21,11 @@ interface ([harness/qdrant.ts](../harness/qdrant.ts)), and never through the
 store a Smelter writes with. What a point holds is stated by
 [`specs/src/vectors/payload-cases.json`](../../../specs/src/vectors/payload-cases.json);
 the collections' names, and the payload members a point is found by, are read
-from that table. The other suites' type check leaves this suite's files out
-(`tsconfig.json`), so an error in one of them is this suite's alone;
-`npm run test:smelter` checks them with `tsconfig.smelter.json`.
+from that table. The other suites' type check leaves this suite's cases and
+its world out (`tsconfig.json`), so an error in one of them is this suite's
+alone; `npm run test:smelter` checks them with `tsconfig.smelter.json`. Its
+setup stays in every suite's check: it declares what `vitest.config.ts`
+provides this suite.
 
 ## The world around a Smelter
 
