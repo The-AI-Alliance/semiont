@@ -32,7 +32,7 @@ interface Case {
   resource: string;
   graph: {
     resource: (ResourceDescriptor | null)[];
-    connections: { resource: ResourceDescriptor; relationshipType?: string; bidirectional: boolean }[];
+    connections: { resource: ResourceDescriptor; bidirectional: boolean }[];
     referencedBy: Annotation[];
     annotations: Annotation[];
   };

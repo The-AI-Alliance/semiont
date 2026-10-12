@@ -19,9 +19,9 @@ from typing import Final, final
 
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.types import GatheredContext, GatheredContextFocusAnnotation, GraphResourceNode
+from semiont_service.white_space import WHITE_SPACE
 
 from semiont_worker.log import LOG
-from semiont_worker.white_space import WHITE_SPACE
 
 _ID: Final = f"[^{re.escape(''.join(sorted(WHITE_SPACE)))}\\[\\]/]+"
 """An id, as a token writes one: one or more characters, none of them white space, `[`, `]` or `/`."""

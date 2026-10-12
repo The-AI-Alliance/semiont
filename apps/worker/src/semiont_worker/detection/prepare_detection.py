@@ -34,9 +34,9 @@ from semiont.types import (
     ExtractionDeclinedDeclined,
     Motivation,
 )
+from semiont_service.white_space import trimmed
 
 from semiont_worker.processors import BuildAnnotation
-from semiont_worker.white_space import trimmed
 
 type ReadText = Callable[[ResourceId], Awaitable[str]]
 """How a detection reads a resource's bytes as text: the client's `browse.resource_content`, on the gateway, as the worker's agent."""

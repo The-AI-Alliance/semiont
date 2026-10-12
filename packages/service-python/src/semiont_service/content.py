@@ -1,12 +1,12 @@
-"""A resource's bytes, as a Smelter reads them: what it asks, and what it is answered.
+"""A resource's bytes, as a service reads them: what it asks, and what it is answered.
 
-A Smelter reads the bytes of a resource's stored representation as they are
+A service reads the bytes of a resource's stored representation as they are
 stored, with the content type they are stored under
-(`docs/protocol/SMELTER.md` § What it follows). The checksum it works by is
-of exactly those bytes, so whatever reads them changes none.
+(`specs/src/archivist/openapi.json`). A checksum the record states is of
+exactly those bytes, so whatever reads them changes none.
 
-What reads them is behind this protocol. The Smelter is handed a reader, and
-knows no address.
+What reads them is behind this protocol. A service is handed a reader, and
+what it does with the bytes knows no address.
 """
 
 from dataclasses import dataclass
@@ -30,8 +30,8 @@ class Content:
 class ContentUnread(Exception):
     """A resource's bytes could not be read: nothing answered, or what answered gave none.
 
-    It says nothing of the bytes. A Smelter decides nothing of a resource it
-    could not read (`docs/protocol/SMELTER.md` § What it decides).
+    It says nothing of the bytes. What follows for a resource that could not
+    be read is the service's to say, in its protocol's page.
     """
 
 

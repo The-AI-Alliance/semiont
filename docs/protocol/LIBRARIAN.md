@@ -297,9 +297,8 @@ states each build as what the stores answer and the graph that follows, or the
 failure, and is the rule.
 
 - **The first node is the resource. Then each of its connections is a node
-  and an edge from the resource to it,** the edge's `type` the connection's
-  relationship type, or `link` where it has none, with the connection's
-  `bidirectional` flag.
+  and an edge from the resource to it,** the edge's `type` `link`, with the
+  connection's `bidirectional` flag.
   *Held by `packages/make-meaning/src/__tests__/knowledge-graph-cases.test.ts`, and by `librarian/gather`, for the resource first and a resource a reference links to.*
 - **Then each annotation elsewhere that refers to the resource:** its citing
   resource is a node, named and typed by its view, or named by its id and

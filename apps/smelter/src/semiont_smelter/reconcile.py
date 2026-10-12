@@ -16,7 +16,7 @@ Smelter writes the other two. A plan compares them as text.
 is stated once.
 
 **An annotation quotes text when its quote has a character that is not white
-space**, and white space is Unicode's (`semiont_smelter.white_space`).
+space**, and white space is Unicode's (`semiont_service.white_space`).
 """
 
 from collections.abc import Collection, Iterable, Mapping
@@ -29,9 +29,8 @@ from semiont.identifiers import AnnotationId, ResourceId
 from semiont.media_types import text_source_of, yields_geometry_of
 from semiont.resources import primary_representation, resource_entity_types
 from semiont.types import Annotation, ResourceDescriptor, SmeltSettledReason
+from semiont_service.white_space import trimmed
 from semiont_vectors.store import ResourceStamp
-
-from semiont_smelter.white_space import trimmed
 
 __all__ = [
     "Embed",

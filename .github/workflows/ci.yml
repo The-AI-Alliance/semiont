@@ -1517,6 +1517,58 @@ jobs:
       - name: Run the tests
         run: uv run pytest
 
+  # The Librarian's Python code (apps/librarian), as the Python SDK is
+  # checked: both type checkers, strict, on the oldest Python supported, and
+  # the tests on every one. The locked environment takes the SDK, the graph
+  # stores, the vector stores and the inference drivers from this checkout.
+  # The tests run the Librarian's case tables of specs/ and its code over
+  # fakes of everything it reads by; they start no service and reach no
+  # database, no index and no model.
+  test-librarian-python:
+    name: Python Librarian
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.12', '3.13', '3.14']
+
+    defaults:
+      run:
+        working-directory: apps/librarian
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.2.0
+
+      - name: Install the locked environment
+        run: uv sync --locked
+
+      - name: Type-check with mypy (strict)
+        if: matrix.python-version == '3.12'
+        run: uv run mypy
+
+      # pyright runs on Node, which the runner has.
+      - name: Type-check with pyright (strict)
+        if: matrix.python-version == '3.12'
+        run: uv run pyright
+
+      - name: Lint and check formatting
+        if: matrix.python-version == '3.12'
+        run: |
+          uv run ruff check
+          uv run ruff format --check
+
+      - name: Run the tests
+        run: uv run pytest
+
   test-comprehensive:
     name: Comprehensive Test Suite
     runs-on: ubuntu-latest

@@ -14,7 +14,7 @@ import math
 from dataclasses import dataclass
 from typing import Final, final
 
-from semiont_smelter.white_space import trimmed
+from semiont_service.white_space import trimmed
 
 __all__ = ["Chunking", "Cut", "chunk_text", "cut_chunk", "estimate_tokens"]
 

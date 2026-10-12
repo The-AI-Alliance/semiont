@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "description": "One model a Librarian asks: who it is, and where its provider is reached.",
+  "properties": {
+    "agent": {
+      "$ref": "./ArchivistRosterRole.json"
+    },
+    "baseUrl": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The address the provider's API is reached at."
+    },
+    "apiKeyEnv": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The environment variable holding the provider's API key, when the provider requires one."
+    }
+  },
+  "required": [
+    "agent",
+    "baseUrl"
+  ],
+  "additionalProperties": false
+}

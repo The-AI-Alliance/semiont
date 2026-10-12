@@ -1,8 +1,10 @@
-"""Where a key is filed: the two directory names an entry of the anchored-text store is kept under.
+"""Where a key is filed: the two directory names a file of the record, or of what is kept beside it, is under.
 
-The arithmetic is the one every reader and writer of these files shares, in
-any language. `specs/src/archivist/shard-cases.json` states it, and the tests
-run every case of that table.
+A resource's view is filed by the resource's id, and an entry of the
+anchored-text store by the checksum of the bytes it was derived from. The
+arithmetic is the one every reader and writer of these files shares, in any
+language. `specs/src/archivist/shard-cases.json` states it, and the tests run
+every case of that table.
 """
 
 from typing import Final

@@ -1,14 +1,15 @@
-"""A resource's bytes, read from the Archivist: `GET /resources/{id}/content`, as the Smelter's service account.
+"""A resource's bytes, read from the Archivist: `GET /resources/{id}/content`, as the service's own account.
 
 The Archivist serves the bytes of a resource's stored representation as they
 are stored, under the content type they are stored with
 (`specs/src/archivist/openapi.json`). Nothing between changes them, so the
-checksum a Smelter takes of what it reads is the one the record states.
+checksum a service takes of what it reads is the one the record states.
 
 Whatever keeps the bytes from being read is a `ContentUnread`, which says
 what it was: the account could not sign in, the Archivist did not answer or
 answered with a failure, or it has no such bytes. A 404 says which half of
-the lookup failed, the resource or its bytes, and that is said too.
+the lookup failed, the resource or its bytes, and that is said too. A failure
+to sign in names the service by its one word, which it hands in.
 
 The token is the service account's own, kept and renewed by the SDK
 (`semiont.http.ServiceToken`), which is handed in. No request follows a
@@ -25,7 +26,7 @@ from semiont.errors import SemiontError
 from semiont.identifiers import ResourceId
 from semiont.types import RepresentationNotFound
 
-from semiont_smelter.content import Content, ContentReads, ContentUnread
+from semiont_service.content import Content, ContentReads, ContentUnread
 
 __all__ = ["ArchivistContent", "Authorizes"]
 
@@ -59,12 +60,13 @@ class Authorizes(Protocol):
 
 @final
 class ArchivistContent(ContentReads):
-    """The Archivist at `host` and `port`, asked as the service account `account` is.
+    """The Archivist at `host` and `port`, asked as the service account `account` is, for the service whose word is `service`.
 
     Held with `async with`: its connections are closed on the way out.
     """
 
-    def __init__(self, *, host: str, port: int, account: Authorizes) -> None:
+    def __init__(self, service: str, *, host: str, port: int, account: Authorizes) -> None:
+        self._service: Final = service
         self._origin: Final = f"http://{host}:{port}"
         self._account: Final = account
         self._client: httpx.AsyncClient | None = None
@@ -85,7 +87,9 @@ class ArchivistContent(ContentReads):
         try:
             authorization = await self._account.authorization()
         except SemiontError as failure:
-            raise ContentUnread(f"the bytes of {resource_id} were not asked for: the smelter could not sign in ({failure})") from failure
+            raise ContentUnread(
+                f"the bytes of {resource_id} were not asked for: the {self._service} could not sign in ({failure})"
+            ) from failure
         try:
             answer = await self._client.get(f"/resources/{resource_id}/content", headers={"Authorization": authorization})
         except httpx.HTTPError as failure:

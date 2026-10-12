@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.15'",
@@ -973,6 +973,7 @@ dev = [
 name = "semiont-service"
 source = { editable = "../../packages/service-python" }
 dependencies = [
+    { name = "httpx" },
     { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-otlp-proto-http" },
     { name = "opentelemetry-sdk" },
@@ -982,6 +983,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "httpx" },
     { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.30,<2" },
     { name = "opentelemetry-sdk", specifier = ">=1.30,<2" },
@@ -1001,7 +1003,6 @@ dev = [
 name = "semiont-smelter"
 source = { editable = "." }
 dependencies = [
-    { name = "httpx" },
     { name = "pydantic" },
     { name = "pypdfium2" },
     { name = "semiont" },
@@ -1020,7 +1021,6 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "httpx" },
     { name = "pydantic" },
     { name = "pypdfium2", specifier = ">=5.14,<6" },
     { name = "semiont", editable = "../../packages/sdk-python" },

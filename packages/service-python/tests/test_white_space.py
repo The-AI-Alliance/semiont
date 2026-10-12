@@ -9,7 +9,7 @@ import sys
 import unicodedata
 from collections.abc import Iterator
 
-from semiont_worker.white_space import WHITE_SPACE, trimmed
+from semiont_service.white_space import WHITE_SPACE, trimmed
 
 
 def every_character() -> Iterator[str]:
@@ -32,8 +32,8 @@ def test_python_s_own_white_space_is_these_and_four_separators_more() -> None:
 
 
 def test_a_text_is_trimmed_of_white_space_at_both_ends_and_nowhere_else() -> None:
-    assert trimmed("\t\u00a0 a\u2003b \u2029\n") == "a\u2003b"
-    assert trimmed(" \u3000 ") == ""
+    assert trimmed("\t  a b  \n") == "a b"
+    assert trimmed(" 　 ") == ""
     assert trimmed("") == ""
 
 

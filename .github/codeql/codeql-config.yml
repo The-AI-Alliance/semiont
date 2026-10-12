@@ -50,10 +50,11 @@ paths:
   - packages/graph-python/src
   - packages/vectors-python/src
   - packages/service-python/src
-  # The Worker service's, the Weaver's and the Smelter's Python code
+  # The Worker service's, the Weaver's, the Smelter's and the Librarian's Python code
   - apps/worker/src
   - apps/weaver/src
   - apps/smelter/src
+  - apps/librarian/src
 
 paths-ignore:
   - apps/launcher/testdata

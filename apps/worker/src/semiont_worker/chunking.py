@@ -10,7 +10,7 @@ import math
 from dataclasses import dataclass
 from typing import Final, final
 
-from semiont_worker.white_space import trimmed
+from semiont_service.white_space import trimmed
 
 CODE_POINTS_PER_TOKEN: Final = 4
 """About four code points to a token, for English text."""

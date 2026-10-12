@@ -275,6 +275,12 @@ __all__ = [
     "KnowledgeGraph",
     "KnowledgeGraphEdgesItem",
     "KnowledgeGraphNodesItem",
+    "LibrarianConfig",
+    "LibrarianConfigArchivist",
+    "LibrarianConfigGather",
+    "LibrarianConfigIdentity",
+    "LibrarianConfigSearch",
+    "LibrarianModelConfig",
     "LimitRefusal",
     "LimitRefusalCode",
     "LinkingJobParams",
@@ -3476,6 +3482,60 @@ class SmelterConfigChunking(WireModel, frozen=True, extra="forbid"):
     overlap: Annotated[int, Field(description="How much of a chunk the next one repeats.", ge=0)]
 
 
+class LibrarianConfigIdentity(WireModel, frozen=True, extra="forbid"):
+    """
+    The issuer the Librarian's service account signs in at.
+    """
+
+    issuer: Annotated[
+        str,
+        Field(
+            description="The issuer URL, exactly as tokens carry it in `iss`.",
+            min_length=1,
+        ),
+    ]
+
+
+class LibrarianConfigArchivist(WireModel, frozen=True, extra="forbid"):
+    """
+    Where the Archivist listens. The Librarian reads a resource's bytes from it, as its service account.
+    """
+
+    host: Annotated[str, Field(min_length=1)]
+    port: Annotated[int, Field(ge=1, le=65535)]
+
+
+class LibrarianConfigGather(WireModel, frozen=True, extra="forbid"):
+    """
+    The bound on a gather.
+    """
+
+    settle_timeout_ms: Annotated[
+        int,
+        Field(
+            alias="settleTimeoutMs",
+            description="How long a gather around a resource waits for the Smelter's decision on it before answering without similar passages, in milliseconds.",
+            ge=1,
+        ),
+    ]
+
+
+class LibrarianConfigSearch(WireModel, frozen=True, extra="forbid"):
+    """
+    The bound on a search by meaning.
+    """
+
+    semantic_floor: Annotated[
+        float,
+        Field(
+            alias="semanticFloor",
+            description="The least similarity a hit by meaning must have.",
+            ge=0.0,
+            le=1.0,
+        ),
+    ]
+
+
 class ArchivistConfigIdentity(WireModel, frozen=True, extra="forbid"):
     """
     The issuer the Archivist's service account signs in at, and whose tokens it admits callers of its HTTP surface by.
@@ -5640,6 +5700,30 @@ class SmelterConfig(WireModel, frozen=True, extra="forbid"):
     log_format: Annotated[LogFormat, Field(alias="logFormat")]
 
 
+class LibrarianModelConfig(WireModel, frozen=True, extra="forbid"):
+    """
+    One model a Librarian asks: who it is, and where its provider is reached.
+    """
+
+    agent: ArchivistRosterRole
+    base_url: Annotated[
+        str,
+        Field(
+            alias="baseUrl",
+            description="The address the provider's API is reached at.",
+            min_length=1,
+        ),
+    ]
+    api_key_env: Annotated[
+        str | None,
+        Field(
+            alias="apiKeyEnv",
+            description="The environment variable holding the provider's API key, when the provider requires one.",
+            min_length=1,
+        ),
+    ] = None
+
+
 class AnchoredTextExtractedEntry(WireModel, frozen=True, extra="forbid"):
     """
     The text extracted from the bytes, where each word is on the page, and how it was extracted.
@@ -6098,6 +6182,52 @@ class WorkerConfig(WireModel, frozen=True, extra="forbid"):
     port: Annotated[
         int,
         Field(description="The port the worker answers `/health` on.", ge=1, le=65535),
+    ]
+    log_level: Annotated[LogLevel, Field(alias="logLevel")]
+    log_format: Annotated[LogFormat, Field(alias="logFormat")]
+
+
+class LibrarianConfig(WireModel, frozen=True, extra="forbid"):
+    """
+    Everything a Librarian reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the Librarian. Whoever starts a Librarian writes it, from the environment the knowledge base's config selects, and the Librarian reads it from the path its `--config` flag names. This schema is the contract, and a Librarian needs no launcher. Started without `--config`, or with a path that names no file, the Librarian refuses to start and says which. No secret is a value here: the graph database's password, an embedding provider's key and a model provider's key are each named by the environment variable that holds it, and the Librarian's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` in its environment. A document that does not validate is refused at boot, naming each failing field.
+    """
+
+    gateway_url: Annotated[
+        str,
+        Field(
+            alias="gatewayUrl",
+            description="The URL the Librarian reaches the gateway at: its route to the bus.",
+            min_length=1,
+        ),
+    ]
+    identity: LibrarianConfigIdentity
+    archivist: LibrarianConfigArchivist
+    state_home: Annotated[
+        str,
+        Field(
+            alias="stateHome",
+            description="The state volume. The Archivist keeps the knowledge base's views and projections under `semiont/<name>` in it, where the name is the knowledge base's, and the Librarian reads them there.",
+            min_length=1,
+        ),
+    ]
+    kb_name: Annotated[
+        str,
+        Field(
+            alias="kbName",
+            description="The knowledge base's name, as its committed `.semiont/config` states it: the Archivist writes the views under `semiont/<kbName>` in the state volume.",
+            min_length=1,
+        ),
+    ]
+    graph: GraphConfig
+    vectors: VectorsConfig
+    embedding: EmbeddingConfig
+    matcher: LibrarianModelConfig
+    gatherer: LibrarianModelConfig
+    gather: LibrarianConfigGather
+    search: LibrarianConfigSearch
+    port: Annotated[
+        int,
+        Field(description="The port the Librarian answers `/health` on.", ge=1, le=65535),
     ]
     log_level: Annotated[LogLevel, Field(alias="logLevel")]
     log_format: Annotated[LogFormat, Field(alias="logFormat")]

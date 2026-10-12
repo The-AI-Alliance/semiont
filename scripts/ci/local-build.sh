@@ -409,7 +409,8 @@ fi
 # The inference drivers (packages/inference-python), the graph stores
 # (packages/graph-python), the vector stores (packages/vectors-python), the
 # service package (packages/service-python), the Worker (apps/worker), the
-# Weaver (apps/weaver) and the Smelter (apps/smelter) are Python projects with a
+# Weaver (apps/weaver), the Smelter (apps/smelter) and the Librarian
+# (apps/librarian) are Python projects with a
 # lockfile each and nothing generated from specs/src, so what can go stale in
 # them is the lockfile: a manifest changed without `uv lock`, in the project
 # or in a package of the repository it takes. CI's job for each refuses that first
@@ -420,7 +421,7 @@ fi
 
 banner "PYTHON LOCKFILE GATE"
 
-for PYTHON_PROJECT in packages/inference-python packages/graph-python packages/vectors-python packages/service-python apps/worker apps/weaver apps/smelter; do
+for PYTHON_PROJECT in packages/inference-python packages/graph-python packages/vectors-python packages/service-python apps/worker apps/weaver apps/smelter apps/librarian; do
   step "Checking ${PYTHON_PROJECT}/uv.lock against its manifests (in ${PYTHON_IMAGE})..."
   # Installing uv and checking report SEPARATELY, as above: a failed download
   # is not a stale lockfile.
@@ -447,8 +448,9 @@ for PYTHON_PROJECT in packages/inference-python packages/graph-python packages/v
     echo ""
     echo -e "  A project takes the SDK from this repository, and a service the package it"
     echo -e "  runs on too (the worker the inference drivers, the weaver the graph stores,"
-    echo -e "  the smelter the vector stores), so a change to one of their manifests is a"
-    echo -e "  change to its lockfile."
+    echo -e "  the smelter the vector stores, the librarian all three, and every service the"
+    echo -e "  service package), so a change to one of their manifests is a change to its"
+    echo -e "  lockfile."
     echo ""
     exit 1
   else

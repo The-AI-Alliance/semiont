@@ -4,8 +4,9 @@ Its public names are the ones its design lists, and no others. Hand-written
 code states no type by force: it has no `cast`, names no `Any`, and silences
 no checker. The HTTP client is named only by the modules that ask through
 it, and no type of it appears in either protocol. Every store has the
-members of a vector index and no others, and every provider the members of
-an embedding provider and no others. No store reads a clock. The package has
+members of a vector index and no others, a reader has its searches and
+nothing that writes, and every provider the members of an embedding
+provider and no others. No store reads a clock. The package has
 no extra: nothing it asks is asked through a library of the one it asks. And
 what this package's manifest says a second time, after the SDK's, says the
 same.
@@ -24,8 +25,8 @@ from semiont_vectors.embedding import EmbeddingProvider
 from semiont_vectors.memory import MemoryVectorStore
 from semiont_vectors.mock import MockEmbeddingProvider
 from semiont_vectors.ollama import OllamaEmbeddingProvider
-from semiont_vectors.qdrant import QdrantVectorStore
-from semiont_vectors.store import VectorStore
+from semiont_vectors.qdrant import QdrantVectorReader, QdrantVectorStore
+from semiont_vectors.store import VectorReader, VectorStore
 from semiont_vectors.voyage import VoyageEmbeddingProvider
 
 SRC = PACKAGE / "src/semiont_vectors"
@@ -39,6 +40,7 @@ SURFACE = {
         "ResourceStamp",
         "SearchFilter",
         "SearchOptions",
+        "VectorReader",
         "VectorSearchResult",
         "VectorStore",
     ],
@@ -57,7 +59,7 @@ SURFACE = {
     ],
     "merge": ["merge_by_resource"],
     "memory": ["MemoryVectorStore"],
-    "qdrant": ["QdrantVectorStore"],
+    "qdrant": ["QdrantVectorReader", "QdrantVectorStore"],
     "embedding": [
         "EMBED_ROUND_TRIP_SECONDS",
         "BatchPolicy",
@@ -69,7 +71,7 @@ SURFACE = {
     "ollama": ["OLLAMA_BATCH_POLICY", "OllamaEmbeddingProvider"],
     "voyage": ["VOYAGE_BATCH_POLICY", "VoyageEmbeddingProvider"],
     "mock": ["MockEmbeddingProvider", "deterministic_vector"],
-    "factory": ["create_embedding_provider", "create_vector_store"],
+    "factory": ["create_embedding_provider", "create_vector_reader", "create_vector_store"],
 }
 
 # The modules that say what a store and a provider are, and what they share: none knows of a store or a provider.
@@ -154,6 +156,17 @@ def test_a_store_has_the_members_of_a_vector_index_and_no_others() -> None:
     # Making a store dials nothing, and asks nobody how wide a vector is: each reaches its index when it is connected.
     assert public(MemoryVectorStore()) == members
     assert public(QdrantVectorStore(host="127.0.0.1", port=1, dimensions=never_asked)) == members
+
+
+def test_a_reader_has_the_searches_of_a_vector_index_and_nothing_that_writes() -> None:
+    members = public(VectorReader)
+    assert members == {"connect", "disconnect", "search_resources", "search_annotations", "search_by_resource"}
+    # A store is asked everything a reader is, so whatever is handed a reader can be handed a store.
+    assert members < public(VectorStore)
+    in_memory: VectorReader = MemoryVectorStore()
+    assert members < public(in_memory)
+    # Making a reader dials nothing, and it is told no width.
+    assert public(QdrantVectorReader(host="127.0.0.1", port=1)) == members
 
 
 def test_a_provider_has_the_members_of_an_embedding_provider_and_no_others() -> None:

@@ -2,9 +2,10 @@
 
 The Archivist's content route is `specs/src/archivist/openapi.json`'s: the
 bytes as they are stored, under the content type the record stores, or a 404
-that says which half of the lookup failed. Here is what the Smelter's reader
-asks, what it hands over of each answer, and that whatever keeps the bytes
-from being read is a `ContentUnread` that says what it was.
+that says which half of the lookup failed. Here is what the reader asks,
+what it hands over of each answer, and that whatever keeps the bytes from
+being read is a `ContentUnread` that says what it was, and names the service
+that could not sign in by the word the service handed in.
 """
 
 import asyncio
@@ -20,11 +21,13 @@ from aio import run
 from semiont.errors import SemiontError, SignInError
 from semiont.identifiers import ResourceId
 
-from semiont_smelter.archivist import ArchivistContent, Authorizes
-from semiont_smelter.content import Content, ContentUnread
+from semiont_service.archivist import ArchivistContent, Authorizes
+from semiont_service.content import Content, ContentUnread
 
 RESOURCE: Final = ResourceId("res-1")
-TOKEN: Final = "Bearer the-smelters-own-token"
+TOKEN: Final = "Bearer the-services-own-token"
+SERVICE: Final = "smelter"
+"""The word of the service that reads, where a test does not say another."""
 
 
 @final
@@ -114,7 +117,7 @@ async def read_of(says: Said, *, account: Account | None = None) -> tuple[Conten
     asking = Account() if account is None else account
     async with (
         PlayedArchivist(says) as archivist,
-        ArchivistContent(host="127.0.0.1", port=archivist.port, account=asking) as content,
+        ArchivistContent(SERVICE, host="127.0.0.1", port=archivist.port, account=asking) as content,
     ):
         return await content.read(RESOURCE), archivist
 
@@ -204,23 +207,26 @@ def test_an_archivist_that_hangs_up_or_is_not_there_is_unread() -> None:
     async def scenario() -> None:
         assert (await unread(Said(hang_up=True))).startswith("the Archivist did not answer for the bytes of res-1: ")
         # Nothing listens at this port.
-        async with ArchivistContent(host="127.0.0.1", port=1, account=Account()) as content:
+        async with ArchivistContent(SERVICE, host="127.0.0.1", port=1, account=Account()) as content:
             with pytest.raises(ContentUnread, match="the Archivist did not answer for the bytes of res-1: "):
                 await content.read(RESOURCE)
 
     run(scenario())
 
 
-def test_an_account_that_cannot_sign_in_is_unread_and_the_archivist_is_asked_nothing() -> None:
+@pytest.mark.parametrize("service", ["smelter", "librarian"])
+def test_an_account_that_cannot_sign_in_is_unread_names_the_service_and_the_archivist_is_asked_nothing(service: str) -> None:
     async def scenario() -> None:
-        refused = Account(refused=SignInError("exchange", "Client-credentials grant for semiont-smelter failed (HTTP 401)"))
+        refused = Account(refused=SignInError("exchange", f"Client-credentials grant for semiont-{service} failed (HTTP 401)"))
         async with (
             PlayedArchivist(Said()) as archivist,
-            ArchivistContent(host="127.0.0.1", port=archivist.port, account=refused) as content,
+            ArchivistContent(service, host="127.0.0.1", port=archivist.port, account=refused) as content,
         ):
-            with pytest.raises(ContentUnread, match="the smelter could not sign in") as failure:
+            with pytest.raises(ContentUnread, match=rf"the {service} could not sign in") as failure:
                 await content.read(RESOURCE)
-            assert "Client-credentials grant for semiont-smelter failed (HTTP 401)" in str(failure.value)
+            said = f"the bytes of res-1 were not asked for: the {service} could not sign in "
+            assert str(failure.value).startswith(said)
+            assert f"Client-credentials grant for semiont-{service} failed (HTTP 401)" in str(failure.value)
             assert archivist.asked == []
 
     run(scenario())
@@ -228,7 +234,7 @@ def test_an_account_that_cannot_sign_in_is_unread_and_the_archivist_is_asked_not
 
 def test_a_reader_that_is_not_held_open_reads_nothing() -> None:
     async def scenario() -> None:
-        content = ArchivistContent(host="127.0.0.1", port=1, account=Account())
+        content = ArchivistContent(SERVICE, host="127.0.0.1", port=1, account=Account())
         with pytest.raises(RuntimeError, match="hold it with `async with`"):
             await content.read(RESOURCE)
 

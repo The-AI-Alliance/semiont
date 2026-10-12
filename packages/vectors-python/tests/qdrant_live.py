@@ -1,4 +1,4 @@
-"""The Qdrant store, held to the contract every store is and to what a point of the index is, against a real Qdrant.
+"""The Qdrant store and the Qdrant reader, held against a real Qdrant: the store to the contract every store is and to what a point is.
 
 Not collected with the package's tests, which need no database: run as
 `uv run pytest tests/qdrant_live.py`, told where a Qdrant is by `QDRANT_HOST`,
@@ -18,6 +18,11 @@ never through the store: that each point
 `specs/src/vectors/payload-cases.json` states is kept under its `qdrantId`
 with exactly its `payload`, and that the collections are as that table's
 `collections` states them.
+
+The Qdrant reader is held here too: that connecting it makes no collection,
+by the collections the Qdrant then says it has; that a search of a
+collection that is not there answers nothing; that it finds what a store
+wrote; and that a search which fails for any other reason is raised.
 """
 
 import os
@@ -32,10 +37,12 @@ from semiont.identifiers import AnnotationId, ResourceId
 from spec import SPEC, JsonObject, objects, read, text, thing
 from store_contract import StoreContract, part, put_annotation, put_resource, width_of
 
-from semiont_vectors.qdrant import QdrantVectorStore
-from semiont_vectors.store import AnnotationPayload, VectorStore
+from semiont_vectors.qdrant import QdrantVectorReader, QdrantVectorStore
+from semiont_vectors.store import AnnotationPayload, EmbeddingChunk, SearchOptions, VectorStore
 
 PORT: Final = 6333
+
+FIVE: Final = SearchOptions(limit=5)
 
 TABLE: Final = read(SPEC / "vectors/payload-cases.json")
 COLLECTIONS: Final = {role: thing(stated, role) for role, stated in thing(TABLE["collections"], "collections").items()}
@@ -205,6 +212,109 @@ def test_a_listing_reads_every_page_of_a_scroll() -> None:
             assert await store.count() == len(ids)
             assert await store.list_annotation_ids() == set(ids)
         finally:
+            await store.disconnect()
+
+    run(whole())
+
+
+# ── The reader ─────────────────────────────────────────────────────────
+
+
+async def collections() -> list[str]:
+    """The name of every collection the Qdrant itself says it has."""
+    async with qdrant() as http:
+        listed = answered(await http.get("/collections"))
+    return sorted(text(each["name"], "name") for each in objects(listed["collections"], "collections"))
+
+
+def reader() -> QdrantVectorReader:
+    """A reader of the Qdrant, not yet connected."""
+    return QdrantVectorReader(host=host(), port=PORT)
+
+
+def test_a_reader_that_connects_makes_no_collection() -> None:
+    async def whole() -> None:
+        await cleared()
+        before = await collections()
+        assert RESOURCES not in before
+        assert ANNOTATIONS not in before
+        reading = reader()
+        await reading.connect()
+        try:
+            assert await collections() == before
+        finally:
+            await reading.disconnect()
+
+    run(whole())
+
+
+def test_a_search_of_a_collection_that_is_not_there_answers_nothing_and_makes_none() -> None:
+    async def whole() -> None:
+        await cleared()
+        before = await collections()
+        reading = reader()
+        await reading.connect()
+        try:
+            assert await reading.search_resources([1.0, 0.0], FIVE) == []
+            assert await reading.search_annotations([1.0, 0.0], FIVE) == []
+            assert await reading.search_by_resource(ResourceId("res-a"), FIVE) == []
+            assert await collections() == before
+        finally:
+            await reading.disconnect()
+
+    run(whole())
+
+
+def test_a_reader_finds_what_a_store_wrote() -> None:
+    ahead = EmbeddingChunk(chunk_index=0, text="ahead", embedding=[1.0, 0.0])
+    mostly_ahead = EmbeddingChunk(chunk_index=0, text="mostly ahead", embedding=[1.0, 0.5])
+    quoted = AnnotationPayload(
+        annotation_id=AnnotationId("ann-1"),
+        resource_id=ResourceId("res-a"),
+        motivation="highlighting",
+        entity_types=[],
+        exact_text="some words",
+    )
+
+    async def whole() -> None:
+        store = await emptied(2)
+        reading = reader()
+        try:
+            await store.upsert_resource_vectors(ResourceId("res-a"), [ahead], "checksum-a", [], machine_read=False)
+            await store.upsert_resource_vectors(ResourceId("res-b"), [mostly_ahead], "checksum-b", [], machine_read=False)
+            await store.upsert_annotation_vector([0.0, 1.0], quoted)
+            await reading.connect()
+
+            chunks = await reading.search_resources([1.0, 0.0], FIVE)
+            assert [(str(each.resource_id), each.text) for each in chunks] == [("res-a", "ahead"), ("res-b", "mostly ahead")]
+            assert chunks == await store.search_resources([1.0, 0.0], FIVE)
+
+            annotations = await reading.search_annotations([0.0, 1.0], FIVE)
+            assert [(each.annotation_id, each.text) for each in annotations] == [(AnnotationId("ann-1"), "some words")]
+            assert annotations == await store.search_annotations([0.0, 1.0], FIVE)
+
+            alike = await reading.search_by_resource(ResourceId("res-a"), FIVE)
+            assert [(str(each.resource_id), each.text) for each in alike] == [("res-b", "mostly ahead")]
+            assert alike == await store.search_by_resource(ResourceId("res-a"), FIVE)
+        finally:
+            await reading.disconnect()
+            await store.disconnect()
+
+    run(whole())
+
+
+def test_a_search_that_fails_for_any_other_reason_is_raised() -> None:
+    # The collections are there, as wide as two numbers. A vector of three is one the Qdrant refuses, and
+    # that is no answer of a collection that is not there.
+    async def whole() -> None:
+        store = await emptied(2)
+        reading = reader()
+        try:
+            await reading.connect()
+            with pytest.raises(RuntimeError, match=r"Qdrant answered \d+ to POST /collections/resources/points/query"):
+                await reading.search_resources([1.0, 0.0, 0.0], FIVE)
+        finally:
+            await reading.disconnect()
             await store.disconnect()
 
     run(whole())

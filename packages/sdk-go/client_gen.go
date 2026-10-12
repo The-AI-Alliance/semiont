@@ -4838,6 +4838,78 @@ type KnowledgeGraph_Nodes_Item struct {
 	union json.RawMessage
 }
 
+// LibrarianConfig Everything a Librarian reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the Librarian. Whoever starts a Librarian writes it, from the environment the knowledge base's config selects, and the Librarian reads it from the path its `--config` flag names. This schema is the contract, and a Librarian needs no launcher. Started without `--config`, or with a path that names no file, the Librarian refuses to start and says which. No secret is a value here: the graph database's password, an embedding provider's key and a model provider's key are each named by the environment variable that holds it, and the Librarian's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` in its environment. A document that does not validate is refused at boot, naming each failing field.
+type LibrarianConfig struct {
+	// Archivist Where the Archivist listens. The Librarian reads a resource's bytes from it, as its service account.
+	Archivist struct {
+		Host string `json:"host"`
+		Port int    `json:"port"`
+	} `json:"archivist"`
+
+	// Embedding The embedding provider a service asks for vectors, and what that kind of provider needs to be asked: one of the providers `semiont-vectors` has, told apart by `type`. Two services that share an index name the same provider and the same model: a vector is compared only with vectors of the model that made it. A secret is never a value here: a provider's key is named by the environment variable that holds it.
+	Embedding EmbeddingConfig `json:"embedding"`
+
+	// GatewayUrl The URL the Librarian reaches the gateway at: its route to the bus.
+	GatewayUrl string `json:"gatewayUrl"`
+
+	// Gather The bound on a gather.
+	Gather struct {
+		// SettleTimeoutMs How long a gather around a resource waits for the Smelter's decision on it before answering without similar passages, in milliseconds.
+		SettleTimeoutMs int `json:"settleTimeoutMs"`
+	} `json:"gather"`
+
+	// Gatherer One model a Librarian asks: who it is, and where its provider is reached.
+	Gatherer LibrarianModelConfig `json:"gatherer"`
+
+	// Graph The graph database a service writes or reads, and what that kind of database needs to be reached: one of the kinds `semiont-graph` has a store for, told apart by `type`. A secret is never a value here: a database's password is named by the environment variable that holds it.
+	Graph GraphConfig `json:"graph"`
+
+	// Identity The issuer the Librarian's service account signs in at.
+	Identity struct {
+		// Issuer The issuer URL, exactly as tokens carry it in `iss`.
+		Issuer string `json:"issuer"`
+	} `json:"identity"`
+
+	// KbName The knowledge base's name, as its committed `.semiont/config` states it: the Archivist writes the views under `semiont/<kbName>` in the state volume.
+	KbName string `json:"kbName"`
+
+	// LogFormat How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON.
+	LogFormat LogFormat `json:"logFormat"`
+
+	// LogLevel How much a service logs: the least severe level it writes, from error, the most severe, to debug.
+	LogLevel LogLevel `json:"logLevel"`
+
+	// Matcher One model a Librarian asks: who it is, and where its provider is reached.
+	Matcher LibrarianModelConfig `json:"matcher"`
+
+	// Port The port the Librarian answers `/health` on.
+	Port int `json:"port"`
+
+	// Search The bound on a search by meaning.
+	Search struct {
+		// SemanticFloor The least similarity a hit by meaning must have.
+		SemanticFloor float32 `json:"semanticFloor"`
+	} `json:"search"`
+
+	// StateHome The state volume. The Archivist keeps the knowledge base's views and projections under `semiont/<name>` in it, where the name is the knowledge base's, and the Librarian reads them there.
+	StateHome string `json:"stateHome"`
+
+	// Vectors The vector index a service writes or searches, and what that kind of index needs to be reached: one of the kinds `semiont-vectors` has a store for, told apart by `type`.
+	Vectors VectorsConfig `json:"vectors"`
+}
+
+// LibrarianModelConfig One model a Librarian asks: who it is, and where its provider is reached.
+type LibrarianModelConfig struct {
+	// Agent The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+	Agent ArchivistRosterRole `json:"agent"`
+
+	// ApiKeyEnv The environment variable holding the provider's API key, when the provider requires one.
+	ApiKeyEnv *string `json:"apiKeyEnv,omitempty"`
+
+	// BaseUrl The address the provider's API is reached at.
+	BaseUrl string `json:"baseUrl"`
+}
+
 // LimitRefusal defines model for LimitRefusal.
 type LimitRefusal struct {
 	// Code `streams`: the principal already holds as many streams as its coefficient of `x-semiont-limits.streamsPerPrincipal` allows. `emit-rate`: the principal's emits have used its bucket, whose rate and burst are its coefficient of `x-semiont-limits.emitsPerPrincipal`, per gateway process. `unanswered-requests`: the client already awaits as many replies as `BusSubscribeRequest.pendingReplies` may name. `capacity`: the gateway holds as many queued bytes as it can.

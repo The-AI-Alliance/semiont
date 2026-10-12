@@ -972,6 +972,12 @@
       "SmelterConfig": {
         "$ref": "components/schemas/SmelterConfig.json"
       },
+      "LibrarianConfig": {
+        "$ref": "components/schemas/LibrarianConfig.json"
+      },
+      "LibrarianModelConfig": {
+        "$ref": "components/schemas/LibrarianModelConfig.json"
+      },
       "EmbeddingConfig": {
         "$ref": "components/schemas/EmbeddingConfig.json"
       },

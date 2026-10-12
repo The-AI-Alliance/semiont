@@ -27,12 +27,12 @@ from rig import DIMENSIONS, AnnotationPoint, Held, Rig, checksum_of, drawn, scan
 from semiont.errors import BusRequestError, TransportError
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.types import ExtractedText, ExtractionDeclined, SmeltSettledReason
+from semiont_service.content import Content
 from semiont_vectors.mock import deterministic_vector
 from semiont_vectors.store import EmbeddingChunk, ResourceStamp, SearchFilter, SearchOptions
 from spec import JsonObject
 
 from semiont_smelter.chunking import Chunking, chunk_text
-from semiont_smelter.content import Content
 from semiont_smelter.extraction import LARGEST_PDF_BYTES
 from semiont_smelter.ocr_engine import OcrRead
 from semiont_smelter.pdf_reader import PdfEncrypted, PdfUnreadable

@@ -1,14 +1,15 @@
 """Where a key is filed, held to `specs/src/archivist/shard-cases.json`.
 
 The table is the one every reader and writer of the sharded files runs, in
-any language. The Archivist finds an entry of the anchored-text store where
-this package filed it only while both work out the same two names.
+any language. The Archivist finds a file where a service filed it, and a
+service one where the Archivist did, only while both work out the same two
+names.
 """
 
 import pytest
 from spec import ROOT, JsonObject, objects, read, text
 
-from semiont_smelter.shard import shard_path
+from semiont_service.shard import shard_path
 
 TABLE = read(ROOT / "specs/src/archivist/shard-cases.json")
 CASES = objects(TABLE["cases"], "cases")

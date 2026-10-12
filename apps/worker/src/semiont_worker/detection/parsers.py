@@ -24,11 +24,11 @@ from typing import Final, final
 from pydantic import JsonValue
 from semiont.annotations import QuotedText, ReconciledSpan, TextSpan, reconcile
 from semiont_inference.interface import ElementSchema
+from semiont_service.white_space import trimmed
 
 from semiont_worker.detection.anchor_audit import note_anchor
 from semiont_worker.log import LOG
 from semiont_worker.telemetry import DetectionLabel
-from semiont_worker.white_space import trimmed
 
 HIGHLIGHT_ELEMENT_SCHEMA: Final[ElementSchema] = {
     "type": "object",

@@ -2,7 +2,7 @@
 
 It reads them from the Archivist, over the bus (`docs/protocol/SMELTER.md` §
 What it follows), and opens no file of the record. A resource's bytes are
-another read, and no part of this (`semiont_smelter.content`).
+another read, and no part of this (`semiont_service.content`).
 """
 
 import asyncio
