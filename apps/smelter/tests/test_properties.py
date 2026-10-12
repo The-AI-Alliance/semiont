@@ -66,8 +66,8 @@ PNG: Final = "image/png"
 WITH_TEXT: Final = frozenset({MARKDOWN, PDF})
 """The media types whose resources have text: the ones a Smelter that starts sets out to index."""
 
-_PATIENCE: Final = 60.0
-"""The seconds a scenario gives a reconcile to ask for the catalog. Its read of the store, which comes first, takes far less."""
+_TURNS: Final = 100_000
+"""The most turns a scenario gives a reconcile to ask for the catalog. Its read of the store, which comes first, takes far fewer."""
 
 # Every example runs a Smelter to rest many times over, so none is held to a time; and nothing is kept between runs,
 # so a run reads no file a run before it wrote.
@@ -432,12 +432,14 @@ async def until_the_catalog_is_asked_for(rig: Rig, reconciling: asyncio.Task[Rec
 
     What the reconcile plans, it plans from what the knowledge base holds
     at that moment: a change made after this is one it did not read. A
-    reconcile that has done neither when the patience runs out fails the
+    reconcile that has done neither when the turns run out fails the
     property, since nothing could then be said of what it read.
     """
-    async with asyncio.timeout(_PATIENCE):
-        while not (reconciling.done() or rig.asked("browse:resources-requested")):
-            await asyncio.sleep(0)
+    for _ in range(_TURNS):
+        if reconciling.done() or rig.asked("browse:resources-requested"):
+            return
+        await asyncio.sleep(0)
+    raise AssertionError(f"the reconcile had neither asked for the catalog nor ended after {_TURNS} turns")
 
 
 async def nothing_is_left_to_mend(rig: Rig, said: Folded) -> None:
