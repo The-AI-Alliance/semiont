@@ -58,8 +58,10 @@ class GatherNamespace:
         """The context around a whole resource.
 
         With nothing stated: two hops of the graph, ten resources, their
-        content, and no summary. An empty exclusion excludes nothing, and is
-        not sent.
+        content, and no summary. `depth` is how many links out from the
+        resource the graph reaches, 1 to 3, nearest first: what a resource
+        links to and what cites it are both followed. An empty exclusion
+        excludes nothing, and is not sent.
         """
         options = (
             GatherResourceRequestOptions(

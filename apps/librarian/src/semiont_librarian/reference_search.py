@@ -40,7 +40,7 @@ from semiont_graph.interface import ResourceQuery
 from semiont_inference.interface import InferenceClient
 from semiont_service.white_space import trimmed
 from semiont_vectors.embedding import EmbeddingProvider
-from semiont_vectors.store import SearchOptions, VectorReader, VectorSearchResult
+from semiont_vectors.store import CollectionAbsent, SearchOptions, VectorReader, VectorSearchResult
 
 from semiont_librarian.grace import resource_with_view_grace
 from semiont_librarian.log import LOG
@@ -123,13 +123,16 @@ async def _hits(term: str, *, vectors: VectorReader, embedding: EmbeddingProvide
     """The vector index's hits for the term, in the order it answers them.
 
     None for a blank term, which is not asked of it. None where the provider
-    or the index fails, which is logged.
+    or the index fails, which is logged. An index with no such collection,
+    which no store has made yet, is not read so: it fails the search.
     """
     if trimmed(term) == "":
         return []
     try:
         vector = await embedding.embed(term)
         return await vectors.search_resources(vector, SearchOptions(limit=MOST_HITS, score_threshold=WEAKEST_HIT))
+    except CollectionAbsent:
+        raise
     except Exception as failure:
         LOG.warning("Vector search failed, falling back to structural search", extra={"error": str(failure)})
         return []

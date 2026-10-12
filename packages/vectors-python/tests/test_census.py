@@ -36,6 +36,7 @@ SOURCES = sorted(path for top in ("src", "tests") for path in (PACKAGE / top).rg
 SURFACE = {
     "store": [
         "AnnotationPayload",
+        "CollectionAbsent",
         "EmbeddingChunk",
         "ResourceStamp",
         "SearchFilter",

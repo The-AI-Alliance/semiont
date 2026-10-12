@@ -4,7 +4,7 @@
 by rule, and the reads are made in the order of its rules: the resource's
 view and the annotation in it; the resource the annotation links to; the text
 around the selection; the linked resource's text and a model's summary of it;
-the knowledge graph; how many resources have each entity type; a model's
+the knowledge graph, one link out; how many resources have each entity type; a model's
 sentence on how the passage relates to what is around it; and the annotations
 elsewhere whose quoted text is like the selection.
 
@@ -37,9 +37,9 @@ from semiont.types import (
 from semiont_inference.interface import InferenceClient
 from semiont_service.content import ContentReads
 from semiont_vectors.embedding import EmbeddingProvider
-from semiont_vectors.store import SearchFilter, SearchOptions, VectorReader, VectorSearchResult
+from semiont_vectors.store import CollectionAbsent, SearchFilter, SearchOptions, VectorReader, VectorSearchResult
 
-from semiont_librarian.knowledge_graph import build_knowledge_graph
+from semiont_librarian.knowledge_graph import LEAST_DEPTH, build_knowledge_graph
 from semiont_librarian.log import LOG
 from semiont_librarian.prompts import ask, relationship_prompt, resource_summary_prompt
 from semiont_librarian.reads import AnchoredText, Degraded, GraphReads, Views, WeaveWaits
@@ -181,7 +181,7 @@ async def gather(
                 content=linked_text[: window * 2], summary=await ask(inference, summarizing)
             )
 
-    around = await build_knowledge_graph(resource_id, graph=graph, views=views, weave=weave, degraded=degraded)
+    around = await build_knowledge_graph(resource_id, graph=graph, views=views, weave=weave, degraded=degraded, depth=LEAST_DEPTH)
     lists = derive_views(around, resource_id, annotation.id)
     frequencies = {stat.type: stat.count for stat in await graph.get_entity_type_stats()}
     types = entity_types(annotation)
@@ -211,6 +211,9 @@ async def gather(
                 SearchOptions(limit=_SIMILAR, score_threshold=LIKE_ENOUGH, filter=SearchFilter(exclude_resource_id=resource_id)),
             )
             similar = await similar_of(found, views)
+        except CollectionAbsent:
+            # An index nobody has started is no index that failed: the gather fails, and says so.
+            raise
         except Exception as failure:
             LOG.warning(
                 "Semantic context search failed",

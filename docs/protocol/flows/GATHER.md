@@ -63,7 +63,7 @@ On the wire the request names the resource, and may name a `motivation` to keep 
 
 `gather.annotation` takes the size of the window of surrounding text: how much on each side of the annotation, counted in Unicode code points. On the wire the request may also state `includeSourceContext` and `includeTargetContext`: see [Gathering around an annotation](../LIBRARIAN.md#gathering-around-an-annotation).
 
-`gather.resource` takes how many resources to take, whether to include their text, whether to ask a model for a summary, and entity types to leave out. It also takes `depth`, which is accepted and has no effect today: the graph is the resource's own neighborhood, one link out.
+`gather.resource` takes how many resources to take, whether to include their text, whether to ask a model for a summary, and entity types to leave out. It also takes `depth`, 1 to 3: how many links out from the resource the graph reaches, following both what a resource links to and what cites it. The SDKs send 2 when none is stated. A depth of 1 is the resource's own neighborhood; each further link out adds the resources those link to and are cited by, nearest first, as resource nodes joined by `link` edges. Beyond the first link out the graph takes no more resources once it holds 200, and states `truncated` when it left one out. The resources whose text is read, up to `maxResources`, are the nearest. See [The knowledge graph](../LIBRARIAN.md#the-knowledge-graph).
 
 ## Example
 

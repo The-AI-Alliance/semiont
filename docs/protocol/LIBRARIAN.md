@@ -165,8 +165,12 @@ anchored text from the gateway's `GET /resources/{id}/anchored-text`.
   makes no constraint and no index there, and connecting to the vector index
   makes no collection and no payload index.
   *Held by `apps/librarian/tests/test_census.py`, and by `packages/graph-python/tests/neo4j_live.py` and `packages/vectors-python/tests/qdrant_live.py`, for the two readers against a database.*
-- **A search of a collection the Smelter has not made yet answers no hits,**
-  and makes none. *Held by `packages/vectors-python/tests/qdrant_live.py`.*
+- **A search of a collection the Smelter has not made yet fails,** and makes
+  none. An index nobody has started is no index that found nothing: a
+  reference search, a text search and both gathers each answer on their
+  failure channel, saying the index has no such collection. Every other
+  failure of the index is as each operation's own rules say.
+  *Held by `packages/vectors-python/tests/qdrant_live.py`, and by `apps/librarian/tests/test_reference_search.py`, `apps/librarian/tests/test_search_cases.py` and `apps/librarian/tests/test_annotation_gather.py`.*
 - **A resource with no view file has no view. A file that is there and is not
   a view, or cannot be opened, is a failure that names the file,** and is
   never taken for a resource with no view. The people projection is read the
@@ -339,7 +343,7 @@ search as what each store answers and the page that follows, and is the rule.
 ## The knowledge graph
 
 Both gathers build the graph around one resource, from the graph database and
-the views.
+the views, to a depth.
 [`knowledge-graph-cases.json`](../../specs/src/librarian/knowledge-graph-cases.json)
 states each build as what the stores answer and the graph that follows, or the
 failure, and is the rule.
@@ -364,6 +368,40 @@ failure, and is the rule.
 - **A thing is a node once,** and keeps the name it was first given. Each
   connection has its edge all the same.
   *Held by `apps/librarian/tests/test_knowledge_graph_cases.py`.*
+- **A graph is built to a depth, 1 to 3: how many links out from the
+  resource it reaches.** The rules above are the graph one link out, a depth
+  of 1, and it comes first in the graph whatever the depth. A gather around
+  an annotation builds to 1, and a gather around a resource to the `depth`
+  it states.
+  *Held by `apps/librarian/tests/test_knowledge_graph_cases.py`, `apps/librarian/tests/test_annotation_gather.py` and `apps/librarian/tests/test_resource_gather.py`, and by `librarian/gather`, for a chain of three resources at a depth of 1 and of 2.*
+- **Each further link out starts from the resources the step before added,
+  in the order they were added.** Each is asked for what it links to, and
+  then for what cites it. What it links to is a resource node, named and
+  typed by the description the graph database answers with the connection,
+  and a `link` edge runs to it, with the connection's `bidirectional` flag.
+  What cites it is a resource node, named and typed by its view, or named by
+  its id where it has no view, and a `link` edge runs from it, with no
+  `bidirectional` flag. So the graph's resource nodes are nearest first.
+  *Held by `apps/librarian/tests/test_knowledge_graph_cases.py`, and by `librarian/gather`, for the edge from the second resource of a chain to the third.*
+- **Only the resource the graph is built around has annotations as nodes.**
+  The annotations on a resource further out, and those that cite it, are not
+  read as nodes.
+  *Held by `apps/librarian/tests/test_knowledge_graph_cases.py`.*
+- **Beyond the first link out, a link found twice is one edge, the first
+  found.** Two resources that each link to the other have an edge each way,
+  unless the first found says it goes both ways: that edge then stands for
+  both. A link back to the resource the graph is built around adds no node
+  and has its edge.
+  *Held by `apps/librarian/tests/test_knowledge_graph_cases.py`.*
+- **A resource is asked once, and the resource the graph is built around is
+  not asked again.** Nothing waits for a resource further out.
+  *Held by `apps/librarian/tests/test_knowledge_graph_cases.py`.*
+- **From the second link out on, a graph that holds 200 resource nodes takes
+  no more.** A resource that is not in it is not added, no edge runs to it
+  or from it, and it is not asked. The graph then states `truncated` as
+  true, and a graph the ceiling kept nothing out of does not state it. The
+  graph one link out is not cut.
+  *Held by `apps/librarian/tests/test_knowledge_graph_cases.py` and `apps/librarian/tests/test_resource_gather.py`.*
 - **A resource neither the graph database nor the views hold is unknown:**
   the build fails at once, and nothing waits.
   *Held by `apps/librarian/tests/test_knowledge_graph_cases.py`.*
@@ -478,7 +516,7 @@ order of the rules below.
   that text, twice `contextWindow` code points long, with a summary of the resource from
   the Gatherer's model (the resource-summary prompt).
   *Held by `apps/librarian/tests/test_annotation_gather.py`, and by `librarian/gather`, for the option, a text shorter than that, a PDF's text, and the summary.*
-- **The knowledge graph of the resource is built**
+- **The knowledge graph of the resource is built, one link out**
   ([The knowledge graph](#the-knowledge-graph)), and is the context's
   `graph`. A build that fails fails the gather.
   *Held by `apps/librarian/tests/test_annotation_gather.py`, and by `librarian/gather`, for the graph.*
@@ -508,17 +546,23 @@ order of the rules below.
 `excludeEntityTypes`. The answer is a `GatheredContext` whose focus is the
 resource. The reads are made in the order of the rules below.
 
+- **A `depth` less than 1 or more than 3 fails the gather,** and nothing is
+  read. The schema of the request states the same bounds, so a gateway
+  refuses such a request before a Librarian is asked.
+  *Held by `apps/librarian/tests/test_resource_gather.py`, and by `librarian/gather`, for a depth of 4.*
 - **The resource's view is read.** A resource with no view fails the gather.
   *Held by `apps/librarian/tests/test_resource_gather.py`, `librarian/gather` and `librarian/barriers`.*
 - **The resource's text is read when `includeContent` is true,** and is the
   focus's `content.main` where it is not empty. The focus states `content`
   whenever `includeContent` is true, and not otherwise.
   *Held by `apps/librarian/tests/test_resource_gather.py`, and by `librarian/gather`, for a text and for a PDF.*
-- **The knowledge graph of the resource is built,** and is the context's
+- **The knowledge graph of the resource is built, `depth` links out**
+  ([The knowledge graph](#the-knowledge-graph)), and is the context's
   `graph`. A build that fails fails the gather.
-  *Held by `apps/librarian/tests/test_resource_gather.py`, and by `librarian/gather`, for the graph, and `librarian/barriers`, for a build that fails.*
+  *Held by `apps/librarian/tests/test_resource_gather.py`, and by `librarian/gather`, for the graph at a depth of 1 and of 2, and `librarian/barriers`, for a build that fails.*
 - **The related resources are the first `maxResources` less one of the
-  graph's resource nodes, but for the resource itself.** The view of each is
+  graph's resource nodes, but for the resource itself,** which are the
+  nearest to it. The view of each is
   read, and one with no view is passed by. When `includeContent` is true the
   text of each is read, and `content.related` holds each text that is not
   empty, by resource id. A read of bytes that fails fails the gather.
@@ -911,8 +955,6 @@ implementation does not copy them. Each names the module of
 
 ## Not specified here
 
-- **`depth`.** A gather around a resource must state it. It is accepted and
-  has no effect: the graph is the resource's own neighbourhood, one link out.
 - **What the graph's listing matches.** Which resources a text finds by
   name, and in what order, is the graph database's query and not stated
   here; [flows/MATCH.md](./flows/MATCH.md) says it for a client.

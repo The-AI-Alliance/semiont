@@ -32,7 +32,7 @@ from semiont_service.content import ContentReads
 from semiont_service.white_space import trimmed
 from semiont_vectors.embedding import EmbeddingProvider
 from semiont_vectors.merge import merge_by_resource
-from semiont_vectors.store import SearchOptions, VectorReader
+from semiont_vectors.store import CollectionAbsent, SearchOptions, VectorReader
 
 from semiont_librarian.grace import resource_with_view_grace
 from semiont_librarian.log import LOG
@@ -142,7 +142,8 @@ async def _by_meaning(
 
     Whatever fails in here, the answer is the page the search already had,
     with nothing on it and lexical. A search that found nothing does not
-    become a failure.
+    become a failure. One failure is not read so: an index with no such
+    collection, which no store has made yet, fails the search.
     """
     try:
         vector = await embedding.embed(search)
@@ -169,6 +170,8 @@ async def _by_meaning(
             if graced.resource is not None:
                 resources.append(graced.resource.model_copy(update={"content": hit.text}))
         return Page(resources=resources, total=len(kept), match_kind="semantic")
+    except CollectionAbsent:
+        raise
     except Exception as failure:
         LOG.warning("A text search could not be answered by meaning, and is answered as finding nothing", extra={"reason": str(failure)})
         return _nothing()

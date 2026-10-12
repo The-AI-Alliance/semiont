@@ -6933,18 +6933,10 @@ func TestStartServiceLibrarian(t *testing.T) {
 			t.Errorf("the Librarian must not receive %s:\n%s", banned, log)
 		}
 	}
-	// The staging wiring, asserted end to end: pull the stage dir back out of
-	// the argv and read the file the container would. Boot refuses a document
-	// that is not whole, so a miss here is a librarian that never starts live.
-	m := regexp.MustCompile(`--volume (\S+)/librarian\.json:`).FindStringSubmatch(log)
-	if m == nil {
-		t.Fatalf("no staged librarian.json in argv:\n%s", log)
-	}
-	staged, err := os.ReadFile(filepath.Join(m[1], "librarian.json"))
-	if err != nil {
-		t.Fatalf("reading staged librarian.json: %v", err)
-	}
-	mustContain(t, "staged librarian.json", string(staged),
+	// The staging wiring, asserted end to end: read the file the container
+	// would. Boot refuses a document that is not whole, so a miss here is a
+	// librarian that never starts live.
+	mustContain(t, "staged librarian.json", stagedFile(t, s, "librarian.json"),
 		`"kbName": "Test Knowledge Base"`, `"stateHome": "/semiont-state"`, `"passwordEnv": "NEO4J_PASSWORD"`)
 	if v, _ := s.containerEnv(t, "semiont-librarian", "NEO4J_PASSWORD"); len(v) < 32 {
 		t.Errorf("the Librarian's document names NEO4J_PASSWORD, and it was handed %q", v)

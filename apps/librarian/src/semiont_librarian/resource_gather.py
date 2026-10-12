@@ -12,9 +12,14 @@ none and the resource's description states a checksum, the gather waits, for
 the settle bound at most, for the Smelter's decision of exactly those bytes,
 and asks the index again where the decision is `indexed`.
 
-A gather answers its context or raises `Ungathered`, and emits nothing. The
-request's `depth` has no effect: the graph is the resource's own
-neighbourhood, one link out.
+The request's `depth` is how many links out from the resource the graph
+reaches, and the related resources are the nearest of it. A depth out of
+bounds is `semiont_librarian.knowledge_graph.DepthRefused`, and nothing is
+read.
+
+A gather answers its context or raises, and emits nothing. `Ungathered` is a
+gather that cannot be answered, and its words are what the failure channel
+carries.
 """
 
 from semiont.model import stated
@@ -34,7 +39,7 @@ from semiont_service.content import ContentReads
 from semiont_vectors.store import SearchFilter, SearchOptions, VectorReader
 
 from semiont_librarian.annotation_gather import LIKE_ENOUGH, Ungathered, language_of, similar_of
-from semiont_librarian.knowledge_graph import build_knowledge_graph
+from semiont_librarian.knowledge_graph import build_knowledge_graph, refuse_depth_out_of_bounds
 from semiont_librarian.log import LOG
 from semiont_librarian.prompts import ask, reference_suggestions_prompt, resource_summary_prompt
 from semiont_librarian.reads import AnchoredText, Degraded, GraphReads, SmeltWaits, SmeltWaitTimedOut, Views, WeaveWaits
@@ -60,8 +65,10 @@ async def gather(
 ) -> GatheredContext:
     """The context gathered around the resource a `gather:resource-requested` names: a `GatheredContext` whose focus is the resource.
 
-    `settle_within` is the settle bound, in seconds. Raises `Ungathered` for
-    a resource with no view. A read of bytes that fails, a graph that cannot
+    `settle_within` is the settle bound, in seconds. Raises
+    `semiont_librarian.knowledge_graph.DepthRefused` for a `depth` less than
+    1 or more than 3, before anything is read. Raises `Ungathered` for a
+    resource with no view. A read of bytes that fails, a graph that cannot
     be built, an index that fails and a wait that fails in any way but
     running out each raise what they failed with.
 
@@ -72,15 +79,17 @@ async def gather(
     """
     resource_id = request.resource_id
     options = request.options
+    refuse_depth_out_of_bounds(options.depth)
     view = await views.get(resource_id)
     if view is None:
         raise Ungathered("Resource not found")
     main = view.resource
     main_text = await text_of(main, content=content, anchored=anchored) if options.include_content else None
 
-    around = await build_knowledge_graph(resource_id, graph=graph, views=views, weave=weave, degraded=degraded)
+    around = await build_knowledge_graph(resource_id, graph=graph, views=views, weave=weave, degraded=degraded, depth=options.depth)
 
-    # The related resources: the first of the graph's resource nodes, but for the resource itself, that have a view.
+    # The related resources: the first of the graph's resource nodes, but for the resource itself, that have a view. The
+    # graph's resource nodes are nearest first.
     peers = [node for node in around.nodes if isinstance(node, GraphResourceNode) and node.id != resource_id]
     related: list[ResourceDescriptor] = []
     for node in peers[: max(0, options.max_resources - 1)]:

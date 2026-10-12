@@ -1,5 +1,5 @@
 {
-  "$comment": "The knowledge graph a Librarian builds for one resource, as every implementation of the Librarian must build it: what the graph store and the views answer, and the graph of nodes and edges that follows, or the failure. Semiont's Librarian (apps/librarian: knowledge_graph.py) runs every case and fails on a difference; a Librarian in another language runs the same file. WHAT A CASE STATES. `resource` is the id of the resource asked for. `graph` is what the graph store answers. Its `resource` lists what it answers each time it is asked for the resource, in order: the resource's description, or null where it does not hold the resource yet. The store is asked exactly as many times as the list is long. Its `connections` are the resource's connections, in the order the store gives them: each has the `resource` at its other end, and a `bidirectional` flag. A connection's edge is of type `link`. Its `referencedBy` are the annotations that refer to the resource, and its `annotations` are the annotations on the resource, each list in the order the store gives it. `views` is the resource views that exist, by resource id: a resource with no entry has no view. A view's `annotations` are not read: only its `resource` and its `lastSequence` are. `applied` says whether the Weaver's applied signal for the resource, at the sequence its view states, has arrived: when it has, the wait for it ends at once. `knowledgeGraph` is the graph built, its nodes and its edges in order. `fails` stands in its place where nothing is built: `unknown` where neither the graph store nor the views hold the resource, and `behind` where the views hold it and the graph store never comes to. `waited` is how many milliseconds passed in waiting before the answer. THE RULE, OF WAITING. The store is asked for the resource. If it holds it, nothing waits. If it does not and the resource has no view, the resource is unknown: nothing waits and the store is not asked again. If the resource has a view, the store is behind it. The applied signal is waited for, for at most 500 milliseconds. If the signal arrives, the store is asked again. If the store still does not hold the resource, or the signal did not arrive, the store is asked after 25 more milliseconds, then after 50 more, 100 more and 200 more, and the first answer that holds the resource ends the waiting. After the last of them the build fails as `behind`. THE RULE, OF THE GRAPH. The first node is the resource: its id, its name as `label`, and its entity types, which are none where its description states none. Then each connection, in order: the resource at its other end is a node, named and typed by the description the connection carries, and an edge runs from the resource asked for to it. The edge's `type` is the connection's relationship type, or `link` where it has none or an empty one, and the edge carries the connection's `bidirectional` flag. Then each annotation that refers to the resource, in order. Its citing resource is the resource its target names, whether the target is an object with a `source` or a bare id. An annotation whose citing resource is the resource asked for is left out, and so is one already in the graph. Otherwise the citing resource is a node, named and typed by its view's resource, or named by its id and with no entity types where it has no view; then the annotation is a node; then an `annotation-of` edge runs from the annotation to its citing resource and a `cites` edge from the annotation to the resource asked for. Then each annotation on the resource, in order, unless it is already in the graph: the annotation is a node, and an `annotation-of` edge runs from it to the resource asked for. An annotation's node has the annotation's id, its motivation as `label`, the entity types its tagging bodies state, and the whole annotation. A thing is a node once: a resource or an annotation already in the graph is not added again, and keeps the name it was first given. Each connection has its edge all the same. Add a case here before changing an implementation.",
+  "$comment": "The knowledge graph a Librarian builds for one resource, as every implementation of the Librarian must build it: what the graph store and the views answer, and the graph of nodes and edges that follows, or the failure. Semiont's Librarian (apps/librarian: knowledge_graph.py) runs every case and fails on a difference; a Librarian in another language runs the same file. WHAT A CASE STATES. `resource` is the id of the resource asked for. `depth` is how many links out from it the graph is built, 1 to 3, and is 1 where a case states none. `graph` is what the graph store answers. Its `resource` lists what it answers each time it is asked for the resource, in order: the resource's description, or null where it does not hold the resource yet. The store is asked exactly as many times as the list is long. Its `connections` are the resource's connections, in the order the store gives them: each has the `resource` at its other end, and a `bidirectional` flag. A connection's edge is of type `link`. Its `referencedBy` are the annotations that refer to the resource, and its `annotations` are the annotations on the resource, each list in the order the store gives it. Its `further`, which only a case of a depth of 2 or 3 may state, is what the store answers of each resource beyond the one asked for, by that resource's id: its `connections`, stated as the resource's own are, and its `referencedBy`, the annotations that refer to it. A resource stated there must be asked for its connections and for what refers to it, once each, and a resource that is not stated there must be asked for neither: a runner fails a build that does otherwise. No resource but the one asked for is asked for its description or for the annotations on it. `views` is the resource views that exist, by resource id: a resource with no entry has no view. A view's `annotations` are not read: only its `resource` and its `lastSequence` are. `applied` says whether the Weaver's applied signal for the resource, at the sequence its view states, has arrived: when it has, the wait for it ends at once. `knowledgeGraph` is the graph built, its nodes and its edges in order. `fails` stands in its place where nothing is built: `unknown` where neither the graph store nor the views hold the resource, and `behind` where the views hold it and the graph store never comes to. `waited` is how many milliseconds passed in waiting before the answer. THE RULE, OF WAITING. The store is asked for the resource. If it holds it, nothing waits. If it does not and the resource has no view, the resource is unknown: nothing waits and the store is not asked again. If the resource has a view, the store is behind it. The applied signal is waited for, for at most 500 milliseconds. If the signal arrives, the store is asked again. If the store still does not hold the resource, or the signal did not arrive, the store is asked after 25 more milliseconds, then after 50 more, 100 more and 200 more, and the first answer that holds the resource ends the waiting. After the last of them the build fails as `behind`. THE RULE, OF THE GRAPH. The first node is the resource: its id, its name as `label`, and its entity types, which are none where its description states none. Then each connection, in order: the resource at its other end is a node, named and typed by the description the connection carries, and an edge runs from the resource asked for to it. The edge's `type` is `link`, and the edge carries the connection's `bidirectional` flag. Then each annotation that refers to the resource, in order. Its citing resource is the resource its target names, whether the target is an object with a `source` or a bare id. An annotation whose citing resource is the resource asked for is left out, and so is one already in the graph. Otherwise the citing resource is a node, named and typed by its view's resource, or named by its id and with no entity types where it has no view; then the annotation is a node; then an `annotation-of` edge runs from the annotation to its citing resource and a `cites` edge from the annotation to the resource asked for. Then each annotation on the resource, in order, unless it is already in the graph: the annotation is a node, and an `annotation-of` edge runs from it to the resource asked for. An annotation's node has the annotation's id, its motivation as `label`, the entity types its tagging bodies state, and the whole annotation. A thing is a node once: a resource or an annotation already in the graph is not added again, and keeps the name it was first given. Each connection has its edge all the same. THE RULE, OF DEPTH. All of that is the graph one link out, a depth of 1, and it comes first in the graph whatever the depth. Each further link out starts from the resources the step before it added to the graph, in the order they were added; the second link out starts from the resource nodes of the graph one link out, but for the resource asked for. Each of them is asked for its connections and then for the annotations that refer to it. Each connection, in order: the resource at its other end is a node, named and typed by the description the connection carries, unless it is in the graph already; and a `link` edge runs to it from the resource that was asked, with the connection's `bidirectional` flag. Then each annotation that refers to the resource that was asked, in order: one whose citing resource is that same resource is left out; otherwise its citing resource is a node, named and typed by its view's resource, or named by its id and with no entity types where it has no view, unless it is in the graph already; and a `link` edge runs from the citing resource to the resource that was asked, with no `bidirectional` flag. The annotation is not a node: only the resource asked for has annotations as nodes. A `link` edge found beyond the first link out is left out where the graph already has a `link` edge from the same resource to the same resource, and where it has the `link` edge the other way with a `bidirectional` flag that is true. So a resource is asked once, and the resource asked for is never asked again; a link found twice is one edge, the first found; and two resources that each link to the other have an edge each way, unless the first found says it goes both ways. Nothing waits for a resource further out. THE CEILING. From the second link out on, a graph that holds 200 resource nodes takes no more: a resource that is not in it is not added, no edge runs to it or from it, and it is not asked. The graph then states `truncated` as true. A graph the ceiling kept no resource out of does not state `truncated`. The graph one link out is not cut. No case here states the ceiling, because 200 resources written out are more than a reader can check: Semiont's Librarian holds it in the tests that follow the table's cases in apps/librarian/tests/test_knowledge_graph_cases.py, over a graph made there. Add a case here before changing an implementation.",
   "cases": [
     {
       "why": "a resource with no connections, no citations and no annotations is a graph of one node: its id, its name and its entity types",
@@ -2982,6 +2982,1608 @@
       "applied": false,
       "fails": "behind",
       "waited": 875
+    },
+    {
+      "why": "at a depth of 1 the graph is the resource, what it links to and what cites it, and none of those is asked anything",
+      "resource": "res-main",
+      "depth": 1,
+      "graph": {
+        "resource": [
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-main",
+            "name": "Main",
+            "entityTypes": [
+              "Paper"
+            ],
+            "representations": [
+              {
+                "mediaType": "text/markdown"
+              }
+            ]
+          }
+        ],
+        "connections": [
+          {
+            "resource": {
+              "@context": "https://schema.org/",
+              "@id": "res-b",
+              "name": "B",
+              "representations": []
+            },
+            "bidirectional": false
+          }
+        ],
+        "referencedBy": [
+          {
+            "@context": "http://www.w3.org/ns/anno.jsonld",
+            "type": "Annotation",
+            "id": "ann-cite",
+            "motivation": "linking",
+            "target": {
+              "source": "res-citing"
+            },
+            "body": {
+              "type": "SpecificResource",
+              "source": "res-main",
+              "purpose": "linking"
+            },
+            "created": "2020-03-04T05:06:07.000Z"
+          }
+        ],
+        "annotations": []
+      },
+      "views": {},
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          {
+            "id": "res-main",
+            "type": "resource",
+            "label": "Main",
+            "entityTypes": [
+              "Paper"
+            ]
+          },
+          {
+            "id": "res-b",
+            "type": "resource",
+            "label": "B",
+            "entityTypes": []
+          },
+          {
+            "id": "res-citing",
+            "type": "resource",
+            "label": "res-citing",
+            "entityTypes": []
+          },
+          {
+            "id": "ann-cite",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": [],
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-cite",
+              "motivation": "linking",
+              "target": {
+                "source": "res-citing"
+              },
+              "body": {
+                "type": "SpecificResource",
+                "source": "res-main",
+                "purpose": "linking"
+              },
+              "created": "2020-03-04T05:06:07.000Z"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "res-main",
+            "target": "res-b",
+            "type": "link",
+            "bidirectional": false
+          },
+          {
+            "source": "ann-cite",
+            "target": "res-citing",
+            "type": "annotation-of"
+          },
+          {
+            "source": "ann-cite",
+            "target": "res-main",
+            "type": "cites"
+          }
+        ]
+      },
+      "waited": 0
+    },
+    {
+      "why": "at a depth of 2 the graph reaches what a resource the resource links to links to: that resource is a node, named and typed by the description its connection carries, with a link edge to it from the resource that links to it, and it is asked nothing itself",
+      "resource": "res-main",
+      "depth": 2,
+      "graph": {
+        "resource": [
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-main",
+            "name": "Main",
+            "entityTypes": [
+              "Paper"
+            ],
+            "representations": [
+              {
+                "mediaType": "text/markdown"
+              }
+            ]
+          }
+        ],
+        "connections": [
+          {
+            "resource": {
+              "@context": "https://schema.org/",
+              "@id": "res-b",
+              "name": "B",
+              "representations": []
+            },
+            "bidirectional": false
+          }
+        ],
+        "referencedBy": [],
+        "annotations": [],
+        "further": {
+          "res-b": {
+            "connections": [
+              {
+                "resource": {
+                  "@context": "https://schema.org/",
+                  "@id": "res-c",
+                  "name": "C",
+                  "entityTypes": [
+                    "Author"
+                  ],
+                  "representations": []
+                },
+                "bidirectional": false
+              }
+            ],
+            "referencedBy": []
+          }
+        }
+      },
+      "views": {},
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          {
+            "id": "res-main",
+            "type": "resource",
+            "label": "Main",
+            "entityTypes": [
+              "Paper"
+            ]
+          },
+          {
+            "id": "res-b",
+            "type": "resource",
+            "label": "B",
+            "entityTypes": []
+          },
+          {
+            "id": "res-c",
+            "type": "resource",
+            "label": "C",
+            "entityTypes": [
+              "Author"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "source": "res-main",
+            "target": "res-b",
+            "type": "link",
+            "bidirectional": false
+          },
+          {
+            "source": "res-b",
+            "target": "res-c",
+            "type": "link",
+            "bidirectional": false
+          }
+        ]
+      },
+      "waited": 0
+    },
+    {
+      "why": "at a depth of 2 the graph reaches what cites a resource the resource links to: the citing resource is a node, named and typed by its view, with a link edge from it that states no bidirectional flag, and the citing annotation is no node",
+      "resource": "res-main",
+      "depth": 2,
+      "graph": {
+        "resource": [
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-main",
+            "name": "Main",
+            "entityTypes": [
+              "Paper"
+            ],
+            "representations": [
+              {
+                "mediaType": "text/markdown"
+              }
+            ]
+          }
+        ],
+        "connections": [
+          {
+            "resource": {
+              "@context": "https://schema.org/",
+              "@id": "res-b",
+              "name": "B",
+              "representations": []
+            },
+            "bidirectional": false
+          }
+        ],
+        "referencedBy": [],
+        "annotations": [],
+        "further": {
+          "res-b": {
+            "connections": [],
+            "referencedBy": [
+              {
+                "@context": "http://www.w3.org/ns/anno.jsonld",
+                "type": "Annotation",
+                "id": "ann-d-b",
+                "motivation": "linking",
+                "target": {
+                  "source": "res-d"
+                },
+                "body": {
+                  "type": "SpecificResource",
+                  "source": "res-b",
+                  "purpose": "linking"
+                },
+                "created": "2020-03-04T05:06:07.000Z"
+              }
+            ]
+          }
+        }
+      },
+      "views": {
+        "res-d": {
+          "resource": {
+            "@context": "https://schema.org/",
+            "@id": "res-d",
+            "name": "D",
+            "entityTypes": [
+              "Report"
+            ],
+            "representations": []
+          },
+          "annotations": {
+            "resourceId": "res-d",
+            "annotations": [],
+            "version": 2,
+            "updatedAt": "2020-03-04T05:06:07.000Z"
+          },
+          "lastSequence": 2
+        }
+      },
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          {
+            "id": "res-main",
+            "type": "resource",
+            "label": "Main",
+            "entityTypes": [
+              "Paper"
+            ]
+          },
+          {
+            "id": "res-b",
+            "type": "resource",
+            "label": "B",
+            "entityTypes": []
+          },
+          {
+            "id": "res-d",
+            "type": "resource",
+            "label": "D",
+            "entityTypes": [
+              "Report"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "source": "res-main",
+            "target": "res-b",
+            "type": "link",
+            "bidirectional": false
+          },
+          {
+            "source": "res-d",
+            "target": "res-b",
+            "type": "link"
+          }
+        ]
+      },
+      "waited": 0
+    },
+    {
+      "why": "at a depth of 2 the graph reaches what a resource that cites the resource links to",
+      "resource": "res-main",
+      "depth": 2,
+      "graph": {
+        "resource": [
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-main",
+            "name": "Main",
+            "entityTypes": [
+              "Paper"
+            ],
+            "representations": [
+              {
+                "mediaType": "text/markdown"
+              }
+            ]
+          }
+        ],
+        "connections": [],
+        "referencedBy": [
+          {
+            "@context": "http://www.w3.org/ns/anno.jsonld",
+            "type": "Annotation",
+            "id": "ann-cite",
+            "motivation": "linking",
+            "target": {
+              "source": "res-citing"
+            },
+            "body": {
+              "type": "SpecificResource",
+              "source": "res-main",
+              "purpose": "linking"
+            },
+            "created": "2020-03-04T05:06:07.000Z"
+          }
+        ],
+        "annotations": [],
+        "further": {
+          "res-citing": {
+            "connections": [
+              {
+                "resource": {
+                  "@context": "https://schema.org/",
+                  "@id": "res-e",
+                  "name": "E",
+                  "representations": []
+                },
+                "bidirectional": false
+              }
+            ],
+            "referencedBy": []
+          }
+        }
+      },
+      "views": {},
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          {
+            "id": "res-main",
+            "type": "resource",
+            "label": "Main",
+            "entityTypes": [
+              "Paper"
+            ]
+          },
+          {
+            "id": "res-citing",
+            "type": "resource",
+            "label": "res-citing",
+            "entityTypes": []
+          },
+          {
+            "id": "ann-cite",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": [],
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-cite",
+              "motivation": "linking",
+              "target": {
+                "source": "res-citing"
+              },
+              "body": {
+                "type": "SpecificResource",
+                "source": "res-main",
+                "purpose": "linking"
+              },
+              "created": "2020-03-04T05:06:07.000Z"
+            }
+          },
+          {
+            "id": "res-e",
+            "type": "resource",
+            "label": "E",
+            "entityTypes": []
+          }
+        ],
+        "edges": [
+          {
+            "source": "ann-cite",
+            "target": "res-citing",
+            "type": "annotation-of"
+          },
+          {
+            "source": "ann-cite",
+            "target": "res-main",
+            "type": "cites"
+          },
+          {
+            "source": "res-citing",
+            "target": "res-e",
+            "type": "link",
+            "bidirectional": false
+          }
+        ]
+      },
+      "waited": 0
+    },
+    {
+      "why": "a link back to the resource asked for adds no node and has its edge: a resource that cites the resource links to it, and the link edge from it is beside the citation's two",
+      "resource": "res-main",
+      "depth": 2,
+      "graph": {
+        "resource": [
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-main",
+            "name": "Main",
+            "entityTypes": [
+              "Paper"
+            ],
+            "representations": [
+              {
+                "mediaType": "text/markdown"
+              }
+            ]
+          }
+        ],
+        "connections": [],
+        "referencedBy": [
+          {
+            "@context": "http://www.w3.org/ns/anno.jsonld",
+            "type": "Annotation",
+            "id": "ann-cite",
+            "motivation": "linking",
+            "target": {
+              "source": "res-citing"
+            },
+            "body": {
+              "type": "SpecificResource",
+              "source": "res-main",
+              "purpose": "linking"
+            },
+            "created": "2020-03-04T05:06:07.000Z"
+          }
+        ],
+        "annotations": [],
+        "further": {
+          "res-citing": {
+            "connections": [
+              {
+                "resource": {
+                  "@context": "https://schema.org/",
+                  "@id": "res-main",
+                  "name": "Main",
+                  "entityTypes": [
+                    "Paper"
+                  ],
+                  "representations": []
+                },
+                "bidirectional": false
+              }
+            ],
+            "referencedBy": []
+          }
+        }
+      },
+      "views": {},
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          {
+            "id": "res-main",
+            "type": "resource",
+            "label": "Main",
+            "entityTypes": [
+              "Paper"
+            ]
+          },
+          {
+            "id": "res-citing",
+            "type": "resource",
+            "label": "res-citing",
+            "entityTypes": []
+          },
+          {
+            "id": "ann-cite",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": [],
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-cite",
+              "motivation": "linking",
+              "target": {
+                "source": "res-citing"
+              },
+              "body": {
+                "type": "SpecificResource",
+                "source": "res-main",
+                "purpose": "linking"
+              },
+              "created": "2020-03-04T05:06:07.000Z"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "source": "ann-cite",
+            "target": "res-citing",
+            "type": "annotation-of"
+          },
+          {
+            "source": "ann-cite",
+            "target": "res-main",
+            "type": "cites"
+          },
+          {
+            "source": "res-citing",
+            "target": "res-main",
+            "type": "link",
+            "bidirectional": false
+          }
+        ]
+      },
+      "waited": 0
+    },
+    {
+      "why": "a link that goes both ways is one edge: found again from its other end, as a connection back and as what cites that end, it adds no edge",
+      "resource": "res-main",
+      "depth": 2,
+      "graph": {
+        "resource": [
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-main",
+            "name": "Main",
+            "entityTypes": [
+              "Paper"
+            ],
+            "representations": [
+              {
+                "mediaType": "text/markdown"
+              }
+            ]
+          }
+        ],
+        "connections": [
+          {
+            "resource": {
+              "@context": "https://schema.org/",
+              "@id": "res-b",
+              "name": "B",
+              "representations": []
+            },
+            "bidirectional": true
+          }
+        ],
+        "referencedBy": [],
+        "annotations": [],
+        "further": {
+          "res-b": {
+            "connections": [
+              {
+                "resource": {
+                  "@context": "https://schema.org/",
+                  "@id": "res-main",
+                  "name": "Main",
+                  "entityTypes": [
+                    "Paper"
+                  ],
+                  "representations": []
+                },
+                "bidirectional": true
+              }
+            ],
+            "referencedBy": [
+              {
+                "@context": "http://www.w3.org/ns/anno.jsonld",
+                "type": "Annotation",
+                "id": "ann-main-b",
+                "motivation": "linking",
+                "target": {
+                  "source": "res-main"
+                },
+                "body": {
+                  "type": "SpecificResource",
+                  "source": "res-b",
+                  "purpose": "linking"
+                },
+                "created": "2020-03-04T05:06:07.000Z"
+              }
+            ]
+          }
+        }
+      },
+      "views": {},
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          {
+            "id": "res-main",
+            "type": "resource",
+            "label": "Main",
+            "entityTypes": [
+              "Paper"
+            ]
+          },
+          {
+            "id": "res-b",
+            "type": "resource",
+            "label": "B",
+            "entityTypes": []
+          }
+        ],
+        "edges": [
+          {
+            "source": "res-main",
+            "target": "res-b",
+            "type": "link",
+            "bidirectional": true
+          }
+        ]
+      },
+      "waited": 0
+    },
+    {
+      "why": "beyond the first link out a link found twice is one edge: two connections to one resource, and the link that reached a resource found again as what cites it",
+      "resource": "res-main",
+      "depth": 2,
+      "graph": {
+        "resource": [
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-main",
+            "name": "Main",
+            "entityTypes": [
+              "Paper"
+            ],
+            "representations": [
+              {
+                "mediaType": "text/markdown"
+              }
+            ]
+          }
+        ],
+        "connections": [
+          {
+            "resource": {
+              "@context": "https://schema.org/",
+              "@id": "res-b",
+              "name": "B",
+              "representations": []
+            },
+            "bidirectional": false
+          }
+        ],
+        "referencedBy": [],
+        "annotations": [],
+        "further": {
+          "res-b": {
+            "connections": [
+              {
+                "resource": {
+                  "@context": "https://schema.org/",
+                  "@id": "res-c",
+                  "name": "C",
+                  "representations": []
+                },
+                "bidirectional": false
+              },
+              {
+                "resource": {
+                  "@context": "https://schema.org/",
+                  "@id": "res-c",
+                  "name": "C",
+                  "representations": []
+                },
+                "bidirectional": false
+              }
+            ],
+            "referencedBy": [
+              {
+                "@context": "http://www.w3.org/ns/anno.jsonld",
+                "type": "Annotation",
+                "id": "ann-main-b",
+                "motivation": "linking",
+                "target": {
+                  "source": "res-main"
+                },
+                "body": {
+                  "type": "SpecificResource",
+                  "source": "res-b",
+                  "purpose": "linking"
+                },
+                "created": "2020-03-04T05:06:07.000Z"
+              }
+            ]
+          }
+        }
+      },
+      "views": {},
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          {
+            "id": "res-main",
+            "type": "resource",
+            "label": "Main",
+            "entityTypes": [
+              "Paper"
+            ]
+          },
+          {
+            "id": "res-b",
+            "type": "resource",
+            "label": "B",
+            "entityTypes": []
+          },
+          {
+            "id": "res-c",
+            "type": "resource",
+            "label": "C",
+            "entityTypes": []
+          }
+        ],
+        "edges": [
+          {
+            "source": "res-main",
+            "target": "res-b",
+            "type": "link",
+            "bidirectional": false
+          },
+          {
+            "source": "res-b",
+            "target": "res-c",
+            "type": "link",
+            "bidirectional": false
+          }
+        ]
+      },
+      "waited": 0
+    },
+    {
+      "why": "a resource reached by two ways is one node, which keeps the name and entity types it was first given, and each way has its edge",
+      "resource": "res-main",
+      "depth": 2,
+      "graph": {
+        "resource": [
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-main",
+            "name": "Main",
+            "entityTypes": [
+              "Paper"
+            ],
+            "representations": [
+              {
+                "mediaType": "text/markdown"
+              }
+            ]
+          }
+        ],
+        "connections": [
+          {
+            "resource": {
+              "@context": "https://schema.org/",
+              "@id": "res-b",
+              "name": "B",
+              "representations": []
+            },
+            "bidirectional": false
+          },
+          {
+            "resource": {
+              "@context": "https://schema.org/",
+              "@id": "res-c",
+              "name": "C",
+              "representations": []
+            },
+            "bidirectional": false
+          }
+        ],
+        "referencedBy": [],
+        "annotations": [],
+        "further": {
+          "res-b": {
+            "connections": [
+              {
+                "resource": {
+                  "@context": "https://schema.org/",
+                  "@id": "res-d",
+                  "name": "D",
+                  "entityTypes": [
+                    "Place"
+                  ],
+                  "representations": []
+                },
+                "bidirectional": false
+              }
+            ],
+            "referencedBy": []
+          },
+          "res-c": {
+            "connections": [
+              {
+                "resource": {
+                  "@context": "https://schema.org/",
+                  "@id": "res-d",
+                  "name": "D, renamed since",
+                  "entityTypes": [
+                    "Place",
+                    "Town"
+                  ],
+                  "representations": []
+                },
+                "bidirectional": false
+              }
+            ],
+            "referencedBy": []
+          }
+        }
+      },
+      "views": {},
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          {
+            "id": "res-main",
+            "type": "resource",
+            "label": "Main",
+            "entityTypes": [
+              "Paper"
+            ]
+          },
+          {
+            "id": "res-b",
+            "type": "resource",
+            "label": "B",
+            "entityTypes": []
+          },
+          {
+            "id": "res-c",
+            "type": "resource",
+            "label": "C",
+            "entityTypes": []
+          },
+          {
+            "id": "res-d",
+            "type": "resource",
+            "label": "D",
+            "entityTypes": [
+              "Place"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "source": "res-main",
+            "target": "res-b",
+            "type": "link",
+            "bidirectional": false
+          },
+          {
+            "source": "res-main",
+            "target": "res-c",
+            "type": "link",
+            "bidirectional": false
+          },
+          {
+            "source": "res-b",
+            "target": "res-d",
+            "type": "link",
+            "bidirectional": false
+          },
+          {
+            "source": "res-c",
+            "target": "res-d",
+            "type": "link",
+            "bidirectional": false
+          }
+        ]
+      },
+      "waited": 0
+    },
+    {
+      "why": "the annotations on a resource further out are not nodes: the store is not asked for them and its view's are not read, and one of them that refers to the resource it is on is no link",
+      "resource": "res-main",
+      "depth": 2,
+      "graph": {
+        "resource": [
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-main",
+            "name": "Main",
+            "entityTypes": [
+              "Paper"
+            ],
+            "representations": [
+              {
+                "mediaType": "text/markdown"
+              }
+            ]
+          }
+        ],
+        "connections": [
+          {
+            "resource": {
+              "@context": "https://schema.org/",
+              "@id": "res-b",
+              "name": "B",
+              "representations": []
+            },
+            "bidirectional": false
+          }
+        ],
+        "referencedBy": [],
+        "annotations": [],
+        "further": {
+          "res-b": {
+            "connections": [],
+            "referencedBy": [
+              {
+                "@context": "http://www.w3.org/ns/anno.jsonld",
+                "type": "Annotation",
+                "id": "ann-b-self",
+                "motivation": "linking",
+                "target": {
+                  "source": "res-b"
+                },
+                "body": {
+                  "type": "SpecificResource",
+                  "source": "res-b",
+                  "purpose": "linking"
+                },
+                "created": "2020-03-04T05:06:07.000Z"
+              }
+            ]
+          }
+        }
+      },
+      "views": {
+        "res-b": {
+          "resource": {
+            "@context": "https://schema.org/",
+            "@id": "res-b",
+            "name": "B",
+            "representations": []
+          },
+          "annotations": {
+            "resourceId": "res-b",
+            "annotations": [
+              {
+                "@context": "http://www.w3.org/ns/anno.jsonld",
+                "type": "Annotation",
+                "id": "ann-b-self",
+                "motivation": "linking",
+                "target": {
+                  "source": "res-b"
+                },
+                "body": {
+                  "type": "SpecificResource",
+                  "source": "res-b",
+                  "purpose": "linking"
+                },
+                "created": "2020-03-04T05:06:07.000Z"
+              },
+              {
+                "@context": "http://www.w3.org/ns/anno.jsonld",
+                "type": "Annotation",
+                "id": "ann-b-mark",
+                "motivation": "highlighting",
+                "target": {
+                  "source": "res-b"
+                },
+                "created": "2020-03-04T05:06:08.000Z"
+              }
+            ],
+            "version": 3,
+            "updatedAt": "2020-03-04T05:06:08.000Z"
+          },
+          "lastSequence": 3
+        }
+      },
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          {
+            "id": "res-main",
+            "type": "resource",
+            "label": "Main",
+            "entityTypes": [
+              "Paper"
+            ]
+          },
+          {
+            "id": "res-b",
+            "type": "resource",
+            "label": "B",
+            "entityTypes": []
+          }
+        ],
+        "edges": [
+          {
+            "source": "res-main",
+            "target": "res-b",
+            "type": "link",
+            "bidirectional": false
+          }
+        ]
+      },
+      "waited": 0
+    },
+    {
+      "why": "at a depth of 3 the graph reaches three links out, and a resource three links out is asked nothing",
+      "resource": "res-main",
+      "depth": 3,
+      "graph": {
+        "resource": [
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-main",
+            "name": "Main",
+            "entityTypes": [
+              "Paper"
+            ],
+            "representations": [
+              {
+                "mediaType": "text/markdown"
+              }
+            ]
+          }
+        ],
+        "connections": [
+          {
+            "resource": {
+              "@context": "https://schema.org/",
+              "@id": "res-b",
+              "name": "B",
+              "representations": []
+            },
+            "bidirectional": false
+          }
+        ],
+        "referencedBy": [],
+        "annotations": [],
+        "further": {
+          "res-b": {
+            "connections": [
+              {
+                "resource": {
+                  "@context": "https://schema.org/",
+                  "@id": "res-c",
+                  "name": "C",
+                  "representations": []
+                },
+                "bidirectional": false
+              }
+            ],
+            "referencedBy": []
+          },
+          "res-c": {
+            "connections": [
+              {
+                "resource": {
+                  "@context": "https://schema.org/",
+                  "@id": "res-d",
+                  "name": "D",
+                  "representations": []
+                },
+                "bidirectional": false
+              }
+            ],
+            "referencedBy": []
+          }
+        }
+      },
+      "views": {},
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          {
+            "id": "res-main",
+            "type": "resource",
+            "label": "Main",
+            "entityTypes": [
+              "Paper"
+            ]
+          },
+          {
+            "id": "res-b",
+            "type": "resource",
+            "label": "B",
+            "entityTypes": []
+          },
+          {
+            "id": "res-c",
+            "type": "resource",
+            "label": "C",
+            "entityTypes": []
+          },
+          {
+            "id": "res-d",
+            "type": "resource",
+            "label": "D",
+            "entityTypes": []
+          }
+        ],
+        "edges": [
+          {
+            "source": "res-main",
+            "target": "res-b",
+            "type": "link",
+            "bidirectional": false
+          },
+          {
+            "source": "res-b",
+            "target": "res-c",
+            "type": "link",
+            "bidirectional": false
+          },
+          {
+            "source": "res-c",
+            "target": "res-d",
+            "type": "link",
+            "bidirectional": false
+          }
+        ]
+      },
+      "waited": 0
+    },
+    {
+      "why": "nodes and edges beyond the first link out follow it a link at a time, the nearest first: each resource is asked in the order it was added, and its connections come before what cites it",
+      "resource": "res-main",
+      "depth": 3,
+      "graph": {
+        "resource": [
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-main",
+            "name": "Main",
+            "entityTypes": [
+              "Paper"
+            ],
+            "representations": [
+              {
+                "mediaType": "text/markdown"
+              }
+            ]
+          }
+        ],
+        "connections": [
+          {
+            "resource": {
+              "@context": "https://schema.org/",
+              "@id": "res-b",
+              "name": "B",
+              "representations": []
+            },
+            "bidirectional": false
+          },
+          {
+            "resource": {
+              "@context": "https://schema.org/",
+              "@id": "res-c",
+              "name": "C",
+              "representations": []
+            },
+            "bidirectional": false
+          }
+        ],
+        "referencedBy": [],
+        "annotations": [],
+        "further": {
+          "res-b": {
+            "connections": [
+              {
+                "resource": {
+                  "@context": "https://schema.org/",
+                  "@id": "res-d",
+                  "name": "D",
+                  "representations": []
+                },
+                "bidirectional": false
+              }
+            ],
+            "referencedBy": [
+              {
+                "@context": "http://www.w3.org/ns/anno.jsonld",
+                "type": "Annotation",
+                "id": "ann-g-b",
+                "motivation": "linking",
+                "target": {
+                  "source": "res-g"
+                },
+                "body": {
+                  "type": "SpecificResource",
+                  "source": "res-b",
+                  "purpose": "linking"
+                },
+                "created": "2020-03-04T05:06:07.000Z"
+              }
+            ]
+          },
+          "res-c": {
+            "connections": [
+              {
+                "resource": {
+                  "@context": "https://schema.org/",
+                  "@id": "res-e",
+                  "name": "E",
+                  "representations": []
+                },
+                "bidirectional": false
+              }
+            ],
+            "referencedBy": []
+          },
+          "res-d": {
+            "connections": [
+              {
+                "resource": {
+                  "@context": "https://schema.org/",
+                  "@id": "res-f",
+                  "name": "F",
+                  "representations": []
+                },
+                "bidirectional": false
+              }
+            ],
+            "referencedBy": []
+          },
+          "res-g": {
+            "connections": [],
+            "referencedBy": []
+          },
+          "res-e": {
+            "connections": [],
+            "referencedBy": []
+          }
+        }
+      },
+      "views": {},
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          {
+            "id": "res-main",
+            "type": "resource",
+            "label": "Main",
+            "entityTypes": [
+              "Paper"
+            ]
+          },
+          {
+            "id": "res-b",
+            "type": "resource",
+            "label": "B",
+            "entityTypes": []
+          },
+          {
+            "id": "res-c",
+            "type": "resource",
+            "label": "C",
+            "entityTypes": []
+          },
+          {
+            "id": "res-d",
+            "type": "resource",
+            "label": "D",
+            "entityTypes": []
+          },
+          {
+            "id": "res-g",
+            "type": "resource",
+            "label": "res-g",
+            "entityTypes": []
+          },
+          {
+            "id": "res-e",
+            "type": "resource",
+            "label": "E",
+            "entityTypes": []
+          },
+          {
+            "id": "res-f",
+            "type": "resource",
+            "label": "F",
+            "entityTypes": []
+          }
+        ],
+        "edges": [
+          {
+            "source": "res-main",
+            "target": "res-b",
+            "type": "link",
+            "bidirectional": false
+          },
+          {
+            "source": "res-main",
+            "target": "res-c",
+            "type": "link",
+            "bidirectional": false
+          },
+          {
+            "source": "res-b",
+            "target": "res-d",
+            "type": "link",
+            "bidirectional": false
+          },
+          {
+            "source": "res-g",
+            "target": "res-b",
+            "type": "link"
+          },
+          {
+            "source": "res-c",
+            "target": "res-e",
+            "type": "link",
+            "bidirectional": false
+          },
+          {
+            "source": "res-d",
+            "target": "res-f",
+            "type": "link",
+            "bidirectional": false
+          }
+        ]
+      },
+      "waited": 0
+    },
+    {
+      "why": "two resources that each link to the other, where neither connection says it goes both ways, have an edge each way",
+      "resource": "res-main",
+      "depth": 3,
+      "graph": {
+        "resource": [
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-main",
+            "name": "Main",
+            "entityTypes": [
+              "Paper"
+            ],
+            "representations": [
+              {
+                "mediaType": "text/markdown"
+              }
+            ]
+          }
+        ],
+        "connections": [
+          {
+            "resource": {
+              "@context": "https://schema.org/",
+              "@id": "res-b",
+              "name": "B",
+              "representations": []
+            },
+            "bidirectional": false
+          }
+        ],
+        "referencedBy": [],
+        "annotations": [],
+        "further": {
+          "res-b": {
+            "connections": [
+              {
+                "resource": {
+                  "@context": "https://schema.org/",
+                  "@id": "res-c",
+                  "name": "C",
+                  "representations": []
+                },
+                "bidirectional": false
+              }
+            ],
+            "referencedBy": []
+          },
+          "res-c": {
+            "connections": [
+              {
+                "resource": {
+                  "@context": "https://schema.org/",
+                  "@id": "res-b",
+                  "name": "B",
+                  "representations": []
+                },
+                "bidirectional": false
+              }
+            ],
+            "referencedBy": []
+          }
+        }
+      },
+      "views": {},
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          {
+            "id": "res-main",
+            "type": "resource",
+            "label": "Main",
+            "entityTypes": [
+              "Paper"
+            ]
+          },
+          {
+            "id": "res-b",
+            "type": "resource",
+            "label": "B",
+            "entityTypes": []
+          },
+          {
+            "id": "res-c",
+            "type": "resource",
+            "label": "C",
+            "entityTypes": []
+          }
+        ],
+        "edges": [
+          {
+            "source": "res-main",
+            "target": "res-b",
+            "type": "link",
+            "bidirectional": false
+          },
+          {
+            "source": "res-b",
+            "target": "res-c",
+            "type": "link",
+            "bidirectional": false
+          },
+          {
+            "source": "res-c",
+            "target": "res-b",
+            "type": "link",
+            "bidirectional": false
+          }
+        ]
+      },
+      "waited": 0
+    },
+    {
+      "why": "a link found first as what cites a resource, and again as the citing resource's own connection, is one edge, the first found, and states no bidirectional flag",
+      "resource": "res-main",
+      "depth": 3,
+      "graph": {
+        "resource": [
+          {
+            "@context": "https://schema.org/",
+            "@id": "res-main",
+            "name": "Main",
+            "entityTypes": [
+              "Paper"
+            ],
+            "representations": [
+              {
+                "mediaType": "text/markdown"
+              }
+            ]
+          }
+        ],
+        "connections": [
+          {
+            "resource": {
+              "@context": "https://schema.org/",
+              "@id": "res-b",
+              "name": "B",
+              "representations": []
+            },
+            "bidirectional": false
+          }
+        ],
+        "referencedBy": [],
+        "annotations": [],
+        "further": {
+          "res-b": {
+            "connections": [],
+            "referencedBy": [
+              {
+                "@context": "http://www.w3.org/ns/anno.jsonld",
+                "type": "Annotation",
+                "id": "ann-d-b",
+                "motivation": "linking",
+                "target": {
+                  "source": "res-d"
+                },
+                "body": {
+                  "type": "SpecificResource",
+                  "source": "res-b",
+                  "purpose": "linking"
+                },
+                "created": "2020-03-04T05:06:07.000Z"
+              }
+            ]
+          },
+          "res-d": {
+            "connections": [
+              {
+                "resource": {
+                  "@context": "https://schema.org/",
+                  "@id": "res-b",
+                  "name": "B",
+                  "representations": []
+                },
+                "bidirectional": false
+              }
+            ],
+            "referencedBy": []
+          }
+        }
+      },
+      "views": {},
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          {
+            "id": "res-main",
+            "type": "resource",
+            "label": "Main",
+            "entityTypes": [
+              "Paper"
+            ]
+          },
+          {
+            "id": "res-b",
+            "type": "resource",
+            "label": "B",
+            "entityTypes": []
+          },
+          {
+            "id": "res-d",
+            "type": "resource",
+            "label": "res-d",
+            "entityTypes": []
+          }
+        ],
+        "edges": [
+          {
+            "source": "res-main",
+            "target": "res-b",
+            "type": "link",
+            "bidirectional": false
+          },
+          {
+            "source": "res-d",
+            "target": "res-b",
+            "type": "link"
+          }
+        ]
+      },
+      "waited": 0
     }
   ]
 }

@@ -39,7 +39,7 @@ from spec import SPEC, JsonObject, objects, read, text, thing
 from store_contract import StoreContract, part, put_annotation, put_resource, width_of
 
 from semiont_vectors.qdrant import QdrantVectorReader, QdrantVectorStore
-from semiont_vectors.store import AnnotationPayload, EmbeddingChunk, SearchOptions, VectorStore
+from semiont_vectors.store import AnnotationPayload, CollectionAbsent, EmbeddingChunk, SearchOptions, VectorStore
 
 PORT: Final = 6333
 
@@ -256,11 +256,11 @@ def test_a_search_of_a_collection_that_is_not_there_fails_saying_so_and_makes_no
         reading = reader()
         await reading.connect()
         try:
-            with pytest.raises(RuntimeError, match=r"no such collection"):
+            with pytest.raises(CollectionAbsent, match=r"no such collection"):
                 await reading.search_resources([1.0, 0.0], FIVE)
-            with pytest.raises(RuntimeError, match=r"no such collection"):
+            with pytest.raises(CollectionAbsent, match=r"no such collection"):
                 await reading.search_annotations([1.0, 0.0], FIVE)
-            with pytest.raises(RuntimeError, match=r"no such collection"):
+            with pytest.raises(CollectionAbsent, match=r"no such collection"):
                 await reading.search_by_resource(ResourceId("res-a"), FIVE)
             assert await collections() == before
         finally:

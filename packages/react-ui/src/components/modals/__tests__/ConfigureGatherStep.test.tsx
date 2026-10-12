@@ -41,10 +41,16 @@ describe('ConfigureGatherStep', () => {
     render(<ConfigureGatherStep onGather={onGather} translations={t} />);
     fireEvent.click(screen.getByLabelText('Include content')); // uncheck
     fireEvent.click(screen.getByLabelText('Include summary')); // uncheck
-    fireEvent.change(screen.getByLabelText('Depth'), { target: { value: '4' } });
+    fireEvent.change(screen.getByLabelText('Depth'), { target: { value: '3' } });
     fireEvent.change(screen.getByLabelText('Max resources'), { target: { value: '25' } });
     fireEvent.click(screen.getByRole('button', { name: /Gather/ }));
-    expect(onGather).toHaveBeenCalledWith({ includeContent: false, includeSummary: false, depth: 4, maxResources: 25 });
+    expect(onGather).toHaveBeenCalledWith({ includeContent: false, includeSummary: false, depth: 3, maxResources: 25 });
+  });
+
+  it('bounds the depth to the 1 to 3 the protocol takes', () => {
+    render(<ConfigureGatherStep onGather={vi.fn()} translations={t} />);
+    expect(screen.getByLabelText('Depth')).toHaveAttribute('min', '1');
+    expect(screen.getByLabelText('Depth')).toHaveAttribute('max', '3');
   });
 
   it('the footer is the wizard footer: advance only, no dismissal, no flex', () => {

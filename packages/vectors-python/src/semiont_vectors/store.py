@@ -23,6 +23,7 @@ from semiont.identifiers import AnnotationId, ResourceId
 
 __all__ = [
     "AnnotationPayload",
+    "CollectionAbsent",
     "EmbeddingChunk",
     "ResourceStamp",
     "SearchFilter",
@@ -126,6 +127,15 @@ class SearchOptions:
     score_threshold: float | None = None
     """A point that scores below this is not answered."""
     filter: SearchFilter | None = None
+
+
+@final
+class CollectionAbsent(Exception):
+    """An index was asked to search a collection it does not have: no store has made it yet.
+
+    It is no empty answer. An index nobody has started holds nothing to
+    search, and whoever asked is told so.
+    """
 
 
 class VectorReader(Protocol):

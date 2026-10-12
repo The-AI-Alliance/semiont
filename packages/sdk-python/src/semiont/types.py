@@ -2915,7 +2915,14 @@ class GatherResourceRequestOptions(WireModel, frozen=True):
     Gathering configuration
     """
 
-    depth: Annotated[int, Field(description="Depth of resource graph traversal")]
+    depth: Annotated[
+        int,
+        Field(
+            description="How many links out from the resource the knowledge graph reaches, nearest first: 1 is what the resource links to and what cites it, and each further link out adds what those link to and what cites them",
+            ge=1,
+            le=3,
+        ),
+    ]
     max_resources: Annotated[
         int,
         Field(
@@ -3081,10 +3088,15 @@ class KnowledgeGraphEdgesItem(WireModel, frozen=True):
     type: Annotated[
         str,
         Field(
-            description="Edge kind: `annotation-of` (an annotation → the resource it lives on), `cites` (a citing linking annotation → the focal resource), or a peer connection's own relationshipType (free-form; `link` when unnamed)"
+            description="Edge kind: `annotation-of` (an annotation → the resource it lives on), `cites` (a citing linking annotation → the focal resource), or `link` (a resource → a resource it links to)"
         ),
     ]
-    bidirectional: Annotated[bool | None, Field(description="Whether the connection goes both ways")] = None
+    bidirectional: Annotated[
+        bool | None,
+        Field(
+            description="Whether the connection goes both ways. Absent on a `link` edge found through what cites a resource, which says nothing of the way back"
+        ),
+    ] = None
     metadata: dict[str, JsonValue] | None = None
 
 
@@ -6396,6 +6408,12 @@ class KnowledgeGraph(WireModel, frozen=True):
 
     nodes: list[KnowledgeGraphNodesItem]
     edges: list[KnowledgeGraphEdgesItem]
+    truncated: Annotated[
+        bool | None,
+        Field(
+            description="Whether the graph stopped taking resources at its ceiling of 200 resource nodes, so that a resource within the depth asked for is not in it. Present, and true, only then"
+        ),
+    ] = None
 
 
 class ArchivistConfig(WireModel, frozen=True, extra="forbid"):

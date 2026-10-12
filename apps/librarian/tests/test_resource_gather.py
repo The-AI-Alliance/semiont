@@ -32,9 +32,10 @@ from semiont.types import GatheredContext, GatherResourceRequest, GatherResource
 from semiont_graph.interface import GraphConnection
 from semiont_service.content import Content
 from semiont_vectors.store import SearchFilter, SearchOptions, VectorSearchResult
-from spec import JsonObject, thing
+from spec import JsonObject, objects, thing
 
 from semiont_librarian.annotation_gather import Ungathered
+from semiont_librarian.knowledge_graph import RESOURCE_CEILING, DepthRefused
 from semiont_librarian.prompts import reference_suggestions_prompt, resource_summary_prompt
 from semiont_librarian.reads import Settled
 from semiont_librarian.resource_gather import gather
@@ -60,11 +61,16 @@ def stored(resource: ResourceId, name: str, *, checksum: str | None = None, **st
 
 
 def options(
-    *, max_resources: int = 10, include_content: bool = True, include_summary: bool = False, excluding: list[str] | None = None
+    *,
+    depth: int = 1,
+    max_resources: int = 10,
+    include_content: bool = True,
+    include_summary: bool = False,
+    excluding: list[str] | None = None,
 ) -> GatherResourceRequestOptions:
-    """What a gather is asked for: content and no summary, where a test says no other."""
+    """What a gather is asked for: the graph one link out, content and no summary, where a test says no other."""
     return GatherResourceRequestOptions(
-        depth=1,
+        depth=depth,
         max_resources=max_resources,
         include_content=include_content,
         include_summary=include_summary,
@@ -183,6 +189,100 @@ def test_the_related_resources_are_the_first_of_the_graph_s_one_fewer_than_max_r
 
         assert thing(focus["content"], "content")["related"] == {FERRY: "The text of res-ferry."}
         assert world.content.asked == [QUAY, FERRY]
+
+    run(scenario())
+
+
+@pytest.mark.parametrize("depth", [0, 4])
+def test_a_depth_less_than_1_or_more_than_3_fails_the_gather_and_nothing_is_read(depth: int) -> None:
+    async def scenario() -> None:
+        world = a_world_of_the_quay()
+        # Stated as a caller that does not hold its request to the schema states it: the schema refuses such a depth too.
+        asked = GatherResourceRequestOptions.model_construct(depth=depth, max_resources=10, include_content=True, include_summary=False)
+
+        with pytest.raises(DepthRefused, match=r"depth must be between 1 and 3"):
+            await world.gathered(asked)
+
+        assert world.views.asked == []
+        assert world.content.asked == []
+        assert world.graph.asked == []
+        assert world.vectors.asked == []
+
+    run(scenario())
+
+
+def a_world_of_a_crossing() -> World:
+    """A world in which the quay links to the ferry, the ferry links to the tides, and each of the three has a text."""
+    quay = stored(QUAY, "The quay", checksum=CHECKSUM)
+    ferry, tides = stored(FERRY, "The ferry"), stored(TIDES, "The tides")
+    world = World(view(quay), view(ferry), view(tides))
+    for resource in (QUAY, FERRY, TIDES):
+        world.content.held[resource] = Content(f"The text of {resource}.".encode(), "text/plain")
+    world.weave_in(quay, ferry)
+    world.graph.connections[FERRY] = [GraphConnection(target_resource=tides, annotations=[], bidirectional=False)]
+    world.graph.referenced_by[FERRY] = []
+    world.graph.connections[TIDES] = []
+    world.graph.referenced_by[TIDES] = []
+    return world
+
+
+def test_the_graph_reaches_as_many_links_out_as_the_depth_and_the_texts_read_are_those_of_the_resources_it_reaches() -> None:
+    async def scenario() -> None:
+        near = a_world_of_a_crossing()
+        one_out = await near.gathered(options(depth=1))
+        assert [node.id for node in one_out.graph.nodes] == [QUAY, FERRY]
+        assert thing(thing(written(one_out)["focus"], "focus")["content"], "content")["related"] == {FERRY: "The text of res-ferry."}
+        assert near.graph.asked_of("get_resource_connections") == [QUAY]
+
+        far = a_world_of_a_crossing()
+        two_out = await far.gathered(options(depth=2))
+        assert [node.id for node in two_out.graph.nodes] == [QUAY, FERRY, TIDES]
+        assert thing(written(two_out)["graph"], "graph")["edges"] == [
+            {"source": QUAY, "target": FERRY, "type": "link", "bidirectional": False},
+            {"source": FERRY, "target": TIDES, "type": "link", "bidirectional": False},
+        ]
+        related = thing(thing(written(two_out)["focus"], "focus")["content"], "content")["related"]
+        assert related == {FERRY: "The text of res-ferry.", TIDES: "The text of res-tides."}
+        assert far.content.asked == [QUAY, FERRY, TIDES]
+        # The ferry, one link out, is asked what it links to and what cites it. The tides, two links out, are asked nothing.
+        assert far.graph.asked_of("get_resource_connections") == [QUAY, FERRY]
+        assert far.graph.asked_of("get_resource_referenced_by") == [(QUAY, None), (FERRY, None)]
+        assert "truncated" not in thing(written(two_out)["graph"], "graph")
+
+    run(scenario())
+
+
+def test_max_resources_reads_the_texts_of_the_nearest_resources_and_leaves_the_graph_whole() -> None:
+    async def scenario() -> None:
+        world = a_world_of_a_crossing()
+
+        context = await world.gathered(options(depth=2, max_resources=2))
+
+        # Two at most, the quay and one other: the ferry, one link out, and not the tides, two links out.
+        assert thing(thing(written(context)["focus"], "focus")["content"], "content")["related"] == {FERRY: "The text of res-ferry."}
+        assert world.content.asked == [QUAY, FERRY]
+        assert [node.id for node in context.graph.nodes] == [QUAY, FERRY, TIDES]
+
+    run(scenario())
+
+
+def test_a_graph_the_ceiling_cut_says_so_in_the_context() -> None:
+    async def scenario() -> None:
+        quay = stored(QUAY, "The quay", checksum=CHECKSUM)
+        ferry = stored(FERRY, "The ferry")
+        world = World(view(quay))
+        world.weave_in(quay, ferry)
+        # The ferry links to as many resources as a graph holds: two more than there is room for.
+        beyond = [described(f"res-buoy-{number:03d}") for number in range(RESOURCE_CEILING)]
+        world.graph.connections[FERRY] = [GraphConnection(target_resource=to, annotations=[], bidirectional=False) for to in beyond]
+        world.graph.referenced_by[FERRY] = []
+
+        said = written(await world.gathered(options(depth=2, include_content=False)))
+
+        graph = thing(said["graph"], "graph")
+        assert graph["truncated"] is True
+        kept = [each.id for each in beyond[: RESOURCE_CEILING - 2]]
+        assert [node["id"] for node in objects(graph["nodes"], "nodes")] == [QUAY, FERRY, *kept]
 
     run(scenario())
 

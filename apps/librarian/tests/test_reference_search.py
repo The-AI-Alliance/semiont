@@ -20,7 +20,7 @@ from semiont.identifiers import ResourceId
 from semiont.model import written
 from semiont.types import MatchSearchRequest, MatchSearchResult, ResourceDescriptor
 from semiont_graph.interface import ResourceListing, ResourceQuery
-from semiont_vectors.store import VectorSearchResult
+from semiont_vectors.store import CollectionAbsent, VectorSearchResult
 from spec import JsonObject
 
 from semiont_librarian.reference_search import search
@@ -180,6 +180,15 @@ def test_nothing_is_logged_of_the_graph_being_behind_when_it_holds_every_candida
         run(world.search(request(neighbours=(ROCK,))))
 
     assert graph_lag(caplog) == []
+
+
+def test_an_index_with_no_such_collection_fails_the_search() -> None:
+    world = World()
+    world.graph.resources[ROCK] = described(ROCK, dateCreated=MADE)
+    world.vectors.failing["search_resources"] = CollectionAbsent("Qdrant has no such collection: no store has made it yet")
+
+    with pytest.raises(CollectionAbsent, match=r"no such collection"):
+        run(world.search(request(neighbours=(ROCK,))))
 
 
 def test_an_embedding_that_fails_has_answered_no_hits_and_the_search_goes_on_with_the_other_sources() -> None:

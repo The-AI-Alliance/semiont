@@ -472,6 +472,43 @@ eachLibrarian('a Librarian, asked to gather', (world) => {
       expect(world().embedder.since(embedded)).toEqual([]);
     });
 
+    it('builds the graph as many links out as the depth it is told: at 1 what the resource links to, at 2 what that links to as well, with an edge between the two, and at 4 nothing', async () => {
+      // A chain: the first resource links to the second, and the second to the third.
+      const first = await world().created(FOX, { name: 'The first of a chain' });
+      const second = await world().created(FOX, { name: 'The second of a chain' });
+      const third = await world().created(TIDE, { name: 'The third of a chain' });
+      const toSecond = await world().referenced(first, 'fox');
+      const toThird = await world().referenced(second, 'dog');
+      await world().bound(first, toSecond, second);
+      await world().bound(second, toThird, third);
+      await world().ready(first, second, third);
+      const options = { ...TEXTS, includeContent: false };
+      const idsOf = (graph: GatheredContext['graph'], type: 'resource' | 'annotation') => graph.nodes.filter((node) => node.type === type).map((node) => node.id);
+
+      const one = await world().answered('gather:resource-requested', { resourceId: first, options: { ...options, depth: 1 } });
+      expect(idsOf(one.response.graph, 'resource')).toEqual([first, second]);
+
+      const two = await world().answered('gather:resource-requested', { resourceId: first, options: { ...options, depth: 2 } });
+      const { nodes, edges } = two.response.graph;
+      // The nearest first: the resource, what it links to, and what that links to.
+      expect(idsOf(two.response.graph, 'resource')).toEqual([first, second, third]);
+      expect(nodes).toContainEqual(expect.objectContaining({ id: third, type: 'resource', label: 'The third of a chain' }));
+      expect(edges).toContainEqual(expect.objectContaining({ source: second, target: third, type: 'link' }));
+      // The second resource is cited by the first, which is how it was reached: that link is one edge.
+      expect(edges.filter((edge) => edge.source === first && edge.target === second)).toHaveLength(1);
+      // Only the resource asked for has its annotations as nodes: the reference on the second resource is not one.
+      expect(idsOf(two.response.graph, 'annotation')).toEqual([toSecond]);
+      expect(two.response.graph).not.toHaveProperty('truncated');
+
+      // A depth out of bounds is not gathered: the gateway refuses the request, or the Librarian fails it.
+      const refused = await world()
+        .ask('gather:resource-requested', { resourceId: first, options: { ...options, depth: 4 } })
+        .then((reply) => (reply.ok ? 'answered' : reply.failure.message), (thrown: unknown) => String(thrown));
+      expect(refused).not.toBe('answered');
+      expect(refused).toMatch(/depth|gather:resource-requested/i);
+      expect(world().gatherer.generations).toEqual([]);
+    });
+
     it('fails a gather for a resource the record does not hold, and names the resource it was asked for', async () => {
       const failure = await world().failed('gather:resource-requested', { resourceId: 'no-such-resource', options: TEXTS });
 

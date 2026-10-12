@@ -33,7 +33,7 @@ from semiont.model import written
 from semiont.types import Annotation, GatherAnnotationOptions, GatherAnnotationRequest, GatheredContext, ResourceDescriptor, ResourceView
 from semiont_graph.interface import EntityTypeCount, GraphConnection
 from semiont_service.content import Content
-from semiont_vectors.store import SearchFilter, SearchOptions, VectorSearchResult
+from semiont_vectors.store import CollectionAbsent, SearchFilter, SearchOptions, VectorSearchResult
 from spec import JsonObject, thing
 
 from semiont_librarian.annotation_gather import Ungathered, gather
@@ -141,6 +141,9 @@ def test_a_gather_answers_the_selection_the_graph_the_frequencies_the_relationsh
         assert "targetContext" not in focus
         assert context.graph.nodes[0].id == MYTHS
         assert OLYMPUS in [node.id for node in context.graph.nodes]
+        # The graph is one link out: what the myths are connected to is asked nothing.
+        assert world.graph.asked_of("get_resource_connections") == [MYTHS]
+        assert world.graph.asked_of("get_resource_referenced_by") == [(MYTHS, None)]
         metadata: JsonObject = {
             "resourceType": "document",
             "entityTypes": ["Deity"],
@@ -371,6 +374,18 @@ def test_an_embedding_or_an_index_that_fails_leaves_the_context_without_what_is_
 
         assert "semanticContext" not in said
         assert said["inferredRelationshipSummary"] == "The passage names a god."
+
+    run(scenario())
+
+
+def test_an_index_with_no_such_collection_fails_the_gather() -> None:
+    async def scenario() -> None:
+        world = a_world_of_the_myths()
+        world.vectors.failing["search_annotations"] = CollectionAbsent("Qdrant has no such collection: no store has made it yet")
+        world.inference.say("The passage names a god.")
+
+        with pytest.raises(CollectionAbsent, match=r"no such collection"):
+            await world.gathered()
 
     run(scenario())
 

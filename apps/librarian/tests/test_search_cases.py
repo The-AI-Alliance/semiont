@@ -43,7 +43,7 @@ from semiont.types import (
 from semiont_graph.interface import EntityTypeCount, GraphConnection, ResourceListing, ResourceQuery
 from semiont_service.content import Content
 from semiont_vectors.embedding import EmbeddingProvider
-from semiont_vectors.store import SearchOptions, VectorSearchResult
+from semiont_vectors.store import CollectionAbsent, SearchOptions, VectorSearchResult
 from spec import ROOT, JsonObject, number, objects, only, read, strings, text, thing, whole, why
 
 from semiont_librarian.reads import GraphReads, PeopleUnread, Views
@@ -425,6 +425,14 @@ def test_the_reply_states_the_offset_and_the_limit_the_request_stated() -> None:
     assert response.resources == []
     asked = ResourceQuery(search="hawk", archived=True, entity_types=("Person",), offset=20, limit=10)
     assert at.graph.asked_of("list_resources") == [asked]
+
+
+def test_an_index_with_no_such_collection_fails_a_search_that_no_name_matches() -> None:
+    at = stores(lists=nothing_listed())
+    at.vectors.failing["search_resources"] = CollectionAbsent("Qdrant has no such collection: no store has made it yet")
+
+    with pytest.raises(CollectionAbsent, match=r"no such collection"):
+        reply_to(MatchResourcesRequest(search="ouranos"), at)
 
 
 def test_the_reply_to_a_semantic_search_keeps_each_passage_and_reads_no_bytes_and_its_people_are_named() -> None:

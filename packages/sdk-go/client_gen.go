@@ -3676,7 +3676,7 @@ type GatherResourceFailedCode string
 type GatherResourceRequest struct {
 	// Options Gathering configuration
 	Options struct {
-		// Depth Depth of resource graph traversal
+		// Depth How many links out from the resource the knowledge graph reaches, nearest first: 1 is what the resource links to and what cites it, and each further link out adds what those link to and what cites them
 		Depth int `json:"depth"`
 
 		// ExcludeEntityTypes Entity types to exclude from the semantic recall built into this context (caller-supplied; e.g. a chat consumer passes ['Question'] so prior questions never ground answer generation). Optional; default none.
@@ -4821,16 +4821,19 @@ type KbDescription struct {
 // KnowledgeGraph Knowledge graph gathered for an LLM context — a shared backbone in which resources AND annotations are typed nodes, connected by typed (optionally bidirectional) edges. Flattened views the matcher/generation read (connections, citedBy, siblings) are derived from these nodes/edges.
 type KnowledgeGraph struct {
 	Edges []struct {
-		// Bidirectional Whether the connection goes both ways
+		// Bidirectional Whether the connection goes both ways. Absent on a `link` edge found through what cites a resource, which says nothing of the way back
 		Bidirectional *bool                   `json:"bidirectional,omitempty"`
 		Metadata      *map[string]interface{} `json:"metadata,omitempty"`
 		Source        string                  `json:"source"`
 		Target        string                  `json:"target"`
 
-		// Type Edge kind: `annotation-of` (an annotation → the resource it lives on), `cites` (a citing linking annotation → the focal resource), or a peer connection's own relationshipType (free-form; `link` when unnamed)
+		// Type Edge kind: `annotation-of` (an annotation → the resource it lives on), `cites` (a citing linking annotation → the focal resource), or `link` (a resource → a resource it links to)
 		Type string `json:"type"`
 	} `json:"edges"`
 	Nodes []KnowledgeGraph_Nodes_Item `json:"nodes"`
+
+	// Truncated Whether the graph stopped taking resources at its ceiling of 200 resource nodes, so that a resource within the depth asked for is not in it. Present, and true, only then
+	Truncated *bool `json:"truncated,omitempty"`
 }
 
 // KnowledgeGraph_Nodes_Item defines model for KnowledgeGraph.nodes.Item.
