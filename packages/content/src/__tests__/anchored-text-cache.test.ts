@@ -567,23 +567,6 @@ describe('would-hit key listing', () => {
     const virgin = createAnchoredTextStore(path.join(dir, 'never-written'));
     expect(await virgin.list()).toEqual([]);
   });
-
-  it('sweeps the flat resource-id-keyed generation from the root, and only the root', async () => {
-    // A `.json` at the store root is a flat-layout entry under a resource-id
-    // key — a scheme no caller reads or writes. Leaving a generation of
-    // them is how the store's size becomes unexplainable; reconcile
-    // re-deriving a lost artifact is what makes deleting them safe.
-    // Non-entry files are not ours to reap.
-    const store = createAnchoredTextStore(dir);
-    fs.writeFileSync(path.join(dir, 'a1b2c3d4e5f60718293a4b5c6d7e8f90.json'), '{"v":1,"stamp":"old","text":"","lines":[]}');
-    fs.writeFileSync(path.join(dir, 'notes.txt'), 'not even a candidate');
-    await store.write('feedc0de11', MAP);   // a current, sharded entry
-
-    expect(await store.list()).toEqual(['feedc0de11']);
-    expect(fs.existsSync(path.join(dir, 'a1b2c3d4e5f60718293a4b5c6d7e8f90.json'))).toBe(false);
-    expect(fs.existsSync(path.join(dir, 'notes.txt'))).toBe(true);
-    expect(await store.read('feedc0de11')).not.toBeNull();   // the sweep spares the live tree
-  });
 });
 
 /**
@@ -611,14 +594,6 @@ describe('the writer states its stamp in the directory', () => {
     expect(await createAnchoredTextStore(dir).list()).toEqual([KEY]);
 
     expect(stated()).toBe(written);
-  });
-
-  it('the stated stamp survives the listing sweep', async () => {
-    const store = createAnchoredTextStore(dir);
-    await store.write(KEY, MAP);
-    await store.list();
-
-    expect(fs.existsSync(path.join(dir, 'STAMP'))).toBe(true);
   });
 });
 

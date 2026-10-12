@@ -223,8 +223,7 @@ function entryFile(dir: string, key: string): string | null {
 /**
  * The file in which the store's writer states its stamp. A reader in another
  * process, built from other packages or in another language, cannot compute
- * the writer's stamp; it compares entries against this. Named without `.json`:
- * `list()` sweeps every `.json` at the root.
+ * the writer's stamp; it compares entries against this.
  */
 const STAMP_FILE = 'STAMP';
 
@@ -359,24 +358,7 @@ export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredT
                 return [];   // no directory yet: nothing has been written
             }
 
-            // One-generation sweep: a `.json` at the root is a flat-layout
-            // entry under a resource-id key — a scheme no caller reads or
-            // writes. The rebuild path (the planner's third drift class)
-            // re-derives anything still needed, which is what makes this
-            // delete safe; leaving a generation behind is how the store's
-            // size becomes unexplainable.
-            // Done here because list() is the one bulk call every reconcile
-            // already makes, so the sweep runs exactly when the planner is
-            // about to notice what is missing. Best-effort, never throws.
-            let swept = 0;
-            for (const name of rootNames) {
-                if (!name.endsWith('.json')) continue;
-                await fs.promises.rm(path.join(dir, name), { force: true }).then(() => { swept += 1; }, () => {});
-            }
-            if (swept > 0) logger?.info('Anchored-text cache: swept flat resource-id entries', { swept });
-
             const keys: string[] = [];
-            let sweptInterim = 0;
             for (const ab of rootNames) {
                 if (!/^[0-9a-f]{2}$/.test(ab)) continue;
                 let cdNames: string[];
@@ -395,19 +377,7 @@ export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredT
                     }
                     for (const name of names) {
                         if (!name.endsWith('.json')) continue;
-                        // Interim-generation sweep: a 32-hex basename is a
-                        // resource-id key filed under the shard layout — a
-                        // scheme no caller reads or writes. Checksums
-                        // are 64-hex (SHA-256), so the two generations are
-                        // disjoint by length. Reaped here for the same
-                        // reason the flat sweep lives here: one bulk call
-                        // per reconcile, and never a third scheme lingering
-                        // silently.
                         const base = name.slice(0, -'.json'.length);
-                        if (/^[0-9a-f]{32}$/.test(base)) {
-                            await fs.promises.rm(path.join(dir, ab, cd, name), { force: true }).then(() => { sweptInterim += 1; }, () => {});
-                            continue;
-                        }
                         let handle: fs.promises.FileHandle | null = null;
                         try {
                             handle = await fs.promises.open(path.join(dir, ab, cd, name), 'r');
@@ -424,7 +394,6 @@ export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredT
                     }
                 }
             }
-            if (sweptInterim > 0) logger?.info('Anchored-text cache: swept interim resource-id entries', { swept: sweptInterim });
             return keys;
         },
     };
