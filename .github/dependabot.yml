@@ -156,7 +156,8 @@ updates:
 
   # The Python projects: the SDK, the inference drivers, the graph stores and
   # the service package Semiont's Python services are built from, and the two
-  # services themselves, the Worker (apps/worker) and the Weaver (apps/weaver). Their
+  # services themselves, the Worker (apps/worker), the Weaver (apps/weaver) and
+  # the Python Smelter (apps/smelter). Their
   # runtime dependencies, and the tools their gates are made of. The type
   # checkers, the formatter and the SDK's model generator are pinned to a
   # version each, because what they say of a package, and what the generator
@@ -177,6 +178,7 @@ updates:
       - "/packages/service-python"
       - "/apps/worker"
       - "/apps/weaver"
+      - "/apps/smelter"
     cooldown:
       default-days: 5
     schedule:

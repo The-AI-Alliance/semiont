@@ -21,6 +21,30 @@ promoting ~18 of that package's internals to public API to satisfy a directory l
 
 Change the CMD only against that file.
 
+## The Smelter in Python is here, and no image runs it
+
+`src/semiont_smelter` is the Smelter in Python (`pyproject.toml`, `uv.lock`, `tests/`). The
+image this directory builds does not install it: the Smelter that runs is the TypeScript
+one this page describes.
+
+What is here derives a PDF's text. A PDF is read with PDFium (`pdfium.py`, through
+`pypdfium2`) and a scanned page with the `tesseract` program (`tesseract.py`), each behind
+a protocol (`pdf_reader.py`, `ocr_engine.py`) whose second implementation answers what a
+test states (`scripted.py`). The rules that make a document's text from what an engine
+hands over are written once, whatever reads the file (`extraction.py`, `anchoring.py`,
+`tables.py`, `ocr_text.py`), and are held by
+[`extraction-cases.json`](../../specs/src/smelter/extraction-cases.json). What is derived
+is kept in the anchored-text store (`anchored_text_store.py`), each entry as its
+[schema](../../specs/src/components/schemas/AnchoredTextEntry.json) states it.
+
+```sh
+uv sync --locked
+uv run pytest        # needs the `tesseract` program, with its English data
+```
+
+The tests read the PDFs in [`specs/src/smelter/fixtures`](../../specs/src/smelter/fixtures/),
+which [`make-pdf-fixtures.py`](../../scripts/fixtures/make-pdf-fixtures.py) writes.
+
 ## What it does
 
 Subscribes to domain events over SSE, reads the bytes, chunks text, embeds via

@@ -1307,6 +1307,65 @@ jobs:
       - name: Run the tests
         run: uv run pytest
 
+  # The Python Smelter's code (apps/smelter), as the Python SDK is checked:
+  # both type checkers, strict, on the oldest Python supported, and the tests
+  # on every one. The locked environment takes the SDK from this checkout, and
+  # PDFium from its binding's wheel. The tests read PDFs with the real PDFium
+  # and scanned pages with the real `tesseract` program, which the runner's
+  # own packages install with its English data: an image's Tesseract is
+  # Alpine's, another build of the same engine, so no test rests on how sure
+  # the engine was or on a box to the pixel. They start no service.
+  test-smelter-python:
+    name: Python Smelter
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.12', '3.13', '3.14']
+
+    defaults:
+      run:
+        working-directory: apps/smelter
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.2.0
+
+      - name: Install the tesseract program
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr
+          tesseract --version
+
+      - name: Install the locked environment
+        run: uv sync --locked
+
+      - name: Type-check with mypy (strict)
+        if: matrix.python-version == '3.12'
+        run: uv run mypy
+
+      # pyright runs on Node, which the runner has.
+      - name: Type-check with pyright (strict)
+        if: matrix.python-version == '3.12'
+        run: uv run pyright
+
+      - name: Lint and check formatting
+        if: matrix.python-version == '3.12'
+        run: |
+          uv run ruff check
+          uv run ruff format --check
+
+      - name: Run the tests
+        run: uv run pytest
+
   test-comprehensive:
     name: Comprehensive Test Suite
     runs-on: ubuntu-latest

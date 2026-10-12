@@ -1,0 +1,73 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [5 0 R] /NeedAppearances true /DA (0 0 0 rg /Helvetica 15 Tf) /DR << /Font << /Helvetica 3 0 R >> >> >> >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 14 0 R /Annots [7 0 R 9 0 R 11 0 R 13 0 R] >>
+endobj
+5 0 obj
+<< /T (policy) /Kids [6 0 R 8 0 R 10 0 R 12 0 R] >>
+endobj
+6 0 obj
+<< /FT /Tx /T (holderName) /V (Ada Lovelace) /Parent 5 0 R /Kids [7 0 R] >>
+endobj
+7 0 obj
+<< /Type /Annot /Subtype /Widget /Rect [71.5 699.5 272.5 720.5] /Parent 6 0 R /P 4 0 R /F 4 /BS << /W 1 >> /MK << /BC [0 0 0] /BG [1 1 1] >> >>
+endobj
+8 0 obj
+<< /FT /Tx /T (coverageAmount) /V ($250,000) /Parent 5 0 R /Kids [9 0 R] >>
+endobj
+9 0 obj
+<< /Type /Annot /Subtype /Widget /Rect [71.5 659.5 272.5 680.5] /Parent 8 0 R /P 4 0 R /F 4 /BS << /W 1 >> /MK << /BC [0 0 0] /BG [1 1 1] >> >>
+endobj
+10 0 obj
+<< /FT /Ch /Ff 131072 /Opt [(CA) (NY)] /T (state) /V (NY) /Parent 5 0 R /Kids [11 0 R] >>
+endobj
+11 0 obj
+<< /Type /Annot /Subtype /Widget /Rect [71.5 619.5 172.5 640.5] /Parent 10 0 R /P 4 0 R /F 4 /BS << /W 1 >> /MK << /BC [0 0 0] /BG [1 1 1] >> >>
+endobj
+12 0 obj
+<< /FT /Tx /T (notes) /Parent 5 0 R /Kids [13 0 R] >>
+endobj
+13 0 obj
+<< /Type /Annot /Subtype /Widget /Rect [71.5 579.5 272.5 600.5] /Parent 12 0 R /P 4 0 R /F 4 /BS << /W 1 >> /MK << /BC [0 0 0] /BG [1 1 1] >> >>
+endobj
+14 0 obj
+<< /Length 57 >>
+stream
+BT
+/F1 14 Tf
+1 0 0 1 72 740 Tm
+(Policy Application) Tj
+ET
+endstream
+endobj
+xref
+0 15
+0000000000 65535 f 
+0000000015 00000 n 
+0000000189 00000 n 
+0000000246 00000 n 
+0000000343 00000 n 
+0000000506 00000 n 
+0000000573 00000 n 
+0000000664 00000 n 
+0000000823 00000 n 
+0000000914 00000 n 
+0000001073 00000 n 
+0000001179 00000 n 
+0000001340 00000 n 
+0000001410 00000 n 
+0000001571 00000 n 
+trailer
+<< /Size 15 /Root 1 0 R >>
+startxref
+1679
+%%EOF

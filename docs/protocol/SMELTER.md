@@ -226,28 +226,28 @@ states what each kind of document becomes.
 
 - **A document with a text layer of its own is read from that layer,** run by
   run, each with its place on its page.
-  *Held by `packages/content/src/__tests__/extraction-cases.test.ts` and `smelter/pdf`.*
+  *Held by `packages/content/src/__tests__/extraction-cases.test.ts`, `apps/smelter/tests/test_extraction_cases.py` and `smelter/pdf`.*
 - **A scanned document is read from its pixels:** each page's images are
   taken out and read by OCR, and each word is placed on the page by the place
   of the image it was read from. No fixture of the table has a word in its
   pixels, so the table holds only that a scan in which nothing can be read is
   declined; the tests named here play the OCR engine.
-  *Held by `packages/content/src/__tests__/pdf-ocr.test.ts` and `packages/content/src/__tests__/pdf-placement.test.ts`.*
+  *Held by `packages/content/src/__tests__/pdf-ocr.test.ts` and `packages/content/src/__tests__/pdf-placement.test.ts`; by `apps/smelter/tests/test_extraction.py` and `apps/smelter/tests/test_ocr_text.py`, which play the engine too; and by `apps/smelter/tests/test_extraction_cases.py`, which reads a scan that has words in its pixels with the real engine.*
 - **A document with pages of each kind is read both ways,** and names the
   pages that could not be read.
-  *Held by `packages/content/src/__tests__/extraction-cases.test.ts` and `packages/content/src/__tests__/pdf-ocr.test.ts`.*
+  *Held by `packages/content/src/__tests__/extraction-cases.test.ts`, `packages/content/src/__tests__/pdf-ocr.test.ts`, `apps/smelter/tests/test_extraction_cases.py` and `apps/smelter/tests/test_extraction.py`.*
 - **A page that is a grid of cells is written as rows,** each row's cells on
   one line, in their order.
-  *Held by `packages/content/src/__tests__/extraction-cases.test.ts`.*
+  *Held by `packages/content/src/__tests__/extraction-cases.test.ts`, `apps/smelter/tests/test_extraction_cases.py` and `apps/smelter/tests/test_tables.py`.*
 - **A filled form's values are part of its text.**
-  *Held by `packages/content/src/__tests__/extraction-cases.test.ts`.*
+  *Held by `packages/content/src/__tests__/extraction-cases.test.ts` and `apps/smelter/tests/test_extraction_cases.py`.*
 - **A document that cannot be parsed, or that is larger than 200 MB, is
   declined, by name,** and one too large is declined before anything parses
   it. A scanned document in which nothing can be read is declined as having
   no text layer.
-  *Held by `packages/content/src/__tests__/extraction-cases.test.ts` and `smelter/pdf`.*
-- **An encrypted document is declined, by name.** No fixture is encrypted.
-  *Held by `packages/content/src/__tests__/pdf-extractor.test.ts`.*
+  *Held by `packages/content/src/__tests__/extraction-cases.test.ts`, `apps/smelter/tests/test_extraction_cases.py` and `smelter/pdf`.*
+- **An encrypted document is declined, by name.** No fixture the table names is encrypted.
+  *Held by `packages/content/src/__tests__/pdf-extractor.test.ts`, and by `apps/smelter/tests/test_extraction_cases.py` on a document that is encrypted.*
 - **The outcome says how the text was got** (its `method`), and text read by
   OCR is marked on every point made from it.
   *Held by `packages/make-meaning/src/__tests__/smelter.test.ts` and `smelter/pdf`.*
@@ -260,7 +260,7 @@ states what each kind of document becomes.
 - **What deriving a PDF's text came to is stored under the checksum of the
   bytes, a decline as well as a text,** as an
   [`AnchoredTextEntry`](../../specs/src/components/schemas/AnchoredTextEntry.json).
-  *Held by `packages/content/src/__tests__/anchored-text-cache.test.ts` and `smelter/pdf`.*
+  *Held by `packages/content/src/__tests__/anchored-text-cache.test.ts`, `apps/smelter/tests/test_anchored_text_store.py` and `smelter/pdf`.*
 - **The entry is stored before the decision is signalled,** so whoever hears
   that content was settled finds its entry.
   *Held by `smelter/pdf`.*
@@ -278,7 +278,7 @@ states what each kind of document becomes.
   under another, nor one of another version of the entry's form. An entry
   made by a Smelter that derives text another way is then a miss, and is
   derived again.
-  *Held by `packages/content/src/__tests__/anchored-text-cache.test.ts` and `smelter/pdf`.*
+  *Held by `packages/content/src/__tests__/anchored-text-cache.test.ts`, `apps/smelter/tests/test_anchored_text_store.py` and `smelter/pdf`.*
 
 ## The index
 

@@ -223,7 +223,7 @@ const TABLES = [
   },
   {
     table: 'specs/src/smelter/extraction-cases.json',
-    runners: ['packages/content/src/__tests__/extraction-cases.test.ts'],
+    runners: ['packages/content/src/__tests__/extraction-cases.test.ts', 'apps/smelter/tests/test_extraction_cases.py'],
   },
 ];
 

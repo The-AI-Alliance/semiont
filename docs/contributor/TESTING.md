@@ -18,6 +18,7 @@ How Semiont's test suites are organized, configured and run, and what CI gates o
 | Python | `packages/vectors-python` (`uv run pytest`) | The Python vector stores and embedding providers: what a point is against its case table, one store contract of both case tables against the in-memory store, each provider against one the test plays over HTTP, and what the package is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
 | Python | `packages/vectors-python` (`uv run pytest tests/qdrant_live.py`) | The same store contract against a real Qdrant, and what the Qdrant then holds of each point; it deletes that Qdrant's two collections | The above, and a Qdrant of its own, named in `QDRANT_HOST` |
 | Python | `apps/weaver` (`uv run pytest`) | The Weaver's Python code: the fold against the case table of what each event does to the graph, and the Weaver over a scripted transport and a graph in the process (its order, its marks, catch-up, reconcile, rebuild, what it refuses to start on), and what the project is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
+| Python | `apps/smelter` (`uv run pytest`) | The Python Smelter's code, as far as it is built: reading a PDF with PDFium and a scanned page with the `tesseract` program, each against the real engine; the rules that make a document's text, against the case table of what deriving a PDF's text comes to; the anchored-text store, its entries held to their schema; and what the project is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later, `uv`, and the `tesseract` program with its English data |
 | Gateway conformance | [`tests/conformance/gateway`](../../tests/conformance/gateway/README.md) | A running gateway, black-box, against `specs/`: every declared operation, every response and stream message, and hand-written protocol cases, on both signal planes | A built gateway; `nats-server` 2.10 or later on `PATH` |
 | Dispatcher conformance | [`tests/conformance/dispatcher`](../../tests/conformance/dispatcher/README.md) | A running dispatcher, black-box, behind a real gateway on a real JetStream broker, against [JOBS.md](../protocol/JOBS.md) and every channel's schema | A built gateway and dispatcher; `nats-server` |
 | Archivist conformance | [`tests/conformance/archivist`](../../tests/conformance/archivist/README.md) | A running Archivist, black-box, on the bus through a real gateway, at its HTTP surface and in the files it keeps, against [ARCHIVIST.md](../protocol/ARCHIVIST.md) | A built gateway and Archivist; `git`; `nats-server` |
@@ -156,7 +157,7 @@ The launcher's suite takes minutes; its notes are in [apps/launcher/README.md](.
 
 ### Python
 
-As CI runs them, from `packages/sdk-python`, and the same from `packages/inference-python`, `packages/graph-python`, `packages/vectors-python`, `packages/service-python`, `apps/worker` and `apps/weaver`:
+As CI runs them, from `packages/sdk-python`, and the same from `packages/inference-python`, `packages/graph-python`, `packages/vectors-python`, `packages/service-python`, `apps/worker`, `apps/weaver` and `apps/smelter`:
 
 ```bash
 uv sync --locked
@@ -322,6 +323,7 @@ Excluded from coverage: what the shared config excludes (see [One shared Vitest 
 | `test-vectors-python` | `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `packages/vectors-python` |
 | `test-vectors-python-qdrant` | Starts the Qdrant the launcher runs and holds the Python Qdrant store to the store contract against it |
 | `test-weaver-python` | `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `apps/weaver` |
+| `test-smelter-python` | Installs the `tesseract` program, then `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `apps/smelter` |
 | `test-comprehensive` | The Browser suite again, after a full package build |
 | `validate-config` | `npm ci --include=optional` and `npm run build:packages` |
 | `check-phantom-deps` | Every import in a published `dist` is declared by its package |
