@@ -7,6 +7,11 @@
 // human reviews it. A license the allowlist names `for` one package is allowed
 // on that package and on no other.
 //
+// What the review found is an exception: for a package that states no license,
+// and for a license a package states under a name SPDX does not have. An
+// exception answers only where the scanner could not, and what it answers is
+// judged against the allowlist like any other license.
+//
 // Read by check-licenses.mjs (npm packages in an image's SBOM) and by
 // scripts/lint/check-image-crates.mjs (the crates each Rust service binary links).
 
@@ -38,23 +43,36 @@ function readAllowlist(path) {
 }
 
 /**
- * Exceptions: package name → human-verified SPDX id, for a package whose
- * metadata carries no license. A trailing `*` on the name is a prefix wildcard,
- * for generators that name their output with a content hash.
+ * Exceptions: what a human verified where the scanner could not say.
+ *
+ * `<package-name> <SPDX expression>` is for a package whose metadata carries no
+ * license. A trailing `*` on the name is a prefix wildcard, for generators that
+ * name their output with a content hash.
+ *
+ * `<package-name> "<name>" <SPDX expression>` is for a package whose metadata
+ * states a license under a name SPDX does not have: `<name>` is that name as
+ * the scanner reports it. The line answers for that name on that package, and
+ * for no other name and no other package.
  */
 function readExceptions(path) {
   const exact = new Map();
   const prefixes = [];
-  if (!path) return { exact, prefixes };
+  const named = [];
+  if (!path) return { exact, prefixes, named };
   for (const raw of readFileSync(path, 'utf8').split('\n')) {
     const line = raw.replace(/#.*/, '').trim();
     if (!line) continue;
-    const [name, spdx] = line.split(/\s+/);
-    if (!name || !spdx) continue;
-    if (name.endsWith('*')) prefixes.push([name.slice(0, -1), spdx]);
+    const [, name, reported, spdx] = /^(\S+)\s+(?:"([^"]+)"\s+)?(\S.*)$/.exec(line) ?? [];
+    if (!name || !spdx || spdx.includes('"')) {
+      throw new Error(`${path}: "${line}" is neither "<package-name> <SPDX expression>" nor "<package-name> \"<name>\" <SPDX expression>"`);
+    }
+    if (reported !== undefined) {
+      if (name.endsWith('*')) throw new Error(`${path}: "${line}" answers for a name on every package of a prefix; a name is answered for one package`);
+      named.push({ name, reported, spdx });
+    } else if (name.endsWith('*')) prefixes.push([name.slice(0, -1), spdx]);
     else exact.set(name, spdx);
   }
-  return { exact, prefixes };
+  return { exact, prefixes, named };
 }
 
 const tokenize = (expr) => expr.replace(/\(/g, ' ( ').replace(/\)/g, ' ) ').split(/\s+/).filter(Boolean);
@@ -114,6 +132,31 @@ export function loadPolicy(allowlistPath, exceptionsPath) {
     exceptionFor(name) {
       if (exceptions.exact.has(name)) return exceptions.exact.get(name);
       return exceptions.prefixes.find(([p]) => name.startsWith(p))?.[1];
+    },
+
+    /**
+     * An expression with each license the scanner could not name answered,
+     * where a human has answered for it on the package named `of`. `names`
+     * gives, for each `LicenseRef-*` of the expression, the name the scanner
+     * reports it under.
+     *
+     * Only such a reference is replaced, and by the verified expression in
+     * parentheses. Every SPDX id the scanner found stays, and so does a
+     * reference nobody answered for, which `allows` then refuses. So the
+     * caller judges the result as it would any expression, and an exception
+     * carries nothing past the allowlist.
+     */
+    answered(expr, of, names) {
+      const answers = [];
+      const tokens = tokenize(expr).flatMap((token) => {
+        if (!/^LicenseRef-/i.test(token)) return [token];
+        const reported = names.get(token);
+        const verified = exceptions.named.find((entry) => entry.name === of && entry.reported === reported)?.spdx;
+        if (verified === undefined) return [token];
+        answers.push({ reported, verified });
+        return ['(', ...tokenize(verified), ')'];
+      });
+      return { expression: tokens.join(' '), answers };
     },
   };
 }

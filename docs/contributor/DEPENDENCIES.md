@@ -78,7 +78,7 @@ The version bump regenerates the root lockfile itself ([Release](RELEASE.md#5-bu
 
 ## Licences
 
-The service images pass a licence policy before they are published. For the Python images it reads the image's bill of materials, which lists every package installed from PyPI; for the Rust images, [`scripts/lint/check-image-crates.mjs`](../../scripts/lint/check-image-crates.mjs) reads the crates each binary links. [`.github/licenses/exceptions.txt`](../../.github/licenses/exceptions.txt) records licences judged acceptable. It never suppresses a finding.
+The service images pass a licence policy before they are published. For the Python images it reads the image's bill of materials, which lists every package installed from PyPI; for the Rust images, [`scripts/lint/check-image-crates.mjs`](../../scripts/lint/check-image-crates.mjs) reads the crates each binary links. [`.github/licenses/exceptions.txt`](../../.github/licenses/exceptions.txt) records what a person read where the scanner could not say: the licence of a package that states none, and a licence a package states under a name SPDX does not have. It answers for nothing the scanner did name, and what it supplies is held to the same allowlist.
 
 ## Related
 
