@@ -484,21 +484,25 @@ def _pixels(bitmap: _Bitmap) -> Pixels:
     return Pixels(width=width, height=height, rgb=bytes(rgb))
 
 
+def _decoded_image(pdfium: _Pdfium, image: _Image) -> Pixels | None:
+    """One image's pixels. `None` for an image PDFium cannot decode."""
+    try:
+        bitmap = image.get_bitmap(render=False)
+    except pdfium.failure:
+        return None
+    try:
+        return _pixels(bitmap)
+    finally:
+        # Closing frees the bitmap's buffer, which the package warns of. Its bytes were copied, and nothing reads it again.
+        bitmap.warn_on_close = False
+        bitmap.close()
+
+
 def _decoded(document: _Document, index: int, at: int) -> Pixels | None:
     pdfium = _pdfium()
     page = document.get_page(index)
     try:
-        image = _images(pdfium, page)[at]
-        try:
-            bitmap = image.get_bitmap(render=False)
-        except pdfium.failure:
-            return None
-        try:
-            return _pixels(bitmap)
-        finally:
-            # Closing frees the bitmap's buffer, which the package warns of. Its bytes were copied, and nothing reads it again.
-            bitmap.warn_on_close = False
-            bitmap.close()
+        return _decoded_image(pdfium, _images(pdfium, page)[at])
     finally:
         page.close()
 

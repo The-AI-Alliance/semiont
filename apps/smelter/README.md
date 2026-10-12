@@ -23,19 +23,37 @@ Change the CMD only against that file.
 
 ## The Smelter in Python is here, and no image runs it
 
-`src/semiont_smelter` is the Smelter in Python (`pyproject.toml`, `uv.lock`, `tests/`). The
-image this directory builds does not install it: the Smelter that runs is the TypeScript
-one this page describes.
+`src/semiont_smelter` is the Smelter in Python (`pyproject.toml`, `uv.lock`, `tests/`),
+whole: it does what [SMELTER.md](../../docs/protocol/SMELTER.md) states, and the
+[smelter conformance suite](../../tests/conformance/smelter/README.md) runs every case
+against it as it does against the TypeScript one. The image this directory builds does not
+install it: the Smelter that runs in a stack is the TypeScript one this page describes.
 
-What is here derives a PDF's text. A PDF is read with PDFium (`pdfium.py`, through
-`pypdfium2`) and a scanned page with the `tesseract` program (`tesseract.py`), each behind
-a protocol (`pdf_reader.py`, `ocr_engine.py`) whose second implementation answers what a
-test states (`scripted.py`). The rules that make a document's text from what an engine
-hands over are written once, whatever reads the file (`extraction.py`, `anchoring.py`,
-`tables.py`, `ocr_text.py`), and are held by
-[`extraction-cases.json`](../../specs/src/smelter/extraction-cases.json). What is derived
-is kept in the anchored-text store (`anchored_text_store.py`), each entry as its
-[schema](../../specs/src/components/schemas/AnchoredTextEntry.json) states it.
+It is started as `python -P -m semiont_smelter --config <path>`, with its service account
+in its environment (`SEMIONT_OIDC_CLIENT_ID`, `SEMIONT_OIDC_CLIENT_SECRET`). Everything
+else it is told is in the document at that path, a
+[`SmelterConfig`](../../specs/src/components/schemas/SmelterConfig.json): the gateway, the
+issuer, the Archivist, the embedding provider, the vector index, the two numbers a text is
+cut by, the directory of the anchored-text store, its health port and its log. Nothing the
+document leaves out is supplied, and a secret is never in it: an embedding provider's key is
+named by the variable that holds it.
+
+| Module | What it is |
+| --- | --- |
+| `service.py`, `config.py` | The process: what it is started with, what it refuses to start on, the order it starts in, how it stops |
+| `smelter.py` | The Smelter: what each recorded event does to the index, the one place a resource is declined, the decision it signals, reconcile, the rebuild command |
+| `reconcile.py` | The work a start plans, as [`reconcile-cases.json`](../../specs/src/smelter/reconcile-cases.json) states it |
+| `recorded.py`, `record.py` | The nine events it follows, and what it reads of the record over the bus |
+| `content.py`, `archivist.py` | A resource's bytes: what reads them, and the reader that asks the Archivist |
+| `chunking.py`, `white_space.py` | How a text is cut, as [`chunk-cases.json`](../../specs/src/text/chunk-cases.json) states it |
+| `extraction.py`, `anchoring.py`, `tables.py`, `ocr_text.py` | A PDF's text by its class, as [`extraction-cases.json`](../../specs/src/smelter/extraction-cases.json) states it |
+| `pdf_reader.py`, `pdfium.py`; `ocr_engine.py`, `tesseract.py`; `scripted.py` | What reads a PDF (PDFium, through `pypdfium2`) and what reads a scanned page (the `tesseract` program), each behind a protocol whose second implementation answers what a test states |
+| `anchored_text_store.py`, `shard.py`, `stamp.py` | The anchored-text store, each entry as its [schema](../../specs/src/components/schemas/AnchoredTextEntry.json) states it |
+
+The index it writes and the provider it asks for vectors are
+[`semiont-vectors`](../../packages/vectors-python/README.md), and what every Python service
+does to be one (its document, its health, its log, its telemetry, the order it works in) is
+[`semiont-service`](../../packages/service-python/README.md).
 
 ```sh
 uv sync --locked

@@ -121,6 +121,13 @@ export const SMELTER_SERVICES: Readonly<Record<string, SmelterService>> = {
     command: ['node', join(REPO_ROOT, 'packages/make-meaning/dist/smelter-main.js')],
     settings: 'semiontconfig',
   },
+  // The Smelter in Python: the interpreter of the project's locked environment, so nothing is resolved or
+  // installed when a case starts it. `-P` keeps the directory a case starts it in off its import path. It reads
+  // its settings from the protocol's configuration document, and needs the `tesseract` program on PATH.
+  python: {
+    command: [join(REPO_ROOT, 'apps/smelter/.venv/bin/python'), '-P', '-m', 'semiont_smelter'],
+    settings: 'document',
+  },
 };
 
 export const SPEC_SOURCE = join(REPO_ROOT, 'specs/src');

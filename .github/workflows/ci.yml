@@ -716,6 +716,27 @@ jobs:
           echo "Qdrant did not answer within two minutes"
           exit 1
 
+      # The suite starts the Python Smelter by the interpreter of its project's
+      # locked environment (harness/paths.ts), on the Python the SDK's floor
+      # names, without the development group. It reads a scanned page with the
+      # `tesseract` program, as its image will.
+      - name: Setup Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.2.0
+
+      - name: Install the tesseract program
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr
+          tesseract --version
+
+      - name: Make the Python Smelter's environment
+        run: uv sync --locked --no-dev --project apps/smelter
+
       # Black-box: it starts Smelter processes behind a gateway and an
       # Archivist, records through the Archivist, and reads the index.
       - name: Run the Smelter conformance suite

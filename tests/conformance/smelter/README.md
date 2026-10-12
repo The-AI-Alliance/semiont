@@ -8,13 +8,25 @@ against [docs/protocol/SMELTER.md](../../../docs/protocol/SMELTER.md).
 
 The suite imports nothing from a Smelter, and nothing a Smelter is built on.
 The lines that name one are `SMELTER_SERVICES` in
-[harness/paths.ts](../harness/paths.ts): today Semiont's own, the built entry
-of `@semiont/make-meaning`, run by node as its image runs it. Each line also
-says how its implementation is given its settings, and nothing else in the
-suite knows: Semiont's own reads the knowledge base's configuration file,
-`.semiontconfig`, in its home directory, so the harness writes that file
+[harness/paths.ts](../harness/paths.ts): the Smelter in TypeScript, the built
+entry of `@semiont/make-meaning`, run by node as its image runs it; and the
+Smelter in Python ([`apps/smelter`](../../../apps/smelter/README.md)), run by
+the interpreter of its project's locked environment. Each line also says how
+its implementation is given its settings, and nothing else in the suite
+knows. The first reads the knowledge base's configuration file,
+`.semiontconfig`, in its home directory, and the directory of the
+anchored-text store from its environment. The second reads the protocol's
+configuration document,
+[`SmelterConfig`](../../../specs/src/components/schemas/SmelterConfig.json),
+at the path its `--config` flag names. The harness writes whichever it is
 ([harness/smelter-process.ts](../harness/smelter-process.ts)) into a home of
-the process's own. Every case runs against every entry.
+the process's own. A refusal to start names what is missing in the words of
+the way the settings were given, and the cases that hold a refusal state
+both. Every case runs against every entry.
+
+The Smelter in Python reads a scanned page with the `tesseract` program,
+which must be on `PATH`, with its English data, and its environment is made
+before a run: `uv sync --locked --no-dev --project apps/smelter`.
 
 The index is read and changed by the suite's own calls to Qdrant's REST
 interface ([harness/qdrant.ts](../harness/qdrant.ts)), and never through the

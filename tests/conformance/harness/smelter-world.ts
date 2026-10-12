@@ -105,9 +105,10 @@ export class SmelterWorld {
         vectors: { type: 'qdrant', host, port: QDRANT_PORT },
         embedding: { type: 'ollama', model: EMBEDDING_MODEL, baseURL: provider.origin },
         chunking: { chunkSize: 512, overlap: 64 },
+        // The store's directory is the one the Archivist is configured to read.
+        anchoredTextDir: kb.dirs.anchoredTextDir,
       },
-      // The store's directory is the one the Archivist is configured to read.
-      { SEMIONT_OIDC_CLIENT_ID: SMELTER_CLIENT, SEMIONT_OIDC_CLIENT_SECRET: secret, SEMIONT_ANCHORED_TEXT_DIR: kb.dirs.anchoredTextDir },
+      { SEMIONT_OIDC_CLIENT_ID: SMELTER_CLIENT, SEMIONT_OIDC_CLIENT_SECRET: secret },
       mkdtempSync(join(tmpdir(), 'conformance-smelter-')),
       signals,
     );

@@ -27,6 +27,7 @@ declare module 'vitest' {
 /** What builds each implementation, said when a file its command names is missing. */
 const BUILDS: Readonly<Record<string, string>> = {
   typescript: '`npm run build:packages` at the repository root',
+  python: '`uv sync --locked --no-dev --project apps/smelter` at the repository root',
 };
 
 export default async function setup(project: TestProject): Promise<void> {

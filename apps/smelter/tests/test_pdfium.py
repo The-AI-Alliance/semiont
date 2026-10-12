@@ -42,11 +42,11 @@ DRAWN: Final[dict[str, list[list[str]]]] = {
 }
 """The words drawn on each page of a fixture, in the order they are read. A value of a form's field is not drawn."""
 
-DRAWN_IN_SOME_ORDER: Final[dict[str, list[str]]] = {
-    "multi-column.pdf": "left column line one left column line two right column line one right column line two".split(),
-    "table.pdf": "Treatment Responders p-value Drug A 12% 0.03 Drug B 9% 0.21 Placebo 4% 0.88".split(),
+DRAWN_IN_SOME_ORDER: Final[dict[str, str]] = {
+    "multi-column.pdf": "left column line one left column line two right column line one right column line two",
+    "table.pdf": "Treatment Responders p-value Drug A 12% 0.03 Drug B 9% 0.21 Placebo 4% 0.88",
 }
-"""The words drawn on the one page of a fixture whose columns no reader is held to an order of."""
+"""The words drawn on the one page of a fixture whose columns no reader is held to an order of, a space between two."""
 
 BARS: Final = (240, 140)
 """How many pixels wide and high the image of bars is."""
@@ -157,7 +157,7 @@ def test_the_runs_of_each_page_are_the_words_drawn_on_it_in_the_order_they_are_r
 @pytest.mark.parametrize("name", sorted(DRAWN_IN_SOME_ORDER))
 def test_the_runs_of_a_page_of_columns_are_the_words_drawn_on_it(name: str) -> None:
     [page] = words(run(asked(fixture(name), every_run)))
-    assert sorted(page) == sorted(DRAWN_IN_SOME_ORDER[name])
+    assert sorted(page) == sorted(DRAWN_IN_SOME_ORDER[name].split())
 
 
 def test_a_run_ends_a_line_where_the_page_begins_another() -> None:

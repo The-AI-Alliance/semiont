@@ -401,11 +401,7 @@ OUTCOMES = [
 ]
 GRID = ScriptedDocument(pages=[ScriptedPage(runs=grid(OUTCOMES, [72.0, 250.0, 420.0]))])
 ROWS = (
-    "| Treatment | Responders | p-value |\n"
-    "| --- | --- | --- |\n"
-    "| Drug A | 12% | 0.03 |\n"
-    "| Drug B | 9% | 0.21 |\n"
-    "| Placebo | 4% | 0.88 |\n"
+    "| Treatment | Responders | p-value |\n| --- | --- | --- |\n| Drug A | 12% | 0.03 |\n| Drug B | 9% | 0.21 |\n| Placebo | 4% | 0.88 |\n"
 )
 
 

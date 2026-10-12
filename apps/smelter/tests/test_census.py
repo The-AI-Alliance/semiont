@@ -6,8 +6,13 @@ no checker. What reads a PDF and what reads an image are each behind a
 protocol: PDFium's binding is named by the one module that asks through it,
 a program is started by the one module that runs one, and the rules that
 make a document's text know neither. Every reader and every engine has its
-protocol's members. And what this project's manifest says a second time,
-after the SDK's, says the same.
+protocol's members. The events it follows are the ones the protocol lists,
+and each does something. A resource that was to be indexed and was not is
+concluded in one place. The index and the provider are reached through
+their protocols, and no store is named. And what this project's manifest
+says a second time, after the SDK's, says the same. It is a service's code
+and no library: one module reads the process's environment and its
+arguments, and no other project requires it.
 """
 
 import ast
@@ -17,11 +22,13 @@ import tomllib
 from pathlib import Path
 
 from pydantic import JsonValue, TypeAdapter
-from spec import PACKAGE, SDK
+from spec import PACKAGE, ROOT, SDK
 
+from semiont_smelter.config import SERVICE
 from semiont_smelter.ocr_engine import OcrEngine
 from semiont_smelter.pdf_reader import PdfReader
 from semiont_smelter.pdfium import PdfiumReader
+from semiont_smelter.recorded import FOLLOWED
 from semiont_smelter.scripted import ScriptedOcrEngine, ScriptedPdfReader
 from semiont_smelter.tesseract import TesseractEngine
 
@@ -42,6 +49,30 @@ SURFACE = {
     "shard": ["shard_path"],
     "stamp": ["current_stamp"],
     "anchored_text_store": ["AnchoredTextStore"],
+    "white_space": ["WHITE_SPACE", "trimmed"],
+    "chunking": ["Chunking", "Cut", "chunk_text", "cut_chunk", "estimate_tokens"],
+    "log": ["LOG", "failure_said", "words_of"],
+    "recorded": ["ENRICHED", "FOLLOWED", "PLAIN", "stored_event"],
+    "record": ["READ", "Record"],
+    "content": ["Content", "ContentReads", "ContentUnread"],
+    "reconcile": [
+        "Embed",
+        "EmbedAnnotation",
+        "Embeddable",
+        "Purge",
+        "PurgeAnnotation",
+        "Reanchor",
+        "ReconcileSummary",
+        "Restamp",
+        "Work",
+        "classify_embeddable",
+        "plan_reconcile",
+        "quotes_text",
+    ],
+    "smelter": ["ReconcileState", "Smelter"],
+    "config": ["SERVICE", "embedding_key_of", "read_smelter_config"],
+    "archivist": ["ArchivistContent", "Authorizes"],
+    "service": ["CHANNELS", "boot", "main"],
 }
 
 # The modules that say what a reader and an engine are, and the rules that make a document's text from what one hands over.
@@ -119,7 +150,6 @@ def test_a_public_name_is_imported_from_its_module_and_not_from_the_packages_roo
     for module, names in SURFACE.items():
         for name in names:
             assert not hasattr(root, name), f"{name} can be imported from the package's root as well as from semiont_smelter.{module}"
-    assert (SRC / "py.typed").read_bytes() == b""
 
 
 def test_a_reader_and_an_engine_have_the_members_of_their_protocols() -> None:
@@ -157,15 +187,107 @@ def test_each_engine_is_reached_by_one_module_and_the_rules_know_neither() -> No
         imported_by = set(importing(rf"semiont_smelter\.{driver}"))
         # What a reader and an engine are is said without one, and the rules are handed theirs.
         assert not imported_by & (PROTOCOLS | RULES), driver
+    # The real reader and the real engine are made by the service as it starts, and by nothing else. The scripted
+    # ones are for tests: nothing the service runs imports them.
+    assert importing(r"semiont_smelter\.pdfium") == ["service.py"]
+    assert importing(r"semiont_smelter\.tesseract") == ["service.py"]
+    assert importing(r"semiont_smelter\.scripted") == []
     # The store keeps what was derived, and knows nothing of how: it imports no reader, no engine and no rule.
     kept_by = {"anchored_text_store.py", "shard.py"}
     for module in ("pdfium", "tesseract", "scripted", "extraction", "anchoring", "tables", "ocr_text", "pdf_reader", "ocr_engine"):
         assert not set(importing(rf"semiont_smelter\.{module}")) & kept_by, module
 
 
-def test_the_package_holds_nothing_beside_its_modules_but_its_typed_marker() -> None:
+def test_the_events_it_follows_are_the_ones_the_protocol_lists_and_each_does_something() -> None:
+    page = (ROOT / "docs/protocol/SMELTER.md").read_text(encoding="utf-8")
+    rule = re.search(r"\*\*It follows nine recorded events:\*\*(.*?)\*Held by", page, re.DOTALL)
+    assert rule is not None, "docs/protocol/SMELTER.md no longer lists the events a Smelter follows"
+    assert sorted(re.findall(r"`([a-z]+:[a-z-]+)`", rule.group(1))) == sorted(FOLLOWED)
+    assert len(FOLLOWED) == len(set(FOLLOWED)) == 9
+    # What each does is one `match` over the event's type: an event that is followed and has no case there is
+    # delivered, handed to its lane, and fails.
+    source = (SRC / "smelter.py").read_text(encoding="utf-8")
+    applying = source[source.index("    async def _apply(") : source.index("    # ── Indexing a resource")]
+    stated = re.findall(r"^            case (.+):$", applying, re.MULTILINE)
+    cases = [name for line in stated for name in re.findall(r'"([a-z]+:[a-z-]+)"', line)]
+    assert sorted(cases) == sorted(FOLLOWED)
+
+
+def test_a_resource_that_is_not_indexed_is_concluded_in_one_place() -> None:
+    # A resource that was to be indexed and was not is owed a line of the log, and a decline its signal and an index
+    # that agrees with it. One function does what is owed and makes the value that says it was done, so nothing
+    # can decide not to index a resource and say nothing.
+    source = (SRC / "smelter.py").read_text(encoding="utf-8")
+    assert naming("_Concluded(") == ["smelter.py"]
+    assert source.count("_Concluded(") == 1
+    concluding = source[source.index("    async def _conclude(") : source.index("    async def _text_of(")]
+    assert "_Concluded(" in concluding
+    for owed in ('"Smelter did not index resource"', '"Smelter could not read resource content"', 'outcome="skipped"'):
+        assert source.count(owed) == 1, owed
+        assert owed in concluding, owed
+    # And one function signals: a decision is signalled the same way whoever made it.
+    assert source.count("emit(SMELT_SETTLED") == 1
+    assert naming("SMELT_SETTLED") == ["smelter.py"]
+
+
+def test_the_index_and_the_provider_are_reached_through_their_protocols() -> None:
+    # The Smelter is handed a store and a provider. It names neither a database nor a provider's own module.
+    vector_modules = sorted(
+        {
+            found.group(1)
+            for path in SRC.rglob("*.py")
+            for found in re.finditer(r"^\s*from semiont_vectors\.(\w+) import ", path.read_text(encoding="utf-8"), re.MULTILINE)
+        }
+    )
+    assert vector_modules == ["embedding", "factory", "store"]
+    # It asks for a store and a provider by what its configuration states, in the one module that reads that.
+    assert importing(r"semiont_vectors\.factory") == ["service.py"]
+    assert importing("qdrant_client") == []
+    # The one request the Smelter makes itself is for a resource's bytes, of the Archivist.
+    assert importing("httpx") == ["archivist.py"]
+
+
+def test_one_checksum_is_worked_out_in_one_place_and_white_space_is_asked_of_one_module() -> None:
+    # The checksum on the points, the key of an anchored-text entry and the checksum a decision states are one
+    # value, worked out once from the bytes that were read.
+    assert naming("hashlib.sha256(") == ["smelter.py"]
+    assert (SRC / "smelter.py").read_text(encoding="utf-8").count("hashlib.sha256(") == 1
+    # Python's own white space is another set than the protocol's: what cuts a text, what says a text is empty
+    # and what says an annotation quotes nothing each ask the one module.
+    own = re.compile(r"\.strip\(\)|\.lstrip\(\)|\.rstrip\(\)|\.split\(\)|\.isspace\(\)|\\s")
+    for module in ("smelter.py", "reconcile.py", "chunking.py"):
+        assert not own.search((SRC / module).read_text(encoding="utf-8")), f"{module} asks Python what white space is"
+        assert "from semiont_smelter.white_space import trimmed" in (SRC / module).read_text(encoding="utf-8"), module
+
+
+def test_one_module_names_the_logger_and_one_reads_the_process_s_environment() -> None:
+    assert naming("getLogger(") == ["log.py"]
+    reading = sorted(
+        str(path.relative_to(SRC))
+        for path in SRC.rglob("*.py")
+        if re.search(r"\bos\.environ\b|\bos\.getenv\b|\bsys\.argv\b", path.read_text(encoding="utf-8"))
+    )
+    assert reading == ["service.py"]
+
+
+def test_the_distribution_is_named_for_the_service() -> None:
+    # Its telemetry is exported under its word for itself after `semiont-`, at the version of the distribution of
+    # that name (`semiont_service.observability`), and the stamp of its anchored-text entries states that version.
+    assert table(MANIFEST["project"], "project")["name"] == f"semiont-{SERVICE}"
+    assert '_DISTRIBUTION: Final = "semiont-smelter"' in (SRC / "stamp.py").read_text(encoding="utf-8")
+
+
+def test_it_is_a_service_s_code_and_no_library() -> None:
+    assert not (SRC / "py.typed").exists()
+    assert "Private :: Do Not Upload" in listed(table(MANIFEST["project"], "project")["classifiers"], "classifiers")
+    for other in sorted(ROOT.glob("packages/*/pyproject.toml")) + sorted(ROOT.glob("apps/*/pyproject.toml")):
+        if other.parent != PACKAGE:
+            assert "semiont-smelter" not in other.read_text(encoding="utf-8"), f"{other.relative_to(ROOT)} requires the Smelter"
+
+
+def test_the_package_holds_nothing_beside_its_modules() -> None:
     beside = sorted(str(path.relative_to(SRC)) for path in SRC.rglob("*") if path.is_file() and path.suffix not in (".py", ".pyc"))
-    assert beside == ["py.typed"]
+    assert beside == []
 
 
 def test_the_checkers_and_their_strictness_are_the_sdks() -> None:
@@ -177,8 +299,9 @@ def test_the_checkers_and_their_strictness_are_the_sdks() -> None:
         return {name_of(requirement): requirement for requirement in dev}
 
     checkers = ("mypy", "pyright", "pytest", "ruff")
-    assert set(tools(MANIFEST)) == set(checkers)
-    assert tools(MANIFEST) == {name: tools(theirs)[name] for name in checkers}
+    # Beside them, what makes the histories of the property tests, which the SDK has no use for.
+    assert set(tools(MANIFEST)) == {*checkers, "hypothesis"}
+    assert {name: tools(MANIFEST)[name] for name in checkers} == {name: tools(theirs)[name] for name in checkers}
 
     def settings(of: Toml, tool: str, *, but: tuple[str, ...]) -> Toml:
         return {key: value for key, value in table(table(of["tool"], "tool")[tool], tool).items() if key not in but}
@@ -201,13 +324,20 @@ def test_the_checkers_and_their_strictness_are_the_sdks() -> None:
 def test_what_the_project_requires_is_what_it_reads_a_pdf_with_and_what_the_sdk_brings() -> None:
     project = table(MANIFEST["project"], "project")
     required = listed(project["dependencies"], "dependencies")
-    assert {name_of(requirement) for requirement in required} == {"pydantic", "pypdfium2", "semiont", "semiont-service"}
-    for library in ("pydantic", "semiont"):
+    assert {name_of(requirement) for requirement in required} == {
+        "httpx",
+        "pydantic",
+        "pypdfium2",
+        "semiont",
+        "semiont-service",
+        "semiont-vectors",
+    }
+    for library in ("httpx", "pydantic", "semiont", "semiont_service", "semiont_vectors"):
         assert importing(library), f"{library} is required and nothing imports it"
     # A dependency the SDK bounds is named here without a bound of its own.
     of_the_sdk = listed(table(toml(SDK / "pyproject.toml")["project"], "project")["dependencies"], "the SDK's dependencies")
     bounded = {name_of(requirement) for requirement in of_the_sdk}
-    assert "pydantic" in bounded
+    assert {"httpx", "pydantic"} <= bounded
     for requirement in required:
         if name_of(requirement) in bounded:
             assert requirement == name_of(requirement), f"{requirement}: the SDK states the versions of {name_of(requirement)}"

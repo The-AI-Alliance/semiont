@@ -126,7 +126,7 @@ def test_a_program_that_is_not_installed_fails_by_its_name(tmp_path: Path, monke
 
 def test_a_program_that_exits_with_a_failure_fails_with_what_it_said(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     stand_in(tmp_path, "/bin/cat > /dev/null\necho 'no such language' >&2\nexit 3", monkeypatch)
-    with pytest.raises(RuntimeError, match="tesseract .* exited with 3: no such language"):
+    with pytest.raises(RuntimeError, match=r"tesseract .* exited with 3: no such language"):
         run(TesseractEngine().read([bars()]))
 
 

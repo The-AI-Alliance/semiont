@@ -151,10 +151,15 @@ const TABLES = [
       'packages/sdk-python/tests/test_resource_readers.py',
     ],
   },
-  // What Semiont's worker alone does.
+  // What Semiont's worker alone does, but for the cutting of a text, which
+  // its Smelter does by the same rule.
   {
     table: 'specs/src/text/chunk-cases.json',
-    runners: ['packages/core/src/__tests__/chunk-cases.test.ts', 'apps/worker/tests/test_chunk_cases.py'],
+    runners: [
+      'packages/core/src/__tests__/chunk-cases.test.ts',
+      'apps/worker/tests/test_chunk_cases.py',
+      'apps/smelter/tests/test_chunk_cases.py',
+    ],
     countsCodePoints: true,
   },
   {
@@ -216,10 +221,11 @@ const TABLES = [
   },
   // The work a Smelter's start plans, from what the index, the catalog and
   // the anchored-text store each hold; and what each kind of PDF becomes. Run
-  // by the Smelter (@semiont/make-meaning, with @semiont/content).
+  // by each Smelter: TypeScript's (@semiont/make-meaning, with
+  // @semiont/content) and Python's (apps/smelter).
   {
     table: 'specs/src/smelter/reconcile-cases.json',
-    runners: ['packages/make-meaning/src/__tests__/reconcile-cases.test.ts'],
+    runners: ['packages/make-meaning/src/__tests__/reconcile-cases.test.ts', 'apps/smelter/tests/test_reconcile_cases.py'],
   },
   {
     table: 'specs/src/smelter/extraction-cases.json',

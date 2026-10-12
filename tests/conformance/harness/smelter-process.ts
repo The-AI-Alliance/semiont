@@ -6,9 +6,9 @@
  * here once for every implementation. How an implementation is given them is
  * its own, and its line of `SMELTER_SERVICES` says which way that is: the
  * harness writes them that way, into a home directory of the process's own.
- * The environment holds its service account, the directory of the
- * anchored-text store, and PATH, which finds its command; nothing else from
- * the developer's shell.
+ * The environment holds its service account and PATH, which finds its
+ * command, and whatever of its settings its way of being given them puts
+ * there; nothing else from the developer's shell.
  *
  * A Smelter's health port is a constant, so two cannot run at once: a Smelter
  * is not started while anything answers there.
@@ -28,9 +28,12 @@ export interface SmelterService {
   /**
    * How it is given its settings. `semiontconfig`: it reads them from the file
    * `.semiontconfig` of its home directory, the knowledge base's
-   * configuration file, in TOML.
+   * configuration file, in TOML, and the directory of the anchored-text store
+   * from `SEMIONT_ANCHORED_TEXT_DIR` in its environment. `document`: it reads
+   * them all from the protocol's configuration document (`SmelterConfig`), at
+   * the path its `--config` flag names.
    */
-  settings: 'semiontconfig';
+  settings: 'semiontconfig' | 'document';
 }
 
 /**
@@ -50,12 +53,13 @@ export interface SmelterSettings {
   embedding: { type?: 'ollama'; model?: string; baseURL?: string };
   /** The two numbers a text is cut by: a chunk's size, and how far one chunk overlaps the next. */
   chunking?: { chunkSize: number; overlap: number };
+  /** The directory of the anchored-text store. */
+  anchoredTextDir?: string;
 }
 
 export interface SmelterEnvironment {
   SEMIONT_OIDC_CLIENT_ID?: string;
   SEMIONT_OIDC_CLIENT_SECRET?: string;
-  SEMIONT_ANCHORED_TEXT_DIR?: string;
   [name: string]: string | undefined;
 }
 
@@ -137,9 +141,51 @@ function semiontconfig(settings: SmelterSettings): string {
   ].join('\n');
 }
 
-/** Each way a Smelter is given its settings: what the harness writes into its home directory. */
-const GIVEN: Readonly<Record<SmelterService['settings'], (settings: SmelterSettings, home: string) => void>> = {
-  semiontconfig: (settings, home) => writeFileSync(join(home, '.semiontconfig'), semiontconfig(settings)),
+/** What is left of an object when the members that state nothing are taken out. */
+const stated = (members: Record<string, unknown>): Record<string, unknown> =>
+  Object.fromEntries(Object.entries(members).filter(([, value]) => value !== undefined));
+
+/**
+ * The settings as the protocol's configuration document states them
+ * (`SmelterConfig`). A setting a case left out is a member left out, which
+ * the document's reader refuses by name. The health port and the two log
+ * settings are no setting of SMELTER.md § Settings: the port is the
+ * protocol's constant, and the log is written as a person reads it.
+ */
+function document(settings: SmelterSettings): string {
+  return JSON.stringify(
+    stated({
+      gatewayUrl: settings.gatewayUrl,
+      identity: stated({ issuer: settings.issuer }),
+      archivist: settings.archivist,
+      embedding: stated({ type: settings.embedding.type, model: settings.embedding.model, baseUrl: settings.embedding.baseURL }),
+      vectors: stated({ type: settings.vectors.type, host: settings.vectors.host, port: settings.vectors.port }),
+      chunking: settings.chunking,
+      anchoredTextDir: settings.anchoredTextDir,
+      port: SMELTER_HEALTH_PORT,
+      logLevel: 'info',
+      logFormat: 'simple',
+    }),
+  );
+}
+
+/** What a way of giving a Smelter its settings adds to how it is started: arguments after its command, and members of its environment. */
+interface Given {
+  args: string[];
+  env: Record<string, string>;
+}
+
+/** Each way a Smelter is given its settings: what the harness writes into its home directory, and what it then starts it with. */
+const GIVEN: Readonly<Record<SmelterService['settings'], (settings: SmelterSettings, home: string) => Given>> = {
+  semiontconfig: (settings, home) => {
+    writeFileSync(join(home, '.semiontconfig'), semiontconfig(settings));
+    return { args: [], env: settings.anchoredTextDir === undefined ? {} : { SEMIONT_ANCHORED_TEXT_DIR: settings.anchoredTextDir } };
+  },
+  document: (settings, home) => {
+    const path = join(home, 'smelter.json');
+    writeFileSync(path, document(settings));
+    return { args: ['--config', path], env: {} };
+  },
 };
 
 // ── The process ────────────────────────────────────────────────────────────
@@ -160,10 +206,10 @@ async function launch({ service, settings, env, home }: SmelterLaunch): Promise<
     throw new Error(`something already answers at ${ORIGIN}/health: a Smelter's health port is a constant, so the one that is running is stopped before another is started`);
   }
   mkdirSync(home, { recursive: true });
-  GIVEN[service.settings](settings, home);
-  const childEnv: Record<string, string> = { PATH: process.env['PATH'] ?? '', HOME: home };
+  const given = GIVEN[service.settings](settings, home);
+  const childEnv: Record<string, string> = { PATH: process.env['PATH'] ?? '', HOME: home, ...given.env };
   for (const [name, value] of Object.entries(env)) if (value !== undefined) childEnv[name] = value;
-  const [program, ...args] = service.command;
+  const [program, ...args] = [...service.command, ...given.args];
   const child = spawn(program!, args, { env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] });
   const output: string[] = [];
   collectLines(child.stdout!, [output]);

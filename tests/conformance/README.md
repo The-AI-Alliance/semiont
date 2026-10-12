@@ -37,14 +37,17 @@ environment, which `uv` makes, the weaver suite a built Archivist, the
 Weaver's environment, which `uv` makes too, the packages built, and a neo4j of
 its own, whose address and password it is told
 in `NEO4J_HOST` and `NEO4J_PASSWORD` ([weaver/README.md](weaver/README.md)),
-and the smelter suite a built Archivist, the packages built, and a Qdrant of
-its own, whose address it is told in `QDRANT_HOST`
+and the smelter suite a built Archivist, the packages built, the Python
+Smelter's environment, which `uv` makes as well, the `tesseract` program, and a
+Qdrant of its own, whose address it is told in `QDRANT_HOST`
 ([smelter/README.md](smelter/README.md)):
 
 ```bash
 cargo build --release -p semiont-gateway -p semiont-dispatcher -p semiont-archivist -p semiont-conformance-drivers
 npm run build:packages
 uv sync --locked --no-dev --all-extras --project apps/worker
+uv sync --locked --no-dev --all-extras --project apps/weaver
+uv sync --locked --no-dev --project apps/smelter
 cd tests/conformance
 npm ci
 npm test

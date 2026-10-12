@@ -136,8 +136,9 @@ def render_table(rows: Sequence[Sequence[TableCell]], page: int, offset: int) ->
     length = 0
     items: list[PdfTextItem] = []
     for index, row in enumerate(rows):
-        parts.append("|")
-        length += 1
+        opening = "|"
+        parts.append(opening)
+        length += len(opening)
         for cell in row:
             start = offset + length + 1
             end = start + len(cell.text)
