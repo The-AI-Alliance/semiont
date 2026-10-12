@@ -90,4 +90,3 @@ def test_some_types_can_be_generated_and_some_cannot() -> None:
 def test_a_format_is_read_without_its_parameters_and_in_lower_case() -> None:
     assert base_media_type("Text/HTML; charset=iso-8859-1") == "text/html"
     assert capabilities_of("application/x-unheard-of") is None
-

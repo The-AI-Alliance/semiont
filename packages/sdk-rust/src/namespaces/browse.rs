@@ -677,7 +677,10 @@ impl BrowseNamespace {
     /// an image, which has none.
     pub async fn resource_content(&self, resource_id: &ResourceId) -> Result<String, SemiontError> {
         let content = self.content.get_binary(resource_id).await?;
-        Ok(decode_representation(&content.bytes, &content.content_type)?)
+        Ok(decode_representation(
+            &content.bytes,
+            &content.content_type,
+        )?)
     }
 
     /// A resource's description as linked data: itself, its annotations and

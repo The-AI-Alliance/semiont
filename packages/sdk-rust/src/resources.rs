@@ -217,7 +217,9 @@ pub fn decode_representation(bytes: &[u8], media_type: &str) -> Result<String, T
     #[cfg(not(feature = "charsets"))]
     let read = utf8_alone(stated.as_deref(), bytes);
     read.map_err(|not_decoded| {
-        refusal(format!("The resource's text is {not_decoded}: read its bytes instead"))
+        refusal(format!(
+            "The resource's text is {not_decoded}: read its bytes instead"
+        ))
     })
 }
 
