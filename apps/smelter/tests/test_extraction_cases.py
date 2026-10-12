@@ -7,8 +7,8 @@ Nothing is stood in for here. The reader is PDFium's and the engine is the
 case that comes to reading an image fails, saying so, where the program is
 not installed.
 
-The documents are the files in `specs/src/smelter/fixtures`. The table's
-`fixtures` member names another directory, which nothing here reads from.
+The documents are the files in the directory the table's `fixtures` member
+names.
 
 Two documents are held beside the table, which has no case of either: one
 that asks for a password, and a scan whose pixels have words in them.
@@ -31,7 +31,7 @@ from semiont_smelter.tesseract import TesseractEngine
 
 TABLE = read(ROOT / "specs/src/smelter/extraction-cases.json")
 CASES = objects(TABLE["cases"], "cases")
-FIXTURES = ROOT / "specs/src/smelter/fixtures"
+FIXTURES = ROOT / text(TABLE["fixtures"], "fixtures")
 
 ENCRYPTED = "encrypted.pdf"
 LEGIBLE_SCAN = "legible-scan.pdf"
@@ -158,7 +158,7 @@ def test_the_table_has_cases_each_of_one_document_that_is_read_or_declined_and_n
 
 
 def test_the_table_names_a_directory_of_fixtures_and_every_committed_fixture_has_a_case_in_the_table_or_beside_it() -> None:
-    assert text(TABLE["fixtures"], "fixtures") != ""
+    assert FIXTURES.is_dir()
     made = sorted(path.name for path in FIXTURES.glob("*.pdf"))
     stated = [text(case["fixture"], "fixture") for case in CASES if "fixture" in case]
     assert sorted([*stated, ENCRYPTED, LEGIBLE_SCAN]) == made

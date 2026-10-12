@@ -850,7 +850,7 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 		host := rawHost
 		switch {
 		case host == "" && e.Type == "voyage":
-			host = "api.voyageai.com"
+			host = voyageHost
 		case referenceName(host) != "":
 			host = "localhost"
 		}

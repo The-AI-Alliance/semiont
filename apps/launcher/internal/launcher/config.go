@@ -186,11 +186,26 @@ type vectorsCfg struct {
 	Image    string `toml:"image"` // optional: override the catalog's default image
 }
 
+// embeddingCfg is [environments.<env>.embedding]: the provider that makes the
+// vectors, written into the Smelter's configuration document (smelterdoc.go).
+// An Ollama is reached at BaseURL; Voyage at Endpoint, with the key APIKey
+// names.
 type embeddingCfg struct {
-	Platform string `toml:"platform"`
-	Type     string `toml:"type"`
-	Model    string `toml:"model"`
-	BaseURL  string `toml:"baseURL"`
+	Platform string       `toml:"platform"`
+	Type     string       `toml:"type"`
+	Model    string       `toml:"model"`
+	BaseURL  string       `toml:"baseURL"`
+	Endpoint string       `toml:"endpoint"`
+	APIKey   string       `toml:"apiKey"`
+	Chunking *chunkingCfg `toml:"chunking"`
+}
+
+// chunkingCfg is [environments.<env>.embedding.chunking]: the two numbers a
+// text is cut by before it is embedded. Pointers because an overlap of 0 is a
+// value a config states: absent and zero must be told apart.
+type chunkingCfg struct {
+	ChunkSize *int `toml:"chunkSize"`
+	Overlap   *int `toml:"overlap"`
 }
 
 type providerCfg struct {

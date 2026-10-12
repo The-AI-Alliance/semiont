@@ -17,7 +17,7 @@ import { EventBus, resourceId, type GatheredContext, type Logger, type ResourceD
 import type { InferenceClient } from '@semiont/inference';
 import { Matcher, type MatcherStores } from '../matcher';
 import { MATCHER_CHANNELS } from '../service-channels';
-import { createMockEmbeddingProvider } from './helpers/smelter-harness';
+import { createMockEmbeddingProvider } from './helpers/embedding-provider';
 
 type ListResources = MatcherStores['graph']['listResources'];
 type GetResource = MatcherStores['graph']['getResource'];

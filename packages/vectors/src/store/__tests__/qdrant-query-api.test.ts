@@ -137,7 +137,6 @@ describe('QdrantVectorStore uses the query API', () => {
 
     await store.connect();
 
-    expect(store.isConnected()).toBe(true);
     expect(dimensions).not.toHaveBeenCalled();
   });
 

@@ -4,12 +4,12 @@ run-name: "Service Images @ ${{ inputs.version }}${{ inputs.dry_run && ' (dry-ru
 
 # Builds and publishes the seven Semiont service images
 # (gateway · worker · smelter · weaver · archivist · librarian · dispatcher).
-# Five are built from this checkout and report version.json's version: the
+# Six are built from this checkout and report version.json's version: the
 # gateway, the dispatcher and the archivist compiled from apps/gateway,
-# apps/dispatcher and apps/archivist, and the worker and the weaver, the
-# Python services of apps/worker and apps/weaver, each installed with what its
-# uv.lock pins. The other two
-# install the published @semiont/* packages, mirroring publish-browser.yml's
+# apps/dispatcher and apps/archivist, and the worker, the smelter and the
+# weaver, the Python services of apps/worker, apps/smelter and apps/weaver,
+# each installed with what its uv.lock pins. The librarian
+# installs the published @semiont/* packages, mirroring publish-browser.yml's
 # verify-npm → scan → multi-arch push → SBOM → attest spine. Every image passes
 # an added license-policy gate.
 # Config is runtime (bind-mount); the images ship config-free.
@@ -18,9 +18,10 @@ run-name: "Service Images @ ${{ inputs.version }}${{ inputs.dry_run && ' (dry-ru
 # arm64 half takes over an hour under emulation, so each of their platforms
 # builds on a runner of its own architecture and pushes by digest, and the
 # manifest job joins the two under the tags. The other four compile nothing in
-# their images: two `npm install`, and the worker and the weaver install wheels
-# their lockfiles name for both platforms. Emulation handles that in minutes, so each
-# publishes both platforms from one leg.
+# their images: the librarian's runs `npm install`, and the worker, the smelter
+# and the weaver install wheels their lockfiles name for both platforms, the
+# smelter with the packages Alpine has for both. Emulation handles that in
+# minutes, so each publishes both platforms from one leg.
 
 on:
   workflow_dispatch:
@@ -88,8 +89,7 @@ jobs:
             scan: linux/amd64
             platforms: linux/amd64,linux/arm64
             dockerfile: apps/smelter/Dockerfile
-            installs: npm
-            refusal: No environment selected
+            refusal: "Cannot read the smelter's configuration document"
           - service: weaver
             runner: ubuntu-latest
             scan: linux/amd64
@@ -205,18 +205,18 @@ jobs:
           echo "✅ every published @semiont package is installable at ${{ inputs.version }}"
 
       # The gateway, the dispatcher and the archivist compile with the toolchain
-      # rust-toolchain.toml pins; the worker and the weaver run on the Python
-      # packages/sdk-python/pyproject.toml states as the oldest supported; the
-      # others install the version this run publishes. The toolchain, or the
-      # Python, is read before anything is written, so a file that names none
-      # fails this step.
+      # rust-toolchain.toml pins; the worker, the smelter and the weaver run on
+      # the Python packages/sdk-python/pyproject.toml states as the oldest
+      # supported; the librarian installs the version this run publishes. The
+      # toolchain, or the Python, is read before anything is written, so a file
+      # that names none fails this step.
       - name: Build arguments
         id: args
         run: |
           if [ "${{ matrix.service }}" = gateway ] || [ "${{ matrix.service }}" = dispatcher ] || [ "${{ matrix.service }}" = archivist ]; then
             toolchain=$(scripts/ci/rust-toolchain.sh)
             argument="RUST_TOOLCHAIN=$toolchain"
-          elif [ "${{ matrix.service }}" = worker ] || [ "${{ matrix.service }}" = weaver ]; then
+          elif [ "${{ matrix.service }}" = worker ] || [ "${{ matrix.service }}" = smelter ] || [ "${{ matrix.service }}" = weaver ]; then
             floor=$(scripts/ci/python-floor.sh)
             argument="PYTHON_FLOOR=$floor"
           else
@@ -296,12 +296,13 @@ jobs:
       # here would restate a contract the launcher owns (its args builders) in
       # a place nothing keeps in sync. Reaching the service's own refusal is
       # proof the entry point resolved and everything it imports to get there
-      # did (for the two Node images, that @semiont/core ran) — without
+      # did (for the librarian's image, that @semiont/core ran) — without
       # standing up a single dependency. It is not proof for what a service
       # imports later: the worker imports a provider's library when an agent
-      # is made for that provider, and the weaver a database's client when its
-      # document names that database, which a Python image's own check below
-      # holds.
+      # is made for that provider, the weaver a database's client when its
+      # document names that database, and the smelter loads PDFium and runs
+      # the `tesseract` program once it has read its document, which a Python
+      # image's own check below holds.
       #
       # This is the cheap half. It does NOT prove the service reaches a healthy
       # state with real config; that needs the launcher-derived env (and a
@@ -318,8 +319,8 @@ jobs:
             exit 1
           fi
           # The refusal each service raises when it has no configuration: for the
-          # two Node services @semiont/core's loader with no environment staged, for the
-          # gateway, the dispatcher, the archivist, the worker and the weaver their own with no document. A change to either message should
+          # librarian @semiont/core's loader with no environment staged, for the
+          # gateway, the dispatcher, the archivist, the worker, the smelter and the weaver their own with no document. A change to either message should
           # fail here loudly rather than pass silently.
           if ! echo "$out" | grep -qF "${{ matrix.refusal }}"; then
             echo "::error::${{ matrix.service }} image did not reach config resolution. Expected \"${{ matrix.refusal }}\"; see the output above for where it stopped instead."
@@ -340,9 +341,9 @@ jobs:
 
       # The image of a Python service carries every library it can be
       # configured for, no installer and no Node, and refuses by name without
-      # its document.
+      # its document. The smelter's reads a scanned page with no network.
       - name: Check the image of a Python service
-        if: matrix.service == 'worker' || matrix.service == 'weaver'
+        if: matrix.service == 'worker' || matrix.service == 'smelter' || matrix.service == 'weaver'
         run: scripts/container/check-python-image.sh ${{ matrix.service }} semiont-${{ matrix.service }}:scan docker
 
       - name: Build and push Docker image

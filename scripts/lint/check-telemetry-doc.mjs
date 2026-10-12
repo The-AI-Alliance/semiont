@@ -10,15 +10,15 @@
  * exported is stated in three places, and the page is held to all three:
  *
  * - specs/src/service-telemetry/telemetry.json: what the gateway, the
- *   dispatcher, the Archivist, the Worker service and the Weaver export. Each
- *   is held to it from outside by its own conformance suite.
+ *   dispatcher, the Archivist, the Worker service, the Weaver and the Smelter
+ *   export. Each is held to it from outside by its own conformance suite.
  * - specs/src/sdk-telemetry/telemetry.json: what an SDK's transports export,
  *   in any language.
- * - packages/observability/src: what the Node services (the Librarian and the
- *   Smelter) create. No table of specs/ lists those services,
- *   so what they create is read from the one package that creates it. A
- *   counter or a histogram is created at its first recording, so no running
- *   process lists them all: the source is read, with the TypeScript compiler.
+ * - packages/observability/src: what the Node service (the Librarian)
+ *   creates. No table of specs/ lists that service, so what it creates is
+ *   read from the one package that creates it. A counter or a histogram is
+ *   created at its first recording, so no running process lists them all:
+ *   the source is read, with the TypeScript compiler.
  *
  * A metric's rows are those of the page's "Metrics" section that open with a
  * `semiont.…` name in backticks. A span's are those of "What gets traced"

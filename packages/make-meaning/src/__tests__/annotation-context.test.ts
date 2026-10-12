@@ -10,7 +10,7 @@ import { deriveViews } from '@semiont/core';
 import { resourceId, annotationId, type Logger } from '@semiont/core';
 import type { GraphDatabase } from '@semiont/graph';
 import { createRecordFixture, type RecordFixture } from './helpers/record-fixtures';
-import { createMockEmbeddingProvider } from './helpers/smelter-harness';
+import { createMockEmbeddingProvider } from './helpers/embedding-provider';
 
 const mockEmbeddingProvider = createMockEmbeddingProvider();
 

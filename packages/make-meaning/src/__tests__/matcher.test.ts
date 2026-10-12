@@ -18,7 +18,7 @@ import { take } from 'rxjs/operators';
 import { EventBus, resourceId, type GatheredContext, type Logger, type ResourceId, annotationId } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import { Matcher, type MatcherStores } from '../matcher';
-import { createMockEmbeddingProvider } from './helpers/smelter-harness';
+import { createMockEmbeddingProvider } from './helpers/embedding-provider';
 
 type AnnotationFocus = Extract<GatheredContext['focus'], { kind: 'annotation' }>;
 type KnowledgeGraph = GatheredContext['graph'];

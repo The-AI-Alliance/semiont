@@ -4,17 +4,14 @@
  * The direction a model-produced annotation takes: it quotes text, and the
  * viewer has to draw a box. `textUnder` is the inverse and lives beside it.
  *
- * Real extracted PDFs exercise this too, in `@semiont/content`, where a fixture
- * can actually be produced — but that is an integration test of the extractor
- * feeding the arithmetic, and it lives in another package. The rules below are
- * pure arithmetic over plain data, so they are pinned here in isolation, for
- * the same reason `text-under.test.ts` gives: a real fixture adds extraction
- * noise without exercising anything extra.
+ * The rules below are pure arithmetic over plain data, so they are pinned
+ * here in isolation, for the reason `text-under.test.ts` gives: a real
+ * fixture adds extraction noise without exercising anything extra.
  *
  * Coordinates are PDF points, bottom-left origin (Y increases upward).
  */
 import { describe, it, expect } from 'vitest';
-import { locate, isTextRun, type AnchoredText } from '../pdf-anchoring';
+import { locate, type AnchoredText } from '../pdf-anchoring';
 
 //   y=700  Hello world again        (page 1)
 //   y=680  Second line              (page 1)
@@ -133,20 +130,5 @@ describe('locate', () => {
 
       expect(rects[0]).toMatchObject({ y: 698.5, height: 13.5 });
     });
-  });
-});
-
-describe('isTextRun', () => {
-  // The boundary rule both producers filter with: pdf.js interleaves
-  // marked-content items with text runs, and only the latter carry `str`.
-  it('accepts an item carrying str', () => {
-    expect(isTextRun({ str: 'a', transform: [1, 0, 0, 1, 0, 0], width: 1, height: 1 })).toBe(true);
-  });
-
-  it('rejects a marked-content item, and anything that is not an object', () => {
-    expect(isTextRun({ type: 'beginMarkedContent' })).toBe(false);
-    expect(isTextRun(null)).toBe(false);
-    expect(isTextRun(undefined)).toBe(false);
-    expect(isTextRun('str')).toBe(false);
   });
 });

@@ -15,10 +15,8 @@
  * ## Per-resource serialization
  *
  * `groupBy(resourceId) + concatMap(...)` is the stream-consumer flavor of
- * per-resource serialization — the same invariant enforced by `Smelter`,
- * and (in a different shape) `ViewManager`. See
- * `packages/core/src/serialize-per-key.ts` for the shared primitive used
- * by RPC-style services.
+ * per-resource serialization. See `packages/core/src/serialize-per-key.ts`
+ * for the shared primitive used by RPC-style services.
  */
 
 import { Subscription, from } from 'rxjs';

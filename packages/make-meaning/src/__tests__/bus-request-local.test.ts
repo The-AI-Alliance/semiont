@@ -1,7 +1,6 @@
 /**
  * asBusRequestPrimitive — the in-process `BusRequestPrimitive` over the core
- * EventBus. `busRequest` callers inside the process and the smelter's fan-in
- * both run on it.
+ * EventBus, which a `busRequest` caller inside the process runs on.
  */
 
 import { describe, it, expect } from 'vitest';

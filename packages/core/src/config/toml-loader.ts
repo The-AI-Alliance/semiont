@@ -168,10 +168,6 @@ interface EnvironmentSection {
     apiKey?: string;
     baseURL?: string;
     endpoint?: string;
-    chunking?: {
-      chunkSize?: number;
-      overlap?: number;
-    };
   };
   inference?: InferenceSection;
   'make-meaning'?: {
@@ -428,7 +424,6 @@ export function loadTomlConfig(
         `[environments.${resolvedEnvironment}] names no embedding provider — add [environments.${resolvedEnvironment}.embedding] with type = "voyage" or "ollama" and a model. Semiont requires an embedding provider; nothing is defaulted.`,
       );
     }
-    const chunking = source.chunking;
     return {
       platform: { type: 'external' as PlatformType },
       type: source.type,
@@ -436,10 +431,6 @@ export function loadTomlConfig(
       apiKey: source.apiKey,
       baseURL: source.baseURL,
       endpoint: source.endpoint,
-      chunking: chunking ? {
-        chunkSize: chunking.chunkSize ?? 512,
-        overlap: chunking.overlap ?? 64,
-      } : undefined,
     } as EnvironmentConfig['services']['embedding'];
   }
 

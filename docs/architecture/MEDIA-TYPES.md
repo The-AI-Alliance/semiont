@@ -130,13 +130,13 @@ work:
 | who may do it | anyone holding bytes | the Smelter alone — it needs the store |
 
 So they are separate surfaces, and a call site cannot mistake one for the other:
-decoding is `decodeRepresentation` in `@semiont/core`; deriving is
-`derivingExtractorFor(mediaType)` in `@semiont/content`, callable only with the
-store that persists its output.
+decoding is every SDK's (`decodeRepresentation` in `@semiont/core`); deriving is
+the Smelter's alone ([apps/smelter](../../apps/smelter/), `extraction.py`), and
+it stores what it derives.
 
-**`yieldsGeometryOf(format)` is derived from this field**, not stored beside it —
-`pdf-text-layer` produces positioned runs, `decode` does not. A second stored
-field could contradict the one it came from.
+**Whether a type's text comes with places on a page is derived from this field**,
+not stored beside it — `pdf-text-layer` produces positioned runs, `decode` does
+not. A second stored field could contradict the one it came from.
 
 `textSource: 'none'` is not a gap to fill. An image is annotatable
 (`anchoring: 'spatial'`) and carries no text; that combination is coherent and
@@ -174,7 +174,7 @@ so there is no OCR, no confidence score, and no unread page.
 Two consequences for citations, both load-bearing:
 
 - **Citations carry page geometry, never text offsets.** A generated PDF's
-  claims are re-anchored through the same extractor the Smelter uses, and land
+  claims are anchored in the text the Smelter derives from it, and land
   as `FragmentSelector` rects plus the quoted text. A `TextPositionSelector`
   would index the generated *string* and render nothing — a silent wrong, which
   is why the selector type is pinned by test.
@@ -210,29 +210,29 @@ exists because of one of those three declarations.
 
 ### Smelting — recovering the text, and the geometry that indexes it
 
-3. **Smelter computes `calculateChecksum(bytes)`.** For a `spatial` type this is
-   the identity of the derived artifact, not merely a freshness stamp: two
-   resources holding identical bytes share one artifact.
-4. **It calls `extract(bytes, contentType, { key: checksum, store })`.** The
-   cache seam lives *inside* `extract()`, and consults the store for those exact
-   bytes:
-   - **Hit** → return the stored outcome. No parse, no OCR.
+3. **Smelter takes the checksum of the bytes**, their SHA-256. For a `spatial`
+   type this is the identity of the derived artifact, not merely a freshness
+   stamp: two resources holding identical bytes share one artifact.
+4. **It reads the anchored-text store under that checksum**, before it parses
+   anything:
+   - **Hit** → the stored outcome is the outcome. No parse, no OCR.
    - **Miss** → classify the document (native text layer, scanned, or hybrid),
-     extract, and the seam writes the result.
+     extract, and store the result.
 5. **The stored artifact is an `ExtractionOutcome`** — `text`, `items`,
    `method`, `pdfClass`, `ocrConfidence`, `unreadPages`, *or* a named decline.
    Declines are cached too: "we recognized this and found nothing" costs one
    recognition pass for the lifetime of those bytes.
 6. **It lands in the anchored-text store, at `{ab}/{cd}/{checksum}.json`**,
-   sharded with the same helper the event log uses. The store is a directory the
-   deployment supplies, kept per knowledge base, so it survives a restart and
-   `semiont clean --store anchored-text` can reclaim it.
+   filed by the arithmetic the event log files a resource's events by
+   ([`shard-cases.json`](../../specs/src/archivist/shard-cases.json)). The store
+   is a directory the deployment supplies, kept per knowledge base, so it
+   survives a restart and `semiont clean --store anchored-text` can reclaim it.
 7. **Smelter chunks, embeds, and writes vectors.**
 8. **It emits `smelt:settled { resourceId, contentChecksum, outcome }`** —
    `indexed` or `skipped`. The vector stamp is written *before* this fires, so
    anything released by the barrier is guaranteed to find it.
 
-There is exactly one writer of that artifact: the seam inside `extract()`.
+There is exactly one writer of that artifact: the Smelter.
 
 ### The artifact's shape
 
@@ -316,9 +316,9 @@ is held and has nothing under the shape.
 ### How annotation events feed back
 
 13. **`mark:added` reaches both actors.** Weaver folds it into the graph. Smelter
-    embeds the annotation's `exactText`, then reads `getResourceStamp` to inherit
-    the resource's provenance — the source of `machineRead: true`, which marks a
-    quote as recognized rather than authored.
+    embeds the text the annotation quotes, then reads from the resource's points
+    whether their text was read from pixels — the source of `machineRead: true`,
+    which marks a quote as recognized rather than authored.
 14. **Selectors are fixed at birth.** No stored event mutates a target. An
     annotation created before its map existed keeps no quote, permanently — which
     is why recognition happens at ingest rather than after annotation. The
@@ -327,7 +327,7 @@ is held and has nothing under the shape.
 
 ### When the artifact goes missing
 
-15. **Reconcile plans `smelt:reanchor`** for a resource whose artifact is absent —
+15. **Reconcile plans a `reanchor`** for a resource whose artifact is absent —
     the third staleness class, alongside checksum drift and entity-tag drift.
 16. **A scoped rebuild command** re-anchors one resource or all, serialized, and
     **fails loudly on partial completion**. That matters because a silently

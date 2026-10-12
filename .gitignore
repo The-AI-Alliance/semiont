@@ -115,11 +115,6 @@ apps/*/scripts/*.d.ts.map
 # Generated compliance reports (all of them — never enumerate outputs by hand)
 .compliance/
 
-# tesseract.js language data — fetched at runtime into the working directory.
-# NOT a source artifact: the images vendor it at build time (OCR is core and
-# must never CDN-fetch in production; SMELTER-MEDIA-TYPES decision 8).
-*.traineddata
-
 # Backups written beside .env.local by tooling
 .env*.backup*
 

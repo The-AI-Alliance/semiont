@@ -13,10 +13,6 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./smelter-main": {
-      "types": "./dist/smelter-main.d.ts",
-      "import": "./dist/smelter-main.js"
-    },
     "./librarian-main": {
       "types": "./dist/librarian-main.d.ts",
       "import": "./dist/librarian-main.js"
@@ -49,7 +45,6 @@
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.11",
-    "fast-check": "^4.10.0",
     "rollup": "^4.64.1",
     "rollup-plugin-dts": "^6.4.1",
     "tsup": "^8.0.1",

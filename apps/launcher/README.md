@@ -351,7 +351,7 @@ semiont stop
   lists it under LAUNCHER PATHS. Logging is best-effort — it never blocks a
   command.
 - **The launcher derives its work from the KB's semiontconfig TOML** — the
-  same file the Semiont containers read (see
+  file every service's configuration is written from (see
   `docs/operator/administration/CONFIGURATION.md`). Per dependency role
   (graph, vectors, database, inference, embedding) the config decides the
   obligation — who runs the daemon — by the section's `platform`:
@@ -367,12 +367,13 @@ semiont stop
   declare.** A config says what a knowledge base needs — a graph, a vector
   store, an embedding model, an issuer — and, of the daemons the launcher
   runs, nothing of where they listen: no `uri`, `host`, `servers`, `baseURL`
-  or `issuer` line, so the file is the same on every machine. Each service's
+  or `issuer` line, so the file is the same on every machine. The Librarian's
   staged copy states every address this start placed, as a literal, in the
-  sections that service reads; the gateway's, the dispatcher's, the
-  Archivist's and the worker's documents carry theirs. Two addresses reach a container through its environment instead: the
-gateway's (`GATEWAY_HOST`), which a config's `publicURL` interpolates, and the
-telemetry collector's (`OTEL_EXPORTER_OTLP_ENDPOINT`). A
+  sections it reads; the gateway's, the dispatcher's, the Archivist's, the
+  worker's, the Smelter's and the Weaver's documents carry theirs. Two
+  addresses reach a container through its environment instead: the gateway's
+  (`GATEWAY_HOST`), which a config's `publicURL` interpolates for the
+  Librarian, and the telemetry collector's (`OTEL_EXPORTER_OTLP_ENDPOINT`). A
   config may also write a launcher-run daemon's address as the launcher's own
   reference (`${NEO4J_HOST}`, `${QDRANT_HOST}`, `${POSTGRES_HOST}`,
   `${NATS_HOST}`, `${OLLAMA_HOST}`, `${KEYCLOAK_HOST}`, `${KEYCLOAK_PORT}`),
@@ -504,8 +505,8 @@ telemetry collector's (`OTEL_EXPORTER_OTLP_ENDPOINT`). A
   dispatcher, browser, database, graph, vectors, inference, embedding, traces — the concrete products PostgreSQL,
   Neo4j, Qdrant, Ollama, and Jaeger appear as detail alongside). A `--service` start reads the
   service's own credential from the per-root state a full start persisted —
-  nothing is recovered out of a running container — auto-enables OTel iff Jaeger is up, and stages a
-  fresh private config copy; a `--service` stop leaves the staged configs in
+  nothing is recovered out of a running container — auto-enables OTel iff Jaeger is up, and stages the
+  service's config afresh (its document, or the Librarian's copy); a `--service` stop leaves the staged configs in
   place (the rest of the stack still mounts them); a `--service` status exits
   0/1 on that service alone.
 - `SEMIONT_VERSION` selects the service image tag (default `latest`; the

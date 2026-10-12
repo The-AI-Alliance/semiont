@@ -13,13 +13,17 @@
 // of a quote, the locating of a span of a PDF, the builders, the id, the
 // readers of an annotation and of a resource) is run by the TypeScript, Rust
 // and Python SDKs, each through its own code. What Semiont's worker alone
-// does is run by that worker. What a bus log shows of a payload is run by
-// each bus log: TypeScript's, Rust's and Python's. What the graph holds of an
+// does is run by that worker, and the cutting of a text by its Smelter too;
+// TypeScript's core, which cuts no text, runs the estimate of a text's tokens
+// that a cut is sized by. What a bus log shows of a payload is run by each
+// bus log: TypeScript's, Rust's and Python's. What the graph holds of an
 // annotation and of a resource is run by each implementation of the graph's
 // codecs, and what the Weaver's fold does to the graph by each Weaver. What a
-// point of the vector index is, and what the index answers, is run by each
-// implementation of the stores; the work a start plans and what each kind of
-// PDF becomes, by each Smelter.
+// point of the vector index is, is run by each implementation of the stores:
+// Python's, which write the points, and TypeScript's, which read them and run
+// the parts a reader has. What the index answers after a history of writes
+// is run by the stores that write. The work a start plans and what each kind
+// of PDF becomes is run by the Smelter.
 //
 // It fails when:
 //   - a table listed here does not exist, is not JSON, states no `$comment`
@@ -156,6 +160,7 @@ const TABLES = [
   {
     table: 'specs/src/text/chunk-cases.json',
     runners: [
+      // The estimate of a text's tokens alone: TypeScript cuts no text.
       'packages/core/src/__tests__/chunk-cases.test.ts',
       'apps/worker/tests/test_chunk_cases.py',
       'apps/smelter/tests/test_chunk_cases.py',
@@ -203,10 +208,10 @@ const TABLES = [
     table: 'specs/src/weaver/fold-cases.json',
     runners: ['apps/weaver/tests/test_fold_cases.py'],
   },
-  // What a point of the vector index is, and what the index answers after a
-  // history of writes. Run by each implementation of the stores: TypeScript's
-  // (@semiont/vectors) and Python's (semiont_vectors), whose store contract a
-  // real Qdrant is held to as well.
+  // What a point of the vector index is. Run by each implementation of the
+  // stores: Python's (semiont_vectors), which write the points and whose
+  // store contract a real Qdrant is held to as well, and TypeScript's
+  // (@semiont/vectors), which search them and run the parts a reader has.
   {
     table: 'specs/src/vectors/payload-cases.json',
     runners: [
@@ -215,21 +220,22 @@ const TABLES = [
       'packages/vectors-python/tests/store_contract.py',
     ],
   },
+  // What the index answers after a history of writes. Run by the stores that
+  // write: Python's.
   {
     table: 'specs/src/vectors/store-cases.json',
-    runners: ['packages/vectors/src/__tests__/store-cases.test.ts', 'packages/vectors-python/tests/store_contract.py'],
+    runners: ['packages/vectors-python/tests/store_contract.py'],
   },
   // The work a Smelter's start plans, from what the index, the catalog and
   // the anchored-text store each hold; and what each kind of PDF becomes. Run
-  // by each Smelter: TypeScript's (@semiont/make-meaning, with
-  // @semiont/content) and Python's (apps/smelter).
+  // by the Smelter (apps/smelter).
   {
     table: 'specs/src/smelter/reconcile-cases.json',
-    runners: ['packages/make-meaning/src/__tests__/reconcile-cases.test.ts', 'apps/smelter/tests/test_reconcile_cases.py'],
+    runners: ['apps/smelter/tests/test_reconcile_cases.py'],
   },
   {
     table: 'specs/src/smelter/extraction-cases.json',
-    runners: ['packages/content/src/__tests__/extraction-cases.test.ts', 'apps/smelter/tests/test_extraction_cases.py'],
+    runners: ['apps/smelter/tests/test_extraction_cases.py'],
   },
 ];
 

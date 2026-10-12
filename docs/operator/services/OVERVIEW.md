@@ -15,7 +15,7 @@ All eight are published to `ghcr.io/the-ai-alliance/`, for `linux/amd64` and `li
 | [archivist](../../../apps/archivist/README.md) | `semiont-archivist` | 24103 | Rust, `apps/archivist` | Keeps the record. The only service that mounts the knowledge base's working tree: it appends the event log, writes content, and keeps the views |
 | [librarian](../../../apps/librarian/README.md) | `semiont-librarian` | 24104 | `@semiont/make-meaning` | Searches the knowledge base: finds resources by text, gathers context, lists what refers to a resource, and matches candidates |
 | [worker](../../../apps/worker/README.md) | `semiont-worker` | 24100 | Python, `apps/worker` | The worker pool: claims annotation and generation jobs and runs them against a model |
-| [smelter](../../../apps/smelter/README.md) | `semiont-smelter` | 24101 | `@semiont/make-meaning` | Computes embeddings, keeps the vector index, and extracts anchored text |
+| [smelter](../../../apps/smelter/README.md) | `semiont-smelter` | 24101 | Python, `apps/smelter` | Keeps the vector index in step with the record, and derives a PDF's anchored text |
 | [weaver](../../../apps/weaver/README.md) | `semiont-weaver` | 24102 | Python, `apps/weaver` | Keeps the graph in step with the record |
 | [browser](../../../apps/browser/README.md) | `semiont-browser` | 3000 | `apps/browser` | Serves the Semiont Browser's static files. The app itself runs in the user's web browser and connects to gateways from there |
 
@@ -30,7 +30,7 @@ This is the contract a deployment satisfies, whoever does the deploying. The lau
 | archivist | `/etc/semiont/archivist.json`, an [`ArchivistConfig`](../../../specs/src/components/schemas/ArchivistConfig.json) document | The working tree at `/kb`, read-write; the state directory, where it writes views; the anchored-text store, read-only | The gateway's bus | one |
 | librarian | `~/.semiontconfig` (TOML) | The state directory, to read views | The gateway, for the bus and for anchored text; graph; vectors; embedding; inference; the Archivist, for bytes | one |
 | worker | `/etc/semiont/worker.json`, a [`WorkerConfig`](../../../specs/src/components/schemas/WorkerConfig.json) document | none | The gateway, for the bus and for bytes; inference | any number |
-| smelter | `~/.semiontconfig` | The anchored-text store, read-write | The gateway's bus; vectors; embedding; the Archivist, for bytes | one |
+| smelter | `/etc/semiont/smelter.json`, a [`SmelterConfig`](../../../specs/src/components/schemas/SmelterConfig.json) document | The anchored-text store, read-write | The gateway's bus; vectors; embedding; the Archivist, for bytes | one |
 | weaver | `/etc/semiont/weaver.json`, a [`WeaverConfig`](../../../specs/src/components/schemas/WeaverConfig.json) document | none | The gateway's bus; graph | one |
 | browser | none; `PORT` only | none | nothing | any number |
 
@@ -38,7 +38,7 @@ Every service but the Browser has its own service account at the knowledge base'
 
 Two specs hold the rest:
 
-- [`service-config/sections.json`](../../../specs/src/service-config/sections.json) lists the config sections each service that reads the TOML reads. A service resolves a `${VAR}` reference only in a section it reads.
+- [`service-config/sections.json`](../../../specs/src/service-config/sections.json) lists the config sections the librarian, the one service that reads the TOML, reads. It resolves a `${VAR}` reference only in a section it reads.
 - [`service-environment/variables.json`](../../../specs/src/service-environment/variables.json) lists every environment variable the gateway, the dispatcher and the Archivist read.
 
 Why each service has one instance or many is in [Scaling](../administration/SCALING.md). Which secrets reach which service is in [Secrets](SECRETS.md).

@@ -8,21 +8,17 @@ against [docs/protocol/SMELTER.md](../../../docs/protocol/SMELTER.md).
 
 The suite imports nothing from a Smelter, and nothing a Smelter is built on.
 The lines that name one are `SMELTER_SERVICES` in
-[harness/paths.ts](../harness/paths.ts): the Smelter in TypeScript, the built
-entry of `@semiont/make-meaning`, run by node as its image runs it; and the
-Smelter in Python ([`apps/smelter`](../../../apps/smelter/README.md)), run by
-the interpreter of its project's locked environment. Each line also says how
-its implementation is given its settings, and nothing else in the suite
-knows. The first reads the knowledge base's configuration file,
-`.semiontconfig`, in its home directory, and the directory of the
-anchored-text store from its environment. The second reads the protocol's
-configuration document,
+[harness/paths.ts](../harness/paths.ts): today the Smelter in Python
+([`apps/smelter`](../../../apps/smelter/README.md)), run by the interpreter
+of its project's locked environment. Another implementation joins by adding
+its line, and every case runs against every entry.
+
+A Smelter is given its settings as the protocol's configuration document,
 [`SmelterConfig`](../../../specs/src/components/schemas/SmelterConfig.json),
-at the path its `--config` flag names. The harness writes whichever it is
+at the path its `--config` flag names. The harness writes the document
 ([harness/smelter-process.ts](../harness/smelter-process.ts)) into a home of
-the process's own. A refusal to start names what is missing in the words of
-the way the settings were given, and the cases that hold a refusal state
-both. Every case runs against every entry.
+the process's own. A refusal to start names the member of the document that
+is missing, and the cases that hold a refusal state it.
 
 The Smelter in Python reads a scanned page with the `tesseract` program,
 which must be on `PATH`, with its English data, and its environment is made
@@ -79,8 +75,9 @@ docker run -d --name smelter-suite-qdrant -p 6333:6333 "$(scripts/ci/qdrant-imag
 QDRANT_HOST=localhost npm run test:smelter
 ```
 
-**One world at a time.** The files share one database, and a Smelter's health
-port, 24101, is a constant, so the project runs its files one after another.
+**One world at a time.** The files share one database, and every Smelter is
+told the same health port, 24101, so the project runs its files one after
+another.
 For the same reason a case stops the world's Smelter before it starts one that
 must refuse to start.
 
@@ -127,16 +124,22 @@ Smelter to `serving` only, and waits on `reconciled()`.
   128, each text given the vector that came back for it; one request at a
   time; and a request that fails, which leaves its resource with no points
   until the Smelter next starts.
+- **What it exports** (`telemetry.test.ts`): told where to export, a Smelter
+  exports under its own name every row
+  [`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json)
+  lists for it that its traffic can make, and nothing the table does not
+  list.
 
 ## Running it
 
-It needs a built gateway and Archivist, the packages built (the Smelter runs
-from the `dist` of `@semiont/make-meaning`, over the built packages it
-imports), `nats-server` and `git` on `PATH`, and a Qdrant:
+It needs a built gateway and Archivist, the Smelter's environment,
+`@semiont/core` built (the harness is typed by it), `nats-server`, `git` and
+`tesseract` on `PATH`, and a Qdrant:
 
 ```bash
 cargo build --release -p semiont-gateway -p semiont-archivist
-npm run build:packages
+uv sync --locked --no-dev --project apps/smelter
+npm run build --workspace=@semiont/core
 cd tests/conformance
 npm ci
 QDRANT_HOST=<address> npm run test:smelter

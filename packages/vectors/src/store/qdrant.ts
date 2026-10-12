@@ -2,26 +2,15 @@
  * Qdrant VectorStore Implementation
  *
  * Uses the Qdrant REST API via @qdrant/js-client-rest.
- * Manages two collections: 'resources' and 'annotations'.
+ * Searches two collections, 'resources' and 'annotations', and makes each
+ * where a Qdrant has none.
  */
 
-import { createHash } from 'crypto';
 import type { QdrantClient, Schemas } from '@qdrant/js-client-rest';
 import type { ResourceId, AnnotationId } from '@semiont/core';
-import type { VectorStore, EmbeddingChunk, AnnotationPayload, VectorSearchResult, SearchOptions, ResourceStamp } from './interface';
+import type { VectorStore, VectorSearchResult, SearchOptions } from './interface';
 import { mergeByResource } from './merge';
 import { resolveDimensions } from '../embedding/resolve-dimensions';
-
-/**
- * A point's id: the MD5 of a string, written in the form of a UUID. It is no
- * version of UUID (no version or variant bit is set), so a UUID library's
- * name-based ids are other ids. Qdrant requires point IDs to be UUIDs or
- * unsigned integers. specs/src/vectors/payload-cases.json states the ids.
- */
-function toQdrantId(input: string): string {
-  const hex = createHash('md5').update(input).digest('hex');
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
-}
 
 /**
  * Map a scored point to the store-agnostic result shape. Shared by every read
@@ -48,22 +37,6 @@ export interface QdrantConfig {
   /** The caller's boot deadline. Resolving the dimensionality retries while the
    *  provider warms up, and this is what stops it if the caller gives up first. */
   signal?: AbortSignal;
-}
-
-/** The payload fields a stamp is read from — one list for the scroll and the
- *  targeted read, so the two cannot drift. */
-const STAMP_FIELDS = ['resourceId', 'contentChecksum', 'entityTypes', 'machineRead'];
-
-function toStamp(payload: Record<string, unknown> | null | undefined): ResourceStamp {
-  const checksum = payload?.contentChecksum;
-  const entityTypes = payload?.entityTypes;
-  return {
-    contentChecksum: typeof checksum === 'string' ? checksum : undefined,
-    entityTypes: Array.isArray(entityTypes)
-      ? entityTypes.filter((t): t is string => typeof t === 'string')
-      : [],
-    ...(payload?.machineRead ? { machineRead: true } : {}),
-  };
 }
 
 export class QdrantVectorStore implements VectorStore {
@@ -96,11 +69,11 @@ export class QdrantVectorStore implements VectorStore {
     // Ensure collections exist
     await this.ensureCollection('resources');
     await this.ensureCollection('annotations');
-    // Payload indexes so filtered operations scale:
+    // Payload indexes, as specs/src/vectors/payload-cases.json states them,
+    // so a filter on one does not read every point:
     //  - entityTypes: the excludeEntityTypes recall filter.
-    //  - resourceId: searchByResource's by-resource scroll + self-exclusion, and
-    //    the per-resource delete paths (deleteResourceVectors /
-    //    deleteAnnotationVectorsForResource).
+    //  - resourceId: searchByResource's by-resource scroll + self-exclusion,
+    //    and a search that names one resource.
     await this.ensurePayloadIndex('resources', 'entityTypes');
     await this.ensurePayloadIndex('resources', 'resourceId');
     await this.ensurePayloadIndex('annotations', 'resourceId');
@@ -108,17 +81,6 @@ export class QdrantVectorStore implements VectorStore {
 
   async disconnect(): Promise<void> {
     this.client = null;
-  }
-
-  async clearAll(): Promise<void> {
-    try { await this.qdrant.deleteCollection('resources'); } catch { /* may not exist */ }
-    try { await this.qdrant.deleteCollection('annotations'); } catch { /* may not exist */ }
-    await this.ensureCollection('resources');
-    await this.ensureCollection('annotations');
-  }
-
-  isConnected(): boolean {
-    return this.client !== null;
   }
 
   private async ensureCollection(name: string): Promise<void> {
@@ -151,148 +113,6 @@ export class QdrantVectorStore implements VectorStore {
     try {
       await this.qdrant.createPayloadIndex(collection, { field_name: field, field_schema: 'keyword' });
     } catch { /* already indexed, or created concurrently */ }
-  }
-
-  async upsertResourceVectors(resourceId: ResourceId, chunks: EmbeddingChunk[], contentChecksum: string, entityTypes: string[], machineRead?: boolean): Promise<void> {
-    // Replace semantics: purge existing chunks first, or a resource that
-    // shrinks leaves orphan points at the higher chunk indices.
-    await this.deleteResourceVectors(resourceId);
-    if (chunks.length === 0) return;
-
-    const points = chunks.map((chunk) => ({
-      id: toQdrantId(`${resourceId}-${chunk.chunkIndex}`),
-      vector: chunk.embedding,
-      payload: {
-        resourceId: String(resourceId),
-        chunkIndex: chunk.chunkIndex,
-        text: chunk.text,
-        contentChecksum,
-        entityTypes,
-        // Only stamped when true: absence is the common case and carries no
-        // claim, so a native extraction stores nothing extra.
-        ...(machineRead ? { machineRead: true } : {}),
-      },
-    }));
-
-    await this.qdrant.upsert('resources', { points });
-  }
-
-  async upsertAnnotationVector(
-    annotationId: AnnotationId,
-    embedding: number[],
-    payload: AnnotationPayload
-  ): Promise<void> {
-    await this.qdrant.upsert('annotations', {
-      points: [{
-        id: toQdrantId(String(annotationId)),
-        vector: embedding,
-        payload: {
-          annotationId: String(payload.annotationId),
-          resourceId: String(payload.resourceId),
-          motivation: payload.motivation,
-          entityTypes: payload.entityTypes,
-          text: payload.exactText,
-          ...(payload.machineRead ? { machineRead: true } : {}),
-        },
-      }],
-    });
-  }
-
-  async deleteResourceVectors(resourceId: ResourceId): Promise<void> {
-    await this.qdrant.delete('resources', {
-      filter: {
-        must: [{ key: 'resourceId', match: { value: String(resourceId) } }],
-      },
-    });
-  }
-
-  async deleteAnnotationVector(annotationId: AnnotationId): Promise<void> {
-    await this.qdrant.delete('annotations', {
-      points: [toQdrantId(String(annotationId))],
-    });
-  }
-
-  async deleteAnnotationVectorsForResource(resourceId: ResourceId): Promise<void> {
-    await this.qdrant.delete('annotations', {
-      filter: {
-        must: [{ key: 'resourceId', match: { value: String(resourceId) } }],
-      },
-    });
-  }
-
-  async count(): Promise<number> {
-    const [resources, annotations] = await Promise.all([
-      this.qdrant.count('resources', { exact: true }),
-      this.qdrant.count('annotations', { exact: true }),
-    ]);
-    return resources.count + annotations.count;
-  }
-
-  async updateResourceEntityTypes(resourceId: ResourceId, entityTypes: string[]): Promise<void> {
-    // Payload-only rewrite across the resource's points — no vectors touched,
-    // no embedding involved (S13). Qdrant set_payload with a filter is a
-    // no-op when the resource has no points.
-    await this.qdrant.setPayload('resources', {
-      payload: { entityTypes },
-      filter: {
-        must: [{ key: 'resourceId', match: { value: String(resourceId) } }],
-      },
-    });
-  }
-
-  async getResourceStamp(resourceId: ResourceId): Promise<ResourceStamp | undefined> {
-    const page = await this.qdrant.scroll('resources', {
-      limit: 1,
-      filter: { must: [{ key: 'resourceId', match: { value: String(resourceId) } }] },
-      with_payload: STAMP_FIELDS,
-      with_vector: false,
-    });
-    const point = page.points[0];
-    return point ? toStamp(point.payload) : undefined;
-  }
-
-  async listResourceStamps(): Promise<Map<string, ResourceStamp>> {
-    const stamps = new Map<string, ResourceStamp>();
-    let offset: Schemas['ScrollRequest']['offset'] = undefined;
-    do {
-      const page = await this.qdrant.scroll('resources', {
-        limit: 1000,
-        offset,
-        with_payload: STAMP_FIELDS,
-        with_vector: false,
-      });
-      for (const point of page.points) {
-        const rid = point.payload?.resourceId;
-        if (typeof rid !== 'string' || stamps.has(rid)) continue;
-        stamps.set(rid, toStamp(point.payload));
-      }
-      offset = page.next_page_offset ?? undefined;
-    } while (offset !== undefined && offset !== null);
-    return stamps;
-  }
-
-  async listAnnotationIds(): Promise<Set<string>> {
-    return this.scrollPayloadField('annotations', 'annotationId');
-  }
-
-  /** Collect the distinct values of one payload field across a collection. */
-  private async scrollPayloadField(collection: string, field: string): Promise<Set<string>> {
-    const values = new Set<string>();
-    let offset: Schemas['ScrollRequest']['offset'] = undefined;
-    do {
-      const page = await this.qdrant.scroll(collection, {
-        limit: 1000,
-        offset,
-        with_payload: [field],
-        with_vector: false,
-      });
-      for (const point of page.points) {
-        const value = point.payload?.[field];
-        if (typeof value === 'string') values.add(value);
-      }
-      offset = page.next_page_offset ?? undefined;
-    } while (offset !== undefined && offset !== null);
-    return values;
   }
 
   async searchResources(embedding: number[], opts: SearchOptions): Promise<VectorSearchResult[]> {

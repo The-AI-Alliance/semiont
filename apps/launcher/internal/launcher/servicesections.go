@@ -9,13 +9,12 @@ import "sort"
 // enforces; TestServiceSectionsAgreeWithTheSpec holds this copy to it.
 var serviceConfigSections = map[string][]string{
 	"librarian": {"gateway", "graph", "vectors", "embedding", "identity", "archivist", "make-meaning", "actors", "inference"},
-	"smelter":   {"gateway", "vectors", "embedding", "identity", "archivist"},
 }
 
 // launcherReads: the sections whose ${VAR} values the launcher resolves itself,
 // keyed by the role it resolves them for — the gateway's, the dispatcher's,
-// the Archivist's, the worker's and the Weaver's documents, Keycloak's
-// external PostgreSQL password, and the remote-model check's key.
+// the Archivist's, the worker's, the Smelter's and the Weaver's documents,
+// Keycloak's external PostgreSQL password, and the remote-model check's key.
 // TestLauncherReadsAreTheSectionsTheLauncherResolves reads them from the
 // resolving calls.
 var launcherReads = map[string][]string{
@@ -23,6 +22,7 @@ var launcherReads = map[string][]string{
 	"dispatcher": {"gateway", "identity", "jobs"},
 	"archivist":  {"gateway", "identity"},
 	"worker":     {"gateway", "identity", "inference"},
+	"smelter":    {"gateway", "identity", "archivist", "vectors", "embedding"},
 	"weaver":     {"gateway", "identity", "graph"},
 	"identity":   {"database"},
 	"inference":  {"inference"},
@@ -99,10 +99,10 @@ func sectionRefs(envSection map[string]any, sections []string) (required, option
 
 // serviceVars: for each stack service, the user variables it is handed — the
 // references in the sections it reads. The gateway, the dispatcher, the
-// Archivist, the worker and the Weaver read no KB config: their variables are
-// the ones their documents name, and the Archivist's names none.
+// Archivist, the worker, the Smelter and the Weaver read no KB config: their
+// variables are the ones their documents name, and the Archivist's names none.
 func serviceVars(envSection map[string]any, env *envConfig) map[string][]string {
-	out := map[string][]string{"gateway": gatewayNamedVars(env), "dispatcher": dispatcherNamedVars(env), "archivist": nil, "worker": workerNamedVars(env), "weaver": weaverNamedVars(env)}
+	out := map[string][]string{"gateway": gatewayNamedVars(env), "dispatcher": dispatcherNamedVars(env), "archivist": nil, "worker": workerNamedVars(env), "smelter": smelterNamedVars(env), "weaver": weaverNamedVars(env)}
 	for svc, sections := range serviceConfigSections {
 		required, optional := sectionRefs(envSection, sections)
 		names := append(required, optional...)

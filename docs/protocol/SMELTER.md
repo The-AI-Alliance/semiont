@@ -45,25 +45,39 @@ cleared, and a Smelter that starts afterwards fills it again.
 
 ## Settings
 
-A Smelter is told: the gateway's URL; the issuer its service account signs in
-at; where the Archivist is, for a resource's bytes; the vector database (its
-kind, and its host and port); the embedding provider (its kind, its model and
-its address); the two numbers a text is cut by, a chunk's size and how far
-one chunk overlaps the next; and the directory of the anchored-text store.
-Semiont's Smelter reads them from the knowledge base's configuration file,
-where the database's port and the two numbers may be left out, and are then
-6333, 512 and 64. The directory it reads from its environment
-([Environment](#environment)).
+A Smelter reads its settings from a configuration document, the protocol's
+[`SmelterConfig`](../../specs/src/components/schemas/SmelterConfig.json), at
+the path its `--config` flag names. The document is resolved: no `${VAR}` is
+left in it, and the Smelter defaults nothing it leaves out. It states the
+gateway's URL; the issuer the Smelter's service account signs in at; where
+the Archivist is, for a resource's bytes; the embedding provider
+([`EmbeddingConfig`](../../specs/src/components/schemas/EmbeddingConfig.json):
+its kind, its model and where it is reached, with the name of the environment
+variable that holds its key, for a provider that takes one); the vector index
+([`VectorsConfig`](../../specs/src/components/schemas/VectorsConfig.json): its
+kind, and what that kind needs to be reached); the two numbers a text is cut
+by, a chunk's size and how far one chunk overlaps the next; the directory of
+the anchored-text store; the port its health answers on; and how it logs.
+Whoever starts a Smelter writes it: the launcher for the Smelter it starts,
+and anyone else to the same schema.
 
+- **Started with no `--config`, with a path it cannot read, or with a document
+  that is not the schema's, it refuses to start,** and says which. A refusal
+  names a member of the document and what was expected of it, and never a
+  value found there. *Held by `apps/smelter/tests/test_service.py`.*
 - **Without the gateway's URL, the issuer, the Archivist's address, the
-  vector database's host, or the embedding provider's kind, model or address,
-  it refuses to start,** and says which is missing. *Held by `apps/smelter/tests/test_service.py` and `smelter/boot`.*
+  vector database's host, the embedding provider's kind, model or address, or
+  the directory of the anchored-text store, it refuses to start,** and names
+  the member that is missing. *Held by `apps/smelter/tests/test_service.py` and `smelter/boot`.*
+- **An index that lives in one process's memory is refused.** Nothing else
+  could search it. *Held by `apps/smelter/tests/test_service.py`.*
 - **Its service account is `SEMIONT_OIDC_CLIENT_ID` and
-  `SEMIONT_OIDC_CLIENT_SECRET` in its environment.** With either missing it
-  refuses to start, and names what is missing. *Held by `apps/smelter/tests/test_service.py` and `smelter/boot`.*
-- **The anchored-text store's directory has no default.** With
-  `SEMIONT_ANCHORED_TEXT_DIR` unset it refuses to start, and names the
-  variable. *Held by `smelter/boot`.*
+  `SEMIONT_OIDC_CLIENT_SECRET` in its environment** ([Environment](#environment)).
+  With either missing it refuses to start, and names what is missing.
+  *Held by `apps/smelter/tests/test_service.py` and `smelter/boot`.*
+- **An embedding provider's key is read from the variable its document
+  names.** With that variable unset it refuses to start, and names the
+  variable. *Held by `apps/smelter/tests/test_service.py`.*
 
 ## What it follows
 
@@ -76,13 +90,13 @@ gateway, and reads bytes from the Archivist.
   `yield:representation-added`, `mark:archived`, `mark:unarchived`,
   `mark:added`, `mark:removed`, `mark:entity-tag-added` and
   `mark:entity-tag-removed`.
-  *Held by `packages/make-meaning/src/__tests__/smelter-fan-in.test.ts` and `apps/smelter/tests/test_census.py`.*
+  *Held by `apps/smelter/tests/test_census.py`.*
 - **It reads what the record holds from the Archivist, over the bus:** a
   resource's description (`browse:resource-requested`), a resource's
   annotations (`browse:annotations-requested`), and the catalog of resources
   that are not archived (`browse:resources-requested`, 200 to a page). It
   opens no file of the record.
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`, `apps/smelter/tests/test_smelter.py` and `packages/service-python/tests/test_catalog.py`.*
+  *Held by `apps/smelter/tests/test_smelter.py` and `packages/service-python/tests/test_catalog.py`.*
 - **It reads a resource's bytes from the Archivist's own
   `GET /resources/{id}/content`, as its service account, and takes them as
   they are stored.** The checksum it works by is of exactly those bytes.
@@ -90,7 +104,7 @@ gateway, and reads bytes from the Archivist.
 - **It answers one command,** `smelt:rebuild-anchors` ([Rebuild](#rebuild)),
   **and emits one signal,** `smelt:settled`
   ([What it decides](#what-it-decides)).
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts` and `apps/smelter/tests/test_smelter.py`.*
+  *Held by `apps/smelter/tests/test_smelter.py`.*
 - **It writes the vector index and the anchored-text store, and nothing
   else.** It records nothing: no event is its. *Held by no case.*
 
@@ -102,58 +116,58 @@ entity types from its description as the Archivist answers it then.
 
 - **`yield:created`, `yield:updated` and `yield:representation-added` index
   the resource** ([Indexing a resource](#indexing-a-resource)).
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`, `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **Nothing in such an event's payload changes what is indexed.**
-  *Held by `packages/make-meaning/src/__tests__/smelter-axioms.test.ts`, `apps/smelter/tests/test_smelter.py` and `apps/smelter/tests/test_properties.py`.*
+  *Held by `apps/smelter/tests/test_smelter.py` and `apps/smelter/tests/test_properties.py`.*
 - **`mark:archived` takes the resource's points out of the index, and the
   points of every annotation on it.**
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`, `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **`mark:unarchived` indexes the resource, and then each annotation the
   Archivist answers for it,** so that an unarchived resource is found again
   without a restart.
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`, `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **`mark:added` indexes the annotation the event carries**
   ([Indexing an annotation](#indexing-an-annotation)).
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`, `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **`mark:removed` takes the annotation's point out.** Removing one that is
   not there changes nothing.
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`, `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **`mark:entity-tag-added` and `mark:entity-tag-removed` rewrite the entity
   types on the resource's points to the resource's entity types as they now
   are, and ask nothing of the embedding provider.** A resource with no points
   is left with none: its entity types are written when it is next indexed.
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`, `packages/vectors/src/__tests__/store-cases.test.ts`, `packages/vectors-python/tests/store_contract.py`, `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `packages/vectors-python/tests/store_contract.py`, `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
 
 ### Indexing a resource
 
 - **It reads the resource's bytes and takes their checksum before it decides
   anything,** so that whatever it decides is said of those bytes.
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`, `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **The resource's media type says where its text comes from**
   ([`specs/src/media-types/registry.json`](../../specs/src/media-types/registry.json)):
   decoded from the bytes, derived from a PDF ([A PDF's text](#a-pdfs-text)),
   or nowhere. A `text/` type the registry does not list is decoded.
-  *Held by `packages/make-meaning/src/__tests__/smelter-axioms.test.ts`, `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **Decoded text is the text the protocol says those bytes are**
   ([W3C-SELECTORS.md](./W3C-SELECTORS.md#the-text-of-a-resource)).
-  *Held by `packages/core/src/__tests__/decode-cases.test.ts`.*
+  *Held by `packages/sdk-python/tests/test_decode_cases.py`, for the reader the Smelter decodes with.*
 - **The text is cut into chunks as
   [`chunk-cases.json`](../../specs/src/text/chunk-cases.json) states,** by
   the two numbers of its settings.
-  *Held by `packages/core/src/__tests__/chunk-cases.test.ts`, `apps/smelter/tests/test_chunk_cases.py` and `smelter/index`.*
+  *Held by `apps/smelter/tests/test_chunk_cases.py` and `smelter/index`.*
 - **Every chunk is embedded before any point is written.** A resource whose
   chunks could not all be embedded keeps the points it had.
   *Held by `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **The resource's points are then replaced by the new ones, all of them.** A
   resource whose text grew shorter keeps no point of the longer text.
-  *Held by `packages/vectors/src/__tests__/store-cases.test.ts`, `packages/vectors-python/tests/store_contract.py`, `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `packages/vectors-python/tests/store_contract.py`, `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **Each point carries the chunk's text and its place among the chunks, the
   checksum of the bytes, the resource's entity types, and a mark when the
   text was read from pixels,** as
   [`payload-cases.json`](../../specs/src/vectors/payload-cases.json) states.
-  *Held by `packages/vectors/src/__tests__/payload-cases.test.ts`, `packages/vectors-python/tests/test_payload_cases.py`, `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `packages/vectors-python/tests/test_payload_cases.py`, `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **Only a resource whose bytes gave text has points.**
-  *Held by `packages/make-meaning/src/__tests__/smelter-axioms.test.ts`, `apps/smelter/tests/test_properties.py`, `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `apps/smelter/tests/test_properties.py`, `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
 
 ### Indexing an annotation
 
@@ -161,31 +175,31 @@ entity types from its description as the Archivist answers it then.
   with the annotation's id, its resource, its motivation, its entity types
   and that text, as
   [`payload-cases.json`](../../specs/src/vectors/payload-cases.json) states.
-  *Held by `packages/vectors/src/__tests__/payload-cases.test.ts`, `packages/vectors-python/tests/test_payload_cases.py`, `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `packages/vectors-python/tests/test_payload_cases.py`, `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **An annotation that quotes no text, or only white space, has no point.**
-  *Held by `packages/make-meaning/src/__tests__/reconcile-cases.test.ts`, `apps/smelter/tests/test_reconcile_cases.py`, `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `apps/smelter/tests/test_reconcile_cases.py`, `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **An annotation on a resource whose text was read from pixels carries the
   same mark,** read from the resource's points and not worked out again.
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts` and `apps/smelter/tests/test_smelter.py`.*
+  *Held by `apps/smelter/tests/test_smelter.py`.*
 
 ### Order
 
 - **The events of one resource are applied one at a time, in the order they
   arrive.**
-  *Held by `packages/make-meaning/src/__tests__/smelter-axioms.test.ts`, `apps/smelter/tests/test_smelter.py` and `packages/service-python/tests/test_lanes.py`.*
+  *Held by `apps/smelter/tests/test_smelter.py` and `packages/service-python/tests/test_lanes.py`.*
 - **The events of different resources are applied in no fixed order,** and
   the index ends the same either way.
-  *Held by `packages/make-meaning/src/__tests__/smelter-axioms.test.ts`, `apps/smelter/tests/test_properties.py` and `apps/smelter/tests/test_smelter.py`.*
+  *Held by `apps/smelter/tests/test_properties.py` and `apps/smelter/tests/test_smelter.py`.*
 - **An event delivered twice in a row changes nothing the second time.**
-  *Held by `packages/make-meaning/src/__tests__/smelter-axioms.test.ts`, `apps/smelter/tests/test_properties.py` and `apps/smelter/tests/test_smelter.py`.*
+  *Held by `apps/smelter/tests/test_properties.py` and `apps/smelter/tests/test_smelter.py`.*
 - **An event that fails is logged and passed by.** The events of other
   resources are applied, and what was missed is found when the Smelter next
   starts ([Reconcile](#reconcile)).
-  *Held by `packages/make-meaning/src/__tests__/smelter-axioms.test.ts`, `apps/smelter/tests/test_smelter.py`, `smelter/index` and `smelter/provider`.*
+  *Held by `apps/smelter/tests/test_smelter.py`, `smelter/index` and `smelter/provider`.*
 - **The work a start plans, and a rebuild's, takes its turn among a
   resource's events as an event does.** So it never puts back what a later
   event changed.
-  *Held by `packages/make-meaning/src/__tests__/smelter-axioms.test.ts`, `apps/smelter/tests/test_properties.py` and `apps/smelter/tests/test_smelter.py`.*
+  *Held by `apps/smelter/tests/test_properties.py` and `apps/smelter/tests/test_smelter.py`.*
 
 ## What it decides
 
@@ -196,25 +210,25 @@ and says so.
   checksum of the bytes it read, and `indexed` or `skipped`. A reader waits
   on that signal to know the Smelter has done with bytes it just saw
   recorded.
-  *Held by `packages/make-meaning/src/__tests__/smelter-axioms.test.ts`, `apps/smelter/tests/test_smelter.py`, `apps/smelter/tests/test_properties.py`, `smelter/index` and `smelter/pdf`.*
+  *Held by `apps/smelter/tests/test_smelter.py`, `apps/smelter/tests/test_properties.py`, `smelter/index` and `smelter/pdf`.*
 - **`indexed` is signalled once the points are written.**
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`, `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **`skipped` carries its reason,** one of six: `no-extractor`, the media
   type has no text; `empty`, the text is nothing but white space;
   `no-text-layer`, `encrypted`, `corrupt` and `too-large`, the ways a PDF is
   declined ([A PDF's text](#a-pdfs-text)).
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`, `apps/smelter/tests/test_smelter.py`, `smelter/index` and `smelter/pdf`.*
+  *Held by `apps/smelter/tests/test_smelter.py`, `smelter/index` and `smelter/pdf`.*
 - **A skipped resource has no points.** Points made from bytes it had before
   are taken out.
-  *Held by `packages/make-meaning/src/__tests__/smelter-axioms.test.ts`, `apps/smelter/tests/test_smelter.py`, `smelter/index` and `smelter/pdf`.*
+  *Held by `apps/smelter/tests/test_smelter.py`, `smelter/index` and `smelter/pdf`.*
 - **Every skip is logged as a warning, with the resource, the reason, the
   media type and the checksum.** A resource is never left out of the index
   without a line that says so.
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`, `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **Bytes it could not read are not a decision.** Nothing is signalled, the
   index is not changed, and the failure is logged. Whoever waits is left to
   the end of its own wait.
-  *Held by `packages/make-meaning/src/__tests__/smelter-axioms.test.ts`, `apps/smelter/tests/test_smelter.py`, `apps/smelter/tests/test_properties.py` and `smelter/index`.*
+  *Held by `apps/smelter/tests/test_smelter.py`, `apps/smelter/tests/test_properties.py` and `smelter/index`.*
 - **A signal that cannot be sent does not undo what was indexed.**
   *Held by `apps/smelter/tests/test_smelter.py`.*
 
@@ -226,31 +240,31 @@ states what each kind of document becomes.
 
 - **A document with a text layer of its own is read from that layer,** run by
   run, each with its place on its page.
-  *Held by `packages/content/src/__tests__/extraction-cases.test.ts`, `apps/smelter/tests/test_extraction_cases.py` and `smelter/pdf`.*
+  *Held by `apps/smelter/tests/test_extraction_cases.py` and `smelter/pdf`.*
 - **A scanned document is read from its pixels:** each page's images are
   taken out and read by OCR, and each word is placed on the page by the place
   of the image it was read from. No fixture of the table has a word in its
   pixels, so the table holds only that a scan in which nothing can be read is
   declined; the tests named here play the OCR engine.
-  *Held by `packages/content/src/__tests__/pdf-ocr.test.ts` and `packages/content/src/__tests__/pdf-placement.test.ts`; by `apps/smelter/tests/test_extraction.py` and `apps/smelter/tests/test_ocr_text.py`, which play the engine too; and by `apps/smelter/tests/test_extraction_cases.py`, which reads a scan that has words in its pixels with the real engine.*
+  *Held by `apps/smelter/tests/test_extraction.py` and `apps/smelter/tests/test_ocr_text.py`, which play the engine, and by `apps/smelter/tests/test_extraction_cases.py`, which reads a scan that has words in its pixels with the real engine.*
 - **A document with pages of each kind is read both ways,** and names the
   pages that could not be read.
-  *Held by `packages/content/src/__tests__/extraction-cases.test.ts`, `packages/content/src/__tests__/pdf-ocr.test.ts`, `apps/smelter/tests/test_extraction_cases.py` and `apps/smelter/tests/test_extraction.py`.*
+  *Held by `apps/smelter/tests/test_extraction_cases.py` and `apps/smelter/tests/test_extraction.py`.*
 - **A page that is a grid of cells is written as rows,** each row's cells on
   one line, in their order.
-  *Held by `packages/content/src/__tests__/extraction-cases.test.ts`, `apps/smelter/tests/test_extraction_cases.py` and `apps/smelter/tests/test_tables.py`.*
+  *Held by `apps/smelter/tests/test_extraction_cases.py` and `apps/smelter/tests/test_tables.py`.*
 - **A filled form's values are part of its text.**
-  *Held by `packages/content/src/__tests__/extraction-cases.test.ts` and `apps/smelter/tests/test_extraction_cases.py`.*
+  *Held by `apps/smelter/tests/test_extraction_cases.py`.*
 - **A document that cannot be parsed, or that is larger than 200 MB, is
   declined, by name,** and one too large is declined before anything parses
   it. A scanned document in which nothing can be read is declined as having
   no text layer.
-  *Held by `packages/content/src/__tests__/extraction-cases.test.ts`, `apps/smelter/tests/test_extraction_cases.py` and `smelter/pdf`.*
+  *Held by `apps/smelter/tests/test_extraction_cases.py` and `smelter/pdf`.*
 - **An encrypted document is declined, by name.** No fixture the table names is encrypted.
-  *Held by `packages/content/src/__tests__/pdf-extractor.test.ts`, and by `apps/smelter/tests/test_extraction_cases.py` on a document that is encrypted.*
+  *Held by `apps/smelter/tests/test_extraction_cases.py`, on a document that is encrypted.*
 - **The outcome says how the text was got** (its `method`), and text read by
   OCR is marked on every point made from it.
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`, `apps/smelter/tests/test_smelter.py` and `smelter/pdf`.*
+  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/pdf`.*
 
 ### The anchored-text store
 
@@ -260,25 +274,25 @@ states what each kind of document becomes.
 - **What deriving a PDF's text came to is stored under the checksum of the
   bytes, a decline as well as a text,** as an
   [`AnchoredTextEntry`](../../specs/src/components/schemas/AnchoredTextEntry.json).
-  *Held by `packages/content/src/__tests__/anchored-text-cache.test.ts`, `apps/smelter/tests/test_anchored_text_store.py`, `apps/smelter/tests/test_smelter.py` and `smelter/pdf`.*
+  *Held by `apps/smelter/tests/test_anchored_text_store.py`, `apps/smelter/tests/test_smelter.py` and `smelter/pdf`.*
 - **The entry is stored before the decision is signalled,** so whoever hears
   that content was settled finds its entry.
   *Held by `apps/smelter/tests/test_smelter.py` and `smelter/pdf`.*
 - **Text that has no places on a page has no entry.**
-  *Held by `packages/make-meaning/src/__tests__/smelter-anchored-text.test.ts`, `apps/smelter/tests/test_smelter.py` and `smelter/pdf`.*
+  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/pdf`.*
 - **Bytes whose outcome is stored are not derived again:** the stored outcome
   is what is indexed.
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`, `packages/content/src/__tests__/anchored-text-cache.test.ts` and `apps/smelter/tests/test_smelter.py`.*
+  *Held by `apps/smelter/tests/test_smelter.py`.*
 - **An entry that cannot be written does not stop the resource being
   indexed.** The entry is found missing when the Smelter next starts
   ([Reconcile](#reconcile)).
-  *Held by `packages/make-meaning/src/__tests__/smelter-anchored-text.test.ts`, `apps/smelter/tests/test_smelter.py` and `smelter/pdf`.*
+  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/pdf`.*
 - **The writer states its stamp:** the store's directory holds a file,
   `STAMP`, with the stamp its entries carry, and a reader takes no entry
   under another, nor one of another version of the entry's form. An entry
   made by a Smelter that derives text another way is then a miss, and is
   derived again.
-  *Held by `packages/content/src/__tests__/anchored-text-cache.test.ts`, `apps/smelter/tests/test_anchored_text_store.py` and `smelter/pdf`.*
+  *Held by `apps/smelter/tests/test_anchored_text_store.py` and `smelter/pdf`.*
 
 ## The index
 
@@ -286,14 +300,14 @@ states what each kind of document becomes.
   of annotations, searched by cosine similarity.
   [`payload-cases.json`](../../specs/src/vectors/payload-cases.json) states
   what a point of each holds, and what is indexed for a filter.
-  *Held by `packages/vectors/src/__tests__/payload-cases.test.ts` and `packages/vectors-python/tests/test_payload_cases.py`, and for the collections a Qdrant then has by `packages/vectors-python/tests/qdrant_live.py`.*
+  *Held by `packages/vectors-python/tests/test_payload_cases.py`, and for the collections a Qdrant then has by `packages/vectors-python/tests/qdrant_live.py`.*
 - **A collection is as wide as the embedding model's vectors,** which the
   Smelter learns by asking the provider to embed once, when it first makes
   the collection.
-  *Held by `packages/vectors/src/__tests__/payload-cases.test.ts`, and against a Qdrant by `packages/vectors-python/tests/qdrant_live.py`.*
+  *Held by `packages/vectors-python/tests/qdrant_live.py`, against a Qdrant.*
 - **What a search of the index answers is what
   [`store-cases.json`](../../specs/src/vectors/store-cases.json) states.**
-  *Held by `packages/vectors/src/__tests__/store-cases.test.ts`, and by `packages/vectors-python/tests/store_contract.py` for the in-memory store and for a Qdrant.*
+  *Held by `packages/vectors-python/tests/store_contract.py`, for the in-memory store and for a Qdrant.*
 
 ## The embedding provider
 
@@ -303,23 +317,23 @@ A Smelter asks one provider for its vectors: an Ollama
 
 - **A batch of texts is cut into slices of 128, each one request, made in
   the order of the texts,** and the vectors are given back in that order.
-  *Held by `packages/vectors/src/__tests__/embed-batch-slicing.test.ts`, `packages/vectors-python/tests/test_slices.py` and `smelter/provider`.*
+  *Held by `packages/vectors-python/tests/test_slices.py` and `smelter/provider`.*
 - **Each request has 15 seconds of its own,** counted from when it is sent
   and not from when its batch began.
-  *Held by `packages/vectors/src/__tests__/embed-batch-slicing.test.ts` and `packages/vectors-python/tests/test_slices.py`.*
+  *Held by `packages/vectors-python/tests/test_slices.py`.*
 - **One request at a time is made of an Ollama, and four of Voyage,** however
   many resources are being indexed.
-  *Held by `packages/vectors/src/__tests__/embed-batch-slicing.test.ts`, `packages/vectors-python/tests/test_slices.py` and `smelter/provider`.*
+  *Held by `packages/vectors-python/tests/test_slices.py` and `smelter/provider`.*
 - **A request that fails fails its whole batch, and says which provider,
   which model, what status and which slice.** The resource it was for gets no
   points from that attempt.
-  *Held by `packages/vectors/src/__tests__/embed-batch-slicing.test.ts`, `packages/vectors-python/tests/test_slices.py`, `packages/vectors/src/__tests__/cold-embedding-model.test.ts` and `smelter/provider`.*
+  *Held by `packages/vectors-python/tests/test_slices.py` and `smelter/provider`.*
 - **A provider that answers 404 when the Smelter starts is taken to be still
   fetching the model, and one that cannot be reached to be still starting:
   either is asked again,** up to twelve times, within the time the Smelter
   has to start ([Boot](#boot)). An answer of any other failing status is not
   asked again.
-  *Held by `packages/vectors/src/__tests__/cold-embedding-model.test.ts` and `smelter/boot` for a 404, and by `packages/vectors-python/tests/test_dimensions.py` for both.*
+  *Held by `smelter/boot` for a 404, and by `packages/vectors-python/tests/test_dimensions.py` for both.*
 
 ## Boot
 
@@ -336,7 +350,7 @@ opens its health port; runs reconcile.
 - **A reconcile that fails does not end the Smelter.** The failure is logged
   and reported in its [health](#health), and the Smelter goes on applying
   what arrives.
-  *Held by `packages/make-meaning/src/__tests__/boot-pass.test.ts`, `packages/make-meaning/src/__tests__/smelter.test.ts` and `apps/smelter/tests/test_smelter.py`.*
+  *Held by `apps/smelter/tests/test_smelter.py`.*
 
 ## Reconcile
 
@@ -353,37 +367,37 @@ in prose.
   *Held by `apps/smelter/tests/test_smelter.py`.*
 - **A resource of the catalog whose media type has text, and which has no
   points, is indexed.**
-  *Held by `packages/make-meaning/src/__tests__/reconcile-cases.test.ts`, `apps/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
+  *Held by `apps/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
 - **One whose points carry another checksum than the catalog states is
   indexed again.**
-  *Held by `packages/make-meaning/src/__tests__/reconcile-cases.test.ts`, `apps/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
+  *Held by `apps/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
 - **One whose points carry the catalog's checksum and other entity types has
   its entity types rewritten, and nothing is embedded.**
-  *Held by `packages/make-meaning/src/__tests__/reconcile-cases.test.ts`, `packages/make-meaning/src/__tests__/smelter-axioms.test.ts`, `apps/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
+  *Held by `apps/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
 - **One whose points carry the catalog's checksum, whose text has places on a
   page, and whose bytes the anchored-text store has no entry for, has its
   anchored text derived again,** from the bytes as they now are, and filed
   under their checksum. Nothing is embedded, the index is not touched, and
   nothing is signalled.
-  *Held by `packages/make-meaning/src/__tests__/reconcile-cases.test.ts`, `packages/make-meaning/src/__tests__/smelter-axioms.test.ts`, `apps/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
+  *Held by `apps/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
 - **Points of a resource that is none of the catalog's resources with text
   are taken out:** one that is archived, one that is gone, one whose media
   type has no text.
-  *Held by `packages/make-meaning/src/__tests__/reconcile-cases.test.ts`, `apps/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
+  *Held by `apps/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
 - **An annotation that quotes text, on any resource of the catalog, and has
   no point is indexed; a point whose annotation is not among them is taken
   out.**
-  *Held by `packages/make-meaning/src/__tests__/reconcile-cases.test.ts`, `apps/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
+  *Held by `apps/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
 - **Where it plans to index a resource and an annotation on it, the resource
   comes first,** since an annotation's point takes its mark of text read from
   pixels from the resource's points as they then are. The rest of the work is
   in no stated order.
-  *Held by `packages/make-meaning/src/__tests__/reconcile-cases.test.ts`, `apps/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
+  *Held by `apps/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
 - **The work is done at most eight items at a time,** each in its turn among
   its resource's events ([Order](#order)). *Held by `apps/smelter/tests/test_smelter.py`.*
 - **An index that was cleared is filled again whole** by this pass, when the
   Smelter next starts. So is an anchored-text store that was cleared.
-  *Held by `packages/make-meaning/src/__tests__/smelter-axioms.test.ts`, `apps/smelter/tests/test_smelter.py`, `apps/smelter/tests/test_properties.py` and `smelter/reconcile`.*
+  *Held by `apps/smelter/tests/test_smelter.py`, `apps/smelter/tests/test_properties.py` and `smelter/reconcile`.*
 - **It reports** what the resources it set out to index came to: how many
   were indexed (`resourcesEmbedded`), skipped, by reason
   (`resourcesSkipped`), unread (`resourcesUnavailable`), and failed
@@ -394,7 +408,7 @@ in prose.
   out (`annotationVectorsDeleted`); and how many resources of the catalog
   have text (`resourcesEligible`) and how many have points when it ends
   (`resourcesIndexed`).
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`, `apps/smelter/tests/test_smelter.py`, `apps/smelter/tests/test_reconcile_cases.py`, `smelter/boot` and `smelter/reconcile`.*
+  *Held by `apps/smelter/tests/test_smelter.py`, `apps/smelter/tests/test_reconcile_cases.py`, `smelter/boot` and `smelter/reconcile`.*
 
 ## Rebuild
 
@@ -403,29 +417,30 @@ in prose.
   of every resource of the catalog whose text has places on a page.** A
   document that is declined is done, and its decline is what is stored. A
   resource named that has no such text is done, with nothing derived.
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`, `apps/smelter/tests/test_smelter.py` and `smelter/pdf`.*
+  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/pdf`.*
 - **Nothing is deleted first, and an entry that is there is kept.** So a
   rebuild that fails part way has lost nothing. *Held by `apps/smelter/tests/test_smelter.py` and `smelter/pdf`.*
 - **Nothing is embedded, and the index is not touched.**
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`, `apps/smelter/tests/test_smelter.py` and `smelter/pdf`.*
+  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/pdf`.*
 - **Rebuilds are done one at a time, and never while the work of reconcile
   is being done:** of a rebuild and a reconcile, the one whose work is ready
   first is done first, and the other waits. *Held by no case.*
 - **It answers `smelt:rebuild-anchors-ok` when every resource was done, and
   `smelt:rebuild-anchors-failed`, saying how many of how many were not,
   otherwise.** The ones that could be done are done.
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`, `apps/smelter/tests/test_smelter.py` and `smelter/pdf`.*
+  *Held by `apps/smelter/tests/test_smelter.py` and `smelter/pdf`.*
 
 ## Health
 
-- **`GET /health` on port 24101 answers `200` with a JSON object:** `status`;
+- **`GET /health`, on the port its document states, answers `200` with a JSON
+  object:** `status`;
   `eventsProcessed`, the number of events it has applied since it started;
   and `reconcile`, a `phase` (`pending`, `running`, `done` or `failed`) with
   the pass's `summary` when it is done, or its `error` when it failed.
   *Held by `smelter/boot`.*
 - **The work of reconcile and of a rebuild is not counted among the events
   processed.**
-  *Held by `packages/make-meaning/src/__tests__/smelter-axioms.test.ts`, `apps/smelter/tests/test_smelter.py`, `smelter/boot` and `smelter/reconcile`.*
+  *Held by `apps/smelter/tests/test_smelter.py`, `smelter/boot` and `smelter/reconcile`.*
 - **`status` is `ok` whenever the Smelter answers.** It says nothing of
   whether the Smelter can reach the gateway, its provider or its index.
   *Held by no case.*
@@ -438,26 +453,52 @@ in prose.
 ## Telemetry
 
 - **A Smelter started with `OTEL_EXPORTER_OTLP_ENDPOINT` exports, as
-  `semiont-smelter`:** a span for each frame it sends and each it receives on
-  the bus; a span for each event, or burst of one resource's events, it
-  applies; the number of points its index holds
-  (`semiont.vector.index.size`); and what every service says of its own
-  process. *Held by no case.*
+  `semiont-smelter`, exactly what
+  [`specs/src/service-telemetry/telemetry.json`](../../specs/src/service-telemetry/telemetry.json)
+  lists for the smelter, and the rows of
+  [`specs/src/sdk-telemetry/telemetry.json`](../../specs/src/sdk-telemetry/telemetry.json)
+  the first names for it under `sdk`.** Those are what every service says of
+  its own process (when it started, how late its loop runs, its memory), a
+  span for each frame it sends and each it receives on the bus, and a count
+  of the frames it sent. Every span and metric it exports is one of those
+  rows, of the row's kind, carrying only the row's attributes; and every one
+  of those rows that its work can make arrives, with every attribute the row
+  does not mark as conditional. *Held by `smelter/telemetry`.*
+- **An event it logs while a span is current carries that span's trace and
+  its own id** (`trace_id` and `span_id`), in either form of its log. One
+  logged in no span carries neither.
+  *Held by `packages/service-python/tests/test_log.py`.*
 
 ## Environment
 
-A Smelter's own code reads these from its environment, and no others:
+A Smelter's own code reads these from its environment, beside its document,
+and no others:
 
 | Variable | What it is |
 |---|---|
 | `SEMIONT_OIDC_CLIENT_ID`, `SEMIONT_OIDC_CLIENT_SECRET` | Its service account at the knowledge base's issuer. Required |
-| `SEMIONT_ANCHORED_TEXT_DIR` | The directory of the anchored-text store. Required |
-| any variable its configuration file names | The file may give a value as `${NAME}`, and is read with it filled in |
-| the telemetry variables | Where its spans and metrics go and under what name ([Telemetry](#telemetry)) |
-| `LOG_LEVEL`, `LOG_FORMAT` | How much it logs (`info` when unset), and in what form: `simple` for lines a person reads, and JSON otherwise |
-| `SUPERVISE_EVENTS`, `SUPERVISE_NAME` | The supervisor's events log and the name it runs the Smelter under, from which it reports how many times it has been started again |
+| the variable its document names | Its embedding provider's key, for a provider that takes one, and required then. An Ollama takes none |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | The OTLP/HTTP collector its spans and metrics are exported to ([Telemetry](#telemetry)). Without it, and without the console exporter, it exports nothing and writes no span or metric anywhere |
+| `OTEL_SERVICE_NAME` | The `service.name` its spans and metrics carry; `semiont-smelter` when unset or empty |
+| `OTEL_SDK_DISABLED` | Set to `true`, it exports nothing, whatever else is set |
+| `OTEL_CONSOLE_EXPORTER` | Set to `true`, with no endpoint, it writes spans and metrics to its output instead of exporting them |
+| `OTEL_METRICS_EXPORTER` | Set to `console`, it writes metrics to its output, while spans still go to the endpoint |
+| `OTEL_METRIC_EXPORT_INTERVAL` | The milliseconds between metric exports; 30000 when unset |
+| `SUPERVISE_EVENTS`, `SUPERVISE_NAME` | The supervisor's events log, one `starting <name>` line for each life of the process, and that name. With both, it reports `semiont.process.restarts`: the lives the log records, less one. Without either, the metric does not exist |
 
-*Held by no case.*
+The libraries it is built on read some unasked. Its OpenTelemetry SDK and
+exporter read the standard variables they read on their own, such as how long
+a finished span waits to be exported (`OTEL_BSP_SCHEDULE_DELAY`), but none
+that would say where its telemetry goes or the name it goes under. Semiont's
+SDK reads `SEMIONT_BUS_LOG`, and with any value that is not empty writes a
+line to the service's output for each frame it sends and receives. It runs
+the `tesseract` program, which finds its own language data.
+
+What each telemetry variable does is what the Worker service's does
+([WORKER-SERVICE.md](./WORKER-SERVICE.md#environment)): the Smelter's code for
+it is the Worker's, held to it by `apps/smelter/tests/test_census.py`.
+
+*Held by `smelter/boot`, `smelter/telemetry` and `apps/smelter/tests/test_census.py`.*
 
 ## Not specified here
 
@@ -473,5 +514,6 @@ A Smelter's own code reads these from its environment, and no others:
 - **What reconcile's counts mean when work fails.** The four counts of what
   the resources it set out to index came to are outcomes. The other counts
   are of what was planned.
-- **Telemetry of its own decisions.** No span or metric says what a Smelter
-  indexed, skipped or failed on: its log and its health do.
+- **Telemetry of its own work.** No span or metric says what a Smelter
+  indexed, skipped or failed on, nor how many points its index holds: its log
+  and its health say the first, and nothing says the second.

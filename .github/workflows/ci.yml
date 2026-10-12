@@ -682,14 +682,11 @@ jobs:
             package-lock.json
             tests/conformance/package-lock.json
 
-      # The suite starts the TypeScript Smelter from the built
-      # @semiont/make-meaning (harness/paths.ts), which imports the built
-      # packages under it. The install brings what its PDF reading loads: the
-      # OCR engine and its language data.
+      # The suite's harness is typed by the built @semiont/core.
       - name: Install dependencies
         run: |
           npm ci --include=optional
-          npm run build:packages
+          npm run build --workspace=@semiont/core
 
       # The harness's global setup refuses to run without a broker on PATH.
       - name: Install nats-server
@@ -716,10 +713,10 @@ jobs:
           echo "Qdrant did not answer within two minutes"
           exit 1
 
-      # The suite starts the Python Smelter by the interpreter of its project's
-      # locked environment (harness/paths.ts), on the Python the SDK's floor
-      # names, without the development group. It reads a scanned page with the
-      # `tesseract` program, as its image will.
+      # The suite starts the Smelter by the interpreter of its project's locked
+      # environment (harness/paths.ts): the environment its image has, on the
+      # Python the SDK's floor names, without the development group. It reads a
+      # scanned page with the `tesseract` program, as its image does.
       - name: Setup Python
         uses: actions/setup-python@v7.0.0
         with:
@@ -734,7 +731,7 @@ jobs:
           sudo apt-get install -y tesseract-ocr
           tesseract --version
 
-      - name: Make the Python Smelter's environment
+      - name: Make the Smelter's environment
         run: uv sync --locked --no-dev --project apps/smelter
 
       # Black-box: it starts Smelter processes behind a gateway and an
@@ -1328,7 +1325,7 @@ jobs:
       - name: Run the tests
         run: uv run pytest
 
-  # The Python Smelter's code (apps/smelter), as the Python SDK is checked:
+  # The Smelter's code (apps/smelter), as the Python SDK is checked:
   # both type checkers, strict, on the oldest Python supported, and the tests
   # on every one. The locked environment takes the SDK from this checkout, and
   # PDFium from its binding's wheel. The tests read PDFs with the real PDFium

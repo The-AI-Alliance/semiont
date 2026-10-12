@@ -13,12 +13,11 @@ import { existsSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import type { TestProject } from 'vitest/node';
 import { QDRANT_PORT, vectorIndex } from './qdrant';
-import type { SmelterService } from './smelter-process';
 
 declare module 'vitest' {
   export interface ProvidedContext {
-    /** How each implementation of the Smelter is started and given its settings: the configuration provides them. */
-    smelterServices: Readonly<Record<string, SmelterService>>;
+    /** How each implementation of the Smelter is started: the configuration provides them. */
+    smelterServices: Readonly<Record<string, readonly string[]>>;
     /** Where the run's vector database is. */
     vectorDatabase: { host: string };
   }
@@ -26,15 +25,15 @@ declare module 'vitest' {
 
 /** What builds each implementation, said when a file its command names is missing. */
 const BUILDS: Readonly<Record<string, string>> = {
-  typescript: '`npm run build:packages` at the repository root',
   python: '`uv sync --locked --no-dev --project apps/smelter` at the repository root',
 };
 
 export default async function setup(project: TestProject): Promise<void> {
   const services = project.getProvidedContext().smelterServices;
   if (Object.keys(services).length === 0) throw new Error('harness/paths.ts names no Smelter: SMELTER_SERVICES is empty.');
-  for (const [implementation, service] of Object.entries(services)) {
-    for (const built of service.command.filter((part) => isAbsolute(part))) {
+  for (const [implementation, command] of Object.entries(services)) {
+    // Every file a command names by its path is what a build makes: the interpreter of an environment, for one.
+    for (const built of command.filter((part) => isAbsolute(part))) {
       if (!existsSync(built)) {
         throw new Error(`The ${implementation} Smelter is not built: ${built} does not exist. Run ${BUILDS[implementation] ?? 'its build'}.`);
       }

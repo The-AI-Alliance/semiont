@@ -16,7 +16,7 @@ becomes a span. Trace context propagates over HTTP `traceparent`
 headers and SSE `_trace` payload fields.
 
 The spans are in the tables below, by who exports them. What the Rust services, the
-Worker service and the Weaver export is specified, with kinds and attributes, in
+Worker service, the Weaver and the Smelter export is specified, with kinds and attributes, in
 [`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json),
 and what an SDK's transports export, in any language, in
 [`specs/src/sdk-telemetry/telemetry.json`](../../../specs/src/sdk-telemetry/telemetry.json),
@@ -27,9 +27,9 @@ In a span's name `{channel}` is the bus channel, `{jobType}` the job's type, and
 actor's name. **When** is the services' table's word for when a span is there: `traffic`, once
 the service has had something of its kind to do.
 
-An SDK's transports, in whatever process they run: the Browser, the Node services, and the
-services that reach the bus through an SDK. The dispatcher, the Archivist and the Weaver make no span of
-their own and export the two bus rows; the Worker service exports those and `content.put`,
+An SDK's transports, in whatever process they run: the Browser, the Librarian, and the
+services that reach the bus through an SDK. The dispatcher, the Archivist, the Weaver and the Smelter
+make no span of their own and export the two bus rows; the Worker service exports those and `content.put`,
 `content.get` and `content.get_anchored_text`, for the uploads and reads it makes.
 
 | Span                   | Kind     | Attributes                                              | What it is                                    |
@@ -41,14 +41,12 @@ their own and export the two bus rows; the Worker service exports those and `con
 | `content.get_graph`    | client   | `resource.id`                                           | A read of a resource's description |
 | `content.get_anchored_text` | client | `resource.id`                                        | A read of a resource's anchored text |
 
-The Librarian and the Smelter, for each thing one of their actors handles. For the Gatherer and
-the Matcher that is a request, and `{channel}` is its channel. For the Smelter it is an event,
-named by its channel; a piece of its reconcile work, named `smelt:…`; or a burst of one
-resource's events handled together, named `batch`:
+The Librarian, for each request one of its actors answers. `{channel}` is the request's
+channel:
 
 | Span                   | Kind     | Attributes                                              | What it is                                    |
 |------------------------|----------|---------------------------------------------------------|-----------------------------------------------|
-| `actor.{actor}:{channel}` | consumer | `actor`, `bus.channel`, and `batch.size` on a Smelter batch | One request the Gatherer or the Matcher answered, or one piece of the Smelter's work |
+| `actor.{actor}:{channel}` | consumer | `actor`, `bus.channel`                               | One request the Gatherer or the Matcher answered |
 
 The gateway:
 
@@ -104,8 +102,9 @@ The standard OpenTelemetry variables, set in each service's environment. The lau
 The Rust services — the gateway, the dispatcher and the Archivist — read the ones their
 environment table lists ([`variables.json`](../../../specs/src/service-environment/variables.json))
 and configure their SDK from them. The Worker service reads the ones
-[WORKER-SERVICE.md](../../protocol/WORKER-SERVICE.md#environment) lists, and the Weaver the ones
-[WEAVER.md](../../protocol/WEAVER.md#environment) lists. The table below is the two Node services': the Librarian's and the Smelter's.
+[WORKER-SERVICE.md](../../protocol/WORKER-SERVICE.md#environment) lists, the Weaver the ones
+[WEAVER.md](../../protocol/WEAVER.md#environment) lists, and the Smelter the ones
+[SMELTER.md](../../protocol/SMELTER.md#environment) lists. The table below is the Node service's, the Librarian's.
 
 | Variable                          | Default                                | Purpose                            |
 |-----------------------------------|----------------------------------------|------------------------------------|
@@ -220,7 +219,7 @@ implicitly) — see `packages/observability/src/node.ts`.
 ## Relationship to the structured logger and `busLog`
 
 - **Structured logger** (the Rust services', in `packages/observability-rust/src/logging.rs`;
-  `createProcessLogger()` in the Node services; the Python services', in
+  `createProcessLogger()` in the Librarian; the Python services', in
   `packages/service-python/src/semiont_service/log.py`) — JSON-line,
   level-filtered, always on. Logs semantic events (validation failed,
   user authenticated). Goes to log aggregator. Every line is auto-
@@ -246,18 +245,16 @@ Alongside traces, every service exports metrics through the same OTLP
 endpoint. No extra config required — the `OTEL_EXPORTER_OTLP_ENDPOINT`
 you set for traces also drives metrics. The Browser exports spans only.
 
-The table is what the Node services export: the
-Librarian and the Smelter.
+The table is what the Node service, the Librarian, exports.
 
 | Metric                       | Type             | Attributes                                              | Where                                         |
 |------------------------------|------------------|---------------------------------------------------------|-----------------------------------------------|
 | `semiont.bus.sent`           | counter          | `bus.channel`, and `bus.scope` on a scoped emit         | Every transport `emit` (`HttpTransport`): an emit a client sent |
-| `semiont.handler.duration`   | histogram        | `actor`, `bus.channel`                                  | Every actor handler (Stower / Gatherer / Matcher / Browser / Smelter) |
+| `semiont.handler.duration`   | histogram        | `actor`, `bus.channel`                                  | Every actor handler (Gatherer / Matcher) |
 | `semiont.inference.calls`    | counter          | `inference.provider`, `inference.model`, `inference.outcome` | Anthropic + Ollama clients               |
 | `semiont.inference.tokens`   | counter          | `inference.provider`, `inference.model`, `inference.direction` (`input`/`output`) | Anthropic + Ollama (when usage exposed) |
 | `semiont.inference.duration` | histogram        | `inference.provider`, `inference.model`, `inference.outcome` | Anthropic + Ollama clients               |
 | `semiont.gather.degraded`    | counter          | `projection` (`graph`/`vectors`/`suggestions`)          | Librarian's Gatherer — a gather that came up short: `graph`, the graph projection did not catch up and the gather failed; `vectors`, the vector projection did not settle in time and the context carries no semantic matches; `suggestions`, the summary and suggestions inference call failed and the context carries neither. A rising `graph` or `vectors` rate means the Weaver or the Smelter is not keeping up |
-| `semiont.vector.index.size`  | gauge            | (none)                                                  | Smelter — the vector store's point count |
 | `semiont.process.start_time` | gauge            | (none)                                                  | Every service — Unix seconds at which the process started; a change means it restarted |
 | `semiont.process.restarts`   | gauge            | (none)                                                  | Every supervised service — times the in-container supervisor restarted the process, read back from the supervisor's event log. The series exists only when the run set `SEMIONT_SUPERVISE` (local stacks); absent, not `0`, everywhere else |
 | `semiont.process.abnormal_exit` | counter       | `reason` (`unhandledRejection`/`uncaughtException`)     | Every service — a fatal error, counted just before the process exits |
@@ -321,9 +318,11 @@ and no `used`: Python keeps no count of how much of its heap is in use. Its `lim
 container's own memory limit. It counts a `semiont.process.abnormal_exit` for a failure
 nothing caught once it had started, as `uncaughtException`.
 
-The Weaver is Python too. It exports the `semiont.process.*` and `semiont.runtime.*` instruments
-as the Worker service does, with the same three readings of its memory, and no metric of its own:
-how many events it could not apply, and how its two boot passes ended, are what its health says.
+The Weaver and the Smelter are Python too. Each exports the `semiont.process.*` and
+`semiont.runtime.*` instruments as the Worker service does, with the same three readings of its
+memory, and no metric of its own. How many events the Weaver could not apply and how its two
+boot passes ended, and how many events the Smelter has applied and how its reconcile ended, are
+what each one's health says.
 
 Additional vars:
 
@@ -339,8 +338,8 @@ metric snapshots also print to the service's output at each export interval.
 
 Every log line a service writes is tagged with `trace_id` and `span_id`
 when an active span exists: the Rust services — the gateway, the
-dispatcher and the Archivist — and the Worker service and the Weaver by their loggers, the
-Node services by `createProcessLogger()`. Log queries in CloudWatch / Loki / Datadog
+dispatcher and the Archivist — and the Worker service, the Weaver and the Smelter by their
+loggers, the Node service by `createProcessLogger()`. Log queries in CloudWatch / Loki / Datadog
 can be filtered by `trace_id` and joined with the trace UI.
 
 ```json

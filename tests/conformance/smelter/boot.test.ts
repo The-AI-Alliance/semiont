@@ -9,46 +9,23 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eventually } from '../harness/net';
 import { NOT_FETCHED } from '../harness/ollama-embed';
-import type { SmelterService, SmelterSettings } from '../harness/smelter-process';
+import type { SmelterSettings } from '../harness/smelter-process';
 import { eachSmelter } from '../harness/smelter-world';
 
 /**
- * How a refusal names what is missing, for each way a Smelter is given its
- * settings: by the section of the knowledge base's configuration file that
- * would state it, or by the member of the configuration document that would.
+ * Each setting SMELTER.md § Settings says a Smelter refuses to start without:
+ * the settings without it, and the member of the configuration document its
+ * refusal names.
  */
-type Named = Readonly<Record<SmelterService['settings'], RegExp>>;
-
-/** Each setting SMELTER.md § Settings says a Smelter refuses to start without: the settings without it, and a word of its name. */
-const REQUIRED: ReadonlyArray<[what: string, without: (settings: SmelterSettings) => SmelterSettings, named: Named]> = [
-  ["the gateway's URL", (settings) => ({ ...settings, gatewayUrl: undefined }), { semiontconfig: /gateway/i, document: /gatewayUrl/ }],
-  ['the issuer', (settings) => ({ ...settings, issuer: undefined }), { semiontconfig: /issuer/i, document: /issuer/ }],
-  ["the Archivist's address", (settings) => ({ ...settings, archivist: undefined }), { semiontconfig: /archivist/i, document: /archivist/ }],
-  [
-    "the vector database's host",
-    (settings) => ({ ...settings, vectors: { ...settings.vectors, host: undefined } }),
-    { semiontconfig: /vectors/i, document: /Missing required property: host/ },
-  ],
-  [
-    "the embedding provider's kind",
-    (settings) => ({ ...settings, embedding: { ...settings.embedding, type: undefined } }),
-    { semiontconfig: /embedding/i, document: /embedding/ },
-  ],
-  [
-    "the embedding provider's model",
-    (settings) => ({ ...settings, embedding: { ...settings.embedding, model: undefined } }),
-    { semiontconfig: /embedding/i, document: /Missing required property: model/ },
-  ],
-  [
-    "the embedding provider's address",
-    (settings) => ({ ...settings, embedding: { ...settings.embedding, baseURL: undefined } }),
-    { semiontconfig: /embedding/i, document: /Missing required property: baseUrl/ },
-  ],
-  [
-    'the directory of the anchored-text store',
-    (settings) => ({ ...settings, anchoredTextDir: undefined }),
-    { semiontconfig: /SEMIONT_ANCHORED_TEXT_DIR/, document: /anchoredTextDir/ },
-  ],
+const REQUIRED: ReadonlyArray<[what: string, without: (settings: SmelterSettings) => SmelterSettings, named: RegExp]> = [
+  ["the gateway's URL", (settings) => ({ ...settings, gatewayUrl: undefined }), /gatewayUrl/],
+  ['the issuer', (settings) => ({ ...settings, issuer: undefined }), /issuer/],
+  ["the Archivist's address", (settings) => ({ ...settings, archivist: undefined }), /archivist/],
+  ["the vector database's host", (settings) => ({ ...settings, vectors: { ...settings.vectors, host: undefined } }), /Missing required property: host/],
+  ["the embedding provider's kind", (settings) => ({ ...settings, embedding: { ...settings.embedding, type: undefined } }), /embedding/],
+  ["the embedding provider's model", (settings) => ({ ...settings, embedding: { ...settings.embedding, model: undefined } }), /Missing required property: model/],
+  ["the embedding provider's address", (settings) => ({ ...settings, embedding: { ...settings.embedding, baseUrl: undefined } }), /Missing required property: baseUrl/],
+  ['the directory of the anchored-text store', (settings) => ({ ...settings, anchoredTextDir: undefined }), /anchoredTextDir/],
 ];
 
 eachSmelter('a Smelter, as a process', (world) => {
@@ -100,7 +77,7 @@ eachSmelter('a Smelter, as a process', (world) => {
     it.each(REQUIRED)('refuses to start without %s, and says which is missing', async (_what, without, named) => {
       const { code, output } = await world().refused({ settings: without(world().settings) });
       expect(code).not.toBe(0);
-      expect(output).toMatch(named[world().service.settings]);
+      expect(output).toMatch(named);
     });
   });
 

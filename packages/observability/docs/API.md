@@ -7,7 +7,7 @@ How to start telemetry in a process, and each helper with an example. What the p
 Semiont's observability is layered:
 
 - **Tier 1 — `busLog`** (in [`@semiont/core`](../../core/README.md)): a 5-op grep-friendly timeline at the `ITransport` contract layer (`EMIT`, `RECV`, `SSE`, `PUT`, `GET`). Off until switched on (`SEMIONT_BUS_LOG=1` in Node, `window.__SEMIONT_BUS_LOG__ = true` in the browser); one property read per call while off.
-- **Tier 2 — OpenTelemetry traces** (this package): spans, with W3C trace-context propagation across the bus's HTTP and SSE legs so a single user action produces one trace spanning Browser → gateway → worker → smelter.
+- **Tier 2 — OpenTelemetry traces** (this package): spans, with W3C trace-context propagation across the bus's HTTP and SSE legs so a single user action produces one trace spanning Browser → gateway → Librarian.
 - **Tier 3 — metrics and log correlation** (this package): counters, histograms and gauges for the platform's hot paths, and the active span's `trace_id` / `span_id` on every structured log line.
 
 This package does not implement any platform domain logic; it provides the spanning helpers and metric recorders the rest of the codebase calls.
@@ -17,10 +17,10 @@ This package does not implement any platform domain logic; it provides the spann
 Initialize once at the process entry point, before any spanning code runs:
 
 ```ts
-// smelter-main.ts (or librarian-main.ts)
+// librarian-main.ts
 import { initObservabilityNode } from '@semiont/observability/node';
 
-initObservabilityNode({ serviceName: 'semiont-smelter' });
+initObservabilityNode({ serviceName: 'semiont-librarian' });
 
 // ...rest of process startup
 ```
@@ -40,13 +40,13 @@ What is exported, and where, is read from the standard `OTEL_*` variables. They 
 
 ## Process logger (Node)
 
-For long-lived Node entry points (the Smelter, the Weaver, the Librarian), the package exposes a winston-based structured logger that auto-correlates each line with the active span:
+For a long-lived Node entry point (the Librarian's), the package exposes a winston-based structured logger that auto-correlates each line with the active span:
 
 ```ts
-// smelter-main.ts (or librarian-main.ts)
+// librarian-main.ts
 import { createProcessLogger } from '@semiont/observability/process-logger';
 
-const logger = createProcessLogger('smelter');
+const logger = createProcessLogger('librarian');
 logger.info('Started', { config });
 ```
 
@@ -76,8 +76,8 @@ await withSpan(
 );
 
 // Actor handler wrapper — used at each actor's bus subscriptions to standardize
-// span names across actors (Stower, Browser, Gatherer, Matcher, Smelter).
-await withActorSpan('stower', 'mark:create-request', () => handler(payload));
+// span names across actors (the Gatherer, the Matcher, the retrieval handlers).
+await withActorSpan('gatherer', 'gather:requested', () => handler(payload));
 ```
 
 ### Trace-context propagation
@@ -143,7 +143,7 @@ import {
 } from '@semiont/observability';
 
 recordBusSent('mark:create-request', resourceId);  // channel, and the scope it was sent in
-recordHandlerDuration('stower', 'mark:create-request', durationMs);
+recordHandlerDuration('gatherer', 'gather:requested', durationMs);
 recordInferenceUsage({ provider: 'ollama', model: 'gemma3:27b', durationMs, outcome: 'success', inputTokens: 412, outputTokens: 87 });
 ```
 
@@ -151,12 +151,12 @@ The recorders above are three of several. Each says what it measures where it is
 
 ### Provider registration
 
-Long-lived snapshots (vector index size, the fact pump's backlog) are gauges, registered via callback so the SDK can pull at metric-export time:
+A long-lived snapshot is a gauge, registered via callback so the SDK can pull at metric-export time. The supervisor's restart count is one: `registerSupervisorRestartCount` (`@semiont/observability/node`) registers it for a supervised process, with a provider that returns `undefined` when it cannot tell, never `0`:
 
 ```ts
-import { registerVectorIndexSizeProvider } from '@semiont/observability';
+import { registerRestartCountProvider } from '@semiont/observability';
 
-registerVectorIndexSizeProvider(() => vectorStore.count());
+registerRestartCountProvider(() => restartsOfThisService());
 ```
 
 ## Implementation notes

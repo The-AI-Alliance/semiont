@@ -3,9 +3,8 @@ import type { BusEnvelope, ConnectionState, EventBus, EventMap, BusRequestPrimit
 
 /**
  * Adapt a raw in-process `EventBus` to `BusRequestPrimitive`, the transport
- * seam both `busRequest` and the actor fan-ins (the
- * smelter's) consume: this adapter inside a process, the HTTP actor across
- * the gateway.
+ * seam `busRequest` consumes: this adapter inside a process, the HTTP actor
+ * across the gateway.
  *
  * It lets in-process callers use the same confirmed request/reply path as
  * the SDK — `busRequest(asBusRequestPrimitive(eventBus), …)` — instead of

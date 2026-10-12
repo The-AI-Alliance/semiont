@@ -683,15 +683,15 @@ const kbMountTarget = "/kb"
 // the KB's committed identity, the addresses, the issuer — mounted at the
 // path its image passes to `--config`. Resolved means no ${VAR} is left for
 // it to expand, so it is handed no *_HOST variable: not even the GATEWAY_HOST
-// the services that load the KB's config get (gatewayHostEnv), which leaves a
-// ${GATEWAY_HOST:-…} in its publicURL on its default (gatewayVars).
+// the Librarian, which loads the KB's config, gets (gatewayHostEnv), which
+// leaves a ${GATEWAY_HOST:-…} in its publicURL on its default (gatewayVars).
 // What is left is that document, the state mount its supervisor keeps its
 // events on, its secrets, and the user's variables (the document names its
 // broker credentials by variable).
 //
-// jwt is the token-signing key — gateway-only, deliberately not in
-// sidecarArgs: the sidecars present agent tokens the gateway minted and never
-// sign anything. No admin password rides in here: `semiont useradd`
+// jwt is the token-signing key — gateway-only, deliberately handed to no
+// other service: each presents agent tokens the gateway minted and never
+// signs anything. No admin password rides in here: `semiont useradd`
 // administers the realm itself, so none sits in the container's inspectable
 // env.
 func gatewayArgs(stage, rt, addr, clientSecret, jwt, version string, port int, userEnv, otel []string, state ...string) []string {
@@ -715,13 +715,12 @@ func gatewayArgs(stage, rt, addr, clientSecret, jwt, version string, port int, u
 }
 
 // gatewayHostEnv injects the gateway's address as GATEWAY_HOST, for the
-// services that load a staged copy of the KB's config.
+// Librarian, which loads a staged copy of the KB's config.
 //
 // A KB's TOML interpolates it into the gateway's publicURL as
-// `${GATEWAY_HOST:-localhost}`. Left on that default inside a container, every
-// such service would dial ITSELF: a wrong-but-plausible value that fails far
-// from its cause. Defined once because two call sites spelling the same pair
-// is two chances to update one of them.
+// `${GATEWAY_HOST:-localhost}`. Left on that default inside a container, the
+// Librarian would dial ITSELF: a wrong-but-plausible value that fails far
+// from its cause.
 func gatewayHostEnv(addr string) []string {
 	return []string{"--env", "GATEWAY_HOST=" + addr}
 }
@@ -734,28 +733,6 @@ func gatewayHostEnv(addr string) []string {
 // four of them.
 func superviseEnv() []string {
 	return []string{"--env", "SEMIONT_SUPERVISE=1"}
-}
-
-// sidecarArgs covers the sidecar that loads a staged copy of the KB's config
-// (the smelter).
-func sidecarArgs(svc string, stage, rt, addr string, clientSecret, version string, userEnv, otel []string, extra ...string) []string {
-	p := strconv.Itoa(semiontDescriptor(svc).ports[0].port)
-	a := []string{"run", "-d", "--name", "semiont-" + svc, // no --rm: see providedRunArgs
-		"--memory", semiontDescriptor(svc).mem, "--publish", p + ":" + p,
-		"--volume", stage + "/" + svc + ".toml:/home/semiont/.semiontconfig:ro"}
-	a = append(a, userEnv...)
-	a = append(a, otel...)
-	a = append(a, gatewayHostEnv(addr)...)
-	a = append(a, identityHostArgs(rt, addr)...)
-	a = append(a,
-		// This process's own credential at the realm. It buys an agent token
-		// from the gateway; it is not the agent identity, which is per
-		// (provider, model) and named in the request.
-		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID(svc),
-		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
-	a = append(a, superviseEnv()...)
-	a = append(a, extra...)
-	return append(a, image(svc, version))
 }
 
 // archivistArgs: the Archivist owns the file-backed record, and its mounts
@@ -859,6 +836,35 @@ func workerArgs(stage, rt, addr string, clientSecret, version string, userEnv, o
 	return append(a, image("worker", version))
 }
 
+// smelterArgs: the Smelter derives what search reads from a resource's
+// bytes: its vectors and its anchored text. It mounts no piece of the
+// knowledge base: the gateway is its route to the bus, and the Archivist its
+// route to a resource's bytes. Beside its document, its one mount is the
+// anchored-text store flowSidecar passes as state, which it writes. It reads
+// a resolved configuration document (smelterdoc.go) at the path its image
+// passes to `--config`, so it is handed no *_HOST variables, no path and no
+// copy of the KB's config: the document carries every address and the
+// store's directory already, and names the variable holding Voyage's key
+// (smelterNamedVars), which arrives among the user's. It keeps the issuer's
+// host entry, because it signs in at the issuer by name.
+func smelterArgs(stage, rt, addr string, clientSecret, version string, userEnv, otel []string, state ...string) []string {
+	port := strconv.Itoa(semiontDescriptor("smelter").ports[0].port)
+	a := []string{"run", "-d", "--name", "semiont-smelter", // no --rm: see providedRunArgs
+		"--memory", semiontDescriptor("smelter").mem, "--publish", port + ":" + port,
+		"--volume", stage + "/" + smelterDocumentFile + ":" + smelterDocumentTarget + ":ro"}
+	a = append(a, state...)
+	a = append(a, userEnv...)
+	a = append(a, otel...)
+	a = append(a, identityHostArgs(rt, addr)...)
+	a = append(a,
+		// This process's own credential at the realm. It buys the agent token
+		// of its embedding provider and model from the gateway.
+		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("smelter"),
+		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
+	a = append(a, superviseEnv()...)
+	return append(a, image("smelter", version))
+}
+
 // weaverArgs: the Weaver keeps the graph in step with the record. It mounts
 // no piece of the knowledge base and no state: the gateway is its route to
 // the bus, and the graph database the one other thing it reaches. It reads a
@@ -932,8 +938,8 @@ type sidecarSpec struct {
 	svc, label, noun string
 }
 
-// sidecarSpecs: the three make-meaning sidecars, in start order. Each one's
-// container, port and memory are its descriptor's.
+// sidecarSpecs: the worker, the Smelter and the Weaver, in start order. Each
+// one's container, port and memory are its descriptor's.
 var sidecarSpecs = []sidecarSpec{
 	{"worker", "Worker pool", "Worker Pool"},
 	{"smelter", "Smelter", "Smelter"},

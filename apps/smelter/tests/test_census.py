@@ -12,7 +12,8 @@ concluded in one place. The index and the provider are reached through
 their protocols, and no store is named. And what this project's manifest
 says a second time, after the SDK's, says the same. It is a service's code
 and no library: one module reads the process's environment and its
-arguments, and no other project requires it.
+arguments, the variables it reads by name are the ones the protocol lists,
+and no other project requires it.
 """
 
 import ast
@@ -34,6 +35,7 @@ from semiont_smelter.tesseract import TesseractEngine
 
 SRC = PACKAGE / "src/semiont_smelter"
 SOURCES = sorted(path for top in ("src", "tests") for path in (PACKAGE / top).rglob("*.py"))
+SHARED = ROOT / "packages/service-python"
 
 # The public names, by the module that has each.
 SURFACE = {
@@ -268,6 +270,38 @@ def test_one_module_names_the_logger_and_one_reads_the_process_s_environment() -
         if re.search(r"\bos\.environ\b|\bos\.getenv\b|\bsys\.argv\b", path.read_text(encoding="utf-8"))
     )
     assert reading == ["service.py"]
+
+
+def test_the_variables_it_reads_by_name_are_the_ones_the_protocol_lists() -> None:
+    page = (ROOT / "docs/protocol/SMELTER.md").read_text(encoding="utf-8")
+    section = re.search(r"^## Environment\n(.*?)^## ", page, re.DOTALL | re.MULTILINE)
+    assert section is not None, "docs/protocol/SMELTER.md no longer has an Environment section"
+    listed_there = {
+        name
+        for row in section.group(1).splitlines()
+        if row.startswith("| ") and not row.startswith("| Variable")
+        for name in re.findall(r"`([A-Z][A-Z0-9_]+)`", row.split("|")[1])
+    }
+    # Every variable the service's code names: in the two modules that say what it is started with, and in the
+    # shared package it is built on. Its other modules name what PDFium calls its own things, in the same letters.
+    sources = sorted([SRC / "service.py", SRC / "config.py", *(SHARED / "src").rglob("*.py")])
+    assert any(path.is_relative_to(SHARED) for path in sources), "packages/service-python has no source"
+    read_here = {name for path in sources for name in re.findall(r'"([A-Z][A-Z0-9]*_[A-Z0-9_]+)"', path.read_text(encoding="utf-8"))}
+    assert read_here == listed_there
+    # Its service account, and what says where its telemetry goes and under what name. Its embedding provider's
+    # key is in a variable its document names, and so is named by no code.
+    assert read_here == {
+        "SEMIONT_OIDC_CLIENT_ID",
+        "SEMIONT_OIDC_CLIENT_SECRET",
+        "OTEL_EXPORTER_OTLP_ENDPOINT",
+        "OTEL_SERVICE_NAME",
+        "OTEL_SDK_DISABLED",
+        "OTEL_CONSOLE_EXPORTER",
+        "OTEL_METRICS_EXPORTER",
+        "OTEL_METRIC_EXPORT_INTERVAL",
+        "SUPERVISE_EVENTS",
+        "SUPERVISE_NAME",
+    }
 
 
 def test_the_distribution_is_named_for_the_service() -> None:

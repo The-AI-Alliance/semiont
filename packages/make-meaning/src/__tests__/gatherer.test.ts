@@ -27,7 +27,7 @@ vi.mock('../llm-context', () => ({
 
 import { AnnotationGather } from '../annotation-gather';
 import { LLMContext } from '../llm-context';
-import { createMockEmbeddingProvider } from './helpers/smelter-harness';
+import { createMockEmbeddingProvider } from './helpers/embedding-provider';
 
 const mockLogger: Logger = {
   debug: vi.fn(),

@@ -1,6 +1,5 @@
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { SmelterService } from './smelter-process';
 import type { WeaverService } from './weaver-process';
 
 export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -106,28 +105,19 @@ export const WEAVER_SERVICES: Readonly<Record<string, WeaverService>> = {
 };
 
 /**
- * How each implementation of the Smelter is started, and how it is given its
- * settings. The smelter suite runs each one with its settings and its
- * environment, against a real gateway, a real Archivist, a real Qdrant and a
- * stand-in for its embedding provider, and meets it in the index and the
- * anchored-text store it writes, on the bus and at its health port
- * (smelter/README.md). An implementation joins the suite by adding its line.
- * vitest.config.ts provides them as `smelterServices`.
+ * How each implementation of the Smelter is started. The smelter suite runs
+ * each one with `--config <document>` and the environment, against a real
+ * gateway, a real Archivist, a real Qdrant and a stand-in for its embedding
+ * provider, and meets it in the index and the anchored-text store it writes,
+ * on the bus and at its health port (smelter/README.md). An implementation
+ * joins the suite by adding its line. vitest.config.ts provides them as
+ * `smelterServices`.
  */
-export const SMELTER_SERVICES: Readonly<Record<string, SmelterService>> = {
-  // Semiont's own, as its image runs it: the built entry of @semiont/make-meaning, by node.
-  // It reads its settings from the knowledge base's configuration file in its home directory.
-  typescript: {
-    command: ['node', join(REPO_ROOT, 'packages/make-meaning/dist/smelter-main.js')],
-    settings: 'semiontconfig',
-  },
-  // The Smelter in Python: the interpreter of the project's locked environment, so nothing is resolved or
-  // installed when a case starts it. `-P` keeps the directory a case starts it in off its import path. It reads
-  // its settings from the protocol's configuration document, and needs the `tesseract` program on PATH.
-  python: {
-    command: [join(REPO_ROOT, 'apps/smelter/.venv/bin/python'), '-P', '-m', 'semiont_smelter'],
-    settings: 'document',
-  },
+export const SMELTER_SERVICES: Readonly<Record<string, readonly string[]>> = {
+  // The interpreter of the project's locked environment: nothing is resolved or installed when a case starts it.
+  // `-P` keeps the directory a case starts it in off its import path, as the image's command does.
+  // It reads a scan with the `tesseract` program, which it finds on PATH.
+  python: [join(REPO_ROOT, 'apps/smelter/.venv/bin/python'), '-P', '-m', 'semiont_smelter'],
 };
 
 export const SPEC_SOURCE = join(REPO_ROOT, 'specs/src');

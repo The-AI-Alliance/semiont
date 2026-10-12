@@ -152,7 +152,8 @@ is re-recognized six times.
 
 The store holds derived values only — every entry is reproducible from the
 resource's bytes — which is what makes a version-stamp miss safe. The stamp is
-derived from package versions (this package, the engine, its traineddata), never
+read from what is installed (the Smelter's version, PDFium's and its binding's,
+the `tesseract` program's, and a digest of its language data), never
 hand-maintained: over-invalidating costs a recomputation, under-invalidating
 serves geometry built by different code.
 
@@ -188,19 +189,20 @@ bytes, hence the checksum, which the Smelter reads as a content change.
 
 | Concern | Location |
 |---|---|
-| `AnchoredText`, `locate`, `textUnder`, `anchorRuns`, the threshold | `@semiont/core` — `pdf-anchoring.ts` |
-| Producing a map (text layer, OCR, tables, forms) | `@semiont/content` — `pdf-extractor.ts` |
-| Storing one | `@semiont/content` — `anchored-text-store.ts` |
-| Publishing at ingest | `@semiont/make-meaning` — `smelter.ts` |
+| `AnchoredText`, `locate`, `textUnder`, the threshold | `@semiont/core` — `pdf-anchoring.ts` |
+| Producing a map (text layer, OCR, tables, forms) | `apps/smelter` — `extraction.py`, over `pdfium.py` and `tesseract.py` |
+| Storing one | `apps/smelter` — `anchored_text_store.py` |
+| Publishing at ingest | `apps/smelter` — `smelter.py` |
 | Serving one, with the barrier | `apps/archivist` — `src/anchored.rs` |
 | Detection's geometry tail | `@semiont/core` — `annotationOfSpan`, in `annotation-builders.ts` |
 | Holding the text for a viewer, and asking again | `@semiont/react-ui` — `hooks/useAnchoredText.ts` |
 | The PDF canvas | `@semiont/react-ui` — `PdfAnnotationCanvas.tsx` |
 | The image canvas | `@semiont/react-ui` — `SvgDrawingCanvas.tsx` |
 
-`@semiont/core` holds what *reasons over* a map; `@semiont/content` holds what
-*produces* one. The split is not cosmetic: the browser needs `textUnder` at drag
-time, and `@semiont/content` carries pdf.js, Tesseract and `node:fs`.
+`@semiont/core` holds what *reasons over* a map; the Smelter, a Python service
+([apps/smelter](../../apps/smelter/)), holds what *produces* one. The split is
+not cosmetic: the browser needs `textUnder` at drag time, and producing a map
+takes PDFium, the `tesseract` program and a directory to write.
 
 ## Related
 

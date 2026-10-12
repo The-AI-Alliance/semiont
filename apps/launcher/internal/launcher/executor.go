@@ -352,13 +352,13 @@ func (x *liveExec) stageDir() (string, bool) {
 }
 
 // archivistDialers: the services that resolve the Archivist's address from
-// their staged config copy, and so must be handed it. The Smelter and the
-// Librarian read bytes from it directly, over HTTP and not through the
-// gateway; both refuse to boot without it. The gateway is absent because its
-// configuration document carries the address (gatewaydoc.go); the Archivist,
-// because it IS the record; the worker, because the gateway is its route to a
-// resource's bytes (workerdoc.go).
-var archivistDialers = map[string]bool{"smelter": true, "librarian": true}
+// their staged config copy, and so must be handed it. The Librarian reads
+// bytes from it directly, over HTTP and not through the gateway, and refuses
+// to boot without it. The gateway and the Smelter are absent because their
+// configuration documents carry the address (archivistAddress); the
+// Archivist, because it IS the record; the worker, because the gateway is its
+// route to a resource's bytes (workerdoc.go).
+var archivistDialers = map[string]bool{"librarian": true}
 
 // kbIdentityStaged: the services that describe a KB tree they do not mount,
 // and so must be handed its committed identity rather than reading it. The
@@ -373,12 +373,13 @@ const gatewayDocumentFile = "gateway.json"
 // gatewayDocumentTarget: where the gateway reads that document — the path its
 // image passes to `--config`; TestConfigDocumentsAreWhereTheImagesLook holds
 // the two together. Its own name and place: a resolved JSON artifact, not the
-// sidecars' TOML ~/.semiontconfig it was derived from.
+// TOML it was derived from.
 const gatewayDocumentTarget = "/etc/semiont/gateway.json"
 
 // stageService writes one service's config into the stage: the gateway's,
-// the dispatcher's, the Archivist's, the worker's or the Weaver's resolved
-// document, or another service's patched copy of the KB config.
+// the dispatcher's, the Archivist's, the worker's, the Smelter's or the
+// Weaver's resolved document, or the Librarian's patched copy of the KB
+// config.
 func (x *liveExec) stageService(stage, svc string, cfg []byte, fc flowCtx, addr string) bool {
 	if svc == "gateway" {
 		env, _, _, err := loadConfig(fc.configFile)
@@ -432,6 +433,20 @@ func (x *liveExec) stageService(stage, svc string, cfg []byte, fc flowCtx, addr 
 		}
 		if err != nil {
 			x.u.Fail("Writing the worker's configuration document: %v", err)
+			return false
+		}
+		return true
+	}
+	if svc == "smelter" {
+		env, _, _, err := loadConfig(fc.configFile)
+		if err == nil {
+			var doc []byte
+			if doc, err = smelterDocument(env, x.rt, addr, fc.plan.Roles["identity"].Port, fc.userEnv); err == nil {
+				err = os.WriteFile(filepath.Join(stage, smelterDocumentFile), doc, 0o644)
+			}
+		}
+		if err != nil {
+			x.u.Fail("Writing the Smelter's configuration document: %v", err)
 			return false
 		}
 		return true
@@ -1284,7 +1299,7 @@ func (x *planExec) stageCollector(string) (string, bool) {
 func (x *planExec) stageAll(fc flowCtx, addr string) (string, bool) {
 	staged := make([]string, 0, len(stackServices))
 	for _, svc := range stackServices {
-		if svc != "gateway" && svc != "dispatcher" && svc != "archivist" && svc != "worker" && svc != "weaver" {
+		if _, loadsTheConfig := serviceConfigSections[svc]; loadsTheConfig {
 			staged = append(staged, svc+".toml")
 		}
 	}
@@ -1294,6 +1309,7 @@ func (x *planExec) stageAll(fc flowCtx, addr string) (string, bool) {
 	if fc.plan.runs("worker") {
 		x.c("write <config-stage>/%s (the worker's configuration document: WorkerConfig, resolved)", workerDocumentFile)
 	}
+	x.c("write <config-stage>/%s (the Smelter's configuration document: SmelterConfig, resolved)", smelterDocumentFile)
 	x.c("write <config-stage>/%s (the Weaver's configuration document: WeaverConfig, resolved)", weaverDocumentFile)
 	x.c("stage per-service config copies under <config-stage>: %s", strings.Join(staged, " "))
 	x.c("write into each copy the addresses this start places, as literals, in the sections that service reads (launcher-staged topology):")
@@ -1328,6 +1344,10 @@ func (x *planExec) stageOne(svc string, fc flowCtx, _ string) (string, bool) {
 	}
 	if svc == "worker" {
 		x.c("write a fresh <config-stage>/%s (the worker's configuration document: WorkerConfig, resolved)", workerDocumentFile)
+		return "<config-stage>", true
+	}
+	if svc == "smelter" {
+		x.c("write a fresh <config-stage>/%s (the Smelter's configuration document: SmelterConfig, resolved)", smelterDocumentFile)
 		return "<config-stage>", true
 	}
 	if svc == "weaver" {

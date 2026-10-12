@@ -30,22 +30,22 @@ import { openResourceByName } from '../fixtures/discover';
  * operator-facing (extraction quality is logged, never stored on annotations),
  * and widening the protocol to make a test easier would be the wrong trade.
  *
- * A defect that sends every real scan down the second path — `toRgb`
- * rejecting JPEG-coded images, say, or `resolveImage` hanging on a shared
- * XObject — leaves this spec passing.
+ * A defect that sends every real scan down the second path — a reader that
+ * cannot decode a JPEG-coded image, say — leaves this spec passing.
  *
- * "The engine actually ran" is pinned where it is observable, in
- * `@semiont/content`: `pdf-ocr.test.ts` asserts `recognizeImages` IS invoked
- * for a page that has an image, alongside the case asserting it is NOT
- * invoked for a page that has none. Change either and this spec still passes.
+ * "The engine actually ran" is pinned where it is observable, in the
+ * Smelter's own tests (`apps/smelter/tests/test_extraction.py`): one asserts
+ * the engine was handed a scan's image, alongside the ones asserting it is
+ * not asked for a document that has none. Change either and this spec still
+ * passes.
  *
- * NOT covered here, deliberately: a scan OCR *can* read. That needs a genuine
- * scanned document — a synthetic bitmap font is not a typeface, and the
- * recognizer misreads it (measured: "SCANNED" → "SCHMNE" at confidence 0), so
- * asserting recognized text against a seed constant would pin engine noise
- * rather than behavior. That case belongs to live testing with a real receipt
- * or FOIA page; the unit suites in `@semiont/content` cover the merge
- * deterministically with the engine stubbed.
+ * NOT covered here, deliberately: a scan OCR *can* read. This seed's bitmap
+ * font is not a typeface, and a recognizer misreads it (measured: "SCANNED" →
+ * "SCHMNE" at confidence 0), so asserting recognized text against a seed
+ * constant would pin engine noise rather than behavior. The Smelter's tests
+ * read a legible scan with the real engine
+ * (`apps/smelter/tests/test_extraction_cases.py`), and cover the merge
+ * deterministically with the engine played (`test_extraction.py`).
  */
 
 const IMG = '.semiont-pdf-annotation-canvas__image';

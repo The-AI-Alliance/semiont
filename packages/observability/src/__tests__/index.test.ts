@@ -50,7 +50,6 @@ import {
   materializeObservableGauges,
   registerProcessLifetimeMetrics,
   registerRestartCountProvider,
-  registerVectorIndexSizeProvider,
   withActorSpan,
   withSpan,
   withTraceparent,
@@ -397,27 +396,6 @@ describe('recordHandlerDuration', () => {
     );
     expect(dp).toBeDefined();
     expect(dp!.count).toBeGreaterThanOrEqual(1);
-  });
-});
-
-describe('registerVectorIndexSizeProvider', () => {
-  it('emits one observation per flush from the registered provider', async () => {
-    registerVectorIndexSizeProvider(() => 12345);
-    await flushMetrics();
-
-    const metricsByName = collectMetrics();
-    const gauge = metricsByName.get('semiont.vector.index.size');
-    expect(gauge).toBeDefined();
-    expect(gauge![0]?.value).toBe(12345);
-  });
-
-  it('supports an async provider', async () => {
-    registerVectorIndexSizeProvider(async () => 999);
-    await flushMetrics();
-
-    const metricsByName = collectMetrics();
-    const gauge = metricsByName.get('semiont.vector.index.size')!;
-    expect(gauge[0]?.value).toBe(999);
   });
 });
 

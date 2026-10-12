@@ -598,9 +598,9 @@ apiKey = "\${UNSET_P5_KEY}"
   });
 
   it('a service reading a section it does not declare refuses, naming the section and the spec', () => {
-    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), {}, 'smelter');
+    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), {}, 'librarian');
     expect(cfg.services.identity.type).toBe('keycloak');
-    expect(() => cfg.services.graph).toThrow(/smelter.*\[environments\.local\.graph\].*specs\/src\/service-config\/sections\.json/);
+    expect(() => cfg.services.database).toThrow(/librarian.*\[environments\.local\.database\].*specs\/src\/service-config\/sections\.json/);
   });
 });
 
@@ -795,23 +795,14 @@ type = "memory"
     expect(cfg.services.graph).toBeUndefined();
   });
 
-  it('vectors default their port, and chunking is the embedding section\'s own', () => {
+  it('vectors default their port', () => {
     const cfg = load(`${BASE}
 [environments.local.vectors]
 type = "qdrant"
 host = "qdrant.internal"
-
-[environments.local.vectors.chunking]
-chunkSize = 256
-
-[environments.local.embedding]
-type = "ollama"
-model = "nomic-embed-text"
 `);
     expect(cfg.services.vectors).toMatchObject({ host: 'qdrant.internal', port: 6333 });
     expect(cfg.services.database).toBeUndefined();
-    // What is nested under [vectors] is not the embedding's.
-    expect(cfg.services.embedding?.chunking).toBeUndefined();
   });
 
   it('resolves a ${VAR} inside an array', () => {
@@ -836,7 +827,7 @@ model = "nomic-embed-text"
   });
 
   it('createTomlConfigLoader hands its service to the loader', () => {
-    const cfg = createTomlConfigLoader(makeReader(MINIMAL_TOML), '/home/user/.semiontconfig', {}, 'smelter')('/project', 'local');
-    expect(() => cfg.services.graph).toThrow(/smelter/);
+    const cfg = createTomlConfigLoader(makeReader(MINIMAL_TOML), '/home/user/.semiontconfig', {}, 'librarian')('/project', 'local');
+    expect(() => cfg.services.database).toThrow(/librarian/);
   });
 });

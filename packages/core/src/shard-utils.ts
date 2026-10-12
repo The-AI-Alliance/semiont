@@ -1,12 +1,12 @@
 /**
  * Sharding Utilities
  *
- * Shared utilities for consistent sharding across all storage layers —
- * the event log and view storage (@semiont/event-sourcing) and the
- * anchored-text store (@semiont/content) all lay files out as
- * `{ab}/{cd}/<key>` through `getShardPath`. Hoisted here so both importers
- * share one implementation: a second sharding implementation is how two
- * trees end up disagreeing about where something lives.
+ * Where a key is filed: view storage (@semiont/event-sourcing) lays files
+ * out as `{ab}/{cd}/<key>` through `getShardPath`. The rule is
+ * specs/src/archivist/shard-cases.json, which the Archivist's event log and
+ * the Smelter's anchored-text store file by too, each in its own code: a
+ * second rule is how two trees end up disagreeing about where something
+ * lives.
  *
  * Pure string/number math — no node dependencies — so it is safe on
  * core's browser-facing root export.

@@ -5,7 +5,7 @@ describe('MockEmbeddingProvider', () => {
   let provider: MockEmbeddingProvider;
 
   beforeEach(() => {
-    provider = new MockEmbeddingProvider(8, 'test-model');
+    provider = new MockEmbeddingProvider(8);
   });
 
   it('returns vectors of the correct dimension', async () => {
@@ -31,22 +31,11 @@ describe('MockEmbeddingProvider', () => {
     expect(vec1).not.toEqual(vec2);
   });
 
-  it('embedBatch returns correct number of vectors', async () => {
-    const vecs = await provider.embedBatch(['a', 'b', 'c']);
-    expect(vecs).toHaveLength(3);
-    vecs.forEach(v => expect(v).toHaveLength(8));
-  });
-
-  it('returns the vector deterministicVector states, singly and in a batch', async () => {
+  it('returns the vector deterministicVector states', async () => {
     expect(await provider.embed('hello')).toEqual(deterministicVector('hello', 8));
-    expect(await provider.embedBatch(['a', 'b'])).toEqual([deterministicVector('a', 8), deterministicVector('b', 8)]);
   });
 
   it('reports correct dimensions', async () => {
     expect(await provider.dimensions()).toBe(8);
-  });
-
-  it('reports correct model name', () => {
-    expect(provider.model()).toBe('test-model');
   });
 });

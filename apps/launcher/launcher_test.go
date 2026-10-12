@@ -602,6 +602,8 @@ func TestStartBootsAConfigThatStatesNoAddress(t *testing.T) {
 		t.Errorf("the staged librarian.toml leaves an address to its environment:\n%s", librarian)
 	}
 	mustContain(t, "staged dispatcher.json", stagedFile(t, s, "dispatcher.json"), "192.168.64.1:4222")
+	mustContain(t, "staged smelter.json", stagedFile(t, s, "smelter.json"),
+		`"gatewayUrl": "http://192.168.64.1:4000"`, `"baseUrl": "http://192.168.64.1:11434"`, `"port": 6333`)
 }
 
 func TestStartDefaultBoot(t *testing.T) {
@@ -875,7 +877,7 @@ func TestKeycloakPortIsPlacedAndSticky(t *testing.T) {
 			t.Errorf("%s: Keycloak not published on %s:\n%s", step.name, step.want, run)
 		}
 		issuer := "http://192.168.64.1:" + step.want + "/realms/semiont"
-		for _, staged := range []string{"worker.json", "archivist.json", "gateway.json", "dispatcher.json"} {
+		for _, staged := range []string{"worker.json", "smelter.json", "weaver.json", "archivist.json", "gateway.json", "dispatcher.json"} {
 			if !strings.Contains(stagedFile(t, s, staged), issuer) {
 				t.Errorf("%s: the staged %s does not state the issuer at port %s:\n%s", step.name, staged, step.want, stagedFile(t, s, staged))
 			}
@@ -1265,9 +1267,9 @@ func TestStatePersistsAcrossStarts(t *testing.T) {
 // Unmounted it lives in the container and dies with it on every `stop`, and
 // the Smelter's reconcile re-derives every lost map on the next start.
 //
-// The container path is a constant — the Smelter's image declares it, the
-// Archivist's document names it — so this mount looks like every other one:
-// KB identity on the host side only.
+// The container path is a constant — the Smelter's document and the
+// Archivist's each name it — so this mount looks like every other one: KB
+// identity on the host side only.
 func TestAnchoredTextStorePersistsAcrossStarts(t *testing.T) {
 	s := newScenario(t, "container")
 	if _, stderr, code := s.run(t, "start"); code != 0 {
@@ -2936,9 +2938,9 @@ func TestRemoteModelCheckReadsTheConfiguredKey(t *testing.T) {
 	}
 }
 
-// A Node service started alone reaches only for its own sections' variables:
-// the smelter reads no [inference], so restarting it raises no provider
-// prompt for ANTHROPIC_API_KEY.
+// A service started alone reaches only for the variables of the sections it
+// is started from: the Smelter's document reads no [inference], so restarting
+// it raises no provider prompt for ANTHROPIC_API_KEY.
 func TestStartServiceResolvesOnlyItsOwnSecrets(t *testing.T) {
 	s := newScenario(t, "container", "op")
 	if _, stderr, code := s.run(t, "settings", "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential"); code != 0 {
@@ -4810,7 +4812,7 @@ const stdJobs = "[environments.local.jobs]\ntype = \"jetstream\"\nservers = \"${
 // wants no local Ollama reaches for stdEmbeddingVoyage rather than dropping
 // the section.
 const stdEmbedding = "[environments.local.embedding]\ntype = \"ollama\"\nmodel = \"nomic-embed-text\"\nbaseURL = \"http://${OLLAMA_HOST}:11434\"\n\n"
-const stdEmbeddingVoyage = "[environments.local.embedding]\nplatform = \"external\"\ntype = \"voyage\"\nmodel = \"voyage-3\"\n\n"
+const stdEmbeddingVoyage = "[environments.local.embedding]\nplatform = \"external\"\ntype = \"voyage\"\nmodel = \"voyage-3\"\napiKey = \"${VOYAGE_API_KEY}\"\n\n"
 const stdDatabase = "[environments.local.database]\nhost = \"${POSTGRES_HOST}\"\nport = 5432\nname = \"semiont\"\nuser = \"postgres\"\n\n"
 const stdGraph = "[environments.local.graph]\ntype = \"neo4j\"\nuri = \"bolt://${NEO4J_HOST}:7687\"\nusername = \"neo4j\"\ndatabase = \"neo4j\"\n\n"
 
@@ -5047,7 +5049,7 @@ func TestStartNoInferenceBoot(t *testing.T) {
 		stdGraph+stdVectors+stdDatabase+stdEmbeddingVoyage+
 			"[environments.local.inference.anthropic]\nplatform = \"external\"\nendpoint = \"https://api.anthropic.com\"\napiKey = \"${ANTHROPIC_API_KEY}\"\n\n"+
 			"[environments.local.workers.default.inference]\ntype = \"anthropic\"\nmodel = \"claude-sonnet-4-5-20250929\"\n\n")
-	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key")
+	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key", "VOYAGE_API_KEY=test-voyage-key")
 	stdout, stderr, code := s.run(t, "start", "--config", "no-ollama")
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)

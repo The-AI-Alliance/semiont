@@ -32,7 +32,6 @@ import {
   type SmelterHealth,
   type SmelterLaunch,
   type SmelterProcess,
-  type SmelterService,
   type SmelterSettings,
 } from './smelter-process';
 import { errorsOf, spec } from './spec';
@@ -68,14 +67,14 @@ export class SmelterWorld {
     private readonly wholeIndex: VectorIndex,
     /** The stand-in for the Smelter's embedding provider: what it was sent, and what a case scripts of it. */
     readonly provider: StandInEmbedder,
-    readonly service: SmelterService,
+    private readonly command: readonly string[],
     readonly settings: SmelterSettings,
     private readonly env: SmelterEnvironment,
     private readonly home: string,
     private readonly signals: BusStream,
   ) {}
 
-  static async create(service: SmelterService): Promise<SmelterWorld> {
+  static async create(command: readonly string[]): Promise<SmelterWorld> {
     const { host } = inject('vectorDatabase');
     const secret = randomBytes(24).toString('hex');
     const kb = await ArchivistWorld.create({ gitSync: false, accounts: { [SMELTER_CLIENT]: { secret, roles: [SERVICE_ROLE] } } });
@@ -97,13 +96,13 @@ export class SmelterWorld {
       kb,
       vectorIndex(host),
       provider,
-      service,
+      command,
       {
         gatewayUrl: kb.world.origin,
         issuer: kb.world.issuer.origin,
         archivist: { host: '127.0.0.1', port: kb.settings.port },
         vectors: { type: 'qdrant', host, port: QDRANT_PORT },
-        embedding: { type: 'ollama', model: EMBEDDING_MODEL, baseURL: provider.origin },
+        embedding: { type: 'ollama', model: EMBEDDING_MODEL, baseUrl: provider.origin },
         chunking: { chunkSize: 512, overlap: 64 },
         // The store's directory is the one the Archivist is configured to read.
         anchoredTextDir: kb.dirs.anchoredTextDir,
@@ -138,7 +137,7 @@ export class SmelterWorld {
 
   /** What a case launches a Smelter of its own with: this world's, changed as the case says. */
   launch(change: Change = {}): SmelterLaunch {
-    return { service: this.service, settings: this.settings, env: this.env, home: this.home, ...change };
+    return { command: this.command, settings: this.settings, env: this.env, home: this.home, ...change };
   }
 
   /**
@@ -455,10 +454,10 @@ export class SmelterWorld {
  * does not serve.
  */
 export function eachSmelter(title: string, body: (world: () => SmelterWorld) => void): void {
-  describe.each(Object.entries(inject('smelterServices')))(`${title} (the %s Smelter)`, (_implementation, service) => {
+  describe.each(Object.entries(inject('smelterServices')))(`${title} (the %s Smelter)`, (_implementation, command) => {
     let world: SmelterWorld | undefined;
     beforeAll(async () => {
-      world = await SmelterWorld.create(service);
+      world = await SmelterWorld.create(command);
     }, 180_000);
     afterAll(async () => {
       await world?.close();

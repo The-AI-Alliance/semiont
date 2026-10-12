@@ -9,14 +9,12 @@ import {
   retryWithBackoff,
   isTransientFetchError,
   isRetryableRequestError,
-  isPeerUnavailable,
   retryAfterMs,
   retryBudgetMs,
   STARTUP_FETCH_RETRY,
   type RetryAttemptInfo,
   type HttpStatusError,
 } from '../retry';
-import { BusRequestError } from '../bus-request';
 
 const FAST = { attempts: 4, initialDelayMs: 1, maxDelayMs: 4 };
 
@@ -242,37 +240,6 @@ describe("a caller's deadline outranks the budget", () => {
       ),
     ).rejects.toThrow();
     expect(calls).toBe(3);
-  });
-});
-
-describe('isPeerUnavailable', () => {
-  // The condition a boot pass must wait out: `browse:*` is answered by the
-  // archivist, which may not have subscribed seconds into a boot. A pass that
-  // does not retry it leaves the KB with an empty graph behind a healthy
-  // /health.
-  it('accepts the promoted peer-unavailable failure', () => {
-    expect(isPeerUnavailable(new BusRequestError('no subscriber', 'bus.peer-unavailable'))).toBe(true);
-  });
-
-  it('rejects bus.unsubscribed — the SAME-SOUNDING code that must not retry', () => {
-    // `bus.unsubscribed` means *this* transport is not subscribed to the reply
-    // channel: a local misconfiguration, caught before emitting, that no amount of
-    // waiting fixes. Retrying it would spend the budget papering over a
-    // programming error — which is why the two codes are named apart.
-    expect(isPeerUnavailable(new BusRequestError('not subscribed', 'bus.unsubscribed'))).toBe(false);
-  });
-
-  it('rejects every other bus failure — a refusal is not a delay', () => {
-    for (const code of ['bus.rejected', 'bus.timeout', 'bus.not-found', 'bus.closed'] as const) {
-      expect(isPeerUnavailable(new BusRequestError('x', code)), code).toBe(false);
-    }
-  });
-
-  it('rejects anything that is not a BusRequestError', () => {
-    // Structure, not a bare string field: a plain object carrying the same code
-    // did not come from `busRequest` and has not been through its mapping.
-    expect(isPeerUnavailable(Object.assign(new Error('x'), { code: 'bus.peer-unavailable' }))).toBe(false);
-    expect(isPeerUnavailable(undefined)).toBe(false);
   });
 });
 

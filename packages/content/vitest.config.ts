@@ -1,13 +1,6 @@
 import { mergeConfig, defineConfig } from 'vitest/config';
 import baseConfig from '../../vitest.shared.config.js';
 
-export default mergeConfig(
-  baseConfig,
-  defineConfig({
-    test: {
-      // Regenerate the PDF fixtures before the suite (see generate-fixtures.ts).
-      // Keeps `test` a plain `vitest run` and covers watch/coverage/IDE too.
-      globalSetup: ['./src/__tests__/generate-fixtures.ts'],
-    },
-  }),
-);
+// Nothing local. The shared config decides what a coverage run emits and which
+// files it runs; this file is the declaration point vitest requires.
+export default mergeConfig(baseConfig, defineConfig({}));

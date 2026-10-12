@@ -181,7 +181,7 @@ export function withoutTrace<T>(fn: () => T): T {
 /**
  * Wrap a bus-event handler in an `actor.<name>:<channel>` consumer span.
  * Used at every `eventBus.on(channel).subscribe(handler)` site inside
- * an actor (Stower, Gatherer, Matcher, Browser, Smelter), to attribute
+ * an actor (the Gatherer, the Matcher, the retrieval handlers), to attribute
  * each in-process subscriber's work to a span without scattering manual
  * `withSpan` calls across handler bodies.
  *
@@ -251,8 +251,8 @@ const pendingGauges = new Map<string, () => void>();
  * callback, reports success, and exports nothing for the life of the process.
  *
  * That silence is indistinguishable from a healthy idle metric: a gauge such
- * as the Smelter's `semiont.vector.index.size` is missing from the
- * collector's readout while its code reads as correct.
+ * as `semiont.process.restarts` is missing from the collector's readout while
+ * its code reads as correct.
  *
  * Registration order is the wrong thing to police, because a process with no
  * exporter configured has a no-op meter legitimately and forever — that is
@@ -288,8 +288,6 @@ let _gatherDegradeCounter: Counter | undefined;
 let _inferenceCallsCounter: Counter | undefined;
 let _inferenceTokensCounter: Counter | undefined;
 let _inferenceDurationHistogram: Histogram | undefined;
-let _vectorIndexSizeGauge: ObservableGauge | undefined;
-let _vectorIndexSizeProvider: (() => Promise<number> | number) | undefined;
 
 function busSentCounter(): Counter {
   if (!_busSentCounter) {
@@ -464,30 +462,6 @@ export function recordAbnormalTermination(reason: string, detail?: string): void
     });
     active.setAttribute('semiont.process.abnormal_exit', reason);
     active.end();
-  }
-}
-
-/**
- * Register a callback that returns the current vector-index size
- * (point count). Async to allow remote queries (Qdrant). Polled at
- * the metric-collection interval.
- */
-export function registerVectorIndexSizeProvider(
-  provider: () => Promise<number> | number,
-): void {
-  _vectorIndexSizeProvider = provider;
-  if (!_vectorIndexSizeGauge) {
-    buildGauge('semiont.vector.index.size', () => {
-      _vectorIndexSizeGauge = meter().createObservableGauge('semiont.vector.index.size', {
-        description: 'Vector store point count',
-      });
-      _vectorIndexSizeGauge.addCallback(async (observer) => {
-        if (_vectorIndexSizeProvider) {
-          const value = await _vectorIndexSizeProvider();
-          observer.observe(value);
-        }
-      });
-    });
   }
 }
 

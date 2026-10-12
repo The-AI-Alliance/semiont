@@ -158,17 +158,18 @@ updates:
       prefix: "sdk-go"
       include: "scope"
 
-  # The Python projects: the SDK, the inference drivers, the graph stores and
-  # the service package Semiont's Python services are built from, and the two
-  # services themselves, the Worker (apps/worker), the Weaver (apps/weaver) and
-  # the Python Smelter (apps/smelter). Their
+  # The Python projects: the SDK, the inference drivers, the graph stores, the
+  # vector stores and the service package Semiont's Python services are built
+  # from, and the three services themselves, the Worker (apps/worker), the
+  # Weaver (apps/weaver) and the Smelter (apps/smelter). Their
   # runtime dependencies, and the tools their gates are made of. The type
   # checkers, the formatter and the SDK's model generator are pinned to a
   # version each, because what they say of a package, and what the generator
   # writes, is held by CI: a bump of one is a change to read, and for the
   # generator or the formatter it comes with a regenerated types.py. A bump of
   # Anthropic's library is a change to read too: anthropic.py lists what the
-  # driver leans on in it.
+  # driver leans on in it. So is one of PDFium's binding: pdfium.py lists what
+  # the Smelter's reader leans on in it.
   # One entry for them all, and a group for each tool they all pin: every
   # project's tests but the SDK's hold its pins to the SDK's,
   # so a tool moves in every manifest in one PR, and a gate that goes red
@@ -319,18 +320,17 @@ updates:
   # base image is rust:<channel>-bookworm, which the rust-toolchain entry moves.
 
   # Service image base images (apps/<svc>/Dockerfile). Grouped into one PR:
-  # the make-meaning sidecars share a base image, so an ungrouped bump opens
-  # several PRs for one upgrade. The gateway's, the dispatcher's and the
-  # archivist's runtime base is alpine; their builder's Rust tag comes from rust-toolchain.toml, which
-  # the rust-toolchain entry updates. Major node updates are ignored because node
-  # 26's undici breaks the qdrant client the sidecars carry; drop the ignore
-  # when qdrant ships a fix. apps/browser carries no qdrant client, runs Node
-  # 26, and has its own entry. apps/worker and apps/weaver are Python, and
-  # have their own too.
+  # the gateway's, the dispatcher's and the archivist's runtime base is one
+  # alpine, so an ungrouped bump opens several PRs for one upgrade. Their
+  # builder's Rust tag comes from rust-toolchain.toml, which the rust-toolchain
+  # entry updates. The librarian's base is node. Major node updates are ignored
+  # because node 26's undici breaks the qdrant client the librarian carries;
+  # drop the ignore when qdrant ships a fix. apps/browser carries no qdrant
+  # client, runs Node 26, and has its own entry. apps/worker, apps/smelter and
+  # apps/weaver are Python, and have their own too.
   - package-ecosystem: "docker"
     directories:
       - "/apps/gateway"
-      - "/apps/smelter"
       - "/apps/archivist"
       - "/apps/librarian"
       - "/apps/dispatcher"
@@ -356,16 +356,17 @@ updates:
       include: "scope"
 
   # The images of the Python services (apps/worker/Dockerfile,
-  # apps/weaver/Dockerfile). Their Python base is no tag this entry can move:
-  # it is python:${PYTHON_FLOOR}-<variant>, the floor
+  # apps/weaver/Dockerfile, apps/smelter/Dockerfile). Their Python base is no
+  # tag this entry can move: it is python:${PYTHON_FLOOR}-<variant>, the floor
   # packages/sdk-python/pyproject.toml states, which a person moves. What each
   # file's FROM lines write out, and this entry moves, is the uv that makes
-  # the image's environment, in both at once. Outside the service group, whose
-  # bases are Node and Alpine.
+  # the image's environment, in all three at once. Outside the service group,
+  # whose bases are Node and Alpine.
   - package-ecosystem: "docker"
     directories:
       - "/apps/worker"
       - "/apps/weaver"
+      - "/apps/smelter"
     schedule:
       interval: "weekly"
       day: "monday"

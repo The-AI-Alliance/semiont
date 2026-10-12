@@ -18,7 +18,7 @@ judge any implementation of the same spec.
 | [worker](worker/README.md) | a worker written on an SDK, through a driver, with the suite playing the dispatcher | `npm run test:worker` |
 | [worker-service](worker-service/README.md) | a Worker service, as a process: on the bus through a real gateway, at a stand-in for each of its providers, and at its health port, with the suite playing the dispatcher and the record | `npm run test:worker-service` |
 | [weaver](weaver/README.md) | a Weaver, as a process: behind a real gateway and a real Archivist, in the neo4j it writes, on the bus, at its health port and in the telemetry it exports | `npm run test:weaver` |
-| [smelter](smelter/README.md) | a Smelter, as a process: behind a real gateway and a real Archivist, in the Qdrant and the anchored-text store it writes, on the bus, at a stand-in for its embedding provider and at its health port | `npm run test:smelter` |
+| [smelter](smelter/README.md) | a Smelter, as a process: behind a real gateway and a real Archivist, in the Qdrant and the anchored-text store it writes, on the bus, at a stand-in for its embedding provider, at its health port and in the telemetry it exports | `npm run test:smelter` |
 
 They share one harness ([harness/](harness/)): the trusted issuer, a real
 `nats-server`, gateway, dispatcher, Archivist, Worker service, Weaver and Smelter processes, bus streams checked message by
@@ -37,7 +37,7 @@ environment, which `uv` makes, the weaver suite a built Archivist, the
 Weaver's environment, which `uv` makes too, the packages built, and a neo4j of
 its own, whose address and password it is told
 in `NEO4J_HOST` and `NEO4J_PASSWORD` ([weaver/README.md](weaver/README.md)),
-and the smelter suite a built Archivist, the packages built, the Python
+and the smelter suite a built Archivist, the packages built, the
 Smelter's environment, which `uv` makes as well, the `tesseract` program, and a
 Qdrant of its own, whose address it is told in `QDRANT_HOST`
 ([smelter/README.md](smelter/README.md)):

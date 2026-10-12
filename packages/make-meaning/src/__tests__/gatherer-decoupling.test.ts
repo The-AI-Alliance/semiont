@@ -16,7 +16,7 @@ import { EventBus, resourceId, type Logger, type ResourceDescriptor } from '@sem
 import type { InferenceClient } from '@semiont/inference';
 import { Gatherer, type GathererStores } from '../gatherer';
 import { GATHERER_CHANNELS } from '../service-channels';
-import { createMockEmbeddingProvider } from './helpers/smelter-harness';
+import { createMockEmbeddingProvider } from './helpers/embedding-provider';
 
 const MAIN_ID = 'gather-target';
 

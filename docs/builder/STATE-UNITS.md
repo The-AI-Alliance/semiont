@@ -44,7 +44,7 @@ These hold in every SDK. The ids are the axioms' names in both test harnesses.
 
 ## In TypeScript
 
-`@semiont/sdk` exposes a single foundational pattern called a **state unit**. The flow state units (`createMarkStateUnit`, `createGatherStateUnit`, `createMatchStateUnit`, `createYieldStateUnit`, `createBeckonStateUnit`), the connection actor in `@semiont/http-transport` (`createActorStateUnit`), and the per-feature page state units in `@semiont/react-ui` are all instances of it.
+`@semiont/sdk` exposes a single foundational pattern called a **state unit**. The flow state units (`createMarkStateUnit`, `createGatherStateUnit`, `createMatchStateUnit`, `createYieldStateUnit`, `createBeckonStateUnit`), the connection actor `@semiont/http-transport` keeps inside each transport, and the per-feature page state units in `@semiont/react-ui` are all instances of it.
 
 A unit's surface is RxJS: state and events are `Observable` fields, and what writes them is a `Subject` held in the unit's closure.
 

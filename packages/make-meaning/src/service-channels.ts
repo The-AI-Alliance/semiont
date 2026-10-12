@@ -1,67 +1,21 @@
 /**
- * Per-service bus channel rosters for the standalone make-meaning entry
- * points (smelter, librarian).
+ * The Librarian's bus channel rosters.
  *
- * Each service's transport subscribes exactly what that service consumes,
- * never the full `BRIDGED_CHANNELS`: a transport
- * subscribed to the full set receives and parses every broadcast frame on
- * channels its service never reads, only to drop it. (Replies are not
- * broadcast — the gateway delivers a reply only to its requester:
- * docs/protocol/TRANSPORT-CONTRACT.md.)
+ * Its transport subscribes exactly what it consumes, never the full
+ * `BRIDGED_CHANNELS`: a transport subscribed to the full set receives and
+ * parses every broadcast frame on channels its service never reads, only to
+ * drop it. (Replies are not broadcast — the gateway delivers a reply only to
+ * its requester: docs/protocol/TRANSPORT-CONTRACT.md.)
  *
- *   - The SMELTER awaits `busRequest` replies (embed and reconcile reads),
- *     so its transport carries the reply channels DERIVED from
- *     `BUS_OPERATIONS` over the operations it awaits, beside the domain-event
- *     and command channels its fan-in reads (`SMELTER_MANIFEST`).
- *   - The LIBRARIAN answers operations and awaits none, so its transport
- *     carries its inbound roster and no reply channel. What it reads of
- *     another service it reads over HTTP: bytes from the Archivist, and a
- *     resource's anchored text from the gateway.
- *
- * The Smelter's awaited-operations list restates a fact the code owns (which
- * operations it calls `busRequest` on); its gate is the build-time
- * census beside the list: every awaiting site declares its operation next to
- * the call (a `*Awaits` alias, `satisfies`-tied to the literal), and a drift
- * between the list and its declarations fails COMPILATION with the operation
- * named. `busRequest`'s `isSubscribed` probe is
- * the runtime backstop for an await nobody declared, and for any await in
- * the Librarian: its transport delivers no reply, so the request is refused
- * at once as `bus.unsubscribed`.
+ * The Librarian answers operations and awaits none, so its transport carries
+ * its inbound roster and no reply channel. What it reads of another service
+ * it reads over HTTP: bytes from the Archivist, and a resource's anchored
+ * text from the gateway. `busRequest`'s `isSubscribed` probe is the runtime
+ * backstop for an await in the Librarian: its transport delivers no reply,
+ * so the request is refused at once as `bus.unsubscribed`.
  */
 
-import { replyChannelsFor, type BusOperationKey, type EventMap } from '@semiont/core';
-import type {
-  SmelterResourceReadAwaits,
-  SmelterAnnotationsReadAwaits,
-  SmelterCatalogPageAwaits,
-} from './smelter';
-
-// ── Smelter ──────────────────────────────────────────────────────────
-
-/** The operations the Smelter awaits replies to (embed + reconcile reads). */
-export const SMELTER_AWAITED_OPERATIONS = [
-  'browse:resource-requested',
-  'browse:annotations-requested',
-  'browse:resources-requested',
-] as const satisfies readonly BusOperationKey[];
-
-/** The reply channels in the Smelter transport's subscription (`SMELTER_MANIFEST`). */
-export const SMELTER_REPLY_CHANNELS: readonly (keyof EventMap)[] =
-  replyChannelsFor(SMELTER_AWAITED_OPERATIONS);
-
-type DeclaredSmelterAwaits =
-  | SmelterResourceReadAwaits
-  | SmelterAnnotationsReadAwaits
-  | SmelterCatalogPageAwaits;
-type SmelterAwaitCensusDrift =
-  | Exclude<DeclaredSmelterAwaits, (typeof SMELTER_AWAITED_OPERATIONS)[number]>
-  | Exclude<(typeof SMELTER_AWAITED_OPERATIONS)[number], DeclaredSmelterAwaits>;
-/** The build-time census gate — see the header. Drift names the operation. */
-export const smelterAwaitCensus: [SmelterAwaitCensusDrift] extends [never]
-  ? 'in-census'
-  : SmelterAwaitCensusDrift = 'in-census';
-
-// ── Librarian ────────────────────────────────────────────────────────
+import { replyChannelsFor, type EventMap } from '@semiont/core';
 
 /**
  * The request channels Matcher subscribes to — the Librarian's inbound wire

@@ -1,12 +1,14 @@
 /**
  * @semiont/vectors
  *
- * Vector storage, embedding, and semantic search for Semiont.
+ * The vector index as a reader of it searches it, and the embedding of a
+ * query. The one writer of the index is the Smelter, which writes through
+ * `semiont_vectors` (packages/vectors-python).
  * Peer to @semiont/graph and @semiont/inference.
  */
 
 // Store
-export type { VectorStore, EmbeddingChunk, AnnotationPayload, VectorSearchResult, SearchOptions } from './store/interface';
+export type { VectorStore, VectorSearchResult, SearchOptions } from './store/interface';
 export { QdrantVectorStore } from './store/qdrant';
 export type { QdrantConfig } from './store/qdrant';
 export { MemoryVectorStore } from './store/memory';
@@ -22,9 +24,5 @@ export { OllamaEmbeddingProvider } from './embedding/ollama';
 export type { OllamaEmbeddingConfig } from './embedding/ollama';
 export { createEmbeddingProvider } from './embedding/factory';
 export { EMBED_ROUND_TRIP_TIMEOUT_MS, EmbeddingProviderError, isColdModelError } from './embedding/provider-error';
-export { OLLAMA_BATCH_POLICY } from './embedding/ollama';
-export { VOYAGE_BATCH_POLICY } from './embedding/voyage';
 export { EMBEDDING_PROVIDER_RETRY, resolveDimensions } from './embedding/resolve-dimensions';
 export type { EmbeddingConfig } from './embedding/factory';
-
-// Chunking

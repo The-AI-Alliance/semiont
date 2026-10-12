@@ -141,9 +141,6 @@ export {
 export { EventBus, ScopedEventBus, type BusFrame, type BusEnvelope } from './event-bus';
 export { relayFrames, type FrameSource, type FrameSink } from './relay-frames';
 
-// RxJS operators
-export { burstBuffer, type BurstBufferOptions } from './operators/burst-buffer';
-
 // Per-key serialization (for RPC-style callers; see also RxJS groupBy + concatMap
 // for stream-style callers in packages/make-meaning)
 export { serializePerKey } from './serialize-per-key';
@@ -151,7 +148,6 @@ export { serializePerKey } from './serialize-per-key';
 // Bounded concurrency across callers (for a shared downstream: one local model
 // process, a rate-limited API). Sibling to serializePerKey, which bounds per key.
 export { boundedGate } from './bounded-gate';
-export type { BatchPolicy } from './bounded-gate';
 
 // Which failures are worth another attempt, per context — one catalog so the
 // contexts' disagreements are visible rather than distributed.
@@ -212,8 +208,8 @@ export {
 export type { PdfCoordinate } from './pdf-coordinates';
 
 // PDF text <-> geometry anchoring (locate/textUnder are inverses)
-export { locate, textUnder, anchorRuns, isTextRun } from './pdf-anchoring';
-export type { AnchoredText, AnchoredTextAnswer, ExtractionOutcome, PdfTextItem, PdfTextRun } from './pdf-anchoring';
+export { locate, textUnder } from './pdf-anchoring';
+export type { AnchoredText, AnchoredTextAnswer, ExtractionOutcome, PdfTextItem } from './pdf-anchoring';
 
 // ResourceDescriptor accessors
 export {
@@ -383,8 +379,9 @@ export type { TagSchema, TagCategory } from './tag-schemas';
 
 // ID generation
 export { generateUuid, uuidV4 } from './id-generation';
-export { chunkText, estimateTokens, DEFAULT_CHUNKING_CONFIG } from './chunking';
-export type { ChunkingConfig } from './chunking';
+
+// About how many tokens a text is
+export { estimateTokens } from './token-estimate';
 
 // State-unit pattern — the disposable contract shared by every layer (sdk,
 // http-transport, react-ui, …). The axiom harness lives in `@semiont/core/testing`.
@@ -446,7 +443,7 @@ export type { GraphViews } from './knowledge-graph-views';
 
 // Bounded retry with backoff — startup connections from long-running peers
 // to the gateway.
-export { retryWithBackoff, retryBudgetMs, equalJitter, withDeadline, isTransientFetchError, isRetryableRequestError, isPeerUnavailable, retryAfterMs, STARTUP_FETCH_RETRY } from './retry';
+export { retryWithBackoff, retryBudgetMs, equalJitter, withDeadline, isTransientFetchError, isRetryableRequestError, retryAfterMs, STARTUP_FETCH_RETRY } from './retry';
 export type { HttpStatusError, RetryPolicy, RetryAttemptInfo } from './retry';
 
 export { getShardPath, jumpConsistentHash } from './shard-utils';

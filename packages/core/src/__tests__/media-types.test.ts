@@ -226,9 +226,8 @@ describe('media-types registry', () => {
 
   describe('yieldsGeometryOf', () => {
     // The question is about a MEDIA TYPE, so core answers it. A boolean
-    // declared on each extractor in @semiont/content would be a property of the
-    // strategy stored beside the implementations, in another package: two homes
-    // for one fact, gated by nothing.
+    // declared on each extractor would be a property of the strategy stored
+    // beside the implementations: two homes for one fact, gated by nothing.
     it("is true for the one strategy that derives geometry", () => {
       expect(yieldsGeometryOf('application/pdf')).toBe(true);
     });
@@ -250,7 +249,7 @@ describe('media-types registry', () => {
       // checksum, no artifact under it): the planner asks "should an
       // anchored-text artifact exist for this resource?" over a whole catalog,
       // and must not construct or run an extractor to find out. That this file
-      // can answer at all, with no dependency on @semiont/content, IS the test.
+      // can answer at all, with no extractor to ask, IS the test.
       expect(EMBEDDABLE_MEDIA_TYPES.filter(yieldsGeometryOf)).toEqual(['application/pdf']);
     });
 

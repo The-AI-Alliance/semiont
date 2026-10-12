@@ -1,47 +1,14 @@
 /**
  * @semiont/content
  *
- * Reading a resource's bytes from the Archivist, and deriving text from
- * bytes that carry none.
+ * Reading a resource's bytes from the Archivist.
  */
 
-export { calculateChecksum } from './checksum';
-
-// Deriving text from bytes that carry none. Decoding is not here: it is
-// core's `decodeRepresentation`, called directly.
-export {
-  derivingExtractorFor,
-  type TextExtractor,
-  type ExtractedText,
-  type ExtractionDecline,
-  type ExtractionCache,
-} from './text-extractor';
-
-// Persistent recognition cache. Derived values only — everything in it is
-// reproducible from the source bytes, and master data never belongs here.
-export {
-  createAnchoredTextStore,
-  type AnchoredTextStore,
-  type CachedAnchoredText,
-  type CachedLine,
-} from './anchored-text-store';
-
-// Reading a resource's bytes — the contract every reader declares, the way
-// it fails, and the Archivist-backed implementation the fleet uses when it
-// holds no KB mount.
+// Reading a resource's bytes: the contract every reader declares, the way it
+// fails, and the implementation that reaches the Archivist.
 export {
   archivistContentReads,
   RepresentationMissing,
   type ContentReads,
   type MissingReason,
 } from './representation-reads';
-
-// PDF text-layer extraction. The anchoring vocabulary these produce
-// (AnchoredText, PdfTextItem) and the locate/textUnder pair that reads it are
-// exported from @semiont/core — pure, and needed by the browser canvas too.
-export { extractPdfTextLayer } from './extract-pdf-text-layer';
-export type {
-  PdfTextLayer,
-  PdfPageInfo,
-  PdfFormField,
-} from './pdf-text-layer';

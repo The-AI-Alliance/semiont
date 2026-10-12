@@ -34,26 +34,16 @@ export function deterministicVector(text: string, dimensions: number): number[] 
  */
 export class MockEmbeddingProvider implements EmbeddingProvider {
   private dims: number;
-  private modelName: string;
 
-  constructor(dimensions = 768, modelName = 'mock') {
+  constructor(dimensions = 768) {
     this.dims = dimensions;
-    this.modelName = modelName;
   }
 
   async embed(text: string): Promise<number[]> {
     return deterministicVector(text, this.dims);
   }
 
-  async embedBatch(texts: string[]): Promise<number[][]> {
-    return texts.map(t => deterministicVector(t, this.dims));
-  }
-
   async dimensions(): Promise<number> {
     return this.dims;
-  }
-
-  model(): string {
-    return this.modelName;
   }
 }

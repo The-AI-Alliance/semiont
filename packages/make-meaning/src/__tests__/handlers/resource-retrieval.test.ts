@@ -25,7 +25,7 @@ import {
   registerRetrievalHandlers,
   type RetrievalReads,
 } from '../../handlers/resource-retrieval';
-import { createMockEmbeddingProvider } from '../helpers/smelter-harness';
+import { createMockEmbeddingProvider } from '../helpers/embedding-provider';
 
 const logger: Logger = {
   debug: vi.fn(),

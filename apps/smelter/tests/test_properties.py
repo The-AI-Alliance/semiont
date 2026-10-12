@@ -66,8 +66,8 @@ PNG: Final = "image/png"
 WITH_TEXT: Final = frozenset({MARKDOWN, PDF})
 """The media types whose resources have text: the ones a Smelter that starts sets out to index."""
 
-_TURNS: Final = 100_000
-"""The most turns a scenario gives a reconcile to ask for the catalog. Its read of the store, which comes first, takes far fewer."""
+_PATIENCE: Final = 60.0
+"""The seconds a scenario gives a reconcile to ask for the catalog. Its read of the store, which comes first, takes far less."""
 
 # Every example runs a Smelter to rest many times over, so none is held to a time; and nothing is kept between runs,
 # so a run reads no file a run before it wrote.
@@ -106,7 +106,7 @@ CONTENTS: Final[tuple[Stored, ...]] = (
 )
 """Everything a resource here may be given."""
 
-WITH_A_TEXT_TYPE: Final = tuple(given for given in CONTENTS if given.media_type in WITH_TEXT)
+WITH_A_TEXT_TYPE: Final = tuple(content for content in CONTENTS if content.media_type in WITH_TEXT)
 
 PDFS: Final = {DOCUMENT.data: drawn("The treaty of 1804", "was signed at St. Louis")}
 """The documents a rig's reader of PDFs is told of."""
@@ -241,10 +241,10 @@ def _change(draw: st.DrawFn, resource: str, calm: bool, so_far: _SoFar) -> Chang
     kind = draw(st.sampled_from(kinds))
     match kind:
         case "put":
-            given = draw(st.sampled_from(WITH_A_TEXT_TYPE if calm else CONTENTS))
+            content = draw(st.sampled_from(WITH_A_TEXT_TYPE if calm else CONTENTS))
             so_far.there.add(resource)
             so_far.on.setdefault(resource, [])
-            return Put(resource, given)
+            return Put(resource, content)
         case "tag":
             return Tag(resource, draw(st.sampled_from(ENTITY_TYPES)))
         case "untag":
@@ -309,9 +309,9 @@ class Folded:
         """What an index is to hold. `unread` names a resource whose bytes cannot be read, which has no points whatever they are."""
         return Indexed(
             resources={
-                resource: (given.checksum, self.entity_types[resource])
-                for resource, given in self.stored.items()
-                if resource not in self.archived and given.declined is None and resource != unread
+                resource: (content.checksum, self.entity_types[resource])
+                for resource, content in self.stored.items()
+                if resource not in self.archived and content.declined is None and resource != unread
             },
             annotations={annotation: quoted for annotation, quoted in self.quoting.items() if quoted[0] not in self.archived},
         )
@@ -323,11 +323,11 @@ class Folded:
         is the one its bytes come to.
         """
         said: dict[str, JsonObject] = {}
-        for resource, given in self.stored.items():
-            decision: JsonObject = {"resourceId": resource, "contentChecksum": given.checksum, "outcome": "indexed"}
-            if given.declined is not None:
+        for resource, content in self.stored.items():
+            decision: JsonObject = {"resourceId": resource, "contentChecksum": content.checksum, "outcome": "indexed"}
+            if content.declined is not None:
                 decision["outcome"] = "skipped"
-                decision["reason"] = given.declined
+                decision["reason"] = content.declined
             said[resource] = decision
         return said
 
@@ -338,11 +338,11 @@ class Folded:
         text and whose bytes give none, has no points. So every start sets
         out to index it again, and declines it again for the same reason.
         """
-        live = [given for resource, given in self.stored.items() if resource not in self.archived]
+        live = [content for resource, content in self.stored.items() if resource not in self.archived]
         declined_again: dict[str, int] = {}
-        for given in live:
-            if given.media_type in WITH_TEXT and given.declined is not None:
-                declined_again[given.declined] = declined_again.get(given.declined, 0) + 1
+        for content in live:
+            if content.media_type in WITH_TEXT and content.declined is not None:
+                declined_again[content.declined] = declined_again.get(content.declined, 0) + 1
         skipped: JsonObject = {}
         skipped.update(declined_again)
         return {
@@ -355,7 +355,7 @@ class Folded:
             "resourceVectorsDeleted": 0,
             "annotationsEmbedded": 0,
             "annotationVectorsDeleted": 0,
-            "resourcesEligible": sum(1 for given in live if given.media_type in WITH_TEXT),
+            "resourcesEligible": sum(1 for content in live if content.media_type in WITH_TEXT),
             "resourcesIndexed": len(self.index().resources),
         }
 
@@ -431,12 +431,13 @@ async def until_the_catalog_is_asked_for(rig: Rig, reconciling: asyncio.Task[Rec
     """Give the Smelter turns until its reconcile has asked for the catalog, or has ended without asking.
 
     What the reconcile plans, it plans from what the knowledge base holds
-    at that moment: a change made after this is one it did not read.
+    at that moment: a change made after this is one it did not read. A
+    reconcile that has done neither when the patience runs out fails the
+    property, since nothing could then be said of what it read.
     """
-    for _ in range(_TURNS):
-        if reconciling.done() or rig.asked("browse:resources-requested"):
-            return
-        await asyncio.sleep(0)
+    async with asyncio.timeout(_PATIENCE):
+        while not (reconciling.done() or rig.asked("browse:resources-requested")):
+            await asyncio.sleep(0)
 
 
 async def nothing_is_left_to_mend(rig: Rig, said: Folded) -> None:
@@ -573,7 +574,6 @@ def test_at_every_step_of_a_history_only_a_resource_whose_bytes_gave_text_has_po
                 await rig.happened(made(rig.world, change))
 
                 said, held = folded(history.changes[:so_far]), await rig.held()
-                assert all(said.stored[resource].declined is None for resource in held.stamps)
                 assert indexed(held) == said.index()
 
     in_a_home(scenario)

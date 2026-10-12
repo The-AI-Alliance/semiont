@@ -1,23 +1,22 @@
 /**
- * In-Memory VectorStore Implementation
+ * A vector index held in memory, for a test of something that searches the
+ * index.
  *
- * For testing and development without a running Qdrant instance.
- * Uses brute-force cosine similarity search.
+ * It is given the points it holds when it is made, and nothing writes to it
+ * after: the one writer of the index is the Smelter, and the Smelter is not
+ * in this package. A point is held as the index holds one, its vector and
+ * its payload (specs/src/vectors/payload-cases.json states a payload), so
+ * what a search answers from here is read from what a Qdrant would hold.
+ *
+ * Brute-force cosine similarity.
  */
 
 import type { ResourceId, AnnotationId } from '@semiont/core';
-import type { VectorStore, EmbeddingChunk, AnnotationPayload, VectorSearchResult, SearchOptions, ResourceStamp } from './interface';
+import type { VectorStore, VectorSearchResult, SearchOptions } from './interface';
 import { mergeByResource } from './merge';
 
-function toStamp(point: { payload: { contentChecksum?: string; entityTypes?: string[]; machineRead?: boolean } }): ResourceStamp {
-  return {
-    contentChecksum: point.payload.contentChecksum,
-    entityTypes: point.payload.entityTypes ?? [],
-    ...(point.payload.machineRead ? { machineRead: true } : {}),
-  };
-}
-
-interface StoredPoint {
+/** A point of the index: its id, its vector, and its payload. */
+export interface MemoryPoint {
   id: string;
   vector: number[];
   payload: {
@@ -46,115 +45,18 @@ function cosineSimilarity(a: number[], b: number[]): number {
 }
 
 export class MemoryVectorStore implements VectorStore {
-  private resources: StoredPoint[] = [];
-  private annotations: StoredPoint[] = [];
-  private connected = false;
+  private readonly resources: MemoryPoint[];
+  private readonly annotations: MemoryPoint[];
 
-  async connect(): Promise<void> {
-    this.connected = true;
+  /** `resources` are the points of the resources collection, `annotations` those of the annotations collection. */
+  constructor(held: { resources: MemoryPoint[]; annotations: MemoryPoint[] }) {
+    this.resources = [...held.resources];
+    this.annotations = [...held.annotations];
   }
 
-  async disconnect(): Promise<void> {
-    this.connected = false;
-  }
+  async connect(): Promise<void> {}
 
-  async clearAll(): Promise<void> {
-    this.resources = [];
-    this.annotations = [];
-  }
-
-  isConnected(): boolean {
-    return this.connected;
-  }
-
-  async upsertResourceVectors(resourceId: ResourceId, chunks: EmbeddingChunk[], contentChecksum: string, entityTypes: string[], machineRead?: boolean): Promise<void> {
-    // Remove existing vectors for this resource
-    this.resources = this.resources.filter(p => p.payload.resourceId !== String(resourceId));
-
-    for (const chunk of chunks) {
-      this.resources.push({
-        id: `${resourceId}-${chunk.chunkIndex}`,
-        vector: chunk.embedding,
-        payload: {
-          resourceId: String(resourceId),
-          chunkIndex: chunk.chunkIndex,
-          text: chunk.text,
-          contentChecksum,
-          entityTypes,
-          // Only stamped when true: absence is the common case and carries no
-          // claim, so a native extraction stores nothing extra.
-          ...(machineRead ? { machineRead: true } : {}),
-        },
-      });
-    }
-  }
-
-  async upsertAnnotationVector(
-    annotationId: AnnotationId,
-    embedding: number[],
-    payload: AnnotationPayload
-  ): Promise<void> {
-    this.annotations = this.annotations.filter(p => p.id !== String(annotationId));
-    this.annotations.push({
-      id: String(annotationId),
-      vector: embedding,
-      payload: {
-        annotationId: String(payload.annotationId),
-        resourceId: String(payload.resourceId),
-        motivation: payload.motivation,
-        entityTypes: payload.entityTypes,
-        text: payload.exactText,
-        ...(payload.machineRead ? { machineRead: true } : {}),
-      },
-    });
-  }
-
-  async deleteResourceVectors(resourceId: ResourceId): Promise<void> {
-    this.resources = this.resources.filter(p => p.payload.resourceId !== String(resourceId));
-  }
-
-  async deleteAnnotationVector(annotationId: AnnotationId): Promise<void> {
-    this.annotations = this.annotations.filter(p => p.id !== String(annotationId));
-  }
-
-  async deleteAnnotationVectorsForResource(resourceId: ResourceId): Promise<void> {
-    this.annotations = this.annotations.filter(p => p.payload.resourceId !== String(resourceId));
-  }
-
-  async count(): Promise<number> {
-    return this.resources.length + this.annotations.length;
-  }
-
-  async updateResourceEntityTypes(resourceId: ResourceId, entityTypes: string[]): Promise<void> {
-    for (const p of this.resources) {
-      if (p.payload.resourceId === String(resourceId)) {
-        p.payload.entityTypes = entityTypes;
-      }
-    }
-  }
-
-  async listResourceStamps(): Promise<Map<string, ResourceStamp>> {
-    const stamps = new Map<string, ResourceStamp>();
-    for (const p of this.resources) {
-      if (!stamps.has(p.payload.resourceId)) {
-        stamps.set(p.payload.resourceId, toStamp(p));
-      }
-    }
-    return stamps;
-  }
-
-  async getResourceStamp(resourceId: ResourceId): Promise<ResourceStamp | undefined> {
-    const point = this.resources.find(p => p.payload.resourceId === String(resourceId));
-    return point ? toStamp(point) : undefined;
-  }
-
-  async listAnnotationIds(): Promise<Set<string>> {
-    const ids = new Set<string>();
-    for (const p of this.annotations) {
-      if (p.payload.annotationId) ids.add(p.payload.annotationId);
-    }
-    return ids;
-  }
+  async disconnect(): Promise<void> {}
 
   async searchResources(embedding: number[], opts: SearchOptions): Promise<VectorSearchResult[]> {
     return this.search(this.resources, embedding, opts);
@@ -190,7 +92,7 @@ export class MemoryVectorStore implements VectorStore {
     return mergeByResource(hits).slice(0, opts.limit);
   }
 
-  private passesFilter(p: StoredPoint, filter: SearchOptions['filter']): boolean {
+  private passesFilter(p: MemoryPoint, filter: SearchOptions['filter']): boolean {
     if (!filter) return true;
     const f = filter;
     if (f.resourceId && p.payload.resourceId !== String(f.resourceId)) return false;
@@ -207,7 +109,7 @@ export class MemoryVectorStore implements VectorStore {
     return true;
   }
 
-  private search(points: StoredPoint[], embedding: number[], opts: SearchOptions): VectorSearchResult[] {
+  private search(points: MemoryPoint[], embedding: number[], opts: SearchOptions): VectorSearchResult[] {
     const filtered = points.filter(p => this.passesFilter(p, opts.filter));
 
     const scored = filtered.map(p => ({
@@ -228,7 +130,7 @@ export class MemoryVectorStore implements VectorStore {
     return scored.slice(0, opts.limit).map(s => this.toResult(s));
   }
 
-  private toResult(s: StoredPoint & { score: number }): VectorSearchResult {
+  private toResult(s: MemoryPoint & { score: number }): VectorSearchResult {
     return {
       id: s.id,
       score: s.score,
