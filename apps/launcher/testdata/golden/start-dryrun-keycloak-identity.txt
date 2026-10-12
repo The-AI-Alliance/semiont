@@ -72,7 +72,7 @@ container run -d --name semiont-postgres --memory 1G -p 5432:5432 -v <data-home>
 # wait: container exec semiont-postgres pg_isready -h 127.0.0.1 (30s) — the REAL server; initdb's temporary one answers the socket only
 # messaging state: <data-home>/roots/example.github.io-test-kb/nats (created if absent; reused across restarts)
 # stage the broker's authorization block (no credential in it — the daemon interpolates $NATS_USER/$NATS_PASSWORD from its own environment)
-container run -d --name semiont-nats --memory 512M -p 4222:4222 -v <data-home>/roots/example.github.io-test-kb/nats:/data -v <stage>/nats-semiont.conf:/etc/nats/semiont.conf:ro -e NATS_USER -e NATS_PASSWORD nats:2.14.0-alpine -js -sd /data -c /etc/nats/semiont.conf
+container run -d --name semiont-nats --memory 512M -p 4222:4222 -v <data-home>/roots/example.github.io-test-kb/nats:/data -v <stage>/nats-semiont.conf:/etc/nats/semiont.conf:ro -e NATS_USER -e NATS_PASSWORD nats:2.15.0-alpine -js -sd /data -c /etc/nats/semiont.conf
 # wait: tcp localhost:4222 (15s)
 # probe: container run --rm busybox:1.38.0 nc -z -w 2 <host-addr> 4222
 # create database keycloak on PostgreSQL if absent: container exec -i semiont-postgres psql -U postgres (SQL on stdin)
