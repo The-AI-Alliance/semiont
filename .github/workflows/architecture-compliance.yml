@@ -102,6 +102,7 @@ jobs:
           npm run lint:go-toolchain || fail=1
           npm run lint:python-version || fail=1
           npm run lint:node-version || fail=1
+          npm run lint:nats-version || fail=1
           npm run lint:conformance-readmes || fail=1
           npm run lint:transport-contract || fail=1
           npm run lint:client-surface || fail=1

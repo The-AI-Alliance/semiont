@@ -247,11 +247,7 @@ jobs:
       # The suite runs every case on the NATS plane too, against a real broker
       # with JetStream, and spawns it from PATH.
       - name: Install nats-server
-        run: |
-          NATS_VERSION=v2.15.0
-          curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
-          sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
-          nats-server --version
+        run: scripts/ci/install-nats-server.sh
 
       # Black-box: it starts gateway processes and checks them against specs/.
       - name: Run the gateway conformance suite
@@ -308,11 +304,7 @@ jobs:
 
       # The dispatcher's queue is JetStream, on a real broker spawned from PATH.
       - name: Install nats-server
-        run: |
-          NATS_VERSION=v2.15.0
-          curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
-          sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
-          nats-server --version
+        run: scripts/ci/install-nats-server.sh
 
       # Black-box: it starts dispatcher processes behind a gateway and meets
       # them only on the bus and their health port.
@@ -370,11 +362,7 @@ jobs:
 
       # The harness's global setup refuses to run without a broker on PATH.
       - name: Install nats-server
-        run: |
-          NATS_VERSION=v2.15.0
-          curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
-          sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
-          nats-server --version
+        run: scripts/ci/install-nats-server.sh
 
       # Black-box: it starts Archivist processes behind a gateway and meets
       # them on the bus, at their HTTP surface and in the files they keep.
@@ -434,11 +422,7 @@ jobs:
       # Every case runs on the NATS plane too, against a real broker spawned
       # from PATH.
       - name: Install nats-server
-        run: |
-          NATS_VERSION=v2.15.0
-          curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
-          sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
-          nats-server --version
+        run: scripts/ci/install-nats-server.sh
 
       # The Python driver runs the SDK from its locked environment, which the
       # suite's setup makes with uv.
@@ -509,11 +493,7 @@ jobs:
       # Every case runs on the NATS plane too, against a real broker spawned
       # from PATH.
       - name: Install nats-server
-        run: |
-          NATS_VERSION=v2.15.0
-          curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
-          sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
-          nats-server --version
+        run: scripts/ci/install-nats-server.sh
 
       # The Python driver runs the SDK from its locked environment, which the
       # suite's setup makes with uv.
@@ -590,11 +570,7 @@ jobs:
 
       # The harness's global setup refuses to run without a broker on PATH.
       - name: Install nats-server
-        run: |
-          NATS_VERSION=v2.15.0
-          curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
-          sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
-          nats-server --version
+        run: scripts/ci/install-nats-server.sh
 
       # The neo4j the launcher starts for an operator, whose image
       # scripts/ci/neo4j-image.sh reads from the launcher's own descriptor.
@@ -690,11 +666,7 @@ jobs:
 
       # The harness's global setup refuses to run without a broker on PATH.
       - name: Install nats-server
-        run: |
-          NATS_VERSION=v2.15.0
-          curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
-          sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
-          nats-server --version
+        run: scripts/ci/install-nats-server.sh
 
       # The Qdrant the launcher starts for an operator, whose image
       # scripts/ci/qdrant-image.sh reads from the launcher's own descriptor.
@@ -801,11 +773,7 @@ jobs:
 
       # The harness's global setup refuses to run without a broker on PATH.
       - name: Install nats-server
-        run: |
-          NATS_VERSION=v2.15.0
-          curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
-          sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
-          nats-server --version
+        run: scripts/ci/install-nats-server.sh
 
       # The neo4j the launcher starts for an operator, whose image
       # scripts/ci/neo4j-image.sh reads from the launcher's own descriptor.
@@ -944,11 +912,7 @@ jobs:
 
       # The suite's setup looks for a broker on PATH, as every suite's does.
       - name: Install nats-server
-        run: |
-          NATS_VERSION=v2.15.0
-          curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
-          sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
-          nats-server --version
+        run: scripts/ci/install-nats-server.sh
 
       - name: Run the worker-service conformance suite
         run: |
