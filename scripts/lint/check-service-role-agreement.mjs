@@ -4,16 +4,15 @@
  * them agree.
  *
  * The launcher WRITES each into the realm's hardcoded-claim mapper; its fake
- * runtime emits it; `@semiont/core` holds the value and the predicate its
- * readers check it with. Change one and nothing fails to build — every call
+ * runtime emits it; the Rust SDK holds the value the gateway and the
+ * dispatcher check. Change one and nothing fails to build — every call
  * gated on that role simply starts returning 401 (service role) or refusing
  * every job:claim (worker role) against a realm that looks correct in the
  * console. That is the failure this gate makes loud.
  *
- * The TypeScript readers live in core, so they cannot drift. Go and Rust (the
- * SDK the gateway reads them from) cannot import that module, and a fake runtime importing the production package to
- * borrow a literal would be a worse coupling than this check — so the remaining
- * sites are held together here.
+ * Go cannot import the Rust SDK, and a fake runtime importing the production
+ * package to borrow a literal would be a worse coupling than this check, so
+ * the sites are held together here.
  *
  * A site that cannot be found is a FAILURE, not a pass: the whole point is that
  * silence must not be mistaken for agreement.
@@ -45,11 +44,6 @@ const ROLES = [
         pattern: /roles\s*:=\s*\[\]string\{"([^"]+)"\}/,
       },
       {
-        file: 'packages/core/src/service-role.ts',
-        what: 'the value both TypeScript readers check',
-        pattern: /SERVICE_ROLE\s*=\s*'([^']+)'/,
-      },
-      {
         file: 'packages/sdk-rust/src/roles.rs',
         what: 'the value the Rust SDK holds, which the gateway gates /api/tokens/agent on',
         pattern: /SERVICE_ROLE:\s*&str\s*=\s*"([^"]+)"/,
@@ -70,13 +64,8 @@ const ROLES = [
         pattern: /append\(roles,\s*"([^"]+)"\)/,
       },
       {
-        file: 'packages/core/src/service-role.ts',
-        what: 'the value the dispatcher authorizes a job:claim by',
-        pattern: /WORKER_ROLE\s*=\s*'([^']+)'/,
-      },
-      {
         file: 'packages/sdk-rust/src/roles.rs',
-        what: 'the grant the Rust SDK holds, which the gateway delegates to a worker\'s agent token',
+        what: 'the grant the Rust SDK holds, which the gateway delegates to a worker\'s agent token and the dispatcher authorizes a job:claim by',
         pattern: /WORKER_ROLE:\s*&str\s*=\s*"([^"]+)"/,
       },
     ],

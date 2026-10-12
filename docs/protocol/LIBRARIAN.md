@@ -39,66 +39,92 @@ prompts;
 [`reply-cases.json`](../../specs/src/librarian/reply-cases.json), what is read
 from a model's reply; and
 [`naming-cases.json`](../../specs/src/librarian/naming-cases.json), how people
-are named. The others are tests of Semiont's own Librarian. A rule marked
+are named. The runner of each is the file named for it in
+`apps/librarian/tests`, such as `test_score_cases.py`. The others are tests of
+Semiont's own Librarian and of the packages it is built on. A rule marked
 "Held by no case" is one nothing checks.
 `npm run lint:transport-contract` fails when a case or a test named here does
 not exist, and when a case of the suite is named by no rule.
 
-**It owns no store.** Everything a Librarian answers is read from a store
-another service writes, or made by a model from what was read. A Librarian
-that is stopped and started again has lost nothing. What it writes, it writes
-when it starts, in the vector index: each of the index's two collections that
-is missing, made empty, and three payload indexes on them ([Boot](#boot)). It
-writes no point.
-*Held by `librarian/barriers`, for a Librarian that answers a gather and a text search as it did before it was stopped.*
+**It owns no store, and it reads only.** Everything a Librarian answers is
+read from a store another service writes, or made by a model from what was
+read. A Librarian that is stopped and started again has lost nothing. It
+writes nothing anywhere: no file, no node and no edge of the graph, and in
+the vector index no collection, no payload index and no point.
+*Held by `apps/librarian/tests/test_census.py`, for code that names nothing that writes, and by `librarian/barriers`, for a Librarian that answers a gather and a text search as it did before it was stopped.*
 
 ## Settings
 
-A Librarian is told, by whoever starts it: the gateway's address; the issuer
-its service account signs in at; its service account; the knowledge base's
-name; the graph database (its kind, and what that kind needs to be reached);
-the vector index (its kind and where it is); the embedding provider (its kind,
-its model and where it is reached); a model for each of its two actors, the
-Matcher and the Gatherer (a provider, a model, and what that provider needs to
-be reached); the settle bound, which is how long a gather of a resource waits
-for the Smelter; the semantic floor, which is the least score a resource needs
-to be found by meaning; the Archivist's address; and the state volume, where
-the Archivist writes the views.
+A Librarian reads its settings from a configuration document, the protocol's
+[`LibrarianConfig`](../../specs/src/components/schemas/LibrarianConfig.json),
+at the path its `--config` flag names. The document is resolved: no `${VAR}`
+is left in it, and the Librarian defaults nothing it leaves out. It states
+the gateway's URL; the issuer the Librarian's service account signs in at;
+the Archivist's host and port, for a resource's bytes; the state volume and
+the knowledge base's name, by which the views the Archivist writes are found;
+the graph database
+([`GraphConfig`](../../specs/src/components/schemas/GraphConfig.json): its
+kind, and what that kind needs to be reached, with the name of the
+environment variable that holds its password); the vector index
+([`VectorsConfig`](../../specs/src/components/schemas/VectorsConfig.json));
+the embedding provider
+([`EmbeddingConfig`](../../specs/src/components/schemas/EmbeddingConfig.json):
+its kind, its model and where it is reached, with the name of the variable
+that holds its key, for a provider that takes one); a model for each of its
+two actors, the Matcher and the Gatherer
+([`LibrarianModelConfig`](../../specs/src/components/schemas/LibrarianModelConfig.json):
+a provider and a model, the address the provider is reached at, and the name
+of the variable that holds its key, for a provider that takes one); the
+settle bound, which is how long a gather of a resource waits for the Smelter,
+in milliseconds; the semantic floor, a number from 0 to 1, which is the least
+score a resource needs to be found by meaning; the port its health answers
+on; and how it logs.
 
-Told no settle bound, it waits 15,000 milliseconds; told no semantic floor, it
-uses 0.6; told the Archivist's host and no port, it uses 24103. It defaults
-nothing else.
+Whoever starts a Librarian writes the document: the launcher for the
+Librarian it starts, and anyone else to the same schema. The launcher writes
+a settle bound of 15,000 milliseconds and a semantic floor of 0.6 where the
+knowledge base's config states neither. The Librarian supplies no value.
 
-- **Without the knowledge base's name, the gateway's address, the issuer, a
-  graph database, a vector index, an embedding provider, the Archivist's
-  address, the state volume, or a model for either actor, it refuses to
-  start,** and names what is missing. *Held by `librarian/boot`.*
+- **Started with no `--config`, with a path it cannot read, or with a document
+  that is not the schema's, it refuses to start,** and says which. A refusal
+  names a member of the document and what was expected of it, and never a
+  value found there. *Held by `apps/librarian/tests/test_service.py`.*
+- **Without any one member of the document it refuses to start, and names the
+  member that is missing:** the gateway's URL, the issuer, the Archivist's
+  address, the state volume, the knowledge base's name, a graph database, a
+  vector index, an embedding provider, a model for either actor, the settle
+  bound, the semantic floor, its port, or how it logs.
+  *Held by `apps/librarian/tests/test_service.py` and `librarian/boot`.*
 - **A graph that lives in one process's memory is refused, and so is a vector
-  index that does.** Neither could be shared with the service that writes it.
-  *Held by `librarian/boot`.*
-- **A settle bound that is not a number above 0 is refused, and so is one
-  that, with the 875 milliseconds a gather can wait for the graph
+  index that does.** Neither is the store another service writes.
+  *Held by `apps/librarian/tests/test_config.py` and `librarian/boot`.*
+- **A settle bound that is not a whole number above 0 is refused, and so is
+  one that, with the 875 milliseconds a gather can wait for the graph
   ([The knowledge graph](#the-knowledge-graph)), is not less than the time
   after which a held job is called stalled**
   ([`heldJobStallMs`](../../specs/src/client/timing.json)). The refusal names
-  the setting. *Held by `librarian/boot` and `packages/make-meaning/src/__tests__/assert-make-meaning-config.test.ts`.*
+  `gather.settleTimeoutMs`. *Held by `apps/librarian/tests/test_config.py` and `librarian/boot`.*
 - **Its service account is `SEMIONT_OIDC_CLIENT_ID` and
   `SEMIONT_OIDC_CLIENT_SECRET` in its environment** ([Environment](#environment)).
-  With either missing it refuses to start, and names both.
-  *Held by `librarian/boot`.*
-- **A setting that names an environment variable is read from that
-  variable.** With the variable unset it refuses to start, and names the
-  variable. The graph database's password is told this way.
-  *Held by `librarian/boot`.*
+  With either missing or empty it refuses to start, and names the one that is
+  missing. *Held by `apps/librarian/tests/test_service.py` and `librarian/boot`.*
+- **A secret is read from the variable the document names for it:** the graph
+  database's password, the embedding provider's key, and the key of each
+  actor's model. With that variable unset or empty it refuses to start, and
+  names the member of the document and the variable. A provider that takes
+  no key names no variable.
+  *Held by `apps/librarian/tests/test_config.py` and `apps/librarian/tests/test_service.py`, and by `librarian/boot`, for the graph database's password.*
 
 ## What it answers
 
 A Librarian signs in as its service account and works as the agent `(semiont,
 librarian)`: one agent, whatever models its two actors use. It reaches the bus
 through the gateway. It reads the graph database and the vector index
-directly, the views from the state volume, a resource's bytes from the
-Archivist's own `GET /resources/{id}/content`, and a resource's anchored text
-from the gateway's `GET /resources/{id}/anchored-text`.
+directly, each through a reader that can write nothing; the views and the
+people projection from the state volume, under `semiont/<the knowledge base's
+name>` in it; a resource's bytes from the Archivist's own
+`GET /resources/{id}/content`, as its service account; and a resource's
+anchored text from the gateway's `GET /resources/{id}/anchored-text`.
 
 - **It answers eight operations,** each on its result channel, or on its
   failure channel with a message, under the correlation id of the request:
@@ -114,22 +140,38 @@ from the gateway's `GET /resources/{id}/anchored-text`.
   | `gather:referenced-by-requested` | `gather:referenced-by-result` | `gather:referenced-by-failed` | [What refers to a resource](#what-refers-to-a-resource) |
   | `gather:limits-requested` | `gather:limits-result` | `gather:limits-failed` | [Limits](#limits) of the Gatherer's model |
 
-  *Held by `packages/make-meaning/src/__tests__/service-pump-roundtrip.test.ts`, and by `librarian/search` and `librarian/gather`, for a result of each of the eight.*
+  *Held by `apps/librarian/tests/test_librarian.py`, and by `librarian/search` and `librarian/gather`, for a result of each of the eight.*
 - **A failure of `match:search-requested` carries the request's
   `referenceId`, one of `gather:requested` its `annotationId`, and one of
   `gather:resource-requested` its `resourceId`.**
-  *Held by `packages/make-meaning/src/__tests__/matcher.test.ts`, `packages/make-meaning/src/__tests__/gatherer.test.ts`, `librarian/search` and `librarian/gather`.*
+  *Held by `apps/librarian/tests/test_librarian.py`, `librarian/search` and `librarian/gather`.*
+- **A request whose payload is not what its channel carries is logged, and is
+  answered on its failure channel where it has a correlation id and states
+  what that failure names.** The failure says which members were refused,
+  and nothing of what they held.
+  *Held by `apps/librarian/tests/test_librarian.py`.*
 - **It follows two signals:** `weave:applied`, by which it knows how far the
   Weaver has applied a resource's events, and `smelt:settled`, by which it
   knows what the Smelter decided of a resource's bytes
-  ([The two waits](#the-two-waits)). It follows no recorded event.
-  *Held by `packages/make-meaning/src/__tests__/service-channels.test.ts`.*
-- **It subscribes to those ten channels and no other, and awaits nothing on
-  the bus.** It asks no service a question over the bus: what it needs of
+  ([The two waits](#the-two-waits)). It follows no recorded event. A signal
+  whose payload is not its channel's is logged and passed by.
+  *Held by `apps/librarian/tests/test_service.py` and `apps/librarian/tests/test_librarian.py`.*
+- **Its stream names those ten channels and no other, and it awaits nothing
+  on the bus.** It asks no service a question over the bus: what it needs of
   another service it reads over HTTP, or from a store.
-  *Held by `packages/make-meaning/src/__tests__/service-channels.test.ts`.*
+  *Held by `apps/librarian/tests/test_service.py` and `apps/librarian/tests/test_census.py`.*
 - **It records nothing, and puts no node and no edge in the graph, no point
-  in the index and nothing in a view.** *Held by no case.*
+  in the index and nothing in a view.** Connecting to the graph database
+  makes no constraint and no index there, and connecting to the vector index
+  makes no collection and no payload index.
+  *Held by `apps/librarian/tests/test_census.py`, and by `packages/graph-python/tests/neo4j_live.py` and `packages/vectors-python/tests/qdrant_live.py`, for the two readers against a database.*
+- **A search of a collection the Smelter has not made yet answers no hits,**
+  and makes none. *Held by `packages/vectors-python/tests/qdrant_live.py`.*
+- **A resource with no view file has no view. A file that is there and is not
+  a view, or cannot be opened, is a failure that names the file,** and is
+  never taken for a resource with no view. The people projection is read the
+  same way ([Names](#names)).
+  *Held by `apps/librarian/tests/test_record.py`.*
 
 ## Reference search
 
@@ -142,10 +184,10 @@ rule; this section says it in prose.
 
 - **The search term is the focus's selected text and its hint, each left out
   when it is absent or empty, joined by one space.**
-  *Held by `packages/make-meaning/src/__tests__/score-cases.test.ts`, and by `librarian/search`, for a reference with no hint.*
+  *Held by `apps/librarian/tests/test_score_cases.py`, and by `librarian/search`, for a reference with no hint.*
 - **A context whose focus is not an annotation is answered on the failure
   channel, and no source is asked.**
-  *Held by `packages/make-meaning/src/__tests__/score-cases.test.ts`, and by `librarian/search`, for the failure and for no embedding and no model being asked.*
+  *Held by `apps/librarian/tests/test_score_cases.py`, and by `librarian/search`, for the failure and for no embedding and no model being asked.*
 - **Four sources are read.** The graph's listing by name, for at most 20
   resources by the term. The graph's listing by entity type, for at most 50
   resources of the context's entity types, and only when the context has any.
@@ -153,85 +195,90 @@ rule; this section says it in prose.
   resource to ([The lists read off a graph](#the-lists-read-off-a-graph)).
   The vector index, for at most 40 chunks of resources that score 0.4 or
   more against the embedding of the term, and only when the term is not
-  blank. *Held by `packages/make-meaning/src/__tests__/score-cases.test.ts`, and by `librarian/search`, for a candidate from each of the four and one embedding of the term.*
+  blank: nothing, or nothing but what Unicode gives the White_Space
+  property. The two listings and the index are asked together.
+  *Held by `apps/librarian/tests/test_reference_search.py`, for what a blank term is, by `apps/librarian/tests/test_score_cases.py`, and by `librarian/search`, for a candidate from each of the four and one embedding of the term.*
 - **A neighbour and a vector hit are each read back as a resource from the
   graph, and from the views when the graph has none or its read fails.** One
   neither holds is no candidate.
-  *Held by `packages/make-meaning/src/__tests__/score-cases.test.ts` and `packages/make-meaning/src/__tests__/graph-read-grace.test.ts`, and by `librarian/barriers`, for a vector hit the graph does not hold yet.*
+  *Held by `apps/librarian/tests/test_score_cases.py` and `apps/librarian/tests/test_grace.py`, and by `librarian/barriers`, for a vector hit the graph does not hold yet.*
 - **A listing by name that fails fails the search,** with the failure's
-  message. *Held by `packages/make-meaning/src/__tests__/score-cases.test.ts`.*
+  message. *Held by `apps/librarian/tests/test_score_cases.py`.*
 - **A listing by entity type that fails fails the search too.**
-  *Held by no case.*
+  *Held by `apps/librarian/tests/test_reference_search.py`.*
 - **An embedding or an index that fails has answered no hits,** and the
   search goes on with the other sources.
-  *Held by `packages/make-meaning/src/__tests__/score-cases.test.ts`, and by `librarian/search`, for an embedding that fails.*
+  *Held by `apps/librarian/tests/test_score_cases.py` and `apps/librarian/tests/test_reference_search.py`, and by `librarian/search`, for an embedding that fails.*
 - **A resource is one candidate however many sources found it,** and is
   counted as found by each source that answered it.
-  *Held by `packages/make-meaning/src/__tests__/score-cases.test.ts`.*
+  *Held by `apps/librarian/tests/test_score_cases.py`.*
 - **The answer is the candidates ordered by score, the highest first.**
   Candidates of one score stay in the order they were found: the listing by
   name, the listing by entity type, the neighbours in the order of the
   graph's edges, the vector index's hits. Each candidate is its resource's
   description with `score` and `matchReason` added.
-  *Held by `packages/make-meaning/src/__tests__/score-cases.test.ts`, and by `librarian/search`, for the highest score first and what each candidate carries.*
+  *Held by `apps/librarian/tests/test_score_cases.py`, and by `librarian/search`, for the highest score first and what each candidate carries.*
 - **When the request states a `limit`, the answer is at most that many of
   the first candidates.**
-  *Held by `packages/make-meaning/src/__tests__/score-cases.test.ts` and `librarian/search`.*
+  *Held by `apps/librarian/tests/test_score_cases.py` and `librarian/search`.*
 
 ### The score
 
-A candidate's score is the sum of these terms, rounded to two decimals.
+A candidate's score is the sum of these terms, added in this order.
 
+- **The sum is rounded to two decimals, a half going up.**
+  *Held by `apps/librarian/tests/test_reference_search.py`.*
 - **Entity types,** only when the context and the candidate each have any:
   30 times the types they share divided by the distinct types of both
   together; and, for each shared type, 5 divided by the base-2 logarithm of
   one more than the type's frequency in the context's
   `metadata.entityTypeFrequencies`. A type with no stated frequency counts as
-  seen once. *Held by `packages/make-meaning/src/__tests__/score-cases.test.ts`.*
+  seen once. *Held by `apps/librarian/tests/test_score_cases.py`.*
 - **Connection:** 20 when the context's graph connects the request's
   resource to the candidate both ways, 10 when it connects it one way.
-  *Held by `packages/make-meaning/src/__tests__/score-cases.test.ts`.*
+  *Held by `apps/librarian/tests/test_score_cases.py`.*
 - **Citations,** for a candidate found as a neighbour: 2 for each resource
   that cites the request's resource, 15 at most.
-  *Held by `packages/make-meaning/src/__tests__/score-cases.test.ts`.*
+  *Held by `apps/librarian/tests/test_score_cases.py`.*
 - **Name,** the candidate's name and the term compared without regard to the
   case of letters: 25 when they are equal, else 15 when the name begins with
   the term, else 10 when the name has the term in it.
-  *Held by `packages/make-meaning/src/__tests__/score-cases.test.ts`.*
+  *Held by `apps/librarian/tests/test_score_cases.py`.*
 - **Recency,** for a candidate that states `dateCreated`: 5 times one less
   the candidate's age in days divided by 30, and nothing from thirty days on.
-  *Held by `packages/make-meaning/src/__tests__/score-cases.test.ts`.*
+  *Held by `apps/librarian/tests/test_score_cases.py`.*
 - **Vector index:** 25 times the hit's score.
-  *Held by `packages/make-meaning/src/__tests__/score-cases.test.ts`.*
+  *Held by `apps/librarian/tests/test_score_cases.py`.*
 - **Several sources:** 3 for each source that found the candidate, when more
-  than one did. *Held by `packages/make-meaning/src/__tests__/score-cases.test.ts`.*
+  than one did. *Held by `apps/librarian/tests/test_score_cases.py`.*
 - **The reason is what the score was made of, in this order, joined by `; `:**
   `entity types: ` and the shared types, joined by `, `; `bidirectional
   connection` or `connected`; `exact name match`, `prefix name match` or
   `contains name match`; `semantic similarity` for a vector hit; and the
   count of sources followed by ` retrieval sources`, when more than one found
   it. A candidate with none of these has the reason `candidate`.
-  *Held by `packages/make-meaning/src/__tests__/score-cases.test.ts`, and by `librarian/search`, for the entity types, a connection, a name match and a vector hit.*
+  *Held by `apps/librarian/tests/test_score_cases.py`, and by `librarian/search`, for the entity types, a connection, a name match and a vector hit.*
 
 ### The model's score
 
 - **The Matcher's model is asked once, with the score prompt
   ([The prompts](#the-prompts)), for at most twenty candidates,** unless the
   request states `useSemanticScoring` as false or there is no candidate.
-  *Held by `packages/make-meaning/src/__tests__/score-cases.test.ts`, and by `librarian/search`, for the one prompt and for none where the request asks for no scoring by a model.*
+  *Held by `apps/librarian/tests/test_score_cases.py`, and by `librarian/search`, for the one prompt and for none where the request asks for no scoring by a model.*
 - **Each score it gives a candidate it was shown adds 25 times that score,**
   and the sum is rounded to two decimals again. A score above 0.5 adds
   `semantic match` to the reason.
-  *Held by `packages/make-meaning/src/__tests__/score-cases.test.ts`, and by `librarian/search`, for a higher score and the reason.*
+  *Held by `apps/librarian/tests/test_score_cases.py`, and by `librarian/search`, for a higher score and the reason.*
 - **A reply is read a line at a time, as
   [`reply-cases.json`](../../specs/src/librarian/reply-cases.json) states:**
   a line gives a score when it starts with a candidate's number, a full stop
-  and a score from 0 to 1. Every other line gives nothing, and is no error.
-  Where two lines score one candidate, the later is read.
-  *Held by `packages/make-meaning/src/__tests__/reply-cases.test.ts`.*
+  and a score from 0 to 1. Every other line gives nothing, and is no error:
+  a score that is no number, such as `0.8.5` or `0.8.`, among them. Where two
+  lines score one candidate, the later is read.
+  *Held by `apps/librarian/tests/test_reply_cases.py`.*
 - **A model that fails, or whose reply states no score, leaves the scores as
   they were,** and the search is answered.
-  *Held by `packages/make-meaning/src/__tests__/score-cases.test.ts`, and by `librarian/search`, for a model that fails.*
+  *Held by `apps/librarian/tests/test_score_cases.py`, and by `librarian/search`, for a model that fails.*
 
 ## Text search
 
@@ -241,52 +288,53 @@ a `limit`.
 [`search-cases.json`](../../specs/src/librarian/search-cases.json) states each
 search as what each store answers and the page that follows, and is the rule.
 
-- **The text is searched without the white space before and after it. A text
-  that is then empty finds nothing, and no store is asked:** the page has no
-  resources, a total of 0, and is `lexical`.
-  *Held by `packages/make-meaning/src/__tests__/search-cases.test.ts` and `librarian/search`.*
+- **The text is searched without the white space before and after it, which
+  is what Unicode gives the White_Space property. A text that is then empty
+  finds nothing, and no store is asked:** the page has no resources, a total
+  of 0, and is `lexical`.
+  *Held by `apps/librarian/tests/test_search_cases.py` and `librarian/search`.*
 - **Otherwise the graph's listing is asked,** with the text, with `archived`
   and the entity type where they are given, with the offset, which is 0 where
   none is given, and with the limit, which is 50 where none is given. The
   graph applies every filter before it cuts the page, and answers the page
   and the total of all that match.
-  *Held by `packages/make-meaning/src/__tests__/search-cases.test.ts` and `librarian/search`.*
+  *Held by `apps/librarian/tests/test_search_cases.py` and `librarian/search`.*
 - **A graph that fails fails the search,** on the failure channel.
-  *Held by `packages/make-meaning/src/__tests__/search-cases.test.ts` and `packages/make-meaning/src/__tests__/handlers/resource-retrieval.test.ts`.*
+  *Held by `apps/librarian/tests/test_search_cases.py`.*
 - **Where the graph's total is more than 0, or the offset is more than 0,
   the page is the graph's and is `lexical`,** and nothing else is asked. Only
   a first page that found nothing is answered by meaning.
-  *Held by `packages/make-meaning/src/__tests__/search-cases.test.ts` and `librarian/search`.*
+  *Held by `apps/librarian/tests/test_search_cases.py` and `librarian/search`.*
 - **Otherwise the text is embedded once, and the vector index is asked for
   four times the page's limit of chunks.** Its hits are folded to one for
   each resource: the hit with the highest score, with that chunk's text.
-  *Held by `packages/make-meaning/src/__tests__/search-cases.test.ts`, and by `librarian/search`, for the one embedding and one hit for each resource.*
+  *Held by `apps/librarian/tests/test_search_cases.py`, and by `librarian/search`, for the one embedding and one hit for each resource.*
 - **A resource is kept when its score is the semantic floor or more.** The
   kept are ordered by score, the highest first, and by nothing else. `total`
-  is how many are kept. *Held by `packages/make-meaning/src/__tests__/search-cases.test.ts` and `librarian/search`.*
+  is how many are kept. *Held by `apps/librarian/tests/test_search_cases.py` and `librarian/search`.*
 - **The first `limit` of the kept are read back, each in turn, from the
   graph, and from the views where the graph has no such resource or fails.**
   One neither has is left out of the page. Each resource of the page carries
   its chunk's text as `content`, and the page is `semantic`, also where
-  nothing is kept. *Held by `packages/make-meaning/src/__tests__/search-cases.test.ts`, and by `librarian/search`, for the page and each chunk's text, and `librarian/barriers`, for a resource read from its view.*
+  nothing is kept. *Held by `apps/librarian/tests/test_search_cases.py`, and by `librarian/search`, for the page and each chunk's text, and `librarian/barriers`, for a resource read from its view.*
 - **Where the embedding, the index or a view fails, the answer is the page
   with no resources, a total of 0, and `lexical`.** A search that found
   nothing does not become a failure.
-  *Held by `packages/make-meaning/src/__tests__/search-cases.test.ts`, and by `librarian/search`, for an embedding that fails.*
+  *Held by `apps/librarian/tests/test_search_cases.py`, and by `librarian/search`, for an embedding that fails.*
 - **Each resource of a lexical page is given a preview as `content`; a
   semantic page's `content` is left as it is.**
-  *Held by `packages/make-meaning/src/__tests__/handlers/resource-retrieval.test.ts` and `librarian/search`.*
-- **A preview is the first 200 characters of the resource's text, for a
+  *Held by `apps/librarian/tests/test_search_cases.py` and `librarian/search`.*
+- **A preview is the first 200 code points of the resource's text, for a
   resource whose bytes are its text;** the bytes are read once, by the
   resource's id. A resource with no stored bytes, one whose text is derived,
   and one that has no text preview as the empty string, and no bytes are
   read. A read that fails previews as the empty string, and the other
   resources keep theirs.
-  *Held by `packages/make-meaning/src/__tests__/search-cases.test.ts`, and by `librarian/search`, for a text shorter than 200 characters and for a PDF.*
+  *Held by `apps/librarian/tests/test_search_cases.py` and `apps/librarian/tests/test_resource_text.py`, and by `librarian/search`, for a text shorter than 200 code points and for a PDF.*
 - **The reply carries the page's resources, `total`, the `offset` and the
   `limit` the search was made with, and `matchKind`,** and its people are
   named ([Names](#names)).
-  *Held by `packages/make-meaning/src/__tests__/handlers/resource-retrieval.test.ts` and `librarian/search`.*
+  *Held by `apps/librarian/tests/test_search_cases.py` and `librarian/search`.*
 
 ## The knowledge graph
 
@@ -299,29 +347,29 @@ failure, and is the rule.
 - **The first node is the resource. Then each of its connections is a node
   and an edge from the resource to it,** the edge's `type` `link`, with the
   connection's `bidirectional` flag.
-  *Held by `packages/make-meaning/src/__tests__/knowledge-graph-cases.test.ts`, and by `librarian/gather`, for the resource first and a resource a reference links to.*
+  *Held by `apps/librarian/tests/test_knowledge_graph_cases.py`, and by `librarian/gather`, for the resource first and a resource a reference links to.*
 - **Then each annotation elsewhere that refers to the resource:** its citing
   resource is a node, named and typed by its view, or named by its id and
   with no entity types where it has no view; the annotation is a node; an
   `annotation-of` edge runs from the annotation to its citing resource, and a
   `cites` edge from the annotation to the resource. An annotation that is on
   the resource itself is not a citation.
-  *Held by `packages/make-meaning/src/__tests__/knowledge-graph-cases.test.ts`.*
+  *Held by `apps/librarian/tests/test_knowledge_graph_cases.py`.*
 - **Then each annotation on the resource is a node, with an `annotation-of`
   edge to the resource.**
-  *Held by `packages/make-meaning/src/__tests__/knowledge-graph-cases.test.ts` and `librarian/gather`.*
+  *Held by `apps/librarian/tests/test_knowledge_graph_cases.py` and `librarian/gather`.*
 - **An annotation's node carries the whole annotation,** with its motivation
   as its label and the entity types its tagging bodies state.
-  *Held by `packages/make-meaning/src/__tests__/knowledge-graph-cases.test.ts`.*
+  *Held by `apps/librarian/tests/test_knowledge_graph_cases.py`.*
 - **A thing is a node once,** and keeps the name it was first given. Each
   connection has its edge all the same.
-  *Held by `packages/make-meaning/src/__tests__/knowledge-graph-cases.test.ts`.*
+  *Held by `apps/librarian/tests/test_knowledge_graph_cases.py`.*
 - **A resource neither the graph database nor the views hold is unknown:**
   the build fails at once, and nothing waits.
-  *Held by `packages/make-meaning/src/__tests__/knowledge-graph-cases.test.ts`.*
+  *Held by `apps/librarian/tests/test_knowledge_graph_cases.py`.*
 - **A resource the views hold and the graph database does not is waited
   for** ([The two waits](#the-two-waits)).
-  *Held by `packages/make-meaning/src/__tests__/knowledge-graph-cases.test.ts` and `librarian/barriers`.*
+  *Held by `apps/librarian/tests/test_knowledge_graph_cases.py` and `librarian/barriers`.*
 
 ### The lists read off a graph
 
@@ -334,14 +382,14 @@ and the relationship prompt is made from all three.
 - **A citation is a `cites` edge to the main resource from an annotation that
   an `annotation-of` edge places on a resource.** That resource cites the
   main resource, once however many of its annotations do.
-  *Held by `packages/core/src/__tests__/derive-views-cases.test.ts`.*
+  *Held by `apps/librarian/tests/test_derive_views_cases.py` and `packages/core/src/__tests__/derive-views-cases.test.ts`.*
 - **A connection is any other edge whose source is the main resource,**
   whatever its type, with the name and entity types of its target's node and
   the edge's `bidirectional` flag, which is false where the edge states none.
-  *Held by `packages/core/src/__tests__/derive-views-cases.test.ts`.*
+  *Held by `apps/librarian/tests/test_derive_views_cases.py` and `packages/core/src/__tests__/derive-views-cases.test.ts`.*
 - **The sibling entity types are those of the annotation nodes on the main
   resource, but for the focal annotation,** each once.
-  *Held by `packages/core/src/__tests__/derive-views-cases.test.ts`.*
+  *Held by `apps/librarian/tests/test_derive_views_cases.py` and `packages/core/src/__tests__/derive-views-cases.test.ts`.*
 
 ## The two waits
 
@@ -352,7 +400,7 @@ within a bound, and nothing else it does waits.
   has signalled, and the last decision `smelt:settled` has signalled.** What
   it keeps is forgotten when it stops, and an entry more than five minutes
   old may be forgotten before that.
-  *Held by `packages/make-meaning/src/__tests__/weave-progress.test.ts` and `packages/make-meaning/src/__tests__/smelt-progress.test.ts`.*
+  *Held by `apps/librarian/tests/test_progress.py`.*
 - **The wait for the graph.** When the views hold a resource and the graph
   database does not, the build waits at most 500 milliseconds for
   `weave:applied` to reach the sequence number the resource's view states,
@@ -360,29 +408,30 @@ within a bound, and nothing else it does waits.
   the resource, or the signal did not come, it reads again after 25 more
   milliseconds, then after 50, 100 and 200 more, and the first read that
   holds the resource ends the wait: 875 milliseconds at most.
-  *Held by `packages/make-meaning/src/__tests__/knowledge-graph-cases.test.ts`, and by `librarian/barriers`, for a wait of 700 milliseconds or more that ends well inside the request's own.*
+  *Held by `apps/librarian/tests/test_knowledge_graph_cases.py`, and by `librarian/barriers`, for a wait of 700 milliseconds or more that ends well inside the request's own.*
 - **A graph that never comes to hold the resource fails the gather,** with a
   message that says the graph is behind the views and that the resource is
   not missing. It is logged as a warning and counted
   (`semiont.gather.degraded`, `projection` `graph`).
-  *Held by `packages/make-meaning/src/__tests__/knowledge-graph-cases.test.ts` and `packages/make-meaning/src/__tests__/graph-context.test.ts`, and by `librarian/barriers`, for the failure and its message.*
+  *Held by `apps/librarian/tests/test_knowledge_graph_cases.py`, and by `librarian/barriers`, for the failure and its message.*
 - **The wait for the index, which only a gather of a resource makes.** When
-  the index holds no vector of the resource, and so answers no match for it,
-  and its description states a checksum for its bytes, the gather waits, for
-  the settle bound at most, for `smelt:settled` to state a decision of
-  exactly that checksum. A decision it already keeps ends the wait at once.
+  the index answers no match for the resource, and the resource's
+  description states a checksum for its bytes, the gather waits, for the
+  settle bound at most, for `smelt:settled` to state a decision of exactly
+  that checksum. A decision it already keeps ends the wait at once.
   On `indexed` it asks the index again; on `skipped` it does not.
-  *Held by `packages/make-meaning/src/__tests__/llm-context.test.ts` and `packages/make-meaning/src/__tests__/smelt-progress.test.ts`, and by `librarian/barriers`, for a resource the Smelter then indexes and for one it skips.*
+  *Held by `apps/librarian/tests/test_resource_gather.py` and `apps/librarian/tests/test_progress.py`, and by `librarian/barriers`, for a resource the Smelter then indexes and for one it skips.*
 - **An index that does not settle within the bound leaves the context
   without `semanticContext`, and the gather is answered.** It is logged as a
   warning and counted (`semiont.gather.degraded`, `projection` `vectors`).
-  *Held by `packages/make-meaning/src/__tests__/llm-context.test.ts`, and by `librarian/barriers`, for the answer, when it comes and the warning.*
+  *Held by `apps/librarian/tests/test_resource_gather.py`, and by `librarian/barriers`, for the answer, when it comes and the warning.*
 - **The counter has three values of `projection`:** `graph` and `vectors`,
   the two waits that ran out, and `suggestions`, a summary the model failed
   to give ([Gathering around a resource](#gathering-around-a-resource)).
-  *Held by `packages/observability/src/__tests__/index.test.ts`, for the first two.*
+  Each gather that went without one is counted once.
+  *Held by `apps/librarian/tests/test_knowledge_graph_cases.py`, for a graph that stayed behind, and `apps/librarian/tests/test_resource_gather.py`, for the other two.*
 - **A wait that fails in any way but running out fails the gather.**
-  *Held by `packages/make-meaning/src/__tests__/graph-context.test.ts`.*
+  *Held by `apps/librarian/tests/test_knowledge_graph_cases.py` and `apps/librarian/tests/test_resource_gather.py`.*
 
 ## Gathering around an annotation
 
@@ -394,28 +443,28 @@ order of the rules below.
 
 - **A `contextWindow` less than 100 or more than 5,000 fails the gather,**
   and nothing is read.
-  *Held by `packages/make-meaning/src/__tests__/window-cases.test.ts`, and by `librarian/gather`, for a window of 99 and one of 5,001, and no model asked.*
+  *Held by `apps/librarian/tests/test_window_cases.py` and `apps/librarian/tests/test_annotation_gather.py`, and by `librarian/gather`, for a window of 99 and one of 5,001, and no model asked.*
 - **The resource's view is read, and the annotation is found in it by its
   id.** A resource with no view, an annotation the view does not hold, and an
   annotation whose target names another resource each fail the gather.
-  *Held by `packages/make-meaning/src/__tests__/annotation-context.test.ts`, and by `librarian/gather`, for an annotation the view does not hold.*
+  *Held by `apps/librarian/tests/test_annotation_gather.py`, and by `librarian/gather`, for an annotation the view does not hold and for one on another resource.*
 - **Where the annotation's body links to a resource, that resource's view is
   read,** and its description is the focus's `targetResource`. A link to a
   resource with no view gives none.
-  *Held by `librarian/gather`, for a link to a resource that has a view.*
+  *Held by `apps/librarian/tests/test_annotation_gather.py`, and by `librarian/gather`, for a link to a resource that has a view.*
 - **The selected text is cut from the resource's text,** when
   `includeSourceContext` is true. A resource with no stored bytes fails the
   gather. A resource whose text is not there, a PDF the Smelter has not yet
   derived the text of or a media type with none, gives no selected text, and
   the gather goes on.
-  *Held by `librarian/gather`, for a text that is there, with and without the option.*
+  *Held by `apps/librarian/tests/test_annotation_gather.py`, and by `librarian/gather`, for a text that is there, with and without the option.*
 - **A resource's text is its bytes decoded, read from the Archivist, where
   its media type says its bytes are its text; its anchored text, read from
   the gateway, where its text is derived; and nothing where the media type
   has no text**
   ([`specs/src/media-types/registry.json`](../../specs/src/media-types/registry.json)).
   A read of bytes that fails fails the gather.
-  *Held by `packages/make-meaning/src/__tests__/resource-context.test.ts`, and by `librarian/gather`, for a text and for a PDF.*
+  *Held by `apps/librarian/tests/test_resource_text.py`, and by `librarian/gather`, for a text and for a PDF.*
 - **The cut is the selection, and `contextWindow` of text before it and after
   it, counted in Unicode code points,** as
   [`window-cases.json`](../../specs/src/librarian/window-cases.json) states.
@@ -423,34 +472,34 @@ order of the rules below.
   selector selects where the text has its `exact` words. Words the text does
   not have, a target with no selector, and a selector of another kind give
   no selected text, and the gather goes on.
-  *Held by `packages/make-meaning/src/__tests__/window-cases.test.ts`, and by `librarian/gather`, for a window of 100 and for none stated.*
+  *Held by `apps/librarian/tests/test_window_cases.py`, and by `librarian/gather`, for a window of 100 and for none stated.*
 - **The linked resource's text is read, when `includeTargetContext` is true
   and it has stored bytes,** and the focus's `targetContext` is the start of
-  that text, twice `contextWindow` long, with a summary of the resource from
+  that text, twice `contextWindow` code points long, with a summary of the resource from
   the Gatherer's model (the resource-summary prompt).
-  *Held by `librarian/gather`, for the option, a text shorter than that, a PDF's text, and the summary.*
+  *Held by `apps/librarian/tests/test_annotation_gather.py`, and by `librarian/gather`, for the option, a text shorter than that, a PDF's text, and the summary.*
 - **The knowledge graph of the resource is built**
   ([The knowledge graph](#the-knowledge-graph)), and is the context's
   `graph`. A build that fails fails the gather.
-  *Held by `librarian/gather`, for the graph.*
+  *Held by `apps/librarian/tests/test_annotation_gather.py`, and by `librarian/gather`, for the graph.*
 - **The graph database is asked how many resources carry each entity type,**
   and the answer is `metadata.entityTypeFrequencies`. A read that fails
   fails the gather. `metadata.entityTypes` are those the annotation's tagging
   bodies state, `metadata.language` is the resource's, and
   `metadata.resourceType` is `document`.
-  *Held by `packages/make-meaning/src/__tests__/annotation-context.test.ts`, and by `librarian/gather`, for the frequencies and the entity types.*
+  *Held by `apps/librarian/tests/test_annotation_gather.py`, and by `librarian/gather`, for the frequencies and the entity types.*
 - **Where a selection was cut, the Gatherer's model is asked for the
   relationship sentence** (the relationship prompt), made from the passage
   and the lists read off the graph. A model that fails leaves the context
   without `inferredRelationshipSummary`, and the gather goes on.
-  *Held by `packages/make-meaning/src/__tests__/annotation-context.test.ts` and `librarian/gather`.*
+  *Held by `apps/librarian/tests/test_annotation_gather.py` and `librarian/gather`.*
 - **Where the selected text is not empty, it is embedded, and the vector
   index is asked for at most 10 annotations that score 0.5 or more and are
   on another resource.** Each is named by its resource's view, and one whose
-  resource has no view is left out. The matches are `semanticContext`, which
-  is absent where there are none. An embedding, an index or a view that
+  resource has no view, or a view that states an empty name, is left out.
+  The matches are `semanticContext`, which is absent where there are none. An embedding, an index or a view that
   fails here leaves the context without it, and the gather goes on.
-  *Held by `librarian/gather`, for the one embedding, a match on another resource with its name, and none from the annotation's own.*
+  *Held by `apps/librarian/tests/test_annotation_gather.py`, and by `librarian/gather`, for the one embedding, a match on another resource with its name, and none from the annotation's own.*
 
 ## Gathering around a resource
 
@@ -460,71 +509,76 @@ order of the rules below.
 resource. The reads are made in the order of the rules below.
 
 - **The resource's view is read.** A resource with no view fails the gather.
-  *Held by `packages/make-meaning/src/__tests__/llm-context.test.ts`, `librarian/gather` and `librarian/barriers`.*
+  *Held by `apps/librarian/tests/test_resource_gather.py`, `librarian/gather` and `librarian/barriers`.*
 - **The resource's text is read when `includeContent` is true,** and is the
   focus's `content.main` where it is not empty. The focus states `content`
   whenever `includeContent` is true, and not otherwise.
-  *Held by `packages/make-meaning/src/__tests__/llm-context.test.ts`, and by `librarian/gather`, for a text and for a PDF.*
+  *Held by `apps/librarian/tests/test_resource_gather.py`, and by `librarian/gather`, for a text and for a PDF.*
 - **The knowledge graph of the resource is built,** and is the context's
   `graph`. A build that fails fails the gather.
-  *Held by `packages/make-meaning/src/__tests__/gatherer-decoupling.test.ts`, and by `librarian/gather`, for the graph, and `librarian/barriers`, for a build that fails.*
+  *Held by `apps/librarian/tests/test_resource_gather.py`, and by `librarian/gather`, for the graph, and `librarian/barriers`, for a build that fails.*
 - **The related resources are the first `maxResources` less one of the
   graph's resource nodes, but for the resource itself.** The view of each is
   read, and one with no view is passed by. When `includeContent` is true the
   text of each is read, and `content.related` holds each text that is not
   empty, by resource id. A read of bytes that fails fails the gather.
-  *Held by `packages/make-meaning/src/__tests__/llm-context.test.ts`, and by `librarian/gather`, for how many are read and what is held of each.*
+  *Held by `apps/librarian/tests/test_resource_gather.py`, and by `librarian/gather`, for how many are read and what is held of each.*
 - **When `includeSummary` and `includeContent` are both true and the
   resource's text is not empty, the Gatherer's model is asked:** first for a
   summary (the resource-summary prompt), then for suggestions (the
   reference-suggestions prompt, with the resource's name and its first
   entity type). They are the focus's `summary` and `suggestedReferences`.
   Where `includeSummary` is false the model is asked nothing.
-  *Held by `packages/make-meaning/src/__tests__/llm-context.test.ts` and `librarian/gather`.*
+  *Held by `apps/librarian/tests/test_resource_gather.py` and `librarian/gather`.*
 - **A reply to the suggestions prompt is read as
   [`reply-cases.json`](../../specs/src/librarian/reply-cases.json) states:**
   the first three lines that are not empty, each without the bullet that
   starts it. An empty reply gives no suggestions.
-  *Held by `packages/make-meaning/src/__tests__/reply-cases.test.ts`, and by `librarian/gather`, for a reply of two lines with no bullet.*
+  *Held by `apps/librarian/tests/test_reply_cases.py`, and by `librarian/gather`, for a reply of two lines with no bullet.*
 - **A model that fails at either leaves the context with neither, and the
   gather is answered.** It is logged as a warning and counted
   (`semiont.gather.degraded`, `projection` `suggestions`).
-  *Held by `packages/make-meaning/src/__tests__/llm-context.test.ts`, and by `librarian/gather`, for the answer.*
+  *Held by `apps/librarian/tests/test_resource_gather.py`, and by `librarian/gather`, for the answer.*
 - **The vector index is asked for what is like the resource:** at most
   `maxResources` passages of other resources that score 0.5 or more against
   the resource's own stored vectors, without those of the entity types the
-  request excludes. Nothing is embedded. Where the index holds no vector of
-  the resource, the gather waits for the index
+  request excludes. Nothing is embedded. Where the index answers no match,
+  the gather waits for the index
   ([The two waits](#the-two-waits)).
-  *Held by `packages/make-meaning/src/__tests__/llm-context.test.ts`, `librarian/gather` and `librarian/barriers`.*
+  *Held by `apps/librarian/tests/test_resource_gather.py`, `librarian/gather` and `librarian/barriers`.*
 - **Each match is named by its resource's view, and one whose resource has
-  no view is left out.** The matches are `semanticContext`, with the entity
-  types that were excluded where any were; it is absent where there are no
-  matches. *Held by `packages/make-meaning/src/__tests__/llm-context.test.ts`, and by `librarian/gather`, for the names and the excluded entity types, and `librarian/barriers`, for none.*
-- **An index that fails fails the gather.** *Held by no case.*
+  no view, or a view that states an empty name, is left out.** The matches
+  are `semanticContext`, with the entity types that were excluded where any
+  were; it is absent where there are no matches.
+  *Held by `apps/librarian/tests/test_resource_gather.py`, and by `librarian/gather`, for the names and the excluded entity types, and `librarian/barriers`, for none.*
+- **An index that fails fails the gather.**
+  *Held by `apps/librarian/tests/test_resource_gather.py`.*
 - **`metadata` states the resource's language and `resourceType`
-  `document`,** and no entity types. *Held by no case.*
+  `document`,** and no entity types.
+  *Held by `apps/librarian/tests/test_resource_gather.py`, for a resource that states no language.*
 
 ## An annotation's summary
 
 `gather:summary-requested` names an annotation and its resource.
 
-- **The resource's view is read, the annotation found in it, and the
-  resource's text read.** A resource with no view, an annotation the view
-  does not hold, a text that is not there, and a target with no position
-  selector each fail the request.
-  *Held by `librarian/gather`, for an annotation the view does not hold.*
+- **The resource's view is read and the annotation found in it. Then the
+  view of the resource the annotation's target names is read, and that
+  resource's text.** A resource with no view, an annotation the view does
+  not hold, a text that is not there, and a target with no position selector
+  each fail the request.
+  *Held by `apps/librarian/tests/test_summary.py` and `apps/librarian/tests/test_window_cases.py`, and by `librarian/gather`, for an annotation the view does not hold.*
 - **The text is cut around the annotation's position, 500 code points on
   each side,** as
   [`window-cases.json`](../../specs/src/librarian/window-cases.json) states.
-  *Held by `packages/make-meaning/src/__tests__/window-cases.test.ts`.*
+  *Held by `apps/librarian/tests/test_window_cases.py`.*
 - **The Gatherer's model is asked for the summary** (the annotation-summary
   prompt). A model that fails fails the request.
-  *Held by `librarian/gather`, for the one prompt and the model it is sent to.*
+  *Held by `apps/librarian/tests/test_summary.py`, and by `librarian/gather`, for the one prompt and the model it is sent to.*
 - **The answer is the `summary`; `relevantFields`, with the resource's name
-  and the annotation's entity types; and `context`:** the last 200 of the
-  text before the selection, the selection, and the first 200 of the text
-  after it. *Held by `librarian/gather`.*
+  and the annotation's entity types; and `context`:** the last 200 code
+  points of the text before the selection, the selection, and the first 200
+  of the text after it.
+  *Held by `apps/librarian/tests/test_summary.py` and `librarian/gather`.*
 
 ## What refers to a resource
 
@@ -532,18 +586,23 @@ resource. The reads are made in the order of the rules below.
 `motivation`.
 
 - **The graph database is asked for the annotations that refer to the
-  resource,** of that motivation where one is named. A graph that fails
-  fails the request.
-  *Held by `packages/make-meaning/src/__tests__/handlers/resource-retrieval.test.ts`, and by `librarian/search`, for the annotations and the motivation.*
+  resource,** of that motivation where one is named, and all of them where
+  none is named or the one named is empty. A graph that fails fails the
+  request.
+  *Held by `apps/librarian/tests/test_referenced_by.py`, and by `librarian/search`, for the annotations and the motivation.*
+- **A `motivation` that is none an annotation can have is answered with no
+  entry, and the graph database is not asked.**
+  *Held by `apps/librarian/tests/test_referenced_by.py`.*
 - **Each resource those annotations are on is read once, from the graph, and
-  from the views where the graph has none or its read fails.**
-  *Held by `packages/make-meaning/src/__tests__/handlers/resource-retrieval.test.ts`.*
+  from the views where the graph has none or its read fails.** A view that
+  fails to be read fails the request.
+  *Held by `apps/librarian/tests/test_referenced_by.py` and `apps/librarian/tests/test_grace.py`.*
 - **The answer has one entry for each annotation, in the graph's order:** its
   `id`; `resourceName`, the name of the resource it is on; and `target`, with
   that resource as `source` and, as `selector.exact`, the words its quote
   selector states, or the empty string where it has none. Its people are
   named ([Names](#names)).
-  *Held by `packages/make-meaning/src/__tests__/handlers/resource-retrieval.test.ts`, and by `librarian/search`, for an entry.*
+  *Held by `apps/librarian/tests/test_referenced_by.py`, and by `librarian/search`, for an entry.*
 
 ## Limits
 
@@ -551,11 +610,11 @@ resource. The reads are made in the order of the rules below.
   model, and `gather:limits-requested` with those of the Gatherer's:** a list
   of one item, the provider, the model, and the model's `contextTokens`,
   `maxOutputTokens` and, where the provider says, `acceptsTemperature`.
-  *Held by `packages/make-meaning/src/__tests__/librarian-decoupling.test.ts`, `packages/make-meaning/src/__tests__/gatherer-decoupling.test.ts` and `librarian/search`.*
+  *Held by `apps/librarian/tests/test_librarian.py`, `packages/inference-python/tests/test_limits_report.py` and `librarian/search`.*
 - **A provider that has not said within 1.5 seconds, or that fails, leaves
   the list empty, and the request is still answered on its result channel.**
   A later request states the limits once the provider has said them.
-  *Held by `packages/inference/src/__tests__/limits-report.test.ts`, and by `librarian/search`, for an answer within 5 seconds.*
+  *Held by `packages/inference-python/tests/test_limits_report.py`, and by `librarian/search`, for an answer within 5 seconds.*
 
 ## Names
 
@@ -566,15 +625,17 @@ volume.
 - **The replies to a text search and to what refers to a resource have their
   people named:** every object whose `@type` is `Person`, wherever in the
   reply it is, and whose `@id` the projection holds, has its `name` set to
-  the name stated there, in place of any it carried. Nothing else of the
-  reply changes, as
+  the name stated there, in place of any it carried. A person whose `@id`
+  the projection does not hold is left as it is, whatever text the `@id` is.
+  Nothing else of the reply changes, as
   [`naming-cases.json`](../../specs/src/librarian/naming-cases.json) states.
-  *Held by `packages/make-meaning/src/__tests__/naming-cases.test.ts`, and by `librarian/search`, for a text search's lexical page and its semantic one.*
+  *Held by `apps/librarian/tests/test_naming_cases.py`, and by `librarian/search`, for a text search's lexical page and its semantic one.*
 - **The projection is read once for each reply.** A knowledge base with no
   projection names no one.
-  *Held by `packages/make-meaning/src/__tests__/views/people-reader.test.ts` and `packages/make-meaning/src/__tests__/handlers/resource-retrieval.test.ts`.*
+  *Held by `apps/librarian/tests/test_naming_cases.py` and `apps/librarian/tests/test_record.py`.*
 - **A projection that cannot be read is logged as a warning, and the reply
-  is sent with no one named.** *Held by no case.*
+  is sent with no one named.**
+  *Held by `apps/librarian/tests/test_naming_cases.py`, `apps/librarian/tests/test_search_cases.py` and `apps/librarian/tests/test_referenced_by.py`.*
 - **The replies to the two gathers, to a summary and to the two limits
   requests are not named.** *Held by no case.*
 
@@ -585,7 +646,7 @@ A Librarian sends a model five prompts.
 each is made from and its text to the last character, and is the rule.
 
 - **Each prompt's text is the table's,** made from what the table says it is
-  made from. *Held by `packages/make-meaning/src/__tests__/prompt-cases.test.ts`.*
+  made from. *Held by `apps/librarian/tests/test_prompt_cases.py`.*
 - **Each is sent with a token limit and a temperature of its own:**
 
   | Prompt | Asked by | Token limit | Temperature |
@@ -596,226 +657,262 @@ each is made from and its text to the last character, and is the rule.
   | `reference-suggestions` | the Gatherer's model, in a gather around a resource | 200 | 0.8 |
   | `annotation-summary` | the Gatherer's model, for an annotation's summary | 500 | 0.5 |
 
-  *Held by `packages/make-meaning/src/__tests__/prompt-cases.test.ts`.*
+  *Held by `apps/librarian/tests/test_prompt_cases.py`.*
 - **What a prompt may be given is bounded:** the score prompt lists at most
   twenty candidates and names at most five connected resources; the
   relationship prompt names at most ten connected resources, five citing
   resources and ten sibling entity types; the resource-summary prompt has at
   most the first 2,000 of the resource's text; the reference-suggestions
   prompt at most the first 500 of a stub; and the annotation-summary prompt
-  the last 200 before the passage and the first 200 after it.
-  *Held by `packages/make-meaning/src/__tests__/prompt-cases.test.ts`.*
+  the last 200 before the passage and the first 200 after it. A cut of a
+  text counts Unicode code points, and splits no character.
+  *Held by `apps/librarian/tests/test_prompt_cases.py`.*
 
 ## Order
 
-- **Gathers around the annotations of one resource are handled one at a
-  time, in the order they arrive, and so are gathers around one resource.**
-  Gathers of different resources are handled together, and a gather around a
+A Librarian takes every frame of its stream as it is delivered, in the order
+of delivery, and hands each request to a lane or begins it at once.
+
+- **A gather takes its turn in a lane of its channel and its resource.**
+  Gathers around the annotations of one resource are handled one at a time,
+  in the order they arrive, and so are gathers around one resource. Gathers
+  of different resources are handled together, and a gather around a
   resource and one around an annotation on it are too.
-  *Held by `librarian/gather`, for gathers around annotations, of one resource and of two.*
+  *Held by `apps/librarian/tests/test_librarian.py`, and by `librarian/gather`, for gathers around annotations, of one resource and of two.*
+- **Reference searches share one lane:** they are handled one at a time, in
+  the order they arrive, whatever resource each is of
+  ([Known defects](#known-defects)).
+  *Held by `apps/librarian/tests/test_librarian.py`.*
 - **Text searches, requests for what refers to a resource, summaries and
   limits are each handled as they arrive,** together with whatever else is
-  being handled. *Held by no case.*
+  being handled.
+  *Held by `apps/librarian/tests/test_librarian.py`.*
+- **A signal is noted the moment it is delivered, and waits behind no
+  request,** so a gather that is waiting for one is woken while it is in
+  hand. *Held by `apps/librarian/tests/test_librarian.py`.*
 - **A request that fails is answered on its failure channel, and the
   requests after it are handled.**
-  *Held by `packages/make-meaning/src/__tests__/matcher.test.ts`, `packages/make-meaning/src/__tests__/gatherer.test.ts` and `packages/make-meaning/src/__tests__/handlers/resource-retrieval.test.ts`.*
+  *Held by `apps/librarian/tests/test_librarian.py`.*
+- **A reply that cannot be sent is logged, and ends nothing:** whoever asked
+  is left to the end of its own wait. *Held by no case.*
 
 ## Boot
 
-A Librarian starts in this order: it reads its settings; signs in; finds the
-views on the state volume; reaches the graph database, the embedding provider
-and the vector index; starts its two actors and its handlers; begins to take
-requests from the bus; opens its health port.
+A Librarian starts in this order: it reads its document, its service account
+and each secret its document names; signs in; reaches the graph database,
+then the vector index; opens its stream on the bus and begins to take
+requests; opens its health port.
 
-- **Where the vector index lacks either of its two collections, `resources`
-  and `annotations`, the Librarian makes it, empty,** as wide as the
-  embedding model's vectors, which it learns by asking the provider to embed
-  once. It asks the provider nothing at start where both are there.
-  *Held by no case.*
-- **At every start it asks the vector index for three keyword payload
-  indexes:** on `entityTypes` and on `resourceId` of `resources`, and on
-  `resourceId` of `annotations`. Where one is there already, nothing
-  changes, and an index that refuses one does not keep the Librarian from
-  starting. *Held by no case.*
-- **It gives up when the gateway does not answer.** It tries to sign in a
-  bounded number of times, then exits with a status other than 0, having said
-  which address did not answer. *Held by `librarian/boot`.*
-- **It gives up when the graph database, the embedding provider or the vector
-  index does not answer within a minute,** and exits with a status other than
-  0. *Held by no case.*
-- **Every refusal to start ends the process with a status other than 0.**
-  The state volume is looked for after it has signed in, and the Archivist's
-  address and the two models after it has reached its stores, so a Librarian
-  that cannot sign in does not come to refuse them.
+- **Everything it is started with is read before anything is dialled:** the
+  document first, then the service account, then the graph database's
+  password, the embedding provider's key, the Matcher's key and the
+  Gatherer's. A Librarian that cannot start on one of them says so in one
+  line on its standard error, which begins `[fatal] `, and writes nothing
+  else. *Held by `apps/librarian/tests/test_service.py`.*
+- **It signs in once, and gives up when the gateway does not answer.** It
+  exits with a status other than 0, having said which address did not
+  answer. Starting it again is left to whatever supervises it.
   *Held by `librarian/boot`.*
-- **It loads nothing at start:** no view, no graph and no index is read into
-  it, and it runs no repair. What it makes in the vector index is above.
+- **It gives up when the graph database or the vector index does not answer
+  within sixty seconds,** says which, and exits with a status other than 0.
+  *Held by no case.*
+- **It reaches no embedding provider and no model at start.** It makes no
+  collection, so it has no width of a vector to learn.
+  *Held by `apps/librarian/tests/test_service.py`, for a reader of the index that is made with nothing dialled.*
+- **It does not look for the state directory.** A state volume that holds no
+  directory of the knowledge base is a knowledge base with no views and no
+  people: a gather then fails for a resource with no view, and a reply names
+  no one. *Held by `apps/librarian/tests/test_record.py`, for a file that is not there.*
+- **Every refusal to start ends the process with a status other than 0.**
+  *Held by `apps/librarian/tests/test_service.py` and `librarian/boot`.*
+- **It loads nothing and makes nothing at start:** no view, no graph and no
+  index is read into it, nothing is made in a store
+  ([What it answers](#what-it-answers)), and it runs no repair.
   *Held by no case.*
 
 ## Health
 
-- **`GET /health`, on port 24104, answers `200` with a JSON object:**
-  `status`; and `actors`, the two it runs, `matcher` and `gatherer`. Any
-  other path answers `404`. *Held by `librarian/boot`.*
+- **`GET /health`, on the port its document states, answers `200` with a
+  JSON object:** `status`; and `actors`, the two it runs, `matcher` and
+  `gatherer`. Any other path answers `404`.
+  *Held by `apps/librarian/tests/test_service.py`, `packages/service-python/tests/test_health.py` and `librarian/boot`.*
 - **The health port opens last,** after the Librarian has begun to take
-  requests from the bus. So a Librarian whose health answers is answering.
-  *Held by no case.*
+  requests from the bus. So a Librarian whose health answers is answering. A
+  port it cannot take ends it as a refusal to start does.
+  *Held by `packages/service-python/tests/test_health.py`, for a port that is held and answers nothing until it is told to.*
+- **`status` is `ok` whenever the Librarian answers**
+  ([Known defects](#known-defects)). *Held by no case.*
 
 ## Stopping
 
-- **On SIGTERM a Librarian stops taking requests, leaves the bus, closes its
-  connection to the graph database and its health port, and exits with
-  status 0.** It does the same on SIGINT.
-  *Held by `librarian/boot`, for the exit and its status.*
+- **On SIGTERM a Librarian takes no more frames, gives up what it has in
+  hand, leaves the bus, closes its health port and its connections to the
+  vector index and the graph database, and exits with status 0.** It does
+  the same on SIGINT.
+  *Held by `apps/librarian/tests/test_librarian.py`, for what is given up, and by `librarian/boot`, for the exit and its status.*
 - **A gather that is waiting when it stops is let go:** a wait for the graph
   ends as if the signal had come, and a wait for the index ends with no
-  decision, uncounted. *Held by `packages/make-meaning/src/__tests__/weave-progress.test.ts` and `packages/make-meaning/src/__tests__/smelt-progress.test.ts`.*
+  decision, uncounted.
+  *Held by `apps/librarian/tests/test_progress.py`, `apps/librarian/tests/test_resource_gather.py` and `apps/librarian/tests/test_librarian.py`.*
 
 ## Telemetry
 
-No row of
-[`specs/src/service-telemetry/telemetry.json`](../../specs/src/service-telemetry/telemetry.json)
-or of
-[`specs/src/sdk-telemetry/telemetry.json`](../../specs/src/sdk-telemetry/telemetry.json)
-is the Librarian's. What it exports is listed for operators in
-[OBSERVABILITY.md](../operator/administration/OBSERVABILITY.md#metrics).
-
 - **A Librarian started with `OTEL_EXPORTER_OTLP_ENDPOINT` exports, as
-  `semiont-librarian`, spans and metrics.** Of its process:
-  `semiont.process.start_time`, `semiont.process.restarts` where it is
-  supervised, `semiont.process.abnormal_exit`,
-  `semiont.runtime.event_loop.lag` and `semiont.runtime.heap`. Of the bus: a
-  span `bus.recv:<channel>` for each frame it receives, a span
-  `bus.emit:<channel>` for each it sends, and the count `semiont.bus.sent`.
-  Of its work: a span `actor.<actor>:<channel>` and the duration
-  `semiont.handler.duration`, with `actor` and `bus.channel`, for each
-  reference search, each gather of either kind, each text search and each
-  request for what refers to a resource; `semiont.inference.calls`,
-  `semiont.inference.tokens` and `semiont.inference.duration` for each
-  request of a model; a span `content.get_anchored_text` for each read of a
-  resource's anchored text; and `semiont.gather.degraded`
-  ([The two waits](#the-two-waits)). *Held by no case.*
-- **A summary and a limits request have no span and no duration of their
-  own.** *Held by no case.*
-- **A line it logs while a span is current carries that span's trace and its
-  own id** (`trace_id` and `span_id`), in either form of its log. One logged
-  in no span carries neither.
-  *Held by `packages/observability/src/__tests__/process-logger.test.ts`.*
+  `semiont-librarian`, exactly what
+  [`specs/src/service-telemetry/telemetry.json`](../../specs/src/service-telemetry/telemetry.json)
+  lists for the librarian, and the rows of
+  [`specs/src/sdk-telemetry/telemetry.json`](../../specs/src/sdk-telemetry/telemetry.json)
+  the first names for it under `sdk`.** Those are what every service says of
+  its own process (when it started, how late its loop runs, its memory); a
+  span for each frame it sends and each it receives on the bus, and a count
+  of the frames it sent; a span for each read of a resource's anchored text;
+  a count, the tokens and the duration of each request of a model; and the
+  count of gathers that went without something, `semiont.gather.degraded`
+  ([The two waits](#the-two-waits)). Every span and metric it exports is one
+  of those rows, of the row's kind, carrying only the row's attributes; and
+  every one of those rows that its work can make arrives, with every
+  attribute the row does not mark as conditional.
+  *Held by `librarian/telemetry`.*
+- **What is counted of a request of a model is the driver's to count,** the
+  same whichever service asks.
+  *Held by `packages/inference-python/tests/test_telemetry.py`.*
+- **A request is handled in the trace its frame was sent under,** so the
+  frames it sends in reply, and the lines it logs, are of that trace.
+  *Held by no case.*
+- **An event it logs while a span is current carries that span's trace and
+  its own id** (`trace_id` and `span_id`), in either form of its log. One
+  logged in no span carries neither.
+  *Held by `packages/service-python/tests/test_log.py`.*
 
 ## Environment
 
-A Librarian's own code reads these from its environment, and no others:
+A Librarian's own code reads these from its environment, beside its document,
+and no others:
 
 | Variable | What it is |
 |---|---|
 | `SEMIONT_OIDC_CLIENT_ID`, `SEMIONT_OIDC_CLIENT_SECRET` | Its service account at the knowledge base's issuer. Required |
-| `XDG_STATE_HOME` | The state volume. The views are under `semiont/<the knowledge base's name>` in it. Required |
-| `HOME` | The directory its settings are read from |
-| the variables its settings name | A setting may name a variable in place of a value, and each one named is required. A stack the launcher starts names `GATEWAY_HOST`, the gateway's address, and `NEO4J_PASSWORD`, the graph database's password, and gives it both, with a key for each provider that takes one |
-| `LOG_LEVEL` | The least level it logs; `info` when unset |
-| `LOG_FORMAT` | Set to `simple`, it logs lines for a person to read. Otherwise each line is a JSON object |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | The OTLP/HTTP collector its spans and metrics are exported to ([Telemetry](#telemetry)). Without it, and without the console exporter, it exports nothing |
-| `OTEL_SERVICE_NAME` | The `service.name` its spans and metrics carry; `semiont-librarian` when unset |
+| the variables its document names | The graph database's password, required; its embedding provider's key and the key of each actor's model, each for a provider that takes one, and required then. A stack the launcher starts names `NEO4J_PASSWORD` for the first, and gives it the password the launcher keeps. An Ollama takes no key |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | The OTLP/HTTP collector its spans and metrics are exported to ([Telemetry](#telemetry)). Without it, and without the console exporter, it exports nothing and writes no span or metric anywhere |
+| `OTEL_SERVICE_NAME` | The `service.name` its spans and metrics carry; `semiont-librarian` when unset or empty |
 | `OTEL_SDK_DISABLED` | Set to `true`, it exports nothing, whatever else is set |
 | `OTEL_CONSOLE_EXPORTER` | Set to `true`, with no endpoint, it writes spans and metrics to its output instead of exporting them |
 | `OTEL_METRICS_EXPORTER` | Set to `console`, it writes metrics to its output, while spans still go to the endpoint |
 | `OTEL_METRIC_EXPORT_INTERVAL` | The milliseconds between metric exports; 30000 when unset |
-| `SUPERVISE_EVENTS`, `SUPERVISE_NAME` | The supervisor's events log, one `starting <name>` line for each life of the process, and that name. With both, it reports `semiont.process.restarts`. Without either, the metric does not exist |
-| `SEMIONT_BUS_LOG` | With any value that is not empty, it writes a line to its output for each frame it sends and receives |
+| `SUPERVISE_EVENTS`, `SUPERVISE_NAME` | The supervisor's events log, one `starting <name>` line for each life of the process, and that name. With both, it reports `semiont.process.restarts`: the lives the log records, less one. Without either, the metric does not exist |
 
-The libraries it is built on read some unasked: its OpenTelemetry SDK and
-exporter read the standard variables they read on their own. The librarian
-image sets `NODE_ENV`, which the Librarian's own code does not read, and
-`SUPERVISE_NAME`. `SEMIONT_SUPERVISE` and `SUPERVISE_PROBE` are read by the
-image's supervisor, which sets `SUPERVISE_EVENTS`, and not by the Librarian.
+The libraries it is built on read some unasked. Its OpenTelemetry SDK and
+exporter read the standard variables they read on their own, such as how long
+a finished span waits to be exported (`OTEL_BSP_SCHEDULE_DELAY`), but none
+that would say where its telemetry goes or the name it goes under. Semiont's
+SDK reads `SEMIONT_BUS_LOG`, and with any value that is not empty writes a
+line to the service's output for each frame it sends and receives. The
+librarian image sets `SUPERVISE_NAME` and `SUPERVISE_PROBE`; the image's
+supervisor reads those two and `SEMIONT_SUPERVISE`, and sets
+`SUPERVISE_EVENTS`.
 
-*Held by `librarian/boot`, for the service account and the variable a setting names.*
+What each telemetry variable does is what the Worker service's does
+([WORKER-SERVICE.md](./WORKER-SERVICE.md#environment)): the Librarian's code
+for it is the Worker's, held to it by `apps/librarian/tests/test_census.py`.
+
+*Held by `librarian/boot`, `librarian/telemetry` and `apps/librarian/tests/test_census.py`.*
 
 ## Known defects
 
-Each of these is what today's Librarian does, and is wrong. None is a rule,
-no case holds one, and another implementation does not copy them.
+Each of these is what today's Librarian does, and is wrong. Another
+implementation does not copy them. Each names the module of
+`apps/librarian/src/semiont_librarian` it is in.
 
 - **The model is shown the first twenty candidates found, and not the twenty
   with the highest scores.** The candidates are ordered by score only after
-  the model has been asked.
+  the model has been asked (`reference_search.py`).
 - **An empty search term gives every candidate with a name a prefix name
-  match:** every name begins with the empty text.
-- **An entity type whose stated frequency is 0 gives an infinite score.**
+  match:** every name begins with the empty text (`score.py`).
+- **An entity type whose stated frequency is 0 gives an infinite score**
+  (`score.py`).
 - **A `dateCreated` in the future scores more than 5 for recency, and one
-  that cannot be read as a date leaves the whole score not a number.**
-- **A reference search with `limit: 0` answers every candidate.**
+  that cannot be read as a date leaves the whole score not a number**
+  (`score.py`).
+- **A reference search with `limit: 0` answers every candidate, and one with
+  a limit below 0 leaves that many off the end** (`reference_search.py`).
 - **The citation term counts the resources that cite the request's
   resource,** and so is the same for every neighbour. It says nothing of the
-  candidate.
+  candidate (`score.py`).
 - **Several vector hits for one resource keep the score of the last hit the
-  index answered,** in a reference search.
+  index answered,** in a reference search (`reference_search.py`).
+- **A candidate with no reason that a model scores above 0.5 has the reason
+  `candidate; semantic match`** (`score.py`).
+- **A view that fails to be read while a neighbour or a vector hit is read
+  back fails the whole reference search,** where an index that fails does
+  not (`grace.py`, `reference_search.py`).
+- **A reference's own resource is not left out of its candidates.** A
+  listing or the index that answers it makes it a candidate like any other
+  (`reference_search.py`).
+- **The reply to a reference search has no one named** ([Names](#names)),
+  where the replies to a text search and to what refers to a resource do
+  (`librarian.py`).
+- **The score prompt's line for a comment or an assessment is the first item
+  of the annotation's body,** whatever that item's purpose is
+  (`reference_search.py`).
+- **A text search that no name matches is answered from the index with no
+  filter.** A search kept to an entity type, or to archived resources, can
+  then answer resources of neither (`text_search.py`).
+- **A text search logs nothing when it reads a resource from its view
+  because the graph does not hold it.** A reference search and a request for
+  what refers to a resource each log it (`text_search.py`).
 - **A quote selector is found at the first place the text has its words,**
-  whatever its prefix and its suffix say.
+  whatever its prefix and its suffix say (`window.py`).
 - **A gather around an annotation reads the first selector of a list, and no
   other.** An annotation's summary finds a position selector anywhere in the
-  list.
-- **The cuts at 200, at 500 and at 2,000 count UTF-16 code units,** and so
-  does the cut of a linked resource's text in a gather. Each can split a
-  character outside the Basic Multilingual Plane in two.
-- **An annotation's summary states no `resourceId` in `relevantFields`:** it
-  reads a member `id`, which no resource's description has. The member is
-  `@id`.
-- **The score prompt's line for a comment or an assessment is the first item
-  of the annotation's body,** whatever that item's purpose is.
-- **A score a model writes as `0.8.5` is read as 0.8.**
-- **A suggestion's bullet is dropped before the white space that starts its
-  line is,** so a bullet after white space is kept.
-- **A citing resource with no description, or with an empty name, is named
-  `Untitled Resource`** in the answer to what refers to a resource.
-- **A person whose `@id` is the name of something every object has, such as
-  `constructor`, is given a name the people projection never stated.**
-- **Reference searches are handled one at a time for the whole knowledge
-  base,** so one slow model holds every other search.
-- **Nothing bounds how many text searches and requests for what refers to a
-  resource are handled together.**
-- **`status` is `ok` whenever the Librarian answers,** whatever is true of
-  the gateway, its stores or its models.
+  list (`window.py`).
 - **The bound on `contextWindow`, 100 to 5,000, is in no schema.** A request
-  outside it is valid on the bus and fails in the Librarian.
+  outside it is valid on the bus and fails in the Librarian (`window.py`).
+- **A model that fails on the summary of a linked resource fails the whole
+  gather around an annotation.** A model that fails on the relationship
+  sentence does not (`annotation_gather.py`).
+- **An annotation's summary states no `resourceId` in `relevantFields`**
+  (`summary.py`).
 - **A citing resource's view is read though the resource is already a node
-  of the graph,** and the name read is not used.
+  of the graph,** and the name read is not used (`knowledge_graph.py`).
 - **The wait for the index begins whenever the index answers no match for
   the resource, and not only when it holds no vector of it.** A resource
   that is indexed and has nothing like it, and one the Smelter skipped, are
   each answered without a wait only while the Librarian still keeps the
-  Smelter's decision of them. Once it has been started again, or has forgotten the
-  decision, which it may after five minutes, a gather of such a resource
-  waits the whole settle bound, and is logged and counted as one the index
-  did not settle for.
-- **A text search logs nothing when it reads a resource from its view
-  because the graph does not hold it.** A reference search and a request for
-  what refers to a resource each log it.
-- **A model that fails on the summary of a linked resource fails the whole
-  gather around an annotation.** A model that fails on the relationship
-  sentence does not.
+  Smelter's decision of them. Once it has been started again, or has
+  forgotten the decision, a gather of such a resource waits the whole settle
+  bound, and is logged and counted as one the index did not settle for
+  (`resource_gather.py`).
+- **What it keeps of a signal is forgotten only when another signal is
+  noted,** so a Librarian that hears no signal forgets nothing; and a
+  `weave:applied` no higher than the one kept does not make the entry newer
+  (`progress.py`).
 - **A gather around a resource that asks for a summary and not for content
   asks the model nothing, and answers no summary and no suggestions.** The
   summary is made from the text, and the text is read only for
-  `includeContent`.
-- **A reference's own resource is not left out of its candidates.** A
-  listing or the index that answers it makes it a candidate like any other.
-- **The reply to a reference search has no one named** ([Names](#names)),
-  where the replies to a text search and to what refers to a resource do.
+  `includeContent` (`resource_gather.py`).
+- **A suggestion's bullet is dropped before the white space that starts its
+  line is,** so a bullet after white space is kept; and a line that starts
+  with two asterisks loses one (`replies.py`).
+- **A reply to the suggestions prompt that is white space alone gives an
+  empty list of suggestions, and an empty reply gives none at all**
+  (`replies.py`).
+- **A citing resource with no description, or with an empty name, is named
+  `Untitled Resource`** in the answer to what refers to a resource
+  (`referenced_by.py`).
 - **A request for what refers to a resource no one made is answered with an
-  empty list,** as one is for a resource nothing refers to.
-- **A text search with `limit: 0` is not a page of nothing.** The graph is
-  asked with a limit of 0, and the graph database then answers a page of
-  its own length, which is 20 in Neo4j; the reply states the `limit` as 0.
-- **The handler of `gather:summary-requested` is never taken off the bus
-  when a Librarian stops:** it ends only when the Librarian's own bus is
-  closed, after its actors have stopped. The vector index's client is never
-  disconnected.
+  empty list,** as one is for a resource nothing refers to
+  (`referenced_by.py`).
+- **Reference searches are handled one at a time for the whole knowledge
+  base,** so one slow model holds every other search (`librarian.py`).
+- **Nothing bounds how many text searches, summaries and requests for what
+  refers to a resource are handled together** (`librarian.py`).
+- **`status` is `ok` whenever the Librarian answers,** whatever is true of
+  the gateway, its stores or its models (`service.py`).
 
 ## Not specified here
 
-- **`depth`.** A gather around a resource must state it, and nothing reads
-  it: the graph is the resource's own neighbourhood, one link out.
+- **`depth`.** A gather around a resource must state it. It is accepted and
+  has no effect: the graph is the resource's own neighbourhood, one link out.
 - **What the graph's listing matches.** Which resources a text finds by
   name, and in what order, is the graph database's query and not stated
   here; [flows/MATCH.md](./flows/MATCH.md) says it for a client.
@@ -828,5 +925,7 @@ no case holds one, and another implementation does not copy them.
   of its own wait.
 - **A model that is slow.** No request of a model has a bound of the
   Librarian's own, but for a limits request.
-- **Telemetry tables.** What a Librarian exports is in neither telemetry
-  table, so nothing holds it to a row.
+- **Telemetry of each request.** No span and no metric says how long a
+  search or a gather took to answer, nor how many were answered or failed:
+  its log says the failures, and what a model cost is the `semiont.inference.*`
+  rows.

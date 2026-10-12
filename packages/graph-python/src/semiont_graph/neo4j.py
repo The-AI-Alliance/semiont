@@ -23,8 +23,7 @@ connects: an id is unique among resources and among annotations, and what a
 reader looks a row up by is indexed. No reader of the graph makes any.
 `Neo4jGraphReader` is what a service that only reads the graph is handed: it
 has the six reads such a service makes, each the store's own, and connecting
-it asks the database for an answer and makes nothing there. (`@semiont/graph`
-makes none when it connects either.)
+it asks the database for an answer and makes nothing there.
 
 Every date is stored as the text the codec gives, never as one of Neo4j's own
 temporal values: the client hands one of those back in another spelling. And

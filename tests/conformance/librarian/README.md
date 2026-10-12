@@ -7,13 +7,11 @@ what the Librarian does against
 [docs/protocol/LIBRARIAN.md](../../../docs/protocol/LIBRARIAN.md).
 
 The suite imports nothing from a Librarian. The lines that name one are
-`LIBRARIAN_SERVICES` in [harness/paths.ts](../harness/paths.ts). There are
-two: the TypeScript Librarian, the built entry of
-[`@semiont/make-meaning`](../../../packages/make-meaning/README.md), run by
-`node`; and the Python Librarian of
-[`apps/librarian`](../../../apps/librarian/README.md), run by the interpreter
-of its locked environment. Every case runs against each, in a world of its
-own, one after the other.
+`LIBRARIAN_SERVICES` in [harness/paths.ts](../harness/paths.ts): today the
+Librarian in Python ([`apps/librarian`](../../../apps/librarian/README.md)),
+run by the interpreter of its project's locked environment. Another
+implementation joins by adding its line, and every case runs against every
+entry.
 
 A Librarian writes nothing, so the suite reads no store to judge it. What a
 Librarian reads, the graph and the vector index, is written here by the two
@@ -25,9 +23,8 @@ beside it. The suite does two things in the databases itself
 graph database, in Cypher, and it clears the index, by its own calls to
 Qdrant. Its world takes one list from the Weaver suite's world
 ([harness/weaver-world.ts](../harness/weaver-world.ts)): the recorded events a
-Weaver follows, by which it knows what `weave:applied` must reach. With that
-file comes `@semiont/graph`, which it reads the graph with and this suite
-does not use. The other suites' type check leaves this suite's cases and its world
+Weaver follows, by which it knows what `weave:applied` must reach. The other
+suites' type check leaves this suite's cases and its world
 out (`tsconfig.json`), so an error in one of them is this suite's alone;
 `npm run test:librarian` checks them with `tsconfig.librarian.json`. Its setup
 stays in every suite's check: it declares what `vitest.config.ts` provides
@@ -87,26 +84,22 @@ NEO4J_HOST=localhost NEO4J_PASSWORD=a-password QDRANT_HOST=localhost npm run tes
 ```
 
 **One world at a time.** The files share the two databases, and the health
-ports of the TypeScript Librarian, a Weaver and a Smelter are constants, so
-the project runs its files one after another, and a file runs its two worlds
-one after the other.
+ports of a Weaver and a Smelter are constants, so the project runs its files
+one after another.
 
-**Each Librarian is given the same settings, in the form it reads**
-([harness/librarian-process.ts](../harness/librarian-process.ts)). The
-TypeScript Librarian is given them as the launcher gives them: a
-`.semiontconfig`, which the harness writes into a home directory of the
-world's own, with the state volume the world's Archivist writes its views
-into named by `XDG_STATE_HOME`. The Python Librarian is given the protocol's
-configuration document
-([`LibrarianConfig`](../../../specs/src/components/schemas/LibrarianConfig.json)),
-which the harness writes into the same directory and names with `--config`.
-The document states the state volume and the health port too, a free port
-the harness chooses for each world, and its environment holds its service
-account, the graph database's password and `PATH`, and nothing else. Both
-forms state the two numbers a `.semiontconfig` may leave to their defaults:
-how long a gather waits for a resource's vectors, and the floor of the
-semantic fallback. A case that takes a setting away, or changes one, takes
-it out of the file or the document, or changes it there.
+**A Librarian is given its settings as the protocol's configuration
+document,**
+[`LibrarianConfig`](../../../specs/src/components/schemas/LibrarianConfig.json),
+at the path its `--config` flag names. The harness writes the document
+([harness/librarian-process.ts](../harness/librarian-process.ts)) into a home
+directory of the world's own. The document states the state volume, which is
+the one the world's Archivist writes its views into, and the health port, a
+free port the harness chooses for each world. It states the two numbers a
+deployment may leave to their defaults too: how long a gather waits for a
+resource's vectors, and the floor of the semantic fallback. The Librarian's
+environment holds its service account, the graph database's password and
+`PATH`, and nothing else. A case that takes a setting away, or changes one,
+takes it out of the document or changes it there.
 
 One read is carried to the real Archivist by the harness. A Librarian reads a
 resource's anchored text from the gateway, and the gateway of an Archivist
@@ -122,9 +115,8 @@ the stand-in answers what the real Archivist answers when it is asked.
   a graph or a vector index that lives in one process's memory, a settle
   bound that is no time at all or does not end under the stall of a held job,
   half a service account, no password for the graph database, and a gateway
-  that does not answer. Each refusal must name the setting as its Librarian
-  is told it, so the case states the words for each form: a key or a section
-  of a `.semiontconfig`, and a member of the document.
+  that does not answer. Each refusal must name the member of the document, or
+  the variable, that is missing or refused.
 - **Finding things** (`search.test.ts`): a reference search's candidates from
   each of its four sources, with a score and a reason, with its model's
   scoring and without, when the model or the embedding provider fails, and
@@ -149,18 +141,25 @@ the stand-in answers what the real Archivist answers when it is asked.
   decision, one answered at once for a resource the Smelter skips, and one
   answered without similar passages when the settle bound passes; and a
   Librarian that answers as before after it is started again.
+- **What it exports** (`telemetry.test.ts`): a Librarian told where to
+  export, held to the telemetry table in both directions: every row the table
+  lists for it arrives, under its name, and nothing arrives that the table
+  does not list. Its traffic is a gather whose model answers and reports its
+  tokens, one whose model fails, one that reads a PDF's text, one the Smelter
+  does not decide in time, and one for a resource the graph does not come to
+  hold: every way a request of a model ends, and everything a gather can go
+  without.
 
 ## Running it
 
-It needs a built gateway and Archivist, the packages built (the TypeScript
-Librarian is one of them), the Python environments of the Python Librarian,
-the Weaver and the Smelter, `node`,
-`nats-server`, `git` and the `tesseract` program on `PATH`, a neo4j and a
-Qdrant:
+It needs a built gateway and Archivist, `@semiont/core` built (the harness is
+typed by it), the Python environments of the Librarian, the Weaver and the
+Smelter, `nats-server`, `git` and the `tesseract` program on `PATH`, a neo4j
+and a Qdrant:
 
 ```bash
 cargo build --release -p semiont-gateway -p semiont-archivist
-npm run build:packages
+npm run build --workspace=@semiont/core
 uv sync --locked --no-dev --all-extras --project apps/weaver
 uv sync --locked --no-dev --project apps/smelter
 uv sync --locked --no-dev --all-extras --project apps/librarian

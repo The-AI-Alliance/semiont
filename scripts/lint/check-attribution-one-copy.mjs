@@ -31,9 +31,11 @@
  * in exactly one place too. `didToAgent` deliberately leaves a Person unnamed
  * — the subject is an opaque identifier, and printing it was how every
  * artifact came to read "By 59523dd4-…" — and the name is filled in when a
- * record is READ, by the Browser's resolver, from the knowledge base's own
+ * reply is READ, by the Librarian's resolver, from the knowledge base's own
  * projection. A second place that names a Person is a second answer to "what
  * is this person called", and the one that wins would be whichever ran last.
+ * The resolver is Python and the rest of the tree is TypeScript and Python,
+ * so this rule reads the source of both.
  */
 import { readdirSync, readFileSync, statSync } from 'fs';
 import { join, relative } from 'path';
@@ -41,20 +43,20 @@ import { join, relative } from 'path';
 const ROOT = new URL('../../', import.meta.url).pathname;
 const ALLOWED = 'packages/core/src/did-utils.ts';
 /** Where a Person Agent acquires a name — the read-side resolver, and only it. */
-const NAMES_A_PERSON = 'packages/make-meaning/src/views/people-reader.ts';
+const NAMES_A_PERSON = 'apps/librarian/src/semiont_librarian/naming.py';
 /**
  * Assigning `name` onto something already known to be a Person. Matches the
  * resolver's own shape and a hand-rolled equivalent; reading a name, and
  * naming a Software agent (whose name legitimately derives from provider and
  * model), are not matched.
  */
-const PERSON_NAMING = /\['name'\]\s*=|\bname:\s*profile\.name\b/;
+const PERSON_NAMING = /\[['"]name['"]\]\s*=|\bname:\s*profile\.name\b/;
 const CONSTRUCTION = new RegExp([
   String.raw`\b(?:const|let|var)\s+wasAttributedTo\b`,   // a local being built
   String.raw`\bwasAttributedTo\s*[:=]\s*(?:\[|creator\b)`, // a key or assignment from a literal / from creator
 ].join('|'));
 
-const SKIP_DIRS = new Set(['node_modules', 'dist', 'dist-types', '__tests__', 'generated']);
+const SKIP_DIRS = new Set(['node_modules', 'dist', 'dist-types', '__tests__', 'generated', '__pycache__']);
 const SKIP_FILES = (name) =>
   name.endsWith('.test.ts') || name.endsWith('.d.ts') || name.endsWith('.d.cts') || name === 'types.ts';
 
@@ -64,7 +66,7 @@ function* walk(dir) {
     const full = join(dir, entry);
     const st = statSync(full);
     if (st.isDirectory()) yield* walk(full);
-    else if (entry.endsWith('.ts') && !SKIP_FILES(entry)) yield full;
+    else if ((entry.endsWith('.ts') && !SKIP_FILES(entry)) || entry.endsWith('.py')) yield full;
   }
 }
 

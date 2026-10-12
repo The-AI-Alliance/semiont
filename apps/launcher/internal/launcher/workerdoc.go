@@ -50,11 +50,12 @@ func jobFilter(job string) (filter semiont.JobFilter, err error) {
 // none in the KB config, and loadConfig reads it as the launcher's own
 // reference (topology.go), which resolves here to the address of this start.
 // An Anthropic section that states none is reached where the launcher itself
-// reaches Anthropic (remoteProviderAddress).
-func providerAddress(env *envConfig, envName string, provider semiont.ArchivistRosterRoleProvider, vars map[string]string) (string, error) {
+// reaches Anthropic (remoteProviderAddress). ONE decider, for the worker's
+// agents and the Librarian's two models. who names the service in a refusal.
+func providerAddress(env *envConfig, envName string, provider semiont.ArchivistRosterRoleProvider, vars map[string]string, who string) (string, error) {
 	section, declared := env.Inference[string(provider)]
 	if !declared {
-		return "", fmt.Errorf("the environment declares no [environments.%s.inference.%s]: the worker has no address to reach %s at", envName, provider, provider)
+		return "", fmt.Errorf("the environment declares no [environments.%s.inference.%s]: %s has no address to reach %s at", envName, provider, who, provider)
 	}
 	switch provider {
 	case semiont.ArchivistRosterRoleProviderAnthropic:
@@ -64,11 +65,11 @@ func providerAddress(env *envConfig, envName string, provider semiont.ArchivistR
 		return resolveRefs("inference.anthropic.endpoint", section.Endpoint, vars)
 	case semiont.ArchivistRosterRoleProviderOllama:
 		if section.BaseURL == "" {
-			return "", fmt.Errorf("[environments.%s.inference.ollama] states no baseURL: the worker has no address to reach ollama at", envName)
+			return "", fmt.Errorf("[environments.%s.inference.ollama] states no baseURL: %s has no address to reach ollama at", envName, who)
 		}
 		return resolveRefs("inference.ollama.baseURL", section.BaseURL, vars)
 	}
-	return "", fmt.Errorf("the worker's document has no address for the provider %q", provider)
+	return "", fmt.Errorf("%s's document has no address for the provider %q", who, provider)
 }
 
 // providerKeyName: the variable holding a provider's key, as its section of
@@ -127,7 +128,7 @@ func workerAgents(env *envConfig, envName string, vars map[string]string) ([]sem
 			return nil, err
 		}
 		engine := semiont.WorkerAgentConfig{Agent: *s.role}
-		if engine.BaseUrl, err = providerAddress(env, envName, s.role.Provider, vars); err != nil {
+		if engine.BaseUrl, err = providerAddress(env, envName, s.role.Provider, vars, "the worker"); err != nil {
 			return nil, err
 		}
 		if engine.ApiKeyEnv, err = providerKeyName(env, s.role.Provider); err != nil {

@@ -1,4 +1,4 @@
-"""The neptune store has never run against a server, nor on AWS: it is the TypeScript store of that name, carried over file for file.
+"""The neptune store has never run against a server, nor on AWS.
 
 It is kept to remind us of another kind of graph database. It asks Amazon
 Neptune's Gremlin endpoint through Apache TinkerPop's client

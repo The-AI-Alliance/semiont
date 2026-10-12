@@ -3,9 +3,8 @@
  * Catch-up, § Reconcile, § Rebuild): what it missed while it was down, what
  * was lost from the graph behind its back, and what it is asked to rebuild.
  */
-import { annotationId, resourceId } from '@semiont/core';
-import { intendedGraphAnnotation } from '@semiont/graph';
 import { expect, it } from 'vitest';
+import { intendedGraphAnnotation } from '../harness/graph-codec';
 import { eachWeaver, type WeaverWorld } from '../harness/weaver-world';
 import { highlighted, link, referenced, uploaded } from './support';
 
@@ -14,9 +13,9 @@ const byId = <T extends { id: string }>(annotations: T[]) => [...annotations].so
 /** Whether the graph holds, for `id`, what it is to hold of the record's view. */
 async function asTheRecordSays(world: WeaverWorld, id: string): Promise<void> {
   const view = world.kb.view(id)!;
-  const inGraph = await world.graph.getResourceAnnotations(resourceId(id));
+  const inGraph = await world.graph.annotationsOn(id);
   expect(byId(inGraph)).toEqual(byId(view.annotations.annotations.map(intendedGraphAnnotation)));
-  expect(await world.graph.getResource(resourceId(id))).toMatchObject({ name: view.resource.name, archived: view.resource.archived ?? false });
+  expect(await world.graph.resource(id)).toMatchObject({ name: view.resource.name, archived: view.resource.archived ?? false });
 }
 
 eachWeaver('a Weaver, bringing the graph back', (world) => {
@@ -39,7 +38,7 @@ eachWeaver('a Weaver, bringing the graph back', (world) => {
     expect(health.reconcile).toMatchObject({ phase: 'done', summary: { divergent: 0 } });
     await asTheRecordSays(world(), during);
     await asTheRecordSays(world(), before);
-    expect(await world().graph.getAnnotation(annotationId(marked))).not.toBeNull();
+    expect(await world().graph.annotation(marked)).toBeDefined();
   });
 
   it('with nothing kept, applies the whole record again and ends with the same graph', async () => {
@@ -47,7 +46,7 @@ eachWeaver('a Weaver, bringing the graph back', (world) => {
     const grace = await world().kb.person('grace');
     await highlighted(grace, id, 'lazy dog');
     await world().caughtUp(id);
-    const held = byId(await world().graph.getResourceAnnotations(resourceId(id)));
+    const held = byId(await world().graph.annotationsOn(id));
 
     await world().replace();
 
@@ -55,7 +54,7 @@ eachWeaver('a Weaver, bringing the graph back', (world) => {
     expect(health.catchUp).toMatchObject({ phase: 'done', summary: { eventsFailed: 0 } });
     expect(health.catchUp.summary!['eventsReplayed']).toBeGreaterThanOrEqual(2);
     expect(health.reconcile).toMatchObject({ phase: 'done', summary: { divergent: 0 } });
-    expect(byId(await world().graph.getResourceAnnotations(resourceId(id)))).toEqual(held);
+    expect(byId(await world().graph.annotationsOn(id))).toEqual(held);
   });
 
   it('rebuilds from the record what was lost from the graph behind its back, when it next starts', async () => {
@@ -63,7 +62,7 @@ eachWeaver('a Weaver, bringing the graph back', (world) => {
     const grace = await world().kb.person('grace');
     const lost = await highlighted(grace, id, 'quick');
     await world().caughtUp(id);
-    const made = (await world().graph.getAnnotation(annotationId(lost)))!.created;
+    const made = (await world().graph.annotation(lost))!.created;
 
     await world().stop();
     await world().lose(lost);
@@ -75,7 +74,7 @@ eachWeaver('a Weaver, bringing the graph back', (world) => {
     expect(health.reconcile).toMatchObject({ phase: 'done', summary: { divergent: 1, healed: 1, healFailures: 0, orphaned: 0 } });
     await asTheRecordSays(world(), id);
     // Rebuilt from the record, it is dated as the record dates it, not when it was rebuilt.
-    expect((await world().graph.getAnnotation(annotationId(lost)))?.created).toBe(made);
+    expect((await world().graph.annotation(lost))?.created).toBe(made);
   });
 
   it('rebuilds a whole graph that was cleaned, when it next starts', async () => {
@@ -97,7 +96,7 @@ eachWeaver('a Weaver, bringing the graph back', (world) => {
     expect(health.reconcile.summary!['divergent']).toBeGreaterThanOrEqual(2);
     await asTheRecordSays(world(), id);
     await asTheRecordSays(world(), linkedTo);
-    expect((await world().graph.getResourceReferencedBy(resourceId(linkedTo))).map((a) => a.id)).toEqual([reference]);
+    expect((await world().graph.referencesTo(linkedTo)).map((a) => a.id)).toEqual([reference]);
   });
 
   it('rebuilds one resource when asked, and leaves another resource\'s link to it alone', async () => {
@@ -114,8 +113,8 @@ eachWeaver('a Weaver, bringing the graph back', (world) => {
     expect(answer).toMatchObject({ ok: true, channel: 'weave:rebuild-ok' });
     await asTheRecordSays(world(), linkedTo);
     await asTheRecordSays(world(), id);
-    expect((await world().graph.getResourceAnnotations(resourceId(linkedTo))).map((a) => a.id)).toEqual([own]);
-    expect((await world().graph.getResourceReferencedBy(resourceId(linkedTo))).map((a) => a.id)).toEqual([reference]);
+    expect((await world().graph.annotationsOn(linkedTo)).map((a) => a.id)).toEqual([own]);
+    expect((await world().graph.referencesTo(linkedTo)).map((a) => a.id)).toEqual([reference]);
   });
 
   it('rebuilds the whole graph when asked, and ends with what the record says', async () => {

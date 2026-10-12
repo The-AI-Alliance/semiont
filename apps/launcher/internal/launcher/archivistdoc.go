@@ -31,8 +31,7 @@ const archivistDocumentTarget = "/etc/semiont/archivist.json"
 const anchoredTextTarget = "/anchored-text"
 
 // stateHomeTarget: where the state volume is mounted in the containers that
-// hold it. The Archivist's document names it; the Librarian is told it as
-// XDG_STATE_HOME.
+// hold it. The Archivist's document names it, and so does the Librarian's.
 const stateHomeTarget = "/semiont-state"
 
 // archivistStaging: how far a deployed Archivist's staging may run behind the
@@ -198,9 +197,10 @@ func workerRoles(env *envConfig) ([]servedJob, error) {
 
 // archivistRoster: who serves each role. A job is served as workerRoles says,
 // with every fallback the KB's config allows applied. An actor is served by
-// `actors.<actor>`, and by nothing else. The TypeScript loader decides an
-// actor's the same way for the Librarian, which calls the models, and
-// specs/src/service-config/roster-cases.json holds the two to one answer.
+// `actors.<actor>`, and by nothing else. ONE resolution: the Librarian's
+// document names the model each actor asks from the same binding
+// (librarianModel), so `browse:agents` names exactly the agents the Librarian
+// works as.
 func archivistRoster(env *envConfig) (roster semiont.ArchivistRoster, err error) {
 	served, err := workerRoles(env)
 	if err != nil {

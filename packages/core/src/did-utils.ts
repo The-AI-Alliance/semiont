@@ -29,7 +29,7 @@ type Agent = components['schemas']['Agent'];
 
 /**
  * The knowledge base's own did:web identity, from its committed
- * `[site] domain` (`SemiontProject.siteDomain()`).
+ * `[site] domain`, which the gateway states in the description it serves.
  *
  * Format: `did:web:<domain>` — the domain **verbatim, never encoded**. The
  * config already stores it in did:web colon-path form

@@ -51,7 +51,7 @@ SEMIONT_VERSION=local /path/to/semiont/apps/launcher/dist/semiont start
 /path/to/semiont/apps/launcher/dist/semiont useradd --email admin@example.com
 
 # 3. Iterate — edit code, rebuild only what changed:
-./scripts/ci/local-build.sh --package core,make-meaning --image archivist
+./scripts/ci/local-build.sh --package core,react-ui --image browser
 # Verdaccio restarts fresh each run; the publish step always publishes all
 # packages, and --image narrows which images are rebuilt.
 

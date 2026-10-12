@@ -10,8 +10,6 @@ import {
   isTransientFetchError,
   isRetryableRequestError,
   retryAfterMs,
-  retryBudgetMs,
-  STARTUP_FETCH_RETRY,
   type RetryAttemptInfo,
   type HttpStatusError,
 } from '../retry';
@@ -240,25 +238,6 @@ describe("a caller's deadline outranks the budget", () => {
       ),
     ).rejects.toThrow();
     expect(calls).toBe(3);
-  });
-});
-
-describe('STARTUP_FETCH_RETRY', () => {
-  it('waits ~39s worst case — inside the 30–60s startup window', () => {
-    // Asked of `retryBudgetMs`, not recomputed: a hand-rolled copy of its loop
-    // is a second implementation of the policy's own arithmetic, free to drift.
-    const total = retryBudgetMs(STARTUP_FETCH_RETRY);
-    expect(total).toBeGreaterThanOrEqual(30_000);
-    expect(total).toBeLessThanOrEqual(60_000);
-  });
-
-  it('counts a per-attempt deadline into the ceiling', () => {
-    // The distinction that matters under packet loss: delays are bounded by the
-    // policy, attempts are not unless the caller bounds them. A budget that
-    // ignores the attempt is a lower bound wearing a ceiling's name.
-    const delaysOnly = retryBudgetMs(STARTUP_FETCH_RETRY);
-    expect(retryBudgetMs(STARTUP_FETCH_RETRY, 5_000))
-      .toBe(delaysOnly + 5_000 * STARTUP_FETCH_RETRY.attempts);
   });
 });
 

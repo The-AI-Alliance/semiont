@@ -4,12 +4,6 @@ import {
   isNumber,
   isObject,
   isArray,
-  isBoolean,
-  isFunction,
-  isNull,
-  isUndefined,
-  isNullish,
-  isDefined,
   isReportedJobResult,
   isMarkJobResult,
   isYieldJobResult,
@@ -94,110 +88,6 @@ describe('@semiont/core - type-guards', () => {
       expect(isArray(123)).toBe(false);
       expect(isArray(null)).toBe(false);
       expect(isArray(undefined)).toBe(false);
-    });
-  });
-
-  describe('isBoolean', () => {
-    it('should return true for booleans', () => {
-      expect(isBoolean(true)).toBe(true);
-      expect(isBoolean(false)).toBe(true);
-    });
-
-    it('should return false for non-booleans', () => {
-      expect(isBoolean(1)).toBe(false);
-      expect(isBoolean(0)).toBe(false);
-      expect(isBoolean('true')).toBe(false);
-      expect(isBoolean(null)).toBe(false);
-      expect(isBoolean(undefined)).toBe(false);
-      expect(isBoolean({})).toBe(false);
-    });
-  });
-
-  describe('isFunction', () => {
-    it('should return true for functions', () => {
-      expect(isFunction(() => {})).toBe(true);
-      expect(isFunction(function() {})).toBe(true);
-      expect(isFunction(async () => {})).toBe(true);
-      expect(isFunction(String)).toBe(true);
-    });
-
-    it('should return false for non-functions', () => {
-      expect(isFunction({})).toBe(false);
-      expect(isFunction('string')).toBe(false);
-      expect(isFunction(123)).toBe(false);
-      expect(isFunction(null)).toBe(false);
-      expect(isFunction(undefined)).toBe(false);
-    });
-  });
-
-  describe('isNull', () => {
-    it('should return true for null', () => {
-      expect(isNull(null)).toBe(true);
-    });
-
-    it('should return false for non-null values', () => {
-      expect(isNull(undefined)).toBe(false);
-      expect(isNull(0)).toBe(false);
-      expect(isNull('')).toBe(false);
-      expect(isNull(false)).toBe(false);
-      expect(isNull({})).toBe(false);
-      expect(isNull([])).toBe(false);
-    });
-  });
-
-  describe('isUndefined', () => {
-    it('should return true for undefined', () => {
-      expect(isUndefined(undefined)).toBe(true);
-    });
-
-    it('should return false for non-undefined values', () => {
-      expect(isUndefined(null)).toBe(false);
-      expect(isUndefined(0)).toBe(false);
-      expect(isUndefined('')).toBe(false);
-      expect(isUndefined(false)).toBe(false);
-      expect(isUndefined({})).toBe(false);
-      expect(isUndefined([])).toBe(false);
-    });
-  });
-
-  describe('isNullish', () => {
-    it('should return true for null and undefined', () => {
-      expect(isNullish(null)).toBe(true);
-      expect(isNullish(undefined)).toBe(true);
-    });
-
-    it('should return false for other values', () => {
-      expect(isNullish(0)).toBe(false);
-      expect(isNullish('')).toBe(false);
-      expect(isNullish(false)).toBe(false);
-      expect(isNullish({})).toBe(false);
-      expect(isNullish([])).toBe(false);
-      expect(isNullish('null')).toBe(false);
-    });
-  });
-
-  describe('isDefined', () => {
-    it('should return true for defined values', () => {
-      expect(isDefined(0)).toBe(true);
-      expect(isDefined('')).toBe(true);
-      expect(isDefined(false)).toBe(true);
-      expect(isDefined({})).toBe(true);
-      expect(isDefined([])).toBe(true);
-      expect(isDefined('value')).toBe(true);
-    });
-
-    it('should return false for null and undefined', () => {
-      expect(isDefined(null)).toBe(false);
-      expect(isDefined(undefined)).toBe(false);
-    });
-
-    it('should narrow type correctly', () => {
-      const value: string | null | undefined = 'hello';
-      if (isDefined(value)) {
-        // TypeScript should know value is string here
-        const upper: string = value.toUpperCase();
-        expect(upper).toBe('HELLO');
-      }
     });
   });
 });

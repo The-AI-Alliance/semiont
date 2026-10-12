@@ -12,7 +12,8 @@ extra. It reads only: of the vector index it names what searches, and never
 what writes. One module names the logger, one names OpenTelemetry, and one
 reads the process's environment and its arguments, through the package every
 Python service is built on. Every channel its stream names is answered or
-followed, and it answers and follows no other.
+followed, and it answers and follows no other. The variables its code reads
+by name are the ones the protocol's page lists.
 
 How its document is read, how its log is written and what exports its
 telemetry are every Python service's, in the package the service is built on
@@ -363,3 +364,36 @@ def test_every_channel_its_stream_names_is_answered_or_followed_and_no_other_is(
     assert rule is not None, "docs/protocol/LIBRARIAN.md no longer names the signals a Librarian follows"
     signals = re.findall(r"`([a-z]+:[a-z-]+)`", rule.group(1))
     assert sorted([*requests, *signals]) == sorted(CHANNELS)
+
+
+def test_the_variables_it_reads_by_name_are_the_ones_the_protocol_lists() -> None:
+    page = (ROOT / "docs/protocol/LIBRARIAN.md").read_text(encoding="utf-8")
+    section = re.search(r"^## Environment\n(.*?)^## ", page, re.DOTALL | re.MULTILINE)
+    assert section is not None, "docs/protocol/LIBRARIAN.md no longer has an Environment section"
+    listed_there = {
+        name
+        for row in section.group(1).splitlines()
+        if row.startswith("| ") and not row.startswith("| Variable")
+        for name in re.findall(r"`([A-Z][A-Z0-9_]+)`", row.split("|")[1])
+    }
+    # Every variable the service's code names: its own, and the shared package's it is built on.
+    sources = sorted([*SRC.rglob("*.py"), *(SHARED / "src").rglob("*.py")])
+    assert any(path.is_relative_to(SHARED) for path in sources), "packages/service-python has no source"
+    # A module's `__all__` names what it exports, in quotes too: a constant's name there is no variable read.
+    texts = [re.sub(r"^__all__ = \[.*?\]$", "", path.read_text(encoding="utf-8"), flags=re.DOTALL | re.MULTILINE) for path in sources]
+    read_here = {name for text in texts for name in re.findall(r'"([A-Z][A-Z0-9]*_[A-Z0-9_]+)"', text)}
+    assert read_here == listed_there
+    # Its service account, and what says where its telemetry goes and under what name. Each secret is in a
+    # variable its document names, and so is named by no code.
+    assert read_here == {
+        "SEMIONT_OIDC_CLIENT_ID",
+        "SEMIONT_OIDC_CLIENT_SECRET",
+        "OTEL_EXPORTER_OTLP_ENDPOINT",
+        "OTEL_SERVICE_NAME",
+        "OTEL_SDK_DISABLED",
+        "OTEL_CONSOLE_EXPORTER",
+        "OTEL_METRICS_EXPORTER",
+        "OTEL_METRIC_EXPORT_INTERVAL",
+        "SUPERVISE_EVENTS",
+        "SUPERVISE_NAME",
+    }

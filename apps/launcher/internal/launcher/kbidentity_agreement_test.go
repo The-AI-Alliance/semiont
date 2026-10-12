@@ -8,10 +8,10 @@ import (
 )
 
 // TestKBIdentityAgreesWithTheSharedTable runs every case in
-// specs/src/kb-identity/cases.json through the launcher's readers. The
-// TypeScript readers run the same table (packages/core
-// kb-identity-agreement.test.ts); together they gate a mirror that spans
-// languages and cannot be generated. Absent is "" here and null in the table.
+// specs/src/kb-identity/cases.json through the launcher's readers. TypeScript
+// (packages/core kb-identity-agreement.test.ts), Rust and Python run its cases
+// that declare a domain; together they gate a mirror that spans languages and
+// cannot be generated. Absent is "" here and null in the table.
 func TestKBIdentityAgreesWithTheSharedTable(t *testing.T) {
 	b, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "specs", "src", "kb-identity", "cases.json"))
 	if err != nil {

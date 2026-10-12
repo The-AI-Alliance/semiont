@@ -10,7 +10,6 @@ import * as fc from 'fast-check';
 import {
   createFragmentSelector,
   parseFragmentSelector,
-  getPageFromFragment,
   type PdfCoordinate,
 } from '../pdf-coordinates';
 
@@ -63,27 +62,6 @@ describe('PDF viewrect FragmentSelector codec', () => {
             expect(parsed.page).toBeGreaterThan(0);
           }
 
-          return true;
-        }
-      ),
-      { numRuns: 100 }
-    );
-  });
-
-  it('getPageFromFragment extracts page number correctly', () => {
-    fc.assert(
-      fc.property(
-        fc.integer({ min: 1, max: 999 }),
-        fc.integer({ min: 0, max: 1000 }),
-        fc.integer({ min: 0, max: 1000 }),
-        fc.integer({ min: 0, max: 1000 }),
-        fc.integer({ min: 0, max: 1000 }),
-        (page, x, y, width, height) => {
-          const coord: PdfCoordinate = { page, x, y, width, height };
-          const fragment = createFragmentSelector(coord);
-          const extractedPage = getPageFromFragment(fragment);
-
-          expect(extractedPage).toBe(page);
           return true;
         }
       ),

@@ -80,7 +80,6 @@ temp/
 packages/core/openapi.json
 packages/core/src/types.ts
 packages/core/src/generated/
-packages/core/src/config/config.types.ts
 
 # Python: an environment, and what the interpreter and its tools cache
 .venv/

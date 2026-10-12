@@ -2,9 +2,9 @@
  * Knowledge-graph view derivation: the flattened neighborhood views are derived from the graph,
  * not kept as separately built intermediates.
  *
- * A pure function over the core `KnowledgeGraph` type, so `@semiont/make-meaning` (the Gatherer and
- * the Matcher) and `@semiont/react-ui` (the context summary) share one derivation. `buildKnowledgeGraph`
- * — which queries the graph DB — stays in make-meaning; this only transforms an already-built graph.
+ * A pure function over the core `KnowledgeGraph` type. `@semiont/react-ui` (the context summary) runs
+ * it, and specs/src/librarian/derive-views-cases.json holds it to the derivation the Librarian runs. It
+ * only transforms a graph the Librarian has already built.
  *
  * Reports the graph as-is: missing-view citers are kept (the citing annotation reflects a
  * real reference event; its resource label falls back to the raw id). A citation is its linking

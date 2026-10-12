@@ -5,14 +5,16 @@
  * that issuer, and a real neo4j, cleared when the world is made.
  *
  * Cases meet the Weaver in the three places the rest of Semiont does: in the
- * graph it writes, read here as the Librarian reads it; on the bus, where it
- * signals what it has applied and answers a rebuild; and at its health port.
- * Nothing is recorded but through the Archivist, as people, workers and
- * services record: the Weaver is given the events the record gives it.
+ * graph it writes; on the bus, where it signals what it has applied and
+ * answers a rebuild; and at its health port. Nothing is recorded but through
+ * the Archivist, as people, workers and services record: the Weaver is given
+ * the events the record gives it.
  *
- * The graph's reader writes nothing, and a Weaver is the graph's one writer.
- * What a case does to the database behind a Weaver's back (empty it, lose an
- * annotation from it), the world does itself, in Cypher.
+ * The graph is read by the world itself, in Cypher, and each row by the
+ * harness's own reading of one (graph-codec.ts). That reader writes nothing,
+ * and a Weaver is the graph's one writer. What a case does to the database
+ * behind a Weaver's back (empty it, lose an annotation from it), the world
+ * does itself, in Cypher too.
  */
 import { randomBytes, randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -20,8 +22,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import neo4j, { type Driver } from 'neo4j-driver';
 import { afterAll, afterEach, beforeAll, describe, expect, inject } from 'vitest';
-import { Neo4jGraphDatabase } from '@semiont/graph';
+import type { Annotation, ResourceDescriptor } from '@semiont/core';
 import { ArchivistWorld, type Answer, type StoredEvent } from './archivist-world';
+import { isRow, isStrings, readAnnotation, readResource, type Row } from './graph-codec';
 import { eventually } from './net';
 import { SERVICE_ROLE } from './roles';
 import type { BusStream } from './stream';
@@ -53,14 +56,112 @@ export interface Applied {
   sequenceNumber: number;
 }
 
+/** An annotation's row, with the names its tag edges go to. */
+const TAGGED = 'OPTIONAL MATCH (a)-[:TAGGED_AS]->(tag:EntityType) WITH a, collect(tag.name) AS tags RETURN properties(a) AS row, tags';
+
+/**
+ * A stub is a link's target the graph has not been given yet: an id and
+ * nothing else. It is no resource the graph holds, and no read answers one.
+ */
+const HELD = 'coalesce(d.stub, false) = false';
+
+/**
+ * A column of an answer, as what the statement returns there. The driver
+ * types every column `any`, so each is taken as unknown and checked.
+ */
+function rowIn(column: string, value: unknown): Row {
+  if (!isRow(value)) throw new Error(`the graph answered ${column} as something other than a node's properties: ${JSON.stringify(value)}`);
+  return value;
+}
+
+function stringsIn(column: string, value: unknown): string[] {
+  if (!isStrings(value)) throw new Error(`the graph answered ${column} as something other than a list of strings: ${JSON.stringify(value)}`);
+  return value;
+}
+
+function stringIn(column: string, value: unknown): string {
+  if (typeof value !== 'string') throw new Error(`the graph answered ${column} as something other than a string: ${JSON.stringify(value)}`);
+  return value;
+}
+
+/** A count, which the driver answers as its own Integer. */
+function countIn(column: string, value: unknown): number {
+  if (!neo4j.isInt(value)) throw new Error(`the graph answered ${column} as something other than an integer: ${String(value)}`);
+  return value.toNumber();
+}
+
+/**
+ * The graph, as the suite reads it: its own Cypher, on a connection of its
+ * own, and its own reading of each row (graph-codec.ts). It writes nothing.
+ */
+export class GraphReader {
+  constructor(
+    private readonly hand: Driver,
+    private readonly database: string,
+  ) {}
+
+  private async asked(statement: string, parameters: Record<string, string>) {
+    const { records } = await this.hand.executeQuery(statement, parameters, { database: this.database });
+    return records;
+  }
+
+  private async annotations(matched: string, parameters: Record<string, string>): Promise<Annotation[]> {
+    const records = await this.asked(`${matched} ${TAGGED}`, parameters);
+    return records.map((record) => readAnnotation(rowIn('row', record.get('row')), stringsIn('tags', record.get('tags'))));
+  }
+
+  /** A resource the graph holds, or undefined. */
+  async resource(resourceId: string): Promise<ResourceDescriptor | undefined> {
+    const [record] = await this.asked(`MATCH (d:Resource {id: $resourceId}) WHERE ${HELD} RETURN properties(d) AS row`, { resourceId });
+    return record === undefined ? undefined : readResource(rowIn('row', record.get('row')));
+  }
+
+  /** The ids of the resources the graph holds under a name. */
+  async resourcesNamed(name: string): Promise<string[]> {
+    const records = await this.asked(`MATCH (d:Resource {name: $name}) WHERE ${HELD} RETURN properties(d) AS row`, { name });
+    return records.map((record) => readResource(rowIn('row', record.get('row')))['@id']);
+  }
+
+  /** An annotation the graph holds, or undefined. */
+  async annotation(annotationId: string): Promise<Annotation | undefined> {
+    const [annotation] = await this.annotations('MATCH (a:Annotation {id: $annotationId})', { annotationId });
+    return annotation;
+  }
+
+  /** The annotations on a resource, in no promised order. */
+  annotationsOn(resourceId: string): Promise<Annotation[]> {
+    return this.annotations('MATCH (a:Annotation {resourceId: $resourceId})', { resourceId });
+  }
+
+  /** The annotations, on any resource, that link to a resource. */
+  referencesTo(resourceId: string): Promise<Annotation[]> {
+    return this.annotations('MATCH (a:Annotation)-[:REFERENCES]->(:Resource {id: $resourceId})', { resourceId });
+  }
+
+  /** The resources a resource's annotations link to, each with the ids of the annotations that link to it. */
+  async linksFrom(resourceId: string): Promise<Array<{ to: ResourceDescriptor; by: string[] }>> {
+    const records = await this.asked(
+      `MATCH (:Resource {id: $resourceId})<-[:BELONGS_TO]-(a:Annotation)-[:REFERENCES]->(d:Resource) WHERE ${HELD} WITH d, collect(a.id) AS by RETURN properties(d) AS row, by`,
+      { resourceId },
+    );
+    return records.map((record) => ({ to: readResource(rowIn('row', record.get('row'))), by: stringsIn('by', record.get('by')) }));
+  }
+
+  /** How many resources have each entity type. */
+  async entityTypeCounts(): Promise<Array<{ type: string; count: number }>> {
+    const records = await this.asked('MATCH (d:Resource) UNWIND d.entityTypes AS type RETURN type, count(*) AS count', {});
+    return records.map((record) => ({ type: stringIn('type', record.get('type')), count: countIn('count', record.get('count')) }));
+  }
+}
+
 export class WeaverWorld {
   private weaverProcess: WeaverProcess | undefined;
 
   private constructor(
     /** The knowledge base: where a case records, and reads the record. */
     readonly kb: ArchivistWorld,
-    /** The graph, as a reader of it reads it. */
-    readonly graph: Neo4jGraphDatabase,
+    /** The graph, as the suite reads it. */
+    readonly graph: GraphReader,
     readonly service: WeaverService,
     readonly settings: WeaverSettings,
     private readonly env: WeaverEnvironment,
@@ -77,8 +178,7 @@ export class WeaverWorld {
     const kb = await ArchivistWorld.create({ gitSync: false, accounts: { [WEAVER_CLIENT]: { secret, roles: [SERVICE_ROLE] } } });
 
     const at = { uri: `bolt://${host}:7687`, username: 'neo4j', database: 'neo4j' };
-    const graph = new Neo4jGraphDatabase({ ...at, password });
-    await graph.connect();
+    const hand = neo4j.driver(at.uri, neo4j.auth.basic(at.username, password));
 
     // A standing stream of what the Weaver says it has applied, open before any Weaver is.
     const { token } = await kb.world.agent('conformance', 'weaver-watch', [SERVICE_ROLE]);
@@ -86,13 +186,13 @@ export class WeaverWorld {
 
     const world = new WeaverWorld(
       kb,
-      graph,
+      new GraphReader(hand, at.database),
       service,
       { gatewayUrl: kb.world.origin, issuer: kb.world.issuer.origin, graph: { ...at, passwordEnv: GRAPH_PASSWORD } },
       { SEMIONT_OIDC_CLIENT_ID: WEAVER_CLIENT, SEMIONT_OIDC_CLIENT_SECRET: secret, [GRAPH_PASSWORD]: password },
       mkdtempSync(join(tmpdir(), 'conformance-weaver-')),
       signals,
-      neo4j.driver(at.uri, neo4j.auth.basic(at.username, password)),
+      hand,
       at.database,
     );
     await world.clean();
@@ -207,7 +307,6 @@ export class WeaverWorld {
 
   async close(): Promise<void> {
     if (this.weaverProcess) await this.weaverProcess.stop();
-    await this.graph.disconnect();
     await this.hand.close();
     await this.kb.close();
     rmSync(this.home, { recursive: true, force: true });

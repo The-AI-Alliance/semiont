@@ -33,7 +33,7 @@ import type { AnnotationsCollection } from '../../types/annotation-props';
  * which is required; caching flows through `session.client.browse.*`.
  *
  * Event flow:
- *   make-meaning → EventLog → SSE → EventBus → sdk cache invalidation → live queries
+ *   Archivist → event log → SSE → EventBus → sdk cache invalidation → live queries
  */
 interface Props {
   resource: SemiontResource & { content: string };

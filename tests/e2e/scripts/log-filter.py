@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 Compact filter for the structured JSON logs of long-running Semiont
-containers (gateway, worker, smelter — all use winston JSON via
-``createProcessLogger``). Reads JSON lines on stdin and emits only the
+containers (gateway, worker, smelter: each writes one JSON object per
+line). Reads JSON lines on stdin and emits only the
 interesting ones, prefixed with a ``--source`` label.
 
 Designed for the **live monitoring** workflow described in

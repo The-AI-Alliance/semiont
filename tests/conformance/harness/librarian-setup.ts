@@ -14,21 +14,17 @@
 import { existsSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import type { TestProject } from 'vitest/node';
-import type { LibrarianService } from './librarian-process';
 import { QDRANT_PORT, vectorIndex } from './qdrant';
 
 declare module 'vitest' {
   export interface ProvidedContext {
     /** How each implementation of the Librarian is started: the configuration provides them. */
-    librarianServices: Readonly<Record<string, LibrarianService>>;
+    librarianServices: Readonly<Record<string, readonly string[]>>;
   }
 }
 
 /** What builds each implementation of each service the run starts, said when a file its command names is missing. */
-const LIBRARIAN_BUILDS: Readonly<Record<string, string>> = {
-  typescript: '`npm run build:packages` at the repository root',
-  python: '`uv sync --locked --no-dev --all-extras --project apps/librarian` at the repository root',
-};
+const LIBRARIAN_BUILDS: Readonly<Record<string, string>> = { python: '`uv sync --locked --no-dev --all-extras --project apps/librarian` at the repository root' };
 const WEAVER_BUILDS: Readonly<Record<string, string>> = { python: '`uv sync --locked --no-dev --all-extras --project apps/weaver` at the repository root' };
 const SMELTER_BUILDS: Readonly<Record<string, string>> = { python: '`uv sync --locked --no-dev --project apps/smelter` at the repository root' };
 
@@ -42,7 +38,7 @@ function built(what: string, command: readonly string[], build: string | undefin
 export default async function setup(project: TestProject): Promise<void> {
   const provided = project.getProvidedContext();
   if (Object.keys(provided.librarianServices).length === 0) throw new Error('harness/paths.ts names no Librarian: LIBRARIAN_SERVICES is empty.');
-  for (const [implementation, service] of Object.entries(provided.librarianServices)) built(`${implementation} Librarian`, service.command, LIBRARIAN_BUILDS[implementation]);
+  for (const [implementation, command] of Object.entries(provided.librarianServices)) built(`${implementation} Librarian`, command, LIBRARIAN_BUILDS[implementation]);
   for (const [implementation, service] of Object.entries(provided.weaverServices)) built(`${implementation} Weaver`, service.command, WEAVER_BUILDS[implementation]);
   for (const [implementation, command] of Object.entries(provided.smelterServices)) built(`${implementation} Smelter`, command, SMELTER_BUILDS[implementation]);
 

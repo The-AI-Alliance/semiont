@@ -30,7 +30,7 @@ const (
 	// every service client carries: service-ness is the floor, worker-ness the
 	// finer grant. Authorizing a job:claim by this ROLE — not by matching the
 	// worker's client id — is what lets a foreign worker claim. Must equal
-	// WORKER_ROLE in packages/core/src/service-role.ts (held by lint:service-role).
+	// WORKER_ROLE in packages/sdk-rust/src/roles.rs (held by lint:service-role).
 	workerRole = "semiont-worker"
 
 	// keycloakAccessTokenLifespan: how long an access token the realm mints

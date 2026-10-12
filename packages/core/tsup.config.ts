@@ -14,18 +14,14 @@ export default defineConfig({
   // enters the runtime `.` entry, which imports no testing module.
   entry: [
     'src/index.ts',
-    'src/config/node-config-loader.ts',
     // `@semiont/core/openapi` — generated spec validators (~1.3 MB). A subpath
     // precisely so it never enters `.`, which every browser consumer imports.
     'src/openapi.ts',
-    // `@semiont/core/identity` — OIDC token verification, for the same reason:
-    // it pulls `jose`, and nothing in a browser verifies an issuer's signature.
-    // `scripts/lint/check-core-subpath-isolation.mjs` fails if `.` re-exports it.
-    'src/identity/issuer.ts',
     'src/testing.ts',
     'src/testing/axioms.ts',
     // `@semiont/core/testing/issuer` — the in-process OIDC issuer double. Its
-    // own entry so the `testing` barrel never pulls `jose` in behind it.
+    // own entry so neither `.` nor the `testing` barrel pulls `jose` in behind it.
+    // `scripts/lint/check-core-subpath-isolation.mjs` fails if `.` re-exports it.
     'src/testing/issuer.ts',
   ],
   external: ['fast-check'],

@@ -38,7 +38,6 @@ jobs:
           npm run build --workspace=@semiont/core
           npm run build --workspace=@semiont/http-transport
           npm run build --workspace=@semiont/sdk
-          npm run build --workspace=@semiont/ontology
           npm run build --workspace=@semiont/react-ui
 
       - name: Run accessibility tests
@@ -100,7 +99,6 @@ jobs:
           npm run build --workspace=@semiont/core
           npm run build --workspace=@semiont/http-transport
           npm run build --workspace=@semiont/sdk
-          npm run build --workspace=@semiont/ontology
           npm run build --workspace=@semiont/react-ui
 
       - name: Run accessibility tests
@@ -163,7 +161,6 @@ jobs:
           npm run build --workspace=@semiont/core
           npm run build --workspace=@semiont/http-transport
           npm run build --workspace=@semiont/sdk
-          npm run build --workspace=@semiont/ontology
           npm run build --workspace=@semiont/react-ui
 
       - name: Build browser

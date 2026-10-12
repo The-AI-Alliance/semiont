@@ -1,9 +1,8 @@
 /**
- * Node SDK initialization. Call once at the process entry point
- * (`librarian-main.ts`).
+ * Node SDK initialization. Call once at the process entry point.
  *
  * Configuration is via standard `OTEL_*` env vars:
- *   - `OTEL_SERVICE_NAME`           — service identity (e.g. `semiont-archivist`)
+ *   - `OTEL_SERVICE_NAME`           — service identity (e.g. `my-program`)
  *   - `OTEL_EXPORTER_OTLP_ENDPOINT` — collector endpoint (HTTP)
  *   - `OTEL_TRACES_SAMPLER`         — sampler (default: `parentbased_always_on`)
  *   - `OTEL_TRACES_SAMPLER_ARG`     — sampler ratio (default: `1.0`)
@@ -27,9 +26,6 @@
  * blowing up bundles for every consumer.
  */
 
-import { materializeObservableGauges, recordAbnormalTermination, registerProcessLifetimeMetrics, registerRestartCountProvider } from './index.js';
-import { monitorEventLoopDelay } from 'node:perf_hooks';
-import { heapStats } from './runtime-stats';
 import { context, metrics, propagation, trace } from '@opentelemetry/api';
 import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
 import { W3CTraceContextPropagator } from '@opentelemetry/core';
@@ -52,7 +48,7 @@ import {
 } from '@opentelemetry/semantic-conventions';
 
 export interface NodeObservabilityConfig {
-  /** Service identity (e.g. `semiont-gateway`). Overridden by `OTEL_SERVICE_NAME`. */
+  /** Service identity (e.g. `my-program`). Overridden by `OTEL_SERVICE_NAME`. */
   serviceName: string;
   /** Service version. Defaults to `0.0.0` if omitted. */
   serviceVersion?: string;
@@ -153,53 +149,6 @@ export function initObservabilityNode(config: NodeObservabilityConfig): boolean 
   });
   metrics.setGlobalMeterProvider(meterProviderInstance);
 
-  // Any observable gauge whose provider registered before this point parked
-  // its builder rather than binding the no-op meter. The real meter exists
-  // from here on, so build them — this is what makes registration order
-  // irrelevant.
-  materializeObservableGauges();
-
-  // The cause-AGNOSTIC detector for a blocked process: it rises whether the
-  // cause is a large JSON parse, GC, or a sync subprocess. Cheap — libuv keeps
-  // the histogram; we read percentiles and reset once per export interval.
-  const loopDelay = monitorEventLoopDelay({ resolution: 10 });
-  loopDelay.enable();
-  const runtimeMeter = meterProviderInstance.getMeter('semiont-runtime');
-  runtimeMeter
-    .createObservableGauge('semiont.runtime.event_loop.lag', {
-      description: 'Event-loop delay percentiles over the last export interval. Time the process could not serve anything.',
-      unit: 'ms',
-    })
-    .addCallback((observer) => {
-      observer.observe(loopDelay.mean / 1e6, { 'lag.stat': 'mean' });
-      observer.observe(loopDelay.percentile(99) / 1e6, { 'lag.stat': 'p99' });
-      observer.observe(loopDelay.max / 1e6, { 'lag.stat': 'max' });
-      loopDelay.reset();
-    });
-
-  // Heap, on the SAME registration as lag rather than
-  // a second mechanism — they are read together when diagnosing a process
-  // that stopped answering, and splitting them would mean two things to wire.
-  //
-  // `limit` is the field that repays the effort: V8's own default ceiling
-  // sits well under the container's (~1016 MB inside a 2048 MB container),
-  // and that is where the process dies. `used` alone cannot say how close to
-  // death a process is, and `limit` is what a configured
-  // --max-old-space-size changes — so this is also how that setting is
-  // VERIFIED rather than assumed.
-  runtimeMeter
-    .createObservableGauge('semiont.runtime.heap', {
-      description: "Process memory by kind. `limit` is V8's own ceiling, which is what the process dies at — not the container's allocation.",
-      unit: 'By',
-    })
-    .addCallback((observer) => {
-      const s = heapStats();
-      observer.observe(s.heapUsed, { 'heap.stat': 'used' });
-      observer.observe(s.heapTotal, { 'heap.stat': 'total' });
-      observer.observe(s.heapLimit, { 'heap.stat': 'limit' });
-      observer.observe(s.rss, { 'heap.stat': 'rss' });
-    });
-
   // Flush traces + metrics on shutdown so nothing is lost on SIGTERM/SIGINT.
   const shutdown = () => {
     Promise.all([
@@ -213,75 +162,7 @@ export function initObservabilityNode(config: NodeObservabilityConfig): boolean 
   process.once('SIGTERM', shutdown);
   process.once('SIGINT', shutdown);
 
-  registerProcessLifetimeMetrics();
-
-  // A fatal path must leave a RECORD, not just a stack trace on stdout.
-  //
-  // Semantics are deliberately Node's own: it treats an unhandled rejection
-  // and an uncaught exception as fatal, and so do we. Registering a listener
-  // would normally SUPPRESS that, which is why each handler re-raises after
-  // recording — swallowing here would convert a loud crash into a silent
-  // wedged process, which is strictly worse than an unrecorded crash.
-  const fatal = (reason: string) => (err: unknown) => {
-    const detail = err instanceof Error ? err.message : String(err);
-    try {
-      recordAbnormalTermination(reason, detail);
-    } catch {
-      // Telemetry must never be the reason a crash report is lost.
-    }
-    // Best-effort export before the process goes; bounded so a dead collector
-    // cannot hold a dying process open.
-    const flushed = Promise.all([
-      tracerProviderInstance?.forceFlush().catch(() => {}),
-      meterProviderInstance?.forceFlush().catch(() => {}),
-    ]);
-    const bounded = new Promise((resolve) => setTimeout(resolve, 2_000).unref?.());
-    void Promise.race([flushed, bounded]).finally(() => {
-      console.error(`[fatal] ${reason}: ${detail}`);
-      process.exit(1);
-    });
-  };
-  process.on('unhandledRejection', fatal('unhandledRejection'));
-  process.on('uncaughtException', fatal('uncaughtException'));
-
   return true;
-}
-
-/**
- * Report the supervisor's restart count for this service. Call once,
- * after `initObservabilityNode`.
- *
- * `scripts/container/supervise.sh` is POSIX shell and cannot emit OTel, but it
- * writes one `starting <name>` line per life to a durable event log and
- * exports that log's path and the service name to the child. This reads them
- * back. A crash LOOP is otherwise invisible to everything but `container logs`.
- *
- * Both halves of the contract — the path and the marker — come from the
- * environment, so nothing here restates what the shell already decided. This
- * lives in `node.ts` rather than beside `registerRestartCountProvider` in
- * `index.ts` because it reads a file: `index.ts` imports no node builtins,
- * because the Browser bundles it (through `@semiont/http-transport`).
- */
-export function registerSupervisorRestartCount(): void {
-  const events = process.env['SUPERVISE_EVENTS'];
-  const name = process.env['SUPERVISE_NAME'];
-  // Unsupervised (dev, or a direct `node dist/index.js`). Register no provider
-  // at all, so the gauge is never created and the series simply does not exist
-  // — as opposed to existing and reading 0, which is what a healthy supervised
-  // process reports.
-  if (!events || !name) return;
-  registerRestartCountProvider(async () => {
-    try {
-      const { readFile } = await import('node:fs/promises');
-      const log = await readFile(events, 'utf-8');
-      // Lives, not restarts: the first start is life 1, so a healthy process
-      // reports 0 and any non-zero value is a real restart.
-      return Math.max(0, log.split('\n').filter((l) => l.includes(`starting ${name}`)).length - 1);
-    } catch {
-      // The log went unreadable mid-life. Report nothing, never 0.
-      return undefined;
-    }
-  });
 }
 
 /** Force-flush + shutdown both SDKs. Test cleanup, not production. */

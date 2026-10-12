@@ -10,8 +10,7 @@ base needs the SDK, [`semiont`][sdk-python], and not this package.
 
 It runs on asyncio and requires Python 3.12 or later. It is checked by
 `mypy --strict` and by `pyright` in strict mode, and ships its types
-(`py.typed`). It is the Python counterpart of
-[`@semiont/inference`][inference-typescript].
+(`py.typed`).
 
 ## What an install has
 
@@ -225,4 +224,3 @@ holds.
 [semiont]: https://github.com/The-AI-Alliance/semiont
 [models-dev]: https://models.dev
 [sdk-python]: ../sdk-python/
-[inference-typescript]: ../inference/

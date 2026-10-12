@@ -25,7 +25,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 FIXTURE="$REPO_ROOT/tests/doc-snippets"
 
-for pkg in core http-transport sdk react-ui make-meaning content event-sourcing graph inference observability ontology vectors; do
+for pkg in core http-transport sdk react-ui observability; do
   if [ ! -f "$REPO_ROOT/packages/$pkg/dist/index.d.ts" ]; then
     echo "❌ doc-snippets: packages/$pkg/dist is missing — run 'npm run build:packages' first (this is a post-build gate)."
     exit 1

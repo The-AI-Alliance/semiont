@@ -48,32 +48,34 @@ func weaverNamedVars(env *envConfig) []string {
 	return nil
 }
 
-// weaverGraph: the graph database the Weaver writes, as its document states
-// it. graphRun says the launcher runs it, and so holds its password.
-func weaverGraph(env *envConfig, vars map[string]string, graphRun bool) (graph semiont.GraphConfig, err error) {
+// graphConfig: the graph database a service reaches, as its document states
+// it. ONE decider, for the Weaver's document, which writes the graph, and the
+// Librarian's, which reads it. graphRun says the launcher runs it, and so
+// holds its password. who names the service in a refusal.
+func graphConfig(env *envConfig, vars map[string]string, graphRun bool, who string) (graph semiont.GraphConfig, err error) {
 	g := env.Graph
 	if g == nil {
-		return graph, fmt.Errorf("the environment declares no [graph]: the Weaver has no graph database to write")
+		return graph, fmt.Errorf("the environment declares no [graph]: %s has no graph database to reach", who)
 	}
 	if g.Type != string(semiont.Neo4j) {
-		return graph, fmt.Errorf("[graph] type %q: the launcher writes the Weaver's document for a neo4j graph alone", g.Type)
+		return graph, fmt.Errorf("[graph] type %q: the launcher writes %s's document for a neo4j graph alone", g.Type, who)
 	}
 	neo4j := semiont.Neo4jGraphConfig{Username: g.Username, Database: g.Database}
 	if neo4j.Username == "" {
-		return graph, fmt.Errorf("[graph] states no username: the Weaver has no user to connect to Neo4j as")
+		return graph, fmt.Errorf("[graph] states no username: %s has no user to connect to Neo4j as", who)
 	}
 	if neo4j.Database == "" {
-		return graph, fmt.Errorf("[graph] states no database: the Weaver is not told which of Neo4j's databases holds the graph")
+		return graph, fmt.Errorf("[graph] states no database: %s is not told which of Neo4j's databases holds the graph", who)
 	}
 	if neo4j.Uri, err = resolveRefs("graph.uri", g.URI, vars); err != nil {
 		return graph, err
 	}
 	if neo4j.Uri == "" {
-		return graph, fmt.Errorf("[graph] states no uri: the Weaver has no address to reach Neo4j at")
+		return graph, fmt.Errorf("[graph] states no uri: %s has no address to reach Neo4j at", who)
 	}
 	if graphRun {
 		// The Neo4j the launcher runs has the password the launcher generates
-		// and keeps; the Weaver is handed it under the launcher's own name.
+		// and keeps; the service is handed it under the launcher's own name.
 		neo4j.PasswordEnv = daemonPasswords["graph"].env
 	} else {
 		name, err := secretName("graph.password", g.Password)
@@ -81,7 +83,7 @@ func weaverGraph(env *envConfig, vars map[string]string, graphRun bool) (graph s
 			return graph, err
 		}
 		if name == nil {
-			return graph, fmt.Errorf("[graph] states no password: write graph.password = \"${NAME}\", and the Weaver's document names the variable that holds it")
+			return graph, fmt.Errorf("[graph] states no password: write graph.password = \"${NAME}\", and %s's document names the variable that holds it", who)
 		}
 		neo4j.PasswordEnv = *name
 	}
@@ -107,7 +109,7 @@ func weaverDocument(env *envConfig, rt, addr string, issuerPort int, userEnv []s
 	if doc.Identity.Issuer, err = resolveRefs("identity.issuer", env.Identity.Issuer, vars); err != nil {
 		return nil, err
 	}
-	if doc.Graph, err = weaverGraph(env, vars, graphRun); err != nil {
+	if doc.Graph, err = graphConfig(env, vars, graphRun, "the Weaver"); err != nil {
 		return nil, err
 	}
 	doc.CheckpointPath = weaverCheckpointPath

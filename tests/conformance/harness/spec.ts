@@ -266,9 +266,9 @@ export interface TelemetryRow {
   planes?: string[];
 }
 
-/** The services the telemetry table names: those above, the worker, the weaver and the smelter. */
-export type TelemetryService = Service | 'worker' | 'weaver' | 'smelter';
-const TELEMETRY_SERVICES: readonly TelemetryService[] = [...SERVICES, 'worker', 'weaver', 'smelter'];
+/** The services the telemetry table names: those above, the worker, the weaver, the smelter and the librarian. */
+export type TelemetryService = Service | 'worker' | 'weaver' | 'smelter' | 'librarian';
+const TELEMETRY_SERVICES: readonly TelemetryService[] = [...SERVICES, 'worker', 'weaver', 'smelter', 'librarian'];
 
 /** A row of the service table: the services that export it. */
 interface ServiceRow extends TelemetryRow {

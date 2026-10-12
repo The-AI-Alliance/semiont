@@ -325,16 +325,13 @@ updates:
   # the gateway's, the dispatcher's and the archivist's runtime base is one
   # alpine, so an ungrouped bump opens several PRs for one upgrade. Their
   # builder's Rust tag comes from rust-toolchain.toml, which the rust-toolchain
-  # entry updates. The librarian's base is node. Major node updates are ignored
-  # because node 26's undici breaks the qdrant client the librarian carries;
-  # drop the ignore when qdrant ships a fix. apps/browser carries no qdrant
-  # client, runs Node 26, and has its own entry. apps/worker, apps/smelter and
-  # apps/weaver are Python, and have their own too.
+  # entry updates. apps/browser is Node, and has its own entry. apps/worker,
+  # apps/smelter, apps/weaver and apps/librarian are Python, and have their
+  # own too.
   - package-ecosystem: "docker"
     directories:
       - "/apps/gateway"
       - "/apps/archivist"
-      - "/apps/librarian"
       - "/apps/dispatcher"
     schedule:
       interval: "weekly"
@@ -349,26 +346,24 @@ updates:
       service-base-images:
         patterns:
           - "*"
-    ignore:
-      - dependency-name: "node"
-        update-types:
-          - "version-update:semver-major"
     commit-message:
       prefix: "service-docker"
       include: "scope"
 
   # The images of the Python services (apps/worker/Dockerfile,
-  # apps/weaver/Dockerfile, apps/smelter/Dockerfile). Their Python base is no
+  # apps/weaver/Dockerfile, apps/smelter/Dockerfile,
+  # apps/librarian/Dockerfile). Their Python base is no
   # tag this entry can move: it is python:${PYTHON_FLOOR}-<variant>, the floor
   # packages/sdk-python/pyproject.toml states, which a person moves. What each
   # file's FROM lines write out, and this entry moves, is the uv that makes
-  # the image's environment, in all three at once. Outside the service group,
-  # whose bases are Node and Alpine.
+  # the image's environment, in all four at once. Outside the service group,
+  # whose base is Alpine.
   - package-ecosystem: "docker"
     directories:
       - "/apps/worker"
       - "/apps/weaver"
       - "/apps/smelter"
+      - "/apps/librarian"
     schedule:
       interval: "weekly"
       day: "monday"

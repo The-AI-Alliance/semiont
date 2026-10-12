@@ -8,11 +8,10 @@ import (
 	"testing"
 )
 
-// How a ${VAR} in a knowledge base's config resolves is one rule in two
-// languages: every case in specs/src/config-placeholders/cases.json, run
-// through the resolver the launcher writes the gateway's configuration
-// document with. The TypeScript loader runs the same table
-// (packages/core/src/__tests__/config-placeholders-agreement.test.ts).
+// How a ${VAR} in a knowledge base's config resolves is one rule: every case
+// in specs/src/config-placeholders/cases.json, run through the resolver the
+// launcher writes each service's configuration document with, and through
+// the extractor that decides what a start demands.
 func TestPlaceholdersAgreeWithTheSharedTable(t *testing.T) {
 	b, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "specs", "src", "config-placeholders", "cases.json"))
 	if err != nil {

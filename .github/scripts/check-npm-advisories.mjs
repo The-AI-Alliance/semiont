@@ -20,9 +20,8 @@
  * - A development dependency reaches nobody who installs or runs a release.
  *   Dependabot's alerts report advisories against those.
  * - An optional peer a package loads when its consumer installed it
- *   (neo4j-driver, for @semiont/graph) is a development dependency to the
- *   lockfile. The image that installs one is scanned with it, when the image
- *   is published.
+ *   (fast-check, for @semiont/core's testing subpath) is a development
+ *   dependency to the lockfile, and is reported the same way.
  *
  * An advisory read and judged not to reach what ships is recorded in
  * .github/npm-advisories.json with why. One that stops matching fails the

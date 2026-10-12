@@ -51,20 +51,6 @@ func loadedFrom(t *testing.T, cfg []byte) (*envConfig, *launchPlan) {
 	return env, plan
 }
 
-// stagedSection: [environments.local.<path...>] of a staged config.
-func stagedSection(t *testing.T, staged []byte, path ...string) map[string]any {
-	t.Helper()
-	var doc map[string]any
-	if err := toml.Unmarshal(staged, &doc); err != nil {
-		t.Fatalf("the staged config is not valid TOML: %v\n%s", err, staged)
-	}
-	section := environmentSection(doc, "local")
-	for _, name := range path {
-		section, _ = section[name].(map[string]any)
-	}
-	return section
-}
-
 // A config that states no address is a whole config: the launcher places
 // every daemon it names, exactly as it does for one that still writes each
 // address as the launcher's own reference.
@@ -87,85 +73,10 @@ func TestAnUnstatedAddressIsTheLaunchersToPlace(t *testing.T) {
 	}
 }
 
-// Every address the launcher places reaches a service as a literal in its own
-// staged copy, whether the KB config left it unstated or wrote the launcher's
-// reference. The copy loads in a container whose environment says nothing of
-// topology.
-func TestAStagedConfigStatesEveryPlacedAddressAsALiteral(t *testing.T) {
-	const addr = "192.168.64.1"
-	for _, c := range []struct {
-		rt, issuer string
-	}{
-		{"container", "http://192.168.64.1:8080/realms/semiont"},
-		{"docker", "http://" + identityHostName + ":8080/realms/semiont"},
-	} {
-		for name, cfg := range map[string][]byte{
-			"as committed":      fixtureConfig(t, "ollama-gemma.toml"),
-			"with no addresses": withoutAddresses(fixtureConfig(t, "ollama-gemma.toml")),
-		} {
-			_, plan := loadedFrom(t, cfg)
-			vars := topologyVars(c.rt, addr, plan.Roles["identity"].Port)
-			want := map[string]map[string]any{
-				"graph":     {"uri": "bolt://192.168.64.1:7687"},
-				"vectors":   {"host": addr, "port": int64(6333)},
-				"embedding": {"baseURL": "http://192.168.64.1:11434"},
-				"identity":  {"issuer": c.issuer},
-			}
-			for svc, sections := range serviceConfigSections {
-				staged := stagedServiceConfig(svc, cfg, plan, vars, addr, "test-kb", "example.com")
-				for section, keys := range want {
-					if !contains(sections, section) {
-						continue
-					}
-					for key, value := range keys {
-						if got := stagedSection(t, staged, section)[key]; got != value {
-							t.Errorf("%s (%s), %s: [%s] %s = %v, want the literal %v", c.rt, name, svc, section, key, got, value)
-						}
-					}
-				}
-				if contains(sections, "inference") {
-					if got := stagedSection(t, staged, "inference", "ollama")["baseURL"]; got != "http://192.168.64.1:11434" {
-						t.Errorf("%s (%s), %s: [inference.ollama] baseURL = %v, want the literal address", c.rt, name, svc, got)
-					}
-				}
-				// Nothing a service reads is left for its environment to say.
-				for _, section := range sections {
-					b, _ := toml.Marshal(stagedSection(t, staged, section))
-					for ref := range vars {
-						if strings.Contains(string(b), "${"+ref) {
-							t.Errorf("%s (%s), %s: [%s] still references ${%s}:\n%s", c.rt, name, svc, section, ref, b)
-						}
-					}
-				}
-			}
-		}
-	}
-}
-
-// A daemon somebody else runs (`platform = "external"`) is a topology the
-// launcher cannot see: its address is the config's to state, and reaches each
-// service as it was written.
-func TestAStatedAddressIsStagedAsWritten(t *testing.T) {
-	cfg := []byte(strings.Replace(string(withoutAddresses(fixtureConfig(t, "ollama-gemma.toml"))),
-		"type = \"qdrant\"\nport = 6333\n", "platform = \"external\"\ntype = \"qdrant\"\nhost = \"qdrant.internal\"\nport = 7000\n", 1))
-	if !strings.Contains(string(cfg), "qdrant.internal") {
-		t.Fatal("the fixture's [vectors] no longer reads as this test expects")
-	}
-	_, plan := loadedFrom(t, cfg)
-	if got := plan.Roles["vectors"]; got.Presence != presenceExternal || got.Address != "qdrant.internal" {
-		t.Fatalf("a stated vector store is planned as (%v, %q), want somebody else's at qdrant.internal", got.Presence, got.Address)
-	}
-	vars := topologyVars("container", "192.168.64.1", plan.Roles["identity"].Port)
-	vectors := stagedSection(t, stagedServiceConfig("librarian", cfg, plan, vars, "192.168.64.1", "test-kb", "example.com"), "vectors")
-	if vectors["host"] != "qdrant.internal" || vectors["port"] != int64(7000) {
-		t.Errorf("the stated vector store was staged as %v, want it as written", vectors)
-	}
-}
-
-// Staging resolves the launcher's references and nothing else: a secret and an
-// operator's own variable are the consumer's loader's to resolve, defaults
+// resolveTopology resolves the launcher's references and nothing else: a
+// secret and an operator's own variable are left as written, defaults
 // included.
-func TestStagingResolvesOnlyTheLaunchersReferences(t *testing.T) {
+func TestResolveTopologyResolvesOnlyTheLaunchersReferences(t *testing.T) {
 	vars := topologyVars("container", "192.168.64.1", 8080)
 	for written, want := range map[string]string{
 		"bolt://${NEO4J_HOST}:7687":                    "bolt://192.168.64.1:7687",
@@ -176,81 +87,8 @@ func TestStagingResolvesOnlyTheLaunchersReferences(t *testing.T) {
 		"graph.internal":                               "graph.internal",
 	} {
 		if got := resolveTopology(written, vars); got != want {
-			t.Errorf("%q staged as %q, want %q", written, got, want)
+			t.Errorf("%q resolved as %q, want %q", written, got, want)
 		}
-	}
-}
-
-// A section a service does not read is staged as the KB config wrote it: the
-// launcher says only what each consumer needs.
-func TestStagingLeavesWhatAServiceDoesNotRead(t *testing.T) {
-	cfg := fixtureConfig(t, "ollama-gemma.toml")
-	_, plan := loadedFrom(t, cfg)
-	vars := topologyVars("container", "192.168.64.1", plan.Roles["identity"].Port)
-	staged := stagedServiceConfig("librarian", cfg, plan, vars, "192.168.64.1", "test-kb", "example.com")
-	if contains(serviceConfigSections["librarian"], "jobs") {
-		t.Fatal("the librarian reads [jobs] now: pick another section for this test")
-	}
-	if got := stagedSection(t, staged, "jobs")["servers"]; got != "${NATS_HOST}:4222" {
-		t.Errorf("[jobs] servers in the librarian's copy = %v, want it as written", got)
-	}
-}
-
-// The archivist's address and the KB's identity card are staged as before:
-// for the services that dial it or describe it, and never over a hand-written
-// section.
-func TestStagingPlacesTheArchivistAndTheIdentityCard(t *testing.T) {
-	cfg := withoutAddresses(fixtureConfig(t, "ollama-gemma.toml"))
-	_, plan := loadedFrom(t, cfg)
-	vars := topologyVars("container", "192.168.64.1", plan.Roles["identity"].Port)
-	port := int64(semiontDescriptor("archivist").ports[0].port)
-	for svc := range serviceConfigSections {
-		staged := stagedServiceConfig(svc, cfg, plan, vars, "192.168.64.1", "test-kb", "example.com")
-		archivist := stagedSection(t, staged, "archivist")
-		switch {
-		case archivistDialers[svc] && (archivist["host"] != "192.168.64.1" || archivist["port"] != port):
-			t.Errorf("%s dials the archivist, and its copy says %v", svc, archivist)
-		case !archivistDialers[svc] && archivist != nil:
-			t.Errorf("%s does not dial the archivist, and its copy says %v", svc, archivist)
-		}
-		var doc map[string]any
-		if err := toml.Unmarshal(staged, &doc); err != nil {
-			t.Fatal(err)
-		}
-		kb, _ := doc["kb"].(map[string]any)
-		switch {
-		case kbIdentityStaged[svc] && (kb["name"] != "test-kb" || kb["domain"] != "example.com"):
-			t.Errorf("%s describes a tree it does not mount, and its copy's [kb] is %v", svc, kb)
-		case !kbIdentityStaged[svc] && kb != nil:
-			t.Errorf("%s mounts or needs no identity card, and its copy's [kb] is %v", svc, kb)
-		}
-	}
-	handWritten := append(append([]byte{}, cfg...), "\n[environments.local.archivist]\nhost = \"archivist.internal\"\nport = 9999\n\n[kb]\nname = \"elsewhere\"\n"...)
-	_, plan = loadedFrom(t, handWritten)
-	staged := stagedServiceConfig("librarian", handWritten, plan, vars, "192.168.64.1", "test-kb", "example.com")
-	if a := stagedSection(t, staged, "archivist"); a["host"] != "archivist.internal" || a["port"] != int64(9999) {
-		t.Errorf("a hand-written archivist section was staged as %v", a)
-	}
-	var doc map[string]any
-	_ = toml.Unmarshal(staged, &doc)
-	if kb, _ := doc["kb"].(map[string]any); kb["name"] != "elsewhere" {
-		t.Errorf("a hand-written [kb] was staged as %v", kb)
-	}
-	// A KB that declares no domain is staged none: the consumer's refusal is
-	// the point, and a fabricated identity is the one outcome worse than it.
-	_ = toml.Unmarshal(stagedServiceConfig("librarian", cfg, plan, vars, "192.168.64.1", "test-kb", ""), &doc)
-	if kb, _ := doc["kb"].(map[string]any); kb["name"] != "test-kb" || kb["domain"] != nil {
-		t.Errorf("a KB with no declared domain was staged the card %v", kb)
-	}
-	// A section for another environment is not this one's.
-	other := append(append([]byte{}, cfg...), "\n[environments.production.archivist]\nhost = \"archivist.example.com\"\nport = 9999\n"...)
-	_, plan = loadedFrom(t, other)
-	if a := stagedSection(t, stagedServiceConfig("librarian", other, plan, vars, "192.168.64.1", "test-kb", "example.com"), "archivist"); a["host"] != "192.168.64.1" {
-		t.Errorf("another environment's archivist section suppressed this one's: %v", a)
-	}
-	// TOML the launcher cannot read is the consumer's loader's to refuse.
-	if out := stagedServiceConfig("librarian", []byte("not [toml"), plan, vars, "192.168.64.1", "test-kb", "example.com"); string(out) != "not [toml" {
-		t.Errorf("invalid TOML was rewritten:\n%s", out)
 	}
 }
 
@@ -283,9 +121,12 @@ func TestNoTopologyTravelsInAnEnvironment(t *testing.T) {
 			}
 		}
 	}
-	// The two lists that once disagreed are one: a variable the launcher says
-	// it injects is one a service is in fact handed, and none of them is an
-	// address resolved at staging.
+	// The gateway's host is resolved in the documents and handed to no service.
+	if set[gatewayHostVar] {
+		t.Errorf("a service is handed %s in its environment", gatewayHostVar)
+	}
+	// A variable the launcher says it injects is one a service is in fact
+	// handed, and none of them is an address the launcher places.
 	for name := range injectedVars {
 		if !set[name] {
 			t.Errorf("injectedVars names %s, and no service is handed it", name)
@@ -324,12 +165,12 @@ func TestAGeneratedConfigStatesNoAddress(t *testing.T) {
 				t.Errorf("%s: the generated config references ${%s}", inference, name)
 			}
 		}
-		// A reference it does write is one the launcher injects, or the
+		// A reference it does write is one the launcher resolves, or the
 		// provider's key: nothing a new knowledge base's first start would
 		// demand that the launcher itself could have supplied.
 		for _, m := range placeholderRe.FindAllStringSubmatch(content, -1) {
-			if name, _, _ := strings.Cut(m[1], ":-"); !injectedVars[name] && name != "ANTHROPIC_API_KEY" {
-				t.Errorf("%s: the generated config references ${%s}, which the launcher does not inject", inference, name)
+			if name, _, _ := strings.Cut(m[1], ":-"); !launcherResolved(name) && name != "ANTHROPIC_API_KEY" {
+				t.Errorf("%s: the generated config references ${%s}, which the launcher does not resolve", inference, name)
 			}
 		}
 		// It is still a config the launcher can start.

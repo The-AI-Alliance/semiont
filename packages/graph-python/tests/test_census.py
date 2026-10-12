@@ -61,8 +61,7 @@ SURFACE = {
     "factory": ["create_graph_database", "create_graph_reader"],
 }
 
-# A Cypher clause that writes, and a Gremlin step that does: the ones scripts/compliance/audit-graph-reader-writes-nothing.sh
-# holds every store of `@semiont/graph` to.
+# A Cypher clause that writes, and a Gremlin step that does.
 CYPHER_WRITES = re.compile(r"(^|[^A-Za-z_])(CREATE|MERGE|SET|DELETE|REMOVE|DROP)([^A-Za-z_]|$)")
 GREMLIN_WRITES = re.compile(r"\.(addV|addE|property|drop)\(")
 

@@ -70,6 +70,7 @@ func TestConfigDocumentsAreWhereTheImagesLook(t *testing.T) {
 		{"worker", workerDocumentTarget},
 		{"smelter", smelterDocumentTarget},
 		{"weaver", weaverDocumentTarget},
+		{"librarian", librarianDocumentTarget},
 	} {
 		if named := commandConfigPath(t, "..", "..", "..", c.service, "Dockerfile"); named != c.mounts {
 			t.Errorf("the %s image passes --config %q, the launcher mounts onto %q", c.service, named, c.mounts)
@@ -155,54 +156,32 @@ func TestArchivistRunsUnderTheSupervisor(t *testing.T) {
 	}
 }
 
-// Each service's health port is hand-written in five homes (TS main const,
-// Dockerfile EXPOSE, Dockerfile HEALTHCHECK, Dockerfile SUPERVISE_PROBE,
-// launcher portNeed). They can't be derived across three languages, so this
-// gate keeps them agreeing. The Archivist's main has no constant: it listens
-// where its configuration document says, which the launcher writes from the
-// portNeed. The dispatcher, the worker, the Smelter and the Weaver listen
-// where theirs say too, and their images are held to the port those documents
-// carry (TestDispatcherDocumentIsWhereTheImageLooks,
+// The Archivist's health port is hand-written in four homes (Dockerfile
+// EXPOSE, Dockerfile HEALTHCHECK, Dockerfile SUPERVISE_PROBE, launcher
+// portNeed). They cannot be derived across languages, so this gate keeps them
+// agreeing. The Archivist listens where its configuration document says, which
+// the launcher writes from the portNeed. The dispatcher, the worker, the
+// Smelter, the Weaver and the Librarian listen where theirs say too, and their
+// images are held to the port those documents carry
+// (TestDispatcherDocumentIsWhereTheImageLooks,
 // TestWorkerDocumentIsWhereTheImageLooks,
 // TestSmelterDocumentIsWhereTheImageLooks,
-// TestWeaverDocumentIsWhereTheImageLooks).
+// TestWeaverDocumentIsWhereTheImageLooks,
+// TestLibrarianDocumentIsWhereTheImageLooks).
 func TestServiceHealthPortsAgreeAcrossAllHomes(t *testing.T) {
-	mains := map[string]string{
-		"archivist": "",
-		"librarian": filepath.Join("..", "..", "..", "..", "packages", "make-meaning", "src", "librarian-main.ts"),
+	const svc = "archivist"
+	want := fmt.Sprint(semiontDescriptor(svc).ports[0].port)
+	df, err := os.ReadFile(filepath.Join("..", "..", "..", svc, "Dockerfile"))
+	if err != nil {
+		t.Fatalf("%s: reading Dockerfile: %v", svc, err)
 	}
-	tsPort := regexp.MustCompile(`const healthPort = (\d+)`)
-	exposePort := regexp.MustCompile(`(?m)^EXPOSE (\d+)`)
-	healthURL := regexp.MustCompile(`localhost:(\d+)/health`)
-	probeURL := regexp.MustCompile(`SUPERVISE_PROBE=http://localhost:(\d+)/health`)
-	for svc, mainPath := range mains {
-		want := semiontDescriptor(svc).ports[0].port
-
-		if mainPath != "" {
-			ts, err := os.ReadFile(mainPath)
-			if err != nil {
-				t.Fatalf("%s: reading %s: %v", svc, mainPath, err)
-			}
-			m := tsPort.FindSubmatch(ts)
-			if m == nil {
-				t.Errorf("%s: no `const healthPort = N` in its main — the gate cannot see its port", svc)
-			} else if got := string(m[1]); got != fmt.Sprint(want) {
-				t.Errorf("%s: TS healthPort %s != launcher portNeed %d", svc, got, want)
-			}
-		}
-
-		df, err := os.ReadFile(filepath.Join("..", "..", "..", svc, "Dockerfile"))
-		if err != nil {
-			t.Fatalf("%s: reading Dockerfile: %v", svc, err)
-		}
-		if m := exposePort.FindSubmatch(df); m == nil || string(m[1]) != fmt.Sprint(want) {
-			t.Errorf("%s: Dockerfile EXPOSE disagrees with launcher portNeed %d", svc, want)
-		}
-		if m := healthURL.FindSubmatch(df); m == nil || string(m[1]) != fmt.Sprint(want) {
-			t.Errorf("%s: Dockerfile HEALTHCHECK URL disagrees with launcher portNeed %d", svc, want)
-		}
-		if m := probeURL.FindSubmatch(df); m == nil || string(m[1]) != fmt.Sprint(want) {
-			t.Errorf("%s: Dockerfile SUPERVISE_PROBE disagrees with launcher portNeed %d — the supervisor would probe the wrong port and kill a healthy child", svc, want)
+	for label, re := range map[string]*regexp.Regexp{
+		"EXPOSE":          regexp.MustCompile(`(?m)^EXPOSE (\d+)`),
+		"HEALTHCHECK":     regexp.MustCompile(`localhost:(\d+)/health`),
+		"SUPERVISE_PROBE": regexp.MustCompile(`SUPERVISE_PROBE=http://localhost:(\d+)/health`),
+	} {
+		if m := re.FindSubmatch(df); m == nil || string(m[1]) != want {
+			t.Errorf("%s: Dockerfile %s disagrees with launcher portNeed %s", svc, label, want)
 		}
 	}
 }
@@ -220,6 +199,7 @@ func TestGatewayDocumentMountsOntoItsOwnPath(t *testing.T) {
 		"worker":    workerArgs("/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
 		"smelter":   smelterArgs("/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
 		"weaver":    weaverArgs("/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
+		"librarian": librarianArgs("/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
 	} {
 		if strings.Contains(strings.Join(args, " "), gatewayDocumentTarget) {
 			t.Errorf("%s mounts the gateway's document path", name)

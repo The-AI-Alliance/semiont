@@ -595,11 +595,11 @@ func TestStartBootsAConfigThatStatesNoAddress(t *testing.T) {
 	}
 	checkGolden(t, "start-default-boot.argv", s.argv(t))
 	// What each service is staged states where everything is, as literals.
-	librarian := stagedFile(t, s, "librarian.toml")
-	mustContain(t, "staged librarian.toml", librarian,
-		"bolt://192.168.64.1:7687", "http://192.168.64.1:11434", "http://192.168.64.1:8080/realms/semiont")
-	if strings.Contains(librarian, "_HOST}") {
-		t.Errorf("the staged librarian.toml leaves an address to its environment:\n%s", librarian)
+	librarian := stagedFile(t, s, "librarian.json")
+	mustContain(t, "staged librarian.json", librarian,
+		`"gatewayUrl": "http://192.168.64.1:4000"`, "bolt://192.168.64.1:7687", "http://192.168.64.1:11434", "http://192.168.64.1:8080/realms/semiont")
+	if strings.Contains(librarian, "${") {
+		t.Errorf("the staged librarian.json leaves an address to its environment:\n%s", librarian)
 	}
 	mustContain(t, "staged dispatcher.json", stagedFile(t, s, "dispatcher.json"), "192.168.64.1:4222")
 	mustContain(t, "staged smelter.json", stagedFile(t, s, "smelter.json"),
@@ -877,7 +877,7 @@ func TestKeycloakPortIsPlacedAndSticky(t *testing.T) {
 			t.Errorf("%s: Keycloak not published on %s:\n%s", step.name, step.want, run)
 		}
 		issuer := "http://192.168.64.1:" + step.want + "/realms/semiont"
-		for _, staged := range []string{"worker.json", "smelter.json", "weaver.json", "archivist.json", "gateway.json", "dispatcher.json"} {
+		for _, staged := range []string{"worker.json", "smelter.json", "weaver.json", "librarian.json", "archivist.json", "gateway.json", "dispatcher.json"} {
 			if !strings.Contains(stagedFile(t, s, staged), issuer) {
 				t.Errorf("%s: the staged %s does not state the issuer at port %s:\n%s", step.name, staged, step.want, stagedFile(t, s, staged))
 			}
@@ -934,7 +934,7 @@ func TestDockerAndPodmanNameTheIssuerKeycloakLocalhost(t *testing.T) {
 				}
 				// The issuer is named in what each service is staged; the probe's
 				// answer still places every other daemon.
-				librarian := stagedFile(t, s, "librarian.toml")
+				librarian := stagedFile(t, s, "librarian.json")
 				if !strings.Contains(librarian, "http://keycloak.localhost:8080/realms/semiont") {
 					t.Errorf("the staged issuer is not the issuer's name:\n%s", librarian)
 				}
@@ -1512,11 +1512,9 @@ func TestStateProjectionAutoCleans(t *testing.T) {
 
 func TestStartRefusesAnEnvironmentSite(t *testing.T) {
 	// A knowledge base declares its identity once: [site], at the top level of
-	// its committed .semiont/config. An environment [site] would replace that
-	// table whole for every service loading the config — renaming the KB's
-	// agents and people, or dropping the domain when it declares only a
-	// siteName. Nothing overrides a KB's identity, so start refuses the section
-	// by name, as every service's loader does.
+	// its committed .semiont/config. An environment [site] would be a second
+	// answer to what the KB is called. Nothing overrides a KB's identity, so
+	// start refuses the section by name.
 	withSite := func(t *testing.T, s *scenario, site string) {
 		t.Helper()
 		writeKBConfig(t, s, "sited", stdGraph+stdVectors+stdEmbedding+stdDatabase+site)
@@ -2835,12 +2833,12 @@ func TestSecretValuesStayOffTheCommandLine(t *testing.T) {
 	}
 }
 
-// Each service is handed only the variables its own config sections
-// reference, or its configuration document names. The anthropic config names
-// ANTHROPIC_API_KEY in [inference], which the Librarian reads and the worker's
-// document names as its agents' key, and nothing else does: the Archivist
-// lists the collaborator roster without it. The worker and the librarian are
-// the only two images that get inference secrets.
+// Each service is handed only the variables its configuration document names.
+// The anthropic config names ANTHROPIC_API_KEY in [inference], which the
+// Librarian's document names as its models' key and the worker's as its
+// agents', and nothing else does: the Archivist lists the collaborator roster
+// without it. The worker and the librarian are the only two images that get
+// inference secrets.
 func TestEachServiceGetsOnlyTheSecretsItReads(t *testing.T) {
 	s := newScenario(t, "container")
 	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key")
@@ -2864,7 +2862,7 @@ func TestEachServiceGetsOnlyTheSecretsItReads(t *testing.T) {
 	}
 	for _, svc := range []string{"archivist", "gateway", "dispatcher", "weaver", "smelter"} {
 		if _, handed := s.containerEnv(t, "semiont-"+svc, "ANTHROPIC_API_KEY"); handed || strings.Contains(runLine(svc), "ANTHROPIC_API_KEY") {
-			t.Errorf("%s reads no section naming ANTHROPIC_API_KEY but was handed it", svc)
+			t.Errorf("the document of %s names no ANTHROPIC_API_KEY but it was handed it", svc)
 		}
 	}
 }
@@ -2923,6 +2921,7 @@ func TestRemoteModelCheckReadsTheConfiguredKey(t *testing.T) {
 	s := newScenario(t, "container")
 	writeKBConfig(t, s, "own-key", stdGraph+stdVectors+stdEmbedding+stdDatabase+
 		"[environments.local.inference.anthropic]\nendpoint = \"http://"+ln.Addr().String()+"\"\napiKey = \"${MY_KEY}\"\n\n"+
+		stdActors("anthropic", "claude-sonnet-4-5-20250929")+
 		"[environments.local.workers.default.inference]\ntype = \"anthropic\"\nmodel = \"claude-sonnet-4-5-20250929\"\n\n")
 	s.extraEnv = append(s.extraEnv, "MY_KEY=sk-mine")
 	if _, stderr, code := s.run(t, "start", "--config", "own-key"); code != 0 {
@@ -2959,31 +2958,47 @@ func TestStartServiceResolvesOnlyItsOwnSecrets(t *testing.T) {
 	}
 }
 
-// A ${NAME:-default} names a variable the operator may set. The container's
-// loader resolves it against the environment the launcher forwards, so an
-// exported NAME that is not forwarded loses to its default: the launcher
-// forwards it whenever it is set. Unset, nothing is demanded.
-func TestStartForwardsAnOptionalReferenceOnlyWhenSet(t *testing.T) {
+// A ${NAME:-default} names a variable the operator may set. The launcher
+// resolves it in the document it writes: to the variable's value whenever it
+// is set, and to the default when it is not. Unset, nothing is demanded. The
+// service is handed neither: its document states the value.
+func TestStartResolvesAnOptionalReferenceOnlyWhenSet(t *testing.T) {
 	s := newScenario(t, "container", "op")
 	cfg := filepath.Join(s.kb, ".semiont", "semiontconfig", "anthropic.toml")
 	f, err := os.OpenFile(cfg, os.O_APPEND|os.O_WRONLY, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// In a section the Librarian reads: a service is handed only its own
-	// sections' variables.
-	if _, err := f.WriteString("\n[environments.local.make-meaning]\nnote = \"${SD_OPTIONAL:-fallback}\"\n"); err != nil {
+	// In a section the Librarian's document is written from: a start of one
+	// service resolves only its own sections' variables.
+	if _, err := f.WriteString("\n[environments.local.archivist]\nhost = \"${SD_OPTIONAL:-archivist.fallback}\"\n"); err != nil {
 		t.Fatal(err)
 	}
 	f.Close()
 	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key")
-
-	if _, stderr, code := s.run(t, "start", "--service", "librarian", "--config", "anthropic"); code != 0 {
-		t.Fatalf("unset: exit %d\n%s", code, stderr)
+	// started: a start of the Librarian alone, and the Archivist's host its
+	// document states.
+	started := func(step string) {
+		t.Helper()
+		if _, stderr, code := s.run(t, "start", "--service", "librarian", "--config", "anthropic"); code != 0 {
+			t.Fatalf("%s: exit %d\n%s", step, code, stderr)
+		}
+		if _, handed := s.containerEnv(t, "semiont-librarian", "SD_OPTIONAL"); handed {
+			t.Errorf("%s: the Librarian was handed a variable its document resolves", step)
+		}
 	}
+	archivistHost := func(step, want string) {
+		t.Helper()
+		if staged := stagedFile(t, s, "librarian.json"); !strings.Contains(staged, `"host": "`+want+`"`) {
+			t.Errorf("%s: the Librarian's document does not state the Archivist at %q:\n%s", step, want, staged)
+		}
+	}
+
+	started("unset")
+	archivistHost("unset", "archivist.fallback")
 	log, _ := os.ReadFile(s.log)
-	if _, handed := s.containerEnv(t, "semiont-librarian", "SD_OPTIONAL"); handed || strings.Contains(string(log), "SD_OPTIONAL") {
-		t.Errorf("forwarded an optional reference nobody set:\n%s", log)
+	if strings.Contains(string(log), "SD_OPTIONAL") {
+		t.Errorf("reached for an optional reference nobody set:\n%s", log)
 	}
 
 	// A registered source sets it, as it would a required one.
@@ -2994,26 +3009,18 @@ func TestStartForwardsAnOptionalReferenceOnlyWhenSet(t *testing.T) {
 	if err := os.Truncate(s.log, 0); err != nil {
 		t.Fatal(err)
 	}
-	if _, stderr, code := s.run(t, "start", "--service", "librarian", "--config", "anthropic"); code != 0 {
-		t.Fatalf("registered: exit %d\n%s", code, stderr)
-	}
-	if v, _ := s.containerEnv(t, "semiont-librarian", "SD_OPTIONAL"); v != "fake-op-secret" {
-		t.Errorf("the registered source's value did not arrive (got %q)", v)
-	}
+	started("registered")
+	archivistHost("registered", "fake-op-secret")
 
 	// Set to the empty string is set, and wins over both the source and the
-	// default (the shared table's rule), so it is forwarded empty.
+	// default (the shared table's rule), so it resolves to nothing.
 	s.killServes(t)
 	if err := os.Truncate(s.log, 0); err != nil {
 		t.Fatal(err)
 	}
 	s.extraEnv = append(s.extraEnv, "SD_OPTIONAL=")
-	if _, stderr, code := s.run(t, "start", "--service", "librarian", "--config", "anthropic"); code != 0 {
-		t.Fatalf("set empty: exit %d\n%s", code, stderr)
-	}
-	if v, handed := s.containerEnv(t, "semiont-librarian", "SD_OPTIONAL"); !handed || v != "" {
-		t.Errorf("an optional variable set to the empty string was not forwarded empty (got %q, handed %v)", v, handed)
-	}
+	started("set empty")
+	archivistHost("set empty", "")
 
 	// The environment wins over the source.
 	s.killServes(t)
@@ -3021,12 +3028,8 @@ func TestStartForwardsAnOptionalReferenceOnlyWhenSet(t *testing.T) {
 		t.Fatal(err)
 	}
 	s.extraEnv = append(s.extraEnv, "SD_OPTIONAL=from-env")
-	if _, stderr, code := s.run(t, "start", "--service", "librarian", "--config", "anthropic"); code != 0 {
-		t.Fatalf("set: exit %d\n%s", code, stderr)
-	}
-	if v, _ := s.containerEnv(t, "semiont-librarian", "SD_OPTIONAL"); v != "from-env" {
-		t.Errorf("the exported value did not win (got %q)", v)
-	}
+	started("set")
+	archivistHost("set", "from-env")
 	log, _ = os.ReadFile(s.log)
 	if strings.Contains(string(log), "op read") {
 		t.Errorf("read the source although the environment set the variable:\n%s", log)
@@ -4807,7 +4810,7 @@ const stdIdentity = "[environments.local.identity]\ntype = \"keycloak\"\nissuer 
 const stdJobs = "[environments.local.jobs]\ntype = \"jetstream\"\nservers = \"${NATS_HOST}:4222\"\n\n"
 
 // Every config must name a vector store and an embedding provider — the
-// launcher refuses one that does not, exactly as the gateway's loader does.
+// launcher refuses one that does not.
 // So these two are as standard as stdGraph/stdDatabase, and a variant that
 // wants no local Ollama reaches for stdEmbeddingVoyage rather than dropping
 // the section.
@@ -4816,6 +4819,20 @@ const stdEmbeddingVoyage = "[environments.local.embedding]\nplatform = \"externa
 const stdDatabase = "[environments.local.database]\nhost = \"${POSTGRES_HOST}\"\nport = 5432\nname = \"semiont\"\nuser = \"postgres\"\n\n"
 const stdGraph = "[environments.local.graph]\ntype = \"neo4j\"\nuri = \"bolt://${NEO4J_HOST}:7687\"\nusername = \"neo4j\"\ndatabase = \"neo4j\"\n\n"
 
+// stdOllamaInference: the Ollama the launcher places, as a provider of models.
+const stdOllamaInference = "[environments.local.inference.ollama]\nplatform = \"posix\"\n\n"
+
+// stdActors: a model for each of the Librarian's two actors. A start writes
+// the Librarian's document from them, and refuses an environment that binds
+// either actor none. The provider's own section is the config's to add.
+func stdActors(provider, model string) string {
+	binding := "type = \"" + provider + "\"\nmodel = \"" + model + "\"\n\n"
+	return "[environments.local.actors.gatherer.inference]\n" + binding + "[environments.local.actors.matcher.inference]\n" + binding
+}
+
+// stdOllamaActors: both actors on a model of the Ollama the launcher places.
+var stdOllamaActors = stdOllamaInference + stdActors("ollama", "gemma4:26b")
+
 func TestStartExternalGraphBoot(t *testing.T) {
 	// A graph somebody else runs (platform = "external"), at the address the
 	// config states: verify reachability, launch no container, claim no graph
@@ -4823,7 +4840,7 @@ func TestStartExternalGraphBoot(t *testing.T) {
 	s := newScenario(t, "container")
 	writeKBConfig(t, s, "external-graph",
 		"[environments.local.graph]\nplatform = \"external\"\ntype = \"neo4j\"\nuri = \"bolt://127.0.0.1:7777\"\nusername = \"neo4j\"\ndatabase = \"neo4j\"\npassword = \"${EXT_GRAPH}\"\n\n"+
-			stdVectors+stdEmbedding+stdDatabase)
+			stdVectors+stdEmbedding+stdDatabase+stdOllamaActors)
 	s.extraEnv = append(s.extraEnv, "EXT_GRAPH=remotepass")
 	serveHealth(t, 7777)
 	stdout, stderr, code := s.run(t, "start", "--config", "external-graph")
@@ -4875,7 +4892,8 @@ func TestStartMovedDBPortBoot(t *testing.T) {
 	s := newScenario(t, "container")
 	writeKBConfig(t, s, "moved-db",
 		stdGraph+stdVectors+stdEmbedding+
-			"[environments.local.database]\nhost = \"${POSTGRES_HOST}\"\nport = 5433\nname = \"semiont\"\nuser = \"postgres\"\n\n")
+			"[environments.local.database]\nhost = \"${POSTGRES_HOST}\"\nport = 5433\nname = \"semiont\"\nuser = \"postgres\"\n\n"+
+			stdOllamaActors)
 	stdout, stderr, code := s.run(t, "start", "--config", "moved-db")
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
@@ -4886,12 +4904,11 @@ func TestStartMovedDBPortBoot(t *testing.T) {
 
 // --- a stack without a worker ---
 
-// noWorker: a config that binds no job to a worker. The section a start names
-// for binding one is noWorkerSection.
-const (
-	noWorker        = stdGraph + stdVectors + stdEmbedding + stdDatabase
-	noWorkerSection = "[environments.local.workers.default.inference]"
-)
+// noWorker: a config that binds a model to each actor and no job to a worker.
+// The section a start names for binding one is noWorkerSection.
+var noWorker = stdGraph + stdVectors + stdEmbedding + stdDatabase + stdOllamaActors
+
+const noWorkerSection = "[environments.local.workers.default.inference]"
 
 // An environment that binds no job to a worker starts everything else and no
 // worker: none is pulled, staged a document, given a port or run, and the
@@ -5048,6 +5065,7 @@ func TestStartNoInferenceBoot(t *testing.T) {
 	writeKBConfig(t, s, "no-ollama",
 		stdGraph+stdVectors+stdDatabase+stdEmbeddingVoyage+
 			"[environments.local.inference.anthropic]\nplatform = \"external\"\nendpoint = \"https://api.anthropic.com\"\napiKey = \"${ANTHROPIC_API_KEY}\"\n\n"+
+			stdActors("anthropic", "claude-sonnet-4-5-20250929")+
 			"[environments.local.workers.default.inference]\ntype = \"anthropic\"\nmodel = \"claude-sonnet-4-5-20250929\"\n\n")
 	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key", "VOYAGE_API_KEY=test-voyage-key")
 	stdout, stderr, code := s.run(t, "start", "--config", "no-ollama")
@@ -6891,10 +6909,11 @@ func TestStartServiceBrowserNoClone(t *testing.T) {
 }
 
 // The Librarian restart path — the argv IS the contract: NO piece of the KB
-// tree, just the shared state mount, librarian.toml, 24104, and neither
+// tree, just the shared state mount, its document, 24104, and neither
 // JWT_SECRET (it signs nothing) nor LIBRARIAN_HOST (nothing dials it). The
-// staged config carries the committed [kb] name — the one fact the Librarian
-// needs to find the Archivist's views.
+// document carries the committed name of the knowledge base — the one fact
+// the Librarian needs to find the Archivist's views — and where the state
+// volume is mounted.
 func TestStartServiceLibrarian(t *testing.T) {
 	s := newScenario(t, "container")
 	stdout, stderr, code := s.run(t, "start", "--service", "librarian")
@@ -6906,28 +6925,29 @@ func TestStartServiceLibrarian(t *testing.T) {
 	mustContain(t, "argv", log,
 		"--name semiont-librarian",
 		"--publish 24104:24104",
-		"librarian.toml:/home/semiont/.semiontconfig:ro",
+		"librarian.json:/etc/semiont/librarian.json:ro",
 		"state:/semiont-state",
 		"--env SEMIONT_OIDC_CLIENT_ID=semiont-librarian")
-	for _, banned := range []string{"JWT_SECRET", "LIBRARIAN_HOST", ":/kb", "anchored-text:"} {
+	for _, banned := range []string{"JWT_SECRET", "LIBRARIAN_HOST", "GATEWAY_HOST", "XDG_STATE_HOME", ".semiontconfig", ":/kb", "anchored-text:"} {
 		if strings.Contains(log, banned) {
 			t.Errorf("the Librarian must not receive %s:\n%s", banned, log)
 		}
 	}
 	// The staging wiring, asserted end to end: pull the stage dir back out of
-	// the argv and read the file the container would. Boot refuses without
-	// [kb] name, so a miss here is a librarian that never starts live.
-	m := regexp.MustCompile(`--volume (\S+)/librarian\.toml:`).FindStringSubmatch(log)
+	// the argv and read the file the container would. Boot refuses a document
+	// that is not whole, so a miss here is a librarian that never starts live.
+	m := regexp.MustCompile(`--volume (\S+)/librarian\.json:`).FindStringSubmatch(log)
 	if m == nil {
-		t.Fatalf("no staged librarian.toml in argv:\n%s", log)
+		t.Fatalf("no staged librarian.json in argv:\n%s", log)
 	}
-	staged, err := os.ReadFile(filepath.Join(m[1], "librarian.toml"))
+	staged, err := os.ReadFile(filepath.Join(m[1], "librarian.json"))
 	if err != nil {
-		t.Fatalf("reading staged librarian.toml: %v", err)
+		t.Fatalf("reading staged librarian.json: %v", err)
 	}
-	mustContain(t, "staged librarian.toml", string(staged), "[kb]")
-	if !regexp.MustCompile(`(?m)^name = ['"]Test Knowledge Base['"]$`).Match(staged) {
-		t.Errorf("staged librarian.toml does not carry the committed [kb] name:\n%s", staged)
+	mustContain(t, "staged librarian.json", string(staged),
+		`"kbName": "Test Knowledge Base"`, `"stateHome": "/semiont-state"`, `"passwordEnv": "NEO4J_PASSWORD"`)
+	if v, _ := s.containerEnv(t, "semiont-librarian", "NEO4J_PASSWORD"); len(v) < 32 {
+		t.Errorf("the Librarian's document names NEO4J_PASSWORD, and it was handed %q", v)
 	}
 }
 
@@ -7316,6 +7336,7 @@ func TestRemoteModelMetadataAndAvailability(t *testing.T) {
 	writeKBConfig(t, s, "anthropic-meta",
 		stdGraph+stdVectors+stdDatabase+stdEmbedding+
 			fmt.Sprintf("[environments.local.inference.anthropic]\nplatform = \"external\"\nendpoint = \"http://localhost:%d\"\napiKey = \"${ANTHROPIC_API_KEY}\"\n\n", anthPort)+
+			stdActors("anthropic", "claude-sonnet-4-5-20250929")+
 			"[environments.local.workers.default.inference]\ntype = \"anthropic\"\nmodel = \"claude-sonnet-4-5-20250929\"\n\n"+
 			"[environments.local.workers.mark.tagging.inference]\ntype = \"anthropic\"\nmodel = \"claude-haiku-4-5-20251001\"\n\n")
 	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key")
@@ -7510,6 +7531,7 @@ func mixedStackScenario(t *testing.T, env ...string) *scenario {
 	writeKBConfig(t, s, "mixed",
 		stdGraph+stdVectors+stdDatabase+stdEmbedding+
 			fmt.Sprintf("[environments.local.inference.anthropic]\nplatform = \"external\"\nendpoint = \"http://localhost:%d\"\napiKey = \"${ANTHROPIC_API_KEY}\"\n\n", anthPort)+
+			stdActors("anthropic", "claude-sonnet-4-5-20250929")+
 			"[environments.local.workers.default.inference]\ntype = \"anthropic\"\nmodel = \"claude-sonnet-4-5-20250929\"\n\n")
 	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key")
 	s.extraEnv = append(s.extraEnv, env...)
@@ -7549,6 +7571,7 @@ func TestStatusShowsARemoteCeilingInAnOllamaDrivenRow(t *testing.T) {
 		stdGraph+stdVectors+stdDatabase+stdEmbedding+
 			fmt.Sprintf("[environments.local.inference.anthropic]\nplatform = \"external\"\nendpoint = \"http://localhost:%d\"\napiKey = \"${ANTHROPIC_API_KEY}\"\n\n", anthPort)+
 			"[environments.local.inference.ollama]\nplatform = \"posix\"\nbaseURL = \"http://${OLLAMA_HOST}:11434\"\n\n"+
+			stdActors("anthropic", "claude-sonnet-4-5-20250929")+
 			"[environments.local.workers.default.inference]\ntype = \"anthropic\"\nmodel = \"claude-sonnet-4-5-20250929\"\n\n"+
 			"[environments.local.workers.mark.highlighting.inference]\ntype = \"ollama\"\nmodel = \"gemma4:26b\"\n\n")
 	s.extraEnv = append(s.extraEnv,
@@ -9605,16 +9628,18 @@ func TestLauncherRunDaemonsGetGeneratedPasswords(t *testing.T) {
 	}
 	for _, svc := range []string{"librarian", "weaver"} {
 		if v, _ := s.containerEnv(t, "semiont-"+svc, "NEO4J_PASSWORD"); v != graphPw {
-			t.Errorf("%s reads [graph] but was handed NEO4J_PASSWORD=%q, want Neo4j's", svc, v)
+			t.Errorf("%s reaches the graph but was handed NEO4J_PASSWORD=%q, want Neo4j's", svc, v)
 		}
 	}
 	for _, svc := range []string{"archivist", "smelter"} {
 		if _, handed := s.containerEnv(t, "semiont-"+svc, "NEO4J_PASSWORD"); handed {
-			t.Errorf("the %s reads no [graph] but was handed its password", svc)
+			t.Errorf("the %s reaches no graph but was handed its password", svc)
 		}
 	}
-	if staged := stagedFile(t, s, "librarian.toml"); !regexp.MustCompile(`password = ['"]\$\{NEO4J_PASSWORD\}['"]`).MatchString(staged) {
-		t.Errorf("the librarian's staged [graph] does not read ${NEO4J_PASSWORD}:\n%s", staged)
+	for _, doc := range []string{"librarian.json", "weaver.json"} {
+		if staged := stagedFile(t, s, doc); !strings.Contains(staged, `"passwordEnv": "NEO4J_PASSWORD"`) || strings.Contains(staged, graphPw) {
+			t.Errorf("the staged %s does not name NEO4J_PASSWORD, or states the password:\n%s", doc, staged)
+		}
 	}
 	pg, _ := s.containerEnv(t, "semiont-postgres", "POSTGRES_PASSWORD")
 	if len(pg) < 32 {

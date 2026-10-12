@@ -76,7 +76,7 @@ From the launcher: `semiont match <resourceId> <annotationId>` for a reference's
 ## Where it is implemented
 
 - The SDK namespace: [packages/sdk/src/namespaces/match.ts](../../../packages/sdk/src/namespaces/match.ts)
-- The Matcher: [packages/make-meaning/src/matcher.ts](../../../packages/make-meaning/src/matcher.ts)
-- The search for resources by text: [packages/make-meaning/src/resource-search.ts](../../../packages/make-meaning/src/resource-search.ts)
+- The Matcher, in the Librarian: [reference_search.py](../../../apps/librarian/src/semiont_librarian/reference_search.py)
+- The search for resources by text: [text_search.py](../../../apps/librarian/src/semiont_librarian/text_search.py)
 - The launcher verb: [apps/launcher/internal/verbs/match.go](../../../apps/launcher/internal/verbs/match.go)
 - The channels and their payloads: [specs/src/bus/registry.json](../../../specs/src/bus/registry.json)

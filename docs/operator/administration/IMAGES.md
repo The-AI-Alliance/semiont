@@ -41,18 +41,18 @@ bases from the person's web browser (see [HUMAN-UI.md](../../architecture/HUMAN-
 
 [![ghcr](https://img.shields.io/badge/ghcr-latest-blue)](https://github.com/orgs/The-AI-Alliance/packages?repo_name=semiont)
 
-Two are Node: the librarian and the Browser. Each installs the published `@semiont/*` npm packages at the image's own version, so an image's version is always the npm version it carries. The librarian, which carries `@semiont/make-meaning`, runs on Node 24; the Browser runs on Node 26. Each Dockerfile's `FROM` names its base.
+One is Node: the Browser. It installs the published `@semiont/browser` npm package at the image's own version, so the image's version is always the npm version it carries. Its Dockerfile's `FROM` names its base.
 
 Three are Rust: the gateway, the dispatcher and the Archivist. Each image compiles its binary from the commit it is published from and ships it on `alpine`, with no source and no toolchain, and builds or fetches nothing when it starts. The Archivist's also carries `git`, which it stages a knowledge base's changes with.
 
-Three are Python: the worker, the weaver and the smelter. Each image is built from the commit it is published from too: the service in `apps/worker`, `apps/weaver` or `apps/smelter` and the three Python packages of the repository it runs on, in an environment of exactly what its `uv.lock` pins, on the oldest Python those packages support. It carries no installer and no Node, and installs or fetches nothing when it starts. The weaver's carries every graph database's client. The smelter's carries the `tesseract` program with its English data, which reads a scanned page, and PDFium, which reads a PDF. **The worker's carries every model provider's library**, so one image serves whichever provider a knowledge base names; the service itself can be configured, today, for the two providers the protocol names, Anthropic and Ollama. Building an image with one provider's library alone is one changed line: see [the worker's README](../../../apps/worker/README.md#a-slimmer-image).
+Four are Python: the worker, the weaver, the smelter and the librarian. Each image is built from the commit it is published from too: the service in `apps/worker`, `apps/weaver`, `apps/smelter` or `apps/librarian` and the Python packages of the repository it runs on, in an environment of exactly what its `uv.lock` pins, on the oldest Python those packages support. It carries no installer and no Node, and installs or fetches nothing when it starts. The weaver's carries every graph database's client. The librarian's carries every graph database's client and every model provider's library. The smelter's carries the `tesseract` program with its English data, which reads a scanned page, and PDFium, which reads a PDF. **The worker's carries every model provider's library**, so one image serves whichever provider a knowledge base names; the service itself can be configured, today, for the two providers the protocol names, Anthropic and Ollama. Building an image with one provider's library alone is one changed line: see [the worker's README](../../../apps/worker/README.md#a-slimmer-image).
 
 | Image | Built from | Dockerfile |
 |---|---|---|
 | `semiont-gateway` | Rust, `apps/gateway` | [apps/gateway/Dockerfile](../../../apps/gateway/Dockerfile) |
 | `semiont-dispatcher` | Rust, `apps/dispatcher` | [apps/dispatcher/Dockerfile](../../../apps/dispatcher/Dockerfile) |
 | `semiont-archivist` | Rust, `apps/archivist` | [apps/archivist/Dockerfile](../../../apps/archivist/Dockerfile) |
-| `semiont-librarian` | `@semiont/make-meaning` | [apps/librarian/Dockerfile](../../../apps/librarian/Dockerfile) |
+| `semiont-librarian` | Python, `apps/librarian` | [apps/librarian/Dockerfile](../../../apps/librarian/Dockerfile) |
 | `semiont-smelter` | Python, `apps/smelter` | [apps/smelter/Dockerfile](../../../apps/smelter/Dockerfile) |
 | `semiont-weaver` | Python, `apps/weaver` | [apps/weaver/Dockerfile](../../../apps/weaver/Dockerfile) |
 | `semiont-worker` | Python, `apps/worker` | [apps/worker/Dockerfile](../../../apps/worker/Dockerfile) |

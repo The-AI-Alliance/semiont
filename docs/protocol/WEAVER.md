@@ -139,20 +139,20 @@ which are required, and what is refused.
   selector as given, its creator, when it was made and last changed, and the
   software that made it; its link to another resource; and its entity tags.
   A body item that is neither a link nor a tag is not held.
-  *Held by `packages/graph/src/__tests__/codec-cases.test.ts`, `packages/graph-python/tests/test_codec_cases.py`.*
+  *Held by `packages/graph-python/tests/test_codec_cases.py`.*
 - **A person is held as who they are, without a name.** A person's name is the
   directory's: the Archivist joins it onto every read, and a person can change
-  it. *Held by `packages/graph/src/__tests__/codec-cases.test.ts`, `packages/graph-python/tests/test_codec_cases.py` and `weaver/record`.*
+  it. *Held by `packages/graph-python/tests/test_codec_cases.py` and `weaver/record`.*
 - **An update leaves the annotation the current one becomes with the changed
   fields replaced, and a store writes that whole:** a link or a tag the update
   took away goes with it. An annotation is never moved to another resource.
-  *Held by `packages/graph/src/__tests__/codec-cases.test.ts`, `packages/graph-python/tests/test_codec_cases.py`.*
+  *Held by `packages/graph-python/tests/test_codec_cases.py`.*
 - **Of a resource:** its id, name, entity types, format, checksum, storage
   URI, whether it is archived, when the record says it was created, and who
   the record says it is by.
-  *Held by `packages/graph/src/__tests__/codec-cases.test.ts`, `packages/graph-python/tests/test_codec_cases.py`.*
+  *Held by `packages/graph-python/tests/test_codec_cases.py`.*
 - **No store reads a clock.** Every date in the graph is one an event carried.
-  *Held by `packages/graph-python/tests/test_census.py` and `scripts/compliance/audit-graph-annotation-codec.sh`.*
+  *Held by `packages/graph-python/tests/test_census.py`.*
 
 ### Order
 

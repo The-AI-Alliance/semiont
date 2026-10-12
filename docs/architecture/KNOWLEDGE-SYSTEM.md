@@ -7,14 +7,14 @@ The knowledge base itself is inert — no goals, no decisions, never initiating 
 - **Five access actors** mediate every read and write: **Stower** (write), **Browser** (read), **Gatherer** (context assembly), **Matcher** (search), and **CloneTokenManager** (clone tokens). They are the bus-facing interface of the knowledge base — commands and requests in, replies out, correlated by `correlationId`.
 - **Two projection pipelines** keep the eventually-consistent read models in sync with the event log: the **Weaver** (events → graph) and the **Smelter** (events → vectors). Pipelines are addressed by no one and reply to nothing; they consume already-persisted domain events.
 
-All seven are reached only over the bus and expose no public business methods; the pipelines also repair at startup (the Weaver's catch-up and reconcile, the Smelter's reconcile). All seven run standalone, none in the gateway, split by store affinity: the record's three (Stower, Browser, CloneTokenManager) are the Archivist's, a Rust service ([apps/archivist](../../apps/archivist/)) in which they are its commands, its browse reads and its clone tokens; the LLM-bound pair (Gatherer, Matcher) in `librarian-main`, and each projection as part of its store's stack: the Weaver ([apps/weaver](../../apps/weaver/)) and the Smelter ([apps/smelter](../../apps/smelter/)), each a Python service. Callers never call into an actor directly; they put a message on the bus and trust the actor is listening.
+All seven are reached only over the bus and expose no public business methods; the pipelines also repair at startup (the Weaver's catch-up and reconcile, the Smelter's reconcile). All seven run standalone, none in the gateway, split by store affinity: the record's three (Stower, Browser, CloneTokenManager) are the Archivist's, a Rust service ([apps/archivist](../../apps/archivist/)) in which they are its commands, its browse reads and its clone tokens; the LLM-bound pair (Gatherer, Matcher) in the Librarian ([apps/librarian](../../apps/librarian/)), and each projection as part of its store's stack: the Weaver ([apps/weaver](../../apps/weaver/)) and the Smelter ([apps/smelter](../../apps/smelter/)). The Librarian, the Weaver and the Smelter are each a Python service. Callers never call into an actor directly; they put a message on the bus and trust the actor is listening.
 
 The third derived read model — the materialized views — is deliberately **not** pipeline-maintained: the Archivist changes a resource's view as part of appending each event, before the event is published, so subscribers get a read-your-writes guarantee that a fire-and-forget pipeline cannot provide.
 
 **The seam rule (standing).** Any new read path that consumes an eventually-consistent projection (the graph, the vectors) for content that may have *just been written* MUST declare its ordering semantics, in a comment at the read — one of exactly two choices:
 
 1. **Eventual** — the read tolerates projection lag. Say so, and say why lag is acceptable for that consumer.
-2. **Read-your-writes** — via the projection's progress fold: `weaveProgress.whenApplied(...)` for the graph, `smeltProgress.whenSettled(...)` for the vectors — with a **bounded, observable degrade** when the barrier times out (a breadcrumb plus a counter, never a silent thin result and never an unbounded wait).
+2. **Read-your-writes** — via the projection's progress fold: `WeaveProgress.when_applied(...)` for the graph, `SmeltProgress.when_settled(...)` for the vectors (both in the Librarian's [`progress.py`](../../apps/librarian/src/semiont_librarian/progress.py)) — with a **bounded, observable degrade** when the barrier times out (a breadcrumb plus a counter, never a silent thin result and never an unbounded wait).
 
 "Undeclared" is not an option — a read that declares neither races the projection. Unit-level axioms cannot own this property: every one of them holds *while* the race happens, so ordering across an actor boundary belongs to the seam. Views are exempt (synchronous by construction); any future projection inherits this rule on day one.
 
@@ -117,7 +117,7 @@ Candidate search and scoring for the match flow: retrieves candidates by name, e
 
 ### Weaver (projection pipeline)
 
-Follows the domain events and keeps the graph projection in sync; beyond the bus its single privileged attachment is Neo4j. One resource's events are applied one at a time and in the order they were recorded, resources beside one another; every apply emits `weave:applied`, and the `whenApplied` barrier lets graph readers wait out projection lag. Startup runs a checkpointed catch-up over `browse:*` (no event-store attachment); `weave:rebuild` is the full rebuild command.
+Follows the domain events and keeps the graph projection in sync; beyond the bus its single privileged attachment is Neo4j. One resource's events are applied one at a time and in the order they were recorded, resources beside one another; every apply emits `weave:applied`, and the `when_applied` barrier lets graph readers wait out projection lag. Startup runs a checkpointed catch-up over `browse:*` (no event-store attachment); `weave:rebuild` is the full rebuild command.
 
 ### Smelter (projection pipeline)
 
@@ -125,5 +125,5 @@ The vector pipeline, and a pure network peer: events arrive over SSE, content by
 
 ## See also
 
-- The Gatherer and the Matcher live inside `@semiont/make-meaning` — see [packages/make-meaning/docs/architecture.md](../../packages/make-meaning/docs/architecture.md) for the actor implementation pattern.
+- The Gatherer and the Matcher are the Librarian's: [apps/librarian](../../apps/librarian/README.md) is the service, and [the Librarian's protocol](../protocol/LIBRARIAN.md) is what it does, rule by rule.
 - The eight [flows](../protocol/flows/README.md) describe what each actor's events mean at the protocol level.

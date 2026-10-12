@@ -21,9 +21,10 @@ Only the Archivist mounts the working tree. Every other service reaches content 
 └── projections/                         # KB-wide projections and the storage-URI index
 ```
 
-The state dir is `$XDG_STATE_HOME/semiont/{project}/`. `XDG_STATE_HOME` has no default: a service
-that reaches for its state tree without it fails, because a path nothing mounted is written to and
-lost. The launcher sets it to the mount it gives the service.
+The state dir is `<stateHome>/semiont/<the knowledge base's name>/`. `stateHome` is a member of the
+configuration document of each service that reaches the state tree, the Archivist and the
+Librarian, and has no default: a path nothing mounted would be written to and lost. The launcher
+writes it as the mount it gives the service.
 
 On the machine that runs the stack, that mount and every other store (the database, the graph, the
 vectors, the job queue, the anchored text) are directories the launcher keeps for the knowledge
@@ -83,30 +84,11 @@ broker — a durable stream for delivery and lease, a key-value bucket for each 
 layout [specs/src/jobs/storage.json](../../specs/src/jobs/storage.json) states. See
 [docs/protocol/JOBS.md](../protocol/JOBS.md).
 
-## Path resolution
+## Who reaches these paths
 
-All paths are resolved through `SemiontProject`:
-
-```typescript
-import { SemiontProject } from '@semiont/core/node';
-
-const project = new SemiontProject(projectRoot, { anchoredTextDir: '/anchored-text' });
-
-// The knowledge base's working tree, and the event log in it
-project.root            // the KB root
-project.eventsDir       // <KB root>/.semiont/events/
-
-// Derived from the log — the state dir
-project.stateDir        // $XDG_STATE_HOME/semiont/{project}/
-project.resourcesDir    // stateDir/resources/
-project.projectionsDir  // stateDir/projections/
-
-// Supplied by the deployment, with no default
-project.anchoredTextDir
-```
-
-A service with no working tree (the Librarian) takes `SemiontState`, which is the state dir's three
-paths and nothing else.
+The Archivist mounts the working tree and the state dir, and writes both: the event log in the
+tree, the views and the projections in the state dir. The Librarian mounts the state dir to read,
+and no piece of the working tree. No other service mounts either.
 
 ## Rebuilding what is derived
 

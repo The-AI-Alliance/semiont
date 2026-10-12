@@ -6,16 +6,7 @@ import (
 	"testing"
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
-	toml "github.com/pelletier/go-toml/v2"
 )
-
-const stagingFixture = `[defaults]
-environment = "local"
-
-[environments.local.gateway]
-platform = "container"
-port = 4000
-`
 
 // The staged realm carries every service's client secret. What keeps it from
 // other users is the directory it is staged in, not the file's own mode (see
@@ -55,45 +46,5 @@ siteName = "Example Knowledge Base"
 	}
 	if id.SiteName != "Example Knowledge Base" {
 		t.Errorf("SiteName = %q, want the committed site name", id.SiteName)
-	}
-}
-
-// The whole per-service staging rule in one place. This is the test that
-// catches a boot break: the Librarian reads bytes straight from the Archivist
-// and REFUSES to start without its address, and describes a KB tree it does
-// not mount, so it needs the KB's committed identity at the same time — a
-// patch structure that assigned rather than chained would silently drop one.
-func TestStagedConfigPerService(t *testing.T) {
-	x := &liveExec{root: t.TempDir()}
-
-	for _, tc := range []struct {
-		svc        string
-		archivist  bool
-		kbIdentity bool
-	}{
-		// The gateway, the dispatcher, the Archivist, the worker, the Smelter
-		// and the Weaver are absent: each takes a configuration document, not
-		// a patched copy (gatewaydoc_test.go, dispatcherdoc_test.go,
-		// archivistdoc_test.go, workerdoc_test.go, smelterdoc_test.go,
-		// weaverdoc_test.go).
-		{"librarian", true, true},
-	} {
-		out := x.stagedConfig(tc.svc, []byte(stagingFixture), &launchPlan{EnvName: "local"}, "192.168.64.1")
-
-		var doc map[string]any
-		if err := toml.Unmarshal(out, &doc); err != nil {
-			t.Fatalf("%s: staged config is not valid TOML: %v\n%s", tc.svc, err, out)
-		}
-
-		env, _ := doc["environments"].(map[string]any)["local"].(map[string]any)
-		_, hasArchivist := env["archivist"]
-		if hasArchivist != tc.archivist {
-			t.Errorf("%s: [environments.local.archivist] present = %v, want %v", tc.svc, hasArchivist, tc.archivist)
-		}
-
-		_, hasKB := doc["kb"]
-		if hasKB != tc.kbIdentity {
-			t.Errorf("%s: [kb] present = %v, want %v", tc.svc, hasKB, tc.kbIdentity)
-		}
 	}
 }

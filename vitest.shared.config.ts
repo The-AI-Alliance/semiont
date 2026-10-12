@@ -36,10 +36,6 @@ export default defineConfig({
         '**/demo/**',
         '**/index.ts', // Export files
         '**/types.ts', // Generated types
-        // A service's `*-main.ts` is process wiring — config, credential,
-        // a health server, the pumps. No suite imports one; they are proven by the
-        // launcher's `--dry-run` goldens and by the live round trip.
-        'src/*-main.ts',
       ],
       // No blanket `thresholds` here: one reads as a repo-wide floor and binds
       // only the packages that import this file. A threshold belongs in the

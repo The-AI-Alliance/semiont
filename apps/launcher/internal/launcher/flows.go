@@ -26,8 +26,8 @@ type flowCtx struct {
 
 // withDaemonCredentials adds the kept passwords of the daemons this plan runs
 // to the start's resolved variables: the daemon starts with its own
-// (daemonLaunchEnv), and each service is handed the ones its sections
-// reference (envFor). Loaded once, before anything is torn down or started,
+// (daemonLaunchEnv), and each service is handed the ones its document names
+// (envFor). Loaded once, before anything is torn down or started,
 // so a store the launcher holds no password for refuses first.
 func withDaemonCredentials(x executor, fc flowCtx) (flowCtx, bool) {
 	if fc.plan == nil {
@@ -80,7 +80,7 @@ func daemonLaunchEnv(fc flowCtx, role string, rp rolePlan) ([]string, error) {
 }
 
 // envFor: the user variables svc is handed — the --env pairs of userEnv whose
-// names its own config sections reference (launchPlan.ServiceVars). userEnv
+// names its configuration document names (launchPlan.ServiceVars). userEnv
 // itself keeps every resolved value: the launcher's own reads (the gateway's
 // document, the remote-model check) need them.
 func (fc flowCtx) envFor(svc string) []string {
@@ -871,11 +871,11 @@ func flowArchivist(x executor, fc flowCtx, addr, stage string, otel []string) in
 	return 0
 }
 
-// flowLibrarian: the Librarian (the Matcher — match:* search) starts with
-// the core services, BEFORE the sidecars: no sidecar boot path is known to
-// ask match:*, but health-after-pumps plus this ordering makes the question
-// moot rather than racy. It reads everything and writes nothing durable —
-// see librarianArgs.
+// flowLibrarian: the Librarian (search, match and gather) starts with the
+// core services, BEFORE the sidecars: no sidecar boot path is known to ask
+// match:*, but health-after-pumps plus this ordering makes the question moot
+// rather than racy. It reads everything and writes nothing durable, and reads
+// its own configuration document, staged for it — see librarianArgs.
 func flowLibrarian(x executor, fc flowCtx, addr, stage string, otel []string) int {
 	x.banner(startBanner(fc, "Librarian"))
 	state, ok := x.stateMountsShared("state", fc.root)

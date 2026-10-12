@@ -5,7 +5,6 @@
  * No React dependencies - safe to use in any JavaScript environment.
  */
 
-import type { StoredEvent } from './event-base';
 import { isAnnotationId, type AnnotationId } from './identifiers';
 import { isObject, isString } from './type-guards';
 
@@ -50,16 +49,3 @@ export function getAnnotationIdFromEvent(event: StoredEventLike): AnnotationId |
   }
   return isString(id) && isAnnotationId(id) ? id : null;
 }
-
-/**
- * Type guard to check if an object is a StoredEvent (flat shape)
- */
-export function isStoredEvent(event: any): event is StoredEvent {
-  return event &&
-    typeof event.id === 'string' &&
-    typeof event.timestamp === 'string' &&
-    typeof event.type === 'string' &&
-    typeof event.metadata === 'object' &&
-    typeof event.metadata.sequenceNumber === 'number';
-}
-

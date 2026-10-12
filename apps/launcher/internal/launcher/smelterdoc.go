@@ -51,23 +51,25 @@ func smelterNamedVars(env *envConfig) []string {
 	return nil
 }
 
-// smelterEmbedding: the provider the Smelter asks for vectors, as its
-// document states it. An Ollama the launcher places states no baseURL in the
-// KB config, and loadConfig reads it as the launcher's own reference
+// embeddingConfig: the provider a service asks for vectors, as its document
+// states it. ONE decider, for the Smelter's document and the Librarian's: a
+// vector is compared only with vectors of the model that made it. who names
+// the service in a refusal. An Ollama the launcher places states no baseURL in
+// the KB config, and loadConfig reads it as the launcher's own reference
 // (topology.go), which resolves here to the address of this start. A Voyage
 // section that states no endpoint is asked at Voyage's own.
-func smelterEmbedding(env *envConfig, vars map[string]string) (embedding semiont.EmbeddingConfig, err error) {
+func embeddingConfig(env *envConfig, vars map[string]string, who string) (embedding semiont.EmbeddingConfig, err error) {
 	e := env.Embedding
 	if e == nil {
-		return embedding, fmt.Errorf("the environment declares no [embedding]: the Smelter has no provider to ask for vectors")
+		return embedding, fmt.Errorf("the environment declares no [embedding]: %s has no provider to ask for vectors", who)
 	}
 	if e.Model == "" {
-		return embedding, fmt.Errorf("[embedding] states no model: the Smelter has no model to ask for vectors")
+		return embedding, fmt.Errorf("[embedding] states no model: %s has no model to ask for vectors", who)
 	}
 	switch e.Type {
 	case string(semiont.OllamaEmbeddingConfigTypeOllama):
 		if e.BaseURL == "" {
-			return embedding, fmt.Errorf("[embedding] states no baseURL: the Smelter has no address to reach Ollama at")
+			return embedding, fmt.Errorf("[embedding] states no baseURL: %s has no address to reach Ollama at", who)
 		}
 		ollama := semiont.OllamaEmbeddingConfig{Model: e.Model}
 		if ollama.BaseUrl, err = resolveRefs("embedding.baseURL", e.BaseURL, vars); err != nil {
@@ -86,31 +88,33 @@ func smelterEmbedding(env *envConfig, vars map[string]string) (embedding semiont
 			return embedding, err
 		}
 		if name == nil {
-			return embedding, fmt.Errorf("[embedding] states no apiKey: write embedding.apiKey = \"${NAME}\", and the Smelter's document names the variable that holds Voyage's key")
+			return embedding, fmt.Errorf("[embedding] states no apiKey: write embedding.apiKey = \"${NAME}\", and %s's document names the variable that holds Voyage's key", who)
 		}
 		voyage.ApiKeyEnv = *name
 		err = embedding.FromVoyageEmbeddingConfig(voyage)
 	default:
-		err = fmt.Errorf("[embedding] type %q: the launcher writes the Smelter's document for an ollama or a voyage embedding alone", e.Type)
+		err = fmt.Errorf("[embedding] type %q: the launcher writes %s's document for an ollama or a voyage embedding alone", e.Type, who)
 	}
 	return embedding, err
 }
 
-// smelterVectors: the vector index the Smelter writes, as its document states
-// it. A Qdrant the launcher places states no address in the KB config, and
-// loadConfig reads it as the launcher's own reference (topology.go), which
-// resolves here to the address of this start. A section that states no port
-// is reached on Qdrant's own.
-func smelterVectors(env *envConfig, vars map[string]string) (vectors semiont.VectorsConfig, err error) {
+// vectorsConfig: the vector index a service reaches, as its document states
+// it. ONE decider, for the Smelter's document, which writes the index, and the
+// Librarian's, which searches it. who names the service in a refusal. A Qdrant
+// the launcher places states no address in the KB config, and loadConfig reads
+// it as the launcher's own reference (topology.go), which resolves here to the
+// address of this start. A section that states no port is reached on Qdrant's
+// own.
+func vectorsConfig(env *envConfig, vars map[string]string, who string) (vectors semiont.VectorsConfig, err error) {
 	v := env.Vectors
 	if v == nil {
-		return vectors, fmt.Errorf("the environment declares no [vectors]: the Smelter has no vector index to write")
+		return vectors, fmt.Errorf("the environment declares no [vectors]: %s has no vector index to reach", who)
 	}
 	if v.Type != string(semiont.Qdrant) {
-		return vectors, fmt.Errorf("[vectors] type %q: the launcher writes the Smelter's document for a qdrant index alone", v.Type)
+		return vectors, fmt.Errorf("[vectors] type %q: the launcher writes %s's document for a qdrant index alone", v.Type, who)
 	}
 	if v.Host == "" {
-		return vectors, fmt.Errorf("[vectors] states no host: the Smelter has no address to reach Qdrant at")
+		return vectors, fmt.Errorf("[vectors] states no host: %s has no address to reach Qdrant at", who)
 	}
 	qdrant := semiont.QdrantVectorsConfig{Port: v.Port}
 	if qdrant.Port == 0 {
@@ -147,10 +151,10 @@ func smelterDocument(env *envConfig, rt, addr string, issuerPort int, userEnv []
 	if doc.Archivist.Host, doc.Archivist.Port, err = archivistAddress(env, addr, vars); err != nil {
 		return nil, err
 	}
-	if doc.Embedding, err = smelterEmbedding(env, vars); err != nil {
+	if doc.Embedding, err = embeddingConfig(env, vars, "the Smelter"); err != nil {
 		return nil, err
 	}
-	if doc.Vectors, err = smelterVectors(env, vars); err != nil {
+	if doc.Vectors, err = vectorsConfig(env, vars, "the Smelter"); err != nil {
 		return nil, err
 	}
 	doc.Chunking.ChunkSize, doc.Chunking.Overlap = unstatedChunking.chunkSize, unstatedChunking.overlap

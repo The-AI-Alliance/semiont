@@ -7,7 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { LibrarianService, LibrarianSettings } from '../harness/librarian-process';
+import type { LibrarianSettings } from '../harness/librarian-process';
 import { eachLibrarian } from '../harness/librarian-world';
 import { SPEC_SOURCE } from '../harness/paths';
 
@@ -19,50 +19,32 @@ function heldJobStallMs(): number {
   return row.value;
 }
 
-/**
- * What a refusal must say, for each form a Librarian is given its settings
- * in. A refusal names the setting as its Librarian is told it: one that reads
- * a `.semiontconfig` names a key or a section of that file, and one that reads
- * a configuration document names a member of the document, in the words every
- * service that reads a document refuses one with.
- */
-type Named = Readonly<Record<LibrarianService['configuredBy'], readonly RegExp[]>>;
-
-/** What a Librarian that reads a document says of a member the document lacks. */
-const missing = (member: string): readonly RegExp[] => [new RegExp(`Missing required property: ${member}\\b`)];
+/** What a Librarian says of a member its configuration document lacks: the words every service that reads a document refuses one with. */
+const missing = (member: string): RegExp => new RegExp(`Missing required property: ${member}\\b`);
 
 /**
  * Each way a Librarian's settings can be ones it refuses to start on: the
  * settings changed that way, and what its refusal names. A setting a case
- * takes away is a key or a section the `.semiontconfig` lacks, and a member
- * the document lacks. The state volume is a variable the first Librarian's
- * environment lacks, and a member the second's document lacks.
+ * takes away is a member the document lacks, and the refusal names the
+ * member.
  */
-const REFUSED: ReadonlyArray<[how: string, changed: (settings: LibrarianSettings) => LibrarianSettings, named: Named]> = [
-  ["without the gateway's address", (settings) => ({ ...settings, gatewayUrl: undefined }), { semiontconfig: [/gateway.{0,3}(publicURL|url)/i], document: missing('gatewayUrl') }],
-  ['without the issuer', (settings) => ({ ...settings, issuer: undefined }), { semiontconfig: [/issuer/], document: missing('issuer') }],
-  ["without the knowledge base's name", (settings) => ({ ...settings, kbName: undefined }), { semiontconfig: [/kb.{0,3}name/i], document: missing('kbName') }],
-  ['without the state volume', (settings) => ({ ...settings, stateHome: undefined }), { semiontconfig: [/state.?(home|volume|tree|dir)/i], document: missing('stateHome') }],
-  ["without the Archivist's address", (settings) => ({ ...settings, archivist: undefined }), { semiontconfig: [/archivist/i], document: missing('archivist') }],
-  ['without a graph database', (settings) => ({ ...settings, graph: undefined }), { semiontconfig: [/graph/], document: missing('graph') }],
-  ['without a vector database', (settings) => ({ ...settings, vectors: undefined }), { semiontconfig: [/vector/], document: missing('vectors') }],
-  ['without an embedding provider', (settings) => ({ ...settings, embedding: undefined }), { semiontconfig: [/embedding/], document: missing('embedding') }],
-  ["without the Matcher's model", (settings) => ({ ...settings, matcher: undefined }), { semiontconfig: [/matcher/], document: missing('matcher') }],
-  ["without the Gatherer's model", (settings) => ({ ...settings, gatherer: undefined }), { semiontconfig: [/gatherer/], document: missing('gatherer') }],
+const REFUSED: ReadonlyArray<[how: string, changed: (settings: LibrarianSettings) => LibrarianSettings, named: RegExp]> = [
+  ["without the gateway's address", (settings) => ({ ...settings, gatewayUrl: undefined }), missing('gatewayUrl')],
+  ['without the issuer', (settings) => ({ ...settings, issuer: undefined }), missing('issuer')],
+  ["without the knowledge base's name", (settings) => ({ ...settings, kbName: undefined }), missing('kbName')],
+  ['without the state volume', (settings) => ({ ...settings, stateHome: undefined }), missing('stateHome')],
+  ["without the Archivist's address", (settings) => ({ ...settings, archivist: undefined }), missing('archivist')],
+  ['without a graph database', (settings) => ({ ...settings, graph: undefined }), missing('graph')],
+  ['without a vector database', (settings) => ({ ...settings, vectors: undefined }), missing('vectors')],
+  ['without an embedding provider', (settings) => ({ ...settings, embedding: undefined }), missing('embedding')],
+  ["without the Matcher's model", (settings) => ({ ...settings, matcher: undefined }), missing('matcher')],
+  ["without the Gatherer's model", (settings) => ({ ...settings, gatherer: undefined }), missing('gatherer')],
   // A store in one process's memory could not be shared with the service that writes it.
-  ["on a graph that lives in one process's memory", (settings) => ({ ...settings, graph: { type: 'memory' } }), { semiontconfig: [/memory/, /graph/], document: [/graph\.type is memory/] }],
-  [
-    "on a vector index that lives in one process's memory",
-    (settings) => ({ ...settings, vectors: { type: 'memory' } }),
-    { semiontconfig: [/memory/, /vector/], document: [/vectors\.type is memory/] },
-  ],
+  ["on a graph that lives in one process's memory", (settings) => ({ ...settings, graph: { type: 'memory' } }), /graph\.type is memory/],
+  ["on a vector index that lives in one process's memory", (settings) => ({ ...settings, vectors: { type: 'memory' } }), /vectors\.type is memory/],
   // A gather's two waits, for the graph and for the vectors, must both end before a worker that holds a job is called stalled.
-  [
-    'on a settle bound as long as the stall of a held job',
-    (settings) => ({ ...settings, settleTimeoutMs: heldJobStallMs() }),
-    { semiontconfig: [/settleTimeoutMs/], document: [/gather\.settleTimeoutMs must be less than/] },
-  ],
-  ['on a settle bound of no time at all', (settings) => ({ ...settings, settleTimeoutMs: 0 }), { semiontconfig: [/settleTimeoutMs/], document: [/gather\.settleTimeoutMs/] }],
+  ['on a settle bound as long as the stall of a held job', (settings) => ({ ...settings, settleTimeoutMs: heldJobStallMs() }), /gather\.settleTimeoutMs must be less than/],
+  ['on a settle bound of no time at all', (settings) => ({ ...settings, settleTimeoutMs: 0 }), /gather\.settleTimeoutMs/],
 ];
 
 eachLibrarian('a Librarian, as a process', (world) => {
@@ -87,7 +69,7 @@ eachLibrarian('a Librarian, as a process', (world) => {
     it.each(REFUSED)('refuses to start %s, and names the setting', async (_how, changed, named) => {
       const { code, output } = await world().refused({ settings: changed(world().settings) });
       expect(code).not.toBe(0);
-      for (const name of named[world().configuredBy]) expect(output).toMatch(name);
+      expect(output).toMatch(named);
     });
 
     it.each(['SEMIONT_OIDC_CLIENT_ID', 'SEMIONT_OIDC_CLIENT_SECRET'])('refuses to start without %s, half of its service account, and names it', async (variable) => {

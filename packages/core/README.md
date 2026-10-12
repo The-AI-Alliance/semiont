@@ -28,15 +28,12 @@ Every other TypeScript package, the Browser, and the conformance and end-to-end 
 | Identity | DIDs for people, software and a knowledge base itself, and `attribution`, which says who a record is attributed to | [src/did-utils.ts](src/did-utils.ts) |
 | Media types | Which types a knowledge base admits, and what can be done with each | [src/media-types.ts](src/media-types.ts) |
 | Shared rules | Error codes, timing, retry and the cache's refresh table, the same for every SDK | `src/generated/`, [src/retry.ts](src/retry.ts) |
-| Configuration | The loader of a knowledge base's configuration | [src/config/](src/config/) |
 
 The main import runs in a browser. What cannot is on a subpath:
 
 | Import | |
 |---|---|
-| `@semiont/core/node` | `SemiontProject`, a knowledge base on a filesystem, and `loadEnvironmentConfig` |
 | `@semiont/core/openapi` | The spec's validators, compiled when the package is built, and its limits |
-| `@semiont/core/identity` | `IssuerVerifier`: verifying the tokens of an OIDC issuer |
 | `@semiont/core/testing` | The test doubles every layer shares |
 | `@semiont/core/testing/axioms` | Property-based harnesses for state units and transports. They need `fast-check` |
 | `@semiont/core/testing/issuer` | An OIDC issuer in one process, for tests that verify tokens |
@@ -60,7 +57,7 @@ const agent = didToAgent(did);   // { '@type': 'Person', '@id': did }, with no n
 ## What a change must keep
 
 - **The spec is the source.** `src/types.ts`, [src/bus-protocol.ts](src/bus-protocol.ts) and everything in `src/generated/` are generated from [`specs/src`](../../specs/src/), and never edited. Only `bus-protocol.ts` is committed; the rest is made when the package is built. Change the spec, then run `npm run generate:openapi --workspace=@semiont/core`. A type written by hand that restates a schema is a second copy that nothing keeps true: use the spec's type, under the spec's name.
-- **The main import runs in a browser.** It uses no Node builtin. The validators and the token verifier are reachable only by their subpaths, because of the weight they would add to every bundle, and `npm run lint:core-subpaths` fails a re-export of either from the root.
+- **The main import runs in a browser.** It uses no Node builtin. The validators and the test issuer are reachable only by their subpaths, because of the weight they would add to every bundle, and `npm run lint:core-subpaths` fails a re-export of either from the root.
 - **It depends on no other Semiont package.** Everything else depends on it.
 - **An id is made only by its constructor or its guard.** One kind is never assignable to another.
 - **Who did something is worked out in one place.** `attribution()` builds a record's `creator`, `generator` and `wasAttributedTo` from identities the gateway verified. `npm run lint:attribution` fails a second place that builds them.

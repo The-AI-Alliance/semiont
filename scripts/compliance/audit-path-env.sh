@@ -26,7 +26,6 @@ FAIL=0
 
 # "file VAR — reason".
 READS="
-packages/core/src/project.ts XDG_STATE_HOME — the root of a service's state tree; stateDirFor throws when it is unset
 "
 
 is_test_file() { echo "$1" | grep -qE '__tests__|/test-setup|\.test\.[a-z]+$|vitest\.setup|/tests/'; }

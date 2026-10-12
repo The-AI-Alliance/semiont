@@ -11,7 +11,7 @@ only reads and writes a knowledge base needs the SDK,
 
 It runs on asyncio and requires Python 3.12 or later. It is checked by
 `mypy --strict` and by `pyright` in strict mode, and ships its types
-(`py.typed`). It is the Python counterpart of [`@semiont/graph`][graph-typescript].
+(`py.typed`).
 
 ## What an install has
 
@@ -36,8 +36,8 @@ or a reader whose client is not installed, `create_graph_database` and
 install.
 
 **The two Gremlin stores are kept as a reminder of other kinds of graph
-database, and nothing is known of them against a server.** Each was ported
-from its TypeScript store onto a fake client. Each module's first lines say
+database, and nothing is known of them against a server.** Each is tested
+against a fake client alone. Each module's first lines say
 what it is known to get wrong.
 
 ## A first use
@@ -146,5 +146,4 @@ them again.
 
 [semiont]: https://github.com/The-AI-Alliance/semiont
 [sdk-python]: https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk-python
-[graph-typescript]: https://github.com/The-AI-Alliance/semiont/tree/main/packages/graph
 [codec-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/graph/codec-cases.json

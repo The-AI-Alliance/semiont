@@ -1,7 +1,7 @@
 {
   "name": "@semiont/observability",
   "version": "0.6.13",
-  "description": "OpenTelemetry tracing and metrics for Semiont — Tiers 2 and 3 of its observability stack. Node process-init helpers, a withSpan wrapper, W3C trace-context propagation across the bus, metric recorders and log correlation. No-op when no exporter is configured.",
+  "description": "OpenTelemetry tracing and metrics for Semiont's TypeScript transport. Node process-init helpers, a withSpan wrapper, W3C trace-context propagation across the bus, and the count of the emits a client sent. No-op when no exporter is configured.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -15,11 +15,6 @@
       "types": "./dist/node.d.ts",
       "import": "./dist/node.js",
       "default": "./dist/node.js"
-    },
-    "./process-logger": {
-      "types": "./dist/process-logger.d.ts",
-      "import": "./dist/process-logger.js",
-      "default": "./dist/process-logger.js"
     }
   },
   "engines": {
@@ -68,7 +63,6 @@
     "@opentelemetry/sdk-metrics": "^2.10.0",
     "@opentelemetry/sdk-trace-base": "^2.11.0",
     "@opentelemetry/semantic-conventions": "^1.43.0",
-    "@semiont/core": "*",
-    "winston": "^3.17.0"
+    "@semiont/core": "*"
   }
 }

@@ -6,13 +6,11 @@
  * initializes its own tracer (`apps/browser/src/lib/tracing.ts`). Everything
  * else uses this module.
  *
- * Tiers 2 and 3 of the observability design: traces and their propagation
- * (Tier 2), metrics and log correlation (Tier 3). The public surface:
+ * Traces and their propagation, and the one metric a client's transport
+ * exports. The public surface:
  *
  *   - `withSpan(name, fn, options?)` — wrap an async block in a span;
  *     `options` carries `kind` and `attrs`.
- *   - `withActorSpan(actor, channel, fn, extraAttrs?)` — consumer-span
- *     wrapper for bus-event handlers, with handler-duration recording.
  *   - `extractTraceparent(payload)` — W3C trace-context propagation across
  *     the SSE channel (a bus frame the gateway relays carries a
  *     `_trace?: { traceparent }` field).
@@ -22,24 +20,17 @@
  *     begins a trace of its own.
  *   - `getActiveTraceparent()` — read the active span's traceparent, for
  *     an outbound request's `traceparent` header.
- *   - `getLogTraceContext()` — active `trace_id` / `span_id` for log-line
- *     correlation.
- *   - Metric recorders (`record*`) and observable-gauge providers
- *     (`register*Provider`); each says what it measures at its definition.
- *   - `materializeObservableGauges` and `registerProcessLifetimeMetrics`,
- *     which `initObservabilityNode` calls.
+ *   - `recordBusSent(channel, scope?)` — count an emit a client sent.
  *   - `TraceCarrier`, the type of the `_trace` field; and `SpanKind`,
- *     `SpanStatusCode`, `Attributes` and `Span`, re-exported from
- *     `@opentelemetry/api`.
+ *     re-exported from `@opentelemetry/api`.
  *
  * No-op when no exporter is configured: `@opentelemetry/api`'s default
- * tracer and meter are no-ops, so `withSpan` and the recorders are
+ * tracer and meter are no-ops, so `withSpan` and the recorder are
  * essentially free until the process initializes an SDK.
  */
 
 import {
   context,
-  createNoopMeter,
   isSpanContextValid,
   metrics,
   propagation,
@@ -49,8 +40,6 @@ import {
   trace,
   type Attributes,
   type Counter,
-  type Histogram,
-  type ObservableGauge,
   type Span,
 } from '@opentelemetry/api';
 import { setBusLogTraceIdProvider } from '@semiont/core';
@@ -176,118 +165,13 @@ export function withoutTrace<T>(fn: () => T): T {
   return context.with(ROOT_CONTEXT, fn);
 }
 
-// ── Actor handler convenience ──────────────────────────────────────────
-
-/**
- * Wrap a bus-event handler in an `actor.<name>:<channel>` consumer span.
- * Used at every `eventBus.on(channel).subscribe(handler)` site inside
- * an actor (the Gatherer, the Matcher, the retrieval handlers), to attribute
- * each in-process subscriber's work to a span without scattering manual
- * `withSpan` calls across handler bodies.
- *
- * The span's parent is the active context at the time the handler
- * fires — which is the `bus.recv:<channel>` span when the frame arrived
- * over SSE (the read loop delivers synchronously inside it), or the
- * `bus.emit:<channel>` span when the emit was made in the same process.
- */
-export async function withActorSpan<T>(
-  actor: string,
-  channel: string,
-  fn: (span: Span) => Promise<T> | T,
-  extraAttrs?: Attributes,
-): Promise<T> {
-  const start = performance.now();
-  try {
-    return await withSpan(`actor.${actor}:${channel}`, fn, {
-      kind: SpanKind.CONSUMER,
-      attrs: {
-        actor,
-        'bus.channel': channel,
-        ...(extraAttrs ?? {}),
-      },
-    });
-  } finally {
-    recordHandlerDuration(actor, channel, performance.now() - start);
-  }
-}
-
-// ── Log correlation ────────────────────────────────────────────────────
-
-/**
- * Read the active span's `trace_id` / `span_id` for log-line correlation.
- * Tier 3 of the observability design. Each structured log line gets
- * tagged with these so a log query in CloudWatch / Loki / Datadog can
- * jump to the trace in Tempo / Jaeger / X-Ray.
- *
- * Returns `undefined` if no span is active, or if the active span's
- * context is invalid (uninitialized SDK, no-op tracer).
- */
-export function getLogTraceContext(): { trace_id: string; span_id: string } | undefined {
-  const span = trace.getActiveSpan();
-  if (!span) return undefined;
-  const ctx = span.spanContext();
-  if (!isSpanContextValid(ctx)) return undefined;
-  return { trace_id: ctx.traceId, span_id: ctx.spanId };
-}
-
-// ── Metrics — Tier 3 ───────────────────────────────────────────────────
+// ── Metrics ────────────────────────────────────────────────────────────
 
 const METER_NAME = 'semiont';
 
 const meter = () => metrics.getMeter(METER_NAME);
 
-/** Builders of the gauges registered before a real meter exists, by instrument name. */
-const pendingGauges = new Map<string, () => void>();
-
-/**
- * Build an observable gauge now, or as soon as a real meter exists.
- *
- * Counters and histograms are created lazily at their first use, which is
- * always well after boot, so they never meet this. An OBSERVABLE gauge is the
- * exception: it is created when its provider registers, and it binds the
- * meter that exists at that moment. The metrics API — unlike the trace API,
- * which proxies — hands out a no-op meter until a provider is registered
- * globally, and that no-op never upgrades. A gauge built from it accepts the
- * callback, reports success, and exports nothing for the life of the process.
- *
- * That silence is indistinguishable from a healthy idle metric: a gauge such
- * as `semiont.process.restarts` is missing from the collector's readout while
- * its code reads as correct.
- *
- * Registration order is the wrong thing to police, because a process with no
- * exporter configured has a no-op meter legitimately and forever — that is
- * this package's documented contract, not a mistake to refuse. So order is
- * made not to matter: an early registration parks its builder in
- * `pendingGauges` and `materializeObservableGauges()` runs it once init
- * installs the real meter. Keyed by instrument name, so registering twice
- * before init builds once.
- */
-function buildGauge(instrument: string, build: () => void): void {
-  if (meter() === createNoopMeter()) {
-    pendingGauges.set(instrument, build);
-    return;
-  }
-  pendingGauges.delete(instrument);
-  build();
-}
-
-/**
- * Create the gauges whose providers registered before the SDK came up.
- * Called by `initObservabilityNode` once the global MeterProvider is
- * installed — nothing else should need it.
- */
-export function materializeObservableGauges(): void {
-  const waiting = [...pendingGauges.values()];
-  pendingGauges.clear();
-  for (const build of waiting) build();
-}
-
 let _busSentCounter: Counter | undefined;
-let _handlerDurationHistogram: Histogram | undefined;
-let _gatherDegradeCounter: Counter | undefined;
-let _inferenceCallsCounter: Counter | undefined;
-let _inferenceTokensCounter: Counter | undefined;
-let _inferenceDurationHistogram: Histogram | undefined;
 
 function busSentCounter(): Counter {
   if (!_busSentCounter) {
@@ -296,44 +180,6 @@ function busSentCounter(): Counter {
     });
   }
   return _busSentCounter;
-}
-
-function handlerDurationHistogram(): Histogram {
-  if (!_handlerDurationHistogram) {
-    _handlerDurationHistogram = meter().createHistogram('semiont.handler.duration', {
-      description: 'In-process actor handler duration',
-      unit: 'ms',
-    });
-  }
-  return _handlerDurationHistogram;
-}
-
-function inferenceCallsCounter(): Counter {
-  if (!_inferenceCallsCounter) {
-    _inferenceCallsCounter = meter().createCounter('semiont.inference.calls', {
-      description: 'Inference API calls by provider, model, and outcome',
-    });
-  }
-  return _inferenceCallsCounter;
-}
-
-function inferenceTokensCounter(): Counter {
-  if (!_inferenceTokensCounter) {
-    _inferenceTokensCounter = meter().createCounter('semiont.inference.tokens', {
-      description: 'Inference token usage by provider, model, and direction',
-    });
-  }
-  return _inferenceTokensCounter;
-}
-
-function inferenceDurationHistogram(): Histogram {
-  if (!_inferenceDurationHistogram) {
-    _inferenceDurationHistogram = meter().createHistogram('semiont.inference.duration', {
-      description: 'Inference call duration by provider, model, and outcome',
-      unit: 'ms',
-    });
-  }
-  return _inferenceDurationHistogram;
 }
 
 /**
@@ -349,158 +195,6 @@ export function recordBusSent(channel: string, scope?: string): void {
   });
 }
 
-/** Record an in-process actor handler's duration. */
-export function recordHandlerDuration(actor: string, channel: string, durationMs: number): void {
-  handlerDurationHistogram().record(durationMs, {
-    actor,
-    'bus.channel': channel,
-  });
-}
+// ── Re-export from @opentelemetry/api ──────────────────────────────────
 
-function gatherDegradeCounter(): Counter {
-  if (!_gatherDegradeCounter) {
-    _gatherDegradeCounter = meter().createCounter('semiont.gather.degraded', {
-      description: 'Gathers that shipped degraded, by cause: vectors (the settle barrier timed out, semanticContext absent), graph (projection lag), suggestions (the inference garnish failed). Labeled by projection.',
-    });
-  }
-  return _gatherDegradeCounter;
-}
-
-/**
- * Record a gather degraded by a projection read barrier: `'vectors'` — the
- * Smelter settle barrier timed out (semanticContext shipped absent);
- * `'graph'` — the Weaver applied barrier + poll floor exhausted (projection
- * lag surfaced as a distinct failure); `'suggestions'` — the summary/
- * suggestions inference garnish threw and the gather shipped without it.
- * Fleet-alertable counterpart of the `[gather DEGRADED]` L4 breadcrumbs — a
- * rising rate on a label means that pipeline is not keeping up.
- */
-export function recordGatherDegrade(projection: 'graph' | 'vectors' | 'suggestions'): void {
-  gatherDegradeCounter().add(1, { projection });
-}
-
-/**
- * Process lifetime telemetry.
- *
- * A supervised process that dies and comes back is INVISIBLE in logs unless
- * someone greps for boot lines, and every request in flight when it died looks
- * to its caller like a hang. A crash loop — the Archivist dying on a lost
- * race for git's index.lock, say — then reads as a fault in search, qdrant,
- * neo4j or the SSE transport, where one metric names it immediately.
- *
- * `start_time` is the diagnostic, not uptime: a CHANGE in it is unambiguous
- * proof of a restart, and uptime is derivable from it.
- */
-const PROCESS_START_TIME_SECONDS = Math.floor(Date.now() / 1000);
-let _processStartTimeGauge: ObservableGauge | undefined;
-let _restartCountGauge: ObservableGauge | undefined;
-let _restartCountProvider: (() => Promise<number | undefined> | number | undefined) | undefined;
-let _abnormalExitCounter: Counter | undefined;
-
-/** Register `semiont.process.start_time`. Called by `initObservabilityNode`. */
-export function registerProcessLifetimeMetrics(): void {
-  if (_processStartTimeGauge) return;
-  buildGauge('semiont.process.start_time', () => {
-    _processStartTimeGauge = meter().createObservableGauge('semiont.process.start_time', {
-      description: 'Unix seconds at which this process started; a change means it restarted',
-      unit: 's',
-    });
-    _processStartTimeGauge.addCallback((observer) => observer.observe(PROCESS_START_TIME_SECONDS));
-  });
-}
-
-/**
- * Supply a restart count. A supervisor is POSIX shell and cannot emit OTel, but
- * it keeps a durable event log on the state mount — so the supervised child
- * reads it and reports the count on the supervisor's behalf.
- *
- * **Return `undefined` for "cannot tell", never `0`.** A process running
- * without a supervisor (dev, or a direct `node` invocation) has no restart
- * history to report, and 0 is not that — 0 is the value a HEALTHY supervised
- * process reports, so an unsupervised one publishing 0 is indistinguishable
- * from a supervised one that has never crashed. `undefined` skips the
- * observation entirely and the series simply has no point, which is what
- * "unknown" looks like in a time series.
- */
-export function registerRestartCountProvider(
-  provider: () => Promise<number | undefined> | number | undefined,
-): void {
-  _restartCountProvider = provider;
-  if (!_restartCountGauge) {
-    buildGauge('semiont.process.restarts', () => {
-      _restartCountGauge = meter().createObservableGauge('semiont.process.restarts', {
-        description: 'Times the supervisor has restarted this service',
-      });
-      _restartCountGauge.addCallback(async (observer) => {
-        if (!_restartCountProvider) return;
-        const count = await _restartCountProvider();
-        // Not `if (count)` — 0 is a real, meaningful reading.
-        if (count !== undefined) observer.observe(count);
-      });
-    });
-  }
-}
-
-/**
- * Record that this process is dying abnormally, and mark the active span so a
- * trace shows a span that ENDED IN DEATH rather than one that simply never
- * ends. Never swallows: callers re-raise, so Node's own semantics are intact.
- */
-export function recordAbnormalTermination(reason: string, detail?: string): void {
-  if (!_abnormalExitCounter) {
-    _abnormalExitCounter = meter().createCounter('semiont.process.abnormal_exit', {
-      description: 'Process terminations that were not a clean shutdown',
-    });
-  }
-  _abnormalExitCounter.add(1, { reason });
-  const active = trace.getActiveSpan();
-  if (active) {
-    const detailText = detail?.trim();
-    active.setStatus({
-      code: SpanStatusCode.ERROR,
-      message: detailText ? `${reason}: ${detailText}` : reason,
-    });
-    active.setAttribute('semiont.process.abnormal_exit', reason);
-    active.end();
-  }
-}
-
-/**
- * Record an inference call. Token counts are optional — providers that
- * don't expose them (or fail before generating) record only call count
- * and duration.
- */
-export function recordInferenceUsage(opts: {
-  provider: string;
-  model: string;
-  durationMs: number;
-  outcome: 'success' | 'error';
-  inputTokens?: number;
-  outputTokens?: number;
-}): void {
-  const baseAttrs = {
-    'inference.provider': opts.provider,
-    'inference.model': opts.model,
-    'inference.outcome': opts.outcome,
-  };
-  inferenceCallsCounter().add(1, baseAttrs);
-  inferenceDurationHistogram().record(opts.durationMs, baseAttrs);
-  if (opts.inputTokens != null && opts.inputTokens > 0) {
-    inferenceTokensCounter().add(opts.inputTokens, {
-      'inference.provider': opts.provider,
-      'inference.model': opts.model,
-      'inference.direction': 'input',
-    });
-  }
-  if (opts.outputTokens != null && opts.outputTokens > 0) {
-    inferenceTokensCounter().add(opts.outputTokens, {
-      'inference.provider': opts.provider,
-      'inference.model': opts.model,
-      'inference.direction': 'output',
-    });
-  }
-}
-
-// ── Re-exports from @opentelemetry/api ─────────────────────────────────
-
-export { SpanKind, SpanStatusCode, type Attributes, type Span } from '@opentelemetry/api';
+export { SpanKind } from '@opentelemetry/api';

@@ -19,15 +19,13 @@
 // bus log: TypeScript's, Rust's and Python's. What the graph holds of an
 // annotation and of a resource is run by each implementation of the graph's
 // codecs, and what the Weaver's fold does to the graph by each Weaver. What a
-// point of the vector index is, is run by each implementation of the stores:
-// Python's, which write the points, and TypeScript's, which read them and run
-// the parts a reader has. What the index answers after a history of writes
-// is run by the stores that write. The work a start plans and what each kind
-// of PDF becomes is run by the Smelter. What the Librarian answers (a
-// reference search's scores, a text search's page, the knowledge graph, the
-// text around a selection, its prompts, its readings of a reply, the names it
-// gives) is run by the Librarian, and the views read off a knowledge graph by
-// TypeScript's core.
+// point of the vector index is, and what the index answers after a history
+// of writes, is run by the stores: Python's. The work a start plans and what
+// each kind of PDF becomes is run by the Smelter. What the Librarian answers
+// (a reference search's scores, a text search's page, the knowledge graph,
+// the text around a selection, its prompts, its readings of a reply, the
+// names it gives) is run by the Librarian, and the views read off a knowledge
+// graph by the Librarian and by TypeScript's core.
 //
 // It fails when:
 //   - a table listed here does not exist, is not JSON, states no `$comment`
@@ -163,12 +161,7 @@ const TABLES = [
   // its Smelter does by the same rule.
   {
     table: 'specs/src/text/chunk-cases.json',
-    runners: [
-      // The estimate of a text's tokens alone: TypeScript cuts no text.
-      'packages/core/src/__tests__/chunk-cases.test.ts',
-      'apps/worker/tests/test_chunk_cases.py',
-      'apps/smelter/tests/test_chunk_cases.py',
-    ],
+    runners: ['apps/worker/tests/test_chunk_cases.py', 'apps/smelter/tests/test_chunk_cases.py'],
     countsCodePoints: true,
   },
   {
@@ -199,12 +192,12 @@ const TABLES = [
       'packages/sdk-python/tests/test_bus_log.py',
     ],
   },
-  // What the graph holds of an annotation and of a resource, run by each
-  // implementation of the graph's codecs: TypeScript's (@semiont/graph) and
-  // Python's (semiont_graph).
+  // What the graph holds of an annotation and of a resource, run by the
+  // graph's codecs (semiont_graph) and by the reader the conformance harness
+  // reads a graph with, which runs the parts a reader has.
   {
     table: 'specs/src/graph/codec-cases.json',
-    runners: ['packages/graph/src/__tests__/codec-cases.test.ts', 'packages/graph-python/tests/test_codec_cases.py'],
+    runners: ['packages/graph-python/tests/test_codec_cases.py', 'tests/conformance/harness/graph-codec.test.ts'],
   },
   // What the Weaver's fold does to the graph: a history of recorded events,
   // and the graph it leaves. Run by the Weaver (semiont_weaver).
@@ -212,20 +205,17 @@ const TABLES = [
     table: 'specs/src/weaver/fold-cases.json',
     runners: ['apps/weaver/tests/test_fold_cases.py'],
   },
-  // What a point of the vector index is. Run by each implementation of the
-  // stores: Python's (semiont_vectors), which write the points and whose
-  // store contract a real Qdrant is held to as well, and TypeScript's
-  // (@semiont/vectors), which search them and run the parts a reader has.
+  // What a point of the vector index is. Run by the stores
+  // (semiont_vectors), which write the points and search them, and whose
+  // store contract a real Qdrant is held to as well.
   {
     table: 'specs/src/vectors/payload-cases.json',
     runners: [
-      'packages/vectors/src/__tests__/payload-cases.test.ts',
       'packages/vectors-python/tests/test_payload_cases.py',
       'packages/vectors-python/tests/store_contract.py',
     ],
   },
-  // What the index answers after a history of writes. Run by the stores that
-  // write: Python's.
+  // What the index answers after a history of writes. Run by the stores.
   {
     table: 'specs/src/vectors/store-cases.json',
     runners: ['packages/vectors-python/tests/store_contract.py'],
@@ -246,43 +236,43 @@ const TABLES = [
   // built from the graph's answers, the text around a selection (which counts
   // offsets), each prompt it writes and what it reads of a model's reply, and
   // the names it gives the people a reply mentions. Run by the Librarian
-  // (@semiont/make-meaning).
+  // (apps/librarian).
   {
     table: 'specs/src/librarian/score-cases.json',
-    runners: ['packages/make-meaning/src/__tests__/score-cases.test.ts'],
+    runners: ['apps/librarian/tests/test_score_cases.py'],
   },
   {
     table: 'specs/src/librarian/search-cases.json',
-    runners: ['packages/make-meaning/src/__tests__/search-cases.test.ts'],
+    runners: ['apps/librarian/tests/test_search_cases.py'],
   },
   {
     table: 'specs/src/librarian/knowledge-graph-cases.json',
-    runners: ['packages/make-meaning/src/__tests__/knowledge-graph-cases.test.ts'],
+    runners: ['apps/librarian/tests/test_knowledge_graph_cases.py'],
   },
   {
     table: 'specs/src/librarian/window-cases.json',
-    runners: ['packages/make-meaning/src/__tests__/window-cases.test.ts'],
+    runners: ['apps/librarian/tests/test_window_cases.py'],
     countsCodePoints: true,
   },
   {
     table: 'specs/src/librarian/prompt-cases.json',
-    runners: ['packages/make-meaning/src/__tests__/prompt-cases.test.ts'],
+    runners: ['apps/librarian/tests/test_prompt_cases.py'],
   },
   {
     table: 'specs/src/librarian/reply-cases.json',
-    runners: ['packages/make-meaning/src/__tests__/reply-cases.test.ts'],
+    runners: ['apps/librarian/tests/test_reply_cases.py'],
   },
   {
     table: 'specs/src/librarian/naming-cases.json',
-    runners: ['packages/make-meaning/src/__tests__/naming-cases.test.ts'],
+    runners: ['apps/librarian/tests/test_naming_cases.py'],
   },
   // The views read off a knowledge graph: who a resource connects to, who
-  // cites it, and the entity types of the annotations beside one. Run by
-  // TypeScript's reader (@semiont/core), which the Browser and the Librarian
-  // both call.
+  // cites it, and the entity types of the annotations beside one. Run by each
+  // reader: TypeScript's (@semiont/core), which the Browser calls, and the
+  // Librarian's.
   {
     table: 'specs/src/librarian/derive-views-cases.json',
-    runners: ['packages/core/src/__tests__/derive-views-cases.test.ts'],
+    runners: ['packages/core/src/__tests__/derive-views-cases.test.ts', 'apps/librarian/tests/test_derive_views_cases.py'],
   },
 ];
 

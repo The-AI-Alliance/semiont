@@ -15,7 +15,7 @@
  * `23-pdf-anchored-text.spec.ts`), and a hybrid whose two pages are one
  * typed and one scanned (for `24-pdf-hybrid-class-c.spec.ts`). Every PDF
  * is seeded **first** on purpose: Discover lists resources newest-first
- * (`@semiont/graph`'s `compareByRecencyThenId`), so the PDFs
+ * (the graph store's order of a listing), so the PDFs
  * sort last and never become the `.first()` card the text specs (02-09)
  * open. Adding a PDF must not displace that card.
  *
@@ -595,7 +595,7 @@ export async function seedKb(opts: SeedOptions): Promise<{ created: number; exis
   try {
     // Which seeds are already here. Asked ONCE, up front, rather than relying on
     // the create failing: nothing enforces `storageUri` uniqueness — not the
-    // gateway, not make-meaning — so a duplicate create succeeds, and a seeder
+    // gateway, not the Archivist — so a duplicate create succeeds, and a seeder
     // that leaned on its refusal would grow any KB by the full seed set per run.
     //
     // That is not merely untidy. Discover's landing list is capped

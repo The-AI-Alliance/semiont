@@ -7,8 +7,6 @@ import {
   getPrimaryMediaType,
   getLanguage,
   getStorageUri,
-  getCreator,
-  getDerivedFrom,
   isArchived,
   getResourceEntityTypes,
   isDraft,
@@ -88,43 +86,6 @@ describe('getStorageUri', () => {
   test('returns storageUri from primary representation', () => {
     const r = makeResource({ representations: makeRep({ storageUri: 'file:///data/abc.txt' }) });
     expect(getStorageUri(r)).toBe('file:///data/abc.txt');
-  });
-});
-
-describe('getCreator', () => {
-  test('returns single agent', () => {
-    const agent = { '@type': 'Person' as const, '@id': 'user:1', name: 'Alice' };
-    const r = makeResource({ wasAttributedTo: agent });
-    expect(getCreator(r)).toEqual(agent);
-  });
-
-  test('returns first from array', () => {
-    const agents = [
-      { '@type': 'Person' as const, '@id': 'user:1', name: 'Alice' },
-      { '@type': 'Software' as const, '@id': 'bot:1', name: 'Bot' },
-    ];
-    const r = makeResource({ wasAttributedTo: agents });
-    expect(getCreator(r)?.name).toBe('Alice');
-  });
-
-  test('returns undefined when no creator', () => {
-    expect(getCreator(makeResource())).toBeUndefined();
-  });
-});
-
-describe('getDerivedFrom', () => {
-  test('returns single URI', () => {
-    const r = makeResource({ wasDerivedFrom: resourceId('source') });
-    expect(getDerivedFrom(r)).toBe('source');
-  });
-
-  test('returns first from array', () => {
-    const r = makeResource({ wasDerivedFrom: [resourceId('a-com'), resourceId('b-com')] });
-    expect(getDerivedFrom(r)).toBe('a-com');
-  });
-
-  test('returns undefined when not set', () => {
-    expect(getDerivedFrom(makeResource())).toBeUndefined();
   });
 });
 

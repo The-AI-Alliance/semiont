@@ -268,7 +268,7 @@ Five enforcement tiers:
 | **Static compliance** — CI grep (`scripts/compliance/`, run by `architecture-compliance.yml`) | bash + grep | **A1-static** no `class` in state-unit files · **X3-static** no module-scoped mutable state · **X5** no fire-and-forget `Promise<void>` in SDK namespaces · **session-typed factories** — no `!`-asserted factory args; `useStateUnit` confined to the shell allowlist | X3, as a test that fails any `static` item |
 | **Conventions** — code review only | — | **A3-interior** internal state in Subjects · **X2** no `Promise<T>` on long-running ops · **X6** no dual bus+field exposure of the same state | — |
 
-Every state unit's test carries an `assertStateUnitAxioms({...})` block — all 18 units across `@semiont/sdk`, `@semiont/http-transport`, `@semiont/make-meaning`, and `@semiont/react-ui`. (One gap: no meta-check makes every *new* factory add a block. The Rust crate has that check: `packages/sdk-rust/tests/census.rs` fails a unit with no axiom test.)
+Every state unit's test carries an `assertStateUnitAxioms({...})` block — all 12 units across `@semiont/sdk`, `@semiont/http-transport` and `@semiont/react-ui`. (One gap: no meta-check makes every *new* factory add a block. The Rust crate has that check: `packages/sdk-rust/tests/census.rs` fails a unit with no axiom test.)
 
 ### Rule reference
 

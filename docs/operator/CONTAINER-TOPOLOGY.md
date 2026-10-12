@@ -226,7 +226,7 @@ The second diagram draws the mounts; this table states the rule. Exactly one con
 | smelter | — | **stamp holder** — writes | — |
 | worker · weaver · browser | — | — | — |
 
-Every service also mounts its own staged configuration, read-only. Each infrastructure container has a data directory of its own.
+Every service but the Browser also mounts its own configuration document, read-only. Each infrastructure container has a data directory of its own.
 
 ## One bus, one kind of participant
 

@@ -18,7 +18,7 @@ command line.
 | Token-signing key | `JWT_SECRET` | `jwt-secret` | the gateway |
 | Keycloak's admin password | `KC_BOOTSTRAP_ADMIN_PASSWORD` | `keycloak-admin-password` | Keycloak, `semiont useradd` |
 | A service's account secret | `SEMIONT_OIDC_CLIENT_SECRET_<SERVICE>` | `oidc-client-secret-<service>` | that service, and the realm Keycloak imports |
-| Neo4j's password | `NEO4J_PASSWORD` | `neo4j-password` | Neo4j, and the services that read `[graph]` |
+| Neo4j's password | `NEO4J_PASSWORD` | `neo4j-password` | Neo4j, the librarian and the weaver |
 | PostgreSQL's password | `POSTGRES_PASSWORD` | `postgres-password` | PostgreSQL, and Keycloak's connection to it |
 | The broker's password | `NATS_PASSWORD` (user `NATS_USER`, always `semiont`) | `nats-password` | the NATS broker, the dispatcher, and the gateway when its signal plane is the broker |
 
@@ -178,20 +178,20 @@ a value instead of pointing at one.
 
 ## How values reach services
 
-**Only to the services that read them.** Each service is handed the variables named in the
-config sections it reads, as listed in
-[specs/src/service-config/sections.json](../../../specs/src/service-config/sections.json). The
+**Only to the services that read them.** Each service is handed the variables its configuration
+document names, and no other. The
 Anthropic key in `[inference]` reaches the librarian and the worker, and no other service. They are
 the only services that call a model, so they are also the ones that report each model's limits
 (context window, output ceiling); the archivist lists the collaborator directory from its configuration document, which names each role's provider and model and no key.
 A daemon's password reaches the services that connect to that daemon: Neo4j's goes to the
-librarian, which reads `[graph]`, and to the weaver, whose document names it, and the broker's pair goes to
-the dispatcher, which reads `[jobs]`, and to the gateway when its signal plane is the broker.
+librarian and to the weaver, whose documents name it, and the broker's pair goes to
+the dispatcher and to the gateway when its signal plane is the broker. Voyage's key reaches the
+smelter and the librarian, which embed through it.
 
 **Never on a command line.** A container is started with `--env NAME` alone, and the value
 travels in the container runtime's own environment. A process listing on the machine shows the
-names, never the values. The gateway's configuration document names its credentials by variable
-rather than holding them.
+names, never the values. A configuration document names its credentials by variable rather than
+holding them.
 
 ## Related Documentation
 

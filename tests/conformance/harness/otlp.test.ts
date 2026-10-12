@@ -34,7 +34,7 @@ async function anExport() {
     observer.observe(3.5, { 'heap.stat': 'used' });
     observer.observe(9, { 'heap.stat': 'rss' });
   });
-  meter.createHistogram('semiont.handler.duration').record(4, { actor: 'a' });
+  meter.createHistogram('semiont.inference.duration').record(4, { 'inference.outcome': 'success' });
   const { resourceMetrics } = await collector.collect();
   return { spans: finished.getFinishedSpans(), metrics: resourceMetrics };
 }
@@ -56,7 +56,7 @@ it('reads a protobuf export as it reads the same export sent as JSON', async () 
 
     expect(asJson.spans.map((s) => s.name).sort()).toEqual(['archivist.content.get', 'bus.dispatch:beckon:focus']);
     expect(asProtobuf.spans).toEqual(asJson.spans);
-    expect([...asJson.metrics.keys()].sort()).toEqual(['semiont.bus.emit', 'semiont.handler.duration', 'semiont.runtime.heap', 'semiont.sse.subscribers']);
+    expect([...asJson.metrics.keys()].sort()).toEqual(['semiont.bus.emit', 'semiont.inference.duration', 'semiont.runtime.heap', 'semiont.sse.subscribers']);
     expect(asProtobuf.metrics).toEqual(asJson.metrics);
   } finally {
     await asJson.close();

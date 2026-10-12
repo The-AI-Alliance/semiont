@@ -62,36 +62,6 @@ export function getStorageUri(resource: ResourceDescriptor | undefined): string 
 }
 
 /**
- * Get creator agent from wasAttributedTo
- * Handles both single agent and array of agents
- *
- * @param resource - ResourceDescriptor
- * @returns First agent or undefined
- */
-export function getCreator(resource: ResourceDescriptor | undefined): components['schemas']['Agent'] | undefined {
-  if (!resource?.wasAttributedTo) return undefined;
-
-  return Array.isArray(resource.wasAttributedTo)
-    ? resource.wasAttributedTo[0]
-    : resource.wasAttributedTo;
-}
-
-/**
- * Get derived-from URI
- * Handles both single URI and array of URIs
- *
- * @param resource - ResourceDescriptor
- * @returns First derivation URI or undefined
- */
-export function getDerivedFrom(resource: ResourceDescriptor | undefined): string | undefined {
-  if (!resource?.wasDerivedFrom) return undefined;
-
-  return Array.isArray(resource.wasDerivedFrom)
-    ? resource.wasDerivedFrom[0]
-    : resource.wasDerivedFrom;
-}
-
-/**
  * Check if resource is archived (application-specific field)
  *
  * @param resource - ResourceDescriptor
@@ -161,22 +131,4 @@ export function decodeRepresentation(buffer: ArrayBuffer | Uint8Array, mediaType
   }
 
   return decodeWithCharset(buffer, mediaType);
-}
-
-/**
- * Newest first, ties broken by id — the ordering every listing of resources carries,
- * whether the views answer it or a graph engine does.
- *
- * The tiebreak is not cosmetic: browse pages these results with offset/limit,
- * and a partial order lets two pages repeat or drop rows. Ids compare by code
- * point rather than locale so every producer agrees with the engines, whose
- * `ORDER BY` is codepoint-ordered.
- */
-export function compareByRecencyThenId(a: ResourceDescriptor, b: ResourceDescriptor): number {
-  const aTime = a.dateCreated ? Date.parse(a.dateCreated) : 0;
-  const bTime = b.dateCreated ? Date.parse(b.dateCreated) : 0;
-  if (aTime !== bTime) return bTime - aTime;
-  const aId = String(a['@id']);
-  const bId = String(b['@id']);
-  return aId < bId ? -1 : aId > bId ? 1 : 0;
 }

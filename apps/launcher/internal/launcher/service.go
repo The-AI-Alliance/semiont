@@ -15,13 +15,13 @@ import (
 // (semiont-postgres, NEO4J_HOST) — they're shared contracts with every running
 // stack, local or inside a codespace.
 
-// isConfigConsumer: is this role staged a config for its start — its resolved
-// document, or its copy of the KB config? Exactly Semiont's own stack
-// services — the same list that is pulled and that holds realm accounts.
+// isConfigConsumer: is this role staged a resolved document for its start?
+// Exactly Semiont's own stack services — the same list that is pulled and
+// that holds realm accounts.
 func isConfigConsumer(svc string) bool { return contains(stackServices, svc) }
 
 // serviceNeedsAddr: does this role's launch interpolate the host address?
-// Every stack service does (the addresses its staged config states), and so do
+// Every stack service does (the addresses its document states), and so do
 // the three third-party roles the launcher must reach or configure: the database
 // it waits on, the Ollama it probes, and the identity provider whose
 // KC_DB_URL names the PostgreSQL by address: without it, `start --service

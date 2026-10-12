@@ -55,10 +55,9 @@ func documentFrom(t *testing.T, b []byte) semiont.GatewayConfig {
 	return doc
 }
 
-// Resolved: every ${VAR} a value, as the gateway's own loader would have
-// resolved it in the container the launcher starts — the dependency hosts are
-// the launcher's address, and GATEWAY_HOST, which the gateway never receives,
-// takes its default.
+// Resolved: every ${VAR} a value — the dependency hosts are the launcher's
+// address, and GATEWAY_HOST, which the gateway never receives, takes its
+// default.
 func TestGatewayDocumentIsResolved(t *testing.T) {
 	b, err := gatewayDocument(envFrom(t, gatewayDocFixture), "Example KB", "example.github.io:example-kb", "container", "192.168.64.1", 8080, 4000, nil, false)
 	if err != nil {

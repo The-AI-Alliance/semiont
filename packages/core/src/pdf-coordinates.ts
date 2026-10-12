@@ -57,9 +57,3 @@ export function parseFragmentSelector(fragment: string): PdfCoordinate | null {
     height: parseFloat(viewrectMatch[4]),
   };
 }
-
-/** Extract the 1-indexed page number from a FragmentSelector value. */
-export function getPageFromFragment(fragment: string): number | null {
-  const match = fragment.match(/page=(\d+)/);
-  return match ? parseInt(match[1], 10) : null;
-}

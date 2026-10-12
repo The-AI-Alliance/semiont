@@ -9,7 +9,7 @@ knowledge base needs the SDK, [`semiont`][sdk-python], and not this package.
 
 It runs on asyncio and requires Python 3.12 or later. It is checked by
 `mypy --strict` and by `pyright` in strict mode, and ships its types
-(`py.typed`). It is the Python counterpart of [`@semiont/vectors`][vectors-typescript].
+(`py.typed`).
 
 ## What an install has
 
@@ -154,7 +154,6 @@ fails, and is not skipped, without the variable.
 
 [semiont]: https://github.com/The-AI-Alliance/semiont
 [sdk-python]: https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk-python
-[vectors-typescript]: https://github.com/The-AI-Alliance/semiont/tree/main/packages/vectors
 [payload-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/vectors/payload-cases.json
 [store-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/vectors/store-cases.json
 [vectors-config]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/components/schemas/VectorsConfig.json

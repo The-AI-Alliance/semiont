@@ -35,7 +35,6 @@ import {
   type LibrarianEnvironment,
   type LibrarianLaunch,
   type LibrarianProcess,
-  type LibrarianService,
   type LibrarianSettings,
 } from './librarian-process';
 import { eventually, freePort } from './net';
@@ -151,7 +150,8 @@ type Change = Partial<Pick<LibrarianLaunch, 'settings' | 'env'>>;
 
 interface Parts {
   kb: ArchivistWorld;
-  service: LibrarianService;
+  /** How the Librarian is started: its line of `LIBRARIAN_SERVICES`. */
+  command: readonly string[];
   settings: LibrarianSettings;
   env: LibrarianEnvironment;
   home: string;
@@ -202,7 +202,7 @@ export class LibrarianWorld {
     this.smelterEmbedder = parts.smelterEmbedder;
   }
 
-  static async create(service: LibrarianService): Promise<LibrarianWorld> {
+  static async create(command: readonly string[]): Promise<LibrarianWorld> {
     heldToRegistry();
     const graphDatabase = inject('graphDatabase');
     const vectorDatabase = inject('vectorDatabase');
@@ -240,7 +240,7 @@ export class LibrarianWorld {
     const archivist = { host: '127.0.0.1', port: kb.settings.port };
     const world = new LibrarianWorld({
       kb,
-      service,
+      command,
       settings: {
         gatewayUrl,
         issuer,
@@ -258,8 +258,8 @@ export class LibrarianWorld {
       },
       env: { SEMIONT_OIDC_CLIENT_ID: LIBRARIAN_CLIENT, SEMIONT_OIDC_CLIENT_SECRET: secrets.librarian, [GRAPH_PASSWORD]: graphDatabase.password },
       home: mkdtempSync(join(tmpdir(), 'conformance-librarian-')),
-      // A Librarian that reads a document is told its health port there, and is told a free one.
-      port: service.configuredBy === 'semiontconfig' ? service.healthPort : await freePort(),
+      // Its document tells a Librarian its health port, and each world's is told a free one.
+      port: await freePort(),
       matcher,
       gatherer,
       embedder,
@@ -317,14 +317,9 @@ export class LibrarianWorld {
     return this.librarianProcess?.output ?? this.lastOutput;
   }
 
-  /** The form this world's Librarian is given its settings in, by which a case knows the words it names a setting by. */
-  get configuredBy(): LibrarianService['configuredBy'] {
-    return this.parts.service.configuredBy;
-  }
-
   /** What a case launches a Librarian of its own with: this world's, changed as the case says. */
   launch(change: Change = {}): LibrarianLaunch {
-    return { service: this.parts.service, settings: this.settings, env: this.parts.env, home: this.parts.home, port: this.parts.port, ...change };
+    return { command: this.parts.command, settings: this.settings, env: this.parts.env, home: this.parts.home, port: this.parts.port, ...change };
   }
 
   /**
@@ -665,10 +660,10 @@ export class LibrarianWorld {
  * it does not serve or what no case scripted.
  */
 export function eachLibrarian(title: string, body: (world: () => LibrarianWorld) => void): void {
-  describe.each(Object.entries(inject('librarianServices')))(`${title} (the %s Librarian)`, (_implementation, service) => {
+  describe.each(Object.entries(inject('librarianServices')))(`${title} (the %s Librarian)`, (_implementation, command) => {
     let world: LibrarianWorld | undefined;
     beforeAll(async () => {
-      world = await LibrarianWorld.create(service);
+      world = await LibrarianWorld.create(command);
     }, 300_000);
     afterAll(async () => {
       await world?.close();

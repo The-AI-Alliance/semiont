@@ -367,13 +367,13 @@ semiont stop
   declare.** A config says what a knowledge base needs — a graph, a vector
   store, an embedding model, an issuer — and, of the daemons the launcher
   runs, nothing of where they listen: no `uri`, `host`, `servers`, `baseURL`
-  or `issuer` line, so the file is the same on every machine. The Librarian's
-  staged copy states every address this start placed, as a literal, in the
-  sections it reads; the gateway's, the dispatcher's, the Archivist's, the
-  worker's, the Smelter's and the Weaver's documents carry theirs. Two
-  addresses reach a container through its environment instead: the gateway's
-  (`GATEWAY_HOST`), which a config's `publicURL` interpolates for the
-  Librarian, and the telemetry collector's (`OTEL_EXPORTER_OTLP_ENDPOINT`). A
+  or `issuer` line, so the file is the same on every machine. Each service's
+  document states every address this start placed, as a literal: the
+  gateway's, the dispatcher's, the Archivist's, the worker's, the Smelter's,
+  the Weaver's and the Librarian's. A `${GATEWAY_HOST}` in a config's
+  `publicURL` is resolved there too. One address reaches a container through
+  its environment instead: the telemetry collector's
+  (`OTEL_EXPORTER_OTLP_ENDPOINT`). A
   config may also write a launcher-run daemon's address as the launcher's own
   reference (`${NEO4J_HOST}`, `${QDRANT_HOST}`, `${POSTGRES_HOST}`,
   `${NATS_HOST}`, `${OLLAMA_HOST}`, `${KEYCLOAK_HOST}`, `${KEYCLOAK_PORT}`),
@@ -392,18 +392,13 @@ semiont stop
   ways. `type = "voyage"` is remote SaaS; either way embedding has a status
   row and start/stop belongs to whatever provides it.
 - **A config naming no vector store or no embedding provider is refused, before
-  anything launches.** Semantic search is always available, so the gateway's
-  TOML loader refuses such a config at boot. The launcher reads the same file
-  with its own structs, so it refuses the same configs one round trip earlier —
-  otherwise `semiont start` brings the whole stack up and the gateway dies
-  seconds later on a file the launcher already had in its hands. Same rule,
-  same words as the loader's, plus the config path. Both sections are required
-  and `embedding` needs its `model`; the refusal happens in `derivePlan`, so
-  `--dry-run` and the `semiont init` self-vet enforce it too, not just `start`.
-  `type = "memory"` is a first-class vector store to the *gateway* and is
-  refused *here* with its own explanation: a launcher-managed stack runs the
-  gateway and the Smelter as separate containers, and an in-process index
-  cannot be shared across them.
+  anything launches.** Semantic search is always available, and the launcher
+  is the config's one reader, so the refusal is its own. Both sections are
+  required and `embedding` needs its `model`; the refusal happens in
+  `derivePlan`, so `--dry-run` and the `semiont init` self-vet enforce it too,
+  not just `start`. `type = "memory"` is refused with its own explanation: a
+  launcher-managed stack runs the Smelter and the Librarian as separate
+  containers, and an in-process index cannot be shared across them.
 - **The inference and embedding rows list their models.** Which models a stack
   uses is config truth, recorded at start (the union of `actors.*` and
   `workers.*` inference models, and `embedding.model`); whether each is pulled
@@ -506,7 +501,7 @@ semiont stop
   Neo4j, Qdrant, Ollama, and Jaeger appear as detail alongside). A `--service` start reads the
   service's own credential from the per-root state a full start persisted —
   nothing is recovered out of a running container — auto-enables OTel iff Jaeger is up, and stages the
-  service's config afresh (its document, or the Librarian's copy); a `--service` stop leaves the staged configs in
+  service's document afresh; a `--service` stop leaves the staged configs in
   place (the rest of the stack still mounts them); a `--service` status exits
   0/1 on that service alone.
 - `SEMIONT_VERSION` selects the service image tag (default `latest`; the

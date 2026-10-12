@@ -51,7 +51,7 @@ A stack the launcher has running is a worked example of the whole contract. `sem
 
 ### What your platform provides
 
-**Configuration.** The librarian reads a TOML file at `/home/semiont/.semiontconfig`, whose schema is in [Configuration](CONFIGURATION.md). The gateway, the dispatcher, the archivist, the worker, the weaver and the smelter each read a JSON document, at `/etc/semiont/gateway.json`, `/etc/semiont/dispatcher.json`, `/etc/semiont/archivist.json`, `/etc/semiont/worker.json`, `/etc/semiont/weaver.json` and `/etc/semiont/smelter.json`, whose schemas are [`GatewayConfig`](../../../specs/src/components/schemas/GatewayConfig.json), [`DispatcherConfig`](../../../specs/src/components/schemas/DispatcherConfig.json), [`ArchivistConfig`](../../../specs/src/components/schemas/ArchivistConfig.json), [`WorkerConfig`](../../../specs/src/components/schemas/WorkerConfig.json), [`WeaverConfig`](../../../specs/src/components/schemas/WeaverConfig.json) and [`SmelterConfig`](../../../specs/src/components/schemas/SmelterConfig.json). Getting those files into each container is yours: a ConfigMap, a mounted volume, or a layer you bake. With no launcher to place the daemons, every section states its address.
+**Configuration.** The gateway, the dispatcher, the archivist, the worker, the weaver, the smelter and the librarian each read a JSON document, at `/etc/semiont/gateway.json`, `/etc/semiont/dispatcher.json`, `/etc/semiont/archivist.json`, `/etc/semiont/worker.json`, `/etc/semiont/weaver.json`, `/etc/semiont/smelter.json` and `/etc/semiont/librarian.json`, whose schemas are [`GatewayConfig`](../../../specs/src/components/schemas/GatewayConfig.json), [`DispatcherConfig`](../../../specs/src/components/schemas/DispatcherConfig.json), [`ArchivistConfig`](../../../specs/src/components/schemas/ArchivistConfig.json), [`WorkerConfig`](../../../specs/src/components/schemas/WorkerConfig.json), [`WeaverConfig`](../../../specs/src/components/schemas/WeaverConfig.json), [`SmelterConfig`](../../../specs/src/components/schemas/SmelterConfig.json) and [`LibrarianConfig`](../../../specs/src/components/schemas/LibrarianConfig.json). Getting those files into each container is yours: a ConfigMap, a mounted volume, or a layer you bake. With no launcher to place the daemons, every document states each address, and no service reads the TOML that [Configuration](CONFIGURATION.md) describes.
 
 **Secrets.** Services read secrets from environment variables and from no secret store. The gateway needs `JWT_SECRET`. Every service needs its own `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`. Inference keys and daemon passwords arrive as whatever variables your config references. Mapping them from your store (Kubernetes Secrets, Vault, a cloud's secret manager) is yours. See [Secrets](../services/SECRETS.md).
 
@@ -118,10 +118,10 @@ database = "neo4j"
 
 | Role | Interface | Drivers in the code |
 |---|---|---|
-| Inference | `InferenceClient`, in [`@semiont/inference`](../../../packages/inference/) | Anthropic, Ollama |
-| Embedding | `EmbeddingProvider`, in `semiont_vectors` ([`packages/vectors-python`](../../../packages/vectors-python/)), which the smelter embeds through, and in [`@semiont/vectors`](../../../packages/vectors/), which the librarian embeds a query through | Ollama, Voyage |
-| Vector store | `VectorStore`, in the same two packages: the smelter writes the index and the librarian searches it | Qdrant |
-| Graph | `GraphDatabase`, in [`@semiont/graph`](../../../packages/graph/) | Neo4j, Neptune, JanusGraph, in-memory |
+| Inference | `InferenceClient`, in `semiont_inference` ([`packages/inference-python`](../../../packages/inference-python/)) | Anthropic, Google's Gemini, llama.cpp's server, Ollama, OpenAI, Together AI, vLLM |
+| Embedding | `EmbeddingProvider`, in `semiont_vectors` ([`packages/vectors-python`](../../../packages/vectors-python/)), which the smelter embeds through and the librarian embeds a query through | Ollama, Voyage |
+| Vector store | `VectorStore`, in the same package: the smelter writes the index and the librarian searches it | Qdrant |
+| Graph | `GraphDatabase`, in `semiont_graph` ([`packages/graph-python`](../../../packages/graph-python/)): the weaver writes the graph and the librarian reads it | Neo4j, Neptune, JanusGraph, in-memory |
 | Identity | OpenID Connect | Any conforming issuer. Keycloak is the one the launcher runs |
 | Signal plane | `SignalPlane`, in the gateway | In-process, NATS |
 | Job queue | The dispatcher's queue | NATS JetStream |

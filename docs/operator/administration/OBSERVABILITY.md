@@ -11,26 +11,28 @@ All three share the W3C `trace_id`: a `busLog` line written inside a span carrie
 ## What gets traced
 
 The transport contract is the single instrumentation layer. Every bus
-emit, content put/get, in-process actor handler, and worker job
+emit, content put/get, and worker job
 becomes a span. Trace context propagates over HTTP `traceparent`
 headers and SSE `_trace` payload fields.
 
 The spans are in the tables below, by who exports them. What the Rust services, the
-Worker service, the Weaver and the Smelter export is specified, with kinds and attributes, in
+Worker service, the Weaver, the Smelter and the Librarian export is specified, with kinds and attributes, in
 [`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json),
 and what an SDK's transports export, in any language, in
 [`specs/src/sdk-telemetry/telemetry.json`](../../../specs/src/sdk-telemetry/telemetry.json),
 which also has the count of emits a client sends. Each service's conformance suite holds it
 to its rows in both directions, and the SDK suite holds each SDK to the SDK table.
 
-In a span's name `{channel}` is the bus channel, `{jobType}` the job's type, and `{actor}` the
-actor's name. **When** is the services' table's word for when a span is there: `traffic`, once
+In a span's name `{channel}` is the bus channel and `{jobType}` the job's type. **When** is the
+services' table's word for when a span is there: `traffic`, once
 the service has had something of its kind to do.
 
-An SDK's transports, in whatever process they run: the Browser, the Librarian, and the
-services that reach the bus through an SDK. The dispatcher, the Archivist, the Weaver and the Smelter
-make no span of their own and export the two bus rows; the Worker service exports those and `content.put`,
-`content.get` and `content.get_anchored_text`, for the uploads and reads it makes.
+An SDK's transports, in whatever process they run: the Browser, and the
+services that reach the bus through an SDK. The dispatcher, the Archivist, the Weaver, the Smelter
+and the Librarian make no span of their own. The first four export the two bus rows; the Librarian
+exports those and `content.get_anchored_text`, for the anchored text it reads; the Worker service
+exports those and `content.put`, `content.get` and `content.get_anchored_text`, for the uploads and
+reads it makes.
 
 | Span                   | Kind     | Attributes                                              | What it is                                    |
 |------------------------|----------|---------------------------------------------------------|-----------------------------------------------|
@@ -40,13 +42,6 @@ make no span of their own and export the two bus rows; the Worker service export
 | `content.get`          | client   | `resource.id`, and `content.stream` (`true`) on a read taken as a stream | A read of a resource's bytes |
 | `content.get_graph`    | client   | `resource.id`                                           | A read of a resource's description |
 | `content.get_anchored_text` | client | `resource.id`                                        | A read of a resource's anchored text |
-
-The Librarian, for each request one of its actors answers. `{channel}` is the request's
-channel:
-
-| Span                   | Kind     | Attributes                                              | What it is                                    |
-|------------------------|----------|---------------------------------------------------------|-----------------------------------------------|
-| `actor.{actor}:{channel}` | consumer | `actor`, `bus.channel`                               | One request the Gatherer or the Matcher answered |
 
 The gateway:
 
@@ -103,23 +98,21 @@ The Rust services — the gateway, the dispatcher and the Archivist — read the
 environment table lists ([`variables.json`](../../../specs/src/service-environment/variables.json))
 and configure their SDK from them. The Worker service reads the ones
 [WORKER-SERVICE.md](../../protocol/WORKER-SERVICE.md#environment) lists, the Weaver the ones
-[WEAVER.md](../../protocol/WEAVER.md#environment) lists, and the Smelter the ones
-[SMELTER.md](../../protocol/SMELTER.md#environment) lists. The table below is the Node service's, the Librarian's.
+[WEAVER.md](../../protocol/WEAVER.md#environment) lists, the Smelter the ones
+[SMELTER.md](../../protocol/SMELTER.md#environment) lists, and the Librarian the ones
+[LIBRARIAN.md](../../protocol/LIBRARIAN.md#environment) lists. Every service reads these four:
 
 | Variable                          | Default                                | Purpose                            |
 |-----------------------------------|----------------------------------------|------------------------------------|
-| `OTEL_EXPORTER_OTLP_ENDPOINT`     | (none — SDK does not initialize)       | OTLP HTTP collector URL            |
-| `OTEL_EXPORTER_OTLP_HEADERS`      | (none)                                 | Auth headers for SaaS APMs         |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`     | (none — nothing is exported)           | OTLP HTTP collector URL            |
 | `OTEL_SERVICE_NAME`               | `semiont-<service>`, such as `semiont-gateway` | Service identity            |
-| `OTEL_TRACES_SAMPLER`             | `parentbased_always_on`                | Sampler                            |
-| `OTEL_TRACES_SAMPLER_ARG`         | (n/a)                                  | Ratio for traceidratio samplers    |
 | `OTEL_CONSOLE_EXPORTER`           | `false`                                | Set `true` to print to the service's output (dev only) |
-| `OTEL_SDK_DISABLED`               | `false`                                | Set `true` to skip init entirely   |
+| `OTEL_SDK_DISABLED`               | `false`                                | Set `true` to export nothing, whatever else is set |
 
 **Off-by-default invariant**: with neither
 `OTEL_EXPORTER_OTLP_ENDPOINT` nor `OTEL_CONSOLE_EXPORTER=true` set,
-the SDK does not initialize — the `@opentelemetry/api` no-op tracer
-takes over and `withSpan` becomes a free pass-through. This keeps a deployment with no collector from flooding its own logs.
+a service installs no exporter: every span and every count its code
+makes goes nowhere, and no trace context travels. This keeps a deployment with no collector from flooding its own logs.
 
 Without a collector, `OTEL_CONSOLE_EXPORTER=true` prints spans and metrics to the service's output.
 
@@ -201,10 +194,9 @@ process has exported spans. Most likely causes:
    with `container exec semiont-gateway env | grep OTEL_`.
 
 If services appear but every trace is single-service (no cross-service
-propagation), the W3C trace-context propagator likely isn't
-registered. `initObservabilityNode` registers it explicitly because
-we don't use `@opentelemetry/sdk-node` (which would do it
-implicitly) — see `packages/observability/src/node.ts`.
+propagation), a service between them exports nothing: one that installs
+no exporter sends no trace context on. Check each service's `OTEL_`
+variables as above.
 
 ## Two invariants
 
@@ -212,14 +204,14 @@ implicitly) — see `packages/observability/src/node.ts`.
    event log, Qdrant, or Neo4j. Observability data is high-volume,
    short-retention, lossy-is-fine; KB data is durable, append-only,
    source of truth. Mixing them is an antipattern.
-2. **No exporter, no traces.** If the operator configures nothing, the
-   SDK no-ops — spans are created in-memory and dropped at the
-   `BatchSpanProcessor` flush. Zero network cost, zero storage cost.
+2. **No exporter, no traces.** If the operator configures nothing, a
+   service installs nothing: no span is kept and nothing is sent. Zero
+   network cost, zero storage cost.
 
 ## Relationship to the structured logger and `busLog`
 
 - **Structured logger** (the Rust services', in `packages/observability-rust/src/logging.rs`;
-  `createProcessLogger()` in the Librarian; the Python services', in
+  the Python services', in
   `packages/service-python/src/semiont_service/log.py`) — JSON-line,
   level-filtered, always on. Logs semantic events (validation failed,
   user authenticated). Goes to log aggregator. Every line is auto-
@@ -245,21 +237,21 @@ Alongside traces, every service exports metrics through the same OTLP
 endpoint. No extra config required — the `OTEL_EXPORTER_OTLP_ENDPOINT`
 you set for traces also drives metrics. The Browser exports spans only.
 
-The table is what the Node service, the Librarian, exports.
+The first table is what more than one service exports: the emits an SDK's transport sent, the
+requests the Worker service and the Librarian make of a model, and what every service says of
+its own process.
 
 | Metric                       | Type             | Attributes                                              | Where                                         |
 |------------------------------|------------------|---------------------------------------------------------|-----------------------------------------------|
-| `semiont.bus.sent`           | counter          | `bus.channel`, and `bus.scope` on a scoped emit         | Every transport `emit` (`HttpTransport`): an emit a client sent |
-| `semiont.handler.duration`   | histogram        | `actor`, `bus.channel`                                  | Every actor handler (Gatherer / Matcher) |
-| `semiont.inference.calls`    | counter          | `inference.provider`, `inference.model`, `inference.outcome` | Anthropic + Ollama clients               |
-| `semiont.inference.tokens`   | counter          | `inference.provider`, `inference.model`, `inference.direction` (`input`/`output`) | Anthropic + Ollama (when usage exposed) |
-| `semiont.inference.duration` | histogram        | `inference.provider`, `inference.model`, `inference.outcome` | Anthropic + Ollama clients               |
-| `semiont.gather.degraded`    | counter          | `projection` (`graph`/`vectors`/`suggestions`)          | Librarian's Gatherer — a gather that came up short: `graph`, the graph projection did not catch up and the gather failed; `vectors`, the vector projection did not settle in time and the context carries no semantic matches; `suggestions`, the summary and suggestions inference call failed and the context carries neither. A rising `graph` or `vectors` rate means the Weaver or the Smelter is not keeping up |
+| `semiont.bus.sent`           | counter          | `bus.channel`, and `bus.scope` on a scoped emit         | Every SDK transport's emit: an emit a client sent |
+| `semiont.inference.calls`    | counter          | `inference.provider`, `inference.model`, `inference.outcome` | The Worker service and the Librarian — each request of a model, by how it ended |
+| `semiont.inference.tokens`   | counter          | `inference.provider`, `inference.model`, `inference.direction` (`input`/`output`) | The Worker service and the Librarian — the tokens a provider reported, where it reports any |
+| `semiont.inference.duration` | histogram        | `inference.provider`, `inference.model`, `inference.outcome` | The Worker service and the Librarian — how long each request of a model took, in ms |
 | `semiont.process.start_time` | gauge            | (none)                                                  | Every service — Unix seconds at which the process started; a change means it restarted |
 | `semiont.process.restarts`   | gauge            | (none)                                                  | Every supervised service — times the in-container supervisor restarted the process, read back from the supervisor's event log. The series exists only when the run set `SEMIONT_SUPERVISE` (local stacks); absent, not `0`, everywhere else |
 | `semiont.process.abnormal_exit` | counter       | `reason` (`unhandledRejection`/`uncaughtException`)     | Every service — a fatal error, counted just before the process exits |
 | `semiont.runtime.event_loop.lag` | gauge        | `lag.stat` (`mean`/`p99`/`max`)                     | Every service — event-loop delay over the last export interval, in ms: time the process could serve nothing |
-| `semiont.runtime.heap`       | gauge            | `heap.stat` (`used`/`total`/`limit`/`rss`)              | Every service — process memory in bytes. `limit` is V8's own heap ceiling, which is what the process dies at, not the container's allocation |
+| `semiont.runtime.heap`       | gauge            | `heap.stat` (`used`/`total`/`limit`/`rss`)              | Every service — process memory in bytes |
 
 The gateway, the dispatcher and the Archivist are Rust and export their own metrics,
 specified with their instruments, attributes and attribute values in
@@ -324,6 +316,16 @@ memory, and no metric of its own. How many events the Weaver could not apply and
 boot passes ended, and how many events the Smelter has applied and how its reconcile ended, are
 what each one's health says.
 
+The Librarian is Python too. It exports the `semiont.process.*` and `semiont.runtime.*`
+instruments as the Worker service does, with the same three readings of its memory, the three
+`semiont.inference.*` rows for the requests it makes of its two models, and this:
+
+| Metric                       | Type             | Attributes                                              | When    | What it is                                    |
+|------------------------------|------------------|---------------------------------------------------------|---------|-----------------------------------------------|
+| `semiont.gather.degraded`    | counter          | `projection` (`graph`/`vectors`/`suggestions`)          | traffic | A gather that went without something: `graph`, the graph did not come to hold the resource and the gather failed; `vectors`, the vector index did not settle in time and the context carries no similar passages; `suggestions`, the model failed and the context carries no summary and no suggestions. A rising `graph` or `vectors` rate means the Weaver or the Smelter is not keeping up |
+
+No metric and no span says how long the Librarian took to answer a search or a gather.
+
 Additional vars:
 
 | Variable                          | Default | Purpose                                       |
@@ -338,8 +340,8 @@ metric snapshots also print to the service's output at each export interval.
 
 Every log line a service writes is tagged with `trace_id` and `span_id`
 when an active span exists: the Rust services — the gateway, the
-dispatcher and the Archivist — and the Worker service, the Weaver and the Smelter by their
-loggers, the Node service by `createProcessLogger()`. Log queries in CloudWatch / Loki / Datadog
+dispatcher and the Archivist — and the Worker service, the Weaver, the Smelter and the
+Librarian, each by its logger. Log queries in CloudWatch / Loki / Datadog
 can be filtered by `trace_id` and joined with the trace UI.
 
 ```json

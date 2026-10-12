@@ -27,9 +27,9 @@ __all__ = ["OllamaInferenceClient"]
 _OBJECT: Final = TypeAdapter[dict[str, JsonValue]](dict[str, JsonValue])
 
 # How long the request for a model's limits may take. Ollama answers `/api/show`
-# from what it holds of the model, without running it. These are the bounds the
-# TypeScript driver's request has from its platform: ten seconds to connect, and
-# five minutes for each of the rest (sending, the answer, a connection to use).
+# from what it holds of the model, without running it. The bounds are ten
+# seconds to connect, and five minutes for each of the rest (sending, the
+# answer, a connection to use).
 _DISCOVERY_TIMEOUT: Final = httpx.Timeout(300.0, connect=10.0)
 
 # How long a generation may take. With `stream: false` Ollama sends nothing, not

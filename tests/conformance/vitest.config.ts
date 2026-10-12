@@ -106,8 +106,8 @@ export default defineConfig({
           globalSetup: ['harness/global-setup.ts', 'harness/archivist-setup.ts', 'harness/librarian-setup.ts'],
           // One file at a time: the files share one graph database and one
           // vector database, each cleared when a file's world is made, and
-          // the health ports of a Librarian, a Weaver and a Smelter are
-          // constants, so two worlds cannot run at once.
+          // the health ports of a Weaver and a Smelter are constants, so two
+          // worlds cannot run at once.
           fileParallelism: false,
         },
       },
