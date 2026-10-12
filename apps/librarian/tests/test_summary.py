@@ -4,7 +4,7 @@ from typing import Final, final
 
 import pytest
 from aio import run
-from rig import FakeAnchoredText, FakeContent, FakeInference, FakeViews, Prompted, described, reference, tag, view
+from rig import FakeAnchoredText, FakeContent, FakeInference, FakeViews, described, reference, sent, tag, view
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.types import Annotation, ContextualSummaryResponse, ContextualSummaryResponseContext, GatherSummaryRequest, ResourceView
 from semiont_service.content import Content
@@ -75,7 +75,7 @@ def test_a_summary_answers_the_model_s_words_the_resource_s_name_the_entity_type
         asking = annotation_summary_prompt(
             resource="Black Hawk War", before=BOOK * 200, selected=PASSAGE, after=BOOK * 200, entity_types=["Treaty"]
         )
-        assert world.inference.asked == [Prompted(asking.text, asking.max_tokens, asking.temperature)]
+        assert world.inference.asked == [sent(asking)]
         assert world.content.asked == [WAR]
 
     run(scenario())

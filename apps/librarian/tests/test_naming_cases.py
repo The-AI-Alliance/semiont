@@ -13,14 +13,14 @@ id, and the one read of the projection a reply is named over.
 
 import copy
 import logging
-from collections.abc import Iterable, Mapping
+from collections.abc import Mapping
 
 import pytest
 from aio import run
 from pydantic import JsonValue
-from rig import ADA, RECORDED, FakePeople
+from rig import ADA, ADA_ID, LOVELACE, RECORDED, FakePeople
 from semiont.types import PeopleProjection, PeopleProjectionPeopleValue
-from spec import ROOT, JsonObject, objects, read, text
+from spec import ROOT, JsonObject, objects, only, read, why
 
 from semiont_librarian.naming import named, namer
 from semiont_librarian.reads import PeopleUnread
@@ -30,20 +30,6 @@ CASES = objects(TABLE["cases"], "cases")
 
 TABLE_MEMBERS = ("$comment", "cases")
 CASE_MEMBERS = ("why", "reply", "people", "named")
-
-ADA_ID = text(ADA["@id"], "Ada's id")
-LOVELACE = {ADA_ID: PeopleProjectionPeopleValue(name="Ada Lovelace", since=RECORDED)}
-"""A projection in which Ada has a profile, and nobody else has."""
-
-
-def only(stated: JsonObject, known: Iterable[str], what: str) -> None:
-    """Fail for a member of `stated` that is none of `known`: nothing here would read it."""
-    unread = sorted(set(stated) - set(known))
-    assert unread == [], f"{what} states {unread}, which nothing here reads"
-
-
-def why(case: JsonObject) -> str:
-    return text(case["why"], "why")
 
 
 def people_of(case: JsonObject) -> Mapping[str, PeopleProjectionPeopleValue]:

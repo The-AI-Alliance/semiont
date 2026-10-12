@@ -49,8 +49,8 @@ from semiont.operations import (
 )
 from semiont.transport import ContentTransport
 from semiont.types import AnchoredTextAnswer, LibrarianConfig
-from semiont_graph.factory import create_graph_database
-from semiont_graph.interface import GraphDatabase
+from semiont_graph.factory import create_graph_reader
+from semiont_graph.interface import GraphReader
 from semiont_inference.factory import create_inference_client
 from semiont_inference.interface import InferenceClient
 from semiont_service.archivist import ArchivistContent
@@ -130,7 +130,7 @@ class _Started:
 
     config: LibrarianConfig
     credential: Credential
-    graph: GraphDatabase
+    graph: GraphReader
     vectors: VectorReader
     embedding: EmbeddingProvider
     matcher: InferenceClient
@@ -144,7 +144,8 @@ def boot(arguments: Sequence[str], environment: Mapping[str, str]) -> _Started:
     own = (LOG.name, "semiont_graph", "semiont_vectors", "semiont_inference", "semiont")
     configure(SERVICE, config.log_level, config.log_format, own=own)
     credential = service_account_of(SERVICE, config.identity.issuer, environment)
-    graph = create_graph_database(config.graph, password=graph_password_of(config, environment))
+    # A reader of the graph: connecting it makes no constraint and no index there.
+    graph = create_graph_reader(config.graph, password=graph_password_of(config, environment))
     embedding = create_embedding_provider(config.embedding, api_key=embedding_key_of(config, environment))
     # A reader of the index: it is told no width, because it makes nothing there.
     vectors = create_vector_reader(config.vectors)

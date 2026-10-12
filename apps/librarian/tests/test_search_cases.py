@@ -22,14 +22,14 @@ logs.
 
 import asyncio
 import logging
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Final, final, override
 
 import pytest
 from aio import run
 from pydantic import JsonValue
-from rig import ADA, RECORDED, FakeContent, FakeEmbedding, FakeGraph, FakePeople, FakeVectors, FakeViews, described, view
+from rig import ADA, LOVELACE, FakeContent, FakeEmbedding, FakeGraph, FakePeople, FakeVectors, FakeViews, described, view
 from semiont.identifiers import ResourceId
 from semiont.model import written
 from semiont.types import (
@@ -37,7 +37,6 @@ from semiont.types import (
     MatchResourcesRequest,
     MatchResourcesResult,
     Motivation,
-    PeopleProjectionPeopleValue,
     ResourceDescriptor,
     ResourceView,
 )
@@ -45,7 +44,7 @@ from semiont_graph.interface import EntityTypeCount, GraphConnection, ResourceLi
 from semiont_service.content import Content
 from semiont_vectors.embedding import EmbeddingProvider
 from semiont_vectors.store import SearchOptions, VectorSearchResult
-from spec import ROOT, JsonObject, number, objects, read, strings, text, thing, whole
+from spec import ROOT, JsonObject, number, objects, only, read, strings, text, thing, whole, why
 
 from semiont_librarian.reads import GraphReads, PeopleUnread, Views
 from semiont_librarian.text_search import Page, answer, search_resources, with_previews
@@ -73,25 +72,11 @@ SERVED_MEMBERS = ("text", "contentType", "fails")
 R1: Final = ResourceId("res-a")
 R2: Final = ResourceId("res-b")
 
-ADA_ID = text(ADA["@id"], "Ada's id")
-LOVELACE = {ADA_ID: PeopleProjectionPeopleValue(name="Ada Lovelace", since=RECORDED)}
-"""A projection in which Ada has a profile."""
-
 TEXT_FILE: Final[JsonObject] = {"mediaType": "text/plain", "storageUri": "file://a-text.txt", "rel": "original"}
 """A representation whose bytes are its text."""
 
 DISTRIBUTION = "Semantic score distribution of a text search"
 """The line a search answered by meaning logs of its scores."""
-
-
-def only(stated: JsonObject, known: Iterable[str], what: str) -> None:
-    """Fail for a member of `stated` that is none of `known`: nothing here would read it."""
-    unread = sorted(set(stated) - set(known))
-    assert unread == [], f"{what} states {unread}, which nothing here reads"
-
-
-def why(case: JsonObject) -> str:
-    return text(case["why"], "why")
 
 
 # ── The stores of a case ──────────────────────────────────────────────
@@ -390,9 +375,7 @@ def nothing_listed() -> ResourceListing:
 
 def page_of(request: MatchResourcesRequest, at: Stores, *, floor: float = 0.5) -> Page:
     """The page a search answers from `at`."""
-    return run(
-        search_resources(request, graph=at.graph, views=at.views, vectors=at.vectors, embedding=at.embedding, semantic_floor=floor)
-    )
+    return run(search_resources(request, graph=at.graph, views=at.views, vectors=at.vectors, embedding=at.embedding, semantic_floor=floor))
 
 
 def reply_to(request: MatchResourcesRequest, at: Stores) -> MatchResourcesResult:
@@ -486,7 +469,7 @@ def test_a_graph_that_fails_to_list_fails_the_request_and_the_projection_is_not_
 
 
 @pytest.mark.parametrize(
-    "blank", ["\u0085", "　\u0085", "\t\n  "], ids=["the next line", "an ideographic space and the next line", "a tab and others"]
+    "blank", ["\u0085", "\u3000\u0085", "\t\n \u00a0"], ids=["the next line", "an ideographic space and the next line", "a tab and others"]
 )
 def test_a_text_of_unicode_s_white_space_alone_finds_nothing_and_no_store_is_asked(blank: str) -> None:
     at = stores(lists=ResourceListing(resources=[described(R1)], total=1))
@@ -496,7 +479,7 @@ def test_a_text_of_unicode_s_white_space_alone_finds_nothing_and_no_store_is_ask
     assert at.vectors.asked == []
 
 
-@pytest.mark.parametrize("mark", ["﻿", "\x1f"], ids=["the byte order mark", "a unit separator"])
+@pytest.mark.parametrize("mark", ["\ufeff", "\x1f"], ids=["the byte order mark", "a unit separator"])
 def test_a_character_that_is_not_unicode_s_white_space_is_searched_for(mark: str) -> None:
     at = stores(lists=ResourceListing(resources=[], total=2))
     page_of(MatchResourcesRequest(search=f" {mark}hawk{mark}\u0085"), at)

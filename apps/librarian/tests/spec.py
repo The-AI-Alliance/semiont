@@ -4,6 +4,7 @@ The Librarian's case tables are in `specs/src/librarian`. A runner names its
 table's path whole, in its own file.
 """
 
+from collections.abc import Iterable
 from pathlib import Path
 
 from pydantic import JsonValue, TypeAdapter
@@ -67,3 +68,14 @@ def number(value: JsonValue, what: str) -> float:
     assert isinstance(value, int | float), f"{what} is not a number"
     assert not isinstance(value, bool), f"{what} is not a number"
     return float(value)
+
+
+def only(stated: JsonObject, known: Iterable[str], what: str) -> None:
+    """Fail for a member of `stated` that is none of `known`: nothing of the runner that asks would read it."""
+    unread = sorted(set(stated) - set(known))
+    assert unread == [], f"{what} states {unread}, which nothing here reads"
+
+
+def why(case: JsonObject) -> str:
+    """Why a case is a case: what tells it from the others of its table."""
+    return text(case["why"], "why")

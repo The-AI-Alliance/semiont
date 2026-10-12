@@ -213,7 +213,7 @@ def test_a_listing_by_entity_type_that_fails_fails_the_search_with_the_failure_s
 # mark (U+FEFF) and the unit separator (U+001F) do not have it, though a language's own trimming may drop either.
 @pytest.mark.parametrize(
     ("selected", "is_blank"),
-    [("\u0085", True), ("　\t\u0085", True), ("﻿", False), ("\x1f", False)],
+    [("\u0085", True), ("\u3000\t\u0085", True), ("\ufeff", False), ("\x1f", False)],
     ids=["the next line", "an ideographic space, a tab and the next line", "the byte order mark", "a unit separator"],
 )
 def test_a_term_is_blank_when_it_is_unicode_s_white_space_alone_and_the_index_is_asked_of_any_other(selected: str, is_blank: bool) -> None:

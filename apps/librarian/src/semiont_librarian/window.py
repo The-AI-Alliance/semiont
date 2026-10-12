@@ -26,6 +26,7 @@ __all__ = [
     "Window",
     "WindowRefused",
     "annotation_context",
+    "refuse_out_of_bounds",
     "selection_of",
     "text_around",
 ]
@@ -57,6 +58,16 @@ class Window:
     after: str
 
 
+def refuse_out_of_bounds(window: int) -> None:
+    """Refuse a gather's window that is out of bounds. This is the one place that says what the bounds are, and in what words.
+
+    Raises `WindowRefused` for a window less than `LEAST_WINDOW` or more
+    than `LARGEST_WINDOW`. A gather asks this before it reads anything.
+    """
+    if not LEAST_WINDOW <= window <= LARGEST_WINDOW:
+        raise WindowRefused(f"contextWindow must be between {LEAST_WINDOW} and {LARGEST_WINDOW}")
+
+
 def text_around(text: str, start: int, end: int, before: int, after: int) -> Window:
     """The span of `text` from `start` to `end`, with at most `before` code points of the text before it and `after` of the text after it.
 
@@ -84,8 +95,7 @@ def selection_of(annotation: Annotation, text: str, window: int) -> Window | Non
     Raises `WindowRefused` for a window outside `LEAST_WINDOW` to
     `LARGEST_WINDOW`, before anything is read of the annotation.
     """
-    if window < LEAST_WINDOW or window > LARGEST_WINDOW:
-        raise WindowRefused(f"contextWindow must be between {LEAST_WINDOW} and {LARGEST_WINDOW}")
+    refuse_out_of_bounds(window)
     stated = target_selector(annotation.target)
     if isinstance(stated, list):
         if not stated:

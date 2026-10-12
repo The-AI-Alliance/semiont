@@ -21,10 +21,10 @@ from rig import (
     FakeVectors,
     FakeViews,
     FakeWeave,
-    Prompted,
     described,
     link,
     reference,
+    sent,
     tag,
     view,
 )
@@ -37,7 +37,7 @@ from semiont_vectors.store import SearchFilter, SearchOptions, VectorSearchResul
 from spec import JsonObject, thing
 
 from semiont_librarian.annotation_gather import Ungathered, gather
-from semiont_librarian.prompts import Prompt, relationship_prompt, resource_summary_prompt
+from semiont_librarian.prompts import relationship_prompt, resource_summary_prompt
 from semiont_librarian.window import WindowRefused
 
 MYTHS: Final = ResourceId("res-myths")
@@ -63,11 +63,6 @@ def stored(resource: ResourceId, name: str, media_type: str = "text/plain", **st
 def at(start: int, end: int) -> JsonObject:
     """A target that selects a span of the myths by its position."""
     return {"source": MYTHS, "selector": {"type": "TextPositionSelector", "start": start, "end": end}}
-
-
-def sent(prompt: Prompt) -> Prompted:
-    """A prompt, as a model that was sent it records the request."""
-    return Prompted(prompt.text, prompt.max_tokens, prompt.temperature)
 
 
 @final

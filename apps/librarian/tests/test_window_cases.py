@@ -14,12 +14,10 @@ A member of the table or of a case that nothing here reads fails.
 After the table's cases comes what no case of it rests on.
 """
 
-from collections.abc import Iterable
-
 import pytest
 from pydantic import JsonValue
 from semiont.types import Annotation
-from spec import ROOT, JsonObject, objects, read, text, thing, whole
+from spec import ROOT, JsonObject, objects, only, read, text, thing, whole, why
 
 from semiont_librarian.window import (
     LARGEST_WINDOW,
@@ -46,16 +44,6 @@ CASE_MEMBERS = ("why", "around", "gathered")
 PART_MEMBERS = ("why", "text", "selector", "window", "context", "refused")
 WINDOW_MEMBERS = ("before", "after")
 CONTEXT_MEMBERS = ("before", "selected", "after")
-
-
-def only(stated: JsonObject, known: Iterable[str], what: str) -> None:
-    """Fail for a member of `stated` that is none of `known`: nothing here would read it."""
-    unread = sorted(set(stated) - set(known))
-    assert unread == [], f"{what} states {unread}, which nothing here reads"
-
-
-def why(case: JsonObject) -> str:
-    return text(case["why"], "why")
 
 
 def annotation_with(selector: JsonValue) -> Annotation:

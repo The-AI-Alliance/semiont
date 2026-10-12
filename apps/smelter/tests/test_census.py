@@ -286,7 +286,9 @@ def test_the_variables_it_reads_by_name_are_the_ones_the_protocol_lists() -> Non
     # shared package it is built on. Its other modules name what PDFium calls its own things, in the same letters.
     sources = sorted([SRC / "service.py", SRC / "config.py", *(SHARED / "src").rglob("*.py")])
     assert any(path.is_relative_to(SHARED) for path in sources), "packages/service-python has no source"
-    read_here = {name for path in sources for name in re.findall(r'"([A-Z][A-Z0-9]*_[A-Z0-9_]+)"', path.read_text(encoding="utf-8"))}
+    # A module's `__all__` names what it exports, in quotes too: a constant's name there is no variable read.
+    texts = [re.sub(r"^__all__ = \[.*?\]$", "", path.read_text(encoding="utf-8"), flags=re.DOTALL | re.MULTILINE) for path in sources]
+    read_here = {name for text in texts for name in re.findall(r'"([A-Z][A-Z0-9]*_[A-Z0-9_]+)"', text)}
     assert read_here == listed_there
     # Its service account, and what says where its telemetry goes and under what name. Its embedding provider's
     # key is in a variable its document names, and so is named by no code.

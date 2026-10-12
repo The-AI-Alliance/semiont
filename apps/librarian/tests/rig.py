@@ -41,6 +41,7 @@ from semiont_vectors.mock import MockEmbeddingProvider
 from semiont_vectors.store import SearchOptions, VectorReader, VectorSearchResult
 from spec import JsonObject
 
+from semiont_librarian.prompts import Prompt
 from semiont_librarian.reads import (
     AnchoredText,
     Degraded,
@@ -55,10 +56,16 @@ from semiont_librarian.reads import (
     WeaveWaitTimedOut,
 )
 
-ADA: Final[JsonObject] = {"@type": "Person", "@id": "did:web:example.org:users:ada"}
+ADA_ID: Final = "did:web:example.org:users:ada"
+"""The id of the one person a rig's builders name."""
+
+ADA: Final[JsonObject] = {"@type": "Person", "@id": ADA_ID}
 
 RECORDED: Final = "2020-03-04T05:06:07.000Z"
 """The moment everything a rig's builders make was recorded at, where a test states no other."""
+
+LOVELACE: Final = {ADA_ID: PeopleProjectionPeopleValue(name="Ada Lovelace", since=RECORDED)}
+"""A people projection in which Ada has a profile, and nobody else has."""
 
 DIMENSIONS: Final = 8
 """How wide the vectors of a rig's embedding provider are."""
@@ -372,6 +379,11 @@ class Prompted:
     prompt: str
     max_tokens: int
     temperature: float
+
+
+def sent(prompt: Prompt) -> Prompted:
+    """A prompt, as a model that was sent it records the request."""
+    return Prompted(prompt.text, prompt.max_tokens, prompt.temperature)
 
 
 @final

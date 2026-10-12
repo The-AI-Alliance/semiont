@@ -45,7 +45,7 @@ from semiont_librarian.prompts import ask, relationship_prompt, resource_summary
 from semiont_librarian.reads import AnchoredText, Degraded, GraphReads, Views, WeaveWaits
 from semiont_librarian.resource_text import text_of
 from semiont_librarian.views import derive_views
-from semiont_librarian.window import LARGEST_WINDOW, LEAST_WINDOW, Window, WindowRefused, selection_of
+from semiont_librarian.window import Window, refuse_out_of_bounds, selection_of
 
 __all__ = ["LIKE_ENOUGH", "Ungathered", "gather", "language_of", "similar_of"]
 
@@ -141,8 +141,7 @@ async def gather(
     include_source = options is None or options.include_source_context is None or options.include_source_context
     include_target = options is None or options.include_target_context is None or options.include_target_context
     window = _WINDOW if options is None or options.context_window is None else options.context_window
-    if not LEAST_WINDOW <= window <= LARGEST_WINDOW:
-        raise WindowRefused(f"contextWindow must be between {LEAST_WINDOW} and {LARGEST_WINDOW}")
+    refuse_out_of_bounds(window)
 
     resource_id = request.resource_id
     view = await views.get(resource_id)

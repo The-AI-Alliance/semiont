@@ -31,7 +31,7 @@ from semiont.model import written
 from semiont.types import Annotation, MatchSearchRequest, MatchSearchResult, Motivation, ResourceDescriptor, ResourceView
 from semiont_graph.interface import EntityTypeCount, GraphConnection, ResourceListing, ResourceQuery
 from semiont_vectors.store import SearchOptions, VectorSearchResult
-from spec import ROOT, JsonObject, number, objects, read, strings, text, thing
+from spec import ROOT, JsonObject, number, objects, only, read, strings, text, thing, why
 
 from semiont_librarian.reads import GraphReads, Views
 from semiont_librarian.reference_search import search
@@ -56,16 +56,6 @@ FAILS: Final = "fails"
 
 LISTED: Final = re.compile(r'^\d+\. ".*" \(id: (.+), types: .*\)$', re.MULTILINE)
 """A candidate's line of a score prompt, and in it the candidate's id."""
-
-
-def only(stated: JsonObject, known: Iterable[str], what: str) -> None:
-    """Fail for a member of `stated` that is none of `known`: nothing here would read it."""
-    unread = sorted(set(stated) - set(known))
-    assert unread == [], f"{what} states {unread}, which nothing here reads"
-
-
-def why(case: JsonObject) -> str:
-    return text(case["why"], "why")
 
 
 def moment_of(case: JsonObject) -> datetime:

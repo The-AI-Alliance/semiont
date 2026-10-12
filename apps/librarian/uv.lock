@@ -2105,6 +2105,7 @@ dev = [
 name = "semiont-librarian"
 source = { editable = "." }
 dependencies = [
+    { name = "opentelemetry-api" },
     { name = "pydantic" },
     { name = "semiont" },
     { name = "semiont-graph" },
@@ -2154,6 +2155,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "opentelemetry-api" },
     { name = "pydantic" },
     { name = "semiont", editable = "../../packages/sdk-python" },
     { name = "semiont-graph", editable = "../../packages/graph-python" },

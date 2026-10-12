@@ -1,4 +1,4 @@
-"""The neo4j store: a graph in a Neo4j database, asked in Cypher through Neo4j's own client.
+"""The neo4j store and the neo4j reader: a graph in a Neo4j database, asked in Cypher through Neo4j's own client.
 
 What it leans on in the client (`neo4j`, the extra of the same name): the
 asynchronous driver, `execute_query` for a statement that stands alone, and a
@@ -18,16 +18,20 @@ What it stores:
   resource the graph has: it is never read, listed, counted or followed.
   Storing the resource fills it in, and the mark goes.
 
-The database's schema is this store's to make, and it makes it each time it
+The database's schema is the store's to make, and it makes it each time it
 connects: an id is unique among resources and among annotations, and what a
-reader looks a row up by is indexed. No reader of the graph makes any
-(`@semiont/graph` makes none when it connects).
+reader looks a row up by is indexed. No reader of the graph makes any.
+`Neo4jGraphReader` is what a service that only reads the graph is handed: it
+has the six reads such a service makes, each the store's own, and connecting
+it asks the database for an answer and makes nothing there. (`@semiont/graph`
+makes none when it connects either.)
 
 Every date is stored as the text the codec gives, never as one of Neo4j's own
 temporal values: the client hands one of those back in another spelling. And
 the store reads no clock.
 """
 
+from abc import abstractmethod
 from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Final, LiteralString, final, override
 
@@ -53,6 +57,7 @@ from semiont_graph.interface import (
     GraphConnection,
     GraphDatabase,
     GraphPath,
+    GraphReader,
     GraphStats,
     ResourceChange,
     ResourceListing,
@@ -72,7 +77,7 @@ except ModuleNotFoundError as missing:
 if TYPE_CHECKING:
     from neo4j.graph import Node
 
-__all__ = ["Neo4jGraphDatabase"]
+__all__ = ["Neo4jGraphDatabase", "Neo4jGraphReader"]
 
 _NAMES: Final = TypeAdapter[list[str]](list[str])
 _COUNT: Final = TypeAdapter[int](int)
@@ -142,14 +147,8 @@ def _links_of(annotation: Annotation) -> list[str]:
     return [] if linked is None else [linked]
 
 
-@final
-class Neo4jGraphDatabase(GraphDatabase):
-    """A graph in a Neo4j database. See the module's documentation.
-
-    `uri` is where the database is reached (`bolt://host:7687`), `username`
-    and `password` who asks, and `database` which of the server's databases
-    holds the graph. Every one is stated.
-    """
+class _Neo4jReads(GraphReader):
+    """What the reader and the store share: the way to the database, and the six reads asked over it."""
 
     def __init__(self, *, uri: str, username: str, password: str, database: str) -> None:
         self._uri: Final = uri
@@ -158,15 +157,19 @@ class Neo4jGraphDatabase(GraphDatabase):
         self._database: Final = database
         self._driver: AsyncDriver | None = None
 
+    @abstractmethod
+    async def _ready(self, driver: AsyncDriver) -> None:
+        """Make ready what this one needs of a database that has answered. Raises where it cannot."""
+
     @override
     async def connect(self) -> None:
         driver = AsyncGraphDatabase.driver(
             self._uri, auth=(self._username, self._password), max_connection_pool_size=50, connection_acquisition_timeout=60.0
         )
         try:
+            # The driver dials when it is first asked, so this is what reaches the database. It changes nothing there.
             await driver.execute_query("RETURN 1", database_=self._database)
-            for statement in _SCHEMA:
-                await driver.execute_query(statement, database_=self._database)
+            await self._ready(driver)
         except BaseException:
             await driver.close()
             raise
@@ -178,13 +181,9 @@ class Neo4jGraphDatabase(GraphDatabase):
         if driver is not None:
             await driver.close()
 
-    @override
-    def is_connected(self) -> bool:
-        return self._driver is not None
-
     def _reached(self) -> AsyncDriver:
         if self._driver is None:
-            raise RuntimeError("the neo4j store is not connected: `connect` it")
+            raise RuntimeError("the neo4j graph is not connected: `connect` it")
         return self._driver
 
     async def _ask(self, statement: LiteralString, **parameters: object) -> list[Record]:
@@ -195,45 +194,9 @@ class Neo4jGraphDatabase(GraphDatabase):
     # ── Resources ──────────────────────────────────────────────────────
 
     @override
-    async def create_resource(self, resource: ResourceDescriptor) -> ResourceDescriptor:
-        properties = encode_resource(resource)
-        # MERGE, so that the write is the same twice, and fills in a stub a link made before the resource arrived.
-        # The node becomes exactly the codec's properties, so a stub's mark goes with the rest.
-        (record,) = await self._ask("MERGE (d:Resource {id: $id}) SET d = $properties RETURN d", id=properties["id"], properties=properties)
-        return _resource(record["d"])
-
-    @override
     async def get_resource(self, resource_id: ResourceId) -> ResourceDescriptor | None:
         records = await self._ask("MATCH (d:Resource {id: $id}) WHERE " + _HELD + " RETURN d", id=resource_id)
         return _resource(records[0]["d"]) if records else None
-
-    @override
-    async def update_resource(self, resource_id: ResourceId, change: ResourceChange) -> ResourceDescriptor:
-        records = await self._ask(
-            "MATCH (d:Resource {id: $id}) WHERE " + _HELD + " "
-            "SET d.archived = coalesce($archived, d.archived), d.entityTypes = coalesce($entityTypes, d.entityTypes) "
-            "RETURN d",
-            id=resource_id,
-            archived=change.archived,
-            entityTypes=None if change.entity_types is None else list(change.entity_types),
-        )
-        if not records:
-            raise LookupError("Resource not found")
-        return _resource(records[0]["d"])
-
-    @override
-    async def delete_resource(self, resource_id: ResourceId) -> None:
-        async def delete(tx: AsyncManagedTransaction) -> None:
-            await tx.run("MATCH (own:Annotation)-[:BELONGS_TO]->(:Resource {id: $id}) DETACH DELETE own", id=resource_id)
-            await tx.run(
-                "MATCH (d:Resource {id: $id}) WHERE NOT EXISTS { (:Annotation)-[:REFERENCES]->(d) } DETACH DELETE d", id=resource_id
-            )
-            # Where another resource's annotation links here the node is left as a stub, an id with the edge still
-            # on it, exactly as when a link arrives before its target.
-            await tx.run("MATCH (d:Resource {id: $id}) SET d = {id: $id, stub: true}", id=resource_id)
-
-        async with self._reached().session(database=self._database) as session:
-            await session.execute_write(delete)
 
     @override
     async def list_resources(self, query: ResourceQuery) -> ResourceListing:
@@ -269,6 +232,149 @@ class Neo4jGraphDatabase(GraphDatabase):
             **parameters,
         )
         return ResourceListing(resources=[_resource(record["d"]) for record in records], total=_COUNT.validate_python(counted["total"]))
+
+    # ── What is linked to what ─────────────────────────────────────────
+
+    @override
+    async def get_resource_annotations(self, resource_id: ResourceId) -> list[Annotation]:
+        return _annotations(
+            await self._ask("MATCH (a:Annotation {resourceId: $id}) " + _WITH_TAGS + " ORDER BY a.created DESC, a.id", id=resource_id)
+        )
+
+    @override
+    async def get_resource_referenced_by(self, resource_id: ResourceId, motivation: Motivation | None) -> list[Annotation]:
+        return _annotations(
+            await self._ask(
+                "MATCH (a:Annotation)-[:REFERENCES]->(:Resource {id: $id}) WHERE $motivation IS NULL OR a.motivation = $motivation "
+                + _WITH_TAGS
+                + " ORDER BY a.created DESC, a.id",
+                id=resource_id,
+                motivation=motivation,
+            )
+        )
+
+    async def _by_id(self, annotation_ids: Sequence[str]) -> dict[str, Annotation]:
+        """The annotations of those ids that the graph holds, each by its id."""
+        records = await self._ask("MATCH (a:Annotation) WHERE a.id IN $ids " + _WITH_TAGS, ids=list(annotation_ids))
+        return {str(annotation.id): annotation for annotation in _annotations(records)}
+
+    @override
+    async def get_resource_connections(self, resource_id: ResourceId) -> list[GraphConnection]:
+        records = await self._ask(
+            "MATCH (:Resource {id: $id})<-[:BELONGS_TO]-(a:Annotation {motivation: $linking})-[:REFERENCES]->(d:Resource) "
+            "WHERE " + _HELD + " "
+            "WITH d, a ORDER BY a.created DESC, a.id "
+            "WITH d, collect(a.id) AS links "
+            "RETURN d, links, "
+            "EXISTS { (d)<-[:BELONGS_TO]-(:Annotation {motivation: $linking})-[:REFERENCES]->(:Resource {id: $id}) } AS back "
+            "ORDER BY d.id",
+            id=resource_id,
+            linking=LINKING,
+        )
+        linking = [(record, _NAMES.validate_python(record["links"])) for record in records]
+        held = await self._by_id([link for _, links in linking for link in links])
+        return [
+            GraphConnection(
+                target_resource=_resource(record["d"]), annotations=[held[link] for link in links], bidirectional=bool(record["back"])
+            )
+            for record, links in linking
+        ]
+
+    # ── What the graph holds, counted ──────────────────────────────────
+
+    async def _counted(self, statement: LiteralString) -> dict[str, int]:
+        """A statement that answers `name` and `count`, as how many of each name."""
+        return {_TEXT.validate_python(record["name"]): _COUNT.validate_python(record["count"]) for record in await self._ask(statement)}
+
+    async def _resources_by_entity_type(self) -> dict[str, int]:
+        return await self._counted("MATCH (d:Resource) WHERE " + _HELD + " UNWIND d.entityTypes AS name RETURN name, count(*) AS count")
+
+    @override
+    async def get_entity_type_stats(self) -> list[EntityTypeCount]:
+        counts = sorted((await self._resources_by_entity_type()).items(), key=lambda counted: (-counted[1], counted[0]))
+        return [EntityTypeCount(type=entity_type, count=count) for entity_type, count in counts]
+
+
+@final
+class Neo4jGraphReader(_Neo4jReads):
+    """A graph in a Neo4j database, as a service that only reads it asks it.
+
+    It is made of what the store is made of: `uri`, `username`, `password`
+    and `database`, every one stated.
+
+    It makes nothing in the database: no constraint, no index, no node, no
+    edge, no property. Connecting asks the database for an answer, which
+    changes nothing, and raises where the database cannot be reached. Each
+    of its reads is the store's own.
+
+    A read of a database nothing has written to answers nothing: no
+    resource, no annotation, no count. The service that writes the graph
+    makes its schema, and until it has, a read is slower and no different.
+    """
+
+    @override
+    async def _ready(self, driver: AsyncDriver) -> None:
+        """A reader needs nothing made, and makes nothing."""
+
+
+@final
+class Neo4jGraphDatabase(_Neo4jReads, GraphDatabase):
+    """A graph in a Neo4j database, as the service that writes it asks it. See the module's documentation.
+
+    `uri` is where the database is reached (`bolt://host:7687`), `username`
+    and `password` who asks, and `database` which of the server's databases
+    holds the graph. Every one is stated.
+
+    Connecting makes the schema: each constraint and each index that is not
+    there.
+    """
+
+    @override
+    async def _ready(self, driver: AsyncDriver) -> None:
+        for statement in _SCHEMA:
+            await driver.execute_query(statement, database_=self._database)
+
+    @override
+    def is_connected(self) -> bool:
+        return self._driver is not None
+
+    # ── Resources ──────────────────────────────────────────────────────
+
+    @override
+    async def create_resource(self, resource: ResourceDescriptor) -> ResourceDescriptor:
+        properties = encode_resource(resource)
+        # MERGE, so that the write is the same twice, and fills in a stub a link made before the resource arrived.
+        # The node becomes exactly the codec's properties, so a stub's mark goes with the rest.
+        (record,) = await self._ask("MERGE (d:Resource {id: $id}) SET d = $properties RETURN d", id=properties["id"], properties=properties)
+        return _resource(record["d"])
+
+    @override
+    async def update_resource(self, resource_id: ResourceId, change: ResourceChange) -> ResourceDescriptor:
+        records = await self._ask(
+            "MATCH (d:Resource {id: $id}) WHERE " + _HELD + " "
+            "SET d.archived = coalesce($archived, d.archived), d.entityTypes = coalesce($entityTypes, d.entityTypes) "
+            "RETURN d",
+            id=resource_id,
+            archived=change.archived,
+            entityTypes=None if change.entity_types is None else list(change.entity_types),
+        )
+        if not records:
+            raise LookupError("Resource not found")
+        return _resource(records[0]["d"])
+
+    @override
+    async def delete_resource(self, resource_id: ResourceId) -> None:
+        async def delete(tx: AsyncManagedTransaction) -> None:
+            await tx.run("MATCH (own:Annotation)-[:BELONGS_TO]->(:Resource {id: $id}) DETACH DELETE own", id=resource_id)
+            await tx.run(
+                "MATCH (d:Resource {id: $id}) WHERE NOT EXISTS { (:Annotation)-[:REFERENCES]->(d) } DETACH DELETE d", id=resource_id
+            )
+            # Where another resource's annotation links here the node is left as a stub, an id with the edge still
+            # on it, exactly as when a link arrives before its target.
+            await tx.run("MATCH (d:Resource {id: $id}) SET d = {id: $id, stub: true}", id=resource_id)
+
+        async with self._reached().session(database=self._database) as session:
+            await session.execute_write(delete)
 
     # ── Annotations ────────────────────────────────────────────────────
 
@@ -344,51 +450,6 @@ class Neo4jGraphDatabase(GraphDatabase):
     # ── What is linked to what ─────────────────────────────────────────
 
     @override
-    async def get_resource_annotations(self, resource_id: ResourceId) -> list[Annotation]:
-        return _annotations(
-            await self._ask("MATCH (a:Annotation {resourceId: $id}) " + _WITH_TAGS + " ORDER BY a.created DESC, a.id", id=resource_id)
-        )
-
-    @override
-    async def get_resource_referenced_by(self, resource_id: ResourceId, motivation: Motivation | None) -> list[Annotation]:
-        return _annotations(
-            await self._ask(
-                "MATCH (a:Annotation)-[:REFERENCES]->(:Resource {id: $id}) WHERE $motivation IS NULL OR a.motivation = $motivation "
-                + _WITH_TAGS
-                + " ORDER BY a.created DESC, a.id",
-                id=resource_id,
-                motivation=motivation,
-            )
-        )
-
-    async def _by_id(self, annotation_ids: Sequence[str]) -> dict[str, Annotation]:
-        """The annotations of those ids that the graph holds, each by its id."""
-        records = await self._ask("MATCH (a:Annotation) WHERE a.id IN $ids " + _WITH_TAGS, ids=list(annotation_ids))
-        return {str(annotation.id): annotation for annotation in _annotations(records)}
-
-    @override
-    async def get_resource_connections(self, resource_id: ResourceId) -> list[GraphConnection]:
-        records = await self._ask(
-            "MATCH (:Resource {id: $id})<-[:BELONGS_TO]-(a:Annotation {motivation: $linking})-[:REFERENCES]->(d:Resource) "
-            "WHERE " + _HELD + " "
-            "WITH d, a ORDER BY a.created DESC, a.id "
-            "WITH d, collect(a.id) AS links "
-            "RETURN d, links, "
-            "EXISTS { (d)<-[:BELONGS_TO]-(:Annotation {motivation: $linking})-[:REFERENCES]->(:Resource {id: $id}) } AS back "
-            "ORDER BY d.id",
-            id=resource_id,
-            linking=LINKING,
-        )
-        linking = [(record, _NAMES.validate_python(record["links"])) for record in records]
-        held = await self._by_id([link for _, links in linking for link in links])
-        return [
-            GraphConnection(
-                target_resource=_resource(record["d"]), annotations=[held[link] for link in links], bidirectional=bool(record["back"])
-            )
-            for record, links in linking
-        ]
-
-    @override
     async def find_path(self, from_resource_id: ResourceId, to_resource_id: ResourceId, max_depth: int) -> list[GraphPath]:
         start = await self.get_resource(from_resource_id)
         if start is None or max_depth < 1:
@@ -421,18 +482,6 @@ class Neo4jGraphDatabase(GraphDatabase):
         return paths
 
     # ── What the graph holds, counted ──────────────────────────────────
-
-    async def _counted(self, statement: LiteralString) -> dict[str, int]:
-        """A statement that answers `name` and `count`, as how many of each name."""
-        return {_TEXT.validate_python(record["name"]): _COUNT.validate_python(record["count"]) for record in await self._ask(statement)}
-
-    async def _resources_by_entity_type(self) -> dict[str, int]:
-        return await self._counted("MATCH (d:Resource) WHERE " + _HELD + " UNWIND d.entityTypes AS name RETURN name, count(*) AS count")
-
-    @override
-    async def get_entity_type_stats(self) -> list[EntityTypeCount]:
-        counts = sorted((await self._resources_by_entity_type()).items(), key=lambda counted: (-counted[1], counted[0]))
-        return [EntityTypeCount(type=entity_type, count=count) for entity_type, count in counts]
 
     @override
     async def get_stats(self) -> GraphStats:

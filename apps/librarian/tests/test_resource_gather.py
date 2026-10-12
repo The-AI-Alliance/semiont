@@ -22,8 +22,8 @@ from rig import (
     FakeVectors,
     FakeViews,
     FakeWeave,
-    Prompted,
     described,
+    sent,
     view,
 )
 from semiont.identifiers import ResourceId
@@ -35,7 +35,7 @@ from semiont_vectors.store import SearchFilter, SearchOptions, VectorSearchResul
 from spec import JsonObject, thing
 
 from semiont_librarian.annotation_gather import Ungathered
-from semiont_librarian.prompts import Prompt, reference_suggestions_prompt, resource_summary_prompt
+from semiont_librarian.prompts import reference_suggestions_prompt, resource_summary_prompt
 from semiont_librarian.reads import Settled
 from semiont_librarian.resource_gather import gather
 
@@ -57,11 +57,6 @@ def stored(resource: ResourceId, name: str, *, checksum: str | None = None, **st
     if checksum is not None:
         representation["checksum"] = checksum
     return described(resource, name=name, representations=[representation], **stated)
-
-
-def sent(prompt: Prompt) -> Prompted:
-    """A prompt, as a model that was sent it records the request."""
-    return Prompted(prompt.text, prompt.max_tokens, prompt.temperature)
 
 
 def options(

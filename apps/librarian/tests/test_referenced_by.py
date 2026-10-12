@@ -9,11 +9,11 @@ import logging
 
 import pytest
 from aio import run
-from rig import ADA, RECORDED, FakeGraph, FakePeople, FakeViews, described, link, reference, view
+from rig import LOVELACE, FakeGraph, FakePeople, FakeViews, described, link, reference, view
 from semiont.identifiers import ResourceId
 from semiont.model import written
-from semiont.types import GatherReferencedByRequest, GatherReferencedByResult, PeopleProjectionPeopleValue, ResourceView
-from spec import JsonObject, text
+from semiont.types import GatherReferencedByRequest, GatherReferencedByResult, ResourceView
+from spec import JsonObject
 
 from semiont_librarian.reads import PeopleUnread
 from semiont_librarian.referenced_by import answer
@@ -23,9 +23,6 @@ CITED = ResourceId("res-cited")
 R1 = ResourceId("res-a")
 R2 = ResourceId("res-b")
 """Two resources with annotations that refer to it."""
-
-ADA_ID = text(ADA["@id"], "Ada's id")
-LOVELACE = {ADA_ID: PeopleProjectionPeopleValue(name="Ada Lovelace", since=RECORDED)}
 
 
 @pytest.fixture

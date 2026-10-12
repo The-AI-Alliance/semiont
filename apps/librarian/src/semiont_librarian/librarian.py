@@ -482,9 +482,7 @@ class Librarian:
         """Answer a `gather:summary-requested`: what the Gatherer's model says of a passage where it stands."""
 
         async def summarized() -> Response[ContextualSummaryResponse]:
-            summary = await summarize(
-                request, views=self._views, content=self._content, anchored=self._anchored, inference=self._gatherer
-            )
+            summary = await summarize(request, views=self._views, content=self._content, anchored=self._anchored, inference=self._gatherer)
             return Response[ContextualSummaryResponse](response=summary)
 
         def failed(said: str) -> CommandError:

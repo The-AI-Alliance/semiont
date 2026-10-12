@@ -38,9 +38,7 @@ def test_the_runner_found_the_table_s_cases_and_every_one_is_of_a_reader_it_runs
 @pytest.mark.parametrize("case", SCORES, ids=whys(SCORES))
 def test_the_scores_read_from_a_reply_are_the_table_s(case: JsonObject) -> None:
     assert set(case) == {"why", "reader", "reply", "candidates", "scores"}
-    expected = {
-        whole(scored["candidate"], "candidate"): number(scored["score"], "score") for scored in objects(case["scores"], "scores")
-    }
+    expected = {whole(scored["candidate"], "candidate"): number(scored["score"], "score") for scored in objects(case["scores"], "scores")}
     assert read_scores(text(case["reply"], "reply"), whole(case["candidates"], "candidates")) == expected, text(case["why"], "why")
 
 
