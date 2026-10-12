@@ -5,8 +5,7 @@
 // Package exports need no entry here: check.mjs imports them for a snippet
 // from the ui suite's ambient modules. This file names only the host app's
 // values a snippet leans on without declaring, typed against the real surface.
-// jest-dom's matchers on vitest's `expect`, as the repo's component tests use them.
-import '@testing-library/jest-dom/vitest';
+import type { TestingLibraryMatchers } from '@testing-library/jest-dom/matchers';
 import type { ComponentProps, ComponentType, ReactNode } from 'react';
 import type {
   SemiontSession as _SemiontSession,
@@ -24,6 +23,16 @@ import type {
 } from '@semiont/react-ui';
 
 type Translate = (key: string, params?: Record<string, unknown>) => string;
+
+// jest-dom's matchers on vitest's `expect`, as the repo's component tests use
+// them. vitest takes a matcher library's types through `Matchers`, with the
+// type parameters written as vitest writes them. `R` is what a matcher answers,
+// and jest-dom's first parameter is what stands in for a string where a matcher
+// takes text, which vitest does not name.
+declare module 'vitest' {
+  interface Matchers<R extends void | Promise<void> = void | Promise<void>, T = unknown>
+    extends TestingLibraryMatchers<unknown, R> {}
+}
 
 declare global {
   // ── the signed-in world ──────────────────────────────────────────────

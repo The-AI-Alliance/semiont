@@ -218,7 +218,7 @@ var serviceDescriptors = []serviceDescriptor{
 	// with the stamped /data store — because both use that store: the job
 	// queue's stream, and the signal driver's KV tables, where the gateway's
 	// ledger keeps its claims.
-	{role: "messaging", driver: "jetstream", container: "semiont-nats", image: "nats:2.14.0-alpine", mem: "512M",
+	{role: "messaging", driver: "jetstream", container: "semiont-nats", image: "nats:2.15.0-alpine", mem: "512M",
 		ports: []portNeed{{4222, "NATS"}}, display: "NATS", defaultPort: 4222, portLabel: "NATS",
 		cmd: []string{"-js", "-sd", "/data"}, health: healthProbe{tcp: true}},
 
