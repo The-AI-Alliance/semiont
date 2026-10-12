@@ -37,7 +37,8 @@
     "pagination": "Nawigacja stron",
     "previous": "Poprzednia",
     "viewerLoading": "Ładowanie przeglądarki PDF...",
-    "preparingTextLayer": "Przygotowywanie warstwy tekstu — adnotacje włączą się, gdy będzie gotowa"
+    "preparingTextLayer": "Przygotowywanie warstwy tekstu — adnotacje włączą się, gdy będzie gotowa",
+    "textLayerUnreadable": "Nie udało się odczytać tekstu tego dokumentu, więc nie można dodawać do niego adnotacji"
   },
   "Toolbar": {
     "annotations": "Adnotacje",

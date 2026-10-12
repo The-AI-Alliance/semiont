@@ -1,7 +1,6 @@
 //! The reads the Archivist answers: from its views, its log, the working
-//! tree, the roster and the anchored-text store.
+//! tree and the roster.
 
-use crate::anchored::anchored_text;
 use crate::archivist::{Archivist, Refusal, primary_representation, text};
 use semiont::channels::{Channel, MarkAdded, MarkBodyUpdated, MarkRemoved};
 use semiont::identity::{agent_did, agent_name};
@@ -482,11 +481,5 @@ pub async fn directory(archivist: &Archivist, request: &Object) -> Result<Value,
     Ok(named(
         archivist,
         json!({ "path": asked, "entries": listed }),
-    ))
-}
-
-pub async fn anchored(archivist: &Archivist, request: &Object) -> Answered {
-    Ok(Value::Object(
-        anchored_text(archivist, required(request, "resourceId")?).await?,
     ))
 }

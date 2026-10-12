@@ -13,7 +13,6 @@ Each job is handed over by a real claim, over the SDK's doubles
 
 import asyncio
 import logging
-from collections import deque
 from collections.abc import Mapping
 from typing import Final
 
@@ -23,10 +22,10 @@ from holding import EVERY_JOB, SOURCE, TEXT, Parties, answering, claimed, job, w
 from pydantic import JsonValue
 from semiont.errors import TransportError
 from semiont.identifiers import ResourceId
-from semiont.testing import GetBinary, PutBinary
+from semiont.testing import ContentCall, GetAnchoredText, GetBinary, PutBinary
 from semiont.timing import GENERATED_TEXT_ASKS_COUNT
 from semiont.transport import Frame
-from semiont.types import GenerationJobParams, JobProgress
+from semiont.types import AnchoredTextAbsent, AnchoredTextAnswer, ExtractedText, ExtractionDeclined, GenerationJobParams, JobProgress
 from semiont.watched import Watched
 from semiont_inference.interface import ElementSchema, InferenceClient, InferenceLimits, InferenceResponse, StructuredResponse
 from standing_in import GENERATOR
@@ -471,8 +470,11 @@ ITEMS: Final[list[JsonValue]] = [
     {"start": 15, "end": 42, "page": 1, "x": 72, "y": 680, "width": 270, "height": 12},
     {"start": 42, "end": 64, "page": 1, "x": 342, "y": 680, "width": 220, "height": 12},
 ]
-EXTRACTED: Final[JsonValue] = {"kind": "extracted", "method": "pdf-text-layer", "text": RENDERED, "items": ITEMS}
-NOT_YET: Final[JsonValue] = {"kind": "not-yet"}
+EXTRACTED: Final = ExtractedText.model_validate({"kind": "extracted", "method": "pdf-text-layer", "text": RENDERED, "items": ITEMS})
+NOT_YET: Final = AnchoredTextAbsent(kind="not-yet")
+
+ASKED: Final = GetAnchoredText(ResourceId(NEW))
+"""One ask for the text of the resource the job made."""
 
 
 def cited(exact: str, resource: str = "ctx-9") -> GenerationCitation:
@@ -491,16 +493,28 @@ def citations_committed(parties: Parties) -> list[JsonValue]:
     return [annotation for resource, annotations in parties.commits if resource == NEW for annotation in annotations]
 
 
+def pdf_text(parties: Parties, answer: AnchoredTextAnswer) -> None:
+    """Have the gateway answer `answer` when it is asked for the text of the resource the job will make."""
+    parties.content.seed_anchored_text(ResourceId(NEW), answer)
+
+
+def text_asks(parties: Parties) -> list[ContentCall]:
+    """What the worker read of the gateway once it had uploaded what it made."""
+    upload, *reads = parties.content.calls
+    assert isinstance(upload, PutBinary)
+    return reads
+
+
 def test_a_pdf_s_citation_is_anchored_where_the_claim_is_on_the_page_and_quotes_the_text_as_the_pdf_has_it(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     parties = Parties()
-    parties.anchored_text[NEW] = deque([EXTRACTED])
+    pdf_text(parties, EXTRACTED)
     making(monkeypatch, pdf(cited("extraordinarily complicated")))
     run(worked(parties, generation("file://generated/out.pdf", outputMediaType="application/pdf"), answering("unused")))
 
-    # The Smelter was asked once, for the new resource, and no bytes were read back.
-    assert parties.anchored_text_asks == [NEW]
+    # The text was asked for once, of the new resource, and no bytes were read back.
+    assert text_asks(parties) == [ASKED]
     (citation,) = citations_committed(parties)
     assert isinstance(citation, dict)
     assert (citation["motivation"], citation["body"]) == ("linking", {"type": "SpecificResource", "source": "ctx-9", "purpose": "linking"})
@@ -520,14 +534,15 @@ def test_a_pdf_s_citation_is_anchored_where_the_claim_is_on_the_page_and_quotes_
     # The words under the rectangles: the claim as the PDF has it, broken where its line is and without its hyphen.
     assert quote["exact"] == "extraor \ndinarily complicated"
     assert RENDERED[6:35] == "extraor \ndinarily complicated"
-    assert parties.sequence() == ["job:start", "mark:commit", "browse:anchored-text-requested", "mark:commit", "job:complete"]
+    # The text is read of the gateway and not asked for on the bus: what the worker sent there is its two commits.
+    assert parties.sequence() == ["job:start", "mark:commit", "mark:commit", "job:complete"]
 
 
 def test_a_claim_the_pdf_s_text_does_not_have_is_dropped_and_said_in_the_log_and_the_others_are_kept(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     parties = Parties()
-    parties.anchored_text[NEW] = deque([EXTRACTED])
+    pdf_text(parties, EXTRACTED)
     making(monkeypatch, pdf(cited("a claim that was never rendered"), cited("Nothing else is said.", SOURCE)))
     caplog.set_level(logging.INFO, logger="semiont_worker")
     run(worked(parties, generation("file://generated/out.pdf", outputMediaType="application/pdf"), answering("unused")))
@@ -547,11 +562,20 @@ def test_a_claim_the_pdf_s_text_does_not_have_is_dropped_and_said_in_the_log_and
 
 def test_a_pdf_whose_text_is_not_there_yet_is_asked_for_again_and_each_further_ask_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:
     parties = Parties()
-    parties.anchored_text[NEW] = deque([NOT_YET, NOT_YET, EXTRACTED])
+    pdf_text(parties, NOT_YET)
+    read = parties.content.get_anchored_text
+
+    async def there_at_the_third_ask(resource_id: ResourceId) -> AnchoredTextAnswer:
+        # The Smelter settles the resource between the second ask and the third.
+        if len(text_asks(parties)) == 2:
+            pdf_text(parties, EXTRACTED)
+        return await read(resource_id)
+
+    monkeypatch.setattr(parties.content, "get_anchored_text", there_at_the_third_ask)
     making(monkeypatch, pdf(cited("extraordinarily complicated")))
     run(worked(parties, generation("file://generated/out.pdf", outputMediaType="application/pdf"), answering("unused")))
 
-    assert parties.anchored_text_asks == [NEW, NEW, NEW]
+    assert text_asks(parties) == [ASKED] * 3
     assert len(citations_committed(parties)) == 1
     # What the job last said is said again before each further ask: a long silence reads as a stall.
     waits = [
@@ -566,13 +590,13 @@ def test_a_pdf_whose_text_never_arrives_completes_with_its_resource_and_without_
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     parties = Parties()
-    parties.anchored_text[NEW] = deque([NOT_YET])
+    pdf_text(parties, NOT_YET)
     making(monkeypatch, pdf(cited("extraordinarily complicated"), cited("Nothing else is said.")))
     caplog.set_level(logging.INFO, logger="semiont_worker")
     run(worked(parties, generation("file://generated/out.pdf", outputMediaType="application/pdf"), answering("unused")))
 
     # Asked as many times as the timing table states, and no more.
-    assert parties.anchored_text_asks == [NEW] * GENERATED_TEXT_ASKS_COUNT
+    assert text_asks(parties) == [ASKED] * GENERATED_TEXT_ASKS_COUNT
     assert citations_committed(parties) == []
     (completion,) = parties.sent("job:complete")
     assert completion["result"] == {"resourceId": NEW, "resourceName": "Generated", "truncated": False}
@@ -589,32 +613,32 @@ def test_a_pdf_whose_text_never_arrives_completes_with_its_resource_and_without_
 @pytest.mark.parametrize(
     ("answer", "reason"),
     [
-        ({"kind": "declined", "declined": "too-large"}, "too-large"),
-        ({"kind": "no-map"}, "no-map"),
-        ({"kind": "unknown"}, "unknown"),
+        (ExtractionDeclined(kind="declined", declined="too-large"), "too-large"),
+        (AnchoredTextAbsent(kind="no-map"), "no-map"),
+        (AnchoredTextAbsent(kind="unknown"), "unknown"),
     ],
 )
 def test_a_pdf_whose_text_is_not_to_be_had_is_asked_for_once_and_its_citations_are_dropped_with_the_reason(
-    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, answer: JsonValue, reason: str
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, answer: AnchoredTextAnswer, reason: str
 ) -> None:
     parties = Parties()
-    parties.anchored_text[NEW] = deque([answer])
+    pdf_text(parties, answer)
     making(monkeypatch, pdf(cited("extraordinarily complicated")))
     caplog.set_level(logging.INFO, logger="semiont_worker")
     run(worked(parties, generation("file://generated/out.pdf", outputMediaType="application/pdf"), answering("unused")))
 
-    assert parties.anchored_text_asks == [NEW]
+    assert text_asks(parties) == [ASKED]
     assert citations_committed(parties) == []
     assert len(parties.sent("job:complete")) == 1
     (dropped,) = logged(caplog, "PDF citations dropped")
     assert vars(dropped)["reason"] == reason
 
 
-def test_a_pdf_that_cites_nothing_asks_the_smelter_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_the_text_of_a_pdf_that_cites_nothing_is_not_asked_for(monkeypatch: pytest.MonkeyPatch) -> None:
     parties = Parties()
     making(monkeypatch, pdf())
     run(worked(parties, generation("file://generated/out.pdf", outputMediaType="application/pdf"), answering("unused")))
-    assert parties.anchored_text_asks == []
+    assert text_asks(parties) == []
     assert parties.sequence() == ["job:start", "mark:commit", "job:complete"]
 
 
@@ -626,3 +650,21 @@ def test_the_text_a_mark_job_reads_is_the_resource_s_own() -> None:
     run(worked(parties, job("job-1", "mark", HIGHLIGHTING), model))
     assert parties.content.calls == [GetBinary(ResourceId(SOURCE))]
     assert TEXT.strip() in model.calls[0].prompt
+
+
+def test_a_pdf_whose_text_the_gateway_cannot_give_fails_its_job_as_any_refused_read_does_to_be_tried_again(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    parties = Parties()
+    parties.describe(SOURCE, "application/pdf")
+
+    async def refused(resource_id: ResourceId) -> AnchoredTextAnswer:
+        raise TransportError.of_status("The Archivist cannot be reached", 503, None)
+
+    monkeypatch.setattr(parties.content, "get_anchored_text", refused)
+    run(worked(parties, job("job-1", "mark", HIGHLIGHTING), answering(ONE_HIGHLIGHT)))
+
+    assert parties.sequence() == ["job:start", "browse:resource-requested", "job:fail"]
+    (failure,) = parties.sent("job:fail")
+    # Classed by the status the gateway refused the read with, as a refused read of a resource's bytes is.
+    assert (failure["error"], failure["failureClass"], failure["willRetry"]) == ("The Archivist cannot be reached", "transient", True)

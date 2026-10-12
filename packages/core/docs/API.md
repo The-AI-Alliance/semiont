@@ -94,13 +94,12 @@ function handle(event: PersistedEvent) {
 The RxJS-based event bus shared by services and clients, with a typed channel protocol:
 
 ```typescript
-import { EventBus, ScopedEventBus, burstBuffer, serializePerKey } from '@semiont/core';
+import { EventBus, ScopedEventBus, serializePerKey } from '@semiont/core';
 import type { EventMap, EventName } from '@semiont/core';
 ```
 
 - **`EventBus` / `ScopedEventBus`** — framework-agnostic pub/sub over the unified `EventMap`
 - **`CHANNEL_SCHEMAS`** — maps each channel to its OpenAPI payload schema
-- **`burstBuffer`** — RxJS operator for coalescing event bursts
 - **`serializePerKey`** — per-key serialization for RPC-style callers
 - **`busLog` / `setBusLogTraceIdProvider`** — cross-wire bus observability
 
@@ -160,12 +159,11 @@ a position to something that indexes one converts with `textOffsets(text)`:
 
 Text paired with the geometry that indexes it, and the inverse pair that reads
 it in either direction. Pure arithmetic over plain data — this is what *reasons
-over* a coordinate map; producing one (text layer, OCR, tables, forms) lives in
-[`@semiont/content`](../../content/README.md), which the browser cannot import
-because it carries pdf.js, Tesseract and `node:fs`.
+over* a coordinate map; producing one (text layer, OCR, tables, forms) is the
+[Smelter](../../../docs/protocol/SMELTER.md)'s.
 
 ```typescript
-import { locate, textUnder, anchorRuns, isTextRun, type AnchoredText } from '@semiont/core';
+import { locate, textUnder, type AnchoredText } from '@semiont/core';
 
 // A model quoted text; find its geometry. One rect per line. The span is two
 // offsets into anchored.text, in code points, as each item's start and end are.
@@ -173,10 +171,6 @@ const { rects } = locate(anchored, match.start, match.end);
 
 // A person drew a box; find its text. '' when it covers no words.
 const quote = textUnder(anchored, pdfCoordinate);
-
-// pdf.js runs -> AnchoredText, the offset/separator convention both the
-// server extractor and the browser canvas share.
-const anchored = anchorRuns(content.items.filter(isTextRun), pageNumber);
 ```
 
 Coordinates are PDF points, origin bottom-left, Y increasing upward; the flip to
@@ -233,10 +227,10 @@ if (isDefined(value)) {
 
 ## Resource & Misc Utilities
 
-- **ResourceDescriptor accessors** — `getResourceId`, `getPrimaryRepresentation`, `getChecksum`, `isArchived`, `decodeRepresentation`, …
+- **ResourceDescriptor accessors** — `getResourceId`, `getPrimaryRepresentation`, `getPrimaryMediaType`, `getResourceEntityTypes`, `isArchived`, `decodeRepresentation`, …
 - **Locales** — `LOCALES`, `getLocaleInfo`, `formatLocaleDisplay`, …
-- **Media types** — `MEDIA_TYPES` capability registry keyed by the spec's `SupportedMediaType` enum (render / anchoring / text source / authorable per type), generated from `specs/src/media-types/registry.json`, with `capabilitiesOf`, `textSourceOf`, `mediaTypeForExtension`, `baseMediaType`, …
-- **Text encoding** — `extractCharset`, `decodeWithCharset`
+- **Media types** — `MEDIA_TYPES` capability registry keyed by the spec's `SupportedMediaType` enum (render / anchoring / text source / authorable per type), generated from `specs/src/media-types/registry.json`, with `capabilitiesOf`, `textSourceOf`, `yieldsGeometryOf`, `derivesTextOf`, `mediaTypeForExtension`, `baseMediaType`, …
+- **Text encoding** — `decodeWithCharset`
 - **Text context** — `extractContext`
 - **SVG** — `createRectangleSvg`, `parseSvgSelector`, `scaleSvgToNative`, …
 - **IDs** — `generateUuid`

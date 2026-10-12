@@ -3,7 +3,7 @@
  * implementation that reaches the Archivist over HTTP.
  *
  * These live in `@semiont/content`, under `@semiont/make-meaning`, which
- * holds the two services that read this way: the Librarian and the Smelter.
+ * holds the service that reads this way: the Librarian.
  *
  * Where the Archivist IS lives in `@semiont/core/node` (`archivistEndpoint`),
  * not here: an address is a config value plus a credential, which is what
@@ -47,10 +47,10 @@ export class RepresentationMissing extends Error {
 }
 
 /**
- * `ContentReads` against the Archivist — how a fleet process that holds no KB
- * mount reads bytes: the Smelter and Librarian fetch them from the Archivist
- * over HTTP rather than through the gateway. A worker does not: it reads them
- * on the gateway, by its client's own call.
+ * `ContentReads` against the Archivist — how the Librarian, which holds no KB
+ * mount, reads bytes: from the Archivist over HTTP rather than through the
+ * gateway. A worker does not: it reads them on the gateway, by its client's
+ * own call.
  *
  * The address resolves HERE, at construction, not per read: a process with no
  * Archivist configured must die while an operator is watching it boot, rather
@@ -64,7 +64,7 @@ export function archivistContentReads(
   config: ArchivistAddressConfig,
   credential: ServiceAccountCredential,
 ): ContentReads {
-  // Boot-time, not first-read: a Smelter with no Archivist address must die
+  // Boot-time, not first-read: a process with no Archivist address must die
   // while an operator is watching, not fail every resource quietly. Only the
   // TOKEN is deferred, because only the token is async.
   archivistAddress(config, credential);

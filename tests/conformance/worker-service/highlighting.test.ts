@@ -43,7 +43,7 @@ eachWorkerService('a highlighting job', (world) => {
     ]);
     expect(served.payloads('job:start')).toEqual([identity(job)]);
     expect(served.payloads('browse:resource-requested')).toEqual([{ resourceId }]);
-    expect(w.anchoredTextReads).toEqual([]);
+    expect(w.anchoredTextReads()).toEqual([]);
 
     // What it asked its model: its limits once, and one generation over the whole text.
     expect(w.ollama.shows).toEqual([{ model: agent.model }]);

@@ -25,9 +25,6 @@ const ALLOWED = {
   'packages/react-ui/src/lib/clipboard.ts': [
     'the one read of navigator.clipboard, returned as absent where the page has none: a copy control renders only where it is present',
   ],
-  'packages/sdk/src/testing.ts': [
-    'a test helper run in Node, where crypto.subtle always exists; no browser bundle reaches it',
-  ],
 };
 
 const SOURCE = /\.(ts|tsx|mts|cts)$/;

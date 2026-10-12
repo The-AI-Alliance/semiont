@@ -9,7 +9,7 @@ replicas and drivers, not instance types.
 For real-time scaling signals, the OTel metrics described in
 [Observability](./OBSERVABILITY.md) are the authoritative source —
 particularly `semiont.job.queue.size` (worker fan-out trigger),
-`semiont.handler.duration` (per-actor latency), and
+`semiont.handler.duration` (the latency of the librarian's actors), and
 `semiont.sse.subscribers` (concurrent client load).
 
 ## What scales, per service
@@ -50,9 +50,10 @@ the projections.
 - `semiont.job.queue.size` climbing and staying up: add workers.
 - `semiont.sse.subscribers` per gateway replica approaching your tested ceiling: add gateway
   replicas (select the broker drivers first).
-- `semiont.handler.duration` p95 rising on one actor: that actor's service is the bottleneck —
-  give the projector or its backing store more resources; replicas will not help a
-  single-writer service.
+- `semiont.handler.duration` p95 rising on the Gatherer or the Matcher: the librarian, or a
+  store or a model it asks, is the bottleneck — give that more resources. The weaver and the
+  smelter report no such metric: each one's `/health` says how its repair at start ended, and
+  its log says what it could not apply.
 
 ## What adding replicas does not fix
 

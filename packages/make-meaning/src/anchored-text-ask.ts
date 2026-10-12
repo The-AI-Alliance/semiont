@@ -1,9 +1,9 @@
 /**
- * How gather reads a resource's DERIVED text — the anchored-text bus read.
+ * How gather reads a resource's DERIVED text — the anchored-text read.
  *
- * The Librarian asks over its `HttpTransport` (SSE in, `/bus/emit` out) and
- * the Archivist's Browser answers. The reply channels must be in the asker's
- * subscription set, which `busRequest`'s probe enforces loudly at first use.
+ * The Librarian asks the gateway, by the content transport made over its
+ * `HttpTransport` (`GET /resources/:id/anchored-text`), and the gateway asks
+ * the Archivist.
  *
  * This is the read-side half of "the media type decides where the text comes
  * from": `decode` media decode their own bytes; `pdf-text-layer` media answer
@@ -12,16 +12,11 @@
  * them.
  */
 
-import { busRequest, type AnchoredTextAnswer, type BusOperationKey, type BusRequestPrimitive } from '@semiont/core';
+import type { AnchoredTextAnswer, IContentTransport, ResourceId } from '@semiont/core';
 
 /** The gather reads' derived-text capability: resource id in, classified answer out. */
-export type AnchoredTextAsk = (resourceId: string) => Promise<AnchoredTextAnswer>;
+export type AnchoredTextAsk = (resourceId: ResourceId) => Promise<AnchoredTextAnswer>;
 
-/** The declared await (the service-channels census pattern): a transport
- *  carrying this ask must subscribe this operation's reply channels. */
-const ANCHORED_TEXT_ASK_OPERATION = 'browse:anchored-text-requested' satisfies BusOperationKey;
-export type AnchoredTextAskAwaits = typeof ANCHORED_TEXT_ASK_OPERATION;
-
-export function anchoredTextOverBus(bus: BusRequestPrimitive): AnchoredTextAsk {
-  return (resourceId) => busRequest(bus, ANCHORED_TEXT_ASK_OPERATION, { resourceId });
+export function anchoredTextOverContent(content: Pick<IContentTransport, 'getAnchoredText'>): AnchoredTextAsk {
+  return (resourceId) => content.getAnchoredText(resourceId);
 }

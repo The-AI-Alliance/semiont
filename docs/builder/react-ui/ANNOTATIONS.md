@@ -308,6 +308,27 @@ declare const imageUrl: string; // the image's media URL
 The canvas takes no callbacks: drawing a shape calls `session.client.mark.request(...)`, which
 emits `mark:requested` with an `SvgSelector`, and clicking an existing shape emits `browse:click`.
 
+The canvas asks for the image's anchored text itself, as soon as it has a `session`, and takes no
+drawing until it holds that text: the quote of an annotation is cut from the text when the
+annotation is made, and never again. Until then a drag draws nothing, whatever `drawingMode` says.
+What a host sees meanwhile:
+
+- The canvas's element, `.semiont-svg-drawing-canvas`, carries `data-annotate-deferred="true"` and
+  `data-drawing-mode="none"`.
+- A line above the image, `.semiont-anchored-text-notice`, says the viewer is waiting for the text.
+  It is held back for a second, so an answer that comes quickly never shows it.
+
+For an image the answer is that its media type has no text, which the canvas holds as a text that
+is empty: `data-annotate-deferred` becomes `"false"`, `data-drawing-mode` names the shape, the
+line goes, and a shape is made with no quote. While there is no answer, or the ask fails, the
+canvas goes on asking. If the answer is that there will be no text, the line says the text could
+not be read, and the canvas takes no drawing for as long as it is mounted. A canvas given no
+`session` paints, asks nothing and shows no line.
+
+The line is translated, so a canvas with a `session` is mounted inside a `TranslationProvider`
+(see [INTERNATIONALIZATION.md](INTERNATIONALIZATION.md)). The PDF canvas that `ResourceViewer` and
+`AnnotateView` mount keeps the same rule, and says it on `.semiont-pdf-annotation-canvas`.
+
 ### Supported Shapes
 
 - Rectangle

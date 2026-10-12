@@ -148,6 +148,7 @@ withArchivist('a resource', (world) => {
       ['GET', `/events/${id}?fromSequence=1`, '/events/{resourceId}'],
       ['GET', `/resources/${id}/content`, '/resources/{id}/content'],
       ['GET', `/resources/${id}/jsonld`, '/resources/{id}/jsonld'],
+      ['GET', `/resources/${id}/anchored-text`, '/resources/{id}/anchored-text'],
       ['POST', '/resources', '/resources'],
     ];
     for (const [method, path, route] of routes) {

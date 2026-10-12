@@ -31,7 +31,7 @@ For session-managed refresh (proactive refresh on a timer, terminal-auth-failure
 
 ## `HttpContentTransport`
 
-`new HttpContentTransport(transport)`, over an `HttpTransport`. Implements `IContentTransport` from `@semiont/core`. Binary I/O — `putBinary`, `getBinary`, `getBinaryStream` — plus `getResourceGraph`, which dereferences `GET /resources/:id/jsonld` and returns the parsed `GetResourceResponse` (the resource's JSON-LD metadata graph). Shares the wrapped transport's `baseUrl`, `token$`, and timeout (an upload has no deadline); all requests piggyback on the same auth.
+`new HttpContentTransport(transport)`, over an `HttpTransport`. Implements `IContentTransport` from `@semiont/core`. Binary I/O — `putBinary`, `getBinary`, `getBinaryStream` — plus two reads of JSON: `getResourceGraph`, which dereferences `GET /resources/:id/jsonld` and returns the parsed `GetResourceResponse` (the resource's JSON-LD metadata graph), and `getAnchoredText`, which asks `GET /resources/:id/anchored-text` and returns the `AnchoredTextAnswer` that is its body: the text extracted from the resource's content with where each run of it is on a page, a stored decline, or a named absence whose `kind` says whether to ask again. Shares the wrapped transport's `baseUrl`, `token$`, and timeout (an upload has no deadline); all requests piggyback on the same auth.
 
 ## `APIError`
 

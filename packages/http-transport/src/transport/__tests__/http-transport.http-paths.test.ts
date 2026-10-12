@@ -8,6 +8,8 @@
  * Covers:
  *   - Auth / status / health endpoints
  *   - Binary content (`HttpContentTransport.getBinary` + stream)
+ *   - A resource's description and its anchored text
+ *     (`HttpContentTransport.getResourceGraph`, `getAnchoredText`)
  *   - Multipart upload (`HttpContentTransport.putBinary`)
  *   - `HttpTransport.subscribeToResource` ref-counting (mocks the
  *     local `actor-state-unit` module to assert add/removeChannels)
@@ -245,6 +247,57 @@ describe('HttpTransport — HTTP wire shape', () => {
       await content.getResourceGraph(testResourceId, { auth: 'tok-123' as never });
       expect(mockKy.get).toHaveBeenCalledWith(
         `${testBaseUrl}/resources/${testResourceId}/jsonld`,
+        { headers: { Authorization: 'Bearer tok-123' } },
+      );
+    });
+  });
+
+  describe('Anchored text (HttpContentTransport.getAnchoredText)', () => {
+    test('GETs /resources/:id/anchored-text and returns the body as the answer', async () => {
+      const answer = { kind: 'extracted', text: 'hello', items: [], method: 'pdf-text-layer' };
+      vi.mocked(mockKy.get).mockReturnValue({
+        json: vi.fn().mockResolvedValue(answer),
+      } as never);
+
+      const result = await content.getAnchoredText(testResourceId);
+      expect(result).toBe(answer);
+      // No deadline of its own: the transport's is the one that outlasts the
+      // Archivist's wait for the Smelter.
+      expect(mockKy.get).toHaveBeenCalledWith(
+        `${testBaseUrl}/resources/${testResourceId}/anchored-text`,
+        { headers: {} },
+      );
+    });
+
+    test('an absence is the answer, and no failure', async () => {
+      vi.mocked(mockKy.get).mockReturnValue({
+        json: vi.fn().mockResolvedValue({ kind: 'not-yet' }),
+      } as never);
+
+      await expect(content.getAnchoredText(testResourceId)).resolves.toEqual({ kind: 'not-yet' });
+    });
+
+    test('an id is one segment of the path, whatever text a caller with no type checker hands over', async () => {
+      vi.mocked(mockKy.get).mockReturnValue({
+        json: vi.fn().mockResolvedValue({ kind: 'unknown' }),
+      } as never);
+
+      // Not a ResourceId: its constructor refuses this. JavaScript does not ask.
+      await content.getAnchoredText('what? 100% #1/x' as never);
+      expect(mockKy.get).toHaveBeenCalledWith(
+        `${testBaseUrl}/resources/what%3F%20100%25%20%231%2Fx/anchored-text`,
+        { headers: {} },
+      );
+    });
+
+    test('sends the bearer auth header when a token is provided', async () => {
+      vi.mocked(mockKy.get).mockReturnValue({
+        json: vi.fn().mockResolvedValue({ kind: 'unknown' }),
+      } as never);
+
+      await content.getAnchoredText(testResourceId, { auth: 'tok-123' as never });
+      expect(mockKy.get).toHaveBeenCalledWith(
+        `${testBaseUrl}/resources/${testResourceId}/anchored-text`,
         { headers: { Authorization: 'Bearer tok-123' } },
       );
     });

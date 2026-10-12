@@ -51,11 +51,9 @@ interface SeedSpec {
 /**
  * A minimal, self-contained single-page PDF (300×200) that draws a blue
  * filled rectangle and the text "Smoke Test PDF" — enough that pdf.js
- * renders a non-blank page. Embedded as base64 rather than a fixture
- * file because the repo's only PDFs
- * (`packages/content/src/__tests__/fixtures/*.pdf`) are gitignored and
- * generated on demand, so they aren't guaranteed present in the e2e
- * container. Verified to load in pdfjs-dist@6 (numPages=1, text layer
+ * renders a non-blank page. Embedded as base64, so the seed is one file
+ * and reads nothing else of the repository from the e2e container.
+ * Verified to load in pdfjs-dist@6 (numPages=1, text layer
  * "Smoke Test PDF").
  */
 const PDF_FIXTURE_BASE64 =
@@ -79,10 +77,9 @@ const PDF_FIXTURE_BASE64 =
  * entity extraction (reference/linking) finds many Concept entities —
  * `20-pdf-assisted-detection.spec.ts` runs delegated commenting + linking against
  * it. Standard Helvetica Type1 font; text drawn with BT/Tf/Td/Tj operators,
- * one positioned line per string advanced by the T-star line-move. Verified
- * through `@semiont/content`'s `extractPdfTextLayer` (pdfjs-dist@6): 1 page,
- * 31 text items, text layer beginning "Cellular respiration is the set of
- * metabolic reactions".
+ * one positioned line per string advanced by the T-star line-move. Read with
+ * pdfjs-dist@6 when it was made: 1 page, 31 text items, text layer beginning
+ * "Cellular respiration is the set of metabolic reactions".
  */
 const TEXT_PDF_FIXTURE_BASE64 =
   'JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5k' +
@@ -432,9 +429,9 @@ const SCANNED_PDF_FIXTURE_BASE64 =
 // Hybrid fixture (class C) — page 1 carries a real text layer, page 2 is an
 // image-only raster with no text operators. The extractor reads page 1 through
 // the text layer and routes page 2 to OCR, so one document exercises both
-// halves of hybrid routing end to end. Unit tests pin the assembly against a
-// mocked recognizer (`content/src/__tests__/pdf-ocr.test.ts`); this fixture is
-// what carries class C through the live stack instead.
+// halves of hybrid routing end to end. The Smelter's tests pin the assembly
+// against a played recognizer (`apps/smelter/tests/test_extraction.py`); this
+// fixture is what carries class C through the live stack instead.
 //
 // The raster is dark bars, NOT rendered glyphs, on purpose: a synthetic bitmap
 // is not a typeface and the recognizer misreads it (measured: 'SCANNED' ->

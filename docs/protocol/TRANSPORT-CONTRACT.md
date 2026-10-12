@@ -69,7 +69,7 @@ language's SDK offers the same operations in its own idiom.
 
 `busRequest(transport, operation, payload, timeoutMs?, signal?)` is a request and its reply, over any transport.
 
-**`IContentTransport`**: `putBinary`, `getBinary`, `getBinaryStream`, `getResourceGraph` and `dispose`.
+**`IContentTransport`**: `putBinary`, `getBinary`, `getBinaryStream`, `getResourceGraph`, `getAnchoredText` and `dispose`.
 
 **`IGatewayOperations`**: `getCurrentUser`, `getMediaToken`, `getProtectedResourceMetadata`, `healthCheck` and `getStatus`.
 
@@ -84,13 +84,15 @@ export const transport: Exactly<ITransport,
   | 'emit' | 'stream' | 'frames' | 'on' | 'isSubscribed'
   | 'baseUrl' | 'state$' | 'errors$' | 'subscribeToResource' | 'trackReply' | 'bridgeInto' | 'dispose'> = true;
 export const content: Exactly<IContentTransport,
-  'putBinary' | 'getBinary' | 'getBinaryStream' | 'getResourceGraph' | 'dispose'> = true;
+  'putBinary' | 'getBinary' | 'getBinaryStream' | 'getResourceGraph' | 'getAnchoredText' | 'dispose'> = true;
 export const gateway: Exactly<IGatewayOperations,
   'getCurrentUser' | 'getMediaToken' | 'getProtectedResourceMetadata' | 'healthCheck' | 'getStatus'> = true;
 ```
 
 `ITransport` is the bus. `IContentTransport` carries bytes, which never
-ride the bus, and a resource's description as linked data.
+ride the bus; a resource's description as linked data; and a resource's
+anchored text, the text read out of its content with where each run of it
+is on a page, which is as large as the content it was read from.
 `IGatewayOperations` is what a gateway answers for itself; a transport with
 no gateway behind it does not implement it.
 
@@ -354,6 +356,11 @@ Bytes do not ride the bus.
 - A read returns a resource's bytes unchanged with their media type, whole
   or as a stream; a resource's description is what the gateway answers; and
   one that is not there fails as `not-found`.
+  *Held by `sdk/wire/content-read`.*
+- A resource's anchored text is what the gateway answers: the text with
+  where each run of it is on a page, or why there is none. That there is
+  none is an answer, never a failure. A read the gateway refuses fails with
+  the refusal's code, as a refused read of a description does.
   *Held by `sdk/wire/content-read`.*
 - Each of the gateway's own operations is one request to its own path,
   carrying the client's token.

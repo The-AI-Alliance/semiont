@@ -11,7 +11,7 @@ How the TypeScript SDK reaches a knowledge base over HTTP. It implements the thr
 ## Who uses it
 
 - **[`@semiont/sdk`](../sdk/README.md)** builds one for every session, and re-exports `HttpTransport` and `HttpContentTransport`.
-- **The Node services** build the stack by hand, because each signs in as an agent and listens to a narrowed set of channels: the Librarian, Smelter and Weaver, in [`@semiont/make-meaning`](../make-meaning/README.md).
+- **The Librarian**, in [`@semiont/make-meaning`](../make-meaning/README.md), builds the stack by hand, because it signs in as an agent and listens to a narrowed set of channels.
 - **[`@semiont/mcp-server`](../mcp-server/README.md)**.
 
 **Building an application?** Import from [`@semiont/sdk`](../sdk/README.md), not from here. A session gives you a connected client, and the two transport classes are re-exported there for the rare program that wires its own.
@@ -21,11 +21,10 @@ How the TypeScript SDK reaches a knowledge base over HTTP. It implements the thr
 | | |
 |---|---|
 | `HttpTransport` | The bus over a gateway: `POST /bus/emit` for what a client sends, one stream (`POST /bus/subscribe`) for what it receives, and the gateway's plain operations |
-| `HttpContentTransport` | A resource's bytes, up with progress and cancellation, and down whole or as a stream |
+| `HttpContentTransport` | A resource's bytes, up with progress and cancellation, and down whole or as a stream; its linked-data description; and its anchored text |
 | `HttpTransportConfig` | What a transport is given: the gateway's address, a token source, a `TokenRefresher`, and the channels its stream names |
 | `currentUserOf(baseUrl, token)` | One request asking the gateway who a token is, with no transport behind it. A session asks this of a stored credential before it trusts it |
 | `APIError` | What an HTTP failure is thrown as |
-| `createActorStateUnit` | The stream's machinery. Exported for the service-side adapters built on it (`smelterFanIn` in `@semiont/make-meaning`). Application code does not use it |
 
 ## Example
 

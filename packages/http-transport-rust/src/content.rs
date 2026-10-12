@@ -1,13 +1,15 @@
 //! Bytes over the gateway's HTTP transport, as
 //! `semiont::transport::ContentTransport`: an upload (`POST /resources`), a
-//! resource's bytes whole or as a stream (`GET /resources/{id}`), and its
-//! description as linked data (`GET /resources/{id}/jsonld`). Bytes never
-//! ride the bus.
+//! resource's bytes whole or as a stream (`GET /resources/{id}`), its
+//! description as linked data (`GET /resources/{id}/jsonld`), and its
+//! anchored text (`GET /resources/{id}/anchored-text`). Bytes never ride the
+//! bus.
 //!
 //! It uses the bus transport's token, its retry rule and its error stream,
 //! so a request here is refused, renewed and reported as any other. Each is
 //! logged (`[bus PUT]`, `[bus GET]`) and made in a client span
-//! (`content.put`, `content.get`, `content.get_graph`).
+//! (`content.put`, `content.get`, `content.get_graph`,
+//! `content.get_anchored_text`).
 
 use crate::transport::{HttpTransport, Shared};
 use bytes::Bytes;
@@ -17,6 +19,7 @@ use semiont::errors::{TransportError, TransportErrorCode};
 use semiont::transport::{
     BoxFuture, Content, ContentStream, ContentTransport, PutBinaryRequest, Upload, UploadProgress,
 };
+use semiont::types::AnchoredTextAnswer;
 use semiont::types::GetResourceResponse;
 use semiont::types::ResourceId;
 use semiont::types::{AnnotationId, JobId};
@@ -269,6 +272,34 @@ impl ContentTransport for HttpContentTransport {
                 self.shared.answer(
                     reqwest::Method::GET,
                     &format!("{}/jsonld", path_of(resource_id)),
+                    true,
+                    |builder| builder,
+                ),
+            )
+            .await
+        })
+    }
+
+    fn get_anchored_text<'a>(
+        &'a self,
+        resource_id: &'a ResourceId,
+    ) -> BoxFuture<'a, Result<AnchoredTextAnswer, TransportError>> {
+        Box::pin(async move {
+            bus_log(
+                "GET",
+                "content",
+                &json!({ "resourceId": resource_id, "anchoredText": true }),
+                None,
+                None,
+            );
+            // The Archivist may hold this read while the Smelter settles the
+            // content, and the gateway passes that wait through: the
+            // deadline (`Timing::http_request`) must outlast it.
+            semiont_telemetry::content_get_anchored_text(
+                resource_id,
+                self.shared.answer(
+                    reqwest::Method::GET,
+                    &format!("{}/anchored-text", path_of(resource_id)),
                     true,
                     |builder| builder,
                 ),

@@ -48,7 +48,7 @@ use super::stored::{
 use crate::errors::{BusRequestErrorCode, SemiontError, SessionError, TransportErrorCode};
 use crate::event_bus::EventBus;
 use crate::locked;
-use crate::media_types::primary_media_type;
+use crate::resources::primary_media_type;
 use crate::state::{Held, Tasks};
 use crate::storage::{SessionStorage, StorageSubscription};
 use crate::transport::{Events, STREAM_BACKLOG};

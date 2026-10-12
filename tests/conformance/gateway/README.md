@@ -40,8 +40,9 @@ configured another way).
   - credentials, the bearer and media-token schemes (`tokens.test.ts`);
   - the issuer's key set: the deadline on a fetch, and one fetch per cooldown
     when it fails (`issuer.test.ts`);
-  - content and uploads, the JSON-LD description, and a path that names what
-    is not a resource's id (`content.test.ts`);
+  - content and uploads, the JSON-LD description, a resource's anchored text,
+    whole when it is larger than the largest bus message, and a path that names
+    what is not a resource's id (`content.test.ts`);
   - emitting: stamping, claims, profiles, unanswerable requests, and the ids
     a payload and a scope may carry (`emit.test.ts`);
   - the stream: delivery, reply routing, replay and every gap reason,

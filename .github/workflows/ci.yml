@@ -166,8 +166,20 @@ jobs:
       # version, and cargo never rebuilds a registry package it has built. In
       # the cached `target`, a crate built from another crate's packaged form
       # would be built against what that crate was when the cache was saved.
+      #
+      # And with no copy of these crates in cargo's home, which the cache above
+      # does restore. Cargo unpacks a registry package into its home once, and
+      # never unpacks one it finds there. So a crate whose API changed at a
+      # version it already had would be read from the copy an earlier run left,
+      # and the crates that use the new API would not build against it.
       - name: Package and build every published crate
-        run: cargo publish --dry-run --workspace --locked --target-dir "$RUNNER_TEMP/packaged"
+        run: |
+          cargo metadata --locked --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.publish == null) | "\(.name)-\(.version)"' \
+            | while read -r crate; do
+                rm -rf "${CARGO_HOME:-$HOME/.cargo}"/registry/src/*/"$crate" "${CARGO_HOME:-$HOME/.cargo}"/registry/cache/*/"$crate.crate"
+              done
+          cargo publish --dry-run --workspace --locked --target-dir "$RUNNER_TEMP/packaged"
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -625,6 +637,113 @@ jobs:
         env:
           CI: true
 
+  # The Smelter, held to docs/protocol/SMELTER.md: the process a smelter image
+  # runs, behind a real gateway and a real Archivist, with the suite playing
+  # its embedding provider, writing a real Qdrant, which the suite reads back.
+  smelter-conformance:
+    name: Smelter Conformance
+    runs-on: ubuntu-latest
+    env:
+      # Where the suite finds its vector database: a container this job makes,
+      # whose index the suite clears.
+      QDRANT_HOST: localhost
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Install the pinned Rust toolchain
+        run: |
+          rustup toolchain install
+
+      # The workspace's release build, shared with Gateway Conformance.
+      - name: Cache cargo
+        uses: actions/cache@v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-gateway-release-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-gateway-release-
+
+      # The Smelter reaches the bus through a gateway, and is given its events
+      # and a resource's bytes by an Archivist.
+      - name: Build the gateway and the Archivist
+        run: cargo build --release --locked -p semiont-gateway -p semiont-archivist
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            tests/conformance/package-lock.json
+
+      # The suite's harness is typed by the built @semiont/core.
+      - name: Install dependencies
+        run: |
+          npm ci --include=optional
+          npm run build --workspace=@semiont/core
+
+      # The harness's global setup refuses to run without a broker on PATH.
+      - name: Install nats-server
+        run: |
+          NATS_VERSION=v2.14.0
+          curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
+          sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
+          nats-server --version
+
+      # The Qdrant the launcher starts for an operator, whose image
+      # scripts/ci/qdrant-image.sh reads from the launcher's own descriptor.
+      # It is asked what the launcher asks it, to know it is ready.
+      - name: Start Qdrant
+        run: |
+          image=$(scripts/ci/qdrant-image.sh)
+          docker run -d --name qdrant -p 6333:6333 "$image"
+          for attempt in $(seq 1 60); do
+            if curl -fsS "http://${QDRANT_HOST}:6333/readyz" > /dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs qdrant
+          echo "Qdrant did not answer within two minutes"
+          exit 1
+
+      # The suite starts the Smelter by the interpreter of its project's locked
+      # environment (harness/paths.ts): the environment its image has, on the
+      # Python the SDK's floor names, without the development group. It reads a
+      # scanned page with the `tesseract` program, as its image does.
+      - name: Setup Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.2.0
+
+      - name: Install the tesseract program
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr
+          tesseract --version
+
+      - name: Make the Smelter's environment
+        run: uv sync --locked --no-dev --project apps/smelter
+
+      # Black-box: it starts Smelter processes behind a gateway and an
+      # Archivist, records through the Archivist, and reads the index.
+      - name: Run the Smelter conformance suite
+        run: |
+          cd tests/conformance
+          npm ci
+          npm run test:smelter
+        env:
+          CI: true
+
   # The Worker service, held to docs/protocol/WORKER-SERVICE.md: the process a
   # worker image runs, behind a real gateway, with the suite playing the
   # dispatcher, the record, the Smelter and its provider.
@@ -1058,6 +1177,103 @@ jobs:
         working-directory: packages/graph-python
         run: uv run pytest tests/neo4j_live.py
 
+  # The Python vector stores and embedding providers (packages/vectors-python),
+  # as the Python SDK is checked: both type checkers, strict, on the oldest
+  # Python supported, and the tests on every one. The locked environment takes
+  # the SDK from this checkout. These tests need no server: they run the two
+  # case tables of specs/ against the in-memory store, and each provider
+  # against one the test plays over HTTP.
+  test-vectors-python:
+    name: Python Vector Stores
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.12', '3.13', '3.14']
+
+    defaults:
+      run:
+        working-directory: packages/vectors-python
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.2.0
+
+      - name: Install the locked environment
+        run: uv sync --locked
+
+      - name: Type-check with mypy (strict)
+        if: matrix.python-version == '3.12'
+        run: uv run mypy
+
+      # pyright runs on Node, which the runner has.
+      - name: Type-check with pyright (strict)
+        if: matrix.python-version == '3.12'
+        run: uv run pyright
+
+      - name: Lint and check formatting
+        if: matrix.python-version == '3.12'
+        run: |
+          uv run ruff check
+          uv run ruff format --check
+
+      - name: Run the tests
+        run: uv run pytest
+
+  # The Python Qdrant store against a real Qdrant: the same store contract the
+  # in-memory store is held to, asked of the database, and what the database
+  # then holds of each point. It starts the Qdrant the launcher starts for an
+  # operator, whose image scripts/ci/qdrant-image.sh reads from the launcher's
+  # own descriptor, and asks it what the launcher asks it, to know it is ready.
+  test-vectors-python-qdrant:
+    name: Python Vector Stores (Qdrant)
+    runs-on: ubuntu-latest
+    env:
+      # Where the run finds its Qdrant: a container this job makes and discards.
+      QDRANT_HOST: localhost
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.2.0
+
+      - name: Install the locked environment
+        working-directory: packages/vectors-python
+        run: uv sync --locked
+
+      - name: Start Qdrant
+        run: |
+          image=$(scripts/ci/qdrant-image.sh)
+          docker run -d --name qdrant -p 6333:6333 "$image"
+          for attempt in $(seq 1 60); do
+            if curl -fsS "http://${QDRANT_HOST}:6333/readyz" > /dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs qdrant
+          echo "Qdrant did not answer within two minutes"
+          exit 1
+
+      - name: Run the store contract against it
+        working-directory: packages/vectors-python
+        run: uv run pytest tests/qdrant_live.py
+
   # The Weaver's Python code (apps/weaver), as the Python SDK is checked: both
   # type checkers, strict, on the oldest Python supported, and the tests on
   # every one. The locked environment takes the SDK and the graph stores from
@@ -1087,6 +1303,65 @@ jobs:
 
       - name: Setup uv
         uses: astral-sh/setup-uv@v10.2.0
+
+      - name: Install the locked environment
+        run: uv sync --locked
+
+      - name: Type-check with mypy (strict)
+        if: matrix.python-version == '3.12'
+        run: uv run mypy
+
+      # pyright runs on Node, which the runner has.
+      - name: Type-check with pyright (strict)
+        if: matrix.python-version == '3.12'
+        run: uv run pyright
+
+      - name: Lint and check formatting
+        if: matrix.python-version == '3.12'
+        run: |
+          uv run ruff check
+          uv run ruff format --check
+
+      - name: Run the tests
+        run: uv run pytest
+
+  # The Smelter's code (apps/smelter), as the Python SDK is checked:
+  # both type checkers, strict, on the oldest Python supported, and the tests
+  # on every one. The locked environment takes the SDK from this checkout, and
+  # PDFium from its binding's wheel. The tests read PDFs with the real PDFium
+  # and scanned pages with the real `tesseract` program, which the runner's
+  # own packages install with its English data: an image's Tesseract is
+  # Alpine's, another build of the same engine, so no test rests on how sure
+  # the engine was or on a box to the pixel. They start no service.
+  test-smelter-python:
+    name: Python Smelter
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.12', '3.13', '3.14']
+
+    defaults:
+      run:
+        working-directory: apps/smelter
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.2.0
+
+      - name: Install the tesseract program
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr
+          tesseract --version
 
       - name: Install the locked environment
         run: uv sync --locked
@@ -1425,7 +1700,9 @@ jobs:
       # oapi-codegen/runtime), plus the Go stdlib compiled into the shipped
       # binary (distributed via Homebrew and the release's archives).
       # govulncheck scans stdlib + deps and reports only vulns reachable from
-      # our code.
+      # our code. nats-server's module is a requirement of the tests alone (they
+      # read the broker's config with its parser): it is in no shipped binary,
+      # and it is not among the modules this scan covers.
       - name: Vulnerability scan launcher (govulncheck)
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest

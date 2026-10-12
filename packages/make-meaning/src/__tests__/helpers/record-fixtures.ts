@@ -10,13 +10,16 @@
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { dirname, join } from 'path';
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { SYSTEM_SCOPE, getPrimaryRepresentation, getShardPath, resourceId, type Annotation, type ResourceId, type components } from '@semiont/core';
 import { validators, formatErrors } from '@semiont/core/openapi';
 import { FilesystemViewStorage, type ResourceView } from '@semiont/event-sourcing';
-import { RepresentationMissing, calculateChecksum, type ContentReads } from '@semiont/content';
+import { RepresentationMissing, type ContentReads } from '@semiont/content';
 
 type PeopleProjection = components['schemas']['PeopleProjection'];
+
+/** The checksum the Archivist states of a resource's bytes: their SHA-256, in lower-case hex. */
+export const checksumOf = (content: string | Buffer): string => createHash('sha256').update(content).digest('hex');
 
 function assertValid(schema: 'ResourceView' | 'PeopleProjection', document: unknown): void {
   const validate = validators[schema];
@@ -101,7 +104,7 @@ export async function createRecordFixture(): Promise<RecordFixture> {
           representations: [{
             mediaType,
             rel: 'original',
-            ...(stored ? { checksum: calculateChecksum(stored), byteSize: stored.byteLength, storageUri: `file://fixtures/${id}` } : {}),
+            ...(stored ? { checksum: checksumOf(stored), byteSize: stored.byteLength, storageUri: `file://fixtures/${id}` } : {}),
           }],
           archived: false,
           entityTypes,

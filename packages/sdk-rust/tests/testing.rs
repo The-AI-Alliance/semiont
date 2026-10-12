@@ -19,7 +19,7 @@ use semiont::testing::{
     TestSessionOptions, create_test_client, create_test_session,
 };
 use semiont::transport::{ConnectionState, Content, Transport};
-use semiont::types::{GatherResourceRequestOptions, UserResponse};
+use semiont::types::{AnchoredTextAnswer, GatherResourceRequestOptions, ResourceId, UserResponse};
 use serde_json::{Value, json};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -131,6 +131,40 @@ async fn a_test_client_is_built_over_what_the_test_gives_it() {
     let started = tokio::time::Instant::now();
     impatient.client.browse.kb().await.expect_err("no answer");
     assert_eq!(started.elapsed(), Duration::from_secs(3));
+}
+
+#[tokio::test(start_paused = true)]
+async fn an_anchored_text_is_read_from_the_content_as_the_test_seeded_it() {
+    let test = create_test_client(TestClientOptions::default());
+    let resource: ResourceId = as_id("res-1");
+
+    // One nobody seeded is refused by name, and not answered as unknown.
+    let unread = test
+        .client
+        .browse
+        .resource_anchored_text(&resource)
+        .await
+        .expect_err("nothing was seeded");
+    assert!(message(unread).contains("anchored text stored for res-1"));
+
+    for answer in [
+        json!({ "kind": "not-yet" }),
+        json!({ "kind": "declined", "declined": "no-text-layer" }),
+        json!({ "kind": "extracted", "method": "pdf-text-layer", "text": "Hi", "items": [] }),
+    ] {
+        let seeded: AnchoredTextAnswer = serde_json::from_value(answer).expect("an answer");
+        test.content.seed_anchored_text(&resource, seeded.clone());
+        let read = test
+            .client
+            .browse
+            .resource_anchored_text(&resource)
+            .await
+            .expect("it was seeded");
+        assert_eq!(read, seeded);
+    }
+
+    // It is a read of content: nothing was asked of the bus.
+    assert!(test.transport.emitted().is_empty());
 }
 
 // ── A session ───────────────────────────────────────────────────────────

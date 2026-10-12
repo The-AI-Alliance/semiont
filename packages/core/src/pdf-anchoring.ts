@@ -11,10 +11,10 @@
  * Unicode code points from the start of the text.
  *
  * This is pure arithmetic over plain data, so it sits here beside
- * `PdfCoordinate` and the viewrect codec rather than in `@semiont/content`:
- * the browser canvas needs `textUnder` at drag time and cannot import
- * `@semiont/content`, which carries pdf.js, Tesseract and `node:fs`.
- * *Producing* an `AnchoredText` — from a text layer or from OCR — stays there.
+ * `PdfCoordinate` and the viewrect codec: the browser canvas needs
+ * `textUnder` at drag time, over the document's text as it was served.
+ * *Producing* an `AnchoredText`, from a text layer or from OCR, is the
+ * Smelter's.
  *
  * Coordinates are PDF points with the origin at the bottom-left of the page,
  * Y increasing upward. The Y-flip to canvas pixels lives in the browser.
@@ -38,9 +38,9 @@ export type PdfTextItem = components['schemas']['PdfTextItem'];
  *
  * This is the contract `locate`, `textUnder` and the annotation builders
  * actually require; they do not need pages, form fields, or anything else a
- * full `PdfTextLayer` carries. Naming it separately lets OCR'd content
- * (recovered from pixels, so not a "text layer" in the PDF sense) satisfy the
- * same anchoring path.
+ * PDF's reader holds. Naming it separately lets OCR'd content (recovered from
+ * pixels, so not a "text layer" in the PDF sense) satisfy the same anchoring
+ * path.
  */
 export type AnchoredText = components['schemas']['AnchoredText'];
 
@@ -63,80 +63,6 @@ export type ExtractionOutcome = components['schemas']['ExtractionOutcome'];
  * that type instead would have put an impossible state into the store's own.
  */
 export type AnchoredTextAnswer = components['schemas']['AnchoredTextAnswer'];
-
-/**
- * One text run as pdf.js reports it, narrowed to the fields anchoring reads.
- * Structural on purpose: core takes no dependency on pdfjs-dist, so each
- * producer filters marked-content items at its own boundary and passes the
- * text runs through.
- */
-export interface PdfTextRun {
-    str: string;
-    /** pdf.js text matrix `[a, b, c, d, x, y]`; only x/y are read. */
-    transform: number[];
-    width: number;
-    height: number;
-    hasEOL?: boolean;
-}
-
-/**
- * pdf.js interleaves marked-content items with text runs in `getTextContent()`;
- * only the latter carry `str`. Both producers filter with this before calling
- * `anchorRuns`, so the boundary rule is stated once.
- */
-export function isTextRun<T>(item: T): item is T & PdfTextRun {
-    return typeof item === 'object' && item !== null && 'str' in item;
-}
-
-/**
- * Turns one page's pdf.js text runs into `AnchoredText`.
- *
- * This is the offset and separator convention — what `text` says, and where
- * each item points into it. Both producers share it: the server extractor
- * reading a whole document, and the browser canvas reading the page under a
- * drag. Divergence would mean the same rectangle quoting differently depending
- * on which side captured it.
- *
- * An item's `start` and `end` count Unicode code points from the start of
- * `text`, as every offset into a text does. They are a string's own positions
- * only in a text with no character outside the Basic Multilingual Plane.
- *
- * Offsets are page-local. A caller assembling a multi-page document shifts them
- * by the length, in code points, of the text already accumulated.
- */
-export function anchorRuns(runs: PdfTextRun[], page: number): AnchoredText {
-    const items: PdfTextItem[] = [];
-    let text = '';
-    // How many code points `text` is. A separator follows every run, so no
-    // two runs meet to make one character, and the count is a sum.
-    let length = 0;
-
-    for (const run of runs) {
-        if (run.str.trim()) {
-            const start = length;
-            text += run.str;
-            length += textOffsets(run.str).length;
-            const end = length;  // range covers only this run's own chars
-
-            const [, , , , x, y] = run.transform;
-            items.push({ start, end, page, x, y, width: run.width, height: run.height });
-
-            // Separator AFTER recording the run, so its [start, end) never
-            // includes it. pdf.js flags the last run on a line with hasEOL —
-            // newline there, space between words otherwise, so reading-order
-            // lines don't glue (e.g. "textsecond").
-            text += run.hasEOL ? '\n' : ' ';
-            length += 1;
-        } else if (run.hasEOL) {
-            // Standalone end-of-line marker (empty/whitespace str): keep the
-            // line break without letting whitespace-only runs add stray spaces.
-            text += '\n';
-            length += 1;
-        }
-    }
-
-    return { text, items };
-}
 
 /**
  * Items whose baseline Y is within this many PDF points are treated as being on

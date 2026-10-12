@@ -643,6 +643,12 @@ class Run {
         this.world.archivist.descriptions.set(text('resource'), args['graph']);
         return;
       }
+      case 'anchored-text': {
+        allowed('resource', 'answer');
+        if (!isObject(args['answer'])) throw new Error('backend anchored-text needs answer, an object');
+        this.world.archivist.anchoredTexts.set(text('resource'), args['answer']);
+        return;
+      }
       case 'uploaded': {
         allowed('resource', 'fields', 'bytes');
         const upload = this.world.archivist.uploads.find((u) => u.resourceId === text('resource'));

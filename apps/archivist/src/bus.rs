@@ -9,11 +9,11 @@ use crate::archivist::{Archivist, Refusal};
 use crate::{browse, commands};
 use semiont::bus::{Bus, operation};
 use semiont::channels::{
-    BindUpdateBody, BrowseAgentsRequested, BrowseAnchoredTextRequested,
-    BrowseAnnotationHistoryRequested, BrowseAnnotationRequested, BrowseAnnotationsRequested,
-    BrowseDirectoryRequested, BrowseEntityTypesRequested, BrowseEventsRequested, BrowseKbRequested,
-    BrowseResourceRequested, BrowseResourcesRequested, BrowseTagSchemasRequested, Channel,
-    FrameAddEntityType, FrameAddTagSchema, JobAssign, JobComplete, JobFail, JobStart, MarkArchive,
+    BindUpdateBody, BrowseAgentsRequested, BrowseAnnotationHistoryRequested,
+    BrowseAnnotationRequested, BrowseAnnotationsRequested, BrowseDirectoryRequested,
+    BrowseEntityTypesRequested, BrowseEventsRequested, BrowseKbRequested, BrowseResourceRequested,
+    BrowseResourcesRequested, BrowseTagSchemasRequested, Channel, FrameAddEntityType,
+    FrameAddTagSchema, JobAssign, JobComplete, JobFail, JobStart, MarkArchive,
     MarkBodyUpdateFailed, MarkCommit, MarkCreateRequest, MarkDelete, MarkUnarchive, MarkUpdateBody,
     MarkUpdateEntityTypes, PersonProfile, SmeltSettled, YieldCloneCreate, YieldClonePersist,
     YieldCloneResourceRequested, YieldCloneTokenRequested, YieldCreate, YieldUpdate,
@@ -52,14 +52,13 @@ pub const COMMANDS: [&str; 19] = [
 
 /// The reads, and the Smelter's signal: answered as they arrive, in no
 /// particular order.
-pub const READS: [&str; 15] = [
+pub const READS: [&str; 14] = [
     BrowseResourceRequested::NAME,
     BrowseResourcesRequested::NAME,
     BrowseAnnotationsRequested::NAME,
     BrowseAnnotationRequested::NAME,
     BrowseAnnotationHistoryRequested::NAME,
     BrowseEventsRequested::NAME,
-    BrowseAnchoredTextRequested::NAME,
     BrowseEntityTypesRequested::NAME,
     BrowseTagSchemasRequested::NAME,
     BrowseAgentsRequested::NAME,
@@ -88,12 +87,11 @@ async fn handle(archivist: &Archivist, channel: &str, payload: &Object) -> Optio
     // The channels that are no operation's request.
     match channel {
         SmeltSettled::NAME => {
-            if let (Some(resource), Some(checksum), Some(outcome)) = (
+            if let (Some(resource), Some(checksum)) = (
                 payload.get("resourceId").and_then(Value::as_str),
                 payload.get("contentChecksum").and_then(Value::as_str),
-                payload.get("outcome").and_then(Value::as_str),
             ) {
-                archivist.smelt.settle(resource, checksum, outcome);
+                archivist.smelt.settle(resource, checksum);
             }
             return None;
         }
@@ -163,7 +161,6 @@ async fn handle(archivist: &Archivist, channel: &str, payload: &Object) -> Optio
             browse::annotation_history(archivist, payload).await
         }
         BrowseEventsRequested::NAME => browse::events(archivist, payload).await,
-        BrowseAnchoredTextRequested::NAME => browse::anchored(archivist, payload).await,
         BrowseEntityTypesRequested::NAME => browse::entity_types(archivist, payload).await,
         BrowseTagSchemasRequested::NAME => browse::tag_schemas(archivist, payload).await,
         BrowseAgentsRequested::NAME => browse::agents(archivist, payload).await,

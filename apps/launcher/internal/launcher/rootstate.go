@@ -130,9 +130,8 @@ var stateStores = map[string]stateStoreSpec{
 	// in the container and dies on every stop, and the Smelter's reconcile
 	// re-derives every lost map on the next start.
 	//
-	// The container path is one constant: the Smelter's image declares it as
-	// SEMIONT_ANCHORED_TEXT_DIR, and the Archivist's document names it as
-	// `anchoredTextDir`. So this side carries no
+	// The container path is one constant: the Smelter's document and the
+	// Archivist's each name it as `anchoredTextDir`. So this side carries no
 	// KB identifier and nothing here has to know how a service composes its
 	// own paths — the same arrangement every other store has
 	// (/qdrant/storage, /var/lib/postgresql/data).

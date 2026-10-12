@@ -2,16 +2,17 @@
 /**
  * lint:transport-contract — the contract documents and the conformance
  * corpus name each other truthfully. The documents are the two transport
- * ones, the worker contract, the Worker service's, the Weaver's, and the
- * selectors' page, for its rules of what text a resource's bytes are.
+ * ones, the worker contract, the Worker service's, the Weaver's, the
+ * Smelter's, and the selectors' page, for its rules of what text a
+ * resource's bytes are.
  *
  * - Every rule's `*Held by …*` in docs/protocol/TRANSPORT-CONTRACT.md,
- *   TRANSPORT-HTTP.md, WORKER-CONTRACT.md, WORKER-SERVICE.md, WEAVER.md and
- *   W3C-SELECTORS.md names cases
+ *   TRANSPORT-HTTP.md, WORKER-CONTRACT.md, WORKER-SERVICE.md, WEAVER.md,
+ *   SMELTER.md and W3C-SELECTORS.md names cases
  *   that exist: `sdk/wire/<case>`, `sdk/live/<case>` (a file, or a case built
  *   from a row of specs/src/client/refresh.json), `worker/<case>`,
- *   `worker-service/<case>`, `weaver/<case>`, `gateway/<file>`,
- *   `dispatcher/<file>`, or a path
+ *   `worker-service/<case>`, `weaver/<case>`, `smelter/<case>`,
+ *   `gateway/<file>`, `dispatcher/<file>`, or a path
  *   in the repository. One that names nothing says "no case".
  * - Every wire case of the SDK suite is named by one of the two documents: a
  *   case holds a client to something, and the contract is where that is said.
@@ -19,9 +20,10 @@
  *   and its `source` names a section of that contract in which a rule is held
  *   by it.
  * - Every case of a service's suite (the worker-service suite's, the weaver
- *   suite's), a `<case>.test.ts` file, is named by a rule of that service's
- *   document, and the comment that heads it names sections of that document,
- *   each a heading there, in one of which a rule is held by it.
+ *   suite's, the smelter suite's), a `<case>.test.ts` file, is named by a
+ *   rule of that service's document, and the comment that heads it names
+ *   sections of that document, each a heading there, in one of which a rule
+ *   is held by it.
  * - Every SDK case's `source` names files that exist, and sections that are
  *   headings of the document it cites. A wire case's names a section of a
  *   transport document in which a rule is held by that case: the case and the
@@ -39,6 +41,7 @@ const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const SERVICE_SUITES = [
   { doc: 'docs/protocol/WORKER-SERVICE.md', dir: 'tests/conformance/worker-service', token: 'worker-service', service: 'a Worker service', counted: 'worker-service' },
   { doc: 'docs/protocol/WEAVER.md', dir: 'tests/conformance/weaver', token: 'weaver', service: 'a Weaver', counted: 'weaver' },
+  { doc: 'docs/protocol/SMELTER.md', dir: 'tests/conformance/smelter', token: 'smelter', service: 'a Smelter', counted: 'smelter' },
 ];
 const DOCS = ['docs/protocol/TRANSPORT-CONTRACT.md', 'docs/protocol/TRANSPORT-HTTP.md', 'docs/protocol/WORKER-CONTRACT.md', ...SERVICE_SUITES.map((suite) => suite.doc), 'docs/protocol/W3C-SELECTORS.md'];
 const SDK = 'tests/conformance/sdk';

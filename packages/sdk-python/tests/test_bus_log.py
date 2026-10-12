@@ -392,6 +392,7 @@ def test_a_read_of_content_and_an_upload_are_each_a_line_that_says_what_was_aske
     async def scenario() -> None:
         async with GatewayServer() as gateway, transport_to(gateway) as transport:
             gateway.stored["res-1"] = ("text/plain", b"what the resource says")
+            gateway.anchored_texts["res-1"] = {"kind": "not-yet"}
             created = await transport.content.put_binary(
                 PutBinaryRequest(
                     name="A name",
@@ -405,6 +406,7 @@ def test_a_read_of_content_and_an_upload_are_each_a_line_that_says_what_was_aske
             assert (await transport.content.get_binary(RESOURCE)).data == b"what the resource says"
             async with await transport.content.get_binary_stream(RESOURCE) as stream:
                 assert b"".join([piece async for piece in stream]) == b"what the resource says"
+            assert (await transport.content.get_anchored_text(RESOURCE)).kind == "not-yet"
             # A read that is refused was asked for all the same.
             with pytest.raises(SemiontError):
                 await transport.content.get_resource_graph(ResourceId("res-absent"))
@@ -415,6 +417,7 @@ def test_a_read_of_content_and_an_upload_are_each_a_line_that_says_what_was_aske
         '[bus PUT] content {"name":"A name","format":"text/plain","storageUri":"file://uploads/a-name.txt","sizeBytes":16}',
         '[bus GET] content {"resourceId":"res-1"}',
         '[bus GET] content {"resourceId":"res-1","stream":true}',
+        '[bus GET] content {"resourceId":"res-1","anchoredText":true}',
         '[bus GET] content {"resourceId":"res-absent","graph":true}',
     ]
     # The token a clone is made with goes in the upload, and in no line.

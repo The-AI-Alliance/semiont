@@ -59,9 +59,9 @@ siteName = "Example Knowledge Base"
 }
 
 // The whole per-service staging rule in one place. This is the test that
-// catches a boot break: two services read bytes straight from the Archivist
-// and REFUSE to start without its address, and the one that describes a KB
-// tree it does not mount needs its committed identity at the same time — a
+// catches a boot break: the Librarian reads bytes straight from the Archivist
+// and REFUSES to start without its address, and describes a KB tree it does
+// not mount, so it needs the KB's committed identity at the same time — a
 // patch structure that assigned rather than chained would silently drop one.
 func TestStagedConfigPerService(t *testing.T) {
 	x := &liveExec{root: t.TempDir()}
@@ -71,12 +71,12 @@ func TestStagedConfigPerService(t *testing.T) {
 		archivist  bool
 		kbIdentity bool
 	}{
-		// The gateway, the dispatcher, the Archivist, the worker and the
-		// Weaver are absent: each takes a configuration document, not a
-		// patched copy (gatewaydoc_test.go, dispatcherdoc_test.go,
-		// archivistdoc_test.go, workerdoc_test.go, weaverdoc_test.go).
+		// The gateway, the dispatcher, the Archivist, the worker, the Smelter
+		// and the Weaver are absent: each takes a configuration document, not
+		// a patched copy (gatewaydoc_test.go, dispatcherdoc_test.go,
+		// archivistdoc_test.go, workerdoc_test.go, smelterdoc_test.go,
+		// weaverdoc_test.go).
 		{"librarian", true, true},
-		{"smelter", true, false},
 	} {
 		out := x.stagedConfig(tc.svc, []byte(stagingFixture), &launchPlan{EnvName: "local"}, "192.168.64.1")
 

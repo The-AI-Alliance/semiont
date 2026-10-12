@@ -13,5 +13,5 @@
     "types": ["node"]
   },
   "include": ["**/*.ts"],
-  "exclude": ["node_modules", "harness/weaver-world.ts", "weaver/**"]
+  "exclude": ["node_modules", "harness/weaver-world.ts", "weaver/**", "harness/smelter-world.ts", "harness/ollama-embed.ts", "smelter/**"]
 }

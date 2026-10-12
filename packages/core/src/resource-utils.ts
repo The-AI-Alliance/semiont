@@ -3,6 +3,8 @@
  */
 
 import type { components } from './types';
+import { SemiontError } from './errors';
+import type { TransportErrorCode } from './generated/error-codes';
 import type { ResourceDescriptor } from './graph';
 import type { ResourceId } from './identifiers';
 import { derivesTextOf, textSourceOf } from './media-types';
@@ -36,13 +38,6 @@ export function getPrimaryRepresentation(resource: ResourceDescriptor | undefine
  */
 export function getPrimaryMediaType(resource: ResourceDescriptor | undefined): string | undefined {
   return getPrimaryRepresentation(resource)?.mediaType;
-}
-
-/**
- * Get the checksum from the primary representation
- */
-export function getChecksum(resource: ResourceDescriptor | undefined): string | undefined {
-  return getPrimaryRepresentation(resource)?.checksum;
 }
 
 /**
@@ -133,10 +128,13 @@ export function isDraft(resource: ResourceDescriptor | undefined): boolean {
  * "The text of a resource"). An offset counts the code points of this text,
  * so every reader makes the same text of the same bytes.
  *
+ * A refusal is the reader's own failure, whichever it is of: a media type
+ * whose bytes are not its text, or a charset that is not decoded.
+ *
  * @param buffer - The raw representation data
  * @param mediaType - Media type with optional charset (e.g., "text/plain; charset=iso-8859-1")
  * @returns Decoded string
- * @throws For a media type whose bytes are not its text, and for a charset that is not decoded
+ * @throws A `SemiontError` whose code is `error`: naming the media type, for one whose bytes are not its text, and naming the charset, for one that is not decoded
  *
  * @example
  * ```typescript
@@ -144,7 +142,7 @@ export function isDraft(resource: ResourceDescriptor | undefined): boolean {
  * const legacy = decodeRepresentation(buffer, "text/plain; charset=windows-1252");
  * ```
  */
-export function decodeRepresentation(buffer: Buffer, mediaType: string): string {
+export function decodeRepresentation(buffer: ArrayBuffer | Uint8Array, mediaType: string): string {
   // The chokepoint gate: decoding is only legitimate for media whose bytes
   // ARE its text — not for derived-text media (the anchored-text read answers
   // those) and not for media with no text at all. A PDF decoded here would
@@ -155,9 +153,10 @@ export function decodeRepresentation(buffer: Buffer, mediaType: string): string 
   // this gate follows automatically.
   const source = textSourceOf(mediaType);
   if (derivesTextOf(mediaType) || source === 'none') {
-    throw new Error(
+    throw new SemiontError(
       `decodeRepresentation refused ${mediaType}: its text source is '${source}' — ` +
       `derived text comes from the anchored-text read, never from decoding bytes`,
+      'error' satisfies TransportErrorCode,
     );
   }
 

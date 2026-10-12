@@ -365,7 +365,7 @@ The SDK states three contracts a client needs of the wire
 | Contract | Type here | Carries |
 |---|---|---|
 | `Transport` | `HttpTransport` | The bus: what the client sends, and the one stream of what it receives |
-| `ContentTransport` | `HttpContentTransport` | A resource's bytes, up and down |
+| `ContentTransport` | `HttpContentTransport` | A resource's bytes, up and down, its description as linked data and its anchored text |
 | `GatewayOperations` | `HttpTransport` | The gateway's plain operations: who a token is, which issuer the knowledge base trusts, its health and status |
 
 `client(config, options)` is the SDK's `SemiontClient` over all three, so
@@ -385,7 +385,10 @@ its `auth` and `system` namespaces are there.
   it fails as one that got no answer, and is not made again.
 - **Content.** An upload reports its progress and can be cancelled. It has
   no deadline, since how long it takes is how large the resource is. A
-  download's deadline is on the bytes beginning to arrive.
+  download's deadline is on the bytes beginning to arrive. A read of a
+  resource's anchored text may wait at the knowledge base, while the text
+  is still being extracted, before it is answered: a deadline shortened
+  below that wait fails the read.
 - **A person's renewal tells a refusal from an outage.** Only no answer, or
   one that says "not now", is tried again, inside a bounded budget. A
   refusal ends the session.

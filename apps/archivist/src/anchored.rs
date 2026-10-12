@@ -1,14 +1,16 @@
-//! Anchored text: the store the Smelter writes, read under the stamp its
-//! writer states, and the wait for the Smelter to settle content not yet in
-//! it.
+//! Anchored text: which media types have any, the store the Smelter writes,
+//! read under the stamp its writer states, and the wait for the Smelter to
+//! settle content not yet in it.
 
 use crate::archivist::{Archivist, Refusal, locked, primary_representation};
+use semiont::media_types::yields_geometry_of;
 use semiont_archivist_record::Object;
 use semiont_archivist_record::shard::shard_path;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 use tokio::sync::oneshot;
 
@@ -19,14 +21,13 @@ const REMEMBERED: Duration = Duration::from_secs(5 * 60);
 
 struct Settled {
     checksum: String,
-    outcome: String,
     at: Instant,
 }
 
 struct Waiter {
     resource_id: String,
     checksum: String,
-    tell: oneshot::Sender<String>,
+    tell: oneshot::Sender<()>,
 }
 
 /// The latest `smelt:settled` of each resource, and who is waiting for one.
@@ -34,11 +35,20 @@ struct Waiter {
 pub struct SmeltProgress {
     settled: Mutex<HashMap<String, Settled>>,
     waiting: Mutex<Vec<Waiter>>,
+    stopping: AtomicBool,
 }
 
 impl SmeltProgress {
+    /// The process is stopping. Every read waiting for the Smelter is
+    /// answered now, as one whose wait ran out, and none waits after: a read
+    /// is an HTTP request, and a held one would hold the stop for as long.
+    pub fn stop_waiting(&self) {
+        self.stopping.store(true, Ordering::SeqCst);
+        locked(&self.waiting).clear();
+    }
+
     /// The Smelter settled this content of this resource.
-    pub fn settle(&self, resource_id: &str, checksum: &str, outcome: &str) {
+    pub fn settle(&self, resource_id: &str, checksum: &str) {
         {
             let mut settled = locked(&self.settled);
             settled.retain(|_, held| held.at.elapsed() < REMEMBERED);
@@ -46,7 +56,6 @@ impl SmeltProgress {
                 resource_id.to_owned(),
                 Settled {
                     checksum: checksum.to_owned(),
-                    outcome: outcome.to_owned(),
                     at: Instant::now(),
                 },
             );
@@ -57,27 +66,32 @@ impl SmeltProgress {
             .partition(|w| w.resource_id == resource_id && w.checksum == checksum);
         *waiting = kept.into_iter().filter(|w| !w.tell.is_closed()).collect();
         for waiter in told {
-            let _ = waiter.tell.send(outcome.to_owned());
+            let _ = waiter.tell.send(());
         }
     }
 
-    /// How the Smelter settled this content, waiting for it to if it has
-    /// not. None when the wait runs out.
-    async fn when_settled(&self, resource_id: &str, checksum: &str) -> Option<String> {
+    /// Whether the Smelter has settled this content, waiting for it to if it
+    /// has not. False when the wait runs out.
+    async fn when_settled(&self, resource_id: &str, checksum: &str) -> bool {
         let wait = {
             let settled = locked(&self.settled);
-            if let Some(held) = settled.get(resource_id).filter(|h| h.checksum == checksum) {
-                return Some(held.outcome.clone());
+            let held = settled.get(resource_id);
+            if held.is_some_and(|h| h.checksum == checksum) {
+                return true;
             }
             let (tell, wait) = oneshot::channel();
-            locked(&self.waiting).push(Waiter {
+            let mut waiting = locked(&self.waiting);
+            if self.stopping.load(Ordering::SeqCst) {
+                return false;
+            }
+            waiting.push(Waiter {
                 resource_id: resource_id.to_owned(),
                 checksum: checksum.to_owned(),
                 tell,
             });
             wait
         };
-        tokio::time::timeout(SETTLE, wait).await.ok()?.ok()
+        matches!(tokio::time::timeout(SETTLE, wait).await, Ok(Ok(())))
     }
 }
 
@@ -154,33 +168,40 @@ fn absent(kind: &str) -> Object {
 }
 
 /// A resource's anchored text: the stored entry for its content, or why
-/// there is none to give.
+/// there is none to give. Only a media type whose text has places on a page
+/// has any (`media_types::yields_geometry_of`): a type whose text is decoded
+/// from its bytes has none, nor has a type with no text, and one the
+/// registry does not have is one or the other. `no-map` is decided here, by
+/// the media type alone, before the store is read.
+///
+/// Content the Smelter has settled and the store has no entry of is
+/// `not-yet`, however it was settled. Every outcome of deriving a text is
+/// stored, a decline too, so the entry was lost, and the Smelter derives it
+/// again when it next starts.
 pub async fn anchored_text(archivist: &Archivist, resource_id: &str) -> Result<Object, Refusal> {
     let view = archivist.held_view(resource_id)?;
-    let checksum = view
-        .as_ref()
-        .and_then(primary_representation)
+    let representation = view.as_ref().and_then(primary_representation);
+    let checksum = representation
         .and_then(|r| r.get("checksum"))
         .and_then(Value::as_str);
     let Some(checksum) = checksum else {
         return Ok(absent("unknown"));
     };
+    let has_anchored_text = representation
+        .and_then(|r| r.get("mediaType"))
+        .and_then(Value::as_str)
+        .is_some_and(yields_geometry_of);
+    if !has_anchored_text {
+        return Ok(absent("no-map"));
+    }
     let dir = Path::new(&archivist.config.anchored_text_dir);
     if let Some(entry) = read_entry(dir, checksum).await {
         return Ok(entry);
     }
-    Ok(
-        match archivist
-            .smelt
-            .when_settled(resource_id, checksum)
-            .await
-            .as_deref()
-        {
-            Some("skipped") => absent("no-map"),
-            Some("indexed") => read_entry(dir, checksum)
-                .await
-                .unwrap_or_else(|| absent("not-yet")),
-            _ => absent("not-yet"),
-        },
-    )
+    if archivist.smelt.when_settled(resource_id, checksum).await
+        && let Some(entry) = read_entry(dir, checksum).await
+    {
+        return Ok(entry);
+    }
+    Ok(absent("not-yet"))
 }

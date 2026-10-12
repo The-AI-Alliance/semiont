@@ -26,7 +26,7 @@ The repository holds code in four languages, and none of them depends on another
 - **npm workspaces** (`apps/*`, `packages/*`, `tests/doc-snippets`): the TypeScript packages and the Browser.
 - **A Cargo workspace**: the gateway, the dispatcher, and the Rust SDK's crates.
 - **Two Go modules**: the launcher (`apps/launcher`) and the Go SDK (`packages/sdk-go`).
-- **A Python package**: the Python SDK (`packages/sdk-python`), whose environment is `uv`'s.
+- **Eight Python projects**: the Python SDK (`packages/sdk-python`), the four packages the Python services are built on, and the Worker, the Weaver and the Smelter (`apps/worker`, `apps/weaver`, `apps/smelter`). Each has an environment of its own, which is `uv`'s.
 
 [Package Architecture](../architecture/PACKAGE-ARCHITECTURE.md) draws both dependency graphs and says what each service image runs.
 
@@ -41,10 +41,10 @@ semiont/
 │   ├── gateway/            # Rust: verifies tokens, relays the bus, proxies content
 │   ├── dispatcher/         # Rust: owns the job queue
 │   ├── archivist/          # Rust: keeps the record — event log, content, views
-│   ├── librarian/          # Image definitions for the three Node services;
-│   ├── smelter/            #   their code is in @semiont/make-meaning
-│   ├── weaver/
+│   ├── librarian/          # The image of the one Node service; its code is in @semiont/make-meaning
 │   ├── worker/             # Python: claims jobs and runs them against a model
+│   ├── weaver/             # Python: keeps the graph in step with the record
+│   ├── smelter/            # Python: keeps the vector index in step with the record, and derives a PDF's text
 │   ├── browser/            # The Semiont Browser: a Vite + React single-page app
 │   ├── desktop/            # The Browser as a desktop app (Tauri)
 │   └── launcher/           # Go: the `semiont` command
@@ -53,16 +53,19 @@ semiont/
 │   ├── sdk/                # The TypeScript SDK
 │   ├── http-transport/     # The SDK's transport over a gateway
 │   ├── react-ui/           # React components and hooks
-│   ├── make-meaning/       # The knowledge-system actors and three services' entry points
+│   ├── make-meaning/       # The Gatherer, the Matcher and the Librarian's entry point
 │   ├── event-sourcing/     # The event log and the views
-│   ├── content/            # Working-tree storage and text extraction
+│   ├── content/            # A resource's bytes, read from the Archivist
 │   ├── graph/ vectors/ inference/ ontology/ observability/ mcp-server/
 │   ├── sdk-rust/           # The Rust SDK (crate `semiont`), with
 │   ├── http-transport-rust/ telemetry-rust/ codegen-rust/
 │   ├── core-rust/ observability-rust/ http-service-rust/    # what the Rust services share
 │   ├── sdk-go/             # The Go SDK
 │   ├── sdk-python/         # The Python SDK (package `semiont`)
-│   └── inference-python/   # The model providers a Python service asks (package `semiont_inference`)
+│   ├── inference-python/   # The model providers a Python service asks (package `semiont_inference`)
+│   ├── graph-python/       # The graph databases a Python service writes and reads (package `semiont_graph`)
+│   ├── vectors-python/     # The vector index a Python service writes, and its embedding providers (package `semiont_vectors`)
+│   └── service-python/     # What every Python service does to be one (package `semiont_service`)
 ├── tests/
 │   ├── conformance/        # Black-box suites: the gateway, the dispatcher, every SDK
 │   ├── e2e/                # Playwright, against a live stack

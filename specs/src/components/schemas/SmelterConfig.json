@@ -1,0 +1,103 @@
+{
+  "type": "object",
+  "description": "Everything a Smelter reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the Smelter. Whoever starts a Smelter writes it, from the environment the knowledge base's config selects, and the Smelter reads it from the path its `--config` flag names. This schema is the contract, and a Smelter needs no launcher. Started without `--config`, or with a path that names no file, the Smelter refuses to start and says which. No secret is a value here: an embedding provider's key is named by the environment variable that holds it, and the Smelter's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` in its environment. A document that does not validate is refused at boot, naming each failing field.",
+  "properties": {
+    "gatewayUrl": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The URL the Smelter reaches the gateway at: its route to the bus."
+    },
+    "identity": {
+      "type": "object",
+      "description": "The issuer the Smelter's service account signs in at.",
+      "properties": {
+        "issuer": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The issuer URL, exactly as tokens carry it in `iss`."
+        }
+      },
+      "required": [
+        "issuer"
+      ],
+      "additionalProperties": false
+    },
+    "archivist": {
+      "type": "object",
+      "description": "Where the Archivist listens. The Smelter reads a resource's bytes from it, as its service account.",
+      "properties": {
+        "host": {
+          "type": "string",
+          "minLength": 1
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        }
+      },
+      "required": [
+        "host",
+        "port"
+      ],
+      "additionalProperties": false
+    },
+    "embedding": {
+      "$ref": "./EmbeddingConfig.json"
+    },
+    "vectors": {
+      "$ref": "./VectorsConfig.json"
+    },
+    "chunking": {
+      "type": "object",
+      "description": "The two numbers a text is cut by before it is embedded, both in tokens, a token being taken as four code points.",
+      "properties": {
+        "chunkSize": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The size of a chunk."
+        },
+        "overlap": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "How much of a chunk the next one repeats."
+        }
+      },
+      "required": [
+        "chunkSize",
+        "overlap"
+      ],
+      "additionalProperties": false
+    },
+    "anchoredTextDir": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The anchored-text store the Smelter writes and the Archivist reads."
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535,
+      "description": "The port the Smelter answers `/health` on."
+    },
+    "logLevel": {
+      "$ref": "./LogLevel.json"
+    },
+    "logFormat": {
+      "$ref": "./LogFormat.json"
+    }
+  },
+  "required": [
+    "gatewayUrl",
+    "identity",
+    "archivist",
+    "embedding",
+    "vectors",
+    "chunking",
+    "anchoredTextDir",
+    "port",
+    "logLevel",
+    "logFormat"
+  ],
+  "additionalProperties": false
+}

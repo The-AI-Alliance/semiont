@@ -1,86 +1,107 @@
-# smelter image.
+# The smelter image: the Smelter service (apps/smelter, Python) and the three
+# packages of this repository it runs on, built here from the repository, in
+# an environment of exactly what apps/smelter/uv.lock pins, with the program
+# that reads a scanned page beside it. Nothing is built, installed or fetched
+# when the container starts: the entrypoint runs the service.
 #
-# THE ENTRYPOINT SOURCE IS NOT IN THIS DIRECTORY. This image installs the
-# published @semiont/make-meaning and runs `dist/smelter-main.js` out of it; the
-# source is packages/make-meaning/src/smelter-main.ts. Only the image
-# recipe lives here — the entrypoint lives in its package deliberately:
-# moving it out would promote ~18 of that package's
-# internals to public API just to satisfy a directory layout. If you change
-# the CMD, change it against that file.
+# Built from the repository root, on the oldest Python the repository's Python
+# packages support, which packages/sdk-python/pyproject.toml states
+# (requires-python), the one place it is written:
 #
-# Stage 1: install (npm runs here, then is discarded).
+#   --build-arg PYTHON_FLOOR=$(scripts/ci/python-floor.sh)
 #
-# smelter and weaver are separate images from the shared @semiont/make-meaning
-# package. The smelter does not dial the graph, so — unlike weaver — it bundles
-# no neo4j-driver.
+# There is no default: without it a FROM names no image and the build stops,
+# rather than building on a Python nothing pinned.
+ARG PYTHON_FLOOR
+
+# uv makes the environment, in the builder stage alone.
+FROM ghcr.io/astral-sh/uv:0.13.0 AS uv
+
+FROM python:${PYTHON_FLOOR}-alpine AS builder
+COPY --from=uv /uv /usr/local/bin/uv
+WORKDIR /build
+# Each package below takes its version from version.json when it is built.
+COPY version.json ./
+# The SDK, the vector stores and what every Python service is built on are
+# this repository's, and no index holds the version the service is written
+# against: each is built from its manifest, the README its manifest names,
+# where it names one, and its source.
+COPY packages/sdk-python/pyproject.toml packages/sdk-python/README.md packages/sdk-python/
+COPY packages/sdk-python/src packages/sdk-python/src
+COPY packages/vectors-python/pyproject.toml packages/vectors-python/README.md packages/vectors-python/
+COPY packages/vectors-python/src packages/vectors-python/src
+COPY packages/service-python/pyproject.toml packages/service-python/
+COPY packages/service-python/src packages/service-python/src
+COPY apps/smelter/pyproject.toml apps/smelter/uv.lock apps/smelter/
+COPY apps/smelter/src apps/smelter/src
+# The environment is made on this stage's Python and no other, with its
+# bytecode written here: the image's user cannot write it. uv keeps no cache,
+# and the stage mounts none: from a cache that outlives a build, uv installs
+# the wheel it built of a package's earlier sources when only its sources have
+# changed since.
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
+    UV_PYTHON_DOWNLOADS=never \
+    UV_NO_CACHE=1 \
+    UV_COMPILE_BYTECODE=1
+# What the lockfile pins and nothing else: --locked refuses a lockfile that no
+# longer agrees with the manifests, --no-dev leaves the checkers and the tests'
+# tools out, and --no-editable installs the four packages above as built
+# wheels, so the environment is whole without this stage's tree.
 #
-# Base is node:24-alpine (not node:26): node 26's built-in undici breaks the
-# qdrant client's own undici, which @semiont/make-meaning can load transitively
-# at connect time.
-FROM node:24-alpine AS installer
-ARG NPM_REGISTRY=https://registry.npmjs.org
-ARG SEMIONT_VERSION=latest
-# @qdrant/js-client-rest pins undici exactly; `npm install -g` ignores overrides,
-# so the pinned copy is replaced after install. See the script.
-COPY scripts/container/patch-qdrant-undici.sh /tmp/patch-qdrant-undici.sh
-RUN npm config set registry $NPM_REGISTRY && \
-    npm install -g @semiont/make-meaning@${SEMIONT_VERSION} && \
-    sh /tmp/patch-qdrant-undici.sh && \
-    npm cache clean --force
+# No extra is named, since semiont-smelter has none: the vector index and the
+# embedding providers are asked over HTTP, with what every install has.
+#
+# PDFium, which reads a PDF, comes in the wheel of its binding (pypdfium2),
+# built for Alpine's C library with its C++ runtime inside it. It asks for no
+# package of the system, in this stage or the next.
+RUN uv sync --project apps/smelter --locked --no-dev --no-editable
 
-# Stage 2: minimal runtime — node only, no npm. The runtime entrypoint is
-# `node smelter-main.js`, so npm is build-only baggage. Removing it also drops
-# the picomatch / glob / etc. CVE surface that ships inside npm's bundled
-# node_modules.
-FROM node:24-alpine
-# Patch base-image OS packages so alpine security fixes apply even when the
-# node:24-alpine snapshot hasn't been rebuilt against them yet.
-RUN apk upgrade --no-cache
+FROM python:${PYTHON_FLOOR}-alpine
+# Patch base-image OS packages so Alpine's security fixes apply even when the
+# base's snapshot has not been rebuilt against them yet. With tini, what reads
+# a scanned page, each as Alpine packages it:
+#
+#   tesseract-ocr           the `tesseract` program, which the Smelter runs
+#                           once for each image of a page that has no text of
+#                           its own (semiont_smelter.tesseract). It is found
+#                           on the path.
+#   tesseract-ocr-data-eng  the English data the program is run with. The
+#                           program finds it where Alpine installs it, and
+#                           reading a page reaches no network.
+RUN apk upgrade --no-cache && apk add --no-cache tini tesseract-ocr tesseract-ocr-data-eng
+# Nothing is installed in the image once it is built, so it carries no
+# installer.
+RUN pip uninstall --yes --root-user-action=ignore pip
 
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 semiont
+# The uid every service image runs as. The Smelter writes the anchored-text
+# store as this uid, in the directory its document names (`anchoredTextDir`):
+# whoever starts the container mounts the store there, writable by it.
+RUN addgroup --system --gid 1001 semiont && \
+    adduser --system --uid 1001 --ingroup semiont --home /home/semiont semiont
 
-# The global @semiont/make-meaning (with its hoisted deps) and its bin symlinks.
-COPY --from=installer /usr/local/lib/node_modules /usr/local/lib/node_modules
-COPY --from=installer /usr/local/bin /usr/local/bin
+COPY --from=builder /opt/venv /opt/venv
 
-# Strip npm/npx (re-introduced by the COPY above) plus the TypeScript compiler.
-# `typescript` + its native `@typescript/*` Go binaries are pulled transitively
-# via the qdrant client's dep chain but never loaded at runtime — build-only
-# baggage, and the native `tsc` carries a Go-stdlib CVE (CVE-2026-39822).
-RUN rm -rf /usr/local/lib/node_modules/npm \
-           /usr/local/bin/npm \
-           /usr/local/bin/npx && \
-    find /usr/local/lib/node_modules \
-      -type d \( -name typescript -o -name '@typescript' \) -prune -exec rm -rf {} +
-
-COPY LICENSE /home/semiont/LICENSE
-COPY apps/smelter/NOTICE /home/semiont/NOTICE
-
-WORKDIR /kb
-RUN chown semiont:nodejs /kb
-# Supervision runtime — ROOT-TIME on purpose: apk refuses to run and
-# /usr/local/bin refuses writes once USER drops privileges below.
-RUN apk add --no-cache tini
+COPY LICENSE apps/smelter/NOTICE /home/semiont/
 COPY scripts/container/supervise.sh /usr/local/bin/supervise.sh
 COPY scripts/container/boot.sh /usr/local/bin/boot.sh
 
+WORKDIR /kb
+RUN chown semiont:semiont /kb
+
 USER semiont
 
-ENV NODE_ENV=production
-# Where this deployment keeps the anchored-text store. The Smelter DERIVES
-# these artifacts, holds the store directly and is the writer whose image
-# stamps it — so the path it reads must match the path the launcher mounts onto.
-# `smelter-main` refuses to boot without it rather than defaulting: a default
-# would write a full OCR pass per representation into a directory nobody
-# mounted, lose it on the next stop, and re-derive forever.
-ENV SEMIONT_ANCHORED_TEXT_DIR=/anchored-text
+# `python` is the environment's.
+ENV PATH=/opt/venv/bin:$PATH
 EXPOSE 24101
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:24101/health', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"
+  CMD wget -q -O /dev/null http://localhost:24101/health || exit 1
 
 ENV SUPERVISE_NAME=smelter \
     SUPERVISE_PROBE=http://localhost:24101/health
 ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/boot.sh"]
-CMD ["node", "/usr/local/lib/node_modules/@semiont/make-meaning/dist/smelter-main.js"]
+# --config names where the launcher mounts the Smelter's document; the
+# launcher's census (TestConfigDocumentsAreWhereTheImagesLook) reads it here.
+# `-P` keeps the working directory off the import path: a file in /kb is never
+# a module the service imports.
+CMD ["python", "-P", "-m", "semiont_smelter", "--config", "/etc/semiont/smelter.json"]

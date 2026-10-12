@@ -2,18 +2,28 @@
 // lint:spec-case-tables — the case tables that state what a worker does to a
 // text and to a model's reply, what a bus log shows of a payload, what the
 // graph holds of an annotation and a resource and what the Weaver's fold does
-// to it, and the runners each must have.
+// to it, what a point of the vector index is and what the index answers, the
+// work a Smelter's start plans and what each kind of PDF becomes, and the
+// runners each must have.
 //
 // A rule that lives only in one implementation's code is that
 // implementation's. These tables are the rules a worker in any language is
 // held to, and the one every bus log is. What an SDK gives a worker's author
-// (what an offset counts, the reconciling of a quote, the locating of a span
-// of a PDF, the builders, the id, the readers) is run by the TypeScript, Rust
+// (what an offset counts, what text a resource's bytes are, the reconciling
+// of a quote, the locating of a span of a PDF, the builders, the id, the
+// readers of an annotation and of a resource) is run by the TypeScript, Rust
 // and Python SDKs, each through its own code. What Semiont's worker alone
-// does is run by that worker. What a bus log shows of a payload is run by
-// each bus log: TypeScript's, Rust's and Python's. What the graph holds of an
+// does is run by that worker, and the cutting of a text by its Smelter too;
+// TypeScript's core, which cuts no text, runs the estimate of a text's tokens
+// that a cut is sized by. What a bus log shows of a payload is run by each
+// bus log: TypeScript's, Rust's and Python's. What the graph holds of an
 // annotation and of a resource is run by each implementation of the graph's
-// codecs, and what the Weaver's fold does to the graph by each Weaver.
+// codecs, and what the Weaver's fold does to the graph by each Weaver. What a
+// point of the vector index is, is run by each implementation of the stores:
+// Python's, which write the points, and TypeScript's, which read them and run
+// the parts a reader has. What the index answers after a history of writes
+// is run by the stores that write. The work a start plans and what each kind
+// of PDF becomes is run by the Smelter.
 //
 // It fails when:
 //   - a table listed here does not exist, is not JSON, states no `$comment`
@@ -26,15 +36,17 @@
 //     the basic plane. An offset counts code points, and so does every length
 //     such a rule states; only a text with such a character tells that count
 //     from a count of UTF-16 code units or of bytes, so a table without one
-//     holds its rule to no count. These are every table here but seven: what
-//     an offset counts, the chunker, the reconciling of a quote, the locating
-//     of a span of a PDF, the builders, the id (whose anchor states a span's
-//     offsets), the chunk plan, the citations, and the reading of a reply
-//     (whose items state where each passage is, and how long a piece was).
-//     The two tables of what text a resource's bytes are, the readers' table,
-//     the table of failure classes, the bus log's table, the graph codecs'
-//     table and the Weaver's fold table count nothing and state no offset, and
-//     are held to nothing about their characters.
+//     holds its rule to no count. These are every table here but twelve:
+//     what an offset counts, the chunker, the reconciling of a quote, the
+//     locating of a span of a PDF, the builders, the id (whose anchor states a
+//     span's offsets), the chunk plan, the citations, and the reading of a
+//     reply (whose items state where each passage is, and how long a piece
+//     was). The two tables of what text a resource's bytes are, the two
+//     readers' tables (an annotation's and a resource's), the table of
+//     failure classes, the bus log's table, the graph codecs' table, the
+//     Weaver's fold table, the two tables of the vector index and the
+//     Smelter's two count nothing and state no offset, and are held to
+//     nothing about their characters.
 //
 // It reads the source files, so it cannot pass on a stale bundle.
 
@@ -45,7 +57,7 @@ import { fileURLToPath } from 'node:url';
 const REPO = resolve(fileURLToPath(import.meta.url), '../../..');
 
 /** Where these tables live. Every `*-cases.json` in one of them is listed below. */
-const DIRECTORIES = ['specs/src/text', 'specs/src/annotations', 'specs/src/worker', 'specs/src/bus', 'specs/src/graph', 'specs/src/weaver'];
+const DIRECTORIES = ['specs/src/text', 'specs/src/annotations', 'specs/src/resources', 'specs/src/worker', 'specs/src/bus', 'specs/src/graph', 'specs/src/weaver', 'specs/src/vectors', 'specs/src/smelter'];
 
 /**
  * Each table, and the files that run it.
@@ -73,7 +85,7 @@ const TABLES = [
       'packages/core/src/__tests__/decode-cases.test.ts',
       'packages/sdk-rust/tests/decode_cases.rs',
       // The reader of UTF-8 alone, which a build without the `charsets` feature has.
-      'packages/sdk-rust/src/namespaces/browse.rs',
+      'packages/sdk-rust/src/resources.rs',
       'packages/sdk-python/tests/test_decode_cases.py',
     ],
   },
@@ -82,7 +94,7 @@ const TABLES = [
     runners: [
       'packages/core/src/__tests__/decode-cases.test.ts',
       'packages/sdk-rust/tests/decode_cases.rs',
-      'packages/sdk-rust/src/namespaces/browse.rs',
+      'packages/sdk-rust/src/resources.rs',
       'packages/sdk-python/tests/test_decode_cases.py',
     ],
   },
@@ -135,10 +147,24 @@ const TABLES = [
       'packages/sdk-python/tests/test_annotations.py',
     ],
   },
-  // What Semiont's worker alone does.
+  {
+    table: 'specs/src/resources/reader-cases.json',
+    runners: [
+      'packages/core/src/__tests__/resource-reader-cases.test.ts',
+      'packages/sdk-rust/tests/resource_reader_cases.rs',
+      'packages/sdk-python/tests/test_resource_readers.py',
+    ],
+  },
+  // What Semiont's worker alone does, but for the cutting of a text, which
+  // its Smelter does by the same rule.
   {
     table: 'specs/src/text/chunk-cases.json',
-    runners: ['packages/core/src/__tests__/chunk-cases.test.ts', 'apps/worker/tests/test_chunk_cases.py'],
+    runners: [
+      // The estimate of a text's tokens alone: TypeScript cuts no text.
+      'packages/core/src/__tests__/chunk-cases.test.ts',
+      'apps/worker/tests/test_chunk_cases.py',
+      'apps/smelter/tests/test_chunk_cases.py',
+    ],
     countsCodePoints: true,
   },
   {
@@ -181,6 +207,35 @@ const TABLES = [
   {
     table: 'specs/src/weaver/fold-cases.json',
     runners: ['apps/weaver/tests/test_fold_cases.py'],
+  },
+  // What a point of the vector index is. Run by each implementation of the
+  // stores: Python's (semiont_vectors), which write the points and whose
+  // store contract a real Qdrant is held to as well, and TypeScript's
+  // (@semiont/vectors), which search them and run the parts a reader has.
+  {
+    table: 'specs/src/vectors/payload-cases.json',
+    runners: [
+      'packages/vectors/src/__tests__/payload-cases.test.ts',
+      'packages/vectors-python/tests/test_payload_cases.py',
+      'packages/vectors-python/tests/store_contract.py',
+    ],
+  },
+  // What the index answers after a history of writes. Run by the stores that
+  // write: Python's.
+  {
+    table: 'specs/src/vectors/store-cases.json',
+    runners: ['packages/vectors-python/tests/store_contract.py'],
+  },
+  // The work a Smelter's start plans, from what the index, the catalog and
+  // the anchored-text store each hold; and what each kind of PDF becomes. Run
+  // by the Smelter (apps/smelter).
+  {
+    table: 'specs/src/smelter/reconcile-cases.json',
+    runners: ['apps/smelter/tests/test_reconcile_cases.py'],
+  },
+  {
+    table: 'specs/src/smelter/extraction-cases.json',
+    runners: ['apps/smelter/tests/test_extraction_cases.py'],
   },
 ];
 

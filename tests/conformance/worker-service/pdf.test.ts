@@ -1,6 +1,6 @@
 /**
  * A `mark` job on a PDF (WORKER-SERVICE.md § What a job reads, § Anchoring,
- * § Declines): the text is the Smelter's, asked for on the bus, and the
+ * § Declines): the text is the Smelter's, asked of the gateway, and the
  * worker reads no bytes; a span is anchored by where its text is on the page;
  * and each answer the Smelter can give that is not a text ends the job its
  * own way.
@@ -21,14 +21,16 @@ const ITEMS = [
 function pdfJob(w: WorkerServiceWorld, name: string, answer: Record<string, unknown> | undefined): RunningJob {
   const resourceId = `res-ws-${name}`;
   w.describe(resourceId, 'application/pdf');
-  if (answer) w.anchoredText.set(resourceId, answer);
+  // What the Archivist answers the gateway. A resource it is given no answer for, it does not know.
+  if (answer) w.world.archivist.anchoredTexts.set(resourceId, answer);
   return w.queued(`job-ws-${name}`, 'mark', { resourceId, motivation: 'highlighting' });
 }
 
-const READS_NO_BYTES = ['emit job:claim', 'emit job:start', 'emit browse:resource-requested', 'emit browse:anchored-text-requested'];
+/** What a job on a PDF asks before it has its text: the description on the bus, the text of the gateway, and no bytes. */
+const readsNoBytes = (job: RunningJob): string[] => ['emit job:claim', 'emit job:start', 'emit browse:resource-requested', `GET /resources/${String(job.params.resourceId)}/anchored-text`];
 
 eachWorkerService('a job on a PDF', (world) => {
-  it('asks the Smelter for the text, reads no bytes, and anchors each span by its place on the page', async () => {
+  it("asks the gateway for the Smelter's text, reads no bytes, and anchors each span by its place on the page", async () => {
     const w = world();
     const job = pdfJob(w, 'pdf', { kind: 'extracted', method: 'pdf-text-layer', text: PDF_TEXT, items: ITEMS });
     const resourceId = String(job.params.resourceId);
@@ -36,8 +38,8 @@ eachWorkerService('a job on a PDF', (world) => {
     const served = await w.start();
     const completion = await settled(served, job);
 
-    expect(served.sequence()).toEqual([...READS_NO_BYTES, 'emit mark:commit', 'emit job:checkpoint', 'emit job:complete', 'emit job:claim']);
-    expect(w.anchoredTextReads).toEqual([resourceId]);
+    expect(served.sequence()).toEqual([...readsNoBytes(job), 'emit mark:commit', 'emit job:checkpoint', 'emit job:complete', 'emit job:claim']);
+    expect(w.anchoredTextReads()).toEqual([resourceId]);
     expect(w.world.archivist.calls.filter((c) => c.path.includes('/content'))).toEqual([]);
 
     // The model is asked about the Smelter's text.
@@ -85,7 +87,7 @@ eachWorkerService('a job on a PDF', (world) => {
     const completion = await settled(served, job);
 
     expect(completion).toEqual({ ...identity(job), result: { declined: true, reason } });
-    expect(served.sequence()).toEqual([...READS_NO_BYTES, 'emit job:complete', 'emit job:claim']);
+    expect(served.sequence()).toEqual([...readsNoBytes(job), 'emit job:complete', 'emit job:claim']);
     expect(w.ollama.generations).toEqual([]);
     expect(w.commits).toEqual([]);
   });
@@ -99,9 +101,9 @@ eachWorkerService('a job on a PDF', (world) => {
     const { error, ...rest } = failure;
     expect(rest).toEqual({ ...identity(job), willRetry: true });
     expect(error).toContain(String(job.params.resourceId));
-    expect(served.sequence()).toEqual([...READS_NO_BYTES, 'emit job:fail', 'emit job:claim']);
+    expect(served.sequence()).toEqual([...readsNoBytes(job), 'emit job:fail', 'emit job:claim']);
     // It is asked once: the worker does not wait for the text within the attempt.
-    expect(w.anchoredTextReads).toHaveLength(1);
+    expect(w.anchoredTextReads()).toHaveLength(1);
     expect(w.ollama.generations).toEqual([]);
   });
 

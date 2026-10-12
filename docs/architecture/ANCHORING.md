@@ -86,10 +86,10 @@ failing most of the time.
 ingest    Smelter reads the bytes once, extracts to embed
           └─ carries geometry? → writes its anchored-text store (checksum-keyed)
 store     the Smelter's — it owns the stamp; the Archivist holds a read-only mount
-read      browse:anchored-text-requested  →  bus  →  Archivist's Browser  →  readAnchoredText
-          └─ miss → whenSettled(resourceId, checksum) → re-read
-browser   getTextContent() has runs?  yes → anchorRuns(...)      (born-digital)
-                                      no  → browse.resourceAnchoredText()  (scanned)
+read      GET /resources/{id}/anchored-text  →  gateway  →  Archivist  →  anchored_text
+          └─ miss → when_settled(resourceId, checksum) → re-read
+browser   browse.resourceAnchoredText()   every PDF and every image, once per viewer; pdf.js only draws
+          └─ no annotating until the text is held; not-yet or no answer → ask again after a wait
 drag      textUnder(map, rect) → [FragmentSelector, TextQuoteSelector]
 ```
 
@@ -97,17 +97,51 @@ drag      textUnder(map, rect) → [FragmentSelector, TextQuoteSelector]
 process that reads a resource's bytes at ingest, so it is the only one
 positioned to derive a map cheaply — it has already decoded the document and
 run the engine in order to embed. It writes the store directly; the Archivist
-mounts it read-only and answers the bus reads. Five detection jobs and the
+mounts it read-only and serves the reads. Five detection jobs and the
 browser all arrive later and would each have to redo that work.
+
+**The browser is no exception, even on a page it could read.** pdf.js, which
+draws the pages, can also report a born-digital page's text layer, and a canvas
+that used it would have a quote without asking anyone. It would also be a
+second producer: two readings of one page, to be kept quoting the same words
+for the same rectangle forever. So the canvas asks for the Smelter's map for
+every PDF, and pdf.js is never asked for a page's text.
+
+**A viewer annotates only while it holds the text.** The quote is cut when an
+annotation is made and never again, so a rectangle drawn without the text
+would keep no quote. A viewer asks for the text when it opens a resource, and
+nobody can draw on it until an answer gives it the text. What it does with
+each answer:
+
+| Answer | What the viewer holds | Annotating |
+|---|---|---|
+| `extracted` | the text, which may be empty | on |
+| `no-map` | a text that is empty: this media type has none | on; a shape has no quote |
+| none yet, `not-yet`, or an ask that failed | nothing | off; it says it is waiting, and asks again |
+| `declined`, `unknown` | nothing, and never will | off for good; it says the text could not be read, and does not ask again |
+
+A document just uploaded has no text until the Smelter has read it. A read
+that comes sooner waits at the Archivist and is answered as soon as the
+Smelter has read the content; past that wait it answers `not-yet`. The viewer
+asks again once `anchoredTextReaskMs` has passed
+(`specs/src/client/timing.json`), and goes on asking at that one wait. It
+listens for nothing else: the held read is how it learns the text is there.
+
+An image is asked about as a PDF is. Its answer is `no-map`, given at once,
+so an image opens for annotating when that answer arrives. A text resource is
+not asked about: its viewer shows the decoded text itself, so it holds the
+text whenever there is anything to select.
 
 **Reading never derives.** A read that finds nothing waits for that resource's
 content generation to settle and then answers "no map". OCR in a request path is
 the thing this design exists to avoid.
 
-**Failure degrades, it does not break.** No map — because the document has none,
-because extraction declined, or because the barrier timed out — means the
-annotation ships with geometry and no quote. That is exactly how an annotation
-behaves with no map at all, so the failure mode is "no improvement", never "broken".
+**Without the text, nobody annotates by hand.** A PDF the Smelter declined
+cannot be drawn on, and no PDF can be drawn on while the Smelter is down or
+behind: the Smelter is on the path of every hand-drawn annotation. An
+annotation with geometry and no quote is made only where the text is held and
+has nothing under the shape: a media type with no text, a document read and
+found empty, a rectangle over a margin.
 
 ### Why the map is stored at all
 
@@ -118,7 +152,8 @@ is re-recognized six times.
 
 The store holds derived values only — every entry is reproducible from the
 resource's bytes — which is what makes a version-stamp miss safe. The stamp is
-derived from package versions (this package, the engine, its traineddata), never
+read from what is installed (the Smelter's version, PDFium's and its binding's,
+the `tesseract` program's, and a digest of its language data), never
 hand-maintained: over-invalidating costs a recomputation, under-invalidating
 serves geometry built by different code.
 
@@ -133,7 +168,7 @@ the stored events are `mark:added`, `mark:removed`, `mark:body-updated`,
 It is also unnecessary, because it has the order backwards. Recognition happens
 at **ingest**, not after annotation, so the map already exists when a user draws
 a rectangle and the quote can be computed before the annotation is created —
-exactly as on the born-digital path.
+for a scanned page exactly as for a born-digital one.
 
 So: no new stored event, no mutable targets, and an annotation born without a
 quote keeps none. Annotations are events over an immutable
@@ -154,17 +189,20 @@ bytes, hence the checksum, which the Smelter reads as a content change.
 
 | Concern | Location |
 |---|---|
-| `AnchoredText`, `locate`, `textUnder`, `anchorRuns`, the threshold | `@semiont/core` — `pdf-anchoring.ts` |
-| Producing a map (text layer, OCR, tables, forms) | `@semiont/content` — `pdf-extractor.ts` |
-| Storing one | `@semiont/content` — `anchored-text-store.ts` |
-| Publishing at ingest | `@semiont/make-meaning` — `smelter.ts` |
+| `AnchoredText`, `locate`, `textUnder`, the threshold | `@semiont/core` — `pdf-anchoring.ts` |
+| Producing a map (text layer, OCR, tables, forms) | `apps/smelter` — `extraction.py`, over `pdfium.py` and `tesseract.py` |
+| Storing one | `apps/smelter` — `anchored_text_store.py` |
+| Publishing at ingest | `apps/smelter` — `smelter.py` |
 | Serving one, with the barrier | `apps/archivist` — `src/anchored.rs` |
 | Detection's geometry tail | `@semiont/core` — `annotationOfSpan`, in `annotation-builders.ts` |
-| The canvas | `@semiont/react-ui` — `PdfAnnotationCanvas.tsx` |
+| Holding the text for a viewer, and asking again | `@semiont/react-ui` — `hooks/useAnchoredText.ts` |
+| The PDF canvas | `@semiont/react-ui` — `PdfAnnotationCanvas.tsx` |
+| The image canvas | `@semiont/react-ui` — `SvgDrawingCanvas.tsx` |
 
-`@semiont/core` holds what *reasons over* a map; `@semiont/content` holds what
-*produces* one. The split is not cosmetic: the browser needs `textUnder` at drag
-time, and `@semiont/content` carries pdf.js, Tesseract and `node:fs`.
+`@semiont/core` holds what *reasons over* a map; the Smelter, a Python service
+([apps/smelter](../../apps/smelter/)), holds what *produces* one. The split is
+not cosmetic: the browser needs `textUnder` at drag time, and producing a map
+takes PDFium, the `tesseract` program and a directory to write.
 
 ## Related
 

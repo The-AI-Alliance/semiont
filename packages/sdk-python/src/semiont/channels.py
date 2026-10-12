@@ -37,8 +37,6 @@ from semiont.types import (
     BindUpdateBodyCommand,
     BrowseAgentsRequest,
     BrowseAgentsResult,
-    BrowseAnchoredTextRequest,
-    BrowseAnchoredTextResult,
     BrowseAnnotationHistoryRequest,
     BrowseAnnotationHistoryResult,
     BrowseAnnotationRequest,
@@ -182,9 +180,6 @@ __all__ = [
     "BROWSE_AGENTS_FAILED",
     "BROWSE_AGENTS_REQUESTED",
     "BROWSE_AGENTS_RESULT",
-    "BROWSE_ANCHORED_TEXT_FAILED",
-    "BROWSE_ANCHORED_TEXT_REQUESTED",
-    "BROWSE_ANCHORED_TEXT_RESULT",
     "BROWSE_ANNOTATIONS_FAILED",
     "BROWSE_ANNOTATIONS_REQUESTED",
     "BROWSE_ANNOTATIONS_RESULT",
@@ -479,9 +474,6 @@ type ChannelName = Literal[
     "browse:resource-requested",
     "browse:resource-result",
     "browse:resource-failed",
-    "browse:anchored-text-requested",
-    "browse:anchored-text-result",
-    "browse:anchored-text-failed",
     "browse:resources-requested",
     "browse:resources-result",
     "browse:resources-failed",
@@ -679,9 +671,6 @@ CHANNEL_NAMES: Final[tuple[ChannelName, ...]] = (
     "browse:resource-requested",
     "browse:resource-result",
     "browse:resource-failed",
-    "browse:anchored-text-requested",
-    "browse:anchored-text-result",
-    "browse:anchored-text-failed",
     "browse:resources-requested",
     "browse:resources-result",
     "browse:resources-failed",
@@ -878,9 +867,6 @@ GATHER_LIMITS_FAILED: Final = Channel[CommandError]("gather:limits-failed", Comm
 BROWSE_RESOURCE_REQUESTED: Final = Channel[BrowseResourceRequest]("browse:resource-requested", BrowseResourceRequest)
 BROWSE_RESOURCE_RESULT: Final = Channel[BrowseResourceResult]("browse:resource-result", BrowseResourceResult)
 BROWSE_RESOURCE_FAILED: Final = Channel[CommandError]("browse:resource-failed", CommandError)
-BROWSE_ANCHORED_TEXT_REQUESTED: Final = Channel[BrowseAnchoredTextRequest]("browse:anchored-text-requested", BrowseAnchoredTextRequest)
-BROWSE_ANCHORED_TEXT_RESULT: Final = Channel[BrowseAnchoredTextResult]("browse:anchored-text-result", BrowseAnchoredTextResult)
-BROWSE_ANCHORED_TEXT_FAILED: Final = Channel[CommandError]("browse:anchored-text-failed", CommandError)
 BROWSE_RESOURCES_REQUESTED: Final = Channel[BrowseResourcesRequest]("browse:resources-requested", BrowseResourcesRequest)
 BROWSE_RESOURCES_RESULT: Final = Channel[BrowseResourcesResult]("browse:resources-result", BrowseResourcesResult)
 BROWSE_RESOURCES_FAILED: Final = Channel[CommandError]("browse:resources-failed", CommandError)
@@ -1079,9 +1065,6 @@ CHANNELS: Final[Mapping[str, AnyChannel]] = MappingProxyType(
         "browse:resource-requested": BROWSE_RESOURCE_REQUESTED,
         "browse:resource-result": BROWSE_RESOURCE_RESULT,
         "browse:resource-failed": BROWSE_RESOURCE_FAILED,
-        "browse:anchored-text-requested": BROWSE_ANCHORED_TEXT_REQUESTED,
-        "browse:anchored-text-result": BROWSE_ANCHORED_TEXT_RESULT,
-        "browse:anchored-text-failed": BROWSE_ANCHORED_TEXT_FAILED,
         "browse:resources-requested": BROWSE_RESOURCES_REQUESTED,
         "browse:resources-result": BROWSE_RESOURCES_RESULT,
         "browse:resources-failed": BROWSE_RESOURCES_FAILED,
@@ -1180,8 +1163,6 @@ BRIDGED_CHANNELS: Final[tuple[ChannelName, ...]] = (
     "bind:body-update-failed",
     "browse:resource-result",
     "browse:resource-failed",
-    "browse:anchored-text-result",
-    "browse:anchored-text-failed",
     "browse:resources-result",
     "browse:resources-failed",
     "browse:annotation-result",

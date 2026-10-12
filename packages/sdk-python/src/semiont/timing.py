@@ -14,6 +14,7 @@ from typing import Final
 from semiont.retry import RetryPolicy
 
 __all__ = [
+    "ANCHORED_TEXT_REASK_MS",
     "BUS_REQUEST_TIMEOUT_MS",
     "DEGRADED_THRESHOLD_MS",
     "DELEGATE_SILENCE_MS",
@@ -63,12 +64,14 @@ EMIT_RETRY: Final = RetryPolicy(attempts=4, initial_delay_ms=1000, max_delay_ms=
 
 # The deadline on one HTTP request that is neither the stream nor an emit: one of the gateway's
 # own operations (who a token is, a media token, an agent's token, the resource metadata,
-# health, status), the wait for a resource's bytes to begin arriving, a request to the issuer
-# (its discovery, a grant, a revocation), and a read of a launcher's discovery document.
-# Unanswered here, the request fails as one that got no answer. Without it, a gateway or an
-# issuer that accepts a connection and never answers holds a session's start, and every renewal
-# after it, for as long as the process lives. An upload has no deadline: how long it takes is
-# how large the resource is.
+# health, status), the wait for a resource's bytes to begin arriving, a read of a resource's
+# description or of its anchored text, a request to the issuer (its discovery, a grant, a
+# revocation), and a read of a launcher's discovery document. Unanswered here, the request fails
+# as one that got no answer. Without it, a gateway or an issuer that accepts a connection and
+# never answers holds a session's start, and every renewal after it, for as long as the process
+# lives. An upload has no deadline: how long it takes is how large the resource is. A read of
+# anchored text may be held by the Archivist while the Smelter reads the content, for the time
+# docs/protocol/ARCHIVIST.md states, and this deadline is longer than that wait.
 HTTP_REQUEST_TIMEOUT_MS: Final = 30000
 
 # The first wait before a failed stream is opened again. Each further failure doubles it, up to
@@ -177,14 +180,22 @@ HELD_JOB_STALL_CHECK_MS: Final = 60000
 # wait on an acknowledgement that never comes would hold the job forever.
 MARK_COMMIT_TIMEOUT_MS: Final = 60000
 
-# How many times a worker asks for the anchored text of a PDF it has just yielded
-# (`browse:anchored-text-requested`) before it gives up on anchoring that PDF's citations. The
-# text is the Smelter's to derive and is not there the moment the resource is. Each ask is
-# answered at once when the text is stored, and otherwise waits at the Archivist for the Smelter
-# to say it has settled the content (`smelt:settled`) before it is answered that the text is not
-# there yet. So the count bounds the whole wait, and a worker that reaches it completes the job
-# with the resource and without the citations.
+# How many times a worker asks for the anchored text of a PDF it has just yielded (`GET
+# /resources/{id}/anchored-text`) before it gives up on anchoring that PDF's citations. The text
+# is the Smelter's to derive and is not there the moment the resource is. Each ask is answered
+# at once when the text is stored, and otherwise waits at the Archivist for the Smelter to say
+# it has settled the content (`smelt:settled`) before it is answered that the text is not there
+# yet. So the count bounds the whole wait, and a worker that reaches it completes the job with
+# the resource and without the citations.
 GENERATED_TEXT_ASKS_COUNT: Final = 8
+
+# How long a viewer waits before it asks again for a resource's anchored text (`GET
+# /resources/{id}/anchored-text`), after an answer that the text is not there yet or an ask that
+# got no answer. The Archivist holds an ask while the Smelter reads the content and answers as
+# soon as it has, so this wait is only for the answers that come at once: a text that is not
+# there and is not being read, and a failure. A viewer does not annotate a resource until it
+# holds the resource's text.
+ANCHORED_TEXT_REASK_MS: Final = 5000
 
 # How long a pointer rests on an annotation before the viewer says it is hovered. Shorter, and a
 # pointer crossing the page hovers everything on its way.
@@ -222,6 +233,7 @@ TIMING_NAMES: Final[tuple[str, ...]] = (
     "heldJobStallCheckMs",
     "markCommitTimeoutMs",
     "generatedTextAsksCount",
+    "anchoredTextReaskMs",
     "hoverDelayMs",
     "searchDebounceMs",
 )

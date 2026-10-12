@@ -89,7 +89,15 @@ def modules(names: set[str]) -> list[str]:
 
 def test_the_walk_found_the_project() -> None:
     assert len(SOURCES) > 10
-    assert sorted(path.name for path in SRC.rglob("*.py")) == ["__init__.py", "config.py", "health.py", "log.py", "observability.py"]
+    assert sorted(path.name for path in SRC.rglob("*.py")) == [
+        "__init__.py",
+        "catalog.py",
+        "config.py",
+        "health.py",
+        "lanes.py",
+        "log.py",
+        "observability.py",
+    ]
 
 
 def test_no_hand_written_line_forces_a_type_or_silences_a_checker() -> None:
@@ -203,10 +211,13 @@ def test_it_is_the_services_own_code_and_every_python_service_is_built_on_it() -
 
 def test_no_service_keeps_a_copy_of_a_module_here() -> None:
     # What a service is called and its one logger are its own, and so is what of its document only it has: a service
-    # has a `config.py` and a `log.py`. How a document is read and how a log is written are stated here and nowhere else.
+    # has a `config.py` and a `log.py`. How a document is read and how a log is written are stated here and nowhere else,
+    # and so are the order a service does each resource's work in and how it reads the catalog whole.
     stated_here = {
+        "catalog.py": ("_UNTIL_THE_ARCHIVIST_ANSWERS", "bus.peer-unavailable"),
         "config.py": ("def config_path_of(", "def read_config", "def service_account_of(", "def set_in("),
         "health.py": ("def bind_health(",),
+        "lanes.py": ("class Lanes",),
         "log.py": ("def configure(", "logging.Formatter"),
         "observability.py": ("def install(", "def report_the_process(", "class Exporting"),
     }
@@ -221,6 +232,7 @@ def test_no_service_keeps_a_copy_of_a_module_here() -> None:
                 for mark in marks:
                     assert mark not in source, f"{path.relative_to(ROOT)} states {mark}, which is semiont_service's"
         assert not list((service / "src").rglob("health.py")), service.name
+        assert not list((service / "src").rglob("lanes.py")), service.name
         assert not list((service / "src").rglob("observability.py")), service.name
 
 

@@ -68,6 +68,7 @@ every Semiont SDK reports the same way.
 | `content.put` | client span | A resource's bytes are uploaded |
 | `content.get` | client span | A resource's bytes are read |
 | `content.get_graph` | client span | A resource's linked-data description is read |
+| `content.get_anchored_text` | client span | A resource's anchored text is read |
 
 A trace travels with what is sent, as the W3C `traceparent` and
 `tracestate`, so one request can be followed from the application through
@@ -85,6 +86,7 @@ Semiont's terms, and names no span, kind or attribute of its own:
 | `content_put(format, size_bytes, upload)` | `content.put` |
 | `content_get(resource_id, stream, read)` | `content.get` |
 | `content_get_graph(resource_id, read)` | `content.get_graph` |
+| `content_get_anchored_text(resource_id, read)` | `content.get_anchored_text` |
 
 ```rust
 // The span's name, its kind and its attributes are the table's.

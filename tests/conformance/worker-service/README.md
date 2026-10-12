@@ -26,11 +26,14 @@ Each file runs its cases in a world of its own
 - the trusted issuer, which grants the service's account the service and
   worker roles;
 - a real gateway, on the in-process plane, with the harness's stand-in
-  Archivist behind it for a resource's bytes and for uploads;
+  Archivist behind it for a resource's bytes, for uploads, and for a
+  resource's anchored text, the text the Smelter read out of a PDF: a case
+  scripts what the Archivist answers a read of it, and a resource it scripts
+  nothing for is one the Archivist does not know;
 - a recording proxy in front of the gateway, which the service's `gatewayUrl`
   names: everything the service sends the gateway is read from it as a
   transcript, in order (each sign-in, each stream it opens, each emit, each
-  read of bytes, each upload);
+  read of bytes or of anchored text, each upload);
 - a stand-in Ollama ([harness/ollama.ts](../harness/ollama.ts)), which the
   `baseUrl` of an Ollama agent names. It answers `POST /api/show` with the
   context length a case set, or refuses it, or ends the connection
@@ -47,15 +50,14 @@ Each file runs its cases in a world of its own
   headers.
   Its key reaches the service in the variable the agent's `apiKeyEnv` names,
   which is none the provider's own library reads;
-- the suite itself on the bus, as the three parties a worker asks things of.
-  As the dispatcher it answers `job:claim` from the jobs a case queued, with
-  `none-pending` when no queued job matches the claim's filters. As the record
-  it answers `browse:resource-requested`, `mark:commit` (an annotation is
-  recorded once, by its id) and `browse:annotation-requested`. As the Smelter
-  it answers `browse:anchored-text-requested`.
+- the suite itself on the bus, as the two parties a worker asks things of
+  there. As the dispatcher it answers `job:claim` from the jobs a case queued,
+  with `none-pending` when no queued job matches the claim's filters. As the
+  record it answers `browse:resource-requested`, `mark:commit` (an annotation
+  is recorded once, by its id) and `browse:annotation-requested`.
 
-No dispatcher, no Archivist and no model runs. This is the tier that sees
-every message the service sends.
+No dispatcher, no Archivist, no Smelter and no model runs. This is the tier
+that sees every message the service sends.
 
 A case starts a fresh service, which is stopped when the case ends.
 
@@ -74,8 +76,9 @@ Whatever a case is about, it also fails a service that:
   does not allow.
 
 The suite must hand a service only what the spec allows, too: a job it queues
-is held to `JobClaimedResult`, and a Smelter's answer to
-`BrowseAnchoredTextResult`.
+is held to `JobClaimedResult`, and an anchored text it scripts to
+`AnchoredTextAnswer`, as everything the stand-in Archivist answers is held to
+the Archivist's spec.
 
 ## What a case compares, and how
 
@@ -92,8 +95,9 @@ is held to `JobClaimedResult`, and a Smelter's answer to
   their ids out from what they are, by the rule of
   [`id-cases.json`](../../../specs/src/annotations/id-cases.json).
 - **Messages a service waits on** (the claim, `job:start`, the read of the
-  description and of the bytes, each commit and each checkpoint, the settle,
-  the next claim) are compared in the order the gateway received them.
+  description and of the bytes or the anchored text, each commit and each
+  checkpoint, the settle, the next claim) are compared in the order the
+  gateway received them.
 - **Progress reports** are compared as a set with repeats: every report, as
   often as it was made, in no order. A service does not wait for the gateway
   to take one before it goes on, so where they fall among the other messages
@@ -150,7 +154,7 @@ rule names exists, and every case is named by a rule.
 | A wait of two minutes that is waited, and a wait stated as a date (F11) | A case cannot wait two minutes. `anthropic.test.ts` holds a wait of two seconds as waited, and one of two minutes and a second as not waited, by `retry-after` and by `retry-after-ms`. The edge and the date are held by each driver's own tests, which move a clock |
 | A request of Anthropic refused with 408 or 409 (F10) | Not written. `anthropic.test.ts` holds 429, 500, 529 and a connection that ends as asked for three times, and 400 as asked for once. A 409 is asked for three times and then fails its job as deterministic ([F3](../../../docs/protocol/WORKER-SERVICE.md#failures)): whether both are meant is not settled |
 | A `yield` job to PDF, and the citations of a generated PDF | It needs the `typst` binary in the suite's environment |
-| A real dispatcher, Archivist or Smelter | The suite plays them, so that it can hand a service answers a correct one never gives and see every message |
+| A real dispatcher, Archivist or Smelter | The suite stands in for them, so that it can hand a service answers a correct one never gives and see every message |
 | M4, F9, P4: the clocks | 1.5 seconds for a provider's limits, ten minutes for a generation and every asking of it, fifteen minutes for a stalled job. A service takes them from no document a case could shorten |
 | D7, the size of a piece following the provider's usage | Not written. On a model whose window is shared, as the stand-in Ollama's is, the ceiling of a piece is where it opens unless the window is far over what any fixture fills. A model of the stand-in Anthropic has two ceilings, and a case on it could hold the rule |
 | F7 and K6, a piece asked again in halves for another reason than a cut-off answer | Not written: `halved.test.ts` holds the halving itself |

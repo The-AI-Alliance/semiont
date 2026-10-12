@@ -7,7 +7,7 @@ The knowledge base itself is inert — no goals, no decisions, never initiating 
 - **Five access actors** mediate every read and write: **Stower** (write), **Browser** (read), **Gatherer** (context assembly), **Matcher** (search), and **CloneTokenManager** (clone tokens). They are the bus-facing interface of the knowledge base — commands and requests in, replies out, correlated by `correlationId`.
 - **Two projection pipelines** keep the eventually-consistent read models in sync with the event log: the **Weaver** (events → graph) and the **Smelter** (events → vectors). Pipelines are addressed by no one and reply to nothing; they consume already-persisted domain events.
 
-All seven are reached only over the bus and expose no public business methods; the pipelines also repair at startup (the Weaver's catch-up and reconcile, `Smelter.reconcile()`). All seven run standalone, none in the gateway, split by store affinity: the record's three (Stower, Browser, CloneTokenManager) are the Archivist's, a Rust service ([apps/archivist](../../apps/archivist/)) in which they are its commands, its browse reads and its clone tokens; the LLM-bound pair (Gatherer, Matcher) in `librarian-main`, and each projection as part of its store's stack: the Weaver, a Python service ([apps/weaver](../../apps/weaver/)), and `smelter-main`. Callers never call into an actor directly; they put a message on the bus and trust the actor is listening.
+All seven are reached only over the bus and expose no public business methods; the pipelines also repair at startup (the Weaver's catch-up and reconcile, the Smelter's reconcile). All seven run standalone, none in the gateway, split by store affinity: the record's three (Stower, Browser, CloneTokenManager) are the Archivist's, a Rust service ([apps/archivist](../../apps/archivist/)) in which they are its commands, its browse reads and its clone tokens; the LLM-bound pair (Gatherer, Matcher) in `librarian-main`, and each projection as part of its store's stack: the Weaver ([apps/weaver](../../apps/weaver/)) and the Smelter ([apps/smelter](../../apps/smelter/)), each a Python service. Callers never call into an actor directly; they put a message on the bus and trust the actor is listening.
 
 The third derived read model — the materialized views — is deliberately **not** pipeline-maintained: the Archivist changes a resource's view as part of appending each event, before the event is published, so subscribers get a read-your-writes guarantee that a fire-and-forget pipeline cannot provide.
 
@@ -89,7 +89,7 @@ This is the knowledge-system cut of [CONTAINER-TOPOLOGY.md](../operator/CONTAINE
 | **Content Store** | Working-tree files addressed by `storageUri` (documents, images, PDFs); the Archivist's container is the only one that mounts the tree | Stower registers; all other byte reads ride the Archivist's HTTP surface (the gateway proxies for external clients) |
 | **Graph** | Eventually consistent relationship projection for traversal queries (backlinks, entity networks) | Weaver projects; Gatherer/Matcher traverse and search |
 | **Vectors** | Embedding vectors in Qdrant for semantic similarity search; eventually consistent | Smelter projects; Gatherer/Matcher search |
-| **Anchored text** | Per-representation geometry maps from PDF/OCR extraction, keyed by content checksum (see [ANCHORING.md](ANCHORING.md)) | Smelter writes (sole producer); Archivist answers the `browse:anchored-text-*` bus reads |
+| **Anchored text** | Per-representation geometry maps from PDF/OCR extraction, keyed by content checksum (see [ANCHORING.md](ANCHORING.md)) | Smelter writes (sole producer); Archivist serves it over HTTP (`GET /resources/:id/anchored-text`), which every client reaches through the gateway |
 
 ## The seven KB actors
 
@@ -121,9 +121,9 @@ Follows the domain events and keeps the graph projection in sync; beyond the bus
 
 ### Smelter (projection pipeline)
 
-The vector pipeline, and a pure network peer: events arrive over SSE, content bytes are fetched from the archivist verbatim (the checksum stamped onto every upsert must hash exactly the stored bytes), chunks are embedded (Voyage AI or Ollama) and indexed into Qdrant. It is also the sole producer of the anchored-text store, derived during the same ingest read. On every startup it reconciles Qdrant against the catalog — membership *and* content freshness via the checksum stamps — re-embedding what's missing or stale and purging orphans, so a wiped volume or missed events recover by restart. Same per-resource burst-buffer pattern as the Weaver.
+The vector pipeline, and a pure network peer: events arrive over SSE, content bytes are fetched from the archivist verbatim (the checksum stamped onto every upsert must hash exactly the stored bytes), chunks are embedded (Voyage AI or Ollama) and indexed into Qdrant. It is also the sole producer of the anchored-text store, derived during the same ingest read. On every startup it reconciles Qdrant against the catalog — membership *and* content freshness via the checksum stamps — re-embedding what's missing or stale and purging orphans, so a wiped volume or missed events recover by restart. One resource's events are applied one at a time and in the order they arrive, and those of different resources in no fixed order. What it does, rule by rule, is [the Smelter's protocol](../protocol/SMELTER.md).
 
 ## See also
 
-- The seven actors live inside `@semiont/make-meaning` — see [packages/make-meaning/docs/architecture.md](../../packages/make-meaning/docs/architecture.md) for the actor implementation pattern.
+- The Gatherer and the Matcher live inside `@semiont/make-meaning` — see [packages/make-meaning/docs/architecture.md](../../packages/make-meaning/docs/architecture.md) for the actor implementation pattern.
 - The eight [flows](../protocol/flows/README.md) describe what each actor's events mean at the protocol level.

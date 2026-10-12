@@ -57,12 +57,12 @@ func providerAddress(env *envConfig, envName string, provider semiont.ArchivistR
 		return "", fmt.Errorf("the environment declares no [environments.%s.inference.%s]: the worker has no address to reach %s at", envName, provider, provider)
 	}
 	switch provider {
-	case semiont.Anthropic:
+	case semiont.ArchivistRosterRoleProviderAnthropic:
 		if section.Endpoint == "" {
 			return saasBase(remoteProviderAddress(env, string(provider))), nil
 		}
 		return resolveRefs("inference.anthropic.endpoint", section.Endpoint, vars)
-	case semiont.Ollama:
+	case semiont.ArchivistRosterRoleProviderOllama:
 		if section.BaseURL == "" {
 			return "", fmt.Errorf("[environments.%s.inference.ollama] states no baseURL: the worker has no address to reach ollama at", envName)
 		}
@@ -75,9 +75,9 @@ func providerAddress(env *envConfig, envName string, provider semiont.ArchivistR
 // the environment names it; none when the section states no key.
 func providerKeyName(env *envConfig, provider semiont.ArchivistRosterRoleProvider) (*string, error) {
 	switch provider {
-	case semiont.Anthropic:
+	case semiont.ArchivistRosterRoleProviderAnthropic:
 		return secretName("inference.anthropic.apiKey", env.Inference["anthropic"].APIKey)
-	case semiont.Ollama:
+	case semiont.ArchivistRosterRoleProviderOllama:
 		return secretName("inference.ollama.apiKey", env.Inference["ollama"].APIKey)
 	}
 	return nil, nil

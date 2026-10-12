@@ -18,13 +18,13 @@ A live query is asked for once and then kept current: when something it shows ch
 | `browse.agents` | live query | `browse:agents-requested` | The people and software agents the knowledge base knows |
 | `browse.resourceEvents` | one-shot | `browse:events-requested` | A resource's event history, each event with who did it |
 | `browse.annotationHistory` | one-shot | `browse:annotation-history-requested` | The event history of one annotation the resource holds: its creation and the changes to its body, each with who did it |
-| `browse.resourceAnchoredText` | one-shot | `browse:anchored-text-requested` | A resource's text with the positions that index it, for a type whose text is derived, such as a scanned PDF |
 | `browse.files` | one-shot | `browse:directory-requested` | A listing of a directory in the working tree |
 | `browse.kb` | one-shot | `browse:kb-requested` | What the knowledge base says of itself: its name and its domain |
 | `browse.resourceContent`, `browse.resourceRepresentation`, `browse.resourceRepresentationStream` | one-shot | `GET` on the content path | A resource's bytes |
 | `browse.resourceGraph` | one-shot | `GET` on the content path | A resource's linked-data description |
+| `browse.resourceAnchoredText` | one-shot | `GET` on the content path | A resource's text with the positions that index it, for a type whose text is derived, such as a PDF; or why there is none |
 
-Every bus read is answered by the archivist, on `browse:…-result` or `browse:…-failed`. Bytes are read over HTTP, never the bus.
+Every bus read is answered by the archivist, on `browse:…-result` or `browse:…-failed`. A resource's bytes and its anchored text are read over HTTP, never the bus.
 
 ## Signals that cross to other participants
 

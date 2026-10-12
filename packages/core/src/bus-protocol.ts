@@ -306,21 +306,6 @@ export type EventMap = {
   }>;
   'browse:resource-failed': components['schemas']['CommandError'];
 
-  // A resource's derived coordinate map — the text recovered from its bytes
-  // plus the geometry that indexes it — served whole for the resource.
-  // Answering never runs the OCR engine.
-  //
-  // Read-only over the wire: the Smelter is the sole producer, and this is
-  // the ONLY way a reader reaches the store.
-  'browse:anchored-text-requested': components['schemas']['BrowseAnchoredTextRequest'];
-
-  // Never null: absence is NAMED, so a caller can tell "not yet" (retry)
-  // from "never" (terminal). Declared BY SCHEMA rather than as a custom
-  // inline type: an inline form restates the schema and goes stale the
-  // moment it widens.
-  'browse:anchored-text-result': components['schemas']['BrowseAnchoredTextResult'];
-  'browse:anchored-text-failed': components['schemas']['CommandError'];
-
   'browse:resources-requested': components['schemas']['BrowseResourcesRequest'];
   'browse:resources-result': Refines<components['schemas']['BrowseResourcesResult'], {
     response: Omit<components['schemas']['ListResourcesResponse'], 'resources'> & {
@@ -688,9 +673,6 @@ export const CHANNEL_SCHEMAS = {
   'browse:resource-requested':        'BrowseResourceRequest',
   'browse:resource-result':           'BrowseResourceResult',
   'browse:resource-failed':           null, // CommandError
-  'browse:anchored-text-requested':   'BrowseAnchoredTextRequest',
-  'browse:anchored-text-result':      'BrowseAnchoredTextResult',
-  'browse:anchored-text-failed':      null, // CommandError
   'browse:resources-requested':       'BrowseResourcesRequest',
   'browse:resources-result':          'BrowseResourcesResult',
   'browse:resources-failed':          null,

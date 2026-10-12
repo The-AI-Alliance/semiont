@@ -5,7 +5,7 @@
     "node": ">=24.15.0"
   },
   "type": "module",
-  "description": "Vector storage, embedding, and semantic search for Semiont",
+  "description": "The vector index as a reader searches it, over Qdrant and an in-memory store for tests, and the embedding of a query",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {

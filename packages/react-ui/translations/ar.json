@@ -37,7 +37,8 @@
     "pagination": "ترقيم الصفحات",
     "previous": "السابق",
     "viewerLoading": "جارٍ تحميل عارض PDF...",
-    "preparingTextLayer": "جارٍ تجهيز طبقة النص — سيتم تفعيل التعليق عند جهوزها"
+    "preparingTextLayer": "جارٍ تجهيز طبقة النص — سيتم تفعيل التعليق عند جهوزها",
+    "textLayerUnreadable": "تعذّرت قراءة نص هذا المستند، لذلك لا يمكن التعليق عليه"
   },
   "Toolbar": {
     "annotations": "التعليقات التوضيحية",

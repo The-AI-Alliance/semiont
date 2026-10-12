@@ -1,44 +1,24 @@
 /**
- * Per-service transport channel sets — the narrowed SSE subscription of each
- * make-meaning service.
+ * The Librarian's transport channel set — its narrowed SSE subscription.
  *
- * Each service's HttpTransport subscribes exactly what it consumes: the
- * smelter the reply channels of the operations it awaits, the
- * librarian its inbound request/signal roster with the reply channels of the
- * one read it awaits. These pins
- * are census gates: grow a roster (or add a `busRequest` call site) and the
- * exact-set assertion fails, forcing the subscription change to be
- * acknowledged here rather than drifting silently. The runtime backstop is
- * `busRequest`'s `isSubscribed` probe — an awaited operation missing from
- * its service's set fails immediately with `bus.unsubscribed`.
+ * Its HttpTransport subscribes exactly what it consumes: its inbound
+ * request/signal roster and no reply channel, since it awaits no operation.
+ * These pins are census gates: grow the roster and the exact-set assertion
+ * fails, forcing the subscription change to be acknowledged here rather than
+ * drifting silently. The runtime backstop is `busRequest`'s `isSubscribed`
+ * probe — an operation awaited over a transport that carries no reply channel
+ * for it fails immediately with `bus.unsubscribed`.
  */
 
 import { describe, it, expect } from 'vitest';
-import { BRIDGED_CHANNELS, BUS_OPERATIONS } from '@semiont/core';
+import { readFileSync } from 'fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
+import { BUS_OPERATIONS } from '@semiont/core';
 import {
-  SMELTER_REPLY_CHANNELS,
   LIBRARIAN_INBOUND_CHANNELS,
   LIBRARIAN_OUTBOUND_CHANNELS,
 } from '../service-channels';
-
-describe('smelter transport channels', () => {
-  it('carries exactly the reply channels of the operations the Smelter awaits', () => {
-    expect([...SMELTER_REPLY_CHANNELS].sort()).toEqual([
-      'browse:annotations-failed',
-      'browse:annotations-result',
-      'browse:resource-failed',
-      'browse:resource-result',
-      'browse:resources-failed',
-      'browse:resources-result',
-    ]);
-  });
-
-  it('every channel is a bridged reply channel — the derivation cannot drift from the registry', () => {
-    for (const channel of SMELTER_REPLY_CHANNELS) {
-      expect(BRIDGED_CHANNELS).toContain(channel);
-    }
-  });
-});
 
 describe('librarian transport channels', () => {
   it('subscribes exactly its inbound roster', () => {
@@ -65,6 +45,15 @@ describe('librarian transport channels', () => {
       expect(LIBRARIAN_INBOUND_CHANNELS).not.toContain(op.result);
       expect(LIBRARIAN_INBOUND_CHANNELS).not.toContain(op.failure);
     }
+  });
+
+  it('main constructs the transport with the inbound roster alone', () => {
+    // The Librarian awaits no reply over the bus, so nothing is spread in
+    // beside its roster: a reply channel added there is an await to account
+    // for here.
+    const main = join(dirname(fileURLToPath(import.meta.url)), '..', 'librarian-main.ts');
+    const source = readFileSync(main, 'utf-8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    expect(source).toMatch(/channels:\s*LIBRARIAN_INBOUND_CHANNELS\s*,/);
   });
 
   it('nothing echoes: the outbound reply pump and the inbound subscription are disjoint', () => {

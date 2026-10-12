@@ -263,8 +263,12 @@ async fn serve(document: ArchivistConfig, credential: Credential) -> Result<(), 
         json!({ "component": "archivist", "port": port }),
     );
     logging::info("Archivist serving", json!({ "component": "archivist" }));
+    let stopping = archivist.clone();
     axum::serve(listener, surface::router(surface))
-        .with_graceful_shutdown(stop_signal())
+        .with_graceful_shutdown(async move {
+            stop_signal().await;
+            stopping.smelt.stop_waiting();
+        })
         .await
         .map_err(|e| e.to_string())?;
     logging::info("Shutting down", json!({ "component": "archivist" }));

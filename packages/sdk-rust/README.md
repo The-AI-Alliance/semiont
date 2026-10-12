@@ -45,7 +45,7 @@ machine.
 
 | Feature | What it adds |
 |---|---|
-| `charsets` | A resource's text in every encoding the Encoding Standard has, read as a browser reads it: by [the rule every Semiont reader keeps](../../docs/protocol/W3C-SELECTORS.md#the-text-of-a-resource). Without the feature, `browse.resource_content` reads UTF-8 alone, by the same rule, and refuses by name any other charset and bytes that begin with UTF-16's mark. `browse.resource_representation` gives the bytes either way. |
+| `charsets` | A resource's text in every encoding the Encoding Standard has, read as a browser reads it: by [the rule every Semiont reader keeps](../../docs/protocol/W3C-SELECTORS.md#the-text-of-a-resource). Without the feature, `browse.resource_content` reads UTF-8 alone, by the same rule, and refuses by name any other charset and bytes that begin with UTF-16's mark. With it or without, a resource whose text is not its bytes is refused by its media type: a PDF, whose text is `browse.resource_anchored_text`'s, and an image, which has none. `browse.resource_representation` gives the bytes either way. |
 | `testing` | Doubles and harnesses for the tests of code built on the client. See [Testing your code](#testing-your-code). |
 
 Every type and method is documented on [docs.rs](https://docs.rs/semiont).
@@ -559,7 +559,8 @@ Each module is documented on [docs.rs](https://docs.rs/semiont).
 | `cache`, `refresh`, `resume` | The cache queries answer from, what each event does to it, and where a stream resumes after a restart |
 | `transport` | The contract a transport implements: `Transport`, `ContentTransport`, `GatewayOperations` |
 | `bus`, `event_bus` | The typed client of the bus over a transport, and a client's own in-process bus. `bus.stream::<C>()` reads a channel of no scope. A resource's channel is read for the resource, `bus.stream_of::<MarkAdded>(&resource)`, which holds that resource's scope until it is dropped; read with no resource, it does not compile. |
-| `media_types` | The media types a knowledge base admits, and what the system can do with each |
+| `media_types` | The media types a knowledge base admits, and what the system can do with each. Of any media type: where its text comes from (`text_source_of`), whether that text has places on a page (`yields_geometry_of`), and whether it is derived by reading the bytes, where a decoded text is the bytes themselves (`derives_text_of`). [`cases.json`](../../specs/src/media-types/cases.json) holds every SDK's rules to the same answers. |
+| `resources` | The readers of a resource's description: its first representation (`primary_representation`), that representation's media type (`primary_media_type`), and its entity types (`resource_entity_types`). Its representations are one or a list, and these read either. [`reader-cases.json`](../../specs/src/resources/reader-cases.json) holds every SDK's readers to the same answers. And `decode_representation(bytes, media_type)`, a representation's bytes as the text they are, which `browse.resource_content` reads with. It refuses by name a media type whose text is not its bytes, and a charset it does not decode. |
 | `discovery` | The knowledge bases a launcher manages |
 | `identity`, `roles` | How a knowledge base names its people and agents, and the realm's roles |
 | `bus_log` | With `SEMIONT_BUS_LOG` set, one line on stderr per frame the process sends or receives, and per read or upload of content. A line shows the frame's payload, and never a credential in it: the value of a member whose name is one a credential goes by (`token`, `password`, `apiKey` and the rest of the list in [`specs/src/bus/log-cases.json`](../../specs/src/bus/log-cases.json)) is written as `[withheld]` |

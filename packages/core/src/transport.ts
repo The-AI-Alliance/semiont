@@ -34,6 +34,7 @@ import type { EventMap } from './bus-protocol';
 import type { BusEnvelope, BusFrame } from './event-bus';
 import type { EventBus } from './event-bus';
 import type { SemiontError } from './errors';
+import type { AnchoredTextAnswer } from './pdf-anchoring';
 
 type Agent = components['schemas']['Agent'];
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
@@ -317,6 +318,18 @@ export interface IContentTransport {
     options?: { auth?: AccessToken },
   ): Promise<GetResourceResponse>;
 
+  /**
+   * Fetch the resource's anchored text: the text extracted from its content,
+   * with where each run of it is on a page, or a stored decline. A read of
+   * content, as large as its document. The HTTP transport asks the gateway's
+   * `GET /resources/:id/anchored-text`. An absence is an answer and never a
+   * failure, and its `kind` says whether to ask again: `not-yet` does,
+   * `no-map` and `unknown` do not.
+   */
+  getAnchoredText(
+    resourceId: ResourceId,
+    options?: { auth?: AccessToken },
+  ): Promise<AnchoredTextAnswer>;
 
   dispose(): void;
 }

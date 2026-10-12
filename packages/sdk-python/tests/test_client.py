@@ -26,7 +26,7 @@ from semiont.events import Events
 from semiont.identifiers import AnnotationId, JobId, ResourceId
 from semiont.namespaces.browse import Collaborator
 from semiont.running import Running
-from semiont.testing import FaultyTransport, InMemoryContent, StubGateway, create_test_client
+from semiont.testing import FaultyTransport, GetAnchoredText, InMemoryContent, StubGateway, create_test_client
 from semiont.transport import (
     ConnectionState,
     Content,
@@ -36,7 +36,7 @@ from semiont.transport import (
     ResourceHold,
     Transport,
 )
-from semiont.types import GatheredContext, JobStatusResponse, MatchSearchResult
+from semiont.types import AnchoredTextAbsent, GatheredContext, JobStatusResponse, MatchSearchResult
 from semiont.watched import Watched
 
 RESOURCE = ResourceId("res-1")
@@ -373,6 +373,24 @@ def test_a_resources_representation_is_its_bytes_as_stored_whatever_text_they_ar
             representation = await client.browse.resource_representation(RESOURCE)
             assert (representation.data, representation.content_type) == (data, content_type)
             assert await client.browse.resource_content(RESOURCE) == "hi"
+        finally:
+            await client.close()
+
+    run(scenario())
+
+
+def test_a_resources_anchored_text_is_what_the_content_transport_answers_and_is_not_asked_for_on_the_bus() -> None:
+    # An absence is an answer, and is given as one.
+    not_yet = AnchoredTextAbsent(kind="not-yet")
+
+    async def scenario() -> None:
+        made = create_test_client()
+        made.content.seed_anchored_text(RESOURCE, not_yet)
+        client = made.client
+        try:
+            assert await client.browse.resource_anchored_text(RESOURCE) is not_yet
+            assert made.content.calls == [GetAnchoredText(RESOURCE)]
+            assert made.transport.emitted == []
         finally:
             await client.close()
 

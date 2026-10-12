@@ -24,7 +24,7 @@ peers that answer differently.
 |---|---|---|---|
 | `STARTUP_FETCH_RETRY` | every peer | the **gateway** to accept authentication | 8 × 1s→8s ≈ 39s |
 | `EMIT_RETRY` | every peer | the **gateway** to accept one `/bus/emit` | 4 × 1s→4s ≈ 7s |
-| `RESOURCE_LISTING_RETRY` | weaver, smelter | the **archivist** to subscribe | 17 × 1s→30s ≈ 361s |
+| the catalog reader's, in `packages/service-python/src/semiont_service/catalog.py` | weaver, smelter | the **archivist** to subscribe | 17 × 1s→30s ≈ 361s |
 | `EMBEDDING_PROVIDER_RETRY` | librarian, smelter | the **embedding provider** to serve a model | 12 × 1s→15s ≈ 120s |
 
 Budgets above are the delays alone. Each attempt is separately bounded — by
@@ -38,11 +38,9 @@ expected wait is about three quarters of them. Jitter is not optional: these
 are containers that boot together and retry against one gateway, and an identical schedule
 re-converges N peers on the same instant.
 
-**The budgets chain, and one of them is gated.** A projector waits on the archivist, whose own
-boot contains two retries. `RESOURCE_LISTING_RETRY` therefore exceeds
-`STARTUP_FETCH_RETRY + EMBEDDING_PROVIDER_RETRY` (339s), and `browse-resources.test.ts` asserts
-it — lengthening what the archivist waits for fails that test rather than silently producing a
-weaver that gave up on an archivist still starting.
+**The budgets chain.** A projector waits on the archivist, whose own start can take minutes.
+The catalog reader's policy is sized by that, at about five and a half minutes in all, so that
+a weaver or a smelter does not give up on an archivist still starting.
 
 ## Which failures qualify
 
@@ -54,7 +52,6 @@ a bus refusal both answer no for different reasons.
 |---|---|---|
 | `isTransientFetchError` | `fetch` never connected | core |
 | `isRetryableRequestError` | HTTP 429 / 503 / 504, a `TimeoutError`, or a request that got no answer (`UnansweredError`) | core |
-| `isPeerUnavailable` | `bus.peer-unavailable` — the channel has no subscriber | core |
 | `notReady` | the model is not pulled, **or** the provider is not listening | `@semiont/vectors` |
 
 What counts as worth another attempt is the same in every language: the rules are
@@ -65,9 +62,10 @@ them.
 wait with the same consequence — a flapping archivist strands the worker either way.
 
 The exclusions carry as much weight as the inclusions. `isTransientFetchError` refuses every
-HTTP-level failure, because a 401 means the gateway is up and rejected us. `isPeerUnavailable`
-refuses `bus.unsubscribed`, which sounds identical and means the opposite end: *this* transport
-is not subscribed to the reply channel, a local misconfiguration no waiting fixes.
+HTTP-level failure, because a 401 means the gateway is up and rejected us. The catalog
+reader's predicate takes `bus.peer-unavailable` and refuses `bus.unsubscribed`, which sounds
+identical and means the opposite end: *this* transport is not subscribed to the reply channel,
+a local misconfiguration no waiting fixes.
 
 ## Where a retry belongs
 
@@ -83,7 +81,7 @@ A request travels four layers, and only two of them retry.
 `busRequest`'s operations include both `browse:resource-requested` and
 `yield:clone-resource-requested`. A read is idempotent; a create is not, and retrying one whose
 reply timed out double-writes. Only the caller can tell those apart, which is why
-`browseAllResources` wraps each page request and no write path retries at all.
+the catalog reader asks again for a page nobody answered, and no write path retries at all.
 
 The boot pass sits above everything and does one thing: record the phase, log, and **not**
 exit. A repair pass that fails leaves a store behind; it does not leave the projector dead.
@@ -91,8 +89,8 @@ exit. A repair pass that fails leaves a store behind; it does not leave the proj
 ## What deliberately does not retry
 
 **Graph, vector store and embedding provider connects** take a deadline instead —
-`withDeadline(what, STARTUP_CONNECT_TIMEOUT_MS, …)`, 60s, in the archivist, librarian and smelter
-mains. These are one-shot connects with no transient class worth naming, and an
+`withDeadline(what, STARTUP_CONNECT_TIMEOUT_MS, …)`, 60s, in the librarian's main, and the same
+minute in the smelter ([SMELTER.md](../protocol/SMELTER.md#boot)). These are one-shot connects with no transient class worth naming, and an
 unbounded await leaves a container hung where a restart-on-exit policy can only rescue a process
 that exits.
 

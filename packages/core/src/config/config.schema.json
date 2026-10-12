@@ -107,19 +107,6 @@
         },
         "endpoint": {
           "type": "string"
-        },
-        "chunking": {
-          "type": "object",
-          "properties": {
-            "chunkSize": {
-              "type": "integer",
-              "default": 512
-            },
-            "overlap": {
-              "type": "integer",
-              "default": 64
-            }
-          }
         }
       },
       "required": [

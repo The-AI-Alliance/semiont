@@ -8,10 +8,9 @@ import { openResourceByName } from '../fixtures/discover';
  *
  * User-directed PDF annotation already round-trips (14-pdf-render.spec.ts).
  * This proves the *AI-directed* detection pipeline runs end-to-end on a PDF —
- * the worker extracts the PDF's text layer (`prepareDetection` →
- * `extractPdfTextLayer`), the model detects spans over that text, and the
- * shared geometry tail (`annotationOfSpan`) anchors each span to PDF
- * viewrects (FragmentSelector, RFC 3778). Those render on the PDF canvas as
+ * the worker reads the PDF's anchored text, the model detects spans over that
+ * text, and each span is anchored to PDF viewrects (FragmentSelector,
+ * RFC 3778). Those render on the PDF canvas as
  * <rect>s in the same SVG overlay 14 asserts on, and survive a reload.
  *
  * Two motivations, the two detection body shapes #737 calls out:

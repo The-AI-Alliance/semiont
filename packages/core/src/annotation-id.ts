@@ -110,13 +110,11 @@ function canonical(value: unknown): string {
  *   or because the text layer moved: every stored field would be identical.
  *
  * The derivation is cached per content checksum, but the entry is gated by a stamp
- * over `@semiont/content`'s version plus the PDF engine and its traineddata, and
- * that stamp is deliberately over-eager — **a release busts it and the same bytes
- * are re-extracted by different code.** So the honest statement is: the PDF path's
- * guarantee holds *per stamp generation*, and a release is the event that could end
- * one. The offsets are stable across the pdfjs 6.2.108 → 6.3.289 engine move
- * (1,192 pages), and `pdf-offset-stability.test.ts` is what keeps that from
- * being a one-time observation. The OCR path has not been measured.
+ * over the Smelter's version, its PDF reader and its OCR engine
+ * (`semiont_smelter.stamp`, in apps/smelter), and that stamp is deliberately
+ * over-eager — **a release busts it and the same bytes are re-extracted by
+ * different code.** So the honest statement is: the PDF path's guarantee holds
+ * *per stamp generation*, and a release is the event that could end one.
  */
 export function annotationIdFor(identity: AnnotationIdentity): AnnotationId {
   const material = canonical({

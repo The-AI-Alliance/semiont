@@ -8,8 +8,9 @@
  * zeros in jsdom, so viewport == display coordinates here).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, fireEvent, waitFor } from '@testing-library/react';
+import { fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
+import { renderInEnglish } from '../../../test-utils';
 import type { SemiontSession } from '@semiont/sdk';
 import type { Annotation, AnnotationId } from '@semiont/core';
 import { SvgDrawingCanvas } from '../SvgDrawingCanvas';
@@ -45,7 +46,9 @@ function sessionDouble() {
   const click = vi.fn();
   const session = {
     client: {
-      browse: { click },
+      // The canvas takes a gesture only while it holds the image's text, and
+      // an image's answer is that its media type has none.
+      browse: { click, resourceAnchoredText: vi.fn().mockResolvedValue({ kind: 'no-map' }) },
       beckon: { hover: vi.fn() },
     },
   } as unknown as SemiontSession;
@@ -64,7 +67,7 @@ describe('SvgDrawingCanvas — drawing-path hit-test anchorRect', () => {
   it('emits browse.click with the hit annotation viewport rect on a sub-10px click', async () => {
     const { session, click } = sessionDouble();
 
-    const { container } = render(
+    const { container } = renderInEnglish(
       <SvgDrawingCanvas
         imageUrl="http://test/image.png"
         resourceUri={resourceId("resource-1")}
@@ -96,6 +99,7 @@ describe('SvgDrawingCanvas — drawing-path hit-test anchorRect', () => {
     // Sub-10px gesture inside the displayed annotation (image rect is zeros
     // in jsdom, so client coordinates are display coordinates).
     const canvas = container.querySelector('.semiont-svg-drawing-canvas')!;
+    await waitFor(() => expect(canvas).toHaveAttribute('data-annotate-deferred', 'false'));
     fireEvent.mouseDown(canvas, { clientX: 30, clientY: 30 });
     fireEvent.mouseUp(canvas, { clientX: 30, clientY: 30 });
 

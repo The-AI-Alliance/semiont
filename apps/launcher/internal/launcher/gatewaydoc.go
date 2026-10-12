@@ -84,6 +84,24 @@ func gatewayVars(rt, addr string, issuerPort int, userEnv []string) map[string]s
 	return vars
 }
 
+// archivistAddress: where the Archivist listens, as the document of a service
+// that dials it states it — the address this start places it at, on its
+// descriptor's port. A hand-written archivist section wins: an operator
+// describing a topology the launcher cannot see. ONE decider, for the
+// gateway's document and the Smelter's.
+func archivistAddress(env *envConfig, addr string, vars map[string]string) (host string, port int, err error) {
+	host, port = addr, semiontDescriptor("archivist").ports[0].port
+	if env.Archivist != nil && env.Archivist.Host != "" {
+		if host, err = resolveRefs("archivist.host", env.Archivist.Host, vars); err != nil {
+			return "", 0, err
+		}
+		if env.Archivist.Port != 0 {
+			port = env.Archivist.Port
+		}
+	}
+	return host, port, nil
+}
+
 // connectionAllowance: the memory a gateway's capacity sets aside for each open
 // connection — about twice what an idle stream measured (apps/gateway/bench).
 const connectionAllowance = 20 << 10
@@ -119,14 +137,8 @@ func gatewayDocument(env *envConfig, kbName, kbDomain, rt, addr string, issuerPo
 	}
 	doc.Identity.SubjectClaim = env.Identity.SubjectClaim
 
-	doc.Archivist.Host, doc.Archivist.Port = addr, semiontDescriptor("archivist").ports[0].port
-	if env.Archivist != nil && env.Archivist.Host != "" {
-		if doc.Archivist.Host, err = resolveRefs("archivist.host", env.Archivist.Host, vars); err != nil {
-			return nil, err
-		}
-		if env.Archivist.Port != 0 {
-			doc.Archivist.Port = env.Archivist.Port
-		}
+	if doc.Archivist.Host, doc.Archivist.Port, err = archivistAddress(env, addr, vars); err != nil {
+		return nil, err
 	}
 
 	doc.Signal.Type = "in-process"

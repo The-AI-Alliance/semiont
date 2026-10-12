@@ -156,7 +156,7 @@ func TestAStatedAddressIsStagedAsWritten(t *testing.T) {
 		t.Fatalf("a stated vector store is planned as (%v, %q), want somebody else's at qdrant.internal", got.Presence, got.Address)
 	}
 	vars := topologyVars("container", "192.168.64.1", plan.Roles["identity"].Port)
-	vectors := stagedSection(t, stagedServiceConfig("smelter", cfg, plan, vars, "192.168.64.1", "test-kb", "example.com"), "vectors")
+	vectors := stagedSection(t, stagedServiceConfig("librarian", cfg, plan, vars, "192.168.64.1", "test-kb", "example.com"), "vectors")
 	if vectors["host"] != "qdrant.internal" || vectors["port"] != int64(7000) {
 		t.Errorf("the stated vector store was staged as %v, want it as written", vectors)
 	}
@@ -187,12 +187,12 @@ func TestStagingLeavesWhatAServiceDoesNotRead(t *testing.T) {
 	cfg := fixtureConfig(t, "ollama-gemma.toml")
 	_, plan := loadedFrom(t, cfg)
 	vars := topologyVars("container", "192.168.64.1", plan.Roles["identity"].Port)
-	staged := stagedServiceConfig("smelter", cfg, plan, vars, "192.168.64.1", "test-kb", "example.com")
-	if contains(serviceConfigSections["smelter"], "graph") {
-		t.Fatal("the smelter reads [graph] now: pick another section for this test")
+	staged := stagedServiceConfig("librarian", cfg, plan, vars, "192.168.64.1", "test-kb", "example.com")
+	if contains(serviceConfigSections["librarian"], "jobs") {
+		t.Fatal("the librarian reads [jobs] now: pick another section for this test")
 	}
-	if got := stagedSection(t, staged, "graph")["uri"]; got != "bolt://${NEO4J_HOST}:7687" {
-		t.Errorf("[graph] uri in the smelter's copy = %v, want it as written", got)
+	if got := stagedSection(t, staged, "jobs")["servers"]; got != "${NATS_HOST}:4222" {
+		t.Errorf("[jobs] servers in the librarian's copy = %v, want it as written", got)
 	}
 }
 
@@ -245,11 +245,11 @@ func TestStagingPlacesTheArchivistAndTheIdentityCard(t *testing.T) {
 	// A section for another environment is not this one's.
 	other := append(append([]byte{}, cfg...), "\n[environments.production.archivist]\nhost = \"archivist.example.com\"\nport = 9999\n"...)
 	_, plan = loadedFrom(t, other)
-	if a := stagedSection(t, stagedServiceConfig("smelter", other, plan, vars, "192.168.64.1", "test-kb", "example.com"), "archivist"); a["host"] != "192.168.64.1" {
+	if a := stagedSection(t, stagedServiceConfig("librarian", other, plan, vars, "192.168.64.1", "test-kb", "example.com"), "archivist"); a["host"] != "192.168.64.1" {
 		t.Errorf("another environment's archivist section suppressed this one's: %v", a)
 	}
 	// TOML the launcher cannot read is the consumer's loader's to refuse.
-	if out := stagedServiceConfig("smelter", []byte("not [toml"), plan, vars, "192.168.64.1", "test-kb", "example.com"); string(out) != "not [toml" {
+	if out := stagedServiceConfig("librarian", []byte("not [toml"), plan, vars, "192.168.64.1", "test-kb", "example.com"); string(out) != "not [toml" {
 		t.Errorf("invalid TOML was rewritten:\n%s", out)
 	}
 }
@@ -264,7 +264,8 @@ func TestNoTopologyTravelsInAnEnvironment(t *testing.T) {
 	builders := map[string][]string{
 		"gateway":    gatewayArgs("/stage", "docker", "192.168.64.1", "secret", "jwt", "latest", 4000, nil, nil),
 		"worker":     workerArgs("/stage", "docker", "192.168.64.1", "secret", "latest", nil, nil),
-		"smelter":    sidecarArgs("smelter", "/stage", "docker", "192.168.64.1", "secret", "latest", nil, nil),
+		"smelter":    smelterArgs("/stage", "docker", "192.168.64.1", "secret", "latest", nil, nil),
+		"weaver":     weaverArgs("/stage", "docker", "192.168.64.1", "secret", "latest", nil, nil),
 		"archivist":  archivistArgs("/kb", "/stage", "docker", "192.168.64.1", "secret", "latest", nil, nil),
 		"librarian":  librarianArgs("/stage", "docker", "192.168.64.1", "secret", "latest", nil, nil),
 		"dispatcher": dispatcherArgs("/stage", "docker", "192.168.64.1", "secret", "latest", nil, nil),

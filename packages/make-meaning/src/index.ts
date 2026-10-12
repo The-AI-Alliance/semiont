@@ -1,7 +1,7 @@
-// @semiont/make-meaning — the services that keep, index and find a knowledge
-// base's contents. Each runs from its own entry point (`./librarian-main`,
-// `./smelter-main`); what is exported here is what a caller
-// composing its own process builds from.
+// @semiont/make-meaning — the Librarian, the service that finds a knowledge
+// base's contents. It runs from its own entry point (`./librarian-main`);
+// what is exported here is what a caller composing its own process builds
+// from.
 
 export { makeMeaningConfigFrom, requireKBName } from './config';
 export type { MakeMeaningConfig } from './config';
@@ -14,24 +14,9 @@ export { Gatherer } from './gatherer';
 export { Matcher } from './matcher';
 export { registerGatherSummaryHandler } from './handlers/gather-summary';
 
-// Smelter — event-to-vector pipeline plus its domain-event fan-in.
-export {
-  Smelter,
-  type ReconcileSummary,
-  type ReconcileState,
-  type SmelterTiming,
-  type SmelterWorkItem,
-  type SmelterInput,
-} from './smelter';
-export {
-  smelterFanIn,
-  type SmelterFanIn,
-  type SmelterEvent,
-} from './smelter-fan-in';
-
 // Context assembly
 export { ResourceContext } from './resource-context';
-export { anchoredTextOverBus } from './anchored-text-ask';
+export { anchoredTextOverContent } from './anchored-text-ask';
 export type { AnchoredTextAsk } from './anchored-text-ask';
 export { AnnotationContext } from './annotation-context';
 export { AnnotationGather } from './annotation-gather';

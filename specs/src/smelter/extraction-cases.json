@@ -1,0 +1,114 @@
+{
+  "$comment": "What deriving a PDF's text comes to, document by document, as every implementation of the Smelter must find it: the class a document is sorted into, how its text was got, the pages left unread, how many pages have a run of the text placed on them, words the text has and strings it has not; or the name the document is declined by. Semiont's Smelter (apps/smelter, the extractor that derives a PDF's text) runs every case with its own reader and its own OCR engine, and with no stand-in for either; a Smelter in another language runs the same file with the reader and the engine it has. THE RULE. A document is sorted into one class and read that class's way. A: its pages have text of their own, which is read (`method` pdf-text-layer). B: no page has text of its own, and each page's images are taken out and read by OCR (ocr). C: some pages have text of their own and some have none; the first are read, the images of the others are read by OCR, and `unreadPages` names each page nothing was read from. D: a page is a grid of cells, and is written as rows (table). E: a filled form, whose fields' values are part of the text (form). A document that cannot be parsed is declined as corrupt, an encrypted one as encrypted, and one of more than `largestPdfBytes` bytes as too-large, by its size and before any byte of it is read. A scanned document nothing is read from is declined as no-text-layer. WHAT IS NOT STATED. A case states what any reader of its document finds. It does not state the text whole, an offset, a place on a page, how many items there are, the order two columns are read in, or how sure the OCR engine was: readers differ in where a space falls and in how a line is cut into runs. No case's fixture has a character in its pixels, so no case has text read by OCR, and no case's fixture is encrypted, so no case is declined as encrypted: this table holds neither. READING A CASE. `fixture` names a file in the directory `fixtures`, given from the root of the repository. The files are kept in the repository: scripts/fixtures/make-pdf-fixtures.py writes them, the same bytes on every run, and says what is drawn on each page of each. Every one of them has a case but two, which are held beside the table by whoever runs it: encrypted.pdf, which asks for a password, and legible-scan.pdf, a scan whose pixels are words (scripts/fixtures/make-legible-scan.py). A case with `bytes` in place of `fixture` is of a document that is no file: `utf8` is a text whose UTF-8 bytes are the document, and `length` is a document of that many bytes, whatever they are (none of them is read, so a runner need not make them). A case with `declined` states the name its document is declined by, and nothing else of it. Every other case states what is read: `pdfClass` and `method`; `unreadPages`, the pages nothing was read from, the first page being 1 (a case without it has every page read, and its outcome has no such member); `pagesWithItems`, how many pages have at least one item on them, an item being a run of the text and its place on a page; and `words`, each a whole word that can be seen on a page or in a field of the form, and each found in the text. `onPage` gives, for some of those words, the page the word is on: some item on that page selects a stretch of the text, from its `start` to its `end`, that has the word in it. `absent` gives strings none of which is found in the text: the last word of one line glued to the first word of the next, or the name of a field of the form that has no value. `rows`, of a document with a grid, gives rows of the grid, each as its cells from the left: for each row there is one line of the text on which every one of its cells is found, in the order given, a line being what lies between two line breaks (U+000A), or between a line break and an end of the text. How a row is written on its line is not stated. Add a case here before changing an implementation.",
+  "fixtures": "specs/src/smelter/fixtures",
+  "largestPdfBytes": 209715200,
+  "cases": [
+    {
+      "why": "one line of text on one page is read from the text the page has of its own, and an item on that page has the line's words",
+      "fixture": "single-line.pdf",
+      "pdfClass": "A",
+      "method": "pdf-text-layer",
+      "pagesWithItems": 1,
+      "words": ["known", "phrase", "from", "fixture"],
+      "onPage": { "known": 1 }
+    },
+    {
+      "why": "three lines on one page are all read, each line's words are in an item on that page, and the end of one line is not glued to the start of the next",
+      "fixture": "multi-line.pdf",
+      "pdfClass": "A",
+      "method": "pdf-text-layer",
+      "pagesWithItems": 1,
+      "words": ["first", "second", "third", "line", "text"],
+      "onPage": { "first": 1, "second": 1, "third": 1 },
+      "absent": ["textsecond"]
+    },
+    {
+      "why": "text on two pages is read from both and no page is left unread: the word only the first page has is in an item on the first page, and the second page's is in an item on the second",
+      "fixture": "multi-page.pdf",
+      "pdfClass": "A",
+      "method": "pdf-text-layer",
+      "pagesWithItems": 2,
+      "words": ["content", "page", "one", "two"],
+      "onPage": { "one": 1, "two": 2 }
+    },
+    {
+      "why": "two columns of prose are prose and no grid: the words of both columns are read as text, in an order this table does not state, and the end of one line is not glued to the start of another",
+      "fixture": "multi-column.pdf",
+      "pdfClass": "A",
+      "method": "pdf-text-layer",
+      "pagesWithItems": 1,
+      "words": ["left", "right", "column", "line", "one", "two"],
+      "absent": ["oneleft"]
+    },
+    {
+      "why": "a page of four rows of three cells is a grid, and is got as a table: each row's cells are on one line of the text, in their order, and a cell's words are in an item on its page",
+      "fixture": "table.pdf",
+      "pdfClass": "D",
+      "method": "table",
+      "pagesWithItems": 1,
+      "words": ["Treatment", "Responders", "p-value", "Drug", "12%", "0.03", "Placebo", "0.88"],
+      "onPage": { "Drug": 1 },
+      "rows": [
+        ["Treatment", "Responders", "p-value"],
+        ["Drug A", "12%", "0.03"],
+        ["Drug B", "9%", "0.21"],
+        ["Placebo", "4%", "0.88"]
+      ]
+    },
+    {
+      "why": "a filled form's text has the value of each field that has one, beside the words drawn on the page, and a value is in an item on its field's page; a field with no value adds nothing, and its name is not in the text",
+      "fixture": "form.pdf",
+      "pdfClass": "E",
+      "method": "form",
+      "pagesWithItems": 1,
+      "words": ["Policy", "Application", "Ada", "Lovelace", "$250,000", "NY"],
+      "onPage": { "Ada": 1, "Lovelace": 1 },
+      "absent": ["policy.notes"]
+    },
+    {
+      "why": "a page of text and a page that is a picture of no characters: the first is read, the second is named as unread, and the method stays the first page's, OCR having read nothing",
+      "fixture": "mixed.pdf",
+      "pdfClass": "C",
+      "method": "pdf-text-layer",
+      "unreadPages": [2],
+      "pagesWithItems": 1,
+      "words": ["native", "page", "text"],
+      "onPage": { "native": 1 }
+    },
+    {
+      "why": "an empty page, with no text and no image, is declined as having no text layer",
+      "fixture": "scanned.pdf",
+      "declined": "no-text-layer"
+    },
+    {
+      "why": "a page that is one image of dark bars and no characters is declined as having no text layer: its image is read by OCR, which reads nothing",
+      "fixture": "scanned-image.pdf",
+      "declined": "no-text-layer"
+    },
+    {
+      "why": "a page that is one small JPEG image, a square of grey with no characters, is declined the same way",
+      "fixture": "scanned-jpeg.pdf",
+      "declined": "no-text-layer"
+    },
+    {
+      "why": "the image of bars drawn smaller, and away from the corner of the page, is declined the same way",
+      "fixture": "scanned-placed.pdf",
+      "declined": "no-text-layer"
+    },
+    {
+      "why": "two pages that draw the one image of bars are declined the same way: nothing is read from either",
+      "fixture": "shared-image.pdf",
+      "declined": "no-text-layer"
+    },
+    {
+      "why": "bytes that are no PDF are declined as corrupt",
+      "bytes": { "utf8": "not a pdf at all" },
+      "declined": "corrupt"
+    },
+    {
+      "why": "a document one byte over the bound is declined as too large, by its size alone",
+      "bytes": { "length": 209715201 },
+      "declined": "too-large"
+    }
+  ]
+}

@@ -13,10 +13,10 @@ set -euo pipefail
 #     names a read: an entry nothing reads is a reason given for something
 #     that is not there. The gateway is not here: its
 #     environment is specs/src/service-environment/variables.json, which
-#     lint:service-environment checks in both directions. Nor are the worker
-#     and the Weaver: each one's environment is the Environment section of its
-#     page of docs/protocol (WORKER-SERVICE.md, WEAVER.md), which its own
-#     tests/test_census.py holds its source to.
+#     lint:service-environment checks in both directions. Nor are the worker,
+#     the Weaver and the Smelter: each one's environment is the Environment
+#     section of its page of docs/protocol (WORKER-SERVICE.md, WEAVER.md,
+#     SMELTER.md), which its own tests/test_census.py holds its source to.
 # B2  [kb] identity census: every `config.kb?.X` read is a key the launcher
 #     stages in the [kb] table (stagedServiceConfig).
 # B3  archivist topology census: every `services.archivist.X` read is a key
@@ -56,12 +56,11 @@ literal_keys() {
 }
 
 # Per-service runtime file sets. Approximations are deliberate and named:
-# the make-meaning services are scoped to their entry files, where every env
-# read of theirs lives (the checkout-run rebuild CLIs under
-# make-meaning/src/cli are out of scope — they never ride an image).
+# the Librarian is scoped to its entry file, where each of its env reads
+# lives (the checkout-run rebuild CLI under make-meaning/src/cli is out of
+# scope — it never rides an image).
 service_files() {
   case "$1" in
-    smelter)   echo packages/make-meaning/src/smelter-main.ts ;;
     librarian) echo packages/make-meaning/src/librarian-main.ts ;;
   esac
 }
@@ -77,7 +76,6 @@ dockerfile_for() {
 builder_for() {
   case "$1" in
     librarian) echo librarianArgs ;;
-    *)         echo sidecarArgs ;;
   esac
 }
 
@@ -98,7 +96,7 @@ demand_of() {
 }
 
 # ── B1 — per-service env census ─────────────────────────────────────────────
-for svc in smelter librarian; do
+for svc in librarian; do
   demand=$(demand_of "$svc")
   df=$(dockerfile_for "$svc")
   df_env=$(grep -hE '^ENV ' "$df" | sed -E 's/^ENV +//' | cut -d= -f1 || true)

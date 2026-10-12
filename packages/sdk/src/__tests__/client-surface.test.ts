@@ -282,6 +282,10 @@ function recordingContent(calls: Recorded[]): IContentTransport {
       read('getResourceGraph', id);
       throw new Error('no description is scripted');
     },
+    async getAnchoredText(id) {
+      read('getAnchoredText', id);
+      throw new Error('no anchored text is scripted');
+    },
     dispose() {},
   };
 }

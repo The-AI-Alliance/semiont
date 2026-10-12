@@ -1,48 +1,35 @@
 /**
- * The chunker, held to specs/src/text/chunk-cases.json: the table every
- * worker's chunker runs, so that a text is cut the same way whoever cuts it.
+ * The estimate of a text's tokens, held to specs/src/text/chunk-cases.json:
+ * the table every chunker runs. Each case states its text's
+ * `estimatedTokens`, the count a chunk is sized by.
+ *
+ * This package cuts no text, so it runs the part it has: the estimate. The
+ * cuts and the chunks are run by the chunkers, in apps/worker and
+ * apps/smelter.
  */
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { DEFAULT_CHUNKING_CONFIG, chunkText, cutChunk, estimateTokens, type ChunkingConfig } from '../chunking';
-import { textOffsets } from '../text-offsets';
-
-interface Cut {
-  at: number;
-  piece: string;
-  next: number;
-}
+import { estimateTokens } from '../token-estimate';
 
 interface Case {
   why: string;
   text: string;
   estimatedTokens: number;
-  chunking: ChunkingConfig;
-  chunks: string[];
-  cuts: Cut[];
 }
 
-const table: { defaults: ChunkingConfig; cases: Case[] } = JSON.parse(
+const table: { cases: Case[] } = JSON.parse(
   readFileSync(new URL('../../../../specs/src/text/chunk-cases.json', import.meta.url), 'utf8'),
 );
 
-describe('the chunker (specs/src/text/chunk-cases.json)', () => {
+describe("a text's estimated tokens (specs/src/text/chunk-cases.json)", () => {
   it('has cases', () => {
     expect(table.cases.length).toBeGreaterThan(0);
   });
 
-  it('exports the table\'s defaults as DEFAULT_CHUNKING_CONFIG', () => {
-    expect(DEFAULT_CHUNKING_CONFIG).toStrictEqual(table.defaults);
-  });
-
-  for (const { why, text, estimatedTokens, chunking, chunks, cuts } of table.cases) {
+  for (const { why, text, estimatedTokens } of table.cases) {
     it(why, () => {
-      expect(estimateTokens(text), 'estimatedTokens').toBe(estimatedTokens);
-      expect(chunkText(text, chunking), 'chunks').toStrictEqual(chunks);
-      for (const { at, piece, next } of cuts) {
-        expect(cutChunk(text, textOffsets(text), at, chunking), `the cut at ${at}`).toStrictEqual({ piece, next });
-      }
+      expect(estimateTokens(text)).toBe(estimatedTokens);
     });
   }
 });

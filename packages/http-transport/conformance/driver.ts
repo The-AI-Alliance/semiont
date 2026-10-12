@@ -247,6 +247,10 @@ const operations: Record<string, (args: Arguments, id: number) => Promise<unknow
     return contentTransport().getResourceGraph(resourceId(text(args, 'resource')));
   },
 
+  'anchored-text'(args) {
+    return contentTransport().getAnchoredText(resourceId(text(args, 'resource')));
+  },
+
   health() {
     return opened().healthCheck();
   },

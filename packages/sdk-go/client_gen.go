@@ -266,16 +266,16 @@ func (e ArchivistHealthStatus) Valid() bool {
 
 // Defines values for ArchivistRosterRoleProvider.
 const (
-	Anthropic ArchivistRosterRoleProvider = "anthropic"
-	Ollama    ArchivistRosterRoleProvider = "ollama"
+	ArchivistRosterRoleProviderAnthropic ArchivistRosterRoleProvider = "anthropic"
+	ArchivistRosterRoleProviderOllama    ArchivistRosterRoleProvider = "ollama"
 )
 
 // Valid indicates whether the value is a known member of the ArchivistRosterRoleProvider enum.
 func (e ArchivistRosterRoleProvider) Valid() bool {
 	switch e {
-	case Anthropic:
+	case ArchivistRosterRoleProviderAnthropic:
 		return true
-	case Ollama:
+	case ArchivistRosterRoleProviderOllama:
 		return true
 	default:
 		return false
@@ -1541,13 +1541,28 @@ func (e MatchResourcesResponseMatchKind) Valid() bool {
 
 // Defines values for MemoryGraphConfigType.
 const (
-	Memory MemoryGraphConfigType = "memory"
+	MemoryGraphConfigTypeMemory MemoryGraphConfigType = "memory"
 )
 
 // Valid indicates whether the value is a known member of the MemoryGraphConfigType enum.
 func (e MemoryGraphConfigType) Valid() bool {
 	switch e {
-	case Memory:
+	case MemoryGraphConfigTypeMemory:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MemoryVectorsConfigType.
+const (
+	MemoryVectorsConfigTypeMemory MemoryVectorsConfigType = "memory"
+)
+
+// Valid indicates whether the value is a known member of the MemoryVectorsConfigType enum.
+func (e MemoryVectorsConfigType) Valid() bool {
+	switch e {
+	case MemoryVectorsConfigTypeMemory:
 		return true
 	default:
 		return false
@@ -1611,6 +1626,21 @@ func (e NeptuneGraphConfigType) Valid() bool {
 	}
 }
 
+// Defines values for OllamaEmbeddingConfigType.
+const (
+	OllamaEmbeddingConfigTypeOllama OllamaEmbeddingConfigType = "ollama"
+)
+
+// Valid indicates whether the value is a known member of the OllamaEmbeddingConfigType enum.
+func (e OllamaEmbeddingConfigType) Valid() bool {
+	switch e {
+	case OllamaEmbeddingConfigTypeOllama:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ProtectedResourceMetadataBearerMethodsSupported.
 const (
 	Header ProtectedResourceMetadataBearerMethodsSupported = "header"
@@ -1620,6 +1650,21 @@ const (
 func (e ProtectedResourceMetadataBearerMethodsSupported) Valid() bool {
 	switch e {
 	case Header:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for QdrantVectorsConfigType.
+const (
+	Qdrant QdrantVectorsConfigType = "qdrant"
+)
+
+// Valid indicates whether the value is a known member of the QdrantVectorsConfigType enum.
+func (e QdrantVectorsConfigType) Valid() bool {
+	switch e {
+	case Qdrant:
 		return true
 	default:
 		return false
@@ -2034,6 +2079,21 @@ func (e TextualBodyType) Valid() bool {
 	}
 }
 
+// Defines values for VoyageEmbeddingConfigType.
+const (
+	Voyage VoyageEmbeddingConfigType = "voyage"
+)
+
+// Valid indicates whether the value is a known member of the VoyageEmbeddingConfigType enum.
+func (e VoyageEmbeddingConfigType) Valid() bool {
+	switch e {
+	case Voyage:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for YieldJobCompleteCommandJobType.
 const (
 	YieldJobCompleteCommandJobTypeYield YieldJobCompleteCommandJobType = "yield"
@@ -2185,9 +2245,9 @@ type AnchoredText struct {
 type AnchoredTextAbsent struct {
 	// Kind Discriminant, sharing the `kind` field with the ExtractedText/ExtractionDeclined members so the whole answer is one flat union.
 	//
-	// `not-yet` — the Smelter has not settled this content generation: the settle barrier expired, the progress fold was disposed, or it settled indexed and the artifact is missing (a loss the Smelter's reconcile pass re-derives). RETRY.
+	// `not-yet` — the resource's media type has text that is derived by reading its content, and the store holds no entry for this content: the Smelter has not read it yet, or the entry was lost (a loss the Smelter's reconcile pass re-derives). RETRY.
 	//
-	// `no-map` — the Smelter settled this resource as skipped: its media type derives no geometry, so a map will never exist. TERMINAL.
+	// `no-map` — the resource's media type has no derived text, so no entry exists and none will until the type is given a reader. Decided by the media type alone, and answered at once. TERMINAL.
 	//
 	// `unknown` — no content identity to look up: the resource is not in the view store, or its primary representation carries no checksum. TERMINAL.
 	Kind AnchoredTextAbsentKind `json:"kind"`
@@ -2195,9 +2255,9 @@ type AnchoredTextAbsent struct {
 
 // AnchoredTextAbsentKind Discriminant, sharing the `kind` field with the ExtractedText/ExtractionDeclined members so the whole answer is one flat union.
 //
-// `not-yet` — the Smelter has not settled this content generation: the settle barrier expired, the progress fold was disposed, or it settled indexed and the artifact is missing (a loss the Smelter's reconcile pass re-derives). RETRY.
+// `not-yet` — the resource's media type has text that is derived by reading its content, and the store holds no entry for this content: the Smelter has not read it yet, or the entry was lost (a loss the Smelter's reconcile pass re-derives). RETRY.
 //
-// `no-map` — the Smelter settled this resource as skipped: its media type derives no geometry, so a map will never exist. TERMINAL.
+// `no-map` — the resource's media type has no derived text, so no entry exists and none will until the type is given a reader. Decided by the media type alone, and answered at once. TERMINAL.
 //
 // `unknown` — no content identity to look up: the resource is not in the view store, or its primary representation carries no checksum. TERMINAL.
 type AnchoredTextAbsentKind string
@@ -2708,22 +2768,6 @@ type BrowseAgentsResult struct {
 	Response struct {
 		Agents []CollaboratorEntry `json:"agents"`
 	} `json:"response"`
-}
-
-// BrowseAnchoredTextRequest Request a resource's derived coordinate map — the text recovered from its bytes plus the geometry indexing it. Read-only: the Smelter is the sole producer and writes the anchored-text store directly, never over this channel.
-type BrowseAnchoredTextRequest struct {
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
-	ResourceId ResourceId `json:"resourceId"`
-}
-
-// BrowseAnchoredTextResult A resource's coordinate map, a stored decline, or a named reason there is none. Never null: a bare null would cover four different facts — barrier expired, settled-skipped, no content identity, fold disposed — two of which a caller should retry and two of which it should not.
-type BrowseAnchoredTextResult struct {
-	// Response What a reader gets when it asks for a resource's coordinate map: the map, a stored decline, or a named absence.
-	//
-	// Distinct from `ExtractionOutcome` on purpose. That type is what the STORE holds and what an extractor RETURNS — neither of which can ever be 'not yet'. This is the read answer, which can, so widening ExtractionOutcome itself would have put an impossible state into the store's own type.
-	//
-	// Flat, one discriminant: every member carries `kind`, rather than nesting an outcome inside a status envelope and giving the wire two `kind` fields at different depths.
-	Response AnchoredTextAnswer `json:"response"`
 }
 
 // BrowseAnnotationHistoryRequest Request to browse the history of an annotation
@@ -3276,6 +3320,11 @@ type DispatcherHealthStatus string
 
 // DurabilityEvidence How a job's annotations were established as durable — the OBSERVATION, never a conclusion drawn from it. 'acknowledged': the event log confirmed the batch (mark:commit-ok). 'probe-confirmed': the acknowledgement was lost and a later read found the batch's last annotation present — true, but a weaker claim than an ack, since it rests on the log appending a batch in order and stopping at the first failure. 'probe-refused': the read returned a failure reply; note this does NOT assert the annotations are absent, because a read that failed for its own reasons answers on the same channel. 'probe-unreachable': no answer came at all, so nothing was established either way. ABSENT means the question never arose — a job that committed no annotations. Never defaulted: a manufactured value here is a claim nobody made, in a log nobody can rewrite.
 type DurabilityEvidence string
+
+// EmbeddingConfig The embedding provider a service asks for vectors, and what that kind of provider needs to be asked: one of the providers `semiont-vectors` has, told apart by `type`. Two services that share an index name the same provider and the same model: a vector is compared only with vectors of the model that made it. A secret is never a value here: a provider's key is named by the environment variable that holds it.
+type EmbeddingConfig struct {
+	union json.RawMessage
+}
 
 // EnrichedResourceEvent defines model for EnrichedResourceEvent.
 type EnrichedResourceEvent struct {
@@ -5173,6 +5222,14 @@ type MemoryGraphConfig struct {
 // MemoryGraphConfigType defines model for MemoryGraphConfig.Type.
 type MemoryGraphConfigType string
 
+// MemoryVectorsConfig A vector index held in the memory of the one process that is given it: for a test. It cannot be shared between processes, so a service that writes the index for another to search, or searches what another wrote, refuses it.
+type MemoryVectorsConfig struct {
+	Type MemoryVectorsConfigType `json:"type"`
+}
+
+// MemoryVectorsConfigType defines model for MemoryVectorsConfig.Type.
+type MemoryVectorsConfigType string
+
 // Motivation Semiont-supported W3C Web Annotation motivations - https://www.w3.org/TR/annotation-vocab/#motivation
 type Motivation string
 
@@ -5207,6 +5264,19 @@ type NeptuneGraphConfig struct {
 
 // NeptuneGraphConfigType defines model for NeptuneGraphConfig.Type.
 type NeptuneGraphConfigType string
+
+// OllamaEmbeddingConfig An embedding model served by an Ollama.
+type OllamaEmbeddingConfig struct {
+	// BaseUrl The address the Ollama's API is reached at (`http://host:11434`).
+	BaseUrl string `json:"baseUrl"`
+
+	// Model The model asked for, by the name the Ollama serves it under.
+	Model string                    `json:"model"`
+	Type  OllamaEmbeddingConfigType `json:"type"`
+}
+
+// OllamaEmbeddingConfigType defines model for OllamaEmbeddingConfig.Type.
+type OllamaEmbeddingConfigType string
 
 // PdfTextItem One positioned text run. Coordinates are PDF points with the origin at the bottom-left of the page, Y increasing upward; the flip to canvas pixels happens in the browser.
 type PdfTextItem struct {
@@ -5271,6 +5341,19 @@ type ProtectedResourceMetadata struct {
 
 // ProtectedResourceMetadataBearerMethodsSupported defines model for ProtectedResourceMetadata.BearerMethodsSupported.
 type ProtectedResourceMetadataBearerMethodsSupported string
+
+// QdrantVectorsConfig A vector index kept in a Qdrant server, asked over its REST API.
+type QdrantVectorsConfig struct {
+	// Host The server's host.
+	Host string `json:"host"`
+
+	// Port The port its REST API listens on.
+	Port int                     `json:"port"`
+	Type QdrantVectorsConfigType `json:"type"`
+}
+
+// QdrantVectorsConfigType defines model for QdrantVectorsConfig.Type.
+type QdrantVectorsConfigType string
 
 // ReplyEventId `e-<channel>:<correlationId>` — the id of a frame that carries a correlationId. Deterministic: the same reply has the same id on every connection, so a copy arriving on two connections (a reconnect overlap, or a replay of a retained reply) dedups. Never a resumption watermark.
 type ReplyEventId = string
@@ -6040,6 +6123,51 @@ type SmeltSettledOutcome string
 // SmeltSettledReason Why the content was skipped.
 type SmeltSettledReason string
 
+// SmelterConfig Everything a Smelter reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the Smelter. Whoever starts a Smelter writes it, from the environment the knowledge base's config selects, and the Smelter reads it from the path its `--config` flag names. This schema is the contract, and a Smelter needs no launcher. Started without `--config`, or with a path that names no file, the Smelter refuses to start and says which. No secret is a value here: an embedding provider's key is named by the environment variable that holds it, and the Smelter's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` in its environment. A document that does not validate is refused at boot, naming each failing field.
+type SmelterConfig struct {
+	// AnchoredTextDir The anchored-text store the Smelter writes and the Archivist reads.
+	AnchoredTextDir string `json:"anchoredTextDir"`
+
+	// Archivist Where the Archivist listens. The Smelter reads a resource's bytes from it, as its service account.
+	Archivist struct {
+		Host string `json:"host"`
+		Port int    `json:"port"`
+	} `json:"archivist"`
+
+	// Chunking The two numbers a text is cut by before it is embedded, both in tokens, a token being taken as four code points.
+	Chunking struct {
+		// ChunkSize The size of a chunk.
+		ChunkSize int `json:"chunkSize"`
+
+		// Overlap How much of a chunk the next one repeats.
+		Overlap int `json:"overlap"`
+	} `json:"chunking"`
+
+	// Embedding The embedding provider a service asks for vectors, and what that kind of provider needs to be asked: one of the providers `semiont-vectors` has, told apart by `type`. Two services that share an index name the same provider and the same model: a vector is compared only with vectors of the model that made it. A secret is never a value here: a provider's key is named by the environment variable that holds it.
+	Embedding EmbeddingConfig `json:"embedding"`
+
+	// GatewayUrl The URL the Smelter reaches the gateway at: its route to the bus.
+	GatewayUrl string `json:"gatewayUrl"`
+
+	// Identity The issuer the Smelter's service account signs in at.
+	Identity struct {
+		// Issuer The issuer URL, exactly as tokens carry it in `iss`.
+		Issuer string `json:"issuer"`
+	} `json:"identity"`
+
+	// LogFormat How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON.
+	LogFormat LogFormat `json:"logFormat"`
+
+	// LogLevel How much a service logs: the least severe level it writes, from error, the most severe, to debug.
+	LogLevel LogLevel `json:"logLevel"`
+
+	// Port The port the Smelter answers `/health` on.
+	Port int `json:"port"`
+
+	// Vectors The vector index a service writes or searches, and what that kind of index needs to be reached: one of the kinds `semiont-vectors` has a store for, told apart by `type`.
+	Vectors VectorsConfig `json:"vectors"`
+}
+
 // SpecificResource defines model for SpecificResource.
 type SpecificResource struct {
 	// Purpose Why this body is included
@@ -6261,6 +6389,27 @@ type UserResponse struct {
 	Image  *string `json:"image"`
 	Name   *string `json:"name"`
 }
+
+// VectorsConfig The vector index a service writes or searches, and what that kind of index needs to be reached: one of the kinds `semiont-vectors` has a store for, told apart by `type`.
+type VectorsConfig struct {
+	union json.RawMessage
+}
+
+// VoyageEmbeddingConfig An embedding model served by Voyage AI. No service has been run against Voyage itself.
+type VoyageEmbeddingConfig struct {
+	// ApiKeyEnv The environment variable holding the Voyage API key. The key is never a value here.
+	ApiKeyEnv string `json:"apiKeyEnv"`
+
+	// Endpoint The whole address of Voyage's embeddings call (`https://api.voyageai.com/v1/embeddings`).
+	Endpoint string `json:"endpoint"`
+
+	// Model The model asked for, by Voyage's name for it.
+	Model string                    `json:"model"`
+	Type  VoyageEmbeddingConfigType `json:"type"`
+}
+
+// VoyageEmbeddingConfigType defines model for VoyageEmbeddingConfig.Type.
+type VoyageEmbeddingConfigType string
 
 // WeaveApplied The payload of `weave:applied`: the Weaver has applied a resource's events to the graph up to this sequence number. Emitted after applying an event, or a batch's last event.
 type WeaveApplied struct {
@@ -9758,6 +9907,95 @@ func (t DirectoryEntry) MarshalJSON() ([]byte, error) {
 }
 
 func (t *DirectoryEntry) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsOllamaEmbeddingConfig returns the union data inside the EmbeddingConfig as a OllamaEmbeddingConfig
+func (t EmbeddingConfig) AsOllamaEmbeddingConfig() (OllamaEmbeddingConfig, error) {
+	var body OllamaEmbeddingConfig
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOllamaEmbeddingConfig overwrites any union data inside the EmbeddingConfig as the provided OllamaEmbeddingConfig
+func (t *EmbeddingConfig) FromOllamaEmbeddingConfig(v OllamaEmbeddingConfig) error {
+	v.Type = "ollama"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOllamaEmbeddingConfig performs a merge with any union data inside the EmbeddingConfig, using the provided OllamaEmbeddingConfig
+func (t *EmbeddingConfig) MergeOllamaEmbeddingConfig(v OllamaEmbeddingConfig) error {
+	v.Type = "ollama"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsVoyageEmbeddingConfig returns the union data inside the EmbeddingConfig as a VoyageEmbeddingConfig
+func (t EmbeddingConfig) AsVoyageEmbeddingConfig() (VoyageEmbeddingConfig, error) {
+	var body VoyageEmbeddingConfig
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromVoyageEmbeddingConfig overwrites any union data inside the EmbeddingConfig as the provided VoyageEmbeddingConfig
+func (t *EmbeddingConfig) FromVoyageEmbeddingConfig(v VoyageEmbeddingConfig) error {
+	v.Type = "voyage"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeVoyageEmbeddingConfig performs a merge with any union data inside the EmbeddingConfig, using the provided VoyageEmbeddingConfig
+func (t *EmbeddingConfig) MergeVoyageEmbeddingConfig(v VoyageEmbeddingConfig) error {
+	v.Type = "voyage"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t EmbeddingConfig) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"type"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t EmbeddingConfig) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "ollama":
+		return t.AsOllamaEmbeddingConfig()
+	case "voyage":
+		return t.AsVoyageEmbeddingConfig()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t EmbeddingConfig) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *EmbeddingConfig) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
@@ -13447,6 +13685,95 @@ func (t *UpdateAnnotationBodyRequest_Operations_Item) UnmarshalJSON(b []byte) er
 	return err
 }
 
+// AsQdrantVectorsConfig returns the union data inside the VectorsConfig as a QdrantVectorsConfig
+func (t VectorsConfig) AsQdrantVectorsConfig() (QdrantVectorsConfig, error) {
+	var body QdrantVectorsConfig
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromQdrantVectorsConfig overwrites any union data inside the VectorsConfig as the provided QdrantVectorsConfig
+func (t *VectorsConfig) FromQdrantVectorsConfig(v QdrantVectorsConfig) error {
+	v.Type = "qdrant"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeQdrantVectorsConfig performs a merge with any union data inside the VectorsConfig, using the provided QdrantVectorsConfig
+func (t *VectorsConfig) MergeQdrantVectorsConfig(v QdrantVectorsConfig) error {
+	v.Type = "qdrant"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsMemoryVectorsConfig returns the union data inside the VectorsConfig as a MemoryVectorsConfig
+func (t VectorsConfig) AsMemoryVectorsConfig() (MemoryVectorsConfig, error) {
+	var body MemoryVectorsConfig
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromMemoryVectorsConfig overwrites any union data inside the VectorsConfig as the provided MemoryVectorsConfig
+func (t *VectorsConfig) FromMemoryVectorsConfig(v MemoryVectorsConfig) error {
+	v.Type = "memory"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeMemoryVectorsConfig performs a merge with any union data inside the VectorsConfig, using the provided MemoryVectorsConfig
+func (t *VectorsConfig) MergeMemoryVectorsConfig(v MemoryVectorsConfig) error {
+	v.Type = "memory"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t VectorsConfig) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"type"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t VectorsConfig) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "memory":
+		return t.AsMemoryVectorsConfig()
+	case "qdrant":
+		return t.AsQdrantVectorsConfig()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t VectorsConfig) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *VectorsConfig) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // AsAgent returns the union data inside the YieldCreateCommand_Generator as a Agent
 func (t YieldCreateCommand_Generator) AsAgent() (Agent, error) {
 	var body Agent
@@ -13691,6 +14018,9 @@ type ClientInterface interface {
 	// GetResourceRepresentation request
 	GetResourceRepresentation(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetResourceAnchoredText request
+	GetResourceAnchoredText(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetResourceJsonLd request
 	GetResourceJsonLd(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
@@ -13889,6 +14219,18 @@ func (c *Client) UploadResourceWithBody(ctx context.Context, contentType string,
 
 func (c *Client) GetResourceRepresentation(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetResourceRepresentationRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetResourceAnchoredText(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetResourceAnchoredTextRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -14330,6 +14672,40 @@ func NewGetResourceRepresentationRequest(server string, id ResourceId) (*http.Re
 	return req, nil
 }
 
+// NewGetResourceAnchoredTextRequest generates requests for GetResourceAnchoredText
+func NewGetResourceAnchoredTextRequest(server string, id ResourceId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/resources/%s/anchored-text", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetResourceJsonLdRequest generates requests for GetResourceJsonLd
 func NewGetResourceJsonLdRequest(server string, id ResourceId) (*http.Request, error) {
 	var err error
@@ -14453,6 +14829,9 @@ type ClientWithResponsesInterface interface {
 
 	// GetResourceRepresentationWithResponse request
 	GetResourceRepresentationWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetResourceRepresentationResponse, error)
+
+	// GetResourceAnchoredTextWithResponse request
+	GetResourceAnchoredTextWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetResourceAnchoredTextResponse, error)
 
 	// GetResourceJsonLdWithResponse request
 	GetResourceJsonLdWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetResourceJsonLdResponse, error)
@@ -14786,6 +15165,32 @@ func (r GetResourceRepresentationResponse) StatusCode() int {
 	return 0
 }
 
+type GetResourceAnchoredTextResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AnchoredTextAnswer
+	JSON401      *Unauthorized
+	JSON404      *ErrorResponse
+	JSON500      *InternalError
+	JSON503      *ServiceUnavailable
+}
+
+// Status returns HTTPResponse.Status
+func (r GetResourceAnchoredTextResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetResourceAnchoredTextResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetResourceJsonLdResponse struct {
 	Body                 []byte
 	HTTPResponse         *http.Response
@@ -14959,6 +15364,15 @@ func (c *ClientWithResponses) GetResourceRepresentationWithResponse(ctx context.
 		return nil, err
 	}
 	return ParseGetResourceRepresentationResponse(rsp)
+}
+
+// GetResourceAnchoredTextWithResponse request returning *GetResourceAnchoredTextResponse
+func (c *ClientWithResponses) GetResourceAnchoredTextWithResponse(ctx context.Context, id ResourceId, reqEditors ...RequestEditorFn) (*GetResourceAnchoredTextResponse, error) {
+	rsp, err := c.GetResourceAnchoredText(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetResourceAnchoredTextResponse(rsp)
 }
 
 // GetResourceJsonLdWithResponse request returning *GetResourceJsonLdResponse
@@ -15545,6 +15959,60 @@ func ParseGetResourceRepresentationResponse(rsp *http.Response) (*GetResourceRep
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ServiceUnavailable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetResourceAnchoredTextResponse parses an HTTP response from a GetResourceAnchoredTextWithResponse call
+func ParseGetResourceAnchoredTextResponse(rsp *http.Response) (*GetResourceAnchoredTextResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetResourceAnchoredTextResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AnchoredTextAnswer
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Unauthorized
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

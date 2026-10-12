@@ -1,12 +1,12 @@
 /**
  * A Worker service's world: the service as a process, and everything it meets.
  * That is the trusted issuer, which admits its service account; a real
- * gateway, with the harness's stand-in Archivist behind it for bytes and
- * uploads; a stand-in Ollama and a stand-in Anthropic, its providers; and the
- * suite itself on the bus, playing the three parties a worker asks things of. As the dispatcher it
+ * gateway, with the harness's stand-in Archivist behind it for bytes, for
+ * uploads and for the text the Smelter read out of a PDF; a stand-in Ollama
+ * and a stand-in Anthropic, its providers; and the suite itself on the bus,
+ * playing the two parties a worker asks things of there. As the dispatcher it
  * answers `job:claim` from the jobs a case queued. As the record it answers
  * `browse:resource-requested`, `mark:commit` and `browse:annotation-requested`.
- * As the Smelter it answers `browse:anchored-text-requested`.
  *
  * The worker is pointed at a recording proxy in front of the gateway, so
  * everything it sends is read as a transcript: each sign-in, each stream it
@@ -217,10 +217,6 @@ export class WorkerServiceWorld {
   readonly commits: Commit[] = [];
   /** What the record holds, per resource: an annotation is recorded once, by its id. */
   readonly recorded = new Map<string, Annotation[]>();
-  /** What the Smelter answers `browse:anchored-text-requested` with, per resource: an `AnchoredTextAnswer`. One it has nothing for, it does not know. */
-  readonly anchoredText = new Map<string, Record<string, unknown>>();
-  /** Every `browse:anchored-text-requested` the Smelter received. */
-  readonly anchoredTextReads: string[] = [];
   /** What the suite did wrong, as a party a worker meets: it must hand a worker nothing the spec does not allow. */
   readonly violations: string[] = [];
   /**
@@ -261,7 +257,7 @@ export class WorkerServiceWorld {
     const anthropic = await startAnthropic(`sk-ant-conformance-${randomBytes(24).toString('hex')}`, claudes, ANTHROPIC_MODEL);
     const made = new WorkerServiceWorld(implementation, command, world, ollama, anthropic, { SEMIONT_OIDC_CLIENT_ID: WORKER_CLIENT, SEMIONT_OIDC_CLIENT_SECRET: secret });
     made.peer = await world.responder(
-      ['job:claim', 'browse:resource-requested', 'mark:commit', 'browse:annotation-requested', 'browse:anchored-text-requested'],
+      ['job:claim', 'browse:resource-requested', 'mark:commit', 'browse:annotation-requested'],
       (frame) => made.answer(frame),
     );
     return made;
@@ -370,6 +366,18 @@ export class WorkerServiceWorld {
     this.descriptors.set(id, { '@context': 'https://schema.org', '@id': id as ResourceDescriptor['@id'], name, representations: [{ mediaType, storageUri: `file://worker-service/${id}`, rel: 'original' }] });
   }
 
+  /**
+   * The resources whose anchored text the gateway asked the Archivist for, one
+   * for each read, in order. What a read is answered is a case's to script,
+   * in the stand-in's `anchoredTexts`.
+   */
+  anchoredTextReads(): string[] {
+    return this.world.archivist.calls.flatMap((call) => {
+      const resource = call.method === 'GET' ? /^\/resources\/([^/]+)\/anchored-text$/.exec(call.path)?.[1] : undefined;
+      return resource === undefined ? [] : [decodeURIComponent(resource)];
+    });
+  }
+
   /** A job as the dispatcher hands it to whoever claims it, queued for the next claim that takes it. */
   queued(jobId: string, type: JobType, params: Record<string, unknown> & { resourceId: string }, metadata: Partial<RunningJob['metadata']> = {}): RunningJob {
     // The ids are the case's own strings: the spec's id types are branded, and a case names its ids plainly.
@@ -456,13 +464,6 @@ export class WorkerServiceWorld {
         if (!annotation) return { channel: 'browse:annotation-failed', payload: { code: 'not-found', message: `Annotation not found: ${String(payload['annotationId'])}` } };
         return { channel: 'browse:annotation-result', payload: { response: { annotation, resource: null, resolvedResource: null } } };
       }
-      case 'browse:anchored-text-requested': {
-        this.anchoredTextReads.push(resourceId);
-        const result = { response: this.anchoredText.get(resourceId) ?? { kind: 'unknown' } };
-        const validate = spec().component('BrowseAnchoredTextResult');
-        if (!validate(result)) this.violations.push(`the case has the Smelter answer what no Smelter does (${errorsOf(validate)})`);
-        return { channel: 'browse:anchored-text-result', payload: result };
-      }
       default:
         this.violations.push(`the suite was sent ${frame.channel}, which it does not answer`);
         return undefined;
@@ -490,8 +491,8 @@ export class WorkerServiceWorld {
    * Stop every worker the case started and forget what the case scripted.
    * Returns what went wrong that no case may let pass: a request of the
    * gateway that it refused, a request of a provider no case scripted, a
-   * frame or an Archivist call outside the spec, and anything the suite itself
-   * handed a worker outside the spec.
+   * frame outside the spec, an Archivist call or answer outside its own, and
+   * anything the suite itself handed a worker outside the spec.
    */
   async settle(allowRefusedRequests = false): Promise<string[]> {
     const violations: string[] = [];
@@ -509,11 +510,10 @@ export class WorkerServiceWorld {
     this.descriptorReads.length = 0;
     this.commits.length = 0;
     this.recorded.clear();
-    this.anchoredText.clear();
-    this.anchoredTextReads.length = 0;
     this.hooks = {};
     this.world.archivist.uploads.length = 0;
     this.world.archivist.calls.length = 0;
+    this.world.archivist.anchoredTexts.clear();
     this.world.archivist.mode.refuseUploads = undefined;
     return violations;
   }

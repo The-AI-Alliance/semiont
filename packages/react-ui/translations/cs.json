@@ -37,7 +37,8 @@
     "pagination": "Stránkování",
     "previous": "Předchozí",
     "viewerLoading": "Načítání prohlížeče PDF...",
-    "preparingTextLayer": "Připravuje se textová vrstva — anotace se zapne, až bude hotová"
+    "preparingTextLayer": "Připravuje se textová vrstva — anotace se zapne, až bude hotová",
+    "textLayerUnreadable": "Text tohoto dokumentu nebylo možné přečíst, proto jej nelze anotovat"
   },
   "Toolbar": {
     "annotations": "Anotace",

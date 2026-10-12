@@ -69,8 +69,6 @@ __all__ = [
     "BrowseAgentsRequest",
     "BrowseAgentsResult",
     "BrowseAgentsResultResponse",
-    "BrowseAnchoredTextRequest",
-    "BrowseAnchoredTextResult",
     "BrowseAnnotationHistoryRequest",
     "BrowseAnnotationHistoryResult",
     "BrowseAnnotationRequest",
@@ -141,6 +139,7 @@ __all__ = [
     "DispatcherConfigTiming",
     "DispatcherHealth",
     "DurabilityEvidence",
+    "EmbeddingConfig",
     "EnrichedResourceEvent",
     "EntityTagChangedPayload",
     "EntityTypeAddedPayload",
@@ -317,9 +316,11 @@ __all__ = [
     "MediaTokenRequest",
     "MediaTokenResponse",
     "MemoryGraphConfig",
+    "MemoryVectorsConfig",
     "Motivation",
     "Neo4jGraphConfig",
     "NeptuneGraphConfig",
+    "OllamaEmbeddingConfig",
     "PdfTextItem",
     "PeopleProjection",
     "PeopleProjectionPeopleValue",
@@ -327,6 +328,7 @@ __all__ = [
     "PersonProfileCommand",
     "PersonProfiledPayload",
     "ProtectedResourceMetadata",
+    "QdrantVectorsConfig",
     "ReplyEventId",
     "Representation",
     "RepresentationAddedPayload",
@@ -366,6 +368,10 @@ __all__ = [
     "SmeltSettled",
     "SmeltSettledOutcome",
     "SmeltSettledReason",
+    "SmelterConfig",
+    "SmelterConfigArchivist",
+    "SmelterConfigChunking",
+    "SmelterConfigIdentity",
     "SpecificResource",
     "StatusResponse",
     "StatusResponseFeatures",
@@ -385,6 +391,8 @@ __all__ = [
     "UpdateAnnotationBodyRequest",
     "UpdateAnnotationBodyRequestOperationsItem",
     "UserResponse",
+    "VectorsConfig",
+    "VoyageEmbeddingConfig",
     "WeaveApplied",
     "WeaveRebuildCommand",
     "WeaverConfig",
@@ -730,14 +738,6 @@ class PdfTextItem(WireModel, frozen=True):
     y: float
     width: float
     height: float
-
-
-class BrowseAnchoredTextRequest(WireModel, frozen=True):
-    """
-    Request a resource's derived coordinate map — the text recovered from its bytes plus the geometry indexing it. Read-only: the Smelter is the sole producer and writes the anchored-text store directly, never over this channel.
-    """
-
-    resource_id: Annotated[ResourceId, Field(alias="resourceId")]
 
 
 class BrowseResourceRequest(WireModel, frozen=True):
@@ -2658,6 +2658,74 @@ class MemoryGraphConfig(WireModel, frozen=True, extra="forbid"):
     type: Literal["memory"]
 
 
+class OllamaEmbeddingConfig(WireModel, frozen=True, extra="forbid"):
+    """
+    An embedding model served by an Ollama.
+    """
+
+    type: Literal["ollama"]
+    model: Annotated[
+        str,
+        Field(
+            description="The model asked for, by the name the Ollama serves it under.",
+            min_length=1,
+        ),
+    ]
+    base_url: Annotated[
+        str,
+        Field(
+            alias="baseUrl",
+            description="The address the Ollama's API is reached at (`http://host:11434`).",
+            min_length=1,
+        ),
+    ]
+
+
+class VoyageEmbeddingConfig(WireModel, frozen=True, extra="forbid"):
+    """
+    An embedding model served by Voyage AI. No service has been run against Voyage itself.
+    """
+
+    type: Literal["voyage"]
+    model: Annotated[
+        str,
+        Field(description="The model asked for, by Voyage's name for it.", min_length=1),
+    ]
+    endpoint: Annotated[
+        str,
+        Field(
+            description="The whole address of Voyage's embeddings call (`https://api.voyageai.com/v1/embeddings`).",
+            min_length=1,
+        ),
+    ]
+    api_key_env: Annotated[
+        str,
+        Field(
+            alias="apiKeyEnv",
+            description="The environment variable holding the Voyage API key. The key is never a value here.",
+            min_length=1,
+        ),
+    ]
+
+
+class QdrantVectorsConfig(WireModel, frozen=True, extra="forbid"):
+    """
+    A vector index kept in a Qdrant server, asked over its REST API.
+    """
+
+    type: Literal["qdrant"]
+    host: Annotated[str, Field(description="The server's host.", min_length=1)]
+    port: Annotated[int, Field(description="The port its REST API listens on.", ge=1, le=65535)]
+
+
+class MemoryVectorsConfig(WireModel, frozen=True, extra="forbid"):
+    """
+    A vector index held in the memory of the one process that is given it: for a test. It cannot be shared between processes, so a service that writes the index for another to search, or searches what another wrote, refuses it.
+    """
+
+    type: Literal["memory"]
+
+
 class DispatcherHealth(WireModel, frozen=True, extra="forbid"):
     """
     The dispatcher's liveness answer. It answers only once its queue has connected and its bus pumps are attached, so a 200 means it can take work.
@@ -2769,7 +2837,7 @@ type BrowseDirectoryRequestSort = Literal["name", "mtime", "annotationCount"]
 type AnchoredTextAbsentKind = Annotated[
     Literal["not-yet", "no-map", "unknown"],
     Field(
-        description="Discriminant, sharing the `kind` field with the ExtractedText/ExtractionDeclined members so the whole answer is one flat union.\n\n`not-yet` — the Smelter has not settled this content generation: the settle barrier expired, the progress fold was disposed, or it settled indexed and the artifact is missing (a loss the Smelter's reconcile pass re-derives). RETRY.\n\n`no-map` — the Smelter settled this resource as skipped: its media type derives no geometry, so a map will never exist. TERMINAL.\n\n`unknown` — no content identity to look up: the resource is not in the view store, or its primary representation carries no checksum. TERMINAL."
+        description="Discriminant, sharing the `kind` field with the ExtractedText/ExtractionDeclined members so the whole answer is one flat union.\n\n`not-yet` — the resource's media type has text that is derived by reading its content, and the store holds no entry for this content: the Smelter has not read it yet, or the entry was lost (a loss the Smelter's reconcile pass re-derives). RETRY.\n\n`no-map` — the resource's media type has no derived text, so no entry exists and none will until the type is given a reader. Decided by the media type alone, and answered at once. TERMINAL.\n\n`unknown` — no content identity to look up: the resource is not in the view store, or its primary representation carries no checksum. TERMINAL."
     ),
 ]
 
@@ -3374,6 +3442,38 @@ class WeaverConfigIdentity(WireModel, frozen=True, extra="forbid"):
             min_length=1,
         ),
     ]
+
+
+class SmelterConfigIdentity(WireModel, frozen=True, extra="forbid"):
+    """
+    The issuer the Smelter's service account signs in at.
+    """
+
+    issuer: Annotated[
+        str,
+        Field(
+            description="The issuer URL, exactly as tokens carry it in `iss`.",
+            min_length=1,
+        ),
+    ]
+
+
+class SmelterConfigArchivist(WireModel, frozen=True, extra="forbid"):
+    """
+    Where the Archivist listens. The Smelter reads a resource's bytes from it, as its service account.
+    """
+
+    host: Annotated[str, Field(min_length=1)]
+    port: Annotated[int, Field(ge=1, le=65535)]
+
+
+class SmelterConfigChunking(WireModel, frozen=True, extra="forbid"):
+    """
+    The two numbers a text is cut by before it is embedded, both in tokens, a token being taken as four code points.
+    """
+
+    chunk_size: Annotated[int, Field(alias="chunkSize", description="The size of a chunk.", ge=1)]
+    overlap: Annotated[int, Field(description="How much of a chunk the next one repeats.", ge=0)]
 
 
 class ArchivistConfigIdentity(WireModel, frozen=True, extra="forbid"):
@@ -4791,6 +4891,24 @@ type GraphConfig = Annotated[
 ]
 
 
+type EmbeddingConfig = Annotated[
+    OllamaEmbeddingConfig | VoyageEmbeddingConfig,
+    Field(
+        description="The embedding provider a service asks for vectors, and what that kind of provider needs to be asked: one of the providers `semiont-vectors` has, told apart by `type`. Two services that share an index name the same provider and the same model: a vector is compared only with vectors of the model that made it. A secret is never a value here: a provider's key is named by the environment variable that holds it.",
+        discriminator="type",
+    ),
+]
+
+
+type VectorsConfig = Annotated[
+    QdrantVectorsConfig | MemoryVectorsConfig,
+    Field(
+        description="The vector index a service writes or searches, and what that kind of index needs to be reached: one of the kinds `semiont-vectors` has a store for, told apart by `type`.",
+        discriminator="type",
+    ),
+]
+
+
 class PeopleProjection(WireModel, frozen=True, extra="forbid"):
     """
     What the people of a knowledge base are called: the file `projections/__system__/people.json` under the state directory, the sum of the `person:profiled` events. The Archivist writes it; the Archivist and the Librarian read it to name the people a reply mentions. Written as JSON indented by two spaces.
@@ -5488,6 +5606,40 @@ class WeaverConfig(WireModel, frozen=True, extra="forbid"):
     log_format: Annotated[LogFormat, Field(alias="logFormat")]
 
 
+class SmelterConfig(WireModel, frozen=True, extra="forbid"):
+    """
+    Everything a Smelter reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the Smelter. Whoever starts a Smelter writes it, from the environment the knowledge base's config selects, and the Smelter reads it from the path its `--config` flag names. This schema is the contract, and a Smelter needs no launcher. Started without `--config`, or with a path that names no file, the Smelter refuses to start and says which. No secret is a value here: an embedding provider's key is named by the environment variable that holds it, and the Smelter's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` in its environment. A document that does not validate is refused at boot, naming each failing field.
+    """
+
+    gateway_url: Annotated[
+        str,
+        Field(
+            alias="gatewayUrl",
+            description="The URL the Smelter reaches the gateway at: its route to the bus.",
+            min_length=1,
+        ),
+    ]
+    identity: SmelterConfigIdentity
+    archivist: SmelterConfigArchivist
+    embedding: EmbeddingConfig
+    vectors: VectorsConfig
+    chunking: SmelterConfigChunking
+    anchored_text_dir: Annotated[
+        str,
+        Field(
+            alias="anchoredTextDir",
+            description="The anchored-text store the Smelter writes and the Archivist reads.",
+            min_length=1,
+        ),
+    ]
+    port: Annotated[
+        int,
+        Field(description="The port the Smelter answers `/health` on.", ge=1, le=65535),
+    ]
+    log_level: Annotated[LogLevel, Field(alias="logLevel")]
+    log_format: Annotated[LogFormat, Field(alias="logFormat")]
+
+
 class AnchoredTextExtractedEntry(WireModel, frozen=True, extra="forbid"):
     """
     The text extracted from the bytes, where each word is on the page, and how it was extracted.
@@ -5600,14 +5752,6 @@ class AnnotationAddedPayload(WireModel, frozen=True):
             description="SHA-256 of resource content at annotation time",
         ),
     ] = None
-
-
-class BrowseAnchoredTextResult(WireModel, frozen=True):
-    """
-    A resource's coordinate map, a stored decline, or a named reason there is none. Never null: a bare null would cover four different facts — barrier expired, settled-skipped, no content identity, fold disposed — two of which a caller should retry and two of which it should not.
-    """
-
-    response: AnchoredTextAnswer
 
 
 class BrowseResourcesResult(WireModel, frozen=True):

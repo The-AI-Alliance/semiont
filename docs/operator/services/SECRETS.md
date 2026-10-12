@@ -26,6 +26,11 @@ There is one service account for each stack service: the gateway, archivist, dis
 librarian, smelter, weaver and worker. A daemon's password exists only when the launcher runs
 that daemon.
 
+The broker's own `NATS_USER` and `NATS_PASSWORD` hold the pair in quotes, as strings of the NATS
+configuration syntax: `nats-server` reads a variable's value as configuration, and reads a bare
+value that begins with digits as a number. The dispatcher and the gateway are handed the bare
+values.
+
 **Where they are kept**: in the knowledge base's secrets store. Each knowledge base has one,
 and `semiont settings secret-store` names it:
 

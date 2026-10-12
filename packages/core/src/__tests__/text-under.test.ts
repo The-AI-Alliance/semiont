@@ -15,8 +15,7 @@
  * drag rectangle straight in.
  *
  * locate(), the inverse direction, is pinned the same way in `locate.test.ts`
- * beside this file, and additionally exercised against real extracted PDFs in
- * @semiont/content, which is where a fixture can actually be produced.
+ * beside this file.
  */
 import { describe, it, expect } from 'vitest';
 import { textUnder, type AnchoredText } from '../pdf-anchoring';

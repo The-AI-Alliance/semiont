@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "description": "A vector index held in the memory of the one process that is given it: for a test. It cannot be shared between processes, so a service that writes the index for another to search, or searches what another wrote, refuses it.",
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": [
+        "memory"
+      ]
+    }
+  },
+  "required": [
+    "type"
+  ],
+  "additionalProperties": false
+}

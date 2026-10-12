@@ -90,7 +90,7 @@ All paths are resolved through `SemiontProject`:
 ```typescript
 import { SemiontProject } from '@semiont/core/node';
 
-const project = new SemiontProject(projectRoot, { anchoredTextDir: process.env.SEMIONT_ANCHORED_TEXT_DIR! });
+const project = new SemiontProject(projectRoot, { anchoredTextDir: '/anchored-text' });
 
 // The knowledge base's working tree, and the event log in it
 project.root            // the KB root

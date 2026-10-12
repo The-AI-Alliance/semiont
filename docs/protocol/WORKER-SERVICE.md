@@ -101,10 +101,9 @@ agents of one service work at once.
 - **G2.** Each agent opens one stream of its own. It names what a worker's
   stream names ([WORKER-CONTRACT S1](./WORKER-CONTRACT.md#the-stream)): the
   reply channels of `job:claim`, of `mark:commit` and
-  `browse:annotation-requested`, and of `browse:resource-requested` and
-  `browse:anchored-text-requested`; and the broadcasts `job:queued` and
-  `job:cancel-requested`. The first agent's also names `job:limits-requested`
-  ([Limits](#limits)). No stream names a scope.
+  `browse:annotation-requested`, and of `browse:resource-requested`; and the
+  broadcasts `job:queued` and `job:cancel-requested`. The first agent's also
+  names `job:limits-requested` ([Limits](#limits)). No stream names a scope.
   *Held by `worker-service/started`.*
 - **G3.** Each agent claims with its own entry's `accepts`, as given, and with
   no other filter.
@@ -187,9 +186,10 @@ each of its models can take.
   `decode`, the text is the resource's bytes, read from the gateway (`GET
   /resources/{id}`, under the agent's token) and decoded as
   [W3C-SELECTORS.md](W3C-SELECTORS.md#the-text-of-a-resource) says. For
-  `pdf-text-layer`, the text is the Smelter's, asked for on the bus
-  (`browse:anchored-text-requested` with the `resourceId`), and the service
-  reads no bytes. For `none`, the job is not done ([N3](#declines)).
+  `pdf-text-layer`, the text is the Smelter's: the resource's anchored text,
+  read from the gateway (`GET /resources/{id}/anchored-text`, under the
+  agent's token). The service reads no bytes, and never works the text out
+  itself. For `none`, the job is not done ([N3](#declines)).
   *Held by `worker-service/highlighting`, `worker-service/pdf`, `worker-service/declines`.*
 - **J3.** A `yield` job reads nothing. Everything it knows of its source is
   the context in the job.
@@ -838,11 +838,12 @@ focused on a resource or on an annotation.
   [`specs/src/service-telemetry/telemetry.json`](../../specs/src/service-telemetry/telemetry.json)
   lists for the worker, and the rows of
   [`specs/src/sdk-telemetry/telemetry.json`](../../specs/src/sdk-telemetry/telemetry.json)
-  the first names for it under `sdk`. Every span and metric it exports is one
-  of those rows, of the row's kind, carrying only the row's attributes, and,
-  where the row lists values, only those values; and every one of those rows
-  that the service's work can make arrives, with every attribute the row does
-  not mark as conditional.
+  the first names for it under `sdk`, the read of a resource's anchored text
+  (`content.get_anchored_text`) among them. Every span and metric it exports
+  is one of those rows, of the row's kind, carrying only the row's
+  attributes, and, where the row lists values, only those values; and every
+  one of those rows that the service's work can make arrives, with every
+  attribute the row does not mark as conditional.
   *Held by `worker-service/telemetry`.*
 - **T2.** A job is a `job:{jobType}` span, from the claim that handed it over
   to its settle, and is counted (`semiont.job.outcome`) and timed

@@ -13,11 +13,7 @@
 export type EmbeddingProviderName = 'ollama' | 'voyage';
 
 /**
- * Deadline on ONE embedding request — one round trip, never a whole batch.
- *
- * Named for the round trip so it cannot drift into bounding a batch: applied
- * to a resource's entire chunk set sent as a single request, this number
- * would silently bound a whole book.
+ * Deadline on ONE embedding request: the round trip that embeds one text.
  *
  * Without it a retry budget is a count with no wall clock: delays are bounded by
  * the policy, but a `fetch` with no signal can sit in TCP retransmit for minutes
@@ -39,31 +35,16 @@ export class EmbeddingProviderError extends Error {
    *  happens to name the model while Voyage's does not. */
   readonly model: string;
   readonly body: string;
-  /** Which slice of a batch failed, when the failure came from a sliced batch.
-   *  An object rather than two more positional numbers: adjacent same-typed
-   *  parameters are how a caller silently passes the wrong thing. */
-  readonly slice?: { index: number; start: number; end: number };
 
-  constructor(
-    provider: EmbeddingProviderName,
-    status: number,
-    model: string,
-    body: string,
-    slice?: { index: number; start: number; end: number },
-  ) {
+  constructor(provider: EmbeddingProviderName, status: number, model: string, body: string) {
     // The status is in the message as well as on the fields, so a log line
     // reads on its own; callers branch on the fields.
-    super(
-      slice
-        ? `${provider} embed error ${status} (slice ${slice.index}, texts ${slice.start}–${slice.end}): ${body}`
-        : `${provider} embed error ${status}: ${body}`,
-    );
+    super(`${provider} embed error ${status}: ${body}`);
     this.name = 'EmbeddingProviderError';
     this.provider = provider;
     this.status = status;
     this.model = model;
     this.body = body;
-    if (slice) this.slice = slice;
   }
 }
 

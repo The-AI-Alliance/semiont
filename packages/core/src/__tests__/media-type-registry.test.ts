@@ -16,7 +16,15 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { MEDIA_TYPES, cloneFormat, isSupportedMediaType, mediaTypeForExtension } from '../media-types';
+import {
+  MEDIA_TYPES,
+  cloneFormat,
+  derivesTextOf,
+  isSupportedMediaType,
+  mediaTypeForExtension,
+  textSourceOf,
+  yieldsGeometryOf,
+} from '../media-types';
 import { deriveStorageUri, storageFileName } from '../storage-uri';
 
 const at = (path: string): string => fileURLToPath(new URL(`../../../../${path}`, import.meta.url));
@@ -36,6 +44,7 @@ interface Row {
 
 interface Registry {
   render: string[];
+  textSource: string[];
   extensionAliases: Record<string, string>;
   mediaTypes: Row[];
 }
@@ -187,6 +196,7 @@ describe('the media-type registry generator', () => {
 interface Cases {
   cloneFormat: Array<{ why: string; source: string | null; format: string }>;
   storageFileName: Array<{ why: string; name: string; format: string; fileName: string }>;
+  textSource: Array<{ why: string; format: string; textSource: string; yieldsGeometry: boolean; derivesText: boolean }>;
 }
 
 describe('the rules read from the registry, as every SDK runs them', () => {
@@ -200,6 +210,22 @@ describe('the rules read from the registry, as every SDK runs them', () => {
     if (!isSupportedMediaType(format)) throw new Error(`the case's format ${format} has no row`);
     expect(storageFileName(name, format)).toBe(fileName);
     expect(deriveStorageUri(name, format)).toBe(`file://${fileName}`);
+  });
+
+  it('states, in every case of where a text comes from, the three answers and nothing more', () => {
+    expect(cases.textSource.length).toBeGreaterThan(0);
+    for (const stated of cases.textSource) {
+      expect(Object.keys(stated).sort(), stated.why).toEqual(['derivesText', 'format', 'textSource', 'why', 'yieldsGeometry']);
+    }
+    // Each of the registry's words for where a text comes from is some case's answer.
+    const registry = JSON.parse(readFileSync(TABLE, 'utf8')) as Registry;
+    expect(Array.from(new Set(cases.textSource.map((stated) => stated.textSource))).sort()).toEqual([...registry.textSource].sort());
+  });
+
+  it.each(cases.textSource)('the text of "$format": $why', ({ format, textSource, yieldsGeometry, derivesText }) => {
+    expect(textSourceOf(format)).toBe(textSource);
+    expect(yieldsGeometryOf(format)).toBe(yieldsGeometry);
+    expect(derivesTextOf(format)).toBe(derivesText);
   });
 
   it('reads an alias as the extension it is another spelling of', () => {

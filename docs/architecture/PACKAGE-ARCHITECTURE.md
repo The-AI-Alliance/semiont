@@ -1,6 +1,6 @@
 # Package Architecture
 
-Semiont is a monorepo with two workspaces, the npm packages and the Rust crates, and three Python projects beside them. No language's packages depend on another's. All are built against [`specs/`](../../specs/src/openapi.json), the protocol each implements from its side.
+Semiont is a monorepo with two workspaces, the npm packages and the Rust crates, and eight Python projects beside them. No language's packages depend on another's. All are built against [`specs/`](../../specs/src/openapi.json), the protocol each implements from its side.
 
 For the per-package descriptions and npm metadata, see **[../../packages/README.md](../../packages/README.md)** — alphabetized table with one-line descriptions of every published `@semiont/*` package.
 
@@ -14,7 +14,7 @@ graph BT
     browser["apps/browser<br/><i>Vite + React SPA</i>"]
 
     %% Layer 3: Application logic
-    meaning["@semiont/make-meaning<br/><i>The knowledge-system actors and<br/>three services' entry points</i>"]
+    meaning["@semiont/make-meaning<br/><i>The Gatherer, the Matcher and<br/>the Librarian's entry point</i>"]
     react["@semiont/react-ui<br/><i>React components & hooks</i>"]
     mcp["@semiont/mcp-server<br/><i>Model Context Protocol server</i>"]
 
@@ -25,7 +25,7 @@ graph BT
 
     %% Layer 1: Wire + primitives
     api["@semiont/http-transport<br/><i>HttpTransport, HttpContentTransport</i>"]
-    content["@semiont/content<br/><i>Working-tree storage, text extraction</i>"]
+    content["@semiont/content<br/><i>A resource's bytes, read from the Archivist</i>"]
     vectors["@semiont/vectors<br/><i>Vector store & embeddings</i>"]
     ontology["@semiont/ontology<br/><i>The entity types a knowledge base starts with</i>"]
     inference["@semiont/inference<br/><i>LLM abstraction</i>"]
@@ -144,16 +144,20 @@ Four crates are published to crates.io: `semiont`, `semiont-http-transport`, `se
 
 `packages/inference-python` is `semiont-inference`: the model providers a Python service asks, behind one interface. It depends on `semiont`, and each provider's own library is an extra of it, required by nothing.
 
+`packages/graph-python` is `semiont-graph`: the graph databases a Python service writes and reads, behind one interface. It depends on `semiont`, and each database's own client is an extra of it, required by nothing.
+
+`packages/vectors-python` is `semiont-vectors`: the vector index a Python service writes and searches, and the embedding providers that make its vectors, each behind one interface. It depends on `semiont`, and asks a Qdrant and a provider over HTTP, so it takes no database's client and no provider's library.
+
 `packages/service-python` is `semiont-service`: what every Python service does to be one, which is to read its configuration document, answer for its health, write its log and export its telemetry. It depends on `semiont`, and on OpenTelemetry's SDK and OTLP exporter, which only a process that exports takes. It is the services' own code, built into their images and published to no index.
 
-`apps/worker` is `semiont-worker`, the Worker service. It depends on the three above, and nothing depends on it: it is a service's code, run from its image, and published to no index.
+`apps/worker`, `apps/weaver` and `apps/smelter` are `semiont-worker`, `semiont-weaver` and `semiont-smelter`: the Worker, the Weaver and the Smelter. Each depends on `semiont`, on `semiont-service` and on one more of the packages above: the Worker on `semiont-inference`, the Weaver on `semiont-graph`, the Smelter on `semiont-vectors`. The Smelter also takes `pypdfium2`, whose wheel carries PDFium, which reads a PDF. Nothing depends on a service: it is a service's code, run from its image, and published to no index.
 
 ## What each service image runs
 
 | Image | Runs | From |
 |---|---|---|
 | `semiont-librarian` | `librarian-main` | `@semiont/make-meaning` |
-| `semiont-smelter` | `smelter-main` | `@semiont/make-meaning` |
+| `semiont-smelter` | `python -P -m semiont_smelter` | `apps/smelter` |
 | `semiont-weaver` | `python -P -m semiont_weaver` | `apps/weaver` |
 | `semiont-worker` | `python -P -m semiont_worker` | `apps/worker` |
 | `semiont-browser` | the built SPA | `apps/browser` |
@@ -176,5 +180,5 @@ Four crates are published to crates.io: `semiont`, `semiont-http-transport`, `se
 ## See also
 
 - **[../../packages/README.md](../../packages/README.md)** — alphabetized package catalog with one-line descriptions and npm links.
-- **[KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md)** — what runs *inside* `@semiont/make-meaning` (the seven KB actors).
+- **[KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md)** — the seven KB actors, and the service each runs in.
 - **[CONTAINER-TOPOLOGY.md](../operator/CONTAINER-TOPOLOGY.md)** — how the service images fit together in a running stack.

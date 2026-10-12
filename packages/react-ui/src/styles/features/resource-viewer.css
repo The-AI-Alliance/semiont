@@ -429,6 +429,12 @@
   cursor: crosshair;
 }
 
+/* No tool, or no text held to annotate with: a drag draws nothing, and the
+   cursor does not say it would. */
+.semiont-svg-drawing-canvas[data-drawing-mode="none"] {
+  cursor: default;
+}
+
 .semiont-svg-drawing-canvas__image {
   display: block;
   max-width: 100%;
@@ -462,6 +468,40 @@
   left: 0;
   pointer-events: none;
   z-index: 10;
+}
+
+/* The line shown while a viewer may not annotate for want of the resource's
+   text: above the pages of a PDF, and above an image. */
+.semiont-anchored-text-notice {
+  margin: 0.25rem auto;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  border: 1px solid currentColor;
+  width: fit-content;
+  overflow: hidden;
+  font-size: 0.75rem;
+  color: var(--semiont-text-secondary);
+}
+
+/*
+ * A wait is usually over before its line could be read, so the waiting line
+ * is held back for a second: until then it is hidden and takes no room, and a
+ * resource whose answer comes quickly never shows it. The delay is the
+ * stylesheet's, so the viewer keeps no timer for it. The other line is an
+ * answer, and is shown at once.
+ */
+.semiont-anchored-text-notice[data-anchored-text="waiting"] {
+  animation: semiont-anchored-text-notice-held-back 0s linear 1s backwards;
+}
+
+@keyframes semiont-anchored-text-notice-held-back {
+  from {
+    visibility: hidden; /* stylelint-disable-line semiont/accessibility */
+    max-height: 0;
+    margin-block: 0;
+    padding-block: 0;
+    border-width: 0;
+  }
 }
 
 /* Card Grid Layouts */

@@ -8,6 +8,7 @@
  * `smelt:settled` for THIS resource refreshes the row in place.
  */
 import { resourceId } from '@semiont/core';
+import type { AnchoredTextAnswer } from '@semiont/core';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { screen, act, waitFor } from '@testing-library/react';
@@ -22,9 +23,11 @@ const props = {
   session: null as SemiontSession | null,
 };
 
-function mountWithAnswer(answer: Record<string, unknown>) {
+const EXTRACTED: AnchoredTextAnswer = { kind: 'extracted', method: 'pdf-text-layer', text: '', items: [] };
+
+function mountWithAnswer(answer: AnchoredTextAnswer) {
   const { SemiontWrapper, eventBus, client, session } = createTestSemiontWrapper();
-  const ask = vi.spyOn(client.browse, 'resourceAnchoredText').mockResolvedValue(answer as never);
+  const ask = vi.spyOn(client.browse, 'resourceAnchoredText').mockResolvedValue(answer);
   renderInEnglish(React.cloneElement(<ResourceInfoPanel {...props} />, { session }), { wrapper: SemiontWrapper });
   return { eventBus, ask };
 }
@@ -39,12 +42,12 @@ describe('ResourceInfoPanel — text layer status', () => {
   });
 
   it('extracted renders Ready', async () => {
-    mountWithAnswer({ kind: 'extracted', pages: [] });
+    mountWithAnswer(EXTRACTED);
     expect(await screen.findByText('Ready')).toBeInTheDocument();
   });
 
   it('declined renders None; no-map renders Not applicable', async () => {
-    mountWithAnswer({ kind: 'declined', reason: 'no-text-layer' });
+    mountWithAnswer({ kind: 'declined', declined: 'no-text-layer' });
     expect(await screen.findByText(/none/i)).toBeInTheDocument();
   });
 
@@ -57,7 +60,7 @@ describe('ResourceInfoPanel — text layer status', () => {
   it("this resource's smelt:settled refreshes the row in place", async () => {
     const { eventBus, ask } = mountWithAnswer({ kind: 'not-yet' });
     await screen.findByText(/preparing/i);
-    ask.mockResolvedValue({ kind: 'extracted', pages: [] } as never);
+    ask.mockResolvedValue(EXTRACTED);
 
     act(() => {
       eventBus.emit('smelt:settled', { resourceId: 'res-tl', contentChecksum: 'c', outcome: 'indexed' } as never);

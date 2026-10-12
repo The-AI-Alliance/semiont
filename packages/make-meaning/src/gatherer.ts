@@ -15,10 +15,8 @@
  * ## Per-resource serialization
  *
  * `groupBy(resourceId) + concatMap(...)` is the stream-consumer flavor of
- * per-resource serialization — the same invariant enforced by `Smelter`,
- * and (in a different shape) `ViewManager`. See
- * `packages/core/src/serialize-per-key.ts` for the shared primitive used
- * by RPC-style services.
+ * per-resource serialization. See `packages/core/src/serialize-per-key.ts`
+ * for the shared primitive used by RPC-style services.
  */
 
 import { Subscription, from } from 'rxjs';
@@ -35,7 +33,7 @@ import { LLMContext, type ResourceGatherReads } from './llm-context';
  * The Gatherer's capability slice — DERIVED as the intersection of the two
  * gather paths' reads, never restated. The Librarian builds it from the
  * shared stateDir (views), network clients (graph/vectors/content), bus-fed
- * progress folds, and the anchored-text bus read.
+ * progress folds, and the gateway's anchored-text read.
  */
 export type GathererStores = AnnotationGatherReads & ResourceGatherReads;
 

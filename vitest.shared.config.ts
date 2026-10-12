@@ -36,11 +36,9 @@ export default defineConfig({
         '**/demo/**',
         '**/index.ts', // Export files
         '**/types.ts', // Generated types
-        // Every sidecar's `*-main.ts` is process wiring — config, credential,
+        // A service's `*-main.ts` is process wiring — config, credential,
         // a health server, the pumps. No suite imports one; they are proven by the
-        // launcher's `--dry-run` goldens and by the live round trip. If anyone
-        // later wants them covered, the honest form is a boot-refusal test per
-        // main (see `sidecar-boot-refusal.test.ts`), not a coverage number.
+        // launcher's `--dry-run` goldens and by the live round trip.
         'src/*-main.ts',
       ],
       // No blanket `thresholds` here: one reads as a repo-wide floor and binds

@@ -179,7 +179,7 @@ hold it, which every reader runs.
   feature decodes UTF-8 alone. The TypeScript reader decodes what the
   platform's `TextDecoder` does: every encoding of the standard in a browser,
   and in a Node built with full ICU, as Node's own distributions are.
-  *Held by `packages/sdk-rust/src/namespaces/browse.rs` for the Rust SDK's reader of UTF-8 alone.*
+  *Held by `packages/sdk-rust/src/resources.rs` for the Rust SDK's reader of UTF-8 alone.*
 - **T7. The bytes of the seven legacy multi-byte encodings are read by each
   reader's own decoder, and those differ.** Big5, EUC-JP, EUC-KR, gb18030, GBK, ISO-2022-JP and
   Shift_JIS are encodings of the standard: their labels are labels (T2), and a
@@ -190,6 +190,16 @@ hold it, which every reader runs.
   fault. The Python reader refuses the labels of these encodings that Python
   has no codec under.
   *Held by no case.*
+- **T8. Only a media type whose bytes are its text is read.** The media type
+  is the content type without its parameters, in lower case. The
+  [media-type registry](../../specs/src/media-types/registry.json) says where
+  a type's text comes from: a type it lists is read where that is `decode`,
+  and a type it does not list is read where it is a `text/` type. Any other
+  is refused, as T5 says and by its media type, before its charset is read
+  (T1) and whatever its bytes are: a PDF, whose text is derived from its
+  bytes ([PDF selectors](#pdf-selectors)), and an image, which has none. No
+  reader makes a text of bytes that were never one.
+  *Held by `specs/src/text/decode-cases.json`.*
 
 ## PDF selectors
 

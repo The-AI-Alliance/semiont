@@ -10,15 +10,14 @@ does to a generation is `test_cancellation.py`'s.
 """
 
 import logging
-import re
-from typing import Final
+from typing import Annotated, Final
 
 import pytest
 from aio import run
-from pydantic import JsonValue
+from pydantic import BaseModel, Field, JsonValue
 from semiont.identifiers import ResourceId
 from semiont.types import GenerationJobParams
-from spec import ROOT
+from spec import SPEC
 from standing_in import AskedToGenerate, Handed, compiler_stood_in, generation_stood_in, report
 
 from semiont_worker.failure_class import DeterministicJobError, classify_failure
@@ -37,6 +36,13 @@ CONTEXT: Final[JsonValue] = {
     },
     "metadata": {},
 }
+
+
+class LargestPdf(BaseModel, frozen=True, extra="ignore", strict=True):
+    """The most bytes a Smelter reads of a PDF, as `specs/src/smelter/extraction-cases.json` states it: all the worker reads there."""
+
+    largest_pdf_bytes: Annotated[int, Field(alias="largestPdfBytes")]
+
 
 GENERATING: Final = report(5, {"code": "generating-resource"}, {})
 CREATING: Final = report(95, {"code": "creating-resource"}, {})
@@ -345,11 +351,10 @@ def test_an_artifact_at_the_most_a_resource_may_weigh_is_taken_and_one_byte_more
 
 
 def test_the_most_a_generated_artifact_may_weigh_is_the_most_the_smelter_reads() -> None:
-    # A larger artifact would be a resource the Smelter declines as too large. Nothing in `specs/` states the number: it is
-    # the TypeScript Smelter's own, and is held to its source for as long as that is where it is said.
-    source = (ROOT / "packages/content/src/pdf-extractor.ts").read_text(encoding="utf-8")
-    (megabytes,) = re.findall(r"^export const MAX_PDF_BYTES = (\d+) \* 1024 \* 1024;$", source, flags=re.MULTILINE)
-    assert int(megabytes) * 1024 * 1024 == MAX_OUTPUT_BYTES
+    # A larger artifact would be a resource the Smelter declines as too large. The most a Smelter reads is the number the
+    # table of what a PDF becomes states, which every Smelter is held to.
+    table = LargestPdf.model_validate_json((SPEC / "smelter/extraction-cases.json").read_bytes())
+    assert table.largest_pdf_bytes == MAX_OUTPUT_BYTES
 
 
 def test_an_artifact_over_the_budget_is_refused_before_anything_says_it_is_being_created(monkeypatch: pytest.MonkeyPatch) -> None:

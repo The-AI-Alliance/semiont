@@ -2,14 +2,16 @@
 //! receives and gives it back to a read, and records every call made of it.
 //! A read of a resource nobody stored fails as `not-found`, as a gateway's
 //! would, so a test that forgot to seed its content fails where it forgot
-//! rather than on bytes the double made up.
+//! rather than on bytes the double made up. A read of an anchored text
+//! nobody seeded fails the same way, though a gateway would answer
+//! `unknown`: an answer is a test's to give.
 
 use crate::errors::TransportError;
 use crate::locked;
 use crate::transport::{
     BoxFuture, Content, ContentStream, ContentTransport, PutBinaryRequest, Upload, UploadProgress,
 };
-use crate::types::{CreateResourceResponse, GetResourceResponse, ResourceId};
+use crate::types::{AnchoredTextAnswer, CreateResourceResponse, GetResourceResponse, ResourceId};
 use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
@@ -23,12 +25,14 @@ pub enum ContentCall {
     GetBinary(ResourceId),
     GetBinaryStream(ResourceId),
     GetResourceGraph(ResourceId),
+    GetAnchoredText(ResourceId),
 }
 
 #[derive(Default)]
 struct Inner {
     stored: Mutex<HashMap<ResourceId, Content>>,
     graphs: Mutex<HashMap<ResourceId, GetResourceResponse>>,
+    anchored_texts: Mutex<HashMap<ResourceId, AnchoredTextAnswer>>,
     calls: Mutex<Vec<ContentCall>>,
 }
 
@@ -59,6 +63,11 @@ impl InMemoryContent {
     /// Store `graph` as the description of `resource_id`.
     pub fn seed_graph(&self, resource_id: &ResourceId, graph: GetResourceResponse) {
         locked(&self.inner.graphs).insert(resource_id.clone(), graph);
+    }
+
+    /// Store `answer` as what a read of `resource_id`'s anchored text gives.
+    pub fn seed_anchored_text(&self, resource_id: &ResourceId, answer: AnchoredTextAnswer) {
+        locked(&self.inner.anchored_texts).insert(resource_id.clone(), answer);
     }
 
     /// Every call made, in order.
@@ -151,6 +160,19 @@ impl ContentTransport for InMemoryContent {
                 .get(resource_id)
                 .cloned()
                 .ok_or_else(|| not_found("description", resource_id))
+        })
+    }
+
+    fn get_anchored_text<'a>(
+        &'a self,
+        resource_id: &'a ResourceId,
+    ) -> BoxFuture<'a, Result<AnchoredTextAnswer, TransportError>> {
+        Box::pin(async move {
+            locked(&self.inner.calls).push(ContentCall::GetAnchoredText(resource_id.clone()));
+            locked(&self.inner.anchored_texts)
+                .get(resource_id)
+                .cloned()
+                .ok_or_else(|| not_found("anchored text", resource_id))
         })
     }
 }

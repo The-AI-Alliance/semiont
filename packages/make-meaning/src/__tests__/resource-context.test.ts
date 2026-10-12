@@ -4,7 +4,8 @@
 
 import { describe, test, expect, beforeEach, vi } from 'vitest';
 import { ResourceContext } from '../resource-context';
-import type { ResourceDescriptor, ResourceId } from '@semiont/core';
+import { anchoredTextOverContent } from '../anchored-text-ask';
+import type { IContentTransport, ResourceDescriptor, ResourceId } from '@semiont/core';
 import { resourceId } from '@semiont/core';
 
 // The slice this file exercises — DERIVED from the method's own parameter
@@ -133,6 +134,19 @@ describe('getResourceContent — text source dispatcher', () => {
     expect(ask).toHaveBeenCalledWith('res-dispatch');
     expect(getBinary).not.toHaveBeenCalled();
     expect(decodeRepresentation).not.toHaveBeenCalled();
+  });
+
+  test('over a content transport, the ask is its read of the anchored text', async () => {
+    primaryRep('application/pdf');
+    const getAnchoredText = vi.fn<IContentTransport['getAnchoredText']>()
+      .mockResolvedValue({ kind: 'extracted', method: 'pdf-text-layer', text: 'TEXT THE GATEWAY SERVED', items: [] });
+    const { kb, getBinary } = reads();
+
+    const result = await ResourceContext.getResourceContent(doc(), { ...kb, anchoredText: anchoredTextOverContent({ getAnchoredText }) });
+
+    expect(result).toBe('TEXT THE GATEWAY SERVED');
+    expect(getAnchoredText).toHaveBeenCalledWith('res-dispatch');
+    expect(getBinary).not.toHaveBeenCalled();
   });
 
   test('decode media decodes its bytes — the anchored ask is never consulted', async () => {

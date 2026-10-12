@@ -194,8 +194,9 @@ export interface BrowseNamespace {
   // One-shot reads (Promise — no caching, no live update)
   resourceContent(resourceId: ResourceId): Promise<string>;
   resourceGraph(resourceId: ResourceId): Promise<GetResourceResponse>;
-  /** The resource's coordinate map. Never null — absence is named, so a
-   *  caller can tell "not yet" from "never". */
+  /** The resource's coordinate map, read through the content transport.
+   *  Never null — absence is named, so a caller can tell "not yet" from
+   *  "never". */
   resourceAnchoredText(resourceId: ResourceId): Promise<AnchoredTextAnswer>;
   resourceRepresentation(resourceId: ResourceId): Promise<{ data: ArrayBuffer; contentType: string }>;
   resourceRepresentationStream(resourceId: ResourceId): Promise<{ stream: ReadableStream<Uint8Array>; contentType: string }>;

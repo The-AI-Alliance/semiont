@@ -10,11 +10,7 @@
 //              observables; a Frame state unit lands when the surface earns one.
 //   lib/     — substrate (`createDisposer`, search pipeline)
 //
-// Domain-specific worker adapters live with their domain, not here.
 // A worker's claiming is `job.claim` (`../claims`).
-// `@semiont/make-meaning` houses `smelterFanIn` (the
-// domain-event fan-in for the Smelter worker, co-located with the
-// Smelter actor and its `smelter-main` entry point).
 //
 // Page-shaped state (admin tables, page routing, web shell) lives in
 // `@semiont/react-ui` next to the components that render it.

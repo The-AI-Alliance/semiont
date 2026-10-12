@@ -1,12 +1,10 @@
 /**
  * A cold embedding-model cache is retryable, not fatal.
  *
- * On the first boot of a fresh KB, the three services that call
- * `createVectorStore` — archivist, librarian, smelter — race Ollama's
- * `nomic-embed-text` pull, and dying on its 404 costs them 3/4/5 restarts
- * (measured); the archivist's flapping is separately what strands
- * `semiont-worker` in `Created` forever. A process must not choose to die over
- * a condition that heals itself in under a minute.
+ * On the first boot of a fresh KB, a service that calls `createVectorStore`
+ * races Ollama's `nomic-embed-text` pull, and dying on its 404 costs it one
+ * restart after another until the pull lands. A process must not choose to die
+ * over a condition that heals itself in under a minute.
  *
  * Three adjacent decisions on this path are RIGHT and deliberate — each looks
  * like a defect and is not:

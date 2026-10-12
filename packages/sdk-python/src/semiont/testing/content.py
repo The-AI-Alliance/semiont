@@ -3,7 +3,9 @@
 It keeps what `put_binary` receives and gives it back to a read, and records
 every call made of it. A read of a resource nobody stored fails as
 `not-found`, as a gateway's would, so a test that forgot to seed its content
-fails where it forgot rather than on bytes the double made up.
+fails where it forgot rather than on bytes the double made up. A read of an
+anchored text nobody seeded fails the same way, though a gateway would answer
+`unknown`: an answer is a test's to give.
 """
 
 import asyncio
@@ -14,9 +16,9 @@ from typing import Final, final, override
 from semiont.errors import TransportError
 from semiont.identifiers import ResourceId
 from semiont.transport import Content, ContentStream, ContentTransport, PutBinaryRequest, Upload, UploadProgress
-from semiont.types import CreateResourceResponse, GetResourceResponse
+from semiont.types import AnchoredTextAnswer, CreateResourceResponse, GetResourceResponse
 
-__all__ = ["ContentCall", "GetBinary", "GetBinaryStream", "GetResourceGraph", "InMemoryContent", "PutBinary"]
+__all__ = ["ContentCall", "GetAnchoredText", "GetBinary", "GetBinaryStream", "GetResourceGraph", "InMemoryContent", "PutBinary"]
 
 
 @final
@@ -51,7 +53,15 @@ class GetResourceGraph:
     resource_id: ResourceId
 
 
-type ContentCall = PutBinary | GetBinary | GetBinaryStream | GetResourceGraph
+@final
+@dataclass(frozen=True, slots=True)
+class GetAnchoredText:
+    """A call of `get_anchored_text`."""
+
+    resource_id: ResourceId
+
+
+type ContentCall = PutBinary | GetBinary | GetBinaryStream | GetResourceGraph | GetAnchoredText
 """One call made of the content transport."""
 
 
@@ -70,6 +80,7 @@ class InMemoryContent(ContentTransport):
     def __init__(self) -> None:
         self._stored: Final[dict[ResourceId, Content]] = {}
         self._graphs: Final[dict[ResourceId, GetResourceResponse]] = {}
+        self._anchored_texts: Final[dict[ResourceId, AnchoredTextAnswer]] = {}
         self._calls: Final[list[ContentCall]] = []
 
     def seed(self, resource_id: ResourceId, content: Content) -> None:
@@ -79,6 +90,10 @@ class InMemoryContent(ContentTransport):
     def seed_graph(self, resource_id: ResourceId, graph: GetResourceResponse) -> None:
         """Store `graph` as the description of `resource_id`."""
         self._graphs[resource_id] = graph
+
+    def seed_anchored_text(self, resource_id: ResourceId, answer: AnchoredTextAnswer) -> None:
+        """Store `answer` as what a read of `resource_id`'s anchored text is answered."""
+        self._anchored_texts[resource_id] = answer
 
     @property
     def calls(self) -> Sequence[ContentCall]:
@@ -122,3 +137,11 @@ class InMemoryContent(ContentTransport):
         if graph is None:
             raise _not_found("description", resource_id)
         return graph
+
+    @override
+    async def get_anchored_text(self, resource_id: ResourceId) -> AnchoredTextAnswer:
+        self._calls.append(GetAnchoredText(resource_id))
+        answer = self._anchored_texts.get(resource_id)
+        if answer is None:
+            raise _not_found("anchored text", resource_id)
+        return answer

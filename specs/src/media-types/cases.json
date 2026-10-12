@@ -1,5 +1,5 @@
 {
-  "$comment": "The rules every SDK reads from registry.json, as cases each SDK runs. `cloneFormat`: the format a clone of a resource takes: its source's base media type when that is one a person can author, and text/plain otherwise, since a clone opens where a person writes. `storageFileName`: the name a resource's content is stored under: its title in lower case, every run of characters that are not a to z or 0 to 9 made one hyphen, none at either end, and then the format's extension. A `file://` storage URI is that name behind the scheme.",
+  "$comment": "The rules every SDK reads from registry.json, as cases each SDK runs. `cloneFormat`: the format a clone of a resource takes: its source's base media type when that is one a person can author, and text/plain otherwise, since a clone opens where a person writes. `storageFileName`: the name a resource's content is stored under: its title in lower case, every run of characters that are not a to z or 0 to 9 made one hyphen, none at either end, and then the format's extension. A `file://` storage URI is that name behind the scheme. `textSource`: where the text of a resource of a format comes from, and the two things that follow from it. A format's parameters and its letter case are not part of its type. A type the registry lists answers as its row says: `decode`, its bytes are its text; `pdf-text-layer`, its text is derived by reading its bytes; `none`, it has no text. A type the registry does not list is `decode` when it is a `text/` type, and `none` otherwise. `yieldsGeometry` is whether that text comes with where each run of it is on a page: a text derived from a PDF does, and a decoded one does not. `derivesText` is whether the text is derived from the bytes, and not decoded from them. Every case states all three: TypeScript's `textSourceOf`, `yieldsGeometryOf` and `derivesTextOf`, and `text_source_of`, `yields_geometry_of` and `derives_text_of` in Rust and in Python.",
   "cloneFormat": [
     {
       "why": "an authorable source keeps its type",
@@ -79,6 +79,85 @@
       "name": "\u212a2",
       "format": "text/plain",
       "fileName": "k2.txt"
+    }
+  ],
+  "textSource": [
+    {
+      "why": "a text type the registry lists: its bytes are its text",
+      "format": "text/markdown",
+      "textSource": "decode",
+      "yieldsGeometry": false,
+      "derivesText": false
+    },
+    {
+      "why": "a type the registry lists as decoded need not be a text/ type",
+      "format": "application/json",
+      "textSource": "decode",
+      "yieldsGeometry": false,
+      "derivesText": false
+    },
+    {
+      "why": "a PDF's text is derived by reading its bytes, and comes with where each run of it is on a page",
+      "format": "application/pdf",
+      "textSource": "pdf-text-layer",
+      "yieldsGeometry": true,
+      "derivesText": true
+    },
+    {
+      "why": "an image has no text",
+      "format": "image/png",
+      "textSource": "none",
+      "yieldsGeometry": false,
+      "derivesText": false
+    },
+    {
+      "why": "nor has an archive, which the registry lists too",
+      "format": "application/zip",
+      "textSource": "none",
+      "yieldsGeometry": false,
+      "derivesText": false
+    },
+    {
+      "why": "parameters are not part of the type",
+      "format": "application/pdf; version=1.7",
+      "textSource": "pdf-text-layer",
+      "yieldsGeometry": true,
+      "derivesText": true
+    },
+    {
+      "why": "case is not part of the type",
+      "format": "APPLICATION/PDF",
+      "textSource": "pdf-text-layer",
+      "yieldsGeometry": true,
+      "derivesText": true
+    },
+    {
+      "why": "a text/ type the registry does not list is decoded: the type says of itself that it is text",
+      "format": "text/x-unheard-of",
+      "textSource": "decode",
+      "yieldsGeometry": false,
+      "derivesText": false
+    },
+    {
+      "why": "and so is one written in capitals and with parameters, which are not part of that type either",
+      "format": "TEXT/X-Unheard-Of; charset=iso-8859-1",
+      "textSource": "decode",
+      "yieldsGeometry": false,
+      "derivesText": false
+    },
+    {
+      "why": "any other type the registry does not list has no text",
+      "format": "application/x-unheard-of",
+      "textSource": "none",
+      "yieldsGeometry": false,
+      "derivesText": false
+    },
+    {
+      "why": "an empty format is no type, and has no text",
+      "format": "",
+      "textSource": "none",
+      "yieldsGeometry": false,
+      "derivesText": false
     }
   ]
 }

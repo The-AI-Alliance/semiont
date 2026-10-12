@@ -12,8 +12,7 @@
  *   - `equalJitter` — the backoff curve, shared with the SSE reconnect
  *   - `retryBudgetMs` — how long a policy can take, derived rather than restated
  *   - the predicates that narrow an error type CORE owns (`isTransientFetchError`
- *     over `fetch`'s `TypeError`, `isRetryableRequestError` over `HttpStatusError`,
- *     `isPeerUnavailable` over `BusRequestError`)
+ *     over `fetch`'s `TypeError`, `isRetryableRequestError` over `HttpStatusError`)
  *
  * **What deliberately does NOT — the judgment, because each is local knowledge:**
  *   - **policies.** `EMIT_RETRY` (http-transport), `EMBEDDING_PROVIDER_RETRY`
@@ -37,7 +36,6 @@
  * `context.Context` / gRPC-deadline move, with the platform's own primitive.
  */
 
-import { BusRequestError } from './bus-request';
 import { RETRY_RULES } from './retry-rules';
 import { UnansweredError } from './unanswered';
 
@@ -160,29 +158,6 @@ export interface HttpStatusError extends Error {
  */
 export function retryAfterMs(header: string | null): number | undefined {
   return header !== null && /^[0-9]+$/.test(header.trim()) ? Number(header.trim()) * 1000 : undefined;
-}
-
-/**
- * True when the service that answers a bus channel has not connected yet.
- *
- * A startup race, not a refusal: the gateway synthesizes this when a request's
- * channel has no subscriber, and the peer it is waiting for is usually seconds
- * away. A boot pass that treats it as a data condition gives up for the life of
- * the process — an empty graph projection behind a healthy `/health`, with live
- * traffic then advancing the applied mark past events that were never projected.
- *
- * Narrow on purpose, and note what it EXCLUDES: `bus.unsubscribed` means *this*
- * transport is not subscribed to the reply channel — a local misconfiguration
- * caught before emitting, which retrying cannot fix and would only delay. The two
- * codes sound alike and mean opposite ends of the same wire; the predicate is
- * where that distinction has to hold.
- *
- * Takes a `BusRequestError` rather than any `{ code }` object: the code is a wire
- * value, and `busRequest` is the one place it is mapped into this vocabulary. An
- * object that did not come through there has not been classified.
- */
-export function isPeerUnavailable(error: unknown): boolean {
-  return error instanceof BusRequestError && error.code === 'bus.peer-unavailable';
 }
 
 /**

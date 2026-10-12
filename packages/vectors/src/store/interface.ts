@@ -1,41 +1,16 @@
 /**
  * VectorStore Interface
  *
- * Abstraction over vector database backends (Qdrant, memory).
- * Stores pre-computed embedding vectors with metadata payloads
- * and provides similarity search with payload filtering.
+ * The vector index, as a reader of it reads it: similarity search over the
+ * chunks of resources and over annotations, with payload filtering. Every
+ * store answers these.
+ *
+ * Nothing here writes a point. The one writer of the index is the Smelter, a
+ * Python service that writes through `semiont_vectors`
+ * (packages/vectors-python).
  */
 
 import type { ResourceId, AnnotationId } from '@semiont/core';
-
-export interface EmbeddingChunk {
-  chunkIndex: number;
-  text: string;
-  embedding: number[];
-}
-
-export interface AnnotationPayload {
-  annotationId: AnnotationId;
-  resourceId: ResourceId;
-  motivation: string;
-  entityTypes: string[];
-  exactText: string;
-  /** True when the quoted text was recognized from pixels — see
-   *  `VectorSearchResult.machineRead`. An annotation over a scanned page
-   *  quotes OCR'd text, and annotation-focus gather searches these vectors. */
-  machineRead?: boolean;
-}
-
-/**
- * What a resource's vectors record about themselves: how fresh they are
- * (`contentChecksum`), what they are tagged with (`entityTypes`), and how
- * their text was obtained (`machineRead`).
- */
-export interface ResourceStamp {
-  contentChecksum: string | undefined;
-  entityTypes: string[];
-  machineRead?: boolean;
-}
 
 export interface VectorSearchResult {
   id: string;
@@ -75,44 +50,7 @@ export interface SearchOptions {
 export interface VectorStore {
   connect(): Promise<void>;
   disconnect(): Promise<void>;
-  isConnected(): boolean;
 
-  // Lifecycle
-  clearAll(): Promise<void>;
-
-  // Write
-  /**
-   * Replace all vectors for a resource with the given chunks.
-   * Existing vectors for the resource are removed first, so a resource
-   * that shrinks to fewer chunks leaves no orphans. `contentChecksum` is
-   * the checksum of the bytes the chunks were computed from; it is stamped
-   * onto the points so reconciliation can detect stale-but-present
-   * resources (smelter axiom S12). `entityTypes` is the resource's
-   * entity-type set, stamped onto every point so `searchResources` can
-   * discriminate by kind (e.g. exclude `['Question']` from recall).
-   */
-  /**
-   * Stamp a resource's chunks. `machineRead` records that the text was
-   * recognized from pixels (OCR) rather than read from the document — see
-   * `VectorSearchResult.machineRead`. It rides the embed because that is the
-   * moment extraction provenance is known; `reconcile()` restores it on a
-   * rebuild the same way it restores the checksum.
-   */
-  upsertResourceVectors(resourceId: ResourceId, chunks: EmbeddingChunk[], contentChecksum: string, entityTypes: string[], machineRead?: boolean): Promise<void>;
-  /**
-   * Rewrite the `entityTypes` stamp on a resource's existing points —
-   * payload-only, no embedding involved (smelter axiom S13: a tag edit
-   * must never trigger an embedding call). No-op when the resource has no
-   * points: the stamp rides the next embed.
-   */
-  updateResourceEntityTypes(resourceId: ResourceId, entityTypes: string[]): Promise<void>;
-  upsertAnnotationVector(annotationId: AnnotationId, embedding: number[], payload: AnnotationPayload): Promise<void>;
-  deleteResourceVectors(resourceId: ResourceId): Promise<void>;
-  deleteAnnotationVector(annotationId: AnnotationId): Promise<void>;
-  /** Delete every annotation vector whose payload points at the resource. */
-  deleteAnnotationVectorsForResource(resourceId: ResourceId): Promise<void>;
-
-  // Read
   searchResources(embedding: number[], opts: SearchOptions): Promise<VectorSearchResult[]>;
   searchAnnotations(embedding: number[], opts: SearchOptions): Promise<VectorSearchResult[]>;
   /**
@@ -130,30 +68,4 @@ export interface VectorStore {
    * first — callers own that ordering).
    */
   searchByResource(resourceId: ResourceId, opts: SearchOptions): Promise<VectorSearchResult[]>;
-  /**
-   * Total point count across all collections (resources + annotations).
-   * Feeds the `semiont.vector.index.size` gauge.
-   */
-  count(): Promise<number>;
-
-  // Enumeration — drives the Smelter's startup reconciliation: what is
-  // actually indexed (and from which content), compared against what the
-  // KS says should exist.
-  /**
-   * Distinct resourceIds present in the resources collection, each with its
-   * stamps: the content checksum (undefined for points written before
-   * stamping existed — reconciliation treats those as stale and re-embeds)
-   * and the entity-type set (missing stamp reads as `[]`). Drives both the
-   * S12 content-staleness diff and the S13 tag-staleness diff.
-   */
-  listResourceStamps(): Promise<Map<string, ResourceStamp>>;
-  /**
-   * One resource's stamp, or undefined when it has no vectors. Targeted so
-   * callers that need a single resource — the annotation index path, which
-   * must stamp provenance it cannot derive locally — do not scan the
-   * collection.
-   */
-  getResourceStamp(resourceId: ResourceId): Promise<ResourceStamp | undefined>;
-  /** Distinct annotationIds present in the annotations collection. */
-  listAnnotationIds(): Promise<Set<string>>;
 }

@@ -625,6 +625,7 @@ fn content_call(call: &ContentCall) -> (&'static str, Value) {
         ContentCall::GetBinary(id) => ("getBinary", json!({ "resourceId": id })),
         ContentCall::GetBinaryStream(id) => ("getBinaryStream", json!({ "resourceId": id })),
         ContentCall::GetResourceGraph(id) => ("getResourceGraph", json!({ "resourceId": id })),
+        ContentCall::GetAnchoredText(id) => ("getAnchoredText", json!({ "resourceId": id })),
         ContentCall::PutBinary(request) => {
             let mut given = json!({
                 "name": request.name,

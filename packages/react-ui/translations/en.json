@@ -37,7 +37,8 @@
     "pagination": "Page navigation",
     "previous": "Previous",
     "viewerLoading": "Loading PDF viewer...",
-    "preparingTextLayer": "Preparing the text layer — annotation will enable when it is ready"
+    "preparingTextLayer": "Preparing the text layer — annotation will enable when it is ready",
+    "textLayerUnreadable": "This document's text could not be read, so it cannot be annotated"
   },
   "Toolbar": {
     "annotations": "Annotations",

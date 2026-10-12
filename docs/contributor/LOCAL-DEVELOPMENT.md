@@ -32,7 +32,7 @@ What a full run does:
 3. Builds the eight images from the same Dockerfiles the publish workflows use, tagged `ghcr.io/the-ai-alliance/semiont-<service>:local`. They are never pushed.
 4. Loads the images into every container runtime on the machine, so the stack can run under any of them.
 5. Builds the launcher from the working tree, as `apps/launcher/dist/semiont`.
-6. Builds the Python SDK's wheel and source distribution into `packages/sdk-python/dist`, and checks them as CI does. They are published nowhere: Verdaccio holds npm packages only, and the worker image builds the SDK from the working tree. The wheel installs by path.
+6. Builds the Python SDK's wheel and source distribution into `packages/sdk-python/dist`, and checks them as CI does. They are published nowhere: Verdaccio holds npm packages only, and the worker, weaver and smelter images build the SDK from the working tree. The wheel installs by path.
 
 Two things make the stack use your build:
 
@@ -43,13 +43,13 @@ Two things make the stack use your build:
 
 ```bash
 ./scripts/ci/local-build.sh --package make-meaning --image librarian   # one package, then one image
-./scripts/ci/local-build.sh --images-only --image smelter              # one image, from what is already published locally
+./scripts/ci/local-build.sh --images-only --image librarian            # one image, from what is already published locally
 ./scripts/ci/local-build.sh --help                                     # every option
 ```
 
 - A Node image installs its packages from the local registry, so a change to package source reaches an image only after that package is rebuilt and republished. `--images-only` skips that step: use it when the package has not changed.
 - The gateway, dispatcher and archivist images compile the Rust workspace from the working tree every time, so `--images-only --image gateway` picks up a Rust change.
-- The worker image is built from the working tree every time too: the Python service in `apps/worker` and the three Python packages it runs on, with what `apps/worker/uv.lock` pins. `--images-only --image worker` picks up a change to any of the four.
+- The worker, weaver and smelter images are built from the working tree every time too: the Python service in `apps/worker`, `apps/weaver` or `apps/smelter` and the three Python packages it runs on, with what its `uv.lock` pins. `--images-only --image smelter` picks up a change to any of the four.
 - `--package` takes a package's directory name (`core`, `make-meaning`), as `version.json` lists them. An unknown name is refused with the list.
 
 The script's own README, [scripts/ci/README.md](../../scripts/ci/README.md), covers the rest.

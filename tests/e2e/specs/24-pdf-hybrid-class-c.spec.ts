@@ -11,8 +11,9 @@ import { openResourceByName } from '../fixtures/discover';
  * keep pointing at the characters it pointed at before. Get the shift wrong and
  * every annotation on the typed page silently moves.
  *
- * **What is already pinned elsewhere.** `@semiont/content`'s `pdf-ocr.test.ts`
- * covers the assembly thoroughly against a *mocked* recognizer — native and
+ * **What is already pinned elsewhere.** The Smelter's own tests
+ * (`apps/smelter/tests/test_extraction.py`) cover the assembly thoroughly
+ * against a *played* recognizer — native and
  * OCR'd items coexisting, each still selecting its own text, `unreadPages`
  * reported in both directions. Mocking the engine is what lets those tests
  * assert recovered text at all, and that is the right place for it. What no unit
@@ -40,6 +41,7 @@ import { openResourceByName } from '../fixtures/discover';
  */
 
 const CONTAINER = '.semiont-pdf-annotation-canvas__container';
+const CANVAS = '.semiont-pdf-annotation-canvas';
 const slot = (page: number) => `.semiont-pdf-annotation-canvas__slot[data-page="${page}"]`;
 const stripPage = (page: number) => `button.semiont-pdf-annotation-canvas__strip-page[data-page="${page}"]`;
 
@@ -55,8 +57,11 @@ async function openHybridInAnnotateMode(page: Page) {
 }
 
 /** Highlight + Rectangle. Motivation menuitems TOGGLE and persist, so reset to
- *  None first (14's note). */
+ *  None first (14's note). A page takes a drawing only while the canvas holds
+ *  the document's text, so this first waits for the canvas to say it does. */
 async function armRectangleDrawing(page: Page) {
+  await expect(page.locator(CANVAS)).toHaveAttribute('data-annotate-deferred', 'false', { timeout: 60_000 });
+
   await page.getByRole('button', { name: /^motivation$/i }).click();
   await page.getByRole('menuitem', { name: /^none$/i }).click();
   await page.getByRole('button', { name: /^motivation$/i }).click();

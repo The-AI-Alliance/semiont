@@ -1,0 +1,34 @@
+{
+  "type": "object",
+  "description": "An embedding model served by Voyage AI. No service has been run against Voyage itself.",
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": [
+        "voyage"
+      ]
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The model asked for, by Voyage's name for it."
+    },
+    "endpoint": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The whole address of Voyage's embeddings call (`https://api.voyageai.com/v1/embeddings`)."
+    },
+    "apiKeyEnv": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The environment variable holding the Voyage API key. The key is never a value here."
+    }
+  },
+  "required": [
+    "type",
+    "model",
+    "endpoint",
+    "apiKeyEnv"
+  ],
+  "additionalProperties": false
+}

@@ -8,7 +8,6 @@ export default defineConfig({
   silent: true,
   entry: {
     index: 'src/index.ts',
-    'smelter-main': 'src/smelter-main.ts',
     'librarian-main': 'src/librarian-main.ts',
   },
   format: ['esm'],

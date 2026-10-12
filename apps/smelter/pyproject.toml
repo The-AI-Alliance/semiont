@@ -1,0 +1,110 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "semiont-smelter"
+dynamic = ["version"]
+description = "Semiont's Smelter service: it derives the text of what a knowledge base holds, and keeps a vector index of it"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+classifiers = [
+    "Framework :: AsyncIO",
+    # A service's code, run from its image: no index takes an upload that says this.
+    "Private :: Do Not Upload",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+# Pydantic and httpx are the SDK's dependencies too, and the SDK states their
+# versions: a bound written here would be a second copy of its. PDFium's binding is what
+# the Smelter reads a PDF with, from the version its reader was written
+# against: what the reader leans on in it is listed in pdfium.py. Its wheel
+# carries PDFium itself, built for the image's Alpine. What reads a scanned
+# page, the `tesseract` program, is no Python package: the image installs it.
+# What every Python service is built on is semiont-service, and the index
+# the Smelter writes and the provider it asks for vectors are semiont-vectors.
+dependencies = [
+    "httpx",
+    "pydantic",
+    "pypdfium2>=5.14,<6",
+    "semiont",
+    "semiont-service",
+    "semiont-vectors",
+]
+
+# The SDK, what every Python service is built on and the vector stores are
+# the ones in this repository: the service is checked and tested against the
+# types the tree's spec generates. Each is named, because a source another
+# package states for the SDK is read only where that package is the project.
+[tool.uv.sources]
+semiont = { path = "../../packages/sdk-python", editable = true }
+semiont-service = { path = "../../packages/service-python", editable = true }
+semiont-vectors = { path = "../../packages/vectors-python", editable = true }
+
+# The checkers and the formatter are the SDK's, at the SDK's versions:
+# tests/test_census.py holds these pins, and the strictness below, to
+# packages/sdk-python/pyproject.toml.
+[dependency-groups]
+dev = [
+    # What makes the histories of tests/test_properties.py.
+    "hypothesis>=6.130,<7",
+    "mypy==2.4.0",
+    "pyright==1.1.414",
+    "pytest>=9.1,<10",
+    "ruff==0.16.10",
+]
+
+# The version is the repository's, stated once, in version.json.
+[tool.hatch.version]
+path = "../../version.json"
+pattern = '"version": "(?P<version>[^"]+)"'
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/semiont_smelter"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--strict-markers", "--strict-config", "-ra"]
+xfail_strict = true
+
+# No target-version: ruff takes it from requires-python.
+[tool.ruff]
+line-length = 140
+
+[tool.ruff.lint]
+select = ["ANN", "ASYNC", "B", "C4", "E", "F", "I", "PGH", "PT", "RUF", "SIM", "TID", "UP", "W"]
+
+[tool.mypy]
+# requires-python's floor, which mypy does not read. lint:python-version holds
+# this, pyright's, the classifiers and CI's matrix to it.
+python_version = "3.12"
+files = ["src", "tests"]
+strict = true
+# pydantic's own plugin, with each of its looser defaults turned off below: at
+# its defaults a constructor takes anything.
+plugins = ["pydantic.mypy"]
+disallow_any_explicit = true
+disallow_any_unimported = true
+warn_unreachable = true
+enable_error_code = ["explicit-override", "ignore-without-code", "possibly-undefined", "redundant-expr", "truthy-bool"]
+
+[tool.pydantic-mypy]
+init_typed = true
+init_forbid_extra = true
+warn_required_dynamic_aliases = true
+
+[tool.pyright]
+pythonVersion = "3.12"
+include = ["src", "tests"]
+typeCheckingMode = "strict"
+# `# type: ignore` is mypy's alone here; pyright is told by `# pyright: ignore[rule]`.
+# Either left on a line that no longer needs it is an error.
+enableTypeIgnoreComments = false
+reportUnnecessaryTypeIgnoreComment = "error"
+reportImplicitOverride = "error"
+reportImportCycles = "error"
+reportMissingSuperCall = "none"
+reportPropertyTypeMismatch = "error"
+reportUnnecessaryCast = "error"

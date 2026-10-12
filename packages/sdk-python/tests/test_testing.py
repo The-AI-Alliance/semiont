@@ -27,6 +27,7 @@ from semiont.testing import (
     DropReply,
     DuplicateReply,
     FaultyTransport,
+    GetAnchoredText,
     GetBinary,
     GetBinaryStream,
     GetResourceGraph,
@@ -40,7 +41,15 @@ from semiont.testing import (
     retry_key_of,
 )
 from semiont.transport import Content, ContentTransport, Frame, FrameSink, GatewayOperations, PutBinaryRequest, Transport
-from semiont.types import GatheredContext, GetResourceResponse, HealthResponse, MediaTokenResponse, StatusResponse, UserResponse
+from semiont.types import (
+    AnchoredTextAbsent,
+    GatheredContext,
+    GetResourceResponse,
+    HealthResponse,
+    MediaTokenResponse,
+    StatusResponse,
+    UserResponse,
+)
 
 RESOURCE, OTHER = ResourceId("res-1"), ResourceId("res-2")
 ASKED: JsonObject = {"resourceId": "res-1"}
@@ -423,6 +432,7 @@ def test_content_in_memory_keeps_what_it_is_given_gives_it_back_and_refuses_what
             (content.get_binary(RESOURCE), "content"),
             (content.get_binary_stream(RESOURCE), "content"),
             (content.get_resource_graph(RESOURCE), "description"),
+            (content.get_anchored_text(RESOURCE), "anchored text"),
         ):
             with pytest.raises(TransportError) as missing:
                 await read
@@ -433,11 +443,14 @@ def test_content_in_memory_keeps_what_it_is_given_gives_it_back_and_refuses_what
         content.seed(RESOURCE, page)
         graph = GetResourceResponse.model_validate({"resource": DESCRIBED, "annotations": [], "entityReferences": []})
         content.seed_graph(RESOURCE, graph)
+        not_yet = AnchoredTextAbsent(kind="not-yet")
+        content.seed_anchored_text(RESOURCE, not_yet)
         assert await content.get_binary(RESOURCE) == page
         async with await content.get_binary_stream(RESOURCE) as arriving:
             assert arriving.content_type == "text/markdown"
             assert [piece async for piece in arriving] == [b"# A page"]
         assert await content.get_resource_graph(RESOURCE) is graph
+        assert await content.get_anchored_text(RESOURCE) is not_yet
         with pytest.raises(TransportError):
             await content.get_binary(OTHER)
 
@@ -456,9 +469,11 @@ def test_content_in_memory_keeps_what_it_is_given_gives_it_back_and_refuses_what
             GetBinary(RESOURCE),
             GetBinaryStream(RESOURCE),
             GetResourceGraph(RESOURCE),
+            GetAnchoredText(RESOURCE),
             GetBinary(RESOURCE),
             GetBinaryStream(RESOURCE),
             GetResourceGraph(RESOURCE),
+            GetAnchoredText(RESOURCE),
             GetBinary(OTHER),
             PutBinary(put),
             GetBinary(ResourceId("test-content-2")),

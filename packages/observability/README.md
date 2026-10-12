@@ -10,8 +10,8 @@ Tracing, metrics and the process logger for Semiont's TypeScript services and tr
 
 ## Who uses it
 
-- **Each Node service starts it** at its entry point, and takes its logger from it: the Librarian, Smelter and Weaver, in [`@semiont/make-meaning`](../make-meaning/README.md).
-- **The actors** wrap each bus handler in a span, and the packages under them record what they measure: [`@semiont/inference`](../inference/README.md), [`@semiont/content`](../content/README.md) and [`@semiont/event-sourcing`](../event-sourcing/README.md).
+- **The Librarian starts it** at its entry point, in [`@semiont/make-meaning`](../make-meaning/README.md), and takes its logger from it.
+- **The actors** wrap each bus handler in a span, and [`@semiont/inference`](../inference/README.md) records each call it makes to a model.
 - **[`@semiont/http-transport`](../http-transport/README.md)** runs each request in a span and carries the trace across the wire. That is how this package comes to be in the Browser's bundle.
 
 The gateway, the dispatcher and the Archivist are Rust, and have a crate of their own for this.
@@ -35,7 +35,7 @@ import { initObservabilityNode } from '@semiont/observability/node';
 import { withSpan } from '@semiont/observability';
 
 // Once, at the entry point, before anything that makes a span.
-initObservabilityNode({ serviceName: 'semiont-smelter' });
+initObservabilityNode({ serviceName: 'semiont-librarian' });
 
 const length = await withSpan('read-document', async (span) => {
   span.setAttribute('document.pages', 12);

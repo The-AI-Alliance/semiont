@@ -4,8 +4,10 @@ The transport is the SDK's scriptable one, naming the channels a worker's
 stream names and no others (`WORKER_CHANNELS`): a request whose reply those
 channels could not carry is refused where it is made, so every test that
 runs a job here also holds that the worker's stream names what the worker
-awaits. The test plays the dispatcher, the record and the Smelter by what it
-gives `Parties`, and reads back everything the worker sent.
+awaits. The test plays the dispatcher and the record by what it gives
+`Parties`, and the gateway by what it seeds on `Parties.content`: a
+resource's bytes, and the Smelter's text of a PDF. It reads back everything
+the worker sent, and every read the worker made of the gateway.
 """
 
 import asyncio
@@ -70,16 +72,13 @@ def job(job_id: str, job_type: str, params: Mapping[str, JsonValue], **metadata:
 
 @final
 class Parties:
-    """The dispatcher, the record and the Smelter as a test scripts them, and everything the worker sent."""
+    """The dispatcher and the record as a test scripts them, the gateway's content as it seeds it, and everything the worker sent."""
 
     def __init__(self) -> None:
         self.queue: Final[deque[dict[str, JsonValue]]] = deque()
         """Jobs waiting to be claimed. A claim with none waiting is answered that nothing is pending."""
         self.descriptors: Final[dict[str, JsonValue]] = {}
         """The description the record answers for each resource it has."""
-        self.anchored_text: Final[dict[str, deque[JsonValue]]] = {}
-        """What the Smelter answers for each resource, an answer for each time it is asked: the last of them from then on."""
-        self.anchored_text_asks: Final[list[str]] = []
         self.commits: Final[list[tuple[str, list[JsonValue]]]] = []
         """Every batch the record was sent: the resource, and its annotations."""
         self.commit_refused: str | None = None
@@ -93,6 +92,7 @@ class Parties:
         made = create_test_client(transport=self.transport)
         self.client: Final = made.client
         self.content: Final = made.content
+        """What the gateway reads back, as a test seeds it, and every read and upload the worker made of it."""
 
     def text_resource(self, text: str = TEXT, media_type: str = "text/markdown") -> None:
         """Give the record and the gateway a resource `SOURCE` of `text`."""
@@ -139,11 +139,6 @@ class Parties:
                     "persisted": len(annotations),
                     "annotationIds": [annotation["id"] for annotation in annotations if isinstance(annotation, dict)],
                 }
-            case "browse:anchored-text-requested":
-                assert isinstance(resource_id, str)
-                self.anchored_text_asks.append(resource_id)
-                answers = self.anchored_text[resource_id]
-                return answers.popleft() if len(answers) > 1 else answers[0]
             case _:
                 refuse_unscripted_operation(operation, payload)
 

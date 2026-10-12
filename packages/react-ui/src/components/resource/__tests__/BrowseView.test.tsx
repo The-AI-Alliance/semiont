@@ -4,7 +4,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowseView } from '../BrowseView';
 import type { EventBus } from '@semiont/core';
 import type { SemiontClient, SemiontSession } from '@semiont/sdk';
-import { createTestSemiontWrapper } from '../../../test-utils';
+import { createTestSemiontWrapper, renderInEnglish } from '../../../test-utils';
 
 import type { Annotation, AnnotationId } from '@semiont/core';
 import { annotationId, resourceId } from '@semiont/core';
@@ -124,6 +124,9 @@ function makeSession(client: SemiontClient): SemiontSession {
   } as unknown as SemiontSession;
 }
 
+// Under translations, as a host mounts a view: the image canvas shows a
+// translated line while it waits for the image's text, and this session's
+// client has no anchored text to answer with.
 const renderWithProviders = (
   component: React.ReactElement<React.ComponentProps<typeof BrowseView>>,
   options: { sparkleAnnotationIds?: Set<string> } = {}
@@ -132,7 +135,7 @@ const renderWithProviders = (
   const Wrapper = ({ children }: { children: React.ReactNode }) => (
     <SemiontWrapper>{children}</SemiontWrapper>
   );
-  return render(
+  return renderInEnglish(
     React.cloneElement(component, { session: makeSession(client), sparkleAnnotationIds: options.sparkleAnnotationIds }),
     { wrapper: Wrapper },
   );

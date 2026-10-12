@@ -5,11 +5,12 @@ from typing import Final, final
 from semiont.channel import Empty
 from semiont.channels import YIELD_CLONE
 from semiont.identifiers import ResourceId
-from semiont.media_types import clone_format, primary_media_type, storage_uri
+from semiont.media_types import clone_format, storage_uri
 from semiont.model import stated
 from semiont.namespaces.follow import Delegation, follow
 from semiont.namespaces.links import Links
 from semiont.operations import YIELD_CLONE_RESOURCE_REQUESTED, YIELD_CLONE_TOKEN_REQUESTED
+from semiont.resources import primary_media_type
 from semiont.timing import GENERATION_STALL_ASSUMED_TOKENS_COUNT, GENERATION_STALL_FLOOR_MS, GENERATION_STALL_PER_TOKEN_MS
 from semiont.transport import ContentTransport, PutBinaryRequest, Upload
 from semiont.types import (

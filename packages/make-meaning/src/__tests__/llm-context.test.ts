@@ -16,10 +16,9 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { LLMContext, type ResourceGatherReads } from '../llm-context';
 import { resourceId, annotationId, EventBus, type Logger } from '@semiont/core';
 import type { Annotation, GatheredContext } from '@semiont/core';
-import { calculateChecksum } from '@semiont/content';
 import { MemoryGraphDatabase, type GraphDatabase } from '@semiont/graph';
 import { createSmeltProgress } from '../smelt-progress';
-import { createRecordFixture, type RecordFixture } from './helpers/record-fixtures';
+import { checksumOf, createRecordFixture, type RecordFixture } from './helpers/record-fixtures';
 
 const mockLogger: Logger = {
   debug: vi.fn(),
@@ -572,7 +571,7 @@ describe('LLM Context', () => {
     const SETTLE_MS = 1_000;
     const hit = [{ id: 'r-sim#0', score: 0.9, resourceId: 'r-sim', text: 'similar text', entityTypes: [] }];
     // The focal resource's content generation — what the barrier waits on.
-    const TEST_CHECKSUM = calculateChecksum(CONTENT);
+    const TEST_CHECKSUM = checksumOf(CONTENT);
 
     // A vector store that has no focal vectors until the "Smelter" applies,
     // plus a real SmeltProgress fold on a test-driven bus: the delayed-Smelter

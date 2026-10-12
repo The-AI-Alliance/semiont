@@ -5,8 +5,9 @@
 //! A transport reports through one function per row of the SDK telemetry
 //! table (specs/src/sdk-telemetry/telemetry.json): [`bus_emit`], which is
 //! also the `semiont.bus.sent` count, [`bus_recv`], [`content_put`],
-//! [`content_get`] and [`content_get_graph`]. It names no span, kind or
-//! attribute of its own, and puts [`active_trace`] on what it sends.
+//! [`content_get`], [`content_get_graph`] and [`content_get_anchored_text`].
+//! It names no span, kind or attribute of its own, and puts [`active_trace`]
+//! on what it sends.
 //!
 //! A service's own spans are the service telemetry table's, which it states
 //! itself over [`in_span`] and [`in_span_now`], continuing a caller's trace
@@ -112,6 +113,18 @@ pub async fn content_get<T>(resource_id: &str, stream: bool, read: impl Future<O
 pub async fn content_get_graph<T>(resource_id: &str, read: impl Future<Output = T>) -> T {
     in_span(
         "content.get_graph".to_owned(),
+        SpanKind::Client,
+        vec![KeyValue::new("resource.id", resource_id.to_owned())],
+        Context::current(),
+        read,
+    )
+    .await
+}
+
+/// `content.get_anchored_text`: a read of a resource's anchored text.
+pub async fn content_get_anchored_text<T>(resource_id: &str, read: impl Future<Output = T>) -> T {
+    in_span(
+        "content.get_anchored_text".to_owned(),
         SpanKind::Client,
         vec![KeyValue::new("resource.id", resource_id.to_owned())],
         Context::current(),

@@ -199,7 +199,7 @@ def test_one_module_names_the_logger_and_one_reads_the_process_s_environment() -
 def test_nothing_in_the_fold_or_the_weaver_reads_a_clock_or_derives_who_a_thing_is_by() -> None:
     # The graph says what the record says: every date in it is one an event carried, and who a thing is by is
     # who its event records. A fold that read the time would date everything again at every rebuild.
-    for module in ("fold.py", "weaver.py", "recorded.py", "marks.py", "lanes.py", "history.py"):
+    for module in ("fold.py", "weaver.py", "recorded.py", "marks.py", "history.py"):
         source = (SRC / module).read_text(encoding="utf-8")
         assert not re.search(r"\bdatetime\b|\btime\.time\b|\.now\(|\.utcnow\(", source), f"{module} reads a clock"
         assert not re.search(r"\buser_id\b|userId", source), f"{module} reads who sent an event"

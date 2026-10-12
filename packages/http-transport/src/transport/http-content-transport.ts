@@ -30,7 +30,7 @@
  * `specs/src/client/timing.json`): how long it takes is how large it is.
  */
 
-import type { AccessToken, ResourceId, PutBinaryOptions, PutBinaryProgress, components } from '@semiont/core';
+import type { AccessToken, AnchoredTextAnswer, ResourceId, PutBinaryOptions, PutBinaryProgress, components } from '@semiont/core';
 import { busLog, retryAfterMs } from '@semiont/core';
 import { SpanKind, getActiveTraceparent, withSpan } from '@semiont/observability';
 import type { HttpTransport } from './http-transport';
@@ -159,6 +159,30 @@ export class HttpContentTransport implements IContentTransport {
         const path = `${this.pathOf(resourceId)}/jsonld`;
         return this.transport.ask('GET', path, (http) =>
           http.get(`${this.transport.baseUrl}${path}`, { headers: this.requestHeaders(options?.auth) }).json<GetResourceResponse>());
+      },
+      { kind: SpanKind.CLIENT, attrs: { 'resource.id': resourceId as unknown as string } },
+    );
+  }
+
+  /**
+   * A resource's anchored text, from the gateway's
+   * `GET /resources/:id/anchored-text`: the body is the answer. With no text
+   * stored yet, the Archivist holds the request while it waits on the
+   * Smelter (docs/protocol/ARCHIVIST.md says how long) before it answers
+   * `not-yet`, and the deadline on a request (`httpRequestTimeoutMs`)
+   * outlasts that wait.
+   */
+  async getAnchoredText(
+    resourceId: ResourceId,
+    options?: { auth?: AccessToken },
+  ): Promise<AnchoredTextAnswer> {
+    busLog('GET', 'content', { resourceId, anchoredText: true });
+    return withSpan(
+      'content.get_anchored_text',
+      () => {
+        const path = `${this.pathOf(resourceId)}/anchored-text`;
+        return this.transport.ask('GET', path, (http) =>
+          http.get(`${this.transport.baseUrl}${path}`, { headers: this.requestHeaders(options?.auth) }).json<AnchoredTextAnswer>());
       },
       { kind: SpanKind.CLIENT, attrs: { 'resource.id': resourceId as unknown as string } },
     );

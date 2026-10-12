@@ -1,0 +1,41 @@
+{
+  "get": {
+    "operationId": "getResourceAnchoredText",
+    "summary": "A resource's anchored text",
+    "description": "The text extracted from the resource's content with where each run of it is on a page, as the Smelter stored it under the content's checksum: what the gateway serves at its own `GET /resources/{id}/anchored-text`. The answer is always one of the members of `AnchoredTextAnswer`, and `kind` says which: the text, a stored decline, or why there is none. A resource whose media type has no derived text is answered `no-map` at once, and the store is not read. With no entry stored for one that has, the Archivist waits for the Smelter to say it has settled that content (`smelt:settled`) before it answers; docs/protocol/ARCHIVIST.md says how long. A resource the record does not hold, and one whose content has no checksum, is answered `unknown`. It never runs an extractor.",
+    "security": [
+      {
+        "serviceAccount": []
+      }
+    ],
+    "parameters": [
+      {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "The resource, percent-encoded.",
+        "schema": {
+          "$ref": "../../components/schemas/ResourceId.json"
+        }
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "The anchored text, a stored decline, or why there is none.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../../components/schemas/AnchoredTextAnswer.json"
+            }
+          }
+        }
+      },
+      "401": {
+        "$ref": "../responses/Unauthorized.json"
+      },
+      "500": {
+        "$ref": "../../components/responses/InternalError.json"
+      }
+    }
+  }
+}

@@ -1,7 +1,7 @@
 #!/bin/sh
 # check-python-image.sh <service> <image> [runtime] — what the image of a
-# Python service promises (the worker's, the weaver's), checked against a
-# built image:
+# Python service promises (the worker's, the weaver's, the smelter's), checked
+# against a built image:
 #
 #   1. No installer and no Node: as its user, nothing on its PATH installs a
 #      package (pip, uv) or runs JavaScript (node, npm), and its Python has
@@ -16,6 +16,13 @@
 #   3. Run as the image says, with no document mounted where its CMD tells it
 #      to read one, it refuses by name: exit 1, naming the document it cannot
 #      read.
+#   4. The smelter's alone. It has the `tesseract` program, with its English
+#      data. And with no network, the Smelter's own reader and engine read a
+#      scanned page there: the words that are in the pixels of
+#      specs/src/smelter/fixtures/legible-scan.pdf, a document with no text
+#      of its own. The reader is PDFium, which comes in a wheel, and the
+#      engine is the program. A Smelter loads the one and runs the other
+#      once it has read its document, which no check above gives it.
 #
 # Run by local-build.sh after it builds such an image, and by the image
 # publish workflow before it pushes.
@@ -24,7 +31,8 @@ set -eu
 SERVICE="${1:?usage: check-python-image.sh <service> <image> [runtime]}"
 IMAGE="${2:?usage: check-python-image.sh <service> <image> [runtime]}"
 RT="${3:-docker}"
-DOCKERFILE="$(cd "$(dirname "$0")/../.." && pwd)/apps/$SERVICE/Dockerfile"
+REPOSITORY="$(cd "$(dirname "$0")/../.." && pwd)"
+DOCKERFILE="$REPOSITORY/apps/$SERVICE/Dockerfile"
 COMMAND=$(sed -n 's/^CMD \[\(.*\)\]$/\1/p' "$DOCKERFILE" | sed 's/", "/ /g; s/"//g')
 if [ -z "$COMMAND" ]; then
   echo "✗ $DOCKERFILE declares no exec-form CMD"
@@ -108,3 +116,70 @@ if ! echo "$log" | grep -qF "Cannot read the $SERVICE's configuration document";
   exit 1
 fi
 echo "✓ $IMAGE with no document refuses by name: $(echo "$log" | head -1)"
+
+# What follows is promised of the smelter's image alone.
+if [ "$SERVICE" != smelter ]; then
+  exit 0
+fi
+
+# The program names the directory of its data, and then each language it has
+# data for, on a line of its own.
+if ! listed=$("$RT" run --rm --entrypoint /bin/sh "$IMAGE" -c 'tesseract --list-langs' 2>&1); then
+  echo "✗ $IMAGE has no tesseract program that lists its data:"
+  echo "$listed"
+  exit 1
+fi
+if ! echo "$listed" | grep -qx eng; then
+  echo "✗ $IMAGE has the tesseract program, and no English data for it:"
+  echo "$listed"
+  exit 1
+fi
+echo "✓ $IMAGE has the tesseract program with its English data: $(echo "$listed" | head -1)"
+
+# A PDF derived as the Smelter derives one, by its reader and its engine, as
+# apps/smelter/tests/test_extraction_cases.py derives the same document. The
+# page is a picture of the words and has no text of its own, so a word in
+# what is derived is one the program read. What is printed is the stamp the
+# Smelter writes its anchored text under: the reader's version and the
+# engine's, with its data.
+READ='
+import asyncio
+import sys
+from pathlib import Path
+
+from semiont.types import ExtractedText
+from semiont_smelter.extraction import PdfExtractor
+from semiont_smelter.pdfium import PdfiumReader
+from semiont_smelter.stamp import current_stamp
+from semiont_smelter.tesseract import TesseractEngine
+
+WORDS = ("RECOVERED", "FROM", "THE", "PIXELS")
+SECONDS = 120
+
+
+async def read(scan):
+    reader, engine = PdfiumReader(), TesseractEngine()
+    async with asyncio.timeout(SECONDS):
+        outcome = await PdfExtractor(reader=reader, engine=engine).extract(scan)
+        stamp = await current_stamp(reader, engine)
+    if not isinstance(outcome, ExtractedText):
+        sys.exit(f"the scan was declined: {outcome.declined}")
+    unread = [word for word in WORDS if word not in outcome.text]
+    if unread:
+        sys.exit(f"the engine did not read {unread}: it read {outcome.text!r}")
+    return stamp
+
+
+print(asyncio.run(read(Path(sys.argv[1]).read_bytes())))
+'
+# The container has no network, and the fixtures as the repository holds them.
+# The script runs, and expands, inside the container.
+# shellcheck disable=SC2016
+if ! stamp=$("$RT" run --rm --network none --entrypoint /bin/sh -e READ="$READ" \
+  -v "$REPOSITORY/specs/src/smelter/fixtures:/fixtures:ro" \
+  "$IMAGE" -c 'python -c "$READ" /fixtures/legible-scan.pdf' 2>&1); then
+  echo "✗ $IMAGE does not read a scanned page with no network:"
+  echo "$stamp"
+  exit 1
+fi
+echo "✓ $IMAGE reads a scanned page with no network: $stamp"

@@ -1,13 +1,15 @@
 """What text a resource's bytes are, held to the two tables every reader of a resource's text runs.
 
 `specs/src/text/decode-cases.json` is written by hand: what is said of a
-content type, of a label, of a byte-order mark and of malformed UTF-8 and
-UTF-16. `specs/src/text/encoding-cases.json` is generated: every label of the
+content type, of a media type whose text is not its bytes, of a label, of a
+byte-order mark and of malformed UTF-8 and UTF-16.
+`specs/src/text/encoding-cases.json` is generated: every label of the
 Encoding Standard, and every byte of each of its single-byte encodings.
 
 A worker reads a resource's text with `browse.resource_content` and counts its
 offsets in what that gives. So each case is read through a client, from bytes
-its content transport serves with the case's content type.
+its content transport serves with the case's content type. What the client
+reads with is `semiont.resources.decode_representation`.
 """
 
 from typing import Annotated, Final, Literal
@@ -19,6 +21,7 @@ from spec import SPEC
 
 from semiont.errors import TransportError
 from semiont.identifiers import ResourceId
+from semiont.media_types import text_source_of
 from semiont.testing import create_test_client
 from semiont.transport import Content
 
@@ -36,7 +39,7 @@ class Read(BaseModel, frozen=True, extra="forbid", strict=True):
 
 
 class Refused(BaseModel, frozen=True, extra="forbid", strict=True):
-    """A case whose charset is refused, by the label the refusal names."""
+    """A case that is refused: for its charset, by the label the refusal names, or for its media type, by the type."""
 
     why: str
     content_type: Annotated[str, Field(alias="contentType")]
@@ -96,18 +99,22 @@ def read(content_type: str, data: bytes) -> str:
     return run(scenario())
 
 
-def refused(content_type: str, data: bytes, label: str) -> None:
-    """The reading is refused as a transport's failure, and the refusal names the label."""
+def refused(content_type: str, data: bytes, named: str) -> None:
+    """The reading is refused as a transport's failure, and the refusal names what it refuses: a label, or a media type."""
     with pytest.raises(TransportError) as refusal:
         read(content_type, data)
     assert refusal.value.code == "error"
-    assert label in str(refusal.value)
+    assert named in str(refusal.value)
 
 
 def test_the_runner_found_the_tables_cases() -> None:
     assert len(TABLE.cases) >= 90
     assert any(isinstance(case, Read) for case in TABLE.cases)
     assert any(isinstance(case, Refused) for case in TABLE.cases)
+    # A refusal is of a charset, where the type is one that is decoded, or of the type itself: the table has one
+    # whose text is derived from its bytes, and one with no text.
+    refused_of = {text_source_of(case.content_type) for case in TABLE.cases if isinstance(case, Refused)}
+    assert refused_of == {"decode", "pdf-text-layer", "none"}
     assert sum(isinstance(case, SingleByte) for case in ENCODINGS.cases) >= 29
     assert any(isinstance(case, Probed) for case in ENCODINGS.cases)
     assert any(isinstance(case, RefusedLabels) for case in ENCODINGS.cases)

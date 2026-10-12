@@ -42,9 +42,9 @@ what its schema says; and a case fails otherwise, whatever it was about.
 - **Resources** (`resources.test.ts`): an upload stored, recorded and
   published; the line in the log, the view, the index entry, where each is
   filed; the content, the description and the event replay over HTTP, and who
-  is admitted to them; every upload refused; new content, archive and
-  unarchive, entity types; and the order facts are published in, to a
-  resource's scope and to none.
+  is admitted to them and to the anchored text; every upload refused; new
+  content, archive and unarchive, entity types; and the order facts are
+  published in, to a resource's scope and to none.
 - **Annotations** (`annotations.test.ts`): an annotation assembled, a batch
   committed once however often it is sent, bodies changed, an annotation
   removed, what each reads back as, the annotation a published fact carries,
@@ -52,9 +52,12 @@ what its schema says; and a case fails otherwise, whatever it was about.
   the time its creation is answered, on `yield:create` and over HTTP.
 - **Browse** (`browse.test.ts`): the knowledge base, the vocabulary and its
   seeding, tag schemas, the listing, a resource's events, people named by
-  their profile, a directory of the working tree, anchored text as it is
-  stored, under the stamp its writer states and in the store's version only,
-  and the roster.
+  their profile, a directory of the working tree and the roster; and, over
+  HTTP, anchored text as it is stored, under the stamp its writer states and
+  in the store's version only, `no-map` at once for a media type whose text
+  is not derived, whatever the store holds, a read held until the Smelter has
+  settled the content, `not-yet` for a PDF it settled and stored no entry of,
+  and an answer larger than the largest bus message, whole.
 - **Clone tokens** (`clone.test.ts`): issued, looked up, spent on a copy over
   the bus and by an upload, and refused.
 - **Jobs** (`jobs.test.ts`): the lifecycle recorded in a resource's stream, no

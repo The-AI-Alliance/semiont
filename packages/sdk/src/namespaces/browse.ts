@@ -1,6 +1,6 @@
 import { Observable, combineLatest, map } from 'rxjs';
 import { CacheObservable } from '../awaitable';
-import { decodeWithCharset } from '@semiont/core';
+import { decodeRepresentation } from '@semiont/core';
 import type { AnchoredTextAnswer } from '@semiont/core';
 import type {
   Annotation,
@@ -383,34 +383,31 @@ export class BrowseNamespace implements IBrowseNamespace {
   async resourceContent(resourceId: ResourceId): Promise<string> {
     const result = await this.content.getBinary(resourceId);
     // The text the bytes are, as docs/protocol/W3C-SELECTORS.md states it: a byte-order mark decides, then the
-    // charset the response states, then UTF-8.
-    return decodeWithCharset(result.data, result.contentType);
+    // charset the response states, then UTF-8. A media type whose text is not its bytes (a PDF, an image) is
+    // refused: its bytes are read with `resourceRepresentation`, and a PDF's text with `resourceAnchoredText`.
+    return decodeRepresentation(result.data, result.contentType);
   }
 
   /**
    * A resource's coordinate map — its recovered text plus the runs that index
    * it — a stored decline, or a named absence. Never `null`.
    *
-   * A derived, server-computed view, not the resource's bytes, asked over the
-   * bus (`browse:anchored-text-requested`). Whole-resource, because a
-   * consumer analysing a document needs all of it, not whichever page is on
-   * screen.
+   * A derived, server-computed view and not the resource's bytes, yet as
+   * large as its document, so it is a read of content: the content
+   * transport's `getAnchoredText` (over HTTP, the gateway's
+   * `GET /resources/:id/anchored-text`). One-shot and uncached.
+   * Whole-resource, because a consumer analysing a document needs all of it,
+   * not whichever page is on screen.
    *
    * An absence is not an error, and its `kind` says whether to come back:
-   * `not-yet` (the Smelter has not settled this content; retry), `no-map`
-   * (the media type derives no geometry) or `unknown` (the resource has no
-   * content identity). Callers degrade — a PDF annotation drawn over an
-   * unmapped page carries geometry with no quoted text.
+   * `not-yet` (the Smelter has not read this content yet; ask again),
+   * `no-map` (the media type has no derived text: there is none to wait
+   * for) or `unknown` (no such resource is held, or its content has no
+   * checksum). A quote is cut from this text when an annotation is made and
+   * never again, so a viewer annotates only once it holds the text.
    */
   async resourceAnchoredText(resourceId: ResourceId): Promise<AnchoredTextAnswer> {
-    // A bus operation, not an HTTP route: the Archivist answers it and the
-    // reply arrives on the bridged result channel like every other reply.
-    return busRequest(
-      this.transport,
-      'browse:anchored-text-requested',
-      { resourceId },
-      this.busTimeoutMs,
-    );
+    return this.content.getAnchoredText(resourceId);
   }
 
   /**

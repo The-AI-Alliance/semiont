@@ -101,9 +101,10 @@ extending this axis.
 
 Read it with `textSourceOf(format)`. On a registry miss, base types under
 `text/*` fall back to `decode` — RFC 2046 guarantees the `text` top-level type is
-textual — and everything else is `none`. The Python worker reads the column
-from the Python SDK's table and answers a registry miss the same way
-(`text_source_of` in `apps/worker`).
+textual — and everything else is `none`. The Rust and Python SDKs read the
+column from their own generated tables and answer the same, a registry miss
+included (`text_source_of`, in each SDK's `media_types`); the case table
+`specs/src/media-types/cases.json` holds the three to one answer.
 
 - **`decode`** — charset-aware passthrough. The text *is* the bytes. Free.
   What text the bytes are is protocol:
@@ -129,13 +130,13 @@ work:
 | who may do it | anyone holding bytes | the Smelter alone — it needs the store |
 
 So they are separate surfaces, and a call site cannot mistake one for the other:
-decoding is `decodeRepresentation` in `@semiont/core`; deriving is
-`derivingExtractorFor(mediaType)` in `@semiont/content`, callable only with the
-store that persists its output.
+decoding is every SDK's (`decodeRepresentation` in `@semiont/core`); deriving is
+the Smelter's alone ([apps/smelter](../../apps/smelter/), `extraction.py`), and
+it stores what it derives.
 
-**`yieldsGeometryOf(format)` is derived from this field**, not stored beside it —
-`pdf-text-layer` produces positioned runs, `decode` does not. A second stored
-field could contradict the one it came from.
+**Whether a type's text comes with places on a page is derived from this field**,
+not stored beside it — `pdf-text-layer` produces positioned runs, `decode` does
+not. A second stored field could contradict the one it came from.
 
 `textSource: 'none'` is not a gap to fill. An image is annotatable
 (`anchoring: 'spatial'`) and carries no text; that combination is coherent and
@@ -173,7 +174,7 @@ so there is no OCR, no confidence score, and no unread page.
 Two consequences for citations, both load-bearing:
 
 - **Citations carry page geometry, never text offsets.** A generated PDF's
-  claims are re-anchored through the same extractor the Smelter uses, and land
+  claims are anchored in the text the Smelter derives from it, and land
   as `FragmentSelector` rects plus the quoted text. A `TextPositionSelector`
   would index the generated *string* and render nothing — a silent wrong, which
   is why the selector type is pinned by test.
@@ -209,29 +210,29 @@ exists because of one of those three declarations.
 
 ### Smelting — recovering the text, and the geometry that indexes it
 
-3. **Smelter computes `calculateChecksum(bytes)`.** For a `spatial` type this is
-   the identity of the derived artifact, not merely a freshness stamp: two
-   resources holding identical bytes share one artifact.
-4. **It calls `extract(bytes, contentType, { key: checksum, store })`.** The
-   cache seam lives *inside* `extract()`, and consults the store for those exact
-   bytes:
-   - **Hit** → return the stored outcome. No parse, no OCR.
+3. **Smelter takes the checksum of the bytes**, their SHA-256. For a `spatial`
+   type this is the identity of the derived artifact, not merely a freshness
+   stamp: two resources holding identical bytes share one artifact.
+4. **It reads the anchored-text store under that checksum**, before it parses
+   anything:
+   - **Hit** → the stored outcome is the outcome. No parse, no OCR.
    - **Miss** → classify the document (native text layer, scanned, or hybrid),
-     extract, and the seam writes the result.
+     extract, and store the result.
 5. **The stored artifact is an `ExtractionOutcome`** — `text`, `items`,
    `method`, `pdfClass`, `ocrConfidence`, `unreadPages`, *or* a named decline.
    Declines are cached too: "we recognized this and found nothing" costs one
    recognition pass for the lifetime of those bytes.
 6. **It lands in the anchored-text store, at `{ab}/{cd}/{checksum}.json`**,
-   sharded with the same helper the event log uses. The store is a directory the
-   deployment supplies, kept per knowledge base, so it survives a restart and
-   `semiont clean --store anchored-text` can reclaim it.
+   filed by the arithmetic the event log files a resource's events by
+   ([`shard-cases.json`](../../specs/src/archivist/shard-cases.json)). The store
+   is a directory the deployment supplies, kept per knowledge base, so it
+   survives a restart and `semiont clean --store anchored-text` can reclaim it.
 7. **Smelter chunks, embeds, and writes vectors.**
 8. **It emits `smelt:settled { resourceId, contentChecksum, outcome }`** —
    `indexed` or `skipped`. The vector stamp is written *before* this fires, so
    anything released by the barrier is guaranteed to find it.
 
-There is exactly one writer of that artifact: the seam inside `extract()`.
+There is exactly one writer of that artifact: the Smelter.
 
 ### The artifact's shape
 
@@ -260,25 +261,40 @@ textUnder(anchored, rect)    → string    a person drew a box; find its text
 
 ### When is it annotatable?
 
-A `spatial` type has three readiness moments, deliberately decoupled:
+**Once the viewer holds its text, and not before.** A quote is captured when
+an annotation is made (step 14) and never again, so a rectangle drawn before
+the viewer has the text would keep none. That holds for every `spatial` type,
+an image included: the viewer asks for the resource's text with
+`browse.resourceAnchoredText(resourceId)` when it opens it, and nobody can
+draw until an answer gives it the text.
 
-- **Geometry: immediately.** Once the view exists you can drag a rectangle and it
-  persists — whether or not anything knows what is under it.
-- **Born-digital PDF, with quotes: immediately, with no server involvement.** The
-  canvas calls `getTextContent()`, gets runs from pdf.js in the browser, and
-  builds the map locally with `anchorRuns`. It asks no service.
-- **Scanned PDF, with quotes: once smelt settles.** No runs, so the canvas calls
-  `browse.resourceAnchoredText(resourceId)`. Server-side: resolve the view → take
-  the primary representation's checksum → read the store → on a miss wait on
-  `whenSettled(resourceId, checksum, 15_000)` → re-read if `indexed`, else
-  `null`. A timeout or a decline yields no quote, and the annotation ships with
-  geometry alone.
+A PDF's text has one producer. The Smelter derives it and the Archivist
+serves it, for every PDF, born-digital or scanned. pdf.js draws the pages in
+the browser and is never asked for their text: a second reading would be a
+second answer to what a rectangle quotes, kept in step with the first
+forever. Server-side: resolve the view → take the primary representation's
+checksum → a media type with no derived text is answered `no-map` at once →
+read the store → on a miss wait up to 15 seconds for the Smelter to settle
+that content → re-read. The answer is the map, a stored decline, or a named
+absence: `not-yet`, `no-map` or `unknown`.
 
-**Failure degrades; it does not break.** No map — because the document has none,
-because extraction declined, or because the barrier timed out — means an
-annotation with geometry and no quote. That is how a `spatial` type behaves
-with no text recovery at all, so the failure mode is "no improvement", never
-"broken".
+What the viewer does with each:
+
+- **The map (`extracted`).** It holds the text. Annotating is on.
+- **`no-map`.** This media type has no text, so the viewer holds a text that
+  is empty. Annotating is on, and a shape has no quote.
+- **`not-yet`, no answer yet, or an ask that failed.** It holds nothing.
+  Annotating is off, the viewer says it is waiting for the text, and it asks
+  again each time `anchoredTextReaskMs` has passed
+  (`specs/src/client/timing.json`).
+- **A stored decline, or `unknown`.** It holds nothing and never will.
+  Annotating is off for good, the viewer says the text could not be read, and
+  it does not ask again.
+
+**The Smelter is on the path of every hand-drawn annotation.** A PDF it
+declined cannot be drawn on, and no PDF can be drawn on while it is down or
+behind. An annotation with geometry and no quote is made only where the text
+is held and has nothing under the shape.
 
 ### Annotating
 
@@ -300,9 +316,9 @@ with no text recovery at all, so the failure mode is "no improvement", never
 ### How annotation events feed back
 
 13. **`mark:added` reaches both actors.** Weaver folds it into the graph. Smelter
-    embeds the annotation's `exactText`, then reads `getResourceStamp` to inherit
-    the resource's provenance — the source of `machineRead: true`, which marks a
-    quote as recognized rather than authored.
+    embeds the text the annotation quotes, then reads from the resource's points
+    whether their text was read from pixels — the source of `machineRead: true`,
+    which marks a quote as recognized rather than authored.
 14. **Selectors are fixed at birth.** No stored event mutates a target. An
     annotation created before its map existed keeps no quote, permanently — which
     is why recognition happens at ingest rather than after annotation. The
@@ -311,7 +327,7 @@ with no text recovery at all, so the failure mode is "no improvement", never
 
 ### When the artifact goes missing
 
-15. **Reconcile plans `smelt:reanchor`** for a resource whose artifact is absent —
+15. **Reconcile plans a `reanchor`** for a resource whose artifact is absent —
     the third staleness class, alongside checksum drift and entity-tag drift.
 16. **A scoped rebuild command** re-anchors one resource or all, serialized, and
     **fails loudly on partial completion**. That matters because a silently
@@ -330,9 +346,10 @@ store, no barrier to wait on, and no restart hazard. An annotation carries
 offsets into the text directly. Steps 1–2, 9, and 13–14 are identical.
 
 **An image** (`spatial`, `none`) takes the geometry half and none of the text
-half. It is annotatable the moment the view exists, and a rectangle over it is
-always geometry-only — there is no map, so no quote, ever. The "three readiness
-moments" collapse to one.
+half. Its viewer asks for its text as a PDF's does, and the answer is `no-map`,
+given at once: the type has no text. The viewer then holds a text that is
+empty, so the image opens for annotating when that answer arrives, and a
+shape over it has geometry and no quote.
 
 **Stored types** (`none`, `none`) are catalogued, named and downloadable.
 Stored text types additionally decode, so they are embedded and searchable while
@@ -371,10 +388,14 @@ exists only during an interval.
   written once at ingest, consulted before re-deriving, stored where `clean` can
   reclaim it, re-derivable when missing. ASR on a three-hour recording makes
   this *more* necessary than OCR did, not less.
-- **The settle barrier and the readiness split.** An embedded caption track is
-  readable in the browser through `TextTrack`, exactly as pdf.js reads a native
-  text layer — so the "three readiness moments" structure holds, with WebVTT
-  playing pdf.js's role and ASR playing OCR's.
+- **The settle barrier, and annotating that waits behind it.** A place in
+  time is annotatable once the viewer holds the transcript, as a rectangle on
+  a PDF is once it holds the text: a quote is captured when the annotation is
+  made. An embedded caption track is readable in the browser through
+  `TextTrack`, as a PDF's text layer is through pdf.js — and the PDF path
+  does not read it there, because a second reader is a second answer to keep
+  in step. The same holds here: one producer, with a caption track playing
+  the text layer's role and ASR playing OCR's.
 - **Selectors fixed at birth.** Unchanged, and for the same reason.
 
 ### What does not carry over

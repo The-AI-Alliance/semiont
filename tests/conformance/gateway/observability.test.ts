@@ -88,7 +88,7 @@ eachPlane(
       expect(span.kind).toBe(PRODUCER);
     });
 
-    it('content reads and writes, descriptions and replay reads, are server spans with an archivist client span beneath', async () => {
+    it('content reads and writes, descriptions, anchored texts and replay reads, are server spans with an archivist client span beneath', async () => {
       const token = await world().person('reader');
       const id = `res-${randomUUID()}`;
       world().archivist.resources.set(id, { storageUri: `file://${id}`, mediaType: 'text/plain' });
@@ -118,6 +118,13 @@ eachPlane(
       const describe = traceparent();
       expect((await call(world().origin, 'GET', `/resources/${id}/jsonld`, { token, headers: { traceparent: describe.header } })).status).toBe(200);
       expect((await eventually(spanName('archivist.resources.describe'), 10_000, () => otlp().spans.find((s) => s.name === spanName('archivist.resources.describe') && s.traceId === describe.traceId))).kind).toBe(CLIENT);
+
+      world().archivist.anchoredTexts.set(id, { kind: 'no-map' });
+      const anchored = traceparent();
+      expect((await call(world().origin, 'GET', `/resources/${id}/anchored-text`, { token, headers: { traceparent: anchored.header } })).status).toBe(200);
+      const anchoredSpan = await eventually(spanName('archivist.resources.anchored_text'), 10_000, () => otlp().spans.find((s) => s.name === spanName('archivist.resources.anchored_text') && s.traceId === anchored.traceId));
+      expect(anchoredSpan.kind).toBe(CLIENT);
+      expect(anchoredSpan.attributes['peer.service']).toBe('archivist');
 
       const scope = `res-${randomUUID()}`;
       world().archivist.events.set(scope, [storedEvent('mark:added', scope, 2)]);

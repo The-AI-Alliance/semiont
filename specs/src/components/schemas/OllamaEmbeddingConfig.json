@@ -1,0 +1,28 @@
+{
+  "type": "object",
+  "description": "An embedding model served by an Ollama.",
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": [
+        "ollama"
+      ]
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The model asked for, by the name the Ollama serves it under."
+    },
+    "baseUrl": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The address the Ollama's API is reached at (`http://host:11434`)."
+    }
+  },
+  "required": [
+    "type",
+    "model",
+    "baseUrl"
+  ],
+  "additionalProperties": false
+}

@@ -350,8 +350,8 @@ export class HttpTransport implements ITransport, IGatewayOperations {
 
   // ── Lazy actor construction + per-channel fan-in to bridges ───────────
   //
-  // `actor` is public for the processes that attach to the ActorStateUnit
-  // itself; other callers use emit/on/stream/state$.
+  // The stream's machinery, made when it is first needed. Callers use
+  // emit/on/stream/state$; the package's own tests reach it here to start it.
 
   get actor(): ActorStateUnit {
     if (!this._actor) {

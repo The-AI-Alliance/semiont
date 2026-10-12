@@ -30,7 +30,7 @@ from semiont.http import AgentToken, HttpTransport, ServiceToken
 from semiont.identifiers import UserId
 from semiont.identity import agent_name
 from semiont.model import written
-from semiont.operations import BROWSE_ANCHORED_TEXT_REQUESTED, BROWSE_RESOURCE_REQUESTED, JOB_LIMITS_REQUESTED
+from semiont.operations import BROWSE_RESOURCE_REQUESTED, JOB_LIMITS_REQUESTED
 from semiont.transport import Transport
 from semiont.types import Agent, AgentSoftware, JobFilter, WorkerAgentConfig
 from semiont_inference.interface import InferenceClient
@@ -43,8 +43,8 @@ WORKER_CHANNELS: Final[tuple[str, ...]] = (
     *JOB_CLAIM_CHANNELS,
     # Every job that makes annotations commits them, and waits for the record to have them.
     *JOB_COMMIT_CHANNELS,
-    # What this service itself awaits: a resource's description, and the Smelter's text of a PDF.
-    *reply_channels_for(BROWSE_RESOURCE_REQUESTED, BROWSE_ANCHORED_TEXT_REQUESTED),
+    # What this service itself awaits: a resource's description.
+    *reply_channels_for(BROWSE_RESOURCE_REQUESTED),
 )
 """What every agent's stream names: what the SDK's claiming and committing read, and the replies of what this service asks."""
 

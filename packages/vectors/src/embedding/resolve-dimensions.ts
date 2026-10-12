@@ -5,9 +5,8 @@
  * hand-maintained table goes stale the day a new model ships), so creating a
  * collection is the one boot step that needs the embedding provider to be live.
  * On the first boot of a fresh KB that races Ollama's model pull, and losing it
- * must not be fatal: unretried, it costs archivist, librarian and smelter 3, 4
- * and 5 restarts (measured), and the archivist's flapping separately strands
- * `semiont-worker` in `Created` forever. So the probe is retried under
+ * must not be fatal: unretried, it costs the service one restart after another
+ * until the pull lands. So the probe is retried under
  * `EMBEDDING_PROVIDER_RETRY`.
  *
  * Called only where a collection must be CREATED. A warm KB short-circuits before
@@ -31,8 +30,7 @@ import { isColdModelError } from './provider-error';
  * constant is right when it is one fact; sharing it here would mean every future
  * adjustment to the gateway's patience silently moved this one.
  *
- * Worst case ≈ `retryBudgetMs(EMBEDDING_PROVIDER_RETRY, EMBED_ROUND_TRIP_TIMEOUT_MS)` — see
- * `startup-timeout.test.ts`, which gates it against the deadline it could race.
+ * Worst case ≈ `retryBudgetMs(EMBEDDING_PROVIDER_RETRY, EMBED_ROUND_TRIP_TIMEOUT_MS)`.
  */
 export const EMBEDDING_PROVIDER_RETRY: RetryPolicy = {
   attempts: 12,
@@ -44,11 +42,10 @@ export const EMBEDDING_PROVIDER_RETRY: RetryPolicy = {
  * Not ready YET, by either route: the model is still downloading (404), or the
  * provider is not listening at all (connection refused).
  *
- * Composed rather than choosing one, because at boot they are the same wait with
- * the same collateral — a flapping archivist strands `semiont-worker` in
- * `Created` whichever error caused the flap. Retrying connection-refused to the
- * GATEWAY and not to Ollama, in the same three mains, would be an asymmetry
- * nobody chose; `authenticate()` retries on `isTransientFetchError` at boot.
+ * Composed rather than choosing one, because at boot they are the same wait
+ * with the same collateral. Retrying connection-refused to the GATEWAY and not
+ * to Ollama, in one boot, would be an asymmetry nobody chose; `authenticate()`
+ * retries on `isTransientFetchError` at boot.
  */
 const notReady = (error: unknown): boolean =>
   isColdModelError(error) || isTransientFetchError(error);

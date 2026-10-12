@@ -1,11 +1,12 @@
 'use client';
 
 import type { ResourceId } from '@semiont/core';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Annotation } from '@semiont/core';
 import { estimateSlotHeight } from './estimate-slot-height';
-import { useAnchoredText } from './use-anchored-text';
-import { PdfPageView } from './PdfPageView';
+import { useAnchoredText } from '../../hooks/useAnchoredText';
+import { AnchoredTextNotice } from '../annotation/AnchoredTextNotice';
+import { PdfPageView, type PageDrawing } from './PdfPageView';
 import { useTranslations } from '../../contexts/TranslationContext';
 import type { SemiontSession } from '@semiont/sdk';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
@@ -174,27 +175,23 @@ export function PdfAnnotationCanvas({
   }, [pdfUrl, scale]);
 
   /**
-   * The server-derived map, fetched once per document rather than once per
-   * page. The map is WHOLE-RESOURCE — one artifact covering every page — so
-   * re-reading it per page would mean a full refetch and re-decode on every page
-   * turn; on a 400-page scan that is one decode per interaction instead of one
-   * per document. Living on the parent is also what lets a scrolling column
-   * mount many pages against a single fetch.
+   * The document's text as Semiont serves it — every PDF's, since a rectangle
+   * on any page is quoted from it and from nowhere else. It is WHOLE-RESOURCE,
+   * one artifact covering every page, so it is held here, once for the
+   * document, and handed to each page: a 400-page document is asked for and
+   * decoded once, however many pages mount and however often they turn.
    *
-   * The cache holds the in-flight promise so concurrent page loads share one
-   * fetch. TERMINAL answers cache — "no map", "unknown" and a stored decline
-   * are definitive — but the wire names retryability in the kind itself
-   * (AnchoredTextAbsent): `not-yet` means the Smelter has not settled this
-   * content generation and the caller should come back, so it clears the entry
-   * the way a transport failure does. Pinning it would leave a scan opened
-   * mid-smelt mapless for the whole mount — every annotation drawn on it
-   * permanently mute.
-   *
-   * The settled kind rides on the cache entry: the answer, not just the map,
-   * is the parent's fact (it is held in state, where it gates Annotate).
+   * A person may draw only while it is held. A quote is cut when an annotation
+   * is made and never again, so a rectangle drawn without the text would have
+   * no quote for good.
    */
-  const { anchoredEpoch, annotateDeferred, fetchResourceAnchored } =
-    useAnchoredText(session, resourceUri);
+  const anchoredText = useAnchoredText(session, resourceUri);
+  const drawing = useMemo<PageDrawing | null>(
+    () => (anchoredText.status === 'held' && drawingMode
+      ? { mode: drawingMode, text: anchoredText.text }
+      : null),
+    [anchoredText, drawingMode],
+  );
 
   // The column's width decides every page's displayed height, so the
   // reservation cannot be computed without it.
@@ -420,14 +417,12 @@ export function PdfAnnotationCanvas({
     scale,
     resourceUri,
     existingAnnotations,
-    drawingMode: annotateDeferred ? null : drawingMode,
+    drawing,
     selectedMotivation,
     session,
     hoveredAnnotationId,
     selectedAnnotationId,
     hoverDelayMs,
-    fetchResourceAnchored,
-    anchoredEpoch,
   };
 
   if (errorKey) {
@@ -435,13 +430,9 @@ export function PdfAnnotationCanvas({
   }
 
   return (
-    <div className="semiont-pdf-annotation-canvas" data-annotate-deferred={annotateDeferred ? 'true' : 'false'}>
+    <div className="semiont-pdf-annotation-canvas" data-annotate-deferred={anchoredText.status === 'held' ? 'false' : 'true'}>
       {isLoading && <div className="semiont-pdf-annotation-canvas__loading">{t('loading')}</div>}
-      {annotateDeferred && (
-        <div className="semiont-pdf-annotation-canvas__map-pending" role="status">
-          {t('preparingTextLayer')}
-        </div>
-      )}
+      <AnchoredTextNotice status={anchoredText.status} />
 
       {pdfDoc && pageLayout === 'scroll' ? (
         <div className="semiont-pdf-annotation-canvas__viewport" data-axis={SCROLL_AXIS}>
@@ -494,10 +485,11 @@ export function PdfAnnotationCanvas({
       ) : (
         pdfDoc && !isLoading && (
           // `key` is load-bearing: without it React reuses this instance
-          // across page changes, so the previous page's raster, text map and
-          // load error survive into the next page — a stale overlay, a quote
-          // taken from the wrong page, and an error that never clears. Each
-          // page is a different thing; mounting it as one resets all of it.
+          // across page changes, so the previous page's raster and load error
+          // survive into the next page — a stale overlay, a rectangle drawn
+          // over one page and recorded against another, and an error that
+          // never clears. Each page is a different thing; mounting it as one
+          // resets all of it.
           <PdfPageView key={pageNumber} doc={pdfDoc} pageNumber={pageNumber} {...pageProps} />
         )
       )}

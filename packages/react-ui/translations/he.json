@@ -37,7 +37,8 @@
     "pagination": "ניווט בין עמודים",
     "previous": "הקודם",
     "viewerLoading": "טוען מציג PDF...",
-    "preparingTextLayer": "מכין את שכבת הטקסט — ההערות יופעלו כשתהיה מוכנה"
+    "preparingTextLayer": "מכין את שכבת הטקסט — ההערות יופעלו כשתהיה מוכנה",
+    "textLayerUnreadable": "לא ניתן היה לקרוא את הטקסט של מסמך זה, ולכן אי אפשר להוסיף לו הערות"
   },
   "Toolbar": {
     "annotations": "הערות",

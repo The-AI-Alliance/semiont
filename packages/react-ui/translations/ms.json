@@ -37,7 +37,8 @@
     "pagination": "Navigasi halaman",
     "previous": "Sebelumnya",
     "viewerLoading": "Memuatkan pemapar PDF...",
-    "preparingTextLayer": "Menyediakan lapisan teks — anotasi akan diaktifkan apabila sedia"
+    "preparingTextLayer": "Menyediakan lapisan teks — anotasi akan diaktifkan apabila sedia",
+    "textLayerUnreadable": "Teks dokumen ini tidak dapat dibaca, jadi ia tidak boleh dianotasi"
   },
   "Toolbar": {
     "annotations": "Anotasi",

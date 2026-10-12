@@ -53,11 +53,11 @@ The state unit layer is what makes the same SDK that drives the browser also dri
 
 ## Multi-KB sessions
 
-A Semiont Browser instance registers multiple knowledge bases — each a separate gateway with its own stored credentials, its own tabs, and its own resource state — but holds exactly **one live `SemiontSession` at a time: the active KB's**. Switching KBs disposes the current session (and with it the event-bus connection) before constructing the next; `SemiontBrowser.setActiveKb` documents the disposal contract. An inactive KB exists as persisted per-KB state only — its auth status (signed-out / expired / authenticated) is computed from its stored token without any session or connection existing. Per-KB authentication and the session lifecycle live in `SemiontSession` (defined in `@semiont/sdk`), the same abstraction workers and the smelter use.
+A Semiont Browser instance registers multiple knowledge bases — each a separate gateway with its own stored credentials, its own tabs, and its own resource state — but holds exactly **one live `SemiontSession` at a time: the active KB's**. Switching KBs disposes the current session (and with it the event-bus connection) before constructing the next; `SemiontBrowser.setActiveKb` documents the disposal contract. An inactive KB exists as persisted per-KB state only — its auth status (signed-out / expired / authenticated) is computed from its stored token without any session or connection existing. Per-KB authentication and the session lifecycle live in `SemiontSession` (defined in `@semiont/sdk`), the same abstraction a script built on the SDK uses.
 
 Storage adapters thread the same `SemiontSession` through every host environment:
 
 - **`WebBrowserStorage`** (`@semiont/react-ui`) — localStorage in the SPA, with cross-tab sync.
-- **`InMemorySessionStorage`** (`@semiont/sdk`) — for workers, the smelter, scripts and tests.
+- **`InMemorySessionStorage`** (`@semiont/sdk`) — for scripts and tests.
 
 `SemiontClient` exposes namespace methods (e.g. `client.browse.resource(...)`, `client.mark.annotation(...)`) over the bus; the namespaces are the consumer surface, and `client.bus` and `client.transport` are the advanced one beneath it ([REACTIVE-MODEL § Three paths to the bus](../builder/REACTIVE-MODEL.md#three-paths-to-the-bus)). The full session lifecycle — sign-in, refresh, expiry, cross-tab sync — is documented in [SemiontSession's source](../../packages/sdk/src/session/semiont-session.ts) and the [long-running session skill](../builder/skills/semiont-session/SKILL.md).

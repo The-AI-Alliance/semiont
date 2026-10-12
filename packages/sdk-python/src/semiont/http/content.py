@@ -1,12 +1,14 @@
 """Bytes over the gateway's HTTP transport, as a `semiont.transport.ContentTransport`.
 
 An upload (`POST /resources`), a resource's bytes whole or as a stream
-(`GET /resources/{id}`), and its description as linked data
-(`GET /resources/{id}/jsonld`). Bytes never ride the bus.
+(`GET /resources/{id}`), its description as linked data
+(`GET /resources/{id}/jsonld`), and its anchored text
+(`GET /resources/{id}/anchored-text`). Bytes never ride the bus.
 
 It makes its requests as the bus transport makes its own, so one here is
 refused, tried again and reported as any other; and each is made in a span of
-the telemetry table (`content.put`, `content.get`, `content.get_graph`).
+the telemetry table (`content.put`, `content.get`, `content.get_graph`,
+`content.get_anchored_text`).
 """
 
 import asyncio
@@ -19,12 +21,13 @@ from pydantic import TypeAdapter
 
 from semiont import telemetry
 from semiont._bus_log import bus_log
+from semiont._lacks import shapes_of
 from semiont.errors import TransportError
 from semiont.http._withheld import why_unanswered
 from semiont.http.exchange import Exchange
 from semiont.identifiers import ResourceId
 from semiont.transport import Content, ContentStream, ContentTransport, PutBinaryRequest, Upload, UploadProgress
-from semiont.types import Agent, CreateResourceResponse, GetResourceResponse, ResourceUpload
+from semiont.types import Agent, AnchoredTextAnswer, CreateResourceResponse, GetResourceResponse, ResourceUpload
 
 __all__ = ["HttpContentTransport", "form_of"]
 
@@ -39,6 +42,7 @@ _BEFORE_THE_BYTES: Final = ("name", "format", "storage_uri")
 _AGENT: Final = TypeAdapter[Agent](Agent)
 _AGENTS: Final = TypeAdapter[list[Agent]](list[Agent])
 _NAMES: Final = TypeAdapter[list[str]](list[str])
+_ANCHORED_TEXT: Final = TypeAdapter[AnchoredTextAnswer](AnchoredTextAnswer)
 
 
 def _flag(value: bool | None) -> str | None:
@@ -242,3 +246,11 @@ class HttpContentTransport(ContentTransport):
         bus_log("GET", "content", {"resourceId": resource_id, "graph": True})
         with telemetry.getting_graph(resource_id):
             return await self._exchange.answer(GetResourceResponse, "GET", f"{_path_of(resource_id)}/jsonld")
+
+    @override
+    async def get_anchored_text(self, resource_id: ResourceId) -> AnchoredTextAnswer:
+        bus_log("GET", "content", {"resourceId": resource_id, "anchoredText": True})
+        with telemetry.getting_anchored_text(resource_id):
+            return await self._exchange.answer_one_of(
+                _ANCHORED_TEXT, shapes_of(AnchoredTextAnswer), "GET", f"{_path_of(resource_id)}/anchored-text"
+            )

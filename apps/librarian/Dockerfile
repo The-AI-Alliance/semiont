@@ -10,9 +10,7 @@
 #
 # Stage 1: install (npm runs here, then is discarded).
 #
-# The Librarian is a separate image from the shared @semiont/make-meaning
-# package, like smelter/weaver/archivist — separate because their dependency
-# footprints differ. This is the heaviest of the set: the Matcher dials the
+# The one image built from @semiont/make-meaning. The Matcher dials the
 # graph (neo4j-driver, a lazy peer of @semiont/graph, bundled explicitly) AND
 # Qdrant (the qdrant client @semiont/make-meaning already carries) AND an
 # embedding provider AND an inference client. It is NOT the git writer — no
@@ -71,7 +69,7 @@ COPY scripts/container/boot.sh /usr/local/bin/boot.sh
 USER semiont
 
 ENV NODE_ENV=production
-# No SEMIONT_ROOT and no SEMIONT_ANCHORED_TEXT_DIR — this image mounts no
+# No SEMIONT_ROOT — this image mounts no
 # piece of the KB tree; only the Archivist does. The Librarian locates the
 # views it reads from the staged `[kb] name` under the shared state mount, and
 # everything else reaches it over the wire.

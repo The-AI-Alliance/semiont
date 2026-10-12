@@ -4,9 +4,9 @@
 
 use semiont::media_types::{
     MEDIA_TYPES, PLAIN_TEXT, base_media_type, capabilities_of, clone_format, derive_storage_uri,
-    primary_media_type, storage_file_name,
+    derives_text_of, storage_file_name, text_source_of, yields_geometry_of,
 };
-use semiont::types::{ResourceDescriptor, SupportedMediaType};
+use semiont::types::SupportedMediaType;
 use serde_json::{Value, json};
 
 fn cases(of: &str) -> Vec<Value> {
@@ -21,6 +21,12 @@ fn text<'a>(case: &'a Value, key: &str) -> &'a str {
     case[key]
         .as_str()
         .unwrap_or_else(|| panic!("a case states no {key}: {case}"))
+}
+
+fn flag(case: &Value, key: &str) -> bool {
+    case[key]
+        .as_bool()
+        .unwrap_or_else(|| panic!("a case does not say whether {key}: {case}"))
 }
 
 #[test]
@@ -45,6 +51,24 @@ fn content_is_stored_under_the_name_each_case_states() {
             derive_storage_uri(text(&case, "name"), format),
             format!("file://{file_name}")
         );
+    }
+}
+
+#[test]
+fn a_formats_text_comes_from_where_each_case_states() {
+    for case in cases("textSource") {
+        let (why, format) = (text(&case, "why"), text(&case, "format"));
+        let held = (
+            text_source_of(format).as_str(),
+            yields_geometry_of(format),
+            derives_text_of(format),
+        );
+        let stated = (
+            text(&case, "textSource"),
+            flag(&case, "yieldsGeometry"),
+            flag(&case, "derivesText"),
+        );
+        assert_eq!(held, stated, "{why}: {format}");
     }
 }
 
@@ -96,26 +120,4 @@ fn a_format_is_read_without_its_parameters_and_in_lower_case() {
     );
     assert_eq!(capabilities_of("application/x-unheard-of"), None);
     assert_eq!(capabilities_of("text/plain"), Some(&PLAIN_TEXT));
-}
-
-#[test]
-fn a_resources_media_type_is_its_first_representations() {
-    let resource = |representations: Value| -> ResourceDescriptor {
-        serde_json::from_value(json!({
-            "@context": "https://schema.org", "@id": "res-1", "name": "A resource",
-            "representations": representations,
-        }))
-        .expect("a resource")
-    };
-    assert_eq!(
-        primary_media_type(&resource(json!({ "mediaType": "image/png" }))),
-        Some("image/png")
-    );
-    assert_eq!(
-        primary_media_type(&resource(json!([
-            { "mediaType": "text/markdown" }, { "mediaType": "application/pdf" },
-        ]))),
-        Some("text/markdown")
-    );
-    assert_eq!(primary_media_type(&resource(json!([]))), None);
 }

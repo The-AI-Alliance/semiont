@@ -6,7 +6,7 @@ Scripts that build Semiont's container images, run inside them, or check them.
 
 | Script | Purpose |
 |--------|---------|
-| `build-images.js` | Builds the gateway, dispatcher, archivist and Browser images — the three Rust services with the toolchain `rust-toolchain.toml` pins. The three Node service images and the Python worker image are built by `scripts/ci/local-build.sh` and the image publish workflow, not here. |
+| `build-images.js` | Builds the gateway, dispatcher, archivist and Browser images — the three Rust services with the toolchain `rust-toolchain.toml` pins. The Librarian's image, which is Node's, and the images of the three Python services (the worker's, the smelter's, the weaver's) are built by `scripts/ci/local-build.sh` and the image publish workflow, not here. |
 | `container-utils.js` | Lists and removes semiont images. |
 
 Both auto-detect Apple Container, Docker, or Podman (in that order). Override with
@@ -34,7 +34,7 @@ Copied into images by their Dockerfiles; the build context is the repository roo
 |--------|---------|--------|
 | `boot.sh` | The entrypoint, run as PID 1 under tini. With `SEMIONT_SUPERVISE` set — the launcher sets it for local stacks — it runs the image's `CMD` under `supervise.sh`; unset, it execs the `CMD` directly, so a published image behaves like a conventional container. | all seven services and the Browser |
 | `supervise.sh` | The in-container supervisor: restarts a crashed child, probes and kills a hung one, fails fast on a deterministic boot refusal instead of looping, and forwards `TERM` from `semiont stop`. | all seven services and the Browser |
-| `patch-qdrant-undici.sh` | Installer-stage step. Replaces the `undici` that `@qdrant/js-client-rest` pins for itself with a patched release, because `npm install -g` ignores `overrides`. **Self-retiring:** it exits non-zero once there is nothing left to patch — when that happens, delete it and its `RUN` lines rather than loosening the check. | archivist, librarian, smelter, weaver |
+| `patch-qdrant-undici.sh` | Installer-stage step. Replaces the `undici` that `@qdrant/js-client-rest` pins for itself with a patched release, because `npm install -g` ignores `overrides`. **Self-retiring:** it exits non-zero once there is nothing left to patch — when that happens, delete it and its `RUN` line rather than loosening the check. | librarian |
 
 ## Checking a built image
 
@@ -42,4 +42,4 @@ Copied into images by their Dockerfiles; the build context is the repository roo
 |--------|---------|
 | `check-gateway-image.sh <image> [runtime]` | Checks what a built gateway image promises: no source in it, a first `/api/health` 200 within its start bound, and its `HEALTHCHECK` passing against the serving gateway. Run by `scripts/ci/local-build.sh` and the image publish workflow. |
 | `check-document-image.sh <service> <image> [runtime]` | Checks what the built image of a Rust service that only reads a configuration document promises (the dispatcher's, the archivist's): no source and no Node in it, and, run as its `CMD` says with no document mounted, a refusal by name (exit 1, `Cannot read the <service>'s configuration document`) within its bound. Run by `scripts/ci/local-build.sh` and the image publish workflow. |
-| `check-python-image.sh <service> <image> [runtime]` | Checks what the built image of a Python service promises (the worker's, the weaver's): no installer and no Node in it; every module of the Python packages built into it importing there, each inference driver with its provider's library and each graph store with its database's client; and, run as its `CMD` says with no document mounted, a refusal by name (exit 1, `Cannot read the <service>'s configuration document`). Run by `scripts/ci/local-build.sh` and the image publish workflow. |
+| `check-python-image.sh <service> <image> [runtime]` | Checks what the built image of a Python service promises (the worker's, the weaver's, the smelter's): no installer and no Node in it; every module of the Python packages built into it importing there, each inference driver with its provider's library and each graph store with its database's client; and, run as its `CMD` says with no document mounted, a refusal by name (exit 1, `Cannot read the <service>'s configuration document`). Of the smelter's image alone: the `tesseract` program with its English data in it, and, with no network, the Smelter's reader and engine reading the scanned page of `specs/src/smelter/fixtures/legible-scan.pdf`. Run by `scripts/ci/local-build.sh` and the image publish workflow. |
