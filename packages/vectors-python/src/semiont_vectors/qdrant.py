@@ -241,7 +241,8 @@ async def _read(client: httpx.AsyncClient, path: str, body: _Body) -> JsonValue:
     """
     response = await client.post(path, json=body)
     if response.status_code == _NOT_THERE:
-        raise CollectionAbsent(f"Qdrant has no such collection (it answered {response.status_code} to POST {path}): no store has made it yet")
+        answered = f"it answered {response.status_code} to POST {path}"
+        raise CollectionAbsent(f"Qdrant has no such collection ({answered}): no store has made it yet")
     return _result(response)
 
 

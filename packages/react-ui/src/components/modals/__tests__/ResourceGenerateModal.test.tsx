@@ -150,21 +150,21 @@ describe('ResourceGenerateModal', () => {
 
   it('the receipt expands back to the form — values preserved — and re-gather collapses again', () => {
     renderModal({ gatherContext: RESOURCE_CONTEXT });
-    fireEvent.change(screen.getByLabelText(T.gatherDepth), { target: { value: '4' } });
+    fireEvent.change(screen.getByLabelText(T.gatherDepth), { target: { value: '3' } });
     fireEvent.click(screen.getByRole('button', { name: /Gather/ }));
-    expect(screen.getByTitle(T.editGather).textContent).toContain(`${T.gatherDepth} 4`);
+    expect(screen.getByTitle(T.editGather).textContent).toContain(`${T.gatherDepth} 3`);
 
     fireEvent.click(screen.getByTitle(T.editGather));
     const depthInput = screen.getByLabelText(T.gatherDepth);
     expect(depthInput).toBeVisible();
-    expect(depthInput).toHaveValue(4); // not re-initialized — the form never unmounted
+    expect(depthInput).toHaveValue(3); // not re-initialized — the form never unmounted
     expect(screen.queryByTitle(T.editGather)).not.toBeInTheDocument();
 
-    fireEvent.change(depthInput, { target: { value: '3' } });
+    fireEvent.change(depthInput, { target: { value: '1' } });
     fireEvent.click(screen.getByRole('button', { name: /Gather/ }));
     expect(onGather).toHaveBeenCalledTimes(2);
-    expect(onGather).toHaveBeenLastCalledWith(expect.objectContaining({ depth: 3 }));
-    expect(screen.getByTitle(T.editGather).textContent).toContain(`${T.gatherDepth} 3`);
+    expect(onGather).toHaveBeenLastCalledWith(expect.objectContaining({ depth: 1 }));
+    expect(screen.getByTitle(T.editGather).textContent).toContain(`${T.gatherDepth} 1`);
   });
 
   it('threads crossed-off entity types into the gather options as the exclude list', () => {

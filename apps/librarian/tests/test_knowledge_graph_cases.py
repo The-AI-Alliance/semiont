@@ -410,9 +410,9 @@ def test_a_build_gives_the_graph_or_the_failure_the_table_states_after_the_wait_
     assert outcome.asked == len(case.answers), case.why
     # Each resource the case states further out was asked both reads, once each, and no other resource was asked either.
     stated_further = sorted(each.resource for each in case.further)
-    for read in ("get_resource_connections", "get_resource_referenced_by"):
-        asked_of = sorted(resource for name, resource in outcome.asked_further if name == read)
-        assert asked_of == stated_further, f"{case.why}: {read} was asked of {asked_of}, and the case states {stated_further}"
+    for kind in ("get_resource_connections", "get_resource_referenced_by"):
+        asked_of = sorted(resource for name, resource in outcome.asked_further if name == kind)
+        assert asked_of == stated_further, f"{case.why}: {kind} was asked of {asked_of}, and the case states {stated_further}"
 
 
 # ── What no case of the table states ──────────────────────────────────
