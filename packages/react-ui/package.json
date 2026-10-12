@@ -82,7 +82,7 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "styled-components": "^6.0.0",
-    "vitest": "^4.0.0"
+    "vitest": "^4.0.0 || ^5.0.0"
   },
   "peerDependenciesMeta": {
     "styled-components": {
@@ -98,7 +98,7 @@
     "@testing-library/react": "^16.3.3",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "^5.0.2",
     "autoprefixer": "^10.6.1",
     "axe-core": "^4.14.0",
     "cssnano": "^9.3.2",
@@ -111,7 +111,7 @@
     "styled-components": "^6.5.2",
     "tsup": "^8.0.1",
     "typescript": "^6.0.2",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.2"
   },
   "publishConfig": {
     "access": "public"
