@@ -1,0 +1,349 @@
+{
+  "$comment": "How the people a reply mentions are named, as every implementation must name them. No stored thing carries a person's name: a person is identified by an id, and what the knowledge base calls them is filled in when a reply is read. Semiont's Librarian (packages/make-meaning: views/people-reader.ts) runs every case and fails on a difference; an implementation in another language runs the same file. WHAT A CASE STATES. `reply` is a reply, which is any JSON. `people` is what the knowledge base calls its people: each person's `name` and the moment they gave it (`since`), by their id, as the people projection holds them. `named` is the reply with its people named. THE RULE. A person is an object whose `@type` is `Person`, wherever in the reply it is: the reply itself, a member of an object at any depth, an item of a list at any depth, or a member of another person. A person whose `@id` is in `people` has its `name` set to the name stated there, in place of any name it carried. A person whose `@id` is not in `people` is left as it is, with the name it carried or with none. Nothing else of a person changes, and nothing else of the reply does: an object whose `@type` is anything else is no person, though its `@id` is in `people`, and `since` is put nowhere. Add a case here before changing an implementation.",
+  "cases": [
+    {
+      "why": "a person with a profile, identified and not named, is given the name",
+      "reply": { "creator": { "@type": "Person", "@id": "did:web:example.org:users:ada" } },
+      "people": {
+        "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
+      },
+      "named": { "creator": { "@type": "Person", "@id": "did:web:example.org:users:ada", "name": "Ada Lovelace" } }
+    },
+    {
+      "why": "a reply that is itself a person is named",
+      "reply": { "@type": "Person", "@id": "did:web:example.org:users:ada" },
+      "people": {
+        "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
+      },
+      "named": { "@type": "Person", "@id": "did:web:example.org:users:ada", "name": "Ada Lovelace" }
+    },
+    {
+      "why": "a person several objects deep is named",
+      "reply": {
+        "response": {
+          "context": {
+            "focus": {
+              "annotation": { "id": "ann-1", "creator": { "@type": "Person", "@id": "did:web:example.org:users:ada" } }
+            }
+          }
+        }
+      },
+      "people": {
+        "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
+      },
+      "named": {
+        "response": {
+          "context": {
+            "focus": {
+              "annotation": { "id": "ann-1", "creator": { "@type": "Person", "@id": "did:web:example.org:users:ada", "name": "Ada Lovelace" } }
+            }
+          }
+        }
+      }
+    },
+    {
+      "why": "a person that is an item of a list is named, and the items beside it are as they were",
+      "reply": {
+        "wasAttributedTo": [
+          { "@type": "Person", "@id": "did:web:example.org:users:ada" },
+          { "@type": "Software", "@id": "did:web:example.org:agents:anthropic:model", "name": "anthropic model", "provider": "anthropic", "model": "model" }
+        ]
+      },
+      "people": {
+        "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
+      },
+      "named": {
+        "wasAttributedTo": [
+          { "@type": "Person", "@id": "did:web:example.org:users:ada", "name": "Ada Lovelace" },
+          { "@type": "Software", "@id": "did:web:example.org:agents:anthropic:model", "name": "anthropic model", "provider": "anthropic", "model": "model" }
+        ]
+      }
+    },
+    {
+      "why": "a reply that is a list is read item by item",
+      "reply": [
+        { "id": "ann-1", "creator": { "@type": "Person", "@id": "did:web:example.org:users:ada" } },
+        { "id": "ann-2", "creator": { "@type": "Person", "@id": "did:web:example.org:users:grace" } }
+      ],
+      "people": {
+        "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" },
+        "did:web:example.org:users:grace": { "name": "Grace Hopper", "since": "2020-03-04T05:06:08.000Z" }
+      },
+      "named": [
+        { "id": "ann-1", "creator": { "@type": "Person", "@id": "did:web:example.org:users:ada", "name": "Ada Lovelace" } },
+        { "id": "ann-2", "creator": { "@type": "Person", "@id": "did:web:example.org:users:grace", "name": "Grace Hopper" } }
+      ]
+    },
+    {
+      "why": "a person in a list inside a list inside an object is named",
+      "reply": {
+        "rows": [
+          [
+            { "@type": "Person", "@id": "did:web:example.org:users:ada" },
+            "a string beside it"
+          ],
+          [7, null, true]
+        ]
+      },
+      "people": {
+        "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
+      },
+      "named": {
+        "rows": [
+          [
+            { "@type": "Person", "@id": "did:web:example.org:users:ada", "name": "Ada Lovelace" },
+            "a string beside it"
+          ],
+          [7, null, true]
+        ]
+      }
+    },
+    {
+      "why": "a reply that mentions one person in several places has each named",
+      "reply": {
+        "resources": [
+          {
+            "@id": "res-1",
+            "wasAttributedTo": [{ "@type": "Person", "@id": "did:web:example.org:users:ada" }]
+          }
+        ],
+        "annotations": [
+          { "id": "ann-1", "creator": { "@type": "Person", "@id": "did:web:example.org:users:ada" }, "wasAttributedTo": { "@type": "Person", "@id": "did:web:example.org:users:ada" } }
+        ]
+      },
+      "people": {
+        "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
+      },
+      "named": {
+        "resources": [
+          {
+            "@id": "res-1",
+            "wasAttributedTo": [{ "@type": "Person", "@id": "did:web:example.org:users:ada", "name": "Ada Lovelace" }]
+          }
+        ],
+        "annotations": [
+          { "id": "ann-1", "creator": { "@type": "Person", "@id": "did:web:example.org:users:ada", "name": "Ada Lovelace" }, "wasAttributedTo": { "@type": "Person", "@id": "did:web:example.org:users:ada", "name": "Ada Lovelace" } }
+        ]
+      }
+    },
+    {
+      "why": "each of several people is given their own name",
+      "reply": {
+        "creator": { "@type": "Person", "@id": "did:web:example.org:users:grace" },
+        "wasAttributedTo": [
+          { "@type": "Person", "@id": "did:web:example.org:users:grace" },
+          { "@type": "Person", "@id": "did:web:example.org:users:ada" }
+        ]
+      },
+      "people": {
+        "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" },
+        "did:web:example.org:users:grace": { "name": "Grace Hopper", "since": "2020-03-04T05:06:08.000Z" }
+      },
+      "named": {
+        "creator": { "@type": "Person", "@id": "did:web:example.org:users:grace", "name": "Grace Hopper" },
+        "wasAttributedTo": [
+          { "@type": "Person", "@id": "did:web:example.org:users:grace", "name": "Grace Hopper" },
+          { "@type": "Person", "@id": "did:web:example.org:users:ada", "name": "Ada Lovelace" }
+        ]
+      }
+    },
+    {
+      "why": "a person with no profile is left as it is, with no name",
+      "reply": { "creator": { "@type": "Person", "@id": "did:web:example.org:users:stranger" } },
+      "people": {
+        "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
+      },
+      "named": { "creator": { "@type": "Person", "@id": "did:web:example.org:users:stranger" } }
+    },
+    {
+      "why": "a person with no profile keeps the name it carried",
+      "reply": { "creator": { "@type": "Person", "@id": "did:web:example.org:users:stranger", "name": "A name it carried" } },
+      "people": {
+        "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
+      },
+      "named": { "creator": { "@type": "Person", "@id": "did:web:example.org:users:stranger", "name": "A name it carried" } }
+    },
+    {
+      "why": "in a list, the person with a profile is named and the person with none beside it is left as it is",
+      "reply": {
+        "wasAttributedTo": [
+          { "@type": "Person", "@id": "did:web:example.org:users:stranger" },
+          { "@type": "Person", "@id": "did:web:example.org:users:ada" }
+        ]
+      },
+      "people": {
+        "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
+      },
+      "named": {
+        "wasAttributedTo": [
+          { "@type": "Person", "@id": "did:web:example.org:users:stranger" },
+          { "@type": "Person", "@id": "did:web:example.org:users:ada", "name": "Ada Lovelace" }
+        ]
+      }
+    },
+    {
+      "why": "where the knowledge base calls no one anything, no one is named",
+      "reply": { "creator": { "@type": "Person", "@id": "did:web:example.org:users:ada" } },
+      "people": {},
+      "named": { "creator": { "@type": "Person", "@id": "did:web:example.org:users:ada" } }
+    },
+    {
+      "why": "a name a person carried is replaced by the name of their profile: here the carried one was an id written where a name belongs",
+      "reply": { "creator": { "@type": "Person", "@id": "did:web:example.org:users:ada", "name": "59523dd4-a0e3-4c1c-8c2d-7fcbe3d789dd" } },
+      "people": {
+        "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
+      },
+      "named": { "creator": { "@type": "Person", "@id": "did:web:example.org:users:ada", "name": "Ada Lovelace" } }
+    },
+    {
+      "why": "a person who already carries the name of their profile is as they were",
+      "reply": { "creator": { "@type": "Person", "@id": "did:web:example.org:users:ada", "name": "Ada Lovelace" } },
+      "people": {
+        "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
+      },
+      "named": { "creator": { "@type": "Person", "@id": "did:web:example.org:users:ada", "name": "Ada Lovelace" } }
+    },
+    {
+      "why": "only the name of a person changes: what else it carries is kept, and the moment the name was given is put nowhere",
+      "reply": {
+        "creator": { "@type": "Person", "@id": "did:web:example.org:users:ada", "nickname": "ada", "homepage": "https://example.org/ada" }
+      },
+      "people": {
+        "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
+      },
+      "named": {
+        "creator": { "@type": "Person", "@id": "did:web:example.org:users:ada", "nickname": "ada", "homepage": "https://example.org/ada", "name": "Ada Lovelace" }
+      }
+    },
+    {
+      "why": "a Software agent is no person: it keeps its own name, though its id has a profile",
+      "reply": {
+        "generator": { "@type": "Software", "@id": "did:web:example.org:users:ada", "name": "ollama gemma", "provider": "ollama", "model": "gemma" }
+      },
+      "people": {
+        "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
+      },
+      "named": {
+        "generator": { "@type": "Software", "@id": "did:web:example.org:users:ada", "name": "ollama gemma", "provider": "ollama", "model": "gemma" }
+      }
+    },
+    {
+      "why": "an Organization is no person either, and neither is an object that states an id with a profile and no type",
+      "reply": {
+        "publisher": { "@type": "Organization", "@id": "did:web:example.org:users:ada", "name": "An organization" },
+        "about": { "@id": "did:web:example.org:users:ada" }
+      },
+      "people": {
+        "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
+      },
+      "named": {
+        "publisher": { "@type": "Organization", "@id": "did:web:example.org:users:ada", "name": "An organization" },
+        "about": { "@id": "did:web:example.org:users:ada" }
+      }
+    },
+    {
+      "why": "a person held by another person is named, and so is the one that holds it",
+      "reply": {
+        "creator": {
+          "@type": "Person",
+          "@id": "did:web:example.org:users:grace",
+          "knows": [{ "@type": "Person", "@id": "did:web:example.org:users:ada" }]
+        }
+      },
+      "people": {
+        "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" },
+        "did:web:example.org:users:grace": { "name": "Grace Hopper", "since": "2020-03-04T05:06:08.000Z" }
+      },
+      "named": {
+        "creator": {
+          "@type": "Person",
+          "@id": "did:web:example.org:users:grace",
+          "knows": [{ "@type": "Person", "@id": "did:web:example.org:users:ada", "name": "Ada Lovelace" }],
+          "name": "Grace Hopper"
+        }
+      }
+    },
+    {
+      "why": "a person held by a person with no profile is named, and the one that holds it is left unnamed",
+      "reply": {
+        "creator": {
+          "@type": "Person",
+          "@id": "did:web:example.org:users:stranger",
+          "knows": { "@type": "Person", "@id": "did:web:example.org:users:ada" }
+        }
+      },
+      "people": {
+        "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
+      },
+      "named": {
+        "creator": {
+          "@type": "Person",
+          "@id": "did:web:example.org:users:stranger",
+          "knows": { "@type": "Person", "@id": "did:web:example.org:users:ada", "name": "Ada Lovelace" }
+        }
+      }
+    },
+    {
+      "why": "a reply that mentions no person is as it was",
+      "reply": {
+        "annotations": [
+          { "id": "ann-1", "motivation": "highlighting", "target": { "source": "res-1" } }
+        ],
+        "total": 1,
+        "nextCursor": null,
+        "complete": true
+      },
+      "people": {
+        "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
+      },
+      "named": {
+        "annotations": [
+          { "id": "ann-1", "motivation": "highlighting", "target": { "source": "res-1" } }
+        ],
+        "total": 1,
+        "nextCursor": null,
+        "complete": true
+      }
+    },
+    {
+      "why": "a string that is a person's id, and a member named for one, are no person: only an object typed as one is",
+      "reply": {
+        "userId": "did:web:example.org:users:ada",
+        "did:web:example.org:users:ada": { "role": "editor" },
+        "@type": "Annotation"
+      },
+      "people": {
+        "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
+      },
+      "named": {
+        "userId": "did:web:example.org:users:ada",
+        "did:web:example.org:users:ada": { "role": "editor" },
+        "@type": "Annotation"
+      }
+    },
+    {
+      "why": "a reply that is a string is as it was",
+      "reply": "did:web:example.org:users:ada",
+      "people": {
+        "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
+      },
+      "named": "did:web:example.org:users:ada"
+    },
+    {
+      "why": "a reply that is null is null",
+      "reply": null,
+      "people": {
+        "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
+      },
+      "named": null
+    },
+    {
+      "why": "an empty object and an empty list are as they were",
+      "reply": { "empty": {}, "none": [] },
+      "people": {
+        "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
+      },
+      "named": { "empty": {}, "none": [] }
+    }
+  ]
+}

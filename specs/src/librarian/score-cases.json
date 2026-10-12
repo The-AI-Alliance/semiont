@@ -1,0 +1,1193 @@
+{
+  "$comment": "What a reference search answers, as every implementation of the Librarian must answer it: a request, what each source the search reads answers, and the candidates in order, each with its score and the reason given for it. Semiont's Librarian (packages/make-meaning: matcher.ts) runs every case, in packages/make-meaning/src/__tests__/score-cases.test.ts, and fails on a difference; a Librarian in another language runs the same file. WHAT A CASE STATES. `request` is the payload of `match:search-requested`. `now` is the moment the search is made: recency is counted from it, so a runner sets its clock to it. `resources` describes each resource the case names; a source that has a resource answers this description of it. `graph.byName` is what the graph's listing by name answers, as ids in the order it answers them, or `fails` with the failure's message. `graph.byEntityType` is what its listing by entity type answers; it is absent when that listing is not asked. `graph.byId` states, for each id the graph is asked to give the description of, whether the description is `held` or `absent`, or that the read `fails`. `views` states, for each id the view store is asked for, whether the view is `held` or `absent`. No other id is asked of either. `vectors` is what the vector index answers: its `hits` in the order it answers them, each a resource's id and a score, or `fails`; it is absent when the index is not asked. `model` is absent when the model is not asked. Otherwise `shown` is the ids of the candidates it is asked to score, in the order they are numbered from 1, and `reply` is the text it answers, or `fails` says it does not answer. `term` is the search term the sources are asked with. `results` is the `response` of `match:search-results`: each candidate is the description of its resource with `score` and `matchReason` added, and a case states its id and those two. `failed` is the `error` of `match:search-failed`, and such a case states only what is needed to reach it. Either reply carries the request's `referenceId`. THE TERM is the focus's selected text and its hint, each left out when it is absent or empty, joined by one space. THE SOURCES. The graph's listing by name is asked for at most 20 resources by the term, whatever the term is. Its listing by entity type is asked for at most 50 resources of the context's entity types (`metadata.entityTypes`), and only when the context has any. The neighbours are the resources the context's graph connects the request's resource to: each is asked of the graph by id, and of the view store when the graph has none or its read fails; a neighbour neither holds is no candidate. The vector index is asked for at most 40 hits that score 0.4 or more against the embedding of the term, and only when the term is not blank; an index that fails has answered no hits. Each hit's resource is read as a neighbour's is, and a hit neither store holds is no candidate. A resource is one candidate however many sources found it, and it is found by each source that answered it: by name, by entity type, as a neighbour, by the vector index. THE SCORE is the sum of these, rounded to two decimals. Entity types, only when the context and the candidate each have any: 30 times the types they share divided by the distinct types of both together, and for each shared type 5 divided by the base-2 logarithm of one more than the type's frequency (`metadata.entityTypeFrequencies`; a type with no stated frequency counts as seen once). Connection: 20 when the graph connects the request's resource to the candidate both ways, 10 when it connects it one way. Citations, for a candidate found as a neighbour: 2 for each resource that cites the request's resource, 15 at most. Name, the candidate's name and the term compared without regard to the case of letters: 25 when they are equal, else 15 when the name begins with the term, else 10 when the name has the term in it. Recency, for a candidate that states `dateCreated`: 5 times one less the candidate's age in days divided by 30, and nothing from thirty days on. Vector index: 25 times the hit's score. Several sources: 3 for each source that found the candidate, when more than one did. THE REASON is these, in this order, joined by `; `: `entity types: ` and the shared types in the context's order, joined by `, `; `bidirectional connection` or `connected`; `exact name match`, `prefix name match` or `contains name match`; `semantic similarity` for a vector hit; and the count of sources followed by ` retrieval sources`, when more than one found it. A candidate with none of these has the reason `candidate`. THE MODEL is asked once, for at most twenty candidates, unless the request states `useSemanticScoring` as false or there is no candidate. Each score it gives a candidate it was shown adds 25 times that score, and the sum is rounded to two decimals again; a score above 0.5 adds `semantic match` to the reason. A model that fails, or whose reply states no score, leaves the scores as they were. In every case here that has the model asked, the candidates in the order they are found are also in the order of their scores before the model's. THE ORDER is by score, the highest first. Candidates of one score stay in the order they were found: the listing by name, the listing by entity type, the neighbours in the order of the graph's edges, the vector index's hits. When the request states a `limit`, the answer is that many of the first candidates at most. FAILURES. A focus that is not an annotation is answered on `match:search-failed`, and no source is asked. So is a search whose listing by name fails, with the failure's message. What the prompt says and how a reply is read are not this table's. Add a case here before changing an implementation.",
+  "cases": [
+    {
+      "why": "a resource found by name alone, whose name is the term in other letter case, is an exact name match",
+      "now": "2026-03-31T00:00:00.000Z",
+      "request": {
+        "resourceId": "res-main",
+        "referenceId": "ann-ref",
+        "useSemanticScoring": false,
+        "context": {
+          "focus": {
+            "kind": "annotation",
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-ref", "motivation": "linking", "target": { "source": "res-main" }, "created": "2026-03-30T12:00:00.000Z" },
+            "sourceResource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+            "selected": { "text": "black hawk" }
+          },
+          "graph": { "nodes": [{ "id": "res-main", "type": "resource", "label": "Sauk history" }], "edges": [] },
+          "metadata": {}
+        }
+      },
+      "resources": [
+        { "@context": "https://schema.org/", "@id": "res-bh", "name": "Black Hawk", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-bh", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" }
+      ],
+      "graph": { "byName": ["res-bh"] },
+      "vectors": { "hits": [] },
+      "term": "black hawk",
+      "results": [
+        { "id": "res-bh", "score": 25, "matchReason": "exact name match" }
+      ]
+    },
+    {
+      "why": "a name equal to the term outranks one that begins with it, which outranks one that has it within, which outranks one found by name that has no such match: the answer is ordered by score and not as the listing answered",
+      "now": "2026-03-31T00:00:00.000Z",
+      "request": {
+        "resourceId": "res-main",
+        "referenceId": "ann-ref",
+        "useSemanticScoring": false,
+        "context": {
+          "focus": {
+            "kind": "annotation",
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-ref", "motivation": "linking", "target": { "source": "res-main" }, "created": "2026-03-30T12:00:00.000Z" },
+            "sourceResource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+            "selected": { "before": "the band of ", "text": "Black Hawk", "after": " crossed the river" }
+          },
+          "graph": { "nodes": [{ "id": "res-main", "type": "resource", "label": "Sauk history" }], "edges": [] },
+          "metadata": {}
+        }
+      },
+      "resources": [
+        { "@context": "https://schema.org/", "@id": "res-hawk", "name": "Hawk, Black (Sauk leader)", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-hawk", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-auto", "name": "Autobiography of Black Hawk", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-auto", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-war", "name": "Black Hawk War", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-war", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-bh", "name": "Black Hawk", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-bh", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" }
+      ],
+      "graph": { "byName": ["res-hawk", "res-auto", "res-war", "res-bh"] },
+      "vectors": { "hits": [] },
+      "term": "Black Hawk",
+      "results": [
+        { "id": "res-bh", "score": 25, "matchReason": "exact name match" },
+        { "id": "res-war", "score": 15, "matchReason": "prefix name match" },
+        { "id": "res-auto", "score": 10, "matchReason": "contains name match" },
+        { "id": "res-hawk", "score": 0, "matchReason": "candidate" }
+      ]
+    },
+    {
+      "why": "the term is the selected text and the hint joined by a space, and a name is matched against the whole of it",
+      "now": "2026-03-31T00:00:00.000Z",
+      "request": {
+        "resourceId": "res-main",
+        "referenceId": "ann-ref",
+        "useSemanticScoring": false,
+        "context": {
+          "focus": {
+            "kind": "annotation",
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-ref", "motivation": "linking", "target": { "source": "res-main" }, "created": "2026-03-30T12:00:00.000Z" },
+            "sourceResource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+            "selected": { "text": "Black Hawk" },
+            "userHint": "Sauk leader"
+          },
+          "graph": { "nodes": [{ "id": "res-main", "type": "resource", "label": "Sauk history" }], "edges": [] },
+          "metadata": {}
+        }
+      },
+      "resources": [
+        { "@context": "https://schema.org/", "@id": "res-bh", "name": "Black Hawk", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-bh", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" }
+      ],
+      "graph": { "byName": ["res-bh"] },
+      "vectors": { "hits": [] },
+      "term": "Black Hawk Sauk leader",
+      "results": [
+        { "id": "res-bh", "score": 0, "matchReason": "candidate" }
+      ]
+    },
+    {
+      "why": "a focus with a hint and no selected text is searched by the hint alone",
+      "now": "2026-03-31T00:00:00.000Z",
+      "request": {
+        "resourceId": "res-main",
+        "referenceId": "ann-ref",
+        "useSemanticScoring": false,
+        "context": {
+          "focus": {
+            "kind": "annotation",
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-ref", "motivation": "linking", "target": { "source": "res-main" }, "created": "2026-03-30T12:00:00.000Z" },
+            "sourceResource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+            "userHint": "Keokuk"
+          },
+          "graph": { "nodes": [{ "id": "res-main", "type": "resource", "label": "Sauk history" }], "edges": [] },
+          "metadata": {}
+        }
+      },
+      "resources": [
+        { "@context": "https://schema.org/", "@id": "res-keokuk", "name": "Keokuk", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-keokuk", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" }
+      ],
+      "graph": { "byName": ["res-keokuk"] },
+      "vectors": { "hits": [] },
+      "term": "Keokuk",
+      "results": [
+        { "id": "res-keokuk", "score": 25, "matchReason": "exact name match" }
+      ]
+    },
+    {
+      "why": "a focus with no selected text and no hint has the empty term: the listing by name is asked with it, the vector index is not asked, and with no candidate the model is not asked and the answer is empty",
+      "now": "2026-03-31T00:00:00.000Z",
+      "request": {
+        "resourceId": "res-main",
+        "referenceId": "ann-ref",
+        "context": {
+          "focus": {
+            "kind": "annotation",
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-ref", "motivation": "linking", "target": { "source": "res-main" }, "created": "2026-03-30T12:00:00.000Z" },
+            "sourceResource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" }
+          },
+          "graph": { "nodes": [{ "id": "res-main", "type": "resource", "label": "Sauk history" }], "edges": [] },
+          "metadata": {}
+        }
+      },
+      "resources": [],
+      "graph": { "byName": [] },
+      "term": "",
+      "results": []
+    },
+    {
+      "why": "a term of white space alone is blank: the vector index is not asked, and a neighbour is still a candidate",
+      "now": "2026-03-31T00:00:00.000Z",
+      "request": {
+        "resourceId": "res-main",
+        "referenceId": "ann-ref",
+        "useSemanticScoring": false,
+        "context": {
+          "focus": {
+            "kind": "annotation",
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-ref", "motivation": "linking", "target": { "source": "res-main" }, "created": "2026-03-30T12:00:00.000Z" },
+            "sourceResource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+            "selected": { "text": " " }
+          },
+          "graph": {
+            "nodes": [
+              { "id": "res-main", "type": "resource", "label": "Sauk history" },
+              { "id": "res-keokuk", "type": "resource", "label": "Keokuk" }
+            ],
+            "edges": [
+              { "source": "res-main", "target": "res-keokuk", "type": "link", "bidirectional": false }
+            ]
+          },
+          "metadata": {}
+        }
+      },
+      "resources": [
+        { "@context": "https://schema.org/", "@id": "res-keokuk", "name": "Keokuk", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-keokuk", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" }
+      ],
+      "graph": { "byName": [], "byId": { "res-keokuk": "held" } },
+      "term": " ",
+      "results": [
+        { "id": "res-keokuk", "score": 10, "matchReason": "connected" }
+      ]
+    },
+    {
+      "why": "a resource the graph connects the request's resource to one way is a candidate, and connected",
+      "now": "2026-03-31T00:00:00.000Z",
+      "request": {
+        "resourceId": "res-main",
+        "referenceId": "ann-ref",
+        "useSemanticScoring": false,
+        "context": {
+          "focus": {
+            "kind": "annotation",
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-ref", "motivation": "linking", "target": { "source": "res-main" }, "created": "2026-03-30T12:00:00.000Z" },
+            "sourceResource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+            "selected": { "text": "Black Hawk" }
+          },
+          "graph": {
+            "nodes": [
+              { "id": "res-main", "type": "resource", "label": "Sauk history" },
+              { "id": "res-keokuk", "type": "resource", "label": "Keokuk" }
+            ],
+            "edges": [
+              { "source": "res-main", "target": "res-keokuk", "type": "link", "bidirectional": false }
+            ]
+          },
+          "metadata": {}
+        }
+      },
+      "resources": [
+        { "@context": "https://schema.org/", "@id": "res-keokuk", "name": "Keokuk", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-keokuk", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" }
+      ],
+      "graph": { "byName": [], "byId": { "res-keokuk": "held" } },
+      "vectors": { "hits": [] },
+      "term": "Black Hawk",
+      "results": [
+        { "id": "res-keokuk", "score": 10, "matchReason": "connected" }
+      ]
+    },
+    {
+      "why": "a resource connected both ways scores twice what one connected one way does",
+      "now": "2026-03-31T00:00:00.000Z",
+      "request": {
+        "resourceId": "res-main",
+        "referenceId": "ann-ref",
+        "useSemanticScoring": false,
+        "context": {
+          "focus": {
+            "kind": "annotation",
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-ref", "motivation": "linking", "target": { "source": "res-main" }, "created": "2026-03-30T12:00:00.000Z" },
+            "sourceResource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+            "selected": { "text": "Black Hawk" }
+          },
+          "graph": {
+            "nodes": [
+              { "id": "res-main", "type": "resource", "label": "Sauk history" },
+              { "id": "res-keokuk", "type": "resource", "label": "Keokuk" }
+            ],
+            "edges": [
+              { "source": "res-main", "target": "res-keokuk", "type": "link", "bidirectional": true }
+            ]
+          },
+          "metadata": {}
+        }
+      },
+      "resources": [
+        { "@context": "https://schema.org/", "@id": "res-keokuk", "name": "Keokuk", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-keokuk", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" }
+      ],
+      "graph": { "byName": [], "byId": { "res-keokuk": "held" } },
+      "vectors": { "hits": [] },
+      "term": "Black Hawk",
+      "results": [
+        { "id": "res-keokuk", "score": 20, "matchReason": "bidirectional connection" }
+      ]
+    },
+    {
+      "why": "two resources cite the request's resource: a candidate found as a neighbour gains 2 for each, and a candidate found by name alone gains nothing from them",
+      "now": "2026-03-31T00:00:00.000Z",
+      "request": {
+        "resourceId": "res-main",
+        "referenceId": "ann-ref",
+        "useSemanticScoring": false,
+        "context": {
+          "focus": {
+            "kind": "annotation",
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-ref", "motivation": "linking", "target": { "source": "res-main" }, "created": "2026-03-30T12:00:00.000Z" },
+            "sourceResource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+            "selected": { "text": "Black Hawk" }
+          },
+          "graph": {
+            "nodes": [
+              { "id": "res-main", "type": "resource", "label": "Sauk history" },
+              { "id": "res-keokuk", "type": "resource", "label": "Keokuk" },
+              { "id": "res-citer-1", "type": "resource", "label": "Citer 1" },
+              { "id": "ann-cite-1", "type": "annotation", "label": "linking", "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-cite-1", "motivation": "linking", "target": { "source": "res-citer-1" }, "body": { "type": "SpecificResource", "source": "res-main" }, "created": "2025-06-01T00:00:00.000Z" } },
+              { "id": "res-citer-2", "type": "resource", "label": "Citer 2" },
+              { "id": "ann-cite-2", "type": "annotation", "label": "linking", "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-cite-2", "motivation": "linking", "target": { "source": "res-citer-2" }, "body": { "type": "SpecificResource", "source": "res-main" }, "created": "2025-06-01T00:00:00.000Z" } }
+            ],
+            "edges": [
+              { "source": "res-main", "target": "res-keokuk", "type": "link", "bidirectional": false },
+              { "source": "ann-cite-1", "target": "res-citer-1", "type": "annotation-of" },
+              { "source": "ann-cite-1", "target": "res-main", "type": "cites" },
+              { "source": "ann-cite-2", "target": "res-citer-2", "type": "annotation-of" },
+              { "source": "ann-cite-2", "target": "res-main", "type": "cites" }
+            ]
+          },
+          "metadata": {}
+        }
+      },
+      "resources": [
+        { "@context": "https://schema.org/", "@id": "res-war", "name": "Black Hawk War", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-war", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-keokuk", "name": "Keokuk", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-keokuk", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" }
+      ],
+      "graph": { "byName": ["res-war"], "byId": { "res-keokuk": "held" } },
+      "vectors": { "hits": [] },
+      "term": "Black Hawk",
+      "results": [
+        { "id": "res-war", "score": 15, "matchReason": "prefix name match" },
+        { "id": "res-keokuk", "score": 14, "matchReason": "connected" }
+      ]
+    },
+    {
+      "why": "eight resources cite the request's resource: a neighbour gains 15 from them and no more",
+      "now": "2026-03-31T00:00:00.000Z",
+      "request": {
+        "resourceId": "res-main",
+        "referenceId": "ann-ref",
+        "useSemanticScoring": false,
+        "context": {
+          "focus": {
+            "kind": "annotation",
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-ref", "motivation": "linking", "target": { "source": "res-main" }, "created": "2026-03-30T12:00:00.000Z" },
+            "sourceResource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+            "selected": { "text": "Black Hawk" }
+          },
+          "graph": {
+            "nodes": [
+              { "id": "res-main", "type": "resource", "label": "Sauk history" },
+              { "id": "res-keokuk", "type": "resource", "label": "Keokuk" },
+              { "id": "res-citer-1", "type": "resource", "label": "Citer 1" },
+              { "id": "ann-cite-1", "type": "annotation", "label": "linking", "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-cite-1", "motivation": "linking", "target": { "source": "res-citer-1" }, "body": { "type": "SpecificResource", "source": "res-main" }, "created": "2025-06-01T00:00:00.000Z" } },
+              { "id": "res-citer-2", "type": "resource", "label": "Citer 2" },
+              { "id": "ann-cite-2", "type": "annotation", "label": "linking", "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-cite-2", "motivation": "linking", "target": { "source": "res-citer-2" }, "body": { "type": "SpecificResource", "source": "res-main" }, "created": "2025-06-01T00:00:00.000Z" } },
+              { "id": "res-citer-3", "type": "resource", "label": "Citer 3" },
+              { "id": "ann-cite-3", "type": "annotation", "label": "linking", "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-cite-3", "motivation": "linking", "target": { "source": "res-citer-3" }, "body": { "type": "SpecificResource", "source": "res-main" }, "created": "2025-06-01T00:00:00.000Z" } },
+              { "id": "res-citer-4", "type": "resource", "label": "Citer 4" },
+              { "id": "ann-cite-4", "type": "annotation", "label": "linking", "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-cite-4", "motivation": "linking", "target": { "source": "res-citer-4" }, "body": { "type": "SpecificResource", "source": "res-main" }, "created": "2025-06-01T00:00:00.000Z" } },
+              { "id": "res-citer-5", "type": "resource", "label": "Citer 5" },
+              { "id": "ann-cite-5", "type": "annotation", "label": "linking", "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-cite-5", "motivation": "linking", "target": { "source": "res-citer-5" }, "body": { "type": "SpecificResource", "source": "res-main" }, "created": "2025-06-01T00:00:00.000Z" } },
+              { "id": "res-citer-6", "type": "resource", "label": "Citer 6" },
+              { "id": "ann-cite-6", "type": "annotation", "label": "linking", "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-cite-6", "motivation": "linking", "target": { "source": "res-citer-6" }, "body": { "type": "SpecificResource", "source": "res-main" }, "created": "2025-06-01T00:00:00.000Z" } },
+              { "id": "res-citer-7", "type": "resource", "label": "Citer 7" },
+              { "id": "ann-cite-7", "type": "annotation", "label": "linking", "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-cite-7", "motivation": "linking", "target": { "source": "res-citer-7" }, "body": { "type": "SpecificResource", "source": "res-main" }, "created": "2025-06-01T00:00:00.000Z" } },
+              { "id": "res-citer-8", "type": "resource", "label": "Citer 8" },
+              { "id": "ann-cite-8", "type": "annotation", "label": "linking", "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-cite-8", "motivation": "linking", "target": { "source": "res-citer-8" }, "body": { "type": "SpecificResource", "source": "res-main" }, "created": "2025-06-01T00:00:00.000Z" } }
+            ],
+            "edges": [
+              { "source": "res-main", "target": "res-keokuk", "type": "link", "bidirectional": false },
+              { "source": "ann-cite-1", "target": "res-citer-1", "type": "annotation-of" },
+              { "source": "ann-cite-1", "target": "res-main", "type": "cites" },
+              { "source": "ann-cite-2", "target": "res-citer-2", "type": "annotation-of" },
+              { "source": "ann-cite-2", "target": "res-main", "type": "cites" },
+              { "source": "ann-cite-3", "target": "res-citer-3", "type": "annotation-of" },
+              { "source": "ann-cite-3", "target": "res-main", "type": "cites" },
+              { "source": "ann-cite-4", "target": "res-citer-4", "type": "annotation-of" },
+              { "source": "ann-cite-4", "target": "res-main", "type": "cites" },
+              { "source": "ann-cite-5", "target": "res-citer-5", "type": "annotation-of" },
+              { "source": "ann-cite-5", "target": "res-main", "type": "cites" },
+              { "source": "ann-cite-6", "target": "res-citer-6", "type": "annotation-of" },
+              { "source": "ann-cite-6", "target": "res-main", "type": "cites" },
+              { "source": "ann-cite-7", "target": "res-citer-7", "type": "annotation-of" },
+              { "source": "ann-cite-7", "target": "res-main", "type": "cites" },
+              { "source": "ann-cite-8", "target": "res-citer-8", "type": "annotation-of" },
+              { "source": "ann-cite-8", "target": "res-main", "type": "cites" }
+            ]
+          },
+          "metadata": {}
+        }
+      },
+      "resources": [
+        { "@context": "https://schema.org/", "@id": "res-keokuk", "name": "Keokuk", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-keokuk", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" }
+      ],
+      "graph": { "byName": [], "byId": { "res-keokuk": "held" } },
+      "vectors": { "hits": [] },
+      "term": "Black Hawk",
+      "results": [
+        { "id": "res-keokuk", "score": 25, "matchReason": "connected" }
+      ]
+    },
+    {
+      "why": "a neighbour the graph does not hold yet is described from its view, and is a candidate all the same; made six days before the search, it gains 4 for recency",
+      "now": "2026-03-31T00:00:00.000Z",
+      "request": {
+        "resourceId": "res-main",
+        "referenceId": "ann-ref",
+        "useSemanticScoring": false,
+        "context": {
+          "focus": {
+            "kind": "annotation",
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-ref", "motivation": "linking", "target": { "source": "res-main" }, "created": "2026-03-30T12:00:00.000Z" },
+            "sourceResource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+            "selected": { "text": "Black Hawk" }
+          },
+          "graph": {
+            "nodes": [
+              { "id": "res-main", "type": "resource", "label": "Sauk history" },
+              { "id": "res-fort", "type": "resource", "label": "Fort Armstrong" }
+            ],
+            "edges": [
+              { "source": "res-main", "target": "res-fort", "type": "link", "bidirectional": false }
+            ]
+          },
+          "metadata": {}
+        }
+      },
+      "resources": [
+        { "@context": "https://schema.org/", "@id": "res-fort", "name": "Fort Armstrong", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-fort", "rel": "original" }], "dateCreated": "2026-03-25T00:00:00.000Z" }
+      ],
+      "graph": { "byName": [], "byId": { "res-fort": "absent" } },
+      "views": { "res-fort": "held" },
+      "vectors": { "hits": [] },
+      "term": "Black Hawk",
+      "results": [
+        { "id": "res-fort", "score": 14, "matchReason": "connected" }
+      ]
+    },
+    {
+      "why": "a neighbour whose read of the graph fails is described from its view",
+      "now": "2026-03-31T00:00:00.000Z",
+      "request": {
+        "resourceId": "res-main",
+        "referenceId": "ann-ref",
+        "useSemanticScoring": false,
+        "context": {
+          "focus": {
+            "kind": "annotation",
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-ref", "motivation": "linking", "target": { "source": "res-main" }, "created": "2026-03-30T12:00:00.000Z" },
+            "sourceResource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+            "selected": { "text": "Black Hawk" }
+          },
+          "graph": {
+            "nodes": [
+              { "id": "res-main", "type": "resource", "label": "Sauk history" },
+              { "id": "res-keokuk", "type": "resource", "label": "Keokuk" }
+            ],
+            "edges": [
+              { "source": "res-main", "target": "res-keokuk", "type": "link", "bidirectional": false }
+            ]
+          },
+          "metadata": {}
+        }
+      },
+      "resources": [
+        { "@context": "https://schema.org/", "@id": "res-keokuk", "name": "Keokuk", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-keokuk", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" }
+      ],
+      "graph": { "byName": [], "byId": { "res-keokuk": "fails" } },
+      "views": { "res-keokuk": "held" },
+      "vectors": { "hits": [] },
+      "term": "Black Hawk",
+      "results": [
+        { "id": "res-keokuk", "score": 10, "matchReason": "connected" }
+      ]
+    },
+    {
+      "why": "a neighbour neither the graph nor the view store holds is no candidate, and with no candidate the model is not asked",
+      "now": "2026-03-31T00:00:00.000Z",
+      "request": {
+        "resourceId": "res-main",
+        "referenceId": "ann-ref",
+        "useSemanticScoring": true,
+        "context": {
+          "focus": {
+            "kind": "annotation",
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-ref", "motivation": "linking", "target": { "source": "res-main" }, "created": "2026-03-30T12:00:00.000Z" },
+            "sourceResource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+            "selected": { "text": "Black Hawk" }
+          },
+          "graph": {
+            "nodes": [
+              { "id": "res-main", "type": "resource", "label": "Sauk history" },
+              { "id": "res-gone", "type": "resource", "label": "res-gone" }
+            ],
+            "edges": [
+              { "source": "res-main", "target": "res-gone", "type": "link", "bidirectional": false }
+            ]
+          },
+          "metadata": {}
+        }
+      },
+      "resources": [],
+      "graph": { "byName": [], "byId": { "res-gone": "absent" } },
+      "views": { "res-gone": "absent" },
+      "vectors": { "hits": [] },
+      "term": "Black Hawk",
+      "results": []
+    },
+    {
+      "why": "each hit of the vector index scores 25 times its own score: one the graph holds, one described from its view, and one neither holds, which is no candidate",
+      "now": "2026-03-31T00:00:00.000Z",
+      "request": {
+        "resourceId": "res-main",
+        "referenceId": "ann-ref",
+        "useSemanticScoring": false,
+        "context": {
+          "focus": {
+            "kind": "annotation",
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-ref", "motivation": "linking", "target": { "source": "res-main" }, "created": "2026-03-30T12:00:00.000Z" },
+            "sourceResource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+            "selected": { "text": "Black Hawk" }
+          },
+          "graph": { "nodes": [{ "id": "res-main", "type": "resource", "label": "Sauk history" }], "edges": [] },
+          "metadata": {}
+        }
+      },
+      "resources": [
+        { "@context": "https://schema.org/", "@id": "res-saukenuk", "name": "Saukenuk", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-saukenuk", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-rock", "name": "Rock Island", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-rock", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" }
+      ],
+      "graph": { "byName": [], "byId": { "res-saukenuk": "held", "res-rock": "absent", "res-gone": "absent" } },
+      "views": { "res-rock": "held", "res-gone": "absent" },
+      "vectors": {
+        "hits": [
+          { "resourceId": "res-saukenuk", "score": 0.8 },
+          { "resourceId": "res-rock", "score": 0.6 },
+          { "resourceId": "res-gone", "score": 0.4 }
+        ]
+      },
+      "term": "Black Hawk",
+      "results": [
+        { "id": "res-saukenuk", "score": 20, "matchReason": "semantic similarity" },
+        { "id": "res-rock", "score": 15, "matchReason": "semantic similarity" }
+      ]
+    },
+    {
+      "why": "a vector index that fails has answered no hits, and the search answers from its other sources",
+      "now": "2026-03-31T00:00:00.000Z",
+      "request": {
+        "resourceId": "res-main",
+        "referenceId": "ann-ref",
+        "useSemanticScoring": false,
+        "context": {
+          "focus": {
+            "kind": "annotation",
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-ref", "motivation": "linking", "target": { "source": "res-main" }, "created": "2026-03-30T12:00:00.000Z" },
+            "sourceResource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+            "selected": { "text": "Black Hawk" }
+          },
+          "graph": { "nodes": [{ "id": "res-main", "type": "resource", "label": "Sauk history" }], "edges": [] },
+          "metadata": {}
+        }
+      },
+      "resources": [
+        { "@context": "https://schema.org/", "@id": "res-bh", "name": "Black Hawk", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-bh", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" }
+      ],
+      "graph": { "byName": ["res-bh"] },
+      "vectors": { "fails": true },
+      "term": "Black Hawk",
+      "results": [
+        { "id": "res-bh", "score": 25, "matchReason": "exact name match" }
+      ]
+    },
+    {
+      "why": "a resource found by two sources, by name and by the vector index, is one candidate and gains 3 for each source",
+      "now": "2026-03-31T00:00:00.000Z",
+      "request": {
+        "resourceId": "res-main",
+        "referenceId": "ann-ref",
+        "useSemanticScoring": false,
+        "context": {
+          "focus": {
+            "kind": "annotation",
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-ref", "motivation": "linking", "target": { "source": "res-main" }, "created": "2026-03-30T12:00:00.000Z" },
+            "sourceResource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+            "selected": { "text": "Black Hawk" }
+          },
+          "graph": { "nodes": [{ "id": "res-main", "type": "resource", "label": "Sauk history" }], "edges": [] },
+          "metadata": {}
+        }
+      },
+      "resources": [
+        { "@context": "https://schema.org/", "@id": "res-bh", "name": "Black Hawk", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-bh", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" }
+      ],
+      "graph": { "byName": ["res-bh"], "byId": { "res-bh": "held" } },
+      "vectors": { "hits": [{ "resourceId": "res-bh", "score": 0.8 }] },
+      "term": "Black Hawk",
+      "results": [
+        { "id": "res-bh", "score": 51, "matchReason": "exact name match; semantic similarity; 2 retrieval sources" }
+      ]
+    },
+    {
+      "why": "a resource found by all four sources has every term of the score but citations and recency, and its reason states them in their order",
+      "now": "2026-03-31T00:00:00.000Z",
+      "request": {
+        "resourceId": "res-main",
+        "referenceId": "ann-ref",
+        "useSemanticScoring": false,
+        "context": {
+          "focus": {
+            "kind": "annotation",
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-ref", "motivation": "linking", "target": { "source": "res-main" }, "created": "2026-03-30T12:00:00.000Z" },
+            "sourceResource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+            "selected": { "text": "Black Hawk" }
+          },
+          "graph": {
+            "nodes": [
+              { "id": "res-main", "type": "resource", "label": "Sauk history" },
+              { "id": "res-bh", "type": "resource", "label": "Black Hawk", "entityTypes": ["Person"] }
+            ],
+            "edges": [
+              { "source": "res-main", "target": "res-bh", "type": "link", "bidirectional": true }
+            ]
+          },
+          "metadata": { "entityTypes": ["Person"], "entityTypeFrequencies": { "Person": 3 } }
+        }
+      },
+      "resources": [
+        { "@context": "https://schema.org/", "@id": "res-bh", "name": "Black Hawk", "entityTypes": ["Person"], "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-bh", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" }
+      ],
+      "graph": { "byName": ["res-bh"], "byEntityType": ["res-bh"], "byId": { "res-bh": "held" } },
+      "vectors": { "hits": [{ "resourceId": "res-bh", "score": 0.8 }] },
+      "term": "Black Hawk",
+      "results": [
+        { "id": "res-bh", "score": 109.5, "matchReason": "entity types: Person; bidirectional connection; exact name match; semantic similarity; 4 retrieval sources" }
+      ]
+    },
+    {
+      "why": "a candidate with the context's one entity type, a type seen three times: 30 for the whole overlap and 2.5 for the type",
+      "now": "2026-03-31T00:00:00.000Z",
+      "request": {
+        "resourceId": "res-main",
+        "referenceId": "ann-ref",
+        "useSemanticScoring": false,
+        "context": {
+          "focus": {
+            "kind": "annotation",
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-ref", "motivation": "linking", "target": { "source": "res-main" }, "created": "2026-03-30T12:00:00.000Z" },
+            "sourceResource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+            "selected": { "text": "Black Hawk" }
+          },
+          "graph": { "nodes": [{ "id": "res-main", "type": "resource", "label": "Sauk history" }], "edges": [] },
+          "metadata": { "entityTypes": ["Person"], "entityTypeFrequencies": { "Person": 3 } }
+        }
+      },
+      "resources": [
+        { "@context": "https://schema.org/", "@id": "res-keokuk", "name": "Keokuk", "entityTypes": ["Person"], "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-keokuk", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" }
+      ],
+      "graph": { "byName": [], "byEntityType": ["res-keokuk"] },
+      "vectors": { "hits": [] },
+      "term": "Black Hawk",
+      "results": [
+        { "id": "res-keokuk", "score": 32.5, "matchReason": "entity types: Person" }
+      ]
+    },
+    {
+      "why": "an entity type the context states no frequency for counts as a type seen once, and adds 5",
+      "now": "2026-03-31T00:00:00.000Z",
+      "request": {
+        "resourceId": "res-main",
+        "referenceId": "ann-ref",
+        "useSemanticScoring": false,
+        "context": {
+          "focus": {
+            "kind": "annotation",
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-ref", "motivation": "linking", "target": { "source": "res-main" }, "created": "2026-03-30T12:00:00.000Z" },
+            "sourceResource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+            "selected": { "text": "Black Hawk" }
+          },
+          "graph": { "nodes": [{ "id": "res-main", "type": "resource", "label": "Sauk history" }], "edges": [] },
+          "metadata": { "entityTypes": ["Person"] }
+        }
+      },
+      "resources": [
+        { "@context": "https://schema.org/", "@id": "res-keokuk", "name": "Keokuk", "entityTypes": ["Person"], "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-keokuk", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" }
+      ],
+      "graph": { "byName": [], "byEntityType": ["res-keokuk"] },
+      "vectors": { "hits": [] },
+      "term": "Black Hawk",
+      "results": [
+        { "id": "res-keokuk", "score": 35, "matchReason": "entity types: Person" }
+      ]
+    },
+    {
+      "why": "the overlap is the shared types over all the types of both, and a rare type weighs more than a common one: sharing the rare one of two outranks sharing the common one, sharing both outranks either, and types of its own that the context lacks lower a candidate",
+      "now": "2026-03-31T00:00:00.000Z",
+      "request": {
+        "resourceId": "res-main",
+        "referenceId": "ann-ref",
+        "useSemanticScoring": false,
+        "context": {
+          "focus": {
+            "kind": "annotation",
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-ref", "motivation": "linking", "target": { "source": "res-main" }, "created": "2026-03-30T12:00:00.000Z" },
+            "sourceResource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+            "selected": { "text": "Black Hawk" }
+          },
+          "graph": { "nodes": [{ "id": "res-main", "type": "resource", "label": "Sauk history" }], "edges": [] },
+          "metadata": { "entityTypes": ["Person", "Leader"], "entityTypeFrequencies": { "Person": 15, "Leader": 1 } }
+        }
+      },
+      "resources": [
+        { "@context": "https://schema.org/", "@id": "res-wide", "name": "Meskwaki", "entityTypes": ["Person", "Place", "Tribe"], "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-wide", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-person", "name": "Antoine LeClaire", "entityTypes": ["Person"], "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-person", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-leader", "name": "Sauk council", "entityTypes": ["Leader"], "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-leader", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-keokuk", "name": "Keokuk", "entityTypes": ["Leader", "Person"], "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-keokuk", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" }
+      ],
+      "graph": { "byName": [], "byEntityType": ["res-wide", "res-person", "res-leader", "res-keokuk"] },
+      "vectors": { "hits": [] },
+      "term": "Black Hawk",
+      "results": [
+        { "id": "res-keokuk", "score": 36.25, "matchReason": "entity types: Person, Leader" },
+        { "id": "res-leader", "score": 20, "matchReason": "entity types: Leader" },
+        { "id": "res-person", "score": 16.25, "matchReason": "entity types: Person" },
+        { "id": "res-wide", "score": 8.75, "matchReason": "entity types: Person" }
+      ]
+    },
+    {
+      "why": "entity types add nothing to a candidate that shares none with the context, nor to one that has none",
+      "now": "2026-03-31T00:00:00.000Z",
+      "request": {
+        "resourceId": "res-main",
+        "referenceId": "ann-ref",
+        "useSemanticScoring": false,
+        "context": {
+          "focus": {
+            "kind": "annotation",
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-ref", "motivation": "linking", "target": { "source": "res-main" }, "created": "2026-03-30T12:00:00.000Z" },
+            "sourceResource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+            "selected": { "text": "Black Hawk" }
+          },
+          "graph": { "nodes": [{ "id": "res-main", "type": "resource", "label": "Sauk history" }], "edges": [] },
+          "metadata": { "entityTypes": ["Person"], "entityTypeFrequencies": { "Person": 3 } }
+        }
+      },
+      "resources": [
+        { "@context": "https://schema.org/", "@id": "res-park", "name": "Black Hawk State Park", "entityTypes": ["Place"], "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-park", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-bh", "name": "Black Hawk", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-bh", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" }
+      ],
+      "graph": { "byName": ["res-park", "res-bh"], "byEntityType": [] },
+      "vectors": { "hits": [] },
+      "term": "Black Hawk",
+      "results": [
+        { "id": "res-bh", "score": 25, "matchReason": "exact name match" },
+        { "id": "res-park", "score": 15, "matchReason": "prefix name match" }
+      ]
+    },
+    {
+      "why": "inside thirty days a newer resource gains more: 5 when it is made at the moment of the search, 4 at six days, 2.5 at fifteen",
+      "now": "2026-03-31T00:00:00.000Z",
+      "request": {
+        "resourceId": "res-main",
+        "referenceId": "ann-ref",
+        "useSemanticScoring": false,
+        "context": {
+          "focus": {
+            "kind": "annotation",
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-ref", "motivation": "linking", "target": { "source": "res-main" }, "created": "2026-03-30T12:00:00.000Z" },
+            "sourceResource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+            "selected": { "text": "Black Hawk" }
+          },
+          "graph": {
+            "nodes": [
+              { "id": "res-main", "type": "resource", "label": "Sauk history" },
+              { "id": "res-rock", "type": "resource", "label": "Rock Island" },
+              { "id": "res-saukenuk", "type": "resource", "label": "Saukenuk" },
+              { "id": "res-keokuk", "type": "resource", "label": "Keokuk" }
+            ],
+            "edges": [
+              { "source": "res-main", "target": "res-rock", "type": "link", "bidirectional": false },
+              { "source": "res-main", "target": "res-saukenuk", "type": "link", "bidirectional": false },
+              { "source": "res-main", "target": "res-keokuk", "type": "link", "bidirectional": false }
+            ]
+          },
+          "metadata": {}
+        }
+      },
+      "resources": [
+        { "@context": "https://schema.org/", "@id": "res-rock", "name": "Rock Island", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-rock", "rel": "original" }], "dateCreated": "2026-03-16T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-saukenuk", "name": "Saukenuk", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-saukenuk", "rel": "original" }], "dateCreated": "2026-03-25T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-keokuk", "name": "Keokuk", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-keokuk", "rel": "original" }], "dateCreated": "2026-03-31T00:00:00.000Z" }
+      ],
+      "graph": { "byName": [], "byId": { "res-rock": "held", "res-saukenuk": "held", "res-keokuk": "held" } },
+      "vectors": { "hits": [] },
+      "term": "Black Hawk",
+      "results": [
+        { "id": "res-keokuk", "score": 15, "matchReason": "connected" },
+        { "id": "res-saukenuk", "score": 14, "matchReason": "connected" },
+        { "id": "res-rock", "score": 12.5, "matchReason": "connected" }
+      ]
+    },
+    {
+      "why": "recency adds nothing to a resource made thirty days before the search, nor to one made forty-five days before it",
+      "now": "2026-03-31T00:00:00.000Z",
+      "request": {
+        "resourceId": "res-main",
+        "referenceId": "ann-ref",
+        "useSemanticScoring": false,
+        "context": {
+          "focus": {
+            "kind": "annotation",
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-ref", "motivation": "linking", "target": { "source": "res-main" }, "created": "2026-03-30T12:00:00.000Z" },
+            "sourceResource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+            "selected": { "text": "Black Hawk" }
+          },
+          "graph": {
+            "nodes": [
+              { "id": "res-main", "type": "resource", "label": "Sauk history" },
+              { "id": "res-keokuk", "type": "resource", "label": "Keokuk" },
+              { "id": "res-saukenuk", "type": "resource", "label": "Saukenuk" }
+            ],
+            "edges": [
+              { "source": "res-main", "target": "res-keokuk", "type": "link", "bidirectional": false },
+              { "source": "res-main", "target": "res-saukenuk", "type": "link", "bidirectional": true }
+            ]
+          },
+          "metadata": {}
+        }
+      },
+      "resources": [
+        { "@context": "https://schema.org/", "@id": "res-keokuk", "name": "Keokuk", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-keokuk", "rel": "original" }], "dateCreated": "2026-03-01T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-saukenuk", "name": "Saukenuk", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-saukenuk", "rel": "original" }], "dateCreated": "2026-02-14T00:00:00.000Z" }
+      ],
+      "graph": { "byName": [], "byId": { "res-keokuk": "held", "res-saukenuk": "held" } },
+      "vectors": { "hits": [] },
+      "term": "Black Hawk",
+      "results": [
+        { "id": "res-saukenuk", "score": 20, "matchReason": "bidirectional connection" },
+        { "id": "res-keokuk", "score": 10, "matchReason": "connected" }
+      ]
+    },
+    {
+      "why": "recency adds nothing to a resource that states no date",
+      "now": "2026-03-31T00:00:00.000Z",
+      "request": {
+        "resourceId": "res-main",
+        "referenceId": "ann-ref",
+        "useSemanticScoring": false,
+        "context": {
+          "focus": {
+            "kind": "annotation",
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-ref", "motivation": "linking", "target": { "source": "res-main" }, "created": "2026-03-30T12:00:00.000Z" },
+            "sourceResource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+            "selected": { "text": "Black Hawk" }
+          },
+          "graph": {
+            "nodes": [
+              { "id": "res-main", "type": "resource", "label": "Sauk history" },
+              { "id": "res-keokuk", "type": "resource", "label": "Keokuk" }
+            ],
+            "edges": [
+              { "source": "res-main", "target": "res-keokuk", "type": "link", "bidirectional": false }
+            ]
+          },
+          "metadata": {}
+        }
+      },
+      "resources": [
+        { "@context": "https://schema.org/", "@id": "res-keokuk", "name": "Keokuk", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-keokuk", "rel": "original" }] }
+      ],
+      "graph": { "byName": [], "byId": { "res-keokuk": "held" } },
+      "vectors": { "hits": [] },
+      "term": "Black Hawk",
+      "results": [
+        { "id": "res-keokuk", "score": 10, "matchReason": "connected" }
+      ]
+    },
+    {
+      "why": "a limit of two answers the two candidates of the highest score, and not the first two a source answered",
+      "now": "2026-03-31T00:00:00.000Z",
+      "request": {
+        "resourceId": "res-main",
+        "referenceId": "ann-ref",
+        "limit": 2,
+        "useSemanticScoring": false,
+        "context": {
+          "focus": {
+            "kind": "annotation",
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-ref", "motivation": "linking", "target": { "source": "res-main" }, "created": "2026-03-30T12:00:00.000Z" },
+            "sourceResource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+            "selected": { "text": "Black Hawk" }
+          },
+          "graph": { "nodes": [{ "id": "res-main", "type": "resource", "label": "Sauk history" }], "edges": [] },
+          "metadata": {}
+        }
+      },
+      "resources": [
+        { "@context": "https://schema.org/", "@id": "res-hawk", "name": "Hawk, Black (Sauk leader)", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-hawk", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-auto", "name": "Autobiography of Black Hawk", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-auto", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-war", "name": "Black Hawk War", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-war", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-bh", "name": "Black Hawk", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-bh", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" }
+      ],
+      "graph": { "byName": ["res-hawk", "res-auto", "res-war", "res-bh"] },
+      "vectors": { "hits": [] },
+      "term": "Black Hawk",
+      "results": [
+        { "id": "res-bh", "score": 25, "matchReason": "exact name match" },
+        { "id": "res-war", "score": 15, "matchReason": "prefix name match" }
+      ]
+    },
+    {
+      "why": "a request that does not state `useSemanticScoring` has the model asked: each score adds 25 times itself, a score above 0.5 adds `semantic match` to the reason, and a score of 0.5 does not",
+      "now": "2026-03-31T00:00:00.000Z",
+      "request": {
+        "resourceId": "res-main",
+        "referenceId": "ann-ref",
+        "context": {
+          "focus": {
+            "kind": "annotation",
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-ref", "motivation": "linking", "target": { "source": "res-main" }, "created": "2026-03-30T12:00:00.000Z" },
+            "sourceResource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+            "selected": { "text": "Black Hawk" }
+          },
+          "graph": { "nodes": [{ "id": "res-main", "type": "resource", "label": "Sauk history" }], "edges": [] },
+          "metadata": {}
+        }
+      },
+      "resources": [
+        { "@context": "https://schema.org/", "@id": "res-bh", "name": "Black Hawk", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-bh", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-war", "name": "Black Hawk War", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-war", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-auto", "name": "Autobiography of Black Hawk", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-auto", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" }
+      ],
+      "graph": { "byName": ["res-bh", "res-war", "res-auto"] },
+      "vectors": { "hits": [] },
+      "model": { "shown": ["res-bh", "res-war", "res-auto"], "reply": "1. 0.8\n2. 0.5\n3. 0.51" },
+      "term": "Black Hawk",
+      "results": [
+        { "id": "res-bh", "score": 45, "matchReason": "exact name match; semantic match" },
+        { "id": "res-war", "score": 27.5, "matchReason": "prefix name match" },
+        { "id": "res-auto", "score": 22.75, "matchReason": "contains name match; semantic match" }
+      ]
+    },
+    {
+      "why": "the answer is ordered after the model's scores are added: the candidate that scored least before them is first",
+      "now": "2026-03-31T00:00:00.000Z",
+      "request": {
+        "resourceId": "res-main",
+        "referenceId": "ann-ref",
+        "useSemanticScoring": true,
+        "context": {
+          "focus": {
+            "kind": "annotation",
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-ref", "motivation": "linking", "target": { "source": "res-main" }, "created": "2026-03-30T12:00:00.000Z" },
+            "sourceResource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+            "selected": { "text": "Black Hawk" }
+          },
+          "graph": { "nodes": [{ "id": "res-main", "type": "resource", "label": "Sauk history" }], "edges": [] },
+          "metadata": {}
+        }
+      },
+      "resources": [
+        { "@context": "https://schema.org/", "@id": "res-bh", "name": "Black Hawk", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-bh", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-war", "name": "Black Hawk War", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-war", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-auto", "name": "Autobiography of Black Hawk", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-auto", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" }
+      ],
+      "graph": { "byName": ["res-bh", "res-war", "res-auto"] },
+      "vectors": { "hits": [] },
+      "model": { "shown": ["res-bh", "res-war", "res-auto"], "reply": "1. 0.2\n2. 0.4\n3. 0.9" },
+      "term": "Black Hawk",
+      "results": [
+        { "id": "res-auto", "score": 32.5, "matchReason": "contains name match; semantic match" },
+        { "id": "res-bh", "score": 30, "matchReason": "exact name match" },
+        { "id": "res-war", "score": 25, "matchReason": "prefix name match" }
+      ]
+    },
+    {
+      "why": "a model that fails leaves every score as it was, and the search still answers",
+      "now": "2026-03-31T00:00:00.000Z",
+      "request": {
+        "resourceId": "res-main",
+        "referenceId": "ann-ref",
+        "useSemanticScoring": true,
+        "context": {
+          "focus": {
+            "kind": "annotation",
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-ref", "motivation": "linking", "target": { "source": "res-main" }, "created": "2026-03-30T12:00:00.000Z" },
+            "sourceResource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+            "selected": { "text": "Black Hawk" }
+          },
+          "graph": { "nodes": [{ "id": "res-main", "type": "resource", "label": "Sauk history" }], "edges": [] },
+          "metadata": {}
+        }
+      },
+      "resources": [
+        { "@context": "https://schema.org/", "@id": "res-bh", "name": "Black Hawk", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-bh", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-war", "name": "Black Hawk War", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-war", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-auto", "name": "Autobiography of Black Hawk", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-auto", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" }
+      ],
+      "graph": { "byName": ["res-bh", "res-war", "res-auto"] },
+      "vectors": { "hits": [] },
+      "model": { "shown": ["res-bh", "res-war", "res-auto"], "fails": true },
+      "term": "Black Hawk",
+      "results": [
+        { "id": "res-bh", "score": 25, "matchReason": "exact name match" },
+        { "id": "res-war", "score": 15, "matchReason": "prefix name match" },
+        { "id": "res-auto", "score": 10, "matchReason": "contains name match" }
+      ]
+    },
+    {
+      "why": "a reply that states no score leaves every score as it was",
+      "now": "2026-03-31T00:00:00.000Z",
+      "request": {
+        "resourceId": "res-main",
+        "referenceId": "ann-ref",
+        "useSemanticScoring": true,
+        "context": {
+          "focus": {
+            "kind": "annotation",
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-ref", "motivation": "linking", "target": { "source": "res-main" }, "created": "2026-03-30T12:00:00.000Z" },
+            "sourceResource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+            "selected": { "text": "Black Hawk" }
+          },
+          "graph": { "nodes": [{ "id": "res-main", "type": "resource", "label": "Sauk history" }], "edges": [] },
+          "metadata": {}
+        }
+      },
+      "resources": [
+        { "@context": "https://schema.org/", "@id": "res-bh", "name": "Black Hawk", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-bh", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-war", "name": "Black Hawk War", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-war", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-auto", "name": "Autobiography of Black Hawk", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-auto", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" }
+      ],
+      "graph": { "byName": ["res-bh", "res-war", "res-auto"] },
+      "vectors": { "hits": [] },
+      "model": { "shown": ["res-bh", "res-war", "res-auto"], "reply": "I cannot score these candidates." },
+      "term": "Black Hawk",
+      "results": [
+        { "id": "res-bh", "score": 25, "matchReason": "exact name match" },
+        { "id": "res-war", "score": 15, "matchReason": "prefix name match" },
+        { "id": "res-auto", "score": 10, "matchReason": "contains name match" }
+      ]
+    },
+    {
+      "why": "a request that states `useSemanticScoring` as false has no model asked",
+      "now": "2026-03-31T00:00:00.000Z",
+      "request": {
+        "resourceId": "res-main",
+        "referenceId": "ann-ref",
+        "useSemanticScoring": false,
+        "context": {
+          "focus": {
+            "kind": "annotation",
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-ref", "motivation": "linking", "target": { "source": "res-main" }, "created": "2026-03-30T12:00:00.000Z" },
+            "sourceResource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+            "selected": { "text": "Black Hawk" }
+          },
+          "graph": { "nodes": [{ "id": "res-main", "type": "resource", "label": "Sauk history" }], "edges": [] },
+          "metadata": {}
+        }
+      },
+      "resources": [
+        { "@context": "https://schema.org/", "@id": "res-bh", "name": "Black Hawk", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-bh", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-war", "name": "Black Hawk War", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-war", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-auto", "name": "Autobiography of Black Hawk", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-auto", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" }
+      ],
+      "graph": { "byName": ["res-bh", "res-war", "res-auto"] },
+      "vectors": { "hits": [] },
+      "term": "Black Hawk",
+      "results": [
+        { "id": "res-bh", "score": 25, "matchReason": "exact name match" },
+        { "id": "res-war", "score": 15, "matchReason": "prefix name match" },
+        { "id": "res-auto", "score": 10, "matchReason": "contains name match" }
+      ]
+    },
+    {
+      "why": "of twenty-one candidates the model is shown twenty: a score it gives the twentieth counts, and a line of its reply numbered 21 names no candidate and adds nothing. Each candidate shares the context's one entity type, seen 31 times, for 31; they were made a day and a half apart, the first at the moment of the search, so recency gives the first 5 and each one after it a quarter less",
+      "now": "2026-03-31T00:00:00.000Z",
+      "request": {
+        "resourceId": "res-main",
+        "referenceId": "ann-ref",
+        "useSemanticScoring": true,
+        "context": {
+          "focus": {
+            "kind": "annotation",
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-ref", "motivation": "linking", "target": { "source": "res-main" }, "created": "2026-03-30T12:00:00.000Z" },
+            "sourceResource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+            "selected": { "text": "the treaty of 1804" }
+          },
+          "graph": { "nodes": [{ "id": "res-main", "type": "resource", "label": "Sauk history" }], "edges": [] },
+          "metadata": { "entityTypes": ["Treaty"], "entityTypeFrequencies": { "Treaty": 31 } }
+        }
+      },
+      "resources": [
+        { "@context": "https://schema.org/", "@id": "res-treaty-01", "name": "Treaty no. 1", "entityTypes": ["Treaty"], "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-treaty-01", "rel": "original" }], "dateCreated": "2026-03-31T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-treaty-02", "name": "Treaty no. 2", "entityTypes": ["Treaty"], "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-treaty-02", "rel": "original" }], "dateCreated": "2026-03-29T12:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-treaty-03", "name": "Treaty no. 3", "entityTypes": ["Treaty"], "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-treaty-03", "rel": "original" }], "dateCreated": "2026-03-28T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-treaty-04", "name": "Treaty no. 4", "entityTypes": ["Treaty"], "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-treaty-04", "rel": "original" }], "dateCreated": "2026-03-26T12:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-treaty-05", "name": "Treaty no. 5", "entityTypes": ["Treaty"], "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-treaty-05", "rel": "original" }], "dateCreated": "2026-03-25T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-treaty-06", "name": "Treaty no. 6", "entityTypes": ["Treaty"], "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-treaty-06", "rel": "original" }], "dateCreated": "2026-03-23T12:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-treaty-07", "name": "Treaty no. 7", "entityTypes": ["Treaty"], "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-treaty-07", "rel": "original" }], "dateCreated": "2026-03-22T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-treaty-08", "name": "Treaty no. 8", "entityTypes": ["Treaty"], "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-treaty-08", "rel": "original" }], "dateCreated": "2026-03-20T12:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-treaty-09", "name": "Treaty no. 9", "entityTypes": ["Treaty"], "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-treaty-09", "rel": "original" }], "dateCreated": "2026-03-19T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-treaty-10", "name": "Treaty no. 10", "entityTypes": ["Treaty"], "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-treaty-10", "rel": "original" }], "dateCreated": "2026-03-17T12:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-treaty-11", "name": "Treaty no. 11", "entityTypes": ["Treaty"], "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-treaty-11", "rel": "original" }], "dateCreated": "2026-03-16T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-treaty-12", "name": "Treaty no. 12", "entityTypes": ["Treaty"], "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-treaty-12", "rel": "original" }], "dateCreated": "2026-03-14T12:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-treaty-13", "name": "Treaty no. 13", "entityTypes": ["Treaty"], "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-treaty-13", "rel": "original" }], "dateCreated": "2026-03-13T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-treaty-14", "name": "Treaty no. 14", "entityTypes": ["Treaty"], "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-treaty-14", "rel": "original" }], "dateCreated": "2026-03-11T12:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-treaty-15", "name": "Treaty no. 15", "entityTypes": ["Treaty"], "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-treaty-15", "rel": "original" }], "dateCreated": "2026-03-10T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-treaty-16", "name": "Treaty no. 16", "entityTypes": ["Treaty"], "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-treaty-16", "rel": "original" }], "dateCreated": "2026-03-08T12:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-treaty-17", "name": "Treaty no. 17", "entityTypes": ["Treaty"], "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-treaty-17", "rel": "original" }], "dateCreated": "2026-03-07T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-treaty-18", "name": "Treaty no. 18", "entityTypes": ["Treaty"], "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-treaty-18", "rel": "original" }], "dateCreated": "2026-03-05T12:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-treaty-19", "name": "Treaty no. 19", "entityTypes": ["Treaty"], "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-treaty-19", "rel": "original" }], "dateCreated": "2026-03-04T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-treaty-20", "name": "Treaty no. 20", "entityTypes": ["Treaty"], "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-treaty-20", "rel": "original" }], "dateCreated": "2026-03-02T12:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-treaty-21", "name": "Treaty no. 21", "entityTypes": ["Treaty"], "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-treaty-21", "rel": "original" }], "dateCreated": "2026-03-01T00:00:00.000Z" }
+      ],
+      "graph": {
+        "byName": [],
+        "byEntityType": ["res-treaty-01", "res-treaty-02", "res-treaty-03", "res-treaty-04", "res-treaty-05", "res-treaty-06", "res-treaty-07", "res-treaty-08", "res-treaty-09", "res-treaty-10", "res-treaty-11", "res-treaty-12", "res-treaty-13", "res-treaty-14", "res-treaty-15", "res-treaty-16", "res-treaty-17", "res-treaty-18", "res-treaty-19", "res-treaty-20", "res-treaty-21"]
+      },
+      "vectors": { "hits": [] },
+      "model": {
+        "shown": ["res-treaty-01", "res-treaty-02", "res-treaty-03", "res-treaty-04", "res-treaty-05", "res-treaty-06", "res-treaty-07", "res-treaty-08", "res-treaty-09", "res-treaty-10", "res-treaty-11", "res-treaty-12", "res-treaty-13", "res-treaty-14", "res-treaty-15", "res-treaty-16", "res-treaty-17", "res-treaty-18", "res-treaty-19", "res-treaty-20"],
+        "reply": "20. 0.8\n21. 1.0"
+      },
+      "term": "the treaty of 1804",
+      "results": [
+        { "id": "res-treaty-20", "score": 51.25, "matchReason": "entity types: Treaty; semantic match" },
+        { "id": "res-treaty-01", "score": 36, "matchReason": "entity types: Treaty" },
+        { "id": "res-treaty-02", "score": 35.75, "matchReason": "entity types: Treaty" },
+        { "id": "res-treaty-03", "score": 35.5, "matchReason": "entity types: Treaty" },
+        { "id": "res-treaty-04", "score": 35.25, "matchReason": "entity types: Treaty" },
+        { "id": "res-treaty-05", "score": 35, "matchReason": "entity types: Treaty" },
+        { "id": "res-treaty-06", "score": 34.75, "matchReason": "entity types: Treaty" },
+        { "id": "res-treaty-07", "score": 34.5, "matchReason": "entity types: Treaty" },
+        { "id": "res-treaty-08", "score": 34.25, "matchReason": "entity types: Treaty" },
+        { "id": "res-treaty-09", "score": 34, "matchReason": "entity types: Treaty" },
+        { "id": "res-treaty-10", "score": 33.75, "matchReason": "entity types: Treaty" },
+        { "id": "res-treaty-11", "score": 33.5, "matchReason": "entity types: Treaty" },
+        { "id": "res-treaty-12", "score": 33.25, "matchReason": "entity types: Treaty" },
+        { "id": "res-treaty-13", "score": 33, "matchReason": "entity types: Treaty" },
+        { "id": "res-treaty-14", "score": 32.75, "matchReason": "entity types: Treaty" },
+        { "id": "res-treaty-15", "score": 32.5, "matchReason": "entity types: Treaty" },
+        { "id": "res-treaty-16", "score": 32.25, "matchReason": "entity types: Treaty" },
+        { "id": "res-treaty-17", "score": 32, "matchReason": "entity types: Treaty" },
+        { "id": "res-treaty-18", "score": 31.75, "matchReason": "entity types: Treaty" },
+        { "id": "res-treaty-19", "score": 31.5, "matchReason": "entity types: Treaty" },
+        { "id": "res-treaty-21", "score": 31, "matchReason": "entity types: Treaty" }
+      ]
+    },
+    {
+      "why": "two candidates of one score stay in the order they were found: the one the listing by name answered is before the neighbour",
+      "now": "2026-03-31T00:00:00.000Z",
+      "request": {
+        "resourceId": "res-main",
+        "referenceId": "ann-ref",
+        "useSemanticScoring": false,
+        "context": {
+          "focus": {
+            "kind": "annotation",
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-ref", "motivation": "linking", "target": { "source": "res-main" }, "created": "2026-03-30T12:00:00.000Z" },
+            "sourceResource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+            "selected": { "text": "Black Hawk" }
+          },
+          "graph": {
+            "nodes": [
+              { "id": "res-main", "type": "resource", "label": "Sauk history" },
+              { "id": "res-keokuk", "type": "resource", "label": "Keokuk" }
+            ],
+            "edges": [
+              { "source": "res-main", "target": "res-keokuk", "type": "link", "bidirectional": false }
+            ]
+          },
+          "metadata": {}
+        }
+      },
+      "resources": [
+        { "@context": "https://schema.org/", "@id": "res-keokuk", "name": "Keokuk", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-keokuk", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+        { "@context": "https://schema.org/", "@id": "res-auto", "name": "Autobiography of Black Hawk", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-auto", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" }
+      ],
+      "graph": { "byName": ["res-auto"], "byId": { "res-keokuk": "held" } },
+      "vectors": { "hits": [] },
+      "term": "Black Hawk",
+      "results": [
+        { "id": "res-auto", "score": 10, "matchReason": "contains name match" },
+        { "id": "res-keokuk", "score": 10, "matchReason": "connected" }
+      ]
+    },
+    {
+      "why": "a focus that is a resource, and not an annotation, is answered with a failure, and no source is asked",
+      "now": "2026-03-31T00:00:00.000Z",
+      "request": {
+        "resourceId": "res-main",
+        "referenceId": "ann-ref",
+        "context": {
+          "focus": {
+            "kind": "resource",
+            "resource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" }
+          },
+          "graph": { "nodes": [{ "id": "res-main", "type": "resource", "label": "Sauk history" }], "edges": [] },
+          "metadata": {}
+        }
+      },
+      "resources": [],
+      "graph": {},
+      "failed": "Matcher expected annotation focus, received 'resource'"
+    },
+    {
+      "why": "a search whose listing by name fails is answered with a failure that carries the listing's message",
+      "now": "2026-03-31T00:00:00.000Z",
+      "request": {
+        "resourceId": "res-main",
+        "referenceId": "ann-ref",
+        "useSemanticScoring": false,
+        "context": {
+          "focus": {
+            "kind": "annotation",
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-ref", "motivation": "linking", "target": { "source": "res-main" }, "created": "2026-03-30T12:00:00.000Z" },
+            "sourceResource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Sauk history", "representations": [{ "mediaType": "text/markdown", "checksum": "sha256:res-main", "rel": "original" }], "dateCreated": "2025-06-01T00:00:00.000Z" },
+            "selected": { "text": "Black Hawk" }
+          },
+          "graph": { "nodes": [{ "id": "res-main", "type": "resource", "label": "Sauk history" }], "edges": [] },
+          "metadata": {}
+        }
+      },
+      "resources": [],
+      "graph": { "byName": { "fails": "the graph is not reachable" } },
+      "vectors": { "hits": [] },
+      "failed": "the graph is not reachable"
+    }
+  ]
+}

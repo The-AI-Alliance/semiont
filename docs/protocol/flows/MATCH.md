@@ -13,23 +13,26 @@ Match searches the knowledge base: for what a reference could refer to, ranking 
 
 The reply is `match:search-results`, or `match:search-failed`. Each candidate carries a score and a `matchReason` naming the signals that produced it.
 
-`match.resources` takes the text to search for. Its filters are an entity type, whether the resources are archived, and a limit on the page. It is kept current as a [live query](../CACHE-SEMANTICS.md) is.
+`match.resources` takes the text to search for. Its filters are an entity type, whether the resources are archived, and a limit on the page. On the wire the request may also carry an `offset`; the SDK asks for the first page. It is kept current as a [live query](../CACHE-SEMANTICS.md) is.
 
 The reply is `match:resources-result`, or `match:resources-failed`. It carries the page of resources, the `total` of everything the text found, and a `matchKind`.
 
+The librarian also answers `match:limits-requested`, with the [limits](../LIBRARIAN.md#limits) of the model that scores candidates. `browse.agents` asks it.
+
 ## How candidates are found and ranked
 
-Candidates come from three sources, and are deduplicated:
+Candidates come from four sources, and are deduplicated:
 
 1. **By name**: the reference's text against each resource's name, its location and its entity types.
 2. **By entity type**: resources that share entity types with the reference.
 3. **By neighborhood**: resources already connected to the source resource in the graph.
+4. **By meaning**: resources the vector index finds close to the reference's text.
 
-Each candidate is scored on structural signals: entity types in common (rare types count for more), how well its name matches, whether it is already connected to the source and in which directions, how often it is cited, how recent it is, and how many of the three sources found it.
+Each candidate is scored on structural signals: entity types in common (rare types count for more), how well its name matches, whether it is already connected to the source and in which directions, how recent it is, how close the vector index found it, and how many of the sources found it.
 
-With semantic scoring on, a model then scores the top candidates against the passage. If the model fails, the structural ranking stands.
+With semantic scoring on, a model then scores at most twenty of the candidates against the passage. If the model fails, the structural ranking stands.
 
-Scores are sums of points, not probabilities. They order candidates; they are not bounded at one. The weights are the Matcher's and can change: see [packages/make-meaning/src/matcher.ts](../../../packages/make-meaning/src/matcher.ts).
+Scores are sums of points, not probabilities. They order candidates; they are not bounded at one. The weights are the librarian's: see [The score](../LIBRARIAN.md#the-score).
 
 ## How resources are found by text
 
@@ -43,7 +46,7 @@ When nothing matches by text, the answer is the resources that discuss the query
 
 **For a reference, the context is the query.** `match.search` is driven by the gathered context it is given: the passage, the entity types and the graph around it.
 
-**A model is optional.** `match.search` works with no inference provider, on the structural signals alone. `match.resources` calls no model.
+**The model's scoring can be turned off.** With `useSemanticScoring: false`, `match.search` ranks on the structural signals alone. A librarian is given a model for it all the same: see [Settings](../LIBRARIAN.md#settings). `match.resources` calls no model.
 
 **A text search says what kind of answer it gives.** Every `match.resources` reply carries `matchKind`, so resources that discuss the query are never taken for resources the text matched.
 

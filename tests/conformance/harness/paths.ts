@@ -1,5 +1,6 @@
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { LibrarianService } from './librarian-process';
 import type { WeaverService } from './weaver-process';
 
 export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -118,6 +119,24 @@ export const SMELTER_SERVICES: Readonly<Record<string, readonly string[]>> = {
   // `-P` keeps the directory a case starts it in off its import path, as the image's command does.
   // It reads a scan with the `tesseract` program, which it finds on PATH.
   python: [join(REPO_ROOT, 'apps/smelter/.venv/bin/python'), '-P', '-m', 'semiont_smelter'],
+};
+
+/**
+ * How each implementation of the Librarian is started and reached. The
+ * librarian suite runs each one with its settings and the environment, behind
+ * a real gateway, beside a real Archivist, a Weaver and a Smelter, against a
+ * real neo4j and a real Qdrant and stand-ins for its providers, and meets it
+ * on the bus, at its providers and at its health port (librarian/README.md).
+ * An implementation joins the suite by adding its line. vitest.config.ts
+ * provides them as `librarianServices`.
+ */
+export const LIBRARIAN_SERVICES: Readonly<Record<string, LibrarianService>> = {
+  // The built entry of @semiont/make-meaning, run as its image runs it. It reads a `.semiontconfig` in its home directory.
+  typescript: {
+    command: ['node', join(REPO_ROOT, 'packages/make-meaning/dist/librarian-main.js')],
+    healthPort: 24104,
+    configuredBy: 'semiontconfig',
+  },
 };
 
 export const SPEC_SOURCE = join(REPO_ROOT, 'specs/src');

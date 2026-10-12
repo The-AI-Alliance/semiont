@@ -5,7 +5,9 @@ processes, meets them only where the protocol says a client meets them, and
 checks what they do against `specs/` and `docs/protocol/`. None imports
 anything from the implementation it checks (the weaver suite reads the graph
 with `@semiont/graph`, the reader the rest of Semiont uses, and says why; the
-smelter suite reads the vector index by its own calls to Qdrant): [harness/paths.ts](harness/paths.ts)
+smelter suite reads the vector index by its own calls to Qdrant, and the
+librarian suite fills the graph and the index through a real Weaver and a real
+Smelter): [harness/paths.ts](harness/paths.ts)
 holds the one line per service, and per SDK, that names it, so the same cases
 judge any implementation of the same spec.
 
@@ -19,13 +21,14 @@ judge any implementation of the same spec.
 | [worker-service](worker-service/README.md) | a Worker service, as a process: on the bus through a real gateway, at a stand-in for each of its providers, and at its health port, with the suite playing the dispatcher and the record | `npm run test:worker-service` |
 | [weaver](weaver/README.md) | a Weaver, as a process: behind a real gateway and a real Archivist, in the neo4j it writes, on the bus, at its health port and in the telemetry it exports | `npm run test:weaver` |
 | [smelter](smelter/README.md) | a Smelter, as a process: behind a real gateway and a real Archivist, in the Qdrant and the anchored-text store it writes, on the bus, at a stand-in for its embedding provider, at its health port and in the telemetry it exports | `npm run test:smelter` |
+| [librarian](librarian/README.md) | a Librarian, as a process: behind a real gateway and a real Archivist, reading a neo4j a real Weaver writes and a Qdrant a real Smelter writes, on the bus, at a stand-in for its embedding provider and for each of its two models, and at its health port | `npm run test:librarian` |
 
 They share one harness ([harness/](harness/)): the trusted issuer, a real
-`nats-server`, gateway, dispatcher, Archivist, Worker service, Weaver and Smelter processes, bus streams checked message by
+`nats-server`, gateway, dispatcher, Archivist, Worker service, Weaver, Smelter and Librarian processes, bus streams checked message by
 message against the spec, a stand-in Archivist held to the Archivist's spec, a stand-in Ollama
 and a stand-in Anthropic, a stand-in embedding provider, a reader of the vector index, and a proxy that stands between a client and the gateway.
 [vitest.config.ts](vitest.config.ts) runs each suite as a project of its own;
-`npm test` runs all eight.
+`npm test` runs all nine.
 
 ## Running them
 
@@ -40,7 +43,9 @@ in `NEO4J_HOST` and `NEO4J_PASSWORD` ([weaver/README.md](weaver/README.md)),
 and the smelter suite a built Archivist, the packages built, the
 Smelter's environment, which `uv` makes as well, the `tesseract` program, and a
 Qdrant of its own, whose address it is told in `QDRANT_HOST`
-([smelter/README.md](smelter/README.md)):
+([smelter/README.md](smelter/README.md)), and the librarian suite all that
+the weaver and smelter suites need, since it starts both
+([librarian/README.md](librarian/README.md)):
 
 ```bash
 cargo build --release -p semiont-gateway -p semiont-dispatcher -p semiont-archivist -p semiont-conformance-drivers

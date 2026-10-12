@@ -1,0 +1,1371 @@
+{
+  "$comment": "The knowledge graph a Librarian builds for one resource, as every implementation of the Librarian must build it: what the graph store and the views answer, and the graph of nodes and edges that follows, or the failure. Semiont's Librarian (packages/make-meaning: graph-context.ts) runs every case and fails on a difference; a Librarian in another language runs the same file. WHAT A CASE STATES. `resource` is the id of the resource asked for. `graph` is what the graph store answers. Its `resource` lists what it answers each time it is asked for the resource, in order: the resource's description, or null where it does not hold the resource yet. The store is asked exactly as many times as the list is long. Its `connections` are the resource's connections, in the order the store gives them: each has the `resource` at its other end, a `bidirectional` flag, and a `relationshipType` where the store names one. Its `referencedBy` are the annotations that refer to the resource, and its `annotations` are the annotations on the resource, each list in the order the store gives it. `views` is the resource views that exist, by resource id: a resource with no entry has no view. A view's `annotations` are not read: only its `resource` and its `lastSequence` are. `applied` says whether the Weaver's applied signal for the resource, at the sequence its view states, has arrived: when it has, the wait for it ends at once. `knowledgeGraph` is the graph built, its nodes and its edges in order. `fails` stands in its place where nothing is built: `unknown` where neither the graph store nor the views hold the resource, and `behind` where the views hold it and the graph store never comes to. `waited` is how many milliseconds passed in waiting before the answer. THE RULE, OF WAITING. The store is asked for the resource. If it holds it, nothing waits. If it does not and the resource has no view, the resource is unknown: nothing waits and the store is not asked again. If the resource has a view, the store is behind it. The applied signal is waited for, for at most 500 milliseconds. If the signal arrives, the store is asked again. If the store still does not hold the resource, or the signal did not arrive, the store is asked after 25 more milliseconds, then after 50 more, 100 more and 200 more, and the first answer that holds the resource ends the waiting. After the last of them the build fails as `behind`. THE RULE, OF THE GRAPH. The first node is the resource: its id, its name as `label`, and its entity types, which are none where its description states none. Then each connection, in order: the resource at its other end is a node, named and typed by the description the connection carries, and an edge runs from the resource asked for to it. The edge's `type` is the connection's relationship type, or `link` where it has none or an empty one, and the edge carries the connection's `bidirectional` flag. Then each annotation that refers to the resource, in order. Its citing resource is the resource its target names, whether the target is an object with a `source` or a bare id. An annotation whose citing resource is the resource asked for is left out, and so is one already in the graph. Otherwise the citing resource is a node, named and typed by its view's resource, or named by its id and with no entity types where it has no view; then the annotation is a node; then an `annotation-of` edge runs from the annotation to its citing resource and a `cites` edge from the annotation to the resource asked for. Then each annotation on the resource, in order, unless it is already in the graph: the annotation is a node, and an `annotation-of` edge runs from it to the resource asked for. An annotation's node has the annotation's id, its motivation as `label`, the entity types its tagging bodies state, and the whole annotation. A thing is a node once: a resource or an annotation already in the graph is not added again, and keeps the name it was first given. Each connection has its edge all the same. Add a case here before changing an implementation.",
+  "cases": [
+    {
+      "why": "a resource with no connections, no citations and no annotations is a graph of one node: its id, its name and its entity types",
+      "resource": "res-main",
+      "graph": {
+        "resource": [
+          { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] }
+        ],
+        "connections": [],
+        "referencedBy": [],
+        "annotations": []
+      },
+      "views": {},
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] }
+        ],
+        "edges": []
+      },
+      "waited": 0
+    },
+    {
+      "why": "a resource whose description states no entity types has none",
+      "resource": "res-main",
+      "graph": {
+        "resource": [
+          { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "representations": [{ "mediaType": "text/markdown" }] }
+        ],
+        "connections": [],
+        "referencedBy": [],
+        "annotations": []
+      },
+      "views": {},
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": [] }
+        ],
+        "edges": []
+      },
+      "waited": 0
+    },
+    {
+      "why": "a connection is a node for the resource at its other end, named and typed by the description the connection carries, and an edge to it of the connection's relationship type",
+      "resource": "res-main",
+      "graph": {
+        "resource": [
+          { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] }
+        ],
+        "connections": [
+          {
+            "resource": { "@context": "https://schema.org/", "@id": "res-peer", "name": "Peer", "entityTypes": ["Author"], "representations": [{ "mediaType": "text/markdown" }] },
+            "relationshipType": "mentions",
+            "bidirectional": false
+          }
+        ],
+        "referencedBy": [],
+        "annotations": []
+      },
+      "views": {},
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          { "id": "res-peer", "type": "resource", "label": "Peer", "entityTypes": ["Author"] }
+        ],
+        "edges": [
+          { "source": "res-main", "target": "res-peer", "type": "mentions", "bidirectional": false }
+        ]
+      },
+      "waited": 0
+    },
+    {
+      "why": "a connection that goes both ways says so on its edge",
+      "resource": "res-main",
+      "graph": {
+        "resource": [
+          { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] }
+        ],
+        "connections": [
+          {
+            "resource": { "@context": "https://schema.org/", "@id": "res-peer", "name": "Peer", "entityTypes": ["Author"], "representations": [{ "mediaType": "text/markdown" }] },
+            "relationshipType": "mentions",
+            "bidirectional": true
+          }
+        ],
+        "referencedBy": [],
+        "annotations": []
+      },
+      "views": {},
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          { "id": "res-peer", "type": "resource", "label": "Peer", "entityTypes": ["Author"] }
+        ],
+        "edges": [
+          { "source": "res-main", "target": "res-peer", "type": "mentions", "bidirectional": true }
+        ]
+      },
+      "waited": 0
+    },
+    {
+      "why": "a connection with no relationship type is an edge of type link, and a resource at its other end whose description states no entity types has none",
+      "resource": "res-main",
+      "graph": {
+        "resource": [
+          { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] }
+        ],
+        "connections": [
+          {
+            "resource": { "@context": "https://schema.org/", "@id": "res-peer", "name": "Peer", "representations": [{ "mediaType": "text/markdown" }] },
+            "bidirectional": false
+          }
+        ],
+        "referencedBy": [],
+        "annotations": []
+      },
+      "views": {},
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          { "id": "res-peer", "type": "resource", "label": "Peer", "entityTypes": [] }
+        ],
+        "edges": [
+          { "source": "res-main", "target": "res-peer", "type": "link", "bidirectional": false }
+        ]
+      },
+      "waited": 0
+    },
+    {
+      "why": "a connection whose relationship type is the empty string is an edge of type link too",
+      "resource": "res-main",
+      "graph": {
+        "resource": [
+          { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] }
+        ],
+        "connections": [
+          {
+            "resource": { "@context": "https://schema.org/", "@id": "res-peer", "name": "Peer", "entityTypes": ["Author"], "representations": [{ "mediaType": "text/markdown" }] },
+            "relationshipType": "",
+            "bidirectional": true
+          }
+        ],
+        "referencedBy": [],
+        "annotations": []
+      },
+      "views": {},
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          { "id": "res-peer", "type": "resource", "label": "Peer", "entityTypes": ["Author"] }
+        ],
+        "edges": [
+          { "source": "res-main", "target": "res-peer", "type": "link", "bidirectional": true }
+        ]
+      },
+      "waited": 0
+    },
+    {
+      "why": "a relationship type is the store's own word and is carried as it is, though the word is cites: the edge runs out of the resource asked for, to a resource",
+      "resource": "res-main",
+      "graph": {
+        "resource": [
+          { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] }
+        ],
+        "connections": [
+          {
+            "resource": { "@context": "https://schema.org/", "@id": "res-peer", "name": "Peer", "entityTypes": ["Author"], "representations": [{ "mediaType": "text/markdown" }] },
+            "relationshipType": "cites",
+            "bidirectional": false
+          }
+        ],
+        "referencedBy": [],
+        "annotations": []
+      },
+      "views": {},
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          { "id": "res-peer", "type": "resource", "label": "Peer", "entityTypes": ["Author"] }
+        ],
+        "edges": [
+          { "source": "res-main", "target": "res-peer", "type": "cites", "bidirectional": false }
+        ]
+      },
+      "waited": 0
+    },
+    {
+      "why": "connections to several resources are nodes and edges in the order the store gives them, and two connections to one resource are one node and two edges",
+      "resource": "res-main",
+      "graph": {
+        "resource": [
+          { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] }
+        ],
+        "connections": [
+          {
+            "resource": { "@context": "https://schema.org/", "@id": "res-peer-b", "name": "Peer B", "entityTypes": ["Place"], "representations": [{ "mediaType": "text/markdown" }] },
+            "relationshipType": "mentions",
+            "bidirectional": false
+          },
+          {
+            "resource": { "@context": "https://schema.org/", "@id": "res-peer-a", "name": "Peer A", "entityTypes": ["Author"], "representations": [{ "mediaType": "text/markdown" }] },
+            "relationshipType": "mentions",
+            "bidirectional": true
+          },
+          {
+            "resource": { "@context": "https://schema.org/", "@id": "res-peer-b", "name": "Peer B", "entityTypes": ["Place"], "representations": [{ "mediaType": "text/markdown" }] },
+            "relationshipType": "describes",
+            "bidirectional": false
+          }
+        ],
+        "referencedBy": [],
+        "annotations": []
+      },
+      "views": {},
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          { "id": "res-peer-b", "type": "resource", "label": "Peer B", "entityTypes": ["Place"] },
+          { "id": "res-peer-a", "type": "resource", "label": "Peer A", "entityTypes": ["Author"] }
+        ],
+        "edges": [
+          { "source": "res-main", "target": "res-peer-b", "type": "mentions", "bidirectional": false },
+          { "source": "res-main", "target": "res-peer-a", "type": "mentions", "bidirectional": true },
+          { "source": "res-main", "target": "res-peer-b", "type": "describes", "bidirectional": false }
+        ]
+      },
+      "waited": 0
+    },
+    {
+      "why": "a connection from the resource to itself adds no second node, and has its edge",
+      "resource": "res-main",
+      "graph": {
+        "resource": [
+          { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] }
+        ],
+        "connections": [
+          {
+            "resource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] },
+            "relationshipType": "mentions",
+            "bidirectional": true
+          }
+        ],
+        "referencedBy": [],
+        "annotations": []
+      },
+      "views": {},
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] }
+        ],
+        "edges": [
+          { "source": "res-main", "target": "res-main", "type": "mentions", "bidirectional": true }
+        ]
+      },
+      "waited": 0
+    },
+    {
+      "why": "an annotation that refers to the resource is a citation: its citing resource is a node, named and typed by that resource's view; the annotation is a node, labelled by its motivation, typed by its tagging bodies and holding the whole annotation; and two edges run from the annotation, annotation-of to its citing resource and cites to the resource asked for",
+      "resource": "res-main",
+      "graph": {
+        "resource": [
+          { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] }
+        ],
+        "connections": [],
+        "referencedBy": [
+          {
+            "@context": "http://www.w3.org/ns/anno.jsonld",
+            "type": "Annotation",
+            "id": "ann-cite",
+            "motivation": "linking",
+            "target": { "source": "res-citing" },
+            "body": [
+              { "type": "TextualBody", "value": "Person", "purpose": "tagging" },
+              { "type": "SpecificResource", "source": "res-main", "purpose": "linking" }
+            ],
+            "created": "2020-03-04T05:06:07.000Z"
+          }
+        ],
+        "annotations": []
+      },
+      "views": {
+        "res-citing": {
+          "resource": { "@context": "https://schema.org/", "@id": "res-citing", "name": "Citing Paper", "entityTypes": ["Report"], "representations": [{ "mediaType": "text/markdown" }] },
+          "annotations": { "resourceId": "res-citing", "annotations": [], "version": 2, "updatedAt": "2020-03-04T05:06:07.000Z" },
+          "lastSequence": 2
+        }
+      },
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          { "id": "res-citing", "type": "resource", "label": "Citing Paper", "entityTypes": ["Report"] },
+          {
+            "id": "ann-cite",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": ["Person"],
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-cite",
+              "motivation": "linking",
+              "target": { "source": "res-citing" },
+              "body": [
+                { "type": "TextualBody", "value": "Person", "purpose": "tagging" },
+                { "type": "SpecificResource", "source": "res-main", "purpose": "linking" }
+              ],
+              "created": "2020-03-04T05:06:07.000Z"
+            }
+          }
+        ],
+        "edges": [
+          { "source": "ann-cite", "target": "res-citing", "type": "annotation-of" },
+          { "source": "ann-cite", "target": "res-main", "type": "cites" }
+        ]
+      },
+      "waited": 0
+    },
+    {
+      "why": "a citing resource that has no view is still a node: it is named by its id and has no entity types",
+      "resource": "res-main",
+      "graph": {
+        "resource": [
+          { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] }
+        ],
+        "connections": [],
+        "referencedBy": [
+          {
+            "@context": "http://www.w3.org/ns/anno.jsonld",
+            "type": "Annotation",
+            "id": "ann-cite",
+            "motivation": "linking",
+            "target": { "source": "res-citing" },
+            "body": { "type": "SpecificResource", "source": "res-main", "purpose": "linking" },
+            "created": "2020-03-04T05:06:07.000Z"
+          }
+        ],
+        "annotations": []
+      },
+      "views": {},
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          { "id": "res-citing", "type": "resource", "label": "res-citing", "entityTypes": [] },
+          {
+            "id": "ann-cite",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": [],
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-cite",
+              "motivation": "linking",
+              "target": { "source": "res-citing" },
+              "body": { "type": "SpecificResource", "source": "res-main", "purpose": "linking" },
+              "created": "2020-03-04T05:06:07.000Z"
+            }
+          }
+        ],
+        "edges": [
+          { "source": "ann-cite", "target": "res-citing", "type": "annotation-of" },
+          { "source": "ann-cite", "target": "res-main", "type": "cites" }
+        ]
+      },
+      "waited": 0
+    },
+    {
+      "why": "a citing resource whose view states no entity types has none, and a citing annotation with no body has none either",
+      "resource": "res-main",
+      "graph": {
+        "resource": [
+          { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] }
+        ],
+        "connections": [],
+        "referencedBy": [
+          {
+            "@context": "http://www.w3.org/ns/anno.jsonld",
+            "type": "Annotation",
+            "id": "ann-cite",
+            "motivation": "linking",
+            "target": { "source": "res-citing" },
+            "created": "2020-03-04T05:06:07.000Z"
+          }
+        ],
+        "annotations": []
+      },
+      "views": {
+        "res-citing": {
+          "resource": { "@context": "https://schema.org/", "@id": "res-citing", "name": "Citing Paper", "representations": [{ "mediaType": "text/markdown" }] },
+          "annotations": { "resourceId": "res-citing", "annotations": [], "version": 2, "updatedAt": "2020-03-04T05:06:07.000Z" },
+          "lastSequence": 2
+        }
+      },
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          { "id": "res-citing", "type": "resource", "label": "Citing Paper", "entityTypes": [] },
+          {
+            "id": "ann-cite",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": [],
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-cite",
+              "motivation": "linking",
+              "target": { "source": "res-citing" },
+              "created": "2020-03-04T05:06:07.000Z"
+            }
+          }
+        ],
+        "edges": [
+          { "source": "ann-cite", "target": "res-citing", "type": "annotation-of" },
+          { "source": "ann-cite", "target": "res-main", "type": "cites" }
+        ]
+      },
+      "waited": 0
+    },
+    {
+      "why": "an annotation whose target is a bare id, being on the whole of its resource, cites from that resource",
+      "resource": "res-main",
+      "graph": {
+        "resource": [
+          { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] }
+        ],
+        "connections": [],
+        "referencedBy": [
+          {
+            "@context": "http://www.w3.org/ns/anno.jsonld",
+            "type": "Annotation",
+            "id": "ann-cite",
+            "motivation": "linking",
+            "target": "res-citing",
+            "body": { "type": "SpecificResource", "source": "res-main", "purpose": "linking" },
+            "created": "2020-03-04T05:06:07.000Z"
+          }
+        ],
+        "annotations": []
+      },
+      "views": {
+        "res-citing": {
+          "resource": { "@context": "https://schema.org/", "@id": "res-citing", "name": "Citing Paper", "entityTypes": ["Report"], "representations": [{ "mediaType": "text/markdown" }] },
+          "annotations": { "resourceId": "res-citing", "annotations": [], "version": 2, "updatedAt": "2020-03-04T05:06:07.000Z" },
+          "lastSequence": 2
+        }
+      },
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          { "id": "res-citing", "type": "resource", "label": "Citing Paper", "entityTypes": ["Report"] },
+          {
+            "id": "ann-cite",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": [],
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-cite",
+              "motivation": "linking",
+              "target": "res-citing",
+              "body": { "type": "SpecificResource", "source": "res-main", "purpose": "linking" },
+              "created": "2020-03-04T05:06:07.000Z"
+            }
+          }
+        ],
+        "edges": [
+          { "source": "ann-cite", "target": "res-citing", "type": "annotation-of" },
+          { "source": "ann-cite", "target": "res-main", "type": "cites" }
+        ]
+      },
+      "waited": 0
+    },
+    {
+      "why": "several citations from one resource are one node for that resource, and a node and two edges for each annotation",
+      "resource": "res-main",
+      "graph": {
+        "resource": [
+          { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] }
+        ],
+        "connections": [],
+        "referencedBy": [
+          { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-cite-1", "motivation": "linking", "target": { "source": "res-citing" }, "created": "2020-03-04T05:06:07.000Z" },
+          { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-cite-2", "motivation": "linking", "target": { "source": "res-citing" }, "created": "2020-03-04T05:06:08.000Z" }
+        ],
+        "annotations": []
+      },
+      "views": {
+        "res-citing": {
+          "resource": { "@context": "https://schema.org/", "@id": "res-citing", "name": "Citing Paper", "entityTypes": ["Report"], "representations": [{ "mediaType": "text/markdown" }] },
+          "annotations": { "resourceId": "res-citing", "annotations": [], "version": 3, "updatedAt": "2020-03-04T05:06:08.000Z" },
+          "lastSequence": 3
+        }
+      },
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          { "id": "res-citing", "type": "resource", "label": "Citing Paper", "entityTypes": ["Report"] },
+          {
+            "id": "ann-cite-1",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": [],
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-cite-1", "motivation": "linking", "target": { "source": "res-citing" }, "created": "2020-03-04T05:06:07.000Z" }
+          },
+          {
+            "id": "ann-cite-2",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": [],
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-cite-2", "motivation": "linking", "target": { "source": "res-citing" }, "created": "2020-03-04T05:06:08.000Z" }
+          }
+        ],
+        "edges": [
+          { "source": "ann-cite-1", "target": "res-citing", "type": "annotation-of" },
+          { "source": "ann-cite-1", "target": "res-main", "type": "cites" },
+          { "source": "ann-cite-2", "target": "res-citing", "type": "annotation-of" },
+          { "source": "ann-cite-2", "target": "res-main", "type": "cites" }
+        ]
+      },
+      "waited": 0
+    },
+    {
+      "why": "citations from two resources are in the order the store gives the annotations: a citing resource's node comes just before the first of its annotations, and a later annotation of the same resource adds only its own node",
+      "resource": "res-main",
+      "graph": {
+        "resource": [
+          { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] }
+        ],
+        "connections": [],
+        "referencedBy": [
+          { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-a-1", "motivation": "linking", "target": { "source": "res-citing-a" }, "created": "2020-03-04T05:06:07.000Z" },
+          { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-b-1", "motivation": "linking", "target": { "source": "res-citing-b" }, "created": "2020-03-04T05:06:08.000Z" },
+          { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-a-2", "motivation": "linking", "target": { "source": "res-citing-a" }, "created": "2020-03-04T05:06:09.000Z" }
+        ],
+        "annotations": []
+      },
+      "views": {
+        "res-citing-a": {
+          "resource": { "@context": "https://schema.org/", "@id": "res-citing-a", "name": "Citing Paper A", "entityTypes": ["Report"], "representations": [{ "mediaType": "text/markdown" }] },
+          "annotations": { "resourceId": "res-citing-a", "annotations": [], "version": 3, "updatedAt": "2020-03-04T05:06:09.000Z" },
+          "lastSequence": 3
+        }
+      },
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          { "id": "res-citing-a", "type": "resource", "label": "Citing Paper A", "entityTypes": ["Report"] },
+          {
+            "id": "ann-a-1",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": [],
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-a-1", "motivation": "linking", "target": { "source": "res-citing-a" }, "created": "2020-03-04T05:06:07.000Z" }
+          },
+          { "id": "res-citing-b", "type": "resource", "label": "res-citing-b", "entityTypes": [] },
+          {
+            "id": "ann-b-1",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": [],
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-b-1", "motivation": "linking", "target": { "source": "res-citing-b" }, "created": "2020-03-04T05:06:08.000Z" }
+          },
+          {
+            "id": "ann-a-2",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": [],
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-a-2", "motivation": "linking", "target": { "source": "res-citing-a" }, "created": "2020-03-04T05:06:09.000Z" }
+          }
+        ],
+        "edges": [
+          { "source": "ann-a-1", "target": "res-citing-a", "type": "annotation-of" },
+          { "source": "ann-a-1", "target": "res-main", "type": "cites" },
+          { "source": "ann-b-1", "target": "res-citing-b", "type": "annotation-of" },
+          { "source": "ann-b-1", "target": "res-main", "type": "cites" },
+          { "source": "ann-a-2", "target": "res-citing-a", "type": "annotation-of" },
+          { "source": "ann-a-2", "target": "res-main", "type": "cites" }
+        ]
+      },
+      "waited": 0
+    },
+    {
+      "why": "an annotation on the resource that refers to the resource itself is no citation: it is left out",
+      "resource": "res-main",
+      "graph": {
+        "resource": [
+          { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] }
+        ],
+        "connections": [],
+        "referencedBy": [
+          {
+            "@context": "http://www.w3.org/ns/anno.jsonld",
+            "type": "Annotation",
+            "id": "ann-self",
+            "motivation": "linking",
+            "target": { "source": "res-main" },
+            "body": { "type": "SpecificResource", "source": "res-main", "purpose": "linking" },
+            "created": "2020-03-04T05:06:07.000Z"
+          }
+        ],
+        "annotations": []
+      },
+      "views": {},
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] }
+        ],
+        "edges": []
+      },
+      "waited": 0
+    },
+    {
+      "why": "an annotation on the resource that refers to the resource itself, which the store answers both as one that refers to it and as one on it, is in the graph as an annotation on the resource and has no cites edge",
+      "resource": "res-main",
+      "graph": {
+        "resource": [
+          { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] }
+        ],
+        "connections": [],
+        "referencedBy": [
+          {
+            "@context": "http://www.w3.org/ns/anno.jsonld",
+            "type": "Annotation",
+            "id": "ann-self",
+            "motivation": "linking",
+            "target": { "source": "res-main" },
+            "body": { "type": "SpecificResource", "source": "res-main", "purpose": "linking" },
+            "created": "2020-03-04T05:06:07.000Z"
+          }
+        ],
+        "annotations": [
+          {
+            "@context": "http://www.w3.org/ns/anno.jsonld",
+            "type": "Annotation",
+            "id": "ann-self",
+            "motivation": "linking",
+            "target": { "source": "res-main" },
+            "body": { "type": "SpecificResource", "source": "res-main", "purpose": "linking" },
+            "created": "2020-03-04T05:06:07.000Z"
+          }
+        ]
+      },
+      "views": {},
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          {
+            "id": "ann-self",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": [],
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-self",
+              "motivation": "linking",
+              "target": { "source": "res-main" },
+              "body": { "type": "SpecificResource", "source": "res-main", "purpose": "linking" },
+              "created": "2020-03-04T05:06:07.000Z"
+            }
+          }
+        ],
+        "edges": [
+          { "source": "ann-self", "target": "res-main", "type": "annotation-of" }
+        ]
+      },
+      "waited": 0
+    },
+    {
+      "why": "a citing annotation that the store also answers as one on the resource is in the graph once, as the citation: it gets no second node and no edge as an annotation on the resource",
+      "resource": "res-main",
+      "graph": {
+        "resource": [
+          { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] }
+        ],
+        "connections": [],
+        "referencedBy": [
+          { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-cite", "motivation": "linking", "target": { "source": "res-citing" }, "created": "2020-03-04T05:06:07.000Z" }
+        ],
+        "annotations": [
+          { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-cite", "motivation": "linking", "target": { "source": "res-citing" }, "created": "2020-03-04T05:06:07.000Z" },
+          { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-mark", "motivation": "highlighting", "target": { "source": "res-main" }, "created": "2020-03-04T05:06:08.000Z" }
+        ]
+      },
+      "views": {},
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          { "id": "res-citing", "type": "resource", "label": "res-citing", "entityTypes": [] },
+          {
+            "id": "ann-cite",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": [],
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-cite", "motivation": "linking", "target": { "source": "res-citing" }, "created": "2020-03-04T05:06:07.000Z" }
+          },
+          {
+            "id": "ann-mark",
+            "type": "annotation",
+            "label": "highlighting",
+            "entityTypes": [],
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-mark", "motivation": "highlighting", "target": { "source": "res-main" }, "created": "2020-03-04T05:06:08.000Z" }
+          }
+        ],
+        "edges": [
+          { "source": "ann-cite", "target": "res-citing", "type": "annotation-of" },
+          { "source": "ann-cite", "target": "res-main", "type": "cites" },
+          { "source": "ann-mark", "target": "res-main", "type": "annotation-of" }
+        ]
+      },
+      "waited": 0
+    },
+    {
+      "why": "a citing annotation the store answers twice is a citation once",
+      "resource": "res-main",
+      "graph": {
+        "resource": [
+          { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] }
+        ],
+        "connections": [],
+        "referencedBy": [
+          { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-cite", "motivation": "linking", "target": { "source": "res-citing" }, "created": "2020-03-04T05:06:07.000Z" },
+          { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-cite", "motivation": "linking", "target": { "source": "res-citing" }, "created": "2020-03-04T05:06:07.000Z" }
+        ],
+        "annotations": []
+      },
+      "views": {},
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          { "id": "res-citing", "type": "resource", "label": "res-citing", "entityTypes": [] },
+          {
+            "id": "ann-cite",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": [],
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-cite", "motivation": "linking", "target": { "source": "res-citing" }, "created": "2020-03-04T05:06:07.000Z" }
+          }
+        ],
+        "edges": [
+          { "source": "ann-cite", "target": "res-citing", "type": "annotation-of" },
+          { "source": "ann-cite", "target": "res-main", "type": "cites" }
+        ]
+      },
+      "waited": 0
+    },
+    {
+      "why": "a citing resource that is also connected to the resource is one node, which keeps the name and entity types its connection gave it, and both the connection's edge and the citation's two run to it",
+      "resource": "res-main",
+      "graph": {
+        "resource": [
+          { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] }
+        ],
+        "connections": [
+          {
+            "resource": { "@context": "https://schema.org/", "@id": "res-peer", "name": "Peer", "entityTypes": ["Author"], "representations": [{ "mediaType": "text/markdown" }] },
+            "relationshipType": "mentions",
+            "bidirectional": true
+          }
+        ],
+        "referencedBy": [
+          { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-cite", "motivation": "linking", "target": { "source": "res-peer" }, "created": "2020-03-04T05:06:07.000Z" }
+        ],
+        "annotations": []
+      },
+      "views": {
+        "res-peer": {
+          "resource": { "@context": "https://schema.org/", "@id": "res-peer", "name": "Peer, renamed since", "entityTypes": ["Author", "Editor"], "representations": [{ "mediaType": "text/markdown" }] },
+          "annotations": { "resourceId": "res-peer", "annotations": [], "version": 3, "updatedAt": "2020-03-04T05:06:07.000Z" },
+          "lastSequence": 3
+        }
+      },
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          { "id": "res-peer", "type": "resource", "label": "Peer", "entityTypes": ["Author"] },
+          {
+            "id": "ann-cite",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": [],
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-cite", "motivation": "linking", "target": { "source": "res-peer" }, "created": "2020-03-04T05:06:07.000Z" }
+          }
+        ],
+        "edges": [
+          { "source": "res-main", "target": "res-peer", "type": "mentions", "bidirectional": true },
+          { "source": "ann-cite", "target": "res-peer", "type": "annotation-of" },
+          { "source": "ann-cite", "target": "res-main", "type": "cites" }
+        ]
+      },
+      "waited": 0
+    },
+    {
+      "why": "each annotation on the resource is a node, in the store's order, with an annotation-of edge to the resource: labelled by its motivation, holding the whole annotation, and typed by its tagging bodies alone, so a body that links or comments states no entity type and an annotation with no body has none",
+      "resource": "res-main",
+      "graph": {
+        "resource": [
+          { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] }
+        ],
+        "connections": [],
+        "referencedBy": [],
+        "annotations": [
+          {
+            "@context": "http://www.w3.org/ns/anno.jsonld",
+            "type": "Annotation",
+            "id": "ann-link",
+            "motivation": "linking",
+            "target": { "source": "res-main" },
+            "body": [
+              { "type": "TextualBody", "value": "Person", "purpose": "tagging" },
+              { "type": "TextualBody", "value": "Place", "purpose": "tagging" },
+              { "type": "SpecificResource", "source": "res-other", "purpose": "linking" }
+            ],
+            "created": "2020-03-04T05:06:07.000Z"
+          },
+          {
+            "@context": "http://www.w3.org/ns/anno.jsonld",
+            "type": "Annotation",
+            "id": "ann-tag",
+            "motivation": "tagging",
+            "target": { "source": "res-main" },
+            "body": { "type": "TextualBody", "value": "Event", "purpose": "tagging" },
+            "created": "2020-03-04T05:06:08.000Z"
+          },
+          {
+            "@context": "http://www.w3.org/ns/anno.jsonld",
+            "type": "Annotation",
+            "id": "ann-note",
+            "motivation": "commenting",
+            "target": { "source": "res-main" },
+            "body": { "type": "TextualBody", "value": "Check this date.", "purpose": "commenting" },
+            "created": "2020-03-04T05:06:09.000Z"
+          },
+          {
+            "@context": "http://www.w3.org/ns/anno.jsonld",
+            "type": "Annotation",
+            "id": "ann-mark",
+            "motivation": "highlighting",
+            "target": "res-main",
+            "created": "2020-03-04T05:06:10.000Z"
+          }
+        ]
+      },
+      "views": {},
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          {
+            "id": "ann-link",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": ["Person", "Place"],
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-link",
+              "motivation": "linking",
+              "target": { "source": "res-main" },
+              "body": [
+                { "type": "TextualBody", "value": "Person", "purpose": "tagging" },
+                { "type": "TextualBody", "value": "Place", "purpose": "tagging" },
+                { "type": "SpecificResource", "source": "res-other", "purpose": "linking" }
+              ],
+              "created": "2020-03-04T05:06:07.000Z"
+            }
+          },
+          {
+            "id": "ann-tag",
+            "type": "annotation",
+            "label": "tagging",
+            "entityTypes": ["Event"],
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-tag",
+              "motivation": "tagging",
+              "target": { "source": "res-main" },
+              "body": { "type": "TextualBody", "value": "Event", "purpose": "tagging" },
+              "created": "2020-03-04T05:06:08.000Z"
+            }
+          },
+          {
+            "id": "ann-note",
+            "type": "annotation",
+            "label": "commenting",
+            "entityTypes": [],
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-note",
+              "motivation": "commenting",
+              "target": { "source": "res-main" },
+              "body": { "type": "TextualBody", "value": "Check this date.", "purpose": "commenting" },
+              "created": "2020-03-04T05:06:09.000Z"
+            }
+          },
+          {
+            "id": "ann-mark",
+            "type": "annotation",
+            "label": "highlighting",
+            "entityTypes": [],
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-mark",
+              "motivation": "highlighting",
+              "target": "res-main",
+              "created": "2020-03-04T05:06:10.000Z"
+            }
+          }
+        ],
+        "edges": [
+          { "source": "ann-link", "target": "res-main", "type": "annotation-of" },
+          { "source": "ann-tag", "target": "res-main", "type": "annotation-of" },
+          { "source": "ann-note", "target": "res-main", "type": "annotation-of" },
+          { "source": "ann-mark", "target": "res-main", "type": "annotation-of" }
+        ]
+      },
+      "waited": 0
+    },
+    {
+      "why": "an annotation on the resource that the store answers twice is a node once",
+      "resource": "res-main",
+      "graph": {
+        "resource": [
+          { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] }
+        ],
+        "connections": [],
+        "referencedBy": [],
+        "annotations": [
+          { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-mark", "motivation": "highlighting", "target": { "source": "res-main" }, "created": "2020-03-04T05:06:07.000Z" },
+          { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-mark", "motivation": "highlighting", "target": { "source": "res-main" }, "created": "2020-03-04T05:06:07.000Z" }
+        ]
+      },
+      "views": {},
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          {
+            "id": "ann-mark",
+            "type": "annotation",
+            "label": "highlighting",
+            "entityTypes": [],
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-mark", "motivation": "highlighting", "target": { "source": "res-main" }, "created": "2020-03-04T05:06:07.000Z" }
+          }
+        ],
+        "edges": [
+          { "source": "ann-mark", "target": "res-main", "type": "annotation-of" }
+        ]
+      },
+      "waited": 0
+    },
+    {
+      "why": "a resource with all three has them in one order: itself, then its connections, then its citations, then the annotations on it",
+      "resource": "res-main",
+      "graph": {
+        "resource": [
+          { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] }
+        ],
+        "connections": [
+          {
+            "resource": { "@context": "https://schema.org/", "@id": "res-peer", "name": "Peer", "entityTypes": ["Author"], "representations": [{ "mediaType": "text/markdown" }] },
+            "relationshipType": "mentions",
+            "bidirectional": true
+          }
+        ],
+        "referencedBy": [
+          { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-cite-1", "motivation": "linking", "target": { "source": "res-citing" }, "created": "2020-03-04T05:06:07.000Z" },
+          { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-cite-2", "motivation": "linking", "target": { "source": "res-unseen" }, "created": "2020-03-04T05:06:08.000Z" }
+        ],
+        "annotations": [
+          {
+            "@context": "http://www.w3.org/ns/anno.jsonld",
+            "type": "Annotation",
+            "id": "ann-tag",
+            "motivation": "tagging",
+            "target": { "source": "res-main" },
+            "body": { "type": "TextualBody", "value": "Person", "purpose": "tagging" },
+            "created": "2020-03-04T05:06:09.000Z"
+          },
+          { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-mark", "motivation": "highlighting", "target": { "source": "res-main" }, "created": "2020-03-04T05:06:10.000Z" }
+        ]
+      },
+      "views": {
+        "res-citing": {
+          "resource": { "@context": "https://schema.org/", "@id": "res-citing", "name": "Citing Paper", "entityTypes": ["Report"], "representations": [{ "mediaType": "text/markdown" }] },
+          "annotations": { "resourceId": "res-citing", "annotations": [], "version": 2, "updatedAt": "2020-03-04T05:06:07.000Z" },
+          "lastSequence": 2
+        }
+      },
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          { "id": "res-peer", "type": "resource", "label": "Peer", "entityTypes": ["Author"] },
+          { "id": "res-citing", "type": "resource", "label": "Citing Paper", "entityTypes": ["Report"] },
+          {
+            "id": "ann-cite-1",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": [],
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-cite-1", "motivation": "linking", "target": { "source": "res-citing" }, "created": "2020-03-04T05:06:07.000Z" }
+          },
+          { "id": "res-unseen", "type": "resource", "label": "res-unseen", "entityTypes": [] },
+          {
+            "id": "ann-cite-2",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": [],
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-cite-2", "motivation": "linking", "target": { "source": "res-unseen" }, "created": "2020-03-04T05:06:08.000Z" }
+          },
+          {
+            "id": "ann-tag",
+            "type": "annotation",
+            "label": "tagging",
+            "entityTypes": ["Person"],
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-tag",
+              "motivation": "tagging",
+              "target": { "source": "res-main" },
+              "body": { "type": "TextualBody", "value": "Person", "purpose": "tagging" },
+              "created": "2020-03-04T05:06:09.000Z"
+            }
+          },
+          {
+            "id": "ann-mark",
+            "type": "annotation",
+            "label": "highlighting",
+            "entityTypes": [],
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-mark", "motivation": "highlighting", "target": { "source": "res-main" }, "created": "2020-03-04T05:06:10.000Z" }
+          }
+        ],
+        "edges": [
+          { "source": "res-main", "target": "res-peer", "type": "mentions", "bidirectional": true },
+          { "source": "ann-cite-1", "target": "res-citing", "type": "annotation-of" },
+          { "source": "ann-cite-1", "target": "res-main", "type": "cites" },
+          { "source": "ann-cite-2", "target": "res-unseen", "type": "annotation-of" },
+          { "source": "ann-cite-2", "target": "res-main", "type": "cites" },
+          { "source": "ann-tag", "target": "res-main", "type": "annotation-of" },
+          { "source": "ann-mark", "target": "res-main", "type": "annotation-of" }
+        ]
+      },
+      "waited": 0
+    },
+    {
+      "why": "a resource that neither the graph store nor the views hold is unknown: nothing waits, and the store is asked once",
+      "resource": "res-main",
+      "graph": {
+        "resource": [null],
+        "connections": [],
+        "referencedBy": [],
+        "annotations": []
+      },
+      "views": {},
+      "applied": false,
+      "fails": "unknown",
+      "waited": 0
+    },
+    {
+      "why": "a resource the views hold, absent from the graph store at first, is built once the applied signal has arrived and the store holds it: the store is asked twice, and nothing more is waited for",
+      "resource": "res-main",
+      "graph": {
+        "resource": [
+          null,
+          { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] }
+        ],
+        "connections": [],
+        "referencedBy": [],
+        "annotations": []
+      },
+      "views": {
+        "res-main": {
+          "resource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] },
+          "annotations": { "resourceId": "res-main", "annotations": [], "version": 3, "updatedAt": "2020-03-04T05:06:07.000Z" },
+          "lastSequence": 3
+        }
+      },
+      "applied": true,
+      "knowledgeGraph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] }
+        ],
+        "edges": []
+      },
+      "waited": 0
+    },
+    {
+      "why": "the node of a resource the store came to hold late is named by the store's description of it, and not by its view's",
+      "resource": "res-main",
+      "graph": {
+        "resource": [
+          null,
+          { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] }
+        ],
+        "connections": [],
+        "referencedBy": [],
+        "annotations": []
+      },
+      "views": {
+        "res-main": {
+          "resource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Main, renamed since", "entityTypes": ["Paper", "Draft"], "representations": [{ "mediaType": "text/markdown" }] },
+          "annotations": { "resourceId": "res-main", "annotations": [], "version": 4, "updatedAt": "2020-03-04T05:06:07.000Z" },
+          "lastSequence": 4
+        }
+      },
+      "applied": true,
+      "knowledgeGraph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] }
+        ],
+        "edges": []
+      },
+      "waited": 0
+    },
+    {
+      "why": "where the applied signal has arrived and the store still does not hold the resource, the store is asked again after 25 milliseconds",
+      "resource": "res-main",
+      "graph": {
+        "resource": [
+          null,
+          null,
+          { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] }
+        ],
+        "connections": [],
+        "referencedBy": [],
+        "annotations": []
+      },
+      "views": {
+        "res-main": {
+          "resource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] },
+          "annotations": { "resourceId": "res-main", "annotations": [], "version": 3, "updatedAt": "2020-03-04T05:06:07.000Z" },
+          "lastSequence": 3
+        }
+      },
+      "applied": true,
+      "knowledgeGraph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] }
+        ],
+        "edges": []
+      },
+      "waited": 25
+    },
+    {
+      "why": "where the applied signal has arrived, the store is asked up to six times: a resource it holds only at the sixth is built, after 25, 50, 100 and 200 milliseconds",
+      "resource": "res-main",
+      "graph": {
+        "resource": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] }
+        ],
+        "connections": [],
+        "referencedBy": [],
+        "annotations": []
+      },
+      "views": {
+        "res-main": {
+          "resource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] },
+          "annotations": { "resourceId": "res-main", "annotations": [], "version": 3, "updatedAt": "2020-03-04T05:06:07.000Z" },
+          "lastSequence": 3
+        }
+      },
+      "applied": true,
+      "knowledgeGraph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] }
+        ],
+        "edges": []
+      },
+      "waited": 375
+    },
+    {
+      "why": "where the applied signal has arrived and the store never holds the resource, the build fails as behind after the sixth ask, and not as unknown",
+      "resource": "res-main",
+      "graph": {
+        "resource": [null, null, null, null, null, null],
+        "connections": [],
+        "referencedBy": [],
+        "annotations": []
+      },
+      "views": {
+        "res-main": {
+          "resource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] },
+          "annotations": { "resourceId": "res-main", "annotations": [], "version": 3, "updatedAt": "2020-03-04T05:06:07.000Z" },
+          "lastSequence": 3
+        }
+      },
+      "applied": true,
+      "fails": "behind",
+      "waited": 375
+    },
+    {
+      "why": "where the applied signal does not arrive, it is waited for for 500 milliseconds, and the store is asked again 25 milliseconds after that: it is not asked when the wait ends",
+      "resource": "res-main",
+      "graph": {
+        "resource": [
+          null,
+          { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] }
+        ],
+        "connections": [],
+        "referencedBy": [],
+        "annotations": []
+      },
+      "views": {
+        "res-main": {
+          "resource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] },
+          "annotations": { "resourceId": "res-main", "annotations": [], "version": 3, "updatedAt": "2020-03-04T05:06:07.000Z" },
+          "lastSequence": 3
+        }
+      },
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] }
+        ],
+        "edges": []
+      },
+      "waited": 525
+    },
+    {
+      "why": "a resource the store holds at the third ask, with no applied signal, is built after 500, 25 and 50 milliseconds",
+      "resource": "res-main",
+      "graph": {
+        "resource": [
+          null,
+          null,
+          { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] }
+        ],
+        "connections": [],
+        "referencedBy": [],
+        "annotations": []
+      },
+      "views": {
+        "res-main": {
+          "resource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] },
+          "annotations": { "resourceId": "res-main", "annotations": [], "version": 3, "updatedAt": "2020-03-04T05:06:07.000Z" },
+          "lastSequence": 3
+        }
+      },
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] }
+        ],
+        "edges": []
+      },
+      "waited": 575
+    },
+    {
+      "why": "a resource the store holds at the fourth ask, with no applied signal, is built after 500, 25, 50 and 100 milliseconds",
+      "resource": "res-main",
+      "graph": {
+        "resource": [
+          null,
+          null,
+          null,
+          { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] }
+        ],
+        "connections": [],
+        "referencedBy": [],
+        "annotations": []
+      },
+      "views": {
+        "res-main": {
+          "resource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] },
+          "annotations": { "resourceId": "res-main", "annotations": [], "version": 3, "updatedAt": "2020-03-04T05:06:07.000Z" },
+          "lastSequence": 3
+        }
+      },
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] }
+        ],
+        "edges": []
+      },
+      "waited": 675
+    },
+    {
+      "why": "with no applied signal the store is asked up to five times: a resource it holds only at the fifth is built, after 500, 25, 50, 100 and 200 milliseconds, with what the store then answers of it",
+      "resource": "res-main",
+      "graph": {
+        "resource": [
+          null,
+          null,
+          null,
+          null,
+          { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] }
+        ],
+        "connections": [
+          {
+            "resource": { "@context": "https://schema.org/", "@id": "res-peer", "name": "Peer", "entityTypes": ["Author"], "representations": [{ "mediaType": "text/markdown" }] },
+            "relationshipType": "mentions",
+            "bidirectional": false
+          }
+        ],
+        "referencedBy": [],
+        "annotations": []
+      },
+      "views": {
+        "res-main": {
+          "resource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] },
+          "annotations": { "resourceId": "res-main", "annotations": [], "version": 3, "updatedAt": "2020-03-04T05:06:07.000Z" },
+          "lastSequence": 3
+        }
+      },
+      "applied": false,
+      "knowledgeGraph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          { "id": "res-peer", "type": "resource", "label": "Peer", "entityTypes": ["Author"] }
+        ],
+        "edges": [
+          { "source": "res-main", "target": "res-peer", "type": "mentions", "bidirectional": false }
+        ]
+      },
+      "waited": 875
+    },
+    {
+      "why": "a resource the views hold and the graph store never comes to hold, with no applied signal, fails as behind after 875 milliseconds and five asks, and not as unknown",
+      "resource": "res-main",
+      "graph": {
+        "resource": [null, null, null, null, null],
+        "connections": [],
+        "referencedBy": [],
+        "annotations": []
+      },
+      "views": {
+        "res-main": {
+          "resource": { "@context": "https://schema.org/", "@id": "res-main", "name": "Main", "entityTypes": ["Paper"], "representations": [{ "mediaType": "text/markdown" }] },
+          "annotations": { "resourceId": "res-main", "annotations": [], "version": 3, "updatedAt": "2020-03-04T05:06:07.000Z" },
+          "lastSequence": 3
+        }
+      },
+      "applied": false,
+      "fails": "behind",
+      "waited": 875
+    }
+  ]
+}
