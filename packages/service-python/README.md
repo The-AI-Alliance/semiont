@@ -2,7 +2,9 @@
 
 What every Python service of [Semiont][semiont] does to be one: read its
 configuration document, answer for its health, write its log, and export its
-telemetry. The [Worker][worker] and the [Weaver][weaver] are built on it.
+telemetry. A service that follows the record also takes from it the order it
+works in, and how it reads the catalog of resources. The [Worker][worker], the [Weaver][weaver] and the
+[Smelter][smelter] are built on it.
 
 It is the services' own code and no library for anyone else: no index holds
 it, and each service's image builds it from this repository. A program that
@@ -17,8 +19,10 @@ It runs on asyncio and requires Python 3.12 or later. It is checked by
 
 | Module | What it does | What the service hands it |
 | --- | --- | --- |
+| `semiont_service.catalog` | Reads the catalog of resources whole from the Archivist, a page at a time, and asks for a page again while the Archivist is not there to answer | Its bus, what tells it the service is stopping, and whether it wants the archived resources |
 | `semiont_service.config` | Finds the document `--config` names, reads it as a shape of the protocol and refuses what is not one, and reads the service's account from its environment | Its word for itself, the shape, its arguments and its environment |
 | `semiont_service.health` | Answers `GET /health`, and nothing else, on the service's port | What the endpoint says, asked afresh for each request |
+| `semiont_service.lanes` | Does what is put on a lane one piece at a time, in the order it was put there, with the lanes working beside each other, and does one piece of work with no lane working | The lane of each piece of work, which is a resource's id for a service that follows the record |
 | `semiont_service.log` | Writes the process's log to stdout, an event a line, as JSON or plainly, from the level the document names | Its word for itself, and the names of the loggers that are its own |
 | `semiont_service.observability` | Exports spans and metrics as the environment says, or installs nothing, and takes the readings every service takes of itself | Its word for itself, and its environment |
 
@@ -55,5 +59,6 @@ uv run pytest
 [semiont]: https://github.com/The-AI-Alliance/semiont
 [worker]: ../../apps/worker/README.md
 [weaver]: ../../apps/weaver/README.md
+[smelter]: ../../apps/smelter/README.md
 [sdk-python]: ../sdk-python/README.md
 [telemetry]: ../../specs/src/service-telemetry/telemetry.json

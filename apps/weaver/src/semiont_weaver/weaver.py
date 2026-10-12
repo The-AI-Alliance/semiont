@@ -28,11 +28,11 @@ from semiont.transport import Frame, FrameSink, Transport
 from semiont.types import CommandError, ResourceDescriptor, StoredEventResponse, WeaveApplied
 from semiont_graph.codec import intended_graph_annotation
 from semiont_graph.interface import GraphDatabase
+from semiont_service.lanes import Lanes
 
 from semiont_weaver.checkpoint import Checkpoint
 from semiont_weaver.fold import apply, said_of
 from semiont_weaver.history import History
-from semiont_weaver.lanes import Lanes
 from semiont_weaver.log import LOG
 from semiont_weaver.marks import Marks
 from semiont_weaver.recorded import stored_event

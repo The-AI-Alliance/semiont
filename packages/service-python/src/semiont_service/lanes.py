@@ -1,15 +1,17 @@
-"""The order a Weaver works in: one lane for each resource.
+"""The order a service works in: one lane for each thing it works on.
 
 What is put on a lane is done one at a time, in the order it was put there,
-and the lanes work beside each other (`docs/protocol/WEAVER.md` § Order). A
-resource's events are applied in a lane of its own, and so is a rebuild of
-it: an event that arrives while its resource is being rebuilt waits for the
-rebuild, and is not applied into the middle of it.
+and the lanes work beside each other. A service that follows the record gives
+each resource a lane of its own: a resource's events are applied in the order
+they were recorded, and one resource's slow work holds up no other. Whatever
+else touches a resource is done in its lane too, so an event that arrives
+while its resource is being rebuilt waits for the rebuild, and is not applied
+into the middle of it.
 
-One piece of work is done with no lane working: a rebuild of everything,
-which clears the graph.
+One piece of work is done with no lane working (`alone`): work that touches
+everything at once.
 
-A lane lives while it has work. With none left it is gone, so a Weaver that
+A lane lives while it has work. With none left it is gone, so a service that
 has followed a million resources holds no lane for them.
 """
 
@@ -55,7 +57,7 @@ class Lanes:
         Raises `asyncio.CancelledError` where the lanes close before the work is done.
         """
         if self._closed:
-            raise RuntimeError("the Weaver is stopping: nothing more is done")
+            raise RuntimeError("the service is stopping: nothing more is done")
         answered: list[T] = []
         done: asyncio.Future[object] = asyncio.get_running_loop().create_future()
 
