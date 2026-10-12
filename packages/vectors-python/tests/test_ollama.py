@@ -30,7 +30,7 @@ def test_a_request_is_one_post_of_the_model_and_the_texts_and_of_nothing_else() 
 
 
 def test_an_ollama_is_asked_128_texts_in_a_request_and_one_request_at_a_time_in_the_order_of_the_texts() -> None:
-    assert OLLAMA_BATCH_POLICY == BatchPolicy(slice_size=128, concurrency=1)
+    assert BatchPolicy(slice_size=128, concurrency=1) == OLLAMA_BATCH_POLICY
 
     async def scenario() -> None:
         async with Ollama() as ollama:

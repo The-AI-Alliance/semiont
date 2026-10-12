@@ -43,7 +43,7 @@ def test_a_request_is_one_post_of_the_model_and_the_texts_with_the_key_as_a_bear
 
 
 def test_a_batch_of_more_texts_than_one_request_may_carry_is_answered_since_no_request_carries_more_than_128() -> None:
-    assert VOYAGE_BATCH_POLICY == BatchPolicy(slice_size=128, concurrency=4)
+    assert BatchPolicy(slice_size=128, concurrency=4) == VOYAGE_BATCH_POLICY
 
     async def scenario() -> None:
         async with Voyage() as voyage:
