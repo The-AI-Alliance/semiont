@@ -110,6 +110,30 @@ the stand-in answers what the real Archivist answers when it is asked.
   bound that is no time at all or does not end under the stall of a held job,
   half a service account, no password for the graph database, and a gateway
   that does not answer.
+- **Finding things** (`search.test.ts`): a reference search's candidates from
+  each of its four sources, with a score and a reason, with its model's
+  scoring and without, when the model or the embedding provider fails, and
+  its limit; a text search answered by name with previews and by meaning with
+  the passage that matched, a later page, blank text, its filters, the floor
+  a hit by meaning must reach, and a PDF's empty preview; what refers to a
+  resource; the names of the people a page mentions; and the limits each
+  actor reports of its own model, with a provider that does not answer left
+  out.
+- **Gathering** (`gather.test.ts`): around an annotation, the annotation and
+  its resource, the text selected with what is before and after it, a linked
+  resource with its text and summary, the knowledge graph, entity types and
+  their frequencies, the sentence its model writes, similar passages, each
+  option, and each failure; around a resource, its text and its neighbours',
+  a summary and suggestions when asked, similar passages by its own vectors,
+  and each failure; an annotation's summary; and that gathers for one
+  resource are answered one at a time.
+- **When a writer is behind** (`barriers.test.ts`): with the Weaver or the
+  Smelter stopped by the suite, a gather that waits for the graph and one
+  that fails saying the graph is behind; a search answered from a view for a
+  resource the graph does not hold yet; a gather that waits for the Smelter's
+  decision, one answered at once for a resource the Smelter skips, and one
+  answered without similar passages when the settle bound passes; and a
+  Librarian that answers as before after it is started again.
 
 ## Running it
 
