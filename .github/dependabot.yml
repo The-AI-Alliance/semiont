@@ -111,6 +111,10 @@ updates:
   # packages/sdk-go through a replace directive, plus the `go`
   # directive/toolchain. Reachability-aware stdlib CVE scanning is handled by
   # govulncheck in ci.yml.
+  # nats-server is a requirement of the launcher's tests, which read the
+  # broker's config with the parser of the image the launcher runs. Its
+  # version moves with that image's tag (descriptors.go): a bump here alone
+  # fails TestBrokerPairIsReadByTheLaunchedBrokersParser.
   # NB: kept to default-days only; the semver cooldown tiers are npm-oriented.
   - package-ecosystem: "gomod"
     directory: "/apps/launcher"

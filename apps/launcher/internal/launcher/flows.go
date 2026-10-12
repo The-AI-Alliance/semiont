@@ -51,9 +51,10 @@ func withDaemonCredentials(x executor, fc flowCtx) (flowCtx, bool) {
 	return fc, true
 }
 
-// daemonLaunchEnv: the credential a launcher-run daemon starts with — its kept
-// password, or, for Keycloak, PostgreSQL's: kept when the launcher runs that
-// PostgreSQL, the config's reference resolved when it does not.
+// daemonLaunchEnv: the credential a launcher-run daemon starts with, in the
+// form that daemon reads — its kept password, or, for Keycloak, PostgreSQL's:
+// kept when the launcher runs that PostgreSQL, the config's reference resolved
+// when it does not.
 func daemonLaunchEnv(fc flowCtx, role string, rp rolePlan) ([]string, error) {
 	kept := func(role string) string {
 		return userEnvVars(fc.userEnv)[daemonPasswords[role].env]
@@ -64,7 +65,7 @@ func daemonLaunchEnv(fc flowCtx, role string, rp rolePlan) ([]string, error) {
 	case "database":
 		return []string{"POSTGRES_PASSWORD=" + kept("database")}, nil
 	case "messaging":
-		return []string{"NATS_USER=" + brokerUser, "NATS_PASSWORD=" + kept("messaging")}, nil
+		return []string{"NATS_USER=" + natsConfString(brokerUser), "NATS_PASSWORD=" + natsConfString(kept("messaging"))}, nil
 	case "identity":
 		if rp.ExternalDBPassword == "" {
 			return []string{"KC_DB_PASSWORD=" + kept("database")}, nil

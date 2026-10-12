@@ -9634,7 +9634,9 @@ func TestLauncherRunDaemonsGetGeneratedPasswords(t *testing.T) {
 }
 
 // The launcher-run broker is always authenticated, and its pair reaches the
-// two clients, each through the variables its document names.
+// two clients, each through the variables its document names. The broker holds
+// the same pair as quoted strings of its config syntax, which is how it reads
+// a variable's value (natsConfString).
 func TestLauncherRunBrokerIsAuthenticated(t *testing.T) {
 	s := newScenario(t, "container")
 	src := filepath.Join(s.kb, ".semiont", "semiontconfig", "ollama-gemma.toml")
@@ -9649,18 +9651,24 @@ func TestLauncherRunBrokerIsAuthenticated(t *testing.T) {
 	if _, stderr, code := s.run(t, "start", "--config", "broker"); code != 0 {
 		t.Fatalf("start: exit %d\n%s", code, stderr)
 	}
-	pw, _ := s.containerEnv(t, "semiont-nats", "NATS_PASSWORD")
+	pw, _ := s.containerEnv(t, "semiont-dispatcher", "NATS_PASSWORD")
 	if len(pw) < 32 {
-		t.Fatalf("the broker was not given a generated password: %q", pw)
+		t.Fatalf("the dispatcher was not given a generated password: %q", pw)
 	}
 	mustContain(t, "argv log", s.argv(t), "-c /etc/nats/semiont.conf")
-	for _, c := range []string{"semiont-nats", "semiont-dispatcher", "semiont-gateway"} {
+	for _, c := range []string{"semiont-dispatcher", "semiont-gateway"} {
 		if u, _ := s.containerEnv(t, c, "NATS_USER"); u != "semiont" {
 			t.Errorf("%s: NATS_USER=%q, want semiont", c, u)
 		}
 		if v, _ := s.containerEnv(t, c, "NATS_PASSWORD"); v != pw {
-			t.Errorf("%s: NATS_PASSWORD=%q, want the broker's", c, v)
+			t.Errorf("%s: NATS_PASSWORD=%q, want the dispatcher's", c, v)
 		}
+	}
+	if u, _ := s.containerEnv(t, "semiont-nats", "NATS_USER"); u != `"semiont"` {
+		t.Errorf(`semiont-nats: NATS_USER=%s, want "semiont" in its quotes`, u)
+	}
+	if v, _ := s.containerEnv(t, "semiont-nats", "NATS_PASSWORD"); v != `"`+pw+`"` {
+		t.Errorf("semiont-nats: NATS_PASSWORD=%s, want the clients' password in quotes", v)
 	}
 	mustContain(t, "the dispatcher's document", stagedFile(t, s, "dispatcher.json"), `"passwordEnv": "NATS_PASSWORD"`)
 	mustContain(t, "the gateway's document", stagedFile(t, s, "gateway.json"), `"passwordEnv": "NATS_PASSWORD"`)

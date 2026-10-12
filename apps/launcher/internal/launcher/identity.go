@@ -216,6 +216,23 @@ authorization {
 `)
 }
 
+// natsConfString: text as a string of nats-server's config syntax — the form
+// each variable natsConf names has to hold.
+//
+// nats-server does not take a variable's value as text. It parses the value as
+// the config value it would be if written in the file, and a bare value is a
+// number wherever the lexer can read one: `7e` is seven exa, so a bare hex
+// password beginning `7e1` stops the daemon at startup. Quoted, any text is a
+// string; `\` and `"` are the only characters that mean something inside the
+// quotes.
+//
+// The quotes go on the value because they cannot go on the reference: only a
+// bare `$NAME` is interpolated, and `password: "$NATS_PASSWORD"` makes that
+// literal text the password.
+func natsConfString(text string) string {
+	return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(text) + `"`
+}
+
 // browserClient / cliClient: the two PUBLIC registrations, rendered once so
 // the realm import and `semiont identity sync` cannot disagree about them: a
 // second copy for sync would be a mirror of the realm document, and the
