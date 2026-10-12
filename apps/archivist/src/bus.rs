@@ -87,12 +87,11 @@ async fn handle(archivist: &Archivist, channel: &str, payload: &Object) -> Optio
     // The channels that are no operation's request.
     match channel {
         SmeltSettled::NAME => {
-            if let (Some(resource), Some(checksum), Some(outcome)) = (
+            if let (Some(resource), Some(checksum)) = (
                 payload.get("resourceId").and_then(Value::as_str),
                 payload.get("contentChecksum").and_then(Value::as_str),
-                payload.get("outcome").and_then(Value::as_str),
             ) {
-                archivist.smelt.settle(resource, checksum, outcome);
+                archivist.smelt.settle(resource, checksum);
             }
             return None;
         }

@@ -54,8 +54,10 @@ what its schema says; and a case fails otherwise, whatever it was about.
   seeding, tag schemas, the listing, a resource's events, people named by
   their profile, a directory of the working tree and the roster; and, over
   HTTP, anchored text as it is stored, under the stamp its writer states and
-  in the store's version only, a read held until the Smelter has settled the
-  content, and an answer larger than the largest bus message, whole.
+  in the store's version only, `no-map` at once for a media type whose text
+  is not derived, whatever the store holds, a read held until the Smelter has
+  settled the content, `not-yet` for a PDF it settled and stored no entry of,
+  and an answer larger than the largest bus message, whole.
 - **Clone tokens** (`clone.test.ts`): issued, looked up, spent on a copy over
   the bus and by an upload, and refused.
 - **Jobs** (`jobs.test.ts`): the lifecycle recorded in a resource's stream, no

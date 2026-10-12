@@ -481,17 +481,27 @@ Any other request is `404` with no body.
 is the whole body, with nothing around it. No answer is too large: one larger than the largest
 frame the bus carries is answered whole.
 
-The answer is the stored entry for the checksum of the resource's first representation: the
-extracted text with each word's place, or the decline. Otherwise:
+The answer is decided from the resource's first representation, in this order:
 
-- `{"kind":"unknown"}` when the resource has no view or no checksum, or when the path's id is not
-  an id. That there is no resource is an answer here, and never a `404`.
-- With no entry, the Archivist waits up to 15 seconds for the Smelter to say on the bus that it has
-  settled that content (`smelt:settled`, naming the resource and the checksum). If the Smelter
-  skipped it: `{"kind":"no-map"}`. If it indexed it, the entry is read again. In every other case,
-  the wait running out included: `{"kind":"not-yet"}`.
-- A wait ends when the Archivist is told to stop: every read it is holding is answered
-  `{"kind":"not-yet"}` at once, and the process does not wait the reads out before it exits.
+1. `{"kind":"unknown"}` when the resource has no view or no checksum, or when the path's id is not
+   an id. That there is no resource is an answer here, and never a `404`.
+2. `{"kind":"no-map"}` when the media type is not one whose text is derived by reading its
+   content. The [media-type table](../../specs/src/media-types/registry.json) says which are: the
+   types whose `textSource` is `pdf-text-layer`. A type whose text is its own bytes decoded
+   (`decode`), one that has no text (`none`) and one the table does not have are each answered
+   `no-map` at once, with nothing read from the store and no wait. Such a resource has no anchored
+   text, and asking again does not change that.
+3. The stored entry for the checksum, when the store has one: the extracted text with each word's
+   place, or the decline.
+4. With no entry, the Archivist waits up to 15 seconds for the Smelter to say on the bus that it
+   has settled that content (`smelt:settled`, naming the resource and the checksum), and then
+   reads the entry again. If there is still none, or the wait runs out: `{"kind":"not-yet"}`,
+   whether the Smelter said it indexed the content or skipped it. The Smelter stores what deriving
+   a text came to, a decline included, so settled content with no entry is content whose entry was
+   lost, and the Smelter derives it again when it next starts.
+
+A wait ends when the Archivist is told to stop: every read it is holding is answered
+`{"kind":"not-yet"}` at once, and the process does not wait the reads out before it exits.
 
 The Archivist remembers the latest `smelt:settled` for each resource for five minutes, so a request
 that follows the signal does not wait.

@@ -219,21 +219,51 @@ withArchivist('browsing', (world) => {
     expect(await world().anchoredText(id)).toEqual({ kind: 'not-yet' });
   });
 
-  it('answers a decline, no-map for content the Smelter skipped, and unknown for no resource', async () => {
+  it('answers a decline, and unknown for no resource', async () => {
     const reader = world().world.personDid('reader');
     const locked = Buffer.from('%PDF-1.4 locked\n');
     const declined = await world().created(reader, { name: 'Locked', storageUri: 'file://scans/locked.pdf', format: 'application/pdf', content: locked });
     await world().smelt(declined, sha256(locked), { declined: 'encrypted' });
     expect(await world().anchoredText(declined)).toEqual({ kind: 'declined', declined: 'encrypted' });
 
-    const plain = Buffer.from('%PDF-1.4 skipped\n');
-    const skipped = await world().created(reader, { name: 'Skipped', storageUri: 'file://scans/skipped.pdf', format: 'application/pdf', content: plain });
-    await world().smelt(skipped, sha256(plain), undefined, 'skipped');
-    expect(await world().anchoredText(skipped)).toEqual({ kind: 'no-map' });
-
     expect(await world().anchoredText('c'.repeat(32))).toEqual({ kind: 'unknown' });
     // An id the record could file nothing under names no resource either.
     expect(await world().anchoredText('not.an.id')).toEqual({ kind: 'unknown' });
+  });
+
+  it('answers no-map at once for a media type whose text is not derived, with nothing settled', async () => {
+    const reader = world().world.personDid('reader');
+    const pixels = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0xff, 0x10]);
+    const image = await world().created(reader, { name: 'Pictured', storageUri: 'file://scans/pictured.png', format: 'image/png', content: pixels });
+    const markdown = await world().created(reader, { name: 'Written', storageUri: 'file://scans/written.md', format: 'text/markdown', content: '# Written\n' });
+
+    // Asked with nothing stored for either and no signal sent for either.
+    const asked = Date.now();
+    expect(await world().anchoredText(image)).toEqual({ kind: 'no-map' });
+    expect(await world().anchoredText(markdown)).toEqual({ kind: 'no-map' });
+    // A held read is given fifteen seconds. Neither of these was held.
+    expect(Date.now() - asked).toBeLessThan(10_000);
+  });
+
+  it('answers no-map for a media type whose text is not derived, though the store holds an entry for the same bytes', async () => {
+    const reader = world().world.personDid('reader');
+    const content = Buffer.from('%PDF-1.4 the same bytes, recorded as two media types\n');
+    const pdf = await world().created(reader, { name: 'As a PDF', storageUri: 'file://scans/as-a-pdf.pdf', format: 'application/pdf', content });
+    const image = await world().created(reader, { name: 'As an image', storageUri: 'file://scans/as-an-image.png', format: 'image/png', content });
+    await world().smelt(pdf, sha256(content), anchoredEntry('alpha beta'));
+
+    expect(await world().anchoredText(pdf)).toMatchObject({ kind: 'extracted', text: 'alpha beta' });
+    expect(await world().anchoredText(image)).toEqual({ kind: 'no-map' });
+  });
+
+  it('answers not-yet for a PDF the Smelter skipped and stored no entry of', async () => {
+    const reader = world().world.personDid('reader');
+    const content = Buffer.from('%PDF-1.4 skipped\n');
+    const id = await world().created(reader, { name: 'Skipped', storageUri: 'file://scans/skipped.pdf', format: 'application/pdf', content });
+
+    // The Smelter stores what deriving a PDF's text came to, a decline too. One it settled with no entry has lost its entry, and is to be asked for again.
+    await world().smelt(id, sha256(content), undefined, 'skipped');
+    expect(await world().anchoredText(id)).toEqual({ kind: 'not-yet' });
   });
 
   it('holds a read of anchored text until the Smelter has settled the content', async () => {
