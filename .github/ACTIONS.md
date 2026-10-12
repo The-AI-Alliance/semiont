@@ -41,6 +41,13 @@ listed in [Testing](../docs/contributor/TESTING.md#continuous-integration).
 - A release runs it first: `release.yml` creates no tag until it passes
 - Development dependencies are not held here: Dependabot's alerts report those
 
+### Python Image Licences (`python-image-licenses.yml`)
+**The licence of every package a Python service image installs from PyPI, before the change is merged**:
+- Builds the `builder` stage of each Dockerfile that installs with uv, so the install is the Dockerfile's own, and reads what is in it with the Trivy the publish uses
+- `.github/scripts/check-licenses.mjs` over that bill of materials: the gate `publish-service-images.yml` runs when an image is published, against `.github/licenses/allowlist.txt` and `exceptions.txt`
+- The images are found, not listed: a new Python image is judged from its first pull request
+- The publish still runs the gate: this one runs earlier, not in its place
+
 ### CodeQL Analysis (`codeql-analysis.yml`)
 **Automated security code scanning**:
 - Runs on push, PR, and weekly schedule
@@ -111,6 +118,13 @@ session code.
 - schedule: "0 6 * * *" # Daily 6 AM UTC: the advisory database changes without a commit
 - workflow_dispatch: # Manual trigger
 - workflow_call: # release.yml, before the tag
+```
+
+### Python Image Licences
+```yaml
+# Runs on:
+- pull_request: # changes to a service's uv.lock, pyproject.toml or Dockerfile, a Python package's pyproject.toml, the Python floor's reader, the licence policy and the two scripts that judge, or the workflow
+- workflow_dispatch: # Manual trigger
 ```
 
 ### CodeQL Analysis

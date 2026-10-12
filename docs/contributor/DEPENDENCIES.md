@@ -82,6 +82,8 @@ The version bump regenerates the root lockfile itself ([Release](RELEASE.md#5-bu
 
 The service images pass a licence policy before they are published. For the Python images it reads the image's bill of materials, which lists every package installed from PyPI; for the Rust images, [`scripts/lint/check-image-crates.mjs`](../../scripts/lint/check-image-crates.mjs) reads the crates each binary links. [`.github/licenses/exceptions.txt`](../../.github/licenses/exceptions.txt) records what a person read where the scanner could not say: the licence of a package that states none, and a licence a package states under a name SPDX does not have. It answers for nothing the scanner did name, and what it supplies is held to the same allowlist.
 
+A publish is late to learn that a package is refused, so [Python Image Licences](../../.github/workflows/python-image-licenses.yml) runs the same gate on a pull request that changes what a Python image installs: a `uv.lock`, a `pyproject.toml`, a Dockerfile, or the policy itself. It builds the stage of each Dockerfile that installs, and judges what is in it.
+
 ## Related
 
 - [Release](RELEASE.md): what is published, and the gates an image passes first
