@@ -155,6 +155,9 @@ _TIMEOUT: Final = httpx.Timeout(300.0, connect=10.0)
 # Said with every write: Qdrant answers once the change is made, and not before.
 _WAIT: Final = {"wait": "true"}
 
+# The status Qdrant answers when asked what a collection is that it does not have.
+_NOT_THERE: Final = 404
+
 # How many points each chunk of a resource asks for, for each resource its caller wants: see the module's documentation.
 _OVER_FETCH: Final = 4
 
@@ -230,7 +233,7 @@ async def _write(client: httpx.AsyncClient, method: str, path: str, body: _Body)
 async def _made(client: httpx.AsyncClient, collection: _Collection, dimensions: Callable[[], Awaitable[int]]) -> None:
     """Make a collection where there is none. Only then is anybody asked how wide a vector is."""
     held = await client.get(collection.at())
-    if held.status_code != httpx.codes.NOT_FOUND:
+    if held.status_code != _NOT_THERE:
         _result(held)
         return
     size = await resolve_dimensions(dimensions)
