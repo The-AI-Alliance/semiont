@@ -201,7 +201,7 @@ def test_the_checkers_and_their_strictness_are_the_sdks() -> None:
 def test_what_the_project_requires_is_what_it_reads_a_pdf_with_and_what_the_sdk_brings() -> None:
     project = table(MANIFEST["project"], "project")
     required = listed(project["dependencies"], "dependencies")
-    assert {name_of(requirement) for requirement in required} == {"pydantic", "pypdfium2", "semiont"}
+    assert {name_of(requirement) for requirement in required} == {"pydantic", "pypdfium2", "semiont", "semiont-service"}
     for library in ("pydantic", "semiont"):
         assert importing(library), f"{library} is required and nothing imports it"
     # A dependency the SDK bounds is named here without a bound of its own.

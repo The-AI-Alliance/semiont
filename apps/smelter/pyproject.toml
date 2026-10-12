@@ -23,16 +23,21 @@ classifiers = [
 # against: what the reader leans on in it is listed in pdfium.py. Its wheel
 # carries PDFium itself, built for the image's Alpine. What reads a scanned
 # page, the `tesseract` program, is no Python package: the image installs it.
+# What every Python service is built on is semiont-service.
 dependencies = [
     "pydantic",
     "pypdfium2>=5.14,<6",
     "semiont",
+    "semiont-service",
 ]
 
-# The SDK is the one in this repository: the service is checked and tested
-# against the types the tree's spec generates.
+# The SDK and what every Python service is built on are the ones in this
+# repository: the service is checked and tested against the types the tree's
+# spec generates. Each is named, because a source another package states for
+# the SDK is read only where that package is the project.
 [tool.uv.sources]
 semiont = { path = "../../packages/sdk-python", editable = true }
+semiont-service = { path = "../../packages/service-python", editable = true }
 
 # The checkers and the formatter are the SDK's, at the SDK's versions:
 # tests/test_census.py holds these pins, and the strictness below, to
