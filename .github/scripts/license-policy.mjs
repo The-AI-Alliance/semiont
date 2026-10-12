@@ -2,7 +2,10 @@
 // (.github/licenses/allowlist.txt) and the human-verified exceptions
 // (.github/licenses/exceptions.txt), with SPDX expressions evaluated properly —
 // `A OR B` passes if either side is allowed, `A AND B` needs both, `A WITH exc`
-// is judged on `A`, and parentheses group as written. NOASSERTION / NONE /
+// is judged on `A`, and parentheses group as written. An expression is judged
+// only when it is read to its end: one with words left over, a parenthesis that
+// does not pair, or an operator with nothing after it is refused, whatever
+// licenses it begins with. NOASSERTION / NONE /
 // LicenseRef-* (an undetermined or non-standard license) is never allowed, so a
 // human reviews it. A license the allowlist names `for` one package is allowed
 // on that package and on no other.
@@ -95,12 +98,22 @@ export function loadPolicy(allowlistPath, exceptionsPath) {
     /** How many entries the allowlist has. */
     size: allowlist.exact.size + allowlist.prefixes.length + allowlist.scoped.length,
 
-    /** Whether an SPDX expression is permitted on the package named `of`. */
+    /**
+     * Whether an SPDX expression is permitted on the package named `of`.
+     *
+     * Only an expression read to its end is permitted. Words left over after
+     * it, a parenthesis that is not closed or was never opened, an operator
+     * with no license after it and a `WITH` that names no exception are each
+     * refused: what was not read was not judged.
+     */
     allows(expr, of) {
       const toks = tokenize(expr);
       let i = 0;
+      let readAsWritten = true;
       const peek = () => toks[i];
-      const isOp = (t, op) => t && t.toUpperCase() === op;
+      const isOp = (t, op) => t !== undefined && t.toUpperCase() === op;
+      /** Whether a token is a license's id or an exception's: a word, and not an operator or a parenthesis. */
+      const isId = (t) => t !== undefined && t !== '(' && t !== ')' && !['OR', 'AND', 'WITH'].includes(t.toUpperCase());
       function parseOr() {
         let v = parseAnd();
         while (isOp(peek(), 'OR')) { i++; v = parseAnd() || v; }
@@ -113,14 +126,29 @@ export function loadPolicy(allowlistPath, exceptionsPath) {
       }
       function parseWith() {
         const v = parseAtom();
-        if (isOp(peek(), 'WITH')) { i++; i++; } // consume WITH and its exception id
+        if (isOp(peek(), 'WITH')) {
+          i++;
+          if (isId(peek())) i++; // the exception's id
+          else readAsWritten = false;
+        }
         return v;
       }
       function parseAtom() {
-        if (peek() === '(') { i++; const v = parseOr(); if (peek() === ')') i++; return v; }
-        return idAllowed(toks[i++] ?? '', of);
+        if (peek() === '(') {
+          i++;
+          const v = parseOr();
+          if (peek() === ')') i++;
+          else readAsWritten = false;
+          return v;
+        }
+        if (!isId(peek())) {
+          readAsWritten = false;
+          return false;
+        }
+        return idAllowed(toks[i++], of);
       }
-      return parseOr();
+      const allowed = parseOr();
+      return allowed && readAsWritten && i === toks.length;
     },
 
     /**
