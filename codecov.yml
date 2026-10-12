@@ -51,30 +51,6 @@ component_management:
       name: "@semiont/http-transport"
       paths:
         - packages/http-transport/**
-    - component_id: ontology
-      name: "@semiont/ontology"
-      paths:
-        - packages/ontology/**
-    - component_id: content
-      name: "@semiont/content"
-      paths:
-        - packages/content/**
-    - component_id: event-sourcing
-      name: "@semiont/event-sourcing"
-      paths:
-        - packages/event-sourcing/**
-    - component_id: graph
-      name: "@semiont/graph"
-      paths:
-        - packages/graph/**
-    - component_id: inference
-      name: "@semiont/inference"
-      paths:
-        - packages/inference/**
-    - component_id: make-meaning
-      name: "@semiont/make-meaning"
-      paths:
-        - packages/make-meaning/**
     - component_id: react-ui
       name: "@semiont/react-ui"
       paths:
@@ -87,10 +63,6 @@ component_management:
       name: "@semiont/sdk"
       paths:
         - packages/sdk/**
-    - component_id: vectors
-      name: "@semiont/vectors"
-      paths:
-        - packages/vectors/**
     - component_id: observability
       name: "@semiont/observability"
       paths:
@@ -143,34 +115,9 @@ flags:
       - packages/http-transport/**
     carryforward: true
 
-  content:
-    paths:
-      - packages/content/**
-    carryforward: true
-
   core:
     paths:
       - packages/core/**
-    carryforward: true
-
-  event-sourcing:
-    paths:
-      - packages/event-sourcing/**
-    carryforward: true
-
-  graph:
-    paths:
-      - packages/graph/**
-    carryforward: true
-
-  inference:
-    paths:
-      - packages/inference/**
-    carryforward: true
-
-  make-meaning:
-    paths:
-      - packages/make-meaning/**
     carryforward: true
 
   mcp-server:
@@ -183,11 +130,6 @@ flags:
       - packages/observability/**
     carryforward: true
 
-  ontology:
-    paths:
-      - packages/ontology/**
-    carryforward: true
-
   react-ui:
     paths:
       - packages/react-ui/**
@@ -196,11 +138,6 @@ flags:
   sdk:
     paths:
       - packages/sdk/**
-    carryforward: true
-
-  vectors:
-    paths:
-      - packages/vectors/**
     carryforward: true
 
   # App flags. These upload from security-tests.yml, not the package matrix.

@@ -76,8 +76,8 @@ type launchPlan struct {
 	// have no row (runs).
 	Roles       map[string]rolePlan
 	GatewayPort int
-	// EnvName is the [defaults]-selected environment — staging needs it to
-	// address the section it stages (see stagedServiceConfig).
+	// EnvName is the [defaults]-selected environment — a dry run reads the
+	// addresses it places from that section (placedAddresses).
 	EnvName string
 	// OllamaModels: every model this config asks OLLAMA to serve — the
 	// ollama-typed actor/worker bindings plus an ollama embedding. Distinct
@@ -92,7 +92,7 @@ type launchPlan struct {
 	// happened to be printed under.
 	OllamaModels []modelNeed
 	// ServiceVars: the user variables each stack service is handed — only
-	// those its own config sections reference.
+	// those its configuration document names.
 	ServiceVars map[string][]string
 }
 
@@ -524,11 +524,9 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 		plan.Roles["graph"] = rp
 	}
 
-	// vectors — REQUIRED. Semantic search is always available, so the
-	// gateway's TOML loader refuses a config that names no vector store; the
-	// launcher reads the same file with its own structs, so it refuses the
-	// same configs, one round trip earlier — before a single container is
-	// launched. Same rule, same words. platform defaults to "external" (the
+	// vectors — REQUIRED. Semantic search is always available, so a config
+	// that names no vector store is refused before a single container is
+	// launched. platform defaults to "external" (the
 	// template omits it); type is required, and the address is the
 	// launcher's unless the config states one.
 	v := env.Vectors
@@ -538,13 +536,13 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 	if v.Type == "" {
 		return nil, secErr("vectors", "missing required key %q", "type")
 	}
-	// `memory` is a first-class store to the GATEWAY, and unusable here: a
-	// launcher-managed stack runs the gateway and the Smelter as separate
+	// `memory` is unusable here: a launcher-managed stack runs the Smelter,
+	// which writes the index, and the Librarian, which reads it, as separate
 	// containers, and an in-process index cannot be shared across processes.
-	// Named explicitly so an operator who followed the loader's own advice is
-	// told WHY, rather than that the value is unknown.
+	// Named explicitly so an operator is told WHY, rather than that the value
+	// is unknown.
 	if v.Type == "memory" {
-		return nil, secErr("vectors", `type "memory" keeps the index inside one process, and a launcher-managed stack runs the gateway and the Smelter as separate containers — they cannot share it. Use type = "qdrant" here.`)
+		return nil, secErr("vectors", `type "memory" keeps the index inside one process, and a launcher-managed stack runs the Smelter and the Librarian as separate containers — they cannot share it. Use type = "qdrant" here.`)
 	}
 	vspec, knownVectors := lookupDescriptor("vectors", v.Type)
 	if !knownVectors {
@@ -814,9 +812,7 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 	// platform is external in both shapes: ollama means the inference role's
 	// Ollama also serves embeddings (same process, same port — which is why
 	// embedding has no container of its own and never contends for a port),
-	// voyage means remote SaaS. Type AND model are both required, matching the
-	// gateway loader exactly: half a rule enforced here is the drift this
-	// refusal exists to end.
+	// voyage means remote SaaS. Type AND model are both required.
 	if e := env.Embedding; e == nil {
 		return nil, envErr(`names no embedding provider — add [environments.%s.embedding] with type = "ollama" or "voyage" and a model. Semiont requires an embedding provider; nothing is defaulted.`, envName)
 	} else {

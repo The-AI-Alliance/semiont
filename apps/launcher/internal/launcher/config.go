@@ -1,10 +1,10 @@
 package launcher
 
-// config.go — the launcher's read-side of the semiontconfig TOML schema
-// (owned by packages/core; documented in docs/operator/administration/
-// CONFIGURATION.md). Only the keys the launcher consumes are modeled;
-// everything else is deliberately ignored — the launcher is a consumer of
-// the schema, never a fork of it.
+// config.go — the launcher's reading of a knowledge base's semiontconfig TOML
+// (documented in docs/operator/administration/CONFIGURATION.md). The launcher
+// is the file's one reader: each service reads the document the launcher
+// writes for it. Only the keys the launcher consumes are modeled; everything
+// else is ignored.
 
 import (
 	"fmt"
@@ -19,22 +19,26 @@ import (
 // The config TOMLs reference env vars as ${VAR} (required) or ${VAR:-default}
 // (optional). These are the ones the launcher sets in a service's environment
 // itself, so it neither demands nor forwards them from the user's. An address
-// the launcher places is not among them: it is resolved at staging
-// (topology.go), and TestNoTopologyTravelsInAnEnvironment holds the two apart.
+// the launcher places is not among them: it is resolved in the documents the
+// launcher writes (topology.go), and TestNoTopologyTravelsInAnEnvironment
+// holds the two apart.
 var injectedVars = map[string]bool{
-	"GATEWAY_HOST": true, "SEMIONT_OIDC_CLIENT_ID": true, "SEMIONT_OIDC_CLIENT_SECRET": true,
+	"SEMIONT_OIDC_CLIENT_ID": true, "SEMIONT_OIDC_CLIENT_SECRET": true,
 }
 
+// gatewayHostVar: the reference a KB's config writes for the gateway's host in
+// its publicURL. The launcher resolves it in the document of each service that
+// dials the gateway (gatewayDialerVars). No container is handed it.
+const gatewayHostVar = "GATEWAY_HOST"
+
 // launcherResolved: a reference the user's environment is never asked for —
-// one the launcher injects, or an address it places.
-func launcherResolved(name string) bool { return injectedVars[name] || topologyNames[name] }
+// one the launcher injects, an address it places, or the gateway's host.
+func launcherResolved(name string) bool {
+	return injectedVars[name] || topologyNames[name] || name == gatewayHostVar
+}
 
 // referenceRe: a value that is exactly one required reference, ${NAME}.
 var referenceRe = regexp.MustCompile(`^\$\{([A-Z_][A-Z0-9_]*)\}$`)
-
-// referenceTo is referenceName's inverse: the text of exactly one reference to
-// name, for the references the launcher stages into a service's config copy.
-func referenceTo(name string) string { return "${" + name + "}" }
 
 // referenceName is NAME when value is exactly ${NAME}, and "" when it is
 // anything else — a literal, a default, or a reference inside other text.
@@ -69,11 +73,11 @@ func placeholderRefs(value string) (required, optional []string) {
 }
 
 // configRefs: the variables the selected environment references where
-// something reads them. Start demands a required one and forwards an optional
-// one only when it is set, so the container's loader lets a set variable win
-// over its default. A reference nothing reads — another environment's, or a
-// section no service lists and the launcher does not resolve — is demanded by
-// nobody: each service's loader resolves a section only when it reads it.
+// something reads them. Start demands a required one and reads an optional
+// one only when it is set, so a set variable wins over its default in the
+// document the launcher writes. A reference nothing reads — another
+// environment's, or a section the launcher does not resolve — is demanded by
+// nobody.
 type configRefs struct {
 	envSection map[string]any
 	// ByService: which of them each stack service is handed (serviceVars).
@@ -112,11 +116,14 @@ type envConfig struct {
 	Workers map[string]bindingCfg `toml:"-"`
 	// Site is read ONLY to refuse it (loadConfig). A knowledge base declares
 	// [site] once, at the top level of its committed .semiont/config; an
-	// environment cannot override it, here or in any service's loader.
+	// environment cannot override it.
 	Site map[string]any `toml:"site"`
 	// Archivist: a hand-written address for the Archivist — a topology the
 	// launcher cannot see. Absent, the launcher supplies its own.
 	Archivist *archivistCfg `toml:"archivist"`
+	// MakeMeaning: the two bounds the Librarian answers within, written into
+	// its configuration document (librariandoc.go).
+	MakeMeaning *makeMeaningCfg `toml:"make-meaning"`
 	// LogLevel is the environment's log level, written into the gateway's
 	// configuration document (gatewaydoc.go).
 	LogLevel string `toml:"logLevel"`
@@ -173,7 +180,8 @@ type graphCfg struct {
 	Username string `toml:"username"`
 	Password string `toml:"password"`
 	// Database: which of Neo4j's databases holds the graph. Written into the
-	// Weaver's configuration document (weaverdoc.go).
+	// Weaver's configuration document (weaverdoc.go) and the Librarian's
+	// (librariandoc.go).
 	Database string `toml:"database"`
 	Image    string `toml:"image"` // optional: override the catalog's default image
 }
@@ -187,7 +195,8 @@ type vectorsCfg struct {
 }
 
 // embeddingCfg is [environments.<env>.embedding]: the provider that makes the
-// vectors, written into the Smelter's configuration document (smelterdoc.go).
+// vectors, written into the Smelter's configuration document (smelterdoc.go)
+// and the Librarian's (librariandoc.go).
 // An Ollama is reached at BaseURL; Voyage at Endpoint, with the key APIKey
 // names.
 type embeddingCfg struct {
@@ -206,6 +215,18 @@ type embeddingCfg struct {
 type chunkingCfg struct {
 	ChunkSize *int `toml:"chunkSize"`
 	Overlap   *int `toml:"overlap"`
+}
+
+// makeMeaningCfg is [environments.<env>.make-meaning]: how long a gather
+// waits, and the least similarity a hit by meaning must have. Pointers because
+// a floor of 0 is a value a config states: absent and zero must be told apart.
+type makeMeaningCfg struct {
+	Gather *struct {
+		SettleTimeoutMs *int `toml:"settleTimeoutMs"`
+	} `toml:"gather"`
+	Search *struct {
+		SemanticFloor *float32 `toml:"semanticFloor"`
+	} `toml:"search"`
 }
 
 type providerCfg struct {
@@ -254,8 +275,7 @@ type signalCfg struct {
 	Password string `toml:"password"`
 }
 
-// identityCfg mirrors the TypeScript IdentityServiceConfig: type "keycloak" |
-// "oidc", and the issuer URL the gateway trusts. A keycloak that states no
+// identityCfg is [environments.<env>.identity]: type "keycloak" | "oidc", and the issuer URL the gateway trusts. A keycloak that states no
 // issuer is the launcher's to run; one under platform = "external", and every
 // oidc issuer, is somebody else's and states it. The audience is NOT
 // configured: it is derived from the KB's committed did:web domain
@@ -268,8 +288,8 @@ type identityCfg struct {
 	Issuer   string `toml:"issuer"`
 	// SubjectClaim: the issuer claim a person's DID is built from —
 	// did:web:<site domain>:users:<its value>. Required; declared, never
-	// defaulted. The gateway reads it; the launcher only vets its presence, so
-	// no path writes a config the gateway's loader would refuse.
+	// defaulted. The gateway reads it from its document; the launcher refuses
+	// a config that lacks it.
 	SubjectClaim string `toml:"subjectClaim"`
 	Image        string `toml:"image"` // optional: override the catalog's default image
 	// AccessTokenLifespan: seconds a token the realm mints stays valid, and so
@@ -311,7 +331,7 @@ func loadConfig(path string) (*envConfig, string, configRefs, error) {
 		return nil, "", configRefs{}, fmt.Errorf("%s is not valid TOML: %v", path, err)
 	}
 	if envSection := environmentSection(doc, written.Defaults.Environment); envSection != nil {
-		placeUnstated(envSection, nil)
+		placeUnstated(envSection)
 	}
 	placed, err := toml.Marshal(doc)
 	if err != nil {
@@ -336,13 +356,12 @@ func loadConfig(path string) (*envConfig, string, configRefs, error) {
 		return nil, "", configRefs{}, err
 	}
 	envSection := environmentSection(doc, envName)
-	return &env, envName, configRefs{envSection: envSection, ByService: serviceVars(envSection, &env)}, nil
+	return &env, envName, configRefs{envSection: envSection, ByService: serviceVars(&env)}, nil
 }
 
 // refuseEnvironmentSites rejects a [site] section in any environment, selected
-// or not — the whole file is staged into every service, and their loader
-// (toml-loader.ts) refuses the same section by name. A knowledge base declares
-// [site] once, at the top level of its committed .semiont/config.
+// or not. A knowledge base declares [site] once, at the top level of its
+// committed .semiont/config.
 func refuseEnvironmentSites(envs map[string]envConfig, path string) error {
 	var sited []string
 	for name, env := range envs {

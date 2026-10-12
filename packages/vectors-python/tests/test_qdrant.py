@@ -1,8 +1,9 @@
-"""What the Qdrant store does with no Qdrant under it.
+"""What the Qdrant store and the Qdrant reader do with no Qdrant under them.
 
 Nothing is asked of a store that is not connected, and a store that cannot
-reach its Qdrant is not connected. Everything else the store does is done by
-a Qdrant, and is held against a real one by `qdrant_live.py`. What it asks a
+reach its Qdrant is not connected. The same holds of a reader. Everything
+else either does is done by a Qdrant, and is held against a real one by
+`qdrant_live.py`. What the store asks a
 Qdrant to make is held there to `specs/src/vectors/payload-cases.json`, by
 what the Qdrant then says it has: the store's own constants are private to
 it, and a test that read them would hold a name and not what is made.
@@ -16,8 +17,8 @@ import pytest
 from aio import run
 from semiont.identifiers import AnnotationId, ResourceId
 
-from semiont_vectors.qdrant import QdrantVectorStore
-from semiont_vectors.store import AnnotationPayload, SearchOptions, VectorStore
+from semiont_vectors.qdrant import QdrantVectorReader, QdrantVectorStore
+from semiont_vectors.store import AnnotationPayload, SearchOptions, VectorReader, VectorStore
 
 RESOURCE: Final = ResourceId("res-1")
 ANNOTATION: Final = AnnotationId("ann-1")
@@ -92,5 +93,60 @@ def test_a_store_that_cannot_reach_its_qdrant_raises_and_is_not_connected() -> N
             await unreached.connect()
         with pytest.raises(RuntimeError, match="not connected"):
             await unreached.count()
+
+    run(whole())
+
+
+# ── The reader ─────────────────────────────────────────────────────────
+
+
+def reader() -> QdrantVectorReader:
+    """A reader of a Qdrant that is not there: nothing listens on port 1 of this machine."""
+    return QdrantVectorReader(host="127.0.0.1", port=1)
+
+
+type Search = Callable[[VectorReader], Awaitable[object]]
+
+SEARCHES: Final[dict[str, Search]] = {
+    "search_resources": lambda held: held.search_resources([1.0, 0.0], ONE),
+    "search_annotations": lambda held: held.search_annotations([1.0, 0.0], ONE),
+    "search_by_resource": lambda held: held.search_by_resource(RESOURCE, ONE),
+}
+"""Every member of a reader that asks its index something, each called with what it takes."""
+
+
+def test_every_member_of_a_reader_that_asks_the_index_something_is_among_those_called_here() -> None:
+    members = {name for name in dir(VectorReader) if not name.startswith("_")}
+    assert set(SEARCHES) == members - {"connect", "disconnect"}
+    # A store is a reader too: what a reader is asked, a store is asked.
+    assert set(SEARCHES) <= set(CALLS)
+
+
+@pytest.mark.parametrize("member", sorted(SEARCHES))
+def test_a_search_before_connect_says_the_reader_is_not_connected(member: str) -> None:
+    async def whole() -> None:
+        with pytest.raises(RuntimeError, match="not connected"):
+            await SEARCHES[member](reader())
+
+    run(whole())
+
+
+def test_disconnecting_a_reader_that_never_connected_lets_go_of_nothing() -> None:
+    async def whole() -> None:
+        never = reader()
+        await never.disconnect()
+        with pytest.raises(RuntimeError, match="not connected"):
+            await never.search_resources([1.0, 0.0], ONE)
+
+    run(whole())
+
+
+def test_a_reader_that_cannot_reach_its_qdrant_raises_and_is_not_connected() -> None:
+    async def whole() -> None:
+        unreached = reader()
+        with pytest.raises(httpx.ConnectError):
+            await unreached.connect()
+        with pytest.raises(RuntimeError, match="not connected"):
+            await unreached.search_resources([1.0, 0.0], ONE)
 
     run(whole())

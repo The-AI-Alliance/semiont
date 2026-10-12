@@ -62,10 +62,11 @@ of the five motivations, for a `yield` job, and for the two actors that call a m
 base's config allows two — a `mark` job of a motivation without a binding is served by
 `workers.mark`, and without that by `workers.default`; a `yield` job without one by
 `workers.default` — and the launcher applies them when it writes the document. An actor is served
-by its own binding, `actors.<actor>`, and by nothing else. The same selection routes the work, in
-the services that call the models; `roster-cases.json`
-([specs/src/service-config](../../specs/src/service-config/roster-cases.json)) holds the two to one
-answer.
+by its own binding, `actors.<actor>`, and by nothing else. The launcher makes the same
+selection when it writes the agents into a worker's document and the models into the Librarian's,
+so the roster names the agents the work is routed to; `roster-cases.json`
+([specs/src/service-config](../../specs/src/service-config/roster-cases.json)) holds the launcher
+to it.
 
 ## The record on disk
 

@@ -1,5 +1,5 @@
 import { defineConfig } from 'vitest/config';
-import { ARCHIVIST_COMMAND, DISPATCHER_COMMAND, GATEWAY_COMMAND, SDK_DRIVERS, SMELTER_SERVICES, WEAVER_SERVICES, WORKER_SERVICES } from './harness/paths';
+import { ARCHIVIST_COMMAND, DISPATCHER_COMMAND, GATEWAY_COMMAND, LIBRARIAN_SERVICES, SDK_DRIVERS, SMELTER_SERVICES, WEAVER_SERVICES, WORKER_SERVICES } from './harness/paths';
 
 // Every file boots its own processes, issuer, Archivist and broker on ports of
 // its own, so files run in parallel; the cases inside a file share them and
@@ -88,6 +88,26 @@ export default defineConfig({
           // One file at a time: the files share one vector database, whose
           // index each file clears, and a Smelter's health port is a constant,
           // so two cannot run at once.
+          fileParallelism: false,
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'librarian',
+          include: ['librarian/**/*.test.ts'],
+          provide: {
+            gatewayCommand: GATEWAY_COMMAND,
+            archivistCommand: ARCHIVIST_COMMAND,
+            weaverServices: WEAVER_SERVICES,
+            smelterServices: SMELTER_SERVICES,
+            librarianServices: LIBRARIAN_SERVICES,
+          },
+          globalSetup: ['harness/global-setup.ts', 'harness/archivist-setup.ts', 'harness/librarian-setup.ts'],
+          // One file at a time: the files share one graph database and one
+          // vector database, each cleared when a file's world is made, and
+          // the health ports of a Weaver and a Smelter are constants, so two
+          // worlds cannot run at once.
           fileParallelism: false,
         },
       },

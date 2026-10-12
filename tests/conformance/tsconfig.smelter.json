@@ -1,5 +1,5 @@
 {
   "extends": "./tsconfig.json",
   "include": ["**/*.ts"],
-  "exclude": ["node_modules", "harness/weaver-world.ts", "weaver/**"]
+  "exclude": ["node_modules", "harness/librarian-world.ts", "librarian/**"]
 }

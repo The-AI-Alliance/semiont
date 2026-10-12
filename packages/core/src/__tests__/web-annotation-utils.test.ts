@@ -16,7 +16,6 @@ import {
   getExactText,
   getAnnotationExactText,
   getTextQuoteSelector,
-  extractBoundingBox,
   getTextPositionSelector,
   getSvgSelector,
   getFragmentSelector,
@@ -230,22 +229,5 @@ describe('getFragmentSelector', () => {
 
   test('returns null for undefined', () => {
     expect(getFragmentSelector(undefined)).toBeNull();
-  });
-});
-
-describe('extractBoundingBox', () => {
-  test('extracts from viewBox', () => {
-    const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200"><rect/></svg>';
-    expect(extractBoundingBox(svg)).toEqual({ x: 0, y: 0, width: 100, height: 200 });
-  });
-
-  test('extracts from width/height', () => {
-    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="400"><rect/></svg>';
-    expect(extractBoundingBox(svg)).toEqual({ x: 0, y: 0, width: 300, height: 400 });
-  });
-
-  test('returns null when no dimensions', () => {
-    const svg = '<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>';
-    expect(extractBoundingBox(svg)).toBeNull();
   });
 });

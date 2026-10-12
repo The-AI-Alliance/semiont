@@ -5,9 +5,10 @@ code states no type by force: it has no `cast`, names no `Any`, and silences
 no checker. A database's client is named only by the module that asks
 through it, is an extra and not a requirement, and is imported only when its
 store is. No type of a client's appears in the interface or the codec. Every
-store has the members of a graph database and no others, and none reads a
-clock. And what this package's manifest says a second time, after the SDK's,
-says the same.
+store has the members of a graph database and no others, a reader has its
+reads and nothing that writes, and nothing a reader can say to its database
+writes there. No module reads a clock. And what this package's manifest says
+a second time, after the SDK's, says the same.
 """
 
 import ast
@@ -19,10 +20,10 @@ from pathlib import Path
 from pydantic import JsonValue, TypeAdapter
 from spec import PACKAGE, SDK
 
-from semiont_graph.interface import GraphDatabase
+from semiont_graph.interface import GraphDatabase, GraphReader
 from semiont_graph.janusgraph import JanusGraphDatabase
 from semiont_graph.memory import MemoryGraphDatabase
-from semiont_graph.neo4j import Neo4jGraphDatabase
+from semiont_graph.neo4j import Neo4jGraphDatabase, Neo4jGraphReader
 from semiont_graph.neptune import NeptuneGraphDatabase
 
 SRC = PACKAGE / "src/semiont_graph"
@@ -35,6 +36,7 @@ SURFACE = {
         "GraphConnection",
         "GraphDatabase",
         "GraphPath",
+        "GraphReader",
         "GraphStats",
         "ResourceChange",
         "ResourceListing",
@@ -53,11 +55,15 @@ SURFACE = {
         "updated_annotation",
     ],
     "memory": ["MemoryGraphDatabase"],
-    "neo4j": ["Neo4jGraphDatabase"],
+    "neo4j": ["Neo4jGraphDatabase", "Neo4jGraphReader"],
     "janusgraph": ["JanusGraphDatabase"],
     "neptune": ["NeptuneGraphDatabase"],
-    "factory": ["create_graph_database"],
+    "factory": ["create_graph_database", "create_graph_reader"],
 }
+
+# A Cypher clause that writes, and a Gremlin step that does.
+CYPHER_WRITES = re.compile(r"(^|[^A-Za-z_])(CREATE|MERGE|SET|DELETE|REMOVE|DROP)([^A-Za-z_]|$)")
+GREMLIN_WRITES = re.compile(r"\.(addV|addE|property|drop)\(")
 
 FORCED = re.compile(r"\bcast\(|#\s*type:\s*ignore|#\s*pyright:\s*ignore|#\s*noqa\b|\btyping\.Any\b|^\s*from typing import [^\n]*\bAny\b")
 
@@ -106,6 +112,60 @@ def public(thing: object) -> set[str]:
     return {name for name in dir(thing) if not name.startswith("_")}
 
 
+def texts_in(node: ast.AST) -> list[str]:
+    """Every text a piece of a module's code holds, but its documentation: a text that stands as a statement is said to no database."""
+    documentation = {id(held.value) for held in ast.walk(node) if isinstance(held, ast.Expr)}
+    return [
+        held.value
+        for held in ast.walk(node)
+        if isinstance(held, ast.Constant) and isinstance(held.value, str) and id(held) not in documentation
+    ]
+
+
+def reached_from(module: str, name: str) -> tuple[list[str], set[str]]:
+    """What the class `name` of a store's module can say and do: every text its code holds, and every attribute it asks for.
+
+    Its code is the class, and whatever of its module the class names, and
+    whatever those name in turn: the class it extends, a statement kept
+    under a name, a function it calls. So a statement a reader runs is read
+    wherever in the module it is written, and one only a store runs is not.
+    """
+    defined: dict[str, ast.stmt] = {}
+    for statement in ast.parse((SRC / f"{module}.py").read_text(encoding="utf-8")).body:
+        if isinstance(statement, ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
+            defined[statement.name] = statement
+        elif isinstance(statement, ast.AnnAssign) and isinstance(statement.target, ast.Name):
+            defined[statement.target.id] = statement
+        elif isinstance(statement, ast.Assign):
+            for target in statement.targets:
+                if isinstance(target, ast.Name):
+                    defined[target.id] = statement
+    texts: list[str] = []
+    attributes: set[str] = set()
+    reached: set[str] = set()
+    waiting = [name]
+    while waiting:
+        next_name = waiting.pop()
+        if next_name in reached:
+            continue
+        reached.add(next_name)
+        texts.extend(texts_in(defined[next_name]))
+        for held in ast.walk(defined[next_name]):
+            if isinstance(held, ast.Name) and held.id in defined:
+                waiting.append(held.id)
+            elif isinstance(held, ast.Attribute):
+                attributes.add(held.attr)
+    return texts, attributes
+
+
+def connecting_says(module: str, name: str) -> list[str]:
+    """Every text the `connect` of the class `name` of a store's module holds."""
+    classes = [held for held in ast.parse((SRC / f"{module}.py").read_text(encoding="utf-8")).body if isinstance(held, ast.ClassDef)]
+    (store,) = [held for held in classes if held.name == name]
+    (connect,) = [held for held in store.body if isinstance(held, ast.AsyncFunctionDef) and held.name == "connect"]
+    return texts_in(connect)
+
+
 MANIFEST = toml(PACKAGE / "pyproject.toml")
 
 
@@ -141,6 +201,52 @@ def test_a_store_has_the_members_of_a_graph_database_and_no_others() -> None:
     assert public(Neo4jGraphDatabase(uri="bolt://127.0.0.1:1", username="u", password="p", database="d")) == members
     assert public(JanusGraphDatabase(host="127.0.0.1", port=1)) == members
     assert public(NeptuneGraphDatabase(endpoint="127.0.0.1", port=1)) == members
+
+
+def test_a_reader_has_the_reads_of_a_graph_database_and_nothing_that_writes() -> None:
+    members = public(GraphReader)
+    assert members == {
+        "connect",
+        "disconnect",
+        "get_resource",
+        "list_resources",
+        "get_resource_annotations",
+        "get_resource_referenced_by",
+        "get_resource_connections",
+        "get_entity_type_stats",
+    }
+    # A store is asked everything a reader is, so whatever is handed a reader can be handed a store.
+    assert members < public(GraphDatabase)
+    in_memory: GraphReader = MemoryGraphDatabase()
+    assert members < public(in_memory)
+    # Making a reader dials nothing.
+    assert public(Neo4jGraphReader(uri="bolt://127.0.0.1:1", username="u", password="p", database="d")) == members
+
+
+def test_no_statement_the_neo4j_reader_can_run_writes() -> None:
+    statements, asked_for = reached_from("neo4j", "Neo4jGraphReader")
+    # The walk read the reads: each of the six asks at least one statement that matches.
+    assert sum("MATCH " in statement for statement in statements) >= 6
+    assert "execute_query" in asked_for
+    assert [statement for statement in statements if CYPHER_WRITES.search(statement)] == []
+    # A reader asks one statement at a time, and opens no transaction that may write.
+    assert not asked_for & {"execute_write", "session", "run"}
+    # The other half: read the same way, the store is seen to write, so a reader that came to would be seen too.
+    of_the_store, the_store_asks_for = reached_from("neo4j", "Neo4jGraphDatabase")
+    assert [statement for statement in of_the_store if CYPHER_WRITES.search(statement)]
+    assert "execute_write" in the_store_asks_for
+
+
+def test_connecting_a_gremlin_store_asks_a_traversal_that_reads_and_none_that_writes() -> None:
+    # The reader of a JanusGraph and of a Neptune is the store, handed over as a reader: what a reader does
+    # unasked is connect, so a store's `connect` is held to make nothing.
+    for module, name in (("janusgraph", "JanusGraphDatabase"), ("neptune", "NeptuneGraphDatabase")):
+        said = connecting_says(module, name)
+        assert [text for text in said if text.startswith("g.V()")], module
+        assert [text for text in said if GREMLIN_WRITES.search(text)] == [], module
+    # The same search finds the steps a Gremlin store writes by.
+    for path in ("janusgraph.py", "neptune.py"):
+        assert GREMLIN_WRITES.search((SRC / path).read_text(encoding="utf-8")), path
 
 
 def test_no_hand_written_line_forces_a_type_or_silences_a_checker() -> None:

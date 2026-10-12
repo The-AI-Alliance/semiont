@@ -218,7 +218,7 @@ tagIRAC(target).catch((e) => {
 ## Guidance for the AI assistant
 
 - **Decide which shape applies first.** A schema with categories from a method of analysis is `tagging` with `schemaId` and `categories`. A flat list the corpus defines is `linking` with `entityTypes`.
-- **A schema lives with the knowledge base that uses it.** Write the `TagSchema` in the knowledge base's own source. Neither the SDK nor `@semiont/ontology` ships schemas.
+- **A schema lives with the knowledge base that uses it.** Write the `TagSchema` in the knowledge base's own source. The SDK ships no schemas.
 - **Register before you tag.** `await semiont.frame.addTagSchema(schema)` before any `mark.delegate` with motivation `tagging`. `await semiont.browse.tagSchemas().fresh()` lists what a knowledge base has registered.
 - **Themes the model discovers are entity types, not tags.** A `tagging` job needs its categories before it runs. When the values are only known afterwards, declare them with `frame.addEntityTypes` and classify with `linking`.
 - **Neither job takes `instructions`.** A `tagging` job is instructed by the schema's descriptions and examples, and a `linking` job by the entity types it is given. A job given a param its motivation does not take is refused. To steer a tagging pass, edit the schema.

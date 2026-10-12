@@ -11,7 +11,7 @@ How Semiont's test suites are organized, configured and run, and what CI gates o
 | Go | `apps/launcher`, `packages/sdk-go` | The launcher driving a fake runtime through real start and stop lifecycles; the Go bus client's wire contract | The Go toolchain each `go.mod` names |
 | Python | `packages/sdk-python` (`uv run pytest`) | The Python SDK: its transport, sign-in and session, its client, cache and live queries, the shared case tables, and the programs its README shows, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
 | Python | `packages/inference-python` (`uv run pytest`) | The Python inference drivers: each driver against a provider the test plays over HTTP, what a driver raises, the extras, the telemetry rows against the spec, and the program its README shows, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
-| Python | `packages/service-python` (`uv run pytest`) | What every Python service is built on: a configuration document read and refused, the health endpoint asked over a socket, each form of the log, the readings a process takes of itself against the telemetry table, and what the package is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
+| Python | `packages/service-python` (`uv run pytest`) | What every Python service is built on: a configuration document read and refused, the health endpoint asked over a socket, each form of the log, the readings a process takes of itself against the telemetry table, a resource's bytes read from an Archivist a test plays over HTTP, where a file of the record is filed against its case table, what white space is, and what the package is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
 | Python | `apps/worker` (`uv run pytest`) | The Worker service's Python code: the case tables that state how a failure is classed, where a text is cut and how its pieces are planned, and what the project is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
 | Python | `packages/graph-python` (`uv run pytest`) | The Python graph stores: the codecs against the case table of what the graph holds, one store contract against the in-memory store, the two Gremlin stores against fake clients, the extras, and what the package is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
 | Python | `packages/graph-python` (`uv run pytest tests/neo4j_live.py`) | The same store contract against a real neo4j, which it clears | The above, and a neo4j of its own, named in `NEO4J_HOST` and `NEO4J_PASSWORD` |
@@ -19,14 +19,16 @@ How Semiont's test suites are organized, configured and run, and what CI gates o
 | Python | `packages/vectors-python` (`uv run pytest tests/qdrant_live.py`) | The same store contract against a real Qdrant, and what the Qdrant then holds of each point; it deletes that Qdrant's two collections | The above, and a Qdrant of its own, named in `QDRANT_HOST` |
 | Python | `apps/weaver` (`uv run pytest`) | The Weaver's Python code: the fold against the case table of what each event does to the graph, and the Weaver over a scripted transport and a graph in the process (its order, its marks, catch-up, reconcile, rebuild, what it refuses to start on), and what the project is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
 | Python | `apps/smelter` (`uv run pytest`) | The Smelter's Python code: reading a PDF with PDFium and a scanned page with the `tesseract` program, each against the real engine; the rules that make a document's text, against the case table of what deriving a PDF's text comes to; how a text is cut and the work a start plans, each against its case table; the anchored-text store, its entries held to their schema; the Smelter over a scripted transport and an index in the process (what each event does, its order, what it decides, reconcile, rebuild, what it refuses to start on); and what the project is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later, `uv`, and the `tesseract` program with its English data |
+| Python | `apps/librarian` (`uv run pytest`) | The Librarian's Python code, over a fake of everything it reads by: the protocols it is handed, and what the project is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
 | Gateway conformance | [`tests/conformance/gateway`](../../tests/conformance/gateway/README.md) | A running gateway, black-box, against `specs/`: every declared operation, every response and stream message, and hand-written protocol cases, on both signal planes | A built gateway; `nats-server` 2.10 or later on `PATH` |
 | Dispatcher conformance | [`tests/conformance/dispatcher`](../../tests/conformance/dispatcher/README.md) | A running dispatcher, black-box, behind a real gateway on a real JetStream broker, against [JOBS.md](../protocol/JOBS.md) and every channel's schema | A built gateway and dispatcher; `nats-server` |
 | Archivist conformance | [`tests/conformance/archivist`](../../tests/conformance/archivist/README.md) | A running Archivist, black-box, on the bus through a real gateway, at its HTTP surface and in the files it keeps, against [ARCHIVIST.md](../protocol/ARCHIVIST.md) | A built gateway and Archivist; `git`; `nats-server` |
 | SDK conformance | [`tests/conformance/sdk`](../../tests/conformance/sdk/README.md) | Every SDK, through a driver, as a client of a real gateway: one corpus of cases, on the wire and in live queries | A built gateway and the Rust drivers; `@semiont/sdk` built; `uv` and Python 3.12 or later, for the Python drivers; `nats-server` |
 | Worker conformance | [`tests/conformance/worker`](../../tests/conformance/worker/README.md) | A worker written on each SDK, through a driver, with the suite playing the dispatcher, against [WORKER-CONTRACT.md](../protocol/WORKER-CONTRACT.md) | A built gateway and the Rust drivers; the packages built; `uv` and Python 3.12 or later, for the Python driver; `nats-server` |
 | Worker-service conformance | [`tests/conformance/worker-service`](../../tests/conformance/worker-service/README.md) | The Worker service as a running process, black-box, behind a real gateway, with the suite playing the dispatcher, the record, the Smelter and the model's provider, against [WORKER-SERVICE.md](../protocol/WORKER-SERVICE.md) | A built gateway; `@semiont/core` built; the Worker service's environment, which `uv` makes; `nats-server` |
-| Weaver conformance | [`tests/conformance/weaver`](../../tests/conformance/weaver/README.md) | The Weaver as a running process, black-box, behind a real gateway and a real Archivist, writing a real neo4j that the suite reads back, against [WEAVER.md](../protocol/WEAVER.md) | A built gateway and Archivist; the Weaver's Python environment (`uv sync --locked --no-dev --all-extras --project apps/weaver`); the packages built; `git`; `nats-server`; a neo4j of its own, named in `NEO4J_HOST` and `NEO4J_PASSWORD` |
-| Smelter conformance | [`tests/conformance/smelter`](../../tests/conformance/smelter/README.md) | The Smelter as a running process, black-box, behind a real gateway and a real Archivist, with an embedding provider the suite plays, writing a real Qdrant that the suite reads back, against [SMELTER.md](../protocol/SMELTER.md) | A built gateway and Archivist; the packages built; the Smelter's Python environment (`uv sync --locked --no-dev --project apps/smelter`) and the `tesseract` program; `git`; `nats-server`; a Qdrant of its own, named in `QDRANT_HOST` |
+| Weaver conformance | [`tests/conformance/weaver`](../../tests/conformance/weaver/README.md) | The Weaver as a running process, black-box, behind a real gateway and a real Archivist, writing a real neo4j that the suite reads back with a reader of its own, and exporting telemetry the suite receives, against [WEAVER.md](../protocol/WEAVER.md) | A built gateway and Archivist; the Weaver's Python environment (`uv sync --locked --no-dev --all-extras --project apps/weaver`); `@semiont/core` built; `git`; `nats-server`; a neo4j of its own, named in `NEO4J_HOST` and `NEO4J_PASSWORD` |
+| Smelter conformance | [`tests/conformance/smelter`](../../tests/conformance/smelter/README.md) | The Smelter as a running process, black-box, behind a real gateway and a real Archivist, with an embedding provider the suite plays, writing a real Qdrant that the suite reads back, and exporting telemetry the suite receives, against [SMELTER.md](../protocol/SMELTER.md) | A built gateway and Archivist; `@semiont/core` built; the Smelter's Python environment (`uv sync --locked --no-dev --project apps/smelter`) and the `tesseract` program; `git`; `nats-server`; a Qdrant of its own, named in `QDRANT_HOST` |
+| Librarian conformance | [`tests/conformance/librarian`](../../tests/conformance/librarian/README.md) | The Librarian as a running process, black-box, behind a real gateway and a real Archivist, reading a neo4j a real Weaver writes and a Qdrant a real Smelter writes, with an embedding provider and two models the suite plays, and exporting telemetry the suite receives, against [LIBRARIAN.md](../protocol/LIBRARIAN.md) | Everything the Weaver's and the Smelter's suites need, since it starts both: a built gateway and Archivist; `@semiont/core` built; the Librarian's, the Weaver's and the Smelter's Python environments and the `tesseract` program; `git`; `nats-server`; a neo4j and a Qdrant of its own, named in `NEO4J_HOST`, `NEO4J_PASSWORD` and `QDRANT_HOST` |
 | End-to-end | [`tests/e2e`](../../tests/e2e/README.md) | The live Browser against a live gateway and knowledge base | A running stack and a user at its issuer |
 
 The conformance suites import nothing from what they check. One line per service and per SDK in [`harness/paths.ts`](../../tests/conformance/harness/paths.ts) names the implementation, so the same cases judge any implementation of the same spec.
@@ -43,7 +45,7 @@ There is no test orchestrator and no test environment to select. A suite's confi
 
 - `globals: true` and the `node` environment;
 - the test files, `src/**/*.test.{ts,tsx}`, excluding `node_modules` and `dist`;
-- coverage: the `v8` provider; the reporters `text`, `json`, `json-summary`, `html`, `lcov` and `cobertura`; and the excludes — test files, config files, declaration files, `index.ts` barrels, generated `types.ts`, and a service's `src/*-main.ts` process wiring, which is the Librarian's `librarian-main.ts`.
+- coverage: the `v8` provider; the reporters `text`, `json`, `json-summary`, `html`, `lcov` and `cobertura`; and the excludes — test files, config files, declaration files, `index.ts` barrels and generated `types.ts`.
 
 It sets no coverage thresholds.
 
@@ -56,9 +58,8 @@ Each workspace's `vitest.config.*` merges it with `mergeConfig` and adds only wh
 | `apps/browser` | `jsdom`; [`vitest.setup.ts`](../../apps/browser/vitest.setup.ts); the React plugin; the `@` → `src` alias; the `threads` pool with `maxConcurrency: 2`; `dangerouslyIgnoreUnhandledErrors`, for tests that throw on purpose; `tsconfig.test.json` for `vitest typecheck`; extra coverage excludes |
 | `packages/react-ui` | `jsdom`; [`vitest.setup.ts`](../../packages/react-ui/vitest.setup.ts); the `@` → `src` alias; a coverage `include` of `src/**/*.{ts,tsx}` |
 | `packages/core` | the `@` → `src` alias; a coverage `include` of `src/**/*.ts` |
-| `packages/event-sourcing`, `packages/make-meaning` | a setup file that points `XDG_STATE_HOME` into the OS temp directory; make-meaning's also sets a 10-second test timeout |
 | `packages/mcp-server` | test files limited to `src/**/*.test.ts`; a coverage `include` of `src/**/*.ts`, less `src/index.ts`, which boots a stdio server on import and is tested as a process |
-| `packages/` `content`, `graph`, `http-transport`, `inference`, `observability`, `ontology`, `sdk`, `vectors` | nothing |
+| `packages/` `http-transport`, `observability`, `sdk` | nothing |
 
 A coverage `include` also reports the files it matches that no test loads; without one, a report covers only the files the tests load.
 
@@ -69,13 +70,13 @@ The two jsdom setup files:
 
 ### Environment variables
 
-No Vitest suite takes configuration from the shell. A test that exercises code which reads a variable sets it and restores it; a setup file sets only what production code in its process reads — `XDG_STATE_HOME`, above. The Boot Contract audit enforces the second rule: [`audit-test-env-hygiene.sh`](../../scripts/compliance/audit-test-env-hygiene.sh) fails when a test file under `apps/gateway`, `apps/browser` or `packages/*` exports a `SEMIONT_*` variable that no production code in the same process — the workspace and the `@semiont/*` packages it depends on — reads.
+No Vitest suite takes configuration from the shell. A test that exercises code which reads a variable sets it and restores it; a setup file sets only what production code in its process reads. The Boot Contract audit enforces the second rule: [`audit-test-env-hygiene.sh`](../../scripts/compliance/audit-test-env-hygiene.sh) fails when a test file under `apps/gateway`, `apps/browser` or `packages/*` exports a `SEMIONT_*` variable that no production code in the same process — the workspace and the `@semiont/*` packages it depends on — reads.
 
 `NODE_ENV` selects nothing. Vitest sets it to `test` when it is unset; no code compares it to `test`, and the only reads — react-ui's error boundaries and the Browser's translation manager — check for `development` to show diagnostics.
 
 ### Test doubles, not services
 
-Workspace suites run with nothing listening. CI's package matrix starts no database, vector store or model server, and the `graph`, `vectors` and `inference` suites pass without Neo4j, Qdrant or Ollama.
+Workspace suites run with nothing listening. CI's package matrix starts no database, vector store or model server.
 
 - **The SDK.** `@semiont/sdk/testing` provides a real `SemiontClient` (`createTestClient`) or `SemiontSession` (`createTestSession`) over `FaultyTransport`, the scriptable in-memory transport from `@semiont/core/testing`. An operation the test did not script throws `No response scripted for bus operation "<op>"` rather than answering with a fabricated reply. `stubGateway()` supplies gateway operations that each reject with their own name; `inMemoryContent()` stores content and throws on an unknown id. The Rust and Python SDKs ship the same doubles, `semiont::testing` and `semiont.testing`, for what is built on them.
 - **React.** `@semiont/react-ui/test-utils` assembles those doubles into providers: `renderWithProviders` renders inside a real `SemiontBrowser` whose active session runs on them. The Browser's tests import it directly.
@@ -85,7 +86,7 @@ Workspace suites run with nothing listening. CI's package matrix starts no datab
 
 ### How the conformance suites are configured
 
-[`tests/conformance/vitest.config.ts`](../../tests/conformance/vitest.config.ts) is its own config, not derived from the shared one. It holds eight projects over one shared harness: `gateway`, `dispatcher`, `archivist`, `sdk`, `worker`, `worker-service`, `weaver` and `smelter`. It uses the `forks` pool with up to four workers, since each file boots its own gateways, issuer and broker, and a 60-second test timeout.
+[`tests/conformance/vitest.config.ts`](../../tests/conformance/vitest.config.ts) is its own config, not derived from the shared one. It holds nine projects over one shared harness: `gateway`, `dispatcher`, `archivist`, `sdk`, `worker`, `worker-service`, `weaver`, `smelter` and `librarian`. It uses the `forks` pool with up to four workers, since each file boots its own gateways, issuer and broker, and a 60-second test timeout.
 
 Each gateway the suite starts gets a fresh temporary directory holding its `GatewayConfig` document, and an environment of `PATH` plus the variables the case sets, such as `JWT_SECRET` and `SEMIONT_OIDC_CLIENT_ID`. Nothing else from your shell reaches it.
 
@@ -98,7 +99,7 @@ Tests run through each workspace's npm scripts, `cargo`, `go` and `uv`. The `sem
 `npm test` fans out to every workspace that defines a `test` script, and `npm run typecheck` does the same for `typecheck`. To target one workspace:
 
 ```bash
-npm test --workspace=@semiont/make-meaning
+npm test --workspace=@semiont/sdk
 ```
 
 `tests/conformance` and `tests/e2e` are not root workspaces. Each has its own `package.json` and lockfile and runs from its own directory.
@@ -138,7 +139,7 @@ cargo build --release -p semiont-gateway -p semiont-dispatcher -p semiont-archiv
 npm run build:packages
 cd tests/conformance
 npm ci
-npm run test:gateway        # or test:dispatcher, test:archivist, test:sdk, test:worker, test:worker-service, test:weaver, test:smelter; npm test runs all eight
+npm run test:gateway        # or test:dispatcher, test:archivist, test:sdk, test:worker, test:worker-service, test:weaver, test:smelter, test:librarian; npm test runs all nine
 ```
 
 Each script typechecks the cases first. What each suite checks is in its README, linked in the table above, and the gateway's is also described in [apps/gateway/docs/TESTING.md](../../apps/gateway/docs/TESTING.md).
@@ -156,7 +157,7 @@ The launcher's suite takes minutes; its notes are in [apps/launcher/README.md](.
 
 ### Python
 
-As CI runs them, from `packages/sdk-python`, and the same from `packages/inference-python`, `packages/graph-python`, `packages/vectors-python`, `packages/service-python`, `apps/worker`, `apps/weaver` and `apps/smelter`:
+As CI runs them, from `packages/sdk-python`, and the same from `packages/inference-python`, `packages/graph-python`, `packages/vectors-python`, `packages/service-python`, `apps/worker`, `apps/weaver`, `apps/smelter` and `apps/librarian`:
 
 ```bash
 uv sync --locked
@@ -176,7 +177,7 @@ None of the toolchains has to be on your machine. Two things to know:
 
 ```bash
 container run --rm -v "$(pwd)":/work -w /work "node:$(scripts/ci/node-version.sh)-alpine" \
-  sh -c 'npm test --workspace=@semiont/make-meaning'
+  sh -c 'npm test --workspace=@semiont/sdk'
 ```
 
 **The conformance suites need `nats-server`**, which Alpine packages: `apk add --no-cache nats-server` in the same container, before the suite.
@@ -310,8 +311,9 @@ Excluded from coverage: what the shared config excludes (see [One shared Vitest 
 | `sdk-conformance` | Builds the gateway, the Rust drivers and `@semiont/sdk`, installs the Python SDK's locked environment, and runs the `sdk` project |
 | `worker-conformance` | Builds the gateway, the Rust drivers and the packages, installs the Python SDK's locked environment, and runs the `worker` project |
 | `worker-service-conformance` | Builds the gateway and `@semiont/core`, makes the Worker service's locked environment with every provider's library, and runs the `worker-service` project |
-| `weaver-conformance` | Builds the gateway, the Archivist and the packages, makes the Weaver's Python environment, starts the neo4j the launcher runs, and runs the `weaver` project |
-| `smelter-conformance` | Builds the gateway, the Archivist and the packages, starts the Qdrant the launcher runs, installs the `tesseract` program, makes the Smelter's Python environment, and runs the `smelter` project |
+| `weaver-conformance` | Builds the gateway, the Archivist and `@semiont/core`, makes the Weaver's Python environment, starts the neo4j the launcher runs, and runs the `weaver` project |
+| `smelter-conformance` | Builds the gateway, the Archivist and `@semiont/core`, starts the Qdrant the launcher runs, installs the `tesseract` program, makes the Smelter's Python environment, and runs the `smelter` project |
+| `librarian-conformance` | Builds the gateway, the Archivist and `@semiont/core`, starts the neo4j and the Qdrant the launcher runs, installs the `tesseract` program, makes the Librarian's, the Weaver's and the Smelter's Python environments, and runs the `librarian` project |
 | `test-sdk-python` | `mypy` and `pyright`, each as Linux and as Windows, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `packages/sdk-python`; the distributions a release uploads are built and checked |
 | `test-sdk-python-windows` | The Python SDK's sign-in store and state directory tests, on Windows |
 | `test-inference-python` | `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `packages/inference-python` |
@@ -323,6 +325,7 @@ Excluded from coverage: what the shared config excludes (see [One shared Vitest 
 | `test-vectors-python-qdrant` | Starts the Qdrant the launcher runs and holds the Python Qdrant store to the store contract against it |
 | `test-weaver-python` | `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `apps/weaver` |
 | `test-smelter-python` | Installs the `tesseract` program, then `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `apps/smelter` |
+| `test-librarian-python` | `mypy`, `pyright`, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `apps/librarian` |
 | `test-comprehensive` | The Browser suite again, after a full package build |
 | `validate-config` | `npm ci --include=optional` and `npm run build:packages` |
 | `check-phantom-deps` | Every import in a published `dist` is declared by its package |

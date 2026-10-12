@@ -20,23 +20,6 @@ GENERATOR="scripts/spec/generate-validators.mjs"
 
 violations=0
 
-# Ajv setups that are NOT over the OpenAPI spec, each with its reason. A6 is
-# about ONE authority — the spec — not about banning Ajv; the config schema is
-# a different authority with a different lifecycle. Entries need a reason, so
-# an addition is a decision rather than a reflex.
-ALLOWED_REASON_config_schema_test="validates TOML config against config.schema.json — a different authority from specs/openapi.json"
-ALLOWED_PATHS=(
-  "packages/core/src/__tests__/config/config-schema.test.ts"
-)
-
-is_allowed() {
-  local file="$1"
-  for allowed in "${ALLOWED_PATHS[@]}"; do
-    [[ "$file" == *"$allowed" ]] && return 0
-  done
-  return 1
-}
-
 echo "🔍 Auditing the spec validator (A6)..."
 
 # ---------------------------------------------------------------------------
@@ -45,8 +28,6 @@ echo "🔍 Auditing the spec validator (A6)..."
 offenders=""
 while IFS= read -r hit; do
   [ -z "$hit" ] && continue
-  file="${hit%%:*}"
-  is_allowed "$file" && continue
   offenders+="$hit"$'\n'
 done < <(grep -rn "new Ajv(" \
       --include="*.ts" --include="*.tsx" --include="*.mjs" --include="*.js" \

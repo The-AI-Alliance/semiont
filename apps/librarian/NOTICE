@@ -10,13 +10,24 @@ This container image (semiont-librarian) includes the following third-party
 components:
 
   Alpine Linux - MIT License
-  Node.js - MIT License
+  Python - Python Software Foundation License
   tini - MIT License
 
-  npm dependencies (installed at build time from https://registry.npmjs.org):
-    @semiont/make-meaning - Apache-2.0 License (The AI Alliance)
-    neo4j-driver - Apache-2.0 License (Neo4j, Inc.)
+  Python packages built into the image from this repository:
+    semiont - Apache-2.0 License (The AI Alliance)
+    semiont-graph - Apache-2.0 License (The AI Alliance)
+    semiont-inference - Apache-2.0 License (The AI Alliance)
+    semiont-librarian - Apache-2.0 License (The AI Alliance)
+    semiont-service - Apache-2.0 License (The AI Alliance)
+    semiont-vectors - Apache-2.0 License (The AI Alliance)
 
-Each npm dependency's full license text is available in its respective
-node_modules/<package>/LICENSE file within the image, under
-/usr/local/lib/node_modules.
+  Python packages installed at build time from https://pypi.org, each at the
+  version apps/librarian/uv.lock pins: what those six require, and with every
+  extra of semiont-graph the client each graph database is asked through, and
+  with every extra of semiont-inference the library each model provider is
+  asked through, each with what it requires.
+
+Each package from pypi.org carries its license text in its
+<name>-<version>.dist-info directory within the image, under the
+site-packages directory of /opt/venv. The six built from this repository
+are under the license beside this file.

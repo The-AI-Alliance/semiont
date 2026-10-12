@@ -13,7 +13,7 @@ All eight are published to `ghcr.io/the-ai-alliance/`, for `linux/amd64` and `li
 | [gateway](../../../apps/gateway/README.md) | `semiont-gateway` | 4000 | Rust, `apps/gateway` | Verifies every caller's token, relays the bus, and proxies content bytes to the Archivist. It hosts no actors and holds no datastore |
 | [dispatcher](../../../apps/dispatcher/README.md) | `semiont-dispatcher` | 24105 | Rust, `apps/dispatcher` | Owns the job queue and answers the `job:*` lifecycle. No content flows through it |
 | [archivist](../../../apps/archivist/README.md) | `semiont-archivist` | 24103 | Rust, `apps/archivist` | Keeps the record. The only service that mounts the knowledge base's working tree: it appends the event log, writes content, and keeps the views |
-| [librarian](../../../apps/librarian/README.md) | `semiont-librarian` | 24104 | `@semiont/make-meaning` | Searches the knowledge base: finds resources by text, gathers context, lists what refers to a resource, and matches candidates |
+| [librarian](../../../apps/librarian/README.md) | `semiont-librarian` | 24104 | Python, `apps/librarian` | Searches the knowledge base: finds resources by text, gathers context, lists what refers to a resource, and matches candidates |
 | [worker](../../../apps/worker/README.md) | `semiont-worker` | 24100 | Python, `apps/worker` | The worker pool: claims annotation and generation jobs and runs them against a model |
 | [smelter](../../../apps/smelter/README.md) | `semiont-smelter` | 24101 | Python, `apps/smelter` | Keeps the vector index in step with the record, and derives a PDF's anchored text |
 | [weaver](../../../apps/weaver/README.md) | `semiont-weaver` | 24102 | Python, `apps/weaver` | Keeps the graph in step with the record |
@@ -28,7 +28,7 @@ This is the contract a deployment satisfies, whoever does the deploying. The lau
 | gateway | `/etc/semiont/gateway.json`, a [`GatewayConfig`](../../../specs/src/components/schemas/GatewayConfig.json) document | none | The issuer's published keys; the Archivist; the broker, when the signal plane is `nats` | any number, once the signal plane is `nats` |
 | dispatcher | `/etc/semiont/dispatcher.json`, a [`DispatcherConfig`](../../../specs/src/components/schemas/DispatcherConfig.json) document | none | The gateway's bus; the broker's JetStream | one |
 | archivist | `/etc/semiont/archivist.json`, an [`ArchivistConfig`](../../../specs/src/components/schemas/ArchivistConfig.json) document | The working tree at `/kb`, read-write; the state directory, where it writes views; the anchored-text store, read-only | The gateway's bus | one |
-| librarian | `~/.semiontconfig` (TOML) | The state directory, to read views | The gateway, for the bus and for anchored text; graph; vectors; embedding; inference; the Archivist, for bytes | one |
+| librarian | `/etc/semiont/librarian.json`, a [`LibrarianConfig`](../../../specs/src/components/schemas/LibrarianConfig.json) document | The state directory, to read views | The gateway, for the bus and for anchored text; graph; vectors; embedding; inference; the Archivist, for bytes | one |
 | worker | `/etc/semiont/worker.json`, a [`WorkerConfig`](../../../specs/src/components/schemas/WorkerConfig.json) document | none | The gateway, for the bus and for bytes; inference | any number |
 | smelter | `/etc/semiont/smelter.json`, a [`SmelterConfig`](../../../specs/src/components/schemas/SmelterConfig.json) document | The anchored-text store, read-write | The gateway's bus; vectors; embedding; the Archivist, for bytes | one |
 | weaver | `/etc/semiont/weaver.json`, a [`WeaverConfig`](../../../specs/src/components/schemas/WeaverConfig.json) document | none | The gateway's bus; graph | one |
@@ -36,10 +36,7 @@ This is the contract a deployment satisfies, whoever does the deploying. The lau
 
 Every service but the Browser has its own service account at the knowledge base's issuer, which it receives as `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`. It signs in with that account, then exchanges the issuer's token at the gateway (`POST /api/tokens/agent`) for the agent identity its work is attributed to.
 
-Two specs hold the rest:
-
-- [`service-config/sections.json`](../../../specs/src/service-config/sections.json) lists the config sections the librarian, the one service that reads the TOML, reads. It resolves a `${VAR}` reference only in a section it reads.
-- [`service-environment/variables.json`](../../../specs/src/service-environment/variables.json) lists every environment variable the gateway, the dispatcher and the Archivist read.
+No service reads the knowledge base's TOML: each reads its document, which names every secret by the variable that holds it. [`service-environment/variables.json`](../../../specs/src/service-environment/variables.json) lists every environment variable the gateway, the dispatcher and the Archivist read.
 
 Why each service has one instance or many is in [Scaling](../administration/SCALING.md). Which secrets reach which service is in [Secrets](SECRETS.md).
 

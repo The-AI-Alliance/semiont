@@ -21,7 +21,7 @@ An offset counts the text's code points, as a Python string's own index does.
 import re
 from typing import Final
 
-from semiont_worker.white_space import WHITE_SPACE
+from semiont_service.white_space import WHITE_SPACE
 
 _BREAK_BETWEEN: Final = "(?: ?\n ?)?"
 """What may stand between two characters of a claim: nothing, or a line break with at most one space on either side of it."""

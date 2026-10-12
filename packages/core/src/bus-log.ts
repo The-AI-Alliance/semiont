@@ -146,7 +146,7 @@ export function busLog(
 /**
  * Whether to run the unobserved-reply check on every local emit.
  *
- * On in Node (the TypeScript services), where a dropped reply is a real
+ * On in Node (a process on an SDK session), where a dropped reply is a real
  * delivery bug; off in the browser, where a 0-observer bridged reply just
  * means the awaiting `busRequest` already resolved/timed out (benign).
  *

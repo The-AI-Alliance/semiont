@@ -13,11 +13,9 @@ import {
   extensionForMediaType,
   mediaTypeForExtension,
   textSourceOf,
-  isAnnotatable,
   yieldsGeometryOf,
   derivesTextOf,
   AUTHORABLE_MEDIA_TYPES,
-  EMBEDDABLE_MEDIA_TYPES,
   GENERATABLE_MEDIA_TYPES,
   type SupportedMediaType,
 } from '../media-types';
@@ -58,7 +56,7 @@ describe('media-types registry', () => {
     it('never offers composing into something that cannot be annotated', () => {
       for (const [type, caps] of rows) {
         if (caps.authorable) {
-          expect(isAnnotatable(type), type).toBe(true);
+          expect(caps.anchoring, type).not.toBe('none');
         }
       }
     });
@@ -66,7 +64,7 @@ describe('media-types registry', () => {
     it('never generates something that cannot be annotated', () => {
       for (const [type, caps] of rows) {
         if (caps.generatable) {
-          expect(isAnnotatable(type), type).toBe(true);
+          expect(caps.anchoring, type).not.toBe('none');
         }
       }
     });
@@ -153,12 +151,9 @@ describe('media-types registry', () => {
     });
   });
 
-  describe('annotatable capability', () => {
-    // WHETHER a type can carry annotations. `anchoring` stays the authority on
-    // HOW — derived, never a row field, because two facts that can disagree
-    // have nothing to adjudicate them.
-    it('admits exactly the seven anchoring-bearing rows', () => {
-      expect(Object.keys(MEDIA_TYPES).filter(isAnnotatable)).toEqual([
+  describe('the rows that carry annotations', () => {
+    it('are exactly the seven with an anchoring model', () => {
+      expect(Object.entries(MEDIA_TYPES).filter(([, caps]) => caps.anchoring !== 'none').map(([type]) => type)).toEqual([
         'text/markdown',
         'text/plain',
         'text/html',
@@ -167,31 +162,6 @@ describe('media-types registry', () => {
         'image/jpeg',
         'application/pdf',
       ]);
-    });
-
-    it('leaves the storage tier out, top-level type notwithstanding', () => {
-      expect(isAnnotatable('image/gif')).toBe(false);
-      expect(isAnnotatable('text/csv')).toBe(false);
-      expect(isAnnotatable('application/zip')).toBe(false);
-      expect(isAnnotatable('video/mp4')).toBe(false);
-    });
-
-    it('tolerates parameters and case, like every other registry read', () => {
-      expect(isAnnotatable('text/markdown; charset=utf-8')).toBe(true);
-      expect(isAnnotatable('IMAGE/PNG')).toBe(true);
-    });
-
-    it('answers false on a registry miss — strict where extraction is lenient', () => {
-      expect(isAnnotatable('application/x-proprietary')).toBe(false);
-      expect(isAnnotatable('')).toBe(false);
-
-      // The asymmetry with textSourceOf is deliberate, not an oversight.
-      // Extracting the wrong bytes costs one bad vector and refusing to
-      // extract costs a resource nobody can find, so extraction guesses. An
-      // annotation is a durable write against a coordinate model the system
-      // does not have for an unknown type, so it refuses.
-      expect(textSourceOf('text/x-obscure-notation')).toBe('decode');
-      expect(isAnnotatable('text/x-obscure-notation')).toBe(false);
     });
   });
 
@@ -244,13 +214,8 @@ describe('media-types registry', () => {
       expect(yieldsGeometryOf('image/jpeg')).toBe(false);
     });
 
-    it('answers without resolving an extractor — the reconcile planner\'s need', () => {
-      // Reconcile's lost-artifact check (an indexed resource, current
-      // checksum, no artifact under it): the planner asks "should an
-      // anchored-text artifact exist for this resource?" over a whole catalog,
-      // and must not construct or run an extractor to find out. That this file
-      // can answer at all, with no extractor to ask, IS the test.
-      expect(EMBEDDABLE_MEDIA_TYPES.filter(yieldsGeometryOf)).toEqual(['application/pdf']);
+    it('is true of exactly one registry row', () => {
+      expect(Object.keys(MEDIA_TYPES).filter(yieldsGeometryOf)).toEqual(['application/pdf']);
     });
 
     it('agrees with textSourceOf on every registry row — one fact, derived', () => {
@@ -263,10 +228,10 @@ describe('media-types registry', () => {
       }
     });
 
-    it('is lenient like textSourceOf, not strict like isAnnotatable', () => {
+    it('is lenient like textSourceOf', () => {
       // An unregistered text/* type decodes (textSourceOf's leniency), and
       // decoding yields no geometry — so the answer is a real false, not a
-      // refusal. Nothing here is a durable write, so there is nothing to protect.
+      // refusal.
       expect(textSourceOf('text/x-obscure-notation')).toBe('decode');
       expect(yieldsGeometryOf('text/x-obscure-notation')).toBe(false);
       expect(yieldsGeometryOf('application/x-proprietary')).toBe(false);
@@ -493,16 +458,6 @@ describe('media-types registry', () => {
   describe('derived lists', () => {
     it('AUTHORABLE_MEDIA_TYPES is exactly the compose-editor set', () => {
       expect(AUTHORABLE_MEDIA_TYPES).toEqual(['text/markdown', 'text/plain', 'text/html']);
-    });
-
-    it('EMBEDDABLE_MEDIA_TYPES is exactly the rows with text extraction', () => {
-      for (const type of EMBEDDABLE_MEDIA_TYPES) {
-        expect(MEDIA_TYPES[type].textSource).not.toBe('none');
-      }
-      expect(EMBEDDABLE_MEDIA_TYPES).toContain('application/pdf');
-      expect(EMBEDDABLE_MEDIA_TYPES).toContain('text/x-python');
-      expect(EMBEDDABLE_MEDIA_TYPES).not.toContain('image/png');
-      expect(EMBEDDABLE_MEDIA_TYPES).not.toContain('application/zip');
     });
   });
 });

@@ -25,16 +25,6 @@ function hex(bytes: Uint8Array): string {
 }
 
 /**
- * Generate a UUID v4 string WITHOUT dashes (32 hex chars).
- *
- * The dashless form is data shape: persisted annotation/resource/job ids are
- * built from it and land in URIs. Do not change the format.
- */
-export function generateUuid(): string {
-  return hex(v4Bytes());
-}
-
-/**
  * Generate a canonical dashed UUID v4 (36 chars, 8-4-4-4-12) — the format
  * `crypto.randomUUID()` produces, without its secure-context requirement.
  *

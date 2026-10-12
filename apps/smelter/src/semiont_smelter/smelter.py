@@ -7,7 +7,7 @@ when it starts, and a rebuild of anchored text, which it answers when it is
 commanded on `smelt:rebuild-anchors`.
 
 It reaches four things, each handed to it: the index and the embedding
-provider (`semiont_vectors`), a resource's bytes (`semiont_smelter.content`),
+provider (`semiont_vectors`), a resource's bytes (`semiont_service.content`),
 the anchored-text store, and everything else through the transport. It opens
 no file of the record and knows no address.
 
@@ -64,13 +64,14 @@ from semiont.types import (
     SmeltSettledReason,
     StoredEventResponse,
 )
+from semiont_service.content import Content, ContentReads, ContentUnread
 from semiont_service.lanes import Lanes
+from semiont_service.white_space import trimmed
 from semiont_vectors.embedding import EmbeddingProvider
 from semiont_vectors.store import AnnotationPayload, EmbeddingChunk, VectorStore
 
 from semiont_smelter.anchored_text_store import AnchoredTextStore
 from semiont_smelter.chunking import Chunking, chunk_text
-from semiont_smelter.content import Content, ContentReads, ContentUnread
 from semiont_smelter.extraction import PdfExtractor
 from semiont_smelter.log import LOG, failure_said, words_of
 from semiont_smelter.reconcile import (
@@ -88,7 +89,6 @@ from semiont_smelter.reconcile import (
 )
 from semiont_smelter.record import Record
 from semiont_smelter.recorded import stored_event
-from semiont_smelter.white_space import trimmed
 
 __all__ = ["ReconcileState", "Smelter"]
 

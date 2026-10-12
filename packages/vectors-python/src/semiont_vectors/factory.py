@@ -1,4 +1,4 @@
-"""Making a store and a provider from what a service's configuration names: the kind of each, and what that kind needs to be reached."""
+"""Making a store, a reader and a provider from what a service's configuration names: the kind of each, and what it needs to be reached."""
 
 from collections.abc import Awaitable, Callable
 from typing import assert_never
@@ -15,11 +15,11 @@ from semiont.types import (
 from semiont_vectors.embedding import EmbeddingProvider
 from semiont_vectors.memory import MemoryVectorStore
 from semiont_vectors.ollama import OllamaEmbeddingProvider
-from semiont_vectors.qdrant import QdrantVectorStore
-from semiont_vectors.store import VectorStore
+from semiont_vectors.qdrant import QdrantVectorReader, QdrantVectorStore
+from semiont_vectors.store import VectorReader, VectorStore
 from semiont_vectors.voyage import VoyageEmbeddingProvider
 
-__all__ = ["create_embedding_provider", "create_vector_store"]
+__all__ = ["create_embedding_provider", "create_vector_reader", "create_vector_store"]
 
 
 def create_vector_store(config: VectorsConfig, *, dimensions: Callable[[], Awaitable[int]]) -> VectorStore:
@@ -35,6 +35,24 @@ def create_vector_store(config: VectorsConfig, *, dimensions: Callable[[], Await
     match config:
         case QdrantVectorsConfig():
             return QdrantVectorStore(host=config.host, port=config.port, dimensions=dimensions)
+        case MemoryVectorsConfig():
+            return MemoryVectorStore()
+        case _:
+            assert_never(config)
+
+
+def create_vector_reader(config: VectorsConfig) -> VectorReader:
+    """The reader of the vector index `config` names. Nothing is dialled: a reader reaches its index when it is connected.
+
+    `config` is the protocol's `VectorsConfig`, as a service's configuration
+    document states it. A reader makes nothing in its index, so it is told
+    no width. A reader in memory is an index of its own, held in the
+    process, that nothing has written to: it answers every search with
+    nothing.
+    """
+    match config:
+        case QdrantVectorsConfig():
+            return QdrantVectorReader(host=config.host, port=config.port)
         case MemoryVectorsConfig():
             return MemoryVectorStore()
         case _:

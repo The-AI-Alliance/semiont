@@ -66,8 +66,8 @@ func TestAGeneratedConfigDeclaresTheGateway(t *testing.T) {
 }
 
 func TestLoadConfigRefusesAnEnvironmentSite(t *testing.T) {
-	// In every environment, selected or not: the whole file is staged into each
-	// service, and the services' loader refuses the section wherever it is.
+	// In every environment, selected or not: a knowledge base declares [site]
+	// once, and the launcher refuses the section wherever else it is.
 	path := filepath.Join(t.TempDir(), "sited.toml")
 	body := "[defaults]\nenvironment = \"local\"\n\n[environments.local.gateway]\nport = 4000\n\n" +
 		"[environments.prod.site]\nsiteName = \"Prod\"\n"

@@ -1,0 +1,132 @@
+{
+  "type": "object",
+  "description": "Everything a Librarian reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the Librarian. Whoever starts a Librarian writes it, from the environment the knowledge base's config selects, and the Librarian reads it from the path its `--config` flag names. This schema is the contract, and a Librarian needs no launcher. Started without `--config`, or with a path that names no file, the Librarian refuses to start and says which. No secret is a value here: the graph database's password, an embedding provider's key and a model provider's key are each named by the environment variable that holds it, and the Librarian's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` in its environment. A document that does not validate is refused at boot, naming each failing field.",
+  "properties": {
+    "gatewayUrl": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The URL the Librarian reaches the gateway at: its route to the bus."
+    },
+    "identity": {
+      "type": "object",
+      "description": "The issuer the Librarian's service account signs in at.",
+      "properties": {
+        "issuer": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The issuer URL, exactly as tokens carry it in `iss`."
+        }
+      },
+      "required": [
+        "issuer"
+      ],
+      "additionalProperties": false
+    },
+    "archivist": {
+      "type": "object",
+      "description": "Where the Archivist listens. The Librarian reads a resource's bytes from it, as its service account.",
+      "properties": {
+        "host": {
+          "type": "string",
+          "minLength": 1
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        }
+      },
+      "required": [
+        "host",
+        "port"
+      ],
+      "additionalProperties": false
+    },
+    "stateHome": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The state volume. The Archivist keeps the knowledge base's views and projections under `semiont/<name>` in it, where the name is the knowledge base's, and the Librarian reads them there."
+    },
+    "kbName": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The knowledge base's name, as its committed `.semiont/config` states it: the Archivist writes the views under `semiont/<kbName>` in the state volume."
+    },
+    "graph": {
+      "$ref": "./GraphConfig.json"
+    },
+    "vectors": {
+      "$ref": "./VectorsConfig.json"
+    },
+    "embedding": {
+      "$ref": "./EmbeddingConfig.json"
+    },
+    "matcher": {
+      "$ref": "./LibrarianModelConfig.json"
+    },
+    "gatherer": {
+      "$ref": "./LibrarianModelConfig.json"
+    },
+    "gather": {
+      "type": "object",
+      "description": "The bound on a gather.",
+      "properties": {
+        "settleTimeoutMs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "How long a gather around a resource waits for the Smelter's decision on it before answering without similar passages, in milliseconds."
+        }
+      },
+      "required": [
+        "settleTimeoutMs"
+      ],
+      "additionalProperties": false
+    },
+    "search": {
+      "type": "object",
+      "description": "The bound on a search by meaning.",
+      "properties": {
+        "semanticFloor": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "The least similarity a hit by meaning must have."
+        }
+      },
+      "required": [
+        "semanticFloor"
+      ],
+      "additionalProperties": false
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535,
+      "description": "The port the Librarian answers `/health` on."
+    },
+    "logLevel": {
+      "$ref": "./LogLevel.json"
+    },
+    "logFormat": {
+      "$ref": "./LogFormat.json"
+    }
+  },
+  "required": [
+    "gatewayUrl",
+    "identity",
+    "archivist",
+    "stateHome",
+    "kbName",
+    "graph",
+    "vectors",
+    "embedding",
+    "matcher",
+    "gatherer",
+    "gather",
+    "search",
+    "port",
+    "logLevel",
+    "logFormat"
+  ],
+  "additionalProperties": false
+}

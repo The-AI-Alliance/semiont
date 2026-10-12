@@ -1,7 +1,7 @@
 #!/bin/sh
 # check-python-image.sh <service> <image> [runtime] — what the image of a
-# Python service promises (the worker's, the weaver's, the smelter's), checked
-# against a built image:
+# Python service promises (the worker's, the weaver's, the smelter's, the
+# librarian's), checked against a built image:
 #
 #   1. No installer and no Node: as its user, nothing on its PATH installs a
 #      package (pip, uv) or runs JavaScript (node, npm), and its Python has
@@ -9,10 +9,12 @@
 #   2. Every library it can be configured for: every module of the Python
 #      packages the image builds from this repository imports there, each
 #      inference driver with the library its provider is asked through, and
-#      each graph store with the client its database is asked through. A
-#      service imports a driver or a store when its configuration names one,
-#      so an image missing a library starts all the same, and fails where
-#      that provider or that database is configured.
+#      each graph store with the client its database is asked through. The
+#      librarian's is built from both, and from the vector stores, which ask
+#      with what every install has. A service imports a driver or a store
+#      when its configuration names one, so an image missing a library starts
+#      all the same, and fails where that provider or that database is
+#      configured.
 #   3. Run as the image says, with no document mounted where its CMD tells it
 #      to read one, it refuses by name: exit 1, naming the document it cannot
 #      read.

@@ -17,8 +17,8 @@ import (
 )
 
 // placeholderRe: ${VAR} and ${VAR:-default}. The rule — a set variable wins
-// even when empty, else the default, else a refusal — is shared with the
-// TypeScript loader through specs/src/config-placeholders/cases.json.
+// even when empty, else the default, else a refusal — is stated in
+// specs/src/config-placeholders/cases.json.
 var placeholderRe = regexp.MustCompile(`\$\{([^}]+)\}`)
 
 func resolveRefs(field, value string, vars map[string]string) (string, error) {
@@ -74,8 +74,8 @@ func gatewayNamedVars(env *envConfig) []string {
 
 // gatewayVars: what a ${VAR} in the gateway's settings resolves against — the
 // addresses the launcher places (topologyVars), and the user's own variables.
-// GATEWAY_HOST is absent on purpose: the gateway is not handed it
-// (gatewayArgs), so a ${GATEWAY_HOST:-…} in its publicURL takes its default.
+// GATEWAY_HOST is absent on purpose: a ${GATEWAY_HOST:-…} in the gateway's
+// own publicURL takes its default.
 func gatewayVars(rt, addr string, issuerPort int, userEnv []string) map[string]string {
 	vars := topologyVars(rt, addr, issuerPort)
 	for name, value := range userEnvVars(userEnv) {
@@ -88,7 +88,7 @@ func gatewayVars(rt, addr string, issuerPort int, userEnv []string) map[string]s
 // that dials it states it — the address this start places it at, on its
 // descriptor's port. A hand-written archivist section wins: an operator
 // describing a topology the launcher cannot see. ONE decider, for the
-// gateway's document and the Smelter's.
+// gateway's document, the Smelter's and the Librarian's.
 func archivistAddress(env *envConfig, addr string, vars map[string]string) (host string, port int, err error) {
 	host, port = addr, semiontDescriptor("archivist").ports[0].port
 	if env.Archivist != nil && env.Archivist.Host != "" {

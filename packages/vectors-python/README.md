@@ -4,12 +4,12 @@ The vector index [Semiont][semiont]'s Python services write and search, and
 the embedding providers that make its vectors, each behind one interface.
 
 It is for whoever writes a Semiont service in Python that keeps the index or
-searches it: the Smelter first. A program that only reads and writes a
+searches it: the Smelter writes it, and the Librarian searches it. A program that only reads and writes a
 knowledge base needs the SDK, [`semiont`][sdk-python], and not this package.
 
 It runs on asyncio and requires Python 3.12 or later. It is checked by
 `mypy --strict` and by `pyright` in strict mode, and ships its types
-(`py.typed`). It is the Python counterpart of [`@semiont/vectors`][vectors-typescript].
+(`py.typed`).
 
 ## What an install has
 
@@ -66,25 +66,53 @@ async def connected() -> QdrantVectorStore:
     return store
 ```
 
+A service that only searches the index is handed a reader. A reader has the
+three searches and nothing that writes, and it makes nothing in its index:
+connecting one to a Qdrant makes no collection. It is told no width and
+needs no provider to be made. A search of a collection that nobody has made
+yet fails, and says the collection is not there.
+
+```python
+from semiont_vectors.qdrant import QdrantVectorReader
+from semiont_vectors.store import SearchOptions, VectorReader, VectorSearchResult
+
+
+async def reading() -> VectorReader:
+    reader = QdrantVectorReader(host="localhost", port=6333)
+    await reader.connect()
+    return reader
+
+
+async def nearest(reader: VectorReader, vector: list[float]) -> list[VectorSearchResult]:
+    return await reader.search_resources(vector, SearchOptions(limit=5))
+```
+
 ## What is where
 
 Every name is imported from the module that has it. The package's root
 exports nothing.
 
-- `semiont_vectors.store`: `VectorStore`, the protocol every store is, and
-  what its members take and answer.
+- `semiont_vectors.store`: `VectorReader`, the protocol every reader is
+  (`connect`, `disconnect`, `search_resources`, `search_annotations`,
+  `search_by_resource`); `VectorStore`, the protocol every store is, which
+  is a reader's members, the writes and the listings of what is indexed; and
+  what their members take and answer.
 - `semiont_vectors.payload`: what a point of the index is, and how a stamp
   and a search result are read from one.
 - `semiont_vectors.merge`: `merge_by_resource`, which folds the chunks a
   search found to one entry for each resource.
-- `semiont_vectors.memory`, `semiont_vectors.qdrant`: one store each.
+- `semiont_vectors.memory`: `MemoryVectorStore`, a store, and so a reader
+  too.
+- `semiont_vectors.qdrant`: `QdrantVectorStore`, which makes the collections
+  and their payload indexes when it connects, and `QdrantVectorReader`,
+  which makes nothing.
 - `semiont_vectors.embedding`: `EmbeddingProvider`, the protocol every
   provider is, and `EmbeddingProviderError`, the failure one raises.
 - `semiont_vectors.ollama`, `semiont_vectors.voyage`, `semiont_vectors.mock`:
   one provider each.
-- `semiont_vectors.factory`: `create_vector_store` and
-  `create_embedding_provider`, which make the store and the provider a
-  service's configuration document names
+- `semiont_vectors.factory`: `create_vector_store`, `create_vector_reader`
+  and `create_embedding_provider`, which make the store, the reader and the
+  provider a service's configuration document names
   ([`VectorsConfig`][vectors-config], [`EmbeddingConfig`][embedding-config]).
 
 ## What the index holds
@@ -126,7 +154,6 @@ fails, and is not skipped, without the variable.
 
 [semiont]: https://github.com/The-AI-Alliance/semiont
 [sdk-python]: https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk-python
-[vectors-typescript]: https://github.com/The-AI-Alliance/semiont/tree/main/packages/vectors
 [payload-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/vectors/payload-cases.json
 [store-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/vectors/store-cases.json
 [vectors-config]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/components/schemas/VectorsConfig.json

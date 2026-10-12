@@ -459,8 +459,8 @@ func Start(args []string) int {
 	// environment always wins; a registered secret source (semiont settings secret) is consulted
 	// only for vars the environment doesn't provide, with the reach
 	// announced BEFORE it happens. Dry-run reaches for nothing. An optional
-	// reference (${NAME:-default}) is forwarded only when something sets it;
-	// otherwise the default applies inside the container.
+	// reference (${NAME:-default}) takes a value only when something sets it;
+	// otherwise the launcher writes its default into the document.
 	var userEnv []string
 	secrets := loadRoots().Secrets
 	type userVar struct {
@@ -488,8 +488,7 @@ func Start(args []string) int {
 			continue
 		}
 		if uv.optional && exported {
-			// Set, even empty, wins over the default: the table's rule,
-			// carried across the container boundary.
+			// Set, even empty, wins over the default: the table's rule.
 			userEnv = append(userEnv, "--env", v+"="+envVal)
 			continue
 		}
@@ -670,7 +669,7 @@ func tracesArgs() []string {
 
 // kbMountTarget is where the KB clone lands inside the ARCHIVIST container —
 // the only container that mounts it: every other service reaches the KB's
-// bytes and identity through the Archivist or from staged config. The
+// bytes through the Archivist and its identity from its own document. The
 // Archivist's document names it as `root`. The value is HALF of an agreement:
 // the archivist image tells git to trust this directory, and nothing at
 // compile time makes the two match. TestTheArchivistImageTrustsTheKBMount is
@@ -682,10 +681,7 @@ const kbMountTarget = "/kb"
 // configured by one document the launcher writes resolved (gatewaydoc.go) —
 // the KB's committed identity, the addresses, the issuer — mounted at the
 // path its image passes to `--config`. Resolved means no ${VAR} is left for
-// it to expand, so it is handed no *_HOST variable: not even the GATEWAY_HOST
-// the Librarian, which loads the KB's config, gets (gatewayHostEnv), which
-// leaves a ${GATEWAY_HOST:-…} in its publicURL on its default (gatewayVars).
-// What is left is that document, the state mount its supervisor keeps its
+// it to expand, so it is handed no *_HOST variable. What is left is that document, the state mount its supervisor keeps its
 // events on, its secrets, and the user's variables (the document names its
 // broker credentials by variable).
 //
@@ -712,17 +708,6 @@ func gatewayArgs(stage, rt, addr, clientSecret, jwt, version string, port int, u
 		"--env", "JWT_SECRET="+jwt)
 	a = append(a, superviseEnv()...)
 	return append(a, image("gateway", version))
-}
-
-// gatewayHostEnv injects the gateway's address as GATEWAY_HOST, for the
-// Librarian, which loads a staged copy of the KB's config.
-//
-// A KB's TOML interpolates it into the gateway's publicURL as
-// `${GATEWAY_HOST:-localhost}`. Left on that default inside a container, the
-// Librarian would dial ITSELF: a wrong-but-plausible value that fails far
-// from its cause.
-func gatewayHostEnv(addr string) []string {
-	return []string{"--env", "GATEWAY_HOST=" + addr}
 }
 
 // superviseEnv is the per-run supervision opt-in: boot.sh wraps the image
@@ -763,26 +748,32 @@ func archivistArgs(kbRoot, stage, rt, addr string, clientSecret, version string,
 	return append(a, image("archivist", version))
 }
 
-// librarianArgs: the Librarian (Matcher — search and match) reads everything
-// and writes nothing durable, and its mounts say so: NO piece of the KB tree
-// (it locates the Archivist's views from the staged [kb] name, see
-// stagedServiceConfig), just the shared state tree (as a reader of what the
-// Archivist writes) and its staged config, which states the addresses the
-// launcher places as literals — the Archivist's among them (it reads bytes
-// from the record directly); the gateway's it resolves from GATEWAY_HOST
-// (gatewayHostEnv). NO JWT_SECRET, and nothing dials this service; it
-// dials the gateway for the bus and the Archivist for bytes.
+// librarianArgs: the Librarian answers search, match and gather. It reads
+// everything and writes nothing durable, and its mounts say so: no piece of
+// the knowledge base, just the shared state tree flowLibrarian passes as
+// state, as a reader of the views the Archivist writes there. The gateway is
+// its route to the bus, and the Archivist its route to a resource's bytes. It
+// reads a resolved configuration document (librariandoc.go) at the path its
+// image passes to `--config`, so it is handed no *_HOST variables, no path and
+// no copy of the KB's config: the document carries every address, the state
+// volume's directory and the knowledge base's name already, and names the
+// variables holding the graph database's password, the embedding provider's
+// key and each model provider's key (librarianNamedVars, and the launcher's
+// own for a Neo4j it runs), which arrive among the user's. It keeps the
+// issuer's host entry, because it signs in at the issuer by name. No
+// JWT_SECRET: it signs nothing. Nothing dials it.
 func librarianArgs(stage, rt, addr string, clientSecret, version string, userEnv, otel []string, state ...string) []string {
+	port := strconv.Itoa(semiontDescriptor("librarian").ports[0].port)
 	a := []string{"run", "-d", "--name", "semiont-librarian", // no --rm: see providedRunArgs
-		"--memory", semiontDescriptor("librarian").mem, "--publish", "24104:24104",
-		"--volume", stage + "/librarian.toml:/home/semiont/.semiontconfig:ro"}
+		"--memory", semiontDescriptor("librarian").mem, "--publish", port + ":" + port,
+		"--volume", stage + "/" + librarianDocumentFile + ":" + librarianDocumentTarget + ":ro"}
 	a = append(a, state...)
 	a = append(a, userEnv...)
 	a = append(a, otel...)
-	a = append(a, gatewayHostEnv(addr)...)
 	a = append(a, identityHostArgs(rt, addr)...)
 	a = append(a,
-		"--env", "XDG_STATE_HOME="+stateHomeTarget,
+		// This process's own credential at the realm. It buys the agent tokens
+		// of its matcher's and its gatherer's models from the gateway.
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("librarian"),
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
 	a = append(a, superviseEnv()...)

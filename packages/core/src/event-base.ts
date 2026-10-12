@@ -10,6 +10,7 @@
  */
 
 import type { components } from './types';
+import type { Annotation } from './annotation-types';
 import type { ResourceId, UserId } from './identifiers';
 import type { PersistedEvent } from './persisted-events';
 
@@ -113,24 +114,3 @@ export type BodyOperation =
   | components['schemas']['BodyOperationAdd']
   | components['schemas']['BodyOperationRemove']
   | components['schemas']['BodyOperationReplace'];
-
-// ── Query and view types ─────────────────────────────────────────────────────
-
-import type { Annotation } from './annotation-types';
-
-export interface EventQuery {
-  resourceId?: ResourceId;
-  userId?: string;
-  eventTypes?: string[];
-  fromTimestamp?: string;
-  toTimestamp?: string;
-  fromSequence?: number;
-  limit?: number;
-}
-
-export interface ResourceAnnotations {
-  resourceId: ResourceId;
-  annotations: Annotation[];
-  version: number;
-  updatedAt: string;
-}

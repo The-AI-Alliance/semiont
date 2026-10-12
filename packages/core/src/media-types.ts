@@ -23,7 +23,7 @@
  * derived reading, not a stored fact.
  *
  * Questions ANSWERABLE from those rows get a helper, never a row of their own —
- * `isAnnotatable` reads `anchoring`, and a second stored field would be a fact
+ * whether a type can carry annotations is read off `anchoring`, and a second stored field would be a fact
  * that can contradict the one it was derived from.
  *
  * Import-leniency invariant: restore/import preserves archive mediaTypes
@@ -182,11 +182,9 @@ const GEOMETRY_BY_STRATEGY: Record<TextSource, boolean> = {
  * and a consumer asking about a media type would have to resolve an
  * implementation to get an answer.
  *
- * Lenient like `textSourceOf`, not strict like `isAnnotatable`. An
- * unregistered `text/*` type decodes, and decoding yields no geometry — so
- * `false` here is a real answer rather than a refusal. Nothing downstream is a
- * durable write against a coordinate model, which is what makes `isAnnotatable`
- * strict.
+ * Lenient like `textSourceOf`. An unregistered `text/*` type decodes, and
+ * decoding yields no geometry — so `false` here is a real answer rather than
+ * a refusal.
  */
 export function yieldsGeometryOf(format: string): boolean {
   return GEOMETRY_BY_STRATEGY[textSourceOf(format)];
@@ -222,34 +220,11 @@ export function derivesTextOf(format: string): boolean {
   return DERIVED_TEXT_BY_STRATEGY[textSourceOf(format)];
 }
 
-/**
- * WHETHER a type can carry annotations — `anchoring` remains the authority on
- * HOW. Derived rather than stored: a parallel `annotatable` row field would be
- * two facts that can disagree, with nothing to adjudicate
- * `{ annotatable: true, anchoring: 'none' }`.
- *
- * Strict on a registry miss, where `textSourceOf` above is lenient. The
- * asymmetry is deliberate. Reading the wrong bytes costs one bad vector, and
- * refusing to read costs a resource nobody can find, so the text source
- * guesses; an annotation is a durable write against a coordinate model the
- * system does not have for an unknown type, so it refuses.
- */
-export function isAnnotatable(format: string): boolean {
-  const caps = capabilitiesOf(format);
-  return caps !== undefined && caps.anchoring !== 'none';
-}
-
 const REGISTRY_KEYS = Object.keys(MEDIA_TYPES) as SupportedMediaType[];
 
 /** Types offered in the compose editor's format dropdown. */
 export const AUTHORABLE_MEDIA_TYPES: readonly SupportedMediaType[] = REGISTRY_KEYS.filter(
   (type) => MEDIA_TYPES[type].authorable,
-);
-
-/** Registry rows whose text the Smelter can get at, by either route. Rows only —
- *  the text/* fallback in `textSourceOf` isn't enumerable. */
-export const EMBEDDABLE_MEDIA_TYPES: readonly SupportedMediaType[] = REGISTRY_KEYS.filter(
-  (type) => MEDIA_TYPES[type].textSource !== 'none',
 );
 
 /** Types the generation worker can produce as a yield artifact — what the

@@ -76,7 +76,6 @@ import type {
   StoredEvent,
   EventMetadata,
   BodyOperation,
-  ResourceAnnotations,
 } from '@semiont/core';
 import { PERSISTED_EVENT_TYPES } from '@semiont/core';
 
@@ -91,16 +90,15 @@ function handle(event: PersistedEvent) {
 
 ## EventBus
 
-The RxJS-based event bus shared by services and clients, with a typed channel protocol:
+The RxJS-based event bus, with a typed channel protocol:
 
 ```typescript
-import { EventBus, ScopedEventBus, serializePerKey } from '@semiont/core';
+import { EventBus, ScopedEventBus } from '@semiont/core';
 import type { EventMap, EventName } from '@semiont/core';
 ```
 
 - **`EventBus` / `ScopedEventBus`** — framework-agnostic pub/sub over the unified `EventMap`
 - **`CHANNEL_SCHEMAS`** — maps each channel to its OpenAPI payload schema
-- **`serializePerKey`** — per-key serialization for RPC-style callers
 - **`busLog` / `setBusLogTraceIdProvider`** — cross-wire bus observability
 
 ## Transport Contract
@@ -141,9 +139,6 @@ Re-anchor annotations after content edits — fuzzy text matching plus a render-
 ```typescript
 import {
   anchorAnnotation,
-  normalizeText,
-  buildContentCache,
-  findBestTextMatch,
   textOffsets,
 } from '@semiont/core';
 ```
@@ -200,61 +195,35 @@ didToAgent('did:web:example.com:agents:ollama:gemma2%3A27b');
 
 ## Error Classes
 
-In-process error types, sharing the `SemiontError` base with the transport-specific classes (`APIError` lives in `@semiont/http-transport`):
+`SemiontError` is the base of every Semiont error: `BusRequestError` here, `APIError` in `@semiont/http-transport`, `SemiontSessionError` in `@semiont/sdk`. Each carries a `code` and optional `details`:
 
 ```typescript
-import {
-  SemiontError,
-  ValidationError,
-  ScriptError,
-  NotFoundError,
-  UnauthorizedError,
-  ConflictError,
-} from '@semiont/core';
+import { SemiontError, BusRequestError } from '@semiont/core';
 
-throw new NotFoundError('Resource'); // "Resource not found"
+try {
+  await request();
+} catch (error) {
+  if (error instanceof BusRequestError && error.code === 'bus.timeout') retry();
+  else if (error instanceof SemiontError) report(error.code, error.details);
+}
 ```
 
 ## Type Guards & Validation
 
 ```typescript
-import { isString, isObject, isArray, isDefined, validateData, isValidEmail } from '@semiont/core';
+import { isString, isObject, isArray, isNumber, validateData, isValidEmail } from '@semiont/core';
 
-if (isDefined(value)) {
-  // TypeScript knows value is T, not T | null | undefined
+if (isObject(value) && isString(value.name)) {
+  // TypeScript knows value is a record, and value.name a string
 }
 ```
 
 ## Resource & Misc Utilities
 
 - **ResourceDescriptor accessors** — `getResourceId`, `getPrimaryRepresentation`, `getPrimaryMediaType`, `getResourceEntityTypes`, `isArchived`, `decodeRepresentation`, …
-- **Locales** — `LOCALES`, `getLocaleInfo`, `formatLocaleDisplay`, …
+- **Locales** — `LOCALES`, `LOCALE_CODES`, `formatLocaleDisplay`
 - **Media types** — `MEDIA_TYPES` capability registry keyed by the spec's `SupportedMediaType` enum (render / anchoring / text source / authorable per type), generated from `specs/src/media-types/registry.json`, with `capabilitiesOf`, `textSourceOf`, `yieldsGeometryOf`, `derivesTextOf`, `mediaTypeForExtension`, `baseMediaType`, …
 - **Text encoding** — `decodeWithCharset`
 - **Text context** — `extractContext`
 - **SVG** — `createRectangleSvg`, `parseSvgSelector`, `scaleSvgToNative`, …
-- **IDs** — `generateUuid`
-
-## Configuration
-
-Schema-generated configuration types plus loaders:
-
-```typescript
-import { loadTomlConfig, parseEnvironment, ConfigurationError } from '@semiont/core';
-import type { EnvironmentConfig, ServicesConfig } from '@semiont/core';
-```
-
-Loading from a filesystem is on the `@semiont/core/node` subpath, which a browser cannot import: `SemiontProject`, a knowledge base at a path, and `loadEnvironmentConfig`, which reads a person's `~/.semiontconfig` merged with the knowledge base's `.semiont/config`.
-
-## Internal Types
-
-Types not in the OpenAPI spec:
-
-```typescript
-import type {
-  ResourceFilter,
-  AnnotationCategory,
-  GraphConnection,
-  EntityTypeStats,
-} from '@semiont/core';
-```
+- **IDs** — `uuidV4`

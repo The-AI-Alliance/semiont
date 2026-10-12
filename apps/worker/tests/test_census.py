@@ -239,7 +239,9 @@ def test_one_module_reads_the_process_s_environment_and_the_variables_read_are_t
     # name is written: capitals, joined by underscores.
     shared = [path.read_text(encoding="utf-8") for path in sorted((SHARED / "src").rglob("*.py"))]
     assert shared, "packages/service-python has no source: the variables it reads for the service are not seen"
-    named = {found for source in (*sources.values(), *shared) for found in re.findall(r'"([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)"', source)}
+    # A module's `__all__` names what it exports, in quotes too: a constant's name there is no variable read.
+    texts = [re.sub(r"^__all__ = \[.*?\]$", "", source, flags=re.DOTALL | re.MULTILINE) for source in (*sources.values(), *shared)]
+    named = {found for text in texts for found in re.findall(r'"([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)"', text)}
     document = (ROOT / "docs/protocol/WORKER-SERVICE.md").read_text(encoding="utf-8")
     section = re.search(r"\n## Environment\n(.*?)\n## ", document, re.DOTALL)
     assert section is not None

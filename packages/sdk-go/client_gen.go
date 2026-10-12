@@ -3236,7 +3236,7 @@ type DiscoveredKB struct {
 // DiscoveredKBPlacement Where the stack actually runs. "local": containers on this machine. "codespace": a GitHub-hosted VM whose KB is port-forwarded here.
 type DiscoveredKBPlacement string
 
-// DiscoveryDocument The launcher's KB discovery document — the schema authority for <stateDir>/discovery/kbs.json, which the semiont launcher (Go, apps/launcher) regenerates on every stack mutation and the Browser container mounts read-only at /discovery. NOT an API endpoint: a static document fetched same-origin by browsers (via the Browser's static server) or read from disk by local Node consumers. An empty kbs list is meaningful ("the launcher manages nothing right now") and distinct from an absent file.
+// DiscoveryDocument The launcher's KB discovery document — the schema authority for <stateDir>/discovery/kbs.json, which the semiont launcher (Go, apps/launcher) regenerates on every stack mutation and the Browser container mounts read-only at /discovery. NOT an API endpoint: a static document fetched same-origin by browsers (via the Browser's static server). An empty kbs list is meaningful ("the launcher manages nothing right now") and distinct from an absent file.
 type DiscoveryDocument struct {
 	// Kbs Every KB the launcher currently manages, local and forwarded
 	Kbs []DiscoveredKB `json:"kbs"`
@@ -3676,7 +3676,7 @@ type GatherResourceFailedCode string
 type GatherResourceRequest struct {
 	// Options Gathering configuration
 	Options struct {
-		// Depth Depth of resource graph traversal
+		// Depth How many links out from the resource the knowledge graph reaches, nearest first: 1 is what the resource links to and what cites it, and each further link out adds what those link to and what cites them
 		Depth int `json:"depth"`
 
 		// ExcludeEntityTypes Entity types to exclude from the semantic recall built into this context (caller-supplied; e.g. a chat consumer passes ['Question'] so prior questions never ground answer generation). Optional; default none.
@@ -4821,21 +4821,96 @@ type KbDescription struct {
 // KnowledgeGraph Knowledge graph gathered for an LLM context — a shared backbone in which resources AND annotations are typed nodes, connected by typed (optionally bidirectional) edges. Flattened views the matcher/generation read (connections, citedBy, siblings) are derived from these nodes/edges.
 type KnowledgeGraph struct {
 	Edges []struct {
-		// Bidirectional Whether the connection goes both ways
+		// Bidirectional Whether the connection goes both ways. Absent on a `link` edge found through what cites a resource, which says nothing of the way back
 		Bidirectional *bool                   `json:"bidirectional,omitempty"`
 		Metadata      *map[string]interface{} `json:"metadata,omitempty"`
 		Source        string                  `json:"source"`
 		Target        string                  `json:"target"`
 
-		// Type Edge kind: `annotation-of` (an annotation → the resource it lives on), `cites` (a citing linking annotation → the focal resource), or a peer connection's own relationshipType (free-form; `link` when unnamed)
+		// Type Edge kind: `annotation-of` (an annotation → the resource it lives on), `cites` (a citing linking annotation → the focal resource), or `link` (a resource → a resource it links to)
 		Type string `json:"type"`
 	} `json:"edges"`
 	Nodes []KnowledgeGraph_Nodes_Item `json:"nodes"`
+
+	// Truncated Whether the graph stopped taking resources at its ceiling of 200 resource nodes, so that a resource within the depth asked for is not in it. Present, and true, only then
+	Truncated *bool `json:"truncated,omitempty"`
 }
 
 // KnowledgeGraph_Nodes_Item defines model for KnowledgeGraph.nodes.Item.
 type KnowledgeGraph_Nodes_Item struct {
 	union json.RawMessage
+}
+
+// LibrarianConfig Everything a Librarian reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the Librarian. Whoever starts a Librarian writes it, from the environment the knowledge base's config selects, and the Librarian reads it from the path its `--config` flag names. This schema is the contract, and a Librarian needs no launcher. Started without `--config`, or with a path that names no file, the Librarian refuses to start and says which. No secret is a value here: the graph database's password, an embedding provider's key and a model provider's key are each named by the environment variable that holds it, and the Librarian's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` in its environment. A document that does not validate is refused at boot, naming each failing field.
+type LibrarianConfig struct {
+	// Archivist Where the Archivist listens. The Librarian reads a resource's bytes from it, as its service account.
+	Archivist struct {
+		Host string `json:"host"`
+		Port int    `json:"port"`
+	} `json:"archivist"`
+
+	// Embedding The embedding provider a service asks for vectors, and what that kind of provider needs to be asked: one of the providers `semiont-vectors` has, told apart by `type`. Two services that share an index name the same provider and the same model: a vector is compared only with vectors of the model that made it. A secret is never a value here: a provider's key is named by the environment variable that holds it.
+	Embedding EmbeddingConfig `json:"embedding"`
+
+	// GatewayUrl The URL the Librarian reaches the gateway at: its route to the bus.
+	GatewayUrl string `json:"gatewayUrl"`
+
+	// Gather The bound on a gather.
+	Gather struct {
+		// SettleTimeoutMs How long a gather around a resource waits for the Smelter's decision on it before answering without similar passages, in milliseconds.
+		SettleTimeoutMs int `json:"settleTimeoutMs"`
+	} `json:"gather"`
+
+	// Gatherer One model a Librarian asks: who it is, and where its provider is reached.
+	Gatherer LibrarianModelConfig `json:"gatherer"`
+
+	// Graph The graph database a service writes or reads, and what that kind of database needs to be reached: one of the kinds `semiont-graph` has a store for, told apart by `type`. A secret is never a value here: a database's password is named by the environment variable that holds it.
+	Graph GraphConfig `json:"graph"`
+
+	// Identity The issuer the Librarian's service account signs in at.
+	Identity struct {
+		// Issuer The issuer URL, exactly as tokens carry it in `iss`.
+		Issuer string `json:"issuer"`
+	} `json:"identity"`
+
+	// KbName The knowledge base's name, as its committed `.semiont/config` states it: the Archivist writes the views under `semiont/<kbName>` in the state volume.
+	KbName string `json:"kbName"`
+
+	// LogFormat How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON.
+	LogFormat LogFormat `json:"logFormat"`
+
+	// LogLevel How much a service logs: the least severe level it writes, from error, the most severe, to debug.
+	LogLevel LogLevel `json:"logLevel"`
+
+	// Matcher One model a Librarian asks: who it is, and where its provider is reached.
+	Matcher LibrarianModelConfig `json:"matcher"`
+
+	// Port The port the Librarian answers `/health` on.
+	Port int `json:"port"`
+
+	// Search The bound on a search by meaning.
+	Search struct {
+		// SemanticFloor The least similarity a hit by meaning must have.
+		SemanticFloor float32 `json:"semanticFloor"`
+	} `json:"search"`
+
+	// StateHome The state volume. The Archivist keeps the knowledge base's views and projections under `semiont/<name>` in it, where the name is the knowledge base's, and the Librarian reads them there.
+	StateHome string `json:"stateHome"`
+
+	// Vectors The vector index a service writes or searches, and what that kind of index needs to be reached: one of the kinds `semiont-vectors` has a store for, told apart by `type`.
+	Vectors VectorsConfig `json:"vectors"`
+}
+
+// LibrarianModelConfig One model a Librarian asks: who it is, and where its provider is reached.
+type LibrarianModelConfig struct {
+	// Agent The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+	Agent ArchivistRosterRole `json:"agent"`
+
+	// ApiKeyEnv The environment variable holding the provider's API key, when the provider requires one.
+	ApiKeyEnv *string `json:"apiKeyEnv,omitempty"`
+
+	// BaseUrl The address the provider's API is reached at.
+	BaseUrl string `json:"baseUrl"`
 }
 
 // LimitRefusal defines model for LimitRefusal.

@@ -1,9 +1,9 @@
 """What every store does, whichever database it asks: the contract a `GraphDatabase` is held to.
 
 One set of cases, run against the in-memory store (`test_memory.py`) and
-against a real neo4j (`neo4j_live.py`). A case that passed on a fake and not
-on a database is how the TypeScript stores were found to disagree, so nothing
-here is run against a fake of a database's client.
+against a real neo4j (`neo4j_live.py`). A case can pass on a fake of a
+database's client and fail on the database, so nothing here is run against
+such a fake.
 """
 
 import itertools

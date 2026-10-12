@@ -1,4 +1,4 @@
-"""The Qdrant store: the index in a Qdrant, asked over Qdrant's HTTP API by requests this module makes itself.
+"""The Qdrant reader and the Qdrant store: the index in a Qdrant, asked over Qdrant's HTTP API by requests this module makes itself.
 
 No library of Qdrant's is used. Each call is one request, with a JSON body,
 to `http://{host}:{port}`. What holds this module's reading of the API is a
@@ -11,6 +11,13 @@ embedding provider's vectors: the width is asked for then and at no other
 time, so connecting to an index that is there asks no provider anything.
 What a point is (its id, its payload, how a stamp and a search result are
 read from one) is `semiont_vectors.payload`'s to say.
+
+The reader makes nothing: no collection, no index of a payload member, no
+point. It searches as the store does, by the same requests, and is told no
+width. A search of a collection that is not there fails, from the reader and
+from the store alike, and says the collection is not there: a store makes
+its collections when it connects, so a reader that finds none has an index
+nobody has started yet, which is no answer to a search.
 
 Every write waits. Qdrant answers a write once it has saved it, and applies
 it afterwards, unless the request says `wait=true`. Each write here says it,
@@ -43,7 +50,12 @@ generates from Qdrant's OpenAPI document.
   and does not say which one a collection that is not there gets. It is 404
   (`Not found: Collection ... doesn't exist!`): that is read from Qdrant's
   issues and not from its reference, and the tests hold it, since they make
-  both collections on a Qdrant that has neither.
+  both collections on a Qdrant that has neither. A scroll and a query of a
+  collection that is not there are taken to be answered the same way, with a
+  404: the reference does not say so either, and the tests hold it, since
+  they search a Qdrant that has neither collection.
+- `GET /collections` answers `{"collections": [...]}`, each a `name`. It
+  changes nothing.
 - `PUT /collections/{name}` with `{"vectors": {"size": ..., "distance": ...}}`
   makes a collection, and answers `true`. It takes a `timeout` and no
   `wait`.
@@ -87,6 +99,7 @@ generates from Qdrant's OpenAPI document.
   item of the list it is, is one of those listed.
 """
 
+from abc import abstractmethod
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Final, final, override
@@ -112,15 +125,17 @@ from semiont_vectors.payload import (
 )
 from semiont_vectors.store import (
     AnnotationPayload,
+    CollectionAbsent,
     EmbeddingChunk,
     ResourceStamp,
     SearchFilter,
     SearchOptions,
+    VectorReader,
     VectorSearchResult,
     VectorStore,
 )
 
-__all__ = ["QdrantVectorStore"]
+__all__ = ["QdrantVectorReader", "QdrantVectorStore"]
 
 type _Body = dict[str, JsonValue]
 """The JSON object a request carries."""
@@ -155,7 +170,7 @@ _TIMEOUT: Final = httpx.Timeout(300.0, connect=10.0)
 # Said with every write: Qdrant answers once the change is made, and not before.
 _WAIT: Final = {"wait": "true"}
 
-# The status Qdrant answers when asked what a collection is that it does not have.
+# The status Qdrant answers when asked what a collection is that it does not have, or asked to read one.
 _NOT_THERE: Final = 404
 
 # How many points each chunk of a resource asks for, for each resource its caller wants: see the module's documentation.
@@ -219,8 +234,16 @@ def _result(response: httpx.Response) -> JsonValue:
 
 
 async def _read(client: httpx.AsyncClient, path: str, body: _Body) -> JsonValue:
-    """What Qdrant answers a request that changes nothing: a count, a scroll, a query."""
-    return _result(await client.post(path, json=body))
+    """What Qdrant answers a request that changes nothing: a count, a scroll, a query.
+
+    Each is asked of one collection. Where Qdrant answers that the collection
+    is not there, the failure says so in words: no store has made it yet.
+    """
+    response = await client.post(path, json=body)
+    if response.status_code == _NOT_THERE:
+        answered = f"it answered {response.status_code} to POST {path}"
+        raise CollectionAbsent(f"Qdrant has no such collection ({answered}): no store has made it yet")
+    return _result(response)
 
 
 async def _write(client: httpx.AsyncClient, method: str, path: str, body: _Body) -> None:
@@ -324,37 +347,53 @@ async def _search(
     return [result_of(point.payload, point.score) for point in found.points]
 
 
+async def _search_alike(client: httpx.AsyncClient, resource_id: ResourceId, options: SearchOptions) -> list[VectorSearchResult]:
+    """The resources most like one, best first, by the vectors its own chunks have."""
+    own: _Body = {"limit": _VECTOR_PAGE, "filter": _points_of(resource_id), "with_payload": False, "with_vector": True}
+    vectors: list[list[float]] = []
+    async for page in _pages(client, _RESOURCES, own):
+        for point in page:
+            if point.vector is None:
+                raise RuntimeError(f"Qdrant answered a point of {resource_id} without the vector it was asked for")
+            vectors.append(point.vector)
+    if not vectors:
+        return []
+
+    # The resource itself is never answered, whatever the caller's filter says of it.
+    stated = SearchFilter() if options.filter is None else options.filter
+    conditions = _conditions(replace(stated, exclude_resource_id=resource_id))
+    # One search for each chunk, all in one request. A limit here counts points, and the caller's counts
+    # resources, so each asks for more than the caller's: see the module's documentation.
+    limit = options.limit
+    searches: list[JsonValue] = [_query(vector, limit * _OVER_FETCH, options, conditions) for vector in vectors]
+    answered = _BATCH.validate_python(await _read(client, _RESOURCES.at("/points/query/batch"), {"searches": searches}))
+    hits = [result_of(point.payload, point.score) for found in answered for point in found.points]
+    return merge_by_resource(hits)[:limit]
+
+
 def _stamps(limit: int) -> _Body:
     """A scroll's body that asks for what a stamp is read from, and for no vector."""
     members: list[JsonValue] = [*STAMP_MEMBERS]
     return {"limit": limit, "with_payload": members, "with_vector": False}
 
 
-@final
-class QdrantVectorStore(VectorStore):
-    """The index in the Qdrant at `host` and `port`. See the module's documentation.
+class _QdrantSearches(VectorReader):
+    """What the reader and the store share: the way to the Qdrant at `host` and `port`, and the three searches asked over it."""
 
-    `dimensions` answers how wide the embedding provider's vectors are. It
-    is asked only when a collection must be made.
-    """
-
-    def __init__(self, *, host: str, port: int, dimensions: Callable[[], Awaitable[int]]) -> None:
+    def __init__(self, *, host: str, port: int) -> None:
         self._origin: Final = f"http://{host}:{port}"
-        self._dimensions: Final = dimensions
         self._client: httpx.AsyncClient | None = None
+
+    @abstractmethod
+    async def _ready(self, client: httpx.AsyncClient) -> None:
+        """Ask the Qdrant what connecting asks of it. Raises where it cannot be reached."""
 
     @override
     async def connect(self) -> None:
         # The address a caller names is the address asked: no proxy of the environment stands between.
         client = httpx.AsyncClient(base_url=self._origin, timeout=_TIMEOUT, trust_env=False)
         try:
-            for collection in _COLLECTIONS:
-                await _made(client, collection, self._dimensions)
-            # Asked for at every connection: Qdrant takes an index it has already as no failure, and a collection
-            # made before one of these members was indexed gets its index here.
-            for collection in _COLLECTIONS:
-                for member, kind in collection.indexes.items():
-                    await _write(client, "PUT", collection.at("/index"), {"field_name": member, "field_schema": kind})
+            await self._ready(client)
         except BaseException:
             await client.aclose()
             raise
@@ -370,8 +409,65 @@ class QdrantVectorStore(VectorStore):
 
     def _reached(self) -> httpx.AsyncClient:
         if self._client is None:
-            raise RuntimeError("the Qdrant store is not connected: `connect` it")
+            raise RuntimeError("the Qdrant index is not connected: `connect` it")
         return self._client
+
+    @override
+    async def search_resources(self, embedding: Sequence[float], options: SearchOptions) -> list[VectorSearchResult]:
+        return await _search(self._reached(), _RESOURCES, embedding, options)
+
+    @override
+    async def search_annotations(self, embedding: Sequence[float], options: SearchOptions) -> list[VectorSearchResult]:
+        return await _search(self._reached(), _ANNOTATIONS, embedding, options)
+
+    @override
+    async def search_by_resource(self, resource_id: ResourceId, options: SearchOptions) -> list[VectorSearchResult]:
+        return await _search_alike(self._reached(), resource_id, options)
+
+
+@final
+class QdrantVectorReader(_QdrantSearches):
+    """The index in the Qdrant at `host` and `port`, as a service that only searches it asks it.
+
+    It makes nothing in the Qdrant: no collection, no index of a payload
+    member, no point. Connecting asks the Qdrant which collections it has,
+    which changes nothing, and raises where the Qdrant cannot be reached. A
+    reader is told no width, and asks no embedding provider anything.
+
+    A search of a collection that is not there answers no result. The
+    service that writes the index makes its collections, and until it has,
+    no point is near anything. Qdrant answers a scroll or a query of such a
+    collection with the status 404, and that status alone is read so: every
+    other failure of a search is raised.
+    """
+
+    @override
+    async def _ready(self, client: httpx.AsyncClient) -> None:
+        _result(await client.get("/collections"))
+
+
+@final
+class QdrantVectorStore(_QdrantSearches, VectorStore):
+    """The index in the Qdrant at `host` and `port`, as the service that writes it asks it. See the module's documentation.
+
+    Connecting makes each collection that is not there, and asks for each
+    index of a payload member. `dimensions` answers how wide the embedding
+    provider's vectors are. It is asked only when a collection must be made.
+    """
+
+    def __init__(self, *, host: str, port: int, dimensions: Callable[[], Awaitable[int]]) -> None:
+        super().__init__(host=host, port=port)
+        self._dimensions: Final = dimensions
+
+    @override
+    async def _ready(self, client: httpx.AsyncClient) -> None:
+        for collection in _COLLECTIONS:
+            await _made(client, collection, self._dimensions)
+        # Asked for at every connection: Qdrant takes an index it has already as no failure, and a collection
+        # made before one of these members was indexed gets its index here.
+        for collection in _COLLECTIONS:
+            for member, kind in collection.indexes.items():
+                await _write(client, "PUT", collection.at("/index"), {"field_name": member, "field_schema": kind})
 
     # ── Writes ─────────────────────────────────────────────────────────
 
@@ -421,40 +517,6 @@ class QdrantVectorStore(VectorStore):
     @override
     async def delete_annotation_vectors_for_resource(self, resource_id: ResourceId) -> None:
         await _write(self._reached(), "POST", _ANNOTATIONS.at("/points/delete"), {"filter": _points_of(resource_id)})
-
-    # ── Searches ───────────────────────────────────────────────────────
-
-    @override
-    async def search_resources(self, embedding: Sequence[float], options: SearchOptions) -> list[VectorSearchResult]:
-        return await _search(self._reached(), _RESOURCES, embedding, options)
-
-    @override
-    async def search_annotations(self, embedding: Sequence[float], options: SearchOptions) -> list[VectorSearchResult]:
-        return await _search(self._reached(), _ANNOTATIONS, embedding, options)
-
-    @override
-    async def search_by_resource(self, resource_id: ResourceId, options: SearchOptions) -> list[VectorSearchResult]:
-        client = self._reached()
-        own: _Body = {"limit": _VECTOR_PAGE, "filter": _points_of(resource_id), "with_payload": False, "with_vector": True}
-        vectors: list[list[float]] = []
-        async for page in _pages(client, _RESOURCES, own):
-            for point in page:
-                if point.vector is None:
-                    raise RuntimeError(f"Qdrant answered a point of {resource_id} without the vector it was asked for")
-                vectors.append(point.vector)
-        if not vectors:
-            return []
-
-        # The resource itself is never answered, whatever the caller's filter says of it.
-        stated = SearchFilter() if options.filter is None else options.filter
-        conditions = _conditions(replace(stated, exclude_resource_id=resource_id))
-        # One search for each chunk, all in one request. A limit here counts points, and the caller's counts
-        # resources, so each asks for more than the caller's: see the module's documentation.
-        limit = options.limit
-        searches: list[JsonValue] = [_query(vector, limit * _OVER_FETCH, options, conditions) for vector in vectors]
-        answered = _BATCH.validate_python(await _read(client, _RESOURCES.at("/points/query/batch"), {"searches": searches}))
-        hits = [result_of(point.payload, point.score) for found in answered for point in found.points]
-        return merge_by_resource(hits)[:limit]
 
     # ── What is indexed ────────────────────────────────────────────────
 

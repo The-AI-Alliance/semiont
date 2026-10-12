@@ -298,12 +298,8 @@ func mustRefuse(t *testing.T, path string, want ...string) {
 }
 
 // Semantic search is always available and nothing about it is defaulted, so
-// the gateway's TOML loader refuses a config naming no vector store and no
-// embedding provider. The launcher parses the same file with its own structs,
-// so it must refuse the same configs — otherwise `semiont start` launches
-// every container and the gateway then dies at boot on a config the launcher
-// already had in its hands. Same rule, same vocabulary, one round trip
-// earlier.
+// the launcher refuses a config naming no vector store or no embedding
+// provider, before it launches a container.
 func TestDerivePlanRefusesAConfigNamingNoVectorStore(t *testing.T) {
 	mustRefuse(t, variantConfig(t, map[string]string{"vectors": ""}),
 		"names no vector store", "[environments.local.vectors]", "nothing is defaulted")
@@ -314,8 +310,8 @@ func TestDerivePlanRefusesAConfigNamingNoEmbeddingProvider(t *testing.T) {
 		"names no embedding provider", "[environments.local.embedding]", "nothing is defaulted")
 }
 
-// A provider without a model is the same gap one level down — the loader
-// requires both, so the launcher does too.
+// A provider without a model is the same gap one level down: the launcher
+// requires both.
 func TestDerivePlanRefusesAnEmbeddingWithoutAModel(t *testing.T) {
 	mustRefuse(t, variantConfig(t, map[string]string{"embedding": `[environments.local.embedding]
 type = "ollama"
@@ -323,11 +319,10 @@ baseURL = "http://${OLLAMA_HOST}:11434"
 `}), "[environments.local.embedding]", `missing required key "model"`)
 }
 
-// `memory` is a first-class store to the GATEWAY and unusable in a
-// launcher-managed stack, which runs the gateway and the Smelter as separate
-// containers. Refusing it is right; refusing it as an "unknown driver" is
-// not — the operator would read the loader's own advice, follow it, and be
-// told the value does not exist.
+// `memory` is unusable in a launcher-managed stack, which runs the Smelter
+// and the Librarian as separate containers. Refusing it is right; refusing it
+// as an "unknown driver" is not: the operator would be told the value does
+// not exist.
 func TestDerivePlanExplainsWhyMemoryIsNotAvailableHere(t *testing.T) {
 	mustRefuse(t, variantConfig(t, map[string]string{"vectors": `[environments.local.vectors]
 type = "memory"

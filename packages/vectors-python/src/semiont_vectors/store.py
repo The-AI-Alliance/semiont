@@ -1,7 +1,9 @@
-"""What a vector index is asked and answers: the store every database's module is.
+"""What a vector index is asked and answers: the reader and the store every database's module is.
 
 The index is a projection of a knowledge base's record, kept for the searches
-only vectors answer. One service writes it, and others search it. It holds
+only vectors answer. One service writes it, and others search it: the one
+that writes is handed a `VectorStore`, and one that searches a
+`VectorReader`, which has the searches and nothing that writes. It holds
 points of two kinds: one for each chunk of a resource's text, and one for
 each annotation that quotes text. What a point is, and how a stamp and a
 search result are read from one, is `semiont_vectors.payload`'s to say, and
@@ -21,10 +23,12 @@ from semiont.identifiers import AnnotationId, ResourceId
 
 __all__ = [
     "AnnotationPayload",
+    "CollectionAbsent",
     "EmbeddingChunk",
     "ResourceStamp",
     "SearchFilter",
     "SearchOptions",
+    "VectorReader",
     "VectorSearchResult",
     "VectorStore",
 ]
@@ -125,16 +129,57 @@ class SearchOptions:
     filter: SearchFilter | None = None
 
 
-class VectorStore(Protocol):
-    """A vector index, as a service asks it. Every store has these members and no others."""
+@final
+class CollectionAbsent(Exception):
+    """An index was asked to search a collection it does not have: no store has made it yet.
+
+    It is no empty answer. An index nobody has started holds nothing to
+    search, and whoever asked is told so.
+    """
+
+
+class VectorReader(Protocol):
+    """A vector index, as a service that only searches it asks it. Every reader has these members and no others.
+
+    A reader writes nothing to its index, and makes nothing in it.
+    """
 
     async def connect(self) -> None:
-        """Reach the index, and make ready what the store needs of it. Raises where it cannot be reached."""
+        """Reach the index. Raises where it cannot be reached.
+
+        A reader makes nothing there. A store makes ready what it needs of
+        the index, which is its own module's to say.
+        """
         ...
 
     async def disconnect(self) -> None:
-        """Let go of whatever `connect` took. A store that was never connected has nothing to let go of."""
+        """Let go of whatever `connect` took. One that was never connected has nothing to let go of."""
         ...
+
+    async def search_resources(self, embedding: Sequence[float], options: SearchOptions) -> list[VectorSearchResult]:
+        """The chunks nearest `embedding`, best first: one result for each chunk, so a resource may be answered more than once."""
+        ...
+
+    async def search_annotations(self, embedding: Sequence[float], options: SearchOptions) -> list[VectorSearchResult]:
+        """The annotations whose quoted text is nearest `embedding`, best first."""
+        ...
+
+    async def search_by_resource(self, resource_id: ResourceId, options: SearchOptions) -> list[VectorSearchResult]:
+        """The resources most like this one, best first, by the vectors its own chunks have: nothing is embedded.
+
+        One result for each resource, with the score and the text of the
+        chunk of it that scored best against any chunk of this one
+        (`semiont_vectors.merge`). This resource itself is never answered.
+        Nothing is answered for a resource with no points.
+        """
+        ...
+
+
+class VectorStore(VectorReader, Protocol):
+    """A vector index, as the service that writes it asks it: a reader's members, the writes, and what is indexed.
+
+    Every store has these members and no others.
+    """
 
     # ── Writes ─────────────────────────────────────────────────────────
 
@@ -176,26 +221,6 @@ class VectorStore(Protocol):
 
     async def delete_annotation_vectors_for_resource(self, resource_id: ResourceId) -> None:
         """Take the point of every annotation on a resource. The resource's own points stay."""
-        ...
-
-    # ── Searches ───────────────────────────────────────────────────────
-
-    async def search_resources(self, embedding: Sequence[float], options: SearchOptions) -> list[VectorSearchResult]:
-        """The chunks nearest `embedding`, best first: one result for each chunk, so a resource may be answered more than once."""
-        ...
-
-    async def search_annotations(self, embedding: Sequence[float], options: SearchOptions) -> list[VectorSearchResult]:
-        """The annotations whose quoted text is nearest `embedding`, best first."""
-        ...
-
-    async def search_by_resource(self, resource_id: ResourceId, options: SearchOptions) -> list[VectorSearchResult]:
-        """The resources most like this one, best first, by the vectors its own chunks have: nothing is embedded.
-
-        One result for each resource, with the score and the text of the
-        chunk of it that scored best against any chunk of this one
-        (`semiont_vectors.merge`). This resource itself is never answered.
-        Nothing is answered for a resource with no points.
-        """
         ...
 
     # ── What is indexed ────────────────────────────────────────────────

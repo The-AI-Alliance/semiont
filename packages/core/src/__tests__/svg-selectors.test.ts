@@ -3,7 +3,7 @@
  */
 
 import { describe, test, expect } from 'vitest';
-import { extractBoundingBox, getSvgSelector } from '../web-annotation-utils';
+import { getSvgSelector } from '../web-annotation-utils';
 import type { SvgSelector, TextPositionSelector } from '../web-annotation-utils';
 
 describe('SVG Selector Utilities', () => {
@@ -47,50 +47,6 @@ describe('SVG Selector Utilities', () => {
 
     test('should return null for undefined selector', () => {
       expect(getSvgSelector(undefined)).toBeNull();
-    });
-  });
-
-  describe('extractBoundingBox', () => {
-    test('should extract bounding box from viewBox attribute', () => {
-      const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600"><rect x="10" y="20" width="100" height="50"/></svg>';
-      const bbox = extractBoundingBox(svg);
-      expect(bbox).toEqual({ x: 0, y: 0, width: 800, height: 600 });
-    });
-
-    test('should extract bounding box from viewBox with non-zero origin', () => {
-      const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="10 20 800 600"><rect x="10" y="20" width="100" height="50"/></svg>';
-      const bbox = extractBoundingBox(svg);
-      expect(bbox).toEqual({ x: 10, y: 20, width: 800, height: 600 });
-    });
-
-    test('should extract bounding box from width/height attributes', () => {
-      const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><rect x="10" y="20" width="100" height="50"/></svg>';
-      const bbox = extractBoundingBox(svg);
-      expect(bbox).toEqual({ x: 0, y: 0, width: 800, height: 600 });
-    });
-
-    test('should prefer viewBox over width/height', () => {
-      const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 800" width="800" height="600"><rect x="10" y="20" width="100" height="50"/></svg>';
-      const bbox = extractBoundingBox(svg);
-      expect(bbox).toEqual({ x: 0, y: 0, width: 1000, height: 800 });
-    });
-
-    test('should return null if no viewBox or width/height', () => {
-      const svg = '<svg xmlns="http://www.w3.org/2000/svg"><rect x="10" y="20" width="100" height="50"/></svg>';
-      const bbox = extractBoundingBox(svg);
-      expect(bbox).toBeNull();
-    });
-
-    test('should return null for malformed viewBox', () => {
-      const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="invalid"><rect x="10" y="20" width="100" height="50"/></svg>';
-      const bbox = extractBoundingBox(svg);
-      expect(bbox).toBeNull();
-    });
-
-    test('should return null for non-numeric width/height', () => {
-      const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="auto"><rect x="10" y="20" width="100" height="50"/></svg>';
-      const bbox = extractBoundingBox(svg);
-      expect(bbox).toBeNull();
     });
   });
 });

@@ -40,20 +40,15 @@ echo "🎛️  Checking toolbar-pref storage stays in useToolbarPrefs()..."
 bash "$COMPLIANCE_DIR/audit-toolbar-pref-storage.sh"
 echo ""
 
-# Boot contract: env/config demands covered by image + launcher; tests export no dead SEMIONT_* vars
-echo "🐳 Checking boot contract (B1-B3), path environment (P1-P3), test-env hygiene (H1) and vi.mock targets..."
-bash "$COMPLIANCE_DIR/audit-boot-contract.sh"
+# No path has a fallback; tests export no dead SEMIONT_* vars
+echo "🐳 Checking path environment (P1-P3), test-env hygiene (H1) and vi.mock targets..."
 bash "$COMPLIANCE_DIR/audit-path-env.sh"
 bash "$COMPLIANCE_DIR/audit-test-env-hygiene.sh"
 bash "$COMPLIANCE_DIR/audit-mock-targets.sh"
 bash "$COMPLIANCE_DIR/audit-supervision.sh"
 echo ""
 
-# One annotation codec for all four graph stores (codec axioms A1/A5)
-echo "🗺️  Checking the graph annotation codec (single envelope, no manufactured values) and the graph interface (every member called, and no store that writes)..."
-bash "$COMPLIANCE_DIR/audit-graph-annotation-codec.sh"
-bash "$COMPLIANCE_DIR/audit-graph-interface-callers.sh"
-bash "$COMPLIANCE_DIR/audit-graph-reader-writes-nothing.sh"
+echo "📐 Checking the spec validator..."
 bash "$COMPLIANCE_DIR/audit-spec-validator.sh"
 echo ""
 

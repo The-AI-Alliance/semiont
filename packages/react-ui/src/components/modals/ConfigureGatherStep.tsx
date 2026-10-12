@@ -65,7 +65,7 @@ export function ConfigureGatherStep({ onGather, translations: t, children }: Con
             id="gather-depth"
             type="number"
             min="1"
-            max="5"
+            max="3"
             value={depth}
             onChange={(e) => setDepth(parseInt(e.target.value))}
             className="semiont-input"

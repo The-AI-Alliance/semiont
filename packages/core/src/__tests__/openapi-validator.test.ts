@@ -2,8 +2,7 @@
  * Spec validators, generated from the OpenAPI bundle.
  *
  * There is exactly one ajv-over-the-spec validator in the repo, in core where
- * every package can reach it: make-meaning's test that a gathered context
- * validates against the spec needs it, and a second setup would hand-restate
+ * every package can reach it: a second setup would hand-restate
  * its semantics (3.0 `nullable` → draft-07, the `example`/`discriminator`
  * allowlist, `coerceTypes`, formats) — a drift in any of them yields a teeth
  * test that cannot bite.

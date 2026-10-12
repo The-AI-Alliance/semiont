@@ -184,19 +184,19 @@ func (u *UI) Stamp(event string) {
 }
 
 // injectedCredentials: the launcher-injected variables (config.go's
-// injectedVars) whose values are credentials. Every other injected value is a
-// host, a port or a client id — seeing WHICH client a service presented is the
-// first thing anyone diagnosing an authentication failure wants. A census
+// injectedVars) whose values are credentials. The other injected value is a
+// client id — seeing WHICH client a service presented is the first thing
+// anyone diagnosing an authentication failure wants. A census
 // (TestInjectedCredentialsAreClassified) makes a credential-looking injected
 // name fail until it is classified here.
 var injectedCredentials = map[string]bool{"SEMIONT_OIDC_CLIENT_SECRET": true}
 
 // publicEnv: launcher-set variables whose values are not secrets — paths,
-// switches, database and user names — beyond the injected hosts and ports.
+// switches, database and user names — beyond the injected client id.
 // Listing one keeps its value on the command line, where a golden pins it and
 // an echoed command shows it; leaving one out only hides its value.
 var publicEnv = map[string]bool{
-	"OTEL_EXPORTER_OTLP_ENDPOINT": true, "SEMIONT_SUPERVISE": true, "XDG_STATE_HOME": true,
+	"OTEL_EXPORTER_OTLP_ENDPOINT": true, "SEMIONT_SUPERVISE": true,
 	"PGDATA": true, "POSTGRES_DB": true, "POSTGRES_USER": true,
 	"KC_DB": true, "KC_DB_URL": true, "KC_DB_USERNAME": true, "KC_BOOTSTRAP_ADMIN_USERNAME": true,
 	"NEO4J_ACCEPT_LICENSE_AGREEMENT": true,

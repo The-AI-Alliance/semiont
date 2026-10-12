@@ -10,13 +10,6 @@ export interface Point {
   y: number;
 }
 
-export interface BoundingBox {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
 /**
  * Create W3C-compliant SVG rectangle selector
  */
@@ -104,22 +97,6 @@ export function parseSvgSelector(svg: string): {
   }
 
   return null;
-}
-
-/**
- * Normalize coordinates from display space to image native resolution
- */
-export function normalizeCoordinates(
-  point: Point,
-  displayWidth: number,
-  displayHeight: number,
-  imageWidth: number,
-  imageHeight: number
-): Point {
-  return {
-    x: (point.x / displayWidth) * imageWidth,
-    y: (point.y / displayHeight) * imageHeight
-  };
 }
 
 /**

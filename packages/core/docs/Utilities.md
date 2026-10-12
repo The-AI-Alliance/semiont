@@ -10,7 +10,7 @@ What text a resource's bytes are. The rule is protocol: [the text of a resource]
 
 ### Decode with Charset
 
-A text's bytes as the text they are. This is the one place TypeScript makes a text of bytes: [`decodeRepresentation`](#decode-resource-content) reads with it, and so the SDK's `browse.resourceContent` and the Node services do, and the Browser calls it itself. It reads whatever bytes it is handed: which media types have bytes that are a text is `decodeRepresentation`'s to say.
+A text's bytes as the text they are. This is the one place TypeScript makes a text of bytes: [`decodeRepresentation`](#decode-resource-content) reads with it, and so the SDK's `browse.resourceContent` does, and the Browser calls it itself. It reads whatever bytes it is handed: which media types have bytes that are a text is `decodeRepresentation`'s to say.
 
 ```typescript
 import { decodeWithCharset } from '@semiont/core';
@@ -282,25 +282,6 @@ console.log(parsed);
 // Output: { type: 'rect', data: { x: 10, y: 20, width: 90, height: 60 } }
 ```
 
-### Normalize Coordinates
-
-Convert coordinates from display space to image native resolution:
-
-```typescript
-import { normalizeCoordinates } from '@semiont/core';
-
-// User clicked at (100, 200) on a 800x600 display
-// But the actual image is 3200x2400 pixels
-const nativePoint = normalizeCoordinates(
-  { x: 100, y: 200 },  // Display coordinates
-  800, 600,            // Display dimensions
-  3200, 2400           // Native image dimensions
-);
-
-console.log(nativePoint);
-// Output: { x: 400, y: 800 }
-```
-
 ### Scale SVG to Native Resolution
 
 Scale entire SVG selector from display dimensions to image native resolution:
@@ -339,8 +320,6 @@ import {
   getPrimaryMediaType,
   getLanguage,
   getStorageUri,
-  getCreator,
-  getDerivedFrom,
   isArchived,
   getResourceEntityTypes,
   isDraft,
@@ -362,10 +341,6 @@ console.log(rep?.checksum); // "sha256:..."
 const mediaType = getPrimaryMediaType(resource);
 const language = getLanguage(resource);
 const storageUri = getStorageUri(resource);
-
-// Get provenance
-const creator = getCreator(resource); // Agent who created it
-const derivedFrom = getDerivedFrom(resource); // Source resource id
 
 // Get application-specific fields
 const archived = isArchived(resource);

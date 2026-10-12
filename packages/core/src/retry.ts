@@ -10,25 +10,22 @@
  * **What lives HERE — the mechanism, because it is one fact each:**
  *   - `RetryPolicy` / `retryWithBackoff` — the loop, deadline-aware
  *   - `equalJitter` — the backoff curve, shared with the SSE reconnect
- *   - `retryBudgetMs` — how long a policy can take, derived rather than restated
  *   - the predicates that narrow an error type CORE owns (`isTransientFetchError`
  *     over `fetch`'s `TypeError`, `isRetryableRequestError` over `HttpStatusError`)
  *
  * **What deliberately does NOT — the judgment, because each is local knowledge:**
- *   - **policies.** `EMIT_RETRY` (http-transport), `EMBEDDING_PROVIDER_RETRY`
- *     (vectors). A policy answers *how long does THIS wait*, and a centralized
- *     one gets borrowed: an embedding path waiting out a model download on
- *     `STARTUP_FETCH_RETRY` — sized for "until a peer starts listening" — sees
- *     its ceiling expire just before the thing it is waiting for arrives.
- *     Two facts that happen to be measured in seconds are still two facts.
- *   - **deadlines.** `EMIT_TIMEOUT_MS`, `EMBED_ROUND_TRIP_TIMEOUT_MS`,
- *     `STARTUP_CONNECT_TIMEOUT_MS`, each with the call it bounds.
- *   - **predicates over another package's errors.** `isColdModelError` is
- *     `@semiont/vectors`'; core has no business knowing an Ollama 404 means
- *     "not pulled yet".
+ *   - **policies.** `EMIT_RETRY` (http-transport). A policy answers *how long
+ *     does THIS wait*, and a centralized one gets borrowed: a path waiting out
+ *     a model download on `STARTUP_FETCH_RETRY` — sized for "until a peer
+ *     starts listening" — sees its ceiling expire just before the thing it is
+ *     waiting for arrives. Two facts that happen to be measured in seconds are
+ *     still two facts.
+ *   - **deadlines.** Each sits with the call it bounds.
+ *   - **predicates over another package's errors.** Core has no business
+ *     knowing that a provider's 404 means "not pulled yet".
  *
- * `STARTUP_FETCH_RETRY` is the one policy here, and only because five boot paths
- * genuinely share the one question it answers.
+ * `STARTUP_FETCH_RETRY` is the one policy here, and only because every boot
+ * path asks the one question it answers.
  *
  * **Deadlines beat budgets.** `retryWithBackoff` takes an optional `AbortSignal`
  * so a caller racing its own timeout can stop the retry, instead of the two
@@ -83,37 +80,9 @@ export interface RetryAttemptInfo {
 }
 
 /**
- * The worst-case wall clock a policy can spend.
- *
- * Derived, because the alternative is restating it by hand — a docstring
- * saying "~39s", a test recomputing the sum, a reader doing arithmetic to
- * decide whether some other deadline could cut it short. Any of those can drift
- * from the policy the moment someone edits it, and the drift is silent.
- *
- * `perAttemptMs` is the caller's per-attempt deadline. **Pass it, or the answer
- * is a lower bound rather than a ceiling**: delays are bounded by the policy, but
- * an unbounded attempt makes the total unbounded too, which is how a budget of
- * "12 attempts" ends up meaning nothing under packet loss. `0` (the default)
- * answers the delay sum alone, for a caller whose attempts cannot hang.
- *
- * Worst case, not expected: equal jitter puts each wait in [cap/2, cap), so the
- * true wait averages ~75% of this. A ceiling is what a deadline needs to clear.
- */
-export function retryBudgetMs(policy: RetryPolicy, perAttemptMs = 0): number {
-  let cap = policy.initialDelayMs;
-  let total = perAttemptMs;
-  for (let i = 1; i < policy.attempts; i++) {
-    total += cap + perAttemptMs;
-    cap = Math.min(cap * 2, policy.maxDelayMs);
-  }
-  return total;
-}
-
-/**
  * Default policy for startup connections to the gateway: 8 attempts with delay
- * ceilings 1s, 2s, 4s, then capped at 8s. `retryBudgetMs` is the authority on
- * how long that is; the equal-jittered backoff means the expected wait is ~75%
- * of the ceiling it reports.
+ * ceilings 1s, 2s, 4s, then capped at 8s. The equal-jittered backoff means
+ * the expected wait is ~75% of the sum of those ceilings.
  */
 export const STARTUP_FETCH_RETRY: RetryPolicy = {
   attempts: 8,
@@ -191,49 +160,6 @@ export function isRetryableRequestError(error: unknown): boolean {
   if ((error as { name?: unknown }).name === 'TimeoutError') return true;
   const status = (error as { status?: unknown }).status;
   return typeof status === 'number' && RETRY_RULES.boot.retryable({ status });
-}
-
-/**
- * Race `work` against a deadline, handing it the deadline as a signal.
- *
- * The other half of what this module owns: `retryWithBackoff` consumes an
- * `AbortSignal`, this produces one. A race alone can only ABANDON slow work —
- * work that retries never learns the deadline exists, and the two end up kept
- * compatible by hand.
- *
- * ONE timer drives both the abort and the rejection. `AbortSignal.timeout()`
- * schedules its own, so the signal and the race could fire at different moments,
- * which is the problem this exists to remove.
- *
- * `hint` is the caller's operational context, appended to the message — core
- * cannot know whether a restart policy is watching.
- */
-export async function withDeadline<T>(
-  what: string,
-  timeoutMs: number,
-  work: (signal: AbortSignal) => Promise<T>,
-  hint?: string,
-): Promise<T> {
-  const controller = new AbortController();
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      work(controller.signal),
-      new Promise<never>((_resolve, reject) => {
-        timer = setTimeout(() => {
-          const expired = new Error(
-            `${what} did not become available within ${timeoutMs / 1000}s.${hint ? ` ${hint}` : ''}`,
-          );
-          // Abort BEFORE rejecting, so retrying work stops rather than being left
-          // running behind a settled race.
-          controller.abort(expired);
-          reject(expired);
-        }, timeoutMs);
-      }),
-    ]);
-  } finally {
-    if (timer !== undefined) clearTimeout(timer);
-  }
 }
 
 /**

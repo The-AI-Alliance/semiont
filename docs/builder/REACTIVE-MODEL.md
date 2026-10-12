@@ -303,7 +303,7 @@ await client.transport.emit('beckon:hover', { annotationId: null });
 
 The lowest-level path. Reach for it when:
 
-- You're building a worker or actor that handles channels directly (Stower, Gatherer, etc. inside `@semiont/make-meaning` use this pattern — they *are* the handlers; namespaces wrap callers, not handlers).
+- You're building a worker or actor that handles channels directly (it *is* the handler; namespaces wrap callers, not handlers).
 - You need RxJS operator composition on a channel stream (`.pipe(filter(...), map(...), shareReplay())`).
 - The client's own bus holds no scope for its readers: `client.bus.on('mark:added')` hears a resource's events only while something else holds that resource's scope.
 - A new operation isn't yet wrapped by a namespace method, and you're prototyping.

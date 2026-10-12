@@ -23,10 +23,10 @@ To run tools directly on your machine instead, the versions are:
 
 The repository holds code in four languages, and none of them depends on another. What they agree on is in `specs/`, and each generates its types from it.
 
-- **npm workspaces** (`apps/*`, `packages/*`, `tests/doc-snippets`): the TypeScript packages and the Browser.
-- **A Cargo workspace**: the gateway, the dispatcher, and the Rust SDK's crates.
+- **npm workspaces** (`apps/*`, `packages/*`, `tests/doc-snippets`): the TypeScript packages, which are the client side, and the Browser.
+- **A Cargo workspace**: the gateway, the dispatcher, the Archivist, and the Rust SDK's crates.
 - **Two Go modules**: the launcher (`apps/launcher`) and the Go SDK (`packages/sdk-go`).
-- **Eight Python projects**: the Python SDK (`packages/sdk-python`), the four packages the Python services are built on, and the Worker, the Weaver and the Smelter (`apps/worker`, `apps/weaver`, `apps/smelter`). Each has an environment of its own, which is `uv`'s.
+- **Nine Python projects**: the Python SDK (`packages/sdk-python`), the four packages the Python services are built on, and the Worker, the Weaver, the Smelter and the Librarian (`apps/worker`, `apps/weaver`, `apps/smelter`, `apps/librarian`). Each has an environment of its own, which is `uv`'s.
 
 [Package Architecture](../architecture/PACKAGE-ARCHITECTURE.md) draws both dependency graphs and says what each service image runs.
 
@@ -41,7 +41,7 @@ semiont/
 │   ├── gateway/            # Rust: verifies tokens, relays the bus, proxies content
 │   ├── dispatcher/         # Rust: owns the job queue
 │   ├── archivist/          # Rust: keeps the record — event log, content, views
-│   ├── librarian/          # The image of the one Node service; its code is in @semiont/make-meaning
+│   ├── librarian/          # Python: answers what needs the graph, the vector index or a model
 │   ├── worker/             # Python: claims jobs and runs them against a model
 │   ├── weaver/             # Python: keeps the graph in step with the record
 │   ├── smelter/            # Python: keeps the vector index in step with the record, and derives a PDF's text
@@ -49,14 +49,12 @@ semiont/
 │   ├── desktop/            # The Browser as a desktop app (Tauri)
 │   └── launcher/           # Go: the `semiont` command
 ├── packages/
-│   ├── core/               # Generated types, typed ids, the bus protocol, config loaders
+│   ├── core/               # Generated types, typed ids, the bus protocol
 │   ├── sdk/                # The TypeScript SDK
 │   ├── http-transport/     # The SDK's transport over a gateway
 │   ├── react-ui/           # React components and hooks
-│   ├── make-meaning/       # The Gatherer, the Matcher and the Librarian's entry point
-│   ├── event-sourcing/     # The event log and the views
-│   ├── content/            # A resource's bytes, read from the Archivist
-│   ├── graph/ vectors/ inference/ ontology/ observability/ mcp-server/
+│   ├── observability/      # Tracing and metrics for the TypeScript transport
+│   ├── mcp-server/         # A Model Context Protocol server over the SDK
 │   ├── sdk-rust/           # The Rust SDK (crate `semiont`), with
 │   ├── http-transport-rust/ telemetry-rust/ codegen-rust/
 │   ├── core-rust/ observability-rust/ http-service-rust/    # what the Rust services share

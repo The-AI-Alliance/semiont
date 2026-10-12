@@ -1,27 +1,8 @@
 /**
- * Graph types - Models for graph connections and relationships
+ * Graph types
  */
 
 import type { components } from './types';
-import type { Annotation } from './annotation-types';
 
 /** A resource's description, as the spec states it: its `@id` is the resource's `ResourceId`. */
 export type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
-
-/**
- * Represents a connection between resources through annotations
- */
-export interface GraphConnection {
-  targetResource: ResourceDescriptor;
-  annotations: Annotation[];
-  relationshipType?: string;
-  bidirectional: boolean;
-}
-
-/**
- * Statistics about entity types in the graph
- */
-export interface EntityTypeStats {
-  type: string;
-  count: number;
-}

@@ -35,11 +35,11 @@
           },
           "type": {
             "type": "string",
-            "description": "Edge kind: `annotation-of` (an annotation \u2192 the resource it lives on), `cites` (a citing linking annotation \u2192 the focal resource), or a peer connection's own relationshipType (free-form; `link` when unnamed)"
+            "description": "Edge kind: `annotation-of` (an annotation \u2192 the resource it lives on), `cites` (a citing linking annotation \u2192 the focal resource), or `link` (a resource → a resource it links to)"
           },
           "bidirectional": {
             "type": "boolean",
-            "description": "Whether the connection goes both ways"
+            "description": "Whether the connection goes both ways. Absent on a `link` edge found through what cites a resource, which says nothing of the way back"
           },
           "metadata": {
             "type": "object",
@@ -52,6 +52,10 @@
           "type"
         ]
       }
+    },
+    "truncated": {
+      "type": "boolean",
+      "description": "Whether the graph stopped taking resources at its ceiling of 200 resource nodes, so that a resource within the depth asked for is not in it. Present, and true, only then"
     }
   },
   "required": [

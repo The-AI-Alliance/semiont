@@ -18,6 +18,10 @@
     ],
     "smelter": [
       "bus"
+    ],
+    "librarian": [
+      "bus",
+      "content.get_anchored_text"
     ]
   },
   "spans": [
@@ -406,7 +410,8 @@
         "archivist",
         "worker",
         "weaver",
-        "smelter"
+        "smelter",
+        "librarian"
       ],
       "instrument": "gauge",
       "when": "export",
@@ -421,7 +426,8 @@
         "archivist",
         "worker",
         "weaver",
-        "smelter"
+        "smelter",
+        "librarian"
       ],
       "instrument": "gauge",
       "when": "export",
@@ -445,7 +451,8 @@
         "archivist",
         "worker",
         "weaver",
-        "smelter"
+        "smelter",
+        "librarian"
       ],
       "instrument": "gauge",
       "when": "export",
@@ -470,7 +477,8 @@
         "archivist",
         "worker",
         "weaver",
-        "smelter"
+        "smelter",
+        "librarian"
       ],
       "instrument": "gauge",
       "when": "supervised",
@@ -485,7 +493,8 @@
         "archivist",
         "worker",
         "weaver",
-        "smelter"
+        "smelter",
+        "librarian"
       ],
       "instrument": "counter",
       "when": "fatal",
@@ -645,11 +654,12 @@
     {
       "name": "semiont.inference.calls",
       "services": [
-        "worker"
+        "worker",
+        "librarian"
       ],
       "instrument": "counter",
       "when": "traffic",
-      "meaning": "The generations a worker asked of its providers, by how each ended.",
+      "meaning": "The generations a service asked of its providers, by how each ended.",
       "attributes": [
         {
           "key": "inference.provider",
@@ -673,7 +683,8 @@
     {
       "name": "semiont.inference.duration",
       "services": [
-        "worker"
+        "worker",
+        "librarian"
       ],
       "instrument": "histogram",
       "when": "traffic",
@@ -701,7 +712,8 @@
     {
       "name": "semiont.inference.tokens",
       "services": [
-        "worker"
+        "worker",
+        "librarian"
       ],
       "instrument": "counter",
       "when": "traffic",
@@ -923,6 +935,25 @@
             "context-recovered",
             "first-of-many",
             "fuzzy-match"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "semiont.gather.degraded",
+      "services": [
+        "librarian"
+      ],
+      "instrument": "counter",
+      "when": "traffic",
+      "meaning": "Gathers that went without something, by what each went without: the graph or the vector index, whose wait ran out, or the summary and suggestions a model failed to give.",
+      "attributes": [
+        {
+          "key": "projection",
+          "values": [
+            "graph",
+            "vectors",
+            "suggestions"
           ]
         }
       ]

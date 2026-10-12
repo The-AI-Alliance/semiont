@@ -1,5 +1,5 @@
 {
-  "$comment": "How a ${VAR} in a knowledge base's config resolves, and which variables a template names \u2014 shared by three consumers: the TypeScript config loader (packages/core, toml-loader.ts resolveEnvVars), the Go launcher's resolver (apps/launcher, gatewaydoc.go resolveRefs, which resolves the gateway's configuration document), and the launcher's extractor (config.go placeholderRefs), which decides what start demands (required: ${NAME}) and what it forwards when set (optional: ${NAME:-default}). The resolvers run every case's result or error; the extractor runs every case's references. A change to the rule changes this table first.",
+  "$comment": "How a ${VAR} in a knowledge base's config resolves, and which variables a template names \u2014 shared by two consumers, both the launcher's: its resolver (apps/launcher, gatewaydoc.go resolveRefs, which resolves each service's configuration document), and its extractor (config.go placeholderRefs), which decides what start demands (required: ${NAME}) and what it forwards when set (optional: ${NAME:-default}). The resolver runs every case's result or error; the extractor runs every case's references. A change to the rule changes this table first.",
   "cases": [
     {
       "why": "a set variable replaces its reference",

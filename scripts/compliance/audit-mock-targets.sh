@@ -17,7 +17,7 @@ set -euo pipefail
 #     COMPONENT into its test — but a vi.mock path resolves against the file
 #     that writes it, and a test in `__tests__/` sits one level deeper.
 #
-# Scope: RELATIVE specifiers only. A bare specifier ('@semiont/make-meaning',
+# Scope: RELATIVE specifiers only. A bare specifier ('@semiont/sdk',
 # 'node:fs') resolves through node_modules or tsconfig paths — a different
 # question, and one a missing package already fails loudly on.
 #

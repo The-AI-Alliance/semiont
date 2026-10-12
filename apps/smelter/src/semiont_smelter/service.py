@@ -36,6 +36,7 @@ from semiont.bus import reply_channels_for
 from semiont.channels import SMELT_REBUILD_ANCHORS
 from semiont.http import AgentToken, Credential, HttpTransport, ServiceToken
 from semiont.types import SmelterConfig
+from semiont_service.archivist import ArchivistContent
 from semiont_service.config import Refused, config_path_of, service_account_of
 from semiont_service.health import Health, bind_health
 from semiont_service.log import configure
@@ -45,7 +46,6 @@ from semiont_vectors.factory import create_embedding_provider, create_vector_sto
 from semiont_vectors.store import VectorStore
 
 from semiont_smelter.anchored_text_store import AnchoredTextStore
-from semiont_smelter.archivist import ArchivistContent
 from semiont_smelter.chunking import Chunking
 from semiont_smelter.config import SERVICE, embedding_key_of, read_smelter_config
 from semiont_smelter.extraction import PdfExtractor
@@ -132,7 +132,7 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
         LOG.info("Vector index ready", extra={"type": config.vectors.type})
         try:
             async with (
-                ArchivistContent(host=config.archivist.host, port=config.archivist.port, account=account) as content,
+                ArchivistContent(SERVICE, host=config.archivist.host, port=config.archivist.port, account=account) as content,
                 HttpTransport(config.gateway_url, token=agent.token, refresher=agent.refresh, channels=CHANNELS) as transport,
                 Smelter(
                     index=started.index,

@@ -1,0 +1,786 @@
+{
+  "$comment": "The flat views read off a knowledge graph, as every implementation must read them: a graph, the id of its main resource, and what the main resource is connected to, what cites it and what entity types the annotations on it carry. Semiont's TypeScript (packages/core: knowledge-graph-views.ts), which the Browser calls, and Semiont's Librarian (apps/librarian: views.py) each run every case and fail on a difference; an implementation in another language runs the same file. WHAT A CASE STATES. `graph` is a knowledge graph: nodes that are resources or annotations, and edges that name their two ends by id. `resource` is the id of the main resource. `annotation`, where a case has one, is the id of the focal annotation: the one the views are read for. `views` is what is read: `connections`, `citedBy`, `citedByCount` and `siblingEntityTypes`. All three lists are in a stated order. THE RULE. An edge of type `annotation-of` says which resource an annotation is on: its source is on its target. A CITATION is an edge of type `cites` whose target is the main resource and whose source is on a resource, by an `annotation-of` edge stated anywhere in the graph, before it or after it. That resource cites the main resource. `citedBy` has one entry for each citing resource, in the order of the first citation from each: its id, and its name, which is its node's label, or its id where the graph has no node for it. Several citations from one resource are one entry. `citedByCount` is the length of `citedBy`. A CONNECTION is any other edge whose source is the main resource, whatever its type: an edge named `cites` that is no citation is a connection like any other. `connections` has one entry for each such edge, in the order of the edges, and two edges to one node are two entries. An entry has the id of the edge's target; the name and entity types of the target's node, or the id as its name and no entity types where the graph has no node for it, and no entity types where the node states none; and the edge's `bidirectional` flag, which is false where the edge states none. Every other edge is in neither list. `siblingEntityTypes` is the entity types of the annotation nodes that are on the main resource, but for the focal annotation: each type once, in the order the nodes first state it. An annotation on another resource adds none, though it cites the main resource, and neither does an annotation node no `annotation-of` edge places. Add a case here before changing an implementation.",
+  "cases": [
+    {
+      "why": "a graph of the main resource alone has no connections, no citations and no sibling entity types",
+      "graph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] }
+        ],
+        "edges": []
+      },
+      "resource": "res-main",
+      "views": { "connections": [], "citedBy": [], "citedByCount": 0, "siblingEntityTypes": [] }
+    },
+    {
+      "why": "an edge out of the main resource is a connection: the id of its target, that node's label and entity types, and the edge's bidirectional flag",
+      "graph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          { "id": "res-peer", "type": "resource", "label": "Peer", "entityTypes": ["Author", "Person"] }
+        ],
+        "edges": [
+          { "source": "res-main", "target": "res-peer", "type": "mentions", "bidirectional": true }
+        ]
+      },
+      "resource": "res-main",
+      "views": {
+        "connections": [
+          { "resourceId": "res-peer", "resourceName": "Peer", "entityTypes": ["Author", "Person"], "bidirectional": true }
+        ],
+        "citedBy": [],
+        "citedByCount": 0,
+        "siblingEntityTypes": []
+      }
+    },
+    {
+      "why": "an edge that states bidirectional as false is a connection that is not bidirectional",
+      "graph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          { "id": "res-peer", "type": "resource", "label": "Peer", "entityTypes": ["Author"] }
+        ],
+        "edges": [
+          { "source": "res-main", "target": "res-peer", "type": "mentions", "bidirectional": false }
+        ]
+      },
+      "resource": "res-main",
+      "views": {
+        "connections": [
+          { "resourceId": "res-peer", "resourceName": "Peer", "entityTypes": ["Author"], "bidirectional": false }
+        ],
+        "citedBy": [],
+        "citedByCount": 0,
+        "siblingEntityTypes": []
+      }
+    },
+    {
+      "why": "an edge that states no bidirectional flag is a connection that is not bidirectional",
+      "graph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          { "id": "res-peer", "type": "resource", "label": "Peer", "entityTypes": ["Author"] }
+        ],
+        "edges": [
+          { "source": "res-main", "target": "res-peer", "type": "link" }
+        ]
+      },
+      "resource": "res-main",
+      "views": {
+        "connections": [
+          { "resourceId": "res-peer", "resourceName": "Peer", "entityTypes": ["Author"], "bidirectional": false }
+        ],
+        "citedBy": [],
+        "citedByCount": 0,
+        "siblingEntityTypes": []
+      }
+    },
+    {
+      "why": "a connection to a node that states no entity types has none",
+      "graph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          { "id": "res-peer", "type": "resource", "label": "Peer" }
+        ],
+        "edges": [
+          { "source": "res-main", "target": "res-peer", "type": "mentions", "bidirectional": true }
+        ]
+      },
+      "resource": "res-main",
+      "views": {
+        "connections": [
+          { "resourceId": "res-peer", "resourceName": "Peer", "entityTypes": [], "bidirectional": true }
+        ],
+        "citedBy": [],
+        "citedByCount": 0,
+        "siblingEntityTypes": []
+      }
+    },
+    {
+      "why": "an edge out of the main resource to a node the graph lacks is still a connection: it is named by the id and has no entity types",
+      "graph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] }
+        ],
+        "edges": [
+          { "source": "res-main", "target": "res-gone", "type": "mentions", "bidirectional": true }
+        ]
+      },
+      "resource": "res-main",
+      "views": {
+        "connections": [
+          { "resourceId": "res-gone", "resourceName": "res-gone", "entityTypes": [], "bidirectional": true }
+        ],
+        "citedBy": [],
+        "citedByCount": 0,
+        "siblingEntityTypes": []
+      }
+    },
+    {
+      "why": "an edge out of the main resource whose type is named cites is a connection and no citation: a citation runs into the main resource, from an annotation",
+      "graph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          { "id": "res-peer", "type": "resource", "label": "Peer", "entityTypes": ["Author"] }
+        ],
+        "edges": [
+          { "source": "res-main", "target": "res-peer", "type": "cites", "bidirectional": true }
+        ]
+      },
+      "resource": "res-main",
+      "views": {
+        "connections": [
+          { "resourceId": "res-peer", "resourceName": "Peer", "entityTypes": ["Author"], "bidirectional": true }
+        ],
+        "citedBy": [],
+        "citedByCount": 0,
+        "siblingEntityTypes": []
+      }
+    },
+    {
+      "why": "an edge named cites that runs into the main resource from a node no annotation-of edge places is no citation, and being no edge out of the main resource it is no connection either",
+      "graph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          { "id": "res-peer", "type": "resource", "label": "Peer", "entityTypes": ["Author"] }
+        ],
+        "edges": [
+          { "source": "res-peer", "target": "res-main", "type": "cites", "bidirectional": false }
+        ]
+      },
+      "resource": "res-main",
+      "views": { "connections": [], "citedBy": [], "citedByCount": 0, "siblingEntityTypes": [] }
+    },
+    {
+      "why": "an edge named cites from the main resource to itself is a connection to itself",
+      "graph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] }
+        ],
+        "edges": [
+          { "source": "res-main", "target": "res-main", "type": "cites", "bidirectional": true }
+        ]
+      },
+      "resource": "res-main",
+      "views": {
+        "connections": [
+          { "resourceId": "res-main", "resourceName": "Main", "entityTypes": ["Paper"], "bidirectional": true }
+        ],
+        "citedBy": [],
+        "citedByCount": 0,
+        "siblingEntityTypes": []
+      }
+    },
+    {
+      "why": "an edge between two other nodes, and one into the main resource, are no connections of it",
+      "graph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          { "id": "res-peer", "type": "resource", "label": "Peer", "entityTypes": ["Author"] },
+          { "id": "res-other", "type": "resource", "label": "Other", "entityTypes": ["Place"] }
+        ],
+        "edges": [
+          { "source": "res-peer", "target": "res-other", "type": "mentions", "bidirectional": true },
+          { "source": "res-other", "target": "res-main", "type": "mentions", "bidirectional": true }
+        ]
+      },
+      "resource": "res-main",
+      "views": { "connections": [], "citedBy": [], "citedByCount": 0, "siblingEntityTypes": [] }
+    },
+    {
+      "why": "connections are in the order of the edges, and two edges to one node are two connections",
+      "graph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          { "id": "res-peer-a", "type": "resource", "label": "Peer A", "entityTypes": ["Author"] },
+          { "id": "res-peer-b", "type": "resource", "label": "Peer B", "entityTypes": ["Place"] }
+        ],
+        "edges": [
+          { "source": "res-main", "target": "res-peer-b", "type": "mentions", "bidirectional": false },
+          { "source": "res-main", "target": "res-peer-a", "type": "mentions", "bidirectional": true },
+          { "source": "res-main", "target": "res-peer-b", "type": "describes", "bidirectional": true }
+        ]
+      },
+      "resource": "res-main",
+      "views": {
+        "connections": [
+          { "resourceId": "res-peer-b", "resourceName": "Peer B", "entityTypes": ["Place"], "bidirectional": false },
+          { "resourceId": "res-peer-a", "resourceName": "Peer A", "entityTypes": ["Author"], "bidirectional": true },
+          { "resourceId": "res-peer-b", "resourceName": "Peer B", "entityTypes": ["Place"], "bidirectional": true }
+        ],
+        "citedBy": [],
+        "citedByCount": 0,
+        "siblingEntityTypes": []
+      }
+    },
+    {
+      "why": "an annotation on another resource with a cites edge to the main resource makes that resource one that cites it, named by its node's label; the citation is no connection, and the annotation's entity types are no sibling's",
+      "graph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          { "id": "res-citing", "type": "resource", "label": "Citing Paper", "entityTypes": ["Report"] },
+          {
+            "id": "ann-cite",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": ["Person"],
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-cite",
+              "motivation": "linking",
+              "target": { "source": "res-citing" },
+              "body": [
+                { "type": "TextualBody", "value": "Person", "purpose": "tagging" },
+                { "type": "SpecificResource", "source": "res-main", "purpose": "linking" }
+              ],
+              "created": "2020-03-04T05:06:07.000Z"
+            }
+          }
+        ],
+        "edges": [
+          { "source": "ann-cite", "target": "res-citing", "type": "annotation-of" },
+          { "source": "ann-cite", "target": "res-main", "type": "cites" }
+        ]
+      },
+      "resource": "res-main",
+      "views": {
+        "connections": [],
+        "citedBy": [
+          { "resourceId": "res-citing", "resourceName": "Citing Paper" }
+        ],
+        "citedByCount": 1,
+        "siblingEntityTypes": []
+      }
+    },
+    {
+      "why": "a citing resource the graph has no node for is named by its id",
+      "graph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          {
+            "id": "ann-cite",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": [],
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-cite", "motivation": "linking", "target": { "source": "res-citing" }, "created": "2020-03-04T05:06:07.000Z" }
+          }
+        ],
+        "edges": [
+          { "source": "ann-cite", "target": "res-citing", "type": "annotation-of" },
+          { "source": "ann-cite", "target": "res-main", "type": "cites" }
+        ]
+      },
+      "resource": "res-main",
+      "views": {
+        "connections": [],
+        "citedBy": [
+          { "resourceId": "res-citing", "resourceName": "res-citing" }
+        ],
+        "citedByCount": 1,
+        "siblingEntityTypes": []
+      }
+    },
+    {
+      "why": "several citations from one resource are one entry, and count as one",
+      "graph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          { "id": "res-citing", "type": "resource", "label": "Citing Paper", "entityTypes": ["Report"] },
+          {
+            "id": "ann-cite-1",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": [],
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-cite-1", "motivation": "linking", "target": { "source": "res-citing" }, "created": "2020-03-04T05:06:07.000Z" }
+          },
+          {
+            "id": "ann-cite-2",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": [],
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-cite-2", "motivation": "linking", "target": { "source": "res-citing" }, "created": "2020-03-04T05:06:08.000Z" }
+          }
+        ],
+        "edges": [
+          { "source": "ann-cite-1", "target": "res-citing", "type": "annotation-of" },
+          { "source": "ann-cite-1", "target": "res-main", "type": "cites" },
+          { "source": "ann-cite-2", "target": "res-citing", "type": "annotation-of" },
+          { "source": "ann-cite-2", "target": "res-main", "type": "cites" }
+        ]
+      },
+      "resource": "res-main",
+      "views": {
+        "connections": [],
+        "citedBy": [
+          { "resourceId": "res-citing", "resourceName": "Citing Paper" }
+        ],
+        "citedByCount": 1,
+        "siblingEntityTypes": []
+      }
+    },
+    {
+      "why": "citing resources are in the order of the first citation from each, whatever the order of the nodes, and the count is of resources and not of citations",
+      "graph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          { "id": "res-citing-a", "type": "resource", "label": "Citing Paper A", "entityTypes": ["Report"] },
+          { "id": "res-citing-b", "type": "resource", "label": "Citing Paper B", "entityTypes": ["Report"] },
+          {
+            "id": "ann-a-1",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": [],
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-a-1", "motivation": "linking", "target": { "source": "res-citing-a" }, "created": "2020-03-04T05:06:07.000Z" }
+          },
+          {
+            "id": "ann-b-1",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": [],
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-b-1", "motivation": "linking", "target": { "source": "res-citing-b" }, "created": "2020-03-04T05:06:08.000Z" }
+          },
+          {
+            "id": "ann-a-2",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": [],
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-a-2", "motivation": "linking", "target": { "source": "res-citing-a" }, "created": "2020-03-04T05:06:09.000Z" }
+          }
+        ],
+        "edges": [
+          { "source": "ann-b-1", "target": "res-citing-b", "type": "annotation-of" },
+          { "source": "ann-b-1", "target": "res-main", "type": "cites" },
+          { "source": "ann-a-1", "target": "res-citing-a", "type": "annotation-of" },
+          { "source": "ann-a-1", "target": "res-main", "type": "cites" },
+          { "source": "ann-a-2", "target": "res-citing-a", "type": "annotation-of" },
+          { "source": "ann-a-2", "target": "res-main", "type": "cites" }
+        ]
+      },
+      "resource": "res-main",
+      "views": {
+        "connections": [],
+        "citedBy": [
+          { "resourceId": "res-citing-b", "resourceName": "Citing Paper B" },
+          { "resourceId": "res-citing-a", "resourceName": "Citing Paper A" }
+        ],
+        "citedByCount": 2,
+        "siblingEntityTypes": []
+      }
+    },
+    {
+      "why": "a cites edge stated before the annotation-of edge that places its annotation is a citation all the same",
+      "graph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          { "id": "res-citing", "type": "resource", "label": "Citing Paper", "entityTypes": ["Report"] },
+          {
+            "id": "ann-cite",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": [],
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-cite", "motivation": "linking", "target": { "source": "res-citing" }, "created": "2020-03-04T05:06:07.000Z" }
+          }
+        ],
+        "edges": [
+          { "source": "ann-cite", "target": "res-main", "type": "cites" },
+          { "source": "ann-cite", "target": "res-citing", "type": "annotation-of" }
+        ]
+      },
+      "resource": "res-main",
+      "views": {
+        "connections": [],
+        "citedBy": [
+          { "resourceId": "res-citing", "resourceName": "Citing Paper" }
+        ],
+        "citedByCount": 1,
+        "siblingEntityTypes": []
+      }
+    },
+    {
+      "why": "a cites edge to another resource is no citation of the main resource",
+      "graph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          { "id": "res-citing", "type": "resource", "label": "Citing Paper", "entityTypes": ["Report"] },
+          { "id": "res-other", "type": "resource", "label": "Other", "entityTypes": ["Place"] },
+          {
+            "id": "ann-cite",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": [],
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-cite", "motivation": "linking", "target": { "source": "res-citing" }, "created": "2020-03-04T05:06:07.000Z" }
+          }
+        ],
+        "edges": [
+          { "source": "ann-cite", "target": "res-citing", "type": "annotation-of" },
+          { "source": "ann-cite", "target": "res-other", "type": "cites" }
+        ]
+      },
+      "resource": "res-main",
+      "views": { "connections": [], "citedBy": [], "citedByCount": 0, "siblingEntityTypes": [] }
+    },
+    {
+      "why": "the entity types of the annotations on the main resource are its sibling entity types: each once, in the order the nodes first state it, and an annotation on it is neither a connection nor a citation",
+      "graph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          {
+            "id": "ann-1",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": ["Person", "Place"],
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-1",
+              "motivation": "linking",
+              "target": { "source": "res-main" },
+              "body": [
+                { "type": "TextualBody", "value": "Person", "purpose": "tagging" },
+                { "type": "TextualBody", "value": "Place", "purpose": "tagging" }
+              ],
+              "created": "2020-03-04T05:06:07.000Z"
+            }
+          },
+          {
+            "id": "ann-2",
+            "type": "annotation",
+            "label": "tagging",
+            "entityTypes": ["Event", "Person"],
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-2",
+              "motivation": "tagging",
+              "target": { "source": "res-main" },
+              "body": [
+                { "type": "TextualBody", "value": "Event", "purpose": "tagging" },
+                { "type": "TextualBody", "value": "Person", "purpose": "tagging" }
+              ],
+              "created": "2020-03-04T05:06:08.000Z"
+            }
+          }
+        ],
+        "edges": [
+          { "source": "ann-2", "target": "res-main", "type": "annotation-of" },
+          { "source": "ann-1", "target": "res-main", "type": "annotation-of" }
+        ]
+      },
+      "resource": "res-main",
+      "views": {
+        "connections": [],
+        "citedBy": [],
+        "citedByCount": 0,
+        "siblingEntityTypes": ["Person", "Place", "Event"]
+      }
+    },
+    {
+      "why": "the focal annotation is no sibling of itself: its entity types are left out, but for one another annotation on the resource carries too",
+      "graph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          {
+            "id": "ann-focal",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": ["Person", "Place"],
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-focal",
+              "motivation": "linking",
+              "target": { "source": "res-main" },
+              "body": [
+                { "type": "TextualBody", "value": "Person", "purpose": "tagging" },
+                { "type": "TextualBody", "value": "Place", "purpose": "tagging" }
+              ],
+              "created": "2020-03-04T05:06:07.000Z"
+            }
+          },
+          {
+            "id": "ann-sibling",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": ["Place", "Event"],
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-sibling",
+              "motivation": "linking",
+              "target": { "source": "res-main" },
+              "body": [
+                { "type": "TextualBody", "value": "Place", "purpose": "tagging" },
+                { "type": "TextualBody", "value": "Event", "purpose": "tagging" }
+              ],
+              "created": "2020-03-04T05:06:08.000Z"
+            }
+          }
+        ],
+        "edges": [
+          { "source": "ann-focal", "target": "res-main", "type": "annotation-of" },
+          { "source": "ann-sibling", "target": "res-main", "type": "annotation-of" }
+        ]
+      },
+      "resource": "res-main",
+      "annotation": "ann-focal",
+      "views": {
+        "connections": [],
+        "citedBy": [],
+        "citedByCount": 0,
+        "siblingEntityTypes": ["Place", "Event"]
+      }
+    },
+    {
+      "why": "the same graph read for no focal annotation leaves no annotation out",
+      "graph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          {
+            "id": "ann-focal",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": ["Person", "Place"],
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-focal",
+              "motivation": "linking",
+              "target": { "source": "res-main" },
+              "body": [
+                { "type": "TextualBody", "value": "Person", "purpose": "tagging" },
+                { "type": "TextualBody", "value": "Place", "purpose": "tagging" }
+              ],
+              "created": "2020-03-04T05:06:07.000Z"
+            }
+          },
+          {
+            "id": "ann-sibling",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": ["Place", "Event"],
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-sibling",
+              "motivation": "linking",
+              "target": { "source": "res-main" },
+              "body": [
+                { "type": "TextualBody", "value": "Place", "purpose": "tagging" },
+                { "type": "TextualBody", "value": "Event", "purpose": "tagging" }
+              ],
+              "created": "2020-03-04T05:06:08.000Z"
+            }
+          }
+        ],
+        "edges": [
+          { "source": "ann-focal", "target": "res-main", "type": "annotation-of" },
+          { "source": "ann-sibling", "target": "res-main", "type": "annotation-of" }
+        ]
+      },
+      "resource": "res-main",
+      "views": {
+        "connections": [],
+        "citedBy": [],
+        "citedByCount": 0,
+        "siblingEntityTypes": ["Person", "Place", "Event"]
+      }
+    },
+    {
+      "why": "a focal annotation the graph has no node for leaves nothing out",
+      "graph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          {
+            "id": "ann-sibling",
+            "type": "annotation",
+            "label": "tagging",
+            "entityTypes": ["Place"],
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-sibling",
+              "motivation": "tagging",
+              "target": { "source": "res-main" },
+              "body": { "type": "TextualBody", "value": "Place", "purpose": "tagging" },
+              "created": "2020-03-04T05:06:07.000Z"
+            }
+          }
+        ],
+        "edges": [
+          { "source": "ann-sibling", "target": "res-main", "type": "annotation-of" }
+        ]
+      },
+      "resource": "res-main",
+      "annotation": "ann-elsewhere",
+      "views": {
+        "connections": [],
+        "citedBy": [],
+        "citedByCount": 0,
+        "siblingEntityTypes": ["Place"]
+      }
+    },
+    {
+      "why": "an annotation node that states no entity types adds none, and neither does an annotation node no annotation-of edge places",
+      "graph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          {
+            "id": "ann-mark",
+            "type": "annotation",
+            "label": "highlighting",
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-mark", "motivation": "highlighting", "target": { "source": "res-main" }, "created": "2020-03-04T05:06:07.000Z" }
+          },
+          {
+            "id": "ann-loose",
+            "type": "annotation",
+            "label": "tagging",
+            "entityTypes": ["Event"],
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-loose",
+              "motivation": "tagging",
+              "target": { "source": "res-main" },
+              "body": { "type": "TextualBody", "value": "Event", "purpose": "tagging" },
+              "created": "2020-03-04T05:06:08.000Z"
+            }
+          },
+          {
+            "id": "ann-tag",
+            "type": "annotation",
+            "label": "tagging",
+            "entityTypes": ["Place"],
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-tag",
+              "motivation": "tagging",
+              "target": { "source": "res-main" },
+              "body": { "type": "TextualBody", "value": "Place", "purpose": "tagging" },
+              "created": "2020-03-04T05:06:09.000Z"
+            }
+          }
+        ],
+        "edges": [
+          { "source": "ann-mark", "target": "res-main", "type": "annotation-of" },
+          { "source": "ann-tag", "target": "res-main", "type": "annotation-of" }
+        ]
+      },
+      "resource": "res-main",
+      "views": {
+        "connections": [],
+        "citedBy": [],
+        "citedByCount": 0,
+        "siblingEntityTypes": ["Place"]
+      }
+    },
+    {
+      "why": "the entity types of the main resource, and of the resources it is connected to, are no sibling entity types: only an annotation's are",
+      "graph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          { "id": "res-peer", "type": "resource", "label": "Peer", "entityTypes": ["Author"] }
+        ],
+        "edges": [
+          { "source": "res-main", "target": "res-peer", "type": "mentions", "bidirectional": false }
+        ]
+      },
+      "resource": "res-main",
+      "views": {
+        "connections": [
+          { "resourceId": "res-peer", "resourceName": "Peer", "entityTypes": ["Author"], "bidirectional": false }
+        ],
+        "citedBy": [],
+        "citedByCount": 0,
+        "siblingEntityTypes": []
+      }
+    },
+    {
+      "why": "a graph with all three is read into all three: a peer that also cites is in both lists, the citer with no node is named by its id, and only the annotations on the main resource other than the focal one are siblings",
+      "graph": {
+        "nodes": [
+          { "id": "res-main", "type": "resource", "label": "Main", "entityTypes": ["Paper"] },
+          { "id": "res-peer", "type": "resource", "label": "Peer", "entityTypes": ["Author"] },
+          {
+            "id": "ann-cite-1",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": ["Report"],
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-cite-1",
+              "motivation": "linking",
+              "target": { "source": "res-peer" },
+              "body": [
+                { "type": "TextualBody", "value": "Report", "purpose": "tagging" },
+                { "type": "SpecificResource", "source": "res-main", "purpose": "linking" }
+              ],
+              "created": "2020-03-04T05:06:07.000Z"
+            }
+          },
+          {
+            "id": "ann-cite-2",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": [],
+            "annotation": { "@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": "ann-cite-2", "motivation": "linking", "target": { "source": "res-unseen" }, "created": "2020-03-04T05:06:08.000Z" }
+          },
+          {
+            "id": "ann-focal",
+            "type": "annotation",
+            "label": "linking",
+            "entityTypes": ["Person"],
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-focal",
+              "motivation": "linking",
+              "target": { "source": "res-main" },
+              "body": { "type": "TextualBody", "value": "Person", "purpose": "tagging" },
+              "created": "2020-03-04T05:06:09.000Z"
+            }
+          },
+          {
+            "id": "ann-tag",
+            "type": "annotation",
+            "label": "tagging",
+            "entityTypes": ["Place"],
+            "annotation": {
+              "@context": "http://www.w3.org/ns/anno.jsonld",
+              "type": "Annotation",
+              "id": "ann-tag",
+              "motivation": "tagging",
+              "target": { "source": "res-main" },
+              "body": { "type": "TextualBody", "value": "Place", "purpose": "tagging" },
+              "created": "2020-03-04T05:06:10.000Z"
+            }
+          }
+        ],
+        "edges": [
+          { "source": "res-main", "target": "res-peer", "type": "mentions", "bidirectional": true },
+          { "source": "ann-cite-1", "target": "res-peer", "type": "annotation-of" },
+          { "source": "ann-cite-1", "target": "res-main", "type": "cites" },
+          { "source": "ann-cite-2", "target": "res-unseen", "type": "annotation-of" },
+          { "source": "ann-cite-2", "target": "res-main", "type": "cites" },
+          { "source": "ann-focal", "target": "res-main", "type": "annotation-of" },
+          { "source": "ann-tag", "target": "res-main", "type": "annotation-of" }
+        ]
+      },
+      "resource": "res-main",
+      "annotation": "ann-focal",
+      "views": {
+        "connections": [
+          { "resourceId": "res-peer", "resourceName": "Peer", "entityTypes": ["Author"], "bidirectional": true }
+        ],
+        "citedBy": [
+          { "resourceId": "res-peer", "resourceName": "Peer" },
+          { "resourceId": "res-unseen", "resourceName": "res-unseen" }
+        ],
+        "citedByCount": 2,
+        "siblingEntityTypes": ["Place"]
+      }
+    }
+  ]
+}

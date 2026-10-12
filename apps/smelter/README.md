@@ -137,11 +137,15 @@ user `semiont`. It carries no installer (`pip`, `uv`) and no Node.
 | `smelter.py` | The Smelter: what each recorded event does to the index, the one place a resource is declined, the decision it signals, reconcile, the rebuild command |
 | `reconcile.py` | The work a start plans, as [`reconcile-cases.json`](../../specs/src/smelter/reconcile-cases.json) states it |
 | `recorded.py`, `record.py` | The nine events it follows, and what it reads of the record over the bus |
-| `content.py`, `archivist.py` | A resource's bytes: what reads them, and the reader that asks the Archivist |
-| `chunking.py`, `white_space.py` | How a text is cut, as [`chunk-cases.json`](../../specs/src/text/chunk-cases.json) states it |
+| `chunking.py` | How a text is cut, as [`chunk-cases.json`](../../specs/src/text/chunk-cases.json) states it |
 | `extraction.py`, `anchoring.py`, `tables.py`, `ocr_text.py` | A PDF's text by its class, as [`extraction-cases.json`](../../specs/src/smelter/extraction-cases.json) states it |
 | `pdf_reader.py`, `pdfium.py`; `ocr_engine.py`, `tesseract.py`; `scripted.py` | What reads a PDF and what reads a scanned page, each behind a protocol whose second implementation answers what a test states |
-| `anchored_text_store.py`, `shard.py`, `stamp.py` | The anchored-text store, each entry as its [schema](../../specs/src/components/schemas/AnchoredTextEntry.json) states it |
+| `anchored_text_store.py`, `stamp.py` | The anchored-text store, each entry as its [schema](../../specs/src/components/schemas/AnchoredTextEntry.json) states it |
+
+What reads a resource's bytes and the reader that asks the Archivist, where an entry of the
+store is filed, and what white space is are every Python service's, in
+[`semiont-service`](../../packages/service-python/README.md) (`content`, `archivist`, `shard`,
+`white_space`).
 
 ```sh
 uv sync --locked

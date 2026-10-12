@@ -2,19 +2,11 @@ package launcher
 
 import "sort"
 
-// serviceConfigSections: the [environments.<env>] sections each service that
-// loads the KB's config reads — the launcher forwards a service only the
-// variables those sections reference. The authority is
-// specs/src/service-config/sections.json, which the TypeScript loader
-// enforces; TestServiceSectionsAgreeWithTheSpec holds this copy to it.
-var serviceConfigSections = map[string][]string{
-	"librarian": {"gateway", "graph", "vectors", "embedding", "identity", "archivist", "make-meaning", "actors", "inference"},
-}
-
-// launcherReads: the sections whose ${VAR} values the launcher resolves itself,
+// launcherReads: the sections whose ${VAR} values the launcher resolves,
 // keyed by the role it resolves them for — the gateway's, the dispatcher's,
-// the Archivist's, the worker's, the Smelter's and the Weaver's documents,
-// Keycloak's external PostgreSQL password, and the remote-model check's key.
+// the Archivist's, the worker's, the Smelter's, the Weaver's and the
+// Librarian's documents, Keycloak's external PostgreSQL password, and the
+// remote-model check's key.
 // TestLauncherReadsAreTheSectionsTheLauncherResolves reads them from the
 // resolving calls.
 var launcherReads = map[string][]string{
@@ -24,20 +16,18 @@ var launcherReads = map[string][]string{
 	"worker":     {"gateway", "identity", "inference"},
 	"smelter":    {"gateway", "identity", "archivist", "vectors", "embedding"},
 	"weaver":     {"gateway", "identity", "graph"},
+	"librarian":  {"gateway", "identity", "archivist", "graph", "vectors", "embedding", "inference"},
 	"identity":   {"database"},
 	"inference":  {"inference"},
 }
 
-// readSections: the sections a start of svc reads — the ones svc loads itself,
-// and the ones the launcher resolves for it. "" is the whole stack.
+// readSections: the sections a start of svc reads — the ones the launcher
+// resolves for it. "" is the whole stack. No service reads the KB's config.
 func readSections(svc string) []string {
 	if svc != "" {
-		return append(append([]string{}, serviceConfigSections[svc]...), launcherReads[svc]...)
+		return launcherReads[svc]
 	}
 	var all []string
-	for _, sections := range serviceConfigSections {
-		all = append(all, sections...)
-	}
 	for _, sections := range launcherReads {
 		all = append(all, sections...)
 	}
@@ -97,25 +87,17 @@ func sectionRefs(envSection map[string]any, sections []string) (required, option
 	return required, optional
 }
 
-// serviceVars: for each stack service, the user variables it is handed — the
-// references in the sections it reads. The gateway, the dispatcher, the
-// Archivist, the worker, the Smelter and the Weaver read no KB config: their
-// variables are the ones their documents name, and the Archivist's names none.
-func serviceVars(envSection map[string]any, env *envConfig) map[string][]string {
-	out := map[string][]string{"gateway": gatewayNamedVars(env), "dispatcher": dispatcherNamedVars(env), "archivist": nil, "worker": workerNamedVars(env), "smelter": smelterNamedVars(env), "weaver": weaverNamedVars(env)}
-	for svc, sections := range serviceConfigSections {
-		required, optional := sectionRefs(envSection, sections)
-		names := append(required, optional...)
-		sort.Strings(names)
-		out[svc] = names
-	}
-	return out
+// serviceVars: for each stack service, the user variables it is handed. No
+// service reads the KB's config: a service's variables are the ones its
+// document names, and the Archivist's names none.
+func serviceVars(env *envConfig) map[string][]string {
+	return map[string][]string{"gateway": gatewayNamedVars(env), "dispatcher": dispatcherNamedVars(env), "archivist": nil, "worker": workerNamedVars(env), "smelter": smelterNamedVars(env), "weaver": weaverNamedVars(env), "librarian": librarianNamedVars(env)}
 }
 
 // withDaemonCredentialVars adds, to each service's variables, the credential
-// names of the daemons the launcher runs that the service dials: a [graph]
-// reader and the Weaver the Neo4j password, a [jobs] reader the broker pair,
-// and the gateway the pair when its signal plane is that broker.
+// names of the daemons the launcher runs that the service dials: the Weaver
+// and the Librarian the Neo4j password, the dispatcher the broker pair, and
+// the gateway the pair when its signal plane is that broker.
 func withDaemonCredentialVars(byService map[string][]string, plan *launchPlan, signalOnBroker bool) map[string][]string {
 	out := map[string][]string{}
 	for svc, names := range byService {
@@ -124,16 +106,9 @@ func withDaemonCredentialVars(byService map[string][]string, plan *launchPlan, s
 	graphRun := plan.Roles["graph"].Presence == presenceLauncher
 	brokerRun := plan.Roles["messaging"].Presence == presenceLauncher
 	pair := []string{"NATS_USER", daemonPasswords["messaging"].env}
-	for svc, sections := range serviceConfigSections {
-		if graphRun && contains(sections, "graph") {
-			out[svc] = append(out[svc], daemonPasswords["graph"].env)
-		}
-		if brokerRun && contains(sections, "jobs") {
-			out[svc] = append(out[svc], pair...)
-		}
-	}
 	if graphRun {
 		out["weaver"] = append(out["weaver"], daemonPasswords["graph"].env)
+		out["librarian"] = append(out["librarian"], daemonPasswords["graph"].env)
 	}
 	if brokerRun && signalOnBroker {
 		out["gateway"] = append(out["gateway"], pair...)

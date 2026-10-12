@@ -3,8 +3,8 @@
 // text and to a model's reply, what a bus log shows of a payload, what the
 // graph holds of an annotation and a resource and what the Weaver's fold does
 // to it, what a point of the vector index is and what the index answers, the
-// work a Smelter's start plans and what each kind of PDF becomes, and the
-// runners each must have.
+// work a Smelter's start plans and what each kind of PDF becomes, what the
+// Librarian answers from what it reads, and the runners each must have.
 //
 // A rule that lives only in one implementation's code is that
 // implementation's. These tables are the rules a worker in any language is
@@ -19,11 +19,13 @@
 // bus log: TypeScript's, Rust's and Python's. What the graph holds of an
 // annotation and of a resource is run by each implementation of the graph's
 // codecs, and what the Weaver's fold does to the graph by each Weaver. What a
-// point of the vector index is, is run by each implementation of the stores:
-// Python's, which write the points, and TypeScript's, which read them and run
-// the parts a reader has. What the index answers after a history of writes
-// is run by the stores that write. The work a start plans and what each kind
-// of PDF becomes is run by the Smelter.
+// point of the vector index is, and what the index answers after a history
+// of writes, is run by the stores: Python's. The work a start plans and what
+// each kind of PDF becomes is run by the Smelter. What the Librarian answers
+// (a reference search's scores, a text search's page, the knowledge graph,
+// the text around a selection, its prompts, its readings of a reply, the
+// names it gives) is run by the Librarian, and the views read off a knowledge
+// graph by the Librarian and by TypeScript's core.
 //
 // It fails when:
 //   - a table listed here does not exist, is not JSON, states no `$comment`
@@ -36,16 +38,16 @@
 //     the basic plane. An offset counts code points, and so does every length
 //     such a rule states; only a text with such a character tells that count
 //     from a count of UTF-16 code units or of bytes, so a table without one
-//     holds its rule to no count. These are every table here but twelve:
+//     holds its rule to no count. These are every table here but nineteen:
 //     what an offset counts, the chunker, the reconciling of a quote, the
 //     locating of a span of a PDF, the builders, the id (whose anchor states a
 //     span's offsets), the chunk plan, the citations, and the reading of a
 //     reply (whose items state where each passage is, and how long a piece
-//     was). The two tables of what text a resource's bytes are, the two
+//     was), and the Librarian's text around a selection. The two tables of what text a resource's bytes are, the two
 //     readers' tables (an annotation's and a resource's), the table of
 //     failure classes, the bus log's table, the graph codecs' table, the
-//     Weaver's fold table, the two tables of the vector index and the
-//     Smelter's two count nothing and state no offset, and are held to
+//     Weaver's fold table, the two tables of the vector index, the
+//     Smelter's two and the Librarian's other seven count nothing and state no offset, and are held to
 //     nothing about their characters.
 //
 // It reads the source files, so it cannot pass on a stale bundle.
@@ -57,7 +59,7 @@ import { fileURLToPath } from 'node:url';
 const REPO = resolve(fileURLToPath(import.meta.url), '../../..');
 
 /** Where these tables live. Every `*-cases.json` in one of them is listed below. */
-const DIRECTORIES = ['specs/src/text', 'specs/src/annotations', 'specs/src/resources', 'specs/src/worker', 'specs/src/bus', 'specs/src/graph', 'specs/src/weaver', 'specs/src/vectors', 'specs/src/smelter'];
+const DIRECTORIES = ['specs/src/text', 'specs/src/annotations', 'specs/src/resources', 'specs/src/worker', 'specs/src/bus', 'specs/src/graph', 'specs/src/weaver', 'specs/src/vectors', 'specs/src/smelter', 'specs/src/librarian'];
 
 /**
  * Each table, and the files that run it.
@@ -159,12 +161,7 @@ const TABLES = [
   // its Smelter does by the same rule.
   {
     table: 'specs/src/text/chunk-cases.json',
-    runners: [
-      // The estimate of a text's tokens alone: TypeScript cuts no text.
-      'packages/core/src/__tests__/chunk-cases.test.ts',
-      'apps/worker/tests/test_chunk_cases.py',
-      'apps/smelter/tests/test_chunk_cases.py',
-    ],
+    runners: ['apps/worker/tests/test_chunk_cases.py', 'apps/smelter/tests/test_chunk_cases.py'],
     countsCodePoints: true,
   },
   {
@@ -195,12 +192,12 @@ const TABLES = [
       'packages/sdk-python/tests/test_bus_log.py',
     ],
   },
-  // What the graph holds of an annotation and of a resource, run by each
-  // implementation of the graph's codecs: TypeScript's (@semiont/graph) and
-  // Python's (semiont_graph).
+  // What the graph holds of an annotation and of a resource, run by the
+  // graph's codecs (semiont_graph) and by the reader the conformance harness
+  // reads a graph with, which runs the parts a reader has.
   {
     table: 'specs/src/graph/codec-cases.json',
-    runners: ['packages/graph/src/__tests__/codec-cases.test.ts', 'packages/graph-python/tests/test_codec_cases.py'],
+    runners: ['packages/graph-python/tests/test_codec_cases.py', 'tests/conformance/harness/graph-codec.test.ts'],
   },
   // What the Weaver's fold does to the graph: a history of recorded events,
   // and the graph it leaves. Run by the Weaver (semiont_weaver).
@@ -208,20 +205,17 @@ const TABLES = [
     table: 'specs/src/weaver/fold-cases.json',
     runners: ['apps/weaver/tests/test_fold_cases.py'],
   },
-  // What a point of the vector index is. Run by each implementation of the
-  // stores: Python's (semiont_vectors), which write the points and whose
-  // store contract a real Qdrant is held to as well, and TypeScript's
-  // (@semiont/vectors), which search them and run the parts a reader has.
+  // What a point of the vector index is. Run by the stores
+  // (semiont_vectors), which write the points and search them, and whose
+  // store contract a real Qdrant is held to as well.
   {
     table: 'specs/src/vectors/payload-cases.json',
     runners: [
-      'packages/vectors/src/__tests__/payload-cases.test.ts',
       'packages/vectors-python/tests/test_payload_cases.py',
       'packages/vectors-python/tests/store_contract.py',
     ],
   },
-  // What the index answers after a history of writes. Run by the stores that
-  // write: Python's.
+  // What the index answers after a history of writes. Run by the stores.
   {
     table: 'specs/src/vectors/store-cases.json',
     runners: ['packages/vectors-python/tests/store_contract.py'],
@@ -236,6 +230,49 @@ const TABLES = [
   {
     table: 'specs/src/smelter/extraction-cases.json',
     runners: ['apps/smelter/tests/test_extraction_cases.py'],
+  },
+  // What the Librarian answers from what it reads: a reference search's
+  // candidates and their scores, a text search's page, the knowledge graph
+  // built from the graph's answers, the text around a selection (which counts
+  // offsets), each prompt it writes and what it reads of a model's reply, and
+  // the names it gives the people a reply mentions. Run by the Librarian
+  // (apps/librarian).
+  {
+    table: 'specs/src/librarian/score-cases.json',
+    runners: ['apps/librarian/tests/test_score_cases.py'],
+  },
+  {
+    table: 'specs/src/librarian/search-cases.json',
+    runners: ['apps/librarian/tests/test_search_cases.py'],
+  },
+  {
+    table: 'specs/src/librarian/knowledge-graph-cases.json',
+    runners: ['apps/librarian/tests/test_knowledge_graph_cases.py'],
+  },
+  {
+    table: 'specs/src/librarian/window-cases.json',
+    runners: ['apps/librarian/tests/test_window_cases.py'],
+    countsCodePoints: true,
+  },
+  {
+    table: 'specs/src/librarian/prompt-cases.json',
+    runners: ['apps/librarian/tests/test_prompt_cases.py'],
+  },
+  {
+    table: 'specs/src/librarian/reply-cases.json',
+    runners: ['apps/librarian/tests/test_reply_cases.py'],
+  },
+  {
+    table: 'specs/src/librarian/naming-cases.json',
+    runners: ['apps/librarian/tests/test_naming_cases.py'],
+  },
+  // The views read off a knowledge graph: who a resource connects to, who
+  // cites it, and the entity types of the annotations beside one. Run by each
+  // reader: TypeScript's (@semiont/core), which the Browser calls, and the
+  // Librarian's.
+  {
+    table: 'specs/src/librarian/derive-views-cases.json',
+    runners: ['packages/core/src/__tests__/derive-views-cases.test.ts', 'apps/librarian/tests/test_derive_views_cases.py'],
   },
 ];
 

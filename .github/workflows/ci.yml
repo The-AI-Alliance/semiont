@@ -582,11 +582,11 @@ jobs:
             package-lock.json
             tests/conformance/package-lock.json
 
-      # The suite reads the graph with the built @semiont/graph.
+      # The suite's harness is typed by the built @semiont/core.
       - name: Install dependencies
         run: |
           npm ci --include=optional
-          npm run build:packages
+          npm run build --workspace=@semiont/core
 
       # The harness's global setup refuses to run without a broker on PATH.
       - name: Install nats-server
@@ -741,6 +741,143 @@ jobs:
           cd tests/conformance
           npm ci
           npm run test:smelter
+        env:
+          CI: true
+
+  # The Librarian, held to docs/protocol/LIBRARIAN.md: the process a librarian
+  # image runs, behind a real gateway, beside a real Archivist, a Weaver and a
+  # Smelter, which write the neo4j and the Qdrant it reads, with the suite
+  # playing its two models and its embedding provider.
+  librarian-conformance:
+    name: Librarian Conformance
+    runs-on: ubuntu-latest
+    env:
+      # Where the suite finds its graph database, with the password it is
+      # started with below, and its vector database: containers this job
+      # makes, and the suite clears.
+      NEO4J_HOST: localhost
+      NEO4J_PASSWORD: librarian-conformance-ci
+      QDRANT_HOST: localhost
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Install the pinned Rust toolchain
+        run: |
+          rustup toolchain install
+
+      # The workspace's release build, shared with Gateway Conformance.
+      - name: Cache cargo
+        uses: actions/cache@v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-gateway-release-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-gateway-release-
+
+      # The Librarian reaches the bus through a gateway, and reads the views
+      # an Archivist writes and the bytes it serves.
+      - name: Build the gateway and the Archivist
+        run: cargo build --release --locked -p semiont-gateway -p semiont-archivist
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            tests/conformance/package-lock.json
+
+      # The suite's harness is typed by the built @semiont/core.
+      - name: Install dependencies
+        run: |
+          npm ci --include=optional
+          npm run build --workspace=@semiont/core
+
+      # The harness's global setup refuses to run without a broker on PATH.
+      - name: Install nats-server
+        run: |
+          NATS_VERSION=v2.14.0
+          curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
+          sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
+          nats-server --version
+
+      # The neo4j the launcher starts for an operator, whose image
+      # scripts/ci/neo4j-image.sh reads from the launcher's own descriptor.
+      - name: Start neo4j
+        run: |
+          image=$(scripts/ci/neo4j-image.sh)
+          docker run -d --name neo4j -p 7687:7687 -e NEO4J_AUTH="neo4j/${NEO4J_PASSWORD}" "$image"
+          for attempt in $(seq 1 60); do
+            if docker exec neo4j cypher-shell -u neo4j -p "$NEO4J_PASSWORD" 'RETURN 1' > /dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs neo4j
+          echo "neo4j did not answer within two minutes"
+          exit 1
+
+      # The Qdrant the launcher starts for an operator, whose image
+      # scripts/ci/qdrant-image.sh reads from the launcher's own descriptor.
+      # It is asked what the launcher asks it, to know it is ready.
+      - name: Start Qdrant
+        run: |
+          image=$(scripts/ci/qdrant-image.sh)
+          docker run -d --name qdrant -p 6333:6333 "$image"
+          for attempt in $(seq 1 60); do
+            if curl -fsS "http://${QDRANT_HOST}:6333/readyz" > /dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs qdrant
+          echo "Qdrant did not answer within two minutes"
+          exit 1
+
+      # The suite starts the Librarian, the Weaver and the Smelter by the
+      # interpreters of their projects' locked environments
+      # (harness/paths.ts): the environments their images have, on the Python
+      # the SDK's floor names, without the development group. The Librarian
+      # and the Weaver have every database's client, and the Librarian every
+      # provider's library. The Smelter reads a scanned page with the
+      # `tesseract` program, as its image does.
+      - name: Setup Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.2.0
+
+      - name: Install the tesseract program
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr
+          tesseract --version
+
+      - name: Make the Python Weaver's environment
+        run: uv sync --locked --no-dev --all-extras --project apps/weaver
+
+      - name: Make the Smelter's environment
+        run: uv sync --locked --no-dev --project apps/smelter
+
+      - name: Make the Librarian's environment
+        run: uv sync --locked --no-dev --all-extras --project apps/librarian
+
+      # Black-box: it starts Librarian processes behind a gateway, beside an
+      # Archivist, a Weaver and a Smelter, records through the Archivist, asks
+      # the Librarian on the bus, and receives the telemetry it exports.
+      - name: Run the Librarian conformance suite
+        run: |
+          cd tests/conformance
+          npm ci
+          npm run test:librarian
         env:
           CI: true
 
@@ -1362,6 +1499,58 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y tesseract-ocr
           tesseract --version
+
+      - name: Install the locked environment
+        run: uv sync --locked
+
+      - name: Type-check with mypy (strict)
+        if: matrix.python-version == '3.12'
+        run: uv run mypy
+
+      # pyright runs on Node, which the runner has.
+      - name: Type-check with pyright (strict)
+        if: matrix.python-version == '3.12'
+        run: uv run pyright
+
+      - name: Lint and check formatting
+        if: matrix.python-version == '3.12'
+        run: |
+          uv run ruff check
+          uv run ruff format --check
+
+      - name: Run the tests
+        run: uv run pytest
+
+  # The Librarian's Python code (apps/librarian), as the Python SDK is
+  # checked: both type checkers, strict, on the oldest Python supported, and
+  # the tests on every one. The locked environment takes the SDK, the graph
+  # stores, the vector stores and the inference drivers from this checkout.
+  # The tests run the Librarian's case tables of specs/ and its code over
+  # fakes of everything it reads by; they start no service and reach no
+  # database, no index and no model.
+  test-librarian-python:
+    name: Python Librarian
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.12', '3.13', '3.14']
+
+    defaults:
+      run:
+        working-directory: apps/librarian
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.2.0
 
       - name: Install the locked environment
         run: uv sync --locked

@@ -1,0 +1,282 @@
+{
+  "$comment": "What the Librarian reads from a model's reply, as every implementation of the Librarian must read it. Semiont's Librarian (apps/librarian) runs every case and fails on a difference; a Librarian in another language runs the same file. There are two readers, and a case's `reader` says which it is of. `reply` is the model's reply, whole. THE READER OF `scores` reads the reply to a score prompt (specs/src/librarian/prompt-cases.json), which listed `candidates` candidates, numbered from 1. `scores` is what is read: each item is the number of a `candidate`, as the reply writes it and as the prompt numbered it, and the `score` read for it. A candidate that is not in `scores` has no score read. The rule: the white space at the two ends of the reply is dropped, and what is left is read a line at a time, the lines parted by a line feed. A line is read when it starts with a number written in the digits 0 to 9, then a full stop, then any white space or none, then a score written in digits and full stops. What follows the score on its line is not read. The line gives a score when its number is one of the candidates', 1 to `candidates`, and its score is a number from 0 to 1, both ends included. Every other line gives nothing, and is no error. Where two lines give a score for one candidate, the later is the one read. THE READER OF `suggestions` reads the reply to a reference-suggestions prompt. `suggestions` is the list read. The empty reply answers none, and its `suggestions` is `null`. The rule: the reply is read a line at a time, the lines parted by a line feed. A bullet that starts a line, a hyphen, an asterisk or a round bullet (U+2022), is dropped with the white space after it, and so is the white space at the two ends of the line. A line with nothing left is dropped. The first three lines left are the suggestions. Add a case here before changing an implementation.",
+  "cases": [
+    {
+      "why": "each line that gives a candidate's number and a score is read",
+      "reader": "scores",
+      "reply": "1. 0.8\n2. 0.2\n3. 0.6",
+      "candidates": 3,
+      "scores": [
+        { "candidate": 1, "score": 0.8 },
+        { "candidate": 2, "score": 0.2 },
+        { "candidate": 3, "score": 0.6 }
+      ]
+    },
+    {
+      "why": "a line that is not a number and a score gives nothing, and the lines around it are read",
+      "reader": "scores",
+      "reply": "Here are my scores:\n1. 0.8\nThe second is not relevant.\n3. 0.4",
+      "candidates": 3,
+      "scores": [
+        { "candidate": 1, "score": 0.8 },
+        { "candidate": 3, "score": 0.4 }
+      ]
+    },
+    {
+      "why": "a line that scores fewer candidates than were listed leaves the others unread",
+      "reader": "scores",
+      "reply": "2. 0.6",
+      "candidates": 3,
+      "scores": [
+        { "candidate": 2, "score": 0.6 }
+      ]
+    },
+    {
+      "why": "a number past the last candidate gives nothing",
+      "reader": "scores",
+      "reply": "1. 0.8\n5. 0.6\n3. 0.4",
+      "candidates": 3,
+      "scores": [
+        { "candidate": 1, "score": 0.8 },
+        { "candidate": 3, "score": 0.4 }
+      ]
+    },
+    {
+      "why": "the number 0 is before the first candidate, and gives nothing",
+      "reader": "scores",
+      "reply": "0. 0.8\n1. 0.6",
+      "candidates": 3,
+      "scores": [
+        { "candidate": 1, "score": 0.6 }
+      ]
+    },
+    {
+      "why": "a score above 1 gives nothing",
+      "reader": "scores",
+      "reply": "1. 1.5\n2. 0.6",
+      "candidates": 3,
+      "scores": [
+        { "candidate": 2, "score": 0.6 }
+      ]
+    },
+    {
+      "why": "a score with a minus sign is not written in digits and full stops: its line gives nothing",
+      "reader": "scores",
+      "reply": "1. -0.2\n2. 0.6",
+      "candidates": 3,
+      "scores": [
+        { "candidate": 2, "score": 0.6 }
+      ]
+    },
+    {
+      "why": "a score written in words gives nothing",
+      "reader": "scores",
+      "reply": "1. high\n2. 0.6",
+      "candidates": 3,
+      "scores": [
+        { "candidate": 2, "score": 0.6 }
+      ]
+    },
+    {
+      "why": "a score of full stops alone is no number, and gives nothing",
+      "reader": "scores",
+      "reply": "1. ...\n2. 0.6",
+      "candidates": 3,
+      "scores": [
+        { "candidate": 2, "score": 0.6 }
+      ]
+    },
+    {
+      "why": "the scores 0 and 1 are both read, however they are written",
+      "reader": "scores",
+      "reply": "1. 1\n2. 0\n3. 1.0\n4. 0.0",
+      "candidates": 4,
+      "scores": [
+        { "candidate": 1, "score": 1 },
+        { "candidate": 2, "score": 0 },
+        { "candidate": 3, "score": 1 },
+        { "candidate": 4, "score": 0 }
+      ]
+    },
+    {
+      "why": "the white space at the two ends of the reply is dropped before its lines are read",
+      "reader": "scores",
+      "reply": "\n\n  1. 0.8\n2. 0.4  \n\n",
+      "candidates": 3,
+      "scores": [
+        { "candidate": 1, "score": 0.8 },
+        { "candidate": 2, "score": 0.4 }
+      ]
+    },
+    {
+      "why": "the white space between the full stop and the score may be several spaces, a tab, or none",
+      "reader": "scores",
+      "reply": "1.   0.8\n2.\t0.4\n3.0.2",
+      "candidates": 3,
+      "scores": [
+        { "candidate": 1, "score": 0.8 },
+        { "candidate": 2, "score": 0.4 },
+        { "candidate": 3, "score": 0.2 }
+      ]
+    },
+    {
+      "why": "what follows the score on its line is not read",
+      "reader": "scores",
+      "reply": "1. 0.8 (a close match)\n2. 0.2 - unrelated",
+      "candidates": 3,
+      "scores": [
+        { "candidate": 1, "score": 0.8 },
+        { "candidate": 2, "score": 0.2 }
+      ]
+    },
+    {
+      "why": "lines that end with a carriage return and a line feed are read as the others are",
+      "reader": "scores",
+      "reply": "1. 0.8\r\n2. 0.4\r\n",
+      "candidates": 3,
+      "scores": [
+        { "candidate": 1, "score": 0.8 },
+        { "candidate": 2, "score": 0.4 }
+      ]
+    },
+    {
+      "why": "where two lines score one candidate, the later is read",
+      "reader": "scores",
+      "reply": "1. 0.2\n2. 0.4\n1. 0.8",
+      "candidates": 3,
+      "scores": [
+        { "candidate": 1, "score": 0.8 },
+        { "candidate": 2, "score": 0.4 }
+      ]
+    },
+    {
+      "why": "a number written in other digits than 0 to 9 is not read",
+      "reader": "scores",
+      "reply": "١. 0.8\n2. 0.4",
+      "candidates": 3,
+      "scores": [
+        { "candidate": 2, "score": 0.4 }
+      ]
+    },
+    {
+      "why": "white space is dropped at the ends of the reply and not of each line: a line inside the reply that starts with a space does not start with a number, and gives nothing",
+      "reader": "scores",
+      "reply": "1. 0.8\n  2. 0.4\n3. 0.2",
+      "candidates": 3,
+      "scores": [
+        { "candidate": 1, "score": 0.8 },
+        { "candidate": 3, "score": 0.2 }
+      ]
+    },
+    {
+      "why": "the empty reply gives no scores",
+      "reader": "scores",
+      "reply": "",
+      "candidates": 3,
+      "scores": []
+    },
+    {
+      "why": "a reply of white space alone gives no scores",
+      "reader": "scores",
+      "reply": "  \n\n ",
+      "candidates": 3,
+      "scores": []
+    },
+    {
+      "why": "three plain lines are three suggestions",
+      "reader": "suggestions",
+      "reply": "Read the treaty of 1804\nCompare the Sauk and Meskwaki accounts\nMap the crossing at Yellow Banks",
+      "suggestions": ["Read the treaty of 1804", "Compare the Sauk and Meskwaki accounts", "Map the crossing at Yellow Banks"]
+    },
+    {
+      "why": "a hyphen at the start of a line, and the space after it, are dropped",
+      "reader": "suggestions",
+      "reply": "- Read the treaty\n- Compare the accounts\n- Map the crossing",
+      "suggestions": ["Read the treaty", "Compare the accounts", "Map the crossing"]
+    },
+    {
+      "why": "an asterisk at the start of a line is dropped the same way",
+      "reader": "suggestions",
+      "reply": "* Read the treaty\n* Compare the accounts\n* Map the crossing",
+      "suggestions": ["Read the treaty", "Compare the accounts", "Map the crossing"]
+    },
+    {
+      "why": "a round bullet at the start of a line is dropped the same way",
+      "reader": "suggestions",
+      "reply": "• Read the treaty\n• Compare the accounts\n• Map the crossing",
+      "suggestions": ["Read the treaty", "Compare the accounts", "Map the crossing"]
+    },
+    {
+      "why": "a bullet is dropped whether no space, several spaces or a tab follow it",
+      "reader": "suggestions",
+      "reply": "-Read the treaty\n*   Compare the accounts\n•\tMap the crossing",
+      "suggestions": ["Read the treaty", "Compare the accounts", "Map the crossing"]
+    },
+    {
+      "why": "a hyphen inside a line stays",
+      "reader": "suggestions",
+      "reply": "- Read the pre-war treaty\nCompare the accounts - both of them",
+      "suggestions": ["Read the pre-war treaty", "Compare the accounts - both of them"]
+    },
+    {
+      "why": "the white space at the two ends of a line is dropped",
+      "reader": "suggestions",
+      "reply": "  Read the treaty  \n\tCompare the accounts\t\n- Map the crossing   ",
+      "suggestions": ["Read the treaty", "Compare the accounts", "Map the crossing"]
+    },
+    {
+      "why": "empty lines are dropped",
+      "reader": "suggestions",
+      "reply": "Read the treaty\n\nCompare the accounts\n\n\nMap the crossing\n",
+      "suggestions": ["Read the treaty", "Compare the accounts", "Map the crossing"]
+    },
+    {
+      "why": "a line of white space alone, and a bullet with nothing after it, are dropped",
+      "reader": "suggestions",
+      "reply": "Read the treaty\n   \n- \nCompare the accounts",
+      "suggestions": ["Read the treaty", "Compare the accounts"]
+    },
+    {
+      "why": "of five suggestions the first three are read",
+      "reader": "suggestions",
+      "reply": "- One\n- Two\n- Three\n- Four\n- Five",
+      "suggestions": ["One", "Two", "Three"]
+    },
+    {
+      "why": "dropped lines are not counted among the three",
+      "reader": "suggestions",
+      "reply": "\n- One\n\n- \n- Two\n\n- Three\n- Four",
+      "suggestions": ["One", "Two", "Three"]
+    },
+    {
+      "why": "fewer than three lines are fewer than three suggestions",
+      "reader": "suggestions",
+      "reply": "Read the treaty\nCompare the accounts",
+      "suggestions": ["Read the treaty", "Compare the accounts"]
+    },
+    {
+      "why": "lines that end with a carriage return and a line feed are read as the others are",
+      "reader": "suggestions",
+      "reply": "- Read the treaty\r\n- Compare the accounts\r\n",
+      "suggestions": ["Read the treaty", "Compare the accounts"]
+    },
+    {
+      "why": "a number that starts a line is no bullet, and stays",
+      "reader": "suggestions",
+      "reply": "1. Read the treaty\n2. Compare the accounts",
+      "suggestions": ["1. Read the treaty", "2. Compare the accounts"]
+    },
+    {
+      "why": "the empty reply answers none",
+      "reader": "suggestions",
+      "reply": "",
+      "suggestions": null
+    },
+    {
+      "why": "a reply that is not empty and has nothing on its lines answers an empty list, which is not none",
+      "reader": "suggestions",
+      "reply": "\n  \n",
+      "suggestions": []
+    }
+  ]
+}

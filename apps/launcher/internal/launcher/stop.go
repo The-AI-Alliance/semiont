@@ -11,7 +11,7 @@ import (
 var stopUsage = fmt.Sprintf(`Usage: semiont stop [--service <name>] [--runtime container|docker|podman] [--repo <owner/name>] [--delete] [--dry-run]
 
 Stop the whole Semiont stack — services, dependencies, and observability —
-and clean up the staged config copies. Safe to run when nothing is up:
+and clean up the staged configs. Safe to run when nothing is up:
 every step is a no-op then. Persistent stack state (PostgreSQL, Qdrant,
 Neo4j data) is deliberately LEFT: the next start reuses it. Removing it is
 its own explicit command: semiont clean.
@@ -23,7 +23,7 @@ With --service <name>, stop just that one service:
 
 %s.
 
-The staged config copies are left in place — the rest of the stack is still
+The staged configs are left in place — the rest of the stack is still
 mounting them.
 
 A CODESPACE stack (started with --runtime codespace) stops with
@@ -355,11 +355,11 @@ func Stop(args []string) int {
 		}
 		switch {
 		case service != "":
-			fmt.Println("# staged config copies left in place (--service)")
+			fmt.Println("# staged configs left in place (--service)")
 		case st != nil && !useState:
-			fmt.Println("# staged config copies and stack.json left in place (recorded stack is under " + st.Runtime + ")")
+			fmt.Println("# staged configs and stack.json left in place (recorded stack is under " + st.Runtime + ")")
 		default:
-			fmt.Println("# remove staged config copies: " + stagingPattern())
+			fmt.Println("# remove staged configs: " + stagingPattern())
 			fmt.Println("# wait until the stack's ports are released; report any still-held holder")
 		}
 		return 0
@@ -437,7 +437,7 @@ func Stop(args []string) int {
 		return 0
 	}
 
-	// Per-service config copies staged by semiont start for the bind mounts.
+	// The documents semiont start staged for the bind mounts.
 	staged, _ := filepath.Glob(stagingPattern())
 	removeStagedConfigs()
 	if len(staged) > 0 {

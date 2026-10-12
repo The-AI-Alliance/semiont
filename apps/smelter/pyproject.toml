@@ -17,16 +17,16 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
 ]
-# Pydantic and httpx are the SDK's dependencies too, and the SDK states their
-# versions: a bound written here would be a second copy of its. PDFium's binding is what
+# Pydantic is the SDK's dependency too, and the SDK states its versions: a
+# bound written here would be a second copy of its. PDFium's binding is what
 # the Smelter reads a PDF with, from the version its reader was written
 # against: what the reader leans on in it is listed in pdfium.py. Its wheel
 # carries PDFium itself, built for the image's Alpine. What reads a scanned
 # page, the `tesseract` program, is no Python package: the image installs it.
-# What every Python service is built on is semiont-service, and the index
-# the Smelter writes and the provider it asks for vectors are semiont-vectors.
+# What every Python service is built on is semiont-service, which also reads
+# a resource's bytes from the Archivist, and the index the Smelter writes and
+# the provider it asks for vectors are semiont-vectors.
 dependencies = [
-    "httpx",
     "pydantic",
     "pypdfium2>=5.14,<6",
     "semiont",

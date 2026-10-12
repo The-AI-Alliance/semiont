@@ -1,7 +1,6 @@
 import { describe, test, expect } from 'vitest';
 import {
   getLocaleInfo,
-  getLocaleNativeName,
   formatLocaleDisplay,
 } from '../locales';
 
@@ -22,20 +21,6 @@ describe('getLocaleInfo', () => {
 
   test('returns undefined for undefined input', () => {
     expect(getLocaleInfo(undefined)).toBeUndefined();
-  });
-});
-
-describe('getLocaleNativeName', () => {
-  test('returns native name', () => {
-    expect(getLocaleNativeName('ja')).toBe('日本語');
-  });
-
-  test('returns undefined for unknown', () => {
-    expect(getLocaleNativeName('xx')).toBeUndefined();
-  });
-
-  test('returns undefined for undefined', () => {
-    expect(getLocaleNativeName(undefined)).toBeUndefined();
   });
 });
 

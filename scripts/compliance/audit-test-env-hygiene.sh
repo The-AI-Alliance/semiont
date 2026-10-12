@@ -11,9 +11,8 @@ set -euo pipefail
 #
 # A process is its own source PLUS the workspace packages it imports, so the
 # reads are collected over the dependency closure. Scoped to `$tree/src`
-# alone, this gate called a live requirement dead: the TypeScript gateway
-# needed SEMIONT_OIDC_CLIENT_ID because `archivistEndpoint`, in
-# @semiont/core, read it on the gateway's behalf.
+# alone, this gate would call a live requirement dead whenever a package
+# reads a variable on behalf of the tree that imports it.
 #
 # Scoped to SEMIONT_* — the deployment-contract namespace. Test knobs like
 # NODE_ENV or VITEST_* are not deployment facts and stay out of scope.

@@ -26,7 +26,9 @@ const CONTEXT_WINDOW: i64 = 2000;
 
 /// What a resource's context takes when its caller states nothing: two hops
 /// of the graph, ten resources, their content, and no summary. Held by the
-/// same cases.
+/// same cases. `depth` is how many links out from the resource the graph
+/// reaches, 1 to 3, nearest first: what a resource links to and what cites
+/// it are both followed.
 impl Default for GatherResourceRequestOptions {
     fn default() -> GatherResourceRequestOptions {
         GatherResourceRequestOptions {

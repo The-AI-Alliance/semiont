@@ -17,18 +17,11 @@ jobs:
       matrix:
         package:
           - http-transport
-          - content
           - core
-          - event-sourcing
-          - graph
-          - inference
-          - make-meaning
           - mcp-server
           - observability
-          - ontology
           - react-ui
           - sdk
-          - vectors
 
     steps:
       - name: Checkout code
@@ -70,32 +63,9 @@ jobs:
               npm run openapi:bundle
               npm run build --workspace=@semiont/core
               ;;
-            ontology|vectors|content|event-sourcing)
-              npm run openapi:bundle
-              npm run build --workspace=@semiont/core
-              ;;
-            graph|inference)
-              npm run openapi:bundle
-              npm run build --workspace=@semiont/core
-              npm run build --workspace=@semiont/ontology
-              npm run build --workspace=@semiont/http-transport
-              ;;
-            make-meaning)
-              npm run openapi:bundle
-              npm run build --workspace=@semiont/core
-              npm run build --workspace=@semiont/ontology
-              npm run build --workspace=@semiont/http-transport
-              npm run build --workspace=@semiont/sdk
-              npm run build --workspace=@semiont/content
-              npm run build --workspace=@semiont/event-sourcing
-              npm run build --workspace=@semiont/inference
-              npm run build --workspace=@semiont/vectors
-              npm run build --workspace=@semiont/graph
-              ;;
             react-ui)
               npm run openapi:bundle
               npm run build --workspace=@semiont/core
-              npm run build --workspace=@semiont/ontology
               npm run build --workspace=@semiont/http-transport
               npm run build --workspace=@semiont/sdk
               ;;

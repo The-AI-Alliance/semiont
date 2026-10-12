@@ -15,7 +15,7 @@
  * ```
  *
  * Direct imports are appropriate when constructing the transport stack
- * by hand (CLI factories, MCP entrypoints, worker pools).
+ * by hand, as the MCP server does.
  */
 
 export {

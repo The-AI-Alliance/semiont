@@ -115,9 +115,6 @@
     "@redocly/openapi-core": {
       "js-yaml": "^4.3.2"
     },
-    "@qdrant/js-client-rest": {
-      "undici": "^7.29.1"
-    },
     "@tailwindcss/typography": {
       "postcss-selector-parser": "^7.1.6"
     }
@@ -129,6 +126,7 @@
     "glob": "^13.0.6",
     "@types/node": "^26.0.0",
     "baseline-browser-mapping": "^2.9.6",
+    "smol-toml": "^1.9.0",
     "stylelint": "^17.0.0",
     "stylelint-config-standard": "^40.0.0",
     "stylelint-order": "^8.1.1",

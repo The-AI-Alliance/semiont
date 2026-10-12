@@ -14,7 +14,7 @@ Defined, field by field, in [`src/transport/http-transport.ts`](../src/transport
 
 - **`token$`** is where the transport reads the current token. A new token pushed into it is used from the next request on.
 - **`tokenRefresher`** is asked for a new token when the gateway refuses one (below).
-- **`channels`** narrows what the stream carries. A service that awaits only some operations names their reply channels, and is sent nothing else.
+- **`channels`** narrows what the stream carries. A worker that awaits only some operations names their reply channels, and is sent nothing else.
 - **`loadLastEventIds`** and **`saveLastEventId`** let a client resume its stream where its last life stopped.
 - **`logger`** receives what the transport logs: see [Logging](./LOGGING.md).
 - **`timeout`** and **`retry`** bound a plain request. The remaining fields override the timing of [`specs/src/client/timing.json`](../../../specs/src/client/timing.json), for a test or the conformance driver, which cannot wait them out.
@@ -62,7 +62,7 @@ const transport = new HttpTransport({ baseUrl: baseUrl('https://kb.example.com')
 const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
 ```
 
-The services and the MCP server import from `@semiont/http-transport` itself, because each builds this stack by hand, with its own token source and channel set.
+The MCP server imports from `@semiont/http-transport` itself, because it builds this stack by hand, with its own token source.
 
 ## Behavioral contract
 

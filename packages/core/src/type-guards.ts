@@ -31,48 +31,6 @@ export function isArray(value: unknown): value is unknown[] {
 }
 
 /**
- * Check if value is a boolean
- */
-export function isBoolean(value: unknown): value is boolean {
-  return typeof value === 'boolean';
-}
-
-/**
- * Check if value is a function
- */
-export function isFunction(value: unknown): value is Function {
-  return typeof value === 'function';
-}
-
-/**
- * Check if value is null
- */
-export function isNull(value: unknown): value is null {
-  return value === null;
-}
-
-/**
- * Check if value is undefined
- */
-export function isUndefined(value: unknown): value is undefined {
-  return value === undefined;
-}
-
-/**
- * Check if value is null or undefined
- */
-export function isNullish(value: unknown): value is null | undefined {
-  return value === null || value === undefined;
-}
-
-/**
- * Check if value is defined (not null or undefined)
- */
-export function isDefined<T>(value: T | null | undefined): value is T {
-  return value !== null && value !== undefined;
-}
-
-/**
  * Whether a completed job's stored result is one its worker reported
  * (`JobStoredResult`): a job completed without a result is stored with an
  * empty one, and every `JobResult` requires a member.

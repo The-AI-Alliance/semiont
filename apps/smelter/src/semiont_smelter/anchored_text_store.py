@@ -8,7 +8,7 @@ Archivist read it. Everything kept is derived from the bytes, so an entry
 that is not taken costs deriving it again, and nothing else.
 
 An entry is the file `<ab>/<cd>/<key>.json` under the store's directory: the
-key is the SHA-256 of the bytes in hex, and `semiont_smelter.shard` says
+key is the SHA-256 of the bytes in hex, and `semiont_service.shard` says
 where it is filed. It holds the protocol's `AnchoredTextEntry` as compact
 JSON, `v` and `stamp` first. An entry is its outcome's members, by the names
 the wire gives them, without `kind`, which the entry's own shape says, and
@@ -61,8 +61,7 @@ from semiont.types import (
     ExtractionOutcome,
     PdfTextItem,
 )
-
-from semiont_smelter.shard import shard_path
+from semiont_service.shard import shard_path
 
 __all__ = ["AnchoredTextStore"]
 

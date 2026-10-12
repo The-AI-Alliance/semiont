@@ -63,6 +63,34 @@ for password in (None, ""):
         print(refused)
 """
 
+ASKING_FOR_A_READER_IN_MEMORY = f"""
+import sys
+from semiont.types import MemoryGraphConfig
+from semiont_graph.factory import create_graph_reader
+
+reader = create_graph_reader(MemoryGraphConfig(type="memory"), password=None)
+print(type(reader).__name__, {LOADED}, "semiont_graph.neo4j" in sys.modules)
+"""
+
+ASKING_FOR_EACH_READER = f"""
+from semiont.types import JanusGraphConfig, MemoryGraphConfig, Neo4jGraphConfig, NeptuneGraphConfig
+from semiont_graph.factory import create_graph_reader
+
+# No server listens at any of these addresses: a reader that dialled when it was made would fail here.
+for config, password in (
+    ({NEO4J}, "p"),
+    (JanusGraphConfig(type="janusgraph", host="127.0.0.1", port=1), None),
+    (NeptuneGraphConfig(type="neptune", endpoint="127.0.0.1", port=1), None),
+    (MemoryGraphConfig(type="memory"), None),
+):
+    print(type(create_graph_reader(config, password=password)).__name__)
+for password in (None, ""):
+    try:
+        create_graph_reader({NEO4J}, password=password)
+    except ValueError as refused:
+        print(refused)
+"""
+
 
 def alone(program: str) -> str:
     """What `program` printed, run by an interpreter of its own."""
@@ -91,3 +119,19 @@ def test_without_the_client_the_neo4j_store_fails_naming_the_extra_and_the_store
 
 def test_the_neo4j_store_is_refused_without_its_password() -> None:
     assert alone(WITHOUT_A_PASSWORD).splitlines() == ["password is required for the neo4j store"] * 2
+
+
+def test_a_reader_in_memory_imports_no_part_of_a_databases_client() -> None:
+    assert alone(ASKING_FOR_A_READER_IN_MEMORY) == "MemoryGraphDatabase [] False\n"
+
+
+def test_a_reader_of_each_kind_is_made_and_dials_nothing_and_neo4js_is_refused_without_its_password() -> None:
+    # Neo4j has a reader of its own. A JanusGraph and a Neptune are read by their stores, whose connecting makes nothing.
+    assert alone(ASKING_FOR_EACH_READER).splitlines() == [
+        "Neo4jGraphReader",
+        "JanusGraphDatabase",
+        "NeptuneGraphDatabase",
+        "MemoryGraphDatabase",
+        "password is required for the neo4j reader",
+        "password is required for the neo4j reader",
+    ]

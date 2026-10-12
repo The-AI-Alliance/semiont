@@ -14,22 +14,14 @@ export type {
   Motivation,
   ContentFormat,
   // Authentication & tokens
-  Email,
-  AuthCode,
   AccessToken,
-  MCPToken,
-  CloneToken,
   // System identifiers
   EntityType,
   BaseUrl,
 } from './branded-types';
 export {
   // Helper functions
-  email,
-  authCode,
   accessToken,
-  mcpToken,
-  cloneToken,
   entityType,
   baseUrl,
 } from './branded-types';
@@ -45,11 +37,7 @@ export {
   isAnnotationId,
   isJobId,
   isUserId,
-  SYSTEM_SCOPE,
 } from './identifiers';
-
-// The service-account and worker roles, and the predicates that read them.
-export { SERVICE_ROLE, WORKER_ROLE, ROLES_CLAIM, hasServiceRole, hasWorkerRole } from './service-role';
 
 // Whether a job matches a filter: a claim's, or a party's own before it claims.
 export { jobMatchesFilter, type FilterableJob } from './job-filter';
@@ -67,11 +55,7 @@ export {
 } from './generated/job-storage';
 
 // Graph types
-export type {
-  GraphConnection,
-  EntityTypeStats,
-  ResourceDescriptor,
-} from './graph';
+export type { ResourceDescriptor } from './graph';
 
 // Event base types (persistence model foundations)
 export type {
@@ -84,8 +68,6 @@ export type {
   AttributedEvent,
   BodyOperation,
   BodyItem,
-  EventQuery,
-  ResourceAnnotations,
 } from './event-base';
 
 // Persisted events (the event types written to the log)
@@ -111,7 +93,6 @@ export type { EnrichedEventType } from './bus-protocol';
 export type {
   Selector,
   GatheredContext,
-  CommandErrorCode,
   MarkJobParams,
   JobFilter,
   JobResult,
@@ -132,22 +113,11 @@ export type {
 
 // Event utilities
 export type { StoredEventLike } from './event-utils';
-export {
-  getAnnotationIdFromEvent,
-  isStoredEvent,
-} from './event-utils';
+export { getAnnotationIdFromEvent } from './event-utils';
 
 // Event bus (RxJS-based, framework-agnostic)
 export { EventBus, ScopedEventBus, type BusFrame, type BusEnvelope } from './event-bus';
 export { relayFrames, type FrameSource, type FrameSink } from './relay-frames';
-
-// Per-key serialization (for RPC-style callers; see also RxJS groupBy + concatMap
-// for stream-style callers in packages/make-meaning)
-export { serializePerKey } from './serialize-per-key';
-
-// Bounded concurrency across callers (for a shared downstream: one local model
-// process, a rate-limited API). Sibling to serializePerKey, which bounds per key.
-export { boundedGate } from './bounded-gate';
 
 // Which failures are worth another attempt, per context — one catalog so the
 // contexts' disagreements are visible rather than distributed.
@@ -156,7 +126,6 @@ export type { RetryRule, RetryFacts } from './retry-rules';
 
 // Logger interface (framework-agnostic)
 export type { Logger } from './logger';
-export { errField } from './logger';
 
 // Bus logging — Tier 1 cross-wire observability
 export { busLog, busLogEnabled, setBusLogTraceIdProvider, type BusOp } from './bus-log';
@@ -190,7 +159,6 @@ export {
   getEntityTypes,
   getTagCategory,
   getTagSchemaId,
-  extractBoundingBox,
 } from './web-annotation-utils';
 export type {
   TextPositionSelector,
@@ -203,7 +171,6 @@ export type {
 export {
   createFragmentSelector,
   parseFragmentSelector,
-  getPageFromFragment,
 } from './pdf-coordinates';
 export type { PdfCoordinate } from './pdf-coordinates';
 
@@ -218,13 +185,10 @@ export {
   getPrimaryMediaType,
   getLanguage,
   getStorageUri,
-  getCreator,
-  getDerivedFrom,
   isArchived,
   getResourceEntityTypes,
   isDraft,
   decodeRepresentation,
-  compareByRecencyThenId,
 } from './resource-utils';
 
 // Transport contract — interfaces every concrete transport must satisfy.
@@ -252,7 +216,7 @@ export {
 } from './bridged-channels';
 
 // Request/reply over the bus — the transport-neutral primitive.
-export { busRequest, replyChannelsFor, relayedFailureCode, BusRequestError, type BusRequestPrimitive } from './bus-request';
+export { busRequest, replyChannelsFor, BusRequestError, type BusRequestPrimitive } from './bus-request';
 // The client's deadlines, retry budgets and stream cadence, generated from
 // specs/src/client/timing.json — the table every SDK generates from.
 export * from './generated/client-timing';
@@ -284,22 +248,11 @@ export {
   type ChannelDirection,
 } from './bus-classification';
 
-// Fuzzy text anchoring (annotation re-anchoring under content edits)
-export {
-  normalizeText,
-  buildContentCache,
-  findBestTextMatch,
-} from './fuzzy-anchor';
-export type { MatchQuality, ContentCache } from './fuzzy-anchor';
+// How well a quote was found in a text (annotation re-anchoring under content edits)
+export type { MatchQuality } from './fuzzy-anchor';
 
 // Render-time anchoring (combines position + quote selectors with scoring)
-export {
-  anchorAnnotation,
-  POSITION_WINDOW,
-  CONTEXT_FULL_WEIGHT,
-  CONTEXT_PARTIAL_WEIGHT,
-  POSITION_WEIGHT_MAX,
-} from './anchor-annotation';
+export { anchorAnnotation } from './anchor-annotation';
 export type {
   AnchorStrategy,
   AnchorConfidence,
@@ -311,8 +264,6 @@ export type {
 export {
   LOCALES,
   LOCALE_CODES,
-  getLocaleInfo,
-  getLocaleNativeName,
   formatLocaleDisplay,
 } from './locales';
 export type { LocaleCode, LocaleInfo } from './locales';
@@ -323,10 +274,9 @@ export {
   createPolygonSvg,
   createCircleSvg,
   parseSvgSelector,
-  normalizeCoordinates,
   scaleSvgToNative,
 } from './svg-utils';
-export type { Point, BoundingBox } from './svg-utils';
+export type { Point } from './svg-utils';
 
 // Text offsets, and the context of a span of a text
 export { textOffsets, type TextOffsets } from './text-offsets';
@@ -355,9 +305,7 @@ export {
   textSourceOf,
   yieldsGeometryOf,
   derivesTextOf,
-  isAnnotatable,
   AUTHORABLE_MEDIA_TYPES,
-  EMBEDDABLE_MEDIA_TYPES,
   GENERATABLE_MEDIA_TYPES,
 } from './media-types';
 export type {
@@ -368,20 +316,14 @@ export type {
   TextSource,
 } from './media-types';
 
-// Resource types
-export type { ResourceFilter, StoredResource } from './resource-types';
-
 // Annotation types
-export type { Annotation, AnnotationCategory } from './annotation-types';
+export type { Annotation } from './annotation-types';
 
 // Tag-schema type aliases (the schemas themselves are runtime-registered per KB)
 export type { TagSchema, TagCategory } from './tag-schemas';
 
 // ID generation
-export { generateUuid, uuidV4 } from './id-generation';
-
-// About how many tokens a text is
-export { estimateTokens } from './token-estimate';
+export { uuidV4 } from './id-generation';
 
 // State-unit pattern — the disposable contract shared by every layer (sdk,
 // http-transport, react-ui, …). The axiom harness lives in `@semiont/core/testing`.
@@ -395,58 +337,15 @@ export * from './did-utils';
 export * from './service-account';
 export { UnansweredError, jsonOf, whyUnanswered } from './unanswered';
 
-// Configuration types
-export type {
-  EnvironmentConfig,
-} from './config/config.types';
-
-export {
-  loadTomlConfig,
-  createTomlConfigLoader,
-  type TomlFileReader,
-  type InferenceConfig as TomlInferenceConfig,
-  type ActorInferenceConfig as TomlActorInferenceConfig,
-} from './config/toml-loader';
-
-export {
-  parseEnvironment,
-  validateEnvironment,
-  type Environment,
-} from './config/environment-validator';
-export { ConfigurationError } from './config/configuration-error';
-export {
-  type PlatformType,
-  isValidPlatformType,
-  getAllPlatformTypes,
-} from './config/platform-types';
-
-// Schema-generated configuration types
-export type {
-  GatewayServiceConfig,
-  DatabaseServiceConfig,
-  GraphServiceConfig,
-  OllamaProviderConfig,
-  AnthropicProviderConfig,
-  InferenceProvidersConfig,
-  ArchivistServiceConfig,
-  ServicesConfig,
-  VectorsServiceConfig,
-  EmbeddingServiceConfig,
-  GraphDatabaseType,
-  ServicePlatformConfig
-} from './config/config.types';
-
 // Knowledge-graph view derivation — pure fn over the KnowledgeGraph type,
-// shared by @semiont/make-meaning (the Gatherer and the Matcher) and @semiont/react-ui.
+// run by @semiont/react-ui.
 export { deriveViews } from './knowledge-graph-views';
 export type { GraphViews } from './knowledge-graph-views';
 
 // Bounded retry with backoff — startup connections from long-running peers
 // to the gateway.
-export { retryWithBackoff, retryBudgetMs, equalJitter, withDeadline, isTransientFetchError, isRetryableRequestError, retryAfterMs, STARTUP_FETCH_RETRY } from './retry';
+export { retryWithBackoff, equalJitter, isRetryableRequestError, retryAfterMs, STARTUP_FETCH_RETRY } from './retry';
 export type { HttpStatusError, RetryPolicy, RetryAttemptInfo } from './retry';
-
-export { getShardPath, jumpConsistentHash } from './shard-utils';
 
 // Browser ↔ launcher KB discovery — the canonical served URL of the
 // launcher's discovery document.

@@ -9,9 +9,8 @@ Sharp edges, and what to do about each.
 only in secure contexts, so on container/LAN IPs (e.g.
 `http://192.168.64.60:3000`) it is `undefined`.
 
-Every id reachable from the browser — correlationIds, KB ids, and the
-persisted ids built in `@semiont/core` — comes from that package's
-`generateUuid()` / `uuidV4()`, built on `crypto.getRandomValues()`,
+Every id made in the browser — correlationIds and KB ids — comes from
+`@semiont/core`'s `uuidV4()`, built on `crypto.getRandomValues()`,
 which is available in every context. So the suite needs no polyfill and
 none exists.
 

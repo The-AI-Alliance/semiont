@@ -4,30 +4,29 @@ run-name: "Service Images @ ${{ inputs.version }}${{ inputs.dry_run && ' (dry-ru
 
 # Builds and publishes the seven Semiont service images
 # (gateway · worker · smelter · weaver · archivist · librarian · dispatcher).
-# Six are built from this checkout and report version.json's version: the
-# gateway, the dispatcher and the archivist compiled from apps/gateway,
-# apps/dispatcher and apps/archivist, and the worker, the smelter and the
-# weaver, the Python services of apps/worker, apps/smelter and apps/weaver,
-# each installed with what its uv.lock pins. The librarian
-# installs the published @semiont/* packages, mirroring publish-browser.yml's
-# verify-npm → scan → multi-arch push → SBOM → attest spine. Every image passes
-# an added license-policy gate.
+# All seven are built from this checkout and report version.json's version:
+# the gateway, the dispatcher and the archivist compiled from apps/gateway,
+# apps/dispatcher and apps/archivist, and the worker, the smelter, the weaver
+# and the librarian, the Python services of apps/worker, apps/smelter,
+# apps/weaver and apps/librarian, each installed with what its uv.lock pins.
+# Each is scanned, pushed for both platforms, and attested with its SBOM, and
+# passes a license-policy gate.
 # Config is runtime (bind-mount); the images ship config-free.
 #
 # The gateway, the dispatcher and the archivist compile Rust, and the gateway's
 # arm64 half takes over an hour under emulation, so each of their platforms
 # builds on a runner of its own architecture and pushes by digest, and the
 # manifest job joins the two under the tags. The other four compile nothing in
-# their images: the librarian's runs `npm install`, and the worker, the smelter
-# and the weaver install wheels their lockfiles name for both platforms, the
-# smelter with the packages Alpine has for both. Emulation handles that in
-# minutes, so each publishes both platforms from one leg.
+# their images: the worker, the smelter, the weaver and the librarian install
+# wheels their lockfiles name for both platforms, the smelter with the
+# packages Alpine has for both. Emulation handles that in minutes, so each
+# publishes both platforms from one leg.
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: '@semiont/* version to bundle (e.g. 0.5.13, 0.5.13-build.42, latest)'
+        description: 'The version to tag the images with (e.g. 0.5.13, 0.5.13-build.42)'
         required: true
         type: string
       dry_run:
@@ -60,10 +59,8 @@ jobs:
           # build and run, the runner's own. `platforms`: what it publishes.
           # `arch`: a leg that publishes one architecture by digest, for
           # the manifest job to join; a leg without one publishes tagged.
-          # `installs`: the image installs @semiont/* packages from npm, so it
-          # waits for them to be installable; one without it is built from
-          # this checkout. `refusal`: what the image says, run bare, when it
-          # reaches its own configuration.
+          # `refusal`: what the image says, run bare, when it reaches its own
+          # configuration.
           - service: gateway
             arch: amd64
             runner: ubuntu-latest
@@ -115,8 +112,7 @@ jobs:
             scan: linux/amd64
             platforms: linux/amd64,linux/arm64
             dockerfile: apps/librarian/Dockerfile
-            installs: npm
-            refusal: No environment selected
+            refusal: "Cannot read the librarian's configuration document"
           - service: dispatcher
             arch: amd64
             runner: ubuntu-latest
@@ -136,91 +132,30 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7.0.1
 
-      # The license gate and the npm probe run node; an arm64 runner's image
-      # need not carry it.
+      # The license gate runs node; an arm64 runner's image need not carry it.
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
           node-version-file: .node-version
 
-      - name: Verify packages are installable from npm
-        if: matrix.installs == 'npm'
-        # A just-published version is not installable for minutes afterwards,
-        # even though npmjs.com shows it instantly, so a single probe right
-        # after publish fails on a package that is genuinely there. Poll.
-        #
-        # Probe the TARBALL, not the packument. `npm view <pkg>@<ver> version`
-        # reads the registry's JSON metadata document; `npm install` reads that
-        # document to resolve a version and then downloads the file named in
-        # `dist.tarball`. Those are different artifacts served by different
-        # infrastructure, and they do not become available at the same instant:
-        # the packument can report every published package present while an
-        # install dies on `404 .../@semiont/<pkg>/-/<pkg>-<ver>.tgz`. A gate in
-        # front of a build has to perform the operation the build performs, not
-        # a cheaper one that correlates with it.
-        #
-        # Waiting only for this service's own entry point is not enough either:
-        # the install resolves that package's whole @semiont/* closure at the
-        # same version, and those propagate independently — an entry point can
-        # be indexed while a package it imports is not, and the build then dies
-        # in `npm install`. version.json owns which packages
-        # publish, so wait for all of them rather than restating a per-service
-        # dependency list that would drift the first time an import changed.
-        run: |
-          PKGS=$(node -e "
-            const v = JSON.parse(require('fs').readFileSync('version.json','utf-8'));
-            const names = Object.entries(v.packages)
-              .filter(([, p]) => p.publish)
-              .map(([key, p]) => {
-                const pub = p.stage ? require('path').join(p.dir, 'package.publish.json') : null;
-                return pub ? JSON.parse(require('fs').readFileSync(pub,'utf-8')).name : key;
-              });
-            console.log(names.join(' '));
-          ")
-          echo "Waiting on: $PKGS"
-          ERR=$(mktemp)
-          for pkg in $PKGS; do
-            found=""
-            for attempt in $(seq 1 20); do
-              # Both conditions sit in one loop because they clear in sequence:
-              # the packument lands first, the tarball second. `-f` is what makes
-              # curl exit non-zero on 4xx/5xx -- without it a 404 body counts as
-              # success. `-I` asks only whether the CDN will serve the object,
-              # which is the entire question; downloading it would re-learn at
-              # full network cost what the HEAD already said.
-              url=$(npm view "${pkg}@${{ inputs.version }}" dist.tarball 2>"$ERR") || true
-              if [ -n "$url" ] && curl -sfI "$url" >/dev/null; then
-                found=yes; break
-              fi
-              echo "waiting for ${pkg}@${{ inputs.version }} tarball (attempt $attempt/20)"
-              sleep 30
-            done
-            if [ -z "$found" ]; then
-              echo "❌ ${pkg}@${{ inputs.version }} not installable from npm after 10 minutes"
-              echo "--- last npm view stderr ---"
-              cat "$ERR"
-              exit 1
-            fi
-          done
-          echo "✅ every published @semiont package is installable at ${{ inputs.version }}"
-
       # The gateway, the dispatcher and the archivist compile with the toolchain
-      # rust-toolchain.toml pins; the worker, the smelter and the weaver run on
-      # the Python packages/sdk-python/pyproject.toml states as the oldest
-      # supported; the librarian installs the version this run publishes. The
-      # toolchain, or the Python, is read before anything is written, so a file
-      # that names none fails this step.
+      # rust-toolchain.toml pins; the worker, the smelter, the weaver and the
+      # librarian run on the Python packages/sdk-python/pyproject.toml states as
+      # the oldest supported. The toolchain, or the Python, is read before
+      # anything is written, so a file that names none fails this step, and so
+      # does a service that is neither.
       - name: Build arguments
         id: args
         run: |
           if [ "${{ matrix.service }}" = gateway ] || [ "${{ matrix.service }}" = dispatcher ] || [ "${{ matrix.service }}" = archivist ]; then
             toolchain=$(scripts/ci/rust-toolchain.sh)
             argument="RUST_TOOLCHAIN=$toolchain"
-          elif [ "${{ matrix.service }}" = worker ] || [ "${{ matrix.service }}" = smelter ] || [ "${{ matrix.service }}" = weaver ]; then
+          elif [ "${{ matrix.service }}" = worker ] || [ "${{ matrix.service }}" = smelter ] || [ "${{ matrix.service }}" = weaver ] || [ "${{ matrix.service }}" = librarian ]; then
             floor=$(scripts/ci/python-floor.sh)
             argument="PYTHON_FLOOR=$floor"
           else
-            argument="SEMIONT_VERSION=${{ inputs.version }}"
+            echo "::error::${{ matrix.service }} is neither a Rust service nor a Python one: this step knows no build argument for it."
+            exit 1
           fi
           {
             echo "args<<EOF"
@@ -279,14 +214,14 @@ jobs:
           output: sbom.spdx.json
 
       # License-policy gate: the license of every package the image installs
-      # from npm or from PyPI must be on the permissive allowlist, else the
-      # publish fails for a human review.
+      # from PyPI must be on the permissive allowlist, else the publish fails
+      # for a human review.
       - name: License policy gate
         run: node .github/scripts/check-licenses.mjs sbom.spdx.json .github/licenses/allowlist.txt .github/licenses/exceptions.txt
 
       # Boot smoke: run the image built above for the scan and require that it
       # gets as far as CONFIG RESOLUTION. Every defect this catches dies in
-      # milliseconds, before any dependency matters — a missing dist entry
+      # milliseconds, before any dependency matters — a missing entry
       # point, an unresolved import, a native module absent for the platform —
       # and every one of them would otherwise be published and only discovered
       # when a stack refused to come up.
@@ -296,13 +231,12 @@ jobs:
       # here would restate a contract the launcher owns (its args builders) in
       # a place nothing keeps in sync. Reaching the service's own refusal is
       # proof the entry point resolved and everything it imports to get there
-      # did (for the librarian's image, that @semiont/core ran) — without
-      # standing up a single dependency. It is not proof for what a service
-      # imports later: the worker imports a provider's library when an agent
-      # is made for that provider, the weaver a database's client when its
-      # document names that database, and the smelter loads PDFium and runs
-      # the `tesseract` program once it has read its document, which a Python
-      # image's own check below holds.
+      # did — without standing up a single dependency. It is not proof for
+      # what a service imports later: the worker imports a provider's library
+      # when an agent is made for that provider, the weaver a database's
+      # client when its document names that database, the librarian both, and
+      # the smelter loads PDFium and runs the `tesseract` program once it has
+      # read its document, which a Python image's own check below holds.
       #
       # This is the cheap half. It does NOT prove the service reaches a healthy
       # state with real config; that needs the launcher-derived env (and a
@@ -313,15 +247,13 @@ jobs:
           out=$(docker run --rm semiont-${{ matrix.service }}:scan 2>&1)
           set -e
           echo "$out"
-          # What Node says of a module it cannot load, and what Python says.
-          if echo "$out" | grep -qE "Cannot find module|Cannot find package|ERR_MODULE_NOT_FOUND|MODULE_NOT_FOUND|ModuleNotFoundError|ImportError|No module named"; then
+          # What Python says of a module it cannot load.
+          if echo "$out" | grep -qE "ModuleNotFoundError|ImportError|No module named"; then
             echo "::error::${{ matrix.service }} image died at module load — the entry point or a dependency is missing from the image."
             exit 1
           fi
-          # The refusal each service raises when it has no configuration: for the
-          # librarian @semiont/core's loader with no environment staged, for the
-          # gateway, the dispatcher, the archivist, the worker, the smelter and the weaver their own with no document. A change to either message should
-          # fail here loudly rather than pass silently.
+          # The refusal each service raises when it has no document. A change
+          # to the message should fail here loudly rather than pass silently.
           if ! echo "$out" | grep -qF "${{ matrix.refusal }}"; then
             echo "::error::${{ matrix.service }} image did not reach config resolution. Expected \"${{ matrix.refusal }}\"; see the output above for where it stopped instead."
             exit 1
@@ -343,7 +275,7 @@ jobs:
       # configured for, no installer and no Node, and refuses by name without
       # its document. The smelter's reads a scanned page with no network.
       - name: Check the image of a Python service
-        if: matrix.service == 'worker' || matrix.service == 'smelter' || matrix.service == 'weaver'
+        if: matrix.service == 'worker' || matrix.service == 'smelter' || matrix.service == 'weaver' || matrix.service == 'librarian'
         run: scripts/container/check-python-image.sh ${{ matrix.service }} semiont-${{ matrix.service }}:scan docker
 
       - name: Build and push Docker image
@@ -433,7 +365,7 @@ jobs:
           {
             echo "## semiont-${{ matrix.service }} Container Image"
             echo ""
-            echo "**Version:** ${{ inputs.version }}${{ matrix.installs != 'npm' && ' (built from this commit)' || '' }}"
+            echo "**Version:** ${{ inputs.version }} (built from this commit)"
             echo "**Commit:** ${{ steps.tags.outputs.sha }}"
             echo "**Dry run:** ${{ inputs.dry_run }}"
             echo ""

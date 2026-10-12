@@ -6,8 +6,9 @@ SDK's, says the same. What it requires is what the source imports, and the
 SDK it is checked against is the one in this repository. It is the services'
 own code: it ships its types to them, no index takes it, every Python service
 of the repository is built on it, and none keeps a copy of a module of it.
-Two modules name OpenTelemetry and one what exports, and nothing here reads
-the process's environment or its arguments: a service hands them in.
+Two modules name OpenTelemetry and one what exports, one makes a request of
+its own, and nothing here reads the process's environment or its arguments:
+a service hands them in.
 """
 
 import re
@@ -91,12 +92,16 @@ def test_the_walk_found_the_project() -> None:
     assert len(SOURCES) > 10
     assert sorted(path.name for path in SRC.rglob("*.py")) == [
         "__init__.py",
+        "archivist.py",
         "catalog.py",
         "config.py",
+        "content.py",
         "health.py",
         "lanes.py",
         "log.py",
         "observability.py",
+        "shard.py",
+        "white_space.py",
     ]
 
 
@@ -148,7 +153,9 @@ def test_what_the_manifest_requires_is_what_the_source_imports() -> None:
     roots = {module.split(".")[0] for module in everything}
     # Every module imported from outside the standard library is declared, and nothing declared goes unused.
     assert roots - set(sys.stdlib_module_names) - {"semiont_service"} == declared
-    assert declared == {"opentelemetry", "pydantic", "semiont"}
+    assert declared == {"httpx", "opentelemetry", "pydantic", "semiont"}
+    # The one request a service makes itself is for a resource's bytes, of the Archivist.
+    assert modules({"httpx"}) == ["archivist.py"]
     assert names >= set(part_of_opentelemetry)
     for distribution, part in part_of_opentelemetry.items():
         assert any(module == part or module.startswith(f"{part}.") for module in everything), f"nothing imports {distribution}"
@@ -169,7 +176,7 @@ def test_what_exports_a_service_s_telemetry_is_at_the_versions_the_sdk_states_fo
 def test_a_dependency_the_sdk_bounds_is_named_here_without_a_bound_of_its_own() -> None:
     manifest = toml(PROJECT / "pyproject.toml")
     bounded_by_the_sdk = {name_of(requirement) for requirement in required(toml(SDK / "pyproject.toml"))}
-    assert bounded_by_the_sdk >= {"opentelemetry-api", "pydantic"}
+    assert bounded_by_the_sdk >= {"httpx", "opentelemetry-api", "pydantic"}
     # The repository's own packages are at the repository's one version, wherever they are named.
     of_the_repository = set(table(table(table(manifest["tool"], "tool")["uv"], "uv")["sources"], "sources"))
     for requirement in required(manifest):
@@ -212,14 +219,20 @@ def test_it_is_the_services_own_code_and_every_python_service_is_built_on_it() -
 def test_no_service_keeps_a_copy_of_a_module_here() -> None:
     # What a service is called and its one logger are its own, and so is what of its document only it has: a service
     # has a `config.py` and a `log.py`. How a document is read and how a log is written are stated here and nowhere else,
-    # and so are the order a service does each resource's work in and how it reads the catalog whole.
+    # and so are the order a service does each resource's work in and how it reads the catalog whole. So are what
+    # reads a resource's bytes and the reader that asks the Archivist, where a file of the record is filed, and
+    # what white space is.
     stated_here = {
+        "archivist.py": ("class ArchivistContent", "class Authorizes"),
         "catalog.py": ("_UNTIL_THE_ARCHIVIST_ANSWERS", "bus.peer-unavailable"),
         "config.py": ("def config_path_of(", "def read_config", "def service_account_of(", "def set_in("),
+        "content.py": ("class ContentReads", "class ContentUnread"),
         "health.py": ("def bind_health(",),
         "lanes.py": ("class Lanes",),
         "log.py": ("def configure(", "logging.Formatter"),
         "observability.py": ("def install(", "def report_the_process(", "class Exporting"),
+        "shard.py": ("def shard_path(",),
+        "white_space.py": ("WHITE_SPACE: Final",),
     }
     for module, marks in stated_here.items():
         ours = (SRC / module).read_text(encoding="utf-8")
@@ -234,6 +247,9 @@ def test_no_service_keeps_a_copy_of_a_module_here() -> None:
         assert not list((service / "src").rglob("health.py")), service.name
         assert not list((service / "src").rglob("lanes.py")), service.name
         assert not list((service / "src").rglob("observability.py")), service.name
+        assert not list((service / "src").rglob("archivist.py")), service.name
+        assert not list((service / "src").rglob("shard.py")), service.name
+        assert not list((service / "src").rglob("white_space.py")), service.name
 
 
 def test_two_modules_name_opentelemetry_and_one_what_exports() -> None:

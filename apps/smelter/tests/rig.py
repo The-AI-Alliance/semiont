@@ -22,6 +22,7 @@ from pydantic import JsonValue
 from semiont.identifiers import ResourceId
 from semiont.testing import FaultyTransport
 from semiont.transport import Frame
+from semiont_service.content import Content, ContentReads, ContentUnread
 from semiont_vectors.embedding import EmbeddingProvider, EmbeddingProviderError
 from semiont_vectors.memory import MemoryVectorStore
 from semiont_vectors.mock import MockEmbeddingProvider, deterministic_vector
@@ -30,7 +31,6 @@ from spec import JsonObject
 
 from semiont_smelter.anchored_text_store import AnchoredTextStore
 from semiont_smelter.chunking import Chunking
-from semiont_smelter.content import Content, ContentReads, ContentUnread
 from semiont_smelter.extraction import PdfExtractor
 from semiont_smelter.ocr_engine import Box, OcrLine, OcrParagraph, OcrRead, OcrWord
 from semiont_smelter.pdf_reader import Matrix, PdfEncrypted, PdfUnreadable, Pixels, Run

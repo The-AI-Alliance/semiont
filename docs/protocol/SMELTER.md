@@ -100,7 +100,7 @@ gateway, and reads bytes from the Archivist.
 - **It reads a resource's bytes from the Archivist's own
   `GET /resources/{id}/content`, as its service account, and takes them as
   they are stored.** The checksum it works by is of exactly those bytes.
-  *Held by `apps/smelter/tests/test_archivist.py`.*
+  *Held by `packages/service-python/tests/test_archivist.py`.*
 - **It answers one command,** `smelt:rebuild-anchors` ([Rebuild](#rebuild)),
   **and emits one signal,** `smelt:settled`
   ([What it decides](#what-it-decides)).

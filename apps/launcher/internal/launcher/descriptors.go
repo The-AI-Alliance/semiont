@@ -111,12 +111,11 @@ type serviceDescriptor struct {
 	// cgroup cap inside one shared VM (caps are not reservations). Explicit
 	// for every container-bearing driver — the silent default is 1G on Apple
 	// container and unlimited on docker. This table is the ONE home; every
-	// args builder and the memory preflight read it. No floors: apps size
-	// themselves from the ceiling (node cgroup-aware heap, Neo4j auto-config).
+	// args builder and the memory preflight read it. No floors: Neo4j sizes
+	// itself from the ceiling.
 	//
-	// Sized from `container stats` on an idle stack: every Node service
-	// ≤ ~310 MiB, collector 153, neo4j 922 — so 2G ≈ 6x headroom for the
-	// services, and neo4j keeps the 2G it actually uses.
+	// Sized from `container stats` on an idle stack: collector 153 MiB,
+	// neo4j 922, which keeps the 2G it actually uses.
 	// Re-measure before trusting a ceiling after a service's scope changes.
 	mem string
 
@@ -167,7 +166,7 @@ var serviceDescriptors = []serviceDescriptor{
 	{role: "gateway", driver: driverSemiont, container: "semiont-gateway", mem: "2G", ports: []portNeed{{4000, "Gateway"}},
 		needs:  needs("collector", "identity", "messaging"),
 		health: healthProbe{path: "/api/health"}},
-	// The three make-meaning sidecars open with boot-time bus requests the
+	// The worker, the Smelter and the Weaver open with boot-time bus requests the
 	// Archivist answers (the smelter's reconcile opens with browse:resources),
 	// and its /health only turns on after its bus pumps attach — so this edge
 	// is what closes the startup race.

@@ -67,6 +67,7 @@ from semiont.types import (
 )
 from semiont.watched import Watched
 from semiont_inference.interface import InferenceClient
+from semiont_service.white_space import trimmed
 
 from semiont_worker.detection.anchor_audit import note_anchor
 from semiont_worker.detection.annotation_detection import (
@@ -88,7 +89,6 @@ from semiont_worker.generation.typst import MAX_COMPILE_REPAIRS, NotCompiled, co
 from semiont_worker.log import LOG
 from semiont_worker.media_types import GENERATABLE_MEDIA_TYPES
 from semiont_worker.numbers import as_javascript_writes
-from semiont_worker.white_space import trimmed
 
 type BuildAnnotation = Callable[[Motivation, TextSpan, AnnotationBodies | None], Annotation]
 """How a span of the text is built into an annotation of the job's resource: its motivation, the span, and its body where its kind has one.

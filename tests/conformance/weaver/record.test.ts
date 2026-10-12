@@ -1,15 +1,14 @@
 /**
  * The graph a Weaver builds from the record (WEAVER.md § The fold, § Reconcile):
- * what each resource and annotation is in it, read back as a reader of the
- * graph reads it, and whether the Weaver's own check of the graph against the
+ * what each resource and annotation is in it, read back by the suite's own
+ * reader, and whether the Weaver's own check of the graph against the
  * record finds anything to repair in a graph it has just built.
  *
  * Nothing here states a view: the record is the real Archivist's, and the
  * graph is held to what that Archivist's view holds.
  */
-import { annotationId, resourceId } from '@semiont/core';
-import { intendedGraphAnnotation } from '@semiont/graph';
 import { expect, it } from 'vitest';
+import { intendedGraphAnnotation } from '../harness/graph-codec';
 import { eachWeaver } from '../harness/weaver-world';
 import { delegated, highlighted, link, referenced, tag, uploaded, whole } from './support';
 
@@ -35,32 +34,31 @@ eachWeaver('the graph a Weaver builds', (world) => {
 
     // Every annotation in the graph is what the graph is to hold of the one the record's view holds.
     const view = kb.view(id)!;
-    const inGraph = await world().graph.getResourceAnnotations(resourceId(id));
+    const inGraph = await world().graph.annotationsOn(id);
     expect(view.annotations.annotations.map((a) => a.id).sort()).toEqual([marked, reference, worked.id].sort());
     expect(byId(inGraph)).toEqual(byId(view.annotations.annotations.map(intendedGraphAnnotation)));
 
     // By the one who asked, not the one who sent it; with the software that made it.
-    const delegatedInGraph = await world().graph.getAnnotation(annotationId(worked.id));
+    const delegatedInGraph = await world().graph.annotation(worked.id);
     expect(delegatedInGraph?.creator).toMatchObject({ '@type': 'Person', '@id': grace.did });
     expect(delegatedInGraph?.generator).toMatchObject({ '@type': 'Software', '@id': worker.did });
     expect(world().recorded(id, 'mark:added').find((event) => (event.payload['annotation'] as { id: string }).id === worked.id)?.userId).toBe(worker.did);
 
     // A link and a tag added after the annotation was made are read back, dated when the record says the body changed.
-    const bound = await world().graph.getAnnotation(annotationId(reference));
+    const bound = await world().graph.annotation(reference);
     expect(bound?.body).toEqual([tag('Animal'), link(linkedTo)]);
     expect(bound?.modified).toBe(world().recorded(id, 'mark:body-updated')[0]!.timestamp);
-    expect((await world().graph.getResourceReferencedBy(resourceId(linkedTo))).map((a) => a.id)).toEqual([reference]);
+    expect((await world().graph.referencesTo(linkedTo)).map((a) => a.id)).toEqual([reference]);
 
     // The link is a connection of the resource it is on, to the resource it is to; and a resource is found by its name.
-    const connections = await world().graph.getResourceConnections(resourceId(id));
-    expect(connections.map((connection) => connection.targetResource['@id'])).toEqual([linkedTo]);
-    expect(connections[0]!.annotations.map((a) => a.id)).toEqual([reference]);
-    const named = await world().graph.listResources({ search: 'Linked to' });
-    expect(named.resources.map((resource) => resource['@id'])).toContain(linkedTo);
+    const links = await world().graph.linksFrom(id);
+    expect(links.map((link) => link.to['@id'])).toEqual([linkedTo]);
+    expect(links[0]!.by).toEqual([reference]);
+    expect(await world().graph.resourcesNamed('Linked to')).toContain(linkedTo);
 
     // The resource is dated and attributed as its event records.
     const created = world().recorded(id, 'yield:created')[0]!;
-    expect(await world().graph.getResource(resourceId(id))).toMatchObject({
+    expect(await world().graph.resource(id)).toMatchObject({
       name: 'Annotated',
       archived: false,
       dateCreated: created.timestamp,
@@ -91,13 +89,13 @@ eachWeaver('the graph a Weaver builds', (world) => {
     await grace.ask('mark:archive', { resourceId: id });
     await world().caughtUp(id);
 
-    expect((await world().graph.getResourceAnnotations(resourceId(id))).map((a) => a.id)).toEqual([kept]);
-    expect(await world().graph.getResource(resourceId(id))).toMatchObject({ archived: true, entityTypes: ['Pangram'] });
-    expect(await world().graph.getEntityTypeStats()).toContainEqual({ type: 'Pangram', count: 1 });
+    expect((await world().graph.annotationsOn(id)).map((a) => a.id)).toEqual([kept]);
+    expect(await world().graph.resource(id)).toMatchObject({ archived: true, entityTypes: ['Pangram'] });
+    expect(await world().graph.entityTypeCounts()).toContainEqual({ type: 'Pangram', count: 1 });
 
     await grace.ask('mark:unarchive', { resourceId: id });
     await world().caughtUp(id);
-    expect((await world().graph.getResource(resourceId(id)))?.archived).toBe(false);
+    expect((await world().graph.resource(id))?.archived).toBe(false);
   });
 
   it('says how far it has applied each resource, in order, and never past what the record holds', async () => {

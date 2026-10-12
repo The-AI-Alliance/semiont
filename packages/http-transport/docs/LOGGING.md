@@ -21,8 +21,6 @@ const logger: Logger = {
 const transport = new HttpTransport({ baseUrl: baseUrl('http://localhost:4000'), logger });
 ```
 
-A service passes the logger of its process: `createProcessLogger` in [`@semiont/observability`](../../observability/README.md).
-
 ## What it logs
 
 Four lines, and no others. Each carries a `type` to filter on.

@@ -16,9 +16,8 @@ The Browser also ships as a published, attested container image
 
 These ship as attested images and are **not** published to npm. The gateway, the
 dispatcher and the Archivist are Rust binaries, each compiled into its image from its
-directory here. The worker, the weaver and the smelter are Python, and each is built into
-its image from its directory here too. The librarian is Node: its code lives in
-`@semiont/make-meaning` (the actors), and its directory here holds only its Dockerfile.
+directory here. The worker, the weaver, the smelter and the librarian are Python, and each
+is built into its image from its directory here too.
 
 What each service reads, mounts and reaches is stated once, in the operator's
 [service catalog](../docs/operator/services/OVERVIEW.md). What the actors inside them do is

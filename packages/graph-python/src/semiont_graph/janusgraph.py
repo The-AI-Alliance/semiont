@@ -1,4 +1,4 @@
-"""The janusgraph store has never run against a server: it is the TypeScript store of that name, carried over file for file.
+"""The janusgraph store has never run against a server.
 
 It is kept to remind us of another kind of graph database. It asks
 JanusGraph's Gremlin server through Apache TinkerPop's client

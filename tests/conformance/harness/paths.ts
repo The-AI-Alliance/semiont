@@ -120,4 +120,19 @@ export const SMELTER_SERVICES: Readonly<Record<string, readonly string[]>> = {
   python: [join(REPO_ROOT, 'apps/smelter/.venv/bin/python'), '-P', '-m', 'semiont_smelter'],
 };
 
+/**
+ * How each implementation of the Librarian is started. The librarian suite
+ * runs each one with `--config <document>` and the environment, behind a real
+ * gateway, beside a real Archivist, a Weaver and a Smelter, against a real
+ * neo4j and a real Qdrant and stand-ins for its providers, and meets it on
+ * the bus, at its providers and at its health port (librarian/README.md). An
+ * implementation joins the suite by adding its line. vitest.config.ts
+ * provides them as `librarianServices`.
+ */
+export const LIBRARIAN_SERVICES: Readonly<Record<string, readonly string[]>> = {
+  // The interpreter of the project's locked environment: nothing is resolved or installed when a case starts it.
+  // `-P` keeps the directory a case starts it in off its import path, as the image's command does.
+  python: [join(REPO_ROOT, 'apps/librarian/.venv/bin/python'), '-P', '-m', 'semiont_librarian'],
+};
+
 export const SPEC_SOURCE = join(REPO_ROOT, 'specs/src');

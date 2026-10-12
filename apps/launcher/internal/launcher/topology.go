@@ -14,9 +14,8 @@ package launcher
 //   - `platform = "external"` says somebody else runs the daemon. The section
 //     states where; it is verified, never launched, and its address reaches
 //     each service as it was written.
-//   - Each service's staged copy states every placed address as a literal
-//     (stagedServiceConfig), so no container's environment says anything of
-//     where its dependencies are.
+//   - Each service's document states every placed address as a literal, so
+//     no container's environment says anything of where its dependencies are.
 
 import (
 	"fmt"
@@ -31,9 +30,9 @@ const keycloakRealmName = "semiont"
 
 // topologyVars: the launcher's own references, and the address each resolves
 // to for one start — every dependency on the host address, the issuer on
-// identityHost and its port. Resolved by the launcher, at staging and in the
-// documents it writes; never set in a container's environment, and never asked
-// of the user's.
+// identityHost and its port. Resolved by the launcher, in the documents it
+// writes; never set in a container's environment, and never asked of the
+// user's.
 func topologyVars(rt, addr string, issuerPort int) map[string]string {
 	vars := map[string]string{}
 	for _, name := range []string{"POSTGRES_HOST", "NEO4J_HOST", "NATS_HOST", "QDRANT_HOST", "OLLAMA_HOST"} {
@@ -93,14 +92,10 @@ func ollamaReference() any {
 }
 
 // placeUnstated writes the launcher's reference at every address the
-// environment's sections leave unstated — in the sections named, or in all of
-// them when none is. A section the config does not have is not created: a
-// daemon the config does not name is not part of the stack.
-func placeUnstated(envSection map[string]any, sections []string) {
+// environment's sections leave unstated. A section the config does not have is
+// not created: a daemon the config does not name is not part of the stack.
+func placeUnstated(envSection map[string]any) {
 	for _, a := range unstatedAddresses {
-		if sections != nil && !contains(sections, a.section[0]) {
-			continue
-		}
 		table := envSection
 		for _, name := range a.section {
 			table, _ = table[name].(map[string]any)
@@ -126,90 +121,18 @@ func placeUnstated(envSection map[string]any, sections []string) {
 	}
 }
 
-// resolveTopology replaces the launcher's references in every string below v
-// with the addresses of this start, by the placeholder rule every resolver
-// shares: a set variable wins, a default or not. A reference to anything else
-// — a secret, an operator's own variable — is left, default and all, for the
-// consumer's loader.
-func resolveTopology(v any, vars map[string]string) any {
-	switch t := v.(type) {
-	case string:
-		return placeholderRe.ReplaceAllStringFunc(t, func(ref string) string {
-			name, _, _ := strings.Cut(ref[2:len(ref)-1], ":-")
-			if value, ok := vars[name]; ok {
-				return value
-			}
-			return ref
-		})
-	case map[string]any:
-		for k, vv := range t {
-			t[k] = resolveTopology(vv, vars)
+// resolveTopology replaces the launcher's references in a value with the
+// addresses of this start, by the placeholder rule resolveRefs follows: a set
+// variable wins, a default or not. A reference to anything else — a secret, an
+// operator's own variable — is left, default and all.
+func resolveTopology(value string, vars map[string]string) string {
+	return placeholderRe.ReplaceAllStringFunc(value, func(ref string) string {
+		name, _, _ := strings.Cut(ref[2:len(ref)-1], ":-")
+		if resolved, ok := vars[name]; ok {
+			return resolved
 		}
-	case []any:
-		for i, vv := range t {
-			t[i] = resolveTopology(vv, vars)
-		}
-	}
-	return v
-}
-
-// stagedServiceConfig: one service's copy of the KB config, with everything
-// the launcher knows and the config does not written into the sections that
-// service reads:
-//
-//   - every address the launcher places, as a literal (vars);
-//   - the credential references of the daemons the launcher runs — a [graph]
-//     reader names ${NEO4J_PASSWORD}, a [jobs] reader the broker pair; the
-//     values reach the service as the variables its sections name (envFor);
-//   - for a service that dials the Archivist, its address, from the
-//     descriptor's port;
-//   - for a service that describes a KB tree it does not mount, a top-level
-//     [kb] with the KB's committed name and domain. The domain is omitted
-//     when the KB declares none, so the consumer's refusal still fires:
-//     staging a fabricated identity is the one thing worse than failing
-//     loudly.
-//
-// A hand-written section wins: an address, an [archivist] or a [kb] the config
-// states is an operator describing what the launcher cannot see. A section the
-// service does not read is left as written. Invalid TOML passes through
-// untouched: the consumer's own loader owns that error and its message.
-func stagedServiceConfig(svc string, cfg []byte, plan *launchPlan, vars map[string]string, addr, kbName, kbDomain string) []byte {
-	var doc map[string]any
-	if err := toml.Unmarshal(cfg, &doc); err != nil {
-		return cfg
-	}
-	env := environmentSection(doc, plan.EnvName)
-	if env == nil {
-		return cfg
-	}
-	sections := serviceConfigSections[svc]
-	placeUnstated(env, sections)
-	for _, section := range sections {
-		if table, ok := env[section]; ok {
-			env[section] = resolveTopology(table, vars)
-		}
-	}
-	if graph, ok := env["graph"].(map[string]any); ok && contains(sections, "graph") && plan.Roles["graph"].Presence == presenceLauncher {
-		graph["password"] = referenceTo(daemonPasswords["graph"].env)
-	}
-	if jobs, ok := env["jobs"].(map[string]any); ok && contains(sections, "jobs") && plan.Roles["messaging"].Presence == presenceLauncher {
-		jobs["user"], jobs["password"] = referenceTo("NATS_USER"), referenceTo(daemonPasswords["messaging"].env)
-	}
-	if _, stated := env["archivist"]; archivistDialers[svc] && !stated {
-		env["archivist"] = map[string]any{"host": addr, "port": int64(semiontDescriptor("archivist").ports[0].port)}
-	}
-	if _, stated := doc["kb"]; kbIdentityStaged[svc] && !stated {
-		kb := map[string]any{"name": kbName}
-		if kbDomain != "" {
-			kb["domain"] = kbDomain
-		}
-		doc["kb"] = kb
-	}
-	out, err := toml.Marshal(doc)
-	if err != nil {
-		return cfg
-	}
-	return append([]byte("# Staged by the launcher: the KB config, with the addresses and credentials of this start written into the sections "+svc+" reads.\n"), out...)
+		return ref
+	})
 }
 
 // placedAddresses: the addresses a start places for this config — each address
@@ -225,7 +148,7 @@ func placedAddresses(cfg []byte, envName string, vars map[string]string) []strin
 	if env == nil {
 		return nil
 	}
-	placeUnstated(env, nil)
+	placeUnstated(env)
 	var lines []string
 	for _, a := range unstatedAddresses {
 		table := env

@@ -437,9 +437,9 @@ export type EventMap = {
   /**
    * Emitted by the Weaver after applying an event (or a batch's last event)
    * for a resource to the graph. `sequenceNumber` is the resource-stream
-   * sequence of the last applied event. Folded by `WeaveProgress`
-   * (make-meaning) into a process-local applied map that the
-   * `whenApplied` barrier awaits. The Weaver runs as its own process,
+   * sequence of the last applied event. Folded by the Librarian's
+   * `WeaveProgress` into a process-local applied map that its
+   * `when_applied` barrier awaits. The Weaver runs as its own process,
    * so the signal reaches the fold over the bus.
    */
   'weave:applied': components['schemas']['WeaveApplied'];

@@ -8,8 +8,8 @@ set -euo pipefail
 # launcher itself (apps/launcher/dist/semiont, a host binary) so one run
 # yields everything a fully-local stack needs. And it builds the Python SDK's
 # distributions (packages/sdk-python/dist), which no image installs (the
-# worker's, the smelter's and the weaver's build the SDK from the working tree)
-# and Verdaccio cannot hold, so they are built and checked and published nowhere.
+# worker's, the smelter's, the weaver's and the librarian's build the SDK from
+# the working tree) and Verdaccio cannot hold, so they are built and checked and published nowhere.
 # No npm, Go or Python required on the host — everything runs inside containers.
 #
 # Each run starts a fresh Verdaccio (no stale state), registers a user,
@@ -235,11 +235,12 @@ while [[ $# -gt 0 ]]; do
       echo ""
       echo "  --images-only reuses the packages already in Verdaccio, so it picks up a"
       echo "  code change ONLY if that package was republished. Change package source"
-      echo "  and you want a full run (or --package <pkg>) first. Six images are the"
-      echo "  exception, each built from the working tree every time: the gateway,"
-      echo "  dispatcher and archivist compile the Rust workspace, and the worker, the"
-      echo "  smelter and the weaver install their Python services from apps/worker,"
-      echo "  apps/smelter and apps/weaver."
+      echo "  and you want a full run (or --package <pkg>) first. That is the Browser's"
+      echo "  image alone. The seven service images are each built from the working"
+      echo "  tree every time: the gateway, dispatcher and archivist compile the Rust"
+      echo "  workspace, and the worker, the smelter, the weaver and the librarian"
+      echo "  install their Python services from apps/worker, apps/smelter,"
+      echo "  apps/weaver and apps/librarian."
       echo ""
       echo "Packages build in the order version.json lists them; an unknown"
       echo "--package name is refused with the list."
@@ -409,7 +410,8 @@ fi
 # The inference drivers (packages/inference-python), the graph stores
 # (packages/graph-python), the vector stores (packages/vectors-python), the
 # service package (packages/service-python), the Worker (apps/worker), the
-# Weaver (apps/weaver) and the Smelter (apps/smelter) are Python projects with a
+# Weaver (apps/weaver), the Smelter (apps/smelter) and the Librarian
+# (apps/librarian) are Python projects with a
 # lockfile each and nothing generated from specs/src, so what can go stale in
 # them is the lockfile: a manifest changed without `uv lock`, in the project
 # or in a package of the repository it takes. CI's job for each refuses that first
@@ -420,7 +422,7 @@ fi
 
 banner "PYTHON LOCKFILE GATE"
 
-for PYTHON_PROJECT in packages/inference-python packages/graph-python packages/vectors-python packages/service-python apps/worker apps/weaver apps/smelter; do
+for PYTHON_PROJECT in packages/inference-python packages/graph-python packages/vectors-python packages/service-python apps/worker apps/weaver apps/smelter apps/librarian; do
   step "Checking ${PYTHON_PROJECT}/uv.lock against its manifests (in ${PYTHON_IMAGE})..."
   # Installing uv and checking report SEPARATELY, as above: a failed download
   # is not a stale lockfile.
@@ -447,8 +449,9 @@ for PYTHON_PROJECT in packages/inference-python packages/graph-python packages/v
     echo ""
     echo -e "  A project takes the SDK from this repository, and a service the package it"
     echo -e "  runs on too (the worker the inference drivers, the weaver the graph stores,"
-    echo -e "  the smelter the vector stores), so a change to one of their manifests is a"
-    echo -e "  change to its lockfile."
+    echo -e "  the smelter the vector stores, the librarian all three, and every service the"
+    echo -e "  service package), so a change to one of their manifests is a change to its"
+    echo -e "  lockfile."
     echo ""
     exit 1
   else
@@ -843,9 +846,10 @@ BUILD_REGISTRY="http://$HOST_ADDR:4873"
 # --- Build container images ---
 #
 # Same production Dockerfiles as the publish workflows, tagged
-# ghcr.io/the-ai-alliance/semiont-<svc>:local. The Node images install from
-# the local Verdaccio; the gateway, the dispatcher, the archivist, the worker,
-# the smelter and the weaver are built from the working tree. The
+# ghcr.io/the-ai-alliance/semiont-<svc>:local. The Node image, the Browser's,
+# installs from the local Verdaccio; the gateway, the dispatcher, the
+# archivist, the worker, the smelter, the weaver and the librarian are built
+# from the working tree. The
 # :local tag is what `semiont start` / compose consume via
 # SEMIONT_VERSION=local (it skips the registry pull), and it is never pushed.
 #
@@ -925,12 +929,12 @@ fanout_all() {
 # rebuild (explicit wins, and it also refreshes the recorded signature). The
 # @semiont/* set is DERIVED from the Dockerfile text, not restated here.
 #
-# The closure is the whole point. The Librarian's
-# image installs ONE of them (`npm install -g @semiont/make-meaning`) and inherits
-# the rest through it, all pinned "*" so they resolve to latest at install
-# time. Signing only the named package would let a fix landing in
-# @semiont/inference leave @semiont/make-meaning byte-identical, the signature match,
-# and the image skip — while a rebuild would pick the fix up: correct
+# The closure is the whole point. An image that installs ONE package (the
+# Browser's, `npm install @semiont/browser`) inherits whatever @semiont/*
+# packages that one depends on, all pinned "*" so they resolve to latest at
+# install time. Signing only the named package would let a fix landing in a
+# package it depends on leave the named one byte-identical, the signature
+# match, and the image skip — while a rebuild would pick the fix up: correct
 # about the package it watches and wrong about the image it produces.
 
 # One line capturing everything a rebuild depends on; EMPTY when any
@@ -1078,14 +1082,15 @@ while [ $next -lt ${#BUILD_IMGS[@]} ] || [ $running -gt 0 ]; do
     LOG=$(mktemp "$TMP_DIR/semiont-build-${img}.XXXXXX")
     step "Building ${TAG} from ${DF}..."
     # The gateway, the dispatcher and the archivist compile from the repository
-    # with the pinned toolchain, and the worker, the smelter and the weaver are
-    # installed from it on the Python floor, with what their lockfiles pin. Their
+    # with the pinned toolchain, and the worker, the smelter, the weaver and the
+    # librarian are installed from it on the Python floor, with what their
+    # lockfiles pin. Their
     # layers are keyed by what they copy, so a cached one is never stale.
-    # Every other image installs from Verdaccio, where --no-cache is what keeps
+    # The Browser's image installs from Verdaccio, where --no-cache is what keeps
     # a republished same-version package from being reused stale (above).
     case "$img" in
       gateway|dispatcher|archivist) BUILD_FLAGS=(--build-arg "RUST_TOOLCHAIN=$RUST_TOOLCHAIN") ;;
-      worker|smelter|weaver)        BUILD_FLAGS=(--build-arg "PYTHON_FLOOR=$PYTHON_FLOOR") ;;
+      worker|smelter|weaver|librarian) BUILD_FLAGS=(--build-arg "PYTHON_FLOOR=$PYTHON_FLOOR") ;;
       *)                            BUILD_FLAGS=(--no-cache --build-arg "NPM_REGISTRY=$BUILD_REGISTRY") ;;
     esac
     $RT build "${BUILD_FLAGS[@]}" --tag "$TAG" \
@@ -1129,7 +1134,7 @@ while [ $next -lt ${#BUILD_IMGS[@]} ] || [ $running -gt 0 ]; do
     case "${NAMES[$j]}" in
       gateway)               kept=("$REPO_ROOT/scripts/container/check-gateway-image.sh" "${TAGS[$j]}" "$RT") ;;
       dispatcher|archivist)  kept=("$REPO_ROOT/scripts/container/check-document-image.sh" "${NAMES[$j]}" "${TAGS[$j]}" "$RT") ;;
-      worker|smelter|weaver) kept=("$REPO_ROOT/scripts/container/check-python-image.sh" "${NAMES[$j]}" "${TAGS[$j]}" "$RT") ;;
+      worker|smelter|weaver|librarian) kept=("$REPO_ROOT/scripts/container/check-python-image.sh" "${NAMES[$j]}" "${TAGS[$j]}" "$RT") ;;
       *)                     kept=(true) ;;
     esac
     if ! "${kept[@]}"; then
@@ -1274,8 +1279,8 @@ ok "apps/launcher/dist/semiont built"
 # with its uv cache.
 #
 # It is published nowhere. Verdaccio holds npm packages and nothing else, and
-# the images that carry the SDK, the worker's, the smelter's and the weaver's,
-# build it from the working tree, so nothing in a local stack would read it from
+# the images that carry the SDK, the worker's, the smelter's, the weaver's and
+# the librarian's, build it from the working tree, so nothing in a local stack would read it from
 # an index. What is left in packages/sdk-python/dist installs by path.
 #
 # Last, since the stack needs nothing of it: a run that fails here has built

@@ -12,16 +12,24 @@ own, the Python service of [`apps/weaver`](../../../apps/weaver/README.md),
 started by the interpreter of its locked environment. Every case runs against
 every entry.
 
-It does import one thing that is not the harness's: `@semiont/graph`, which it
-reads the graph with, as the Librarian does. What a store holds is stated by
-[`specs/src/graph/codec-cases.json`](../../../specs/src/graph/codec-cases.json);
-the suite reads it back through the reader the rest of Semiont uses and does
-not parse rows of its own. That reader writes nothing. Two things the suite
-does in the database itself, in Cypher, through a connection of its own
-([harness/weaver-world.ts](../harness/weaver-world.ts)): it empties it, and it
-takes one annotation out of it behind a Weaver's back. The other suites' type check leaves these files
-out (`tsconfig.json`), so they build no graph package; `npm run test:weaver`
-checks them with `tsconfig.weaver.json`.
+The suite reads the graph with a reader of its own: its own Cypher, on a
+connection of its own ([harness/weaver-world.ts](../harness/weaver-world.ts)),
+and its own reading of each row
+([harness/graph-codec.ts](../harness/graph-codec.ts)). What a store holds is
+stated by
+[`specs/src/graph/codec-cases.json`](../../../specs/src/graph/codec-cases.json),
+the case table the Weaver's codec is held to, and the harness's reader is held
+to the same table (`harness/graph-codec.test.ts`, which the gateway project
+runs with the harness's other tests of itself). So the suite judges a Weaver
+by something other than the Weaver's own code. The other way would be for
+`semiont_graph` to offer a small command that prints a resource's rows,
+decoded, as JSON, which the harness would call: one codec in the repository
+and no copy here, at the cost that the suite would then read a Weaver through
+the Weaver's codec.
+
+That reader writes nothing. Two things the suite does in the database itself,
+in Cypher, on the same connection: it empties it, and it takes one annotation
+out of it behind a Weaver's back.
 
 ## The world around a Weaver
 
@@ -89,14 +97,14 @@ that is replaced starts with nothing.
 
 ## Running it
 
-It needs a built gateway and Archivist, the Weaver's Python environment, the
-packages built (the suite reads the graph with `@semiont/graph`), `nats-server`
-and `git` on `PATH`, and a neo4j:
+It needs a built gateway and Archivist, the Weaver's Python environment,
+`@semiont/core` built (the harness is typed by it), `nats-server` and `git` on
+`PATH`, and a neo4j:
 
 ```bash
 cargo build --release -p semiont-gateway -p semiont-archivist
 uv sync --locked --no-dev --all-extras --project apps/weaver
-npm run build:packages
+npm run build --workspace=@semiont/core
 cd tests/conformance
 npm ci
 NEO4J_HOST=<address> NEO4J_PASSWORD=<password> npm run test:weaver

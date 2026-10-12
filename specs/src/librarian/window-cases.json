@@ -1,0 +1,314 @@
+{
+  "$comment": "The text around a selection, as every implementation of the Librarian must cut it: a text, what an annotation's target selects of it, a window, and the text before the selection, the selection, and the text after it. Semiont's Librarian (apps/librarian) runs every case and fails on a difference; a Librarian in another language runs the same file. A case has one of two parts, `around` or `gathered`, for the two places the Librarian cuts a text around an annotation. THE CUT, which both make. A selection is from a `start` to an `end`, offsets into the text that count Unicode code points from its start, as specs/src/text/offset-cases.json states an offset. A window says how much text to take on each side, and counts code points too. `before` is the text from `start` less the window, or from the start of the text where that is nearer, up to `start`. `selected` is the text from `start` to `end`. `after` is the text from `end` to `end` and the window, or to the end of the text where that is nearer. A text with a character outside the Basic Multilingual Plane is what tells this count from a count of UTF-16 code units or of bytes, so the cases have such characters before, inside and after a selection. WHAT A CASE STATES. `text` is the text. `selector` is what the annotation's target states: one selector, or several of the same span, or none where the target states no selector. Where it states several, these cases state the position selector first. `context` is the answer: `before`, `selected` and `after`. AROUND is the cut made for an annotation that has a position: the Librarian makes it where it summarizes an annotation. `window` states how much to take `before` and `after`, each its own count. The selection is the `start` and `end` of the target's position selector. `refused` in place of a context says there is no answer and the cut fails: a target with no position selector is refused, whatever else it states. GATHERED is the cut in a gathered context, which states it as its focus's `selected`: `before`, the selection as `text`, and `after`. `window` is one count, taken on both sides. A window less than 100 or more than 5000 is `refused`, and nothing is cut. The selection of a position selector is its `start` and `end`. The selection of a quote selector is where the text has its `exact` words: the cut is around them, with the window counted in code points from where they start and end. Words the text does not have give no selection, and the context is null: the gathered context states no `selected`, and is still an answer. A target that states no selector, or a selector that is neither of these two, gives none either. No case here has words that the text has twice. Add a case here before changing an implementation.",
+  "cases": [
+    {
+      "why": "a selection in the middle of a text, with a window on each side shorter than the text there: each side is as long as its own window",
+      "around": {
+        "text": "The quick brown fox jumps",
+        "selector": { "type": "TextPositionSelector", "start": 10, "end": 15 },
+        "window": { "before": 6, "after": 4 },
+        "context": { "before": "quick ", "selected": "brown", "after": " fox" }
+      }
+    },
+    {
+      "why": "a selection at the start of a text has nothing before it",
+      "around": {
+        "text": "The quick brown fox jumps",
+        "selector": { "type": "TextPositionSelector", "start": 0, "end": 3 },
+        "window": { "before": 5, "after": 6 },
+        "context": { "before": "", "selected": "The", "after": " quick" }
+      }
+    },
+    {
+      "why": "a selection at the end of a text has nothing after it",
+      "around": {
+        "text": "The quick brown fox jumps",
+        "selector": { "type": "TextPositionSelector", "start": 20, "end": 25 },
+        "window": { "before": 4, "after": 5 },
+        "context": { "before": "fox ", "selected": "jumps", "after": "" }
+      }
+    },
+    {
+      "why": "a window larger than the text takes all there is on each side, and no more",
+      "around": {
+        "text": "The quick brown fox jumps",
+        "selector": { "type": "TextPositionSelector", "start": 10, "end": 15 },
+        "window": { "before": 100, "after": 100 },
+        "context": { "before": "The quick ", "selected": "brown", "after": " fox jumps" }
+      }
+    },
+    {
+      "why": "a window of nothing takes the selection alone",
+      "around": {
+        "text": "The quick brown fox jumps",
+        "selector": { "type": "TextPositionSelector", "start": 10, "end": 15 },
+        "window": { "before": 0, "after": 0 },
+        "context": { "before": "", "selected": "brown", "after": "" }
+      }
+    },
+    {
+      "why": "a selection of the whole text has nothing on either side",
+      "around": {
+        "text": "The quick brown fox jumps",
+        "selector": { "type": "TextPositionSelector", "start": 0, "end": 25 },
+        "window": { "before": 5, "after": 5 },
+        "context": { "before": "", "selected": "The quick brown fox jumps", "after": "" }
+      }
+    },
+    {
+      "why": "an empty selection selects nothing, and has the text on each side of the place it is at",
+      "around": {
+        "text": "The quick brown fox jumps",
+        "selector": { "type": "TextPositionSelector", "start": 10, "end": 10 },
+        "window": { "before": 6, "after": 5 },
+        "context": { "before": "quick ", "selected": "", "after": "brown" }
+      }
+    },
+    {
+      "why": "an empty selection at the end of a text: an offset may be the length of the text",
+      "around": {
+        "text": "The quick brown fox jumps",
+        "selector": { "type": "TextPositionSelector", "start": 25, "end": 25 },
+        "window": { "before": 5, "after": 5 },
+        "context": { "before": "jumps", "selected": "", "after": "" }
+      }
+    },
+    {
+      "why": "a text with nothing in it has one place, and nothing around it",
+      "around": {
+        "text": "",
+        "selector": { "type": "TextPositionSelector", "start": 0, "end": 0 },
+        "window": { "before": 5, "after": 5 },
+        "context": { "before": "", "selected": "", "after": "" }
+      }
+    },
+    {
+      "why": "characters outside the basic plane before the selection: each is one code point, so the selection is its own words and the window before it is 2 code points, a book and a space",
+      "around": {
+        "text": "📚📚 Ada wrote",
+        "selector": { "type": "TextPositionSelector", "start": 3, "end": 6 },
+        "window": { "before": 2, "after": 3 },
+        "context": { "before": "📚 ", "selected": "Ada", "after": " wr" }
+      }
+    },
+    {
+      "why": "characters outside the basic plane inside the selection: a selection of 2 code points is the two books whole",
+      "around": {
+        "text": "Ada 📚📚 wrote",
+        "selector": { "type": "TextPositionSelector", "start": 4, "end": 6 },
+        "window": { "before": 2, "after": 2 },
+        "context": { "before": "a ", "selected": "📚📚", "after": " w" }
+      }
+    },
+    {
+      "why": "characters outside the basic plane after the selection: a window of 3 code points after it is a space and the two books whole",
+      "around": {
+        "text": "Ada wrote 📚📚 here",
+        "selector": { "type": "TextPositionSelector", "start": 4, "end": 9 },
+        "window": { "before": 4, "after": 3 },
+        "context": { "before": "Ada ", "selected": "wrote", "after": " 📚📚" }
+      }
+    },
+    {
+      "why": "the length of a text is its count of code points: a selection that ends at 7 ends this text, which is 9 UTF-16 code units",
+      "around": {
+        "text": "📚 Ada 📚",
+        "selector": { "type": "TextPositionSelector", "start": 6, "end": 7 },
+        "window": { "before": 3, "after": 3 },
+        "context": { "before": "da ", "selected": "📚", "after": "" }
+      }
+    },
+    {
+      "why": "a window larger than a text with characters outside the basic plane takes all of it, each character whole",
+      "around": {
+        "text": "📚 Ada 📚",
+        "selector": { "type": "TextPositionSelector", "start": 2, "end": 5 },
+        "window": { "before": 100, "after": 100 },
+        "context": { "before": "📚 ", "selected": "Ada", "after": " 📚" }
+      }
+    },
+    {
+      "why": "a target that states a position selector and a quote selector of the same span is cut at the position",
+      "around": {
+        "text": "The quick brown fox jumps",
+        "selector": [
+          { "type": "TextPositionSelector", "start": 10, "end": 15 },
+          { "type": "TextQuoteSelector", "exact": "brown", "prefix": "quick ", "suffix": " fox" }
+        ],
+        "window": { "before": 6, "after": 4 },
+        "context": { "before": "quick ", "selected": "brown", "after": " fox" }
+      }
+    },
+    {
+      "why": "a target with a quote selector and no position selector is refused here, though the text has its words",
+      "around": {
+        "text": "The quick brown fox jumps",
+        "selector": { "type": "TextQuoteSelector", "exact": "brown" },
+        "window": { "before": 6, "after": 4 },
+        "refused": true
+      }
+    },
+    {
+      "why": "a target that states no selector is refused here",
+      "around": {
+        "text": "The quick brown fox jumps",
+        "window": { "before": 6, "after": 4 },
+        "refused": true
+      }
+    },
+    {
+      "why": "in a gathered context, a position selector is cut at its offsets, and a window of 100 on a shorter text takes all of it",
+      "gathered": {
+        "text": "The quick brown fox jumps",
+        "selector": { "type": "TextPositionSelector", "start": 10, "end": 15 },
+        "window": 100,
+        "context": { "before": "The quick ", "selected": "brown", "after": " fox jumps" }
+      }
+    },
+    {
+      "why": "a target that states a position selector and a quote selector of the same span gathers the one cut",
+      "gathered": {
+        "text": "The quick brown fox jumps",
+        "selector": [
+          { "type": "TextPositionSelector", "start": 10, "end": 15 },
+          { "type": "TextQuoteSelector", "exact": "brown", "prefix": "quick ", "suffix": " fox" }
+        ],
+        "window": 100,
+        "context": { "before": "The quick ", "selected": "brown", "after": " fox jumps" }
+      }
+    },
+    {
+      "why": "a quote selector's words are found in the text, and the cut is around them",
+      "gathered": {
+        "text": "The quick brown fox jumps",
+        "selector": { "type": "TextQuoteSelector", "exact": "brown" },
+        "window": 100,
+        "context": { "before": "The quick ", "selected": "brown", "after": " fox jumps" }
+      }
+    },
+    {
+      "why": "words found at the start of the text have nothing before them",
+      "gathered": {
+        "text": "The quick brown fox jumps",
+        "selector": { "type": "TextQuoteSelector", "exact": "The" },
+        "window": 100,
+        "context": { "before": "", "selected": "The", "after": " quick brown fox jumps" }
+      }
+    },
+    {
+      "why": "words found at the end of the text have nothing after them",
+      "gathered": {
+        "text": "The quick brown fox jumps",
+        "selector": { "type": "TextQuoteSelector", "exact": "jumps" },
+        "window": 100,
+        "context": { "before": "The quick brown fox ", "selected": "jumps", "after": "" }
+      }
+    },
+    {
+      "why": "words the text does not have give no selection: the gathered context states none, and is not a failure",
+      "gathered": {
+        "text": "The quick brown fox jumps",
+        "selector": { "type": "TextQuoteSelector", "exact": "purple" },
+        "window": 100,
+        "context": null
+      }
+    },
+    {
+      "why": "words found after characters outside the basic plane are selected whole: where they are is counted in code points",
+      "gathered": {
+        "text": "📚📚 Ada wrote",
+        "selector": { "type": "TextQuoteSelector", "exact": "Ada" },
+        "window": 100,
+        "context": { "before": "📚📚 ", "selected": "Ada", "after": " wrote" }
+      }
+    },
+    {
+      "why": "words that are characters outside the basic plane are found and selected whole",
+      "gathered": {
+        "text": "Ada 📚📚 wrote",
+        "selector": { "type": "TextQuoteSelector", "exact": "📚📚" },
+        "window": 100,
+        "context": { "before": "Ada ", "selected": "📚📚", "after": " wrote" }
+      }
+    },
+    {
+      "why": "words found before characters outside the basic plane have them after, each whole",
+      "gathered": {
+        "text": "Ada wrote 📚📚 here",
+        "selector": { "type": "TextQuoteSelector", "exact": "wrote" },
+        "window": 100,
+        "context": { "before": "Ada ", "selected": "wrote", "after": " 📚📚 here" }
+      }
+    },
+    {
+      "why": "the window around found words is 100 code points on each side: ten of the twelve runs of a book and nine digits, which are 110 UTF-16 code units",
+      "gathered": {
+        "text": "📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789Ada📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789",
+        "selector": { "type": "TextQuoteSelector", "exact": "Ada" },
+        "window": 100,
+        "context": {
+          "before": "📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789",
+          "selected": "Ada",
+          "after": "📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789"
+        }
+      }
+    },
+    {
+      "why": "the window around a position is 100 code points on each side too: the position is 120 code points into this text, and 132 UTF-16 code units",
+      "gathered": {
+        "text": "📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789Ada📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789",
+        "selector": { "type": "TextPositionSelector", "start": 120, "end": 123 },
+        "window": 100,
+        "context": {
+          "before": "📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789",
+          "selected": "Ada",
+          "after": "📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789📚123456789"
+        }
+      }
+    },
+    {
+      "why": "a window of 5000 is the largest a gathered context takes",
+      "gathered": {
+        "text": "The quick brown fox jumps",
+        "selector": { "type": "TextPositionSelector", "start": 10, "end": 15 },
+        "window": 5000,
+        "context": { "before": "The quick ", "selected": "brown", "after": " fox jumps" }
+      }
+    },
+    {
+      "why": "a window of 99 is less than a gathered context takes: it is refused",
+      "gathered": {
+        "text": "The quick brown fox jumps",
+        "selector": { "type": "TextPositionSelector", "start": 10, "end": 15 },
+        "window": 99,
+        "refused": true
+      }
+    },
+    {
+      "why": "a window of 5001 is more than a gathered context takes: it is refused",
+      "gathered": {
+        "text": "The quick brown fox jumps",
+        "selector": { "type": "TextPositionSelector", "start": 10, "end": 15 },
+        "window": 5001,
+        "refused": true
+      }
+    },
+    {
+      "why": "a target that states no selector selects nothing of the text: the gathered context states no selection",
+      "gathered": {
+        "text": "The quick brown fox jumps",
+        "window": 100,
+        "context": null
+      }
+    },
+    {
+      "why": "a selector that is neither a position nor a quote selects nothing of a text: the gathered context states no selection",
+      "gathered": {
+        "text": "The quick brown fox jumps",
+        "selector": { "type": "SvgSelector", "value": "<svg xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"0\" y=\"0\" width=\"10\" height=\"10\"/></svg>" },
+        "window": 100,
+        "context": null
+      }
+    }
+  ]
+}

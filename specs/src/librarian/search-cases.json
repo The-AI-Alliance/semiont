@@ -1,0 +1,782 @@
+{
+  "$comment": "What a search of resources by text answers, as every implementation of the Librarian must answer it: what the search is given, what each store answers, and the page. Semiont's Librarian (apps/librarian) runs every case and fails on a difference; a Librarian in another language runs the same file. A case has one of two parts, `search` or `preview`. WHAT A SEARCH STATES. `filters` are what the search is given: its `search` text and, where given, `archived`, `entityType`, `offset` and `limit`. `semanticFloor` is the floor the Librarian is configured with. Each store the search asks is stated with what it is `asked` and with what it `answers`, or that it `fails`. A store a case does not state is not asked, and a runner fails if it is. `graph` is the graph's listing of resources: it answers one page of `resources` and the `total` of all that match. `embedding` is the embedding of a text: it is asked with the text and answers a vector. `index` is the vector index's search of the chunks of resources: it is asked with an `embedding` and a `limit` and answers hits, one for a chunk, each with its `id`, the `resourceId` of the resource the chunk is of, its `score` and the chunk's `text`. `hydrated` is the hits read back as resources, one entry for each resource read, in the order they are read: `graph` is what the graph answers for that resource, a description or null, and `view` is what the views answer for it, a view or null. An entry with no `view` says the views are not asked for that resource. `page` is the answer: its `resources`, its `total` and its `matchKind`. `fails` in place of a page says the search fails. THE RULE OF A SEARCH. The text is searched without the spaces before and after it. A text that is then empty finds nothing: the page has no resources, a total of 0 and is `lexical`, and no store is asked. Otherwise the graph is asked with the text, with `archived` where it is given, with `entityTypes` holding the one entity type where one is given, with the `offset`, which is 0 where none is given, and with the `limit`, which is 50 where none is given. Where the graph fails the search fails. Where the graph's total is more than 0, or the offset is more than 0, the page is the graph's answer and is `lexical`, and nothing else is asked. Otherwise nothing matched on the first page, and the index answers. The text is embedded once. The index is asked with that embedding and a limit of four times the page's limit. Its hits are folded to one for each resource: the hit with the highest score, with that chunk's text, and of two with the same score the one the index answered first. A resource is kept when its score is the floor or more. The kept are ordered by score, highest first, and by nothing else. `total` is how many are kept. The first `limit` of them are read back, each in turn: from the graph, and from the views where the graph has no such resource or fails. A resource neither has is left out of the page. Each resource of the page carries the text of its chunk as `content`. The page is `semantic`, and it is `semantic` where nothing is kept. Where the embedding, the index or a view fails, the answer is the page with no resources, a total of 0, and `lexical`: a search that found nothing does not become a failure. WHAT A PREVIEW STATES. The Librarian gives each resource of a lexical page a preview of its text as `content`, and leaves the `content` of a semantic page as it is. No case here holds which page gets previews: only what a preview is. `resources` are the resources. `served` is what a read of a resource's bytes answers, by the resource's id: the `text` the bytes are, in UTF-8, and the `contentType` they are served with, or that the read `fails`. A resource that `served` does not name is not read, and a runner fails if it is. `previews` is the `content` each resource is given, in the order of `resources`. THE RULE OF A PREVIEW. A resource has a preview when its first representation states where its bytes are (`storageUri`) and has a media type whose bytes are its text. Which those are is read from specs/src/media-types/registry.json: a type whose `textSource` is `decode`, and a `text/` type the registry does not list. Its bytes are read once, by the resource's id, and decoded as the content type they are served with says. The preview is the first 200 characters of that text, and the whole of a text that is shorter. Any other resource previews as the empty string and its bytes are not read: one with no representation, one whose representation states no `storageUri`, a PDF, whose text is derived and not decoded, and an image, which has no text. A read that fails previews as the empty string, and the other resources keep theirs. No text of these cases has a character outside the Basic Multilingual Plane. Add a case here before changing an implementation.",
+  "cases": [
+    {
+      "why": "an empty text finds nothing, and no store is asked",
+      "search": {
+        "filters": { "search": "" },
+        "semanticFloor": 0.5,
+        "page": { "resources": [], "total": 0, "matchKind": "lexical" }
+      }
+    },
+    {
+      "why": "a text of spaces alone finds nothing, and no store is asked: it does not match every name that has a space",
+      "search": {
+        "filters": { "search": "   ", "limit": 10 },
+        "semanticFloor": 0.5,
+        "page": { "resources": [], "total": 0, "matchKind": "lexical" }
+      }
+    },
+    {
+      "why": "a search given no offset and no limit asks the graph for the first 50, and a page the graph answers is lexical: neither the embedding nor the index is asked",
+      "search": {
+        "filters": { "search": "hawk" },
+        "semanticFloor": 0.5,
+        "graph": {
+          "asked": { "search": "hawk", "offset": 0, "limit": 50 },
+          "answers": {
+            "resources": [
+              { "@context": "https://schema.org/", "@id": "res-a", "name": "Black Hawk", "representations": [] }
+            ],
+            "total": 1
+          }
+        },
+        "page": {
+          "resources": [
+            { "@context": "https://schema.org/", "@id": "res-a", "name": "Black Hawk", "representations": [] }
+          ],
+          "total": 1,
+          "matchKind": "lexical"
+        }
+      }
+    },
+    {
+      "why": "the spaces before and after the text are not searched for",
+      "search": {
+        "filters": { "search": "  black hawk  " },
+        "semanticFloor": 0.5,
+        "graph": {
+          "asked": { "search": "black hawk", "offset": 0, "limit": 50 },
+          "answers": {
+            "resources": [
+              { "@context": "https://schema.org/", "@id": "res-a", "name": "Black Hawk", "representations": [] }
+            ],
+            "total": 1
+          }
+        },
+        "page": {
+          "resources": [
+            { "@context": "https://schema.org/", "@id": "res-a", "name": "Black Hawk", "representations": [] }
+          ],
+          "total": 1,
+          "matchKind": "lexical"
+        }
+      }
+    },
+    {
+      "why": "every filter is the graph's to apply, and the total is the graph's count of all that match, not of the page",
+      "search": {
+        "filters": { "search": "treaty", "archived": false, "entityType": "Document", "offset": 20, "limit": 10 },
+        "semanticFloor": 0.5,
+        "graph": {
+          "asked": { "search": "treaty", "archived": false, "entityTypes": ["Document"], "offset": 20, "limit": 10 },
+          "answers": {
+            "resources": [
+              { "@context": "https://schema.org/", "@id": "res-c", "name": "The Treaty of 1804", "entityTypes": ["Document"], "archived": false, "representations": [] }
+            ],
+            "total": 42
+          }
+        },
+        "page": {
+          "resources": [
+            { "@context": "https://schema.org/", "@id": "res-c", "name": "The Treaty of 1804", "entityTypes": ["Document"], "archived": false, "representations": [] }
+          ],
+          "total": 42,
+          "matchKind": "lexical"
+        }
+      }
+    },
+    {
+      "why": "a search for archived resources asks the graph for them",
+      "search": {
+        "filters": { "search": "treaty", "archived": true },
+        "semanticFloor": 0.5,
+        "graph": {
+          "asked": { "search": "treaty", "archived": true, "offset": 0, "limit": 50 },
+          "answers": {
+            "resources": [
+              { "@context": "https://schema.org/", "@id": "res-c", "name": "The Treaty of 1804", "archived": true, "representations": [] }
+            ],
+            "total": 1
+          }
+        },
+        "page": {
+          "resources": [
+            { "@context": "https://schema.org/", "@id": "res-c", "name": "The Treaty of 1804", "archived": true, "representations": [] }
+          ],
+          "total": 1,
+          "matchKind": "lexical"
+        }
+      }
+    },
+    {
+      "why": "a page past the last match is the graph's answer: no resources, and the total of what matched",
+      "search": {
+        "filters": { "search": "hawk", "offset": 50, "limit": 50 },
+        "semanticFloor": 0.5,
+        "graph": {
+          "asked": { "search": "hawk", "offset": 50, "limit": 50 },
+          "answers": { "resources": [], "total": 3 }
+        },
+        "page": { "resources": [], "total": 3, "matchKind": "lexical" }
+      }
+    },
+    {
+      "why": "a later page of a search that matched nothing is empty and lexical: the index answers a first page only",
+      "search": {
+        "filters": { "search": "ouranos", "offset": 10, "limit": 10 },
+        "semanticFloor": 0.5,
+        "graph": {
+          "asked": { "search": "ouranos", "offset": 10, "limit": 10 },
+          "answers": { "resources": [], "total": 0 }
+        },
+        "page": { "resources": [], "total": 0, "matchKind": "lexical" }
+      }
+    },
+    {
+      "why": "a first page that matched nothing is answered from the index: the text is embedded, the index is asked for four times the 50 of the page, and the resource of the hit is the page's, with the passage that matched as its content",
+      "search": {
+        "filters": { "search": " ouranos " },
+        "semanticFloor": 0.5,
+        "graph": {
+          "asked": { "search": "ouranos", "offset": 0, "limit": 50 },
+          "answers": { "resources": [], "total": 0 }
+        },
+        "embedding": { "asked": "ouranos", "answers": [0.5, 0.25, 0.125] },
+        "index": {
+          "asked": { "embedding": [0.5, 0.25, 0.125], "limit": 200 },
+          "answers": [
+            { "id": "point-a-0", "resourceId": "res-a", "score": 0.75, "text": "the sky, as the Greeks named it" }
+          ]
+        },
+        "hydrated": [
+          {
+            "resource": "res-a",
+            "graph": { "answers": { "@context": "https://schema.org/", "@id": "res-a", "name": "Black Hawk", "representations": [] } }
+          }
+        ],
+        "page": {
+          "resources": [
+            { "@context": "https://schema.org/", "@id": "res-a", "name": "Black Hawk", "representations": [], "content": "the sky, as the Greeks named it" }
+          ],
+          "total": 1,
+          "matchKind": "semantic"
+        }
+      }
+    },
+    {
+      "why": "an index that answers no hits gives a semantic page with no resources",
+      "search": {
+        "filters": { "search": "ouranos" },
+        "semanticFloor": 0.5,
+        "graph": {
+          "asked": { "search": "ouranos", "offset": 0, "limit": 50 },
+          "answers": { "resources": [], "total": 0 }
+        },
+        "embedding": { "asked": "ouranos", "answers": [0.5, 0.25, 0.125] },
+        "index": {
+          "asked": { "embedding": [0.5, 0.25, 0.125], "limit": 200 },
+          "answers": []
+        },
+        "hydrated": [],
+        "page": { "resources": [], "total": 0, "matchKind": "semantic" }
+      }
+    },
+    {
+      "why": "the hits of one resource's chunks are folded to one: the resource is on the page once, with the score and the text of its best chunk, wherever that chunk came among the hits",
+      "search": {
+        "filters": { "search": "ouranos" },
+        "semanticFloor": 0.5,
+        "graph": {
+          "asked": { "search": "ouranos", "offset": 0, "limit": 50 },
+          "answers": { "resources": [], "total": 0 }
+        },
+        "embedding": { "asked": "ouranos", "answers": [0.5, 0.25, 0.125] },
+        "index": {
+          "asked": { "embedding": [0.5, 0.25, 0.125], "limit": 200 },
+          "answers": [
+            { "id": "point-a-0", "resourceId": "res-a", "score": 0.625, "text": "the first chunk of a" },
+            { "id": "point-b-0", "resourceId": "res-b", "score": 0.75, "text": "the only chunk of b" },
+            { "id": "point-a-1", "resourceId": "res-a", "score": 0.875, "text": "the best chunk of a" },
+            { "id": "point-a-2", "resourceId": "res-a", "score": 0.5, "text": "the last chunk of a" }
+          ]
+        },
+        "hydrated": [
+          {
+            "resource": "res-a",
+            "graph": { "answers": { "@context": "https://schema.org/", "@id": "res-a", "name": "Black Hawk", "representations": [] } }
+          },
+          {
+            "resource": "res-b",
+            "graph": { "answers": { "@context": "https://schema.org/", "@id": "res-b", "name": "Keokuk", "representations": [] } }
+          }
+        ],
+        "page": {
+          "resources": [
+            { "@context": "https://schema.org/", "@id": "res-a", "name": "Black Hawk", "representations": [], "content": "the best chunk of a" },
+            { "@context": "https://schema.org/", "@id": "res-b", "name": "Keokuk", "representations": [], "content": "the only chunk of b" }
+          ],
+          "total": 2,
+          "matchKind": "semantic"
+        }
+      }
+    },
+    {
+      "why": "of two chunks of one resource with the same score, the text is that of the one the index answered first",
+      "search": {
+        "filters": { "search": "ouranos" },
+        "semanticFloor": 0.5,
+        "graph": {
+          "asked": { "search": "ouranos", "offset": 0, "limit": 50 },
+          "answers": { "resources": [], "total": 0 }
+        },
+        "embedding": { "asked": "ouranos", "answers": [0.5, 0.25, 0.125] },
+        "index": {
+          "asked": { "embedding": [0.5, 0.25, 0.125], "limit": 200 },
+          "answers": [
+            { "id": "point-a-0", "resourceId": "res-a", "score": 0.75, "text": "answered first" },
+            { "id": "point-a-1", "resourceId": "res-a", "score": 0.75, "text": "answered second" }
+          ]
+        },
+        "hydrated": [
+          {
+            "resource": "res-a",
+            "graph": { "answers": { "@context": "https://schema.org/", "@id": "res-a", "name": "Black Hawk", "representations": [] } }
+          }
+        ],
+        "page": {
+          "resources": [
+            { "@context": "https://schema.org/", "@id": "res-a", "name": "Black Hawk", "representations": [], "content": "answered first" }
+          ],
+          "total": 1,
+          "matchKind": "semantic"
+        }
+      }
+    },
+    {
+      "why": "a page of 3 asks the index for 12, and takes the 3 best of the 5 resources at or above the floor: the total is the 5, and the two past the page are not read back",
+      "search": {
+        "filters": { "search": "ouranos", "limit": 3 },
+        "semanticFloor": 0.5,
+        "graph": {
+          "asked": { "search": "ouranos", "offset": 0, "limit": 3 },
+          "answers": { "resources": [], "total": 0 }
+        },
+        "embedding": { "asked": "ouranos", "answers": [0.5, 0.25, 0.125] },
+        "index": {
+          "asked": { "embedding": [0.5, 0.25, 0.125], "limit": 12 },
+          "answers": [
+            { "id": "point-a-0", "resourceId": "res-a", "score": 0.875, "text": "a passage of a" },
+            { "id": "point-b-0", "resourceId": "res-b", "score": 0.75, "text": "a passage of b" },
+            { "id": "point-c-0", "resourceId": "res-c", "score": 0.6875, "text": "a passage of c" },
+            { "id": "point-d-0", "resourceId": "res-d", "score": 0.625, "text": "a passage of d" },
+            { "id": "point-e-0", "resourceId": "res-e", "score": 0.5, "text": "a passage of e" }
+          ]
+        },
+        "hydrated": [
+          {
+            "resource": "res-a",
+            "graph": { "answers": { "@context": "https://schema.org/", "@id": "res-a", "name": "Black Hawk", "representations": [] } }
+          },
+          {
+            "resource": "res-b",
+            "graph": { "answers": { "@context": "https://schema.org/", "@id": "res-b", "name": "Keokuk", "representations": [] } }
+          },
+          {
+            "resource": "res-c",
+            "graph": { "answers": { "@context": "https://schema.org/", "@id": "res-c", "name": "The Treaty of 1804", "representations": [] } }
+          }
+        ],
+        "page": {
+          "resources": [
+            { "@context": "https://schema.org/", "@id": "res-a", "name": "Black Hawk", "representations": [], "content": "a passage of a" },
+            { "@context": "https://schema.org/", "@id": "res-b", "name": "Keokuk", "representations": [], "content": "a passage of b" },
+            { "@context": "https://schema.org/", "@id": "res-c", "name": "The Treaty of 1804", "representations": [], "content": "a passage of c" }
+          ],
+          "total": 5,
+          "matchKind": "semantic"
+        }
+      }
+    },
+    {
+      "why": "the page's limit counts resources and not chunks: a page of 1 asks the index for 4, three of the four hits are chunks of one resource, and the page is the best of the 2 resources they fold to",
+      "search": {
+        "filters": { "search": "ouranos", "limit": 1 },
+        "semanticFloor": 0.5,
+        "graph": {
+          "asked": { "search": "ouranos", "offset": 0, "limit": 1 },
+          "answers": { "resources": [], "total": 0 }
+        },
+        "embedding": { "asked": "ouranos", "answers": [0.5, 0.25, 0.125] },
+        "index": {
+          "asked": { "embedding": [0.5, 0.25, 0.125], "limit": 4 },
+          "answers": [
+            { "id": "point-a-0", "resourceId": "res-a", "score": 0.75, "text": "the best chunk of a" },
+            { "id": "point-a-1", "resourceId": "res-a", "score": 0.6875, "text": "another chunk of a" },
+            { "id": "point-b-0", "resourceId": "res-b", "score": 0.875, "text": "the only chunk of b" },
+            { "id": "point-a-2", "resourceId": "res-a", "score": 0.625, "text": "a third chunk of a" }
+          ]
+        },
+        "hydrated": [
+          {
+            "resource": "res-b",
+            "graph": { "answers": { "@context": "https://schema.org/", "@id": "res-b", "name": "Keokuk", "representations": [] } }
+          }
+        ],
+        "page": {
+          "resources": [
+            { "@context": "https://schema.org/", "@id": "res-b", "name": "Keokuk", "representations": [], "content": "the only chunk of b" }
+          ],
+          "total": 2,
+          "matchKind": "semantic"
+        }
+      }
+    },
+    {
+      "why": "a resource above the floor and one at it are answers, and one below it is not: it is not counted and not read back",
+      "search": {
+        "filters": { "search": "ouranos" },
+        "semanticFloor": 0.5,
+        "graph": {
+          "asked": { "search": "ouranos", "offset": 0, "limit": 50 },
+          "answers": { "resources": [], "total": 0 }
+        },
+        "embedding": { "asked": "ouranos", "answers": [0.5, 0.25, 0.125] },
+        "index": {
+          "asked": { "embedding": [0.5, 0.25, 0.125], "limit": 200 },
+          "answers": [
+            { "id": "point-a-0", "resourceId": "res-a", "score": 0.75, "text": "above the floor" },
+            { "id": "point-b-0", "resourceId": "res-b", "score": 0.5, "text": "at the floor" },
+            { "id": "point-c-0", "resourceId": "res-c", "score": 0.25, "text": "below the floor" }
+          ]
+        },
+        "hydrated": [
+          {
+            "resource": "res-a",
+            "graph": { "answers": { "@context": "https://schema.org/", "@id": "res-a", "name": "Black Hawk", "representations": [] } }
+          },
+          {
+            "resource": "res-b",
+            "graph": { "answers": { "@context": "https://schema.org/", "@id": "res-b", "name": "Keokuk", "representations": [] } }
+          }
+        ],
+        "page": {
+          "resources": [
+            { "@context": "https://schema.org/", "@id": "res-a", "name": "Black Hawk", "representations": [], "content": "above the floor" },
+            { "@context": "https://schema.org/", "@id": "res-b", "name": "Keokuk", "representations": [], "content": "at the floor" }
+          ],
+          "total": 2,
+          "matchKind": "semantic"
+        }
+      }
+    },
+    {
+      "why": "the floor is the one the Librarian is configured with: at 0.75, a score of 0.625 that a floor of 0.5 would keep is below it",
+      "search": {
+        "filters": { "search": "ouranos" },
+        "semanticFloor": 0.75,
+        "graph": {
+          "asked": { "search": "ouranos", "offset": 0, "limit": 50 },
+          "answers": { "resources": [], "total": 0 }
+        },
+        "embedding": { "asked": "ouranos", "answers": [0.5, 0.25, 0.125] },
+        "index": {
+          "asked": { "embedding": [0.5, 0.25, 0.125], "limit": 200 },
+          "answers": [
+            { "id": "point-a-0", "resourceId": "res-a", "score": 0.75, "text": "at the floor" },
+            { "id": "point-b-0", "resourceId": "res-b", "score": 0.625, "text": "below the floor" }
+          ]
+        },
+        "hydrated": [
+          {
+            "resource": "res-a",
+            "graph": { "answers": { "@context": "https://schema.org/", "@id": "res-a", "name": "Black Hawk", "representations": [] } }
+          }
+        ],
+        "page": {
+          "resources": [
+            { "@context": "https://schema.org/", "@id": "res-a", "name": "Black Hawk", "representations": [], "content": "at the floor" }
+          ],
+          "total": 1,
+          "matchKind": "semantic"
+        }
+      }
+    },
+    {
+      "why": "where every hit is below the floor the page is semantic and has no resources, and nothing is read back",
+      "search": {
+        "filters": { "search": "ouranos" },
+        "semanticFloor": 0.5,
+        "graph": {
+          "asked": { "search": "ouranos", "offset": 0, "limit": 50 },
+          "answers": { "resources": [], "total": 0 }
+        },
+        "embedding": { "asked": "ouranos", "answers": [0.5, 0.25, 0.125] },
+        "index": {
+          "asked": { "embedding": [0.5, 0.25, 0.125], "limit": 200 },
+          "answers": [
+            { "id": "point-a-0", "resourceId": "res-a", "score": 0.375, "text": "a passage of a" },
+            { "id": "point-b-0", "resourceId": "res-b", "score": 0.25, "text": "a passage of b" }
+          ]
+        },
+        "hydrated": [],
+        "page": { "resources": [], "total": 0, "matchKind": "semantic" }
+      }
+    },
+    {
+      "why": "the page is in the order of the scores, highest first, whatever order the index answered in and whichever resource is the newest",
+      "search": {
+        "filters": { "search": "ouranos" },
+        "semanticFloor": 0.5,
+        "graph": {
+          "asked": { "search": "ouranos", "offset": 0, "limit": 50 },
+          "answers": { "resources": [], "total": 0 }
+        },
+        "embedding": { "asked": "ouranos", "answers": [0.5, 0.25, 0.125] },
+        "index": {
+          "asked": { "embedding": [0.5, 0.25, 0.125], "limit": 200 },
+          "answers": [
+            { "id": "point-b-0", "resourceId": "res-b", "score": 0.625, "text": "a passage of b" },
+            { "id": "point-a-0", "resourceId": "res-a", "score": 0.875, "text": "a passage of a" },
+            { "id": "point-c-0", "resourceId": "res-c", "score": 0.75, "text": "a passage of c" }
+          ]
+        },
+        "hydrated": [
+          {
+            "resource": "res-a",
+            "graph": { "answers": { "@context": "https://schema.org/", "@id": "res-a", "name": "Black Hawk", "dateCreated": "2026-01-01T00:00:00.000Z", "representations": [] } }
+          },
+          {
+            "resource": "res-c",
+            "graph": { "answers": { "@context": "https://schema.org/", "@id": "res-c", "name": "The Treaty of 1804", "dateCreated": "2026-02-01T00:00:00.000Z", "representations": [] } }
+          },
+          {
+            "resource": "res-b",
+            "graph": { "answers": { "@context": "https://schema.org/", "@id": "res-b", "name": "Keokuk", "dateCreated": "2026-03-01T00:00:00.000Z", "representations": [] } }
+          }
+        ],
+        "page": {
+          "resources": [
+            { "@context": "https://schema.org/", "@id": "res-a", "name": "Black Hawk", "dateCreated": "2026-01-01T00:00:00.000Z", "representations": [], "content": "a passage of a" },
+            { "@context": "https://schema.org/", "@id": "res-c", "name": "The Treaty of 1804", "dateCreated": "2026-02-01T00:00:00.000Z", "representations": [], "content": "a passage of c" },
+            { "@context": "https://schema.org/", "@id": "res-b", "name": "Keokuk", "dateCreated": "2026-03-01T00:00:00.000Z", "representations": [], "content": "a passage of b" }
+          ],
+          "total": 3,
+          "matchKind": "semantic"
+        }
+      }
+    },
+    {
+      "why": "a hit whose resource neither the graph nor the views have is left out of the page, and the search does not fail: the index can hold a resource a moment after it is gone",
+      "search": {
+        "filters": { "search": "ouranos" },
+        "semanticFloor": 0.5,
+        "graph": {
+          "asked": { "search": "ouranos", "offset": 0, "limit": 50 },
+          "answers": { "resources": [], "total": 0 }
+        },
+        "embedding": { "asked": "ouranos", "answers": [0.5, 0.25, 0.125] },
+        "index": {
+          "asked": { "embedding": [0.5, 0.25, 0.125], "limit": 200 },
+          "answers": [
+            { "id": "point-a-0", "resourceId": "res-a", "score": 0.875, "text": "a passage of a" },
+            { "id": "point-b-0", "resourceId": "res-b", "score": 0.75, "text": "a passage of b" }
+          ]
+        },
+        "hydrated": [
+          {
+            "resource": "res-a",
+            "graph": { "answers": null },
+            "view": { "answers": null }
+          },
+          {
+            "resource": "res-b",
+            "graph": { "answers": { "@context": "https://schema.org/", "@id": "res-b", "name": "Keokuk", "representations": [] } }
+          }
+        ],
+        "page": {
+          "resources": [
+            { "@context": "https://schema.org/", "@id": "res-b", "name": "Keokuk", "representations": [], "content": "a passage of b" }
+          ],
+          "total": 2,
+          "matchKind": "semantic"
+        }
+      }
+    },
+    {
+      "why": "a resource the graph does not have yet is read from its view: the page has the resource as the view holds it",
+      "search": {
+        "filters": { "search": "ouranos" },
+        "semanticFloor": 0.5,
+        "graph": {
+          "asked": { "search": "ouranos", "offset": 0, "limit": 50 },
+          "answers": { "resources": [], "total": 0 }
+        },
+        "embedding": { "asked": "ouranos", "answers": [0.5, 0.25, 0.125] },
+        "index": {
+          "asked": { "embedding": [0.5, 0.25, 0.125], "limit": 200 },
+          "answers": [
+            { "id": "point-a-0", "resourceId": "res-a", "score": 0.75, "text": "a passage of a" }
+          ]
+        },
+        "hydrated": [
+          {
+            "resource": "res-a",
+            "graph": { "answers": null },
+            "view": {
+              "answers": {
+                "resource": { "@context": "https://schema.org/", "@id": "res-a", "name": "Black Hawk, as the view holds it", "representations": [] },
+                "annotations": { "resourceId": "res-a", "annotations": [], "version": 1, "updatedAt": "2026-01-01T00:00:00.000Z" },
+                "lastSequence": 1
+              }
+            }
+          }
+        ],
+        "page": {
+          "resources": [
+            { "@context": "https://schema.org/", "@id": "res-a", "name": "Black Hawk, as the view holds it", "representations": [], "content": "a passage of a" }
+          ],
+          "total": 1,
+          "matchKind": "semantic"
+        }
+      }
+    },
+    {
+      "why": "a graph that fails for one resource is read past: that resource is read from its view, and the next from the graph",
+      "search": {
+        "filters": { "search": "ouranos" },
+        "semanticFloor": 0.5,
+        "graph": {
+          "asked": { "search": "ouranos", "offset": 0, "limit": 50 },
+          "answers": { "resources": [], "total": 0 }
+        },
+        "embedding": { "asked": "ouranos", "answers": [0.5, 0.25, 0.125] },
+        "index": {
+          "asked": { "embedding": [0.5, 0.25, 0.125], "limit": 200 },
+          "answers": [
+            { "id": "point-a-0", "resourceId": "res-a", "score": 0.875, "text": "a passage of a" },
+            { "id": "point-b-0", "resourceId": "res-b", "score": 0.75, "text": "a passage of b" }
+          ]
+        },
+        "hydrated": [
+          {
+            "resource": "res-a",
+            "graph": { "fails": true },
+            "view": {
+              "answers": {
+                "resource": { "@context": "https://schema.org/", "@id": "res-a", "name": "Black Hawk, as the view holds it", "representations": [] },
+                "annotations": { "resourceId": "res-a", "annotations": [], "version": 1, "updatedAt": "2026-01-01T00:00:00.000Z" },
+                "lastSequence": 1
+              }
+            }
+          },
+          {
+            "resource": "res-b",
+            "graph": { "answers": { "@context": "https://schema.org/", "@id": "res-b", "name": "Keokuk", "representations": [] } }
+          }
+        ],
+        "page": {
+          "resources": [
+            { "@context": "https://schema.org/", "@id": "res-a", "name": "Black Hawk, as the view holds it", "representations": [], "content": "a passage of a" },
+            { "@context": "https://schema.org/", "@id": "res-b", "name": "Keokuk", "representations": [], "content": "a passage of b" }
+          ],
+          "total": 2,
+          "matchKind": "semantic"
+        }
+      }
+    },
+    {
+      "why": "a view that fails is not read past: the answer is the empty lexical page, and the hits after it are not read back",
+      "search": {
+        "filters": { "search": "ouranos" },
+        "semanticFloor": 0.5,
+        "graph": {
+          "asked": { "search": "ouranos", "offset": 0, "limit": 50 },
+          "answers": { "resources": [], "total": 0 }
+        },
+        "embedding": { "asked": "ouranos", "answers": [0.5, 0.25, 0.125] },
+        "index": {
+          "asked": { "embedding": [0.5, 0.25, 0.125], "limit": 200 },
+          "answers": [
+            { "id": "point-a-0", "resourceId": "res-a", "score": 0.875, "text": "a passage of a" },
+            { "id": "point-b-0", "resourceId": "res-b", "score": 0.75, "text": "a passage of b" }
+          ]
+        },
+        "hydrated": [
+          {
+            "resource": "res-a",
+            "graph": { "answers": null },
+            "view": { "fails": true }
+          }
+        ],
+        "page": { "resources": [], "total": 0, "matchKind": "lexical" }
+      }
+    },
+    {
+      "why": "an embedding that fails leaves the search what it was, empty and lexical, and not a failure: the index is not asked",
+      "search": {
+        "filters": { "search": "ouranos" },
+        "semanticFloor": 0.5,
+        "graph": {
+          "asked": { "search": "ouranos", "offset": 0, "limit": 50 },
+          "answers": { "resources": [], "total": 0 }
+        },
+        "embedding": { "asked": "ouranos", "fails": true },
+        "page": { "resources": [], "total": 0, "matchKind": "lexical" }
+      }
+    },
+    {
+      "why": "an index that fails leaves the search empty and lexical too, and nothing is read back",
+      "search": {
+        "filters": { "search": "ouranos" },
+        "semanticFloor": 0.5,
+        "graph": {
+          "asked": { "search": "ouranos", "offset": 0, "limit": 50 },
+          "answers": { "resources": [], "total": 0 }
+        },
+        "embedding": { "asked": "ouranos", "answers": [0.5, 0.25, 0.125] },
+        "index": {
+          "asked": { "embedding": [0.5, 0.25, 0.125], "limit": 200 },
+          "fails": true
+        },
+        "hydrated": [],
+        "page": { "resources": [], "total": 0, "matchKind": "lexical" }
+      }
+    },
+    {
+      "why": "a graph that fails to list fails the search: there is no page, and the index is not asked in its place",
+      "search": {
+        "filters": { "search": "ouranos" },
+        "semanticFloor": 0.5,
+        "graph": {
+          "asked": { "search": "ouranos", "offset": 0, "limit": 50 },
+          "fails": true
+        },
+        "fails": true
+      }
+    },
+    {
+      "why": "a text longer than 200 characters previews as its first 200",
+      "preview": {
+        "resources": [
+          { "@context": "https://schema.org/", "@id": "res-a", "name": "Black Hawk", "representations": [{ "mediaType": "text/plain", "storageUri": "file://black-hawk.txt", "checksum": "sha256:res-a", "rel": "original" }] }
+        ],
+        "served": {
+          "res-a": {
+            "text": "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789 and what is past the cut",
+            "contentType": "text/plain"
+          }
+        },
+        "previews": [
+          "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789"
+        ]
+      }
+    },
+    {
+      "why": "a text shorter than 200 characters previews whole, and each resource is read once, by its id: plain text and Markdown are both text",
+      "preview": {
+        "resources": [
+          { "@context": "https://schema.org/", "@id": "res-a", "name": "Black Hawk", "representations": [{ "mediaType": "text/plain", "storageUri": "file://black-hawk.txt", "checksum": "sha256:res-a", "rel": "original" }] },
+          { "@context": "https://schema.org/", "@id": "res-b", "name": "Keokuk", "representations": [{ "mediaType": "text/markdown", "storageUri": "file://keokuk.md", "checksum": "sha256:res-b", "rel": "original" }] }
+        ],
+        "served": {
+          "res-a": { "text": "Black Hawk was a Sauk leader.", "contentType": "text/plain" },
+          "res-b": { "text": "# Keokuk\n\nA Sauk chief.", "contentType": "text/markdown" }
+        },
+        "previews": [
+          "Black Hawk was a Sauk leader.",
+          "# Keokuk\n\nA Sauk chief."
+        ]
+      }
+    },
+    {
+      "why": "a text with nothing in it previews as the empty string, and its bytes are read",
+      "preview": {
+        "resources": [
+          { "@context": "https://schema.org/", "@id": "res-a", "name": "Black Hawk", "representations": [{ "mediaType": "text/plain", "storageUri": "file://black-hawk.txt", "checksum": "sha256:res-a", "rel": "original" }] }
+        ],
+        "served": {
+          "res-a": { "text": "", "contentType": "text/plain" }
+        },
+        "previews": [""]
+      }
+    },
+    {
+      "why": "a text type the registry does not list is still text: it is read and previewed",
+      "preview": {
+        "resources": [
+          { "@context": "https://schema.org/", "@id": "res-a", "name": "A manual page", "representations": [{ "mediaType": "text/troff", "storageUri": "file://manual.1", "checksum": "sha256:res-a", "rel": "original" }] }
+        ],
+        "served": {
+          "res-a": { "text": ".TH SEMIONT 1", "contentType": "text/troff" }
+        },
+        "previews": [".TH SEMIONT 1"]
+      }
+    },
+    {
+      "why": "a PDF previews as the empty string and its bytes are not read: its text is derived from them, not decoded",
+      "preview": {
+        "resources": [
+          { "@context": "https://schema.org/", "@id": "res-c", "name": "The Treaty of 1804", "representations": [{ "mediaType": "application/pdf", "storageUri": "file://treaty.pdf", "checksum": "sha256:res-c", "rel": "original" }] }
+        ],
+        "served": {},
+        "previews": [""]
+      }
+    },
+    {
+      "why": "an image previews as the empty string and its bytes are not read: it has no text",
+      "preview": {
+        "resources": [
+          { "@context": "https://schema.org/", "@id": "res-d", "name": "A map of Saukenuk", "representations": [{ "mediaType": "image/png", "storageUri": "file://saukenuk.png", "checksum": "sha256:res-d", "rel": "original" }] }
+        ],
+        "served": {},
+        "previews": [""]
+      }
+    },
+    {
+      "why": "a type the registry does not list, and that is not a text type, has no text: the empty string, and no read",
+      "preview": {
+        "resources": [
+          { "@context": "https://schema.org/", "@id": "res-e", "name": "An unknown thing", "representations": [{ "mediaType": "application/x-unlisted", "storageUri": "file://thing.bin", "checksum": "sha256:res-e", "rel": "original" }] }
+        ],
+        "served": {},
+        "previews": [""]
+      }
+    },
+    {
+      "why": "a resource with no representation has no bytes: the empty string, and no read",
+      "preview": {
+        "resources": [
+          { "@context": "https://schema.org/", "@id": "res-a", "name": "Black Hawk", "representations": [] }
+        ],
+        "served": {},
+        "previews": [""]
+      }
+    },
+    {
+      "why": "a representation that does not state where its bytes are has none to read: the empty string, and no read",
+      "preview": {
+        "resources": [
+          { "@context": "https://schema.org/", "@id": "res-a", "name": "Black Hawk", "representations": [{ "mediaType": "text/plain", "checksum": "sha256:res-a", "rel": "original" }] }
+        ],
+        "served": {},
+        "previews": [""]
+      }
+    },
+    {
+      "why": "a read that fails previews as the empty string, and the resources beside it keep their previews",
+      "preview": {
+        "resources": [
+          { "@context": "https://schema.org/", "@id": "res-a", "name": "Black Hawk", "representations": [{ "mediaType": "text/plain", "storageUri": "file://black-hawk.txt", "checksum": "sha256:res-a", "rel": "original" }] },
+          { "@context": "https://schema.org/", "@id": "res-b", "name": "Keokuk", "representations": [{ "mediaType": "text/plain", "storageUri": "file://keokuk.txt", "checksum": "sha256:res-b", "rel": "original" }] },
+          { "@context": "https://schema.org/", "@id": "res-c", "name": "The Treaty of 1804", "representations": [{ "mediaType": "application/pdf", "storageUri": "file://treaty.pdf", "checksum": "sha256:res-c", "rel": "original" }] }
+        ],
+        "served": {
+          "res-a": { "fails": true },
+          "res-b": { "text": "Keokuk is still here.", "contentType": "text/plain" }
+        },
+        "previews": ["", "Keokuk is still here.", ""]
+      }
+    }
+  ]
+}

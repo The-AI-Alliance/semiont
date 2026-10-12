@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
- * A `${VAR}` in a KB's config has one meaning, and two resolvers hold it: the
- * TypeScript loader (`resolveEnvVars`) and the Go launcher (`resolveRefs`),
- * both bound to specs/src/config-placeholders/cases.json. A third reader is how
- * the rule forks: a second pass over values the loader has already resolved
- * throws on a password containing `${…}`, which after the one resolution pass
- * is simply the value.
+ * A `${VAR}` in a KB's config has one meaning, and one resolver holds it: the
+ * Go launcher (`resolveRefs`), bound to
+ * specs/src/config-placeholders/cases.json. A second reader is how the rule
+ * forks: a second pass over values the launcher has already resolved throws
+ * on a password containing `${…}`, which after the one resolution pass is
+ * simply the value.
  *
  * This census finds every place source code spells the syntax — a regex
  * escape `\$\{`, a class `[$]`, or the literal string `"${"` — and fails on any
@@ -23,14 +23,10 @@ import { withoutComments } from './source-text.mjs';
 const SELF = 'scripts/lint/check-placeholder-readers.mjs';
 
 const ALLOWED = {
-  'packages/core/src/config/toml-loader.ts': [
-    'the TypeScript resolver (resolveEnvVars), held to the case table',
-  ],
   'apps/launcher/internal/launcher/gatewaydoc.go': [
     "the Go pattern: resolveRefs resolves the gateway's document by it, and the extractor (placeholderRefs) reads a config's references by it; both held to the case table",
   ],
   'apps/launcher/internal/launcher/config.go': [
-    'renders exactly one reference, ${NAME} (referenceTo), for what the launcher stages into a service config',
     'a value that is exactly one reference, ${NAME} (referenceName)',
   ],
   'apps/launcher/internal/launcher/identity.go': [
@@ -101,8 +97,8 @@ for (const [file, roles] of Object.entries(ALLOWED)) {
 
 if (failed) {
   console.error(
-    '\n  A config placeholder has one rule, run by two resolvers and the launcher\'s\n' +
-      '  extractor. Use the value the loader resolved; never resolve it again. A new\n' +
+    '\n  A config placeholder has one rule, run by the launcher\'s resolver and its\n' +
+      '  extractor. Use the value the launcher resolved; never resolve it again. A new\n' +
       '  site that is genuinely not a config reader goes in ALLOWED with its role.\n',
   );
   process.exit(1);

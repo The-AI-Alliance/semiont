@@ -27,6 +27,7 @@ from semiont.types import (
     TextualBody,
 )
 from semiont_inference.interface import InferenceClient
+from semiont_service.white_space import trimmed
 
 from semiont_worker.chunking import estimate_tokens
 from semiont_worker.failure_class import DeterministicJobError
@@ -35,7 +36,6 @@ from semiont_worker.inference_call import bounded_generate_text
 from semiont_worker.locales import language_name
 from semiont_worker.log import LOG
 from semiont_worker.numbers import as_javascript_writes
-from semiont_worker.white_space import trimmed
 
 DEFAULT_MAX_TOKENS: Final = 500
 """How long a document is asked for, in tokens, where the job states no length: a short definition's."""

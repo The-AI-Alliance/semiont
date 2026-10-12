@@ -132,6 +132,8 @@ export class GatherNamespace implements IGatherNamespace {
   resource(
     resourceId: ResourceId,
     options?: {
+      /** How many links out from the resource the graph reaches, 1 to 3, nearest
+       *  first: what a resource links to and what cites it are both followed. */
       depth?: number;
       maxResources?: number;
       includeContent?: boolean;

@@ -10,6 +10,26 @@ import { sdkTelemetry, spanPattern, telemetry, type Telemetry, type TelemetryRow
 /** OTLP's span kinds, by the names the spec uses. */
 export const SPAN_KIND: Record<string, number> = { internal: 1, server: 2, client: 3, producer: 4, consumer: 5 };
 
+/**
+ * Everything a receiver got, by name, for a failing case to show: each span
+ * with its kind, the service it came under and its attributes' keys, and
+ * each metric with its instrument and what its attributes carried.
+ */
+export function received(otlp: OtlpReceiver): string {
+  const spans = new Map<string, { kind: number; keys: Set<string>; service: Set<string | undefined> }>();
+  for (const span of otlp.spans) {
+    const name = span.name.replace(/^(bus\.(?:emit|recv)):.*$/, '$1:{channel}');
+    const seen = spans.get(name) ?? { kind: span.kind, keys: new Set<string>(), service: new Set<string | undefined>() };
+    for (const key of Object.keys(span.attributes)) seen.keys.add(key);
+    seen.service.add(span.service);
+    spans.set(name, seen);
+  }
+  const metrics = [...otlp.metrics].map(
+    ([name, metric]) => `${name} [${[...metric.instruments].join(',')}] ${[...metric.attributes].map(([key, values]) => `${key}=${key === 'bus.channel' ? '…' : [...values].sort().join('|')}`).join(' ')}`,
+  );
+  return ['spans:', ...[...spans].map(([name, s]) => `  ${name} kind=${s.kind} service=${[...s.service].join('|')} ${[...s.keys].sort().join(' ')}`), 'metrics:', ...metrics.sort().map((m) => `  ${m}`)].join('\n');
+}
+
 /** The rows a service's cases must make it export: always, or by their traffic, on `plane` where rows name planes. */
 export function expectedOn(rows: TelemetryRow[], plane?: string): TelemetryRow[] {
   return rows.filter((r) => (r.when === 'export' || r.when === 'traffic') && (!r.planes || (plane !== undefined && r.planes.includes(plane))));

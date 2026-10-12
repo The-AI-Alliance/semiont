@@ -9,7 +9,6 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
-  SYSTEM_SCOPE,
   annotationId,
   isAnnotationId,
   isJobId,
@@ -71,10 +70,6 @@ describe('the kinds of id', () => {
       expect(() => make(id)).toThrow(`is not a ${kind.schema}`);
     });
   }
-
-  it('the scope of the knowledge base\'s own events is a ResourceId', () => {
-    expect(SYSTEM_SCOPE).toBe('__system__');
-  });
 });
 
 describe('the types', () => {

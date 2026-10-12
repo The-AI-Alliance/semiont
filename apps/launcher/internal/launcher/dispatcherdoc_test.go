@@ -45,8 +45,7 @@ func dispatcherDocumentFrom(t *testing.T, b []byte) semiont.DispatcherConfig {
 	return doc
 }
 
-// Resolved: every ${VAR} a value, as the dispatcher's own loader resolved it in
-// the container before it read a document. The gateway host is the launcher's
+// Resolved: every ${VAR} a value. The gateway host is the launcher's
 // address — the one resolution the gateway's own document does not share.
 func TestDispatcherDocumentIsResolved(t *testing.T) {
 	b, err := dispatcherDocument(envFrom(t, dispatcherDocFixture), "container", "192.168.64.1", 8080, nil, false)

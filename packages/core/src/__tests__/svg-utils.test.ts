@@ -4,7 +4,6 @@ import {
   createPolygonSvg,
   createCircleSvg,
   parseSvgSelector,
-  normalizeCoordinates,
   scaleSvgToNative,
 } from '../svg-utils';
 
@@ -77,18 +76,6 @@ describe('parseSvgSelector', () => {
   test('returns null for unknown shape', () => {
     const svg = '<svg xmlns="http://www.w3.org/2000/svg"><text>Hello</text></svg>';
     expect(parseSvgSelector(svg)).toBeNull();
-  });
-});
-
-describe('normalizeCoordinates', () => {
-  test('scales point from display to image space', () => {
-    const result = normalizeCoordinates({ x: 50, y: 50 }, 100, 100, 200, 200);
-    expect(result).toEqual({ x: 100, y: 100 });
-  });
-
-  test('handles non-uniform scaling', () => {
-    const result = normalizeCoordinates({ x: 50, y: 25 }, 100, 50, 400, 200);
-    expect(result).toEqual({ x: 200, y: 100 });
   });
 });
 

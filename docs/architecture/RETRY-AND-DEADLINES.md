@@ -4,16 +4,18 @@ Every peer in a knowledge base reaches another over the network at boot, and eve
 those connects can find its dependency not yet listening. Two mechanisms answer that, and the
 rule for choosing between them is which end knows what:
 
-- **A deadline** bounds waiting. `withDeadline(what, ms, work, hint)` races the work and hands
-  it the deadline as an `AbortSignal`. On expiry it rejects; at boot that reaches a main's
-  catch-all, which exits so the container restart policy can try again.
+- **A deadline** bounds waiting. A Python service bounds a wait with `asyncio.timeout`. On
+  expiry the wait is cancelled; at boot that reaches a main's catch-all, which exits so the
+  container restart policy can try again.
 - **A retry** repeats a request that failed for a reason worth repeating. `retryWithBackoff`
   takes the operation, a predicate that says which failures qualify, a policy that says how
   long, and optionally a caller's signal.
 
-Both live in `@semiont/core`'s `retry.ts` because they are one contract: the deadline produces
-the signal, the retry consumes it. A retry that outlives its caller's deadline stops when that
-deadline fires, rather than being abandoned mid-flight.
+The two are one contract: a retry that outlives its caller's deadline stops when that deadline
+fires, rather than being abandoned mid-flight.
+
+`retryWithBackoff` is the TypeScript name, in `@semiont/core`'s `retry.ts`. The Python SDK has
+the same loop, `retry_with_backoff` in `semiont.retry`.
 
 ## The policies
 
@@ -22,13 +24,13 @@ peers that answer differently.
 
 | policy | who waits | for what | budget |
 |---|---|---|---|
-| `STARTUP_FETCH_RETRY` | every peer | the **gateway** to accept authentication | 8 × 1s→8s ≈ 39s |
+| `STARTUP_FETCH_RETRY` | a TypeScript agent signing in (`agent-token.ts`, in `@semiont/http-transport`) | the **gateway** and the issuer to accept authentication | 8 × 1s→8s ≈ 39s |
 | `EMIT_RETRY` | every peer | the **gateway** to accept one `/bus/emit` | 4 × 1s→4s ≈ 7s |
 | the catalog reader's, in `packages/service-python/src/semiont_service/catalog.py` | weaver, smelter | the **archivist** to subscribe | 17 × 1s→30s ≈ 361s |
-| `EMBEDDING_PROVIDER_RETRY` | librarian, smelter | the **embedding provider** to serve a model | 12 × 1s→15s ≈ 120s |
+| `EMBEDDING_PROVIDER_RETRY`, in `packages/vectors-python/src/semiont_vectors/_retry.py` | librarian, smelter | the **embedding provider** to serve a model | 12 × 1s→15s ≈ 120s |
 
 Budgets above are the delays alone. Each attempt is separately bounded — by
-`EMBED_ROUND_TRIP_TIMEOUT_MS` (15s) for the provider, `EMIT_TIMEOUT_MS` (30s) for an emit, `busRequest`'s
+`EMBED_ROUND_TRIP_SECONDS` (15s) for the provider, `EMIT_TIMEOUT_MS` (30s) for an emit, `busRequest`'s
 30s for a bus request — so a wall-clock ceiling is delays plus attempts × that bound, and the
 embedding provider's worst case is ~300s. Without a per-attempt bound an attempt count means
 nothing: a `fetch` with no signal can sit in TCP retransmit for minutes.
@@ -50,19 +52,18 @@ a bus refusal both answer no for different reasons.
 
 | predicate | true for | lives in |
 |---|---|---|
-| `isTransientFetchError` | `fetch` never connected | core |
-| `isRetryableRequestError` | HTTP 429 / 503 / 504, a `TimeoutError`, or a request that got no answer (`UnansweredError`) | core |
-| `notReady` | the model is not pulled, **or** the provider is not listening | `@semiont/vectors` |
+| `isRetryableRequestError` | `fetch` never connected, HTTP 429 / 503 / 504, a `TimeoutError`, or a request that got no answer (`UnansweredError`) | core |
+| `_not_ready` | the model is not pulled, **or** the provider is not listening | `semiont_vectors` (`_dimensions.py`) |
 
 What counts as worth another attempt is the same in every language: the rules are
 [`specs/src/retry/cases.json`](../../specs/src/retry/cases.json), and each implementation runs
 them.
 
-`notReady` is the one composition, and it is deliberate: at boot both failures are the same
+`_not_ready` is the one composition, and it is deliberate: at boot both failures are the same
 wait with the same consequence — a flapping archivist strands the worker either way.
 
-The exclusions carry as much weight as the inclusions. `isTransientFetchError` refuses every
-HTTP-level failure, because a 401 means the gateway is up and rejected us. The catalog
+The exclusions carry as much weight as the inclusions. `isRetryableRequestError` refuses
+every other HTTP-level failure, because a 401 means the gateway is up and rejected us. The catalog
 reader's predicate takes `bus.peer-unavailable` and refuses `bus.unsubscribed`, which sounds
 identical and means the opposite end: *this* transport is not subscribed to the reply channel,
 a local misconfiguration no waiting fixes.
@@ -89,8 +90,8 @@ exit. A repair pass that fails leaves a store behind; it does not leave the proj
 ## What deliberately does not retry
 
 **Graph, vector store and embedding provider connects** take a deadline instead —
-`withDeadline(what, STARTUP_CONNECT_TIMEOUT_MS, …)`, 60s, in the librarian's main, and the same
-minute in the smelter ([SMELTER.md](../protocol/SMELTER.md#boot)). These are one-shot connects with no transient class worth naming, and an
+one minute (`asyncio.timeout`) in the librarian's start, and the same minute in the weaver's and
+the smelter's ([SMELTER.md](../protocol/SMELTER.md#boot)). These are one-shot connects with no transient class worth naming, and an
 unbounded await leaves a container hung where a restart-on-exit policy can only rescue a process
 that exits.
 
@@ -99,12 +100,11 @@ subscription must always come back; every other site is a request with a caller 
 
 ## Constants live with their callers
 
-`retry.ts` holds the mechanism. Policies, deadlines and provider-specific predicates live in
+`retry.ts` and `semiont.retry` hold the mechanism. Policies, deadlines and provider-specific predicates live in
 the package that owns the question, and that placement is load-bearing: an embedding path that
 borrows `STARTUP_FETCH_RETRY` — sized for *until the gateway starts listening* — expires
-waiting for a model download and kills three services on every first boot. `STARTUP_FETCH_RETRY`
-is the one hand-written policy in core, because five boot paths genuinely share the question it
-answers. `EMIT_RETRY` is in core too, generated from
+waiting for a model download and kills the services that embed on every first boot.
+`STARTUP_FETCH_RETRY` is the one hand-written policy in core. `EMIT_RETRY` is in core too, generated from
 [`specs/src/client/timing.json`](../../specs/src/client/timing.json): it is client timing every
 SDK keeps.
 

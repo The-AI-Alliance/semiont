@@ -9,8 +9,7 @@ the provider's own count (`semiont_inference._tokens`).
 import math
 from typing import Final
 
-# The rule of `estimateTokens` in TypeScript's core (packages/core/src/token-estimate.ts):
-# about four code points to a token, rounded up. The Python worker cuts a text
+# About four code points to a token, rounded up. The Python worker cuts a text
 # by the same rule, stated in its own
 # code and held by specs/src/text/chunk-cases.json. This one is held by the
 # drivers' tests of what they send and refuse.

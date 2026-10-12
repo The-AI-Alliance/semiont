@@ -5,8 +5,8 @@ import { test, expect } from '../fixtures/auth';
  *
  * Two things are exercised:
  *
- * 1. **Server bootstrap.** On startup the Archivist's `bootstrapEntityTypes`
- *    seeds the KB with `DEFAULT_ENTITY_TYPES` from `@semiont/ontology` by
+ * 1. **Server bootstrap.** On startup the Archivist
+ *    seeds the KB with its `DEFAULT_ENTITY_TYPES` by
  *    emitting `frame:add-entity-type` for each type missing from the
  *    `__system__` event log. After that runs, `browse.entityTypes()`
  *    must return all defaults. We assert the moderate-entity-tags page
@@ -44,7 +44,7 @@ test.describe('frame entity-type vocabulary', () => {
 
     // ── Bootstrap assertion ─────────────────────────────────────────────
     //
-    // The 9 defaults shipped by `@semiont/ontology`'s DEFAULT_ENTITY_TYPES.
+    // The 9 defaults: the Archivist's DEFAULT_ENTITY_TYPES (apps/archivist/src/main.rs).
     // If the bootstrap hadn't fired, none of these would render.
     const DEFAULT_ENTITY_TYPES = [
       'Person', 'Organization', 'Location', 'Event', 'Concept',

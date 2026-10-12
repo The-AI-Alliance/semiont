@@ -1,8 +1,8 @@
 /**
  * Type-level guard — the annotation channels carry their enrichment, typed.
  *
- * The EventStore's enrich step adds the annotation as it stands in the view to
- * every event that mutates one (make-meaning `wireEnrichment`), and the spec's
+ * The Archivist adds the annotation as it stands in the view to every event
+ * that mutates one, and the spec's
  * `EnrichedResourceEvent` tells subscribers to read it. `EventMap` must say the
  * same, or the producer and the consumer each cast across the gap and a rename
  * on either side fails silently on the other. Enforced by `tsc --noEmit`.

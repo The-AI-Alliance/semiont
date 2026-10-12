@@ -9,7 +9,7 @@ import { afterAll, beforeAll, expect, it } from 'vitest';
 import { eventually } from '../harness/net';
 import { startOtlp, type OtlpReceiver } from '../harness/otlp';
 import { spanName } from '../harness/spec';
-import { outsideTheTable } from '../harness/telemetry';
+import { outsideTheTable, received } from '../harness/telemetry';
 import { eachWeaver } from '../harness/weaver-world';
 import { highlighted, uploaded } from './support';
 
@@ -24,20 +24,6 @@ const otlp = (): OtlpReceiver => {
   if (!receiver) throw new Error('no OTLP receiver');
   return receiver;
 };
-
-/** Everything the receiver got, by name: for a failing case to show. */
-function received(): string {
-  const spans = new Map<string, { kind: number; keys: Set<string>; service: Set<string | undefined> }>();
-  for (const span of otlp().spans) {
-    const name = span.name.replace(/^(bus\.(?:emit|recv)):.*$/, '$1:{channel}');
-    const seen = spans.get(name) ?? { kind: span.kind, keys: new Set<string>(), service: new Set<string | undefined>() };
-    for (const key of Object.keys(span.attributes)) seen.keys.add(key);
-    seen.service.add(span.service);
-    spans.set(name, seen);
-  }
-  const metrics = [...otlp().metrics].map(([name, m]) => `${name} [${[...m.instruments].join(',')}] ${[...m.attributes.keys()].sort().join(' ')}`);
-  return ['spans:', ...[...spans].map(([name, s]) => `  ${name} kind=${s.kind} service=${[...s.service].join('|')} ${[...s.keys].sort().join(' ')}`), 'metrics:', ...metrics.sort().map((m) => `  ${m}`)].join('\n');
-}
 
 eachWeaver('what a Weaver exports', (world) => {
   // One case, and judged before the Weaver is stopped: everything it exported for the traffic below, held to the table in both directions.
@@ -58,6 +44,6 @@ eachWeaver('what a Weaver exports', (world) => {
     const span = await eventually('the span of a mark it signalled', 15_000, () => otlp().spans.find((s) => s.name === signalled));
     expect(span.service).toBe('semiont-weaver');
 
-    expect(await outsideTheTable(otlp(), 'weaver'), received()).toEqual([]);
+    expect(await outsideTheTable(otlp(), 'weaver'), received(otlp())).toEqual([]);
   });
 });

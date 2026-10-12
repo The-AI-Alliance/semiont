@@ -48,15 +48,12 @@ SURFACE = {
     "tables": ["TableCell", "detect_table", "render_table"],
     "ocr_text": ["ImageText", "ReadWord", "assemble", "place"],
     "extraction": ["LARGEST_PDF_BYTES", "PdfExtractor"],
-    "shard": ["shard_path"],
     "stamp": ["current_stamp"],
     "anchored_text_store": ["AnchoredTextStore"],
-    "white_space": ["WHITE_SPACE", "trimmed"],
     "chunking": ["Chunking", "Cut", "chunk_text", "cut_chunk", "estimate_tokens"],
     "log": ["LOG", "failure_said", "words_of"],
     "recorded": ["ENRICHED", "FOLLOWED", "PLAIN", "stored_event"],
     "record": ["READ", "Record"],
-    "content": ["Content", "ContentReads", "ContentUnread"],
     "reconcile": [
         "Embed",
         "EmbedAnnotation",
@@ -73,7 +70,6 @@ SURFACE = {
     ],
     "smelter": ["ReconcileState", "Smelter"],
     "config": ["SERVICE", "embedding_key_of", "read_smelter_config"],
-    "archivist": ["ArchivistContent", "Authorizes"],
     "service": ["CHANNELS", "boot", "main"],
 }
 
@@ -195,7 +191,7 @@ def test_each_engine_is_reached_by_one_module_and_the_rules_know_neither() -> No
     assert importing(r"semiont_smelter\.tesseract") == ["service.py"]
     assert importing(r"semiont_smelter\.scripted") == []
     # The store keeps what was derived, and knows nothing of how: it imports no reader, no engine and no rule.
-    kept_by = {"anchored_text_store.py", "shard.py"}
+    kept_by = {"anchored_text_store.py"}
     for module in ("pdfium", "tesseract", "scripted", "extraction", "anchoring", "tables", "ocr_text", "pdf_reader", "ocr_engine"):
         assert not set(importing(rf"semiont_smelter\.{module}")) & kept_by, module
 
@@ -245,8 +241,12 @@ def test_the_index_and_the_provider_are_reached_through_their_protocols() -> Non
     # It asks for a store and a provider by what its configuration states, in the one module that reads that.
     assert importing(r"semiont_vectors\.factory") == ["service.py"]
     assert importing("qdrant_client") == []
-    # The one request the Smelter makes itself is for a resource's bytes, of the Archivist.
-    assert importing("httpx") == ["archivist.py"]
+    # The one request the Smelter makes that is not the SDK's is for a resource's bytes, of the Archivist. The reader
+    # that makes it is every Python service's (`semiont_service.archivist`), made by the module that starts the
+    # service, and the Smelter is handed it as what reads a resource's bytes.
+    assert importing("httpx") == []
+    assert importing(r"semiont_service\.archivist") == ["service.py"]
+    assert importing(r"semiont_service\.content") == ["smelter.py"]
 
 
 def test_one_checksum_is_worked_out_in_one_place_and_white_space_is_asked_of_one_module() -> None:
@@ -255,11 +255,11 @@ def test_one_checksum_is_worked_out_in_one_place_and_white_space_is_asked_of_one
     assert naming("hashlib.sha256(") == ["smelter.py"]
     assert (SRC / "smelter.py").read_text(encoding="utf-8").count("hashlib.sha256(") == 1
     # Python's own white space is another set than the protocol's: what cuts a text, what says a text is empty
-    # and what says an annotation quotes nothing each ask the one module.
+    # and what says an annotation quotes nothing each ask the one module, which is every Python service's.
     own = re.compile(r"\.strip\(\)|\.lstrip\(\)|\.rstrip\(\)|\.split\(\)|\.isspace\(\)|\\s")
     for module in ("smelter.py", "reconcile.py", "chunking.py"):
         assert not own.search((SRC / module).read_text(encoding="utf-8")), f"{module} asks Python what white space is"
-        assert "from semiont_smelter.white_space import trimmed" in (SRC / module).read_text(encoding="utf-8"), module
+        assert "from semiont_service.white_space import trimmed" in (SRC / module).read_text(encoding="utf-8"), module
 
 
 def test_one_module_names_the_logger_and_one_reads_the_process_s_environment() -> None:
@@ -286,7 +286,9 @@ def test_the_variables_it_reads_by_name_are_the_ones_the_protocol_lists() -> Non
     # shared package it is built on. Its other modules name what PDFium calls its own things, in the same letters.
     sources = sorted([SRC / "service.py", SRC / "config.py", *(SHARED / "src").rglob("*.py")])
     assert any(path.is_relative_to(SHARED) for path in sources), "packages/service-python has no source"
-    read_here = {name for path in sources for name in re.findall(r'"([A-Z][A-Z0-9]*_[A-Z0-9_]+)"', path.read_text(encoding="utf-8"))}
+    # A module's `__all__` names what it exports, in quotes too: a constant's name there is no variable read.
+    texts = [re.sub(r"^__all__ = \[.*?\]$", "", path.read_text(encoding="utf-8"), flags=re.DOTALL | re.MULTILINE) for path in sources]
+    read_here = {name for text in texts for name in re.findall(r'"([A-Z][A-Z0-9]*_[A-Z0-9_]+)"', text)}
     assert read_here == listed_there
     # Its service account, and what says where its telemetry goes and under what name. Its embedding provider's
     # key is in a variable its document names, and so is named by no code.
@@ -358,20 +360,13 @@ def test_the_checkers_and_their_strictness_are_the_sdks() -> None:
 def test_what_the_project_requires_is_what_it_reads_a_pdf_with_and_what_the_sdk_brings() -> None:
     project = table(MANIFEST["project"], "project")
     required = listed(project["dependencies"], "dependencies")
-    assert {name_of(requirement) for requirement in required} == {
-        "httpx",
-        "pydantic",
-        "pypdfium2",
-        "semiont",
-        "semiont-service",
-        "semiont-vectors",
-    }
-    for library in ("httpx", "pydantic", "semiont", "semiont_service", "semiont_vectors"):
+    assert {name_of(requirement) for requirement in required} == {"pydantic", "pypdfium2", "semiont", "semiont-service", "semiont-vectors"}
+    for library in ("pydantic", "semiont", "semiont_service", "semiont_vectors"):
         assert importing(library), f"{library} is required and nothing imports it"
     # A dependency the SDK bounds is named here without a bound of its own.
     of_the_sdk = listed(table(toml(SDK / "pyproject.toml")["project"], "project")["dependencies"], "the SDK's dependencies")
     bounded = {name_of(requirement) for requirement in of_the_sdk}
-    assert {"httpx", "pydantic"} <= bounded
+    assert "pydantic" in bounded
     for requirement in required:
         if name_of(requirement) in bounded:
             assert requirement == name_of(requirement), f"{requirement}: the SDK states the versions of {name_of(requirement)}"

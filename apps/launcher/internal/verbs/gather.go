@@ -23,7 +23,7 @@ Assemble context for an LLM: the resource with its neighbourhood, or the
 context surrounding one annotation.
 
 Options:
-  --depth <n>          Resource-graph traversal depth (default 2)
+  --depth <n>          Links out from the resource the graph reaches, 1 to 3 (default 2)
   --max-resources <n>  Cap on related resources (resource focus; default 10)
   --context-window <n> Text on each side of the annotation, in code points (annotation focus)
   --no-content         Omit resource content (metadata only)

@@ -13,9 +13,9 @@
 //   - skills: the agent skills (docs/builder/skills/*/SKILL.md, and their
 //     README). They teach Node scripts, so Node's types are on; resolved like
 //     the sdk suite.
-//   - packages: the READMEs of the packages the services are built from
+//   - packages: the READMEs of the packages the SDK is built on
 //     (packages/*/README.md, but the sdk's and react-ui's, which the suites
-//     beside this one hold). Node's types are on, and there is no prelude: a
+//     beside this one hold, and mcp-server's, which shows no TypeScript). Node's types are on, and there is no prelude: a
 //     fence there is a whole example, and imports or declares what it uses.
 //   - ui: the react-ui docs (docs/builder/react-ui and packages/react-ui/docs)
 //     and the Browser docs, with their READMEs. Resolved like the Browser
@@ -104,14 +104,11 @@ const SUITES = {
     ambientModules: ['@semiont/sdk'],
     onlyDocDiagnostics: false,
   },
-  // The READMEs of the packages Semiont's services are built from. Each shows
+  // The READMEs of the packages the SDK is built on. Each shows
   // its package to someone working on it, with one example that runs. A fence
   // imports or declares everything it uses: there is no shared vocabulary.
   packages: {
-    docs: [
-      'content', 'core', 'event-sourcing', 'graph', 'http-transport', 'inference',
-      'make-meaning', 'observability', 'ontology', 'vectors',
-    ].map((dir) => join('packages', dir, 'README.md')),
+    docs: ['core', 'http-transport', 'observability'].map((dir) => join('packages', dir, 'README.md')),
     preludes: [],
     options: { types: ['node'] },
     ambientModules: [],

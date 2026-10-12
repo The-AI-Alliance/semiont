@@ -262,7 +262,9 @@ def test_the_variables_it_reads_by_name_are_the_ones_the_protocol_lists() -> Non
     # Every variable the service's code names: its own, and the shared package's it is built on.
     sources = sorted([*SRC.rglob("*.py"), *(SHARED / "src").rglob("*.py")])
     assert any(path.is_relative_to(SHARED) for path in sources), "packages/service-python has no source"
-    read_here = {name for path in sources for name in re.findall(r'"([A-Z][A-Z0-9]*_[A-Z0-9_]+)"', path.read_text(encoding="utf-8"))}
+    # A module's `__all__` names what it exports, in quotes too: a constant's name there is no variable read.
+    texts = [re.sub(r"^__all__ = \[.*?\]$", "", path.read_text(encoding="utf-8"), flags=re.DOTALL | re.MULTILINE) for path in sources]
+    read_here = {name for text in texts for name in re.findall(r'"([A-Z][A-Z0-9]*_[A-Z0-9_]+)"', text)}
     assert read_here == listed_there
     # Its service account, and what says where its telemetry goes and under what name.
     assert read_here == {

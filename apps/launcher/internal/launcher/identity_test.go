@@ -37,9 +37,8 @@ func TestDerivePlanRefusesAConfigWithNoIdentity(t *testing.T) {
 
 // The claim a person's DID is built from is DECLARED, never defaulted or
 // inferred: `did:web:<site domain>:users:<that claim's value>`. A section
-// without it refuses, naming the key — the launcher vets exactly what the
-// gateway's loader would refuse, so no path writes a config the stack cannot
-// start.
+// without it refuses, naming the key, so no path writes a config the stack
+// cannot start.
 func TestDerivePlanRefusesIdentityWithNoSubjectClaim(t *testing.T) {
 	p := variantConfig(t, map[string]string{"identity": "[environments.local.identity]\ntype = \"keycloak\"\nissuer = \"http://${KEYCLOAK_HOST}:8080/realms/semiont\"\n"})
 	env, envName, _, err := loadConfig(p)
