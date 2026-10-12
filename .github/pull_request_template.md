@@ -41,7 +41,7 @@ Check what you ran. CI runs every suite here except the end-to-end one; `docs/co
 - [ ] Tests are added or updated for the behavior this changes
 - [ ] npm workspaces: `npm run typecheck`, and `npm test --workspace=<name>` for each one changed
 - [ ] Rust: `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings` and `cargo test --workspace`
-- [ ] Python: from each project changed (`packages/sdk-python`, `packages/inference-python`, `packages/graph-python`, `packages/service-python`, `apps/worker`, `apps/weaver`), `uv run mypy`, `uv run pyright`, `uv run ruff check`, `uv run ruff format --check` and `uv run pytest`
+- [ ] Python: from each project changed (`packages/sdk-python`, `packages/inference-python`, `packages/graph-python`, `packages/vectors-python`, `packages/service-python`, `apps/worker`, `apps/weaver`), `uv run mypy`, `uv run pyright`, `uv run ruff check`, `uv run ruff format --check` and `uv run pytest`
 - [ ] Launcher: `cd apps/launcher && go test -timeout 30m ./...`
 - [ ] Go SDK: `cd packages/sdk-go && go test -timeout 5m ./...`
 - [ ] Gateway conformance: `cd tests/conformance && npm run test:gateway`

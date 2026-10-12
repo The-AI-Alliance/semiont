@@ -122,7 +122,7 @@ entity types from its description as the Archivist answers it then.
   types on the resource's points to the resource's entity types as they now
   are, and ask nothing of the embedding provider.** A resource with no points
   is left with none: its entity types are written when it is next indexed.
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`, `packages/vectors/src/__tests__/store-cases.test.ts` and `smelter/index`.*
+  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`, `packages/vectors/src/__tests__/store-cases.test.ts`, `packages/vectors-python/tests/store_contract.py` and `smelter/index`.*
 
 ### Indexing a resource
 
@@ -146,12 +146,12 @@ entity types from its description as the Archivist answers it then.
   *Held by `smelter/index`.*
 - **The resource's points are then replaced by the new ones, all of them.** A
   resource whose text grew shorter keeps no point of the longer text.
-  *Held by `packages/vectors/src/__tests__/store-cases.test.ts` and `smelter/index`.*
+  *Held by `packages/vectors/src/__tests__/store-cases.test.ts`, `packages/vectors-python/tests/store_contract.py` and `smelter/index`.*
 - **Each point carries the chunk's text and its place among the chunks, the
   checksum of the bytes, the resource's entity types, and a mark when the
   text was read from pixels,** as
   [`payload-cases.json`](../../specs/src/vectors/payload-cases.json) states.
-  *Held by `packages/vectors/src/__tests__/payload-cases.test.ts` and `smelter/index`.*
+  *Held by `packages/vectors/src/__tests__/payload-cases.test.ts`, `packages/vectors-python/tests/test_payload_cases.py` and `smelter/index`.*
 - **Only a resource whose bytes gave text has points.**
   *Held by `packages/make-meaning/src/__tests__/smelter-axioms.test.ts` and `smelter/index`.*
 
@@ -161,7 +161,7 @@ entity types from its description as the Archivist answers it then.
   with the annotation's id, its resource, its motivation, its entity types
   and that text, as
   [`payload-cases.json`](../../specs/src/vectors/payload-cases.json) states.
-  *Held by `packages/vectors/src/__tests__/payload-cases.test.ts` and `smelter/index`.*
+  *Held by `packages/vectors/src/__tests__/payload-cases.test.ts`, `packages/vectors-python/tests/test_payload_cases.py` and `smelter/index`.*
 - **An annotation that quotes no text, or only white space, has no point.**
   *Held by `packages/make-meaning/src/__tests__/reconcile-cases.test.ts` and `smelter/index`.*
 - **An annotation on a resource whose text was read from pixels carries the
@@ -286,14 +286,14 @@ states what each kind of document becomes.
   of annotations, searched by cosine similarity.
   [`payload-cases.json`](../../specs/src/vectors/payload-cases.json) states
   what a point of each holds, and what is indexed for a filter.
-  *Held by `packages/vectors/src/__tests__/payload-cases.test.ts`.*
+  *Held by `packages/vectors/src/__tests__/payload-cases.test.ts` and `packages/vectors-python/tests/test_payload_cases.py`, and for the collections a Qdrant then has by `packages/vectors-python/tests/qdrant_live.py`.*
 - **A collection is as wide as the embedding model's vectors,** which the
   Smelter learns by asking the provider to embed once, when it first makes
   the collection.
-  *Held by `packages/vectors/src/__tests__/payload-cases.test.ts`.*
+  *Held by `packages/vectors/src/__tests__/payload-cases.test.ts`, and against a Qdrant by `packages/vectors-python/tests/qdrant_live.py`.*
 - **What a search of the index answers is what
   [`store-cases.json`](../../specs/src/vectors/store-cases.json) states.**
-  *Held by `packages/vectors/src/__tests__/store-cases.test.ts`.*
+  *Held by `packages/vectors/src/__tests__/store-cases.test.ts`, and by `packages/vectors-python/tests/store_contract.py` for the in-memory store and for a Qdrant.*
 
 ## The embedding provider
 
@@ -303,23 +303,23 @@ A Smelter asks one provider for its vectors: an Ollama
 
 - **A batch of texts is cut into slices of 128, each one request, made in
   the order of the texts,** and the vectors are given back in that order.
-  *Held by `packages/vectors/src/__tests__/embed-batch-slicing.test.ts` and `smelter/provider`.*
+  *Held by `packages/vectors/src/__tests__/embed-batch-slicing.test.ts`, `packages/vectors-python/tests/test_slices.py` and `smelter/provider`.*
 - **Each request has 15 seconds of its own,** counted from when it is sent
   and not from when its batch began.
-  *Held by `packages/vectors/src/__tests__/embed-batch-slicing.test.ts`.*
+  *Held by `packages/vectors/src/__tests__/embed-batch-slicing.test.ts` and `packages/vectors-python/tests/test_slices.py`.*
 - **One request at a time is made of an Ollama, and four of Voyage,** however
   many resources are being indexed.
-  *Held by `packages/vectors/src/__tests__/embed-batch-slicing.test.ts` and `smelter/provider`.*
+  *Held by `packages/vectors/src/__tests__/embed-batch-slicing.test.ts`, `packages/vectors-python/tests/test_slices.py` and `smelter/provider`.*
 - **A request that fails fails its whole batch, and says which provider,
   which model, what status and which slice.** The resource it was for gets no
   points from that attempt.
-  *Held by `packages/vectors/src/__tests__/embed-batch-slicing.test.ts`, `packages/vectors/src/__tests__/cold-embedding-model.test.ts` and `smelter/provider`.*
+  *Held by `packages/vectors/src/__tests__/embed-batch-slicing.test.ts`, `packages/vectors-python/tests/test_slices.py`, `packages/vectors/src/__tests__/cold-embedding-model.test.ts` and `smelter/provider`.*
 - **A provider that answers 404 when the Smelter starts is taken to be still
   fetching the model, and one that cannot be reached to be still starting:
   either is asked again,** up to twelve times, within the time the Smelter
   has to start ([Boot](#boot)). An answer of any other failing status is not
   asked again.
-  *Held by `packages/vectors/src/__tests__/cold-embedding-model.test.ts` and `smelter/boot`.*
+  *Held by `packages/vectors/src/__tests__/cold-embedding-model.test.ts` and `smelter/boot` for a 404, and by `packages/vectors-python/tests/test_dimensions.py` for both.*
 
 ## Boot
 

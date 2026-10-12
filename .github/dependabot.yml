@@ -173,6 +173,7 @@ updates:
       - "/packages/sdk-python"
       - "/packages/inference-python"
       - "/packages/graph-python"
+      - "/packages/vectors-python"
       - "/packages/service-python"
       - "/apps/worker"
       - "/apps/weaver"

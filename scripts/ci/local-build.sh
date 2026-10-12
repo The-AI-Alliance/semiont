@@ -406,8 +406,9 @@ fi
 # --- Python lockfile gate ---
 #
 # The inference drivers (packages/inference-python), the graph stores
-# (packages/graph-python), the service package (packages/service-python), the
-# Worker (apps/worker) and the Weaver (apps/weaver) are Python projects with a
+# (packages/graph-python), the vector stores (packages/vectors-python), the
+# service package (packages/service-python), the Worker (apps/worker) and the
+# Weaver (apps/weaver) are Python projects with a
 # lockfile each and nothing generated from specs/src, so what can go stale in
 # them is the lockfile: a manifest changed without `uv lock`, in the project
 # or in a package of the repository it takes. CI's job for each refuses that first
@@ -418,7 +419,7 @@ fi
 
 banner "PYTHON LOCKFILE GATE"
 
-for PYTHON_PROJECT in packages/inference-python packages/graph-python packages/service-python apps/worker apps/weaver; do
+for PYTHON_PROJECT in packages/inference-python packages/graph-python packages/vectors-python packages/service-python apps/worker apps/weaver; do
   step "Checking ${PYTHON_PROJECT}/uv.lock against its manifests (in ${PYTHON_IMAGE})..."
   # Installing uv and checking report SEPARATELY, as above: a failed download
   # is not a stale lockfile.

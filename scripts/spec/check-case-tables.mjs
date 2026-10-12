@@ -200,14 +200,19 @@ const TABLES = [
   },
   // What a point of the vector index is, and what the index answers after a
   // history of writes. Run by each implementation of the stores: TypeScript's
-  // (@semiont/vectors).
+  // (@semiont/vectors) and Python's (semiont_vectors), whose store contract a
+  // real Qdrant is held to as well.
   {
     table: 'specs/src/vectors/payload-cases.json',
-    runners: ['packages/vectors/src/__tests__/payload-cases.test.ts'],
+    runners: [
+      'packages/vectors/src/__tests__/payload-cases.test.ts',
+      'packages/vectors-python/tests/test_payload_cases.py',
+      'packages/vectors-python/tests/store_contract.py',
+    ],
   },
   {
     table: 'specs/src/vectors/store-cases.json',
-    runners: ['packages/vectors/src/__tests__/store-cases.test.ts'],
+    runners: ['packages/vectors/src/__tests__/store-cases.test.ts', 'packages/vectors-python/tests/store_contract.py'],
   },
   // The work a Smelter's start plans, from what the index, the catalog and
   // the anchored-text store each hold; and what each kind of PDF becomes. Run
