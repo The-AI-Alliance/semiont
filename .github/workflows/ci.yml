@@ -637,6 +637,95 @@ jobs:
         env:
           CI: true
 
+  # The Smelter, held to docs/protocol/SMELTER.md: the process a smelter image
+  # runs, behind a real gateway and a real Archivist, with the suite playing
+  # its embedding provider, writing a real Qdrant, which the suite reads back.
+  smelter-conformance:
+    name: Smelter Conformance
+    runs-on: ubuntu-latest
+    env:
+      # Where the suite finds its vector database: a container this job makes,
+      # whose index the suite clears.
+      QDRANT_HOST: localhost
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Install the pinned Rust toolchain
+        run: |
+          rustup toolchain install
+
+      # The workspace's release build, shared with Gateway Conformance.
+      - name: Cache cargo
+        uses: actions/cache@v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-gateway-release-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-gateway-release-
+
+      # The Smelter reaches the bus through a gateway, and is given its events
+      # and a resource's bytes by an Archivist.
+      - name: Build the gateway and the Archivist
+        run: cargo build --release --locked -p semiont-gateway -p semiont-archivist
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            tests/conformance/package-lock.json
+
+      # The suite starts the TypeScript Smelter from the built
+      # @semiont/make-meaning (harness/paths.ts), which imports the built
+      # packages under it. The install brings what its PDF reading loads: the
+      # OCR engine and its language data.
+      - name: Install dependencies
+        run: |
+          npm ci --include=optional
+          npm run build:packages
+
+      # The harness's global setup refuses to run without a broker on PATH.
+      - name: Install nats-server
+        run: |
+          NATS_VERSION=v2.14.0
+          curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
+          sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
+          nats-server --version
+
+      # The Qdrant the launcher starts for an operator, whose image
+      # scripts/ci/qdrant-image.sh reads from the launcher's own descriptor.
+      # It is asked what the launcher asks it, to know it is ready.
+      - name: Start Qdrant
+        run: |
+          image=$(scripts/ci/qdrant-image.sh)
+          docker run -d --name qdrant -p 6333:6333 "$image"
+          for attempt in $(seq 1 60); do
+            if curl -fsS "http://${QDRANT_HOST}:6333/readyz" > /dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs qdrant
+          echo "Qdrant did not answer within two minutes"
+          exit 1
+
+      # Black-box: it starts Smelter processes behind a gateway and an
+      # Archivist, records through the Archivist, and reads the index.
+      - name: Run the Smelter conformance suite
+        run: |
+          cd tests/conformance
+          npm ci
+          npm run test:smelter
+        env:
+          CI: true
+
   # The Worker service, held to docs/protocol/WORKER-SERVICE.md: the process a
   # worker image runs, behind a real gateway, with the suite playing the
   # dispatcher, the record, the Smelter and its provider.

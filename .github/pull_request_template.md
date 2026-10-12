@@ -51,6 +51,7 @@ Check what you ran. CI runs every suite here except the end-to-end one; `docs/co
 - [ ] Worker conformance: `cd tests/conformance && npm run test:worker`
 - [ ] Worker-service conformance: `cd tests/conformance && npm run test:worker-service`
 - [ ] Weaver conformance: `cd tests/conformance && npm run test:weaver`
+- [ ] Smelter conformance: `cd tests/conformance && npm run test:smelter`
 - [ ] End-to-end, against a stack built from this branch: `cd tests/e2e && npm test`
 - [ ] `specs/` changed: the generated code committed to the tree is regenerated (the `generated-artifacts` job in `.github/workflows/ci.yml` names a stale file and the command that rewrites it)
 

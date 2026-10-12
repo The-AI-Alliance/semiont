@@ -1,5 +1,5 @@
 {
   "extends": "./tsconfig.json",
   "include": ["**/*.ts"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "harness/smelter-world.ts", "harness/smelter-setup.ts", "harness/qdrant.ts", "harness/ollama-embed.ts", "smelter/**"]
 }

@@ -1,5 +1,5 @@
 import { defineConfig } from 'vitest/config';
-import { ARCHIVIST_COMMAND, DISPATCHER_COMMAND, GATEWAY_COMMAND, SDK_DRIVERS, WEAVER_SERVICES, WORKER_SERVICES } from './harness/paths';
+import { ARCHIVIST_COMMAND, DISPATCHER_COMMAND, GATEWAY_COMMAND, SDK_DRIVERS, SMELTER_SERVICES, WEAVER_SERVICES, WORKER_SERVICES } from './harness/paths';
 
 // Every file boots its own processes, issuer, Archivist and broker on ports of
 // its own, so files run in parallel; the cases inside a file share them and
@@ -75,6 +75,19 @@ export default defineConfig({
           // One file at a time: the files share one graph database, which a
           // rebuild of the whole graph clears, and a Weaver's health port is a
           // constant, so two cannot run at once.
+          fileParallelism: false,
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'smelter',
+          include: ['smelter/**/*.test.ts'],
+          provide: { gatewayCommand: GATEWAY_COMMAND, archivistCommand: ARCHIVIST_COMMAND, smelterServices: SMELTER_SERVICES },
+          globalSetup: ['harness/global-setup.ts', 'harness/archivist-setup.ts', 'harness/smelter-setup.ts'],
+          // One file at a time: the files share one vector database, whose
+          // index each file clears, and a Smelter's health port is a constant,
+          // so two cannot run at once.
           fileParallelism: false,
         },
       },

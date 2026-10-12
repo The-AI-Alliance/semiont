@@ -16,8 +16,14 @@ deviates from it, the code is wrong, or this document is wrong and is
 corrected deliberately. There is no third option.
 
 **How this document is held.** Each rule ends with *Held by* and what fails
-when a Smelter breaks it. A path names a test. Some are runners of a case
-table, which every implementation runs through its own code:
+when a Smelter breaks it. `smelter/<case>` is the file `<case>.test.ts` of the
+smelter conformance suite
+([`tests/conformance/smelter`](../../tests/conformance/smelter/README.md)),
+which starts a Smelter as a process behind a real gateway and a real
+Archivist, records through the Archivist, plays its embedding provider, and
+reads the index back from a real database: the same cases judge every
+implementation. A path names a test. Some are runners of a case table, which
+every implementation runs through its own code:
 [`specs/src/vectors/payload-cases.json`](../../specs/src/vectors/payload-cases.json)
 and
 [`specs/src/vectors/store-cases.json`](../../specs/src/vectors/store-cases.json),
@@ -29,8 +35,8 @@ what each kind of PDF becomes; and
 [`specs/src/text/chunk-cases.json`](../../specs/src/text/chunk-cases.json),
 how a text is cut. The others are tests of Semiont's own Smelter. A rule
 marked "Held by no case" is one nothing checks.
-`npm run lint:transport-contract` fails when a test named here does not
-exist.
+`npm run lint:transport-contract` fails when a case or a test named here does
+not exist, and when a case of the suite is named by no rule.
 
 **Both stores are projections, and not copies.** The record is the system of
 record: every point of the index and every entry of the anchored-text store
@@ -51,13 +57,13 @@ where the database's port and the two numbers may be left out, and are then
 
 - **Without the gateway's URL, the issuer, the Archivist's address, the
   vector database's host, or the embedding provider's kind, model or address,
-  it refuses to start,** and says which is missing. *Held by no case.*
+  it refuses to start,** and says which is missing. *Held by `smelter/boot`.*
 - **Its service account is `SEMIONT_OIDC_CLIENT_ID` and
   `SEMIONT_OIDC_CLIENT_SECRET` in its environment.** With either missing it
-  refuses to start, and names what is missing. *Held by no case.*
+  refuses to start, and names what is missing. *Held by `smelter/boot`.*
 - **The anchored-text store's directory has no default.** With
   `SEMIONT_ANCHORED_TEXT_DIR` unset it refuses to start, and names the
-  variable. *Held by no case.*
+  variable. *Held by `smelter/boot`.*
 
 ## What it follows
 
@@ -305,10 +311,11 @@ A Smelter asks one provider for its vectors: an Ollama
   points from that attempt.
   *Held by `packages/vectors/src/__tests__/embed-batch-slicing.test.ts` and `packages/vectors/src/__tests__/cold-embedding-model.test.ts`.*
 - **A provider that answers 404 when the Smelter starts is taken to be still
-  fetching the model, and is asked again,** up to twelve times, within the
-  time the Smelter has to start ([Boot](#boot)). Any other failure is not
+  fetching the model, and one that cannot be reached to be still starting:
+  either is asked again,** up to twelve times, within the time the Smelter
+  has to start ([Boot](#boot)). An answer of any other failing status is not
   asked again.
-  *Held by `packages/vectors/src/__tests__/cold-embedding-model.test.ts`.*
+  *Held by `packages/vectors/src/__tests__/cold-embedding-model.test.ts` and `smelter/boot`.*
 
 ## Boot
 
@@ -320,7 +327,8 @@ opens its health port; runs reconcile.
   answer within a minute,** and exits with a status other than 0.
   *Held by no case.*
 - **Its health answers before reconcile begins,** and events recorded from
-  then on are applied as they arrive, while reconcile runs. *Held by no case.*
+  then on are applied as they arrive, while reconcile runs.
+  *Held by `smelter/boot`.*
 - **A reconcile that fails does not end the Smelter.** The failure is logged
   and reported in its [health](#health), and the Smelter goes on applying
   what arrives.
@@ -382,7 +390,7 @@ in prose.
   out (`annotationVectorsDeleted`); and how many resources of the catalog
   have text (`resourcesEligible`) and how many have points when it ends
   (`resourcesIndexed`).
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`.*
+  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts` and `smelter/boot`.*
 
 ## Rebuild
 
@@ -407,10 +415,10 @@ in prose.
   `eventsProcessed`, the number of events it has applied since it started;
   and `reconcile`, a `phase` (`pending`, `running`, `done` or `failed`) with
   the pass's `summary` when it is done, or its `error` when it failed.
-  *Held by no case.*
+  *Held by `smelter/boot`.*
 - **The work of reconcile and of a rebuild is not counted among the events
   processed.**
-  *Held by `packages/make-meaning/src/__tests__/smelter-axioms.test.ts`.*
+  *Held by `packages/make-meaning/src/__tests__/smelter-axioms.test.ts` and `smelter/boot`.*
 - **`status` is `ok` whenever the Smelter answers.** It says nothing of
   whether the Smelter can reach the gateway, its provider or its index.
   *Held by no case.*
@@ -418,7 +426,7 @@ in prose.
 ## Stopping
 
 - **On SIGTERM a Smelter stops applying, closes what it holds open, and exits
-  with status 0.** *Held by no case.*
+  with status 0.** *Held by `smelter/boot`.*
 
 ## Telemetry
 
@@ -439,6 +447,8 @@ A Smelter's own code reads these from its environment, and no others:
 | `SEMIONT_ANCHORED_TEXT_DIR` | The directory of the anchored-text store. Required |
 | any variable its configuration file names | The file may give a value as `${NAME}`, and is read with it filled in |
 | the telemetry variables | Where its spans and metrics go and under what name ([Telemetry](#telemetry)) |
+| `LOG_LEVEL`, `LOG_FORMAT` | How much it logs (`info` when unset), and in what form: `simple` for lines a person reads, and JSON otherwise |
+| `SUPERVISE_EVENTS`, `SUPERVISE_NAME` | The supervisor's events log and the name it runs the Smelter under, from which it reports how many times it has been started again |
 
 *Held by no case.*
 
