@@ -1,19 +1,24 @@
 /**
  * What text a resource's bytes are, held to the two tables every reader of a
  * resource's text runs. specs/src/text/decode-cases.json is written by hand:
- * what is said of a content type, of a label, of a byte-order mark and of
- * malformed UTF-8 and UTF-16. specs/src/text/encoding-cases.json is
- * generated: every label of the Encoding Standard, and every byte of each of
- * its single-byte encodings.
+ * what is said of a content type, of a label, of a byte-order mark, of
+ * malformed UTF-8 and UTF-16, and of a media type whose text is not its
+ * bytes. specs/src/text/encoding-cases.json is generated: every label of the
+ * Encoding Standard, and every byte of each of its single-byte encodings.
  *
- * `decodeWithCharset` is the one reader TypeScript has: the SDK's, the
- * Browser's and, through `decodeRepresentation`, the Node services'.
+ * The first table is run through `decodeRepresentation`, which refuses a
+ * media type whose text is not its bytes and reads every other with
+ * `decodeWithCharset`: the one place TypeScript makes a text of bytes. The
+ * second, whose every content type is text/plain, is run through
+ * `decodeWithCharset` itself.
  */
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { SemiontError } from '../errors';
+import { textSourceOf } from '../media-types';
+import { decodeRepresentation } from '../resource-utils';
 import { decodeWithCharset } from '../text-encoding';
 
 interface Case { why: string; contentType: string; bytes: string; text?: string; refused?: string }
@@ -27,15 +32,15 @@ const encodings: { cases: EncodingCase[] } = JSON.parse(readFileSync(resolve(__d
 const EVERY_BYTE = Uint8Array.from({ length: 256 }, (_, byte) => byte);
 
 /** The bytes a case writes in hexadecimal, two digits to a byte. */
-function bytesOf(hexadecimal: string): Uint8Array {
+function bytesOf(hexadecimal: string): Buffer {
   const digits = hexadecimal.replaceAll(' ', '');
   const bytes = Buffer.from(digits, 'hex');
   if (bytes.length * 2 !== digits.length) throw new Error(`"${hexadecimal}" is not bytes in hexadecimal`);
   return bytes;
 }
 
-/** The reading is refused as the reader's own failure, and the refusal names the label. */
-function refused(reading: () => string, label: string): void {
+/** The reading is refused as the reader's own failure, and the refusal names what it refuses: a label, or a media type. */
+function refused(reading: () => string, named: string): void {
   let refusal: unknown;
   try {
     refusal = `read as ${JSON.stringify(reading())}`;
@@ -44,7 +49,7 @@ function refused(reading: () => string, label: string): void {
   }
   if (!(refusal instanceof SemiontError)) throw new Error(`not refused as the reader's own failure: ${String(refusal)}`);
   expect(refusal.code).toBe('error');
-  expect(refusal.message).toContain(label);
+  expect(refusal.message).toContain(named);
 }
 
 describe('what text a resource\'s bytes are (specs/src/text/decode-cases.json)', () => {
@@ -55,13 +60,17 @@ describe('what text a resource\'s bytes are (specs/src/text/decode-cases.json)',
     }
     expect(decode.cases.some((stated) => typeof stated.text === 'string')).toBe(true);
     expect(decode.cases.some((stated) => typeof stated.refused === 'string')).toBe(true);
+    // A refusal is of a charset, where the media type is one that is decoded,
+    // or of the media type: one whose text is derived, and one with none.
+    const refusedOf = decode.cases.filter((stated) => stated.refused !== undefined).map((stated) => textSourceOf(stated.contentType));
+    expect(Array.from(new Set(refusedOf)).sort()).toEqual(['decode', 'none', 'pdf-text-layer']);
   });
 
-  it.each(decode.cases)('$why', ({ contentType, bytes, text, refused: label }) => {
+  it.each(decode.cases)('$why', ({ contentType, bytes, text, refused: named }) => {
     if (text !== undefined) {
-      expect(decodeWithCharset(bytesOf(bytes), contentType)).toBe(text);
-    } else if (label !== undefined) {
-      refused(() => decodeWithCharset(bytesOf(bytes), contentType), label);
+      expect(decodeRepresentation(bytesOf(bytes), contentType)).toBe(text);
+    } else if (named !== undefined) {
+      refused(() => decodeRepresentation(bytesOf(bytes), contentType), named);
     } else {
       throw new Error('the case states neither its text nor that it is refused');
     }

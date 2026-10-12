@@ -5,7 +5,8 @@ use super::follow::{Delegation, Following, follow};
 use crate::channels::{Empty, YieldClone, YieldCloneResourceRequested, YieldCloneTokenRequested};
 use crate::client::Links;
 use crate::errors::SemiontError;
-use crate::media_types::{clone_format, derive_storage_uri, primary_media_type};
+use crate::media_types::{clone_format, derive_storage_uri};
+use crate::resources::primary_media_type;
 use crate::timing::{
     GENERATION_STALL_ASSUMED_TOKENS_COUNT, GENERATION_STALL_FLOOR, GENERATION_STALL_PER_TOKEN,
 };

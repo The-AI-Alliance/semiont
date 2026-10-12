@@ -2,8 +2,9 @@
  * Content reads on the pure-pipe model.
  *
  * - `resourceContent` decodes with the *response's* charset (via
- *   `decodeWithCharset`), not a blind UTF-8 `TextDecoder`, and threads no
- *   `accept` option (the route is a pure byte pipe).
+ *   `decodeRepresentation`), not a blind UTF-8 `TextDecoder`, and threads no
+ *   `accept` option (the route is a pure byte pipe). A media type whose text
+ *   is not its bytes it refuses, as the Rust and Python SDKs' do.
  * - `resourceGraph` dereferences the metadata graph through the content
  *   transport's `getResourceGraph` (the HTTP `/jsonld` face), uncached.
  * - `resourceAnchoredText` reads the anchored text through the content
@@ -12,7 +13,7 @@
  */
 
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { EventBus, resourceId as makeResourceId } from '@semiont/core';
+import { EventBus, SemiontError, resourceId as makeResourceId } from '@semiont/core';
 import type { AnchoredTextAnswer, IContentTransport, ITransport, ResourceId } from '@semiont/core';
 import { BrowseNamespace } from '../namespaces/browse';
 import { inMemoryTransport } from './helpers/in-memory-transport';
@@ -52,6 +53,28 @@ describe('browse content reads — pure pipe', () => {
     expect(await browse.resourceContent(rId)).toBe('café');
     // Pure pipe: no `accept` option threaded to the transport.
     expect(getBinary).toHaveBeenCalledWith(rId);
+  });
+
+  it('resourceContent refuses a media type whose text is not its bytes, whatever the bytes are', async () => {
+    // "%PDF" would decode as UTF-8 without complaint. A PDF's text is derived from its bytes, not decoded from them.
+    const getBinary = vi.fn().mockResolvedValue({
+      data: new Uint8Array([0x25, 0x50, 0x44, 0x46]).buffer,
+      contentType: 'application/pdf',
+    });
+    const content = {
+      putBinary: vi.fn(),
+      getBinary,
+      getBinaryStream: vi.fn(),
+      getResourceGraph: vi.fn(),
+      dispose: vi.fn(),
+    } as unknown as IContentTransport;
+
+    // The refusal names the media type, and is the reader's own failure: the one a charset it does not decode is
+    // refused with.
+    const refusal = makeBrowse(content).resourceContent(makeResourceId('r1'));
+    await expect(refusal).rejects.toThrow('application/pdf');
+    await expect(refusal).rejects.toBeInstanceOf(SemiontError);
+    await expect(refusal).rejects.toMatchObject({ code: 'error' });
   });
 
   it('resourceGraph dereferences via the content transport, uncached', async () => {

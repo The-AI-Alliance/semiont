@@ -1,9 +1,9 @@
 //! The media types a knowledge base admits and what the system can do with
 //! each, as specs/src/media-types/registry.json states them, and the rules
 //! read from that table, which specs/src/media-types/cases.json holds in
-//! every SDK: the format a clone takes, and the name content is stored under.
-
-use crate::types::{ResourceDescriptor, ResourceDescriptorRepresentations};
+//! every SDK: the format a clone takes, the name content is stored under,
+//! and where a type's text comes from, with whether that text has places on
+//! a page and whether it is derived.
 
 /// What the system can do with one media type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -43,13 +43,54 @@ pub fn capabilities_of(format: &str) -> Option<&'static MediaTypeCapabilities> {
     MEDIA_TYPES.iter().find(|row| row.media_type == base)
 }
 
-/// The media type of a resource's first representation.
-pub fn primary_media_type(resource: &ResourceDescriptor) -> Option<&str> {
-    match &resource.representations {
-        ResourceDescriptorRepresentations::Representation(only) => Some(&only.media_type),
-        ResourceDescriptorRepresentations::List(several) => {
-            several.first().map(|first| first.media_type.as_str())
-        }
+/// Where a format's text comes from. The registry's row says. A format the
+/// registry does not have is decoded when its type is `text/`, since the
+/// bytes of every such type are text, and has no text otherwise.
+///
+/// The three answers are three things done, not more and less of one. To
+/// decode is to read the bytes in their charset, which whoever holds them
+/// may do (`resources::decode_representation`). To read a PDF's text layer,
+/// and to recognize the characters of a page that has none, is long work
+/// whose answer may change with the version of what does it: the Smelter
+/// does it once, and keeps the answer as the resource's anchored text.
+pub fn text_source_of(format: &str) -> TextSource {
+    match capabilities_of(format) {
+        Some(row) => row.text_source,
+        None if base_media_type(format).starts_with("text/") => TextSource::Decode,
+        None => TextSource::None,
+    }
+}
+
+/// Whether a format's text has places on a page: the positioned runs an
+/// anchored text is made of, where a decoded text is only its characters.
+/// It says whether a resource of the format has an anchored text at all,
+/// and whether an annotation of it is anchored by where it is on a page.
+///
+/// The answer is read from the text source and stated for every one, with
+/// no arm for the rest: a source added to the registry does not build here
+/// until someone says which side it is on. A format the registry does not
+/// have is answered as `text_source_of` answers it, and so has none.
+pub fn yields_geometry_of(format: &str) -> bool {
+    match text_source_of(format) {
+        TextSource::PdfTextLayer => true,
+        TextSource::Decode | TextSource::None => false,
+    }
+}
+
+/// Whether a format's text is derived by reading its bytes, and kept as the
+/// resource's anchored text, where a decoded text is the bytes themselves in
+/// their charset. A reader of text asks this to know which to read:
+/// `browse.resource_anchored_text` gives a derived text, and
+/// `resources::decode_representation` a decoded one, refusing every other.
+///
+/// It is another question than `yields_geometry_of`, though no text source
+/// yet answers the two differently: a transcript of a recording would be
+/// derived and have no places on a page. Like it, the answer is stated for
+/// every text source, with no arm for the rest.
+pub fn derives_text_of(format: &str) -> bool {
+    match text_source_of(format) {
+        TextSource::PdfTextLayer => true,
+        TextSource::Decode | TextSource::None => false,
     }
 }
 

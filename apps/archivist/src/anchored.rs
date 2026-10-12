@@ -3,7 +3,7 @@
 //! settle content not yet in it.
 
 use crate::archivist::{Archivist, Refusal, locked, primary_representation};
-use semiont::media_types::{TextSource, capabilities_of};
+use semiont::media_types::yields_geometry_of;
 use semiont_archivist_record::Object;
 use semiont_archivist_record::shard::shard_path;
 use serde_json::{Value, json};
@@ -168,8 +168,11 @@ fn absent(kind: &str) -> Object {
 }
 
 /// A resource's anchored text: the stored entry for its content, or why
-/// there is none to give. Only a media type whose text is derived by reading
-/// its content has any; one the registry does not have derives none.
+/// there is none to give. Only a media type whose text has places on a page
+/// has any (`media_types::yields_geometry_of`): a type whose text is decoded
+/// from its bytes has none, nor has a type with no text, and one the
+/// registry does not have is one or the other. `no-map` is decided here, by
+/// the media type alone, before the store is read.
 ///
 /// Content the Smelter has settled and the store has no entry of is
 /// `not-yet`, however it was settled. Every outcome of deriving a text is
@@ -184,16 +187,12 @@ pub async fn anchored_text(archivist: &Archivist, resource_id: &str) -> Result<O
     let Some(checksum) = checksum else {
         return Ok(absent("unknown"));
     };
-    let text_source = representation
+    let has_anchored_text = representation
         .and_then(|r| r.get("mediaType"))
         .and_then(Value::as_str)
-        .and_then(capabilities_of)
-        .map(|row| row.text_source);
-    match text_source {
-        Some(TextSource::PdfTextLayer) => {}
-        Some(TextSource::Decode | TextSource::None) | None => {
-            return Ok(absent("no-map"));
-        }
+        .is_some_and(yields_geometry_of);
+    if !has_anchored_text {
+        return Ok(absent("no-map"));
     }
     let dir = Path::new(&archivist.config.anchored_text_dir);
     if let Some(entry) = read_entry(dir, checksum).await {

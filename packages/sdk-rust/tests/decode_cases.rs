@@ -1,19 +1,24 @@
 //! What text a resource's bytes are is two tables, which every reader of a
 //! resource's text runs. specs/src/text/decode-cases.json is written by hand:
-//! what is said of a content type, of a label, of a byte-order mark and of
-//! malformed UTF-8 and UTF-16. specs/src/text/encoding-cases.json is
-//! generated: every label of the Encoding Standard, and every byte of each
-//! of its single-byte encodings.
+//! what is said of a content type, of a label, of a byte-order mark, of
+//! malformed UTF-8 and UTF-16, and of a media type whose text is not its
+//! bytes. specs/src/text/encoding-cases.json is generated: every label of
+//! the Encoding Standard, and every byte of each of its single-byte
+//! encodings.
 //!
 //! A worker reads a resource's text with `browse.resource_content` and
 //! counts its offsets in what that gives, so each case is read through a
 //! client, from bytes its content transport serves with the case's content
-//! type. This crate's tests have the `charsets` feature, with which the
-//! reader is `encoding_rs`: the Encoding Standard as Firefox has it. So this
-//! run is also the check of the generated table, which is made from another
-//! implementation, against that one.
+//! type. The client reads with `resources::decode_representation`, which
+//! refuses a media type whose text is not its bytes as it refuses a charset
+//! it does not decode: a case of either is a refusal that names what the
+//! case says it names. This crate's tests have the `charsets` feature, with
+//! which the reader is `encoding_rs`: the Encoding Standard as Firefox has
+//! it. So this run is also the check of the generated table, which is made
+//! from another implementation, against that one.
 
 use semiont::errors::{SemiontError, TransportErrorCode};
+use semiont::media_types::{TextSource, text_source_of};
 use semiont::testing::{InMemoryContent, TestClientOptions, as_id, create_test_client};
 use semiont::transport::Content;
 use serde_json::Value;
@@ -67,7 +72,8 @@ fn is_text(answer: Result<String, SemiontError>, text: &str) -> Option<String> {
 }
 
 /// What is wrong with an answer that should be a refusal, if anything is: a
-/// transport's failure, which names the label.
+/// transport's failure, which names what the case says is refused, a
+/// charset's label or a media type.
 fn is_refused(answer: Result<String, SemiontError>, label: &str) -> Option<String> {
     match answer {
         Err(SemiontError::Transport(refusal)) if refusal.code != TransportErrorCode::Error => {
@@ -98,18 +104,25 @@ async fn a_resources_bytes_are_the_text_each_case_states() {
     let table = table(include_str!("../specs/text/decode-cases.json"));
     let cases = table["cases"].as_array().expect("cases");
     assert!(cases.len() >= 90, "the table has {} cases", cases.len());
-    let (mut texts, mut refusals) = (0, 0);
+    let (mut texts, mut charsets, mut media_types) = (0, 0, 0);
     let mut faults = Vec::new();
     for case in cases {
         let why = stated(case, "why");
-        let answer = read(stated(case, "contentType"), bytes_of(stated(case, "bytes"))).await;
+        let content_type = stated(case, "contentType");
+        let answer = read(content_type, bytes_of(stated(case, "bytes"))).await;
         let fault = match (case.get("text"), case.get("refused")) {
             (Some(Value::String(text)), None) => {
                 texts += 1;
                 is_text(answer, text)
             }
+            // A refusal is of a charset where the media type is one whose
+            // bytes are its text, and of the media type where it is not.
             (None, Some(Value::String(label))) => {
-                refusals += 1;
+                if text_source_of(content_type) == TextSource::Decode {
+                    charsets += 1;
+                } else {
+                    media_types += 1;
+                }
                 is_refused(answer, label)
             }
             _ => panic!("a case states neither its text nor that it is refused, or both: {case}"),
@@ -117,8 +130,8 @@ async fn a_resources_bytes_are_the_text_each_case_states() {
         faults.extend(fault.map(|fault| format!("{why}: {fault}")));
     }
     assert!(
-        texts > 0 && refusals > 0,
-        "the table has no case of a text, or none of a refusal"
+        texts > 0 && charsets > 0 && media_types > 0,
+        "the table has no case of a text, of a refused charset, or of a refused media type"
     );
     none(&faults);
 }

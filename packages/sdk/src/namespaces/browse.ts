@@ -1,6 +1,6 @@
 import { Observable, combineLatest, map } from 'rxjs';
 import { CacheObservable } from '../awaitable';
-import { decodeWithCharset } from '@semiont/core';
+import { decodeRepresentation } from '@semiont/core';
 import type { AnchoredTextAnswer } from '@semiont/core';
 import type {
   Annotation,
@@ -383,8 +383,9 @@ export class BrowseNamespace implements IBrowseNamespace {
   async resourceContent(resourceId: ResourceId): Promise<string> {
     const result = await this.content.getBinary(resourceId);
     // The text the bytes are, as docs/protocol/W3C-SELECTORS.md states it: a byte-order mark decides, then the
-    // charset the response states, then UTF-8.
-    return decodeWithCharset(result.data, result.contentType);
+    // charset the response states, then UTF-8. A media type whose text is not its bytes (a PDF, an image) is
+    // refused: its bytes are read with `resourceRepresentation`, and a PDF's text with `resourceAnchoredText`.
+    return decodeRepresentation(result.data, result.contentType);
   }
 
   /**

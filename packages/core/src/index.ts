@@ -220,7 +220,6 @@ export {
   getResourceId,
   getPrimaryRepresentation,
   getPrimaryMediaType,
-  getChecksum,
   getLanguage,
   getStorageUri,
   getCreator,
@@ -337,8 +336,8 @@ export type { Point, BoundingBox } from './svg-utils';
 export { textOffsets, type TextOffsets } from './text-offsets';
 export { extractContext } from './text-context';
 
-// Text encoding helpers
-export { extractCharset, decodeWithCharset } from './text-encoding';
+// The text some bytes are, in the charset their content type states
+export { decodeWithCharset } from './text-encoding';
 
 // Schema validation helpers
 export {

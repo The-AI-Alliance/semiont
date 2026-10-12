@@ -28,8 +28,9 @@ from semiont.client import SemiontClient
 from semiont.errors import SemiontError
 from semiont.identifiers import ResourceId
 from semiont.job_filter import job_matches_filter
-from semiont.media_types import capabilities_of, primary_media_type
+from semiont.media_types import capabilities_of
 from semiont.model import written
+from semiont.resources import primary_media_type
 from semiont.timing import GENERATED_TEXT_ASKS_COUNT
 from semiont.transport import PutBinaryRequest, Transport
 from semiont.types import (

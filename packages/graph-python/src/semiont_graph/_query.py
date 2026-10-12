@@ -8,9 +8,9 @@ contract tests hold both to one behaviour.
 from collections.abc import Iterable
 from datetime import datetime
 
+from semiont.resources import primary_representation
 from semiont.types import ResourceDescriptor
 
-from semiont_graph.codec import primary_representation
 from semiont_graph.interface import ResourceListing, ResourceQuery
 
 

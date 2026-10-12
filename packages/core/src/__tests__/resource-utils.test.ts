@@ -5,7 +5,6 @@ import {
   getResourceId,
   getPrimaryRepresentation,
   getPrimaryMediaType,
-  getChecksum,
   getLanguage,
   getStorageUri,
   getCreator,
@@ -13,7 +12,6 @@ import {
   isArchived,
   getResourceEntityTypes,
   isDraft,
-  decodeRepresentation,
 } from '../resource-utils';
 
 import type { ResourceDescriptor } from '../graph';
@@ -76,13 +74,6 @@ describe('getPrimaryMediaType', () => {
 
   test('returns undefined for empty representations', () => {
     expect(getPrimaryMediaType(makeResource({ representations: [] }))).toBeUndefined();
-  });
-});
-
-describe('getChecksum', () => {
-  test('returns checksum from primary representation', () => {
-    const r = makeResource({ representations: makeRep({ checksum: 'sha256:abc' }) });
-    expect(getChecksum(r)).toBe('sha256:abc');
   });
 });
 
@@ -168,33 +159,5 @@ describe('isDraft', () => {
 
   test('returns false when not draft', () => {
     expect(isDraft(makeResource())).toBe(false);
-  });
-});
-
-// What text a media type's bytes are is decode-cases.test.ts's, by the table
-// every reader of a resource's text runs. Here is which media types are read.
-//
-// The chokepoint gate: decoding is only legitimate for media whose text
-// SOURCE is 'decode'. Binary media decoded here would yield megabytes of
-// mojibake (a PDF's raw bytes shipped to inference); it throws instead, so no
-// caller — present or future — can decode bytes that were never text. This
-// gate supersedes a caller census: it cannot drift.
-describe('decodeRepresentation refuses non-decode media', () => {
-  test('throws on binary media instead of returning mojibake', () => {
-    const buf = Buffer.from('%PDF-1.4 not text', 'utf8');
-    expect(() => decodeRepresentation(buf, 'application/pdf')).toThrow(/pdf-text-layer|decode/);
-  });
-
-  test('throws on unregistered binary media (textSource none)', () => {
-    const buf = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
-    expect(() => decodeRepresentation(buf, 'application/x-unknown-binary')).toThrow();
-  });
-
-  test('still decodes registered text media', () => {
-    expect(decodeRepresentation(Buffer.from('{"a":1}', 'utf8'), 'application/json')).toBe('{"a":1}');
-  });
-
-  test('still decodes unregistered text/* subtypes (RFC 2046 fallback)', () => {
-    expect(decodeRepresentation(Buffer.from('x', 'utf8'), 'text/x-anything')).toBe('x');
   });
 });

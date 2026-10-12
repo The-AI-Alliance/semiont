@@ -18,6 +18,7 @@ from pydantic import JsonValue
 from semiont.annotations import body_source, entity_types, target_source
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.model import written
+from semiont.resources import primary_representation
 from semiont.types import Annotation, Motivation, ResourceDescriptor
 
 from semiont_graph._query import query_resources
@@ -26,7 +27,6 @@ from semiont_graph.codec import (
     decode_resource,
     encode_resource,
     intended_graph_annotation,
-    primary_representation,
     resolved_body,
     updated_annotation,
 )

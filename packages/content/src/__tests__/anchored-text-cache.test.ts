@@ -17,7 +17,7 @@
  *    make them fail.
  *
  * The key is supplied by the caller, not computed here. A content checksum
- * already exists upstream (`smelt:settled.contentChecksum`, `getChecksum`), and
+ * already exists upstream (`smelt:settled.contentChecksum`, the representation's `checksum`), and
  * hashing a large PDF per job is a cost this cache exists to remove, not add.
  */
 

@@ -1,11 +1,12 @@
 """What a detection reads before it asks anything: the text its model is asked about, and how a span of it is built into an annotation.
 
 Where the text comes from follows the resource's media type
-(`semiont_worker.media_types`). A type whose bytes are its text is read and
-decoded. A PDF's text is the Smelter's, asked for and never worked out here:
-the Smelter is the one producer of a PDF's text, and a second reading would
-give other offsets, and so annotations that are anchored nowhere a reader
-sees. With the Smelter's text comes where each run of it is on a page.
+(`semiont.media_types.text_source_of`). A type whose bytes are its text is
+read and decoded. A PDF's text is the Smelter's, asked for and never worked
+out here: the Smelter is the one producer of a PDF's text, and a second
+reading would give other offsets, and so annotations that are anchored
+nowhere a reader sees. With the Smelter's text comes where each run of it is
+on a page.
 
 How a span is anchored follows from which of the two it was: a span of a
 text by its offsets, which count code points, and a span of a PDF by where
@@ -19,6 +20,7 @@ from typing import Literal, assert_never, final
 
 from semiont.annotations import TextSpan, annotation_of_span
 from semiont.identifiers import ResourceId
+from semiont.media_types import text_source_of
 from semiont.types import (
     Agent,
     AnchoredText,
@@ -33,7 +35,6 @@ from semiont.types import (
     Motivation,
 )
 
-from semiont_worker.media_types import text_source_of
 from semiont_worker.processors import BuildAnnotation
 from semiont_worker.white_space import trimmed
 

@@ -27,6 +27,7 @@ from pydantic import JsonValue
 from semiont.annotations import body_source, entity_types, exact_text, target_selector, target_source
 from semiont.identifiers import ResourceId
 from semiont.model import written
+from semiont.resources import primary_representation
 from semiont.types import (
     Agent,
     AgentPerson,
@@ -34,7 +35,6 @@ from semiont.types import (
     AnnotationBody,
     AnnotationSelector,
     Motivation,
-    Representation,
     ResourceDescriptor,
     SpecificResource,
 )
@@ -47,7 +47,6 @@ __all__ = [
     "encode_annotation",
     "encode_resource",
     "intended_graph_annotation",
-    "primary_representation",
     "resolved_body",
     "stored_annotation_type",
     "updated_annotation",
@@ -263,14 +262,6 @@ class ResourceProperties(TypedDict):
     """Who the resource is by (`wasAttributedTo`), as JSON."""
     contentChecksum: str
     storageUri: NotRequired[str]
-
-
-def primary_representation(resource: ResourceDescriptor) -> Representation | None:
-    """A resource's primary representation: its one, or the first of its list. Nothing for a resource with none."""
-    representations = resource.representations
-    if isinstance(representations, list):
-        return representations[0] if representations else None
-    return representations
 
 
 def _attribution(attributed: Agent | list[Agent]) -> JsonValue:

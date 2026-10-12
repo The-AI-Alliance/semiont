@@ -8,29 +8,9 @@ All of them are plain functions in the main import, which runs in a browser as w
 
 What text a resource's bytes are. The rule is protocol: [the text of a resource](../../../docs/protocol/W3C-SELECTORS.md#the-text-of-a-resource) states it, as the MIME Sniffing Standard reads a content type and the Encoding Standard reads the bytes, and every reader of a resource keeps it. A TextPositionSelector's offsets are counted in that text, so a reader that made another text of the same bytes would count into the wrong place.
 
-### Extract Charset
-
-The charset a media type states: its `charset` parameter, in lower case, without quotation marks or the white space around it.
-
-```typescript
-import { extractCharset } from '@semiont/core';
-
-const charset1 = extractCharset('text/plain; charset=iso-8859-1');
-// Returns: 'iso-8859-1'
-
-const charset2 = extractCharset('text/markdown');
-// Returns: 'utf-8' (default)
-
-const charset3 = extractCharset('text/html; charset=UTF-8');
-// Returns: 'utf-8' (normalized to lowercase)
-
-const charset4 = extractCharset('text/plain; charset="utf-16le"; format=flowed');
-// Returns: 'utf-16le' (a quoted value is what is between the quotation marks)
-```
-
 ### Decode with Charset
 
-A resource's bytes as the text they are. This is the one reader TypeScript has: the SDK's `browse.resourceContent`, the Browser and, through `decodeRepresentation`, the Node services all read with it.
+A text's bytes as the text they are. This is the one place TypeScript makes a text of bytes: [`decodeRepresentation`](#decode-resource-content) reads with it, and so the SDK's `browse.resourceContent` and the Node services do, and the Browser calls it itself. It reads whatever bytes it is handed: which media types have bytes that are a text is `decodeRepresentation`'s to say.
 
 ```typescript
 import { decodeWithCharset } from '@semiont/core';
@@ -358,7 +338,6 @@ import {
   getPrimaryRepresentation,
   getPrimaryMediaType,
   getLanguage,
-  getChecksum,
   getStorageUri,
   getCreator,
   getDerivedFrom,
@@ -382,7 +361,6 @@ console.log(rep?.checksum); // "sha256:..."
 // Get metadata
 const mediaType = getPrimaryMediaType(resource);
 const language = getLanguage(resource);
-const checksum = getChecksum(resource);
 const storageUri = getStorageUri(resource);
 
 // Get provenance
@@ -399,6 +377,8 @@ const draft = isDraft(resource);
 
 Read a representation's bytes as the text they are, for a media type whose bytes are its text. The reading is `decodeWithCharset`'s, above: the one every reader of a resource's text keeps.
 
+A media type whose text is derived from its bytes (a PDF), or that has no text (an image), is refused, and the refusal names the media type. A `text/` type the registry does not list is read. [`specs/src/text/decode-cases.json`](../../../specs/src/text/decode-cases.json) holds that too: its cases are run through this function, as the Rust and Python SDKs run them through theirs.
+
 ```typescript
 import { decodeRepresentation, getPrimaryRepresentation, getPrimaryMediaType, type ResourceDescriptor } from '@semiont/core';
 
@@ -408,7 +388,7 @@ const buffer: Buffer = /* raw bytes from storage */;
 // Get media type with charset
 const mediaType = getPrimaryMediaType(resource) || 'text/plain';
 
-// Throws for a media type whose bytes are not its text (a PDF, an image),
-// and for a charset that is not decoded
+// Throws a SemiontError whose code is 'error' for a media type whose bytes
+// are not its text (a PDF, an image), and for a charset that is not decoded
 const content = decodeRepresentation(buffer, mediaType);
 ```

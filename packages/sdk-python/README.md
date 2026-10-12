@@ -577,7 +577,11 @@ def describe(annotation: Annotation) -> str:
   the content type states and a label of the Encoding Standard, a byte-order
   mark decides over it, and what the encoding does not have is U+FFFD. A
   charset that is not decoded raises `TransportError`, and
-  `client.browse.resource_representation` gives the bytes.
+  `client.browse.resource_representation` gives the bytes. A media type
+  whose text is not its bytes raises it too: a PDF's text is its anchored
+  text, and an image has none.
+  `semiont.resources.decode_representation(data, media_type)` is the same
+  reading, of bytes a program already holds.
 - **A span is checked before anything is built.** One that is not the
   text's raises `SpanRefusedError`, and its `code` says which of seven
   refusals it is: `span-out-of-range`, `exact-mismatch`, `prefix-mismatch`,
@@ -852,7 +856,8 @@ resource is cloned by, `password`, `apiKey` and the rest of the
 | `semiont.transport` | The contract a transport implements: `Transport`, `ContentTransport`, `GatewayOperations` |
 | `semiont.errors`, `semiont.timing`, `semiont.retry` | The failure codes, the deadlines and the retry rules every Semiont SDK shares |
 | `semiont.watched`, `semiont.events` | A value that changes and a sequence of events: what a state and a channel's frames are read as |
-| `semiont.media_types` | The media types a knowledge base admits, with where the text of each comes from and whether it can be authored or generated, and the rules read from them |
+| `semiont.media_types` | The media types a knowledge base admits, with where the text of each comes from and whether it can be authored or generated, and the rules read from them: the format a clone takes and the name content is stored under; and, of any media type, where its text comes from (`text_source_of`), whether that text comes with where each run of it is on a page (`yields_geometry_of`), and whether it is derived from the bytes and not decoded from them (`derives_text_of`) |
+| `semiont.resources` | The readers of a resource, whether its representations are one or a list: `primary_representation`, `primary_media_type` and `resource_entity_types`. And `decode_representation`, which makes a text of the bytes of a resource whose bytes are its text, and refuses any other |
 | `semiont.identity` | How a knowledge base is named, and the principals who act in it |
 | `semiont.telemetry` | What the transports tell OpenTelemetry, and `continuing`, which holds the trace a frame or a held job brought |
 | `semiont.testing` | The doubles: `FaultyTransport`, `InMemoryContent`, `StubGateway`, `create_test_client` |

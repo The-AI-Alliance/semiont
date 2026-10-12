@@ -50,6 +50,7 @@ from pydantic import JsonValue, TypeAdapter
 from semiont.annotations import body_source, entity_types
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.model import written
+from semiont.resources import primary_representation
 from semiont.types import Annotation, Motivation, ResourceDescriptor
 
 from semiont_graph._gremlin import GremlinClient, answered, gremlin_client
@@ -61,7 +62,6 @@ from semiont_graph.codec import (
     encode_annotation,
     encode_resource,
     intended_graph_annotation,
-    primary_representation,
     resolved_body,
     stored_annotation_type,
     updated_annotation,

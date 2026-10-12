@@ -4,8 +4,8 @@
  * Covered here: which media types need deriving, that deriving cannot be
  * reached without the store that persists it, and that core's geometry answer
  * matches what actually runs. Decoding (UTF-8, charset parameters, the
- * no-charset default) is core's `decodeRepresentation`, tested in
- * `@semiont/core`'s `resource-utils.test.ts`.
+ * no-charset default) is core's `decodeRepresentation`, held in `@semiont/core`
+ * by `specs/src/text/decode-cases.json`.
  */
 
 import path from 'path';

@@ -9,8 +9,9 @@
 // A rule that lives only in one implementation's code is that
 // implementation's. These tables are the rules a worker in any language is
 // held to, and the one every bus log is. What an SDK gives a worker's author
-// (what an offset counts, the reconciling of a quote, the locating of a span
-// of a PDF, the builders, the id, the readers) is run by the TypeScript, Rust
+// (what an offset counts, what text a resource's bytes are, the reconciling
+// of a quote, the locating of a span of a PDF, the builders, the id, the
+// readers of an annotation and of a resource) is run by the TypeScript, Rust
 // and Python SDKs, each through its own code. What Semiont's worker alone
 // does is run by that worker. What a bus log shows of a payload is run by
 // each bus log: TypeScript's, Rust's and Python's. What the graph holds of an
@@ -31,15 +32,16 @@
 //     the basic plane. An offset counts code points, and so does every length
 //     such a rule states; only a text with such a character tells that count
 //     from a count of UTF-16 code units or of bytes, so a table without one
-//     holds its rule to no count. These are every table here but seven: what
-//     an offset counts, the chunker, the reconciling of a quote, the locating
-//     of a span of a PDF, the builders, the id (whose anchor states a span's
-//     offsets), the chunk plan, the citations, and the reading of a reply
-//     (whose items state where each passage is, and how long a piece was).
-//     The two tables of what text a resource's bytes are, the readers' table,
-//     the table of failure classes, the bus log's table, the graph codecs'
-//     table, the Weaver's fold table, the two tables of the vector index and
-//     the Smelter's two count nothing and state no offset, and are held to
+//     holds its rule to no count. These are every table here but twelve:
+//     what an offset counts, the chunker, the reconciling of a quote, the
+//     locating of a span of a PDF, the builders, the id (whose anchor states a
+//     span's offsets), the chunk plan, the citations, and the reading of a
+//     reply (whose items state where each passage is, and how long a piece
+//     was). The two tables of what text a resource's bytes are, the two
+//     readers' tables (an annotation's and a resource's), the table of
+//     failure classes, the bus log's table, the graph codecs' table, the
+//     Weaver's fold table, the two tables of the vector index and the
+//     Smelter's two count nothing and state no offset, and are held to
 //     nothing about their characters.
 //
 // It reads the source files, so it cannot pass on a stale bundle.
@@ -51,7 +53,7 @@ import { fileURLToPath } from 'node:url';
 const REPO = resolve(fileURLToPath(import.meta.url), '../../..');
 
 /** Where these tables live. Every `*-cases.json` in one of them is listed below. */
-const DIRECTORIES = ['specs/src/text', 'specs/src/annotations', 'specs/src/worker', 'specs/src/bus', 'specs/src/graph', 'specs/src/weaver', 'specs/src/vectors', 'specs/src/smelter'];
+const DIRECTORIES = ['specs/src/text', 'specs/src/annotations', 'specs/src/resources', 'specs/src/worker', 'specs/src/bus', 'specs/src/graph', 'specs/src/weaver', 'specs/src/vectors', 'specs/src/smelter'];
 
 /**
  * Each table, and the files that run it.
@@ -79,7 +81,7 @@ const TABLES = [
       'packages/core/src/__tests__/decode-cases.test.ts',
       'packages/sdk-rust/tests/decode_cases.rs',
       // The reader of UTF-8 alone, which a build without the `charsets` feature has.
-      'packages/sdk-rust/src/namespaces/browse.rs',
+      'packages/sdk-rust/src/resources.rs',
       'packages/sdk-python/tests/test_decode_cases.py',
     ],
   },
@@ -88,7 +90,7 @@ const TABLES = [
     runners: [
       'packages/core/src/__tests__/decode-cases.test.ts',
       'packages/sdk-rust/tests/decode_cases.rs',
-      'packages/sdk-rust/src/namespaces/browse.rs',
+      'packages/sdk-rust/src/resources.rs',
       'packages/sdk-python/tests/test_decode_cases.py',
     ],
   },
@@ -139,6 +141,14 @@ const TABLES = [
       'packages/sdk/src/__tests__/annotation-readers.test.ts',
       'packages/sdk-rust/tests/annotation_reader_cases.rs',
       'packages/sdk-python/tests/test_annotations.py',
+    ],
+  },
+  {
+    table: 'specs/src/resources/reader-cases.json',
+    runners: [
+      'packages/core/src/__tests__/resource-reader-cases.test.ts',
+      'packages/sdk-rust/tests/resource_reader_cases.rs',
+      'packages/sdk-python/tests/test_resource_readers.py',
     ],
   },
   // What Semiont's worker alone does.

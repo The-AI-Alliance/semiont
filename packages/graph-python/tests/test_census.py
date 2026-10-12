@@ -48,7 +48,6 @@ SURFACE = {
         "encode_annotation",
         "encode_resource",
         "intended_graph_annotation",
-        "primary_representation",
         "resolved_body",
         "stored_annotation_type",
         "updated_annotation",

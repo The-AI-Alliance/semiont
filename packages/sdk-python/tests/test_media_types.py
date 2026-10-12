@@ -5,14 +5,23 @@ from typing import get_args
 import pytest
 from spec import SPEC, JsonObject, objects, read, strings, text
 
-from semiont.media_types import base_media_type, capabilities_of, clone_format, primary_media_type, storage_file_name, storage_uri
+from semiont.media_types import (
+    base_media_type,
+    capabilities_of,
+    clone_format,
+    derives_text_of,
+    storage_file_name,
+    storage_uri,
+    text_source_of,
+    yields_geometry_of,
+)
 from semiont.media_types_table import MEDIA_TYPES, TextSource
-from semiont.types import ResourceDescriptor
 
 TABLE = read(SPEC / "media-types/cases.json")
 REGISTRY = read(SPEC / "media-types/registry.json")
 CLONES = objects(TABLE["cloneFormat"], "cloneFormat")
 NAMES = objects(TABLE["storageFileName"], "storageFileName")
+SOURCES = objects(TABLE["textSource"], "textSource")
 
 
 def why(row: JsonObject) -> str:
@@ -34,9 +43,25 @@ def test_content_is_stored_under_the_name_the_table_says(row: JsonObject) -> Non
     assert storage_uri(text(row["name"], "name"), kind) == f"file://{row['fileName']}"
 
 
+@pytest.mark.parametrize("row", SOURCES, ids=why)
+def test_where_a_types_text_comes_from_and_what_follows_from_it_are_what_the_table_says(row: JsonObject) -> None:
+    # A member this does not read would be a rule this SDK is not held to.
+    assert set(row) == {"why", "format", "textSource", "yieldsGeometry", "derivesText"}
+    media_type = text(row["format"], "format")
+    assert text_source_of(media_type) == row["textSource"]
+    assert yields_geometry_of(media_type) is row["yieldsGeometry"]
+    assert derives_text_of(media_type) is row["derivesText"]
+
+
 def test_the_table_was_read() -> None:
     assert len(CLONES) >= 7
     assert len(NAMES) >= 7
+    # What the cases of where a text comes from must tell apart: each of the registry's words for it, each answer
+    # for a type the registry lacks, and a format from its parameters and its case.
+    sources = [(text(row["format"], "format"), text(row["textSource"], "textSource")) for row in SOURCES]
+    assert {source for _, source in sources} == set(get_args(TextSource.__value__))
+    assert {source for media_type, source in sources if capabilities_of(media_type) is None} == {"decode", "none"}
+    assert any(media_type != base_media_type(media_type) for media_type, _ in sources)
 
 
 def test_this_sdks_rows_are_the_registrys() -> None:
@@ -53,6 +78,10 @@ def test_where_a_types_text_comes_from_is_one_of_the_registrys_words_and_each_wo
     assert {row.text_source for row in MEDIA_TYPES} == set(words)
 
 
+def test_a_type_the_registry_has_answers_where_its_text_comes_from_as_its_row_says() -> None:
+    assert [text_source_of(row.media_type) for row in MEDIA_TYPES] == [row.text_source for row in MEDIA_TYPES]
+
+
 def test_some_types_can_be_generated_and_some_cannot() -> None:
     # The rows above tell the column from one that is all one answer.
     assert {row.generatable for row in MEDIA_TYPES} == {True, False}
@@ -62,13 +91,3 @@ def test_a_format_is_read_without_its_parameters_and_in_lower_case() -> None:
     assert base_media_type("Text/HTML; charset=iso-8859-1") == "text/html"
     assert capabilities_of("application/x-unheard-of") is None
 
-
-def test_a_resources_format_is_its_first_representations() -> None:
-    def resource(representations: object) -> ResourceDescriptor:
-        return ResourceDescriptor.model_validate(
-            {"@context": "https://schema.org", "@id": "res-1", "name": "A resource", "representations": representations}
-        )
-
-    assert primary_media_type(resource({"mediaType": "text/markdown"})) == "text/markdown"
-    assert primary_media_type(resource([{"mediaType": "application/pdf"}, {"mediaType": "text/plain"}])) == "application/pdf"
-    assert primary_media_type(resource([])) is None

@@ -1,0 +1,200 @@
+{
+  "$comment": "What the readers of a resource's description answer, as every SDK's readers must: `getPrimaryRepresentation`, `getPrimaryMediaType` and `getResourceEntityTypes` in TypeScript (@semiont/core), and `primary_representation`, `primary_media_type` and `resource_entity_types` in the Rust SDK and in the Python SDK (the `resources` module of each). THE RULES. A resource's `representations` is one representation or a list of them. Its primary representation is that one, or the first of the list: the order decides, and nothing a representation says of itself (its `rel`) does. An empty list has no primary representation. Its primary media type is the primary representation's `mediaType` as it is stated, with its parameters and in its letter case: nothing is taken from it. Its entity types are its `entityTypes` as they are stated, in their order and with nothing dropped, and an empty list where it states none. A CASE is a `resource`, which is a whole ResourceDescriptor by its schema (specs/src/components/schemas/ResourceDescriptor.json), and what each reader answers of it: `primaryRepresentation`, the representation whole, and `primaryMediaType`, both of them absent where the resource has no representation; and `entityTypes`, which every case states. RUN BY TypeScript in packages/core (packages/core/src/__tests__/resource-reader-cases.test.ts), which also holds every `resource` here to that schema; by the Rust SDK (packages/sdk-rust/tests/resource_reader_cases.rs); and by the Python SDK (packages/sdk-python/tests/test_resource_readers.py). Rust and Python decode each `resource` as the type their SDK has of one, and refuse one that lacks a member the schema requires. Every runner reads every member of a case. Add a case here before changing a reader.",
+  "cases": [
+    {
+      "why": "representations given as a list: the first is the primary one, and it is given whole",
+      "resource": {
+        "@context": "https://schema.org",
+        "@id": "res-list-of-two",
+        "name": "A list of two",
+        "representations": [
+          {
+            "mediaType": "text/markdown",
+            "storageUri": "file://notes/a-list-of-two.md",
+            "byteSize": 1280,
+            "checksum": "sha256:2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae",
+            "language": "en",
+            "rel": "original"
+          },
+          {
+            "mediaType": "application/pdf",
+            "storageUri": "file://notes/a-list-of-two.pdf",
+            "rel": "derived"
+          }
+        ]
+      },
+      "primaryRepresentation": {
+        "mediaType": "text/markdown",
+        "storageUri": "file://notes/a-list-of-two.md",
+        "byteSize": 1280,
+        "checksum": "sha256:2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae",
+        "language": "en",
+        "rel": "original"
+      },
+      "primaryMediaType": "text/markdown",
+      "entityTypes": []
+    },
+    {
+      "why": "the order decides, and not what each says it is: a thumbnail listed before the original is the primary one",
+      "resource": {
+        "@context": "https://schema.org",
+        "@id": "res-thumbnail-first",
+        "name": "A thumbnail listed first",
+        "representations": [
+          {
+            "mediaType": "image/png",
+            "width": 160,
+            "height": 120,
+            "rel": "thumbnail"
+          },
+          {
+            "mediaType": "application/pdf",
+            "rel": "original"
+          }
+        ]
+      },
+      "primaryRepresentation": {
+        "mediaType": "image/png",
+        "width": 160,
+        "height": 120,
+        "rel": "thumbnail"
+      },
+      "primaryMediaType": "image/png",
+      "entityTypes": []
+    },
+    {
+      "why": "representations given as one representation, not a list: it is the primary one",
+      "resource": {
+        "@context": "https://schema.org",
+        "@id": "res-one-not-a-list",
+        "name": "One representation, not a list",
+        "representations": {
+          "mediaType": "image/png",
+          "storageUri": "file://figures/one.png",
+          "byteSize": 2048
+        }
+      },
+      "primaryRepresentation": {
+        "mediaType": "image/png",
+        "storageUri": "file://figures/one.png",
+        "byteSize": 2048
+      },
+      "primaryMediaType": "image/png",
+      "entityTypes": []
+    },
+    {
+      "why": "representations given as a list of one, which states its media type and nothing more",
+      "resource": {
+        "@context": "https://schema.org",
+        "@id": "res-list-of-one",
+        "name": "A list of one",
+        "representations": [
+          {
+            "mediaType": "text/plain"
+          }
+        ]
+      },
+      "primaryRepresentation": {
+        "mediaType": "text/plain"
+      },
+      "primaryMediaType": "text/plain",
+      "entityTypes": []
+    },
+    {
+      "why": "the media type is given as the representation states it: its parameters and its letter case are not taken from it",
+      "resource": {
+        "@context": "https://schema.org",
+        "@id": "res-stated-with-a-charset",
+        "name": "Stated with a charset",
+        "representations": [
+          {
+            "mediaType": "Text/Plain; charset=ISO-8859-1",
+            "storageUri": "file://letters/1998.txt"
+          }
+        ]
+      },
+      "primaryRepresentation": {
+        "mediaType": "Text/Plain; charset=ISO-8859-1",
+        "storageUri": "file://letters/1998.txt"
+      },
+      "primaryMediaType": "Text/Plain; charset=ISO-8859-1",
+      "entityTypes": []
+    },
+    {
+      "why": "representations given as an empty list: no representation is the primary one, there is no primary media type, and the entity types are read all the same",
+      "resource": {
+        "@context": "https://schema.org",
+        "@id": "res-empty-list",
+        "name": "An empty list",
+        "representations": [],
+        "entityTypes": ["Concept"]
+      },
+      "entityTypes": ["Concept"]
+    },
+    {
+      "why": "entity types are given as they are stated, in their order: they are not sorted",
+      "resource": {
+        "@context": "https://schema.org",
+        "@id": "res-three-entity-types",
+        "name": "Three entity types",
+        "representations": [
+          {
+            "mediaType": "text/markdown"
+          }
+        ],
+        "entityTypes": ["Person", "Organization", "Location"]
+      },
+      "primaryRepresentation": {
+        "mediaType": "text/markdown"
+      },
+      "primaryMediaType": "text/markdown",
+      "entityTypes": ["Person", "Organization", "Location"]
+    },
+    {
+      "why": "an entity type stated twice is given twice: nothing is dropped from the list",
+      "resource": {
+        "@context": "https://schema.org",
+        "@id": "res-entity-type-twice",
+        "name": "An entity type stated twice",
+        "representations": {
+          "mediaType": "text/plain"
+        },
+        "entityTypes": ["Person", "Author", "Person"]
+      },
+      "primaryRepresentation": {
+        "mediaType": "text/plain"
+      },
+      "primaryMediaType": "text/plain",
+      "entityTypes": ["Person", "Author", "Person"]
+    },
+    {
+      "why": "entity types stated as an empty list are an empty list",
+      "resource": {
+        "@context": "https://schema.org",
+        "@id": "res-entity-types-empty",
+        "name": "Entity types stated as an empty list",
+        "representations": [
+          {
+            "mediaType": "application/pdf"
+          }
+        ],
+        "entityTypes": []
+      },
+      "primaryRepresentation": {
+        "mediaType": "application/pdf"
+      },
+      "primaryMediaType": "application/pdf",
+      "entityTypes": []
+    },
+    {
+      "why": "a resource that states only what it must: it has no primary representation and no primary media type, and its entity types, which it does not state, are an empty list",
+      "resource": {
+        "@context": "https://schema.org",
+        "@id": "res-only-what-it-must",
+        "name": "Only what it must",
+        "representations": []
+      },
+      "entityTypes": []
+    }
+  ]
+}
