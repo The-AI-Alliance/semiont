@@ -62,6 +62,7 @@ listed in [Testing](../docs/contributor/TESTING.md#continuous-integration).
 - `npm run lint:go-toolchain` (Architecture Compliance) fails when the Go version is written anywhere but a `go.mod`, or the two `go.mod` files pin different toolchains
 - `npm run lint:python-version` (Architecture Compliance) fails when a restatement of the Python SDK's `requires-python` (mypy, pyright, the classifiers, a workflow, a document) says another version
 - `npm run lint:node-version` (Architecture Compliance) fails when a workflow or a script writes a Node version in place of reading `.node-version`, or a `package.json` states another `engines.node` than the root's
+- `npm run lint:nats-version` (Architecture Compliance) fails when the NATS broker's version is written anywhere but the launcher's `go.mod`, or anything but `scripts/ci/install-nats-server.sh` fetches a `nats-server` release
 
 ### CodeQL Config (`codeql/codeql-config.yml`)
 **The analysis configuration**:
