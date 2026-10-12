@@ -37,7 +37,8 @@
     "pagination": "Sidenavigasjon",
     "previous": "Forrige",
     "viewerLoading": "Laster PDF-viser...",
-    "preparingTextLayer": "Forbereder tekstlaget — annotering aktiveres når det er klart"
+    "preparingTextLayer": "Forbereder tekstlaget — annotering aktiveres når det er klart",
+    "textLayerUnreadable": "Teksten i dette dokumentet kunne ikke leses, så det kan ikke annoteres"
   },
   "Toolbar": {
     "annotations": "Annoteringer",

@@ -37,7 +37,8 @@
     "pagination": "Navigation des pages",
     "previous": "Précédent",
     "viewerLoading": "Chargement de la visionneuse PDF...",
-    "preparingTextLayer": "Préparation de la couche de texte — l'annotation s'activera quand elle sera prête"
+    "preparingTextLayer": "Préparation de la couche de texte — l'annotation s'activera quand elle sera prête",
+    "textLayerUnreadable": "Le texte de ce document n'a pas pu être lu, il ne peut donc pas être annoté"
   },
   "Toolbar": {
     "annotations": "Annotations",

@@ -37,6 +37,20 @@ function getMotivationColor(motivation: SelectionMotivation | null): { stroke: s
   }
 }
 
+/**
+ * What a page needs to let a person draw on it: the shape, and the document's
+ * text, which a drawn rectangle is quoted from. A page is given both or
+ * neither, so it cannot make an annotation it has no text to quote from.
+ *
+ * The text is the DOCUMENT's, not this page's alone: offsets run over the
+ * whole document and each run names its page, which is how `textUnder` finds
+ * the ones under a rectangle here.
+ */
+export interface PageDrawing {
+  mode: NonNullable<DrawingMode>;
+  text: AnchoredText;
+}
+
 interface PdfPageViewProps {
   doc: PDFDocumentProxy;
   pageNumber: number;
@@ -44,34 +58,32 @@ interface PdfPageViewProps {
   scale: number;
   resourceUri: ResourceId;
   existingAnnotations: Annotation[];
-  drawingMode: DrawingMode;
+  /** Null while no tool is chosen, and while the canvas does not hold the
+   *  document's text. */
+  drawing: PageDrawing | null;
   selectedMotivation?: SelectionMotivation | null;
   session?: SemiontSession | null | undefined;
   hoveredAnnotationId?: string | null;
   selectedAnnotationId?: string | null;
   hoverDelayMs: number;
-  /** The document's anchored text as Semiont serves it, fetched once per
-   *  resource by the parent. Null when there is none to quote from. Never
-   *  rejects: the parent answers a failed ask with null. */
-  fetchResourceAnchored: () => Promise<AnchoredText | null>;
-  /** Re-resolve trigger: bumped when a retry lands the map. */
-  anchoredEpoch: number;
 }
 
 /**
- * One rendered page: its raster, the text map its rectangles are quoted from,
- * its annotation overlay, and the drag that draws on it.
+ * One rendered page: its raster, its annotation overlay, and the drag that
+ * draws on it.
  *
- * Everything a page needs lives HERE rather than in the parent, which is what
+ * The raster and the drag live HERE rather than in the parent, which is what
  * makes a scrolling column possible: mounting a page loads it, and unmounting
  * releases it. The raster is a data-URL string, so the last reference going
  * away IS the memory release — no eviction bookkeeping, no object-URL revoke.
- * The drag lives here too because it needs this page's display dimensions and
- * the text under it; a drag can no more span pages than a rectangle can.
+ * The drag lives here too because it needs this page's display dimensions; a
+ * drag can no more span pages than a rectangle can.
  *
  * pdf.js draws the page and is never asked for its text. The text comes from
  * Semiont, for every page: the Smelter derived it, and reading it a second
- * way here would be a second answer to what a rectangle quotes.
+ * way here would be a second answer to what a rectangle quotes. The canvas
+ * holds it once for the document and hands it to each page with the drawing
+ * mode.
  *
  * @emits browse:click - Annotation clicked on the page. Payload: { annotationId: string, anchorRect?: AnchorRect }
  * @emits mark:requested - New annotation drawn on the page. Payload: { source: ResourceId, selector: [FragmentSelector, TextQuoteSelector?], motivation: SelectionMotivation } — the quote is the text under the rectangle, omitted when there is none
@@ -83,28 +95,15 @@ export function PdfPageView({
   scale,
   resourceUri,
   existingAnnotations,
-  drawingMode,
+  drawing,
   selectedMotivation,
   session,
   hoveredAnnotationId,
   selectedAnnotationId,
   hoverDelayMs,
-  fetchResourceAnchored,
-  anchoredEpoch,
 }: PdfPageViewProps) {
   const [pageImageUrl, setPageImageUrl] = useState<string | null>(null);
   const [pageDimensions, setPageDimensions] = useState<{ width: number; height: number } | null>(null);
-  /**
-   * The DOCUMENT's text and per-run geometry, held from when the page loads so
-   * a drag can be quoted without a round trip. Not this page's alone: offsets
-   * run over the whole document and each run names its page, which is how
-   * `textUnder` finds the ones under a rectangle here.
-   *
-   * Null until the answer arrives, and for good when there is no text to
-   * serve — no map, an unknown resource, a stored decline — or the ask
-   * failed. A rectangle drawn then is annotated with its geometry alone.
-   */
-  const [anchored, setAnchored] = useState<AnchoredText | null>(null);
   const [displayDimensions, setDisplayDimensions] = useState<{ width: number; height: number } | null>(null);
   /** Translation KEY, not text: `t` is a new closure each render, so keeping
    *  it out of the load effect's deps is what stops a reload loop. */
@@ -128,20 +127,6 @@ export function PdfPageView({
         const viewport = page.getViewport({ scale: 1.0 });
         setPageDimensions({ width: viewport.width, height: viewport.height });
 
-        // Anchoring and rendering are independent, and only one of them the
-        // reader is waiting on. They start together and each lands when it
-        // lands. A `Promise.all` here would put the OPTIONAL half (the
-        // anchored map, a network fetch the server may hold while the Smelter
-        // is still reading the document) in front of the pixels, so a slow or
-        // unanswered map request would hold a finished render off the screen.
-        // Setting the map only after the render would do the reverse on a
-        // re-resolve: the page is already drawn and Annotate already open, so
-        // a rectangle drawn while it re-rendered would go without its quote.
-        // The map's promise never rejects, so only the render can reach the
-        // catch below.
-        void fetchResourceAnchored().then((served) => {
-          if (!cancelled) setAnchored(served);
-        });
         const { dataUrl } = await renderPdfPageToDataUrl(page, scale);
         if (cancelled) return;
         setPageImageUrl(dataUrl);
@@ -158,10 +143,7 @@ export function PdfPageView({
     return () => {
       cancelled = true;
     };
-    // `anchoredEpoch` is deliberately a dep: a retry that lands the map
-    // re-resolves this page, so the first annotation after the flip carries
-    // its quote.
-  }, [doc, pageNumber, scale, fetchResourceAnchored, anchoredEpoch]);
+  }, [doc, pageNumber, scale]);
 
   // Update display dimensions on resize
   useEffect(() => {
@@ -202,7 +184,7 @@ export function PdfPageView({
 
   // Mouse event handlers for drawing
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (!drawingMode) return;
+    if (!drawing) return;
     if (!imageRef.current) return;
 
     const rect = imageRef.current.getBoundingClientRect();
@@ -217,7 +199,7 @@ export function PdfPageView({
       endX: x,
       endY: y
     });
-  }, [drawingMode]);
+  }, [drawing]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isDrawing || !selection || !imageRef.current) return;
@@ -232,7 +214,7 @@ export function PdfPageView({
   }, [isDrawing, selection]);
 
   const handleMouseUp = useCallback(() => {
-    if (!isDrawing || !selection || !pageDimensions || !displayDimensions || !session) {
+    if (!isDrawing || !selection || !pageDimensions || !displayDimensions || !session || !drawing) {
       setIsDrawing(false);
       setSelection(null);
       return;
@@ -322,7 +304,7 @@ export function PdfPageView({
     // a document with no text, and over an image or a margin — emit no quote
     // at all rather than an empty one, which would assert the box was drawn
     // around nothing.
-    const quoted = anchored ? textUnder(anchored, pdfCoord) : '';
+    const quoted = textUnder(drawing.text, pdfCoord);
 
     // Emit annotation:requested event with FragmentSelector
     if (selectedMotivation) {
@@ -345,7 +327,7 @@ export function PdfPageView({
     setIsDrawing(false);
     // Note: We keep selection so the preview remains visible
     // It will be cleared when drawingMode changes or user starts new selection
-  }, [isDrawing, selection, pageNumber, pageDimensions, displayDimensions, selectedMotivation, existingAnnotations, session, resourceUri, anchored]);
+  }, [isDrawing, selection, pageNumber, pageDimensions, displayDimensions, selectedMotivation, existingAnnotations, session, resourceUri, drawing]);
 
   // Every FragmentSelector rect on this page — one per line for a multi-line
   // (multi-selector) annotation, exactly one for a manual annotation.
@@ -376,7 +358,7 @@ export function PdfPageView({
           setSelection(null);
         }
       }}
-      data-drawing-mode={drawingMode || 'none'}
+      data-drawing-mode={drawing?.mode ?? 'none'}
     >
       {/* PDF page rendered as image */}
       {pageImageUrl && (

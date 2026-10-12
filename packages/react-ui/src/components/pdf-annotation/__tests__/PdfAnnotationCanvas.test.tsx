@@ -429,6 +429,11 @@ describe('PdfAnnotationCanvas', () => {
       const rects = document.querySelector('.semiont-pdf-annotation-canvas__svg')?.querySelectorAll('rect');
       expect(rects?.length).toBeGreaterThan(0);
     });
+    // The hit-test runs on a gesture the canvas takes, and it takes one only
+    // while it holds the document's text.
+    await waitFor(() => {
+      expect(document.querySelector('.semiont-pdf-annotation-canvas')).toHaveAttribute('data-annotate-deferred', 'false');
+    });
 
     const pdfCoord = parseFragmentSelector(fragmentValue)!;
     const displayRect = pdfToCanvasCoordinates(pdfCoord, 792, 1.0);
@@ -453,7 +458,8 @@ describe('PdfAnnotationCanvas', () => {
 
   /**
    * Drives the drag → mark.request path far enough to inspect the selector,
-   * on a document for which Semiont answers `answer`.
+   * on a document for which Semiont answers `answer`: an answer that gives
+   * the canvas the text, since the drag waits until the canvas holds it.
    * `drag` is in canvas pixels; at scale 1 with a 612×792 page these are also
    * display coordinates, since jsdom's getBoundingClientRect returns zeros.
    */
@@ -497,6 +503,10 @@ describe('PdfAnnotationCanvas', () => {
     Object.defineProperty(img, 'clientWidth', { value: 612, configurable: true });
     Object.defineProperty(img, 'clientHeight', { value: 792, configurable: true });
     fireEvent.load(img);
+
+    await waitFor(() => {
+      expect(document.querySelector('.semiont-pdf-annotation-canvas')).toHaveAttribute('data-annotate-deferred', 'false');
+    });
 
     const container = document.querySelector('.semiont-pdf-annotation-canvas__container')!;
     fireEvent.mouseDown(container, { clientX: drag.fromX, clientY: drag.fromY });
@@ -608,12 +618,12 @@ describe('PdfAnnotationCanvas', () => {
     ]);
   });
 
-  // The server map is WHOLE-RESOURCE — one artifact
-  // covering every page — so fetching it from inside the per-page load
-  // effect would refetch and re-decode the entire document's geometry on every
-  // page turn. On a 400-page document that is the difference between one
-  // decode and one per interaction.
-  test('the whole-resource map is fetched once per document, not once per page-turn', async () => {
+  // The served text is WHOLE-RESOURCE — one artifact covering every page —
+  // so a page that asked for it would refetch and re-decode the entire
+  // document's geometry on every page turn. On a 400-page document that is
+  // the difference between one decode and one per interaction. The canvas
+  // holds it once and hands it to each page.
+  test('the whole-resource text is asked for once per document, not once per page-turn', async () => {
     const resourceAnchoredText = vi.fn().mockResolvedValue(SERVED_TEXT);
     const session = {
       client: { beckon: { hover: vi.fn() }, browse: { resourceAnchoredText } },
@@ -641,63 +651,12 @@ describe('PdfAnnotationCanvas', () => {
       expect(screen.getByText(/page 3 of 3/i)).toBeInTheDocument();
     });
 
-    // The render half runs once per page load and starts alongside the
-    // anchoring half (Promise.all), so three render calls prove all three
-    // page-load effects ran to the point of resolving their map.
+    // Three render calls: all three pages loaded.
     await waitFor(() => {
       expect(vi.mocked(renderPdfPageToDataUrl)).toHaveBeenCalledTimes(3);
     });
 
     expect(resourceAnchoredText).toHaveBeenCalledTimes(1);
-  });
-
-  // Three answers say there is no text for this document and never will be.
-  // The rectangle is still an annotation: its geometry, and no quote.
-  const NO_TEXT: Array<[string, AnchoredTextAnswer]> = [
-    ['no map', { kind: 'no-map' }],
-    ['a stored decline', { kind: 'declined', declined: 'no-text-layer' }],
-    ['an unknown resource', { kind: 'unknown' }],
-  ];
-  test.each(NO_TEXT)('a document answered with %s is annotated with its rectangle and no quote', async (_name, answer) => {
-    const request = await drawRectangle(aroundLine(HELLO_WORLD_LINE), answer);
-
-    await waitFor(() => expect(request).toHaveBeenCalledTimes(1));
-
-    const selector = request.mock.calls[0][1];
-    expect(selector).toHaveLength(1);
-    expect(selector[0].type).toBe('FragmentSelector');
-  });
-
-  test('accepts a drawing gesture without throwing when drawing mode is active', async () => {
-    renderInEnglish(
-      <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
-        pdfUrl={mockPdfUrl}
-        drawingMode="rectangle"
-        selectedMotivation="highlighting"
-      />
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText(/page 1 of 3/i)).toBeInTheDocument();
-    });
-
-    const container = document.querySelector('.semiont-pdf-annotation-canvas__container');
-    expect(container).toBeInTheDocument();
-
-    if (container) {
-      // Simulate a drawing gesture with sufficient drag distance (>10px).
-      // Note: in jsdom, getBoundingClientRect returns zeros, so clientX/Y are
-      // used directly as the canvas coordinates. displayDimensions is null
-      // (no real image layout), so handleMouseUp exits early without emitting.
-      // We verify the container accepts the events without throwing.
-      fireEvent.mouseDown(container, { clientX: 100, clientY: 100 });
-      fireEvent.mouseMove(container, { clientX: 200, clientY: 200 });
-      fireEvent.mouseUp(container, { clientX: 200, clientY: 200 });
-
-      // The event is only emitted when displayDimensions is available (real layout).
-      // In jsdom this is not available, so we verify the component did not error.
-      expect(container).toBeInTheDocument();
-    }
   });
 
   // Browse mode scrolls: every page has a slot so
@@ -790,9 +749,9 @@ describe('PdfAnnotationCanvas', () => {
       expect(io.observeCalls()).toBe(registrations);
     });
 
-    test('still fetches the whole-resource map once, across many mounted pages', async () => {
-      // The fetch-once invariant holds across N independent page views, not
-      // only within one page's load effect.
+    test('still asks for the whole-resource text once, across many mounted pages', async () => {
+      // Asked once however many page views mount and unmount: the text is
+      // the canvas's to hold, and no page asks for it.
       const io = stubIntersectionObserver();
       fivePageDoc();
 
@@ -889,6 +848,9 @@ describe('PdfAnnotationCanvas', () => {
 
       io.fire([2, 3]);
       await waitFor(() => expect(mountedPages()).toEqual([2, 3]));
+      await waitFor(() => {
+        expect(document.querySelector('.semiont-pdf-annotation-canvas')).toHaveAttribute('data-annotate-deferred', 'false');
+      });
 
       // Draw on page 3's container, not page 2's.
       const slot3 = document.querySelector('.semiont-pdf-annotation-canvas__slot[data-page="3"]')!;
@@ -911,11 +873,19 @@ describe('PdfAnnotationCanvas', () => {
       const io = stubIntersectionObserver();
       fivePageDoc();
 
+      const session = {
+        client: {
+          beckon: { hover: vi.fn() },
+          browse: { resourceAnchoredText: vi.fn().mockResolvedValue(SERVED_TEXT) },
+        },
+      } as unknown as import('@semiont/sdk').SemiontSession;
+
       renderInEnglish(
         <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
           pdfUrl={mockPdfUrl}
           drawingMode="rectangle"
           selectedMotivation="highlighting"
+          session={session}
           pageLayout="scroll"
         />
       );
@@ -926,8 +896,10 @@ describe('PdfAnnotationCanvas', () => {
       io.fire([1]);
       await waitFor(() => expect(mountedPages()).toEqual([1]));
       // Drawing still works in the column: the container is the page's own.
-      expect(document.querySelector('.semiont-pdf-annotation-canvas__container'))
-        .toHaveAttribute('data-drawing-mode', 'rectangle');
+      await waitFor(() => {
+        expect(document.querySelector('.semiont-pdf-annotation-canvas__container'))
+          .toHaveAttribute('data-drawing-mode', 'rectangle');
+      });
     });
 
     // A strip of proportional rectangles — one per page, current
@@ -1348,35 +1320,6 @@ describe('PdfAnnotationCanvas', () => {
       await waitFor(() => {
         expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__image')).toHaveLength(5);
       });
-    });
-
-    test('a failed map fetch is not cached — the next page retries', async () => {
-      // Answers cache, including "no map". A transport failure must not, or
-      // one bad moment pins the whole document to geometry-only.
-      const io = stubIntersectionObserver();
-      fivePageDoc();
-      vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
-
-      const resourceAnchoredText = vi.fn()
-        .mockRejectedValueOnce(new Error('transport down'))
-        .mockResolvedValue(SERVED_TEXT);
-      const session = {
-        client: { beckon: { hover: vi.fn() }, browse: { resourceAnchoredText } },
-      } as unknown as import('@semiont/sdk').SemiontSession;
-
-      renderInEnglish(
-        <PdfAnnotationCanvas resourceUri={resourceId("res-1")} pdfUrl={mockPdfUrl}
-          drawingMode={null} pageLayout="scroll" session={session} />
-      );
-      await waitFor(() => {
-        expect(io.observedPages()).toHaveLength(5);
-      });
-
-      io.fire([1]);
-      await waitFor(() => expect(resourceAnchoredText).toHaveBeenCalledTimes(1));
-
-      io.fire([2]);
-      await waitFor(() => expect(resourceAnchoredText).toHaveBeenCalledTimes(2));
     });
 
     test('the pager still works in the column, and modifiers are left alone', async () => {

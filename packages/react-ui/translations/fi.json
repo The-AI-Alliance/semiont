@@ -37,7 +37,8 @@
     "pagination": "Sivunavigointi",
     "previous": "Edellinen",
     "viewerLoading": "Ladataan PDF-katselinta...",
-    "preparingTextLayer": "Tekstikerrosta valmistellaan — merkinnät otetaan käyttöön, kun se on valmis"
+    "preparingTextLayer": "Tekstikerrosta valmistellaan — merkinnät otetaan käyttöön, kun se on valmis",
+    "textLayerUnreadable": "Tämän asiakirjan tekstiä ei voitu lukea, joten siihen ei voi lisätä merkintöjä"
   },
   "Toolbar": {
     "annotations": "Merkinnät",

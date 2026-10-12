@@ -37,7 +37,8 @@
     "pagination": "Navigare pagini",
     "previous": "Anterioară",
     "viewerLoading": "Se încarcă vizualizatorul PDF...",
-    "preparingTextLayer": "Se pregătește stratul de text — adnotarea se va activa când este gata"
+    "preparingTextLayer": "Se pregătește stratul de text — adnotarea se va activa când este gata",
+    "textLayerUnreadable": "Textul acestui document nu a putut fi citit, așa că nu poate fi adnotat"
   },
   "Toolbar": {
     "annotations": "Adnotări",

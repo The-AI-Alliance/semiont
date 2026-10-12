@@ -6,8 +6,10 @@ import type { Annotation, AnchorRect } from '@semiont/core';
 import { createRectangleSvg, createCircleSvg, createPolygonSvg, scaleSvgToNative, parseSvgSelector, Point } from '@semiont/core';
 import { toViewportAnchorRect } from '../../lib/anchor-rect';
 import { AnnotationOverlay } from './AnnotationOverlay';
+import { AnchoredTextNotice } from '../annotation/AnchoredTextNotice';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
 import type { SemiontSession } from '@semiont/sdk';
+import { useAnchoredText } from '../../hooks/useAnchoredText';
 import { useHoverDelay } from '../../hooks/useHoverDelay';
 
 export type DrawingMode = 'rectangle' | 'polygon' | 'circle' | 'freeform' | null;
@@ -51,6 +53,11 @@ interface SvgDrawingCanvasProps {
 /**
  * SVG-based drawing canvas for creating image annotations with shapes
  *
+ * The canvas asks for the image's anchored text as soon as it has a session,
+ * and takes a drawing only while it holds that text: whatever `drawingMode`
+ * it is given, a drag draws nothing until then. It says which it is on its
+ * own element, as `data-annotate-deferred`.
+ *
  * @emits browse:click - Annotation clicked on canvas. Payload: { annotationId: string, anchorRect?: AnchorRect }
  * @emits mark:requested - New annotation drawn on canvas. Payload: { source: ResourceId, selector: SvgSelector, motivation: SelectionMotivation }
  */
@@ -65,6 +72,13 @@ export function SvgDrawingCanvas({
   selectedAnnotationId
 }: SvgDrawingCanvasProps) {
   const { hoverDelayMs } = useHoverDelay();
+  // A person may draw only while the canvas holds the image's text. The quote
+  // of an annotation is cut from the text when the annotation is made and
+  // never again, so nothing is made before the answer is in. Today an image's
+  // text is empty (its media type has none), so a shape on one has no quote,
+  // and the canvas reads nothing out of the text it holds.
+  const anchoredText = useAnchoredText(session, resourceUri);
+  const drawing = anchoredText.status === 'held' ? drawingMode : null;
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
@@ -137,7 +151,7 @@ export function SvgDrawingCanvas({
 
   // Handle mouse down - start drawing
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!drawingMode) return;
+    if (!drawing) return;
 
     const point = getRelativeCoordinates(e);
     if (point) {
@@ -145,7 +159,7 @@ export function SvgDrawingCanvas({
       setStartPoint(point);
       setCurrentPoint(point);
     }
-  }, [drawingMode, getRelativeCoordinates]);
+  }, [drawing, getRelativeCoordinates]);
 
   // Handle mouse move - update current point
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -159,7 +173,7 @@ export function SvgDrawingCanvas({
 
   // Handle mouse up - distinguish between click and drag
   const handleMouseUp = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isDrawing || !startPoint || !drawingMode) return;
+    if (!isDrawing || !startPoint || !drawing) return;
 
     const endPoint = getRelativeCoordinates(e);
     if (!endPoint || !displayDimensions || !imageDimensions) return;
@@ -240,7 +254,7 @@ export function SvgDrawingCanvas({
     // This was a drag - create new annotation based on drawing mode
     let displaySvg: string;
 
-    switch (drawingMode) {
+    switch (drawing) {
       case 'circle': {
         // Calculate radius from start to end point
         const radius = Math.sqrt(
@@ -296,7 +310,7 @@ export function SvgDrawingCanvas({
     setIsDrawing(false);
     setStartPoint(null);
     setCurrentPoint(null);
-  }, [isDrawing, startPoint, drawingMode, displayDimensions, imageDimensions, getRelativeCoordinates, selectedMotivation, existingAnnotations]);
+  }, [isDrawing, startPoint, drawing, displayDimensions, imageDimensions, getRelativeCoordinates, selectedMotivation, existingAnnotations]);
 
   // Cancel drawing on mouse leave
   const handleMouseLeave = useCallback(() => {
@@ -308,6 +322,11 @@ export function SvgDrawingCanvas({
   }, [isDrawing]);
 
   return (
+    <>
+    {/* Beside the canvas and not inside it: the overlay is laid over the
+        canvas from its top-left corner, and a line above the image in there
+        would push the image out from under its shapes. */}
+    <AnchoredTextNotice status={anchoredText.status} />
     <div
       ref={containerRef}
       className="semiont-svg-drawing-canvas"
@@ -315,7 +334,8 @@ export function SvgDrawingCanvas({
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseLeave}
-      data-drawing-mode={drawingMode || 'none'}
+      data-drawing-mode={drawing || 'none'}
+      data-annotate-deferred={anchoredText.status === 'held' ? 'false' : 'true'}
     >
       {/* Image */}
       <img
@@ -359,7 +379,7 @@ export function SvgDrawingCanvas({
                   className="semiont-svg-drawing-canvas__preview"
                   style={{ width: displayDimensions.width, height: displayDimensions.height }}
                 >
-                  {drawingMode === 'circle' && (() => {
+                  {drawing === 'circle' && (() => {
                     const radius = Math.sqrt(
                       Math.pow(currentPoint.x - startPoint.x, 2) +
                       Math.pow(currentPoint.y - startPoint.y, 2)
@@ -377,7 +397,7 @@ export function SvgDrawingCanvas({
                     );
                   })()}
 
-                  {drawingMode === 'polygon' && (() => {
+                  {drawing === 'polygon' && (() => {
                     const centerX = (startPoint.x + currentPoint.x) / 2;
                     const centerY = (startPoint.y + currentPoint.y) / 2;
                     const halfWidth = Math.abs(currentPoint.x - startPoint.x) / 2;
@@ -403,7 +423,7 @@ export function SvgDrawingCanvas({
                     );
                   })()}
 
-                  {drawingMode === 'rectangle' && (
+                  {drawing === 'rectangle' && (
                     <rect
                       x={Math.min(startPoint.x, currentPoint.x)}
                       y={Math.min(startPoint.y, currentPoint.y)}
@@ -422,5 +442,6 @@ export function SvgDrawingCanvas({
         </div>
       )}
     </div>
+    </>
   );
 }

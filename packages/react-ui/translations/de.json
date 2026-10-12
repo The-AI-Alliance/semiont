@@ -37,7 +37,8 @@
     "pagination": "Seitennavigation",
     "previous": "Zurück",
     "viewerLoading": "PDF-Betrachter wird geladen...",
-    "preparingTextLayer": "Textebene wird vorbereitet — Annotieren wird aktiviert, sobald sie bereit ist"
+    "preparingTextLayer": "Textebene wird vorbereitet — Annotieren wird aktiviert, sobald sie bereit ist",
+    "textLayerUnreadable": "Der Text dieses Dokuments konnte nicht gelesen werden, daher kann es nicht annotiert werden"
   },
   "Toolbar": {
     "annotations": "Annotationen",

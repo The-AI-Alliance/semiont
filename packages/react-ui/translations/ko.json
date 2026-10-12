@@ -37,7 +37,8 @@
     "pagination": "페이지 탐색",
     "previous": "이전",
     "viewerLoading": "PDF 뷰어 로드 중...",
-    "preparingTextLayer": "텍스트 레이어 준비 중 — 준비되면 주석이 활성화됩니다"
+    "preparingTextLayer": "텍스트 레이어 준비 중 — 준비되면 주석이 활성화됩니다",
+    "textLayerUnreadable": "이 문서의 텍스트를 읽지 못해 주석을 달 수 없습니다"
   },
   "Toolbar": {
     "annotations": "주석",

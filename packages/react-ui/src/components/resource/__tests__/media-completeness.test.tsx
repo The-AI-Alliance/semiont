@@ -27,7 +27,11 @@ const emptyAnnotations = { highlights: [], references: [], assessments: [], comm
 
 function fakeSession(): SemiontSession {
   return {
-    client: { browse: { click: vi.fn() }, beckon: { hover: vi.fn() } },
+    client: {
+      // The image canvas asks for the resource's text, in browse mode too.
+      browse: { click: vi.fn(), resourceAnchoredText: vi.fn().mockResolvedValue({ kind: 'no-map' }) },
+      beckon: { hover: vi.fn() },
+    },
     subscribe: () => () => {},
   } as unknown as SemiontSession;
 }

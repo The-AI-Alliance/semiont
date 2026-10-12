@@ -33,6 +33,7 @@ import { signInSession } from '../fixtures/sdk-session';
 const IMG = '.semiont-pdf-annotation-canvas__image';
 const SVG = '.semiont-pdf-annotation-canvas__svg';
 const CONTAINER = '.semiont-pdf-annotation-canvas__container';
+const CANVAS = '.semiont-pdf-annotation-canvas';
 
 /**
  * What the Smelter's OCR returns for the Legible Scan fixture. Asserted as two
@@ -84,8 +85,12 @@ async function openScannedPdfInAnnotateMode(page: Page) {
 /**
  * Arm drawing: Highlight motivation + Rectangle shape. Motivation menuitems
  * TOGGLE and persist to localStorage, so reset to None first (14's note).
+ * A page takes a drawing only while the canvas holds the document's text, so
+ * this first waits for the canvas to say it does.
  */
 async function armRectangleDrawing(page: Page) {
+  await expect(page.locator(CANVAS)).toHaveAttribute('data-annotate-deferred', 'false', { timeout: 60_000 });
+
   await page.getByRole('button', { name: /^motivation$/i }).click();
   await page.getByRole('menuitem', { name: /^none$/i }).click();
   await page.getByRole('button', { name: /^motivation$/i }).click();
@@ -112,7 +117,7 @@ test.describe('scanned PDF annotations quote the server-derived map', () => {
 
     // The ask is an HTTP GET, not a bus request: an anchored text is as large
     // as its document. Listening starts before the resource opens, because
-    // the canvas asks as soon as its first page loads.
+    // the canvas asks as soon as it mounts.
     const answered = page.waitForResponse(
       (response) =>
         response.request().method() === 'GET' &&

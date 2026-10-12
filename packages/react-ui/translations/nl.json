@@ -37,7 +37,8 @@
     "pagination": "Paginanavigatie",
     "previous": "Vorige",
     "viewerLoading": "PDF-viewer laden...",
-    "preparingTextLayer": "Tekstlaag wordt voorbereid — annoteren wordt ingeschakeld zodra deze klaar is"
+    "preparingTextLayer": "Tekstlaag wordt voorbereid — annoteren wordt ingeschakeld zodra deze klaar is",
+    "textLayerUnreadable": "De tekst van dit document kon niet gelezen worden, dus het kan niet geannoteerd worden"
   },
   "Toolbar": {
     "annotations": "Annotaties",

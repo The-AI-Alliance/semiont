@@ -37,7 +37,8 @@
     "pagination": "ページナビゲーション",
     "previous": "前へ",
     "viewerLoading": "PDF ビューアを読み込んでいます...",
-    "preparingTextLayer": "テキストレイヤーを準備中 — 準備が整うと注釈が有効になります"
+    "preparingTextLayer": "テキストレイヤーを準備中 — 準備が整うと注釈が有効になります",
+    "textLayerUnreadable": "このドキュメントのテキストを読み取れなかったため、注釈を付けられません"
   },
   "Toolbar": {
     "annotations": "アノテーション",

@@ -37,7 +37,8 @@
     "pagination": "页面导航",
     "previous": "上一页",
     "viewerLoading": "正在加载 PDF 查看器...",
-    "preparingTextLayer": "正在准备文本层 — 就绪后将启用批注"
+    "preparingTextLayer": "正在准备文本层 — 就绪后将启用批注",
+    "textLayerUnreadable": "无法读取此文档的文本，因此无法添加批注"
   },
   "Toolbar": {
     "annotations": "注释",

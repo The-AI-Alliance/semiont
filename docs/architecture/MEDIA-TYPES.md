@@ -260,33 +260,40 @@ textUnder(anchored, rect)    → string    a person drew a box; find its text
 
 ### When is it annotatable?
 
-A `spatial` type has two readiness moments:
+**Once the viewer holds its text, and not before.** A quote is captured when
+an annotation is made (step 14) and never again, so a rectangle drawn before
+the viewer has the text would keep none. That holds for every `spatial` type,
+an image included: the viewer asks for the resource's text with
+`browse.resourceAnchoredText(resourceId)` when it opens it, and nobody can
+draw until an answer gives it the text.
 
-- **Geometry: immediately.** Once the view exists a rectangle can be dragged
-  and it persists — nothing has to know what is under it.
-- **Quotes: once smelt settles.** A PDF's text has one producer. The Smelter
-  derives it, the Archivist serves it, and the canvas asks for it with
-  `browse.resourceAnchoredText(resourceId)` for every PDF, born-digital or
-  scanned. pdf.js draws the pages in the browser and is never asked for their
-  text: a second reading would be a second answer to what a rectangle quotes,
-  kept in step with the first forever. Server-side: resolve the view → take
-  the primary representation's checksum → read the store → on a miss wait up
-  to 15 seconds for the Smelter to settle that content → re-read if `indexed`.
-  The answer is the map, a stored decline, or a named absence: `not-yet`,
-  `no-map` or `unknown`.
+A PDF's text has one producer. The Smelter derives it and the Archivist
+serves it, for every PDF, born-digital or scanned. pdf.js draws the pages in
+the browser and is never asked for their text: a second reading would be a
+second answer to what a rectangle quotes, kept in step with the first
+forever. Server-side: resolve the view → take the primary representation's
+checksum → a media type with no derived text is answered `no-map` at once →
+read the store → on a miss wait up to 15 seconds for the Smelter to settle
+that content → re-read. The answer is the map, a stored decline, or a named
+absence: `not-yet`, `no-map` or `unknown`.
 
-**The PDF canvas joins the two on purpose.** A quote is captured when an
-annotation is made (step 14), so a rectangle drawn before the map exists would
-keep none. While the answer is `not-yet` — a document just uploaded, until the
-Smelter has read it — the canvas holds off annotating, and asks again when
-`smelt:settled` arrives for the resource, and on a timer in case that is
-missed. Every other answer is final, and annotating proceeds.
+What the viewer does with each:
 
-**Failure degrades; it does not break.** No map — because the document has none,
-because extraction declined, or because the read failed — means an
-annotation with geometry and no quote. That is how a `spatial` type behaves
-with no text recovery at all, so the failure mode is "no improvement", never
-"broken".
+- **The map (`extracted`).** It holds the text. Annotating is on.
+- **`no-map`.** This media type has no text, so the viewer holds a text that
+  is empty. Annotating is on, and a shape has no quote.
+- **`not-yet`, no answer yet, or an ask that failed.** It holds nothing.
+  Annotating is off, the viewer says it is waiting for the text, and it asks
+  again each time `anchoredTextReaskMs` has passed
+  (`specs/src/client/timing.json`).
+- **A stored decline, or `unknown`.** It holds nothing and never will.
+  Annotating is off for good, the viewer says the text could not be read, and
+  it does not ask again.
+
+**The Smelter is on the path of every hand-drawn annotation.** A PDF it
+declined cannot be drawn on, and no PDF can be drawn on while it is down or
+behind. An annotation with geometry and no quote is made only where the text
+is held and has nothing under the shape.
 
 ### Annotating
 
@@ -338,9 +345,10 @@ store, no barrier to wait on, and no restart hazard. An annotation carries
 offsets into the text directly. Steps 1–2, 9, and 13–14 are identical.
 
 **An image** (`spatial`, `none`) takes the geometry half and none of the text
-half. It is annotatable the moment the view exists, and a rectangle over it is
-always geometry-only — there is no map, so no quote, ever. The two readiness
-moments collapse to one.
+half. Its viewer asks for its text as a PDF's does, and the answer is `no-map`,
+given at once: the type has no text. The viewer then holds a text that is
+empty, so the image opens for annotating when that answer arrives, and a
+shape over it has geometry and no quote.
 
 **Stored types** (`none`, `none`) are catalogued, named and downloadable.
 Stored text types additionally decode, so they are embedded and searchable while
@@ -379,13 +387,14 @@ exists only during an interval.
   written once at ingest, consulted before re-deriving, stored where `clean` can
   reclaim it, re-derivable when missing. ASR on a three-hour recording makes
   this *more* necessary than OCR did, not less.
-- **The settle barrier and the readiness split.** A place in time is
-  annotatable at once; its quote waits for the transcript to settle. An
-  embedded caption track is readable in the browser through `TextTrack`, as a
-  PDF's text layer is through pdf.js — and the PDF path does not read it
-  there, because a second reader is a second answer to keep in step. The same
-  holds here: one producer, with a caption track playing the text layer's
-  role and ASR playing OCR's.
+- **The settle barrier, and annotating that waits behind it.** A place in
+  time is annotatable once the viewer holds the transcript, as a rectangle on
+  a PDF is once it holds the text: a quote is captured when the annotation is
+  made. An embedded caption track is readable in the browser through
+  `TextTrack`, as a PDF's text layer is through pdf.js — and the PDF path
+  does not read it there, because a second reader is a second answer to keep
+  in step. The same holds here: one producer, with a caption track playing
+  the text layer's role and ASR playing OCR's.
 - **Selectors fixed at birth.** Unchanged, and for the same reason.
 
 ### What does not carry over

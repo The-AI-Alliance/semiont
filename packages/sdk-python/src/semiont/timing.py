@@ -14,6 +14,7 @@ from typing import Final
 from semiont.retry import RetryPolicy
 
 __all__ = [
+    "ANCHORED_TEXT_REASK_MS",
     "BUS_REQUEST_TIMEOUT_MS",
     "DEGRADED_THRESHOLD_MS",
     "DELEGATE_SILENCE_MS",
@@ -188,6 +189,14 @@ MARK_COMMIT_TIMEOUT_MS: Final = 60000
 # the resource and without the citations.
 GENERATED_TEXT_ASKS_COUNT: Final = 8
 
+# How long a viewer waits before it asks again for a resource's anchored text (`GET
+# /resources/{id}/anchored-text`), after an answer that the text is not there yet or an ask that
+# got no answer. The Archivist holds an ask while the Smelter reads the content and answers as
+# soon as it has, so this wait is only for the answers that come at once: a text that is not
+# there and is not being read, and a failure. A viewer does not annotate a resource until it
+# holds the resource's text.
+ANCHORED_TEXT_REASK_MS: Final = 5000
+
 # How long a pointer rests on an annotation before the viewer says it is hovered. Shorter, and a
 # pointer crossing the page hovers everything on its way.
 HOVER_DELAY_MS: Final = 150
@@ -224,6 +233,7 @@ TIMING_NAMES: Final[tuple[str, ...]] = (
     "heldJobStallCheckMs",
     "markCommitTimeoutMs",
     "generatedTextAsksCount",
+    "anchoredTextReaskMs",
     "hoverDelayMs",
     "searchDebounceMs",
 )

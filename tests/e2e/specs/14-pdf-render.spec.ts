@@ -19,7 +19,9 @@ import { openResourceByName } from '../fixtures/discover';
  *
  *  2. Drawing is armed only when BOTH a motivation and a shape are
  *     selected — `AnnotateView` computes `drawingMode = selectedMotivation
- *     ? selectedShape : null`, surfaced on the container as
+ *     ? selectedShape : null` — and only while the canvas holds the
+ *     document's text, which it says as `data-annotate-deferred="false"`.
+ *     The mode a page takes is surfaced on its container as
  *     `data-drawing-mode`. A drag >10px on `.semiont-pdf-annotation-
  *     canvas__container` fires `session.client.mark.request(FragmentSelector,
  *     motivation)`; for `highlighting` the same auto-submit chain as text
@@ -34,6 +36,7 @@ import { openResourceByName } from '../fixtures/discover';
 const IMG = '.semiont-pdf-annotation-canvas__image';
 const SVG = '.semiont-pdf-annotation-canvas__svg';
 const CONTAINER = '.semiont-pdf-annotation-canvas__container';
+const CANVAS = '.semiont-pdf-annotation-canvas';
 
 async function openPdfInAnnotateMode(page: Page) {
   await openResourceByName(page, 'Spatial Smoke PDF');
@@ -56,6 +59,11 @@ async function openPdfInAnnotateMode(page: Page) {
  * (rectangle is the only PDF shape).
  */
 async function armRectangleDrawing(page: Page) {
+  // A page takes a drawing only while the canvas holds the document's text.
+  // The server may hold the ask for it while the Smelter reads the document,
+  // so this waits for the canvas to say it holds it.
+  await expect(page.locator(CANVAS)).toHaveAttribute('data-annotate-deferred', 'false', { timeout: 60_000 });
+
   await page.getByRole('button', { name: /^motivation$/i }).click();
   await page.getByRole('menuitem', { name: /^none$/i }).click();
   await page.getByRole('button', { name: /^motivation$/i }).click();

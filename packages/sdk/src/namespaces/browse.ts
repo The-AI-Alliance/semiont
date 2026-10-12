@@ -399,11 +399,11 @@ export class BrowseNamespace implements IBrowseNamespace {
    * not whichever page is on screen.
    *
    * An absence is not an error, and its `kind` says whether to come back:
-   * `not-yet` (the Smelter has not settled this content; retry), `no-map`
-   * (the media type derives no geometry) or `unknown` (no such resource is
-   * held, or its content has no checksum). Callers degrade — a PDF
-   * annotation drawn over an unmapped page carries geometry with no quoted
-   * text.
+   * `not-yet` (the Smelter has not read this content yet; ask again),
+   * `no-map` (the media type has no derived text: there is none to wait
+   * for) or `unknown` (no such resource is held, or its content has no
+   * checksum). A quote is cut from this text when an annotation is made and
+   * never again, so a viewer annotates only once it holds the text.
    */
   async resourceAnchoredText(resourceId: ResourceId): Promise<AnchoredTextAnswer> {
     return this.content.getAnchoredText(resourceId);

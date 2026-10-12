@@ -1,16 +1,16 @@
 /**
- * The page's PIXELS must not wait for its anchored-text map.
+ * The page's PIXELS must not wait for the document's text.
  *
- * The load effect starts anchoring and rendering together, and the page
- * appears on its own schedule. Every page of every PDF fetches the map from
- * the server, so were `setPageImageUrl` to sit behind `Promise.all(...)`, a
- * page would show NOTHING until the anchored request resolved. The server
- * holds that request while the Smelter is still reading a document, for as
- * long as fifteen seconds: a blank first page all that time, and not one
+ * Reading a PDF and annotating it are two things. The canvas asks the server
+ * for the text and draws the pages at the same time, and a page appears on
+ * its own schedule. The server holds that ask while the Smelter is still
+ * reading a document, for as long as fifteen seconds: were a page to wait for
+ * it, a person would look at a blank first page all that time, and not one
  * console error, because a wait is not a failure and nothing reports it.
  *
- * The anchored map is the OPTIONAL half of loading a page; these pin that its
- * latency — up to and including "never" — cannot hold the image.
+ * What waits for the text is ANNOTATING. These pin that the text's latency —
+ * up to and including "never" — cannot hold the image, and that the text
+ * which lands after the image is the one a rectangle is quoted from.
  */
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, fireEvent, waitFor } from '@testing-library/react';
@@ -45,12 +45,11 @@ describe('PdfAnnotationCanvas — pixels before anchoring', () => {
     vi.unstubAllGlobals();
   });
 
-  test('a page shows its image while the anchored-text request is still pending', async () => {
-    // The map request HANGS — the server never answers. The image must not care.
+  test('a page shows its image while the ask for the text is still unanswered', async () => {
+    // The ask HANGS — the server never answers. The image must not care.
     const resourceAnchoredText = vi.fn(() => new Promise(() => { /* never settles */ }));
     const session = {
       client: { browse: { resourceAnchoredText } },
-      subscribe: () => () => {},
     } as unknown as SemiontSession;
 
     renderInEnglish(
@@ -65,11 +64,11 @@ describe('PdfAnnotationCanvas — pixels before anchoring', () => {
     await waitFor(() => {
       expect(document.querySelector('img[src^="data:image/png"]')).toBeInTheDocument();
     });
-    // The map really was requested — it just could not gate the pixels.
+    // The text really was asked for — it just could not hold the pixels.
     expect(resourceAnchoredText).toHaveBeenCalled();
   });
 
-  test('the anchored map still lands when it resolves after the image', async () => {
+  test('the text that lands after the image is the one a rectangle is quoted from', async () => {
     let resolveMap: (answer: AnchoredTextAnswer) => void = () => {};
     const resourceAnchoredText = vi.fn(
       () => new Promise<AnchoredTextAnswer>((resolve) => { resolveMap = resolve; }),
@@ -77,7 +76,6 @@ describe('PdfAnnotationCanvas — pixels before anchoring', () => {
     const request = vi.fn();
     const session = {
       client: { browse: { resourceAnchoredText }, mark: { request }, beckon: { hover: vi.fn() } },
-      subscribe: () => () => {},
     } as unknown as SemiontSession;
 
     renderInEnglish(
@@ -94,7 +92,11 @@ describe('PdfAnnotationCanvas — pixels before anchoring', () => {
       expect(document.querySelector('img[src^="data:image/png"]')).toBeInTheDocument();
     });
 
-    // The late map must not be dropped: resolving it after the render is the
+    // The page is drawn and the text is not held yet: annotating is off.
+    const canvas = document.querySelector('.semiont-pdf-annotation-canvas');
+    expect(canvas).toHaveAttribute('data-annotate-deferred', 'true');
+
+    // The late text must not be dropped: an answer after the render is the
     // ordinary sequence. "Hello world" sits on one line at y=700 in PDF
     // points — canvas y=80..92 on this 792pt page.
     await act(async () => {
@@ -110,8 +112,9 @@ describe('PdfAnnotationCanvas — pixels before anchoring', () => {
       await new Promise((settled) => setTimeout(settled, 0));
     });
 
-    // The image is still there, and a rectangle drawn on it now is quoted
-    // from the map that arrived after it.
+    // The image is still there, annotating is on, and a rectangle drawn now
+    // is quoted from the text that arrived after the image.
+    expect(canvas).toHaveAttribute('data-annotate-deferred', 'false');
     const img = document.querySelector('img[src^="data:image/png"]') as HTMLImageElement;
     expect(img).toBeInTheDocument();
     Object.defineProperty(img, 'clientWidth', { value: 612, configurable: true });

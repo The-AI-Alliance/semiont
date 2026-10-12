@@ -37,7 +37,8 @@
     "pagination": "Navegação de páginas",
     "previous": "Anterior",
     "viewerLoading": "Carregando visualizador de PDF...",
-    "preparingTextLayer": "Preparando a camada de texto — a anotação será ativada quando estiver pronta"
+    "preparingTextLayer": "Preparando a camada de texto — a anotação será ativada quando estiver pronta",
+    "textLayerUnreadable": "Não foi possível ler o texto deste documento, por isso não pode ser anotado"
   },
   "Toolbar": {
     "annotations": "Anotações",

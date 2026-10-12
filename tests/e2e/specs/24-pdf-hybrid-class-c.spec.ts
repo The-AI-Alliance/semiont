@@ -40,6 +40,7 @@ import { openResourceByName } from '../fixtures/discover';
  */
 
 const CONTAINER = '.semiont-pdf-annotation-canvas__container';
+const CANVAS = '.semiont-pdf-annotation-canvas';
 const slot = (page: number) => `.semiont-pdf-annotation-canvas__slot[data-page="${page}"]`;
 const stripPage = (page: number) => `button.semiont-pdf-annotation-canvas__strip-page[data-page="${page}"]`;
 
@@ -55,8 +56,11 @@ async function openHybridInAnnotateMode(page: Page) {
 }
 
 /** Highlight + Rectangle. Motivation menuitems TOGGLE and persist, so reset to
- *  None first (14's note). */
+ *  None first (14's note). A page takes a drawing only while the canvas holds
+ *  the document's text, so this first waits for the canvas to say it does. */
 async function armRectangleDrawing(page: Page) {
+  await expect(page.locator(CANVAS)).toHaveAttribute('data-annotate-deferred', 'false', { timeout: 60_000 });
+
   await page.getByRole('button', { name: /^motivation$/i }).click();
   await page.getByRole('menuitem', { name: /^none$/i }).click();
   await page.getByRole('button', { name: /^motivation$/i }).click();

@@ -37,7 +37,8 @@
     "pagination": "Sayfa gezinmesi",
     "previous": "Önceki",
     "viewerLoading": "PDF görüntüleyici yükleniyor...",
-    "preparingTextLayer": "Metin katmanı hazırlanıyor — hazır olduğunda ek açıklama etkinleşecek"
+    "preparingTextLayer": "Metin katmanı hazırlanıyor — hazır olduğunda ek açıklama etkinleşecek",
+    "textLayerUnreadable": "Bu belgenin metni okunamadı, bu yüzden ek açıklama eklenemez"
   },
   "Toolbar": {
     "annotations": "Açıklamalar",
