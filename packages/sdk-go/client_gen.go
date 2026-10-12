@@ -266,16 +266,16 @@ func (e ArchivistHealthStatus) Valid() bool {
 
 // Defines values for ArchivistRosterRoleProvider.
 const (
-	Anthropic ArchivistRosterRoleProvider = "anthropic"
-	Ollama    ArchivistRosterRoleProvider = "ollama"
+	ArchivistRosterRoleProviderAnthropic ArchivistRosterRoleProvider = "anthropic"
+	ArchivistRosterRoleProviderOllama    ArchivistRosterRoleProvider = "ollama"
 )
 
 // Valid indicates whether the value is a known member of the ArchivistRosterRoleProvider enum.
 func (e ArchivistRosterRoleProvider) Valid() bool {
 	switch e {
-	case Anthropic:
+	case ArchivistRosterRoleProviderAnthropic:
 		return true
-	case Ollama:
+	case ArchivistRosterRoleProviderOllama:
 		return true
 	default:
 		return false
@@ -1541,13 +1541,28 @@ func (e MatchResourcesResponseMatchKind) Valid() bool {
 
 // Defines values for MemoryGraphConfigType.
 const (
-	Memory MemoryGraphConfigType = "memory"
+	MemoryGraphConfigTypeMemory MemoryGraphConfigType = "memory"
 )
 
 // Valid indicates whether the value is a known member of the MemoryGraphConfigType enum.
 func (e MemoryGraphConfigType) Valid() bool {
 	switch e {
-	case Memory:
+	case MemoryGraphConfigTypeMemory:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MemoryVectorsConfigType.
+const (
+	MemoryVectorsConfigTypeMemory MemoryVectorsConfigType = "memory"
+)
+
+// Valid indicates whether the value is a known member of the MemoryVectorsConfigType enum.
+func (e MemoryVectorsConfigType) Valid() bool {
+	switch e {
+	case MemoryVectorsConfigTypeMemory:
 		return true
 	default:
 		return false
@@ -1611,6 +1626,21 @@ func (e NeptuneGraphConfigType) Valid() bool {
 	}
 }
 
+// Defines values for OllamaEmbeddingConfigType.
+const (
+	OllamaEmbeddingConfigTypeOllama OllamaEmbeddingConfigType = "ollama"
+)
+
+// Valid indicates whether the value is a known member of the OllamaEmbeddingConfigType enum.
+func (e OllamaEmbeddingConfigType) Valid() bool {
+	switch e {
+	case OllamaEmbeddingConfigTypeOllama:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ProtectedResourceMetadataBearerMethodsSupported.
 const (
 	Header ProtectedResourceMetadataBearerMethodsSupported = "header"
@@ -1620,6 +1650,21 @@ const (
 func (e ProtectedResourceMetadataBearerMethodsSupported) Valid() bool {
 	switch e {
 	case Header:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for QdrantVectorsConfigType.
+const (
+	Qdrant QdrantVectorsConfigType = "qdrant"
+)
+
+// Valid indicates whether the value is a known member of the QdrantVectorsConfigType enum.
+func (e QdrantVectorsConfigType) Valid() bool {
+	switch e {
+	case Qdrant:
 		return true
 	default:
 		return false
@@ -2028,6 +2073,21 @@ const (
 func (e TextualBodyType) Valid() bool {
 	switch e {
 	case TextualBodyTypeTextualBody:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VoyageEmbeddingConfigType.
+const (
+	Voyage VoyageEmbeddingConfigType = "voyage"
+)
+
+// Valid indicates whether the value is a known member of the VoyageEmbeddingConfigType enum.
+func (e VoyageEmbeddingConfigType) Valid() bool {
+	switch e {
+	case Voyage:
 		return true
 	default:
 		return false
@@ -3260,6 +3320,11 @@ type DispatcherHealthStatus string
 
 // DurabilityEvidence How a job's annotations were established as durable — the OBSERVATION, never a conclusion drawn from it. 'acknowledged': the event log confirmed the batch (mark:commit-ok). 'probe-confirmed': the acknowledgement was lost and a later read found the batch's last annotation present — true, but a weaker claim than an ack, since it rests on the log appending a batch in order and stopping at the first failure. 'probe-refused': the read returned a failure reply; note this does NOT assert the annotations are absent, because a read that failed for its own reasons answers on the same channel. 'probe-unreachable': no answer came at all, so nothing was established either way. ABSENT means the question never arose — a job that committed no annotations. Never defaulted: a manufactured value here is a claim nobody made, in a log nobody can rewrite.
 type DurabilityEvidence string
+
+// EmbeddingConfig The embedding provider a service asks for vectors, and what that kind of provider needs to be asked: one of the providers `semiont-vectors` has, told apart by `type`. Two services that share an index name the same provider and the same model: a vector is compared only with vectors of the model that made it. A secret is never a value here: a provider's key is named by the environment variable that holds it.
+type EmbeddingConfig struct {
+	union json.RawMessage
+}
 
 // EnrichedResourceEvent defines model for EnrichedResourceEvent.
 type EnrichedResourceEvent struct {
@@ -5157,6 +5222,14 @@ type MemoryGraphConfig struct {
 // MemoryGraphConfigType defines model for MemoryGraphConfig.Type.
 type MemoryGraphConfigType string
 
+// MemoryVectorsConfig A vector index held in the memory of the one process that is given it: for a test. It cannot be shared between processes, so a service that writes the index for another to search, or searches what another wrote, refuses it.
+type MemoryVectorsConfig struct {
+	Type MemoryVectorsConfigType `json:"type"`
+}
+
+// MemoryVectorsConfigType defines model for MemoryVectorsConfig.Type.
+type MemoryVectorsConfigType string
+
 // Motivation Semiont-supported W3C Web Annotation motivations - https://www.w3.org/TR/annotation-vocab/#motivation
 type Motivation string
 
@@ -5191,6 +5264,19 @@ type NeptuneGraphConfig struct {
 
 // NeptuneGraphConfigType defines model for NeptuneGraphConfig.Type.
 type NeptuneGraphConfigType string
+
+// OllamaEmbeddingConfig An embedding model served by an Ollama.
+type OllamaEmbeddingConfig struct {
+	// BaseUrl The address the Ollama's API is reached at (`http://host:11434`).
+	BaseUrl string `json:"baseUrl"`
+
+	// Model The model asked for, by the name the Ollama serves it under.
+	Model string                    `json:"model"`
+	Type  OllamaEmbeddingConfigType `json:"type"`
+}
+
+// OllamaEmbeddingConfigType defines model for OllamaEmbeddingConfig.Type.
+type OllamaEmbeddingConfigType string
 
 // PdfTextItem One positioned text run. Coordinates are PDF points with the origin at the bottom-left of the page, Y increasing upward; the flip to canvas pixels happens in the browser.
 type PdfTextItem struct {
@@ -5255,6 +5341,19 @@ type ProtectedResourceMetadata struct {
 
 // ProtectedResourceMetadataBearerMethodsSupported defines model for ProtectedResourceMetadata.BearerMethodsSupported.
 type ProtectedResourceMetadataBearerMethodsSupported string
+
+// QdrantVectorsConfig A vector index kept in a Qdrant server, asked over its REST API.
+type QdrantVectorsConfig struct {
+	// Host The server's host.
+	Host string `json:"host"`
+
+	// Port The port its REST API listens on.
+	Port int                     `json:"port"`
+	Type QdrantVectorsConfigType `json:"type"`
+}
+
+// QdrantVectorsConfigType defines model for QdrantVectorsConfig.Type.
+type QdrantVectorsConfigType string
 
 // ReplyEventId `e-<channel>:<correlationId>` — the id of a frame that carries a correlationId. Deterministic: the same reply has the same id on every connection, so a copy arriving on two connections (a reconnect overlap, or a replay of a retained reply) dedups. Never a resumption watermark.
 type ReplyEventId = string
@@ -6024,6 +6123,51 @@ type SmeltSettledOutcome string
 // SmeltSettledReason Why the content was skipped.
 type SmeltSettledReason string
 
+// SmelterConfig Everything a Smelter reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the Smelter. Whoever starts a Smelter writes it, from the environment the knowledge base's config selects, and the Smelter reads it from the path its `--config` flag names. This schema is the contract, and a Smelter needs no launcher. Started without `--config`, or with a path that names no file, the Smelter refuses to start and says which. No secret is a value here: an embedding provider's key is named by the environment variable that holds it, and the Smelter's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` in its environment. A document that does not validate is refused at boot, naming each failing field.
+type SmelterConfig struct {
+	// AnchoredTextDir The anchored-text store the Smelter writes and the Archivist reads.
+	AnchoredTextDir string `json:"anchoredTextDir"`
+
+	// Archivist Where the Archivist listens. The Smelter reads a resource's bytes from it, as its service account.
+	Archivist struct {
+		Host string `json:"host"`
+		Port int    `json:"port"`
+	} `json:"archivist"`
+
+	// Chunking The two numbers a text is cut by before it is embedded, both in tokens, a token being taken as four code points.
+	Chunking struct {
+		// ChunkSize The size of a chunk.
+		ChunkSize int `json:"chunkSize"`
+
+		// Overlap How much of a chunk the next one repeats.
+		Overlap int `json:"overlap"`
+	} `json:"chunking"`
+
+	// Embedding The embedding provider a service asks for vectors, and what that kind of provider needs to be asked: one of the providers `semiont-vectors` has, told apart by `type`. Two services that share an index name the same provider and the same model: a vector is compared only with vectors of the model that made it. A secret is never a value here: a provider's key is named by the environment variable that holds it.
+	Embedding EmbeddingConfig `json:"embedding"`
+
+	// GatewayUrl The URL the Smelter reaches the gateway at: its route to the bus.
+	GatewayUrl string `json:"gatewayUrl"`
+
+	// Identity The issuer the Smelter's service account signs in at.
+	Identity struct {
+		// Issuer The issuer URL, exactly as tokens carry it in `iss`.
+		Issuer string `json:"issuer"`
+	} `json:"identity"`
+
+	// LogFormat How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON.
+	LogFormat LogFormat `json:"logFormat"`
+
+	// LogLevel How much a service logs: the least severe level it writes, from error, the most severe, to debug.
+	LogLevel LogLevel `json:"logLevel"`
+
+	// Port The port the Smelter answers `/health` on.
+	Port int `json:"port"`
+
+	// Vectors The vector index a service writes or searches, and what that kind of index needs to be reached: one of the kinds `semiont-vectors` has a store for, told apart by `type`.
+	Vectors VectorsConfig `json:"vectors"`
+}
+
 // SpecificResource defines model for SpecificResource.
 type SpecificResource struct {
 	// Purpose Why this body is included
@@ -6245,6 +6389,27 @@ type UserResponse struct {
 	Image  *string `json:"image"`
 	Name   *string `json:"name"`
 }
+
+// VectorsConfig The vector index a service writes or searches, and what that kind of index needs to be reached: one of the kinds `semiont-vectors` has a store for, told apart by `type`.
+type VectorsConfig struct {
+	union json.RawMessage
+}
+
+// VoyageEmbeddingConfig An embedding model served by Voyage AI. No service has been run against Voyage itself.
+type VoyageEmbeddingConfig struct {
+	// ApiKeyEnv The environment variable holding the Voyage API key. The key is never a value here.
+	ApiKeyEnv string `json:"apiKeyEnv"`
+
+	// Endpoint The whole address of Voyage's embeddings call (`https://api.voyageai.com/v1/embeddings`).
+	Endpoint string `json:"endpoint"`
+
+	// Model The model asked for, by Voyage's name for it.
+	Model string                    `json:"model"`
+	Type  VoyageEmbeddingConfigType `json:"type"`
+}
+
+// VoyageEmbeddingConfigType defines model for VoyageEmbeddingConfig.Type.
+type VoyageEmbeddingConfigType string
 
 // WeaveApplied The payload of `weave:applied`: the Weaver has applied a resource's events to the graph up to this sequence number. Emitted after applying an event, or a batch's last event.
 type WeaveApplied struct {
@@ -9742,6 +9907,95 @@ func (t DirectoryEntry) MarshalJSON() ([]byte, error) {
 }
 
 func (t *DirectoryEntry) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsOllamaEmbeddingConfig returns the union data inside the EmbeddingConfig as a OllamaEmbeddingConfig
+func (t EmbeddingConfig) AsOllamaEmbeddingConfig() (OllamaEmbeddingConfig, error) {
+	var body OllamaEmbeddingConfig
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOllamaEmbeddingConfig overwrites any union data inside the EmbeddingConfig as the provided OllamaEmbeddingConfig
+func (t *EmbeddingConfig) FromOllamaEmbeddingConfig(v OllamaEmbeddingConfig) error {
+	v.Type = "ollama"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOllamaEmbeddingConfig performs a merge with any union data inside the EmbeddingConfig, using the provided OllamaEmbeddingConfig
+func (t *EmbeddingConfig) MergeOllamaEmbeddingConfig(v OllamaEmbeddingConfig) error {
+	v.Type = "ollama"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsVoyageEmbeddingConfig returns the union data inside the EmbeddingConfig as a VoyageEmbeddingConfig
+func (t EmbeddingConfig) AsVoyageEmbeddingConfig() (VoyageEmbeddingConfig, error) {
+	var body VoyageEmbeddingConfig
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromVoyageEmbeddingConfig overwrites any union data inside the EmbeddingConfig as the provided VoyageEmbeddingConfig
+func (t *EmbeddingConfig) FromVoyageEmbeddingConfig(v VoyageEmbeddingConfig) error {
+	v.Type = "voyage"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeVoyageEmbeddingConfig performs a merge with any union data inside the EmbeddingConfig, using the provided VoyageEmbeddingConfig
+func (t *EmbeddingConfig) MergeVoyageEmbeddingConfig(v VoyageEmbeddingConfig) error {
+	v.Type = "voyage"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t EmbeddingConfig) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"type"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t EmbeddingConfig) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "ollama":
+		return t.AsOllamaEmbeddingConfig()
+	case "voyage":
+		return t.AsVoyageEmbeddingConfig()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t EmbeddingConfig) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *EmbeddingConfig) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
@@ -13427,6 +13681,95 @@ func (t UpdateAnnotationBodyRequest_Operations_Item) MarshalJSON() ([]byte, erro
 }
 
 func (t *UpdateAnnotationBodyRequest_Operations_Item) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsQdrantVectorsConfig returns the union data inside the VectorsConfig as a QdrantVectorsConfig
+func (t VectorsConfig) AsQdrantVectorsConfig() (QdrantVectorsConfig, error) {
+	var body QdrantVectorsConfig
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromQdrantVectorsConfig overwrites any union data inside the VectorsConfig as the provided QdrantVectorsConfig
+func (t *VectorsConfig) FromQdrantVectorsConfig(v QdrantVectorsConfig) error {
+	v.Type = "qdrant"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeQdrantVectorsConfig performs a merge with any union data inside the VectorsConfig, using the provided QdrantVectorsConfig
+func (t *VectorsConfig) MergeQdrantVectorsConfig(v QdrantVectorsConfig) error {
+	v.Type = "qdrant"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsMemoryVectorsConfig returns the union data inside the VectorsConfig as a MemoryVectorsConfig
+func (t VectorsConfig) AsMemoryVectorsConfig() (MemoryVectorsConfig, error) {
+	var body MemoryVectorsConfig
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromMemoryVectorsConfig overwrites any union data inside the VectorsConfig as the provided MemoryVectorsConfig
+func (t *VectorsConfig) FromMemoryVectorsConfig(v MemoryVectorsConfig) error {
+	v.Type = "memory"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeMemoryVectorsConfig performs a merge with any union data inside the VectorsConfig, using the provided MemoryVectorsConfig
+func (t *VectorsConfig) MergeMemoryVectorsConfig(v MemoryVectorsConfig) error {
+	v.Type = "memory"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t VectorsConfig) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"type"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t VectorsConfig) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "memory":
+		return t.AsMemoryVectorsConfig()
+	case "qdrant":
+		return t.AsQdrantVectorsConfig()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t VectorsConfig) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *VectorsConfig) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }

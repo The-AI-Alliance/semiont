@@ -1,0 +1,18 @@
+{
+  "description": "The vector index a service writes or searches, and what that kind of index needs to be reached: one of the kinds `semiont-vectors` has a store for, told apart by `type`.",
+  "oneOf": [
+    {
+      "$ref": "./QdrantVectorsConfig.json"
+    },
+    {
+      "$ref": "./MemoryVectorsConfig.json"
+    }
+  ],
+  "discriminator": {
+    "propertyName": "type",
+    "mapping": {
+      "qdrant": "./QdrantVectorsConfig.json",
+      "memory": "./MemoryVectorsConfig.json"
+    }
+  }
+}

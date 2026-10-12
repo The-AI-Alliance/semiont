@@ -69,6 +69,7 @@ SURFACE = {
     "ollama": ["OLLAMA_BATCH_POLICY", "OllamaEmbeddingProvider"],
     "voyage": ["VOYAGE_BATCH_POLICY", "VoyageEmbeddingProvider"],
     "mock": ["MockEmbeddingProvider", "deterministic_vector"],
+    "factory": ["create_embedding_provider", "create_vector_store"],
 }
 
 # The modules that say what a store and a provider are, and what they share: none knows of a store or a provider.
@@ -180,9 +181,13 @@ def test_the_http_client_is_named_only_by_the_modules_that_ask_through_it() -> N
     # and the client is a protocol: nothing else here knows a request is made.
     assert importing("httpx") == ["ollama.py", "qdrant.py", "voyage.py"]
     # The modules that say what a store and a provider are import no store and no provider.
-    for module in ("memory", "qdrant", "ollama", "voyage", "mock"):
+    for module in ("memory", "qdrant", "ollama", "voyage", "mock", "factory"):
         imported_by = set(importing(rf"semiont_vectors\.{module}"))
         assert not imported_by & PROTOCOLS, module
+    # One module makes a store or a provider from a configuration, and it is the one that names them all.
+    for module in ("memory", "qdrant", "ollama", "voyage"):
+        assert importing(rf"semiont_vectors\.{module}") == ["factory.py"], module
+    assert importing(r"semiont_vectors\.mock") == []
     # A store knows no provider: the one thing it asks of one is handed to it.
     for store in ("memory.py", "qdrant.py"):
         for provider in ("ollama", "voyage", "mock"):

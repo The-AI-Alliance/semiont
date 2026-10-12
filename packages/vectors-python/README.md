@@ -82,6 +82,10 @@ exports nothing.
   provider is, and `EmbeddingProviderError`, the failure one raises.
 - `semiont_vectors.ollama`, `semiont_vectors.voyage`, `semiont_vectors.mock`:
   one provider each.
+- `semiont_vectors.factory`: `create_vector_store` and
+  `create_embedding_provider`, which make the store and the provider a
+  service's configuration document names
+  ([`VectorsConfig`][vectors-config], [`EmbeddingConfig`][embedding-config]).
 
 ## What the index holds
 
@@ -125,3 +129,5 @@ fails, and is not skipped, without the variable.
 [vectors-typescript]: https://github.com/The-AI-Alliance/semiont/tree/main/packages/vectors
 [payload-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/vectors/payload-cases.json
 [store-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/vectors/store-cases.json
+[vectors-config]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/components/schemas/VectorsConfig.json
+[embedding-config]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/components/schemas/EmbeddingConfig.json

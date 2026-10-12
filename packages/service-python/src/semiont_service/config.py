@@ -1,6 +1,7 @@
 """A service's configuration document, and what its environment holds beside it.
 
-The document is a shape of the protocol: `WorkerConfig`, `WeaverConfig`.
+The document is a shape of the protocol: `WorkerConfig`, `WeaverConfig`,
+`SmelterConfig`.
 Whoever starts the service writes it, resolved: the launcher for the service
 it starts, and anyone else to the same schema. So it is read and refused
 here, and nothing is decided: no TOML is parsed, no `${VAR}` resolved, and no

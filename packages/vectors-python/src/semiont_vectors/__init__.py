@@ -11,6 +11,7 @@ A store is a module too: `semiont_vectors.qdrant`, which asks a Qdrant over
 its HTTP API, and `semiont_vectors.memory`, which holds its index in the
 process, for tests. So is a provider: `semiont_vectors.ollama`,
 `semiont_vectors.voyage`, and `semiont_vectors.mock`, which asks nobody and
-answers a vector worked out from the text, for tests. Importing this package
-imports none of them.
+answers a vector worked out from the text, for tests. A service makes the
+store and the provider its configuration document names with
+`semiont_vectors.factory`. Importing this package imports none of them.
 """

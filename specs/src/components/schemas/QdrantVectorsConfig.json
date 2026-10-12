@@ -1,0 +1,29 @@
+{
+  "type": "object",
+  "description": "A vector index kept in a Qdrant server, asked over its REST API.",
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": [
+        "qdrant"
+      ]
+    },
+    "host": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The server's host."
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535,
+      "description": "The port its REST API listens on."
+    }
+  },
+  "required": [
+    "type",
+    "host",
+    "port"
+  ],
+  "additionalProperties": false
+}

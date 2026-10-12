@@ -969,6 +969,27 @@
       "MemoryGraphConfig": {
         "$ref": "components/schemas/MemoryGraphConfig.json"
       },
+      "SmelterConfig": {
+        "$ref": "components/schemas/SmelterConfig.json"
+      },
+      "EmbeddingConfig": {
+        "$ref": "components/schemas/EmbeddingConfig.json"
+      },
+      "OllamaEmbeddingConfig": {
+        "$ref": "components/schemas/OllamaEmbeddingConfig.json"
+      },
+      "VoyageEmbeddingConfig": {
+        "$ref": "components/schemas/VoyageEmbeddingConfig.json"
+      },
+      "VectorsConfig": {
+        "$ref": "components/schemas/VectorsConfig.json"
+      },
+      "QdrantVectorsConfig": {
+        "$ref": "components/schemas/QdrantVectorsConfig.json"
+      },
+      "MemoryVectorsConfig": {
+        "$ref": "components/schemas/MemoryVectorsConfig.json"
+      },
       "DispatcherHealth": {
         "$ref": "components/schemas/DispatcherHealth.json"
       },
