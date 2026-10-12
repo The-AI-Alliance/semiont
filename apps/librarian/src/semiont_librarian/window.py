@@ -75,11 +75,9 @@ def text_around(text: str, start: int, end: int, before: int, after: int) -> Win
     An offset past the end of the text is the end of the text.
     """
     length = len(text)
-
-    def cut(begins: int, ends: int) -> str:
-        return text[min(length, max(0, begins)) : min(length, max(0, ends))]
-
-    return Window(before=cut(start - before, start), selected=cut(start, end), after=cut(end, end + after))
+    start = min(length, max(0, start))
+    end = min(length, max(0, end))
+    return Window(before=text[max(0, start - before) : start], selected=text[start:end], after=text[end : end + after])
 
 
 def selection_of(annotation: Annotation, text: str, window: int) -> Window | None:

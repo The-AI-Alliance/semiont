@@ -38,7 +38,7 @@ import {
   type LibrarianService,
   type LibrarianSettings,
 } from './librarian-process';
-import { eventually } from './net';
+import { eventually, freePort } from './net';
 import { startOllama, type StandInOllama } from './ollama';
 import { startOllamaEmbed, type StandInEmbedder } from './ollama-embed';
 import { QDRANT_PORT, vectorIndex, type VectorIndex } from './qdrant';
@@ -155,6 +155,7 @@ interface Parts {
   settings: LibrarianSettings;
   env: LibrarianEnvironment;
   home: string;
+  port: number;
   matcher: StandInOllama;
   gatherer: StandInOllama;
   embedder: StandInEmbedder;
@@ -257,6 +258,8 @@ export class LibrarianWorld {
       },
       env: { SEMIONT_OIDC_CLIENT_ID: LIBRARIAN_CLIENT, SEMIONT_OIDC_CLIENT_SECRET: secrets.librarian, [GRAPH_PASSWORD]: graphDatabase.password },
       home: mkdtempSync(join(tmpdir(), 'conformance-librarian-')),
+      // A Librarian that reads a document is told its health port there, and is told a free one.
+      port: service.configuredBy === 'semiontconfig' ? service.healthPort : await freePort(),
       matcher,
       gatherer,
       embedder,
@@ -314,9 +317,14 @@ export class LibrarianWorld {
     return this.librarianProcess?.output ?? this.lastOutput;
   }
 
+  /** The form this world's Librarian is given its settings in, by which a case knows the words it names a setting by. */
+  get configuredBy(): LibrarianService['configuredBy'] {
+    return this.parts.service.configuredBy;
+  }
+
   /** What a case launches a Librarian of its own with: this world's, changed as the case says. */
   launch(change: Change = {}): LibrarianLaunch {
-    return { service: this.parts.service, settings: this.settings, env: this.parts.env, home: this.parts.home, ...change };
+    return { service: this.parts.service, settings: this.settings, env: this.parts.env, home: this.parts.home, port: this.parts.port, ...change };
   }
 
   /**
@@ -353,7 +361,7 @@ export class LibrarianWorld {
   /**
    * A Librarian that must refuse to start, launched as `change` says beside
    * this world's: its exit code and its output. The world's own Librarian is
-   * stopped first: a Librarian's health port is a constant.
+   * stopped first: both are given the world's one health port.
    */
   async refused(change: Change, timeoutMs = 60_000): Promise<{ code: number | null; output: string }> {
     if (this.librarianProcess) throw new Error("the world's Librarian is running: stop it before starting one that must refuse, since both would answer on one health port");

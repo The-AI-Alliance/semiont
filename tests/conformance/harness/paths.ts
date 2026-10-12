@@ -122,9 +122,9 @@ export const SMELTER_SERVICES: Readonly<Record<string, readonly string[]>> = {
 };
 
 /**
- * How each implementation of the Librarian is started and reached. The
- * librarian suite runs each one with its settings and the environment, behind
- * a real gateway, beside a real Archivist, a Weaver and a Smelter, against a
+ * How each implementation of the Librarian is started, and how its settings
+ * reach it. The librarian suite runs each one with its settings and the
+ * environment, behind a real gateway, beside a real Archivist, a Weaver and a Smelter, against a
  * real neo4j and a real Qdrant and stand-ins for its providers, and meets it
  * on the bus, at its providers and at its health port (librarian/README.md).
  * An implementation joins the suite by adding its line. vitest.config.ts
@@ -136,6 +136,13 @@ export const LIBRARIAN_SERVICES: Readonly<Record<string, LibrarianService>> = {
     command: ['node', join(REPO_ROOT, 'packages/make-meaning/dist/librarian-main.js')],
     healthPort: 24104,
     configuredBy: 'semiontconfig',
+  },
+  // The interpreter of the project's locked environment: nothing is resolved or installed when a case starts it.
+  // `-P` keeps the directory a case starts it in off its import path, as the image's command does.
+  // It reads the document `--config` names, which states its health port: the harness chooses a free one for each world.
+  python: {
+    command: [join(REPO_ROOT, 'apps/librarian/.venv/bin/python'), '-P', '-m', 'semiont_librarian'],
+    configuredBy: 'document',
   },
 };
 

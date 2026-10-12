@@ -21,7 +21,7 @@ judge any implementation of the same spec.
 | [worker-service](worker-service/README.md) | a Worker service, as a process: on the bus through a real gateway, at a stand-in for each of its providers, and at its health port, with the suite playing the dispatcher and the record | `npm run test:worker-service` |
 | [weaver](weaver/README.md) | a Weaver, as a process: behind a real gateway and a real Archivist, in the neo4j it writes, on the bus, at its health port and in the telemetry it exports | `npm run test:weaver` |
 | [smelter](smelter/README.md) | a Smelter, as a process: behind a real gateway and a real Archivist, in the Qdrant and the anchored-text store it writes, on the bus, at a stand-in for its embedding provider, at its health port and in the telemetry it exports | `npm run test:smelter` |
-| [librarian](librarian/README.md) | a Librarian, as a process: behind a real gateway and a real Archivist, reading a neo4j a real Weaver writes and a Qdrant a real Smelter writes, on the bus, at a stand-in for its embedding provider and for each of its two models, and at its health port | `npm run test:librarian` |
+| [librarian](librarian/README.md) | each Librarian, the TypeScript one and the Python one, as a process: behind a real gateway and a real Archivist, reading a neo4j a real Weaver writes and a Qdrant a real Smelter writes, on the bus, at a stand-in for its embedding provider and for each of its two models, and at its health port | `npm run test:librarian` |
 
 They share one harness ([harness/](harness/)): the trusted issuer, a real
 `nats-server`, gateway, dispatcher, Archivist, Worker service, Weaver, Smelter and Librarian processes, bus streams checked message by
@@ -44,7 +44,8 @@ and the smelter suite a built Archivist, the packages built, the
 Smelter's environment, which `uv` makes as well, the `tesseract` program, and a
 Qdrant of its own, whose address it is told in `QDRANT_HOST`
 ([smelter/README.md](smelter/README.md)), and the librarian suite all that
-the weaver and smelter suites need, since it starts both
+the weaver and smelter suites need, since it starts both, and the Python
+Librarian's environment, which `uv` makes
 ([librarian/README.md](librarian/README.md)):
 
 ```bash
@@ -53,6 +54,7 @@ npm run build:packages
 uv sync --locked --no-dev --all-extras --project apps/worker
 uv sync --locked --no-dev --all-extras --project apps/weaver
 uv sync --locked --no-dev --project apps/smelter
+uv sync --locked --no-dev --all-extras --project apps/librarian
 cd tests/conformance
 npm ci
 npm test

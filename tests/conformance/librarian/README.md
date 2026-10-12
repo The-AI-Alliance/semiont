@@ -7,10 +7,13 @@ what the Librarian does against
 [docs/protocol/LIBRARIAN.md](../../../docs/protocol/LIBRARIAN.md).
 
 The suite imports nothing from a Librarian. The lines that name one are
-`LIBRARIAN_SERVICES` in [harness/paths.ts](../harness/paths.ts): today
-Semiont's own, the built entry of
+`LIBRARIAN_SERVICES` in [harness/paths.ts](../harness/paths.ts). There are
+two: the TypeScript Librarian, the built entry of
 [`@semiont/make-meaning`](../../../packages/make-meaning/README.md), run by
-`node`. Every case runs against every entry.
+`node`; and the Python Librarian of
+[`apps/librarian`](../../../apps/librarian/README.md), run by the interpreter
+of its locked environment. Every case runs against each, in a world of its
+own, one after the other.
 
 A Librarian writes nothing, so the suite reads no store to judge it. What a
 Librarian reads, the graph and the vector index, is written here by the two
@@ -84,16 +87,26 @@ NEO4J_HOST=localhost NEO4J_PASSWORD=a-password QDRANT_HOST=localhost npm run tes
 ```
 
 **One world at a time.** The files share the two databases, and the health
-ports of a Librarian, a Weaver and a Smelter are constants, so the project
-runs its files one after another.
+ports of the TypeScript Librarian, a Weaver and a Smelter are constants, so
+the project runs its files one after another, and a file runs its two worlds
+one after the other.
 
-The TypeScript Librarian is given its settings as it is given them by the
-launcher: a `.semiontconfig`, which the harness writes
-([harness/librarian-process.ts](../harness/librarian-process.ts)) into a home
-directory of the world's own, with the state volume the world's Archivist
-writes its views into named by `XDG_STATE_HOME`. The file states both numbers
-a deployment may leave to their defaults: how long a gather waits for a
-resource's vectors, and the floor of the semantic fallback.
+**Each Librarian is given the same settings, in the form it reads**
+([harness/librarian-process.ts](../harness/librarian-process.ts)). The
+TypeScript Librarian is given them as the launcher gives them: a
+`.semiontconfig`, which the harness writes into a home directory of the
+world's own, with the state volume the world's Archivist writes its views
+into named by `XDG_STATE_HOME`. The Python Librarian is given the protocol's
+configuration document
+([`LibrarianConfig`](../../../specs/src/components/schemas/LibrarianConfig.json)),
+which the harness writes into the same directory and names with `--config`.
+The document states the state volume and the health port too, a free port
+the harness chooses for each world, and its environment holds its service
+account, the graph database's password and `PATH`, and nothing else. Both
+forms state the two numbers a `.semiontconfig` may leave to their defaults:
+how long a gather waits for a resource's vectors, and the floor of the
+semantic fallback. A case that takes a setting away, or changes one, takes
+it out of the file or the document, or changes it there.
 
 One read is carried to the real Archivist by the harness. A Librarian reads a
 resource's anchored text from the gateway, and the gateway of an Archivist
@@ -109,7 +122,9 @@ the stand-in answers what the real Archivist answers when it is asked.
   a graph or a vector index that lives in one process's memory, a settle
   bound that is no time at all or does not end under the stall of a held job,
   half a service account, no password for the graph database, and a gateway
-  that does not answer.
+  that does not answer. Each refusal must name the setting as its Librarian
+  is told it, so the case states the words for each form: a key or a section
+  of a `.semiontconfig`, and a member of the document.
 - **Finding things** (`search.test.ts`): a reference search's candidates from
   each of its four sources, with a score and a reason, with its model's
   scoring and without, when the model or the embedding provider fails, and
@@ -137,8 +152,9 @@ the stand-in answers what the real Archivist answers when it is asked.
 
 ## Running it
 
-It needs a built gateway and Archivist, the packages built (the Librarian is
-one of them), the Python environments of the Weaver and the Smelter, `node`,
+It needs a built gateway and Archivist, the packages built (the TypeScript
+Librarian is one of them), the Python environments of the Python Librarian,
+the Weaver and the Smelter, `node`,
 `nats-server`, `git` and the `tesseract` program on `PATH`, a neo4j and a
 Qdrant:
 
@@ -147,6 +163,7 @@ cargo build --release -p semiont-gateway -p semiont-archivist
 npm run build:packages
 uv sync --locked --no-dev --all-extras --project apps/weaver
 uv sync --locked --no-dev --project apps/smelter
+uv sync --locked --no-dev --all-extras --project apps/librarian
 cd tests/conformance
 npm ci
 NEO4J_HOST=<address> NEO4J_PASSWORD=<password> QDRANT_HOST=<address> npm run test:librarian

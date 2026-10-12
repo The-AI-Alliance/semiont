@@ -3,31 +3,49 @@
  *
  * A Librarian is one of `LIBRARIAN_SERVICES`, its settings and an
  * environment. The settings are what a Librarian is told, whatever form its
- * implementation reads them in. The TypeScript Librarian reads a
- * `.semiontconfig` in its home directory, and finds the state volume by
- * `XDG_STATE_HOME`: the harness writes that file, as the launcher stages one,
- * into a home directory of the process's own. The environment holds its
- * service account, the graph database's password under the name its settings
- * give it, and PATH, which finds its command; nothing else from the
- * developer's shell.
+ * implementation reads them in, and the harness writes them in that form into
+ * a home directory of the process's own.
  *
- * A Librarian's health port is a constant, so two cannot run at once: a
- * Librarian is not started while anything answers there.
+ * The TypeScript Librarian reads a `.semiontconfig` in its home directory, as
+ * the launcher stages one, and finds the state volume by `XDG_STATE_HOME`.
+ * Its environment holds those two, its service account, the graph database's
+ * password under the name its settings give it, and PATH, which finds its
+ * command.
+ *
+ * The Python Librarian reads the protocol's configuration document
+ * (`LibrarianConfig`) at the path `--config` names, which states everything
+ * else, its health port among it. Its environment holds its service account,
+ * the graph database's password under the name its document gives it, and
+ * PATH.
+ *
+ * Neither is given anything else from the developer's shell.
+ *
+ * Every Librarian a world starts is given the world's one health port, so
+ * two cannot run at once: a Librarian is not started while anything answers
+ * there.
  */
 import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type { components } from '@semiont/core';
 import { collectLines } from './gateway';
 import { call } from './http';
 
-/** How one implementation of the Librarian is started and reached. */
-export interface LibrarianService {
-  command: readonly string[];
-  /** The port its health answers on. */
-  healthPort: number;
-  /** How its settings reach it: `semiontconfig` is a `.semiontconfig` in its home directory, with the state volume named by `XDG_STATE_HOME`. */
-  configuredBy: 'semiontconfig';
-}
+/**
+ * How one implementation of the Librarian is started, and how its settings
+ * reach it.
+ *
+ * `semiontconfig` is a `.semiontconfig` in its home directory, with the state
+ * volume named by `XDG_STATE_HOME`. Such a Librarian is told no health port:
+ * `healthPort` is the one it answers on.
+ *
+ * `document` is the protocol's configuration document (`LibrarianConfig`), at
+ * the path `--config` names. It states the health port, so the harness
+ * chooses one.
+ */
+export type LibrarianService =
+  | { command: readonly string[]; configuredBy: 'semiontconfig'; healthPort: number }
+  | { command: readonly string[]; configuredBy: 'document' };
 
 /** Who serves a model: the provider's kind, the model and the provider's address. */
 export interface ModelSettings {
@@ -84,6 +102,12 @@ export interface LibrarianLaunch {
   env: LibrarianEnvironment;
   /** The Librarian's home directory. */
   home: string;
+  /**
+   * The port its health answers on. A Librarian that reads a document is told
+   * it there. One that reads a `.semiontconfig` is not told it, and this is
+   * its service's `healthPort`.
+   */
+  port: number;
 }
 
 export interface LibrarianProcess {
@@ -152,9 +176,51 @@ function semiontconfig(settings: LibrarianSettings): string {
   return `${tables.join('\n\n')}\n`;
 }
 
+// ── The settings, as the document a Python Librarian reads ─────────────────
+
+type LibrarianDocument = components['schemas']['LibrarianConfig'];
+
+/** The document as a case may leave it: any member left out, and `identity` without its issuer. */
+type WrittenDocument = {
+  [Member in keyof LibrarianDocument]: (Member extends 'identity' ? { issuer: string | undefined } : LibrarianDocument[Member]) | undefined;
+};
+
+/** An actor's model as the document states it: who the agent is, and where its provider is reached. */
+const actor = (settings: ModelSettings | undefined): LibrarianDocument['matcher'] | undefined =>
+  settings === undefined ? undefined : { agent: { provider: settings.type, model: settings.model }, baseUrl: settings.baseUrl };
+
+/**
+ * The settings as the protocol's configuration document states them
+ * (`LibrarianConfig`). A setting a case left out is a member left out, which
+ * the document's reader refuses by name. The graph's password is named by its
+ * variable, never written. No case changes how the Librarian logs: the log is
+ * written as a person reads it.
+ */
+function document(settings: LibrarianSettings, port: number): string {
+  const written: WrittenDocument = {
+    gatewayUrl: settings.gatewayUrl,
+    identity: { issuer: settings.issuer },
+    archivist: settings.archivist,
+    stateHome: settings.stateHome,
+    kbName: settings.kbName,
+    graph: settings.graph,
+    vectors: settings.vectors,
+    embedding: settings.embedding,
+    matcher: actor(settings.matcher),
+    gatherer: actor(settings.gatherer),
+    gather: settings.settleTimeoutMs === undefined ? undefined : { settleTimeoutMs: settings.settleTimeoutMs },
+    search: settings.semanticFloor === undefined ? undefined : { semanticFloor: settings.semanticFloor },
+    port,
+    logLevel: 'info',
+    logFormat: 'simple',
+  };
+  // A member that states nothing is not written.
+  return JSON.stringify(written);
+}
+
 // ── The process ────────────────────────────────────────────────────────────
 
-const originOf = (service: LibrarianService) => `http://127.0.0.1:${service.healthPort}`;
+const originOf = (port: number) => `http://127.0.0.1:${port}`;
 
 async function healthOf(origin: string): Promise<LibrarianHealth | undefined> {
   try {
@@ -165,17 +231,24 @@ async function healthOf(origin: string): Promise<LibrarianHealth | undefined> {
   }
 }
 
-async function launch({ service, settings, env, home }: LibrarianLaunch): Promise<{ child: ChildProcess; output: string[]; exited: Promise<number | null> }> {
-  const origin = originOf(service);
+async function launch({ service, settings, env, home, port }: LibrarianLaunch): Promise<{ child: ChildProcess; output: string[]; exited: Promise<number | null> }> {
+  const origin = originOf(port);
   if (await healthOf(origin)) {
-    throw new Error(`something already answers at ${origin}/health: a Librarian's health port is a constant, so the one that is running is stopped before another is started`);
+    throw new Error(`something already answers at ${origin}/health: the Librarian that is running there is stopped before another is started on its port`);
   }
   mkdirSync(home, { recursive: true });
-  writeFileSync(join(home, '.semiontconfig'), semiontconfig(settings));
-  const childEnv: Record<string, string> = { PATH: process.env['PATH'] ?? '', HOME: home };
-  if (settings.stateHome !== undefined) childEnv['XDG_STATE_HOME'] = settings.stateHome;
-  for (const [name, value] of Object.entries(env)) if (value !== undefined) childEnv[name] = value;
+  const childEnv: Record<string, string> = { PATH: process.env['PATH'] ?? '' };
   const [program, ...args] = service.command;
+  if (service.configuredBy === 'semiontconfig') {
+    writeFileSync(join(home, '.semiontconfig'), semiontconfig(settings));
+    childEnv['HOME'] = home;
+    if (settings.stateHome !== undefined) childEnv['XDG_STATE_HOME'] = settings.stateHome;
+  } else {
+    const path = join(home, 'librarian.json');
+    writeFileSync(path, document(settings, port));
+    args.push('--config', path);
+  }
+  for (const [name, value] of Object.entries(env)) if (value !== undefined) childEnv[name] = value;
   const child = spawn(program!, args, { env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] });
   const output: string[] = [];
   collectLines(child.stdout!, [output]);
@@ -190,7 +263,7 @@ async function launch({ service, settings, env, home }: LibrarianLaunch): Promis
  */
 export async function startLibrarian(options: LibrarianLaunch, bootMs = 120_000): Promise<LibrarianProcess> {
   const { child, output, exited } = await launch(options);
-  const origin = originOf(options.service);
+  const origin = originOf(options.port);
   let gone = false;
   void exited.then(() => {
     gone = true;
@@ -240,7 +313,7 @@ export async function startLibrarian(options: LibrarianLaunch, bootMs = 120_000)
  */
 export async function refusedLibrarianBoot(options: LibrarianLaunch, timeoutMs = 60_000): Promise<{ code: number | null; output: string }> {
   const { child, output, exited } = await launch(options);
-  const origin = originOf(options.service);
+  const origin = originOf(options.port);
   let done = false;
   let served = false;
   let waitedOut = false;

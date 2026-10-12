@@ -793,8 +793,8 @@ jobs:
             package-lock.json
             tests/conformance/package-lock.json
 
-      # The suite starts the built entry of @semiont/make-meaning, which runs
-      # on the other built packages.
+      # The suite starts the TypeScript Librarian by the built entry of
+      # @semiont/make-meaning, which runs on the other built packages.
       - name: Install dependencies
         run: |
           npm ci --include=optional
@@ -841,11 +841,13 @@ jobs:
           echo "Qdrant did not answer within two minutes"
           exit 1
 
-      # The suite starts the Python Weaver and the Python Smelter by the
-      # interpreters of their projects' locked environments (harness/paths.ts):
-      # the environments their images have, on the Python the SDK's floor
-      # names, without the development group. The Smelter reads a scanned
-      # page with the `tesseract` program, as its image does.
+      # The suite starts the Python Librarian, the Python Weaver and the Python
+      # Smelter by the interpreters of their projects' locked environments
+      # (harness/paths.ts): the environments their images have, on the Python
+      # the SDK's floor names, without the development group. The Librarian
+      # and the Weaver have every database's client, and the Librarian every
+      # provider's library. The Smelter reads a scanned page with the
+      # `tesseract` program, as its image does.
       - name: Setup Python
         uses: actions/setup-python@v7.0.0
         with:
@@ -865,6 +867,9 @@ jobs:
 
       - name: Make the Smelter's environment
         run: uv sync --locked --no-dev --project apps/smelter
+
+      - name: Make the Python Librarian's environment
+        run: uv sync --locked --no-dev --all-extras --project apps/librarian
 
       # Black-box: it starts Librarian processes behind a gateway, beside an
       # Archivist, a Weaver and a Smelter, records through the Archivist, and

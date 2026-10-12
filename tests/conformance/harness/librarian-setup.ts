@@ -25,7 +25,10 @@ declare module 'vitest' {
 }
 
 /** What builds each implementation of each service the run starts, said when a file its command names is missing. */
-const LIBRARIAN_BUILDS: Readonly<Record<string, string>> = { typescript: '`npm run build:packages` at the repository root' };
+const LIBRARIAN_BUILDS: Readonly<Record<string, string>> = {
+  typescript: '`npm run build:packages` at the repository root',
+  python: '`uv sync --locked --no-dev --all-extras --project apps/librarian` at the repository root',
+};
 const WEAVER_BUILDS: Readonly<Record<string, string>> = { python: '`uv sync --locked --no-dev --all-extras --project apps/weaver` at the repository root' };
 const SMELTER_BUILDS: Readonly<Record<string, string>> = { python: '`uv sync --locked --no-dev --project apps/smelter` at the repository root' };
 
