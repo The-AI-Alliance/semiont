@@ -92,6 +92,29 @@ Smelter to `serving` only, and waits on `reconciled()`.
   refusal to start, without either half of its service account, without the
   directory of the anchored-text store, and without each setting it is told;
   and that a provider answering 404 as it starts is asked again.
+- **As the record changes** (`index.test.ts`): what a recorded text becomes,
+  by the table's points and the provider's vectors; a long text's several
+  points; an update, an archive and an unarchive; an annotation added and
+  removed, and one that quotes nothing; entity types rewritten with nothing
+  embedded; an image and a blank text skipped, by reason, and logged; and
+  that bytes it cannot read, or text it cannot get vectors for, change
+  nothing and stop nothing.
+- **Given a PDF** (`pdf.test.ts`): that a PDF with text of its own is indexed
+  from it; that what deriving came to is stored under the checksum of the
+  bytes, a decline too, before the decision is signalled, and is what the
+  Archivist then serves; that a resource is indexed though its entry cannot
+  be written; and the rebuild command, naming a resource and naming none:
+  what it derives, that it embeds nothing and deletes nothing, and what it
+  answers when it could not do every resource.
+- **Starting after things changed** (`reconcile.test.ts`): an index and an
+  anchored-text store that were cleared, points taken out, bytes and entity
+  types changed, an entry lost, a resource archived, and annotations added
+  and removed, each while the Smelter was stopped; what its reconcile then
+  mends, what it asks of its provider, and what it reports.
+- **Asking its provider** (`provider.test.ts`): a batch cut into slices of
+  128, each text given the vector that came back for it; one request at a
+  time; and a request that fails, which leaves its resource with no points
+  until the Smelter next starts.
 
 ## Running it
 

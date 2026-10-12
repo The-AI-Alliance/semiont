@@ -102,58 +102,58 @@ entity types from its description as the Archivist answers it then.
 
 - **`yield:created`, `yield:updated` and `yield:representation-added` index
   the resource** ([Indexing a resource](#indexing-a-resource)).
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`.*
+  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts` and `smelter/index`.*
 - **Nothing in such an event's payload changes what is indexed.**
   *Held by `packages/make-meaning/src/__tests__/smelter-axioms.test.ts`.*
 - **`mark:archived` takes the resource's points out of the index, and the
   points of every annotation on it.**
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`.*
+  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts` and `smelter/index`.*
 - **`mark:unarchived` indexes the resource, and then each annotation the
   Archivist answers for it,** so that an unarchived resource is found again
   without a restart.
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`.*
+  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts` and `smelter/index`.*
 - **`mark:added` indexes the annotation the event carries**
   ([Indexing an annotation](#indexing-an-annotation)).
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`.*
+  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts` and `smelter/index`.*
 - **`mark:removed` takes the annotation's point out.** Removing one that is
   not there changes nothing.
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`.*
+  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts` and `smelter/index`.*
 - **`mark:entity-tag-added` and `mark:entity-tag-removed` rewrite the entity
   types on the resource's points to the resource's entity types as they now
   are, and ask nothing of the embedding provider.** A resource with no points
   is left with none: its entity types are written when it is next indexed.
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts` and `packages/vectors/src/__tests__/store-cases.test.ts`.*
+  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`, `packages/vectors/src/__tests__/store-cases.test.ts` and `smelter/index`.*
 
 ### Indexing a resource
 
 - **It reads the resource's bytes and takes their checksum before it decides
   anything,** so that whatever it decides is said of those bytes.
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`.*
+  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts` and `smelter/index`.*
 - **The resource's media type says where its text comes from**
   ([`specs/src/media-types/registry.json`](../../specs/src/media-types/registry.json)):
   decoded from the bytes, derived from a PDF ([A PDF's text](#a-pdfs-text)),
   or nowhere. A `text/` type the registry does not list is decoded.
-  *Held by `packages/make-meaning/src/__tests__/smelter-axioms.test.ts`.*
+  *Held by `packages/make-meaning/src/__tests__/smelter-axioms.test.ts` and `smelter/index`.*
 - **Decoded text is the text the protocol says those bytes are**
   ([W3C-SELECTORS.md](./W3C-SELECTORS.md#the-text-of-a-resource)).
   *Held by `packages/core/src/__tests__/decode-cases.test.ts`.*
 - **The text is cut into chunks as
   [`chunk-cases.json`](../../specs/src/text/chunk-cases.json) states,** by
   the two numbers of its settings.
-  *Held by `packages/core/src/__tests__/chunk-cases.test.ts`.*
+  *Held by `packages/core/src/__tests__/chunk-cases.test.ts` and `smelter/index`.*
 - **Every chunk is embedded before any point is written.** A resource whose
   chunks could not all be embedded keeps the points it had.
-  *Held by no case.*
+  *Held by `smelter/index`.*
 - **The resource's points are then replaced by the new ones, all of them.** A
   resource whose text grew shorter keeps no point of the longer text.
-  *Held by `packages/vectors/src/__tests__/store-cases.test.ts`.*
+  *Held by `packages/vectors/src/__tests__/store-cases.test.ts` and `smelter/index`.*
 - **Each point carries the chunk's text and its place among the chunks, the
   checksum of the bytes, the resource's entity types, and a mark when the
   text was read from pixels,** as
   [`payload-cases.json`](../../specs/src/vectors/payload-cases.json) states.
-  *Held by `packages/vectors/src/__tests__/payload-cases.test.ts`.*
+  *Held by `packages/vectors/src/__tests__/payload-cases.test.ts` and `smelter/index`.*
 - **Only a resource whose bytes gave text has points.**
-  *Held by `packages/make-meaning/src/__tests__/smelter-axioms.test.ts`.*
+  *Held by `packages/make-meaning/src/__tests__/smelter-axioms.test.ts` and `smelter/index`.*
 
 ### Indexing an annotation
 
@@ -161,9 +161,9 @@ entity types from its description as the Archivist answers it then.
   with the annotation's id, its resource, its motivation, its entity types
   and that text, as
   [`payload-cases.json`](../../specs/src/vectors/payload-cases.json) states.
-  *Held by `packages/vectors/src/__tests__/payload-cases.test.ts`.*
+  *Held by `packages/vectors/src/__tests__/payload-cases.test.ts` and `smelter/index`.*
 - **An annotation that quotes no text, or only white space, has no point.**
-  *Held by `packages/make-meaning/src/__tests__/reconcile-cases.test.ts`.*
+  *Held by `packages/make-meaning/src/__tests__/reconcile-cases.test.ts` and `smelter/index`.*
 - **An annotation on a resource whose text was read from pixels carries the
   same mark,** read from the resource's points and not worked out again.
   *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`.*
@@ -181,7 +181,7 @@ entity types from its description as the Archivist answers it then.
 - **An event that fails is logged and passed by.** The events of other
   resources are applied, and what was missed is found when the Smelter next
   starts ([Reconcile](#reconcile)).
-  *Held by `packages/make-meaning/src/__tests__/smelter-axioms.test.ts`.*
+  *Held by `packages/make-meaning/src/__tests__/smelter-axioms.test.ts`, `smelter/index` and `smelter/provider`.*
 - **The work a start plans, and a rebuild's, takes its turn among a
   resource's events as an event does.** So it never puts back what a later
   event changed.
@@ -196,25 +196,25 @@ and says so.
   checksum of the bytes it read, and `indexed` or `skipped`. A reader waits
   on that signal to know the Smelter has done with bytes it just saw
   recorded.
-  *Held by `packages/make-meaning/src/__tests__/smelter-axioms.test.ts`.*
+  *Held by `packages/make-meaning/src/__tests__/smelter-axioms.test.ts`, `smelter/index` and `smelter/pdf`.*
 - **`indexed` is signalled once the points are written.**
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`.*
+  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts` and `smelter/index`.*
 - **`skipped` carries its reason,** one of six: `no-extractor`, the media
   type has no text; `empty`, the text is nothing but white space;
   `no-text-layer`, `encrypted`, `corrupt` and `too-large`, the ways a PDF is
   declined ([A PDF's text](#a-pdfs-text)).
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`.*
+  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`, `smelter/index` and `smelter/pdf`.*
 - **A skipped resource has no points.** Points made from bytes it had before
   are taken out.
-  *Held by `packages/make-meaning/src/__tests__/smelter-axioms.test.ts`.*
+  *Held by `packages/make-meaning/src/__tests__/smelter-axioms.test.ts`, `smelter/index` and `smelter/pdf`.*
 - **Every skip is logged as a warning, with the resource, the reason, the
   media type and the checksum.** A resource is never left out of the index
   without a line that says so.
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`.*
+  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts` and `smelter/index`.*
 - **Bytes it could not read are not a decision.** Nothing is signalled, the
   index is not changed, and the failure is logged. Whoever waits is left to
   the end of its own wait.
-  *Held by `packages/make-meaning/src/__tests__/smelter-axioms.test.ts`.*
+  *Held by `packages/make-meaning/src/__tests__/smelter-axioms.test.ts` and `smelter/index`.*
 - **A signal that cannot be sent does not undo what was indexed.**
   *Held by no case.*
 
@@ -226,7 +226,7 @@ states what each kind of document becomes.
 
 - **A document with a text layer of its own is read from that layer,** run by
   run, each with its place on its page.
-  *Held by `packages/content/src/__tests__/extraction-cases.test.ts`.*
+  *Held by `packages/content/src/__tests__/extraction-cases.test.ts` and `smelter/pdf`.*
 - **A scanned document is read from its pixels:** each page's images are
   taken out and read by OCR, and each word is placed on the page by the place
   of the image it was read from. No fixture of the table has a word in its
@@ -245,36 +245,40 @@ states what each kind of document becomes.
   declined, by name,** and one too large is declined before anything parses
   it. A scanned document in which nothing can be read is declined as having
   no text layer.
-  *Held by `packages/content/src/__tests__/extraction-cases.test.ts`.*
+  *Held by `packages/content/src/__tests__/extraction-cases.test.ts` and `smelter/pdf`.*
 - **An encrypted document is declined, by name.** No fixture is encrypted.
   *Held by `packages/content/src/__tests__/pdf-extractor.test.ts`.*
 - **The outcome says how the text was got** (its `method`), and text read by
   OCR is marked on every point made from it.
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`.*
+  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts` and `smelter/pdf`.*
 
 ### The anchored-text store
 
 - **The Smelter is the store's only writer.** The Archivist reads it, and
   answers a resource's anchored text from it
-  ([ARCHIVIST.md](./ARCHIVIST.md#the-http-surface)). *Held by no case.*
+  ([ARCHIVIST.md](./ARCHIVIST.md#the-http-surface)). *Held by `smelter/pdf`.*
 - **What deriving a PDF's text came to is stored under the checksum of the
   bytes, a decline as well as a text,** as an
   [`AnchoredTextEntry`](../../specs/src/components/schemas/AnchoredTextEntry.json).
-  *Held by `packages/content/src/__tests__/anchored-text-cache.test.ts`.*
+  *Held by `packages/content/src/__tests__/anchored-text-cache.test.ts` and `smelter/pdf`.*
+- **The entry is stored before the decision is signalled,** so whoever hears
+  that content was settled finds its entry.
+  *Held by `smelter/pdf`.*
 - **Text that has no places on a page has no entry.**
-  *Held by `packages/make-meaning/src/__tests__/smelter-anchored-text.test.ts`.*
+  *Held by `packages/make-meaning/src/__tests__/smelter-anchored-text.test.ts` and `smelter/pdf`.*
 - **Bytes whose outcome is stored are not derived again:** the stored outcome
   is what is indexed.
   *Held by `packages/make-meaning/src/__tests__/smelter.test.ts` and `packages/content/src/__tests__/anchored-text-cache.test.ts`.*
 - **An entry that cannot be written does not stop the resource being
   indexed.** The entry is found missing when the Smelter next starts
   ([Reconcile](#reconcile)).
-  *Held by `packages/make-meaning/src/__tests__/smelter-anchored-text.test.ts`.*
+  *Held by `packages/make-meaning/src/__tests__/smelter-anchored-text.test.ts` and `smelter/pdf`.*
 - **The writer states its stamp:** the store's directory holds a file,
   `STAMP`, with the stamp its entries carry, and a reader takes no entry
-  under another. An entry made by a Smelter that derives text another way is
-  then a miss, and is derived again.
-  *Held by `packages/content/src/__tests__/anchored-text-cache.test.ts`.*
+  under another, nor one of another version of the entry's form. An entry
+  made by a Smelter that derives text another way is then a miss, and is
+  derived again.
+  *Held by `packages/content/src/__tests__/anchored-text-cache.test.ts` and `smelter/pdf`.*
 
 ## The index
 
@@ -297,19 +301,19 @@ A Smelter asks one provider for its vectors: an Ollama
 (`POST <address>/api/embed`, with the model and a list of texts), or Voyage
 (`POST https://api.voyageai.com/v1/embeddings`, with a bearer key).
 
-- **A batch of texts is cut into slices of 128, each one request,** and the
-  vectors are given back in the order of the texts.
-  *Held by `packages/vectors/src/__tests__/embed-batch-slicing.test.ts`.*
+- **A batch of texts is cut into slices of 128, each one request, made in
+  the order of the texts,** and the vectors are given back in that order.
+  *Held by `packages/vectors/src/__tests__/embed-batch-slicing.test.ts` and `smelter/provider`.*
 - **Each request has 15 seconds of its own,** counted from when it is sent
   and not from when its batch began.
   *Held by `packages/vectors/src/__tests__/embed-batch-slicing.test.ts`.*
 - **One request at a time is made of an Ollama, and four of Voyage,** however
   many resources are being indexed.
-  *Held by `packages/vectors/src/__tests__/embed-batch-slicing.test.ts`.*
+  *Held by `packages/vectors/src/__tests__/embed-batch-slicing.test.ts` and `smelter/provider`.*
 - **A request that fails fails its whole batch, and says which provider,
   which model, what status and which slice.** The resource it was for gets no
   points from that attempt.
-  *Held by `packages/vectors/src/__tests__/embed-batch-slicing.test.ts` and `packages/vectors/src/__tests__/cold-embedding-model.test.ts`.*
+  *Held by `packages/vectors/src/__tests__/embed-batch-slicing.test.ts`, `packages/vectors/src/__tests__/cold-embedding-model.test.ts` and `smelter/provider`.*
 - **A provider that answers 404 when the Smelter starts is taken to be still
   fetching the model, and one that cannot be reached to be still starting:
   either is asked again,** up to twelve times, within the time the Smelter
@@ -349,37 +353,37 @@ in prose.
   *Held by no case.*
 - **A resource of the catalog whose media type has text, and which has no
   points, is indexed.**
-  *Held by `packages/make-meaning/src/__tests__/reconcile-cases.test.ts`.*
+  *Held by `packages/make-meaning/src/__tests__/reconcile-cases.test.ts` and `smelter/reconcile`.*
 - **One whose points carry another checksum than the catalog states is
   indexed again.**
-  *Held by `packages/make-meaning/src/__tests__/reconcile-cases.test.ts`.*
+  *Held by `packages/make-meaning/src/__tests__/reconcile-cases.test.ts` and `smelter/reconcile`.*
 - **One whose points carry the catalog's checksum and other entity types has
   its entity types rewritten, and nothing is embedded.**
-  *Held by `packages/make-meaning/src/__tests__/reconcile-cases.test.ts` and `packages/make-meaning/src/__tests__/smelter-axioms.test.ts`.*
+  *Held by `packages/make-meaning/src/__tests__/reconcile-cases.test.ts`, `packages/make-meaning/src/__tests__/smelter-axioms.test.ts` and `smelter/reconcile`.*
 - **One whose points carry the catalog's checksum, whose text has places on a
   page, and whose bytes the anchored-text store has no entry for, has its
   anchored text derived again,** from the bytes as they now are, and filed
   under their checksum. Nothing is embedded, the index is not touched, and
   nothing is signalled.
-  *Held by `packages/make-meaning/src/__tests__/reconcile-cases.test.ts` and `packages/make-meaning/src/__tests__/smelter-axioms.test.ts`.*
+  *Held by `packages/make-meaning/src/__tests__/reconcile-cases.test.ts`, `packages/make-meaning/src/__tests__/smelter-axioms.test.ts` and `smelter/reconcile`.*
 - **Points of a resource that is none of the catalog's resources with text
   are taken out:** one that is archived, one that is gone, one whose media
   type has no text.
-  *Held by `packages/make-meaning/src/__tests__/reconcile-cases.test.ts`.*
+  *Held by `packages/make-meaning/src/__tests__/reconcile-cases.test.ts` and `smelter/reconcile`.*
 - **An annotation that quotes text, on any resource of the catalog, and has
   no point is indexed; a point whose annotation is not among them is taken
   out.**
-  *Held by `packages/make-meaning/src/__tests__/reconcile-cases.test.ts`.*
+  *Held by `packages/make-meaning/src/__tests__/reconcile-cases.test.ts` and `smelter/reconcile`.*
 - **Where it plans to index a resource and an annotation on it, the resource
   comes first,** since an annotation's point takes its mark of text read from
   pixels from the resource's points as they then are. The rest of the work is
   in no stated order.
-  *Held by `packages/make-meaning/src/__tests__/reconcile-cases.test.ts`.*
+  *Held by `packages/make-meaning/src/__tests__/reconcile-cases.test.ts` and `smelter/reconcile`.*
 - **The work is done at most eight items at a time,** each in its turn among
   its resource's events ([Order](#order)). *Held by no case.*
 - **An index that was cleared is filled again whole** by this pass, when the
   Smelter next starts. So is an anchored-text store that was cleared.
-  *Held by `packages/make-meaning/src/__tests__/smelter-axioms.test.ts`.*
+  *Held by `packages/make-meaning/src/__tests__/smelter-axioms.test.ts` and `smelter/reconcile`.*
 - **It reports** what the resources it set out to index came to: how many
   were indexed (`resourcesEmbedded`), skipped, by reason
   (`resourcesSkipped`), unread (`resourcesUnavailable`), and failed
@@ -390,24 +394,27 @@ in prose.
   out (`annotationVectorsDeleted`); and how many resources of the catalog
   have text (`resourcesEligible`) and how many have points when it ends
   (`resourcesIndexed`).
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts` and `smelter/boot`.*
+  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`, `smelter/boot` and `smelter/reconcile`.*
 
 ## Rebuild
 
 - **`smelt:rebuild-anchors` naming a resource derives that resource's
-  anchored text again; naming none, that of every resource of the catalog
-  whose text has places on a page.**
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`.*
-- **Nothing is deleted first.** An entry is written over, so a rebuild that
-  fails part way has lost nothing. *Held by no case.*
+  anchored text where the store has no entry for its bytes; naming none, that
+  of every resource of the catalog whose text has places on a page.** A
+  document that is declined is done, and its decline is what is stored. A
+  resource named that has no such text is done, with nothing derived.
+  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts` and `smelter/pdf`.*
+- **Nothing is deleted first, and an entry that is there is kept.** So a
+  rebuild that fails part way has lost nothing. *Held by `smelter/pdf`.*
 - **Nothing is embedded, and the index is not touched.**
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`.*
-- **Rebuilds are done one at a time, and one asked for while reconcile runs
-  waits for it.** *Held by no case.*
+  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts` and `smelter/pdf`.*
+- **Rebuilds are done one at a time, and never while the work of reconcile
+  is being done:** of a rebuild and a reconcile, the one whose work is ready
+  first is done first, and the other waits. *Held by no case.*
 - **It answers `smelt:rebuild-anchors-ok` when every resource was done, and
   `smelt:rebuild-anchors-failed`, saying how many of how many were not,
   otherwise.** The ones that could be done are done.
-  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts`.*
+  *Held by `packages/make-meaning/src/__tests__/smelter.test.ts` and `smelter/pdf`.*
 
 ## Health
 
@@ -418,7 +425,7 @@ in prose.
   *Held by `smelter/boot`.*
 - **The work of reconcile and of a rebuild is not counted among the events
   processed.**
-  *Held by `packages/make-meaning/src/__tests__/smelter-axioms.test.ts` and `smelter/boot`.*
+  *Held by `packages/make-meaning/src/__tests__/smelter-axioms.test.ts`, `smelter/boot` and `smelter/reconcile`.*
 - **`status` is `ok` whenever the Smelter answers.** It says nothing of
   whether the Smelter can reach the gateway, its provider or its index.
   *Held by no case.*
