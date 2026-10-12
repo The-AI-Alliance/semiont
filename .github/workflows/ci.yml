@@ -248,7 +248,7 @@ jobs:
       # with JetStream, and spawns it from PATH.
       - name: Install nats-server
         run: |
-          NATS_VERSION=v2.14.0
+          NATS_VERSION=v2.15.0
           curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
           sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
           nats-server --version
@@ -309,7 +309,7 @@ jobs:
       # The dispatcher's queue is JetStream, on a real broker spawned from PATH.
       - name: Install nats-server
         run: |
-          NATS_VERSION=v2.14.0
+          NATS_VERSION=v2.15.0
           curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
           sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
           nats-server --version
@@ -371,7 +371,7 @@ jobs:
       # The harness's global setup refuses to run without a broker on PATH.
       - name: Install nats-server
         run: |
-          NATS_VERSION=v2.14.0
+          NATS_VERSION=v2.15.0
           curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
           sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
           nats-server --version
@@ -435,7 +435,7 @@ jobs:
       # from PATH.
       - name: Install nats-server
         run: |
-          NATS_VERSION=v2.14.0
+          NATS_VERSION=v2.15.0
           curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
           sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
           nats-server --version
@@ -510,7 +510,7 @@ jobs:
       # from PATH.
       - name: Install nats-server
         run: |
-          NATS_VERSION=v2.14.0
+          NATS_VERSION=v2.15.0
           curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
           sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
           nats-server --version
@@ -591,7 +591,7 @@ jobs:
       # The harness's global setup refuses to run without a broker on PATH.
       - name: Install nats-server
         run: |
-          NATS_VERSION=v2.14.0
+          NATS_VERSION=v2.15.0
           curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
           sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
           nats-server --version
@@ -691,7 +691,7 @@ jobs:
       # The harness's global setup refuses to run without a broker on PATH.
       - name: Install nats-server
         run: |
-          NATS_VERSION=v2.14.0
+          NATS_VERSION=v2.15.0
           curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
           sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
           nats-server --version
@@ -802,7 +802,7 @@ jobs:
       # The harness's global setup refuses to run without a broker on PATH.
       - name: Install nats-server
         run: |
-          NATS_VERSION=v2.14.0
+          NATS_VERSION=v2.15.0
           curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
           sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
           nats-server --version
@@ -945,7 +945,7 @@ jobs:
       # The suite's setup looks for a broker on PATH, as every suite's does.
       - name: Install nats-server
         run: |
-          NATS_VERSION=v2.14.0
+          NATS_VERSION=v2.15.0
           curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
           sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
           nats-server --version
