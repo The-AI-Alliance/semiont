@@ -121,7 +121,7 @@
   },
   "devDependencies": {
     "@exodus/bytes": "1.16.0",
-    "@opencode-ai/models": "0.0.98",
+    "@opencode-ai/models": "0.0.99",
     "@redocly/cli": "^2.34.0",
     "glob": "^13.0.6",
     "@types/node": "^26.0.0",
