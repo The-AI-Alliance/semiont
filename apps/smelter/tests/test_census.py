@@ -63,6 +63,7 @@ SURFACE = {
         "Reanchor",
         "ReconcileSummary",
         "Restamp",
+        "RestampAnnotation",
         "Work",
         "classify_embeddable",
         "plan_reconcile",
@@ -198,10 +199,10 @@ def test_each_engine_is_reached_by_one_module_and_the_rules_know_neither() -> No
 
 def test_the_events_it_follows_are_the_ones_the_protocol_lists_and_each_does_something() -> None:
     page = (ROOT / "docs/protocol/SMELTER.md").read_text(encoding="utf-8")
-    rule = re.search(r"\*\*It follows nine recorded events:\*\*(.*?)\*Held by", page, re.DOTALL)
+    rule = re.search(r"\*\*It follows eleven recorded events:\*\*(.*?)\*Held by", page, re.DOTALL)
     assert rule is not None, "docs/protocol/SMELTER.md no longer lists the events a Smelter follows"
     assert sorted(re.findall(r"`([a-z]+:[a-z-]+)`", rule.group(1))) == sorted(FOLLOWED)
-    assert len(FOLLOWED) == len(set(FOLLOWED)) == 9
+    assert len(FOLLOWED) == len(set(FOLLOWED)) == 11
     # What each does is one `match` over the event's type: an event that is followed and has no case there is
     # delivered, handed to its lane, and fails.
     source = (SRC / "smelter.py").read_text(encoding="utf-8")

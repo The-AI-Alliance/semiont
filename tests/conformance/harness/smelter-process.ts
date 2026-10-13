@@ -59,6 +59,7 @@ export interface ReconcileSummary {
   resourcesReanchored: number;
   resourceVectorsDeleted: number;
   annotationsEmbedded: number;
+  annotationsRestamped: number;
   annotationVectorsDeleted: number;
   resourcesEligible: number;
   resourcesIndexed: number;

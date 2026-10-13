@@ -23,6 +23,7 @@ from semiont.identifiers import AnnotationId, ResourceId
 
 __all__ = [
     "AnnotationPayload",
+    "AnnotationStamp",
     "CollectionAbsent",
     "EmbeddingChunk",
     "ResourceStamp",
@@ -72,6 +73,17 @@ class ResourceStamp:
     """The entity types the points were given, in the order given. Empty for points that state none."""
     machine_read: bool = False
     """Whether the text was read from pixels."""
+
+
+@final
+@dataclass(frozen=True, slots=True, kw_only=True)
+class AnnotationStamp:
+    """What an annotation's point says of it, without its text or its vector."""
+
+    resource_id: ResourceId | None
+    """The resource the point says the annotation is on. `None` for a point that names none."""
+    entity_types: tuple[str, ...]
+    """The entity types the point carries, in its order. Empty for a point that states none."""
 
 
 @final
@@ -221,6 +233,14 @@ class VectorStore(VectorReader, Protocol):
         """Make an annotation's one point this: the vector of the text it quotes, and what the point says of it."""
         ...
 
+    async def update_annotation_entity_types(self, annotation_id: AnnotationId, entity_types: Sequence[str]) -> None:
+        """Set the entity types on an annotation's point, and change nothing else.
+
+        No vector is touched and nothing is embedded. An annotation with no
+        point is left with none, and it is no failure.
+        """
+        ...
+
     async def delete_resource_vectors(self, resource_id: ResourceId) -> None:
         """Take every point of a resource's chunks. The points of annotations on it stay."""
         ...
@@ -241,6 +261,10 @@ class VectorStore(VectorReader, Protocol):
         """The stamp of every resource that has points. A point that names no resource is left out."""
         ...
 
-    async def list_annotation_ids(self) -> set[AnnotationId]:
-        """The id of every annotation that has a point."""
+    async def list_annotation_stamps(self) -> dict[AnnotationId, AnnotationStamp]:
+        """The stamp of every annotation that has a point. A point that names no annotation is left out.
+
+        A point that names an annotation and no resource is listed, with no
+        resource: whoever lists is to be able to take it out.
+        """
         ...

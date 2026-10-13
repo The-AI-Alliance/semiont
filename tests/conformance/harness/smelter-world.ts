@@ -304,6 +304,12 @@ export class SmelterWorld {
     return this.annotation(resourceId, { source: resourceId }, options);
   }
 
+  /** Give an annotation's body an entity tag for each of `entityTypes`, after whatever it states; resolves once the record holds it. */
+  async bodyTagged(resourceId: string, annotationId: string, entityTypes: readonly string[], by = PERSON): Promise<void> {
+    const operations = entityTypes.map((value) => ({ op: 'add', item: { type: 'TextualBody', value, purpose: 'tagging' } }));
+    await (await this.person(by)).ask('bind:update-body', { resourceId, annotationId, operations });
+  }
+
   /** Remove an annotation; resolves once the record holds it. */
   async unannotated(resourceId: string, annotationId: string, by = PERSON): Promise<void> {
     await (await this.person(by)).ask('mark:delete', { resourceId, annotationId });

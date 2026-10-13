@@ -17,14 +17,16 @@ from typing import Final
 from pydantic import JsonValue
 from semiont.identifiers import AnnotationId, ResourceId
 
-from semiont_vectors.store import AnnotationPayload, EmbeddingChunk, ResourceStamp, VectorSearchResult
+from semiont_vectors.store import AnnotationPayload, AnnotationStamp, EmbeddingChunk, ResourceStamp, VectorSearchResult
 
 __all__ = [
+    "ANNOTATION_STAMP_MEMBERS",
     "STAMP_MEMBERS",
     "Payload",
     "annotation_key",
     "annotation_of",
     "annotation_payload",
+    "annotation_stamp_of",
     "chunk_key",
     "chunk_payload",
     "qdrant_id",
@@ -37,7 +39,10 @@ type Payload = dict[str, JsonValue]
 """What a point says of itself, as it is stored."""
 
 STAMP_MEMBERS: Final = ("resourceId", "contentChecksum", "entityTypes", "machineRead")
-"""The members of a payload a stamp is read from, and the one that says whose stamp it is."""
+"""The members of a payload a resource's stamp is read from, and the one that says whose stamp it is."""
+
+ANNOTATION_STAMP_MEMBERS: Final = ("annotationId", "resourceId", "entityTypes")
+"""The members of a payload an annotation's stamp is read from, and the one that says whose stamp it is."""
 
 
 def chunk_key(resource_id: ResourceId, chunk_index: int) -> str:
@@ -132,6 +137,16 @@ def stamp_of(payload: Mapping[str, JsonValue]) -> ResourceStamp:
         entity_types=_entity_types(payload) or (),
         machine_read=payload.get("machineRead") is True,
     )
+
+
+def annotation_stamp_of(payload: Mapping[str, JsonValue]) -> AnnotationStamp:
+    """What a point's payload says of its annotation, without its text: the resource it is on, and its entity types.
+
+    A payload that names no resource gives a stamp with none, and one with
+    no entity types gives an empty list of them. Raises `InvalidIdentifier`
+    for a name that is no resource's id.
+    """
+    return AnnotationStamp(resource_id=resource_of(payload), entity_types=_entity_types(payload) or ())
 
 
 def result_of(payload: Mapping[str, JsonValue], score: float) -> VectorSearchResult:

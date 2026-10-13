@@ -2,12 +2,12 @@
  * The index a Smelter keeps as the record changes (SMELTER.md § What each
  * event does, § Indexing a resource, § Indexing an annotation, § What it
  * decides): what a text becomes in it when it is recorded, updated, archived
- * and unarchived, and an annotation when it is added and removed; what each
- * point holds, as specs/src/vectors/payload-cases.json states it; what the
- * Smelter says it decided of a resource, and of which bytes; and what it
- * leaves as it was when it cannot read a resource's bytes or have its text
- * embedded. With it, that an event it could not apply does not keep it from
- * the next (§ Order).
+ * and unarchived, and an annotation when it is added, has its body changed
+ * and is removed; what each point holds, as
+ * specs/src/vectors/payload-cases.json states it; what the Smelter says it
+ * decided of a resource, and of which bytes; and what it leaves as it was
+ * when it cannot read a resource's bytes or have its text embedded. With it,
+ * that an event it could not apply does not keep it from the next (§ Order).
  */
 import { createHash } from 'node:crypto';
 import { rmSync } from 'node:fs';
@@ -168,6 +168,23 @@ eachSmelter('a Smelter, as the record changes', (world) => {
 
     await onceApplied(() => world().unannotated(resource, annotation));
     expect(await world().index.pointsOf('annotations', resource)).toEqual([]);
+  });
+
+  it("rewrites the entity types on an annotation's point when its body is given a tag, and embeds nothing", async () => {
+    const resource = await indexed('Keokuk signed the treaty of 1832 at Fort Armstrong.\n');
+    const annotation = await onceApplied(() => world().annotated(resource, 'Keokuk', { motivation: 'linking', body: [tagging('Person')] }));
+    const asked = world().provider.mark();
+
+    await onceApplied(() => world().bodyTagged(resource, annotation, ['Leader']));
+
+    // The same point of the same text: only its entity types are other than they were, in the order its body now states them.
+    const point = await world().index.annotationPoint(annotation, true);
+    expect(point && stated(point)).toEqual({
+      id: qdrantId(annotation),
+      payload: { annotationId: annotation, resourceId: resource, motivation: 'linking', entityTypes: ['Person', 'Leader'], text: 'Keokuk' },
+    });
+    expect(embeds(point, 'Keokuk')).toBe(true);
+    expect(world().provider.since(asked)).toEqual([]);
   });
 
   it('gives no point to an annotation that quotes no text, or only white space; and removing one that has no point changes nothing', async () => {

@@ -29,7 +29,7 @@ from semiont.identifiers import AnnotationId, ResourceId
 from semiont.types import ExtractedText, ExtractionDeclined, SmeltSettledReason
 from semiont_service.content import Content
 from semiont_vectors.mock import deterministic_vector
-from semiont_vectors.store import EmbeddingChunk, ResourceStamp, SearchFilter, SearchOptions
+from semiont_vectors.store import AnnotationStamp, EmbeddingChunk, ResourceStamp, SearchFilter, SearchOptions
 from spec import JsonObject
 
 from semiont_smelter.chunking import Chunking, chunk_text
@@ -115,6 +115,7 @@ def came_to(
     reanchored: int = 0,
     resources_purged: int = 0,
     annotations: int = 0,
+    annotations_restamped: int = 0,
     annotations_purged: int = 0,
     eligible: int,
     indexed: int,
@@ -129,6 +130,7 @@ def came_to(
         resources_reanchored=reanchored,
         resource_vectors_deleted=resources_purged,
         annotations_embedded=annotations,
+        annotations_restamped=annotations_restamped,
         annotation_vectors_deleted=annotations_purged,
         resources_eligible=eligible,
         resources_indexed=indexed,
@@ -210,6 +212,37 @@ def holding_the_first_read(rig: Rig, monkeypatch: pytest.MonkeyPatch) -> tuple[a
 
     monkeypatch.setattr(rig.world, "read", reading)
     return began, let_go
+
+
+UNWANTED = "Reconcile left planned work undone, which a later event made unwanted"
+"""What the Smelter logs of a piece of planned work it did not do."""
+
+
+def left_undone(caplog: pytest.LogCaptureFixture) -> list[tuple[str, str]]:
+    """Each piece of planned work the Smelter said it left undone, in order: its kind, and what it was about."""
+    return [(str(said["kind"]), str(said["about"])) for said in lines(caplog, logging.INFO) if said["msg"] == UNWANTED]
+
+
+async def planned_and_waiting(rig: Rig, monkeypatch: pytest.MonkeyPatch) -> tuple[asyncio.Future[ReconcileSummary], asyncio.Event]:
+    """Begin a reconcile, and hold it where it has read and planned and done none of its work: the reconcile, and what lets its work begin.
+
+    A rebuild of one document's anchored text is begun first and held at the
+    read of the document's bytes, and a reconcile's work waits for a
+    rebuild's. So an event delivered before the work is let go is one that
+    arrived after the reconcile read. The document, `pdf-held`, is a
+    resource the reconcile indexes. The rig's reader of PDFs is to know
+    `PDF`.
+    """
+    rig.world.put("pdf-held", PDF, "application/pdf")
+    began, let_go = holding_the_first_read(rig, monkeypatch)
+    rebuild(rig, "c-held", "pdf-held")
+    await until(began.is_set)
+    # The last thing a reconcile reads is the annotations of each resource of the catalog, one request for each.
+    read_last = len(rig.asked("browse:annotations-requested")) + len(rig.world.catalog(False))
+    reconciling = asyncio.ensure_future(rig.smelter.reconcile())
+    await until(lambda: len(rig.asked("browse:annotations-requested")) == read_last)
+    await a_while()
+    return reconciling, let_go
 
 
 @final
@@ -469,6 +502,88 @@ def test_mark_added_asks_nothing_of_the_record_for_an_annotation_that_quotes_no_
             await rig.happened(rig.world.annotate("res-1", "ann-1", None))
 
             assert len(rig.asked("browse:resource-requested")) == described
+            assert (await rig.held()).annotations == {}
+
+    run(scenario())
+
+
+def test_yield_cloned_indexes_the_copy_as_a_resource_of_its_own(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path) as rig:
+            await rig.happened(rig.world.put("res-1", TEXT), rig.world.tag("res-1", "Person"))
+
+            await rig.happened(rig.world.clone("res-2", "res-1"))
+
+            held = await rig.held()
+            assert held.stamps == {"res-1": stamp(TEXT, "Person"), "res-2": stamp(TEXT, "Person")}
+            assert held.chunks["res-2"] == (TEXT.decode(),)
+            # Its own bytes were read, and what was decided of them is signalled of it.
+            assert rig.world.read_of == ["res-1", "res-2"]
+            assert signals(rig) == [indexed("res-1", TEXT), indexed("res-2", TEXT)]
+            assert applied(rig) == 3
+
+    run(scenario())
+
+
+def test_mark_body_updated_rewrites_the_entity_types_on_the_annotations_point_and_asks_the_provider_nothing(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path) as rig:
+            await rig.happened(rig.world.put("res-1", TEXT), rig.world.annotate("res-1", "ann-1", "Ada Lovelace", tags=["Person"]))
+            rig.provider.asked.clear()
+
+            await rig.happened(rig.world.retag("res-1", "ann-1", ["Mathematician", "Person"]))
+
+            # The same point of the same text, with the entity types its body states now, in the body's order.
+            assert (await rig.held()).annotations == {"ann-1": AnnotationPoint("res-1", "Ada Lovelace", ("Mathematician", "Person"), False)}
+            assert rig.provider.asked == []
+            # What the body states is asked of the Archivist then.
+            assert [asked["resourceId"] for asked in rig.asked("browse:annotations-requested")] == ["res-1"]
+
+            # A body that states none leaves the point with none.
+            await rig.happened(rig.world.retag("res-1", "ann-1", []))
+
+            assert (await rig.held()).annotations == {"ann-1": AnnotationPoint("res-1", "Ada Lovelace", (), False)}
+            assert applied(rig) == 4
+
+    run(scenario())
+
+
+def test_mark_body_updated_reads_what_the_body_states_from_the_archivist_and_nothing_of_it_from_the_event(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path) as rig:
+            await rig.happened(rig.world.put("res-1", TEXT), rig.world.annotate("res-1", "ann-1", "Ada Lovelace"))
+            first = rig.world.retag("res-1", "ann-1", ["Person"])
+            # The body is changed again before the first change's event is applied: the event says less than the record.
+            rig.world.retag("res-1", "ann-1", ["Person", "Mathematician"])
+
+            await rig.happened(first)
+
+            assert (await rig.held()).annotations == {"ann-1": AnnotationPoint("res-1", "Ada Lovelace", ("Person", "Mathematician"), False)}
+
+    run(scenario())
+
+
+def test_mark_body_updated_makes_no_point_and_passes_by_an_annotation_the_archivist_no_longer_answers(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path) as rig:
+            await rig.happened(
+                rig.world.put("res-1", TEXT),
+                rig.world.annotate("res-1", "ann-1", None),
+                rig.world.annotate("res-1", "ann-2", "Ada Lovelace"),
+            )
+            # One quotes no text, and so has no point. The other is removed before its body's event is applied.
+            whole, gone = rig.world.retag("res-1", "ann-1", ["Person"]), rig.world.retag("res-1", "ann-2", ["Person"])
+            removed = rig.world.unannotate("res-1", "ann-2")
+            before = await rig.held()
+
+            await rig.happened(whole, gone)
+
+            # Neither is a failure, and neither changes the index: the removed one keeps its point until its removal arrives.
+            assert await rig.held() == before
+            assert applied(rig) == 5
+
+            await rig.happened(removed)
+
             assert (await rig.held()).annotations == {}
 
     run(scenario())
@@ -783,6 +898,99 @@ def test_the_events_of_one_resource_are_applied_one_at_a_time_in_the_order_they_
             assert applied(rig) == 3
 
     run(scenario())
+
+
+def test_the_mark_added_events_of_a_resource_that_wait_together_have_one_turn_and_one_request_of_the_provider(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path) as rig:
+            await rig.happened(rig.world.put("res-1", TEXT), rig.world.put("res-2", LATER))
+            rig.provider.asked.clear()
+            described = len(rig.asked("browse:resource-requested"))
+
+            await rig.happened(
+                rig.world.annotate("res-1", "ann-1", "Ada Lovelace"),
+                rig.world.annotate("res-2", "ann-2", "Charles Babbage"),
+                rig.world.annotate("res-1", "ann-3", None),
+                rig.world.annotate("res-1", "ann-4", "the first program"),
+            )
+
+            # The quotes of one resource's annotations in one request, in the order they arrived; another resource's in its own.
+            assert sorted(rig.provider.asked) == [["Ada Lovelace", "the first program"], ["Charles Babbage"]]
+            # Each resource is asked once whether it is archived, however many of its annotations waited.
+            assert len(rig.asked("browse:resource-requested")) == described + 2
+            assert (await rig.held()).annotations == {
+                "ann-1": AnnotationPoint("res-1", "Ada Lovelace", (), False),
+                "ann-2": AnnotationPoint("res-2", "Charles Babbage", (), False),
+                "ann-4": AnnotationPoint("res-1", "the first program", (), False),
+            }
+            # Each was an event the Smelter applied.
+            assert applied(rig) == 6
+
+    run(scenario())
+
+
+def test_an_event_of_another_kind_between_two_mark_added_events_keeps_them_in_turns_of_their_own(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path) as rig:
+            await rig.happened(rig.world.put("res-1", TEXT))
+            rig.provider.asked.clear()
+
+            await rig.happened(
+                rig.world.annotate("res-1", "ann-1", "Ada Lovelace"),
+                rig.world.tag("res-1", "Person"),
+                rig.world.annotate("res-1", "ann-2", "the first program"),
+            )
+
+            # The tag arrived between them and is applied between them: what arrived after it is not applied before it.
+            assert rig.provider.asked == [["Ada Lovelace"], ["the first program"]]
+            assert applied(rig) == 4
+
+    run(scenario())
+
+
+def test_a_mark_added_that_arrives_once_a_turn_has_begun_waits_for_a_turn_of_its_own(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path) as rig:
+            await rig.happened(rig.world.put("res-1", TEXT))
+            rig.provider.asked.clear()
+            let_go = asyncio.Event()
+            rig.provider.held = let_go
+            rig.deliver(rig.world.annotate("res-1", "ann-1", "Ada Lovelace"))
+            await until(lambda: len(rig.provider.asked) == 1)
+
+            # The first is in the provider's hands. Two more arrive: nothing waited for them, and they wait together.
+            rig.deliver(rig.world.annotate("res-1", "ann-2", "the first program"), rig.world.annotate("res-1", "ann-3", "wrote"))
+            await a_while()
+            assert rig.provider.asked == [["Ada Lovelace"]]
+
+            let_go.set()
+            await rig.settled()
+
+            assert rig.provider.asked == [["Ada Lovelace"], ["the first program", "wrote"]]
+            assert applied(rig) == 4
+
+    run(scenario())
+
+
+def test_a_turn_of_several_mark_added_events_that_fails_logs_each_event_and_counts_none(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path) as rig:
+            await rig.happened(rig.world.put("res-1", TEXT))
+            rig.provider.failing = True
+
+            await rig.happened(
+                rig.world.annotate("res-1", "ann-1", "Ada Lovelace"),
+                rig.world.annotate("res-1", "ann-2", "the first program"),
+            )
+
+            assert (await rig.held()).annotations == {}
+            assert applied(rig) == 1
+
+    with caplog.at_level(logging.ERROR, logger="semiont_smelter"):
+        run(scenario())
+    assert [(said["type"], said["resourceId"]) for said in lines(caplog, logging.ERROR)] == [("mark:added", "res-1")] * 2
 
 
 def test_the_work_of_two_resources_is_under_way_at_once(tmp_path: Path) -> None:
@@ -1310,23 +1518,180 @@ def test_where_a_start_indexes_a_resource_and_an_annotation_on_it_the_resource_c
     run(scenario())
 
 
+def test_a_point_that_carries_other_entity_types_than_its_annotations_body_states_has_them_rewritten_and_nothing_is_embedded(
+    tmp_path: Path,
+) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path) as rig:
+            await rig.happened(
+                rig.world.put("res-1", TEXT),
+                rig.world.annotate("res-1", "ann-1", "Ada Lovelace"),
+                rig.world.annotate("res-1", "ann-2", "the first program", tags=["Work"]),
+            )
+            # One body is given an entity type and the other loses its own, and the Smelter misses both events.
+            rig.world.retag("res-1", "ann-1", ["Person"])
+            rig.world.retag("res-1", "ann-2", [])
+            rig.provider.asked.clear()
+            asked = len(rig.asked("browse:annotations-requested"))
+
+            assert await rig.smelter.reconcile() == came_to(annotations_restamped=2, eligible=1, indexed=1)
+
+            assert (await rig.held()).annotations == {
+                "ann-1": AnnotationPoint("res-1", "Ada Lovelace", ("Person",), False),
+                "ann-2": AnnotationPoint("res-1", "the first program", (), False),
+            }
+            assert rig.provider.asked == []
+            # The resource's annotations were asked for to plan, and once more to do the work of both.
+            assert len(rig.asked("browse:annotations-requested")) == asked + 2
+
+    run(scenario())
+
+
+def test_planned_work_whose_resource_no_event_arrived_for_is_done_as_planned_and_asks_the_archivist_nothing_more(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path) as rig:
+            await rig.happened(rig.world.put("res-1", TEXT))
+            rig.world.annotate("res-1", "ann-1", "Ada Lovelace")
+            described = len(rig.asked("browse:resource-requested"))
+
+            assert await rig.smelter.reconcile() == came_to(annotations=1, eligible=1, indexed=1)
+
+            # Its annotations were asked for once, to plan, and its description not at all.
+            assert len(rig.asked("browse:annotations-requested")) == 1
+            assert len(rig.asked("browse:resource-requested")) == described
+
+    run(scenario())
+
+
+def test_an_annotation_removed_after_a_reconcile_read_is_not_put_back_by_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path, pdfs={PDF: WRITTEN}) as rig:
+            await rig.happened(rig.world.put("res-1", TEXT))
+            # Two annotations the Smelter missed the making of: its start plans to index both.
+            rig.world.annotate("res-1", "ann-1", "Ada Lovelace")
+            rig.world.annotate("res-1", "ann-2", "the first program")
+            reconciling, let_go = await planned_and_waiting(rig, monkeypatch)
+
+            # One is removed, and the event arrives before the planned work's turn comes.
+            rig.deliver(rig.world.unannotate("res-1", "ann-1"))
+            await a_while()
+            let_go.set()
+            summary = await reconciling
+            await rig.settled()
+
+            assert (await rig.held()).annotations == {"ann-2": AnnotationPoint("res-1", "the first program", (), False)}
+            # Two were planned, and that is what is counted: the one left undone is counted nowhere.
+            assert summary.annotations_embedded == 2
+
+    with caplog.at_level(logging.INFO, logger="semiont_smelter"):
+        run(scenario())
+    assert left_undone(caplog) == [("embed-annotation", "ann-1")]
+
+
+def test_a_resource_archived_after_a_reconcile_read_is_not_indexed_by_it_and_neither_are_its_annotations(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path, pdfs={PDF: WRITTEN}) as rig:
+            # A resource and an annotation on it that the Smelter missed the making of: its start plans to index both.
+            rig.world.put("res-1", TEXT)
+            rig.world.annotate("res-1", "ann-1", "Ada Lovelace")
+            reconciling, let_go = await planned_and_waiting(rig, monkeypatch)
+
+            # It is archived, and the event arrives before the planned work's turn comes.
+            rig.deliver(rig.world.archive("res-1"))
+            await a_while()
+            let_go.set()
+            summary = await reconciling
+            await rig.settled()
+
+            held = await rig.held()
+            assert set(held.stamps) == {"pdf-held"}
+            assert held.annotations == {}
+            assert rig.world.read_of == ["pdf-held", "pdf-held"]
+            # The document was indexed. The archived resource is none of the four things an indexing comes to.
+            assert (summary.resources_embedded, summary.resources_unavailable, summary.resources_failed) == (1, 0, 0)
+            assert summary.resources_skipped == {}
+
+    with caplog.at_level(logging.INFO, logger="semiont_smelter"):
+        run(scenario())
+    assert left_undone(caplog) == [("embed", "res-1"), ("embed-annotation", "res-1")]
+
+
+def test_points_a_reconcile_planned_to_take_out_are_kept_where_the_catalog_has_their_resource_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path, pdfs={PDF: WRITTEN}) as rig:
+            await rig.happened(rig.world.put("res-1", TEXT), rig.world.annotate("res-1", "ann-1", "Ada Lovelace"))
+            # It is archived, and the Smelter misses the event: its start plans to take out its points and its annotation's.
+            rig.world.archive("res-1")
+            reconciling, let_go = await planned_and_waiting(rig, monkeypatch)
+
+            # It is unarchived, and the event arrives, and is applied, before the planned work's turn comes.
+            rig.deliver(rig.world.unarchive("res-1"))
+            await a_while()
+            let_go.set()
+            summary = await reconciling
+            await rig.settled()
+
+            held = await rig.held()
+            assert held.stamps["res-1"] == stamp(TEXT)
+            assert held.annotations == {"ann-1": AnnotationPoint("res-1", "Ada Lovelace", (), False)}
+            # What was planned is what is counted.
+            assert (summary.resource_vectors_deleted, summary.annotation_vectors_deleted) == (1, 1)
+
+    with caplog.at_level(logging.INFO, logger="semiont_smelter"):
+        run(scenario())
+    assert sorted(left_undone(caplog)) == [("purge", "res-1"), ("purge-annotation", "ann-1")]
+
+
+def test_a_point_whose_annotation_the_catalog_does_not_have_is_taken_out_in_its_resources_turn(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async with Rig(tmp_path) as rig:
+            await rig.happened(rig.world.put("res-1", TEXT), rig.world.annotate("res-1", "ann-1", "Ada Lovelace"))
+            # The annotation is removed, and the Smelter misses the event: its start plans to take the point out.
+            rig.world.unannotate("res-1", "ann-1")
+            let_go = asyncio.Event()
+            rig.provider.held = let_go
+            # New bytes for the resource, whose indexing is held in the provider's hands when the reconcile begins.
+            rig.deliver(rig.world.put("res-1", LATER))
+            await until(lambda: len(rig.provider.asked) == 3)
+            reconciling = asyncio.ensure_future(rig.smelter.reconcile())
+            await until(lambda: rig.asked("browse:resources-requested") != [])
+            await a_while()
+
+            # The point is still there: taking it out waits its turn behind the resource's event.
+            assert set((await rig.held()).annotations) == {"ann-1"}
+
+            let_go.set()
+            await reconciling
+            await rig.settled()
+
+            assert (await rig.held()).annotations == {}
+
+    run(scenario())
+
+
 def test_reconcile_reads_the_index_before_it_reads_the_catalog(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     async def scenario() -> None:
         async with Rig(tmp_path) as rig:
             rig.world.put("res-1", TEXT)
-            stamps_read, ids_read = rig.index.list_resource_stamps, rig.index.list_annotation_ids
+            stamps_read, points_read = rig.index.list_resource_stamps, rig.index.list_annotation_stamps
             catalog_asked: list[int] = []
 
             async def stamps() -> dict[ResourceId, ResourceStamp]:
                 catalog_asked.append(len(rig.asked("browse:resources-requested")))
                 return await stamps_read()
 
-            async def ids() -> set[AnnotationId]:
+            async def points() -> dict[AnnotationId, AnnotationStamp]:
                 catalog_asked.append(len(rig.asked("browse:resources-requested")))
-                return await ids_read()
+                return await points_read()
 
             monkeypatch.setattr(rig.index, "list_resource_stamps", stamps)
-            monkeypatch.setattr(rig.index, "list_annotation_ids", ids)
+            monkeypatch.setattr(rig.index, "list_annotation_stamps", points)
 
             await rig.smelter.reconcile()
 

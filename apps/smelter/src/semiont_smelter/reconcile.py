@@ -13,7 +13,8 @@ lower-case hex and with nothing before it: the Archivist writes that, and the
 Smelter writes the other two. A plan compares them as text.
 
 **Entity types are compared as sets:** in no order, and a type stated twice
-is stated once.
+is stated once. A resource's are compared, and so are those of an annotation
+that has a point.
 
 **An annotation quotes text when its quote has a character that is not white
 space**, and white space is Unicode's (`semiont_service.white_space`).
@@ -24,7 +25,7 @@ from dataclasses import dataclass
 from typing import final
 
 from pydantic import JsonValue
-from semiont.annotations import annotation_exact_text
+from semiont.annotations import annotation_exact_text, entity_types
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.media_types import text_source_of, yields_geometry_of
 from semiont.resources import primary_representation, resource_entity_types
@@ -41,6 +42,7 @@ __all__ = [
     "Reanchor",
     "ReconcileSummary",
     "Restamp",
+    "RestampAnnotation",
     "Work",
     "classify_embeddable",
     "plan_reconcile",
@@ -104,13 +106,22 @@ class EmbedAnnotation:
 
 @final
 @dataclass(frozen=True, slots=True)
+class RestampAnnotation:
+    """Rewrite the entity types an annotation's point carries. Nothing is embedded."""
+
+    resource: ResourceId
+    annotation: AnnotationId
+
+
+@final
+@dataclass(frozen=True, slots=True)
 class PurgeAnnotation:
-    """Take an annotation's point out. Which resource the annotation was on is not known: the index was asked for its ids alone."""
+    """Take an annotation's point out. Which resource the annotation was on is no part of the plan: its point says so."""
 
     annotation: AnnotationId
 
 
-type Work = Embed | Restamp | Reanchor | Purge | EmbedAnnotation | PurgeAnnotation
+type Work = Embed | Restamp | Reanchor | Purge | EmbedAnnotation | RestampAnnotation | PurgeAnnotation
 """One item of planned work."""
 
 
@@ -142,7 +153,7 @@ def classify_embeddable(resources: Iterable[ResourceDescriptor]) -> dict[Resourc
 def plan_reconcile(
     *,
     indexed_resources: Mapping[ResourceId, ResourceStamp],
-    indexed_annotations: Collection[AnnotationId],
+    indexed_annotations: Mapping[AnnotationId, Collection[str]],
     anchored_keys: Collection[str],
     embeddable: Mapping[ResourceId, Embeddable],
     live_annotations: Iterable[tuple[ResourceId, Annotation]],
@@ -150,7 +161,8 @@ def plan_reconcile(
     """The work that brings an index and an anchored-text store to what the catalog says, in an order it can be done in.
 
     `indexed_resources` is the stamp of each resource the index holds points
-    for, and `indexed_annotations` the annotations it holds a point for.
+    for, and `indexed_annotations` each annotation it holds a point for, with
+    the entity types that point carries.
     `anchored_keys` is the keys of the anchored-text store. `embeddable` is
     `classify_embeddable`'s answer for the catalog's resources, and
     `live_annotations` every annotation of every resource of the catalog,
@@ -187,8 +199,12 @@ def plan_reconcile(
         if not quotes_text(annotation):
             continue
         live.add(annotation.id)
-        if annotation.id not in indexed_annotations:
+        carried = indexed_annotations.get(annotation.id)
+        if carried is None:
             work.append(EmbedAnnotation(resource, annotation))
+        elif frozenset(carried) != frozenset(entity_types(annotation)):
+            # A body changes nothing an annotation quotes, so the point's vector is as it should be.
+            work.append(RestampAnnotation(resource, annotation.id))
 
     work.extend(PurgeAnnotation(annotation) for annotation in indexed_annotations if annotation not in live)
     return work
@@ -199,9 +215,10 @@ def plan_reconcile(
 class ReconcileSummary:
     """What a reconcile came to (`docs/protocol/SMELTER.md` § Reconcile).
 
-    The first four are what the resources it set out to index came to, and
-    add up to how many those were. The next five are counts of what was
-    planned.
+    The first four are what the resources it set out to index came to. They
+    add up to how many those were, less any that a later event made
+    unwanted before its turn came: such a piece of work is not done, and is
+    counted nowhere. The next six are counts of what was planned.
     """
 
     resources_embedded: int
@@ -216,6 +233,7 @@ class ReconcileSummary:
     resources_reanchored: int
     resource_vectors_deleted: int
     annotations_embedded: int
+    annotations_restamped: int
     annotation_vectors_deleted: int
     resources_eligible: int
     """How many resources of the catalog have text."""
@@ -236,6 +254,7 @@ class ReconcileSummary:
             "resourcesReanchored": self.resources_reanchored,
             "resourceVectorsDeleted": self.resource_vectors_deleted,
             "annotationsEmbedded": self.annotations_embedded,
+            "annotationsRestamped": self.annotations_restamped,
             "annotationVectorsDeleted": self.annotation_vectors_deleted,
             "resourcesEligible": self.resources_eligible,
             "resourcesIndexed": self.resources_indexed,

@@ -20,11 +20,14 @@ embedding provider the suite plays. This page is the image, and how it is run.
 
 ## What it does
 
-It follows nine of the events a knowledge base records. For a resource it reads the bytes,
+It follows eleven of the events a knowledge base records. For a resource it reads the bytes,
 takes their checksum, gets their text (decoded, or derived from a PDF), cuts it into chunks,
-has every chunk embedded, and then writes the points and says what it decided. For an
-annotation it embeds the text the annotation quotes. Archiving takes a resource's points out,
-and a tag rewrites the entity types they carry with nothing embedded.
+has every chunk embedded, and then writes the points and says what it decided. A copy of a
+resource is indexed as a new one is. For an annotation it embeds the text the annotation
+quotes, and the annotations of one resource that are waiting together are embedded in one
+request. Archiving takes a resource's points out. A tag rewrites the entity types a
+resource's points carry, and a change to an annotation's body those its point carries, each
+with nothing embedded.
 
 It reaches four things: the gateway, for the bus; the Archivist, for a resource's bytes; its
 embedding provider; and the vector index. **The bytes arrive as they are stored**, from the
@@ -136,7 +139,7 @@ user `semiont`. It carries no installer (`pip`, `uv`) and no Node.
 | `service.py`, `config.py` | The process: what it is started with, what it refuses to start on, the order it starts in, how it stops |
 | `smelter.py` | The Smelter: what each recorded event does to the index, the one place a resource is declined, the decision it signals, reconcile, the rebuild command |
 | `reconcile.py` | The work a start plans, as [`reconcile-cases.json`](../../specs/src/smelter/reconcile-cases.json) states it |
-| `recorded.py`, `record.py` | The nine events it follows, and what it reads of the record over the bus |
+| `recorded.py`, `record.py` | The eleven events it follows, and what it reads of the record over the bus |
 | `chunking.py` | How a text is cut, as [`chunk-cases.json`](../../specs/src/text/chunk-cases.json) states it |
 | `extraction.py`, `anchoring.py`, `tables.py`, `ocr_text.py` | A PDF's text by its class, as [`extraction-cases.json`](../../specs/src/smelter/extraction-cases.json) states it |
 | `pdf_reader.py`, `pdfium.py`; `ocr_engine.py`, `tesseract.py`; `scripted.py` | What reads a PDF and what reads a scanned page, each behind a protocol whose second implementation answers what a test states |

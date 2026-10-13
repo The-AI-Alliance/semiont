@@ -35,7 +35,7 @@ eachSmelter('a Smelter, as a process', (world) => {
     expect(Object.keys(health).sort()).toEqual(['eventsProcessed', 'reconcile', 'status']);
     expect(health.status).toBe('ok');
     expect(health.eventsProcessed).toBe(0);
-    // The knowledge base holds nothing yet, and the index held nothing: its reconcile had nothing to do, and reports the eleven counts of that.
+    // The knowledge base holds nothing yet, and the index held nothing: its reconcile had nothing to do, and reports the twelve counts of that.
     expect(health.reconcile).toEqual({
       phase: 'done',
       summary: {
@@ -47,6 +47,7 @@ eachSmelter('a Smelter, as a process', (world) => {
         resourcesReanchored: 0,
         resourceVectorsDeleted: 0,
         annotationsEmbedded: 0,
+        annotationsRestamped: 0,
         annotationVectorsDeleted: 0,
         resourcesEligible: 0,
         resourcesIndexed: 0,

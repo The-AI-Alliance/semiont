@@ -4,9 +4,10 @@
 read then answers, and `specs/src/vectors/payload-cases.json` states what a
 point is. Every history is run here, and so are the stored parts of the
 payload table, by what a store answers after the write: the stamp, each
-point's result by a search with the point's own embedding, an annotation's id
-among those listed, and its motivation by a search that filters on it. The id
-and the payload of a point are held with no store, by `test_payload_cases.py`.
+point's result by a search with the point's own embedding, an annotation's
+stamp among those listed, and its motivation by a search that filters on it.
+The id and the payload of a point are held with no store, by
+`test_payload_cases.py`.
 
 One set of cases, run against the in-memory store (`test_memory.py`) and
 against a real Qdrant (`qdrant_live.py`). Nothing here is run against a fake
@@ -28,6 +29,7 @@ from spec import SPEC, JsonObject, objects, read, strings, text, thing
 
 from semiont_vectors.store import (
     AnnotationPayload,
+    AnnotationStamp,
     EmbeddingChunk,
     ResourceStamp,
     SearchFilter,
@@ -211,6 +213,15 @@ def written_stamp(stamp: ResourceStamp) -> JsonObject:
     return stated
 
 
+def written_annotation_stamp(stamp: AnnotationStamp) -> JsonObject:
+    """An annotation's stamp as a table states one: no resource where its point names none."""
+    types: list[JsonValue] = [*stamp.entity_types]
+    stated: JsonObject = {"entityTypes": types}
+    if stamp.resource_id is not None:
+        stated["resourceId"] = str(stamp.resource_id)
+    return stated
+
+
 def same_results(answered: Sequence[VectorSearchResult], stated: JsonValue, what: str) -> None:
     """Hold what a search answered to the results a table states, in the table's order.
 
@@ -255,6 +266,11 @@ async def rewrite_entity_types(store: VectorStore, stated: JsonObject) -> None:
     await store.update_resource_entity_types(resource(stated), strings(stated["entityTypes"], "entityTypes"))
 
 
+async def rewrite_annotation_entity_types(store: VectorStore, stated: JsonObject) -> None:
+    annotation_id = AnnotationId(text(stated["annotationId"], "annotationId"))
+    await store.update_annotation_entity_types(annotation_id, strings(stated["entityTypes"], "entityTypes"))
+
+
 async def delete_resource(store: VectorStore, stated: JsonObject) -> None:
     await store.delete_resource_vectors(resource(stated))
 
@@ -273,6 +289,7 @@ WRITES: Final[dict[str, tuple[tuple[str, ...], Write]]] = {
     "resourcePut": (RESOURCE_PUT, put_resource),
     "entityTypesRewritten": (("resourceId", "entityTypes"), rewrite_entity_types),
     "annotationPut": (ANNOTATION_PUT, put_annotation),
+    "annotationEntityTypesRewritten": (("annotationId", "entityTypes"), rewrite_annotation_entity_types),
     "resourceDeleted": (("resourceId",), delete_resource),
     "annotationDeleted": (("annotationId",), delete_annotation),
     "annotationsOfResourceDeleted": (("resourceId",), delete_annotations_of_resource),
@@ -327,9 +344,10 @@ async def stamp_read(store: VectorStore, stated: JsonObject, what: str) -> None:
         assert found is None, what
 
 
-async def annotation_ids_listed(store: VectorStore, stated: JsonObject, what: str) -> None:
-    ids = await store.list_annotation_ids()
-    assert sorted(str(each) for each in ids) == sorted(strings(stated["answers"], "answers")), what
+async def annotation_stamps_listed(store: VectorStore, stated: JsonObject, what: str) -> None:
+    stamps = await store.list_annotation_stamps()
+    answered: JsonObject = {str(of): written_annotation_stamp(stamp) for of, stamp in stamps.items()}
+    assert answered == stated["answers"], what
 
 
 type Read = Callable[[VectorStore, JsonObject, str], Awaitable[None]]
@@ -341,7 +359,7 @@ READS: Final[dict[str, tuple[tuple[str, ...], Read]]] = {
     "counted": (("answers",), counted),
     "stampsListed": (("answers",), stamps_listed),
     "stampRead": (("resourceId", "answers"), stamp_read),
-    "annotationIdsListed": (("answers",), annotation_ids_listed),
+    "annotationStampsListed": (("answers",), annotation_stamps_listed),
 }
 """Each kind of read a history states: the members it may have, and how the store is held to what it answers."""
 
@@ -430,7 +448,8 @@ class StoreContract(ABC):
         async def scenario(store: VectorStore) -> None:
             await put_annotation(store, given)
 
-            assert await store.list_annotation_ids() == {stated.annotation_id}
+            stamp = AnnotationStamp(resource_id=stated.resource_id, entity_types=tuple(stated.entity_types))
+            assert await store.list_annotation_stamps() == {stated.annotation_id: stamp}
             # A result does not say an annotation's motivation: a search that filters on it shows it was kept.
             of_its_motivation = SearchOptions(limit=1, filter=SearchFilter(motivation=stated.motivation))
             found = await store.search_annotations(vector(given["embedding"], "embedding"), of_its_motivation)

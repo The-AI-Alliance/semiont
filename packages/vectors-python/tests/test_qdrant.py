@@ -47,6 +47,7 @@ CALLS: Final[dict[str, Call]] = {
     "upsert_resource_vectors": lambda held: held.upsert_resource_vectors(RESOURCE, [], "checksum", [], machine_read=False),
     "update_resource_entity_types": lambda held: held.update_resource_entity_types(RESOURCE, []),
     "upsert_annotation_vector": lambda held: held.upsert_annotation_vector([1.0, 0.0], QUOTED),
+    "update_annotation_entity_types": lambda held: held.update_annotation_entity_types(ANNOTATION, []),
     "delete_resource_vectors": lambda held: held.delete_resource_vectors(RESOURCE),
     "delete_annotation_vector": lambda held: held.delete_annotation_vector(ANNOTATION),
     "delete_annotation_vectors_for_resource": lambda held: held.delete_annotation_vectors_for_resource(RESOURCE),
@@ -56,7 +57,7 @@ CALLS: Final[dict[str, Call]] = {
     "count": lambda held: held.count(),
     "list_resource_stamps": lambda held: held.list_resource_stamps(),
     "get_resource_stamp": lambda held: held.get_resource_stamp(RESOURCE),
-    "list_annotation_ids": lambda held: held.list_annotation_ids(),
+    "list_annotation_stamps": lambda held: held.list_annotation_stamps(),
 }
 """Every member of a store that asks its index something, each called with what it takes."""
 

@@ -1,5 +1,5 @@
 {
-  "$comment": "What the vector index answers after what it was told, as every implementation of the index must answer: a history of writes, and what each read then gives. Semiont's stores (semiont_vectors, packages/vectors-python) run every case: the in-memory store, and the Qdrant store against a real Qdrant. What a point is, and how each store keys one, is specs/src/vectors/payload-cases.json. A HISTORY. `writes` are done in order, on an index that holds nothing. `resourcePut` gives a resource's `chunks` (each an `index`, a `text` and an `embedding`), the `contentChecksum` of the bytes they came from, its `entityTypes`, and `machineRead` when the text was read from pixels: the resource's points become these, and every point it had before is gone. `entityTypesRewritten` sets the entity types on every point of a resource's chunks and changes nothing else. `annotationPut` gives an annotation's one point: its `annotationId`, `resourceId`, `motivation` and `entityTypes`, the `text` it quotes and that text's `embedding`, and `machineRead` when that text was read from pixels. `resourceDeleted` takes every point of a resource's chunks, `annotationDeleted` takes an annotation's point, and `annotationsOfResourceDeleted` takes the point of every annotation on a resource. READS. `reads` are made after the writes, in order, and none of them changes anything; each states what it `answers`. `resourcesSearched` and `annotationsSearched` search one collection by an `embedding`, and `searchedByResource` searches the resources by the vectors the chunks of the resource `resourceId` have. Each answers a list of results, best first. A result is a `score`, the `resourceId`, the `annotationId` of an annotation's point, the `text`, the `entityTypes`, and `machineRead` where the point is marked; its `id` is each store's own key and is not stated. A search of resources by an embedding answers one result for each chunk: a resource found by three of its chunks is three results. A search by a resource's own vectors answers one result for each resource, with the score and the text of the chunk of it that scored best against any chunk of the resource searched by, and never answers that resource itself. `counted` answers the number of points in both collections together. `stampsListed` answers the stamp of every resource that has points, by its id: the `contentChecksum`, the `entityTypes`, and `machineRead` where its points are marked. `stampRead` answers the stamp of the one resource `resourceId`, and has no `answers` where that resource has no points. `annotationIdsListed` answers the id of every annotation that has a point. The ids listed and the stamps listed are sets: no order of theirs is stated. A SEARCH takes a `limit`, the most results it answers, and may take a `scoreThreshold` and a `filter`. A score is the cosine of the angle between two vectors, whatever their lengths: 1 when they point the same way, 0 at a right angle, -1 when they point opposite ways. Scores are stated to six decimal places and compared within 0.000001. With a threshold, a point that scores below it is not answered. A point is answered only if every member of the filter holds of it. `entityTypes` keeps a point that has any one of the types listed, and `excludeEntityTypes` drops a point that has any one of them; an empty list of either filters nothing. `resourceId` keeps the points of that resource alone, and `excludeResourceId` drops them. `motivation` keeps the annotations of that motivation alone. The limit counts what the filter and the threshold leave. WHAT NO CASE RESTS ON. No two results of one read have the same score, so no case says how a tie is broken. No score equals its threshold: the in-memory store answers such a point, and whether Qdrant does is Qdrant's to say. No limit is 0, about which the two stores disagree. Every search by a resource's own vectors has a limit well above the number of points there are, and finds resources of one or two chunks: with more, Qdrant's store can miss a resource the in-memory store finds. Add a case here before changing an implementation.",
+  "$comment": "What the vector index answers after what it was told, as every implementation of the index must answer: a history of writes, and what each read then gives. Semiont's stores (semiont_vectors, packages/vectors-python) run every case: the in-memory store, and the Qdrant store against a real Qdrant. What a point is, and how each store keys one, is specs/src/vectors/payload-cases.json. A HISTORY. `writes` are done in order, on an index that holds nothing. `resourcePut` gives a resource's `chunks` (each an `index`, a `text` and an `embedding`), the `contentChecksum` of the bytes they came from, its `entityTypes`, and `machineRead` when the text was read from pixels: the resource's points become these, and every point it had before is gone. `entityTypesRewritten` sets the entity types on every point of a resource's chunks and changes nothing else, and `annotationEntityTypesRewritten` sets them on the one point of the annotation `annotationId` and changes nothing else: neither makes a point where there is none. `annotationPut` gives an annotation's one point: its `annotationId`, `resourceId`, `motivation` and `entityTypes`, the `text` it quotes and that text's `embedding`, and `machineRead` when that text was read from pixels. `resourceDeleted` takes every point of a resource's chunks, `annotationDeleted` takes an annotation's point, and `annotationsOfResourceDeleted` takes the point of every annotation on a resource. READS. `reads` are made after the writes, in order, and none of them changes anything; each states what it `answers`. `resourcesSearched` and `annotationsSearched` search one collection by an `embedding`, and `searchedByResource` searches the resources by the vectors the chunks of the resource `resourceId` have. Each answers a list of results, best first. A result is a `score`, the `resourceId`, the `annotationId` of an annotation's point, the `text`, the `entityTypes`, and `machineRead` where the point is marked; its `id` is each store's own key and is not stated. A search of resources by an embedding answers one result for each chunk: a resource found by three of its chunks is three results. A search by a resource's own vectors answers one result for each resource, with the score and the text of the chunk of it that scored best against any chunk of the resource searched by, and never answers that resource itself. `counted` answers the number of points in both collections together. `stampsListed` answers the stamp of every resource that has points, by its id: the `contentChecksum`, the `entityTypes`, and `machineRead` where its points are marked. `stampRead` answers the stamp of the one resource `resourceId`, and has no `answers` where that resource has no points. `annotationStampsListed` answers the stamp of every annotation that has a point, by its id: the `resourceId` its point says it is on, and the `entityTypes` its point carries, in their order. The stamps listed, of resources and of annotations, are sets: no order of theirs is stated. A SEARCH takes a `limit`, the most results it answers, and may take a `scoreThreshold` and a `filter`. A score is the cosine of the angle between two vectors, whatever their lengths: 1 when they point the same way, 0 at a right angle, -1 when they point opposite ways. Scores are stated to six decimal places and compared within 0.000001. With a threshold, a point that scores below it is not answered. A point is answered only if every member of the filter holds of it. `entityTypes` keeps a point that has any one of the types listed, and `excludeEntityTypes` drops a point that has any one of them; an empty list of either filters nothing. `resourceId` keeps the points of that resource alone, and `excludeResourceId` drops them. `motivation` keeps the annotations of that motivation alone. The limit counts what the filter and the threshold leave. WHAT NO CASE RESTS ON. No two results of one read have the same score, so no case says how a tie is broken. No score equals its threshold: the in-memory store answers such a point, and whether Qdrant does is Qdrant's to say. No limit is 0, about which the two stores disagree. Every search by a resource's own vectors has a limit well above the number of points there are, and finds resources of one or two chunks: with more, Qdrant's store can miss a resource the in-memory store finds. Add a case here before changing an implementation.",
   "cases": [
     {
       "why": "an index nothing was written to answers nothing: no result, no stamp, no annotation, and a count of 0",
@@ -11,7 +11,7 @@
         { "read": "counted", "answers": 0 },
         { "read": "stampsListed", "answers": {} },
         { "read": "stampRead", "resourceId": "res-a" },
-        { "read": "annotationIdsListed", "answers": [] }
+        { "read": "annotationStampsListed", "answers": {} }
       ]
     },
     {
@@ -73,7 +73,12 @@
             "res-b": { "contentChecksum": "checksum-b", "entityTypes": ["Person"] }
           }
         },
-        { "read": "annotationIdsListed", "answers": ["ann-1"] }
+        {
+          "read": "annotationStampsListed",
+          "answers": {
+            "ann-1": { "resourceId": "res-a", "entityTypes": ["Event"] }
+          }
+        }
       ]
     },
     {
@@ -203,7 +208,12 @@
       ],
       "reads": [
         { "read": "counted", "answers": 1 },
-        { "read": "annotationIdsListed", "answers": ["ann-1"] },
+        {
+          "read": "annotationStampsListed",
+          "answers": {
+            "ann-1": { "resourceId": "res-a", "entityTypes": ["Person"] }
+          }
+        },
         {
           "read": "annotationsSearched",
           "embedding": [0, 1],
@@ -387,6 +397,185 @@
       ]
     },
     {
+      "why": "rewriting an annotation's entity types changes them on its one point, in the order given, and so what the listing answers of it and what a filter finds. The resource it is on, its motivation, the mark, the text and the vector are as they were, and so are the points of its resource and of every other annotation, which keep the entity types they were put with",
+      "writes": [
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
+          ],
+          "contentChecksum": "checksum-a",
+          "entityTypes": ["Place"]
+        },
+        {
+          "write": "annotationPut",
+          "annotationId": "ann-1",
+          "resourceId": "res-a",
+          "motivation": "highlighting",
+          "entityTypes": ["Place", "Person"],
+          "text": "quoted by ann-1",
+          "embedding": [1, 1],
+          "machineRead": true
+        },
+        {
+          "write": "annotationPut",
+          "annotationId": "ann-2",
+          "resourceId": "res-a",
+          "motivation": "highlighting",
+          "entityTypes": ["Place"],
+          "text": "quoted by ann-2",
+          "embedding": [4, 3]
+        },
+        {
+          "write": "annotationPut",
+          "annotationId": "ann-3",
+          "resourceId": "res-b",
+          "motivation": "linking",
+          "entityTypes": ["Person"],
+          "text": "quoted by ann-3",
+          "embedding": [3, 4]
+        },
+        { "write": "annotationEntityTypesRewritten", "annotationId": "ann-1", "entityTypes": ["Question", "Person"] }
+      ],
+      "reads": [
+        {
+          "read": "annotationStampsListed",
+          "answers": {
+            "ann-1": { "resourceId": "res-a", "entityTypes": ["Question", "Person"] },
+            "ann-2": { "resourceId": "res-a", "entityTypes": ["Place"] },
+            "ann-3": { "resourceId": "res-b", "entityTypes": ["Person"] }
+          }
+        },
+        {
+          "read": "annotationsSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "answers": [
+            { "score": 0.800000, "resourceId": "res-a", "annotationId": "ann-2", "text": "quoted by ann-2", "entityTypes": ["Place"] },
+            {
+              "score": 0.707107,
+              "resourceId": "res-a",
+              "annotationId": "ann-1",
+              "text": "quoted by ann-1",
+              "entityTypes": ["Question", "Person"],
+              "machineRead": true
+            },
+            { "score": 0.600000, "resourceId": "res-b", "annotationId": "ann-3", "text": "quoted by ann-3", "entityTypes": ["Person"] }
+          ]
+        },
+        {
+          "read": "annotationsSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "filter": { "entityTypes": ["Question"] },
+          "answers": [
+            {
+              "score": 0.707107,
+              "resourceId": "res-a",
+              "annotationId": "ann-1",
+              "text": "quoted by ann-1",
+              "entityTypes": ["Question", "Person"],
+              "machineRead": true
+            }
+          ]
+        },
+        {
+          "read": "annotationsSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "filter": { "entityTypes": ["Place"] },
+          "answers": [
+            { "score": 0.800000, "resourceId": "res-a", "annotationId": "ann-2", "text": "quoted by ann-2", "entityTypes": ["Place"] }
+          ]
+        },
+        {
+          "read": "annotationsSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "filter": { "motivation": "highlighting" },
+          "answers": [
+            { "score": 0.800000, "resourceId": "res-a", "annotationId": "ann-2", "text": "quoted by ann-2", "entityTypes": ["Place"] },
+            {
+              "score": 0.707107,
+              "resourceId": "res-a",
+              "annotationId": "ann-1",
+              "text": "quoted by ann-1",
+              "entityTypes": ["Question", "Person"],
+              "machineRead": true
+            }
+          ]
+        },
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "answers": [
+            { "score": 1.000000, "resourceId": "res-a", "text": "the chunk of a", "entityTypes": ["Place"] }
+          ]
+        },
+        {
+          "read": "stampRead",
+          "resourceId": "res-a",
+          "answers": { "contentChecksum": "checksum-a", "entityTypes": ["Place"] }
+        },
+        { "read": "counted", "answers": 4 }
+      ]
+    },
+    {
+      "why": "rewriting the entity types of an annotation that has no point is no failure and does nothing: no point is made, and the points there are keep the entity types they were put with",
+      "writes": [
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
+          ],
+          "contentChecksum": "checksum-a",
+          "entityTypes": ["Place"]
+        },
+        {
+          "write": "annotationPut",
+          "annotationId": "ann-1",
+          "resourceId": "res-a",
+          "motivation": "highlighting",
+          "entityTypes": ["Place"],
+          "text": "quoted by ann-1",
+          "embedding": [1, 1]
+        },
+        { "write": "annotationEntityTypesRewritten", "annotationId": "ann-2", "entityTypes": ["Question"] }
+      ],
+      "reads": [
+        { "read": "counted", "answers": 2 },
+        {
+          "read": "annotationStampsListed",
+          "answers": {
+            "ann-1": { "resourceId": "res-a", "entityTypes": ["Place"] }
+          }
+        },
+        {
+          "read": "annotationsSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "filter": { "entityTypes": ["Question"] },
+          "answers": []
+        },
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "filter": { "entityTypes": ["Question"] },
+          "answers": []
+        },
+        {
+          "read": "stampsListed",
+          "answers": {
+            "res-a": { "contentChecksum": "checksum-a", "entityTypes": ["Place"] }
+          }
+        }
+      ]
+    },
+    {
       "why": "deleting a resource's vectors takes every point of its chunks and nothing else: another resource's points stay, and so does every annotation's point, those of annotations on the deleted resource too",
       "writes": [
         {
@@ -445,7 +634,13 @@
             "res-b": { "contentChecksum": "checksum-b", "entityTypes": ["Person"] }
           }
         },
-        { "read": "annotationIdsListed", "answers": ["ann-1", "ann-2"] },
+        {
+          "read": "annotationStampsListed",
+          "answers": {
+            "ann-1": { "resourceId": "res-a", "entityTypes": ["Place"] },
+            "ann-2": { "resourceId": "res-b", "entityTypes": ["Person"] }
+          }
+        },
         {
           "read": "annotationsSearched",
           "embedding": [1, 0],
@@ -491,7 +686,12 @@
       ],
       "reads": [
         { "read": "counted", "answers": 2 },
-        { "read": "annotationIdsListed", "answers": ["ann-2"] },
+        {
+          "read": "annotationStampsListed",
+          "answers": {
+            "ann-2": { "resourceId": "res-a", "entityTypes": ["Place"] }
+          }
+        },
         {
           "read": "annotationsSearched",
           "embedding": [1, 0],
@@ -553,7 +753,12 @@
       ],
       "reads": [
         { "read": "counted", "answers": 2 },
-        { "read": "annotationIdsListed", "answers": ["ann-3"] },
+        {
+          "read": "annotationStampsListed",
+          "answers": {
+            "ann-3": { "resourceId": "res-b", "entityTypes": ["Person"] }
+          }
+        },
         {
           "read": "annotationsSearched",
           "embedding": [1, 0],
@@ -610,7 +815,12 @@
             "res-a": { "contentChecksum": "checksum-a", "entityTypes": ["Place"] }
           }
         },
-        { "read": "annotationIdsListed", "answers": ["ann-1"] }
+        {
+          "read": "annotationStampsListed",
+          "answers": {
+            "ann-1": { "resourceId": "res-a", "entityTypes": ["Place"] }
+          }
+        }
       ]
     },
     {

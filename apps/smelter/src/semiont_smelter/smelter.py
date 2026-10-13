@@ -15,9 +15,18 @@ no file of the record and knows no address.
 is delivered, whatever its channel. A resource's events are applied one at a
 time, in the order they arrived, in a lane of the resource's own
 (`semiont_service.lanes`), and the lanes work beside each other. Nothing is
-gathered up and nothing is held back: an event is applied when its lane
-reaches it. The work a start plans, and a rebuild's, takes its turn in the
-same lanes.
+held back: an event is applied when its lane reaches it. One thing is
+gathered: the `mark:added` events of a resource that are waiting for their
+turn together, with no other event of the resource between them, have one
+turn, so that the texts they quote are embedded in one batch. Nothing waits
+for more of them to arrive. The work a start plans, and a rebuild's, takes
+its turn in the same lanes.
+
+**What a start plans is looked at again where the record has moved.** A
+reconcile plans from what it read, and does the work afterwards. A piece of
+that work whose resource an event has arrived for since is not done as it
+was planned: it asks the record again, and does what the record wants now.
+One the record no longer wants is not done, and a line of the log says so.
 
 **One resource is declined in one place.** `_conclude` is the only way a
 resource that was to be indexed is not, and it does what every such decision
@@ -32,7 +41,7 @@ anchored-text entry is filed under it, and `smelt:settled` states it.
 
 import asyncio
 import hashlib
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
 from functools import partial
 from types import TracebackType
@@ -44,6 +53,7 @@ from semiont.bus import Bus, decoded
 from semiont.channel import Empty
 from semiont.channels import (
     MARK_ADDED,
+    MARK_BODY_UPDATED,
     MARK_REMOVED,
     SMELT_REBUILD_ANCHORS,
     SMELT_REBUILD_ANCHORS_FAILED,
@@ -68,7 +78,7 @@ from semiont_service.content import Content, ContentReads, ContentUnread
 from semiont_service.lanes import Lanes
 from semiont_service.white_space import trimmed
 from semiont_vectors.embedding import EmbeddingProvider
-from semiont_vectors.store import AnnotationPayload, EmbeddingChunk, VectorStore
+from semiont_vectors.store import AnnotationPayload, AnnotationStamp, EmbeddingChunk, VectorStore
 
 from semiont_smelter.anchored_text_store import AnchoredTextStore
 from semiont_smelter.chunking import Chunking, chunk_text
@@ -82,6 +92,7 @@ from semiont_smelter.reconcile import (
     Reanchor,
     ReconcileSummary,
     Restamp,
+    RestampAnnotation,
     Work,
     classify_embeddable,
     plan_reconcile,
@@ -169,18 +180,27 @@ _FAILED: Final = _Failed()
 
 
 @final
+class _Unwanted:
+    """What a piece of planned work came to when, at its turn, the record no longer wanted it: it was not done."""
+
+
+_UNWANTED: Final = _Unwanted()
+
+
+@final
 @dataclass(frozen=True, slots=True)
 class _Piece:
     """One piece of planned work: what kind it is, the lane it takes its turn in, and the work.
 
-    Its lane is what it is about: a resource, or an annotation whose
-    resource is not known. Work that indexes a resource answers what that
-    came to, and all other work answers nothing.
+    Its lane is what it is about: a resource, or an annotation whose point
+    names no resource. Work that indexes a resource answers what that came
+    to. Any work answers that it was not wanted, where it was not, and
+    nothing otherwise.
     """
 
     kind: str
     lane: str
-    work: Callable[[], Awaitable[_Concluded | None]]
+    work: Callable[[], Awaitable[_Concluded | _Unwanted | None]]
 
 
 @final
@@ -237,6 +257,10 @@ class Smelter:
         self._draining: Final = asyncio.Lock()
         """Held while planned work is done: a reconcile's and a rebuild's are never done at once."""
         self._doing: Final[list[asyncio.Task[None]]] = []
+        self._gathering: Final[dict[str, list[StoredEventResponse]]] = {}
+        """By lane, the `mark:added` events that are waiting for one turn: one that arrives while they wait joins them."""
+        self._moved: set[ResourceId] | None = None
+        """The resources an event has arrived for since the reconcile under way began to read. `None` while none is under way."""
         self._events_processed = 0
         self._reconcile = ReconcileState(phase="pending")
 
@@ -280,7 +304,12 @@ class Smelter:
     # ── Following ──────────────────────────────────────────────────────
 
     def delivered(self, frame: Frame) -> None:
-        """Take a frame the transport delivered: a followed event goes to its resource's lane, and a rebuild command waits its turn."""
+        """Take a frame the transport delivered: a followed event goes to its resource's lane, and a rebuild command waits its turn.
+
+        A `mark:added` joins those of its resource that are waiting for
+        their turn, where there are any and no other event of the resource
+        has arrived since.
+        """
         if frame.channel == SMELT_REBUILD_ANCHORS.name:
             self._commanded.put_nowait(frame)
             return
@@ -295,25 +324,49 @@ class Smelter:
             # Every event a Smelter follows is a resource's. One that names none says nothing it can act on.
             LOG.error("A followed event names no resource, and was passed by", extra={"type": event.type, "eventId": event.id})
             return
-        self._lanes.put(event.resource_id, partial(self._apply_in_turn, event.resource_id, event))
-
-    async def _apply_in_turn(self, resource: ResourceId, event: StoredEventResponse) -> None:
-        """Apply an event in its lane. One that fails is logged and passed by: what it missed is found when the Smelter next starts."""
-        try:
-            await self._apply(resource, event)
-        except Exception as failure:
-            LOG.error("Smelter failed to process event", extra={"type": event.type, "resourceId": resource, **failure_said(failure)})
+        resource = event.resource_id
+        if self._moved is not None:
+            self._moved.add(resource)
+        waiting = self._gathering.get(resource)
+        if event.type == "mark:added" and waiting is not None:
+            waiting.append(event)
             return
-        self._events_processed += 1
+        together = [event]
+        if event.type == "mark:added":
+            self._gathering[resource] = together
+        else:
+            # An event of another kind ends the gathering: a `mark:added` that arrives after it is applied after it.
+            self._gathering.pop(resource, None)
+        self._lanes.put(resource, partial(self._apply_in_turn, resource, together))
 
-    async def _apply(self, resource: ResourceId, event: StoredEventResponse) -> None:
+    async def _apply_in_turn(self, resource: ResourceId, together: list[StoredEventResponse]) -> None:
+        """Apply, in their lane, the events that have one turn: one event, or the `mark:added` events that waited for it together.
+
+        What fails is logged and passed by, once for each event: what it
+        missed is found when the Smelter next starts.
+        """
+        if self._gathering.get(resource) is together:
+            # Their turn has come: one that arrives from here on waits for a turn of its own.
+            del self._gathering[resource]
+        try:
+            await self._apply(resource, together)
+        except Exception as failure:
+            for event in together:
+                LOG.error("Smelter failed to process event", extra={"type": event.type, "resourceId": resource, **failure_said(failure)})
+            return
+        self._events_processed += len(together)
+
+    async def _apply(self, resource: ResourceId, together: Sequence[StoredEventResponse]) -> None:
         """Do what an event does (`docs/protocol/SMELTER.md` § What each event does).
 
-        Which resource or annotation changed is all that is taken from the
-        event. What a resource's points are made of is read afresh.
+        `together` is the events of one turn, which are of one type: one
+        event, but for `mark:added`. Which resource or annotation changed is
+        all that is taken from an event. What a resource's points are made
+        of is read afresh.
         """
+        event = together[0]
         match event.type:
-            case "yield:created" | "yield:updated" | "yield:representation-added":
+            case "yield:created" | "yield:cloned" | "yield:updated" | "yield:representation-added":
                 await self._index_resource(resource)
             case "mark:archived":
                 await self._index.delete_resource_vectors(resource)
@@ -327,12 +380,14 @@ class Smelter:
                 await self._index_resource(resource)
                 await self._index_annotations(resource, await self._record.annotations(resource))
             case "mark:added":
-                annotation = MARK_ADDED.event(event).annotation
+                annotations = [MARK_ADDED.event(added).annotation for added in together]
                 # An annotation has a point only on a resource of the catalog, which an archived one is not: a start
                 # takes such a point out, so none is made here. One that quotes no text has no point whatever its
                 # resource is, and nothing is asked for it.
-                if quotes_text(annotation) and not await self._record.archived(resource):
-                    await self._index_annotations(resource, [annotation])
+                if any(quotes_text(annotation) for annotation in annotations) and not await self._record.archived(resource):
+                    await self._index_annotations(resource, annotations)
+            case "mark:body-updated":
+                await self._restamp_annotations(resource, [MARK_BODY_UPDATED.event(event).annotation_id])
             case "mark:removed":
                 await self._unindex_annotation(MARK_REMOVED.event(event).annotation_id)
             case "mark:entity-tag-added" | "mark:entity-tag-removed":
@@ -528,6 +583,19 @@ class Smelter:
             )
             LOG.info("Indexed annotation", extra={"annotationId": annotation.id})
 
+    async def _restamp_annotations(self, resource: ResourceId, wanted: Collection[AnnotationId]) -> None:
+        """Rewrite the entity types on the points of these annotations of one resource to those each one's body states now.
+
+        Nothing is embedded: a body changes nothing an annotation quotes. An
+        annotation the Archivist no longer answers is passed by, and one that
+        has no point is left with none.
+        """
+        for annotation in await self._record.annotations(resource):
+            if annotation.id in wanted:
+                types = entity_types(annotation)
+                await self._index.update_annotation_entity_types(annotation.id, types)
+                LOG.info("Restamped annotation entity types", extra={"annotationId": annotation.id, "entityTypes": types})
+
     async def _unindex_annotation(self, annotation: AnnotationId) -> None:
         """Take an annotation's point out. Taking out one that is not there changes nothing."""
         await self._index.delete_annotation_vector(annotation)
@@ -544,17 +612,23 @@ class Smelter:
         reads and what arrives. What it plans is done in the lanes, in turn
         with what arrives, and a resource's bytes are read afresh when its
         turn comes: what was planned from an old read never puts back bytes
-        a later event replaced.
+        a later event replaced. A piece planned for a resource that an event
+        has arrived for since this began to read asks the record again at
+        its turn, and is not done where the record no longer wants it.
 
         Raises what it failed with, having said so in `reconcile_state`.
         """
         self._reconcile = ReconcileState(phase="running")
+        # Before anything is read: an event that arrives from here on may be one the reads did not see.
+        self._moved = set()
         try:
             summary = await self._reconciled()
         except Exception as failure:
             self._reconcile = ReconcileState(phase="failed", error=str(failure))
             LOG.error("Reconcile failed", extra={"error": words_of(failure)})
             raise
+        finally:
+            self._moved = None
         self._reconcile = ReconcileState(phase="done", summary=summary)
         LOG.info("Reconcile complete", extra=summary.said())
         return summary
@@ -562,15 +636,15 @@ class Smelter:
     async def _reconciled(self) -> ReconcileSummary:
         # The index is read before the catalog: a resource indexed while this runs is then never taken for one
         # that should not be there. The store's keys are one read, and no entry is opened.
-        indexed_resources, indexed_annotations, anchored_keys = await asyncio.gather(
-            self._index.list_resource_stamps(), self._index.list_annotation_ids(), self._anchored.list()
+        indexed_resources, annotation_points, anchored_keys = await asyncio.gather(
+            self._index.list_resource_stamps(), self._index.list_annotation_stamps(), self._anchored.list()
         )
         resources = await self._record.resources()
         LOG.info(
             "Reconcile started",
             extra={
                 "indexedResources": len(indexed_resources),
-                "indexedAnnotations": len(indexed_annotations),
+                "indexedAnnotations": len(annotation_points),
                 "anchoredEntries": len(anchored_keys),
                 "liveResources": len(resources),
             },
@@ -585,18 +659,19 @@ class Smelter:
 
         work = plan_reconcile(
             indexed_resources=indexed_resources,
-            indexed_annotations=indexed_annotations,
+            indexed_annotations={annotation: point.entity_types for annotation, point in annotation_points.items()},
             anchored_keys=frozenset(anchored_keys),
             embeddable=embeddable,
             live_annotations=live,
         )
-        pieces = self._pieces(work)
+        pieces = self._pieces(work, annotation_points)
         came = await self._drain(pieces)
 
         embedded = unavailable = failed = 0
         skipped: dict[SmeltSettledReason, int] = {}
         for piece, result in zip(pieces, came, strict=True):
-            if piece.kind != _EMBED:
+            # A piece that was not wanted when its turn came was not done, and is counted nowhere.
+            if piece.kind != _EMBED or isinstance(result, _Unwanted):
                 continue
             if result is None:
                 embedded += 1
@@ -616,44 +691,118 @@ class Smelter:
             resources_reanchored=sum(isinstance(item, Reanchor) for item in work),
             resource_vectors_deleted=sum(isinstance(item, Purge) for item in work),
             annotations_embedded=sum(isinstance(item, EmbedAnnotation) for item in work),
+            annotations_restamped=sum(isinstance(item, RestampAnnotation) for item in work),
             annotation_vectors_deleted=sum(isinstance(item, PurgeAnnotation) for item in work),
             resources_eligible=len(embeddable),
             resources_indexed=len(await self._index.list_resource_stamps()),
         )
 
-    def _pieces(self, work: Sequence[Work]) -> list[_Piece]:
+    def _pieces(self, work: Sequence[Work], points: Mapping[AnnotationId, AnnotationStamp]) -> list[_Piece]:
         """The pieces a plan is done in, in the plan's order.
 
-        Each item is a piece, but for the annotations of one resource, which
-        are indexed together, where the first of them was planned: their
-        quotes are then embedded in one batch.
+        `points` is what the index said of each annotation's point when the
+        plan was made.
+
+        Each item is a piece, but for the annotations of one resource that
+        are indexed, and those whose entity types are rewritten: each of the
+        two is one piece, where the first of them was planned. The quotes
+        are then embedded in one batch, and the Archivist is asked once.
         """
         pieces: list[_Piece] = []
-        together: dict[ResourceId, list[Annotation]] = {}
+        indexed: dict[ResourceId, list[Annotation]] = {}
+        restamped: dict[ResourceId, list[AnnotationId]] = {}
         for item in work:
             match item:
                 case Embed(resource):
-                    pieces.append(_Piece(_EMBED, resource, partial(self._index_resource, resource)))
+                    pieces.append(_Piece(_EMBED, resource, partial(self._index_planned, resource)))
                 case Restamp(resource):
                     pieces.append(_Piece("restamp", resource, partial(self._restamp, resource)))
                 case Reanchor(resource):
                     pieces.append(_Piece("reanchor", resource, partial(self._reanchor, resource)))
                 case Purge(resource):
-                    pieces.append(_Piece("purge", resource, partial(self._purge, resource)))
+                    pieces.append(_Piece("purge", resource, partial(self._purge_planned, resource)))
                 case EmbedAnnotation(resource, annotation):
-                    if resource not in together:
-                        together[resource] = []
-                        on_it = together[resource]
-                        pieces.append(_Piece("embed-annotation", resource, partial(self._index_annotations, resource, on_it)))
-                    together[resource].append(annotation)
+                    if resource not in indexed:
+                        indexed[resource] = []
+                        indexing = partial(self._index_annotations_planned, resource, indexed[resource])
+                        pieces.append(_Piece("embed-annotation", resource, indexing))
+                    indexed[resource].append(annotation)
+                case RestampAnnotation(resource, rewritten):
+                    if resource not in restamped:
+                        restamped[resource] = []
+                        restamping = partial(self._restamp_annotations, resource, restamped[resource])
+                        pieces.append(_Piece("restamp-annotation", resource, restamping))
+                    restamped[resource].append(rewritten)
                 case PurgeAnnotation(gone):
-                    # Which resource it was on is not known, so the annotation's own id names its lane.
-                    pieces.append(_Piece("purge-annotation", gone, partial(self._unindex_annotation, gone)))
+                    # It takes its turn among the events of the resource its point says it is on. A point that names
+                    # no resource is no resource's to order it against, and the annotation's own id names its lane.
+                    on = points[gone].resource_id
+                    pieces.append(_Piece("purge-annotation", gone if on is None else on, partial(self._unindex_planned, on, gone)))
                 case _:
                     assert_never(item)
         return pieces
 
-    async def _drain(self, pieces: Sequence[_Piece]) -> list[_Concluded | _Failed | None]:
+    # ── Planned work, looked at again ──────────────────────────────────
+
+    def _moved_since_planned(self, resource: ResourceId) -> bool:
+        """Whether an event of this resource has arrived since the reconcile under way began to read.
+
+        What was planned for a resource no event has arrived for is still
+        what the record wants: an event that arrives later takes its turn
+        after the piece, and mends what the piece did. What was planned for
+        one an event has arrived for may be of a record that has moved.
+        """
+        return self._moved is not None and resource in self._moved
+
+    def _unwanted(self, kind: str, about: str) -> _Unwanted:
+        """Say that a piece of planned work was not done, the record having moved since it was planned, and answer that it was not."""
+        LOG.info("Reconcile left planned work undone, which a later event made unwanted", extra={"kind": kind, "about": about})
+        return _UNWANTED
+
+    async def _index_planned(self, resource: ResourceId) -> _Concluded | _Unwanted | None:
+        """Index a resource a reconcile set out to, unless it has been archived since: an archived resource has no points."""
+        if self._moved_since_planned(resource) and await self._record.archived(resource):
+            return self._unwanted(_EMBED, resource)
+        return await self._index_resource(resource)
+
+    async def _purge_planned(self, resource: ResourceId) -> _Unwanted | None:
+        """Take out the points of a resource a reconcile found was none of the catalog's with text, unless it has become one since."""
+        if self._moved_since_planned(resource):
+            described = await self._record.described(resource)
+            if described.archived is not True and classify_embeddable([described]):
+                return self._unwanted("purge", resource)
+        await self._purge(resource)
+        return None
+
+    async def _index_annotations_planned(self, resource: ResourceId, planned: Sequence[Annotation]) -> _Unwanted | None:
+        """Index the annotations of one resource a reconcile set out to: those the record still has, on a resource it still lists."""
+        if not self._moved_since_planned(resource):
+            await self._index_annotations(resource, planned)
+            return None
+        if await self._record.archived(resource):
+            return self._unwanted("embed-annotation", resource)
+        wanted = {annotation.id for annotation in planned}
+        # Each as the record has it now, which is what an event that arrived since would have indexed.
+        still = [annotation for annotation in await self._record.annotations(resource) if annotation.id in wanted]
+        for gone in wanted - {annotation.id for annotation in still}:
+            self._unwanted("embed-annotation", gone)
+        await self._index_annotations(resource, still)
+        return None
+
+    async def _unindex_planned(self, resource: ResourceId | None, annotation: AnnotationId) -> _Unwanted | None:
+        """Take out the point of an annotation a reconcile found the catalog did not have, unless the catalog has it since."""
+        if resource is not None and self._moved_since_planned(resource) and await self._quoting_on(resource, annotation):
+            return self._unwanted("purge-annotation", annotation)
+        await self._unindex_annotation(annotation)
+        return None
+
+    async def _quoting_on(self, resource: ResourceId, annotation: AnnotationId) -> bool:
+        """Whether a resource of the catalog has this annotation now, quoting text: whether the annotation is to have a point."""
+        if await self._record.archived(resource):
+            return False
+        return any(held.id == annotation and quotes_text(held) for held in await self._record.annotations(resource))
+
+    async def _drain(self, pieces: Sequence[_Piece]) -> list[_Concluded | _Failed | _Unwanted | None]:
         """Do planned work, at most eight pieces at a time, each in its lane, and answer what each came to, in their order.
 
         One plan's work is done at a time: a rebuild that is commanded while
@@ -661,13 +810,15 @@ class Smelter:
         about.
         """
         async with self._draining:
-            came: list[_Concluded | _Failed | None] = []
+            came: list[_Concluded | _Failed | _Unwanted | None] = []
             for start in range(0, len(pieces), _WAVE):
                 came.extend(await asyncio.gather(*(self._do(piece) for piece in pieces[start : start + _WAVE])))
             return came
 
-    async def _do(self, piece: _Piece) -> _Concluded | _Failed | None:
+    async def _do(self, piece: _Piece) -> _Concluded | _Failed | _Unwanted | None:
         """Do one piece of planned work in its lane. One that fails is logged, as an event that fails is, and answered as failed."""
+        # It takes its turn as an event of another kind does: a `mark:added` that arrives after it is applied after it.
+        self._gathering.pop(piece.lane, None)
         try:
             return await self._lanes.run(piece.lane, piece.work)
         except Exception as failure:

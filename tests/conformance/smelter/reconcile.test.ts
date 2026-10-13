@@ -77,6 +77,7 @@ function expectOnly(summary: ReconcileSummary, work: Partial<ReconcileSummary>):
     resourcesReanchored: 0,
     resourceVectorsDeleted: 0,
     annotationsEmbedded: 0,
+    annotationsRestamped: 0,
     annotationVectorsDeleted: 0,
     resourcesEligible: summary.resourcesEligible,
     resourcesIndexed: summary.resourcesIndexed,
@@ -242,6 +243,26 @@ eachSmelter('a Smelter, starting after what it keeps was changed behind it', (wo
     expect(await world().index.annotationPoint(onArchived)).toBeUndefined();
     expectSame(await world().index.pointsOf('resources', kept, true), heldOfKept);
     expectSame([await pointOfAnnotation(world(), onKept)], [heldOnKept]);
+  });
+
+  it('rewrites the entity types on the point of an annotation whose body was given a tag while it was stopped, and embeds nothing', async () => {
+    const quote = 'words whose annotation is given an entity type';
+    const id = await indexedText(world(), 'Tagged in its body while stopped', `A text with ${quote} while the Smelter is stopped.`);
+    const annotation = await indexedAnnotation(world(), id, quote);
+    const held = await pointOfAnnotation(world(), annotation);
+    expect(held.payload['entityTypes']).toEqual([]);
+
+    await world().stop();
+    await world().bodyTagged(id, annotation, ['Treaty']);
+    const before = world().provider.mark();
+    await world().start();
+
+    expectOnly(await summaryOf(world()), { annotationsRestamped: 1 });
+    expect(world().provider.since(before)).toEqual([]);
+    // The same point, with the same vector: only the entity types it carries are other than they were.
+    const point = await pointOfAnnotation(world(), annotation);
+    expectSame([{ ...point, payload: { ...point.payload, entityTypes: [] } }], [held]);
+    expect(point.payload['entityTypes']).toEqual(['Treaty']);
   });
 
   it('indexes an annotation added while it was stopped, and takes out the point of one removed', async () => {

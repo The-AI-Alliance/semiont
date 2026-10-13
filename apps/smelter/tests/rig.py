@@ -168,6 +168,19 @@ class World(ContentReads):
             "yield:created", resource, {"name": name, "format": content_type, "contentChecksum": checksum_of(data), "wasAttributedTo": ADA}
         )
 
+    def clone(self, resource: str, parent: str) -> JsonObject:
+        """Make a resource that is a copy of another: the other's bytes and entity types, under an id of its own (`yield:cloned`)."""
+        copied = self.content[parent]
+        checksum = checksum_of(copied.data)
+        self.content[resource] = copied
+        representation: JsonObject = {"mediaType": copied.content_type, "checksum": checksum, "byteSize": len(copied.data)}
+        representations: list[JsonValue] = [representation]
+        name = f"Name of {resource}"
+        self.described[resource] = {"@context": "https://schema.org", "@id": resource, "name": name, "representations": representations}
+        self._set_types(resource, self._types(parent))
+        cloned: JsonObject = {"name": name, "format": copied.content_type, "contentChecksum": checksum, "parentResourceId": parent}
+        return self._event("yield:cloned", resource, cloned)
+
     def forget(self, resource: str) -> None:
         """Take a resource and its annotations out of the knowledge base, with no event: a resource that is gone."""
         del self.described[resource]
@@ -209,6 +222,33 @@ class World(ContentReads):
             stated["body"] = body
         self.annotations.setdefault(resource, []).append(stated)
         return self._event("mark:added", resource, {"annotation": stated})
+
+    def retag(self, resource: str, annotation: str, tags: Sequence[str]) -> JsonObject:
+        """Give an annotation these entity types in place of those its body states (`mark:body-updated`).
+
+        The event carries what the Archivist records of it: each item the
+        body had is removed, and one is added for each of these.
+        """
+        on_it = self.annotations[resource]
+        was = next(held for held in on_it if held["id"] == annotation)
+        had = was.get("body")
+        operations: list[JsonValue] = []
+        for item in had if isinstance(had, list) else []:
+            removed: JsonObject = {"op": "remove", "item": item}
+            operations.append(removed)
+        body: list[JsonValue] = []
+        for tag in tags:
+            tagging: JsonObject = {"type": "TextualBody", "value": tag, "purpose": "tagging"}
+            added: JsonObject = {"op": "add", "item": tagging}
+            body.append(tagging)
+            operations.append(added)
+        # A new annotation in the old one's place: the event that recorded the old one keeps what it recorded. One
+        # whose body states nothing has no body: there is no empty list of bodies.
+        now: JsonObject = {name: value for name, value in was.items() if name != "body"}
+        if body:
+            now["body"] = body
+        self.annotations[resource] = [now if held is was else held for held in on_it]
+        return self._event("mark:body-updated", resource, {"annotationId": annotation, "operations": operations})
 
     def unannotate(self, resource: str, annotation: str) -> JsonObject:
         """Take an annotation off a resource (`mark:removed`)."""
@@ -306,7 +346,9 @@ async def held_by(index: MemoryVectorStore) -> Held:
     for result in await index.search_annotations(any_vector, SearchOptions(limit=everything)):
         assert result.annotation_id is not None
         annotations[result.annotation_id] = AnnotationPoint(result.resource_id, result.text, result.entity_types or (), result.machine_read)
-    assert set(annotations) == await index.list_annotation_ids()
+    # What the index lists of each annotation's point is what a search answers of it.
+    listed = {of: (stamp.resource_id, stamp.entity_types) for of, stamp in (await index.list_annotation_stamps()).items()}
+    assert listed == {of: (point.resource, point.entity_types) for of, point in annotations.items()}
     return Held(stamps=by_name, chunks=chunks, annotations=annotations)
 
 

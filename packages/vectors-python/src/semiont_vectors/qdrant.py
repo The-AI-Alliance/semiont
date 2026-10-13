@@ -96,7 +96,9 @@ generates from Qdrant's OpenAPI document.
   `{"key": ..., "match": {"value": ...}}` holds where the member is that
   value, or is a list with it among its items.
   `{"key": ..., "match": {"any": [...]}}` holds where the member, or any
-  item of the list it is, is one of those listed.
+  item of the list it is, is one of those listed. The condition
+  `{"has_id": [...]}` holds of a point kept under one of the ids listed,
+  and reads no payload.
 """
 
 from abc import abstractmethod
@@ -111,11 +113,13 @@ from semiont.identifiers import AnnotationId, ResourceId
 from semiont_vectors._dimensions import resolve_dimensions
 from semiont_vectors.merge import merge_by_resource
 from semiont_vectors.payload import (
+    ANNOTATION_STAMP_MEMBERS,
     STAMP_MEMBERS,
     Payload,
     annotation_key,
     annotation_of,
     annotation_payload,
+    annotation_stamp_of,
     chunk_key,
     chunk_payload,
     qdrant_id,
@@ -125,6 +129,7 @@ from semiont_vectors.payload import (
 )
 from semiont_vectors.store import (
     AnnotationPayload,
+    AnnotationStamp,
     CollectionAbsent,
     EmbeddingChunk,
     ResourceStamp,
@@ -303,6 +308,13 @@ def _points_of(resource_id: ResourceId) -> _Body:
     return {"must": [_equal("resourceId", str(resource_id))]}
 
 
+def _point_of(annotation_id: AnnotationId) -> _Body:
+    """The filter that holds of an annotation's one point, by the id it is kept under, and of no other."""
+    ids: list[JsonValue] = [qdrant_id(annotation_key(annotation_id))]
+    kept_under: JsonValue = {"has_id": ids}
+    return {"must": [kept_under]}
+
+
 def _conditions(stated: SearchFilter | None) -> _Body | None:
     """A search's filter, as Qdrant takes one. `None` where it filters nothing."""
     if stated is None:
@@ -371,10 +383,10 @@ async def _search_alike(client: httpx.AsyncClient, resource_id: ResourceId, opti
     return merge_by_resource(hits)[:limit]
 
 
-def _stamps(limit: int) -> _Body:
-    """A scroll's body that asks for what a stamp is read from, and for no vector."""
-    members: list[JsonValue] = [*STAMP_MEMBERS]
-    return {"limit": limit, "with_payload": members, "with_vector": False}
+def _asking_for(members: Sequence[str], limit: int) -> _Body:
+    """A scroll's body that asks for these members of each point's payload and no others, and for no vector."""
+    wanted: list[JsonValue] = [*members]
+    return {"limit": limit, "with_payload": wanted, "with_vector": False}
 
 
 class _QdrantSearches(VectorReader):
@@ -426,7 +438,7 @@ class _QdrantSearches(VectorReader):
 
     @override
     async def get_resource_stamp(self, resource_id: ResourceId) -> ResourceStamp | None:
-        asked: _Body = {**_stamps(1), "filter": _points_of(resource_id)}
+        asked: _Body = {**_asking_for(STAMP_MEMBERS, 1), "filter": _points_of(resource_id)}
         page = _Page.model_validate(await _read(self._reached(), _RESOURCES.at("/points/scroll"), asked))
         return stamp_of(_said(page.points[0])) if page.points else None
 
@@ -513,6 +525,14 @@ class QdrantVectorStore(_QdrantSearches, VectorStore):
         await _write(client, "PUT", _ANNOTATIONS.at("/points"), {"points": [point]})
 
     @override
+    async def update_annotation_entity_types(self, annotation_id: AnnotationId, entity_types: Sequence[str]) -> None:
+        client = self._reached()
+        types: list[JsonValue] = [*entity_types]
+        # By a filter and not by naming the point's id: a filter that holds of no point sets nothing, and that is no failure.
+        body: _Body = {"payload": {"entityTypes": types}, "filter": _point_of(annotation_id)}
+        await _write(client, "POST", _ANNOTATIONS.at("/points/payload"), body)
+
+    @override
     async def delete_resource_vectors(self, resource_id: ResourceId) -> None:
         await _write(self._reached(), "POST", _RESOURCES.at("/points/delete"), {"filter": _points_of(resource_id)})
 
@@ -538,7 +558,7 @@ class QdrantVectorStore(_QdrantSearches, VectorStore):
     @override
     async def list_resource_stamps(self) -> dict[ResourceId, ResourceStamp]:
         stamps: dict[ResourceId, ResourceStamp] = {}
-        async for page in _pages(self._reached(), _RESOURCES, _stamps(_PAYLOAD_PAGE)):
+        async for page in _pages(self._reached(), _RESOURCES, _asking_for(STAMP_MEMBERS, _PAYLOAD_PAGE)):
             for point in page:
                 payload = _said(point)
                 resource_id = resource_of(payload)
@@ -548,12 +568,12 @@ class QdrantVectorStore(_QdrantSearches, VectorStore):
         return stamps
 
     @override
-    async def list_annotation_ids(self) -> set[AnnotationId]:
-        asked: _Body = {"limit": _PAYLOAD_PAGE, "with_payload": ["annotationId"], "with_vector": False}
-        ids: set[AnnotationId] = set()
-        async for page in _pages(self._reached(), _ANNOTATIONS, asked):
+    async def list_annotation_stamps(self) -> dict[AnnotationId, AnnotationStamp]:
+        stamps: dict[AnnotationId, AnnotationStamp] = {}
+        async for page in _pages(self._reached(), _ANNOTATIONS, _asking_for(ANNOTATION_STAMP_MEMBERS, _PAYLOAD_PAGE)):
             for point in page:
-                annotation_id = annotation_of(_said(point))
+                payload = _said(point)
+                annotation_id = annotation_of(payload)
                 if annotation_id is not None:
-                    ids.add(annotation_id)
-        return ids
+                    stamps[annotation_id] = annotation_stamp_of(payload)
+        return stamps

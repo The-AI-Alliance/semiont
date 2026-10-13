@@ -30,6 +30,7 @@ from semiont_vectors.payload import (
     annotation_key,
     annotation_of,
     annotation_payload,
+    annotation_stamp_of,
     chunk_key,
     chunk_payload,
     resource_of,
@@ -38,6 +39,7 @@ from semiont_vectors.payload import (
 )
 from semiont_vectors.store import (
     AnnotationPayload,
+    AnnotationStamp,
     EmbeddingChunk,
     ResourceStamp,
     SearchFilter,
@@ -155,6 +157,13 @@ class MemoryVectorStore(VectorStore):
         self._annotations[key] = _Point(vector=tuple(embedding), payload=annotation_payload(payload))
 
     @override
+    async def update_annotation_entity_types(self, annotation_id: AnnotationId, entity_types: Sequence[str]) -> None:
+        point = self._annotations.get(annotation_key(annotation_id))
+        if point is not None:
+            types: list[JsonValue] = [*entity_types]
+            point.payload["entityTypes"] = types
+
+    @override
     async def delete_resource_vectors(self, resource_id: ResourceId) -> None:
         _take(self._resources, resource_id)
 
@@ -217,6 +226,10 @@ class MemoryVectorStore(VectorStore):
         return None
 
     @override
-    async def list_annotation_ids(self) -> set[AnnotationId]:
-        named = (annotation_of(point.payload) for point in self._annotations.values())
-        return {annotation_id for annotation_id in named if annotation_id is not None}
+    async def list_annotation_stamps(self) -> dict[AnnotationId, AnnotationStamp]:
+        stamps: dict[AnnotationId, AnnotationStamp] = {}
+        for point in self._annotations.values():
+            annotation_id = annotation_of(point.payload)
+            if annotation_id is not None:
+                stamps[annotation_id] = annotation_stamp_of(point.payload)
+        return stamps

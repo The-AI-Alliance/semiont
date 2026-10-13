@@ -86,10 +86,10 @@ embedding provider and its model, so that two Smelters that embed with
 different models are different agents. It reaches the record through the
 gateway, and reads bytes from the Archivist.
 
-- **It follows nine recorded events:** `yield:created`, `yield:updated`,
-  `yield:representation-added`, `mark:archived`, `mark:unarchived`,
-  `mark:added`, `mark:removed`, `mark:entity-tag-added` and
-  `mark:entity-tag-removed`.
+- **It follows eleven recorded events:** `yield:created`, `yield:cloned`,
+  `yield:updated`, `yield:representation-added`, `mark:archived`,
+  `mark:unarchived`, `mark:added`, `mark:body-updated`, `mark:removed`,
+  `mark:entity-tag-added` and `mark:entity-tag-removed`.
   *Held by `apps/smelter/tests/test_census.py`.*
 - **It reads what the record holds from the Archivist, over the bus:** a
   resource's description (`browse:resource-requested`), a resource's
@@ -118,6 +118,9 @@ entity types from its description as the Archivist answers it then.
 - **`yield:created`, `yield:updated` and `yield:representation-added` index
   the resource** ([Indexing a resource](#indexing-a-resource)).
   *Held by `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+- **`yield:cloned` indexes the copy,** as `yield:created` indexes a resource
+  that was made: a copy is a resource of its own, with bytes of its own.
+  *Held by `apps/smelter/tests/test_smelter.py`.*
 - **Nothing in such an event's payload changes what is indexed.**
   *Held by `apps/smelter/tests/test_smelter.py` and `apps/smelter/tests/test_properties.py`.*
 - **`mark:archived` takes the resource's points out of the index, and the
@@ -134,6 +137,13 @@ entity types from its description as the Archivist answers it then.
   an archived resource has no point until the resource is unarchived, which
   is what a start leaves too.
   *Held by `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
+- **`mark:body-updated` rewrites the entity types on the annotation's point
+  to those its body states now, and asks nothing of the embedding
+  provider:** a body changes nothing an annotation quotes. What the body
+  states is asked of the Archivist then, and nothing of it is read from the
+  event. An annotation that has no point is left with none, and one the
+  Archivist no longer answers is passed by.
+  *Held by `packages/vectors-python/tests/store_contract.py`, `apps/smelter/tests/test_smelter.py`, `apps/smelter/tests/test_properties.py` and `smelter/index`.*
 - **`mark:removed` takes the annotation's point out.** Removing one that is
   not there changes nothing.
   *Held by `apps/smelter/tests/test_smelter.py` and `smelter/index`.*
@@ -198,6 +208,14 @@ entity types from its description as the Archivist answers it then.
 - **The events of one resource are applied one at a time, in the order they
   arrive.**
   *Held by `apps/smelter/tests/test_smelter.py` and `packages/service-python/tests/test_lanes.py`.*
+- **The `mark:added` events of one resource that are waiting for their turn
+  together have one turn,** where no other event of the resource arrived
+  between them: the texts they quote are embedded in one batch, and the
+  Archivist is asked once whether the resource is archived. Nothing waits for
+  more to arrive, and one that arrives once the turn has begun waits for a
+  turn of its own. Where the turn fails, each of its events is logged and
+  passed by.
+  *Held by `apps/smelter/tests/test_smelter.py`.*
 - **The events of different resources are applied in no fixed order,** and
   the index ends the same either way.
   *Held by `apps/smelter/tests/test_properties.py` and `apps/smelter/tests/test_smelter.py`.*
@@ -209,7 +227,8 @@ entity types from its description as the Archivist answers it then.
   *Held by `apps/smelter/tests/test_smelter.py`, `smelter/index` and `smelter/provider`.*
 - **The work a start plans, and a rebuild's, takes its turn among a
   resource's events as an event does.** So it never puts back what a later
-  event changed.
+  event changed. Taking out an annotation's point takes its turn among the
+  events of the resource the point says the annotation is on.
   *Held by `apps/smelter/tests/test_properties.py` and `apps/smelter/tests/test_smelter.py`.*
 
 ## What it decides
@@ -412,6 +431,10 @@ in prose.
   no point is indexed; a point whose annotation is not among them is taken
   out.**
   *Held by `apps/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
+- **A point that carries other entity types than its annotation's body
+  states has them rewritten, and nothing is embedded.** They are compared in
+  no order.
+  *Held by `apps/smelter/tests/test_reconcile_cases.py`, `apps/smelter/tests/test_smelter.py` and `smelter/reconcile`.*
 - **Where it plans to index a resource and an annotation on it, the resource
   comes first,** since an annotation's point takes its mark of text read from
   pixels from the resource's points as they then are. The rest of the work is
@@ -419,6 +442,16 @@ in prose.
   *Held by `apps/smelter/tests/test_reconcile_cases.py` and `smelter/reconcile`.*
 - **The work is done at most eight items at a time,** each in its turn among
   its resource's events ([Order](#order)). *Held by `apps/smelter/tests/test_smelter.py`.*
+- **Work planned for a resource that an event has arrived for since the
+  reconcile began to read is looked at again when its turn comes.** It asks
+  the Archivist what the record holds then, and does what that wants. A
+  resource archived since is not indexed, and neither are the annotations on
+  it; an annotation removed since is not indexed; and points that were to be
+  taken out are kept where the catalog has their resource, or their
+  annotation, again. Work that is no longer wanted is not done, is counted
+  nowhere, and a line of the log says so. Work planned for a resource no
+  event has arrived for is done as it was planned.
+  *Held by `apps/smelter/tests/test_smelter.py` and `apps/smelter/tests/test_properties.py`.*
 - **An index that was cleared is filled again whole** by this pass, when the
   Smelter next starts. So is an anchored-text store that was cleared.
   *Held by `apps/smelter/tests/test_smelter.py`, `apps/smelter/tests/test_properties.py` and `smelter/reconcile`.*
@@ -428,10 +461,13 @@ in prose.
   (`resourcesFailed`); how many it planned to rewrite the entity types of
   (`resourcesRestamped`), to derive the anchored text of again
   (`resourcesReanchored`) and to take out (`resourceVectorsDeleted`); how
-  many annotations it planned to index (`annotationsEmbedded`) and to take
-  out (`annotationVectorsDeleted`); and how many resources of the catalog
-  have text (`resourcesEligible`) and how many have points when it ends
-  (`resourcesIndexed`).
+  many annotations it planned to index (`annotationsEmbedded`), to rewrite
+  the entity types of (`annotationsRestamped`) and to take out
+  (`annotationVectorsDeleted`); and how many resources of the catalog have
+  text (`resourcesEligible`) and how many have points when it ends
+  (`resourcesIndexed`). The first four add up to how many resources it set
+  out to index, less any whose indexing was no longer wanted when its turn
+  came.
   *Held by `apps/smelter/tests/test_smelter.py`, `apps/smelter/tests/test_reconcile_cases.py`, `smelter/boot` and `smelter/reconcile`.*
 
 ## Rebuild
@@ -530,12 +566,9 @@ it is the Worker's, held to it by `apps/smelter/tests/test_census.py`.
 - **What made a point.** A point names neither the embedding model nor the
   two numbers its text was cut by. What becomes of an index when any of the
   three changes is not stated here.
-- **An annotation's entity types, after it is indexed.** A point holds the
-  entity types its annotation had then. `mark:body-updated` is not followed.
-- **Events it does not follow.** `yield:cloned` records a new resource, and
-  `yield:moved` and `yield:representation-removed` change one; the index is
-  not told of any of them as it happens. A copy is indexed when the Smelter
-  next starts.
+- **Events it does not follow.** `yield:moved` and
+  `yield:representation-removed` change a resource, and the index is not
+  told of either as it happens.
 - **What reconcile's counts mean when work fails.** The four counts of what
   the resources it set out to index came to are outcomes. The other counts
   are of what was planned.

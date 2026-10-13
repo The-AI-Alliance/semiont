@@ -39,7 +39,7 @@ from spec import SPEC, JsonObject, objects, read, text, thing
 from store_contract import StoreContract, part, put_annotation, put_resource, width_of
 
 from semiont_vectors.qdrant import QdrantVectorReader, QdrantVectorStore
-from semiont_vectors.store import AnnotationPayload, CollectionAbsent, EmbeddingChunk, SearchOptions, VectorStore
+from semiont_vectors.store import AnnotationPayload, AnnotationStamp, CollectionAbsent, EmbeddingChunk, SearchOptions, VectorStore
 
 PORT: Final = 6333
 
@@ -211,7 +211,7 @@ def test_a_listing_reads_every_page_of_a_scroll() -> None:
                 )
                 await store.upsert_annotation_vector([1.0, 0.0], quoted)
             assert await store.count() == len(ids)
-            assert await store.list_annotation_ids() == set(ids)
+            assert await store.list_annotation_stamps() == dict.fromkeys(ids, AnnotationStamp(resource_id=on, entity_types=()))
         finally:
             await store.disconnect()
 

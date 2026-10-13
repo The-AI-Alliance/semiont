@@ -81,11 +81,13 @@ def test_its_stream_names_what_it_follows_the_command_it_answers_and_the_replies
     assert sorted(CHANNELS) == sorted(
         [
             "yield:created",
+            "yield:cloned",
             "yield:updated",
             "yield:representation-added",
             "mark:archived",
             "mark:unarchived",
             "mark:added",
+            "mark:body-updated",
             "mark:removed",
             "mark:entity-tag-added",
             "mark:entity-tag-removed",
