@@ -61,11 +61,31 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
 
+      # The Rust images' builder stage is one cold release build of the
+      # workspace for Alpine, twelve minutes of this job's nineteen, and the
+      # three Rust images share it. Its layers are kept between runs, keyed on
+      # everything the stage copies and the toolchain it builds with, so a push
+      # that changes no Rust restores the compiled stage and compiles nothing.
+      # On a miss the nearest older cache gives the base image and
+      # cargo-auditable; the compile itself is cold, because cargo's target is
+      # a mount a layer cache does not hold. The key names the Rust trees whole,
+      # not *.rs: the stage copies a JSON table too, and the first draft of this
+      # key missed it. lint:workflows holds every path the Dockerfiles copy to a
+      # pattern of this key.
+      - name: Restore the Rust images' layers
+        if: env.SEMIONT_VERSION == 'local'
+        uses: actions/cache@v6.1.0
+        with:
+          path: ${{ runner.temp }}/rust-image-layers
+          key: ${{ runner.os }}-rust-image-layers-${{ hashFiles('rust-toolchain.toml', 'version.json', 'specs/src/**', 'Cargo.toml', 'Cargo.lock', 'apps/gateway/**', 'apps/dispatcher/**', 'apps/archivist/**', 'packages/*-rust/**', '.dockerignore') }}
+          restore-keys: |
+            ${{ runner.os }}-rust-image-layers-
+
       - name: Build the packages, images and launcher from this commit
         if: env.SEMIONT_VERSION == 'local'
         # The stack boots under docker, the engine that builds the images, so
         # they are not copied into the runner's podman as well.
-        run: scripts/ci/local-build.sh --no-fanout
+        run: scripts/ci/local-build.sh --no-fanout --layer-cache "$RUNNER_TEMP/rust-image-layers"
 
       - uses: actions/setup-go@v7.0.0
         if: env.SEMIONT_VERSION != 'local'

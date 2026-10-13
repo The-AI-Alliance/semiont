@@ -180,6 +180,7 @@ SKIP_BUILD=false
 IMAGES_ONLY=false
 IMAGES_FORCED=false
 FANOUT=true
+LAYER_CACHE=""
 PACKAGES=""
 START_FROM=""
 ALL_IMAGES="gateway worker smelter weaver archivist dispatcher librarian browser"
@@ -193,6 +194,7 @@ while [[ $# -gt 0 ]]; do
     --image) IMAGES="${2//,/ }"; IMAGES_FORCED=true; shift 2 ;;
     --force-images) IMAGES_FORCED=true; shift ;;
     --no-fanout) FANOUT=false; shift ;;
+    --layer-cache) LAYER_CACHE="$2"; shift 2 ;;
     -h|--help)
       echo "Usage: local-build.sh [options]"
       echo ""
@@ -222,6 +224,11 @@ while [[ $# -gt 0 ]]; do
       echo "  --no-fanout        Leave the images in the building engine's store only"
       echo "                     (a machine that runs them with that engine alone,"
       echo "                     such as a CI runner, has no use for the copies)"
+      echo "  --layer-cache <dir> docker only: build the Rust images on a docker-container"
+      echo "                     builder that reads their layers from <dir> and writes"
+      echo "                     them back, so a run whose Rust is unchanged compiles"
+      echo "                     nothing. For a runner that keeps <dir> between runs; a"
+      echo "                     laptop's engine keeps its own layers and has no use for it"
       echo "  --images-only      Build ONLY container images, against the Verdaccio a"
       echo "                     previous run left running. Skips the npm build+publish,"
       echo "                     the drift and lockfile gates, the Python SDK and the launcher. Pair"
@@ -1049,6 +1056,24 @@ else
   fi
 fi
 
+# --layer-cache: the Rust images' layers come from, and go back to, a directory
+# a CI runner keeps between runs. docker's default builder exports no cache
+# but the inline kind, so a docker-container builder does the three builds,
+# and --load puts each image in docker's store where the stack boots it. The
+# gateway's build alone writes the cache (the three share one builder stage,
+# which lint:rust-images holds to the same text and BuildKit compiles once,
+# and three writers to one directory would race); all three read it. A new cache is written beside the old and swapped in after
+# the batch, so the directory holds one run's layers and does not grow.
+if [[ -n "$LAYER_CACHE" ]]; then
+  if [[ "$RT" != "docker" ]]; then
+    fail "--layer-cache needs docker (the engine is $RT)"
+    exit 1
+  fi
+  if ! docker buildx inspect semiont-layer-cache >/dev/null 2>&1; then
+    step "Creating the docker-container builder that reads and writes the layer cache"
+    docker buildx create --name semiont-layer-cache --driver docker-container >/dev/null
+  fi
+fi
 # Up to three builds at a time, and the next one starts as soon as any
 # finishes: ~30s of EVERY build is fixed buildkit-shim latency (10s
 # "transferring" round-trips for byte-sized payloads), which overlapping
@@ -1088,12 +1113,19 @@ while [ $next -lt ${#BUILD_IMGS[@]} ] || [ $running -gt 0 ]; do
     # layers are keyed by what they copy, so a cached one is never stale.
     # The Browser's image installs from Verdaccio, where --no-cache is what keeps
     # a republished same-version package from being reused stale (above).
+    BUILD_CMD=("$RT" build)
     case "$img" in
-      gateway|dispatcher|archivist) BUILD_FLAGS=(--build-arg "RUST_TOOLCHAIN=$RUST_TOOLCHAIN") ;;
+      gateway|dispatcher|archivist)
+        BUILD_FLAGS=(--build-arg "RUST_TOOLCHAIN=$RUST_TOOLCHAIN")
+        if [[ -n "$LAYER_CACHE" ]]; then
+          BUILD_CMD=(docker buildx build --builder semiont-layer-cache --load)
+          [[ -d "$LAYER_CACHE" ]] && BUILD_FLAGS+=(--cache-from "type=local,src=$LAYER_CACHE")
+          [[ "$img" == gateway ]] && BUILD_FLAGS+=(--cache-to "type=local,dest=$LAYER_CACHE.next,mode=max")
+        fi ;;
       worker|smelter|weaver|librarian) BUILD_FLAGS=(--build-arg "PYTHON_FLOOR=$PYTHON_FLOOR") ;;
       *)                            BUILD_FLAGS=(--no-cache --build-arg "NPM_REGISTRY=$BUILD_REGISTRY") ;;
     esac
-    $RT build "${BUILD_FLAGS[@]}" --tag "$TAG" \
+    "${BUILD_CMD[@]}" "${BUILD_FLAGS[@]}" --tag "$TAG" \
       --file "$REPO_ROOT/$DF" \
       "$REPO_ROOT" > "$LOG" 2>&1 &
     PIDS+=($!)
@@ -1162,6 +1194,13 @@ while [ $next -lt ${#BUILD_IMGS[@]} ] || [ $running -gt 0 ]; do
     sleep 1
   fi
 done
+
+# This run's layers replace the last run's: see --layer-cache above.
+if [[ -n "$LAYER_CACHE" && -d "$LAYER_CACHE.next" ]]; then
+  rm -rf "$LAYER_CACHE"
+  mv "$LAYER_CACHE.next" "$LAYER_CACHE"
+  ok "The Rust images' layers are kept in $LAYER_CACHE for the next run"
+fi
 
 # Fan-out covers skipped images too: it heals the case where another runtime
 # was down when the image was last built.
