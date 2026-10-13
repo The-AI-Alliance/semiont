@@ -5,8 +5,9 @@
  * with the index's readers.
  *
  * What the index is, specs/src/vectors/payload-cases.json states: two
- * collections, one of resources' chunks and one of annotations, and what a
- * point's payload holds. The collections' names are read from that table, and
+ * collections that are searched, one of resources' chunks and one of
+ * annotations, with what a point's payload holds, and whatever else an index
+ * keeps beside them. The collections' names are read from that table, and
  * so is every payload member a point is found by here; a rename there fails
  * here. A point's id is never worked out: a chunk's point is found by the
  * resource its payload names, and an annotation's by the annotation.
@@ -21,9 +22,8 @@ import { SPEC_SOURCE } from './paths';
 /** The port Qdrant's REST interface answers on. */
 export const QDRANT_PORT = 6333;
 
-/** The two collections, by what each holds. */
+/** The two collections that are searched, by what each holds. */
 export type Collection = 'resources' | 'annotations';
-const COLLECTIONS: readonly Collection[] = ['resources', 'annotations'];
 
 /** A point of the index: its id, its payload whole, and its vector where one was asked for. */
 export interface Point {
@@ -50,7 +50,7 @@ export interface VectorIndex {
   deletePoint(collection: Collection, id: Point['id']): Promise<void>;
   /** Take a resource's points out of a collection. */
   deletePointsOf(collection: Collection, resourceId: string): Promise<void>;
-  /** Clear the index: both collections gone, as a wiped volume leaves it. */
+  /** Clear the index: every collection it has gone, as a wiped volume leaves it. */
   clear(): Promise<void>;
 }
 
@@ -66,6 +66,17 @@ function named(collection: Collection): string {
   const stated = isObject(table) && isObject(table['collections']) ? table['collections'][collection] : undefined;
   if (!isObject(stated) || typeof stated['name'] !== 'string') throw new Error(`specs/src/${TABLE} states no collection of ${collection}`);
   return stated['name'];
+}
+
+/** The name of every collection the table states an index has: the two that are searched, and what it keeps beside them. */
+function everyCollection(): string[] {
+  const stated = isObject(table) && isObject(table['collections']) ? Object.values(table['collections']) : [];
+  const names = stated.flatMap((one) => {
+    const name = isObject(one) ? one['name'] : undefined;
+    return typeof name === 'string' ? [name] : [];
+  });
+  if (names.length < 2) throw new Error(`specs/src/${TABLE} states no collections of an index`);
+  return names;
 }
 
 /** The payloads the table states for the points of a collection. */
@@ -211,7 +222,7 @@ export function vectorIndex(host: string): VectorIndex {
     deletePointsOf: (collection, resourceId) => remove(collection, `the points of ${resourceId}`, { filter: where(RESOURCE[collection], resourceId) }),
     async clear() {
       const present = await collections();
-      for (const name of COLLECTIONS.map(named)) {
+      for (const name of everyCollection()) {
         if (present.includes(name)) answered(`delete the collection ${name}`, await ask('DELETE', `/collections/${name}`));
       }
     },

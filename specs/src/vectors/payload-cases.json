@@ -1,5 +1,5 @@
 {
-  "$comment": "What a point of the vector index is, as every implementation of the index must write it and read it. The Smelter writes the points and the Librarian's searches read them, so a point one implementation wrote is read by another. Semiont's stores (semiont_vectors, packages/vectors-python), which write the points and search them, run the cases, as WHO RUNS WHAT says; a store in another language runs the same file. THE INDEX. Two collections of points, one of resources' chunks and one of annotations. `collections` states each as Qdrant is asked to make it: its `name`; the `distance` its vectors are compared by, which is the cosine of the angle between them, in Qdrant's word for it; and its `indexes`, the payload members Qdrant is asked to index and as what, so that a filter on one does not read every point. A collection is as wide as the embedding model's vectors: the width is asked of the embedding provider when a collection is made, and no number is stated here. All of `collections` is Qdrant's alone: an in-memory store makes no collection and indexes nothing, and compares by cosine too. A POINT is an id, a vector and a payload. Each chunk of a resource is one point of the resources: its vector is the chunk's embedding, and its payload is the resource's id (`resourceId`), the chunk's index (`chunkIndex`), the chunk's `text`, the checksum of the bytes the text came from (`contentChecksum`) and the resource's `entityTypes`. An annotation is one point of the annotations: its vector is the embedding of the text it quotes, and its payload is its id (`annotationId`), its resource's (`resourceId`), its `motivation`, its `entityTypes` and that `text`. `machineRead` is `true` in the payload of a point whose text was read from pixels and is not there otherwise: it is never `false`. A payload has no other member: it does not say which model made the vector, or how the text was cut. Entity types are carried in the order given, and a checksum as it is given: nothing here works one out. AN ID. `qdrantId` is the id Qdrant keys a point by, and Qdrant takes only a UUID or a whole number. It is the MD5 of a key's UTF-8 bytes, its 32 hexadecimal digits in lower case, written in a UUID's groups of 8, 4, 4, 4 and 12 with no bit changed to mark a version or a variant. A chunk's key is the resource's id, a hyphen and the chunk's index in decimal digits; an annotation's key is its id. An in-memory store keys a point by the key itself, unhashed, and each store answers its own key as a search result's `id`; nothing that searches reads it. So an id is stated for Qdrant alone, and no `result` here has an `id`. A resource's id and an annotation's are 1 to 128 of the letters, the digits, `_` and `-` (specs/src/identifiers/kinds.json), so no key has any other character and its UTF-8 bytes are its ASCII ones; a store that hashed a key's UTF-16 code units would still get every id here wrong. A text is carried and never counted: a character outside the basic plane is in a text here to be carried as itself. READING A CASE. Each case has one of four parts. `resourceStored`: a resource's `resourceId`, its `chunks` (each an `index`, a `text` and an `embedding`), its `contentChecksum`, its `entityTypes`, and `machineRead` where the caller says how the text was read; then the `points` they become, one for each chunk in the chunks' order, and the `stamp` the resource then has, which is what its points say of it as a whole: the checksum, the entity types and the mark. A point is stated as its `qdrantId`, its `payload`, whole, and the `result` a search by the point's own embedding answers of it: the `score`, which is 1, the `resourceId`, the `text`, the `entityTypes`, the `annotationId` of an annotation's point, and `machineRead` where the point is marked. `annotationStored`: an annotation's `annotationId`, `resourceId`, `motivation` and `entityTypes`, the `text` it quotes and that text's `embedding`, and `machineRead` where the caller says it; then the one `point` it becomes. `stampRead`: a point's `payload`, and the `stamp` read from it. A payload that names no resource has no `stamp` here: a listing of stamps leaves its point out. `resultRead`: the `collection` a point is in, its `payload` and the `score` a search gave it, and the `result` read from them. Scores are stated to six decimal places and compared within 0.000001. WHO RUNS WHAT. The id a point is kept under and its payload, whole, the stamp read from a payload and the result read from one are held with no store (packages/vectors-python/tests/test_payload_cases.py). Each store then runs the stored parts by what it answers after the write, the in-memory store and a real Qdrant alike (store_contract.py): the `stamp`, each point's `result`, the annotation's id among those it lists, and the annotation's `motivation` by a search that filters on it. The collections a Qdrant then has are held against a real Qdrant (qdrant_live.py). What an index answers after a history of writes is specs/src/vectors/store-cases.json. Add a case here before changing an implementation.",
+  "$comment": "What a point of the vector index is, as every implementation of the index must write it and read it. The Smelter writes the points and the Librarian's searches read them, so a point one implementation wrote is read by another. Semiont's stores (semiont_vectors, packages/vectors-python), which write the points and search them, run the cases, as WHO RUNS WHAT says; a store in another language runs the same file. THE INDEX. Three collections. Two are of points that are searched, one of resources' chunks and one of annotations. The third, the declined, is of what the index remembers of each resource whose bytes gave no text to index: which bytes, read as what, and why. `collections` states each as Qdrant is asked to make it: its `name`; the `distance` its vectors are compared by, in Qdrant's word for it, which for the two that are searched is the cosine of the angle between them; its `indexes`, the payload members Qdrant is asked to index and as what, so that a filter on one does not read every point; and its `size`, how wide its vectors are, where that is fixed. A collection that is searched is as wide as the embedding model's vectors: the width is asked of the embedding provider when the collection is made, and no number is stated here for it. The declined is never searched, and its points hold no text. Qdrant keeps a point by a vector, so each point of the declined has the one number 0 for its vector, which says nothing: the collection is 1 wide, and is compared by the dot product, since a collection of cosine distance keeps each vector at unit length and a vector of 0 has none. All of `collections` is Qdrant's alone: an in-memory store makes no collection and indexes nothing, and compares by cosine too. THE INDEX'S STAMP. What made the index's points is said once, for the index as a whole, and on no point: it is the stamp whoever writes the index gave when the index was made anew, which a store keeps whole and reads nothing of. In Qdrant it is in the `metadata` of each of the two collections that are searched, as `{\"stamp\": ...}`, written when the collection is made anew; a collection made because there was none states no stamp, and the declined never states one. An index states a stamp only where both of those collections state the same one. A POINT is an id, a vector and a payload. Each chunk of a resource is one point of the resources: its vector is the chunk's embedding, and its payload is the resource's id (`resourceId`), the chunk's index (`chunkIndex`), the chunk's `text`, the checksum of the bytes the text came from (`contentChecksum`), the media type those bytes were read as, with whatever parameters it stated (`mediaType`), and the resource's `entityTypes`. An annotation is one point of the annotations: its vector is the embedding of the text it quotes, and its payload is its id (`annotationId`), its resource's (`resourceId`), its `motivation`, its `entityTypes` and that `text`. What is remembered of a declined resource is one point of the declined: its vector is the one number 0, and its payload is the resource's id (`resourceId`), the checksum of the bytes that gave no text (`contentChecksum`), the media type they were read as (`mediaType`) and the `reason`. `machineRead` is `true` in the payload of a point whose text was read from pixels and is not there otherwise: it is never `false`. A payload has no other member: it does not say which model made the vector, or how the text was cut, which the index's stamp is there to say. Entity types are carried in the order given, and a checksum, a media type and a reason as they are given: nothing here works one out. AN ID. `qdrantId` is the id Qdrant keys a point by, and Qdrant takes only a UUID or a whole number. It is the MD5 of a key's UTF-8 bytes, its 32 hexadecimal digits in lower case, written in a UUID's groups of 8, 4, 4, 4 and 12 with no bit changed to mark a version or a variant. A chunk's key is the resource's id, a hyphen and the chunk's index in decimal digits; an annotation's key is its id; and the key of what is remembered of a declined resource is the resource's id. An in-memory store keys a point by the key itself, unhashed, and each store answers its own key as a search result's `id`; nothing that searches reads it. So an id is stated for Qdrant alone, and no `result` here has an `id`. A resource's id and an annotation's are 1 to 128 of the letters, the digits, `_` and `-` (specs/src/identifiers/kinds.json), so no key has any other character and its UTF-8 bytes are its ASCII ones; a store that hashed a key's UTF-16 code units would still get every id here wrong. A text is carried and never counted: a character outside the basic plane is in a text here to be carried as itself. READING A CASE. Each case has one of six parts. `resourceStored`: a resource's `resourceId`, its `chunks` (each an `index`, a `text` and an `embedding`), its `contentChecksum`, the `mediaType` its bytes were read as, its `entityTypes`, and `machineRead` where the caller says how the text was read; then the `points` they become, one for each chunk in the chunks' order, and the `stamp` the resource then has, which is what its points say of it as a whole: the checksum, the media type, the entity types and the mark. A point is stated as its `qdrantId`, its `payload`, whole, and the `result` a search by the point's own embedding answers of it: the `score`, which is 1, the `resourceId`, the `text`, the `entityTypes`, the `annotationId` of an annotation's point, and `machineRead` where the point is marked. `annotationStored`: an annotation's `annotationId`, `resourceId`, `motivation` and `entityTypes`, the `text` it quotes and that text's `embedding`, and `machineRead` where the caller says it; then the one `point` it becomes. `declineStored`: a declined resource's `resourceId`, the `contentChecksum` of the bytes that gave no text, the `mediaType` they were read as and the `reason`; then the one `point` of the declined it becomes, stated as its `qdrantId` and its `payload`, whole, and with no `result`: nothing searches it. `stampRead`: a point's `payload`, and the `stamp` read from it. A payload that names no resource has no `stamp` here: a listing of stamps leaves its point out. `annotationStampRead`: the `payload` of a point of the annotations, and the `stamp` read from it, which is what the point says of its annotation without its text: the `resourceId` it says the annotation is on, and its `entityTypes`. A payload that names an annotation and no resource has a `stamp` with no `resourceId`: a listing of annotations' stamps answers its point, so that whoever lists can take it out. A payload that names no annotation has no `stamp` here: such a listing leaves its point out. `resultRead`: the `collection` a point is in, its `payload` and the `score` a search gave it, and the `result` read from them. Scores are stated to six decimal places and compared within 0.000001. WHO RUNS WHAT. The id a point is kept under and its payload, whole, the stamp read from a payload, a resource's and an annotation's, and the result read from one are held with no store (packages/vectors-python/tests/test_payload_cases.py). Of a decline, the id alone is held there: its payload is built by the store that keeps it as a point, and is held, whole, against a real Qdrant (qdrant_live.py). Each store then runs the stored parts by what it answers after the write, the in-memory store and a real Qdrant alike (store_contract.py): the `stamp`, each point's `result`, the annotation's stamp among those it lists, the annotation's `motivation` by a search that filters on it, and the decline among those it lists. The collections a Qdrant then has, and the stamp each states, are held against a real Qdrant (qdrant_live.py). What an index answers after a history of writes is specs/src/vectors/store-cases.json. Add a case here before changing an implementation.",
   "collections": {
     "resources": {
       "name": "resources",
@@ -10,11 +10,17 @@
       "name": "annotations",
       "distance": "Cosine",
       "indexes": { "resourceId": "keyword" }
+    },
+    "declined": {
+      "name": "declined",
+      "distance": "Dot",
+      "size": 1,
+      "indexes": {}
     }
   },
   "cases": [
     {
-      "why": "each chunk of a resource is one point, keyed by the resource's id and the chunk's index; its payload is the resource's id, the chunk's index and text, the checksum, and the entity types in the order given. A caller that says nothing of how the text was read leaves no mark",
+      "why": "each chunk of a resource is one point, keyed by the resource's id and the chunk's index; its payload is the resource's id, the chunk's index and text, the checksum and the media type as they are given, the type's parameters with it, and the entity types in the order given. A caller that says nothing of how the text was read leaves no mark",
       "resourceStored": {
         "resourceId": "res-1",
         "chunks": [
@@ -22,6 +28,7 @@
           { "index": 1, "text": "The war ended in 1832.", "embedding": [0, 1, 0] }
         ],
         "contentChecksum": "checksum-1",
+        "mediaType": "text/markdown; charset=utf-8",
         "entityTypes": ["Person", "Event"],
         "points": [
           {
@@ -31,6 +38,7 @@
               "chunkIndex": 0,
               "text": "Black Hawk led the Sauk.",
               "contentChecksum": "checksum-1",
+              "mediaType": "text/markdown; charset=utf-8",
               "entityTypes": ["Person", "Event"]
             },
             "result": { "score": 1.000000, "resourceId": "res-1", "text": "Black Hawk led the Sauk.", "entityTypes": ["Person", "Event"] }
@@ -42,12 +50,13 @@
               "chunkIndex": 1,
               "text": "The war ended in 1832.",
               "contentChecksum": "checksum-1",
+              "mediaType": "text/markdown; charset=utf-8",
               "entityTypes": ["Person", "Event"]
             },
             "result": { "score": 1.000000, "resourceId": "res-1", "text": "The war ended in 1832.", "entityTypes": ["Person", "Event"] }
           }
         ],
-        "stamp": { "contentChecksum": "checksum-1", "entityTypes": ["Person", "Event"] }
+        "stamp": { "contentChecksum": "checksum-1", "mediaType": "text/markdown; charset=utf-8", "entityTypes": ["Person", "Event"] }
       }
     },
     {
@@ -59,6 +68,7 @@
           { "index": 1, "text": "Read from the second scanned page.", "embedding": [0, 1, 0] }
         ],
         "contentChecksum": "checksum-2",
+        "mediaType": "application/pdf",
         "entityTypes": ["Place"],
         "machineRead": true,
         "points": [
@@ -69,6 +79,7 @@
               "chunkIndex": 0,
               "text": "Read from the first scanned page.",
               "contentChecksum": "checksum-2",
+              "mediaType": "application/pdf",
               "entityTypes": ["Place"],
               "machineRead": true
             },
@@ -87,6 +98,7 @@
               "chunkIndex": 1,
               "text": "Read from the second scanned page.",
               "contentChecksum": "checksum-2",
+              "mediaType": "application/pdf",
               "entityTypes": ["Place"],
               "machineRead": true
             },
@@ -99,7 +111,7 @@
             }
           }
         ],
-        "stamp": { "contentChecksum": "checksum-2", "entityTypes": ["Place"], "machineRead": true }
+        "stamp": { "contentChecksum": "checksum-2", "mediaType": "application/pdf", "entityTypes": ["Place"], "machineRead": true }
       }
     },
     {
@@ -110,6 +122,7 @@
           { "index": 0, "text": "Typed by a person.", "embedding": [1, 0, 0] }
         ],
         "contentChecksum": "checksum-3",
+        "mediaType": "text/markdown",
         "entityTypes": ["Place"],
         "machineRead": false,
         "points": [
@@ -120,12 +133,13 @@
               "chunkIndex": 0,
               "text": "Typed by a person.",
               "contentChecksum": "checksum-3",
+              "mediaType": "text/markdown",
               "entityTypes": ["Place"]
             },
             "result": { "score": 1.000000, "resourceId": "res-3", "text": "Typed by a person.", "entityTypes": ["Place"] }
           }
         ],
-        "stamp": { "contentChecksum": "checksum-3", "entityTypes": ["Place"] }
+        "stamp": { "contentChecksum": "checksum-3", "mediaType": "text/markdown", "entityTypes": ["Place"] }
       }
     },
     {
@@ -137,6 +151,7 @@
           { "index": 1, "text": "The staff has five lines.", "embedding": [0, 1, 0] }
         ],
         "contentChecksum": "checksum-4",
+        "mediaType": "text/markdown",
         "entityTypes": ["Place"],
         "points": [
           {
@@ -146,6 +161,7 @@
               "chunkIndex": 0,
               "text": "A treble clef 𝄞 opens the staff, and a note 🎵 follows it.",
               "contentChecksum": "checksum-4",
+              "mediaType": "text/markdown",
               "entityTypes": ["Place"]
             },
             "result": {
@@ -162,12 +178,13 @@
               "chunkIndex": 1,
               "text": "The staff has five lines.",
               "contentChecksum": "checksum-4",
+              "mediaType": "text/markdown",
               "entityTypes": ["Place"]
             },
             "result": { "score": 1.000000, "resourceId": "res-4", "text": "The staff has five lines.", "entityTypes": ["Place"] }
           }
         ],
-        "stamp": { "contentChecksum": "checksum-4", "entityTypes": ["Place"] }
+        "stamp": { "contentChecksum": "checksum-4", "mediaType": "text/markdown", "entityTypes": ["Place"] }
       }
     },
     {
@@ -178,6 +195,7 @@
           { "index": 0, "text": "Tagged with nothing.", "embedding": [1, 0, 0] }
         ],
         "contentChecksum": "checksum-5",
+        "mediaType": "text/markdown",
         "entityTypes": [],
         "points": [
           {
@@ -187,12 +205,13 @@
               "chunkIndex": 0,
               "text": "Tagged with nothing.",
               "contentChecksum": "checksum-5",
+              "mediaType": "text/markdown",
               "entityTypes": []
             },
             "result": { "score": 1.000000, "resourceId": "res-5", "text": "Tagged with nothing.", "entityTypes": [] }
           }
         ],
-        "stamp": { "contentChecksum": "checksum-5", "entityTypes": [] }
+        "stamp": { "contentChecksum": "checksum-5", "mediaType": "text/markdown", "entityTypes": [] }
       }
     },
     {
@@ -204,6 +223,7 @@
           { "index": 10, "text": "The eleventh chunk.", "embedding": [0, 1, 0] }
         ],
         "contentChecksum": "checksum-6",
+        "mediaType": "text/markdown",
         "entityTypes": ["Place"],
         "points": [
           {
@@ -213,6 +233,7 @@
               "chunkIndex": 9,
               "text": "The tenth chunk.",
               "contentChecksum": "checksum-6",
+              "mediaType": "text/markdown",
               "entityTypes": ["Place"]
             },
             "result": { "score": 1.000000, "resourceId": "res-6", "text": "The tenth chunk.", "entityTypes": ["Place"] }
@@ -224,12 +245,13 @@
               "chunkIndex": 10,
               "text": "The eleventh chunk.",
               "contentChecksum": "checksum-6",
+              "mediaType": "text/markdown",
               "entityTypes": ["Place"]
             },
             "result": { "score": 1.000000, "resourceId": "res-6", "text": "The eleventh chunk.", "entityTypes": ["Place"] }
           }
         ],
-        "stamp": { "contentChecksum": "checksum-6", "entityTypes": ["Place"] }
+        "stamp": { "contentChecksum": "checksum-6", "mediaType": "text/markdown", "entityTypes": ["Place"] }
       }
     },
     {
@@ -353,21 +375,67 @@
       }
     },
     {
-      "why": "a stamp is what a point's payload says of its resource as a whole: the checksum, the entity types and the mark. The chunk's index and its text are no part of it",
+      "why": "what the index remembers of a declined resource is one point of the declined, keyed by the resource's id alone; its payload is the resource's id, the checksum of the bytes that gave no text, the media type they were read as and the reason, each as it is given",
+      "declineStored": {
+        "resourceId": "res-7",
+        "contentChecksum": "checksum-7",
+        "mediaType": "image/png",
+        "reason": "no text was read from the image",
+        "point": {
+          "qdrantId": "78962a6f-8710-16c6-3fca-c545b3757ab4",
+          "payload": {
+            "resourceId": "res-7",
+            "contentChecksum": "checksum-7",
+            "mediaType": "image/png",
+            "reason": "no text was read from the image"
+          }
+        }
+      }
+    },
+    {
+      "why": "a stamp is what a point's payload says of its resource as a whole: the checksum, the media type, the entity types and the mark. The chunk's index and its text are no part of it",
       "stampRead": {
         "payload": {
           "resourceId": "res-1",
           "chunkIndex": 0,
           "text": "Read from a scan.",
           "contentChecksum": "checksum-1",
+          "mediaType": "text/markdown",
           "entityTypes": ["Person", "Event"],
           "machineRead": true
         },
-        "stamp": { "contentChecksum": "checksum-1", "entityTypes": ["Person", "Event"], "machineRead": true }
+        "stamp": { "contentChecksum": "checksum-1", "mediaType": "text/markdown", "entityTypes": ["Person", "Event"], "machineRead": true }
       }
     },
     {
       "why": "a point with no mark has a stamp with none: its text was not read from pixels",
+      "stampRead": {
+        "payload": {
+          "resourceId": "res-1",
+          "chunkIndex": 0,
+          "text": "Typed by a person.",
+          "contentChecksum": "checksum-1",
+          "mediaType": "text/markdown",
+          "entityTypes": ["Person", "Event"]
+        },
+        "stamp": { "contentChecksum": "checksum-1", "mediaType": "text/markdown", "entityTypes": ["Person", "Event"] }
+      }
+    },
+    {
+      "why": "a point with no checksum has a stamp with none: the checksum is absent, and is not an empty one",
+      "stampRead": {
+        "payload": {
+          "resourceId": "res-1",
+          "chunkIndex": 0,
+          "text": "Typed by a person.",
+          "mediaType": "text/markdown",
+          "entityTypes": ["Person", "Event"]
+        },
+        "stamp": { "mediaType": "text/markdown", "entityTypes": ["Person", "Event"] }
+      }
+    },
+    {
+      "why": "a point with no media type has a stamp with none: the media type is absent, and is not an empty one",
       "stampRead": {
         "payload": {
           "resourceId": "res-1",
@@ -380,27 +448,66 @@
       }
     },
     {
-      "why": "a point with no checksum has a stamp with none: the checksum is absent, and is not an empty one",
-      "stampRead": {
-        "payload": { "resourceId": "res-1", "chunkIndex": 0, "text": "Typed by a person.", "entityTypes": ["Person", "Event"] },
-        "stamp": { "entityTypes": ["Person", "Event"] }
-      }
-    },
-    {
       "why": "a point with no entity types has a stamp with an empty list of them",
       "stampRead": {
-        "payload": { "resourceId": "res-1", "chunkIndex": 0, "text": "Typed by a person.", "contentChecksum": "checksum-1" },
-        "stamp": { "contentChecksum": "checksum-1", "entityTypes": [] }
+        "payload": {
+          "resourceId": "res-1",
+          "chunkIndex": 0,
+          "text": "Typed by a person.",
+          "contentChecksum": "checksum-1",
+          "mediaType": "text/markdown"
+        },
+        "stamp": { "contentChecksum": "checksum-1", "mediaType": "text/markdown", "entityTypes": [] }
       }
     },
     {
       "why": "a point that names no resource is no resource's: no stamp is read from it, and a listing of stamps leaves it out",
       "stampRead": {
-        "payload": { "chunkIndex": 0, "text": "Typed by a person.", "contentChecksum": "checksum-1", "entityTypes": ["Person", "Event"] }
+        "payload": {
+          "chunkIndex": 0,
+          "text": "Typed by a person.",
+          "contentChecksum": "checksum-1",
+          "mediaType": "text/markdown",
+          "entityTypes": ["Person", "Event"]
+        }
       }
     },
     {
-      "why": "a result read from a point of the resources is the score the search gave it, the resource's id, the chunk's text and the entity types: it says neither which chunk it is nor the checksum",
+      "why": "an annotation's stamp is what its point's payload says of it without its text: the resource it is on, and the entity types in the payload's order. The motivation, the text and the mark are no part of it",
+      "annotationStampRead": {
+        "payload": {
+          "annotationId": "ann-1",
+          "resourceId": "res-1",
+          "motivation": "highlighting",
+          "entityTypes": ["Person", "Event"],
+          "text": "Black Hawk",
+          "machineRead": true
+        },
+        "stamp": { "resourceId": "res-1", "entityTypes": ["Person", "Event"] }
+      }
+    },
+    {
+      "why": "an annotation's point with no entity types has a stamp with an empty list of them",
+      "annotationStampRead": {
+        "payload": { "annotationId": "ann-1", "resourceId": "res-1", "motivation": "highlighting", "text": "Black Hawk" },
+        "stamp": { "resourceId": "res-1", "entityTypes": [] }
+      }
+    },
+    {
+      "why": "a point that names an annotation and no resource has a stamp with no resource: a listing of annotations' stamps answers it, so that whoever lists can take it out",
+      "annotationStampRead": {
+        "payload": { "annotationId": "ann-1", "motivation": "highlighting", "entityTypes": ["Person"], "text": "Black Hawk" },
+        "stamp": { "entityTypes": ["Person"] }
+      }
+    },
+    {
+      "why": "a point that names no annotation is no annotation's: no stamp of one is read from it, and a listing of annotations' stamps leaves it out",
+      "annotationStampRead": {
+        "payload": { "resourceId": "res-1", "motivation": "highlighting", "entityTypes": ["Person"], "text": "Black Hawk" }
+      }
+    },
+    {
+      "why": "a result read from a point of the resources is the score the search gave it, the resource's id, the chunk's text and the entity types: it says neither which chunk it is, nor the checksum, nor the media type",
       "resultRead": {
         "collection": "resources",
         "payload": {
@@ -408,6 +515,7 @@
           "chunkIndex": 3,
           "text": "The war ended in 1832.",
           "contentChecksum": "checksum-1",
+          "mediaType": "text/markdown",
           "entityTypes": ["Person", "Event"]
         },
         "score": 0.750000,
@@ -438,6 +546,7 @@
           "chunkIndex": 0,
           "text": "Read from the first scanned page.",
           "contentChecksum": "checksum-2",
+          "mediaType": "application/pdf",
           "entityTypes": ["Place"],
           "machineRead": true
         },

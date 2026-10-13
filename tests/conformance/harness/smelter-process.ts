@@ -59,16 +59,31 @@ export interface ReconcileSummary {
   resourcesReanchored: number;
   resourceVectorsDeleted: number;
   annotationsEmbedded: number;
+  annotationsRestamped: number;
   annotationVectorsDeleted: number;
   resourcesEligible: number;
   resourcesIndexed: number;
 }
 
+/** What a Smelter answers at its health port (SMELTER.md § Health). */
 export interface SmelterHealth {
   status: string;
+  /** The state of its own stream of the record. */
+  stream: string;
+  /** The number of times its stream has dropped since it started. */
+  streamDrops: number;
   /** The number of events it has applied since it started. */
   eventsProcessed: number;
+  /** The number of events delivered to it that it could not apply. */
+  eventsFailed: number;
+  /** The number of events delivered to it that are neither applied nor failed yet. */
+  eventsWaiting: number;
   reconcile: { phase: 'pending' | 'running' | 'done' | 'failed'; summary?: ReconcileSummary; error?: string };
+  /** What it holds its index to, and whether this start made the index again. */
+  index: {
+    stamp: { embedding: { type: string; model: string }; chunking: { chunkSize: number; overlap: number } };
+    madeAnew: boolean;
+  };
 }
 
 export interface SmelterLaunch {

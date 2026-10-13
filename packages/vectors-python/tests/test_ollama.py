@@ -5,9 +5,11 @@ cutting a batch, taking turns, a request's time and what a failure says in
 `test_slices.py`, and measuring how wide a vector is in `test_dimensions.py`.
 """
 
+import asyncio
+
 import pytest
-from aio import run
-from provider import NOT_FETCHED, Answer, Ollama, saying
+from aio import run, soon
+from provider import NOT_FETCHED, Answer, Ollama, always, saying, wait_out
 
 from semiont_vectors.embedding import BatchPolicy, EmbeddingProviderError, SliceRef
 from semiont_vectors.ollama import OLLAMA_BATCH_POLICY, OllamaEmbeddingProvider
@@ -20,11 +22,23 @@ def test_a_request_is_one_post_of_the_model_and_the_texts_and_of_nothing_else() 
         async with Ollama() as ollama:
             # Slashes at the end of the address are not part of it.
             provider = OllamaEmbeddingProvider(model=MODEL, base_url=ollama.origin + "//")
-            assert await provider.embed_batch(["a", "bc"]) == [[1.0, 0.1], [2.0, 0.1]]
+            assert await provider.embed_documents(["a", "bc"]) == [[1.0, 0.1], [2.0, 0.1]]
             (asked,) = ollama.asked
             assert (asked.method, asked.path) == ("POST", "/api/embed")
             assert asked.json() == {"model": MODEL, "input": ["a", "bc"]}
             assert asked.headers["content-type"] == "application/json"
+
+    run(scenario())
+
+
+def test_a_request_says_nothing_of_what_its_texts_are_for_whichever_way_it_was_asked() -> None:
+    # Ollama's call has no member for it: a query and a document are sent alike.
+    async def scenario() -> None:
+        async with Ollama() as ollama:
+            provider = OllamaEmbeddingProvider(model=MODEL, base_url=ollama.origin)
+            await provider.embed_query("a")
+            await provider.embed_documents(["b", "c"])
+            assert [asked.json() for asked in ollama.asked] == [{"model": MODEL, "input": ["a"]}, {"model": MODEL, "input": ["b", "c"]}]
 
     run(scenario())
 
@@ -35,7 +49,7 @@ def test_an_ollama_is_asked_128_texts_in_a_request_and_one_request_at_a_time_in_
     async def scenario() -> None:
         async with Ollama() as ollama:
             texts = [f"t{number}" for number in range(300)]
-            assert len(await OllamaEmbeddingProvider(model=MODEL, base_url=ollama.origin).embed_batch(texts)) == 300
+            assert len(await OllamaEmbeddingProvider(model=MODEL, base_url=ollama.origin).embed_documents(texts)) == 300
             assert ollama.inputs == [texts[:128], texts[128:256], texts[256:]]
             assert ollama.most_at_once == 1
 
@@ -47,7 +61,7 @@ def test_a_vector_is_read_as_floats_whether_ollama_wrote_its_numbers_whole_or_no
     async def scenario() -> None:
         async with Ollama() as ollama:
             ollama.script(saying({"embeddings": [[1, 0, -2, 0.5], [3, 0.25, 0.001, 4]]}))
-            vectors = await OllamaEmbeddingProvider(model=MODEL, base_url=ollama.origin).embed_batch(["a", "b"])
+            vectors = await OllamaEmbeddingProvider(model=MODEL, base_url=ollama.origin).embed_documents(["a", "b"])
             assert vectors == [[1.0, 0.0, -2.0, 0.5], [3.0, 0.25, 0.001, 4.0]]
             assert {type(number) for vector in vectors for number in vector} == {float}
 
@@ -82,7 +96,7 @@ def test_an_answer_that_does_not_hold_a_vector_for_each_text_is_a_failure_and_no
         async with Ollama() as ollama:
             ollama.script(said)
             with pytest.raises(EmbeddingProviderError) as unread:
-                await OllamaEmbeddingProvider(model=MODEL, base_url=ollama.origin).embed("a")
+                await OllamaEmbeddingProvider(model=MODEL, base_url=ollama.origin).embed_query("a")
             failure = unread.value
             # An answer came, and the answer is what is wrong: its status is the failure's.
             assert (failure.provider, failure.status, failure.reached, failure.model) == ("ollama", 200, True, MODEL)
@@ -98,14 +112,31 @@ def test_a_refusal_is_a_failure_that_has_its_status_and_what_ollama_said(status:
         async with Ollama() as ollama:
             ollama.script(Answer(status=status, body=b"error body"))
             with pytest.raises(EmbeddingProviderError) as refused:
-                await OllamaEmbeddingProvider(model=MODEL, base_url=ollama.origin).embed("a")
+                await OllamaEmbeddingProvider(model=MODEL, base_url=ollama.origin).embed_query("a")
             failure = refused.value
             assert (failure.provider, failure.model) == ("ollama", MODEL)
             assert (failure.status, failure.reached, failure.body) == (status, True, "error body")
             # The status is in the message too, so that a line of a log reads by itself.
             assert str(status) in str(failure)
-            # Asked once: a refusal is not asked again by the driver.
+            # Asked once: a query is not asked again, whatever the refusal.
             assert len(ollama.asked) == 1
+
+    run(scenario())
+
+
+@pytest.mark.parametrize("status", [429, 503])
+def test_an_ollama_that_stays_busy_is_asked_for_documents_four_times_and_the_failure_is_its_last_answer(status: int) -> None:
+    async def scenario() -> None:
+        async with Ollama() as ollama:
+            ollama.rule = always(Answer(status=status, body=b"busy"))
+            embedding = asyncio.ensure_future(OllamaEmbeddingProvider(model=MODEL, base_url=ollama.origin).embed_documents(["a"]))
+            await wait_out(ollama, [1.0, 2.0, 4.0])
+            with pytest.raises(EmbeddingProviderError) as busy:
+                await soon(embedding)
+            failure = busy.value
+            assert (failure.provider, failure.model) == ("ollama", MODEL)
+            assert (failure.status, failure.reached, failure.body) == (status, True, "busy")
+            assert len(ollama.asked) == 4
 
     run(scenario())
 
@@ -115,7 +146,7 @@ def test_a_model_ollama_does_not_have_is_a_404_and_the_model_is_on_the_failure_w
         async with Ollama() as ollama:
             ollama.script(NOT_FETCHED)
             with pytest.raises(EmbeddingProviderError) as absent:
-                await OllamaEmbeddingProvider(model="another-model", base_url=ollama.origin).embed("a")
+                await OllamaEmbeddingProvider(model="another-model", base_url=ollama.origin).embed_query("a")
             # Nothing that handles the failure reads the model out of what the provider said, which names another.
             assert (absent.value.status, absent.value.model) == (404, "another-model")
             assert "not found" in absent.value.body

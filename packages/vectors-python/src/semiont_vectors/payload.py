@@ -5,9 +5,10 @@ and every store goes through it: `specs/src/vectors/payload-cases.json` holds
 it, and the tests run that table.
 
 A payload has the members named here and no other. It does not say which
-model made the vector or how the text was cut. `machineRead` is `true` on a
-point whose text was read from pixels and is not there otherwise: it is never
-`false`.
+model made the vector or how the text was cut: an index says what made its
+points once, for all of them, by its stamp (`semiont_vectors.store`).
+`machineRead` is `true` on a point whose text was read from pixels and is not
+there otherwise: it is never `false`.
 """
 
 import hashlib
@@ -17,14 +18,16 @@ from typing import Final
 from pydantic import JsonValue
 from semiont.identifiers import AnnotationId, ResourceId
 
-from semiont_vectors.store import AnnotationPayload, EmbeddingChunk, ResourceStamp, VectorSearchResult
+from semiont_vectors.store import AnnotationPayload, AnnotationStamp, EmbeddingChunk, ResourceStamp, VectorSearchResult
 
 __all__ = [
+    "ANNOTATION_STAMP_MEMBERS",
     "STAMP_MEMBERS",
     "Payload",
     "annotation_key",
     "annotation_of",
     "annotation_payload",
+    "annotation_stamp_of",
     "chunk_key",
     "chunk_payload",
     "qdrant_id",
@@ -36,8 +39,11 @@ __all__ = [
 type Payload = dict[str, JsonValue]
 """What a point says of itself, as it is stored."""
 
-STAMP_MEMBERS: Final = ("resourceId", "contentChecksum", "entityTypes", "machineRead")
-"""The members of a payload a stamp is read from, and the one that says whose stamp it is."""
+STAMP_MEMBERS: Final = ("resourceId", "contentChecksum", "mediaType", "entityTypes", "machineRead")
+"""The members of a payload a resource's stamp is read from, and the one that says whose stamp it is."""
+
+ANNOTATION_STAMP_MEMBERS: Final = ("annotationId", "resourceId", "entityTypes")
+"""The members of a payload an annotation's stamp is read from, and the one that says whose stamp it is."""
 
 
 def chunk_key(resource_id: ResourceId, chunk_index: int) -> str:
@@ -63,15 +69,26 @@ def qdrant_id(key: str) -> str:
 
 
 def chunk_payload(
-    resource_id: ResourceId, chunk: EmbeddingChunk, content_checksum: str, entity_types: Sequence[str], *, machine_read: bool
+    resource_id: ResourceId,
+    chunk: EmbeddingChunk,
+    content_checksum: str,
+    entity_types: Sequence[str],
+    *,
+    machine_read: bool,
+    media_type: str,
 ) -> Payload:
-    """The payload of one chunk's point. The entity types are carried in the order given, and the checksum as it is given."""
+    """The payload of one chunk's point.
+
+    The entity types are carried in the order given, and the checksum and
+    the media type as they are given.
+    """
     types: list[JsonValue] = [*entity_types]
     payload: Payload = {
         "resourceId": str(resource_id),
         "chunkIndex": chunk.chunk_index,
         "text": chunk.text,
         "contentChecksum": content_checksum,
+        "mediaType": media_type,
         "entityTypes": types,
     }
     if machine_read:
@@ -123,23 +140,36 @@ def _entity_types(payload: Mapping[str, JsonValue]) -> tuple[str, ...] | None:
 def stamp_of(payload: Mapping[str, JsonValue]) -> ResourceStamp:
     """What a point's payload says of its resource as a whole. The chunk's index and its text are no part of it.
 
-    A payload with no checksum gives a stamp with none, and one with no
-    entity types gives an empty list of them.
+    A payload with no checksum gives a stamp with none, as one with no media
+    type does, and one with no entity types gives an empty list of them.
     """
     checksum = payload.get("contentChecksum")
+    media_type = payload.get("mediaType")
     return ResourceStamp(
         content_checksum=checksum if isinstance(checksum, str) else None,
+        media_type=media_type if isinstance(media_type, str) else None,
         entity_types=_entity_types(payload) or (),
         machine_read=payload.get("machineRead") is True,
     )
 
 
+def annotation_stamp_of(payload: Mapping[str, JsonValue]) -> AnnotationStamp:
+    """What a point's payload says of its annotation, without its text: the resource it is on, and its entity types.
+
+    A payload that names no resource gives a stamp with none, and one with
+    no entity types gives an empty list of them. Raises `InvalidIdentifier`
+    for a name that is no resource's id.
+    """
+    return AnnotationStamp(resource_id=resource_of(payload), entity_types=_entity_types(payload) or ())
+
+
 def result_of(payload: Mapping[str, JsonValue], score: float) -> VectorSearchResult:
     """What a search answers of a point: the score the search gave it, and what its payload says.
 
-    A result says neither which chunk it is, nor the checksum, nor an
-    annotation's motivation. Raises `ValueError` for a payload that names no
-    resource or has no text: a search has nothing to answer of such a point.
+    A result says neither which chunk it is, nor the checksum, nor the media
+    type, nor an annotation's motivation. Raises `ValueError` for a payload
+    that names no resource or has no text: a search has nothing to answer of
+    such a point.
     """
     resource_id = resource_of(payload)
     if resource_id is None:

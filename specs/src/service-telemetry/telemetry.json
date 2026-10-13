@@ -541,6 +541,16 @@
       ]
     },
     {
+      "name": "semiont.vector.index.size",
+      "services": [
+        "smelter"
+      ],
+      "instrument": "gauge",
+      "when": "export",
+      "meaning": "Points the vector index holds, of resources and of annotations together.",
+      "attributes": []
+    },
+    {
       "name": "semiont.archivist.fact_pump.depth",
       "services": [
         "archivist"

@@ -350,10 +350,10 @@ export class HttpTransport implements ITransport, IGatewayOperations {
 
   // ── Lazy actor construction + per-channel fan-in to bridges ───────────
   //
-  // The stream's machinery, made when it is first needed. Callers use
-  // emit/on/stream/state$; the package's own tests reach it here to start it.
+  // The stream's machinery, made when it is first needed. It is the
+  // transport's own: callers use emit/on/stream/state$.
 
-  get actor(): ActorStateUnit {
+  private get actor(): ActorStateUnit {
     if (!this._actor) {
       const globalChannels = this.config.channels ?? BRIDGED_CHANNELS;
       this._actor = createActorStateUnit({

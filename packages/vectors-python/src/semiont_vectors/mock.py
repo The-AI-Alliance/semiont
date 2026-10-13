@@ -35,16 +35,20 @@ def deterministic_vector(text: str, dimensions: int) -> list[float]:
 
 @final
 class MockEmbeddingProvider:
-    """Answers each text with `deterministic_vector` of it, `dimensions` wide, and asks nobody."""
+    """Answers each text with `deterministic_vector` of it, `dimensions` wide, and asks nobody.
+
+    A text is answered the same vector whichever method asks: what a text is
+    for changes nothing here.
+    """
 
     def __init__(self, *, dimensions: int) -> None:
         self._dimensions: Final = dimensions
 
-    async def embed(self, text: str) -> list[float]:
+    async def embed_query(self, text: str) -> list[float]:
         await self._turn()
         return deterministic_vector(text, self._dimensions)
 
-    async def embed_batch(self, texts: Sequence[str]) -> list[list[float]]:
+    async def embed_documents(self, texts: Sequence[str]) -> list[list[float]]:
         await self._turn()
         return [deterministic_vector(text, self._dimensions) for text in texts]
 

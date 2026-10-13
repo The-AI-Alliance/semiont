@@ -23,8 +23,8 @@ function formatTokens(n: number): string {
 
 interface Props {
   /**
-   * Connection state from `client.actor.state$`. See
-   * `packages/http-transport/src/state/domain/actor-state-unit.ts`.
+   * The state of the client's connection to the bus, as its transport
+   * reports it (`ConnectionState`, in `@semiont/core`).
    *
    * UI mapping:
    *   `open` | `reconnecting` | `initial` | `connecting`

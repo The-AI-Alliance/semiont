@@ -1882,7 +1882,7 @@ jobs:
       - name: OpenAPI spec vs generated Go client
         run: |
           go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0 \
-            -generate types,client,skip-prune -package semiont \
+            -config packages/sdk-go/oapi-codegen.yaml \
             -o /tmp/client_gen.check.go specs/openapi.json
           if ! diff -q /tmp/client_gen.check.go packages/sdk-go/client_gen.go; then
             echo "::error::packages/sdk-go/client_gen.go is stale — run: cd packages/sdk-go && go generate ./..."

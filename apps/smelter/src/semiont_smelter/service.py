@@ -16,7 +16,8 @@ everything it writes is its log, on stdout.
 It starts in the order `docs/protocol/SMELTER.md` § Boot states: it signs in
 as the agent its embedding provider and its model name, reaches its vector
 index, which asks its provider how wide a vector is where the index has to be
-made, follows the record, opens its health port, and then runs reconcile. A
+made, makes the index again where it was made by another model or cut another
+way, follows the record, opens its health port, and then runs reconcile. A
 reconcile that fails is said, in the log and at the health port, and does
 not end the service: ending it would make the index no fresher, and would
 take away the one thing still applying what arrives. Told to stop, it stops
@@ -29,44 +30,43 @@ import signal
 import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import Final, final
 
+from pydantic import JsonValue
 from semiont.bus import reply_channels_for
 from semiont.channels import SMELT_REBUILD_ANCHORS
 from semiont.http import AgentToken, Credential, HttpTransport, ServiceToken
 from semiont.types import SmelterConfig
 from semiont_service.archivist import ArchivistContent
 from semiont_service.config import Refused, config_path_of, service_account_of
+from semiont_service.connect import connected
 from semiont_service.health import Health, bind_health
 from semiont_service.log import configure
 from semiont_service.observability import Exporting, install
 from semiont_vectors.embedding import EmbeddingProvider
 from semiont_vectors.factory import create_embedding_provider, create_vector_store
-from semiont_vectors.store import VectorStore
+from semiont_vectors.store import IndexStamp, VectorStore
 
 from semiont_smelter.anchored_text_store import AnchoredTextStore
 from semiont_smelter.chunking import Chunking
 from semiont_smelter.config import SERVICE, embedding_key_of, read_smelter_config
 from semiont_smelter.extraction import PdfExtractor
+from semiont_smelter.index_stamp import hold_to, stamp_of
 from semiont_smelter.log import LOG, words_of
 from semiont_smelter.pdfium import PdfiumReader
 from semiont_smelter.record import READ
 from semiont_smelter.recorded import FOLLOWED
 from semiont_smelter.smelter import Smelter
 from semiont_smelter.stamp import current_stamp
+from semiont_smelter.telemetry import points_held
 from semiont_smelter.tesseract import TesseractEngine
 
 __all__ = ["CHANNELS", "boot", "main"]
 
 CHANNELS: Final[tuple[str, ...]] = (*FOLLOWED, SMELT_REBUILD_ANCHORS.name, *reply_channels_for(*READ))
 """What the Smelter's stream names: the events it follows, the command it answers, and the replies of what it asks."""
-
-_CONNECT_SECONDS: Final = 60.0
-"""How long the vector index and the embedding provider are given to answer when the service starts.
-
-Past it the service exits, to be started again.
-"""
 
 
 @final
@@ -100,6 +100,32 @@ async def _listening(port: int, health: Health) -> asyncio.Server:
         raise Refused(f"Cannot listen on port {port}: {unheard}") from unheard
 
 
+async def _reached(index: VectorStore, stamp: IndexStamp) -> bool:
+    """Reach the index, and hold it to the stamp this Smelter makes one by. Answers whether it was made again for that."""
+    await index.connect()
+    return await hold_to(index, stamp)
+
+
+def _health_of(smelter: Smelter, transport: HttpTransport, *, stamp: IndexStamp, made_anew: bool) -> dict[str, JsonValue]:
+    """What the health endpoint answers (`docs/protocol/SMELTER.md` § Health).
+
+    It answers for this Smelter alone, from what the Smelter holds: nothing
+    is asked of the gateway, of the embedding provider or of the index's
+    store to answer it. Whether each of those is up is its own to say.
+    """
+    index: dict[str, JsonValue] = {"stamp": dict(stamp), "madeAnew": made_anew}
+    return {
+        "status": "ok",
+        "stream": transport.state.value,
+        "streamDrops": smelter.stream_drops,
+        "eventsProcessed": smelter.events_processed,
+        "eventsFailed": smelter.events_failed,
+        "eventsWaiting": smelter.events_waiting,
+        "reconcile": smelter.reconcile_state.said(),
+        "index": index,
+    }
+
+
 async def _reconciled(smelter: Smelter) -> None:
     """Run the reconcile of this start. One that fails has said so, in the log and in what the health endpoint reports, and ends nothing."""
     try:
@@ -124,11 +150,8 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
     # It works as the agent its embedding provider and its model name: two Smelters that embed with different models are two agents.
     async with AgentToken(config.gateway_url, provider=config.embedding.type, model=config.embedding.model, service=account) as agent:
         LOG.info("Agent ready", extra={"did": agent.did})
-        try:
-            async with asyncio.timeout(_CONNECT_SECONDS):
-                await started.index.connect()
-        except TimeoutError:
-            raise Refused(f"The vector index and the embedding provider did not answer within {_CONNECT_SECONDS:.0f} seconds") from None
+        stamp = stamp_of(config)
+        made_anew = await connected("vector index and the embedding provider", _reached(started.index, stamp))
         LOG.info("Vector index ready", extra={"type": config.vectors.type})
         try:
             async with (
@@ -145,19 +168,22 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
                 ) as smelter,
             ):
                 LOG.info("Following the record")
-                health = await _listening(
-                    config.port,
-                    lambda: {"status": "ok", "eventsProcessed": smelter.events_processed, "reconcile": smelter.reconcile_state.said()},
-                )
+                health = await _listening(config.port, partial(_health_of, smelter, transport, stamp=stamp, made_anew=made_anew))
                 try:
                     await health.start_serving()
                     LOG.info("Health endpoint ready", extra={"port": config.port})
 
                     # Run once it is following and its health answers: what was recorded while no Smelter ran is
                     # found, and what is recorded meanwhile is applied as it arrives.
-                    reconciling = asyncio.ensure_future(_reconciled(smelter))
-                    sampling = None if exporting is None else asyncio.ensure_future(exporting.sample_the_loop())
-                    running = (reconciling, *(() if sampling is None else (sampling,)))
+                    running = [asyncio.ensure_future(_reconciled(smelter))]
+                    if exporting is not None:
+                        running.append(asyncio.ensure_future(exporting.sample_the_loop()))
+                        size = exporting.sample(
+                            "semiont.vector.index.size",
+                            partial(points_held, started.index),
+                            description="Points the vector index holds, of resources and of annotations together",
+                        )
+                        running.append(asyncio.ensure_future(size))
                     try:
                         await told_to_stop.wait()
                         LOG.info("Shutting down")

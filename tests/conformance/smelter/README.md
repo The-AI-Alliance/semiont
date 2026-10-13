@@ -82,11 +82,12 @@ For the same reason a case stops the world's Smelter before it starts one that
 must refuse to start.
 
 **The index is cleared only while no Smelter runs.** A Smelter makes its
-collections when it connects, and asks its provider once, then, how wide the
-model's vectors are. One whose collections were deleted under it fails its
-next write. So a case stops the Smelter, clears the index, and starts it
-again; and the request that measures the model is among those the provider
-records for that start. A case that wants only what came after some point
+collections when it connects, and asks its provider, each time it makes
+them, how wide the model's vectors are: once to make them, and once more to
+make them again with what made them stated. One whose collections were
+deleted under it fails its next write. So a case stops the Smelter, clears
+the index, and starts it again; and the requests that measure the model are
+among those the provider records for that start. A case that wants only what came after some point
 marks the point (`provider.mark()`) and asks for what was sent since.
 
 **Reconcile runs after health answers.** A world's `start()` waits until the
@@ -104,8 +105,10 @@ Smelter to `serving` only, and waits on `reconciled()`.
 - **As the record changes** (`index.test.ts`): what a recorded text becomes,
   by the table's points and the provider's vectors; a long text's several
   points; an update, an archive and an unarchive; an annotation added and
-  removed, and one that quotes nothing; entity types rewritten with nothing
-  embedded; an image and a blank text skipped, by reason, and logged; and
+  removed, one that quotes nothing, and one made on an archived resource;
+  entity types rewritten with nothing embedded, a resource's and those of an
+  annotation whose body is given a tag; an image and a blank text skipped,
+  by reason, and logged; and
   that bytes it cannot read, or text it cannot get vectors for, change
   nothing and stop nothing.
 - **Given a PDF** (`pdf.test.ts`): that a PDF with text of its own is indexed
@@ -117,18 +120,22 @@ Smelter to `serving` only, and waits on `reconciled()`.
   answers when it could not do every resource.
 - **Starting after things changed** (`reconcile.test.ts`): an index and an
   anchored-text store that were cleared, points taken out, bytes and entity
-  types changed, an entry lost, a resource archived, and annotations added
-  and removed, each while the Smelter was stopped; what its reconcile then
-  mends, what it asks of its provider, and what it reports.
+  types changed, an entry lost, a resource archived, annotations added and
+  removed, and an annotation's body given a tag, each while the Smelter was
+  stopped; what its reconcile then mends, what it asks of its provider, and
+  what it reports. A text it remembers skipping is not read again, and an
+  index a Smelter of another cut made is made again and filled whole.
 - **Asking its provider** (`provider.test.ts`): a batch cut into slices of
   128, each text given the vector that came back for it; one request at a
-  time; and a request that fails, which leaves its resource with no points
-  until the Smelter next starts.
+  time; a provider that says it is busy, which is asked again; and a request
+  that fails, which leaves its resource with no points until the Smelter next
+  starts.
 - **What it exports** (`telemetry.test.ts`): told where to export, a Smelter
   exports under its own name every row
   [`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json)
   lists for it that its traffic can make, and nothing the table does not
-  list.
+  list; and its gauge of the index comes to say the number of points the
+  index holds.
 
 ## Running it
 

@@ -17,19 +17,20 @@ Smelter's code and works nothing out of bytes or of a quote. Each of the
 bytes a resource may be given is stated with what it comes to, and each
 quote with whether it quotes text. From those the fold says what an index is
 to hold: a resource has points if and only if it is not archived and its
-bytes give text, the points carry the checksum of its bytes and its entity
-types, and an annotation has a point if and only if its resource is not
-archived and it quotes text.
+bytes give text, the points carry the checksum of its bytes, the media type
+they were read as and its entity types, and an annotation has a point if and
+only if its resource is not archived and it quotes text, which carries the
+entity types its body states. A resource that is not archived, whose type has
+text and whose bytes give none, is remembered as declined, by those bytes,
+that type and the reason.
 
-One property begins a reconcile in the middle of a history. What a reconcile
-plans, it plans from one read of the catalog, and a plan is not looked at
-again when its turn comes. So a resource archived after that read, or an
-annotation removed after it, may be put back, and a resource whose type had
-no text at that read may lose the points a later event gives it, until the
-Smelter next starts. A history steps around that with a calm end: from a
-change that is drawn, no resource is archived, no annotation is removed and
-no resource is given bytes of a type without text. The reconcile begins
-there.
+One property begins a reconcile in the middle of a history, and goes on
+making changes while the reconcile reads and works. What a reconcile plans,
+it plans from what it read, and a piece of that work whose resource an event
+has arrived for since asks the record again when its turn comes. So nothing
+a later event did is undone, whatever the later events are: a resource
+archived after the read is not put back, nor an annotation removed after it,
+and a resource given text after it keeps its points.
 """
 
 import asyncio
@@ -59,11 +60,13 @@ MOST_CHANGES: Final = 16
 
 MARKDOWN: Final = "text/markdown"
 """A media type whose bytes are its text."""
+PLAIN: Final = "text/plain"
+"""Another."""
 PDF: Final = "application/pdf"
 """A media type whose text is derived from its bytes: here by a reader that was told what one document draws."""
 PNG: Final = "image/png"
 """A media type that has no text."""
-WITH_TEXT: Final = frozenset({MARKDOWN, PDF})
+WITH_TEXT: Final = frozenset({MARKDOWN, PLAIN, PDF})
 """The media types whose resources have text: the ones a Smelter that starts sets out to index."""
 
 _TURNS: Final = 100_000
@@ -98,6 +101,8 @@ DOCUMENT: Final = Stored(b"%PDF-1.7 the one document the reader was told of", PD
 CONTENTS: Final[tuple[Stored, ...]] = (
     Stored(b"# The treaty of 1804\n\nSigned at St. Louis, and disputed ever after.\n", MARKDOWN, None),
     Stored(b"Black Hawk led a band of the Sauk back across the Mississippi in 1832.", MARKDOWN, None),
+    # The same bytes under another type that has text: a resource recorded again with them has other points.
+    Stored(b"Black Hawk led a band of the Sauk back across the Mississippi in 1832.", PLAIN, None),
     # One character, and it is not white space, though `str.isspace` says it is: a text.
     Stored(b"\x1f", MARKDOWN, None),
     Stored(" \n\t\u0085\u3000".encode(), MARKDOWN, "empty"),
@@ -105,8 +110,6 @@ CONTENTS: Final[tuple[Stored, ...]] = (
     Stored(b"\x89PNG\r\n\x1a\n and nothing a reader of text reads", PNG, "no-extractor"),
 )
 """Everything a resource here may be given."""
-
-WITH_A_TEXT_TYPE: Final = tuple(content for content in CONTENTS if content.media_type in WITH_TEXT)
 
 PDFS: Final = {DOCUMENT.data: drawn("The treaty of 1804", "was signed at St. Louis")}
 """The documents a rig's reader of PDFs is told of."""
@@ -163,12 +166,22 @@ class Annotate:
 
 @final
 @dataclass(frozen=True, slots=True)
+class Retag:
+    """An annotation's body is given these entity types, in place of those it stated."""
+
+    resource: str
+    annotation: str
+    entity_types: tuple[str, ...]
+
+
+@final
+@dataclass(frozen=True, slots=True)
 class Unannotate:
     resource: str
     annotation: str
 
 
-type Change = Put | Tag | Untag | Archive | Unarchive | Annotate | Unannotate
+type Change = Put | Tag | Untag | Archive | Unarchive | Annotate | Retag | Unannotate
 """One change to a knowledge base, which the Archivist records one event of."""
 
 
@@ -187,6 +200,8 @@ def made(world: World, change: Change) -> JsonObject:
             return world.unarchive(change.resource)
         case Annotate():
             return world.annotate(change.resource, change.annotation, change.quote)
+        case Retag():
+            return world.retag(change.resource, change.annotation, change.entity_types)
         case Unannotate():
             return world.unannotate(change.resource, change.annotation)
         case _:
@@ -202,14 +217,12 @@ class History:
     """For each change, whether a Smelter that follows has applied all it was delivered before the next change is made."""
     heard: tuple[bool, ...]
     """For each change, whether a Smelter that was not always following was delivered its event."""
-    calm_from: int
-    """How many changes come before the calm end. Every one, for a history with no calm end."""
 
 
-type Kind = Literal["put", "tag", "untag", "archive", "unarchive", "annotate", "unannotate"]
+type Kind = Literal["put", "tag", "untag", "archive", "unarchive", "annotate", "retag", "unannotate"]
 
-_CALM: Final[tuple[Kind, ...]] = ("put", "tag", "untag", "annotate")
-"""What happens in the calm end of a history to a resource that is there and is not archived."""
+_WHATEVER_IS_ON_IT: Final[tuple[Kind, ...]] = ("put", "tag", "untag", "archive", "annotate")
+"""What may happen to a resource that is there and is not archived, whether or not it has an annotation."""
 
 
 @final
@@ -225,23 +238,21 @@ class _SoFar:
     minted: Iterator[int]
 
 
-def _change(draw: st.DrawFn, resource: str, calm: bool, so_far: _SoFar) -> Change:
+def _change(draw: st.DrawFn, resource: str, so_far: _SoFar) -> Change:
     """The next change to a resource, by what has happened so far, which is added to."""
     kinds: tuple[Kind, ...]
     if resource not in so_far.there:
         kinds = ("put",)
     elif resource in so_far.archived:
         kinds = ("unarchive",)
-    elif calm:
-        kinds = _CALM
     elif so_far.on[resource]:
-        kinds = (*_CALM, "archive", "unannotate")
+        kinds = (*_WHATEVER_IS_ON_IT, "retag", "unannotate")
     else:
-        kinds = (*_CALM, "archive")
+        kinds = _WHATEVER_IS_ON_IT
     kind = draw(st.sampled_from(kinds))
     match kind:
         case "put":
-            content = draw(st.sampled_from(WITH_A_TEXT_TYPE if calm else CONTENTS))
+            content = draw(st.sampled_from(CONTENTS))
             so_far.there.add(resource)
             so_far.on.setdefault(resource, [])
             return Put(resource, content)
@@ -260,6 +271,9 @@ def _change(draw: st.DrawFn, resource: str, calm: bool, so_far: _SoFar) -> Chang
             annotation = f"ann-{next(so_far.minted)}"
             so_far.on[resource].append(annotation)
             return Annotate(resource, annotation, draw(st.sampled_from(QUOTES)))
+        case "retag":
+            retagged = draw(st.sampled_from(so_far.on[resource]))
+            return Retag(resource, retagged, tuple(draw(st.lists(st.sampled_from(ENTITY_TYPES), unique=True, max_size=2))))
         case "unannotate":
             annotation = draw(st.sampled_from(so_far.on[resource]))
             so_far.on[resource].remove(annotation)
@@ -269,17 +283,14 @@ def _change(draw: st.DrawFn, resource: str, calm: bool, so_far: _SoFar) -> Chang
 
 
 @st.composite
-def histories(draw: st.DrawFn, *, with_a_calm_end: bool = False) -> History:
-    """A well-formed history of two or three resources. Its calm end, where it has one, begins at a change that is drawn."""
+def histories(draw: st.DrawFn) -> History:
+    """A well-formed history of two or three resources."""
     resources = draw(st.lists(st.sampled_from(RESOURCES), min_size=2, max_size=len(RESOURCES), unique=True))
     length = draw(st.integers(min_value=1, max_value=MOST_CHANGES))
-    calm_from = draw(st.integers(min_value=0, max_value=length)) if with_a_calm_end else length
     so_far = _SoFar(there=set(), archived=set(), on={}, minted=itertools.count(1))
-    changes: list[Change] = []
-    for at in range(length):
-        changes.append(_change(draw, draw(st.sampled_from(resources)), at >= calm_from, so_far))
+    changes = [_change(draw, draw(st.sampled_from(resources)), so_far) for _ in range(length)]
     flags = st.lists(st.booleans(), min_size=length, max_size=length)
-    return History(changes=tuple(changes), caught_up=tuple(draw(flags)), heard=tuple(draw(flags)), calm_from=calm_from)
+    return History(changes=tuple(changes), caught_up=tuple(draw(flags)), heard=tuple(draw(flags)))
 
 
 @final
@@ -287,10 +298,12 @@ def histories(draw: st.DrawFn, *, with_a_calm_end: bool = False) -> History:
 class Indexed:
     """What an index holds, as far as the fold says it."""
 
-    resources: Mapping[str, tuple[str | None, frozenset[str]]]
-    """Each resource that has points: the checksum they carry, and their entity types, in no order and each once."""
-    annotations: Mapping[str, tuple[str, str]]
-    """Each annotation that has a point: the resource it is on, and the text it quotes."""
+    resources: Mapping[str, tuple[str | None, str | None, frozenset[str]]]
+    """Each resource that has points: the checksum and the media type they carry, and their entity types, in no order and each once."""
+    declined: Mapping[str, tuple[str, str, str]]
+    """Each resource the index remembers declining: the checksum of its bytes, the media type they were read as, and the reason."""
+    annotations: Mapping[str, tuple[str, str, frozenset[str]]]
+    """Each annotation that has a point: the resource it is on, the text it quotes, and its entity types, in no order."""
 
 
 @final
@@ -304,16 +317,29 @@ class Folded:
     archived: frozenset[str]
     quoting: Mapping[str, tuple[str, str]]
     """Each annotation that quotes text and was not removed: the resource it is on, and the text."""
+    tagged: Mapping[str, frozenset[str]]
+    """The entity types the body of each annotation that was not removed states."""
 
     def index(self, *, unread: str | None = None) -> Indexed:
         """What an index is to hold. `unread` names a resource whose bytes cannot be read, which has no points whatever they are."""
+        decided = {resource: content for resource, content in self.stored.items() if resource not in self.archived and resource != unread}
         return Indexed(
             resources={
-                resource: (content.checksum, self.entity_types[resource])
-                for resource, content in self.stored.items()
-                if resource not in self.archived and content.declined is None and resource != unread
+                resource: (content.checksum, content.media_type, self.entity_types[resource])
+                for resource, content in decided.items()
+                if content.declined is None
             },
-            annotations={annotation: quoted for annotation, quoted in self.quoting.items() if quoted[0] not in self.archived},
+            # A type with no text is told from the catalog, and nothing is remembered of it.
+            declined={
+                resource: (content.checksum, content.media_type, content.declined)
+                for resource, content in decided.items()
+                if content.declined is not None and content.media_type in WITH_TEXT
+            },
+            annotations={
+                annotation: (on, quote, self.tagged[annotation])
+                for annotation, (on, quote) in self.quoting.items()
+                if on not in self.archived
+            },
         )
 
     def decisions(self) -> dict[str, JsonObject]:
@@ -335,16 +361,11 @@ class Folded:
         """What a reconcile is to report where it finds the index as it should be, by the names its health gives each count.
 
         Nothing is mended. A resource that is not archived, whose type has
-        text and whose bytes give none, has no points. So every start sets
-        out to index it again, and declines it again for the same reason.
+        text and whose bytes give none, has no points and is remembered as
+        declined: no start sets out to index it again.
         """
         live = [content for resource, content in self.stored.items() if resource not in self.archived]
-        declined_again: dict[str, int] = {}
-        for content in live:
-            if content.media_type in WITH_TEXT and content.declined is not None:
-                declined_again[content.declined] = declined_again.get(content.declined, 0) + 1
         skipped: JsonObject = {}
-        skipped.update(declined_again)
         return {
             "resourcesEmbedded": 0,
             "resourcesSkipped": skipped,
@@ -354,6 +375,7 @@ class Folded:
             "resourcesReanchored": 0,
             "resourceVectorsDeleted": 0,
             "annotationsEmbedded": 0,
+            "annotationsRestamped": 0,
             "annotationVectorsDeleted": 0,
             "resourcesEligible": sum(1 for content in live if content.media_type in WITH_TEXT),
             "resourcesIndexed": len(self.index().resources),
@@ -366,6 +388,7 @@ def folded(changes: Sequence[Change]) -> Folded:
     entity_types: dict[str, set[str]] = {}
     archived: set[str] = set()
     quoting: dict[str, tuple[str, str]] = {}
+    tagged: dict[str, frozenset[str]] = {}
     for change in changes:
         match change:
             case Put():
@@ -380,10 +403,15 @@ def folded(changes: Sequence[Change]) -> Folded:
             case Unarchive():
                 archived.discard(change.resource)
             case Annotate():
+                # An annotation is made with a body that states no entity type.
+                tagged[change.annotation] = frozenset()
                 if change.quote is not None and change.quote in QUOTED:
                     quoting[change.annotation] = (change.resource, change.quote)
+            case Retag():
+                tagged[change.annotation] = frozenset(change.entity_types)
             case Unannotate():
                 quoting.pop(change.annotation, None)
+                tagged.pop(change.annotation, None)
             case _:
                 assert_never(change)
     return Folded(
@@ -391,21 +419,34 @@ def folded(changes: Sequence[Change]) -> Folded:
         entity_types={resource: frozenset(types) for resource, types in entity_types.items()},
         archived=frozenset(archived),
         quoting=quoting,
+        tagged=tagged,
     )
 
 
 def indexed(held: Held) -> Indexed:
     """What an index holds, read as the fold states it."""
     return Indexed(
-        resources={resource: (stamp.content_checksum, frozenset(stamp.entity_types)) for resource, stamp in held.stamps.items()},
-        annotations={annotation: (point.resource, point.text) for annotation, point in held.annotations.items()},
+        resources={
+            resource: (stamp.content_checksum, stamp.media_type, frozenset(stamp.entity_types)) for resource, stamp in held.stamps.items()
+        },
+        declined={resource: (kept.content_checksum, kept.media_type, kept.reason) for resource, kept in held.declined.items()},
+        annotations={
+            annotation: (point.resource, point.text, frozenset(point.entity_types)) for annotation, point in held.annotations.items()
+        },
     )
 
 
 def lying(event: JsonObject) -> JsonObject:
     """An event whose payload says nothing true but which annotation it is of: that is the event's own to say, and is kept."""
     payload = thing(event["payload"], "an event's payload")
-    lie: JsonObject = {"name": "A name it never had", "format": "image/gif", "contentChecksum": "0" * 64, "entityType": "Nobody"}
+    nothing_done: list[JsonValue] = []
+    lie: JsonObject = {
+        "name": "A name it never had",
+        "format": "image/gif",
+        "contentChecksum": "0" * 64,
+        "entityType": "Nobody",
+        "operations": nothing_done,
+    }
     lie.update({name: payload[name] for name in ("annotation", "annotationId") if name in payload})
     return {**event, "payload": lie}
 
@@ -493,14 +534,17 @@ def test_an_event_delivered_twice_in_a_row_changes_nothing_the_second_time(histo
 
 
 @PROPERTY
-@given(histories(with_a_calm_end=True), st.integers(min_value=0, max_value=MOST_CHANGES))
-def test_a_reconcile_begun_in_the_middle_of_a_history_undoes_nothing_a_later_event_did(history: History, read_after: int) -> None:
-    calm = history.calm_from
-    before, after = history.changes[:calm], history.changes[calm:]
+@given(histories(), st.integers(min_value=0, max_value=MOST_CHANGES), st.integers(min_value=0, max_value=MOST_CHANGES))
+def test_a_reconcile_begun_in_the_middle_of_a_history_undoes_nothing_a_later_event_did(
+    history: History, begun_after: int, read_after: int
+) -> None:
+    # The reconcile begins after this many changes: after every one, where the history has fewer.
+    begun = min(begun_after, len(history.changes))
+    before, after = history.changes[:begun], history.changes[begun:]
 
     async def scenario(home: Path) -> None:
         async with Rig(home, pdfs=PDFS) as rig:
-            await followed(rig, before, history.caught_up[:calm])
+            await followed(rig, before, history.caught_up[:begun])
 
             reconciling = asyncio.create_task(rig.smelter.reconcile())
             for at, change in enumerate(after):

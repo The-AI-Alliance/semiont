@@ -213,6 +213,6 @@ func workerDocument(env *envConfig, envName, rt, addr string, issuerPort int, us
 	if env.LogLevel != "" {
 		doc.LogLevel = semiont.LogLevel(env.LogLevel)
 	}
-	doc.LogFormat = semiont.Json
+	doc.LogFormat = semiont.LogFormatJson
 	return json.MarshalIndent(doc, "", "  ")
 }

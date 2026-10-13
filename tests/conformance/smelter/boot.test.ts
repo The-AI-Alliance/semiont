@@ -29,13 +29,18 @@ const REQUIRED: ReadonlyArray<[what: string, without: (settings: SmelterSettings
 ];
 
 eachSmelter('a Smelter, as a process', (world) => {
-  it('answers at its health port for itself, for the events it has applied, and for how its reconcile ended', async () => {
+  it('answers at its health port for itself: for its stream, for the events delivered to it, for how its reconcile ended, and for what it holds its index to', async () => {
     const health = await world().smelter.health();
+    const { embedding, chunking } = world().settings;
 
-    expect(Object.keys(health).sort()).toEqual(['eventsProcessed', 'reconcile', 'status']);
+    expect(Object.keys(health).sort()).toEqual(['eventsFailed', 'eventsProcessed', 'eventsWaiting', 'index', 'reconcile', 'status', 'stream', 'streamDrops']);
     expect(health.status).toBe('ok');
-    expect(health.eventsProcessed).toBe(0);
-    // The knowledge base holds nothing yet, and the index held nothing: its reconcile had nothing to do, and reports the eleven counts of that.
+    // Its reconcile has asked the record and been answered, which a stream that is not open does not carry.
+    expect([health.stream, health.streamDrops]).toEqual(['open', 0]);
+    expect([health.eventsProcessed, health.eventsFailed, health.eventsWaiting]).toEqual([0, 0, 0]);
+    // The stamp is the provider's kind and its model, and the two numbers a text is cut by: what this world's Smelter is started with.
+    expect(health.index.stamp).toEqual({ embedding: { type: embedding.type, model: embedding.model }, chunking });
+    // The knowledge base holds nothing yet, and the index held nothing: its reconcile had nothing to do, and reports the twelve counts of that.
     expect(health.reconcile).toEqual({
       phase: 'done',
       summary: {
@@ -47,6 +52,7 @@ eachSmelter('a Smelter, as a process', (world) => {
         resourcesReanchored: 0,
         resourceVectorsDeleted: 0,
         annotationsEmbedded: 0,
+        annotationsRestamped: 0,
         annotationVectorsDeleted: 0,
         resourcesEligible: 0,
         resourcesIndexed: 0,
@@ -57,6 +63,8 @@ eachSmelter('a Smelter, as a process', (world) => {
   it('stops when it is told to, and says nothing is wrong by its exit', async () => {
     expect(await world().stop()).toBe(0);
     await world().start();
+    // Started again as it was, it finds the index it made, and keeps it.
+    expect((await world().smelter.health()).index.madeAnew).toBe(false);
   });
 
   describe('started without something it needs', () => {
@@ -110,6 +118,8 @@ eachSmelter('a Smelter, as a process', (world) => {
     const health = await world().smelter.health();
     expect(health.reconcile).toMatchObject({ phase: 'done', summary: { resourcesEmbedded: 1 } });
     expect(health.eventsProcessed).toBe(0);
+    // An index that was cleared states nothing: this start made it.
+    expect(health.index.madeAnew).toBe(true);
   });
 
   it('answers at its health port while its reconcile is still at work, and applies what is recorded meanwhile', async () => {
@@ -125,7 +135,8 @@ eachSmelter('a Smelter, as a process', (world) => {
     world().provider.choose = (request) => (request.texts.some((text) => text.includes(waitedFor)) ? { hold: true } : undefined);
     await world().start({}, 'serving');
     await eventually('its reconcile to ask for the vectors it is kept waiting for', 30_000, () => (world().provider.held === 1 ? true : undefined));
-    expect((await world().smelter.health()).reconcile.phase).toBe('running');
+    const meanwhile = await world().smelter.health();
+    expect([meanwhile.status, meanwhile.reconcile.phase]).toEqual(['ok', 'running']);
 
     // An event recorded now is applied now, and not when the reconcile has ended.
     await world().archived(indexed);

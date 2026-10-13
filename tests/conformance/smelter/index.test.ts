@@ -2,12 +2,12 @@
  * The index a Smelter keeps as the record changes (SMELTER.md § What each
  * event does, § Indexing a resource, § Indexing an annotation, § What it
  * decides): what a text becomes in it when it is recorded, updated, archived
- * and unarchived, and an annotation when it is added and removed; what each
- * point holds, as specs/src/vectors/payload-cases.json states it; what the
- * Smelter says it decided of a resource, and of which bytes; and what it
- * leaves as it was when it cannot read a resource's bytes or have its text
- * embedded. With it, that an event it could not apply does not keep it from
- * the next (§ Order).
+ * and unarchived, and an annotation when it is added, has its body changed
+ * and is removed; what each point holds, as
+ * specs/src/vectors/payload-cases.json states it; what the Smelter says it
+ * decided of a resource, and of which bytes; and what it leaves as it was
+ * when it cannot read a resource's bytes or have its text embedded. With it,
+ * that an event it could not apply does not keep it from the next (§ Order).
  */
 import { createHash } from 'node:crypto';
 import { rmSync } from 'node:fs';
@@ -31,10 +31,13 @@ function qdrantId(key: string): string {
 /** A point's id and its payload, whole: what the table states of a point, beside its vector. */
 const stated = ({ id, payload }: Point) => ({ id, payload });
 
-/** The point the table states for one chunk of a resource whose text was not read from pixels: it has no mark of that, and no other member. */
+/** The media type every text of this file is recorded as, and so the one its points state its bytes were read as. */
+const PLAIN = 'text/plain';
+
+/** The point the table states for one chunk of a plain text, which was not read from pixels: it has no mark of that, and no other member. */
 const chunkPoint = (resource: string, index: number, text: string, checksum: string, entityTypes: string[]) => ({
   id: qdrantId(`${resource}-${index}`),
-  payload: { resourceId: resource, chunkIndex: index, text, contentChecksum: checksum, entityTypes },
+  payload: { resourceId: resource, chunkIndex: index, text, contentChecksum: checksum, mediaType: PLAIN, entityTypes },
 });
 
 /** Whether a point's vector is the one the stand-in provider gives `text`: that text was embedded, and its vector landed on this point. */
@@ -65,7 +68,7 @@ eachSmelter('a Smelter, as the record changes', (world) => {
 
   /** Record a text, and wait until the Smelter says it is indexed, under the checksum of those bytes: the resource's id. */
   async function indexed(text: string): Promise<string> {
-    const resource = await onceApplied(() => world().created(text, 'text/plain'));
+    const resource = await onceApplied(() => world().created(text, PLAIN));
     expect(await world().settled(resource)).toEqual({ resourceId: resource, contentChecksum: sha256(text), outcome: 'indexed' });
     return resource;
   }
@@ -137,6 +140,22 @@ eachSmelter('a Smelter, as the record changes', (world) => {
     expect(embeds(back[0], 'the Mississippi')).toBe(true);
   });
 
+  it('gives no point to an annotation made on an archived resource, and gives it one when the resource is unarchived', async () => {
+    const text = 'Keokuk stayed west of the river that spring.\n';
+    const resource = await indexed(text);
+    await onceApplied(() => world().archived(resource));
+
+    // The record takes the annotation, and the Smelter applies its event: a start would take such a point out, so none is made.
+    const annotation = await onceApplied(() => world().annotated(resource, 'Keokuk'));
+    expect(await world().index.pointsOf('annotations', resource)).toEqual([]);
+
+    await onceApplied(() => world().unarchived(resource));
+    expect(await world().settled(resource, 2)).toEqual({ resourceId: resource, contentChecksum: sha256(text), outcome: 'indexed' });
+    const back = await world().index.pointsOf('annotations', resource, true);
+    expect(back.map((point) => point.payload['annotationId'])).toEqual([annotation]);
+    expect(embeds(back[0], 'Keokuk')).toBe(true);
+  });
+
   it('indexes an annotation that is added as one point, of the text it quotes, and takes the point out when the annotation is removed', async () => {
     const resource = await indexed('Black Hawk led the Sauk, and the war ended in 1832.\n');
     const annotation = await onceApplied(() => world().annotated(resource, 'Black Hawk', { motivation: 'linking', body: [tagging('Person'), tagging('Leader')] }));
@@ -152,6 +171,23 @@ eachSmelter('a Smelter, as the record changes', (world) => {
 
     await onceApplied(() => world().unannotated(resource, annotation));
     expect(await world().index.pointsOf('annotations', resource)).toEqual([]);
+  });
+
+  it("rewrites the entity types on an annotation's point when its body is given a tag, and embeds nothing", async () => {
+    const resource = await indexed('Keokuk signed the treaty of 1832 at Fort Armstrong.\n');
+    const annotation = await onceApplied(() => world().annotated(resource, 'Keokuk', { motivation: 'linking', body: [tagging('Person')] }));
+    const asked = world().provider.mark();
+
+    await onceApplied(() => world().bodyTagged(resource, annotation, ['Leader']));
+
+    // The same point of the same text: only its entity types are other than they were, in the order its body now states them.
+    const point = await world().index.annotationPoint(annotation, true);
+    expect(point && stated(point)).toEqual({
+      id: qdrantId(annotation),
+      payload: { annotationId: annotation, resourceId: resource, motivation: 'linking', entityTypes: ['Person', 'Leader'], text: 'Keokuk' },
+    });
+    expect(embeds(point, 'Keokuk')).toBe(true);
+    expect(world().provider.since(asked)).toEqual([]);
   });
 
   it('gives no point to an annotation that quotes no text, or only white space; and removing one that has no point changes nothing', async () => {

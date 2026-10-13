@@ -26,13 +26,13 @@ const (
 
 // Defines values for AgentOrganizationType.
 const (
-	Organization AgentOrganizationType = "Organization"
+	AgentOrganizationTypeOrganization AgentOrganizationType = "Organization"
 )
 
 // Valid indicates whether the value is a known member of the AgentOrganizationType enum.
 func (e AgentOrganizationType) Valid() bool {
 	switch e {
-	case Organization:
+	case AgentOrganizationTypeOrganization:
 		return true
 	default:
 		return false
@@ -41,13 +41,13 @@ func (e AgentOrganizationType) Valid() bool {
 
 // Defines values for AgentPersonType.
 const (
-	Person AgentPersonType = "Person"
+	AgentPersonTypePerson AgentPersonType = "Person"
 )
 
 // Valid indicates whether the value is a known member of the AgentPersonType enum.
 func (e AgentPersonType) Valid() bool {
 	switch e {
-	case Person:
+	case AgentPersonTypePerson:
 		return true
 	default:
 		return false
@@ -56,13 +56,13 @@ func (e AgentPersonType) Valid() bool {
 
 // Defines values for AgentSoftwareType.
 const (
-	Software AgentSoftwareType = "Software"
+	AgentSoftwareTypeSoftware AgentSoftwareType = "Software"
 )
 
 // Valid indicates whether the value is a known member of the AgentSoftwareType enum.
 func (e AgentSoftwareType) Valid() bool {
 	switch e {
-	case Software:
+	case AgentSoftwareTypeSoftware:
 		return true
 	default:
 		return false
@@ -71,19 +71,19 @@ func (e AgentSoftwareType) Valid() bool {
 
 // Defines values for AnchoredTextAbsentKind.
 const (
-	NoMap   AnchoredTextAbsentKind = "no-map"
-	NotYet  AnchoredTextAbsentKind = "not-yet"
-	Unknown AnchoredTextAbsentKind = "unknown"
+	AnchoredTextAbsentKindNoMap   AnchoredTextAbsentKind = "no-map"
+	AnchoredTextAbsentKindNotYet  AnchoredTextAbsentKind = "not-yet"
+	AnchoredTextAbsentKindUnknown AnchoredTextAbsentKind = "unknown"
 )
 
 // Valid indicates whether the value is a known member of the AnchoredTextAbsentKind enum.
 func (e AnchoredTextAbsentKind) Valid() bool {
 	switch e {
-	case NoMap:
+	case AnchoredTextAbsentKindNoMap:
 		return true
-	case NotYet:
+	case AnchoredTextAbsentKindNotYet:
 		return true
-	case Unknown:
+	case AnchoredTextAbsentKindUnknown:
 		return true
 	default:
 		return false
@@ -206,13 +206,13 @@ func (e AnchoredTextExtractedEntryV) Valid() bool {
 
 // Defines values for AnnotationContext.
 const (
-	HttpwwwW3OrgnsannoJsonld AnnotationContext = "http://www.w3.org/ns/anno.jsonld"
+	AnnotationContextHttpwwwW3OrgnsannoJsonld AnnotationContext = "http://www.w3.org/ns/anno.jsonld"
 )
 
 // Valid indicates whether the value is a known member of the AnnotationContext enum.
 func (e AnnotationContext) Valid() bool {
 	switch e {
-	case HttpwwwW3OrgnsannoJsonld:
+	case AnnotationContextHttpwwwW3OrgnsannoJsonld:
 		return true
 	default:
 		return false
@@ -314,22 +314,22 @@ func (e AssessingJobParamsMotivation) Valid() bool {
 
 // Defines values for AssessingJobParamsTone.
 const (
-	Analytical   AssessingJobParamsTone = "analytical"
-	Balanced     AssessingJobParamsTone = "balanced"
-	Constructive AssessingJobParamsTone = "constructive"
-	Critical     AssessingJobParamsTone = "critical"
+	AssessingJobParamsToneAnalytical   AssessingJobParamsTone = "analytical"
+	AssessingJobParamsToneBalanced     AssessingJobParamsTone = "balanced"
+	AssessingJobParamsToneConstructive AssessingJobParamsTone = "constructive"
+	AssessingJobParamsToneCritical     AssessingJobParamsTone = "critical"
 )
 
 // Valid indicates whether the value is a known member of the AssessingJobParamsTone enum.
 func (e AssessingJobParamsTone) Valid() bool {
 	switch e {
-	case Analytical:
+	case AssessingJobParamsToneAnalytical:
 		return true
-	case Balanced:
+	case AssessingJobParamsToneBalanced:
 		return true
-	case Constructive:
+	case AssessingJobParamsToneConstructive:
 		return true
-	case Critical:
+	case AssessingJobParamsToneCritical:
 		return true
 	default:
 		return false
@@ -374,13 +374,13 @@ func (e BodyOperationAddOp) Valid() bool {
 
 // Defines values for BodyOperationRemoveOp.
 const (
-	Remove BodyOperationRemoveOp = "remove"
+	BodyOperationRemoveOpRemove BodyOperationRemoveOp = "remove"
 )
 
 // Valid indicates whether the value is a known member of the BodyOperationRemoveOp enum.
 func (e BodyOperationRemoveOp) Valid() bool {
 	switch e {
-	case Remove:
+	case BodyOperationRemoveOpRemove:
 		return true
 	default:
 		return false
@@ -389,13 +389,13 @@ func (e BodyOperationRemoveOp) Valid() bool {
 
 // Defines values for BodyOperationReplaceOp.
 const (
-	Replace BodyOperationReplaceOp = "replace"
+	BodyOperationReplaceOpReplace BodyOperationReplaceOp = "replace"
 )
 
 // Valid indicates whether the value is a known member of the BodyOperationReplaceOp enum.
 func (e BodyOperationReplaceOp) Valid() bool {
 	switch e {
-	case Replace:
+	case BodyOperationReplaceOpReplace:
 		return true
 	default:
 		return false
@@ -479,19 +479,19 @@ func (e BrowseDirectoryFailedCode) Valid() bool {
 
 // Defines values for BrowseDirectoryRequestSort.
 const (
-	AnnotationCount BrowseDirectoryRequestSort = "annotationCount"
-	Mtime           BrowseDirectoryRequestSort = "mtime"
-	Name            BrowseDirectoryRequestSort = "name"
+	BrowseDirectoryRequestSortAnnotationCount BrowseDirectoryRequestSort = "annotationCount"
+	BrowseDirectoryRequestSortMtime           BrowseDirectoryRequestSort = "mtime"
+	BrowseDirectoryRequestSortName            BrowseDirectoryRequestSort = "name"
 )
 
 // Valid indicates whether the value is a known member of the BrowseDirectoryRequestSort enum.
 func (e BrowseDirectoryRequestSort) Valid() bool {
 	switch e {
-	case AnnotationCount:
+	case BrowseDirectoryRequestSortAnnotationCount:
 		return true
-	case Mtime:
+	case BrowseDirectoryRequestSortMtime:
 		return true
-	case Name:
+	case BrowseDirectoryRequestSortName:
 		return true
 	default:
 		return false
@@ -500,13 +500,13 @@ func (e BrowseDirectoryRequestSort) Valid() bool {
 
 // Defines values for BusEventMessageEvent.
 const (
-	BusEvent BusEventMessageEvent = "bus-event"
+	BusEventMessageEventBusEvent BusEventMessageEvent = "bus-event"
 )
 
 // Valid indicates whether the value is a known member of the BusEventMessageEvent enum.
 func (e BusEventMessageEvent) Valid() bool {
 	switch e {
-	case BusEvent:
+	case BusEventMessageEventBusEvent:
 		return true
 	default:
 		return false
@@ -515,13 +515,13 @@ func (e BusEventMessageEvent) Valid() bool {
 
 // Defines values for BusPingMessageEvent.
 const (
-	Ping BusPingMessageEvent = "ping"
+	BusPingMessageEventPing BusPingMessageEvent = "ping"
 )
 
 // Valid indicates whether the value is a known member of the BusPingMessageEvent enum.
 func (e BusPingMessageEvent) Valid() bool {
 	switch e {
-	case Ping:
+	case BusPingMessageEventPing:
 		return true
 	default:
 		return false
@@ -530,22 +530,22 @@ func (e BusPingMessageEvent) Valid() bool {
 
 // Defines values for BusResumeGapReason.
 const (
-	QueryError             BusResumeGapReason = "query-error"
-	RetentionExceeded      BusResumeGapReason = "retention-exceeded"
-	ScopeMismatch          BusResumeGapReason = "scope-mismatch"
-	UnparseableLastEventId BusResumeGapReason = "unparseable-last-event-id"
+	BusResumeGapReasonQueryError             BusResumeGapReason = "query-error"
+	BusResumeGapReasonRetentionExceeded      BusResumeGapReason = "retention-exceeded"
+	BusResumeGapReasonScopeMismatch          BusResumeGapReason = "scope-mismatch"
+	BusResumeGapReasonUnparseableLastEventId BusResumeGapReason = "unparseable-last-event-id"
 )
 
 // Valid indicates whether the value is a known member of the BusResumeGapReason enum.
 func (e BusResumeGapReason) Valid() bool {
 	switch e {
-	case QueryError:
+	case BusResumeGapReasonQueryError:
 		return true
-	case RetentionExceeded:
+	case BusResumeGapReasonRetentionExceeded:
 		return true
-	case ScopeMismatch:
+	case BusResumeGapReasonScopeMismatch:
 		return true
-	case UnparseableLastEventId:
+	case BusResumeGapReasonUnparseableLastEventId:
 		return true
 	default:
 		return false
@@ -593,22 +593,22 @@ func (e CommentingJobParamsMotivation) Valid() bool {
 
 // Defines values for CommentingJobParamsTone.
 const (
-	Conversational CommentingJobParamsTone = "conversational"
-	Explanatory    CommentingJobParamsTone = "explanatory"
-	Scholarly      CommentingJobParamsTone = "scholarly"
-	Technical      CommentingJobParamsTone = "technical"
+	CommentingJobParamsToneConversational CommentingJobParamsTone = "conversational"
+	CommentingJobParamsToneExplanatory    CommentingJobParamsTone = "explanatory"
+	CommentingJobParamsToneScholarly      CommentingJobParamsTone = "scholarly"
+	CommentingJobParamsToneTechnical      CommentingJobParamsTone = "technical"
 )
 
 // Valid indicates whether the value is a known member of the CommentingJobParamsTone enum.
 func (e CommentingJobParamsTone) Valid() bool {
 	switch e {
-	case Conversational:
+	case CommentingJobParamsToneConversational:
 		return true
-	case Explanatory:
+	case CommentingJobParamsToneExplanatory:
 		return true
-	case Scholarly:
+	case CommentingJobParamsToneScholarly:
 		return true
-	case Technical:
+	case CommentingJobParamsToneTechnical:
 		return true
 	default:
 		return false
@@ -617,13 +617,13 @@ func (e CommentingJobParamsTone) Valid() bool {
 
 // Defines values for DirEntryType.
 const (
-	Dir DirEntryType = "dir"
+	DirEntryTypeDir DirEntryType = "dir"
 )
 
 // Valid indicates whether the value is a known member of the DirEntryType enum.
 func (e DirEntryType) Valid() bool {
 	switch e {
-	case Dir:
+	case DirEntryTypeDir:
 		return true
 	default:
 		return false
@@ -632,16 +632,16 @@ func (e DirEntryType) Valid() bool {
 
 // Defines values for DiscoveredKBPlacement.
 const (
-	Codespace DiscoveredKBPlacement = "codespace"
-	Local     DiscoveredKBPlacement = "local"
+	DiscoveredKBPlacementCodespace DiscoveredKBPlacement = "codespace"
+	DiscoveredKBPlacementLocal     DiscoveredKBPlacement = "local"
 )
 
 // Valid indicates whether the value is a known member of the DiscoveredKBPlacement enum.
 func (e DiscoveredKBPlacement) Valid() bool {
 	switch e {
-	case Codespace:
+	case DiscoveredKBPlacementCodespace:
 		return true
-	case Local:
+	case DiscoveredKBPlacementLocal:
 		return true
 	default:
 		return false
@@ -650,13 +650,13 @@ func (e DiscoveredKBPlacement) Valid() bool {
 
 // Defines values for DiscoveryDocumentVersion.
 const (
-	N1 DiscoveryDocumentVersion = 1
+	DiscoveryDocumentVersionN1 DiscoveryDocumentVersion = 1
 )
 
 // Valid indicates whether the value is a known member of the DiscoveryDocumentVersion enum.
 func (e DiscoveryDocumentVersion) Valid() bool {
 	switch e {
-	case N1:
+	case DiscoveryDocumentVersionN1:
 		return true
 	default:
 		return false
@@ -665,13 +665,13 @@ func (e DiscoveryDocumentVersion) Valid() bool {
 
 // Defines values for DispatcherHealthQueue.
 const (
-	Jetstream DispatcherHealthQueue = "jetstream"
+	DispatcherHealthQueueJetstream DispatcherHealthQueue = "jetstream"
 )
 
 // Valid indicates whether the value is a known member of the DispatcherHealthQueue enum.
 func (e DispatcherHealthQueue) Valid() bool {
 	switch e {
-	case Jetstream:
+	case DispatcherHealthQueueJetstream:
 		return true
 	default:
 		return false
@@ -695,22 +695,22 @@ func (e DispatcherHealthStatus) Valid() bool {
 
 // Defines values for DurabilityEvidence.
 const (
-	Acknowledged     DurabilityEvidence = "acknowledged"
-	ProbeConfirmed   DurabilityEvidence = "probe-confirmed"
-	ProbeRefused     DurabilityEvidence = "probe-refused"
-	ProbeUnreachable DurabilityEvidence = "probe-unreachable"
+	DurabilityEvidenceAcknowledged     DurabilityEvidence = "acknowledged"
+	DurabilityEvidenceProbeConfirmed   DurabilityEvidence = "probe-confirmed"
+	DurabilityEvidenceProbeRefused     DurabilityEvidence = "probe-refused"
+	DurabilityEvidenceProbeUnreachable DurabilityEvidence = "probe-unreachable"
 )
 
 // Valid indicates whether the value is a known member of the DurabilityEvidence enum.
 func (e DurabilityEvidence) Valid() bool {
 	switch e {
-	case Acknowledged:
+	case DurabilityEvidenceAcknowledged:
 		return true
-	case ProbeConfirmed:
+	case DurabilityEvidenceProbeConfirmed:
 		return true
-	case ProbeRefused:
+	case DurabilityEvidenceProbeRefused:
 		return true
-	case ProbeUnreachable:
+	case DurabilityEvidenceProbeUnreachable:
 		return true
 	default:
 		return false
@@ -719,13 +719,13 @@ func (e DurabilityEvidence) Valid() bool {
 
 // Defines values for ExtractedTextKind.
 const (
-	Extracted ExtractedTextKind = "extracted"
+	ExtractedTextKindExtracted ExtractedTextKind = "extracted"
 )
 
 // Valid indicates whether the value is a known member of the ExtractedTextKind enum.
 func (e ExtractedTextKind) Valid() bool {
 	switch e {
-	case Extracted:
+	case ExtractedTextKindExtracted:
 		return true
 	default:
 		return false
@@ -818,13 +818,13 @@ func (e ExtractionDeclinedDeclined) Valid() bool {
 
 // Defines values for ExtractionDeclinedKind.
 const (
-	Declined ExtractionDeclinedKind = "declined"
+	ExtractionDeclinedKindDeclined ExtractionDeclinedKind = "declined"
 )
 
 // Valid indicates whether the value is a known member of the ExtractionDeclinedKind enum.
 func (e ExtractionDeclinedKind) Valid() bool {
 	switch e {
-	case Declined:
+	case ExtractionDeclinedKindDeclined:
 		return true
 	default:
 		return false
@@ -833,19 +833,19 @@ func (e ExtractionDeclinedKind) Valid() bool {
 
 // Defines values for FailureClass.
 const (
-	Deterministic FailureClass = "deterministic"
-	Transient     FailureClass = "transient"
-	Withheld      FailureClass = "withheld"
+	FailureClassDeterministic FailureClass = "deterministic"
+	FailureClassTransient     FailureClass = "transient"
+	FailureClassWithheld      FailureClass = "withheld"
 )
 
 // Valid indicates whether the value is a known member of the FailureClass enum.
 func (e FailureClass) Valid() bool {
 	switch e {
-	case Deterministic:
+	case FailureClassDeterministic:
 		return true
-	case Transient:
+	case FailureClassTransient:
 		return true
-	case Withheld:
+	case FailureClassWithheld:
 		return true
 	default:
 		return false
@@ -854,13 +854,13 @@ func (e FailureClass) Valid() bool {
 
 // Defines values for FileEntryType.
 const (
-	File FileEntryType = "file"
+	FileEntryTypeFile FileEntryType = "file"
 )
 
 // Valid indicates whether the value is a known member of the FileEntryType enum.
 func (e FileEntryType) Valid() bool {
 	switch e {
-	case File:
+	case FileEntryTypeFile:
 		return true
 	default:
 		return false
@@ -884,16 +884,16 @@ func (e FragmentSelectorType) Valid() bool {
 
 // Defines values for GatewayConfigSignalType.
 const (
-	InProcess GatewayConfigSignalType = "in-process"
-	Nats      GatewayConfigSignalType = "nats"
+	GatewayConfigSignalTypeInProcess GatewayConfigSignalType = "in-process"
+	GatewayConfigSignalTypeNats      GatewayConfigSignalType = "nats"
 )
 
 // Valid indicates whether the value is a known member of the GatewayConfigSignalType enum.
 func (e GatewayConfigSignalType) Valid() bool {
 	switch e {
-	case InProcess:
+	case GatewayConfigSignalTypeInProcess:
 		return true
-	case Nats:
+	case GatewayConfigSignalTypeNats:
 		return true
 	default:
 		return false
@@ -1010,13 +1010,13 @@ func (e GraphResourceNodeType) Valid() bool {
 
 // Defines values for HighlightingJobParamsMotivation.
 const (
-	Highlighting HighlightingJobParamsMotivation = "highlighting"
+	HighlightingJobParamsMotivationHighlighting HighlightingJobParamsMotivation = "highlighting"
 )
 
 // Valid indicates whether the value is a known member of the HighlightingJobParamsMotivation enum.
 func (e HighlightingJobParamsMotivation) Valid() bool {
 	switch e {
-	case Highlighting:
+	case HighlightingJobParamsMotivationHighlighting:
 		return true
 	default:
 		return false
@@ -1025,13 +1025,13 @@ func (e HighlightingJobParamsMotivation) Valid() bool {
 
 // Defines values for JanusGraphConfigType.
 const (
-	Janusgraph JanusGraphConfigType = "janusgraph"
+	JanusGraphConfigTypeJanusgraph JanusGraphConfigType = "janusgraph"
 )
 
 // Valid indicates whether the value is a known member of the JanusGraphConfigType enum.
 func (e JanusGraphConfigType) Valid() bool {
 	switch e {
-	case Janusgraph:
+	case JanusGraphConfigTypeJanusgraph:
 		return true
 	default:
 		return false
@@ -1055,13 +1055,13 @@ func (e JobCancelledStatus) Valid() bool {
 
 // Defines values for JobCompleteStatus.
 const (
-	Complete JobCompleteStatus = "complete"
+	JobCompleteStatusComplete JobCompleteStatus = "complete"
 )
 
 // Valid indicates whether the value is a known member of the JobCompleteStatus enum.
 func (e JobCompleteStatus) Valid() bool {
 	switch e {
-	case Complete:
+	case JobCompleteStatusComplete:
 		return true
 	default:
 		return false
@@ -1070,13 +1070,13 @@ func (e JobCompleteStatus) Valid() bool {
 
 // Defines values for JobDeclinedResultDeclined.
 const (
-	True JobDeclinedResultDeclined = true
+	JobDeclinedResultDeclinedTrue JobDeclinedResultDeclined = true
 )
 
 // Valid indicates whether the value is a known member of the JobDeclinedResultDeclined enum.
 func (e JobDeclinedResultDeclined) Valid() bool {
 	switch e {
-	case True:
+	case JobDeclinedResultDeclinedTrue:
 		return true
 	default:
 		return false
@@ -1112,13 +1112,13 @@ func (e JobDeclinedResultReason) Valid() bool {
 
 // Defines values for JobFailedStatus.
 const (
-	Failed JobFailedStatus = "failed"
+	JobFailedStatusFailed JobFailedStatus = "failed"
 )
 
 // Valid indicates whether the value is a known member of the JobFailedStatus enum.
 func (e JobFailedStatus) Valid() bool {
 	switch e {
-	case Failed:
+	case JobFailedStatusFailed:
 		return true
 	default:
 		return false
@@ -1127,13 +1127,13 @@ func (e JobFailedStatus) Valid() bool {
 
 // Defines values for JobPendingStatus.
 const (
-	Pending JobPendingStatus = "pending"
+	JobPendingStatusPending JobPendingStatus = "pending"
 )
 
 // Valid indicates whether the value is a known member of the JobPendingStatus enum.
 func (e JobPendingStatus) Valid() bool {
 	switch e {
-	case Pending:
+	case JobPendingStatusPending:
 		return true
 	default:
 		return false
@@ -1142,16 +1142,16 @@ func (e JobPendingStatus) Valid() bool {
 
 // Defines values for JobProgressCurrentKind.
 const (
-	Category   JobProgressCurrentKind = "category"
-	EntityType JobProgressCurrentKind = "entity-type"
+	JobProgressCurrentKindCategory   JobProgressCurrentKind = "category"
+	JobProgressCurrentKindEntityType JobProgressCurrentKind = "entity-type"
 )
 
 // Valid indicates whether the value is a known member of the JobProgressCurrentKind enum.
 func (e JobProgressCurrentKind) Valid() bool {
 	switch e {
-	case Category:
+	case JobProgressCurrentKindCategory:
 		return true
-	case EntityType:
+	case JobProgressCurrentKindEntityType:
 		return true
 	default:
 		return false
@@ -1160,22 +1160,22 @@ func (e JobProgressCurrentKind) Valid() bool {
 
 // Defines values for JobProgressRequestParamsLabel.
 const (
-	Density      JobProgressRequestParamsLabel = "density"
-	EntityTypes  JobProgressRequestParamsLabel = "entity-types"
-	Instructions JobProgressRequestParamsLabel = "instructions"
-	Tone         JobProgressRequestParamsLabel = "tone"
+	JobProgressRequestParamsLabelDensity      JobProgressRequestParamsLabel = "density"
+	JobProgressRequestParamsLabelEntityTypes  JobProgressRequestParamsLabel = "entity-types"
+	JobProgressRequestParamsLabelInstructions JobProgressRequestParamsLabel = "instructions"
+	JobProgressRequestParamsLabelTone         JobProgressRequestParamsLabel = "tone"
 )
 
 // Valid indicates whether the value is a known member of the JobProgressRequestParamsLabel enum.
 func (e JobProgressRequestParamsLabel) Valid() bool {
 	switch e {
-	case Density:
+	case JobProgressRequestParamsLabelDensity:
 		return true
-	case EntityTypes:
+	case JobProgressRequestParamsLabelEntityTypes:
 		return true
-	case Instructions:
+	case JobProgressRequestParamsLabelInstructions:
 		return true
-	case Tone:
+	case JobProgressRequestParamsLabelTone:
 		return true
 	default:
 		return false
@@ -1184,13 +1184,13 @@ func (e JobProgressRequestParamsLabel) Valid() bool {
 
 // Defines values for JobProgressAnalyzingCode.
 const (
-	Analyzing JobProgressAnalyzingCode = "analyzing"
+	JobProgressAnalyzingCodeAnalyzing JobProgressAnalyzingCode = "analyzing"
 )
 
 // Valid indicates whether the value is a known member of the JobProgressAnalyzingCode enum.
 func (e JobProgressAnalyzingCode) Valid() bool {
 	switch e {
-	case Analyzing:
+	case JobProgressAnalyzingCodeAnalyzing:
 		return true
 	default:
 		return false
@@ -1199,13 +1199,13 @@ func (e JobProgressAnalyzingCode) Valid() bool {
 
 // Defines values for JobProgressAnalyzingTagsCode.
 const (
-	AnalyzingTags JobProgressAnalyzingTagsCode = "analyzing-tags"
+	JobProgressAnalyzingTagsCodeAnalyzingTags JobProgressAnalyzingTagsCode = "analyzing-tags"
 )
 
 // Valid indicates whether the value is a known member of the JobProgressAnalyzingTagsCode enum.
 func (e JobProgressAnalyzingTagsCode) Valid() bool {
 	switch e {
-	case AnalyzingTags:
+	case JobProgressAnalyzingTagsCodeAnalyzingTags:
 		return true
 	default:
 		return false
@@ -1214,13 +1214,13 @@ func (e JobProgressAnalyzingTagsCode) Valid() bool {
 
 // Defines values for JobProgressCompleteCreatedCode.
 const (
-	CompleteCreated JobProgressCompleteCreatedCode = "complete-created"
+	JobProgressCompleteCreatedCodeCompleteCreated JobProgressCompleteCreatedCode = "complete-created"
 )
 
 // Valid indicates whether the value is a known member of the JobProgressCompleteCreatedCode enum.
 func (e JobProgressCompleteCreatedCode) Valid() bool {
 	switch e {
-	case CompleteCreated:
+	case JobProgressCompleteCreatedCodeCompleteCreated:
 		return true
 	default:
 		return false
@@ -1229,13 +1229,13 @@ func (e JobProgressCompleteCreatedCode) Valid() bool {
 
 // Defines values for JobProgressCompleteGeneratedCode.
 const (
-	CompleteGenerated JobProgressCompleteGeneratedCode = "complete-generated"
+	JobProgressCompleteGeneratedCodeCompleteGenerated JobProgressCompleteGeneratedCode = "complete-generated"
 )
 
 // Valid indicates whether the value is a known member of the JobProgressCompleteGeneratedCode enum.
 func (e JobProgressCompleteGeneratedCode) Valid() bool {
 	switch e {
-	case CompleteGenerated:
+	case JobProgressCompleteGeneratedCodeCompleteGenerated:
 		return true
 	default:
 		return false
@@ -1244,13 +1244,13 @@ func (e JobProgressCompleteGeneratedCode) Valid() bool {
 
 // Defines values for JobProgressCreatingAnnotationsCode.
 const (
-	CreatingAnnotations JobProgressCreatingAnnotationsCode = "creating-annotations"
+	JobProgressCreatingAnnotationsCodeCreatingAnnotations JobProgressCreatingAnnotationsCode = "creating-annotations"
 )
 
 // Valid indicates whether the value is a known member of the JobProgressCreatingAnnotationsCode enum.
 func (e JobProgressCreatingAnnotationsCode) Valid() bool {
 	switch e {
-	case CreatingAnnotations:
+	case JobProgressCreatingAnnotationsCodeCreatingAnnotations:
 		return true
 	default:
 		return false
@@ -1259,13 +1259,13 @@ func (e JobProgressCreatingAnnotationsCode) Valid() bool {
 
 // Defines values for JobProgressCreatingResourceCode.
 const (
-	CreatingResource JobProgressCreatingResourceCode = "creating-resource"
+	JobProgressCreatingResourceCodeCreatingResource JobProgressCreatingResourceCode = "creating-resource"
 )
 
 // Valid indicates whether the value is a known member of the JobProgressCreatingResourceCode enum.
 func (e JobProgressCreatingResourceCode) Valid() bool {
 	switch e {
-	case CreatingResource:
+	case JobProgressCreatingResourceCodeCreatingResource:
 		return true
 	default:
 		return false
@@ -1274,13 +1274,13 @@ func (e JobProgressCreatingResourceCode) Valid() bool {
 
 // Defines values for JobProgressCreatingTagAnnotationsCode.
 const (
-	CreatingTagAnnotations JobProgressCreatingTagAnnotationsCode = "creating-tag-annotations"
+	JobProgressCreatingTagAnnotationsCodeCreatingTagAnnotations JobProgressCreatingTagAnnotationsCode = "creating-tag-annotations"
 )
 
 // Valid indicates whether the value is a known member of the JobProgressCreatingTagAnnotationsCode enum.
 func (e JobProgressCreatingTagAnnotationsCode) Valid() bool {
 	switch e {
-	case CreatingTagAnnotations:
+	case JobProgressCreatingTagAnnotationsCodeCreatingTagAnnotations:
 		return true
 	default:
 		return false
@@ -1289,13 +1289,13 @@ func (e JobProgressCreatingTagAnnotationsCode) Valid() bool {
 
 // Defines values for JobProgressDetectingEntitiesCode.
 const (
-	DetectingEntities JobProgressDetectingEntitiesCode = "detecting-entities"
+	JobProgressDetectingEntitiesCodeDetectingEntities JobProgressDetectingEntitiesCode = "detecting-entities"
 )
 
 // Valid indicates whether the value is a known member of the JobProgressDetectingEntitiesCode enum.
 func (e JobProgressDetectingEntitiesCode) Valid() bool {
 	switch e {
-	case DetectingEntities:
+	case JobProgressDetectingEntitiesCodeDetectingEntities:
 		return true
 	default:
 		return false
@@ -1304,13 +1304,13 @@ func (e JobProgressDetectingEntitiesCode) Valid() bool {
 
 // Defines values for JobProgressGeneratingResourceCode.
 const (
-	GeneratingResource JobProgressGeneratingResourceCode = "generating-resource"
+	JobProgressGeneratingResourceCodeGeneratingResource JobProgressGeneratingResourceCode = "generating-resource"
 )
 
 // Valid indicates whether the value is a known member of the JobProgressGeneratingResourceCode enum.
 func (e JobProgressGeneratingResourceCode) Valid() bool {
 	switch e {
-	case GeneratingResource:
+	case JobProgressGeneratingResourceCodeGeneratingResource:
 		return true
 	default:
 		return false
@@ -1319,13 +1319,13 @@ func (e JobProgressGeneratingResourceCode) Valid() bool {
 
 // Defines values for JobProgressLoadingCode.
 const (
-	Loading JobProgressLoadingCode = "loading"
+	JobProgressLoadingCodeLoading JobProgressLoadingCode = "loading"
 )
 
 // Valid indicates whether the value is a known member of the JobProgressLoadingCode enum.
 func (e JobProgressLoadingCode) Valid() bool {
 	switch e {
-	case Loading:
+	case JobProgressLoadingCodeLoading:
 		return true
 	default:
 		return false
@@ -1334,13 +1334,13 @@ func (e JobProgressLoadingCode) Valid() bool {
 
 // Defines values for JobRunningStatus.
 const (
-	Running JobRunningStatus = "running"
+	JobRunningStatusRunning JobRunningStatus = "running"
 )
 
 // Valid indicates whether the value is a known member of the JobRunningStatus enum.
 func (e JobRunningStatus) Valid() bool {
 	switch e {
-	case Running:
+	case JobRunningStatusRunning:
 		return true
 	default:
 		return false
@@ -1394,22 +1394,22 @@ func (e JobType) Valid() bool {
 
 // Defines values for LimitRefusalCode.
 const (
-	Capacity           LimitRefusalCode = "capacity"
-	EmitRate           LimitRefusalCode = "emit-rate"
-	Streams            LimitRefusalCode = "streams"
-	UnansweredRequests LimitRefusalCode = "unanswered-requests"
+	LimitRefusalCodeCapacity           LimitRefusalCode = "capacity"
+	LimitRefusalCodeEmitRate           LimitRefusalCode = "emit-rate"
+	LimitRefusalCodeStreams            LimitRefusalCode = "streams"
+	LimitRefusalCodeUnansweredRequests LimitRefusalCode = "unanswered-requests"
 )
 
 // Valid indicates whether the value is a known member of the LimitRefusalCode enum.
 func (e LimitRefusalCode) Valid() bool {
 	switch e {
-	case Capacity:
+	case LimitRefusalCodeCapacity:
 		return true
-	case EmitRate:
+	case LimitRefusalCodeEmitRate:
 		return true
-	case Streams:
+	case LimitRefusalCodeStreams:
 		return true
-	case UnansweredRequests:
+	case LimitRefusalCodeUnansweredRequests:
 		return true
 	default:
 		return false
@@ -1418,13 +1418,13 @@ func (e LimitRefusalCode) Valid() bool {
 
 // Defines values for LinkingJobParamsMotivation.
 const (
-	Linking LinkingJobParamsMotivation = "linking"
+	LinkingJobParamsMotivationLinking LinkingJobParamsMotivation = "linking"
 )
 
 // Valid indicates whether the value is a known member of the LinkingJobParamsMotivation enum.
 func (e LinkingJobParamsMotivation) Valid() bool {
 	switch e {
-	case Linking:
+	case LinkingJobParamsMotivationLinking:
 		return true
 	default:
 		return false
@@ -1433,16 +1433,16 @@ func (e LinkingJobParamsMotivation) Valid() bool {
 
 // Defines values for LogFormat.
 const (
-	Json   LogFormat = "json"
-	Simple LogFormat = "simple"
+	LogFormatJson   LogFormat = "json"
+	LogFormatSimple LogFormat = "simple"
 )
 
 // Valid indicates whether the value is a known member of the LogFormat enum.
 func (e LogFormat) Valid() bool {
 	switch e {
-	case Json:
+	case LogFormatJson:
 		return true
-	case Simple:
+	case LogFormatSimple:
 		return true
 	default:
 		return false
@@ -1451,25 +1451,25 @@ func (e LogFormat) Valid() bool {
 
 // Defines values for LogLevel.
 const (
-	Debug LogLevel = "debug"
-	Error LogLevel = "error"
-	Http  LogLevel = "http"
-	Info  LogLevel = "info"
-	Warn  LogLevel = "warn"
+	LogLevelDebug LogLevel = "debug"
+	LogLevelError LogLevel = "error"
+	LogLevelHttp  LogLevel = "http"
+	LogLevelInfo  LogLevel = "info"
+	LogLevelWarn  LogLevel = "warn"
 )
 
 // Valid indicates whether the value is a known member of the LogLevel enum.
 func (e LogLevel) Valid() bool {
 	switch e {
-	case Debug:
+	case LogLevelDebug:
 		return true
-	case Error:
+	case LogLevelError:
 		return true
-	case Http:
+	case LogLevelHttp:
 		return true
-	case Info:
+	case LogLevelInfo:
 		return true
-	case Warn:
+	case LogLevelWarn:
 		return true
 	default:
 		return false
@@ -1523,13 +1523,13 @@ func (e MarkJobFilterJobType) Valid() bool {
 
 // Defines values for MarkJobQueuedEventJobType.
 const (
-	Mark MarkJobQueuedEventJobType = "mark"
+	MarkJobQueuedEventJobTypeMark MarkJobQueuedEventJobType = "mark"
 )
 
 // Valid indicates whether the value is a known member of the MarkJobQueuedEventJobType enum.
 func (e MarkJobQueuedEventJobType) Valid() bool {
 	switch e {
-	case Mark:
+	case MarkJobQueuedEventJobTypeMark:
 		return true
 	default:
 		return false
@@ -1538,16 +1538,16 @@ func (e MarkJobQueuedEventJobType) Valid() bool {
 
 // Defines values for MatchResourcesResponseMatchKind.
 const (
-	Lexical  MatchResourcesResponseMatchKind = "lexical"
-	Semantic MatchResourcesResponseMatchKind = "semantic"
+	MatchResourcesResponseMatchKindLexical  MatchResourcesResponseMatchKind = "lexical"
+	MatchResourcesResponseMatchKindSemantic MatchResourcesResponseMatchKind = "semantic"
 )
 
 // Valid indicates whether the value is a known member of the MatchResourcesResponseMatchKind enum.
 func (e MatchResourcesResponseMatchKind) Valid() bool {
 	switch e {
-	case Lexical:
+	case MatchResourcesResponseMatchKindLexical:
 		return true
-	case Semantic:
+	case MatchResourcesResponseMatchKindSemantic:
 		return true
 	default:
 		return false
@@ -1613,13 +1613,13 @@ func (e Motivation) Valid() bool {
 
 // Defines values for Neo4jGraphConfigType.
 const (
-	Neo4j Neo4jGraphConfigType = "neo4j"
+	Neo4jGraphConfigTypeNeo4j Neo4jGraphConfigType = "neo4j"
 )
 
 // Valid indicates whether the value is a known member of the Neo4jGraphConfigType enum.
 func (e Neo4jGraphConfigType) Valid() bool {
 	switch e {
-	case Neo4j:
+	case Neo4jGraphConfigTypeNeo4j:
 		return true
 	default:
 		return false
@@ -1628,13 +1628,13 @@ func (e Neo4jGraphConfigType) Valid() bool {
 
 // Defines values for NeptuneGraphConfigType.
 const (
-	Neptune NeptuneGraphConfigType = "neptune"
+	NeptuneGraphConfigTypeNeptune NeptuneGraphConfigType = "neptune"
 )
 
 // Valid indicates whether the value is a known member of the NeptuneGraphConfigType enum.
 func (e NeptuneGraphConfigType) Valid() bool {
 	switch e {
-	case Neptune:
+	case NeptuneGraphConfigTypeNeptune:
 		return true
 	default:
 		return false
@@ -1658,13 +1658,13 @@ func (e OllamaEmbeddingConfigType) Valid() bool {
 
 // Defines values for ProtectedResourceMetadataBearerMethodsSupported.
 const (
-	Header ProtectedResourceMetadataBearerMethodsSupported = "header"
+	ProtectedResourceMetadataBearerMethodsSupportedHeader ProtectedResourceMetadataBearerMethodsSupported = "header"
 )
 
 // Valid indicates whether the value is a known member of the ProtectedResourceMetadataBearerMethodsSupported enum.
 func (e ProtectedResourceMetadataBearerMethodsSupported) Valid() bool {
 	switch e {
-	case Header:
+	case ProtectedResourceMetadataBearerMethodsSupportedHeader:
 		return true
 	default:
 		return false
@@ -1673,13 +1673,13 @@ func (e ProtectedResourceMetadataBearerMethodsSupported) Valid() bool {
 
 // Defines values for QdrantVectorsConfigType.
 const (
-	Qdrant QdrantVectorsConfigType = "qdrant"
+	QdrantVectorsConfigTypeQdrant QdrantVectorsConfigType = "qdrant"
 )
 
 // Valid indicates whether the value is a known member of the QdrantVectorsConfigType enum.
 func (e QdrantVectorsConfigType) Valid() bool {
 	switch e {
-	case Qdrant:
+	case QdrantVectorsConfigTypeQdrant:
 		return true
 	default:
 		return false
@@ -1688,28 +1688,28 @@ func (e QdrantVectorsConfigType) Valid() bool {
 
 // Defines values for RepresentationRel.
 const (
-	Derived   RepresentationRel = "derived"
-	Optimized RepresentationRel = "optimized"
-	Original  RepresentationRel = "original"
-	Other     RepresentationRel = "other"
-	Preview   RepresentationRel = "preview"
-	Thumbnail RepresentationRel = "thumbnail"
+	RepresentationRelDerived   RepresentationRel = "derived"
+	RepresentationRelOptimized RepresentationRel = "optimized"
+	RepresentationRelOriginal  RepresentationRel = "original"
+	RepresentationRelOther     RepresentationRel = "other"
+	RepresentationRelPreview   RepresentationRel = "preview"
+	RepresentationRelThumbnail RepresentationRel = "thumbnail"
 )
 
 // Valid indicates whether the value is a known member of the RepresentationRel enum.
 func (e RepresentationRel) Valid() bool {
 	switch e {
-	case Derived:
+	case RepresentationRelDerived:
 		return true
-	case Optimized:
+	case RepresentationRelOptimized:
 		return true
-	case Original:
+	case RepresentationRelOriginal:
 		return true
-	case Other:
+	case RepresentationRelOther:
 		return true
-	case Preview:
+	case RepresentationRelPreview:
 		return true
-	case Thumbnail:
+	case RepresentationRelThumbnail:
 		return true
 	default:
 		return false
@@ -1736,19 +1736,19 @@ func (e RepresentationNotFoundCode) Valid() bool {
 
 // Defines values for SettingsThemeChangedEventTheme.
 const (
-	Dark   SettingsThemeChangedEventTheme = "dark"
-	Light  SettingsThemeChangedEventTheme = "light"
-	System SettingsThemeChangedEventTheme = "system"
+	SettingsThemeChangedEventThemeDark   SettingsThemeChangedEventTheme = "dark"
+	SettingsThemeChangedEventThemeLight  SettingsThemeChangedEventTheme = "light"
+	SettingsThemeChangedEventThemeSystem SettingsThemeChangedEventTheme = "system"
 )
 
 // Valid indicates whether the value is a known member of the SettingsThemeChangedEventTheme enum.
 func (e SettingsThemeChangedEventTheme) Valid() bool {
 	switch e {
-	case Dark:
+	case SettingsThemeChangedEventThemeDark:
 		return true
-	case Light:
+	case SettingsThemeChangedEventThemeLight:
 		return true
-	case System:
+	case SettingsThemeChangedEventThemeSystem:
 		return true
 	default:
 		return false
@@ -1757,16 +1757,16 @@ func (e SettingsThemeChangedEventTheme) Valid() bool {
 
 // Defines values for SmeltSettledOutcome.
 const (
-	Indexed SmeltSettledOutcome = "indexed"
-	Skipped SmeltSettledOutcome = "skipped"
+	SmeltSettledOutcomeIndexed SmeltSettledOutcome = "indexed"
+	SmeltSettledOutcomeSkipped SmeltSettledOutcome = "skipped"
 )
 
 // Valid indicates whether the value is a known member of the SmeltSettledOutcome enum.
 func (e SmeltSettledOutcome) Valid() bool {
 	switch e {
-	case Indexed:
+	case SmeltSettledOutcomeIndexed:
 		return true
-	case Skipped:
+	case SmeltSettledOutcomeSkipped:
 		return true
 	default:
 		return false
@@ -1820,199 +1820,199 @@ func (e SpecificResourceType) Valid() bool {
 
 // Defines values for SupportedMediaType.
 const (
-	Applicationgzip                                                      SupportedMediaType = "application/gzip"
-	Applicationjavascript                                                SupportedMediaType = "application/javascript"
-	Applicationjson                                                      SupportedMediaType = "application/json"
-	Applicationmsword                                                    SupportedMediaType = "application/msword"
-	ApplicationoctetStream                                               SupportedMediaType = "application/octet-stream"
-	Applicationpdf                                                       SupportedMediaType = "application/pdf"
-	Applicationtypescript                                                SupportedMediaType = "application/typescript"
-	ApplicationvndMsExcel                                                SupportedMediaType = "application/vnd.ms-excel"
-	ApplicationvndMsPowerpoint                                           SupportedMediaType = "application/vnd.ms-powerpoint"
-	ApplicationvndOpenxmlformatsOfficedocumentPresentationmlPresentation SupportedMediaType = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-	ApplicationvndOpenxmlformatsOfficedocumentSpreadsheetmlSheet         SupportedMediaType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-	ApplicationvndOpenxmlformatsOfficedocumentWordprocessingmlDocument   SupportedMediaType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-	Applicationwasm                                                      SupportedMediaType = "application/wasm"
-	Applicationx7zCompressed                                             SupportedMediaType = "application/x-7z-compressed"
-	ApplicationxTar                                                      SupportedMediaType = "application/x-tar"
-	ApplicationxYaml                                                     SupportedMediaType = "application/x-yaml"
-	Applicationxml                                                       SupportedMediaType = "application/xml"
-	Applicationyaml                                                      SupportedMediaType = "application/yaml"
-	Applicationzip                                                       SupportedMediaType = "application/zip"
-	Audioaac                                                             SupportedMediaType = "audio/aac"
-	Audioflac                                                            SupportedMediaType = "audio/flac"
-	Audiompeg                                                            SupportedMediaType = "audio/mpeg"
-	Audioogg                                                             SupportedMediaType = "audio/ogg"
-	Audiowav                                                             SupportedMediaType = "audio/wav"
-	Audiowebm                                                            SupportedMediaType = "audio/webm"
-	Fontotf                                                              SupportedMediaType = "font/otf"
-	Fontttf                                                              SupportedMediaType = "font/ttf"
-	Fontwoff                                                             SupportedMediaType = "font/woff"
-	Fontwoff2                                                            SupportedMediaType = "font/woff2"
-	Imagebmp                                                             SupportedMediaType = "image/bmp"
-	Imagegif                                                             SupportedMediaType = "image/gif"
-	Imagejpeg                                                            SupportedMediaType = "image/jpeg"
-	Imagepng                                                             SupportedMediaType = "image/png"
-	ImagesvgXml                                                          SupportedMediaType = "image/svg+xml"
-	Imagetiff                                                            SupportedMediaType = "image/tiff"
-	Imagewebp                                                            SupportedMediaType = "image/webp"
-	ImagexIcon                                                           SupportedMediaType = "image/x-icon"
-	Textcss                                                              SupportedMediaType = "text/css"
-	Textcsv                                                              SupportedMediaType = "text/csv"
-	Texthtml                                                             SupportedMediaType = "text/html"
-	Textjavascript                                                       SupportedMediaType = "text/javascript"
-	Textmarkdown                                                         SupportedMediaType = "text/markdown"
-	Textplain                                                            SupportedMediaType = "text/plain"
-	TextxC                                                               SupportedMediaType = "text/x-c"
-	TextxC1                                                              SupportedMediaType = "text/x-c++"
-	TextxCsharp                                                          SupportedMediaType = "text/x-csharp"
-	TextxGo                                                              SupportedMediaType = "text/x-go"
-	TextxJava                                                            SupportedMediaType = "text/x-java"
-	TextxKotlin                                                          SupportedMediaType = "text/x-kotlin"
-	TextxPhp                                                             SupportedMediaType = "text/x-php"
-	TextxPython                                                          SupportedMediaType = "text/x-python"
-	TextxRuby                                                            SupportedMediaType = "text/x-ruby"
-	TextxRust                                                            SupportedMediaType = "text/x-rust"
-	TextxShell                                                           SupportedMediaType = "text/x-shell"
-	TextxSwift                                                           SupportedMediaType = "text/x-swift"
-	TextxTypescript                                                      SupportedMediaType = "text/x-typescript"
-	Textxml                                                              SupportedMediaType = "text/xml"
-	Videomp4                                                             SupportedMediaType = "video/mp4"
-	Videompeg                                                            SupportedMediaType = "video/mpeg"
-	Videoogg                                                             SupportedMediaType = "video/ogg"
-	Videoquicktime                                                       SupportedMediaType = "video/quicktime"
-	Videowebm                                                            SupportedMediaType = "video/webm"
-	VideoxMsvideo                                                        SupportedMediaType = "video/x-msvideo"
+	SupportedMediaTypeApplicationgzip                                                      SupportedMediaType = "application/gzip"
+	SupportedMediaTypeApplicationjavascript                                                SupportedMediaType = "application/javascript"
+	SupportedMediaTypeApplicationjson                                                      SupportedMediaType = "application/json"
+	SupportedMediaTypeApplicationmsword                                                    SupportedMediaType = "application/msword"
+	SupportedMediaTypeApplicationoctetStream                                               SupportedMediaType = "application/octet-stream"
+	SupportedMediaTypeApplicationpdf                                                       SupportedMediaType = "application/pdf"
+	SupportedMediaTypeApplicationtypescript                                                SupportedMediaType = "application/typescript"
+	SupportedMediaTypeApplicationvndMsExcel                                                SupportedMediaType = "application/vnd.ms-excel"
+	SupportedMediaTypeApplicationvndMsPowerpoint                                           SupportedMediaType = "application/vnd.ms-powerpoint"
+	SupportedMediaTypeApplicationvndOpenxmlformatsOfficedocumentPresentationmlPresentation SupportedMediaType = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+	SupportedMediaTypeApplicationvndOpenxmlformatsOfficedocumentSpreadsheetmlSheet         SupportedMediaType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+	SupportedMediaTypeApplicationvndOpenxmlformatsOfficedocumentWordprocessingmlDocument   SupportedMediaType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+	SupportedMediaTypeApplicationwasm                                                      SupportedMediaType = "application/wasm"
+	SupportedMediaTypeApplicationx7zCompressed                                             SupportedMediaType = "application/x-7z-compressed"
+	SupportedMediaTypeApplicationxTar                                                      SupportedMediaType = "application/x-tar"
+	SupportedMediaTypeApplicationxYaml                                                     SupportedMediaType = "application/x-yaml"
+	SupportedMediaTypeApplicationxml                                                       SupportedMediaType = "application/xml"
+	SupportedMediaTypeApplicationyaml                                                      SupportedMediaType = "application/yaml"
+	SupportedMediaTypeApplicationzip                                                       SupportedMediaType = "application/zip"
+	SupportedMediaTypeAudioaac                                                             SupportedMediaType = "audio/aac"
+	SupportedMediaTypeAudioflac                                                            SupportedMediaType = "audio/flac"
+	SupportedMediaTypeAudiompeg                                                            SupportedMediaType = "audio/mpeg"
+	SupportedMediaTypeAudioogg                                                             SupportedMediaType = "audio/ogg"
+	SupportedMediaTypeAudiowav                                                             SupportedMediaType = "audio/wav"
+	SupportedMediaTypeAudiowebm                                                            SupportedMediaType = "audio/webm"
+	SupportedMediaTypeFontotf                                                              SupportedMediaType = "font/otf"
+	SupportedMediaTypeFontttf                                                              SupportedMediaType = "font/ttf"
+	SupportedMediaTypeFontwoff                                                             SupportedMediaType = "font/woff"
+	SupportedMediaTypeFontwoff2                                                            SupportedMediaType = "font/woff2"
+	SupportedMediaTypeImagebmp                                                             SupportedMediaType = "image/bmp"
+	SupportedMediaTypeImagegif                                                             SupportedMediaType = "image/gif"
+	SupportedMediaTypeImagejpeg                                                            SupportedMediaType = "image/jpeg"
+	SupportedMediaTypeImagepng                                                             SupportedMediaType = "image/png"
+	SupportedMediaTypeImagesvgXml                                                          SupportedMediaType = "image/svg+xml"
+	SupportedMediaTypeImagetiff                                                            SupportedMediaType = "image/tiff"
+	SupportedMediaTypeImagewebp                                                            SupportedMediaType = "image/webp"
+	SupportedMediaTypeImagexIcon                                                           SupportedMediaType = "image/x-icon"
+	SupportedMediaTypeTextcss                                                              SupportedMediaType = "text/css"
+	SupportedMediaTypeTextcsv                                                              SupportedMediaType = "text/csv"
+	SupportedMediaTypeTexthtml                                                             SupportedMediaType = "text/html"
+	SupportedMediaTypeTextjavascript                                                       SupportedMediaType = "text/javascript"
+	SupportedMediaTypeTextmarkdown                                                         SupportedMediaType = "text/markdown"
+	SupportedMediaTypeTextplain                                                            SupportedMediaType = "text/plain"
+	SupportedMediaTypeTextxC                                                               SupportedMediaType = "text/x-c"
+	SupportedMediaTypeTextxC1                                                              SupportedMediaType = "text/x-c++"
+	SupportedMediaTypeTextxCsharp                                                          SupportedMediaType = "text/x-csharp"
+	SupportedMediaTypeTextxGo                                                              SupportedMediaType = "text/x-go"
+	SupportedMediaTypeTextxJava                                                            SupportedMediaType = "text/x-java"
+	SupportedMediaTypeTextxKotlin                                                          SupportedMediaType = "text/x-kotlin"
+	SupportedMediaTypeTextxPhp                                                             SupportedMediaType = "text/x-php"
+	SupportedMediaTypeTextxPython                                                          SupportedMediaType = "text/x-python"
+	SupportedMediaTypeTextxRuby                                                            SupportedMediaType = "text/x-ruby"
+	SupportedMediaTypeTextxRust                                                            SupportedMediaType = "text/x-rust"
+	SupportedMediaTypeTextxShell                                                           SupportedMediaType = "text/x-shell"
+	SupportedMediaTypeTextxSwift                                                           SupportedMediaType = "text/x-swift"
+	SupportedMediaTypeTextxTypescript                                                      SupportedMediaType = "text/x-typescript"
+	SupportedMediaTypeTextxml                                                              SupportedMediaType = "text/xml"
+	SupportedMediaTypeVideomp4                                                             SupportedMediaType = "video/mp4"
+	SupportedMediaTypeVideompeg                                                            SupportedMediaType = "video/mpeg"
+	SupportedMediaTypeVideoogg                                                             SupportedMediaType = "video/ogg"
+	SupportedMediaTypeVideoquicktime                                                       SupportedMediaType = "video/quicktime"
+	SupportedMediaTypeVideowebm                                                            SupportedMediaType = "video/webm"
+	SupportedMediaTypeVideoxMsvideo                                                        SupportedMediaType = "video/x-msvideo"
 )
 
 // Valid indicates whether the value is a known member of the SupportedMediaType enum.
 func (e SupportedMediaType) Valid() bool {
 	switch e {
-	case Applicationgzip:
+	case SupportedMediaTypeApplicationgzip:
 		return true
-	case Applicationjavascript:
+	case SupportedMediaTypeApplicationjavascript:
 		return true
-	case Applicationjson:
+	case SupportedMediaTypeApplicationjson:
 		return true
-	case Applicationmsword:
+	case SupportedMediaTypeApplicationmsword:
 		return true
-	case ApplicationoctetStream:
+	case SupportedMediaTypeApplicationoctetStream:
 		return true
-	case Applicationpdf:
+	case SupportedMediaTypeApplicationpdf:
 		return true
-	case Applicationtypescript:
+	case SupportedMediaTypeApplicationtypescript:
 		return true
-	case ApplicationvndMsExcel:
+	case SupportedMediaTypeApplicationvndMsExcel:
 		return true
-	case ApplicationvndMsPowerpoint:
+	case SupportedMediaTypeApplicationvndMsPowerpoint:
 		return true
-	case ApplicationvndOpenxmlformatsOfficedocumentPresentationmlPresentation:
+	case SupportedMediaTypeApplicationvndOpenxmlformatsOfficedocumentPresentationmlPresentation:
 		return true
-	case ApplicationvndOpenxmlformatsOfficedocumentSpreadsheetmlSheet:
+	case SupportedMediaTypeApplicationvndOpenxmlformatsOfficedocumentSpreadsheetmlSheet:
 		return true
-	case ApplicationvndOpenxmlformatsOfficedocumentWordprocessingmlDocument:
+	case SupportedMediaTypeApplicationvndOpenxmlformatsOfficedocumentWordprocessingmlDocument:
 		return true
-	case Applicationwasm:
+	case SupportedMediaTypeApplicationwasm:
 		return true
-	case Applicationx7zCompressed:
+	case SupportedMediaTypeApplicationx7zCompressed:
 		return true
-	case ApplicationxTar:
+	case SupportedMediaTypeApplicationxTar:
 		return true
-	case ApplicationxYaml:
+	case SupportedMediaTypeApplicationxYaml:
 		return true
-	case Applicationxml:
+	case SupportedMediaTypeApplicationxml:
 		return true
-	case Applicationyaml:
+	case SupportedMediaTypeApplicationyaml:
 		return true
-	case Applicationzip:
+	case SupportedMediaTypeApplicationzip:
 		return true
-	case Audioaac:
+	case SupportedMediaTypeAudioaac:
 		return true
-	case Audioflac:
+	case SupportedMediaTypeAudioflac:
 		return true
-	case Audiompeg:
+	case SupportedMediaTypeAudiompeg:
 		return true
-	case Audioogg:
+	case SupportedMediaTypeAudioogg:
 		return true
-	case Audiowav:
+	case SupportedMediaTypeAudiowav:
 		return true
-	case Audiowebm:
+	case SupportedMediaTypeAudiowebm:
 		return true
-	case Fontotf:
+	case SupportedMediaTypeFontotf:
 		return true
-	case Fontttf:
+	case SupportedMediaTypeFontttf:
 		return true
-	case Fontwoff:
+	case SupportedMediaTypeFontwoff:
 		return true
-	case Fontwoff2:
+	case SupportedMediaTypeFontwoff2:
 		return true
-	case Imagebmp:
+	case SupportedMediaTypeImagebmp:
 		return true
-	case Imagegif:
+	case SupportedMediaTypeImagegif:
 		return true
-	case Imagejpeg:
+	case SupportedMediaTypeImagejpeg:
 		return true
-	case Imagepng:
+	case SupportedMediaTypeImagepng:
 		return true
-	case ImagesvgXml:
+	case SupportedMediaTypeImagesvgXml:
 		return true
-	case Imagetiff:
+	case SupportedMediaTypeImagetiff:
 		return true
-	case Imagewebp:
+	case SupportedMediaTypeImagewebp:
 		return true
-	case ImagexIcon:
+	case SupportedMediaTypeImagexIcon:
 		return true
-	case Textcss:
+	case SupportedMediaTypeTextcss:
 		return true
-	case Textcsv:
+	case SupportedMediaTypeTextcsv:
 		return true
-	case Texthtml:
+	case SupportedMediaTypeTexthtml:
 		return true
-	case Textjavascript:
+	case SupportedMediaTypeTextjavascript:
 		return true
-	case Textmarkdown:
+	case SupportedMediaTypeTextmarkdown:
 		return true
-	case Textplain:
+	case SupportedMediaTypeTextplain:
 		return true
-	case TextxC:
+	case SupportedMediaTypeTextxC:
 		return true
-	case TextxC1:
+	case SupportedMediaTypeTextxC1:
 		return true
-	case TextxCsharp:
+	case SupportedMediaTypeTextxCsharp:
 		return true
-	case TextxGo:
+	case SupportedMediaTypeTextxGo:
 		return true
-	case TextxJava:
+	case SupportedMediaTypeTextxJava:
 		return true
-	case TextxKotlin:
+	case SupportedMediaTypeTextxKotlin:
 		return true
-	case TextxPhp:
+	case SupportedMediaTypeTextxPhp:
 		return true
-	case TextxPython:
+	case SupportedMediaTypeTextxPython:
 		return true
-	case TextxRuby:
+	case SupportedMediaTypeTextxRuby:
 		return true
-	case TextxRust:
+	case SupportedMediaTypeTextxRust:
 		return true
-	case TextxShell:
+	case SupportedMediaTypeTextxShell:
 		return true
-	case TextxSwift:
+	case SupportedMediaTypeTextxSwift:
 		return true
-	case TextxTypescript:
+	case SupportedMediaTypeTextxTypescript:
 		return true
-	case Textxml:
+	case SupportedMediaTypeTextxml:
 		return true
-	case Videomp4:
+	case SupportedMediaTypeVideomp4:
 		return true
-	case Videompeg:
+	case SupportedMediaTypeVideompeg:
 		return true
-	case Videoogg:
+	case SupportedMediaTypeVideoogg:
 		return true
-	case Videoquicktime:
+	case SupportedMediaTypeVideoquicktime:
 		return true
-	case Videowebm:
+	case SupportedMediaTypeVideowebm:
 		return true
-	case VideoxMsvideo:
+	case SupportedMediaTypeVideoxMsvideo:
 		return true
 	default:
 		return false
@@ -2036,13 +2036,13 @@ func (e SvgSelectorType) Valid() bool {
 
 // Defines values for TaggingJobParamsMotivation.
 const (
-	Tagging TaggingJobParamsMotivation = "tagging"
+	TaggingJobParamsMotivationTagging TaggingJobParamsMotivation = "tagging"
 )
 
 // Valid indicates whether the value is a known member of the TaggingJobParamsMotivation enum.
 func (e TaggingJobParamsMotivation) Valid() bool {
 	switch e {
-	case Tagging:
+	case TaggingJobParamsMotivationTagging:
 		return true
 	default:
 		return false
@@ -2096,13 +2096,13 @@ func (e TextualBodyType) Valid() bool {
 
 // Defines values for VoyageEmbeddingConfigType.
 const (
-	Voyage VoyageEmbeddingConfigType = "voyage"
+	VoyageEmbeddingConfigTypeVoyage VoyageEmbeddingConfigType = "voyage"
 )
 
 // Valid indicates whether the value is a known member of the VoyageEmbeddingConfigType enum.
 func (e VoyageEmbeddingConfigType) Valid() bool {
 	switch e {
-	case Voyage:
+	case VoyageEmbeddingConfigTypeVoyage:
 		return true
 	default:
 		return false
@@ -5480,7 +5480,7 @@ type Representation struct {
 	// ByteSize Size of the payload in bytes.
 	ByteSize *int `json:"byteSize,omitempty"`
 
-	// Checksum Integrity hash (e.g., sha256:abcd…).
+	// Checksum The SHA-256 of the bytes, as 64 lower-case hexadecimal digits with nothing before them. Whatever compares the checksums of two representations compares this text.
 	Checksum *string `json:"checksum,omitempty"`
 
 	// ConformsTo Profile/shape the bytes conform to (e.g., a JSON profile or SVG profile).

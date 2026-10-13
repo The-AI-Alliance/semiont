@@ -63,12 +63,15 @@ SURFACE = {
         "Reanchor",
         "ReconcileSummary",
         "Restamp",
+        "RestampAnnotation",
         "Work",
         "classify_embeddable",
         "plan_reconcile",
         "quotes_text",
     ],
     "smelter": ["ReconcileState", "Smelter"],
+    "index_stamp": ["hold_to", "stamp_of"],
+    "telemetry": ["points_held"],
     "config": ["SERVICE", "embedding_key_of", "read_smelter_config"],
     "service": ["CHANNELS", "boot", "main"],
 }
@@ -198,10 +201,10 @@ def test_each_engine_is_reached_by_one_module_and_the_rules_know_neither() -> No
 
 def test_the_events_it_follows_are_the_ones_the_protocol_lists_and_each_does_something() -> None:
     page = (ROOT / "docs/protocol/SMELTER.md").read_text(encoding="utf-8")
-    rule = re.search(r"\*\*It follows nine recorded events:\*\*(.*?)\*Held by", page, re.DOTALL)
+    rule = re.search(r"\*\*It follows eleven recorded events:\*\*(.*?)\*Held by", page, re.DOTALL)
     assert rule is not None, "docs/protocol/SMELTER.md no longer lists the events a Smelter follows"
     assert sorted(re.findall(r"`([a-z]+:[a-z-]+)`", rule.group(1))) == sorted(FOLLOWED)
-    assert len(FOLLOWED) == len(set(FOLLOWED)) == 9
+    assert len(FOLLOWED) == len(set(FOLLOWED)) == 11
     # What each does is one `match` over the event's type: an event that is followed and has no case there is
     # delivered, handed to its lane, and fails.
     source = (SRC / "smelter.py").read_text(encoding="utf-8")
@@ -238,6 +241,9 @@ def test_the_index_and_the_provider_are_reached_through_their_protocols() -> Non
         }
     )
     assert vector_modules == ["embedding", "factory", "store"]
+    # Every text it has embedded is a text that is searched: it asks for the vectors of documents, and of no query.
+    assert naming(".embed_documents(") == ["smelter.py"]
+    assert naming(".embed_query(") == []
     # It asks for a store and a provider by what its configuration states, in the one module that reads that.
     assert importing(r"semiont_vectors\.factory") == ["service.py"]
     assert importing("qdrant_client") == []
@@ -247,6 +253,24 @@ def test_the_index_and_the_provider_are_reached_through_their_protocols() -> Non
     assert importing("httpx") == []
     assert importing(r"semiont_service\.archivist") == ["service.py"]
     assert importing(r"semiont_service\.content") == ["smelter.py"]
+
+
+def test_it_writes_the_index_and_the_store_and_says_three_things_and_nothing_else() -> None:
+    # It records nothing, so no event is its: what it emits is a decision and the two answers of a rebuild, each
+    # named where it is emitted.
+    source = (SRC / "smelter.py").read_text(encoding="utf-8")
+    assert naming(".emit(") == ["smelter.py"]
+    emitted = sorted(set(re.findall(r"\.emit\(\s*(\w+)", source)))
+    assert emitted == ["SMELT_REBUILD_ANCHORS_FAILED", "SMELT_REBUILD_ANCHORS_OK", "SMELT_SETTLED"]
+    # What it asks of the record, it asks in one module, and the catalog through the package every service reads it by.
+    assert naming(".request(") == ["record.py"]
+    asked = sorted(set(re.findall(r"\.request\(\s*(\w+)", (SRC / "record.py").read_text(encoding="utf-8"))))
+    assert asked == ["BROWSE_ANNOTATIONS_REQUESTED", "BROWSE_RESOURCE_REQUESTED"]
+    assert naming("from semiont_service import catalog") == ["record.py"]
+    # A file is written, made or taken away by the anchored-text store alone. The index is written through its store.
+    writes = re.compile(r'\.write_bytes\(|\.write_text\(|\.unlink\(|\.mkdir\(|\.rmdir\(|\.open\("[wax]|\bshutil\.|\btempfile\.')
+    writing = sorted(str(path.relative_to(SRC)) for path in SRC.rglob("*.py") if writes.search(path.read_text(encoding="utf-8")))
+    assert writing == ["anchored_text_store.py"]
 
 
 def test_one_checksum_is_worked_out_in_one_place_and_white_space_is_asked_of_one_module() -> None:

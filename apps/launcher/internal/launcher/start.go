@@ -714,8 +714,8 @@ func gatewayArgs(stage, rt, addr, clientSecret, jwt, version string, port int, u
 // CMD in the shared supervisor only when this is set. Local placement is the
 // one place with no orchestrator restart policy, so every service builder
 // passes it; user manifests never do — their platform restarts. Defined once
-// because five call sites spelling the same pair is five chances to update
-// four of them.
+// because each builder spelling the same pair is one more chance to update
+// all but one of them.
 func superviseEnv() []string {
 	return []string{"--env", "SEMIONT_SUPERVISE=1"}
 }

@@ -36,8 +36,11 @@ SOURCES = sorted(path for top in ("src", "tests") for path in (PACKAGE / top).rg
 SURFACE = {
     "store": [
         "AnnotationPayload",
+        "AnnotationStamp",
         "CollectionAbsent",
+        "Declined",
         "EmbeddingChunk",
+        "IndexStamp",
         "ResourceStamp",
         "SearchFilter",
         "SearchOptions",
@@ -46,11 +49,13 @@ SURFACE = {
         "VectorStore",
     ],
     "payload": [
+        "ANNOTATION_STAMP_MEMBERS",
         "STAMP_MEMBERS",
         "Payload",
         "annotation_key",
         "annotation_of",
         "annotation_payload",
+        "annotation_stamp_of",
         "chunk_key",
         "chunk_payload",
         "qdrant_id",
@@ -68,6 +73,7 @@ SURFACE = {
         "EmbeddingProviderError",
         "ProviderName",
         "SliceRef",
+        "TextKind",
     ],
     "ollama": ["OLLAMA_BATCH_POLICY", "OllamaEmbeddingProvider"],
     "voyage": ["VOYAGE_BATCH_POLICY", "VoyageEmbeddingProvider"],
@@ -153,7 +159,7 @@ def test_a_public_name_is_imported_from_its_module_and_not_from_the_packages_roo
 
 def test_a_store_has_the_members_of_a_vector_index_and_no_others() -> None:
     members = public(VectorStore)
-    assert len(members) == 15
+    assert len(members) == 20
     # Making a store dials nothing, and asks nobody how wide a vector is: each reaches its index when it is connected.
     assert public(MemoryVectorStore()) == members
     assert public(QdrantVectorStore(host="127.0.0.1", port=1, dimensions=never_asked)) == members
@@ -172,7 +178,7 @@ def test_a_reader_has_the_searches_of_a_vector_index_and_nothing_that_writes() -
 
 def test_a_provider_has_the_members_of_an_embedding_provider_and_no_others() -> None:
     members = public(EmbeddingProvider)
-    assert members == {"dimensions", "embed", "embed_batch"}
+    assert members == {"dimensions", "embed_documents", "embed_query"}
     # Making a provider asks it nothing.
     assert public(OllamaEmbeddingProvider(model="a-model", base_url="http://127.0.0.1:1")) == members
     assert public(VoyageEmbeddingProvider(model="a-model", api_key="a-key", endpoint="http://127.0.0.1:1")) == members

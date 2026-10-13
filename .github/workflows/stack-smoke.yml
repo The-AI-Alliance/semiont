@@ -25,8 +25,9 @@ on:
         required: false
         default: ''
         type: string
-  # Self-testing: a change to this workflow, its script or the build it runs
-  # proves it still boots a stack. Deliberately NOT a gate on other work — the
+  # Self-testing: a change to this workflow, its script, the build it runs or
+  # what that build leaves out of an image's context proves it still boots a
+  # stack. Deliberately NOT a gate on other work — the
   # fake covers per-PR regression, and this lane answers "does the model match
   # reality", which periodic verification suffices for. It is also the only way
   # to exercise a dispatch-only workflow before it reaches the default branch,
@@ -36,6 +37,7 @@ on:
       - .github/workflows/stack-smoke.yml
       - scripts/release/smoke-stack.sh
       - scripts/ci/local-build.sh
+      - .dockerignore
 
 # One run per pull request: a push cancels the run of the push before it, which
 # nobody is waiting for. A push to main is never cancelled: it is the run that

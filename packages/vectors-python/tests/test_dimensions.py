@@ -119,7 +119,7 @@ def test_the_measuring_waits_its_turn_as_any_request_does(play: Play) -> None:
             at_once = played.policy.concurrency
             played.rule = always(HOLD)
             provider = played.provider(MODEL)
-            embeddings = asyncio.gather(*(provider.embed(f"text {number}") for number in range(at_once)))
+            embeddings = asyncio.gather(*(provider.embed_query(f"text {number}") for number in range(at_once)))
             await soon(played.arrived(at_once))
             measuring = asyncio.ensure_future(provider.dimensions())
             await settle()

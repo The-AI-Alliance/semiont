@@ -20,11 +20,20 @@ embedding provider the suite plays. This page is the image, and how it is run.
 
 ## What it does
 
-It follows nine of the events a knowledge base records. For a resource it reads the bytes,
+It follows eleven of the events a knowledge base records. For a resource it reads the bytes,
 takes their checksum, gets their text (decoded, or derived from a PDF), cuts it into chunks,
-has every chunk embedded, and then writes the points and says what it decided. For an
-annotation it embeds the text the annotation quotes. Archiving takes a resource's points out,
-and a tag rewrites the entity types they carry with nothing embedded.
+has every chunk embedded, and then writes the points and says what it decided. A copy of a
+resource is indexed as a new one is. For an annotation it embeds the text the annotation
+quotes, and the annotations of one resource that are waiting together are embedded in one
+request. Archiving takes a resource's points out. A tag rewrites the entity types a
+resource's points carry, and a change to an annotation's body those its point carries, each
+with nothing embedded.
+
+**The index states what made it**: the embedding provider's type and its model, and the two
+numbers a text is cut by. A Smelter that starts on an index made by another model or another
+cut, or on one that states nothing, clears it and indexes everything again. A resource whose
+bytes give no text is remembered in the index as skipped, by its bytes and their media type,
+so that a start does not read it again.
 
 It reaches four things: the gateway, for the bus; the Archivist, for a resource's bytes; its
 embedding provider; and the vector index. **The bytes arrive as they are stored**, from the
@@ -61,7 +70,10 @@ its health port, and then reconciles: it compares what the index holds, what the
 the knowledge base holds, and which bytes the anchored-text store has an entry for, and does
 the work that brings them together. So an index that was cleared, an anchored-text store that
 was cleared, and events recorded while no Smelter ran are each mended by starting it. `/health`
-reports how the reconcile ended, and what it came to.
+reports how the reconcile ended, and what it came to. Beside that it says what only the
+Smelter knows: the state of its stream of the record and how many times that has dropped, how
+many events it has applied, could not apply and has waiting, and what its index is made by.
+It answers for itself alone, and asks nothing of the gateway or the vector database to answer.
 
 **A reconcile that fails does not end the service.** The failure is said in the log and at
 `/health`, and the Smelter goes on applying what arrives.
@@ -97,10 +109,11 @@ the agent its embedding provider and its model name, so two Smelters that embed 
 different models are two agents.
 
 **Its telemetry goes where `OTEL_EXPORTER_OTLP_ENDPOINT` says**, as `semiont-smelter`: what
-every service says of its own process, and a span for each frame it sends and receives on the
-bus ([SMELTER.md § Telemetry](../../docs/protocol/SMELTER.md#telemetry)). The launcher sets
-the endpoint for a stack it runs. Without it the Smelter exports nothing. Its log lines carry
-the trace and the span they were written in.
+every service says of its own process, how many points its index holds
+(`semiont.vector.index.size`), and a span for each frame it sends and receives on the bus
+([SMELTER.md § Telemetry](../../docs/protocol/SMELTER.md#telemetry)). The launcher sets the
+endpoint for a stack it runs. Without it the Smelter exports nothing. Its log lines carry the
+trace and the span they were written in.
 
 Started without its document, without its account or without a key its document names, it
 refuses to start: one line on stderr that begins `[fatal] `, and status 1. An index of the
@@ -136,7 +149,9 @@ user `semiont`. It carries no installer (`pip`, `uv`) and no Node.
 | `service.py`, `config.py` | The process: what it is started with, what it refuses to start on, the order it starts in, how it stops |
 | `smelter.py` | The Smelter: what each recorded event does to the index, the one place a resource is declined, the decision it signals, reconcile, the rebuild command |
 | `reconcile.py` | The work a start plans, as [`reconcile-cases.json`](../../specs/src/smelter/reconcile-cases.json) states it |
-| `recorded.py`, `record.py` | The nine events it follows, and what it reads of the record over the bus |
+| `index_stamp.py` | What made the index, which the index states: an index made by another model, or cut another way, is made again when the Smelter starts |
+| `telemetry.py` | The number of points the index holds, as the gauge of it reads it |
+| `recorded.py`, `record.py` | The eleven events it follows, and what it reads of the record over the bus |
 | `chunking.py` | How a text is cut, as [`chunk-cases.json`](../../specs/src/text/chunk-cases.json) states it |
 | `extraction.py`, `anchoring.py`, `tables.py`, `ocr_text.py` | A PDF's text by its class, as [`extraction-cases.json`](../../specs/src/smelter/extraction-cases.json) states it |
 | `pdf_reader.py`, `pdfium.py`; `ocr_engine.py`, `tesseract.py`; `scripted.py` | What reads a PDF and what reads a scanned page, each behind a protocol whose second implementation answers what a test states |

@@ -215,7 +215,7 @@ async def gather(
     if selection is not None and selection.selected:
         try:
             found = await vectors.search_annotations(
-                await embedding.embed(selection.selected),
+                await embedding.embed_query(selection.selected),
                 SearchOptions(limit=_SIMILAR, score_threshold=LIKE_ENOUGH, filter=SearchFilter(exclude_resource_id=resource_id)),
             )
             similar = await similar_of(found, views)

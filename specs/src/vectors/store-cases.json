@@ -1,8 +1,8 @@
 {
-  "$comment": "What the vector index answers after what it was told, as every implementation of the index must answer: a history of writes, and what each read then gives. Semiont's stores (semiont_vectors, packages/vectors-python) run every case: the in-memory store, and the Qdrant store against a real Qdrant. What a point is, and how each store keys one, is specs/src/vectors/payload-cases.json. A HISTORY. `writes` are done in order, on an index that holds nothing. `resourcePut` gives a resource's `chunks` (each an `index`, a `text` and an `embedding`), the `contentChecksum` of the bytes they came from, its `entityTypes`, and `machineRead` when the text was read from pixels: the resource's points become these, and every point it had before is gone. `entityTypesRewritten` sets the entity types on every point of a resource's chunks and changes nothing else. `annotationPut` gives an annotation's one point: its `annotationId`, `resourceId`, `motivation` and `entityTypes`, the `text` it quotes and that text's `embedding`, and `machineRead` when that text was read from pixels. `resourceDeleted` takes every point of a resource's chunks, `annotationDeleted` takes an annotation's point, and `annotationsOfResourceDeleted` takes the point of every annotation on a resource. READS. `reads` are made after the writes, in order, and none of them changes anything; each states what it `answers`. `resourcesSearched` and `annotationsSearched` search one collection by an `embedding`, and `searchedByResource` searches the resources by the vectors the chunks of the resource `resourceId` have. Each answers a list of results, best first. A result is a `score`, the `resourceId`, the `annotationId` of an annotation's point, the `text`, the `entityTypes`, and `machineRead` where the point is marked; its `id` is each store's own key and is not stated. A search of resources by an embedding answers one result for each chunk: a resource found by three of its chunks is three results. A search by a resource's own vectors answers one result for each resource, with the score and the text of the chunk of it that scored best against any chunk of the resource searched by, and never answers that resource itself. `counted` answers the number of points in both collections together. `stampsListed` answers the stamp of every resource that has points, by its id: the `contentChecksum`, the `entityTypes`, and `machineRead` where its points are marked. `stampRead` answers the stamp of the one resource `resourceId`, and has no `answers` where that resource has no points. `annotationIdsListed` answers the id of every annotation that has a point. The ids listed and the stamps listed are sets: no order of theirs is stated. A SEARCH takes a `limit`, the most results it answers, and may take a `scoreThreshold` and a `filter`. A score is the cosine of the angle between two vectors, whatever their lengths: 1 when they point the same way, 0 at a right angle, -1 when they point opposite ways. Scores are stated to six decimal places and compared within 0.000001. With a threshold, a point that scores below it is not answered. A point is answered only if every member of the filter holds of it. `entityTypes` keeps a point that has any one of the types listed, and `excludeEntityTypes` drops a point that has any one of them; an empty list of either filters nothing. `resourceId` keeps the points of that resource alone, and `excludeResourceId` drops them. `motivation` keeps the annotations of that motivation alone. The limit counts what the filter and the threshold leave. WHAT NO CASE RESTS ON. No two results of one read have the same score, so no case says how a tie is broken. No score equals its threshold: the in-memory store answers such a point, and whether Qdrant does is Qdrant's to say. No limit is 0, about which the two stores disagree. Every search by a resource's own vectors has a limit well above the number of points there are, and finds resources of one or two chunks: with more, Qdrant's store can miss a resource the in-memory store finds. Add a case here before changing an implementation.",
+  "$comment": "What the vector index answers after what it was told, as every implementation of the index must answer: a history of writes, and what each read then gives. Semiont's stores (semiont_vectors, packages/vectors-python) run every case: the in-memory store, and the Qdrant store against a real Qdrant. What a point is, and how each store keys one, is specs/src/vectors/payload-cases.json. A HISTORY. `writes` are done in order, on an index that holds nothing and states no stamp. `resourcePut` gives a resource's `chunks` (each an `index`, a `text` and an `embedding`), the `contentChecksum` of the bytes they came from, the `mediaType` those bytes were read as, its `entityTypes`, and `machineRead` when the text was read from pixels: the resource's points become these, every point it had before is gone, and so is whatever the index remembered of a decline of it. `entityTypesRewritten` sets the entity types on every point of a resource's chunks and changes nothing else, and `annotationEntityTypesRewritten` sets them on the one point of the annotation `annotationId` and changes nothing else: neither makes a point where there is none. `annotationPut` gives an annotation's one point: its `annotationId`, `resourceId`, `motivation` and `entityTypes`, the `text` it quotes and that text's `embedding`, and `machineRead` when that text was read from pixels. `resourceDeleted` takes every point of a resource's chunks, and whatever the index remembered of a decline of it; `annotationDeleted` takes an annotation's point, and `annotationsOfResourceDeleted` takes the point of every annotation on a resource. `resourceDeclined` is of a resource whose bytes gave no text to index: it takes every point of the resource's chunks, and has the index remember in their place the `contentChecksum` of those bytes, the `mediaType` they were read as and the `reason`, each as it is given. A resource has points or is remembered so, and never both; one declined again is remembered as it was last declined; and the points of annotations on it are touched by none of this. `madeAnew` takes everything out of the index, every point of both collections and everything remembered of a decline, and has the index state the `stamp` given: what made its points, as whoever writes the index says it, which the index keeps whole and reads nothing of. READS. `reads` are made after the writes, in order, and none of them changes anything; each states what it `answers`. `resourcesSearched` and `annotationsSearched` search one collection by an `embedding`, and `searchedByResource` searches the resources by the vectors the chunks of the resource `resourceId` have. Each answers a list of results, best first. A result is a `score`, the `resourceId`, the `annotationId` of an annotation's point, the `text`, the `entityTypes`, and `machineRead` where the point is marked; its `id` is each store's own key and is not stated. A search of resources by an embedding answers one result for each chunk: a resource found by three of its chunks is three results. A search by a resource's own vectors answers one result for each resource, with the score and the text of the chunk of it that scored best against any chunk of the resource searched by, and never answers that resource itself. `counted` answers the number of points in both collections together: what is remembered of a decline is no point, and is not counted. `stampsListed` answers the stamp of every resource that has points, by its id: the `contentChecksum`, the `mediaType`, the `entityTypes`, and `machineRead` where its points are marked. `stampRead` answers the stamp of the one resource `resourceId`, and has no `answers` where that resource has no points. `annotationStampsListed` answers the stamp of every annotation that has a point, by its id: the `resourceId` its point says it is on, and the `entityTypes` its point carries, in their order. `declinedListed` answers what the index remembers of every declined resource, by its id: the `contentChecksum`, the `mediaType` and the `reason`. `indexStampRead` answers the stamp the index states, and has no `answers` where it states none: nothing has made it anew. The stamps listed, of resources and of annotations, and the declined listed are sets: no order of theirs is stated. A SEARCH takes a `limit`, the most results it answers, and may take a `scoreThreshold` and a `filter`. A score is the cosine of the angle between two vectors, whatever their lengths: 1 when they point the same way, 0 at a right angle, -1 when they point opposite ways. Scores are stated to six decimal places and compared within 0.000001. With a threshold, a point that scores below it is not answered. A point is answered only if every member of the filter holds of it. `entityTypes` keeps a point that has any one of the types listed, and `excludeEntityTypes` drops a point that has any one of them; an empty list of either filters nothing. `resourceId` keeps the points of that resource alone, and `excludeResourceId` drops them. `motivation` keeps the annotations of that motivation alone. The limit counts what the filter and the threshold leave. WHAT NO CASE RESTS ON. No two results of one read have the same score, so no case says how a tie is broken. No score equals its threshold: the in-memory store answers such a point, and whether Qdrant does is Qdrant's to say. No limit is 0, about which the two stores disagree. Every search by a resource's own vectors has a limit well above the number of points there are, and finds resources of one or two chunks: with more, Qdrant's store can miss a resource the in-memory store finds. No stamp of an index has a null in it: whether a Qdrant keeps one is Qdrant's to say. Add a case here before changing an implementation.",
   "cases": [
     {
-      "why": "an index nothing was written to answers nothing: no result, no stamp, no annotation, and a count of 0",
+      "why": "an index nothing was written to answers nothing: no result, no stamp, no annotation, nothing remembered of a decline, and a count of 0. Nothing has made it anew, so it states no stamp of its own",
       "writes": [],
       "reads": [
         { "read": "resourcesSearched", "embedding": [1, 0], "limit": 10, "answers": [] },
@@ -11,7 +11,9 @@
         { "read": "counted", "answers": 0 },
         { "read": "stampsListed", "answers": {} },
         { "read": "stampRead", "resourceId": "res-a" },
-        { "read": "annotationIdsListed", "answers": [] }
+        { "read": "annotationStampsListed", "answers": {} },
+        { "read": "declinedListed", "answers": {} },
+        { "read": "indexStampRead" }
       ]
     },
     {
@@ -25,6 +27,7 @@
             { "index": 1, "text": "the second chunk of a", "embedding": [3, 4] }
           ],
           "contentChecksum": "checksum-a",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place"]
         },
         {
@@ -34,6 +37,7 @@
             { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
           ],
           "contentChecksum": "checksum-b",
+          "mediaType": "text/markdown",
           "entityTypes": ["Person"]
         },
         {
@@ -69,11 +73,16 @@
         {
           "read": "stampsListed",
           "answers": {
-            "res-a": { "contentChecksum": "checksum-a", "entityTypes": ["Place"] },
-            "res-b": { "contentChecksum": "checksum-b", "entityTypes": ["Person"] }
+            "res-a": { "contentChecksum": "checksum-a", "mediaType": "text/markdown", "entityTypes": ["Place"] },
+            "res-b": { "contentChecksum": "checksum-b", "mediaType": "text/markdown", "entityTypes": ["Person"] }
           }
         },
-        { "read": "annotationIdsListed", "answers": ["ann-1"] }
+        {
+          "read": "annotationStampsListed",
+          "answers": {
+            "ann-1": { "resourceId": "res-a", "entityTypes": ["Event"] }
+          }
+        }
       ]
     },
     {
@@ -88,6 +97,7 @@
             { "index": 2, "text": "the third old chunk of a", "embedding": [0, 1] }
           ],
           "contentChecksum": "checksum-a1",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place"],
           "machineRead": true
         },
@@ -98,6 +108,7 @@
             { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
           ],
           "contentChecksum": "checksum-b",
+          "mediaType": "text/markdown",
           "entityTypes": ["Person"]
         },
         {
@@ -107,6 +118,7 @@
             { "index": 0, "text": "the new chunk of a", "embedding": [3, 4] }
           ],
           "contentChecksum": "checksum-a2",
+          "mediaType": "text/markdown",
           "entityTypes": ["Event"]
         }
       ],
@@ -124,13 +136,13 @@
         {
           "read": "stampRead",
           "resourceId": "res-a",
-          "answers": { "contentChecksum": "checksum-a2", "entityTypes": ["Event"] }
+          "answers": { "contentChecksum": "checksum-a2", "mediaType": "text/markdown", "entityTypes": ["Event"] }
         },
         {
           "read": "stampsListed",
           "answers": {
-            "res-a": { "contentChecksum": "checksum-a2", "entityTypes": ["Event"] },
-            "res-b": { "contentChecksum": "checksum-b", "entityTypes": ["Person"] }
+            "res-a": { "contentChecksum": "checksum-a2", "mediaType": "text/markdown", "entityTypes": ["Event"] },
+            "res-b": { "contentChecksum": "checksum-b", "mediaType": "text/markdown", "entityTypes": ["Person"] }
           }
         }
       ]
@@ -146,6 +158,7 @@
             { "index": 1, "text": "the second chunk of a", "embedding": [0, 1] }
           ],
           "contentChecksum": "checksum-a1",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place"]
         },
         {
@@ -155,9 +168,17 @@
             { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
           ],
           "contentChecksum": "checksum-b",
+          "mediaType": "text/markdown",
           "entityTypes": ["Person"]
         },
-        { "write": "resourcePut", "resourceId": "res-a", "chunks": [], "contentChecksum": "checksum-a2", "entityTypes": ["Event"] }
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [],
+          "contentChecksum": "checksum-a2",
+          "mediaType": "text/markdown",
+          "entityTypes": ["Event"]
+        }
       ],
       "reads": [
         { "read": "counted", "answers": 1 },
@@ -173,7 +194,7 @@
         {
           "read": "stampsListed",
           "answers": {
-            "res-b": { "contentChecksum": "checksum-b", "entityTypes": ["Person"] }
+            "res-b": { "contentChecksum": "checksum-b", "mediaType": "text/markdown", "entityTypes": ["Person"] }
           }
         }
       ]
@@ -203,7 +224,12 @@
       ],
       "reads": [
         { "read": "counted", "answers": 1 },
-        { "read": "annotationIdsListed", "answers": ["ann-1"] },
+        {
+          "read": "annotationStampsListed",
+          "answers": {
+            "ann-1": { "resourceId": "res-a", "entityTypes": ["Person"] }
+          }
+        },
         {
           "read": "annotationsSearched",
           "embedding": [0, 1],
@@ -246,6 +272,7 @@
             { "index": 1, "text": "the second chunk of a", "embedding": [3, 4] }
           ],
           "contentChecksum": "checksum-a",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place"],
           "machineRead": true
         },
@@ -256,6 +283,7 @@
             { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
           ],
           "contentChecksum": "checksum-b",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place"]
         },
         {
@@ -273,12 +301,17 @@
         {
           "read": "stampRead",
           "resourceId": "res-a",
-          "answers": { "contentChecksum": "checksum-a", "entityTypes": ["Question", "Event"], "machineRead": true }
+          "answers": {
+            "contentChecksum": "checksum-a",
+            "mediaType": "text/markdown",
+            "entityTypes": ["Question", "Event"],
+            "machineRead": true
+          }
         },
         {
           "read": "stampRead",
           "resourceId": "res-b",
-          "answers": { "contentChecksum": "checksum-b", "entityTypes": ["Place"] }
+          "answers": { "contentChecksum": "checksum-b", "mediaType": "text/markdown", "entityTypes": ["Place"] }
         },
         {
           "read": "resourcesSearched",
@@ -364,6 +397,7 @@
             { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
           ],
           "contentChecksum": "checksum-a",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place"]
         },
         { "write": "entityTypesRewritten", "resourceId": "res-b", "entityTypes": ["Question"] }
@@ -374,7 +408,7 @@
         {
           "read": "stampsListed",
           "answers": {
-            "res-a": { "contentChecksum": "checksum-a", "entityTypes": ["Place"] }
+            "res-a": { "contentChecksum": "checksum-a", "mediaType": "text/markdown", "entityTypes": ["Place"] }
           }
         },
         {
@@ -383,6 +417,187 @@
           "limit": 10,
           "filter": { "entityTypes": ["Question"] },
           "answers": []
+        }
+      ]
+    },
+    {
+      "why": "rewriting an annotation's entity types changes them on its one point, in the order given, and so what the listing answers of it and what a filter finds. The resource it is on, its motivation, the mark, the text and the vector are as they were, and so are the points of its resource and of every other annotation, which keep the entity types they were put with",
+      "writes": [
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
+          ],
+          "contentChecksum": "checksum-a",
+          "mediaType": "text/markdown",
+          "entityTypes": ["Place"]
+        },
+        {
+          "write": "annotationPut",
+          "annotationId": "ann-1",
+          "resourceId": "res-a",
+          "motivation": "highlighting",
+          "entityTypes": ["Place", "Person"],
+          "text": "quoted by ann-1",
+          "embedding": [1, 1],
+          "machineRead": true
+        },
+        {
+          "write": "annotationPut",
+          "annotationId": "ann-2",
+          "resourceId": "res-a",
+          "motivation": "highlighting",
+          "entityTypes": ["Place"],
+          "text": "quoted by ann-2",
+          "embedding": [4, 3]
+        },
+        {
+          "write": "annotationPut",
+          "annotationId": "ann-3",
+          "resourceId": "res-b",
+          "motivation": "linking",
+          "entityTypes": ["Person"],
+          "text": "quoted by ann-3",
+          "embedding": [3, 4]
+        },
+        { "write": "annotationEntityTypesRewritten", "annotationId": "ann-1", "entityTypes": ["Question", "Person"] }
+      ],
+      "reads": [
+        {
+          "read": "annotationStampsListed",
+          "answers": {
+            "ann-1": { "resourceId": "res-a", "entityTypes": ["Question", "Person"] },
+            "ann-2": { "resourceId": "res-a", "entityTypes": ["Place"] },
+            "ann-3": { "resourceId": "res-b", "entityTypes": ["Person"] }
+          }
+        },
+        {
+          "read": "annotationsSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "answers": [
+            { "score": 0.800000, "resourceId": "res-a", "annotationId": "ann-2", "text": "quoted by ann-2", "entityTypes": ["Place"] },
+            {
+              "score": 0.707107,
+              "resourceId": "res-a",
+              "annotationId": "ann-1",
+              "text": "quoted by ann-1",
+              "entityTypes": ["Question", "Person"],
+              "machineRead": true
+            },
+            { "score": 0.600000, "resourceId": "res-b", "annotationId": "ann-3", "text": "quoted by ann-3", "entityTypes": ["Person"] }
+          ]
+        },
+        {
+          "read": "annotationsSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "filter": { "entityTypes": ["Question"] },
+          "answers": [
+            {
+              "score": 0.707107,
+              "resourceId": "res-a",
+              "annotationId": "ann-1",
+              "text": "quoted by ann-1",
+              "entityTypes": ["Question", "Person"],
+              "machineRead": true
+            }
+          ]
+        },
+        {
+          "read": "annotationsSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "filter": { "entityTypes": ["Place"] },
+          "answers": [
+            { "score": 0.800000, "resourceId": "res-a", "annotationId": "ann-2", "text": "quoted by ann-2", "entityTypes": ["Place"] }
+          ]
+        },
+        {
+          "read": "annotationsSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "filter": { "motivation": "highlighting" },
+          "answers": [
+            { "score": 0.800000, "resourceId": "res-a", "annotationId": "ann-2", "text": "quoted by ann-2", "entityTypes": ["Place"] },
+            {
+              "score": 0.707107,
+              "resourceId": "res-a",
+              "annotationId": "ann-1",
+              "text": "quoted by ann-1",
+              "entityTypes": ["Question", "Person"],
+              "machineRead": true
+            }
+          ]
+        },
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "answers": [
+            { "score": 1.000000, "resourceId": "res-a", "text": "the chunk of a", "entityTypes": ["Place"] }
+          ]
+        },
+        {
+          "read": "stampRead",
+          "resourceId": "res-a",
+          "answers": { "contentChecksum": "checksum-a", "mediaType": "text/markdown", "entityTypes": ["Place"] }
+        },
+        { "read": "counted", "answers": 4 }
+      ]
+    },
+    {
+      "why": "rewriting the entity types of an annotation that has no point is no failure and does nothing: no point is made, and the points there are keep the entity types they were put with",
+      "writes": [
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
+          ],
+          "contentChecksum": "checksum-a",
+          "mediaType": "text/markdown",
+          "entityTypes": ["Place"]
+        },
+        {
+          "write": "annotationPut",
+          "annotationId": "ann-1",
+          "resourceId": "res-a",
+          "motivation": "highlighting",
+          "entityTypes": ["Place"],
+          "text": "quoted by ann-1",
+          "embedding": [1, 1]
+        },
+        { "write": "annotationEntityTypesRewritten", "annotationId": "ann-2", "entityTypes": ["Question"] }
+      ],
+      "reads": [
+        { "read": "counted", "answers": 2 },
+        {
+          "read": "annotationStampsListed",
+          "answers": {
+            "ann-1": { "resourceId": "res-a", "entityTypes": ["Place"] }
+          }
+        },
+        {
+          "read": "annotationsSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "filter": { "entityTypes": ["Question"] },
+          "answers": []
+        },
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "filter": { "entityTypes": ["Question"] },
+          "answers": []
+        },
+        {
+          "read": "stampsListed",
+          "answers": {
+            "res-a": { "contentChecksum": "checksum-a", "mediaType": "text/markdown", "entityTypes": ["Place"] }
+          }
         }
       ]
     },
@@ -397,6 +612,7 @@
             { "index": 1, "text": "the second chunk of a", "embedding": [0, 1] }
           ],
           "contentChecksum": "checksum-a",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place"]
         },
         {
@@ -406,6 +622,7 @@
             { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
           ],
           "contentChecksum": "checksum-b",
+          "mediaType": "text/markdown",
           "entityTypes": ["Person"]
         },
         {
@@ -442,10 +659,16 @@
         {
           "read": "stampsListed",
           "answers": {
-            "res-b": { "contentChecksum": "checksum-b", "entityTypes": ["Person"] }
+            "res-b": { "contentChecksum": "checksum-b", "mediaType": "text/markdown", "entityTypes": ["Person"] }
           }
         },
-        { "read": "annotationIdsListed", "answers": ["ann-1", "ann-2"] },
+        {
+          "read": "annotationStampsListed",
+          "answers": {
+            "ann-1": { "resourceId": "res-a", "entityTypes": ["Place"] },
+            "ann-2": { "resourceId": "res-b", "entityTypes": ["Person"] }
+          }
+        },
         {
           "read": "annotationsSearched",
           "embedding": [1, 0],
@@ -467,6 +690,7 @@
             { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
           ],
           "contentChecksum": "checksum-a",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place"]
         },
         {
@@ -491,7 +715,12 @@
       ],
       "reads": [
         { "read": "counted", "answers": 2 },
-        { "read": "annotationIdsListed", "answers": ["ann-2"] },
+        {
+          "read": "annotationStampsListed",
+          "answers": {
+            "ann-2": { "resourceId": "res-a", "entityTypes": ["Place"] }
+          }
+        },
         {
           "read": "annotationsSearched",
           "embedding": [1, 0],
@@ -520,6 +749,7 @@
             { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
           ],
           "contentChecksum": "checksum-a",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place"]
         },
         {
@@ -553,7 +783,12 @@
       ],
       "reads": [
         { "read": "counted", "answers": 2 },
-        { "read": "annotationIdsListed", "answers": ["ann-3"] },
+        {
+          "read": "annotationStampsListed",
+          "answers": {
+            "ann-3": { "resourceId": "res-b", "entityTypes": ["Person"] }
+          }
+        },
         {
           "read": "annotationsSearched",
           "embedding": [1, 0],
@@ -573,7 +808,7 @@
         {
           "read": "stampRead",
           "resourceId": "res-a",
-          "answers": { "contentChecksum": "checksum-a", "entityTypes": ["Place"] }
+          "answers": { "contentChecksum": "checksum-a", "mediaType": "text/markdown", "entityTypes": ["Place"] }
         }
       ]
     },
@@ -587,6 +822,7 @@
             { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
           ],
           "contentChecksum": "checksum-a",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place"]
         },
         {
@@ -607,10 +843,15 @@
         {
           "read": "stampsListed",
           "answers": {
-            "res-a": { "contentChecksum": "checksum-a", "entityTypes": ["Place"] }
+            "res-a": { "contentChecksum": "checksum-a", "mediaType": "text/markdown", "entityTypes": ["Place"] }
           }
         },
-        { "read": "annotationIdsListed", "answers": ["ann-1"] }
+        {
+          "read": "annotationStampsListed",
+          "answers": {
+            "ann-1": { "resourceId": "res-a", "entityTypes": ["Place"] }
+          }
+        }
       ]
     },
     {
@@ -623,6 +864,7 @@
             { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
           ],
           "contentChecksum": "checksum-a",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place"]
         },
         {
@@ -632,6 +874,7 @@
             { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
           ],
           "contentChecksum": "checksum-b",
+          "mediaType": "text/markdown",
           "entityTypes": ["Person"]
         },
         {
@@ -641,6 +884,7 @@
             { "index": 0, "text": "the chunk of c", "embedding": [1, 1] }
           ],
           "contentChecksum": "checksum-c",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place", "Person"]
         },
         {
@@ -650,6 +894,7 @@
             { "index": 0, "text": "the chunk of d", "embedding": [3, 4] }
           ],
           "contentChecksum": "checksum-d",
+          "mediaType": "text/markdown",
           "entityTypes": ["Event"]
         },
         {
@@ -659,6 +904,7 @@
             { "index": 0, "text": "the chunk of e", "embedding": [0, 1] }
           ],
           "contentChecksum": "checksum-e",
+          "mediaType": "text/markdown",
           "entityTypes": []
         }
       ],
@@ -696,6 +942,7 @@
             { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
           ],
           "contentChecksum": "checksum-a",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place"]
         },
         {
@@ -705,6 +952,7 @@
             { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
           ],
           "contentChecksum": "checksum-b",
+          "mediaType": "text/markdown",
           "entityTypes": ["Person"]
         },
         {
@@ -714,6 +962,7 @@
             { "index": 0, "text": "the chunk of c", "embedding": [1, 1] }
           ],
           "contentChecksum": "checksum-c",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place", "Person"]
         },
         {
@@ -723,6 +972,7 @@
             { "index": 0, "text": "the chunk of d", "embedding": [3, 4] }
           ],
           "contentChecksum": "checksum-d",
+          "mediaType": "text/markdown",
           "entityTypes": ["Event"]
         },
         {
@@ -732,6 +982,7 @@
             { "index": 0, "text": "the chunk of e", "embedding": [0, 1] }
           ],
           "contentChecksum": "checksum-e",
+          "mediaType": "text/markdown",
           "entityTypes": []
         }
       ],
@@ -769,6 +1020,7 @@
             { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
           ],
           "contentChecksum": "checksum-a",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place"]
         },
         {
@@ -778,6 +1030,7 @@
             { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
           ],
           "contentChecksum": "checksum-b",
+          "mediaType": "text/markdown",
           "entityTypes": ["Person"]
         },
         {
@@ -787,6 +1040,7 @@
             { "index": 0, "text": "the chunk of c", "embedding": [1, 1] }
           ],
           "contentChecksum": "checksum-c",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place", "Person"]
         },
         {
@@ -796,6 +1050,7 @@
             { "index": 0, "text": "the chunk of d", "embedding": [3, 4] }
           ],
           "contentChecksum": "checksum-d",
+          "mediaType": "text/markdown",
           "entityTypes": ["Event"]
         },
         {
@@ -805,6 +1060,7 @@
             { "index": 0, "text": "the chunk of e", "embedding": [0, 1] }
           ],
           "contentChecksum": "checksum-e",
+          "mediaType": "text/markdown",
           "entityTypes": []
         }
       ],
@@ -848,6 +1104,7 @@
             { "index": 1, "text": "the second chunk of a", "embedding": [3, 4] }
           ],
           "contentChecksum": "checksum-a",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place"]
         },
         {
@@ -857,6 +1114,7 @@
             { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
           ],
           "contentChecksum": "checksum-b",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place"]
         },
         {
@@ -911,6 +1169,7 @@
             { "index": 1, "text": "the second chunk of a", "embedding": [3, 4] }
           ],
           "contentChecksum": "checksum-a",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place"]
         },
         {
@@ -920,6 +1179,7 @@
             { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
           ],
           "contentChecksum": "checksum-b",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place"]
         },
         {
@@ -1025,6 +1285,7 @@
             { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
           ],
           "contentChecksum": "checksum-a",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place"]
         },
         {
@@ -1034,6 +1295,7 @@
             { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
           ],
           "contentChecksum": "checksum-b",
+          "mediaType": "text/markdown",
           "entityTypes": ["Person"]
         },
         {
@@ -1043,6 +1305,7 @@
             { "index": 0, "text": "the chunk of c", "embedding": [1, 1] }
           ],
           "contentChecksum": "checksum-c",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place", "Person"]
         },
         {
@@ -1052,6 +1315,7 @@
             { "index": 0, "text": "the chunk of d", "embedding": [3, 4] }
           ],
           "contentChecksum": "checksum-d",
+          "mediaType": "text/markdown",
           "entityTypes": ["Event"]
         },
         {
@@ -1061,6 +1325,7 @@
             { "index": 0, "text": "the chunk of e", "embedding": [0, 1] }
           ],
           "contentChecksum": "checksum-e",
+          "mediaType": "text/markdown",
           "entityTypes": []
         }
       ],
@@ -1096,6 +1361,7 @@
             { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
           ],
           "contentChecksum": "checksum-a",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place"]
         },
         {
@@ -1105,6 +1371,7 @@
             { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
           ],
           "contentChecksum": "checksum-b",
+          "mediaType": "text/markdown",
           "entityTypes": ["Person"]
         },
         {
@@ -1114,6 +1381,7 @@
             { "index": 0, "text": "the chunk of c", "embedding": [1, 1] }
           ],
           "contentChecksum": "checksum-c",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place", "Person"]
         },
         {
@@ -1123,6 +1391,7 @@
             { "index": 0, "text": "the chunk of d", "embedding": [3, 4] }
           ],
           "contentChecksum": "checksum-d",
+          "mediaType": "text/markdown",
           "entityTypes": ["Event"]
         },
         {
@@ -1132,6 +1401,7 @@
             { "index": 0, "text": "the chunk of e", "embedding": [0, 1] }
           ],
           "contentChecksum": "checksum-e",
+          "mediaType": "text/markdown",
           "entityTypes": []
         }
       ],
@@ -1170,6 +1440,7 @@
             { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
           ],
           "contentChecksum": "checksum-a",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place"]
         },
         {
@@ -1179,6 +1450,7 @@
             { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
           ],
           "contentChecksum": "checksum-b",
+          "mediaType": "text/markdown",
           "entityTypes": ["Person"]
         },
         {
@@ -1188,6 +1460,7 @@
             { "index": 0, "text": "the chunk of c", "embedding": [1, 1] }
           ],
           "contentChecksum": "checksum-c",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place", "Person"]
         },
         {
@@ -1197,6 +1470,7 @@
             { "index": 0, "text": "the chunk of d", "embedding": [3, 4] }
           ],
           "contentChecksum": "checksum-d",
+          "mediaType": "text/markdown",
           "entityTypes": ["Event"]
         },
         {
@@ -1206,6 +1480,7 @@
             { "index": 0, "text": "the chunk of e", "embedding": [0, 1] }
           ],
           "contentChecksum": "checksum-e",
+          "mediaType": "text/markdown",
           "entityTypes": []
         }
       ],
@@ -1239,6 +1514,7 @@
             { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
           ],
           "contentChecksum": "checksum-a",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place"]
         },
         {
@@ -1248,6 +1524,7 @@
             { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
           ],
           "contentChecksum": "checksum-b",
+          "mediaType": "text/markdown",
           "entityTypes": ["Person"]
         },
         {
@@ -1257,6 +1534,7 @@
             { "index": 0, "text": "the chunk of c", "embedding": [1, 1] }
           ],
           "contentChecksum": "checksum-c",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place", "Person"]
         },
         {
@@ -1266,6 +1544,7 @@
             { "index": 0, "text": "the chunk of d", "embedding": [3, 4] }
           ],
           "contentChecksum": "checksum-d",
+          "mediaType": "text/markdown",
           "entityTypes": ["Event"]
         },
         {
@@ -1275,6 +1554,7 @@
             { "index": 0, "text": "the chunk of e", "embedding": [0, 1] }
           ],
           "contentChecksum": "checksum-e",
+          "mediaType": "text/markdown",
           "entityTypes": []
         }
       ],
@@ -1301,6 +1581,7 @@
             { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
           ],
           "contentChecksum": "checksum-a",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place"]
         },
         {
@@ -1310,6 +1591,7 @@
             { "index": 0, "text": "the chunk of b", "embedding": [0, 1] }
           ],
           "contentChecksum": "checksum-b",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place"]
         },
         {
@@ -1319,6 +1601,7 @@
             { "index": 0, "text": "the chunk of c", "embedding": [-1, 0] }
           ],
           "contentChecksum": "checksum-c",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place"]
         }
       ],
@@ -1345,6 +1628,7 @@
             { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
           ],
           "contentChecksum": "checksum-a",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place"]
         },
         {
@@ -1354,6 +1638,7 @@
             { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
           ],
           "contentChecksum": "checksum-b",
+          "mediaType": "text/markdown",
           "entityTypes": ["Person"]
         },
         {
@@ -1363,6 +1648,7 @@
             { "index": 0, "text": "the chunk of c", "embedding": [1, 1] }
           ],
           "contentChecksum": "checksum-c",
+          "mediaType": "text/markdown",
           "entityTypes": ["Event"]
         },
         {
@@ -1388,6 +1674,78 @@
       ]
     },
     {
+      "why": "a search by a resource's own vectors is cut to its limit in resources, and not in chunks: a resource with many chunks near the one searched by takes one place of the answer, and the next resource is answered though nine chunks of the first are nearer than its one",
+      "writes": [
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
+          ],
+          "contentChecksum": "checksum-a",
+          "mediaType": "text/markdown",
+          "entityTypes": []
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-b",
+          "chunks": [
+            { "index": 0, "text": "the first chunk of b", "embedding": [100, 1] },
+            { "index": 1, "text": "the second chunk of b", "embedding": [100, 2] },
+            { "index": 2, "text": "the third chunk of b", "embedding": [100, 3] },
+            { "index": 3, "text": "the fourth chunk of b", "embedding": [100, 4] },
+            { "index": 4, "text": "the fifth chunk of b", "embedding": [100, 5] },
+            { "index": 5, "text": "the sixth chunk of b", "embedding": [100, 6] },
+            { "index": 6, "text": "the seventh chunk of b", "embedding": [100, 7] },
+            { "index": 7, "text": "the eighth chunk of b", "embedding": [100, 8] },
+            { "index": 8, "text": "the ninth chunk of b", "embedding": [100, 9] }
+          ],
+          "contentChecksum": "checksum-b",
+          "mediaType": "text/markdown",
+          "entityTypes": []
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-c",
+          "chunks": [
+            { "index": 0, "text": "the chunk of c", "embedding": [5, 1] }
+          ],
+          "contentChecksum": "checksum-c",
+          "mediaType": "text/markdown",
+          "entityTypes": []
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-d",
+          "chunks": [
+            { "index": 0, "text": "the chunk of d", "embedding": [1, 1] }
+          ],
+          "contentChecksum": "checksum-d",
+          "mediaType": "text/markdown",
+          "entityTypes": []
+        }
+      ],
+      "reads": [
+        {
+          "read": "searchedByResource",
+          "resourceId": "res-a",
+          "limit": 2,
+          "answers": [
+            { "score": 0.999950, "resourceId": "res-b", "text": "the first chunk of b", "entityTypes": [] },
+            { "score": 0.980581, "resourceId": "res-c", "text": "the chunk of c", "entityTypes": [] }
+          ]
+        },
+        {
+          "read": "searchedByResource",
+          "resourceId": "res-a",
+          "limit": 1,
+          "answers": [
+            { "score": 0.999950, "resourceId": "res-b", "text": "the first chunk of b", "entityTypes": [] }
+          ]
+        }
+      ]
+    },
+    {
       "why": "a search by a resource's own vectors answers one result for each resource: a resource found by two of its chunks is answered once, with the score and the text of the chunk that scored best. A search of resources by an embedding answers both chunks",
       "writes": [
         {
@@ -1397,6 +1755,7 @@
             { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
           ],
           "contentChecksum": "checksum-a",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place"]
         },
         {
@@ -1407,6 +1766,7 @@
             { "index": 1, "text": "the chunk of b that is on the subject", "embedding": [4, 3] }
           ],
           "contentChecksum": "checksum-b",
+          "mediaType": "text/markdown",
           "entityTypes": ["Person"]
         },
         {
@@ -1416,6 +1776,7 @@
             { "index": 0, "text": "the chunk of c", "embedding": [1, 1] }
           ],
           "contentChecksum": "checksum-c",
+          "mediaType": "text/markdown",
           "entityTypes": ["Event"]
         }
       ],
@@ -1453,6 +1814,7 @@
             { "index": 1, "text": "the second chunk of a", "embedding": [0, 1] }
           ],
           "contentChecksum": "checksum-a",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place"]
         },
         {
@@ -1462,6 +1824,7 @@
             { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
           ],
           "contentChecksum": "checksum-b",
+          "mediaType": "text/markdown",
           "entityTypes": ["Person"]
         },
         {
@@ -1471,6 +1834,7 @@
             { "index": 0, "text": "the chunk of c", "embedding": [1, 1] }
           ],
           "contentChecksum": "checksum-c",
+          "mediaType": "text/markdown",
           "entityTypes": ["Event"]
         },
         {
@@ -1480,6 +1844,7 @@
             { "index": 0, "text": "the chunk of d", "embedding": [0, 1] }
           ],
           "contentChecksum": "checksum-d",
+          "mediaType": "text/markdown",
           "entityTypes": ["Event"]
         }
       ],
@@ -1506,6 +1871,7 @@
             { "index": 0, "text": "the chunk of b", "embedding": [1, 0] }
           ],
           "contentChecksum": "checksum-b",
+          "mediaType": "text/markdown",
           "entityTypes": ["Person"]
         }
       ],
@@ -1523,6 +1889,7 @@
             { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
           ],
           "contentChecksum": "checksum-a",
+          "mediaType": "text/markdown",
           "entityTypes": ["Question"]
         },
         {
@@ -1532,6 +1899,7 @@
             { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
           ],
           "contentChecksum": "checksum-b",
+          "mediaType": "text/markdown",
           "entityTypes": ["Question"]
         },
         {
@@ -1541,6 +1909,7 @@
             { "index": 0, "text": "the chunk of c", "embedding": [1, 1] }
           ],
           "contentChecksum": "checksum-c",
+          "mediaType": "text/markdown",
           "entityTypes": ["Article"]
         },
         {
@@ -1550,6 +1919,7 @@
             { "index": 0, "text": "the chunk of d", "embedding": [3, 4] }
           ],
           "contentChecksum": "checksum-d",
+          "mediaType": "text/markdown",
           "entityTypes": ["Article", "Place"]
         }
       ],
@@ -1585,6 +1955,7 @@
             { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
           ],
           "contentChecksum": "checksum-a",
+          "mediaType": "text/markdown",
           "entityTypes": ["Place"]
         },
         {
@@ -1594,6 +1965,7 @@
             { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
           ],
           "contentChecksum": "checksum-b",
+          "mediaType": "text/markdown",
           "entityTypes": ["Person"]
         },
         {
@@ -1603,6 +1975,7 @@
             { "index": 0, "text": "the chunk of c", "embedding": [1, 1] }
           ],
           "contentChecksum": "checksum-c",
+          "mediaType": "text/markdown",
           "entityTypes": ["Event"]
         }
       ],
@@ -1615,6 +1988,427 @@
           "answers": [
             { "score": 0.800000, "resourceId": "res-b", "text": "the chunk of b", "entityTypes": ["Person"] }
           ]
+        }
+      ]
+    },
+    {
+      "why": "an index made anew holds nothing of what it held: no point of a resource, no point of an annotation, and nothing remembered of a decline. It states the stamp it was given, whole, with each member as it was given",
+      "writes": [
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
+          ],
+          "contentChecksum": "checksum-a",
+          "mediaType": "text/markdown",
+          "entityTypes": ["Place"]
+        },
+        {
+          "write": "annotationPut",
+          "annotationId": "ann-1",
+          "resourceId": "res-a",
+          "motivation": "highlighting",
+          "entityTypes": ["Place"],
+          "text": "quoted by ann-1",
+          "embedding": [1, 1]
+        },
+        {
+          "write": "resourceDeclined",
+          "resourceId": "res-b",
+          "contentChecksum": "checksum-b",
+          "mediaType": "image/png",
+          "reason": "no text was read from the image"
+        },
+        {
+          "write": "madeAnew",
+          "stamp": {
+            "model": { "provider": "a-provider", "name": "a-model" },
+            "chunking": { "size": 512, "overlap": 64 },
+            "reads": ["text", "pdf"],
+            "revision": 1
+          }
+        }
+      ],
+      "reads": [
+        { "read": "counted", "answers": 0 },
+        { "read": "resourcesSearched", "embedding": [1, 0], "limit": 10, "answers": [] },
+        { "read": "annotationsSearched", "embedding": [1, 0], "limit": 10, "answers": [] },
+        { "read": "stampsListed", "answers": {} },
+        { "read": "stampRead", "resourceId": "res-a" },
+        { "read": "annotationStampsListed", "answers": {} },
+        { "read": "declinedListed", "answers": {} },
+        {
+          "read": "indexStampRead",
+          "answers": {
+            "model": { "provider": "a-provider", "name": "a-model" },
+            "chunking": { "size": 512, "overlap": 64 },
+            "reads": ["text", "pdf"],
+            "revision": 1
+          }
+        }
+      ]
+    },
+    {
+      "why": "what is written to an index after it was made anew is kept, and no write changes the stamp the index states",
+      "writes": [
+        {
+          "write": "madeAnew",
+          "stamp": {
+            "model": { "provider": "a-provider", "name": "a-model" },
+            "chunking": { "size": 512, "overlap": 64 },
+            "reads": ["text", "pdf"],
+            "revision": 1
+          }
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
+          ],
+          "contentChecksum": "checksum-a",
+          "mediaType": "text/markdown",
+          "entityTypes": ["Place"]
+        },
+        {
+          "write": "annotationPut",
+          "annotationId": "ann-1",
+          "resourceId": "res-a",
+          "motivation": "highlighting",
+          "entityTypes": ["Place"],
+          "text": "quoted by ann-1",
+          "embedding": [1, 1]
+        },
+        {
+          "write": "resourceDeclined",
+          "resourceId": "res-b",
+          "contentChecksum": "checksum-b",
+          "mediaType": "image/png",
+          "reason": "no text was read from the image"
+        }
+      ],
+      "reads": [
+        { "read": "counted", "answers": 2 },
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "answers": [
+            { "score": 1.000000, "resourceId": "res-a", "text": "the chunk of a", "entityTypes": ["Place"] }
+          ]
+        },
+        {
+          "read": "stampsListed",
+          "answers": {
+            "res-a": { "contentChecksum": "checksum-a", "mediaType": "text/markdown", "entityTypes": ["Place"] }
+          }
+        },
+        {
+          "read": "annotationStampsListed",
+          "answers": {
+            "ann-1": { "resourceId": "res-a", "entityTypes": ["Place"] }
+          }
+        },
+        {
+          "read": "declinedListed",
+          "answers": {
+            "res-b": { "contentChecksum": "checksum-b", "mediaType": "image/png", "reason": "no text was read from the image" }
+          }
+        },
+        {
+          "read": "indexStampRead",
+          "answers": {
+            "model": { "provider": "a-provider", "name": "a-model" },
+            "chunking": { "size": 512, "overlap": 64 },
+            "reads": ["text", "pdf"],
+            "revision": 1
+          }
+        }
+      ]
+    },
+    {
+      "why": "an index made anew a second time, with another stamp, holds nothing of what was written between, and states the second stamp alone: no member of the first is left in it",
+      "writes": [
+        {
+          "write": "madeAnew",
+          "stamp": {
+            "model": { "provider": "a-provider", "name": "a-model" },
+            "chunking": { "size": 512, "overlap": 64 },
+            "reads": ["text", "pdf"],
+            "revision": 1
+          }
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
+          ],
+          "contentChecksum": "checksum-a",
+          "mediaType": "text/markdown",
+          "entityTypes": ["Place"]
+        },
+        {
+          "write": "annotationPut",
+          "annotationId": "ann-1",
+          "resourceId": "res-a",
+          "motivation": "highlighting",
+          "entityTypes": ["Place"],
+          "text": "quoted by ann-1",
+          "embedding": [1, 1]
+        },
+        {
+          "write": "resourceDeclined",
+          "resourceId": "res-b",
+          "contentChecksum": "checksum-b",
+          "mediaType": "image/png",
+          "reason": "no text was read from the image"
+        },
+        {
+          "write": "madeAnew",
+          "stamp": {
+            "model": { "provider": "a-provider", "name": "another-model" },
+            "chunking": { "size": 256 },
+            "exact": true
+          }
+        }
+      ],
+      "reads": [
+        { "read": "counted", "answers": 0 },
+        { "read": "resourcesSearched", "embedding": [1, 0], "limit": 10, "answers": [] },
+        { "read": "annotationsSearched", "embedding": [1, 0], "limit": 10, "answers": [] },
+        { "read": "stampsListed", "answers": {} },
+        { "read": "stampRead", "resourceId": "res-a" },
+        { "read": "annotationStampsListed", "answers": {} },
+        { "read": "declinedListed", "answers": {} },
+        {
+          "read": "indexStampRead",
+          "answers": {
+            "model": { "provider": "a-provider", "name": "another-model" },
+            "chunking": { "size": 256 },
+            "exact": true
+          }
+        }
+      ]
+    },
+    {
+      "why": "a resource's stamp states the media type its bytes were read as, as it was given, parameters and all, listed and read. The same bytes put again as another type state the other type",
+      "writes": [
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
+          ],
+          "contentChecksum": "checksum-a",
+          "mediaType": "text/markdown; charset=utf-8",
+          "entityTypes": ["Place"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-b",
+          "chunks": [
+            { "index": 0, "text": "the chunk of b, read as plain text", "embedding": [4, 3] }
+          ],
+          "contentChecksum": "checksum-b",
+          "mediaType": "text/plain",
+          "entityTypes": ["Person"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-b",
+          "chunks": [
+            { "index": 0, "text": "the chunk of b, read as markdown", "embedding": [4, 3] }
+          ],
+          "contentChecksum": "checksum-b",
+          "mediaType": "text/markdown",
+          "entityTypes": ["Person"]
+        }
+      ],
+      "reads": [
+        { "read": "counted", "answers": 2 },
+        {
+          "read": "stampRead",
+          "resourceId": "res-a",
+          "answers": { "contentChecksum": "checksum-a", "mediaType": "text/markdown; charset=utf-8", "entityTypes": ["Place"] }
+        },
+        {
+          "read": "stampRead",
+          "resourceId": "res-b",
+          "answers": { "contentChecksum": "checksum-b", "mediaType": "text/markdown", "entityTypes": ["Person"] }
+        },
+        {
+          "read": "stampsListed",
+          "answers": {
+            "res-a": { "contentChecksum": "checksum-a", "mediaType": "text/markdown; charset=utf-8", "entityTypes": ["Place"] },
+            "res-b": { "contentChecksum": "checksum-b", "mediaType": "text/markdown", "entityTypes": ["Person"] }
+          }
+        }
+      ]
+    },
+    {
+      "why": "a declined resource has no points: every point of its chunks is taken, it has no stamp, and no search finds it or searches by it. What the index remembers of it is the checksum, the media type and the reason, each as it was given, and it is counted as no point. The point of an annotation on it is as it was, and so are another resource's points",
+      "writes": [
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the first chunk of a", "embedding": [1, 0] },
+            { "index": 1, "text": "the second chunk of a", "embedding": [3, 4] }
+          ],
+          "contentChecksum": "checksum-a1",
+          "mediaType": "text/markdown",
+          "entityTypes": ["Place"]
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-b",
+          "chunks": [
+            { "index": 0, "text": "the chunk of b", "embedding": [4, 3] }
+          ],
+          "contentChecksum": "checksum-b",
+          "mediaType": "text/markdown",
+          "entityTypes": ["Person"]
+        },
+        {
+          "write": "annotationPut",
+          "annotationId": "ann-1",
+          "resourceId": "res-a",
+          "motivation": "highlighting",
+          "entityTypes": ["Event"],
+          "text": "quoted by ann-1",
+          "embedding": [1, 1]
+        },
+        {
+          "write": "resourceDeclined",
+          "resourceId": "res-a",
+          "contentChecksum": "checksum-a2",
+          "mediaType": "image/png",
+          "reason": "no text was read from the image"
+        }
+      ],
+      "reads": [
+        { "read": "counted", "answers": 2 },
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "answers": [
+            { "score": 0.800000, "resourceId": "res-b", "text": "the chunk of b", "entityTypes": ["Person"] }
+          ]
+        },
+        { "read": "searchedByResource", "resourceId": "res-a", "limit": 10, "answers": [] },
+        { "read": "stampRead", "resourceId": "res-a" },
+        {
+          "read": "stampsListed",
+          "answers": {
+            "res-b": { "contentChecksum": "checksum-b", "mediaType": "text/markdown", "entityTypes": ["Person"] }
+          }
+        },
+        {
+          "read": "declinedListed",
+          "answers": {
+            "res-a": { "contentChecksum": "checksum-a2", "mediaType": "image/png", "reason": "no text was read from the image" }
+          }
+        },
+        {
+          "read": "annotationsSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "answers": [
+            { "score": 0.707107, "resourceId": "res-a", "annotationId": "ann-1", "text": "quoted by ann-1", "entityTypes": ["Event"] }
+          ]
+        },
+        {
+          "read": "annotationStampsListed",
+          "answers": {
+            "ann-1": { "resourceId": "res-a", "entityTypes": ["Event"] }
+          }
+        }
+      ]
+    },
+    {
+      "why": "a declined resource that is put is remembered no longer, whether it is put with chunks, and so has points again, or with none; one whose points are deleted is remembered no longer either, though it had no point to take; and one declined again is remembered as it was last declined",
+      "writes": [
+        {
+          "write": "resourceDeclined",
+          "resourceId": "res-a",
+          "contentChecksum": "checksum-a1",
+          "mediaType": "image/png",
+          "reason": "no text was read from the image"
+        },
+        {
+          "write": "resourceDeclined",
+          "resourceId": "res-b",
+          "contentChecksum": "checksum-b",
+          "mediaType": "image/png",
+          "reason": "no text was read from the image"
+        },
+        {
+          "write": "resourceDeclined",
+          "resourceId": "res-c",
+          "contentChecksum": "checksum-c1",
+          "mediaType": "application/pdf",
+          "reason": "no page of the document gave text"
+        },
+        {
+          "write": "resourceDeclined",
+          "resourceId": "res-d",
+          "contentChecksum": "checksum-d1",
+          "mediaType": "image/png",
+          "reason": "no text was read from the image"
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-a",
+          "chunks": [
+            { "index": 0, "text": "the chunk of a", "embedding": [1, 0] }
+          ],
+          "contentChecksum": "checksum-a2",
+          "mediaType": "text/markdown",
+          "entityTypes": ["Place"]
+        },
+        { "write": "resourceDeleted", "resourceId": "res-b" },
+        {
+          "write": "resourceDeclined",
+          "resourceId": "res-c",
+          "contentChecksum": "checksum-c2",
+          "mediaType": "image/tiff",
+          "reason": "no text was read from the image"
+        },
+        {
+          "write": "resourcePut",
+          "resourceId": "res-d",
+          "chunks": [],
+          "contentChecksum": "checksum-d2",
+          "mediaType": "text/markdown",
+          "entityTypes": ["Place"]
+        }
+      ],
+      "reads": [
+        { "read": "counted", "answers": 1 },
+        {
+          "read": "resourcesSearched",
+          "embedding": [1, 0],
+          "limit": 10,
+          "answers": [
+            { "score": 1.000000, "resourceId": "res-a", "text": "the chunk of a", "entityTypes": ["Place"] }
+          ]
+        },
+        {
+          "read": "stampsListed",
+          "answers": {
+            "res-a": { "contentChecksum": "checksum-a2", "mediaType": "text/markdown", "entityTypes": ["Place"] }
+          }
+        },
+        { "read": "stampRead", "resourceId": "res-c" },
+        { "read": "stampRead", "resourceId": "res-d" },
+        {
+          "read": "declinedListed",
+          "answers": {
+            "res-c": { "contentChecksum": "checksum-c2", "mediaType": "image/tiff", "reason": "no text was read from the image" }
+          }
         }
       ]
     }

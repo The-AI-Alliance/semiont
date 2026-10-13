@@ -171,6 +171,6 @@ func librarianDocument(env *envConfig, envName, kbName, rt, addr string, issuerP
 	if env.LogLevel != "" {
 		doc.LogLevel = semiont.LogLevel(env.LogLevel)
 	}
-	doc.LogFormat = semiont.Json
+	doc.LogFormat = semiont.LogFormatJson
 	return json.MarshalIndent(doc, "", "  ")
 }

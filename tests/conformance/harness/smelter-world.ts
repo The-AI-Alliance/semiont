@@ -304,6 +304,12 @@ export class SmelterWorld {
     return this.annotation(resourceId, { source: resourceId }, options);
   }
 
+  /** Give an annotation's body an entity tag for each of `entityTypes`, after whatever it states; resolves once the record holds it. */
+  async bodyTagged(resourceId: string, annotationId: string, entityTypes: readonly string[], by = PERSON): Promise<void> {
+    const operations = entityTypes.map((value) => ({ op: 'add', item: { type: 'TextualBody', value, purpose: 'tagging' } }));
+    await (await this.person(by)).ask('bind:update-body', { resourceId, annotationId, operations });
+  }
+
   /** Remove an annotation; resolves once the record holds it. */
   async unannotated(resourceId: string, annotationId: string, by = PERSON): Promise<void> {
     await (await this.person(by)).ask('mark:delete', { resourceId, annotationId });
@@ -355,7 +361,7 @@ export class SmelterWorld {
   }
 
   /**
-   * Clear the index: both collections gone, as a wiped volume leaves it. Only
+   * Clear the index: every collection gone, as a wiped volume leaves it. Only
    * while no Smelter runs: one that is running made its collections when it
    * connected, and its next write would fail.
    */

@@ -45,22 +45,13 @@ export type PdfTextItem = components['schemas']['PdfTextItem'];
 export type AnchoredText = components['schemas']['AnchoredText'];
 
 /**
- * The full outcome of text extraction for one representation — the record
- * the anchored-text store holds and the wire serves: an `AnchoredText` plus
- * its provenance (`method`, `pdfClass`, `ocrConfidence`, `unreadPages`), or a
- * named decline. `AnchoredText` stays the anchoring vocabulary; this is the
- * stored/served record. Aliased from the generated spec type so the wire
- * shape has exactly one authority.
- */
-export type ExtractionOutcome = components['schemas']['ExtractionOutcome'];
-
-/**
  * What a READER gets when it asks for a resource's map: the map, a stored
  * decline, or a named absence.
  *
- * Deliberately wider than `ExtractionOutcome`, which is what the store HOLDS and
- * what an extractor RETURNS — neither of which can ever be "not yet". Widening
- * that type instead would have put an impossible state into the store's own.
+ * Deliberately wider than the spec's `ExtractionOutcome`, which is what the
+ * store HOLDS and what an extractor RETURNS — neither of which can ever be
+ * "not yet". Widening that type instead would have put an impossible state
+ * into the store's own.
  */
 export type AnchoredTextAnswer = components['schemas']['AnchoredTextAnswer'];
 

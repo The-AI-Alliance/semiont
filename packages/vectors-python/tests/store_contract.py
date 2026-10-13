@@ -4,9 +4,10 @@
 read then answers, and `specs/src/vectors/payload-cases.json` states what a
 point is. Every history is run here, and so are the stored parts of the
 payload table, by what a store answers after the write: the stamp, each
-point's result by a search with the point's own embedding, an annotation's id
-among those listed, and its motivation by a search that filters on it. The id
-and the payload of a point are held with no store, by `test_payload_cases.py`.
+point's result by a search with the point's own embedding, an annotation's
+stamp among those listed, its motivation by a search that filters on it, and
+a decline among those listed. The id and the payload of a point are held
+with no store, by `test_payload_cases.py`.
 
 One set of cases, run against the in-memory store (`test_memory.py`) and
 against a real Qdrant (`qdrant_live.py`). Nothing here is run against a fake
@@ -28,6 +29,8 @@ from spec import SPEC, JsonObject, objects, read, strings, text, thing
 
 from semiont_vectors.store import (
     AnnotationPayload,
+    AnnotationStamp,
+    Declined,
     EmbeddingChunk,
     ResourceStamp,
     SearchFilter,
@@ -44,13 +47,16 @@ SCORE_TOLERANCE = 0.000001
 
 # Every member each thing a table states may have. A member that is none of these is one nothing here would read.
 CHUNK = ("index", "text", "embedding")
-RESOURCE_PUT = ("resourceId", "chunks", "contentChecksum", "entityTypes", "machineRead")
+RESOURCE_PUT = ("resourceId", "chunks", "contentChecksum", "mediaType", "entityTypes", "machineRead")
+DECLINE = ("resourceId", "contentChecksum", "mediaType", "reason")
 ANNOTATION_PUT = ("annotationId", "resourceId", "motivation", "entityTypes", "text", "embedding", "machineRead")
 SEARCH = ("limit", "scoreThreshold", "filter", "answers")
 FILTER = ("entityTypes", "resourceId", "motivation", "excludeResourceId", "excludeEntityTypes")
 RESOURCE_STORED = (*RESOURCE_PUT, "points", "stamp")
 ANNOTATION_STORED = (*ANNOTATION_PUT, "point")
+DECLINE_STORED = (*DECLINE, "point")
 POINT = ("qdrantId", "payload", "result")
+DECLINE_POINT = ("qdrantId", "payload")
 
 
 def histories() -> list[object]:
@@ -153,6 +159,13 @@ def annotation(stated: JsonObject) -> AnnotationPayload:
     )
 
 
+def declined(stated: JsonObject) -> Declined:
+    """What a decline states of the bytes that gave no text: everything but the resource."""
+    checksum = text(stated["contentChecksum"], "contentChecksum")
+    media_type = text(stated["mediaType"], "mediaType")
+    return Declined(content_checksum=checksum, media_type=media_type, reason=text(stated["reason"], "reason"))
+
+
 def listed(stated: JsonObject, member: str) -> Sequence[str]:
     """The entity types a filter lists under `member`. A filter that leaves the member out lists none."""
     return strings(stated[member], member) if member in stated else ()
@@ -201,13 +214,29 @@ def written_result(found: VectorSearchResult) -> JsonObject:
 
 
 def written_stamp(stamp: ResourceStamp) -> JsonObject:
-    """A stamp as a table states one: no checksum where there is none, and the mark only where it is set."""
+    """A stamp as a table states one: no checksum and no media type where there is none, and the mark only where it is set."""
     types: list[JsonValue] = [*stamp.entity_types]
     stated: JsonObject = {"entityTypes": types}
     if stamp.content_checksum is not None:
         stated["contentChecksum"] = stamp.content_checksum
+    if stamp.media_type is not None:
+        stated["mediaType"] = stamp.media_type
     if stamp.machine_read:
         stated["machineRead"] = True
+    return stated
+
+
+def written_declined(remembered: Declined) -> JsonObject:
+    """What an index remembers of a declined resource, as a table states it."""
+    return {"contentChecksum": remembered.content_checksum, "mediaType": remembered.media_type, "reason": remembered.reason}
+
+
+def written_annotation_stamp(stamp: AnnotationStamp) -> JsonObject:
+    """An annotation's stamp as a table states one: no resource where its point names none."""
+    types: list[JsonValue] = [*stamp.entity_types]
+    stated: JsonObject = {"entityTypes": types}
+    if stamp.resource_id is not None:
+        stated["resourceId"] = str(stamp.resource_id)
     return stated
 
 
@@ -231,7 +260,7 @@ async def put_resource(store: VectorStore, stated: JsonObject) -> None:
     """Do the put a table states.
 
     `resourceId`, `chunks` (each `index`, `text`, `embedding`), `contentChecksum`,
-    `entityTypes`, and `machineRead` where stated.
+    `mediaType`, `entityTypes`, and `machineRead` where stated.
     """
     await store.upsert_resource_vectors(
         resource(stated),
@@ -239,6 +268,7 @@ async def put_resource(store: VectorStore, stated: JsonObject) -> None:
         text(stated["contentChecksum"], "contentChecksum"),
         strings(stated["entityTypes"], "entityTypes"),
         machine_read=machine_read(stated),
+        media_type=text(stated["mediaType"], "mediaType"),
     )
 
 
@@ -255,6 +285,11 @@ async def rewrite_entity_types(store: VectorStore, stated: JsonObject) -> None:
     await store.update_resource_entity_types(resource(stated), strings(stated["entityTypes"], "entityTypes"))
 
 
+async def rewrite_annotation_entity_types(store: VectorStore, stated: JsonObject) -> None:
+    annotation_id = AnnotationId(text(stated["annotationId"], "annotationId"))
+    await store.update_annotation_entity_types(annotation_id, strings(stated["entityTypes"], "entityTypes"))
+
+
 async def delete_resource(store: VectorStore, stated: JsonObject) -> None:
     await store.delete_resource_vectors(resource(stated))
 
@@ -267,15 +302,27 @@ async def delete_annotations_of_resource(store: VectorStore, stated: JsonObject)
     await store.delete_annotation_vectors_for_resource(resource(stated))
 
 
+async def decline_resource(store: VectorStore, stated: JsonObject) -> None:
+    """Do the decline a table states: `resourceId`, `contentChecksum`, `mediaType` and `reason`."""
+    await store.decline_resource(resource(stated), declined(stated))
+
+
+async def make_anew(store: VectorStore, stated: JsonObject) -> None:
+    await store.make_anew(thing(stated["stamp"], "stamp"))
+
+
 type Write = Callable[[VectorStore, JsonObject], Awaitable[None]]
 
 WRITES: Final[dict[str, tuple[tuple[str, ...], Write]]] = {
     "resourcePut": (RESOURCE_PUT, put_resource),
     "entityTypesRewritten": (("resourceId", "entityTypes"), rewrite_entity_types),
     "annotationPut": (ANNOTATION_PUT, put_annotation),
+    "annotationEntityTypesRewritten": (("annotationId", "entityTypes"), rewrite_annotation_entity_types),
     "resourceDeleted": (("resourceId",), delete_resource),
     "annotationDeleted": (("annotationId",), delete_annotation),
     "annotationsOfResourceDeleted": (("resourceId",), delete_annotations_of_resource),
+    "resourceDeclined": (DECLINE, decline_resource),
+    "madeAnew": (("stamp",), make_anew),
 }
 """Each kind of write a history states: the members it may have, and how it is done."""
 
@@ -327,9 +374,25 @@ async def stamp_read(store: VectorStore, stated: JsonObject, what: str) -> None:
         assert found is None, what
 
 
-async def annotation_ids_listed(store: VectorStore, stated: JsonObject, what: str) -> None:
-    ids = await store.list_annotation_ids()
-    assert sorted(str(each) for each in ids) == sorted(strings(stated["answers"], "answers")), what
+async def annotation_stamps_listed(store: VectorStore, stated: JsonObject, what: str) -> None:
+    stamps = await store.list_annotation_stamps()
+    answered: JsonObject = {str(of): written_annotation_stamp(stamp) for of, stamp in stamps.items()}
+    assert answered == stated["answers"], what
+
+
+async def declined_listed(store: VectorStore, stated: JsonObject, what: str) -> None:
+    remembered = await store.list_declined()
+    answered: JsonObject = {str(of): written_declined(each) for of, each in remembered.items()}
+    assert answered == stated["answers"], what
+
+
+async def index_stamp_read(store: VectorStore, stated: JsonObject, what: str) -> None:
+    found = await store.index_stamp()
+    if "answers" in stated:
+        assert found == stated["answers"], what
+    else:
+        # A read that states no answer is of an index that states no stamp.
+        assert found is None, what
 
 
 type Read = Callable[[VectorStore, JsonObject, str], Awaitable[None]]
@@ -341,7 +404,9 @@ READS: Final[dict[str, tuple[tuple[str, ...], Read]]] = {
     "counted": (("answers",), counted),
     "stampsListed": (("answers",), stamps_listed),
     "stampRead": (("resourceId", "answers"), stamp_read),
-    "annotationIdsListed": (("answers",), annotation_ids_listed),
+    "annotationStampsListed": (("answers",), annotation_stamps_listed),
+    "declinedListed": (("answers",), declined_listed),
+    "indexStampRead": (("answers",), index_stamp_read),
 }
 """Each kind of read a history states: the members it may have, and how the store is held to what it answers."""
 
@@ -377,7 +442,7 @@ class StoreContract(ABC):
 
         run(whole())
 
-    def test_the_tables_state_every_kind_of_write_and_read_and_both_stored_parts(self) -> None:
+    def test_the_tables_state_every_kind_of_write_and_read_and_each_of_the_three_stored_parts(self) -> None:
         # A kind nothing here does fails the history that states it. This holds the other way: nothing here goes unrun.
         writes = {text(given["write"], "write") for case in STORE_CASES for given in objects(case["writes"], "writes")}
         reads = {text(given["read"], "read") for case in STORE_CASES for given in objects(case["reads"], "reads")}
@@ -385,6 +450,7 @@ class StoreContract(ABC):
         assert reads == set(READS)
         assert part("resourceStored") != []
         assert part("annotationStored") != []
+        assert part("declineStored") != []
 
     @pytest.mark.parametrize("case", histories())
     def test_a_history_of_writes_and_what_each_read_then_answers(self, case: JsonObject) -> None:
@@ -430,10 +496,29 @@ class StoreContract(ABC):
         async def scenario(store: VectorStore) -> None:
             await put_annotation(store, given)
 
-            assert await store.list_annotation_ids() == {stated.annotation_id}
+            stamp = AnnotationStamp(resource_id=stated.resource_id, entity_types=tuple(stated.entity_types))
+            assert await store.list_annotation_stamps() == {stated.annotation_id: stamp}
             # A result does not say an annotation's motivation: a search that filters on it shows it was kept.
             of_its_motivation = SearchOptions(limit=1, filter=SearchFilter(motivation=stated.motivation))
             found = await store.search_annotations(vector(given["embedding"], "embedding"), of_its_motivation)
             same_results(found, [point["result"]], "the annotation's point")
 
         self.held(width_of(given, "annotationStored"), scenario)
+
+    @pytest.mark.parametrize("given", part("declineStored"))
+    def test_a_decline_stored_is_answered_as_the_payload_table_states(self, given: JsonObject) -> None:
+        only(given, DECLINE_STORED, "declineStored")
+        only(thing(given["point"], "point"), DECLINE_POINT, "the point")
+        resource_id = resource(given)
+
+        async def scenario(store: VectorStore) -> None:
+            await decline_resource(store, given)
+
+            assert await store.list_declined() == {resource_id: declined(given)}
+            # What is remembered is no point: nothing is counted, and the resource has no stamp.
+            assert await store.count() == 0
+            assert await store.get_resource_stamp(resource_id) is None
+            assert await store.list_resource_stamps() == {}
+
+        # A decline states no vector, so the index is of any width.
+        self.held(2, scenario)

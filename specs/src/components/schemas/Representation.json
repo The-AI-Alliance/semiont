@@ -43,7 +43,7 @@
       "minimum": 0
     },
     "checksum": {
-      "description": "Integrity hash (e.g., sha256:abcd…).",
+      "description": "The SHA-256 of the bytes, as 64 lower-case hexadecimal digits with nothing before them. Whatever compares the checksums of two representations compares this text.",
       "type": "string"
     },
     "encoding": {

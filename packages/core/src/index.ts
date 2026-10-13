@@ -176,7 +176,7 @@ export type { PdfCoordinate } from './pdf-coordinates';
 
 // PDF text <-> geometry anchoring (locate/textUnder are inverses)
 export { locate, textUnder } from './pdf-anchoring';
-export type { AnchoredText, AnchoredTextAnswer, ExtractionOutcome, PdfTextItem } from './pdf-anchoring';
+export type { AnchoredText, AnchoredTextAnswer, PdfTextItem } from './pdf-anchoring';
 
 // ResourceDescriptor accessors
 export {

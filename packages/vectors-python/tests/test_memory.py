@@ -4,8 +4,8 @@ Its own is what the tables leave to each store, and what a store with no
 database under it says for itself: that its index is its own from when it is
 made, a point that scores exactly its threshold, a limit of 0, points that
 score the same, a vector of zeros, vectors of two widths, two chunks of one
-index, and a search by a resource's own vectors that compares with every
-point.
+index, a search by a resource's own vectors that compares with every point,
+and a stamp kept as it was when it was given.
 """
 
 from collections.abc import Sequence
@@ -13,6 +13,7 @@ from typing import final, override
 
 import pytest
 from aio import run
+from pydantic import JsonValue
 from semiont.identifiers import ResourceId
 from store_contract import StoreContract
 
@@ -33,7 +34,8 @@ class TestMemoryVectorStore(StoreContract):
 async def put(store: MemoryVectorStore, resource: str, *embeddings: Sequence[float]) -> None:
     """Give a resource one chunk for each of `embeddings`, in their order. Chunk 2 of `res-a` says `res-a 2`."""
     chunks = [EmbeddingChunk(chunk_index=at, text=f"{resource} {at}", embedding=each) for at, each in enumerate(embeddings)]
-    await store.upsert_resource_vectors(ResourceId(resource), chunks, f"checksum-of-{resource}", [], machine_read=False)
+    checksum = f"checksum-of-{resource}"
+    await store.upsert_resource_vectors(ResourceId(resource), chunks, checksum, [], machine_read=False, media_type="text/plain")
 
 
 def resources(found: list[VectorSearchResult]) -> list[str]:
@@ -136,7 +138,7 @@ def test_two_chunks_of_one_index_are_one_point_the_later() -> None:
             EmbeddingChunk(chunk_index=0, text="the earlier", embedding=[1.0, 0.0]),
             EmbeddingChunk(chunk_index=0, text="the later", embedding=[0.0, 1.0]),
         ]
-        await store.upsert_resource_vectors(ResourceId("res-a"), chunks, "checksum-a", [], machine_read=False)
+        await store.upsert_resource_vectors(ResourceId("res-a"), chunks, "checksum-a", [], machine_read=False, media_type="text/plain")
         assert await store.count() == 1
         (found,) = await store.search_resources([1.0, 0.0], SearchOptions(limit=5))
         assert found.text == "the later"
@@ -152,6 +154,17 @@ def test_the_index_keeps_a_vector_as_it_was_when_it_was_written() -> None:
         embedding.reverse()
         (found,) = await store.search_resources([1.0, 0.0], SearchOptions(limit=5))
         assert found.score == 1.0
+
+    run(whole())
+
+
+def test_the_index_keeps_its_stamp_as_it_was_when_it_was_given() -> None:
+    async def whole() -> None:
+        store = MemoryVectorStore()
+        reads: list[JsonValue] = ["text"]
+        await store.make_anew({"reads": reads})
+        reads.append("pdf")
+        assert await store.index_stamp() == {"reads": ["text"]}
 
     run(whole())
 

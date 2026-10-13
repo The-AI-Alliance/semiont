@@ -67,7 +67,6 @@ describe('HttpTransport ITransport delegation', () => {
 
     const seen: EventMap['beckon:focus'][] = [];
     const off = transport.on('beckon:focus', (p) => seen.push(p));
-    transport.actor.start();
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
 
     sse.push(sseChunk('bus-event', JSON.stringify({
@@ -105,7 +104,6 @@ describe('HttpTransport ITransport delegation', () => {
 
     const seen: EventMap['beckon:focus'][] = [];
     const sub = transport.stream('beckon:focus').subscribe((p) => seen.push(p));
-    transport.actor.start();
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalled());
 
     sse.push(sseChunk('bus-event', JSON.stringify({

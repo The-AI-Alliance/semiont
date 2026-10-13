@@ -28,9 +28,9 @@ def create_vector_store(config: VectorsConfig, *, dimensions: Callable[[], Await
     `config` is the protocol's `VectorsConfig`, as a service's configuration
     document states it. `dimensions` answers how wide the embedding model's
     vectors are, and is a provider's own `dimensions`: a store that has to
-    make its index asks it then, and one that finds its index made asks
-    nobody. A store in memory holds vectors as wide as it is handed, and
-    never asks.
+    make its index asks it then, and again whenever it is told to make the
+    index anew, and one that finds its index made asks nobody. A store in
+    memory holds vectors as wide as it is handed, and never asks.
     """
     match config:
         case QdrantVectorsConfig():

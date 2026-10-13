@@ -944,7 +944,7 @@ requests; opens its health port.
   *Held by `librarian/boot`.*
 - **It gives up when the graph database or the vector index does not answer
   within sixty seconds,** says which, and exits with a status other than 0.
-  *Held by no case.*
+  *Held by `packages/service-python/tests/test_connect.py`.*
 - **It reaches no embedding provider and no model at start.** It makes no
   collection, so it has no width of a vector to learn.
   *Held by `apps/librarian/tests/test_service.py`, for a reader of the index that is made with nothing dialled.*

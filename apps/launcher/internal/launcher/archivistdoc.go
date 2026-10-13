@@ -262,6 +262,6 @@ func archivistDocument(env *envConfig, rt, addr string, issuerPort int, userEnv 
 	if env.LogLevel != "" {
 		doc.LogLevel = semiont.LogLevel(env.LogLevel)
 	}
-	doc.LogFormat = semiont.Json
+	doc.LogFormat = semiont.LogFormatJson
 	return json.MarshalIndent(doc, "", "  ")
 }

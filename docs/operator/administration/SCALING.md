@@ -55,8 +55,11 @@ the projections.
   gathers ask is the bottleneck — give it more resources. The librarian reports no time of
   its own for a search or a gather.
 - `semiont.gather.degraded` rising with `projection` `graph` or `vectors`: the weaver or the
-  smelter is not keeping up with the record. Neither reports a metric of its own work: each
-  one's `/health` says how its repair at start ended, and its log says what it could not apply.
+  smelter is not keeping up with the record. The smelter's `/health` says how far behind it
+  is: `eventsWaiting` is what it has been delivered and not yet applied, `eventsFailed` what
+  it could not apply, and `streamDrops` how many times its stream dropped, each of which may
+  have cost it events that only its next start finds. The weaver's says how its repair at
+  start ended and how many events it could not apply, and not how many it has waiting.
 
 ## What adding replicas does not fix
 

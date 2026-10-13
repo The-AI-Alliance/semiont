@@ -68,7 +68,7 @@ func TestDispatcherDocumentIsResolved(t *testing.T) {
 	if doc.Port != semiontDescriptor("dispatcher").ports[0].port {
 		t.Errorf("port = %d, want the descriptor's", doc.Port)
 	}
-	if doc.LogLevel != "debug" || doc.LogFormat != semiont.Json {
+	if doc.LogLevel != "debug" || doc.LogFormat != semiont.LogFormatJson {
 		t.Errorf("log = %q %q", doc.LogLevel, doc.LogFormat)
 	}
 	if doc.Timing.TickMs != 30_000 || doc.Timing.StaleRunningMs != 30*60_000 || doc.Timing.AckWaitMs != 30_000 ||

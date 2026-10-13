@@ -124,7 +124,7 @@ func TestLibrarianDocumentIsResolved(t *testing.T) {
 		t.Errorf("kbName = %q, want the knowledge base's name", doc.KbName)
 	}
 	wantGraph := semiont.Neo4jGraphConfig{
-		Type:        semiont.Neo4j,
+		Type:        semiont.Neo4jGraphConfigTypeNeo4j,
 		Uri:         "bolt://192.168.64.1:7687",
 		Username:    "neo4j",
 		Database:    "neo4j",
@@ -133,7 +133,7 @@ func TestLibrarianDocumentIsResolved(t *testing.T) {
 	if got := shapeOf[semiont.Neo4jGraphConfig](t, doc.Graph); got != wantGraph {
 		t.Errorf("graph = %+v, want %+v", got, wantGraph)
 	}
-	wantVectors := semiont.QdrantVectorsConfig{Type: semiont.Qdrant, Host: "192.168.64.1", Port: 6333}
+	wantVectors := semiont.QdrantVectorsConfig{Type: semiont.QdrantVectorsConfigTypeQdrant, Host: "192.168.64.1", Port: 6333}
 	if got := shapeOf[semiont.QdrantVectorsConfig](t, doc.Vectors); got != wantVectors {
 		t.Errorf("vectors = %+v, want %+v", got, wantVectors)
 	}
@@ -159,7 +159,7 @@ func TestLibrarianDocumentIsResolved(t *testing.T) {
 	if doc.Port != semiontDescriptor("librarian").ports[0].port {
 		t.Errorf("port = %d, want the descriptor's", doc.Port)
 	}
-	if doc.LogLevel != "debug" || doc.LogFormat != semiont.Json {
+	if doc.LogLevel != "debug" || doc.LogFormat != semiont.LogFormatJson {
 		t.Errorf("logLevel, logFormat = %q, %q, want the environment's level and JSON", doc.LogLevel, doc.LogFormat)
 	}
 }

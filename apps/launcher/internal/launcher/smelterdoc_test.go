@@ -131,7 +131,7 @@ func TestSmelterDocumentIsResolved(t *testing.T) {
 	if got := shapeOf[semiont.OllamaEmbeddingConfig](t, doc.Embedding); got != wantEmbedding {
 		t.Errorf("embedding = %+v, want %+v", got, wantEmbedding)
 	}
-	wantVectors := semiont.QdrantVectorsConfig{Type: semiont.Qdrant, Host: "192.168.64.1", Port: 6333}
+	wantVectors := semiont.QdrantVectorsConfig{Type: semiont.QdrantVectorsConfigTypeQdrant, Host: "192.168.64.1", Port: 6333}
 	if got := shapeOf[semiont.QdrantVectorsConfig](t, doc.Vectors); got != wantVectors {
 		t.Errorf("vectors = %+v, want %+v", got, wantVectors)
 	}
@@ -144,7 +144,7 @@ func TestSmelterDocumentIsResolved(t *testing.T) {
 	if doc.Port != semiontDescriptor("smelter").ports[0].port {
 		t.Errorf("port = %d, want the descriptor's", doc.Port)
 	}
-	if doc.LogLevel != "debug" || doc.LogFormat != semiont.Json {
+	if doc.LogLevel != "debug" || doc.LogFormat != semiont.LogFormatJson {
 		t.Errorf("logLevel, logFormat = %q, %q, want the environment's level and JSON", doc.LogLevel, doc.LogFormat)
 	}
 }
@@ -197,7 +197,7 @@ func TestSmelterDocumentNamesVoyagesKeyAndNeverStatesIt(t *testing.T) {
 		t.Errorf("the document states Voyage's key:\n%s", b)
 	}
 	want := semiont.VoyageEmbeddingConfig{
-		Type:      semiont.Voyage,
+		Type:      semiont.VoyageEmbeddingConfigTypeVoyage,
 		Model:     "voyage-3",
 		Endpoint:  "https://api.voyageai.com/v1/embeddings",
 		ApiKeyEnv: "VOYAGE_API_KEY",

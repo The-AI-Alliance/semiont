@@ -45,7 +45,7 @@ if (missing.length > 0) {
   if (missing.length > 25) console.error(`    …and ${missing.length - 25} more`);
   console.error('');
   console.error('  The generator prunes schemas unreachable from an HTTP path unless');
-  console.error('  `skip-prune` is in its -generate list. Regenerate:');
+  console.error('  packages/sdk-go/oapi-codegen.yaml sets `skip-prune`. Regenerate:');
   console.error('');
   console.error('    cd packages/sdk-go && go generate ./...');
   console.error('');

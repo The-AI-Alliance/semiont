@@ -190,7 +190,7 @@ class StatedEmbedding(EmbeddingProvider):
         self.asked: Final[list[str]] = []
 
     @override
-    async def embed(self, text: str) -> list[float]:
+    async def embed_query(self, text: str) -> list[float]:
         self.asked.append(text)
         await asyncio.sleep(0)
         if self._stated is None:
@@ -200,8 +200,8 @@ class StatedEmbedding(EmbeddingProvider):
         return vector_of(self._stated["answers"], "what the embedding answers")
 
     @override
-    async def embed_batch(self, texts: Sequence[str]) -> list[list[float]]:
-        raise Unstated("the embedding of several texts")
+    async def embed_documents(self, texts: Sequence[str]) -> list[list[float]]:
+        raise Unstated("the embedding of documents")
 
     @override
     async def dimensions(self) -> int:
