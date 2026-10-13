@@ -57,6 +57,13 @@
  *    skipped job: a suite whose area build-rust does not list would never
  *    run on that area, and nothing would say so.
  *
+ * 8. Stack Smoke keeps the Rust images' layers between runs under a cache key
+ *    that hashes what their builder stage reads. Every path a Rust image's
+ *    Dockerfile copies into that stage, and the file itself, is under a
+ *    pattern of that key: a copied file the key does not hash would restore
+ *    a stage built from its old contents, and the image would be stale and
+ *    green.
+ *
  * WHAT THE REPOSITORY HOLDS is what git says it does (repository-files.mjs).
  */
 import { readFileSync } from 'node:fs';
@@ -69,6 +76,10 @@ const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 
 /** The workflow that runs in stages and ends in a gate. */
 const CI = '.github/workflows/ci.yml';
+/** The workflow that keeps the Rust images' layers between runs. */
+const SMOKE = '.github/workflows/stack-smoke.yml';
+/** The Dockerfiles whose builder stage those layers are; their COPY lines are read. */
+const RUST_IMAGES = ['apps/gateway/Dockerfile', 'apps/dispatcher/Dockerfile', 'apps/archivist/Dockerfile'];
 
 const GROUP = '${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}';
 const CANCEL = "${{ github.event_name == 'pull_request' }}";
@@ -126,6 +137,53 @@ for (const file of workflows) {
     stagesAndGate(workflow.jobs ?? {});
     changedAreas(workflow.jobs ?? {});
     oneRustBuild(workflow.jobs ?? {});
+  }
+  if (file === SMOKE) layerCacheKey(workflow.jobs ?? {});
+}
+
+/** A hashFiles pattern as a test of a repository path: `**` crosses directories, `*` does not. */
+function patternTest(pattern) {
+  const literal = (piece) => piece.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^/]*');
+  const source = pattern
+    .split('**/')
+    .map((part) => part.split('**').map(literal).join('.*'))
+    .join('(?:.*/)?');
+  return new RegExp(`^${source}$`);
+}
+
+/** Rule 8: every file a Rust image's builder stage copies is hashed into the layer cache's key. */
+function layerCacheKey(jobs) {
+  const steps = Object.values(jobs).flatMap((job) => job.steps ?? []);
+  const cache = steps.find((step) => typeof step.uses === 'string' && step.uses.startsWith('actions/cache@') && String(step.with?.key ?? '').includes('rust-image-layers'));
+  if (cache == null) {
+    failures.push(`${SMOKE}: no actions/cache step keys the Rust images' layers (rust-image-layers)`);
+    return;
+  }
+  const patterns = [...String(cache.with.key).matchAll(/'([^']+)'/g)].map((m) => patternTest(m[1]));
+  if (patterns.length === 0) {
+    failures.push(`${SMOKE}: the rust-image-layers key hashes no files`);
+    return;
+  }
+  const hashed = (path) => patterns.some((test) => test.test(path));
+  for (const dockerfile of RUST_IMAGES) {
+    if (!repository.includes(dockerfile)) {
+      failures.push(`${dockerfile} is not in the repository: rule 8 has lost what it reads`);
+      continue;
+    }
+    if (!hashed(dockerfile)) failures.push(`${SMOKE}: the rust-image-layers key does not hash ${dockerfile}`);
+    const builder = readFileSync(join(ROOT, dockerfile), 'utf8').split(/^FROM .* AS builder$/m)[1]?.split(/^FROM /m)[0] ?? '';
+    for (const line of builder.split('\n')) {
+      const copy = /^COPY\s+((?:--\S+\s+)*)(.+)$/.exec(line.trim());
+      if (copy == null || copy[1].includes('--from')) continue;
+      const sources = copy[2].trim().split(/\s+/).slice(0, -1);
+      for (const source of sources) {
+        const files = repository.filter((file) => file === source || file.startsWith(`${source}/`));
+        if (files.length === 0) failures.push(`${dockerfile} copies ${source}, which the repository does not hold`);
+        for (const file of files) {
+          if (!hashed(file)) failures.push(`${SMOKE}: the rust-image-layers key does not hash ${file}, which ${dockerfile} copies into the builder stage: a change to it would restore a stale stage`);
+        }
+      }
+    }
   }
 }
 
@@ -239,4 +297,4 @@ if (failures.length > 0) {
   for (const failure of failures) console.error(`   ${failure}`);
   process.exit(1);
 }
-console.log(`✅ lint:workflows — ${held} workflows run on pull requests, each cancelling the run before it, every job of each checking something; ci.yml runs in stages, maps each push to its areas, builds its Rust once, and ends in a gate`);
+console.log(`✅ lint:workflows — ${held} workflows run on pull requests, each cancelling the run before it, every job of each checking something; ci.yml runs in stages, maps each push to its areas, builds its Rust once, and ends in a gate; Stack Smoke's layer cache hashes every file the Rust images copy`);
