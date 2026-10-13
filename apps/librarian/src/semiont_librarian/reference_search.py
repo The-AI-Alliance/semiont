@@ -16,7 +16,8 @@ A vector index or a model that fails does not: it is logged, and the search
 is answered without it.
 
 Everything read is handed in: the graph, the views, the index, the provider
-that makes the term's vector, the model, and the clock recency is counted by.
+that makes the term's vector, the model, the people projection its reply is
+named by, and the clock recency is counted by.
 """
 
 import asyncio
@@ -45,8 +46,9 @@ from semiont_vectors.store import CollectionAbsent, SearchFilter, SearchOptions,
 from semiont_librarian.grace import resource_with_view_grace
 from semiont_librarian.limit import refuse_limit_below_least
 from semiont_librarian.log import LOG
+from semiont_librarian.naming import namer
 from semiont_librarian.prompts import score_prompt
-from semiont_librarian.reads import GraphReads, Views
+from semiont_librarian.reads import GraphReads, People, Views
 from semiont_librarian.replies import read_scores
 from semiont_librarian.score import Score, Source, score_of, with_model_score
 from semiont_librarian.views import GraphViews, derive_views
@@ -200,9 +202,13 @@ async def search(
     vectors: VectorReader,
     embedding: EmbeddingProvider,
     inference: InferenceClient,
+    people: People,
     now: Callable[[], datetime],
 ) -> MatchSearchResult:
     """The reply to a reference search: its candidates by score, the highest first, and no more of them than the request's limit.
+
+    The people projection is read once, after the search, and the reply's
+    people are named.
 
     Raises `FocusNotAnAnnotation`, before any source is asked, where the
     context's focus is not an annotation, and
@@ -328,4 +334,6 @@ async def search(
     )
 
     limited = ordered if request.limit is None else ordered[: request.limit]
-    return MatchSearchResult(reference_id=request.reference_id, response=[_candidate(resource, score) for resource, score in limited])
+    reply = MatchSearchResult(reference_id=request.reference_id, response=[_candidate(resource, score) for resource, score in limited])
+    name = await namer(people)
+    return MatchSearchResult.model_validate(name(written(reply)))

@@ -6,6 +6,7 @@ import pytest
 from aio import run
 from rig import FakeAnchoredText, FakeContent, FakeInference, FakeViews, described, reference, sent, tag, view
 from semiont.identifiers import AnnotationId, ResourceId
+from semiont.model import written
 from semiont.types import Annotation, ContextualSummaryResponse, ContextualSummaryResponseContext, GatherSummaryRequest, ResourceView
 from semiont_service.content import Content
 from spec import JsonObject
@@ -67,8 +68,7 @@ def test_a_summary_answers_the_model_s_words_the_resource_s_name_the_entity_type
         response = await world.summarized()
 
         assert response.summary == "He broke the treaty when he crossed the river."
-        assert response.relevant_fields["resourceName"] == "Black Hawk War"
-        assert response.relevant_fields["entityTypes"] == ["Treaty"]
+        assert written(response.relevant_fields) == {"resourceId": WAR, "resourceName": "Black Hawk War", "entityTypes": ["Treaty"]}
         # The 200 code points nearest the passage on each side: no book is cut in two.
         assert response.context == ContextualSummaryResponseContext(before=BOOK * 200, selected=PASSAGE, after=BOOK * 200)
         # The model is asked once, with the annotation-summary prompt.

@@ -231,11 +231,6 @@ eachLibrarian('a Librarian, asked to find', (world) => {
       expect(all.response.length).toBeGreaterThan(1);
       const limited = await world().answered('match:search-requested', { ...search, limit: 1 });
       expect(limited.response.map((one) => one['@id'])).toEqual([all.response[0]?.['@id']]);
-
-      // A limit that asks for no candidate is refused, and the failure says which member it is about.
-      const refused = await world().failed('match:search-requested', { ...search, limit: 0 });
-      expect(refused.referenceId).toBe(reference);
-      expect(refused.error).toMatch(/limit/);
     });
 
     it('fails a search whose context was gathered for a resource and not for a reference: the failure names the reference and is about the focus, and nothing is searched', async () => {
@@ -364,7 +359,7 @@ eachLibrarian('a Librarian, asked to find', (world) => {
       expect(await found({ archived: false })).toEqual([tagged, plain].sort());
     });
 
-    it('keeps a page from the index to the entity type the search says, answers a search for archived resources from the graph alone, and refuses a limit that asks for no resource', async () => {
+    it('keeps a page from the index to the entity type the search says, and answers a search for archived resources from the graph alone', async () => {
       // No name here has a word of either text, so a search by one of them matches nothing by name.
       const ofType = 'Butterwort holds its prey on a sticky leaf';
       const ofNone = 'Bladderwort floats free in the peat cutting';
@@ -393,9 +388,6 @@ eachLibrarian('a Librarian, asked to find', (world) => {
       expect(await found(ofNone, { archived: true })).toEqual({ matchKind: 'lexical', resources: [] });
       expect(world().embedder.since(asked)).toEqual([]);
       expect((await found(ofNone, { archived: false })).resources).toContain(plain);
-
-      const refused = await world().failed('match:resources-requested', { search: ofNone, limit: 0 });
-      expect(refused.message).toMatch(/limit/);
     });
 
     it(
@@ -498,6 +490,10 @@ eachLibrarian('a Librarian, asked to find', (world) => {
       expect(await world().answered('gather:referenced-by-requested', { resourceId: alone })).toEqual({ response: { referencedBy: [] } });
     });
 
+    it('fails for a resource nobody made: that is no resource nothing refers to', async () => {
+      const failure = await world().failed('gather:referenced-by-requested', { resourceId: 'made-by-no-one' });
+      expect(failure.message).toMatch(/not found/i);
+    });
   });
 
   describe('the people a page mentions', () => {
@@ -522,6 +518,14 @@ eachLibrarian('a Librarian, asked to find', (world) => {
       const semantic = (await world().answered('match:resources-requested', { search: text })).response;
       expect(semantic.matchKind).toBe('semantic');
       expect(candidate(semantic.resources, resource).wasAttributedTo).toEqual(named);
+
+      // A candidate of a reference is named too. The reference quotes the text, so the index finds the resource.
+      const source = await world().created(`Noted in June: ${text}.\n`, { name: 'Shore notes' });
+      const reference = await world().referenced(source, text);
+      await world().ready(source);
+      const context = await gathered(source, reference);
+      const found = await world().answered('match:search-requested', { resourceId: source, referenceId: reference, context, useSemanticScoring: false });
+      expect(candidate(found.response, resource).wasAttributedTo).toEqual(named);
     });
   });
 

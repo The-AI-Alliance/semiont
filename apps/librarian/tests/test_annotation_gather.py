@@ -180,8 +180,10 @@ def test_a_gather_answers_the_selection_the_graph_the_frequencies_the_relationsh
 def test_a_window_less_than_100_or_more_than_5000_fails_the_gather_and_nothing_is_read(window: int) -> None:
     async def scenario() -> None:
         world = a_world_of_the_myths()
+        # Stated as a caller that does not hold its request to the schema states it: the schema refuses such a window too.
+        asked = GatherAnnotationOptions.model_construct(context_window=window)
         with pytest.raises(WindowRefused, match=r"contextWindow must be between 100 and 5000"):
-            await world.gathered(GatherAnnotationOptions(context_window=window))
+            await world.gathered(asked)
         assert world.views.asked == []
         assert world.content.asked == []
         assert world.graph.asked == []

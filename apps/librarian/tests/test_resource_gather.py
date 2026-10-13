@@ -561,6 +561,23 @@ def test_a_resource_whose_media_type_has_no_text_is_not_waited_for_and_the_index
     run(scenario())
 
 
+def test_the_language_of_a_context_is_the_one_the_resource_s_representation_states() -> None:
+    async def scenario() -> None:
+        german: JsonObject = {"mediaType": "text/plain", "storageUri": f"file://{QUAY}", "checksum": CHECKSUM, "language": "de"}
+        quay = described(QUAY, name="Der Kai", representations=[german])
+        world = World(view(quay))
+        world.content.held[QUAY] = Content(TEXT.encode(), "text/plain")
+        world.weave_in(quay)
+
+        assert written(await world.gathered(options()))["metadata"] == {"resourceType": "document", "language": "de"}
+
+        # A resource that states none has none stated of it.
+        plain = a_world_of_the_quay()
+        assert written(await plain.gathered(options()))["metadata"] == {"resourceType": "document"}
+
+    run(scenario())
+
+
 def test_a_summary_asked_for_without_content_is_made_of_the_text_and_the_focus_states_no_content() -> None:
     async def scenario() -> None:
         world = a_world_of_the_quay()

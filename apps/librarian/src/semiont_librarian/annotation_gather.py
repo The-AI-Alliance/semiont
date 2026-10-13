@@ -68,11 +68,11 @@ class Ungathered(Exception):
 def language_of(resource: ResourceDescriptor) -> str | None:
     """The language a resource's description states, which is a gathered context's `metadata.language`. Nothing where it states none.
 
-    A description's schema has no such member, so one that states it carries
-    it beside the members the schema has.
+    A description states it of its primary representation, where the
+    Archivist puts the language a resource was recorded with.
     """
-    said: object = (resource.model_extra or {}).get("language")
-    return said if isinstance(said, str) else None
+    representation = primary_representation(resource)
+    return None if representation is None else representation.language or None
 
 
 async def similar_of(found: Sequence[VectorSearchResult], views: Views) -> list[SemanticMatch]:

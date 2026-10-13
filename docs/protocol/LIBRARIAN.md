@@ -232,9 +232,11 @@ rule; this section says it in prose.
 - **When the request states a `limit`, the answer is at most that many of
   the first candidates.**
   *Held by `apps/librarian/tests/test_score_cases.py` and `librarian/search`.*
-- **A `limit` less than 1 is answered on the failure channel, in the words
-  `limit must be at least 1`, and no source is asked.**
-  *Held by `apps/librarian/tests/test_score_cases.py`, for a limit of 0, by `apps/librarian/tests/test_reference_search.py`, for one below 0, and by `librarian/search`.*
+- **A `limit` is 1 to 200.** The schema of the request states the bounds, so
+  a gateway refuses a request outside them before a Librarian is asked. A
+  Librarian asked by another way fails a `limit` less than 1, in the words
+  `limit must be at least 1`, and asks no source.
+  *Held by `apps/librarian/tests/test_reference_search.py`, and by `gateway/emit.test.ts`, for the bounds of a text search's.*
 
 ### The score
 
@@ -319,15 +321,22 @@ search as what each store answers and the page that follows, and is the rule.
   finds nothing, and no store is asked:** the page has no resources, a total
   of 0, and is `lexical`.
   *Held by `apps/librarian/tests/test_search_cases.py` and `librarian/search`.*
-- **A `limit` less than 1 is answered on the failure channel, in the words
-  `limit must be at least 1`, and no store is asked.**
-  *Held by `apps/librarian/tests/test_search_cases.py` and `librarian/search`.*
+- **A `limit` is 1 to 200, and an `offset` is 0 or more.** The schema of the
+  request states the bounds, so a gateway refuses a request outside them
+  before a Librarian is asked. A Librarian asked by another way fails a
+  `limit` less than 1, in the words `limit must be at least 1`, and asks no
+  store. *Held by `apps/librarian/tests/test_search_cases.py` and `gateway/emit.test.ts`.*
 - **Otherwise the graph's listing is asked,** with the text, with `archived`
   and the entity type where they are given, with the offset, which is 0 where
   none is given, and with the limit, which is 50 where none is given. The
   graph applies every filter before it cuts the page, and answers the page
-  and the total of all that match.
-  *Held by `apps/librarian/tests/test_search_cases.py` and `librarian/search`.*
+  and the total of all that match. A resource matches when every word of the
+  text is in its name, in where its bytes are stored or in one of its entity
+  types, whatever the case of letters. The matches are ordered by how the
+  name answers the text: a name that is the text, then one that begins with
+  it, then one that has every word of it, then the rest; within each, the
+  newest first, and by id where two were made at one moment.
+  *Held by `apps/librarian/tests/test_search_cases.py` and `librarian/search`, and by `packages/graph-python/tests/contract.py`, for what matches and the order.*
 - **A graph that fails fails the search,** on the failure channel.
   *Held by `apps/librarian/tests/test_search_cases.py`.*
 - **Where the graph's total is more than 0, or the offset is more than 0,
@@ -530,8 +539,9 @@ stated, and `contextWindow`, 1,000 where it is not stated. The answer is a
 order of the rules below.
 
 - **A `contextWindow` less than 100 or more than 5,000 fails the gather,**
-  and nothing is read.
-  *Held by `apps/librarian/tests/test_window_cases.py` and `apps/librarian/tests/test_annotation_gather.py`, and by `librarian/gather`, for a window of 99 and one of 5,001, and no model asked.*
+  and nothing is read. The schema of the request states the same bounds, so
+  a gateway refuses such a request before a Librarian is asked.
+  *Held by `apps/librarian/tests/test_window_cases.py` and `apps/librarian/tests/test_annotation_gather.py`, by `gateway/emit.test.ts`, and by `librarian/gather`, for a window of 99 and one of 5,001, and no model asked.*
 - **The resource's view is read, and the annotation is found in it by its
   id.** A resource with no view, an annotation the view does not hold, and an
   annotation whose target names another resource each fail the gather.
@@ -598,9 +608,10 @@ order of the rules below.
 ## Gathering around a resource
 
 `gather:resource-requested` names a resource and states `depth`,
-`maxResources`, `includeContent` and `includeSummary`, and may state
-`excludeEntityTypes`. The answer is a `GatheredContext` whose focus is the
-resource. The reads are made in the order of the rules below.
+`maxResources`, which is 1 to 200 by the request's schema, `includeContent`
+and `includeSummary`, and may state `excludeEntityTypes`. The answer is a
+`GatheredContext` whose focus is the resource. The reads are made in the
+order of the rules below.
 
 - **A `depth` less than 1 or more than 3 fails the gather,** and nothing is
   read. The schema of the request states the same bounds, so a gateway
@@ -660,8 +671,10 @@ resource. The reads are made in the order of the rules below.
   index with no such collection fails the gather.
   *Held by `apps/librarian/tests/test_resource_gather.py`.*
 - **`metadata` states the resource's language and `resourceType`
-  `document`,** and no entity types.
-  *Held by `apps/librarian/tests/test_resource_gather.py`, for a resource that states no language.*
+  `document`,** and no entity types. The language is the one the resource's
+  primary representation states, and `metadata` states none where that
+  states none.
+  *Held by `apps/librarian/tests/test_resource_gather.py`.*
 
 ## An annotation's summary
 
@@ -680,8 +693,8 @@ resource. The reads are made in the order of the rules below.
 - **The Gatherer's model is asked for the summary** (the annotation-summary
   prompt). A model that fails fails the request.
   *Held by `apps/librarian/tests/test_summary.py`, and by `librarian/gather`, for the one prompt and the model it is sent to.*
-- **The answer is the `summary`; `relevantFields`, with the resource's name
-  and the annotation's entity types; and `context`:** the last 200 code
+- **The answer is the `summary`; `relevantFields`, with the resource's id,
+  its name and the annotation's entity types; and `context`:** the last 200 code
   points of the text before the selection, the selection, and the first 200
   of the text after it.
   *Held by `apps/librarian/tests/test_summary.py` and `librarian/gather`.*
@@ -689,26 +702,28 @@ resource. The reads are made in the order of the rules below.
 ## What refers to a resource
 
 `gather:referenced-by-requested` names a resource, and may name a
-`motivation`.
+`motivation`, which is one an annotation can have: the schema of the request
+states which those are, and a gateway refuses any other word, the empty text
+among them.
 
+- **The resource's view is read first, and a resource with no view fails
+  the request.** A resource nobody made is no resource nothing refers to.
+  *Held by `apps/librarian/tests/test_referenced_by.py` and `librarian/search`.*
 - **The graph database is asked for the annotations that refer to the
   resource,** of that motivation where one is named, and all of them where
-  none is named or the one named is empty. A graph that fails fails the
-  request.
-  *Held by `apps/librarian/tests/test_referenced_by.py`, and by `librarian/search`, for the annotations and the motivation.*
-- **A `motivation` that is none an annotation can have is answered with no
-  entry, and the graph database is not asked.**
-  *Held by `apps/librarian/tests/test_referenced_by.py`.*
+  none is named. A graph that fails fails the request.
+  *Held by `apps/librarian/tests/test_referenced_by.py`, and by `librarian/search`, for the annotations and the motivation, and `gateway/emit.test.ts`, for a word that is no motivation.*
 - **Each resource those annotations are on is read once, from the graph, and
   from the views where the graph has none or its read fails.** A resource
-  whose view cannot be read is one nobody holds: its entry is answered, and
-  names it `Untitled Resource`.
+  whose view cannot be read is one nobody holds.
   *Held by `apps/librarian/tests/test_referenced_by.py` and `apps/librarian/tests/test_grace.py`.*
 - **The answer has one entry for each annotation, in the graph's order:** its
   `id`; `resourceName`, the name of the resource it is on; and `target`, with
   that resource as `source` and, as `selector.exact`, the words its quote
-  selector states, or the empty string where it has none. Its people are
-  named ([Names](#names)).
+  selector states, or the empty string where it has none. An entry states no
+  `resourceName` where nobody holds a description of its resource, and where
+  the name is empty: no name is made up for it. Its people are named
+  ([Names](#names)).
   *Held by `apps/librarian/tests/test_referenced_by.py`, and by `librarian/search`, for an entry.*
 
 ## Limits
@@ -729,14 +744,14 @@ No stored thing carries a person's name. The Archivist keeps what the
 knowledge base calls each person in the people projection, on the state
 volume.
 
-- **The replies to a text search and to what refers to a resource have their
-  people named:** every object whose `@type` is `Person`, wherever in the
+- **The replies to a reference search, to a text search and to what refers
+  to a resource have their people named:** every object whose `@type` is `Person`, wherever in the
   reply it is, and whose `@id` the projection holds, has its `name` set to
   the name stated there, in place of any it carried. A person whose `@id`
   the projection does not hold is left as it is, whatever text the `@id` is.
   Nothing else of the reply changes, as
   [`naming-cases.json`](../../specs/src/librarian/naming-cases.json) states.
-  *Held by `apps/librarian/tests/test_naming_cases.py`, and by `librarian/search`, for a text search's lexical page and its semantic one.*
+  *Held by `apps/librarian/tests/test_naming_cases.py` and `apps/librarian/tests/test_reference_search.py`, and by `librarian/search`, for a text search's lexical page, its semantic one, and a candidate of a reference.*
 - **The projection is read once for each reply.** A knowledge base with no
   projection names no one.
   *Held by `apps/librarian/tests/test_naming_cases.py` and `apps/librarian/tests/test_record.py`.*
@@ -813,9 +828,9 @@ This one states them together.
 | | the vector index, and the Smelter's decision when it does not come in time | no `semanticContext`; counted `vectors` |
 | | a similar passage's view | that match is left out; logged |
 | an annotation's summary | a view, the text, the model | the request fails |
-| what refers to a resource | the graph's list | the request fails |
+| what refers to a resource | the resource's view, the graph's list | the request fails |
 | | a citing resource's description: the graph | read from its view; logged |
-| | a citing resource's description: its view | named `Untitled Resource`; logged |
+| | a citing resource's description: its view | its entry states no name; logged |
 | | the people projection | no one is named; logged |
 | limits | the provider | left out of the list |
 
@@ -1005,18 +1020,11 @@ Each of these is what today's Librarian does, and is wrong. Another
 implementation does not copy them. Each names the module of
 `apps/librarian/src/semiont_librarian` it is in.
 
-- **The reply to a reference search has no one named** ([Names](#names)),
-  where the replies to a text search and to what refers to a resource do
-  (`librarian.py`).
 - **A quote selector is found at the first place the text has its words,**
   whatever its prefix and its suffix say (`window.py`).
 - **A gather around an annotation reads the first selector of a list, and no
   other.** An annotation's summary finds a position selector anywhere in the
   list (`window.py`).
-- **The bound on `contextWindow`, 100 to 5,000, is in no schema.** A request
-  outside it is valid on the bus and fails in the Librarian (`window.py`).
-- **An annotation's summary states no `resourceId` in `relevantFields`**
-  (`summary.py`).
 - **A resource the Smelter skipped, of a media type that has text, is
   waited for once the Librarian no longer keeps the Smelter's decision of
   it:** a PDF the Smelter declined to derive the text of, or a text of
@@ -1034,12 +1042,6 @@ implementation does not copy them. Each names the module of
 - **A reply to the suggestions prompt that is white space alone gives an
   empty list of suggestions, and an empty reply gives none at all**
   (`replies.py`).
-- **A citing resource with no description, or with an empty name, is named
-  `Untitled Resource`** in the answer to what refers to a resource
-  (`referenced_by.py`).
-- **A request for what refers to a resource no one made is answered with an
-  empty list,** as one is for a resource nothing refers to
-  (`referenced_by.py`).
 - **Reference searches are handled one at a time for the whole knowledge
   base,** so one slow model holds every other search (`librarian.py`).
 - **Nothing bounds how many text searches, summaries and requests for what
@@ -1049,9 +1051,6 @@ implementation does not copy them. Each names the module of
 
 ## Not specified here
 
-- **What the graph's listing matches.** Which resources a text finds by
-  name, and in what order, is the graph database's query and not stated
-  here; [flows/MATCH.md](./flows/MATCH.md) says it for a client.
 - **What a store answers when it lags.** A listing, a count of entity types
   and a list of what refers to a resource are each answered as the store
   holds them then. Only a gather waits, and only for the two things

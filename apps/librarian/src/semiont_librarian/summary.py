@@ -14,9 +14,13 @@ carries. A model that fails raises what it failed with.
 
 from typing import Final
 
-from pydantic import JsonValue
 from semiont.annotations import entity_types, target_source
-from semiont.types import ContextualSummaryResponse, ContextualSummaryResponseContext, GatherSummaryRequest
+from semiont.types import (
+    ContextualSummaryResponse,
+    ContextualSummaryResponseContext,
+    ContextualSummaryResponseRelevantFields,
+    GatherSummaryRequest,
+)
 from semiont_inference.interface import InferenceClient
 from semiont_service.content import ContentReads
 
@@ -42,8 +46,8 @@ async def summarize(
     with no position selector, a read of bytes that fails and a model that
     fails each raise what they failed with.
 
-    `relevantFields` states the resource's name and the annotation's entity
-    types.
+    `relevantFields` states the resource's id and its name, and the
+    annotation's entity types.
     """
     view = await views.get(request.resource_id)
     if view is None:
@@ -68,10 +72,9 @@ async def summarize(
     )
     summary = await ask(inference, asking)
 
-    named: list[JsonValue] = [*types]
     return ContextualSummaryResponse(
         summary=summary,
-        relevant_fields={"resourceName": resource.name, "entityTypes": named},
+        relevant_fields=ContextualSummaryResponseRelevantFields(resource_id=resource.id, resource_name=resource.name, entity_types=types),
         context=ContextualSummaryResponseContext(
             before=before_passage(around.before), selected=around.selected, after=after_passage(around.after)
         ),

@@ -15,7 +15,7 @@ A live query is asked for once and then kept current: when something it shows ch
 | `browse.events` | live query | `browse:events-requested` | A resource's event history, each event with who did it |
 | `browse.entityTypes` | live query | `browse:entity-types-requested` | The entity-type vocabulary |
 | `browse.tagSchemas` | live query | `browse:tag-schemas-requested` | The registered tag schemas |
-| `browse.agents` | live query | `browse:agents-requested` | The people and software agents the knowledge base knows |
+| `browse.agents` | live query | `browse:agents-requested` | The people and software agents the knowledge base knows. It also asks each service that runs a model for that model's limits, which for the librarian is `match:limits-requested` and `gather:limits-requested` ([Limits](../LIBRARIAN.md#limits)) |
 | `browse.resourceEvents` | one-shot | `browse:events-requested` | A resource's event history, each event with who did it |
 | `browse.annotationHistory` | one-shot | `browse:annotation-history-requested` | The event history of one annotation the resource holds: its creation and the changes to its body, each with who did it |
 | `browse.files` | one-shot | `browse:directory-requested` | A listing of a directory in the working tree |

@@ -752,7 +752,7 @@ async fn a_search_asks_for_its_text_among_the_resources_its_filters_admit() {
     // The answer whole: the page, and which kind of answer it is.
     assert_eq!(
         serde_json::to_value(&found).expect("it serializes"),
-        json!({ "resources": [], "total": 1.0, "offset": 0.0, "limit": 100.0, "matchKind": "semantic" })
+        json!({ "resources": [], "total": 1, "offset": 0, "limit": 100, "matchKind": "semantic" })
     );
     let _ = client
         .match_
