@@ -27,6 +27,7 @@ from spec import JsonObject, objects
 
 from semiont_librarian.limit import LimitRefused
 from semiont_librarian.reference_search import search
+from semiont_librarian.replies import SCORE_ELEMENT
 from semiont_librarian.score import rounded, score_of
 from semiont_librarian.views import GraphViews
 
@@ -211,6 +212,17 @@ def test_the_people_of_a_reply_are_named_as_the_projection_holds_them_and_it_is_
     (candidate,) = objects(written(reply)["response"], "response")
     assert candidate["wasAttributedTo"] == [{**ADA, "name": "Ada Lovelace"}]
     assert world.people.reads == 1
+
+
+def test_the_scores_are_asked_for_as_elements_and_a_reply_that_is_no_array_leaves_every_score_as_it_was() -> None:
+    world = World()
+    world.graph.resources[ROCK] = described(ROCK, dateCreated=MADE)
+    world.inference.say("1. 0.9")
+
+    reply = run(world.search(request(neighbours=(ROCK,), scored_by_a_model=True)))
+
+    assert answered(reply) == [(ROCK, 10.0, "connected")]
+    assert world.inference.schemas == [SCORE_ELEMENT]
 
 
 def body_line(prompt: str) -> list[str]:

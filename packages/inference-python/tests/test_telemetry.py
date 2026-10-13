@@ -187,8 +187,16 @@ def test_what_the_drivers_record_is_what_the_table_lists(arrived: dict[str, Metr
             assert set(point.attributes or {}) == keys, f"{name} carries {set(point.attributes or {})}; the table lists {keys}"
         for attribute in attributes:
             if "values" in attribute:
-                seen = {str((point.attributes or {})[text(attribute["key"], "a key")]) for point in points}
-                assert seen == set(strings(attribute["values"], "the values")), f"{name}: {attribute['key']} was {seen}"
+                key = text(attribute["key"], "a key")
+                seen = {str((point.attributes or {})[key]) for point in points}
+                values = set(strings(attribute["values"], "the values"))
+                if key == "inference.provider":
+                    # The table lists every provider the protocol names, and this traffic is two of them: each is
+                    # one the table lists. That the list is the protocol's is held where a worker's telemetry is.
+                    assert seen == {"anthropic", "ollama"}, f"{name}: {key} was {seen}"
+                    assert seen <= values, f"{name}: {key} was {seen}, and the table lists {values}"
+                else:
+                    assert seen == values, f"{name}: {key} was {seen}"
 
 
 def test_a_generation_is_counted_once_by_how_it_ended_and_its_tokens_are_the_providers(arrived: dict[str, Metric]) -> None:

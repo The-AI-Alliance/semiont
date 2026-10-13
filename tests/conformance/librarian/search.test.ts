@@ -182,7 +182,7 @@ eachLibrarian('a Librarian, asked to find', (world) => {
       // The model scores the one candidate this case made, by the number the prompt gives it.
       world().matcher.choose = (body) => {
         const number = numbered(String(body['prompt']), target);
-        return number === undefined ? undefined : { response: `${number}. 0.9` };
+        return number === undefined ? undefined : { response: JSON.stringify([{ candidate: Number(number), score: 0.9 }]) };
       };
       const found = await world().answered('match:search-requested', { resourceId: source, referenceId: reference, context });
 
@@ -192,6 +192,8 @@ eachLibrarian('a Librarian, asked to find', (world) => {
       expect(sent[0]).toContain('Spoonbill');
       expect(sent[0]).toContain(target);
       expect(world().matcher.generations[0]?.body['model']).toBe(MATCHER_MODEL);
+      // The scores are asked for as elements its provider holds to a schema, and not as lines of text.
+      expect(world().matcher.generations[0]?.body).toHaveProperty('format');
       const scored = candidate(found.response, target);
       expect(scored.matchReason).toContain('semantic match');
 

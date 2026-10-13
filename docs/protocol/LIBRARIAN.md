@@ -305,16 +305,24 @@ A candidate's score is the sum of these terms, added in this order.
   `semantic match` to the reason, and is the whole reason of a candidate
   whose reason was `candidate`.
   *Held by `apps/librarian/tests/test_score_cases.py`, and by `librarian/search`, for a higher score and the reason.*
-- **A reply is read a line at a time, as
-  [`reply-cases.json`](../../specs/src/librarian/reply-cases.json) states:**
-  a line gives a score when it starts with a candidate's number, a full stop
-  and a score from 0 to 1. Every other line gives nothing, and is no error:
-  a score that is no number, such as `0.8.5` or `0.8.`, among them. Where two
-  lines score one candidate, the later is read.
+- **The scores are asked for as elements:** an array whose every element
+  the model's provider holds to a schema, a candidate's number as
+  `candidate` and its score as `score`
+  ([`prompt-cases.json`](../../specs/src/librarian/prompt-cases.json) states
+  the schema). No text of a reply is read.
+  *Held by `apps/librarian/tests/test_prompt_cases.py` and `apps/librarian/tests/test_reference_search.py`, and by `librarian/search`, for a request that states a schema.*
+- **An element gives a score, as
+  [`reply-cases.json`](../../specs/src/librarian/reply-cases.json) states,**
+  when its `candidate` is the whole number of a candidate that was shown and
+  its `score` is a number from 0 to 1. Every other element gives nothing,
+  and is no error: a provider holds a reply to a shape, and not to these.
+  Where two elements score one candidate, the later is read.
   *Held by `apps/librarian/tests/test_reply_cases.py`.*
-- **A model that fails, or whose reply states no score, leaves the scores as
-  they were,** and the search is answered.
-  *Held by `apps/librarian/tests/test_score_cases.py`, and by `librarian/search`, for a model that fails.*
+- **A model that fails, or whose reply gives no score, leaves the scores as
+  they were,** and the search is answered. A reply that is no array, one cut
+  off at the token limit, and a model whose provider cannot hold a reply to
+  a schema are each a model that fails.
+  *Held by `apps/librarian/tests/test_score_cases.py`, `apps/librarian/tests/test_reference_search.py` and `apps/librarian/tests/test_reply_cases.py`, and by `librarian/search`, for a model that fails.*
 
 ## Text search
 
@@ -659,11 +667,15 @@ order of the rules below.
   entity type). They are the focus's `summary` and `suggestedReferences`.
   Where `includeSummary` is false the model is asked nothing.
   *Held by `apps/librarian/tests/test_resource_gather.py` and `librarian/gather`.*
-- **A reply to the suggestions prompt is read as
+- **The suggestions are asked for as elements, and read as
   [`reply-cases.json`](../../specs/src/librarian/reply-cases.json) states:**
-  the first three lines that are not empty, each without the bullet that
-  starts it. An empty reply gives no suggestions.
-  *Held by `apps/librarian/tests/test_reply_cases.py`, and by `librarian/gather`, for a reply of two lines with no bullet.*
+  an array whose every element the provider holds to a schema, one
+  suggestion as `suggestion`. The first three that have anything in them
+  are read, each without the white space at its two ends. A reply that gives
+  none leaves the focus with no `suggestedReferences`, and with its summary:
+  an empty list is never answered. A reply that is no array, or is cut off
+  at the token limit, is a model that fails.
+  *Held by `apps/librarian/tests/test_reply_cases.py` and `apps/librarian/tests/test_resource_gather.py`, and by `librarian/gather`, for a reply of two suggestions.*
 - **A model that fails at either leaves the context with neither, and the
   gather is answered.** It is logged as a warning and counted
   (`semiont.gather.degraded`, `projection` `suggestions`).
@@ -857,7 +869,10 @@ In every row, a vector index with no such collection fails the request.
 
 A Librarian sends a model five prompts.
 [`prompt-cases.json`](../../specs/src/librarian/prompt-cases.json) states what
-each is made from and its text to the last character, and is the rule.
+each is made from and its text to the last character, and is the rule. Two
+of them, `score` and `reference-suggestions`, are asked for elements, an
+array a provider holds to a schema the table states; the other three are
+asked for text.
 
 - **Each prompt's text is the table's,** made from what the table says it is
   made from. *Held by `apps/librarian/tests/test_prompt_cases.py`.*
@@ -865,7 +880,7 @@ each is made from and its text to the last character, and is the rule.
 
   | Prompt | Asked by | Token limit | Temperature |
   |---|---|---|---|
-  | `score` | the Matcher's model, in a reference search | 200 | 0.1 |
+  | `score` | the Matcher's model, in a reference search | 400 | 0.1 |
   | `relationship` | the Gatherer's model, in a gather around an annotation | 150 | 0.3 |
   | `resource-summary` | the Gatherer's model, in either gather | 150 | 0.5 |
   | `reference-suggestions` | the Gatherer's model, in a gather around a resource | 200 | 0.8 |
@@ -1048,12 +1063,11 @@ implementation does not copy them. Each names the module of
   is logged** (`resource_text.py`).
 - **A search that went without a source is logged and not counted.** Only a
   gather has a counter (`reference_search.py`, `text_search.py`).
-- **A suggestion's bullet is dropped before the white space that starts its
-  line is,** so a bullet after white space is kept; and a line that starts
-  with two asterisks loses one (`replies.py`).
-- **A reply to the suggestions prompt that is white space alone gives an
-  empty list of suggestions, and an empty reply gives none at all**
-  (`replies.py`).
+- **A model whose provider cannot hold a reply to a schema is found at the
+  first search or gather, and not at start.** Every reference search is then
+  answered without its scores, and every gather that asks for a summary
+  without it, each with a warning (`reference_search.py`,
+  `resource_gather.py`).
 - **Reference searches are handled one at a time for the whole knowledge
   base,** so one slow model holds every other search (`librarian.py`).
 - **Nothing bounds how many text searches, summaries and requests for what

@@ -49,7 +49,7 @@ from semiont_librarian.log import LOG
 from semiont_librarian.naming import namer
 from semiont_librarian.prompts import score_prompt
 from semiont_librarian.reads import GraphReads, People, Views
-from semiont_librarian.replies import read_scores
+from semiont_librarian.replies import SCORE_ELEMENT, ask_for_elements, read_scores
 from semiont_librarian.score import Score, Source, score_of, with_model_score
 from semiont_librarian.views import GraphViews, derive_views
 
@@ -183,8 +183,7 @@ async def _model_scores(
         relationship=context.inferred_relationship_summary,
         candidates=shown,
     )
-    reply = await inference.generate_text(prompt.text, prompt.max_tokens, prompt.temperature)
-    scores = read_scores(reply.text, len(shown))
+    scores = read_scores(await ask_for_elements(inference, prompt, SCORE_ELEMENT), len(shown))
     LOG.debug("Inference semantic scores", extra={"candidateCount": len(shown), "scoredCount": len(scores)})
     return scores
 

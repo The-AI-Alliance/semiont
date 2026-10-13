@@ -1,5 +1,19 @@
 {
-  "$comment": "The five prompts the Librarian sends a model, as every implementation of the Librarian must write them: what each is made from, and its text to the last character. Semiont's Librarian (apps/librarian) runs every case and fails on a difference; a Librarian in another language runs the same file. WHAT A CASE STATES. `prompt` says which of the five it is. `from` is what it is made from. `text` is the prompt. `maxTokens` is the token limit it is sent with, and `temperature` the temperature. A TEXT IN PIECES. A text, in `from` or as `text`, is a string. Where it is long enough to be hard to count it is a list of pieces instead: each piece is a string or `{ \"repeat\": s, \"times\": n }`, which is s written n times, and the text is the pieces one after another. THE TEXT IS EXACT. Lines are parted by a line feed, and a prompt ends with no line feed. A line that is optional and absent leaves nothing behind, with one exception, in `resource-summary`. One prompt can end in a space, `annotation-summary`. A case shows each. A list of names or of entity types is written with a comma and a space between its items. `score` asks how well each candidate answers a reference. Of `from`: `selected` is the text the annotation selects and `hint` is what its author typed to say what is meant; a case states one or both. The passage is the two with a space, an em dash (U+2014) and a space between them, and the search term is the two with one space between them; where there is one of them, it is both. `motivation` is the annotation's, and `source` the name of the resource it is on. `body` is the text of the annotation's body, where it has one: it is a line only for an annotation that comments (`Comment`) or assesses (`Assessment`). `entityTypes` are the annotation's. `connected` are the names of the resources its resource is connected to, in the order the gathered graph has them: the first five are named. `relationship` is the relationship sentence gathered for it. `candidates` are the candidates, each with its id, its name and its entity types; one with no entity types is listed with `none`. Twenty candidates at most are listed. Which candidates are listed, and in what order, where one is a better match than another before the model is asked, is not this table's: every case's candidates are in an order no such rule changes. `relationship` asks for the sentence that says how a passage relates to what is around it. Of `from`: `passage` is the text the annotation selects. `connected` are the names of the resources its resource is connected to: the first ten are named. `citedBy` are the names of the resources that cite its resource, each once: the first five are named. `siblingEntityTypes` are the entity types of the other annotations on its resource, each once: the first ten are named. `entityTypes` are the annotation's own, and all are named. `resource-summary` asks for a summary of a resource. Of `from`: `name` is the resource's name, `content` its text, `entityTypes` its entity types. With no entity types their line is empty and is still there, so two empty lines follow the first line. A content longer than 2,000 is cut to its first 2,000, and three full stops follow it. `reference-suggestions` asks what to look at next for a reference. Of `from`: `title` is its title, `entityType` one entity type, `stub` a short text already written for it. An `entityType` or a `stub` that is the empty string is absent. A stub longer than 500 is cut to its first 500, and nothing follows it. `annotation-summary` asks for a summary of a passage where it stands. Of `from`: `resource` is the name of the resource, and `before`, `selected` and `after` are its text before the passage, the passage, and its text after. The prompt has the last 200 of what is before and the first 200 of what is after. `entityTypes` are the annotation's: with none, the last line ends with the space after its colon. WHAT A CUT COUNTS is not held here: every text near a cut is of characters of the basic plane, where every count is the same. Add a case here before changing an implementation.",
+  "$comment": "The five prompts the Librarian sends a model, as every implementation of the Librarian must write them: what each is made from, and its text to the last character. Semiont's Librarian (apps/librarian) runs every case and fails on a difference; a Librarian in another language runs the same file. WHAT A CASE STATES. `prompt` says which of the five it is. `from` is what it is made from. `text` is the prompt. `maxTokens` is the token limit it is sent with, and `temperature` the temperature. TWO OF THE FIVE ARE ASKED FOR ELEMENTS, `score` and `reference-suggestions`: each is sent as a request for an array whose every element the provider holds to a JSON Schema, and `elements` states that schema for each, by the prompt's name. What is read from the elements is specs/src/librarian/reply-cases.json's. The other three are asked for text. A TEXT IN PIECES. A text, in `from` or as `text`, is a string. Where it is long enough to be hard to count it is a list of pieces instead: each piece is a string or `{ \"repeat\": s, \"times\": n }`, which is s written n times, and the text is the pieces one after another. THE TEXT IS EXACT. Lines are parted by a line feed, and a prompt ends with no line feed. A line that is optional and absent leaves nothing behind, with one exception, in `resource-summary`. One prompt can end in a space, `annotation-summary`. A case shows each. A list of names or of entity types is written with a comma and a space between its items. `score` asks how well each candidate answers a reference. Of `from`: `selected` is the text the annotation selects and `hint` is what its author typed to say what is meant; a case states one or both. The passage is the two with a space, an em dash (U+2014) and a space between them, and the search term is the two with one space between them; where there is one of them, it is both. `motivation` is the annotation's, and `source` the name of the resource it is on. `body` is the text of the annotation's body, where it has one: it is a line only for an annotation that comments (`Comment`) or assesses (`Assessment`). `entityTypes` are the annotation's. `connected` are the names of the resources its resource is connected to, in the order the gathered graph has them: the first five are named. `relationship` is the relationship sentence gathered for it. `candidates` are the candidates, each with its id, its name and its entity types; one with no entity types is listed with `none`. Twenty candidates at most are listed. Which candidates are listed, and in what order, where one is a better match than another before the model is asked, is not this table's: every case's candidates are in an order no such rule changes. `relationship` asks for the sentence that says how a passage relates to what is around it. Of `from`: `passage` is the text the annotation selects. `connected` are the names of the resources its resource is connected to: the first ten are named. `citedBy` are the names of the resources that cite its resource, each once: the first five are named. `siblingEntityTypes` are the entity types of the other annotations on its resource, each once: the first ten are named. `entityTypes` are the annotation's own, and all are named. `resource-summary` asks for a summary of a resource. Of `from`: `name` is the resource's name, `content` its text, `entityTypes` its entity types. With no entity types their line is empty and is still there, so two empty lines follow the first line. A content longer than 2,000 is cut to its first 2,000, and three full stops follow it. `reference-suggestions` asks what to look at next for a reference. Of `from`: `title` is its title, `entityType` one entity type, `stub` a short text already written for it. An `entityType` or a `stub` that is the empty string is absent. A stub longer than 500 is cut to its first 500, and nothing follows it. `annotation-summary` asks for a summary of a passage where it stands. Of `from`: `resource` is the name of the resource, and `before`, `selected` and `after` are its text before the passage, the passage, and its text after. The prompt has the last 200 of what is before and the first 200 of what is after. `entityTypes` are the annotation's: with none, the last line ends with the space after its colon. WHAT A CUT COUNTS is not held here: every text near a cut is of characters of the basic plane, where every count is the same. Add a case here before changing an implementation.",
+  "elements": {
+    "score": {
+      "type": "object",
+      "properties": { "candidate": { "type": "number" }, "score": { "type": "number" } },
+      "required": ["candidate", "score"],
+      "additionalProperties": false
+    },
+    "reference-suggestions": {
+      "type": "object",
+      "properties": { "suggestion": { "type": "string" } },
+      "required": ["suggestion"],
+      "additionalProperties": false
+    }
+  },
   "cases": [
     {
       "why": "the least a score prompt holds: the passage, the search term, the annotation's motivation, the name of its resource, and the candidates; a candidate with no entity types is listed with `none`",
@@ -14,8 +28,8 @@
           { "id": "res-theogony", "name": "Theogony", "entityTypes": [] }
         ]
       },
-      "text": "Given this passage and context, score each candidate resource's semantic relevance on a scale of 0.0 to 1.0.\n\nPassage: \"Zeus\"\nSearch term: \"Zeus\"\nAnnotation motivation: linking\nSource resource: Greek Myths\n\nCandidates:\n1. \"Theogony\" (id: res-theogony, types: none)\n\nFor each candidate, output a line with the number and score, like:\n1. 0.8\n2. 0.3",
-      "maxTokens": 200,
+      "text": "Given this passage and context, score each candidate resource's semantic relevance on a scale of 0.0 to 1.0.\n\nPassage: \"Zeus\"\nSearch term: \"Zeus\"\nAnnotation motivation: linking\nSource resource: Greek Myths\n\nCandidates:\n1. \"Theogony\" (id: res-theogony, types: none)\n\nAnswer with one element for each candidate: its number as `candidate` and its score as `score`.",
+      "maxTokens": 400,
       "temperature": 0.1
     },
     {
@@ -33,8 +47,8 @@
           { "id": "res-theogony", "name": "Theogony", "entityTypes": [] }
         ]
       },
-      "text": "Given this passage and context, score each candidate resource's semantic relevance on a scale of 0.0 to 1.0.\n\nPassage: \"the thunderer\"\nSearch term: \"the thunderer\"\nAnnotation motivation: linking\nSource resource: Greek Myths\n\nCandidates:\n1. \"Zeus\" (id: res-zeus, types: Person, Deity)\n2. \"Mount Olympus\" (id: res-olympus, types: Place)\n3. \"Theogony\" (id: res-theogony, types: none)\n\nFor each candidate, output a line with the number and score, like:\n1. 0.8\n2. 0.3",
-      "maxTokens": 200,
+      "text": "Given this passage and context, score each candidate resource's semantic relevance on a scale of 0.0 to 1.0.\n\nPassage: \"the thunderer\"\nSearch term: \"the thunderer\"\nAnnotation motivation: linking\nSource resource: Greek Myths\n\nCandidates:\n1. \"Zeus\" (id: res-zeus, types: Person, Deity)\n2. \"Mount Olympus\" (id: res-olympus, types: Place)\n3. \"Theogony\" (id: res-theogony, types: none)\n\nAnswer with one element for each candidate: its number as `candidate` and its score as `score`.",
+      "maxTokens": 400,
       "temperature": 0.1
     },
     {
@@ -50,8 +64,8 @@
           { "id": "res-theogony", "name": "Theogony", "entityTypes": [] }
         ]
       },
-      "text": "Given this passage and context, score each candidate resource's semantic relevance on a scale of 0.0 to 1.0.\n\nPassage: \"king of the gods\"\nSearch term: \"king of the gods\"\nAnnotation motivation: linking\nSource resource: Greek Myths\n\nCandidates:\n1. \"Theogony\" (id: res-theogony, types: none)\n\nFor each candidate, output a line with the number and score, like:\n1. 0.8\n2. 0.3",
-      "maxTokens": 200,
+      "text": "Given this passage and context, score each candidate resource's semantic relevance on a scale of 0.0 to 1.0.\n\nPassage: \"king of the gods\"\nSearch term: \"king of the gods\"\nAnnotation motivation: linking\nSource resource: Greek Myths\n\nCandidates:\n1. \"Theogony\" (id: res-theogony, types: none)\n\nAnswer with one element for each candidate: its number as `candidate` and its score as `score`.",
+      "maxTokens": 400,
       "temperature": 0.1
     },
     {
@@ -68,8 +82,8 @@
           { "id": "res-theogony", "name": "Theogony", "entityTypes": [] }
         ]
       },
-      "text": "Given this passage and context, score each candidate resource's semantic relevance on a scale of 0.0 to 1.0.\n\nPassage: \"Zeus — king of the gods\"\nSearch term: \"Zeus king of the gods\"\nAnnotation motivation: linking\nSource resource: Greek Myths\n\nCandidates:\n1. \"Theogony\" (id: res-theogony, types: none)\n\nFor each candidate, output a line with the number and score, like:\n1. 0.8\n2. 0.3",
-      "maxTokens": 200,
+      "text": "Given this passage and context, score each candidate resource's semantic relevance on a scale of 0.0 to 1.0.\n\nPassage: \"Zeus — king of the gods\"\nSearch term: \"Zeus king of the gods\"\nAnnotation motivation: linking\nSource resource: Greek Myths\n\nCandidates:\n1. \"Theogony\" (id: res-theogony, types: none)\n\nAnswer with one element for each candidate: its number as `candidate` and its score as `score`.",
+      "maxTokens": 400,
       "temperature": 0.1
     },
     {
@@ -86,8 +100,8 @@
           { "id": "res-theogony", "name": "Theogony", "entityTypes": [] }
         ]
       },
-      "text": "Given this passage and context, score each candidate resource's semantic relevance on a scale of 0.0 to 1.0.\n\nPassage: \"Zeus\"\nSearch term: \"Zeus\"\nAnnotation motivation: commenting\nSource resource: Greek Myths\nComment: Is this the Zeus of Hesiod?\n\nCandidates:\n1. \"Theogony\" (id: res-theogony, types: none)\n\nFor each candidate, output a line with the number and score, like:\n1. 0.8\n2. 0.3",
-      "maxTokens": 200,
+      "text": "Given this passage and context, score each candidate resource's semantic relevance on a scale of 0.0 to 1.0.\n\nPassage: \"Zeus\"\nSearch term: \"Zeus\"\nAnnotation motivation: commenting\nSource resource: Greek Myths\nComment: Is this the Zeus of Hesiod?\n\nCandidates:\n1. \"Theogony\" (id: res-theogony, types: none)\n\nAnswer with one element for each candidate: its number as `candidate` and its score as `score`.",
+      "maxTokens": 400,
       "temperature": 0.1
     },
     {
@@ -104,8 +118,8 @@
           { "id": "res-theogony", "name": "Theogony", "entityTypes": [] }
         ]
       },
-      "text": "Given this passage and context, score each candidate resource's semantic relevance on a scale of 0.0 to 1.0.\n\nPassage: \"Zeus\"\nSearch term: \"Zeus\"\nAnnotation motivation: assessing\nSource resource: Greek Myths\nAssessment: The dating given here is doubtful.\n\nCandidates:\n1. \"Theogony\" (id: res-theogony, types: none)\n\nFor each candidate, output a line with the number and score, like:\n1. 0.8\n2. 0.3",
-      "maxTokens": 200,
+      "text": "Given this passage and context, score each candidate resource's semantic relevance on a scale of 0.0 to 1.0.\n\nPassage: \"Zeus\"\nSearch term: \"Zeus\"\nAnnotation motivation: assessing\nSource resource: Greek Myths\nAssessment: The dating given here is doubtful.\n\nCandidates:\n1. \"Theogony\" (id: res-theogony, types: none)\n\nAnswer with one element for each candidate: its number as `candidate` and its score as `score`.",
+      "maxTokens": 400,
       "temperature": 0.1
     },
     {
@@ -121,8 +135,8 @@
           { "id": "res-theogony", "name": "Theogony", "entityTypes": [] }
         ]
       },
-      "text": "Given this passage and context, score each candidate resource's semantic relevance on a scale of 0.0 to 1.0.\n\nPassage: \"Zeus\"\nSearch term: \"Zeus\"\nAnnotation motivation: commenting\nSource resource: Greek Myths\n\nCandidates:\n1. \"Theogony\" (id: res-theogony, types: none)\n\nFor each candidate, output a line with the number and score, like:\n1. 0.8\n2. 0.3",
-      "maxTokens": 200,
+      "text": "Given this passage and context, score each candidate resource's semantic relevance on a scale of 0.0 to 1.0.\n\nPassage: \"Zeus\"\nSearch term: \"Zeus\"\nAnnotation motivation: commenting\nSource resource: Greek Myths\n\nCandidates:\n1. \"Theogony\" (id: res-theogony, types: none)\n\nAnswer with one element for each candidate: its number as `candidate` and its score as `score`.",
+      "maxTokens": 400,
       "temperature": 0.1
     },
     {
@@ -139,8 +153,8 @@
           { "id": "res-theogony", "name": "Theogony", "entityTypes": [] }
         ]
       },
-      "text": "Given this passage and context, score each candidate resource's semantic relevance on a scale of 0.0 to 1.0.\n\nPassage: \"Zeus\"\nSearch term: \"Zeus\"\nAnnotation motivation: linking\nSource resource: Greek Myths\n\nCandidates:\n1. \"Theogony\" (id: res-theogony, types: none)\n\nFor each candidate, output a line with the number and score, like:\n1. 0.8\n2. 0.3",
-      "maxTokens": 200,
+      "text": "Given this passage and context, score each candidate resource's semantic relevance on a scale of 0.0 to 1.0.\n\nPassage: \"Zeus\"\nSearch term: \"Zeus\"\nAnnotation motivation: linking\nSource resource: Greek Myths\n\nCandidates:\n1. \"Theogony\" (id: res-theogony, types: none)\n\nAnswer with one element for each candidate: its number as `candidate` and its score as `score`.",
+      "maxTokens": 400,
       "temperature": 0.1
     },
     {
@@ -156,8 +170,8 @@
           { "id": "res-theogony", "name": "Theogony", "entityTypes": [] }
         ]
       },
-      "text": "Given this passage and context, score each candidate resource's semantic relevance on a scale of 0.0 to 1.0.\n\nPassage: \"Zeus\"\nSearch term: \"Zeus\"\nAnnotation motivation: linking\nSource resource: Greek Myths\nAnnotation entity types: Person, Deity\n\nCandidates:\n1. \"Theogony\" (id: res-theogony, types: none)\n\nFor each candidate, output a line with the number and score, like:\n1. 0.8\n2. 0.3",
-      "maxTokens": 200,
+      "text": "Given this passage and context, score each candidate resource's semantic relevance on a scale of 0.0 to 1.0.\n\nPassage: \"Zeus\"\nSearch term: \"Zeus\"\nAnnotation motivation: linking\nSource resource: Greek Myths\nAnnotation entity types: Person, Deity\n\nCandidates:\n1. \"Theogony\" (id: res-theogony, types: none)\n\nAnswer with one element for each candidate: its number as `candidate` and its score as `score`.",
+      "maxTokens": 400,
       "temperature": 0.1
     },
     {
@@ -173,8 +187,8 @@
           { "id": "res-theogony", "name": "Theogony", "entityTypes": [] }
         ]
       },
-      "text": "Given this passage and context, score each candidate resource's semantic relevance on a scale of 0.0 to 1.0.\n\nPassage: \"Zeus\"\nSearch term: \"Zeus\"\nAnnotation motivation: linking\nSource resource: Greek Myths\nConnected resources: Mount Olympus, Hera\n\nCandidates:\n1. \"Theogony\" (id: res-theogony, types: none)\n\nFor each candidate, output a line with the number and score, like:\n1. 0.8\n2. 0.3",
-      "maxTokens": 200,
+      "text": "Given this passage and context, score each candidate resource's semantic relevance on a scale of 0.0 to 1.0.\n\nPassage: \"Zeus\"\nSearch term: \"Zeus\"\nAnnotation motivation: linking\nSource resource: Greek Myths\nConnected resources: Mount Olympus, Hera\n\nCandidates:\n1. \"Theogony\" (id: res-theogony, types: none)\n\nAnswer with one element for each candidate: its number as `candidate` and its score as `score`.",
+      "maxTokens": 400,
       "temperature": 0.1
     },
     {
@@ -190,8 +204,8 @@
           { "id": "res-theogony", "name": "Theogony", "entityTypes": [] }
         ]
       },
-      "text": "Given this passage and context, score each candidate resource's semantic relevance on a scale of 0.0 to 1.0.\n\nPassage: \"Zeus\"\nSearch term: \"Zeus\"\nAnnotation motivation: linking\nSource resource: Greek Myths\nConnected resources: Hera, Poseidon, Hades, Demeter, Hestia\n\nCandidates:\n1. \"Theogony\" (id: res-theogony, types: none)\n\nFor each candidate, output a line with the number and score, like:\n1. 0.8\n2. 0.3",
-      "maxTokens": 200,
+      "text": "Given this passage and context, score each candidate resource's semantic relevance on a scale of 0.0 to 1.0.\n\nPassage: \"Zeus\"\nSearch term: \"Zeus\"\nAnnotation motivation: linking\nSource resource: Greek Myths\nConnected resources: Hera, Poseidon, Hades, Demeter, Hestia\n\nCandidates:\n1. \"Theogony\" (id: res-theogony, types: none)\n\nAnswer with one element for each candidate: its number as `candidate` and its score as `score`.",
+      "maxTokens": 400,
       "temperature": 0.1
     },
     {
@@ -208,8 +222,8 @@
           { "id": "res-theogony", "name": "Theogony", "entityTypes": [] }
         ]
       },
-      "text": "Given this passage and context, score each candidate resource's semantic relevance on a scale of 0.0 to 1.0.\n\nPassage: \"Zeus\"\nSearch term: \"Zeus\"\nAnnotation motivation: linking\nSource resource: Greek Myths\nRelationship context: The passage names a god. A resource about that god would resolve it.\n\nCandidates:\n1. \"Theogony\" (id: res-theogony, types: none)\n\nFor each candidate, output a line with the number and score, like:\n1. 0.8\n2. 0.3",
-      "maxTokens": 200,
+      "text": "Given this passage and context, score each candidate resource's semantic relevance on a scale of 0.0 to 1.0.\n\nPassage: \"Zeus\"\nSearch term: \"Zeus\"\nAnnotation motivation: linking\nSource resource: Greek Myths\nRelationship context: The passage names a god. A resource about that god would resolve it.\n\nCandidates:\n1. \"Theogony\" (id: res-theogony, types: none)\n\nAnswer with one element for each candidate: its number as `candidate` and its score as `score`.",
+      "maxTokens": 400,
       "temperature": 0.1
     },
     {
@@ -230,8 +244,8 @@
           { "id": "res-theogony", "name": "Theogony", "entityTypes": [] }
         ]
       },
-      "text": "Given this passage and context, score each candidate resource's semantic relevance on a scale of 0.0 to 1.0.\n\nPassage: \"Zeus — king of the gods\"\nSearch term: \"Zeus king of the gods\"\nAnnotation motivation: commenting\nSource resource: Greek Myths\nComment: Which Zeus is meant?\nAnnotation entity types: Deity\nConnected resources: Hera, Mount Olympus\nRelationship context: The passage names a god. A resource about that god would resolve it.\n\nCandidates:\n1. \"Zeus\" (id: res-zeus, types: Deity, Person)\n2. \"Crete\" (id: res-crete, types: Place)\n3. \"Theogony\" (id: res-theogony, types: none)\n\nFor each candidate, output a line with the number and score, like:\n1. 0.8\n2. 0.3",
-      "maxTokens": 200,
+      "text": "Given this passage and context, score each candidate resource's semantic relevance on a scale of 0.0 to 1.0.\n\nPassage: \"Zeus — king of the gods\"\nSearch term: \"Zeus king of the gods\"\nAnnotation motivation: commenting\nSource resource: Greek Myths\nComment: Which Zeus is meant?\nAnnotation entity types: Deity\nConnected resources: Hera, Mount Olympus\nRelationship context: The passage names a god. A resource about that god would resolve it.\n\nCandidates:\n1. \"Zeus\" (id: res-zeus, types: Deity, Person)\n2. \"Crete\" (id: res-crete, types: Place)\n3. \"Theogony\" (id: res-theogony, types: none)\n\nAnswer with one element for each candidate: its number as `candidate` and its score as `score`.",
+      "maxTokens": 400,
       "temperature": 0.1
     },
     {
@@ -267,8 +281,8 @@
           { "id": "cand-21", "name": "Candidate 21", "entityTypes": [] }
         ]
       },
-      "text": "Given this passage and context, score each candidate resource's semantic relevance on a scale of 0.0 to 1.0.\n\nPassage: \"Zeus\"\nSearch term: \"Zeus\"\nAnnotation motivation: linking\nSource resource: Greek Myths\n\nCandidates:\n1. \"Candidate 1\" (id: cand-1, types: none)\n2. \"Candidate 2\" (id: cand-2, types: none)\n3. \"Candidate 3\" (id: cand-3, types: none)\n4. \"Candidate 4\" (id: cand-4, types: none)\n5. \"Candidate 5\" (id: cand-5, types: none)\n6. \"Candidate 6\" (id: cand-6, types: none)\n7. \"Candidate 7\" (id: cand-7, types: none)\n8. \"Candidate 8\" (id: cand-8, types: none)\n9. \"Candidate 9\" (id: cand-9, types: none)\n10. \"Candidate 10\" (id: cand-10, types: none)\n11. \"Candidate 11\" (id: cand-11, types: none)\n12. \"Candidate 12\" (id: cand-12, types: none)\n13. \"Candidate 13\" (id: cand-13, types: none)\n14. \"Candidate 14\" (id: cand-14, types: none)\n15. \"Candidate 15\" (id: cand-15, types: none)\n16. \"Candidate 16\" (id: cand-16, types: none)\n17. \"Candidate 17\" (id: cand-17, types: none)\n18. \"Candidate 18\" (id: cand-18, types: none)\n19. \"Candidate 19\" (id: cand-19, types: none)\n20. \"Candidate 20\" (id: cand-20, types: none)\n\nFor each candidate, output a line with the number and score, like:\n1. 0.8\n2. 0.3",
-      "maxTokens": 200,
+      "text": "Given this passage and context, score each candidate resource's semantic relevance on a scale of 0.0 to 1.0.\n\nPassage: \"Zeus\"\nSearch term: \"Zeus\"\nAnnotation motivation: linking\nSource resource: Greek Myths\n\nCandidates:\n1. \"Candidate 1\" (id: cand-1, types: none)\n2. \"Candidate 2\" (id: cand-2, types: none)\n3. \"Candidate 3\" (id: cand-3, types: none)\n4. \"Candidate 4\" (id: cand-4, types: none)\n5. \"Candidate 5\" (id: cand-5, types: none)\n6. \"Candidate 6\" (id: cand-6, types: none)\n7. \"Candidate 7\" (id: cand-7, types: none)\n8. \"Candidate 8\" (id: cand-8, types: none)\n9. \"Candidate 9\" (id: cand-9, types: none)\n10. \"Candidate 10\" (id: cand-10, types: none)\n11. \"Candidate 11\" (id: cand-11, types: none)\n12. \"Candidate 12\" (id: cand-12, types: none)\n13. \"Candidate 13\" (id: cand-13, types: none)\n14. \"Candidate 14\" (id: cand-14, types: none)\n15. \"Candidate 15\" (id: cand-15, types: none)\n16. \"Candidate 16\" (id: cand-16, types: none)\n17. \"Candidate 17\" (id: cand-17, types: none)\n18. \"Candidate 18\" (id: cand-18, types: none)\n19. \"Candidate 19\" (id: cand-19, types: none)\n20. \"Candidate 20\" (id: cand-20, types: none)\n\nAnswer with one element for each candidate: its number as `candidate` and its score as `score`.",
+      "maxTokens": 400,
       "temperature": 0.1
     },
     {
@@ -473,7 +487,7 @@
       "from": {
         "title": "Black Hawk"
       },
-      "text": "For a reference titled \"Black Hawk\", suggest 3 specific, actionable next steps or related topics to explore.\n\nFormat as a simple list, one suggestion per line.",
+      "text": "For a reference titled \"Black Hawk\", suggest 3 specific, actionable next steps or related topics to explore.\n\nAnswer with at most three elements, each one suggestion.",
       "maxTokens": 200,
       "temperature": 0.8
     },
@@ -484,7 +498,7 @@
         "title": "Black Hawk",
         "entityType": "Person"
       },
-      "text": "For a reference titled \"Black Hawk\" (type: Person), suggest 3 specific, actionable next steps or related topics to explore.\n\nFormat as a simple list, one suggestion per line.",
+      "text": "For a reference titled \"Black Hawk\" (type: Person), suggest 3 specific, actionable next steps or related topics to explore.\n\nAnswer with at most three elements, each one suggestion.",
       "maxTokens": 200,
       "temperature": 0.8
     },
@@ -495,7 +509,7 @@
         "title": "Black Hawk",
         "stub": "A leader of the Sauk."
       },
-      "text": "For a reference titled \"Black Hawk\" with current stub: \"A leader of the Sauk.\", suggest 3 specific, actionable next steps or related topics to explore.\n\nFormat as a simple list, one suggestion per line.",
+      "text": "For a reference titled \"Black Hawk\" with current stub: \"A leader of the Sauk.\", suggest 3 specific, actionable next steps or related topics to explore.\n\nAnswer with at most three elements, each one suggestion.",
       "maxTokens": 200,
       "temperature": 0.8
     },
@@ -507,7 +521,7 @@
         "entityType": "Person",
         "stub": "A leader of the Sauk."
       },
-      "text": "For a reference titled \"Black Hawk\" (type: Person) with current stub: \"A leader of the Sauk.\", suggest 3 specific, actionable next steps or related topics to explore.\n\nFormat as a simple list, one suggestion per line.",
+      "text": "For a reference titled \"Black Hawk\" (type: Person) with current stub: \"A leader of the Sauk.\", suggest 3 specific, actionable next steps or related topics to explore.\n\nAnswer with at most three elements, each one suggestion.",
       "maxTokens": 200,
       "temperature": 0.8
     },
@@ -518,7 +532,7 @@
         "title": "Black Hawk",
         "entityType": ""
       },
-      "text": "For a reference titled \"Black Hawk\", suggest 3 specific, actionable next steps or related topics to explore.\n\nFormat as a simple list, one suggestion per line.",
+      "text": "For a reference titled \"Black Hawk\", suggest 3 specific, actionable next steps or related topics to explore.\n\nAnswer with at most three elements, each one suggestion.",
       "maxTokens": 200,
       "temperature": 0.8
     },
@@ -529,7 +543,7 @@
         "title": "Black Hawk",
         "stub": ""
       },
-      "text": "For a reference titled \"Black Hawk\", suggest 3 specific, actionable next steps or related topics to explore.\n\nFormat as a simple list, one suggestion per line.",
+      "text": "For a reference titled \"Black Hawk\", suggest 3 specific, actionable next steps or related topics to explore.\n\nAnswer with at most three elements, each one suggestion.",
       "maxTokens": 200,
       "temperature": 0.8
     },
@@ -543,7 +557,7 @@
       "text": [
         "For a reference titled \"Black Hawk\" with current stub: \"",
         { "repeat": "s", "times": 499 },
-        "T\", suggest 3 specific, actionable next steps or related topics to explore.\n\nFormat as a simple list, one suggestion per line."
+        "T\", suggest 3 specific, actionable next steps or related topics to explore.\n\nAnswer with at most three elements, each one suggestion."
       ],
       "maxTokens": 200,
       "temperature": 0.8
@@ -558,7 +572,7 @@
       "text": [
         "For a reference titled \"Black Hawk\" with current stub: \"",
         { "repeat": "s", "times": 499 },
-        "T\", suggest 3 specific, actionable next steps or related topics to explore.\n\nFormat as a simple list, one suggestion per line."
+        "T\", suggest 3 specific, actionable next steps or related topics to explore.\n\nAnswer with at most three elements, each one suggestion."
       ],
       "maxTokens": 200,
       "temperature": 0.8

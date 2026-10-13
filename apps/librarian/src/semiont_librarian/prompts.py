@@ -172,11 +172,9 @@ def score_prompt(
         "Candidates:\n"
         f"{_lines(lines)}\n"
         "\n"
-        "For each candidate, output a line with the number and score, like:\n"
-        "1. 0.8\n"
-        "2. 0.3"
+        "Answer with one element for each candidate: its number as `candidate` and its score as `score`."
     )
-    return Prompt(text, max_tokens=200, temperature=0.1)
+    return Prompt(text, max_tokens=400, temperature=0.1)
 
 
 def relationship_prompt(
@@ -252,7 +250,7 @@ def reference_suggestions_prompt(*, title: str, entity_type: str | None = None, 
     text = (
         f'For a reference titled "{title}"{kind}{stubbed}, suggest 3 specific, actionable next steps or related topics to explore.\n'
         "\n"
-        "Format as a simple list, one suggestion per line."
+        "Answer with at most three elements, each one suggestion."
     )
     return Prompt(text, max_tokens=200, temperature=0.8)
 
