@@ -14,6 +14,7 @@ from spec import JsonObject
 from semiont_librarian.annotation_gather import Ungathered
 from semiont_librarian.prompts import annotation_summary_prompt
 from semiont_librarian.summary import summarize
+from semiont_librarian.window import Unplaced
 
 WAR: Final = ResourceId("res-war")
 TREATY: Final = AnnotationId("ann-treaty")
@@ -77,6 +78,46 @@ def test_a_summary_answers_the_model_s_words_the_resource_s_name_the_entity_type
         )
         assert world.inference.asked == [sent(asking)]
         assert world.content.asked == [WAR]
+        # The resource's view holds the annotation and the resource: it is read once.
+        assert world.views.asked == [WAR]
+
+    run(scenario())
+
+
+def test_an_annotation_with_a_quote_and_no_position_is_summarized_where_the_text_has_its_words() -> None:
+    async def scenario() -> None:
+        quoted: JsonObject = {"source": WAR, "selector": {"type": "TextQuoteSelector", "exact": PASSAGE}}
+        world = World(view(described(WAR, name="Black Hawk War", representations=[war()]), reference(TREATY, WAR, target=quoted)))
+        world.content.held[WAR] = Content(TEXT.encode(), "text/plain")
+        world.inference.say("He broke the treaty.")
+
+        response = await world.summarized()
+
+        assert response.context == ContextualSummaryResponseContext(before=BOOK * 200, selected=PASSAGE, after=BOOK * 200)
+
+    run(scenario())
+
+
+def test_an_annotation_nothing_places_in_the_text_fails_the_request_and_no_model_is_asked() -> None:
+    async def scenario() -> None:
+        nowhere: JsonObject = {"source": WAR, "selector": {"type": "TextQuoteSelector", "exact": "a harvest of pumpkins"}}
+        world = World(view(described(WAR, name="Black Hawk War", representations=[war()]), reference(TREATY, WAR, target=nowhere)))
+        world.content.held[WAR] = Content(TEXT.encode(), "text/plain")
+        with pytest.raises(Unplaced, match=r"^No selector of the annotation's target places it in the text$"):
+            await world.summarized()
+        assert world.inference.asked == []
+
+    run(scenario())
+
+
+def test_an_annotation_whose_target_names_another_resource_fails_the_request() -> None:
+    async def scenario() -> None:
+        elsewhere: JsonObject = {"source": "res-peace", "selector": {"type": "TextPositionSelector", "start": 0, "end": 3}}
+        world = World(view(described(WAR, name="Black Hawk War", representations=[war()]), reference(TREATY, WAR, target=elsewhere)))
+        mismatch = r"Annotation target resource ID \(res-peace\) does not match expected resource ID \(res-war\)"
+        with pytest.raises(Ungathered, match=mismatch):
+            await world.summarized()
+        assert world.content.asked == []
 
     run(scenario())
 

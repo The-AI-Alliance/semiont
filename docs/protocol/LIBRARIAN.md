@@ -118,11 +118,11 @@ knowledge base's config states neither. The Librarian supplies no value.
   *Held by `apps/librarian/tests/test_config.py` and `apps/librarian/tests/test_service.py`, and by `librarian/boot`, for the graph database's password.*
 - **A model of `google`, `openai` or `together` is asked with what a model
   catalogue says of it,** which those providers' APIs do not say. The
-  document's `modelCatalogue` is the catalogue file's path. A Librarian whose
-  matcher or gatherer is of one of those providers refuses to start, by that
-  member, where it is not stated, where the file cannot be read, and where it
-  states nothing of the model. A Librarian with no such model does not read
-  the file.
+  document's `modelCatalogue` is the catalogue file's path, which every
+  document states. A Librarian whose matcher or gatherer is of one of those
+  providers refuses to start, by that member, where the file cannot be read
+  and where it states nothing of the model. A Librarian with no such model
+  does not read the file.
   *Held by `apps/librarian/tests/test_service.py` and `packages/inference-python/tests/test_factory.py`.*
 
 ## What it answers
@@ -574,13 +574,21 @@ order of the rules below.
 - **The cut is the selection, and `contextWindow` of text before it and after
   it, counted in Unicode code points,** as
   [`window-cases.json`](../../specs/src/librarian/window-cases.json) states.
-  A position selector selects from its `start` to its `end`; a quote
-  selector selects where the text has its `exact` words. Words the text does
-  not have, a target with no selector, and a selector of another kind give
-  no selected text, and the gather goes on.
+  The selection is where the target's first position selector says, wherever
+  among its selectors that is: from its `start` to its `end`. A target with
+  none is placed by its first quote selector, whose `exact` words are found
+  in the text as every SDK finds a quote
+  ([`reconcile-cases.json`](../../specs/src/annotations/reconcile-cases.json)):
+  where the text has them more than once, at the place the selector's
+  `prefix` and `suffix` fit; and where it does not have them as written,
+  where a looser search finds them. Words the text has nowhere, a target
+  with no selector, and a selector of another kind give no selected text,
+  and the gather goes on. An annotation's summary places an annotation by
+  the same rule.
   *Held by `apps/librarian/tests/test_window_cases.py`, and by `librarian/gather`, for a window of 100 and for none stated.*
 - **The linked resource's text is read, when `includeTargetContext` is true
-  and it has stored bytes,** and the focus's `targetContext` is the start of
+  and it has stored bytes,** and, where the text has anything in it, the
+  focus's `targetContext` is the start of
   that text, twice `contextWindow` code points long, with a summary of the resource from
   the Gatherer's model (the resource-summary prompt). A model that fails
   leaves `targetContext` with the text and no summary, and the gather goes
@@ -688,14 +696,15 @@ order of the rules below.
 
 `gather:summary-requested` names an annotation and its resource.
 
-- **The resource's view is read and the annotation found in it. Then the
-  view of the resource the annotation's target names is read, and that
-  resource's text.** A resource with no view, an annotation the view does
-  not hold, a text that is not there, and a target with no position selector
-  each fail the request.
+- **The resource's view is read, once, and the annotation found in it. Then
+  the resource's text is read.** A resource with no view, an annotation the
+  view does not hold, an annotation whose target names another resource, a
+  text that is not there, and a target that nothing places in the text each
+  fail the request.
   *Held by `apps/librarian/tests/test_summary.py` and `apps/librarian/tests/test_window_cases.py`, and by `librarian/gather`, for an annotation the view does not hold.*
-- **The text is cut around the annotation's position, 500 code points on
-  each side,** as
+- **The text is cut around what the annotation selects, 200 code points on
+  each side,** by the rule a gather places an annotation by
+  ([Gathering around an annotation](#gathering-around-an-annotation)), as
   [`window-cases.json`](../../specs/src/librarian/window-cases.json) states.
   *Held by `apps/librarian/tests/test_window_cases.py`.*
 - **The Gatherer's model is asked for the summary** (the annotation-summary
@@ -1028,11 +1037,6 @@ Each of these is what today's Librarian does, and is wrong. Another
 implementation does not copy them. Each names the module of
 `apps/librarian/src/semiont_librarian` it is in.
 
-- **A quote selector is found at the first place the text has its words,**
-  whatever its prefix and its suffix say (`window.py`).
-- **A gather around an annotation reads the first selector of a list, and no
-  other.** An annotation's summary finds a position selector anywhere in the
-  list (`window.py`).
 - **A resource the Smelter skipped, of a media type that has text, is
   waited for once the Librarian no longer keeps the Smelter's decision of
   it:** a PDF the Smelter declined to derive the text of, or a text of

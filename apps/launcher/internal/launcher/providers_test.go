@@ -27,8 +27,7 @@ func TestProviderNamesAreTheSpecs(t *testing.T) {
 }
 
 // A server a deployment runs or reaches is an agent at the address its section
-// states, with a key only where the section names one, and its document names
-// no model catalogue: such a server states its own model's facts.
+// states, with a key only where the section names one.
 func TestWorkerDocumentServesAProviderAtTheAddressItsSectionStates(t *testing.T) {
 	text := workerDocFixture +
 		"\n[environments.local.inference.vllm]\nplatform = \"external\"\nbaseURL = \"http://vllm.internal:8000/v1\"\n" +
@@ -50,15 +49,12 @@ func TestWorkerDocumentServesAProviderAtTheAddressItsSectionStates(t *testing.T)
 	if served.Agent.Model != "served-model" || served.BaseUrl != "http://vllm.internal:8000/v1" || served.ApiKeyEnv != nil {
 		t.Errorf("the vllm agent is %+v, want served-model at the section's address with no key", *served)
 	}
-	if doc.ModelCatalogue != nil {
-		t.Errorf("the document names a model catalogue, %q, and no agent's provider reads one", *doc.ModelCatalogue)
-	}
 }
 
-// A provider whose API leaves a model's facts unsaid has its key named as its
-// section names it, and its document says where the image carries the model
-// catalogue.
-func TestWorkerDocumentNamesTheModelCatalogueForAProviderThatReadsOne(t *testing.T) {
+// A provider the launcher does not run has its key named as its section
+// names it. A worker's document says where the image carries the model
+// catalogue, whatever its providers, and so does the Librarian's.
+func TestWorkerDocumentNamesAProvidersKeyAndTheModelCatalogue(t *testing.T) {
 	text := workerDocFixture +
 		"\n[environments.local.inference.openai]\nplatform = \"external\"\nbaseURL = \"https://api.openai.com/v1\"\napiKey = \"${OPENAI_API_KEY}\"\n" +
 		"\n[environments.local.workers.mark.assessing.inference]\ntype = \"openai\"\nmodel = \"gpt-listed\"\n"
@@ -68,8 +64,22 @@ func TestWorkerDocumentNamesTheModelCatalogueForAProviderThatReadsOne(t *testing
 		t.Fatal(err)
 	}
 	doc := workerDocumentFrom(t, b)
-	if doc.ModelCatalogue == nil || *doc.ModelCatalogue != modelCatalogueTarget {
-		t.Errorf("the document's model catalogue is %v, want %s", doc.ModelCatalogue, modelCatalogueTarget)
+	if doc.ModelCatalogue != modelCatalogueTarget {
+		t.Errorf("the document's model catalogue is %q, want %s", doc.ModelCatalogue, modelCatalogueTarget)
+	}
+	plain, err := workerDocument(envFrom(t, workerDocFixture), "local", "container", "192.168.64.1", 8080, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := workerDocumentFrom(t, plain).ModelCatalogue; got != modelCatalogueTarget {
+		t.Errorf("a worker of Anthropic and Ollama is told its model catalogue is %q, want %s", got, modelCatalogueTarget)
+	}
+	lb, err := librarianDocument(envFrom(t, librarianDocFixture), "local", "test-kb", "container", "192.168.64.1", 8080, nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := librarianDocumentFrom(t, lb).ModelCatalogue; got != modelCatalogueTarget {
+		t.Errorf("the Librarian is told its model catalogue is %q, want %s", got, modelCatalogueTarget)
 	}
 	var keyed bool
 	for _, agent := range doc.Agents {

@@ -60,8 +60,8 @@ def _client_of(config: WorkerConfig, index: int, environment: Mapping[str, str])
 
     Refused, by the member, for a provider that takes a key where the agent
     names no variable for one, and for a provider whose facts are read from
-    a model catalogue where the document names none, or one that cannot be
-    read or lacks the model.
+    the model catalogue where the file the document names cannot be read or
+    lacks the model.
     """
     entry = config.agents[index]
     agent = f"agents[{index}]"
@@ -71,13 +71,11 @@ def _client_of(config: WorkerConfig, index: int, environment: Mapping[str, str])
             model=entry.agent.model,
             base_url=entry.base_url,
             api_key=api_key_of(config, index, environment),
-            catalogue=None if config.model_catalogue is None else Path(config.model_catalogue),
+            catalogue=Path(config.model_catalogue),
         )
     except KeyRequired as keyless:
         raise Refused(f"{agent}.apiKeyEnv is not stated, and {agent}.agent.provider is {entry.agent.provider}: {keyless}") from keyless
     except CatalogueRequired as lacking:
-        if config.model_catalogue is None:
-            raise Refused(f"modelCatalogue is not stated, and {agent}.agent.provider is {entry.agent.provider}: {lacking}") from lacking
         raise Refused(f"modelCatalogue names {config.model_catalogue}, which does not serve {agent}: {lacking}") from lacking
 
 

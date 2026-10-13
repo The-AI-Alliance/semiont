@@ -142,8 +142,8 @@ def _model_of(actor: Actor, config: LibrarianConfig, environment: Mapping[str, s
 
     Refused, by the member, for a provider that takes a key where the
     document names no variable for one, and for a provider whose facts are
-    read from a model catalogue where the document names none, or one that
-    cannot be read or lacks the model.
+    read from the model catalogue where the file the document names cannot
+    be read or lacks the model.
     """
     model: LibrarianModelConfig = config.matcher if actor == "matcher" else config.gatherer
     try:
@@ -152,13 +152,11 @@ def _model_of(actor: Actor, config: LibrarianConfig, environment: Mapping[str, s
             model=model.agent.model,
             base_url=model.base_url,
             api_key=api_key_of(actor, model, environment),
-            catalogue=None if config.model_catalogue is None else Path(config.model_catalogue),
+            catalogue=Path(config.model_catalogue),
         )
     except KeyRequired as keyless:
         raise Refused(f"{actor}.apiKeyEnv is not stated, and {actor}.agent.provider is {model.agent.provider}: {keyless}") from keyless
     except CatalogueRequired as lacking:
-        if config.model_catalogue is None:
-            raise Refused(f"modelCatalogue is not stated, and {actor}.agent.provider is {model.agent.provider}: {lacking}") from lacking
         raise Refused(f"modelCatalogue names {config.model_catalogue}, which does not serve the {actor}: {lacking}") from lacking
 
 

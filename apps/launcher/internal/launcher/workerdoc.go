@@ -80,33 +80,11 @@ func providerKeyName(env *envConfig, provider semiont.ArchivistRosterRoleProvide
 }
 
 // modelCatalogueTarget: where the worker's image and the Librarian's each
-// carry the model catalogue file. TestModelCatalogueIsWhereTheImagesCarryIt
-// holds this to the two Dockerfiles.
+// carry the model catalogue file, which each one's document names. A service
+// reads the file only for a provider whose own API leaves a model's facts
+// unsaid, and which those are is the service's to know, not the launcher's.
+// TestModelCatalogueIsWhereTheImagesCarryIt holds this to the two Dockerfiles.
 const modelCatalogueTarget = "/usr/share/semiont/model-catalogue.json"
-
-// readsModelCatalogue: whether a provider's own API leaves a model's facts
-// unsaid, so that its client is made from a model catalogue. The Python
-// factory is what decides it (semiont_inference.factory); a provider missing
-// here is a service that refuses to start, by the document's member.
-func readsModelCatalogue(provider semiont.ArchivistRosterRoleProvider) bool {
-	switch provider {
-	case semiont.ArchivistRosterRoleProviderGoogle, semiont.ArchivistRosterRoleProviderOpenai, semiont.ArchivistRosterRoleProviderTogether:
-		return true
-	}
-	return false
-}
-
-// modelCatalogueFor: the catalogue's path, for a document one of whose
-// providers reads it; none for a document none of whose providers does.
-func modelCatalogueFor(providers ...semiont.ArchivistRosterRoleProvider) *string {
-	for _, provider := range providers {
-		if readsModelCatalogue(provider) {
-			target := modelCatalogueTarget
-			return &target
-		}
-	}
-	return nil
-}
 
 // workerNamedVars: the variables the worker's document names rather than
 // resolves — the key of each provider that serves a job — and so the ones the
@@ -197,11 +175,7 @@ func workerDocument(env *envConfig, envName, rt, addr string, issuerPort int, us
 	if doc.Agents, err = workerAgents(env, envName, vars); err != nil {
 		return nil, err
 	}
-	for _, agent := range doc.Agents {
-		if doc.ModelCatalogue == nil {
-			doc.ModelCatalogue = modelCatalogueFor(agent.Agent.Provider)
-		}
-	}
+	doc.ModelCatalogue = modelCatalogueTarget
 	doc.Port = semiontDescriptor("worker").ports[0].port
 
 	doc.LogLevel = "info"

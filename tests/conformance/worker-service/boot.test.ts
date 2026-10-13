@@ -71,6 +71,7 @@ eachWorkerService("the worker's boot", (world) => {
     ['the issuer', (d: Document) => delete d.identity['issuer'], 'issuer'],
     ['its identity', (d: Document) => delete (d as Record<string, unknown>)['identity'], 'identity'],
     ['its agents', (d: Document) => delete (d as Record<string, unknown>)['agents'], 'agents'],
+    ['its model catalogue', (d: Document) => delete d['modelCatalogue'], 'modelCatalogue'],
     ['its port', (d: Document) => delete d['port'], 'port'],
     ['its log level', (d: Document) => delete d['logLevel'], 'logLevel'],
     ['its log format', (d: Document) => delete d['logFormat'], 'logFormat'],

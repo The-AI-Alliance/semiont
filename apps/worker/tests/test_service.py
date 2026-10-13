@@ -44,6 +44,7 @@ DOCUMENT: Final[dict[str, JsonValue]] = {
             "apiKeyEnv": "SECOND_KEY",
         },
     ],
+    "modelCatalogue": "/usr/share/semiont/model-catalogue.json",
     "port": 24100,
     "logLevel": "warn",
     "logFormat": "simple",
@@ -107,14 +108,15 @@ def test_a_provider_that_takes_a_key_is_refused_by_the_member_where_its_agent_na
 
 
 @pytest.mark.usefixtures("unconfigured")
-def test_a_server_a_deployment_runs_boots_with_no_key_and_no_catalogue(tmp_path: Path) -> None:
+def test_a_server_a_deployment_runs_boots_with_no_key_and_its_catalogue_is_not_read(tmp_path: Path) -> None:
+    # The document names a catalogue file that is not there, as every document here does: nothing reads it.
     for provider in ("vllm", "llamacpp"):
         started = boot(["--config", written(tmp_path, of_one_agent(provider, "a-model"))], dict(ACCOUNT))
         assert [(client.provider, client.model_id) for client in started.clients] == [(provider, "a-model")]
 
 
 @pytest.mark.usefixtures("unconfigured")
-def test_a_provider_whose_facts_are_a_catalogue_s_is_refused_by_the_member_without_one_and_boots_with_one(tmp_path: Path) -> None:
+def test_a_provider_whose_facts_are_a_catalogue_s_boots_with_them_and_is_refused_by_the_member_without(tmp_path: Path) -> None:
     catalogue = tmp_path / "model-catalogue.json"
     catalogue.write_text(json.dumps(CATALOGUE), encoding="utf-8")
     keyed = {**ACCOUNT, "OPENAI_KEY": "sk-test"}
@@ -128,10 +130,6 @@ def test_a_provider_whose_facts_are_a_catalogue_s_is_refused_by_the_member_witho
         agent["apiKeyEnv"] = "OPENAI_KEY"
         return written(tmp_path, document)
 
-    assert refusal(["--config", stating("gpt-listed")], keyed) == (
-        "modelCatalogue is not stated, and agents[0].agent.provider is openai: "
-        "a model catalogue is required for the provider openai, whose API does not state what gpt-listed can take"
-    )
     unlisted = refusal(["--config", stating("gpt-unlisted", modelCatalogue=str(catalogue))], keyed)
     assert unlisted.startswith(f"modelCatalogue names {catalogue}, which does not serve agents[0]: ")
     assert unlisted.endswith("states nothing of the model gpt-unlisted of the provider openai")

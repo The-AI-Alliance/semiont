@@ -36,6 +36,7 @@ DOCUMENT: Final[dict[str, JsonValue]] = {
         },
         DOCUMENT_AGENT,
     ],
+    "modelCatalogue": "/usr/share/semiont/model-catalogue.json",
     "port": 24100,
     "logLevel": "info",
     "logFormat": "json",

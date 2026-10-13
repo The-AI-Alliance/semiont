@@ -184,6 +184,7 @@ func TestWorkerDocumentIsExactlyTheResolvedConfig(t *testing.T) {
   },
   "logFormat": "json",
   "logLevel": "debug",
+  "modelCatalogue": "/usr/share/semiont/model-catalogue.json",
   "port": 24100
 }`
 	if string(b) != want {

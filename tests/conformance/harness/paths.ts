@@ -81,6 +81,14 @@ export const SDK_DRIVERS: Readonly<Record<string, SdkDrivers>> = {
  * implementation joins the suite by adding its line. vitest.config.ts
  * provides them as `workerServices`.
  */
+/**
+ * The model catalogue file a worker's document and a Librarian's each name:
+ * the repository's one generated copy, which their images carry. A service
+ * reads it only for a provider whose own API does not state a model's facts,
+ * and no suite here runs one.
+ */
+export const MODEL_CATALOGUE = join(REPO_ROOT, 'packages/inference-python/tests/catalogue/model-catalogue.json');
+
 export const WORKER_SERVICES: Readonly<Record<string, readonly string[]>> = {
   // The interpreter of the project's locked environment: nothing is resolved or installed when a case starts it.
   // `-P` keeps the directory a case starts it in off its import path, as the image's command does.

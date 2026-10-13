@@ -33,7 +33,7 @@
     "modelCatalogue": {
       "type": "string",
       "minLength": 1,
-      "description": "The path of a model catalogue file: what each model of a provider can take, for the providers whose own APIs do not say (`google`, `openai`, `together`). A worker with an agent of one of those providers refuses to start without it, and where the file states nothing of the agent's model. A worker with no such agent does not read it."
+      "description": "The path of a model catalogue file: what each model of a provider can take, for the providers whose own APIs do not say (`google`, `openai`, `together`). A worker with an agent of one of those providers refuses to start where the file cannot be read, and where it states nothing of the agent's model. A worker with no such agent does not read it."
     },
     "port": {
       "type": "integer",
@@ -52,6 +52,7 @@
     "gatewayUrl",
     "identity",
     "agents",
+    "modelCatalogue",
     "port",
     "logLevel",
     "logFormat"

@@ -161,7 +161,7 @@ func librarianDocument(env *envConfig, envName, kbName, rt, addr string, issuerP
 	if doc.Gatherer, err = librarianModel(env, envName, "gatherer", vars); err != nil {
 		return nil, err
 	}
-	doc.ModelCatalogue = modelCatalogueFor(doc.Matcher.Agent.Provider, doc.Gatherer.Agent.Provider)
+	doc.ModelCatalogue = modelCatalogueTarget
 	if doc.Gather.SettleTimeoutMs, doc.Search.SemanticFloor, err = librarianBounds(env); err != nil {
 		return nil, err
 	}

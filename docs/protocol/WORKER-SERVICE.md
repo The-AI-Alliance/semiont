@@ -75,10 +75,10 @@ holds the count.
   `agents[<index>].apiKeyEnv` too. An agent of `google`, `openai` or
   `together` is made with what a model catalogue says of its model, which
   those providers' APIs do not: the document's `modelCatalogue` is the
-  catalogue file's path, and the service refuses to start, by that member,
-  where it is not stated, where the file cannot be read, and where it states
-  nothing of the agent's model. No other agent has the file read.
-  *Held by `worker-service/boot`, for a variable that is not set, and by `apps/worker/tests/test_service.py` and `packages/inference-python/tests/test_factory.py`, for the rest.*
+  catalogue file's path, which every document states, and the service
+  refuses to start, by that member, where the file cannot be read and where
+  it states nothing of the agent's model. No other agent has the file read.
+  *Held by `worker-service/boot`, for a variable that is not set and for a document that states no catalogue, and by `apps/worker/tests/test_service.py` and `packages/inference-python/tests/test_factory.py`, for the rest.*
 - **B5.** All of the above is settled before anything is dialled. A service
   that refuses to start has asked nothing of the issuer, the gateway or a
   provider.

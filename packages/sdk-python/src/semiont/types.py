@@ -6236,13 +6236,13 @@ class WorkerConfig(WireModel, frozen=True, extra="forbid"):
         ),
     ]
     model_catalogue: Annotated[
-        str | None,
+        str,
         Field(
             alias="modelCatalogue",
-            description="The path of a model catalogue file: what each model of a provider can take, for the providers whose own APIs do not say (`google`, `openai`, `together`). A worker with an agent of one of those providers refuses to start without it, and where the file states nothing of the agent's model. A worker with no such agent does not read it.",
+            description="The path of a model catalogue file: what each model of a provider can take, for the providers whose own APIs do not say (`google`, `openai`, `together`). A worker with an agent of one of those providers refuses to start where the file cannot be read, and where it states nothing of the agent's model. A worker with no such agent does not read it.",
             min_length=1,
         ),
-    ] = None
+    ]
     port: Annotated[
         int,
         Field(description="The port the worker answers `/health` on.", ge=1, le=65535),
@@ -6288,13 +6288,13 @@ class LibrarianConfig(WireModel, frozen=True, extra="forbid"):
     matcher: LibrarianModelConfig
     gatherer: LibrarianModelConfig
     model_catalogue: Annotated[
-        str | None,
+        str,
         Field(
             alias="modelCatalogue",
-            description="The path of a model catalogue file: what each model of a provider can take, for the providers whose own APIs do not say (`google`, `openai`, `together`). A Librarian whose matcher or gatherer is of one of those providers refuses to start without it, and where the file states nothing of that model. A Librarian with no such model does not read it.",
+            description="The path of a model catalogue file: what each model of a provider can take, for the providers whose own APIs do not say (`google`, `openai`, `together`). A Librarian whose matcher or gatherer is of one of those providers refuses to start where the file cannot be read, and where it states nothing of that model. A Librarian with no such model does not read it.",
             min_length=1,
         ),
-    ] = None
+    ]
     gather: LibrarianConfigGather
     search: LibrarianConfigSearch
     port: Annotated[

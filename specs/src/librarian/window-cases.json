@@ -1,5 +1,5 @@
 {
-  "$comment": "The text around a selection, as every implementation of the Librarian must cut it: a text, what an annotation's target selects of it, a window, and the text before the selection, the selection, and the text after it. Semiont's Librarian (apps/librarian) runs every case and fails on a difference; a Librarian in another language runs the same file. A case has one of two parts, `around` or `gathered`, for the two places the Librarian cuts a text around an annotation. THE CUT, which both make. A selection is from a `start` to an `end`, offsets into the text that count Unicode code points from its start, as specs/src/text/offset-cases.json states an offset. A window says how much text to take on each side, and counts code points too. `before` is the text from `start` less the window, or from the start of the text where that is nearer, up to `start`. `selected` is the text from `start` to `end`. `after` is the text from `end` to `end` and the window, or to the end of the text where that is nearer. A text with a character outside the Basic Multilingual Plane is what tells this count from a count of UTF-16 code units or of bytes, so the cases have such characters before, inside and after a selection. WHAT A CASE STATES. `text` is the text. `selector` is what the annotation's target states: one selector, or several of the same span, or none where the target states no selector. Where it states several, these cases state the position selector first. `context` is the answer: `before`, `selected` and `after`. AROUND is the cut made for an annotation that has a position: the Librarian makes it where it summarizes an annotation. `window` states how much to take `before` and `after`, each its own count. The selection is the `start` and `end` of the target's position selector. `refused` in place of a context says there is no answer and the cut fails: a target with no position selector is refused, whatever else it states. GATHERED is the cut in a gathered context, which states it as its focus's `selected`: `before`, the selection as `text`, and `after`. `window` is one count, taken on both sides. A window less than 100 or more than 5000 is `refused`, and nothing is cut. The selection of a position selector is its `start` and `end`. The selection of a quote selector is where the text has its `exact` words: the cut is around them, with the window counted in code points from where they start and end. Words the text does not have give no selection, and the context is null: the gathered context states no `selected`, and is still an answer. A target that states no selector, or a selector that is neither of these two, gives none either. No case here has words that the text has twice. Add a case here before changing an implementation.",
+  "$comment": "The text around a selection, as every implementation of the Librarian must cut it: a text, what an annotation's target selects of it, a window, and the text before the selection, the selection, and the text after it. Semiont's Librarian (apps/librarian) runs every case and fails on a difference; a Librarian in another language runs the same file. A case has one of two parts, `around` or `gathered`, for the two places the Librarian cuts a text around an annotation. THE CUT, which both make. A selection is from a `start` to an `end`, offsets into the text that count Unicode code points from its start, as specs/src/text/offset-cases.json states an offset. A window says how much text to take on each side, and counts code points too. `before` is the text from `start` less the window, or from the start of the text where that is nearer, up to `start`. `selected` is the text from `start` to `end`. `after` is the text from `end` to `end` and the window, or to the end of the text where that is nearer. A text with a character outside the Basic Multilingual Plane is what tells this count from a count of UTF-16 code units or of bytes, so the cases have such characters before, inside and after a selection. WHAT A CASE STATES. `text` is the text. `selector` is what the annotation's target states: one selector, or several, or none where the target states no selector. `context` is the answer: `before`, `selected` and `after`. WHERE THE SELECTION IS, which both cuts decide by one rule. The first position selector the target states is the place, wherever among its selectors it is: its `start` and its `end`. A target with no position selector is placed by the first quote selector it states, whose `exact` words are found in the text as specs/src/annotations/reconcile-cases.json states a quote is found: where the text has them once, there; where it has them more than once, at the first place its `prefix` and its `suffix` fit, and at the first place of all where it states neither or neither fits; and where the text does not have them as written, where a looser search finds them, and the selection is then the text's own words. Words the text has nowhere place nothing, and neither does a target that states no selector or only a selector of another kind. AROUND is the cut the Librarian makes where it summarizes an annotation. `window` states how much to take `before` and `after`, each its own count. `refused` in place of a context says there is no answer and the cut fails: a summary is of a passage, and a target that nothing places has none. GATHERED is the cut in a gathered context, which states it as its focus's `selected`: `before`, the selection as `text`, and `after`. `window` is one count, taken on both sides. A window less than 100 or more than 5000 is `refused`, and nothing is cut. A target that nothing places gives no selection, and the context is null: the gathered context states no `selected`, and is still an answer. Add a case here before changing an implementation.",
   "cases": [
     {
       "why": "a selection in the middle of a text, with a window on each side shorter than the text there: each side is as long as its own window",
@@ -140,10 +140,28 @@
       }
     },
     {
-      "why": "a target with a quote selector and no position selector is refused here, though the text has its words",
+      "why": "a target with a quote selector and no position selector is cut where the text has its words",
       "around": {
         "text": "The quick brown fox jumps",
         "selector": { "type": "TextQuoteSelector", "exact": "brown" },
+        "window": { "before": 6, "after": 4 },
+        "context": { "before": "quick ", "selected": "brown", "after": " fox" }
+      }
+    },
+    {
+      "why": "words the text has twice are found where the quote's suffix fits: the second place, which has the suffix beside it, and not the first, which has it more than 32 code points on",
+      "around": {
+        "text": "The fox ran over the hill and far away into the dark wood. A second fox slept.",
+        "selector": { "type": "TextQuoteSelector", "exact": "fox", "suffix": " slept" },
+        "window": { "before": 7, "after": 7 },
+        "context": { "before": "second ", "selected": "fox", "after": " slept." }
+      }
+    },
+    {
+      "why": "a quote selector whose words the text has nowhere is refused here: nothing places the annotation",
+      "around": {
+        "text": "The quick brown fox jumps",
+        "selector": { "type": "TextQuoteSelector", "exact": "purple" },
         "window": { "before": 6, "after": 4 },
         "refused": true
       }
@@ -291,6 +309,57 @@
         "selector": { "type": "TextPositionSelector", "start": 10, "end": 15 },
         "window": 5001,
         "refused": true
+      }
+    },
+    {
+      "why": "words the text has twice are found where the quote's prefix fits: the second place, and not the first",
+      "gathered": {
+        "text": "The fox ran. A second fox slept.",
+        "selector": { "type": "TextQuoteSelector", "exact": "fox", "prefix": "second " },
+        "window": 100,
+        "context": { "before": "The fox ran. A second ", "selected": "fox", "after": " slept." }
+      }
+    },
+    {
+      "why": "words the text has twice, in a quote that states no prefix and no suffix, are found at the first place",
+      "gathered": {
+        "text": "The fox ran. A second fox slept.",
+        "selector": { "type": "TextQuoteSelector", "exact": "fox" },
+        "window": 100,
+        "context": { "before": "The ", "selected": "fox", "after": " ran. A second fox slept." }
+      }
+    },
+    {
+      "why": "words the text has in another letter case are found, and the selection is the text's own words",
+      "gathered": {
+        "text": "The quick brown fox jumps",
+        "selector": { "type": "TextQuoteSelector", "exact": "Brown" },
+        "window": 100,
+        "context": { "before": "The quick ", "selected": "brown", "after": " fox jumps" }
+      }
+    },
+    {
+      "why": "a position selector is the place wherever among the selectors it is: stated after a selector of another kind, it is still read",
+      "gathered": {
+        "text": "The quick brown fox jumps",
+        "selector": [
+          { "type": "SvgSelector", "value": "<svg xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"0\" y=\"0\" width=\"10\" height=\"10\"/></svg>" },
+          { "type": "TextPositionSelector", "start": 10, "end": 15 }
+        ],
+        "window": 100,
+        "context": { "before": "The quick ", "selected": "brown", "after": " fox jumps" }
+      }
+    },
+    {
+      "why": "a position selector stated after a quote selector of other words is the place: the position is read before any quote",
+      "gathered": {
+        "text": "The quick brown fox jumps",
+        "selector": [
+          { "type": "TextQuoteSelector", "exact": "quick" },
+          { "type": "TextPositionSelector", "start": 10, "end": 15 }
+        ],
+        "window": 100,
+        "context": { "before": "The quick ", "selected": "brown", "after": " fox jumps" }
       }
     },
     {

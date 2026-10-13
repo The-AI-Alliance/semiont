@@ -20,13 +20,12 @@ from typing import Final, Protocol, final
 from semiont_inference.interface import InferenceClient
 
 __all__ = [
+    "NEAR",
     "Candidate",
     "Listed",
     "Prompt",
-    "after_passage",
     "annotation_summary_prompt",
     "ask",
-    "before_passage",
     "reference_suggestions_prompt",
     "relationship_prompt",
     "resource_summary_prompt",
@@ -54,7 +53,7 @@ _CONTENT: Final = 2000
 _STUB: Final = 500
 """The most of a stub a reference-suggestions prompt has."""
 
-_NEAR: Final = 200
+NEAR: Final = 200
 """The most text on each side of a passage an annotation-summary prompt has."""
 
 _BODY_LABELS: Final = {"commenting": "Comment", "assessing": "Assessment"}
@@ -102,14 +101,14 @@ async def ask(model: InferenceClient, prompt: Prompt) -> str:
     return (await model.generate_text(prompt.text, prompt.max_tokens, prompt.temperature)).text
 
 
-def before_passage(text: str) -> str:
+def _before_passage(text: str) -> str:
     """The end of the text before a passage: the last 200 of it, which is what an annotation's summary has."""
-    return text[max(0, len(text) - _NEAR) :]
+    return text[max(0, len(text) - NEAR) :]
 
 
-def after_passage(text: str) -> str:
+def _after_passage(text: str) -> str:
     """The start of the text after a passage: the first 200 of it, which is what an annotation's summary has."""
-    return text[:_NEAR]
+    return text[:NEAR]
 
 
 def _listed(names: Sequence[str]) -> str:
@@ -270,9 +269,9 @@ def annotation_summary_prompt(*, resource: str, before: str, selected: str, afte
     text = (
         "Summarize this text in context:\n"
         "\n"
-        f'Context before: "{before_passage(before)}"\n'
+        f'Context before: "{_before_passage(before)}"\n'
         f'Selected exact: "{selected}"\n'
-        f'Context after: "{after_passage(after)}"\n'
+        f'Context after: "{_after_passage(after)}"\n'
         "\n"
         f"Resource: {resource}\n"
         f"Entity types: {_listed(entity_types)}"

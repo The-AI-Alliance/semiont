@@ -4909,8 +4909,8 @@ type LibrarianConfig struct {
 	// Matcher One model a Librarian asks: who it is, and where its provider is reached.
 	Matcher LibrarianModelConfig `json:"matcher"`
 
-	// ModelCatalogue The path of a model catalogue file: what each model of a provider can take, for the providers whose own APIs do not say (`google`, `openai`, `together`). A Librarian whose matcher or gatherer is of one of those providers refuses to start without it, and where the file states nothing of that model. A Librarian with no such model does not read it.
-	ModelCatalogue *string `json:"modelCatalogue,omitempty"`
+	// ModelCatalogue The path of a model catalogue file: what each model of a provider can take, for the providers whose own APIs do not say (`google`, `openai`, `together`). A Librarian whose matcher or gatherer is of one of those providers refuses to start where the file cannot be read, and where it states nothing of that model. A Librarian with no such model does not read it.
+	ModelCatalogue string `json:"modelCatalogue"`
 
 	// Port The port the Librarian answers `/health` on.
 	Port int `json:"port"`
@@ -6602,8 +6602,8 @@ type WorkerConfig struct {
 	// LogLevel How much a service logs: the least severe level it writes, from error, the most severe, to debug.
 	LogLevel LogLevel `json:"logLevel"`
 
-	// ModelCatalogue The path of a model catalogue file: what each model of a provider can take, for the providers whose own APIs do not say (`google`, `openai`, `together`). A worker with an agent of one of those providers refuses to start without it, and where the file states nothing of the agent's model. A worker with no such agent does not read it.
-	ModelCatalogue *string `json:"modelCatalogue,omitempty"`
+	// ModelCatalogue The path of a model catalogue file: what each model of a provider can take, for the providers whose own APIs do not say (`google`, `openai`, `together`). A worker with an agent of one of those providers refuses to start where the file cannot be read, and where it states nothing of the agent's model. A worker with no such agent does not read it.
+	ModelCatalogue string `json:"modelCatalogue"`
 
 	// Port The port the worker answers `/health` on.
 	Port int `json:"port"`
