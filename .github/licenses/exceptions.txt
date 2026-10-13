@@ -1,24 +1,34 @@
 # Per-package license exceptions.
 #
-# Some packages state no machine-readable license in their metadata (an npm
-# package's `license` field in package.json, a PyPI distribution's
-# `License-Expression`), so the SBOM scanner reports NOASSERTION, yet ship a
-# LICENSE file whose terms a human has verified. Each entry here supplies that
-# verified SPDX id.
+# The SBOM scanner cannot always say what a package's license is, and an entry
+# here supplies what a human read where it could not. There are two cases:
+#
+#   - The package states no machine-readable license in its metadata (an npm
+#     package's `license` field in package.json, a PyPI distribution's
+#     `License-Expression`), so the scanner reports NOASSERTION, yet it ships a
+#     LICENSE file whose terms a human has verified.
+#   - The package states a license under a name SPDX does not have, so the
+#     scanner reports a `LicenseRef-*` that stands for that name.
 #
 # Two guardrails keep this honest:
-#   1. An exception is applied ONLY when the scanner reports no license. If a
-#      future version declares a real (possibly copyleft) license, it is detected
-#      normally and the exception does not mask it.
-#   2. The supplied SPDX id is still checked against allowlist.txt — an exception
+#   1. An exception answers ONLY where the scanner could not: for a package it
+#      reports no license for, or for the one name it reports and SPDX does not
+#      have. Every SPDX license the scanner does report stays in what is judged.
+#      If a future version declares a real (possibly copyleft) license, or a
+#      different name SPDX does not have, it is judged normally and the
+#      exception does not mask it.
+#   2. What is supplied is still checked against allowlist.txt — an exception
 #      can only rescue a package TO a permissive license, never past the policy.
 #
-# Format: <package-name> <SPDX-id>   # note incl. source of truth + review date
+# Format, each with a note incl. source of truth + review date:
+#   <package-name> <SPDX expression>            for a package with no license
+#   <package-name> "<name>" <SPDX expression>   for a license under that name,
+#                                               as the scanner reports the name
 #
-# A trailing `*` on the name is a prefix wildcard (as in allowlist.txt). Use it
-# only where the package name is not stable by construction — a generator that
-# embeds a content hash in its output name — never to blanket a family of
-# third-party packages.
+# A trailing `*` on the name is a prefix wildcard (as in allowlist.txt), for an
+# entry of the first kind alone. Use it only where the package name is not
+# stable by construction — a generator that embeds a content hash in its output
+# name — never to blanket a family of third-party packages.
 
 # PyPI, required by Together's library (the worker image has every provider's).
 # Its metadata names a license file and no license. That file, in the wheel as
@@ -26,3 +36,27 @@
 # text; the project is Together's, github.com/togethercomputer/detect_agent.
 # Read at 0.6.0, 2026-10-10.
 detect_agent Apache-2.0
+
+# PyPI, required by aiohttp, which gremlinpython requires: the Weaver's and the
+# Librarian's images carry it with their graph drivers. Its metadata states
+# `License: PSF-2.0` and the classifier "License :: OSI Approved :: Python
+# Software Foundation License". The scanner reads the classifier before the
+# field, and the classifier's words are no SPDX id. Read at 2.7.1, 2026-10-12.
+aiohappyeyeballs "Python-Software-Foundation-License" PSF-2.0
+
+# PyPI, the binding the Smelter reads a PDF through. Its metadata states
+# `License: BSD-3-Clause, Apache-2.0, dependency licenses`. The first two the
+# scanner names. The third is not a license: it points at the libraries the
+# wheel carries inside PDFium and beside it, whose license texts are in the
+# wheel under BUILD_LICENSES.
+#
+# This line answers that third name with the package's own license, which the
+# project states as BSD-3-Clause OR Apache-2.0. So it judges the binding and
+# PDFium, and does NOT judge what is built into the wheel. That is credited in
+# the image's NOTICE, as an image's OS packages are. In the wheel the Smelter's
+# image installs (musllinux) it is: abseil, AGG 2.3, fast_float, FreeType (FTL),
+# ICU (Unicode-3.0), Little CMS, libjpeg-turbo (IJG and BSD-3-Clause),
+# OpenJPEG, libpng (libpng-2.0), libtiff, zlib and musl, and the GCC runtime
+# libraries libstdc++ and libgcc_s (GPL-3.0-or-later WITH GCC-exception-3.1).
+# Read at 5.14.0, 2026-10-12.
+pypdfium2 "dependency-licenses" BSD-3-Clause OR Apache-2.0
