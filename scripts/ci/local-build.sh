@@ -1059,11 +1059,16 @@ fi
 # --layer-cache: the Rust images' layers come from, and go back to, a directory
 # a CI runner keeps between runs. docker's default builder exports no cache
 # but the inline kind, so a docker-container builder does the three builds,
-# and --load puts each image in docker's store where the stack boots it. The
-# gateway's build alone writes the cache (the three share one builder stage,
-# which lint:rust-images holds to the same text and BuildKit compiles once,
-# and three writers to one directory would race); all three read it. A new cache is written beside the old and swapped in after
-# the batch, so the directory holds one run's layers and does not grow.
+# and --load puts each image in docker's store where the stack boots it. All
+# three read the cache; none writes it. The write is one more build of the
+# gateway's Dockerfile after the batch, wholly from the builder's own cache,
+# that outputs nothing but the layers: a write during the batch made the
+# gateway finish a minute after the other two, so its image check, which
+# bounds the gateway's start at 300 ms, ran beside the two builds that start
+# when a slot frees, and measured 329 ms. The three share one builder stage,
+# which lint:rust-images holds to the same text and BuildKit compiles once.
+# The new cache is written beside the old and swapped in, so the directory
+# holds one run's layers and does not grow.
 if [[ -n "$LAYER_CACHE" ]]; then
   if [[ "$RT" != "docker" ]]; then
     fail "--layer-cache needs docker (the engine is $RT)"
@@ -1120,7 +1125,6 @@ while [ $next -lt ${#BUILD_IMGS[@]} ] || [ $running -gt 0 ]; do
         if [[ -n "$LAYER_CACHE" ]]; then
           BUILD_CMD=(docker buildx build --builder semiont-layer-cache --load)
           [[ -d "$LAYER_CACHE" ]] && BUILD_FLAGS+=(--cache-from "type=local,src=$LAYER_CACHE")
-          [[ "$img" == gateway ]] && BUILD_FLAGS+=(--cache-to "type=local,dest=$LAYER_CACHE.next,mode=max")
         fi ;;
       worker|smelter|weaver|librarian) BUILD_FLAGS=(--build-arg "PYTHON_FLOOR=$PYTHON_FLOOR") ;;
       *)                            BUILD_FLAGS=(--no-cache --build-arg "NPM_REGISTRY=$BUILD_REGISTRY") ;;
@@ -1195,8 +1199,21 @@ while [ $next -lt ${#BUILD_IMGS[@]} ] || [ $running -gt 0 ]; do
   fi
 done
 
-# This run's layers replace the last run's: see --layer-cache above.
-if [[ -n "$LAYER_CACHE" && -d "$LAYER_CACHE.next" ]]; then
+# This run's layers are written now, after the batch, and replace the last
+# run's: see --layer-cache above.
+if [[ -n "$LAYER_CACHE" ]]; then
+  step "Writing the Rust images' layers for the next run"
+  EXPORT_FLAGS=(--build-arg "RUST_TOOLCHAIN=$RUST_TOOLCHAIN")
+  [[ -d "$LAYER_CACHE" ]] && EXPORT_FLAGS+=(--cache-from "type=local,src=$LAYER_CACHE")
+  LOG=$(mktemp "$TMP_DIR/semiont-layer-cache.XXXXXX")
+  if ! docker buildx build --builder semiont-layer-cache "${EXPORT_FLAGS[@]}" \
+      --cache-to "type=local,dest=$LAYER_CACHE.next,mode=max" --output type=cacheonly \
+      --file "$REPO_ROOT/apps/gateway/Dockerfile" "$REPO_ROOT" > "$LOG" 2>&1; then
+    fail "writing the layer cache failed — last 40 lines of $LOG:"
+    tail -40 "$LOG"
+    exit 1
+  fi
+  rm -f "$LOG"
   rm -rf "$LAYER_CACHE"
   mv "$LAYER_CACHE.next" "$LAYER_CACHE"
   ok "The Rust images' layers are kept in $LAYER_CACHE for the next run"
