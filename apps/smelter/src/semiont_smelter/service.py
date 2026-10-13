@@ -106,7 +106,7 @@ async def _reached(index: VectorStore, stamp: IndexStamp) -> bool:
     return await hold_to(index, stamp)
 
 
-def _health_of(smelter: Smelter, transport: HttpTransport, *, stamp: IndexStamp, made_anew: bool) -> JsonValue:
+def _health_of(smelter: Smelter, transport: HttpTransport, *, stamp: IndexStamp, made_anew: bool) -> dict[str, JsonValue]:
     """What the health endpoint answers (`docs/protocol/SMELTER.md` § Health).
 
     It answers for this Smelter alone, from what the Smelter holds: nothing

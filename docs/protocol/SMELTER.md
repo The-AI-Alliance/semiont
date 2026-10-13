@@ -557,7 +557,7 @@ nothing unavailable in its summary.
   Events are delivered to it while it is `open`. It is the Smelter's stream,
   and no report on the gateway: a Smelter whose token was refused is
   `unauthenticated` at a gateway that serves everyone else.
-  *Held by `smelter/boot`, for a stream that is `open`.*
+  *Held by `smelter/boot`, for a stream that is open.*
 - **`streamDrops` is the number of times that stream has dropped since the
   Smelter started,** and each drop is logged as a warning. What is recorded
   while the stream is down is not delivered when it opens again: the stream
