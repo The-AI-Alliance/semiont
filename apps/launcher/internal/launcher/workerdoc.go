@@ -63,25 +63,49 @@ func providerAddress(env *envConfig, envName string, provider semiont.ArchivistR
 			return saasBase(remoteProviderAddress(env, string(provider))), nil
 		}
 		return resolveRefs("inference.anthropic.endpoint", section.Endpoint, vars)
-	case semiont.ArchivistRosterRoleProviderOllama:
+	default:
+		// Every other provider is reached where its section says: the launcher keeps no vendor's address but
+		// Anthropic's, and runs no server but Ollama's.
 		if section.BaseURL == "" {
-			return "", fmt.Errorf("[environments.%s.inference.ollama] states no baseURL: %s has no address to reach ollama at", envName, who)
+			return "", fmt.Errorf("[environments.%s.inference.%s] states no baseURL: %s has no address to reach %s at", envName, provider, who, provider)
 		}
-		return resolveRefs("inference.ollama.baseURL", section.BaseURL, vars)
+		return resolveRefs("inference."+string(provider)+".baseURL", section.BaseURL, vars)
 	}
-	return "", fmt.Errorf("%s's document has no address for the provider %q", who, provider)
 }
 
 // providerKeyName: the variable holding a provider's key, as its section of
 // the environment names it; none when the section states no key.
 func providerKeyName(env *envConfig, provider semiont.ArchivistRosterRoleProvider) (*string, error) {
+	return secretName("inference."+string(provider)+".apiKey", env.Inference[string(provider)].APIKey)
+}
+
+// modelCatalogueTarget: where the worker's image and the Librarian's each
+// carry the model catalogue file. TestModelCatalogueIsWhereTheImagesCarryIt
+// holds this to the two Dockerfiles.
+const modelCatalogueTarget = "/usr/share/semiont/model-catalogue.json"
+
+// readsModelCatalogue: whether a provider's own API leaves a model's facts
+// unsaid, so that its client is made from a model catalogue. The Python
+// factory is what decides it (semiont_inference.factory); a provider missing
+// here is a service that refuses to start, by the document's member.
+func readsModelCatalogue(provider semiont.ArchivistRosterRoleProvider) bool {
 	switch provider {
-	case semiont.ArchivistRosterRoleProviderAnthropic:
-		return secretName("inference.anthropic.apiKey", env.Inference["anthropic"].APIKey)
-	case semiont.ArchivistRosterRoleProviderOllama:
-		return secretName("inference.ollama.apiKey", env.Inference["ollama"].APIKey)
+	case semiont.ArchivistRosterRoleProviderGoogle, semiont.ArchivistRosterRoleProviderOpenai, semiont.ArchivistRosterRoleProviderTogether:
+		return true
 	}
-	return nil, nil
+	return false
+}
+
+// modelCatalogueFor: the catalogue's path, for a document one of whose
+// providers reads it; none for a document none of whose providers does.
+func modelCatalogueFor(providers ...semiont.ArchivistRosterRoleProvider) *string {
+	for _, provider := range providers {
+		if readsModelCatalogue(provider) {
+			target := modelCatalogueTarget
+			return &target
+		}
+	}
+	return nil
 }
 
 // workerNamedVars: the variables the worker's document names rather than
@@ -119,7 +143,7 @@ func workerAgents(env *envConfig, envName string, vars map[string]string) ([]sem
 		return nil, err
 	}
 	if len(served) == 0 {
-		return nil, fmt.Errorf("the environment binds no job to a worker: the worker has no job to serve — add %s with type = \"anthropic\" or \"ollama\" and a model", workerBindingSection(envName))
+		return nil, fmt.Errorf("the environment binds no job to a worker: the worker has no job to serve — add %s with a type (%s) and a model", workerBindingSection(envName), providerNames)
 	}
 	var agents []semiont.WorkerAgentConfig
 	for _, s := range served {
@@ -172,6 +196,11 @@ func workerDocument(env *envConfig, envName, rt, addr string, issuerPort int, us
 	}
 	if doc.Agents, err = workerAgents(env, envName, vars); err != nil {
 		return nil, err
+	}
+	for _, agent := range doc.Agents {
+		if doc.ModelCatalogue == nil {
+			doc.ModelCatalogue = modelCatalogueFor(agent.Agent.Provider)
+		}
 	}
 	doc.Port = semiontDescriptor("worker").ports[0].port
 

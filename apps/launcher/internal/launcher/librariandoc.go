@@ -50,7 +50,7 @@ func librarianModel(env *envConfig, envName, actor string, vars map[string]strin
 		return model, err
 	}
 	if role == nil {
-		return model, fmt.Errorf("the environment binds no model to the %s: the Librarian has no model to ask — add [environments.%s.actors.%s.inference] with type = \"anthropic\" or \"ollama\" and a model", actor, envName, actor)
+		return model, fmt.Errorf("the environment binds no model to the %s: the Librarian has no model to ask — add [environments.%s.actors.%s.inference] with a type (%s) and a model", actor, envName, actor, providerNames)
 	}
 	model.Agent = *role
 	if model.BaseUrl, err = providerAddress(env, envName, role.Provider, vars, "the Librarian"); err != nil {
@@ -161,6 +161,7 @@ func librarianDocument(env *envConfig, envName, kbName, rt, addr string, issuerP
 	if doc.Gatherer, err = librarianModel(env, envName, "gatherer", vars); err != nil {
 		return nil, err
 	}
+	doc.ModelCatalogue = modelCatalogueFor(doc.Matcher.Agent.Provider, doc.Gatherer.Agent.Provider)
 	if doc.Gather.SettleTimeoutMs, doc.Search.SemanticFloor, err = librarianBounds(env); err != nil {
 		return nil, err
 	}

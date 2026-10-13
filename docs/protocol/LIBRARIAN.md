@@ -116,6 +116,14 @@ knowledge base's config states neither. The Librarian supplies no value.
   names no variable for it, is refused by the member: `matcher.apiKeyEnv` or
   `gatherer.apiKeyEnv`.
   *Held by `apps/librarian/tests/test_config.py` and `apps/librarian/tests/test_service.py`, and by `librarian/boot`, for the graph database's password.*
+- **A model of `google`, `openai` or `together` is asked with what a model
+  catalogue says of it,** which those providers' APIs do not say. The
+  document's `modelCatalogue` is the catalogue file's path. A Librarian whose
+  matcher or gatherer is of one of those providers refuses to start, by that
+  member, where it is not stated, where the file cannot be read, and where it
+  states nothing of the model. A Librarian with no such model does not read
+  the file.
+  *Held by `apps/librarian/tests/test_service.py` and `packages/inference-python/tests/test_factory.py`.*
 
 ## What it answers
 

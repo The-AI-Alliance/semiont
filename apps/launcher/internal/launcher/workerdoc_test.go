@@ -456,7 +456,7 @@ func TestWorkerDocumentRefusesAMissingGatewayOrIssuer(t *testing.T) {
 // A malformed binding is refused by its place in the config, as the roster
 // refuses it: the two are one resolution.
 func TestWorkerDocumentRefusesAMalformedBinding(t *testing.T) {
-	text := workerDocFixture + "\n[environments.local.workers.mark.assessing.inference]\ntype = \"openai\"\nmodel = \"m\"\n"
+	text := workerDocFixture + "\n[environments.local.workers.mark.assessing.inference]\ntype = \"mistral\"\nmodel = \"m\"\n"
 	_, err := workerDocument(envFrom(t, text), "local", "container", "192.168.64.1", 8080, nil)
 	if err == nil || !strings.Contains(err.Error(), "workers.mark.assessing.inference") {
 		t.Errorf("want a refusal naming the binding, got %v", err)

@@ -5,4 +5,4 @@ from semiont_inference.interface import InferenceClient
 
 
 def an_unknown_provider(base_url: str) -> InferenceClient:
-    return create_inference_client(provider="openai", model="gpt-4", base_url=base_url, api_key="test")  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]
+    return create_inference_client(provider="mistral", model="mistral-large", base_url=base_url, api_key="test", catalogue=None)  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]

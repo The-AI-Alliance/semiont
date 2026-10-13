@@ -67,6 +67,11 @@
     "gatherer": {
       "$ref": "./LibrarianModelConfig.json"
     },
+    "modelCatalogue": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The path of a model catalogue file: what each model of a provider can take, for the providers whose own APIs do not say (`google`, `openai`, `together`). A Librarian whose matcher or gatherer is of one of those providers refuses to start without it, and where the file states nothing of that model. A Librarian with no such model does not read it."
+    },
     "gather": {
       "type": "object",
       "description": "The bound on a gather.",

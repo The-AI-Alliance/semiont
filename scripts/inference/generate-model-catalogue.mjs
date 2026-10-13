@@ -20,11 +20,13 @@
 // A driver whose provider's own API does not state a model's facts takes
 // them from a catalogue file, which `semiont_inference.catalogue` reads at
 // the path it is pointed to. The Python package carries no copy of the
-// catalogue and downloads nothing: an image that runs such a driver makes
-// the file with this script when it is built, and carries it.
+// catalogue and downloads nothing: an image that runs such a driver carries
+// the repository's generated copy (apps/worker/Dockerfile,
+// apps/librarian/Dockerfile).
 //
-// The repository keeps one generated copy, the fixture of the Python
-// package's tests: packages/inference-python/tests/catalogue. It is real
+// The repository keeps one generated copy: packages/inference-python/tests/catalogue.
+// It is the fixture of the Python package's tests and the file the images
+// carry. It is real
 // data at the pin, so those tests read real entries, and CI's drift job
 // (`npm run generate:model-catalogue:check`) holds this script, the reader
 // and the pinned package to each other. A bump of the pin comes with
