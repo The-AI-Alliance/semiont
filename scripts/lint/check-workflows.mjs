@@ -24,6 +24,15 @@
  *    "Configuration Validation" job did that for months, checking out,
  *    installing and building, and then ending.
  *
+ * 3. ci.yml runs in two stages and ends in one gate. A job with no `needs`
+ *    is the first stage: the censuses, the lints and the drift checks, which
+ *    need no build. Every other job waits, directly or through what it
+ *    needs, for every first-stage job, so a tree that fails a census starts
+ *    none of the forty-odd matrix legs behind it. The job `gate` runs `always()`, needs
+ *    every other job, and is the one check the merge ruleset requires: it
+ *    fails when any job failed or was cancelled, and passes a job skipped
+ *    by a condition, which GitHub reports as Success.
+ *
  * WHAT THE REPOSITORY HOLDS is what git says it does (repository-files.mjs).
  */
 import { readFileSync } from 'node:fs';
@@ -33,6 +42,9 @@ import yaml from 'js-yaml';
 import { repositoryFiles } from './repository-files.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
+
+/** The workflow that runs in stages and ends in a gate. */
+const CI = '.github/workflows/ci.yml';
 
 const GROUP = '${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}';
 const CANCEL = "${{ github.event_name == 'pull_request' }}";
@@ -84,6 +96,37 @@ for (const file of workflows) {
       failures.push(`${file}: job ${name} checks out, installs or builds, and checks nothing: give it a check or delete it`);
     }
   }
+
+  if (file === CI) stagesAndGate(workflow.jobs ?? {});
+}
+
+/** Rule 3: a first stage every job waits for, and a gate that needs them all. */
+function stagesAndGate(jobs) {
+  const needsOf = (id) => [].concat(jobs[id]?.needs ?? []);
+  const ids = Object.keys(jobs).filter((id) => id !== 'gate');
+  const firstStage = ids.filter((id) => needsOf(id).length === 0);
+  if (firstStage.length === 0) failures.push(`${CI}: no job is without needs, so there is no first stage`);
+
+  const gate = jobs.gate;
+  if (gate == null) {
+    failures.push(`${CI}: no job gate: the one check the merge ruleset requires is missing`);
+    return;
+  }
+  if (String(gate.if ?? '').trim() !== 'always()') failures.push(`${CI}: job gate runs on ${JSON.stringify(gate.if ?? null)}, not always(): a failed job would skip the gate, and a skipped required check is Success`);
+  const gateNeeds = new Set(needsOf('gate'));
+  for (const id of ids) if (!gateNeeds.has(id)) failures.push(`${CI}: job gate does not need ${id}, so ${id} cannot fail the gate`);
+  for (const id of gateNeeds) if (!(id in jobs)) failures.push(`${CI}: job gate needs ${id}, which is no job`);
+
+  /** Every job `id` waits for, directly or through what it needs. */
+  const waitsFor = (id, seen = new Set()) => {
+    for (const need of needsOf(id)) if (!seen.has(need)) { seen.add(need); waitsFor(need, seen); }
+    return seen;
+  };
+  for (const id of ids) {
+    if (firstStage.includes(id)) continue;
+    const reached = waitsFor(id);
+    for (const first of firstStage) if (!reached.has(first)) failures.push(`${CI}: job ${id} does not wait for first-stage job ${first}`);
+  }
 }
 
 if (held === 0) failures.push('no workflow runs on pull_request: the check has lost what it reads');
@@ -93,4 +136,4 @@ if (failures.length > 0) {
   for (const failure of failures) console.error(`   ${failure}`);
   process.exit(1);
 }
-console.log(`✅ lint:workflows — ${held} workflows run on pull requests, each cancelling the run before it, every job of each checking something`);
+console.log(`✅ lint:workflows — ${held} workflows run on pull requests, each cancelling the run before it, every job of each checking something; ci.yml runs in stages and ends in a gate`);

@@ -47,6 +47,9 @@ jobs:
       # was never emitted would report nonsense. So each runs when the BUILD
       # succeeded, regardless of its sibling gates. `!cancelled()` rather than
       # `always()` so a cancelled run stops promptly.
+      #
+      # The lint:* gates, which read the tree and no build, run in ci.yml's
+      # first stage (the census job), ahead of everything that builds.
 
       - name: Run Doc Snippets Audit
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
@@ -68,55 +71,6 @@ jobs:
           echo "::group::Raw Bus Access Audit (forbid client.emit/.on/.stream outside the SDK)"
           ./scripts/compliance/audit-raw-bus.sh
           echo "::endgroup::"
-
-      - name: Run Lint Gates
-        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
-        run: |
-          echo "::group::Lint Gates (stylelint + every var() resolves + no utility frameworks + every name a doc uses resolves + core subpath isolation + coverage roster)"
-          fail=0
-          npm run lint:css || fail=1
-          npm run lint:css-variables || fail=1
-          npm run lint:css-classes || fail=1
-          npm run lint:docs-names || fail=1
-          npm run lint:translations || fail=1
-          npm run lint:no-utility-classes || fail=1
-          npm run lint:core-subpaths || fail=1
-          npm run lint:service-role || fail=1
-          npm run lint:attribution || fail=1
-          npm run lint:coverage-roster || fail=1
-          npm run lint:compliance-audits || fail=1
-          npm run lint:vitest-coverage || fail=1
-          npm run lint:notice || fail=1
-          npm run lint:dependabot || fail=1
-          npm run lint:broker-boundary || fail=1
-          npm run lint:staging-boundary || fail=1
-          npm run lint:placeholder-readers || fail=1
-          npm run lint:secure-context-apis || fail=1
-          npm run lint:event-tags || fail=1
-          npm run lint:spec-protocol || fail=1
-          npm run lint:spec-jobs || fail=1
-          npm run lint:spec-archivist || fail=1
-          npm run lint:spec-identifiers || fail=1
-          npm run lint:spec-case-tables || fail=1
-          npm run lint:spec-channel-rosters || fail=1
-          npm run lint:spec-reference-forms || fail=1
-          npm run lint:spec-offset-units || fail=1
-          npm run openapi:lint || fail=1
-          npm run lint:service-environment || fail=1
-          npm run lint:telemetry-doc || fail=1
-          npm run lint:rust-images || fail=1
-          npm run lint:rust-toolchain || fail=1
-          npm run lint:go-toolchain || fail=1
-          npm run lint:python-version || fail=1
-          npm run lint:node-version || fail=1
-          npm run lint:nats-version || fail=1
-          npm run lint:conformance-readmes || fail=1
-          npm run lint:transport-contract || fail=1
-          npm run lint:client-surface || fail=1
-          npm run lint:internal-deps || fail=1
-          npm run lint:workflows || fail=1
-          echo "::endgroup::"
-          exit $fail
 
       - name: Run StateUnit Compliance Audit
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}

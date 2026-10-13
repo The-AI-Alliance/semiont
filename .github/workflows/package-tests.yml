@@ -184,3 +184,11 @@ jobs:
           echo "## 📦 Package Test Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "All package tests completed. Check individual job results above." >> $GITHUB_STEP_SUMMARY
+
+      # The check the merge ruleset can require: a summary that passed while a
+      # package failed held nothing.
+      - name: Fail if a package's tests failed
+        if: needs.test-package.result != 'success'
+        run: |
+          echo "::error::A package's tests failed or were cancelled: result ${{ needs.test-package.result }}"
+          exit 1
