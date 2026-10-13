@@ -188,6 +188,21 @@ eachLibrarian('a Librarian, asked to gather', (world) => {
       expect(world().gatherer.generations).toHaveLength(1);
     });
 
+    it('answers a bound reference with the target\'s text and without a summary of it when its model fails on the summary, and with everything else', async () => {
+      const { source, linked, reference } = await boundReference(TIDE, { name: 'A salt marsh' });
+
+      // Two generations, in this order: the summary of the target, which fails, then the relationship sentence.
+      world().gatherer.script(FAILS, { response: 'The passage links to a marsh.' });
+      const reply = await world().answered('gather:requested', { annotationId: reference, resourceId: source });
+
+      const focus = annotationFocus(reply.response);
+      expect(focus.targetResource).toEqual(recorded(linked).resource);
+      expect(focus.targetContext).toEqual({ content: TIDE });
+      expect(focus.selected?.text).toBe('fox');
+      expect(reply.response.inferredRelationshipSummary).toBe('The passage links to a marsh.');
+      expect(world().gatherer.generations).toHaveLength(2);
+    });
+
     it('finds the passages of other resources that are near the selected text, names each by its resource, and takes none from the annotation\'s own resource', async () => {
       const phrase = 'a bittern booms';
       const source = await world().created(`At dusk ${phrase} from the sedge.\n`, { name: 'The sedge at dusk' });
@@ -371,6 +386,23 @@ eachLibrarian('a Librarian, asked to gather', (world) => {
       expect(asked[0]).toContain(TIDE.trim());
       expect(asked[1]).toContain('A salt marsh');
       expect(world().gatherer.generations[0]?.body['model']).toBe(GATHERER_MODEL);
+    });
+
+    it('makes a summary of the resource\'s text when it is asked for a summary and not for the texts, and answers the summary without the text', async () => {
+      const source = await world().created(TIDE, { name: 'A salt marsh' });
+      await world().ready(source);
+
+      world().gatherer.script({ response: 'A marsh that floods twice a day.' }, { response: 'Read the tide tables' });
+      const reply = await world().answered('gather:resource-requested', {
+        resourceId: source,
+        options: { ...TEXTS, includeContent: false, includeSummary: true },
+      });
+
+      const focus = resourceFocus(reply.response);
+      expect(focus.summary).toBe('A marsh that floods twice a day.');
+      expect(focus.suggestedReferences).toEqual(['Read the tide tables']);
+      expect(focus).not.toHaveProperty('content');
+      expect(prompts(world().gatherer)[0]).toContain(TIDE.trim());
     });
 
     it('answers without a summary or suggestions when its model fails on the summary, and asks for no suggestions', async () => {

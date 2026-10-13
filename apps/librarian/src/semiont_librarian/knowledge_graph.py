@@ -41,6 +41,7 @@ from semiont.types import (
     ResourceDescriptor,
 )
 
+from semiont_librarian.grace import view_if_readable
 from semiont_librarian.log import LOG
 from semiont_librarian.reads import Degraded, GraphReads, Views, WeaveWaits, WeaveWaitTimedOut
 
@@ -236,13 +237,18 @@ async def _one_link_further(built: _Built, frontier: Sequence[ResourceId], *, gr
             if source == at or not built.has_room_for(source):
                 continue
             if not built.holds(source):
-                view = await views.get(source)
-                if view is None:
-                    built.resource(source, source, [])
-                else:
-                    built.resource(source, view.resource.name, resource_entity_types(view.resource))
+                await _cited_from(built, source, views)
             built.link(source, at, None)
     return built.resources[added_from:]
+
+
+async def _cited_from(built: _Built, source: ResourceId, views: Views) -> None:
+    """The node of a resource that cites another: named and typed by its view, and by its id alone where it has no view that can be read."""
+    view = await view_if_readable(views, source)
+    if view is None:
+        built.resource(source, source, [])
+    else:
+        built.resource(source, view.resource.name, resource_entity_types(view.resource))
 
 
 async def build_knowledge_graph(
@@ -272,18 +278,13 @@ async def build_knowledge_graph(
 
     # A citation is its linking annotation: a node, placed on its citing resource by `annotation-of` and pointed at
     # this resource by `cites`. An annotation on this resource is no citation of it.
-    citing: set[ResourceId] = set()
     for annotation in referring:
         source = target_source(annotation.target)
         if source == resource_id or built.holds(annotation.id):
             continue
-        if source not in citing:
-            citing.add(source)
-            view = await views.get(source)
-            if view is None:
-                built.resource(source, source, [])
-            else:
-                built.resource(source, view.resource.name, resource_entity_types(view.resource))
+        # A citing resource that is a node already, as one this resource links to is, is not read again.
+        if not built.holds(source):
+            await _cited_from(built, source, views)
         built.annotation(annotation)
         built.edges.append(KnowledgeGraphEdgesItem(source=annotation.id, target=source, type="annotation-of"))
         built.edges.append(KnowledgeGraphEdgesItem(source=annotation.id, target=resource_id, type="cites"))

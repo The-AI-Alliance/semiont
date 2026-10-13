@@ -179,6 +179,20 @@ def test_the_document_is_settled_before_the_account_and_the_account_before_each_
     assert isinstance(started.embedding, VoyageEmbeddingProvider)
 
 
+def test_a_provider_that_takes_a_key_is_refused_by_the_member_where_the_document_names_no_variable_for_one(tmp_path: Path) -> None:
+    anthropic: dict[str, JsonValue] = {"agent": {"provider": "anthropic", "model": "a-model"}, "baseUrl": "http://127.0.0.1:1"}
+    environment = {**ACCOUNT, **PASSWORD}
+
+    keyless_matcher = written(tmp_path, {**DOCUMENT, "matcher": anthropic})
+    assert refusal(["--config", keyless_matcher], environment) == (
+        "matcher.apiKeyEnv is not stated, and matcher.agent.provider is anthropic: api_key is required for the Anthropic inference client"
+    )
+    keyless_gatherer = written(tmp_path, {**DOCUMENT, "gatherer": anthropic})
+    assert refusal(["--config", keyless_gatherer], environment) == (
+        "gatherer.apiKeyEnv is not stated, and gatherer.agent.provider is anthropic: api_key is required for the Anthropic inference client"
+    )
+
+
 def test_a_refusal_is_one_line_on_stderr_and_status_1_and_nothing_on_stdout(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

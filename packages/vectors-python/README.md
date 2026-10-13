@@ -94,8 +94,9 @@ exports nothing.
 
 - `semiont_vectors.store`: `VectorReader`, the protocol every reader is
   (`connect`, `disconnect`, `search_resources`, `search_annotations`,
-  `search_by_resource`); `VectorStore`, the protocol every store is, which
-  is a reader's members, the writes and the listings of what is indexed; and
+  `search_by_resource`, `get_resource_stamp`); `VectorStore`, the protocol
+  every store is, which is a reader's members, the writes and the listings
+  of what is indexed; and
   what their members take and answer.
 - `semiont_vectors.payload`: what a point of the index is, and how a stamp
   and a search result are read from one.

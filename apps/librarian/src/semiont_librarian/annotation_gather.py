@@ -39,6 +39,7 @@ from semiont_service.content import ContentReads
 from semiont_vectors.embedding import EmbeddingProvider
 from semiont_vectors.store import CollectionAbsent, SearchFilter, SearchOptions, VectorReader, VectorSearchResult
 
+from semiont_librarian.grace import view_if_readable
 from semiont_librarian.knowledge_graph import LEAST_DEPTH, build_knowledge_graph
 from semiont_librarian.log import LOG
 from semiont_librarian.prompts import ask, relationship_prompt, resource_summary_prompt
@@ -77,12 +78,12 @@ def language_of(resource: ResourceDescriptor) -> str | None:
 async def similar_of(found: Sequence[VectorSearchResult], views: Views) -> list[SemanticMatch]:
     """What a vector search found, as a gathered context states it: each match named by its resource's view, in the order found.
 
-    A match whose resource has no view, or a view with an empty name, is
-    left out: a match must name where it is from.
+    A match whose resource has no view that can be read, or a view with an
+    empty name, is left out: a match must name where it is from.
     """
     similar: list[SemanticMatch] = []
     for hit in found:
-        view = await views.get(hit.resource_id)
+        view = await view_if_readable(views, hit.resource_id)
         if view is None or not view.resource.name:
             LOG.debug("Semantic match dropped: its resource has no view", extra={"resourceId": hit.resource_id})
             continue
@@ -130,12 +131,15 @@ async def gather(
     resource with no view; for an annotation the view does not hold, or
     whose target names another resource; and for a resource with no stored
     bytes whose text was asked for. A read of bytes that fails, a graph that
-    cannot be built, a count of entity types that fails and a model that
-    fails on the linked resource's summary each raise what they failed with.
+    cannot be built and a count of entity types that fails each raise what
+    they failed with, and so does an index with no such collection.
 
-    A model that fails on the relationship sentence, and an embedding, an
-    index or a view that fails in the search for similar annotations, is
-    logged and passed over: the context is answered without that member.
+    A model that fails on the linked resource's summary or on the
+    relationship sentence, and an embedding or an index that fails in the
+    search for similar annotations, each leave the context without that
+    member. Each is logged as a warning and counted (`degraded`), and the
+    context is answered. A view that only adds to it, and cannot be read, is
+    passed over (`semiont_librarian.grace.view_if_readable`).
     """
     options = request.options
     include_source = options is None or options.include_source_context is None or options.include_source_context
@@ -159,7 +163,7 @@ async def gather(
     linked: ResourceDescriptor | None = None
     linked_id = body_source(annotation.body)
     if linked_id is not None:
-        linked_view = await views.get(linked_id)
+        linked_view = await view_if_readable(views, linked_id)
         linked = None if linked_view is None else linked_view.resource
 
     selection: Window | None = None
@@ -177,9 +181,17 @@ async def gather(
         linked_text = await text_of(linked, content=content, anchored=anchored)
         if linked_text is not None:
             summarizing = resource_summary_prompt(name=linked.name, content=linked_text, entity_types=resource_entity_types(linked))
-            target_context = GatheredContextFocusAnnotationTargetContext(
-                content=linked_text[: window * 2], summary=await ask(inference, summarizing)
-            )
+            # The summary adds to what is said of the linked resource: its text is answered with it or without.
+            summary: str | None = None
+            try:
+                summary = await ask(inference, summarizing)
+            except Exception as failure:
+                degraded.note("summary")
+                LOG.warning(
+                    "Gather degraded: no summary of the linked resource, the model failed",
+                    extra={"resourceId": resource_id, "annotationId": annotation.id, "linkedResourceId": linked.id, "error": str(failure)},
+                )
+            target_context = stated(GatheredContextFocusAnnotationTargetContext(content=linked_text[: window * 2], summary=summary))
 
     around = await build_knowledge_graph(resource_id, graph=graph, views=views, weave=weave, degraded=degraded, depth=LEAST_DEPTH)
     lists = derive_views(around, resource_id, annotation.id)
@@ -198,8 +210,9 @@ async def gather(
         try:
             relationship = await ask(inference, relating)
         except Exception as failure:
+            degraded.note("relationship")
             LOG.warning(
-                "Failed to generate inferred relationship summary",
+                "Gather degraded: no relationship sentence, the model failed",
                 extra={"resourceId": resource_id, "annotationId": annotation.id, "error": str(failure)},
             )
 
@@ -215,8 +228,9 @@ async def gather(
             # An index nobody has started is no index that failed: the gather fails, and says so.
             raise
         except Exception as failure:
+            degraded.note("vectors")
             LOG.warning(
-                "Semantic context search failed",
+                "Gather degraded: no similar annotations, the search of the vector index failed",
                 extra={"resourceId": resource_id, "annotationId": annotation.id, "error": str(failure)},
             )
 

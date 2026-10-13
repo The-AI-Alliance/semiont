@@ -48,7 +48,7 @@ from semiont.operations import (
     MATCH_SEARCH_REQUESTED,
 )
 from semiont.transport import ContentTransport
-from semiont.types import AnchoredTextAnswer, LibrarianConfig
+from semiont.types import AnchoredTextAnswer, LibrarianConfig, LibrarianModelConfig
 from semiont_graph.factory import create_graph_reader
 from semiont_graph.interface import GraphReader
 from semiont_inference.factory import create_inference_client
@@ -62,7 +62,7 @@ from semiont_vectors.embedding import EmbeddingProvider
 from semiont_vectors.factory import create_embedding_provider, create_vector_reader
 from semiont_vectors.store import VectorReader
 
-from semiont_librarian.config import SERVICE, api_key_of, embedding_key_of, graph_password_of, read_librarian_config
+from semiont_librarian.config import SERVICE, Actor, api_key_of, embedding_key_of, graph_password_of, read_librarian_config
 from semiont_librarian.librarian import Librarian, words_of
 from semiont_librarian.log import LOG
 from semiont_librarian.progress import SmeltProgress, WeaveProgress
@@ -137,6 +137,21 @@ class _Started:
     gatherer: InferenceClient
 
 
+def _model_of(actor: Actor, model: LibrarianModelConfig, environment: Mapping[str, str]) -> InferenceClient:
+    """An actor's model, as its part of the document states it.
+
+    Refused, by the member, for a provider that takes a key where the
+    document names no variable for one.
+    """
+    key = api_key_of(actor, model, environment)
+    try:
+        return create_inference_client(provider=model.agent.provider, model=model.agent.model, base_url=model.base_url, api_key=key)
+    except ValueError as keyless:
+        if key is not None:
+            raise
+        raise Refused(f"{actor}.apiKeyEnv is not stated, and {actor}.agent.provider is {model.agent.provider}: {keyless}") from keyless
+
+
 def boot(arguments: Sequence[str], environment: Mapping[str, str]) -> _Started:
     """Read everything the service is started with, and raise for what it cannot start on. Nothing is dialled."""
     config = read_librarian_config(config_path_of(SERVICE, arguments))
@@ -149,18 +164,8 @@ def boot(arguments: Sequence[str], environment: Mapping[str, str]) -> _Started:
     embedding = create_embedding_provider(config.embedding, api_key=embedding_key_of(config, environment))
     # A reader of the index: it is told no width, because it makes nothing there.
     vectors = create_vector_reader(config.vectors)
-    matcher = create_inference_client(
-        provider=config.matcher.agent.provider,
-        model=config.matcher.agent.model,
-        base_url=config.matcher.base_url,
-        api_key=api_key_of("matcher", config.matcher, environment),
-    )
-    gatherer = create_inference_client(
-        provider=config.gatherer.agent.provider,
-        model=config.gatherer.agent.model,
-        base_url=config.gatherer.base_url,
-        api_key=api_key_of("gatherer", config.gatherer, environment),
-    )
+    matcher = _model_of("matcher", config.matcher, environment)
+    gatherer = _model_of("gatherer", config.gatherer, environment)
     return _Started(
         config=config, credential=credential, graph=graph, vectors=vectors, embedding=embedding, matcher=matcher, gatherer=gatherer
     )

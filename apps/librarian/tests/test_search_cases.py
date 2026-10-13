@@ -555,10 +555,15 @@ def test_a_search_that_could_not_be_answered_by_meaning_says_why_in_a_warning(ca
     assert at.vectors.asked == []
 
 
-def test_a_resource_read_from_its_view_is_on_the_page_as_the_view_holds_it() -> None:
+def test_a_resource_read_from_its_view_is_on_the_page_as_the_view_holds_it_and_how_many_were_is_logged(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     at = stores(view(described(R1, name="As the view holds it")), lists=nothing_listed())
     at.graph.resources[R1] = None
     at.vectors.stated["search_resources"] = [VectorSearchResult(score=0.75, resource_id=R1, text="a passage of a")]
-    (resource,) = in_wire_words(page_of(MatchResourcesRequest(search="ouranos"), at).resources)
+    with caplog.at_level(logging.INFO, logger="semiont_librarian"):
+        (resource,) = in_wire_words(page_of(MatchResourcesRequest(search="ouranos"), at).resources)
     assert (resource["name"], resource["content"]) == ("As the view holds it", "a passage of a")
     assert at.views.asked == [R1]
+    lagged = [(said["msg"], said["count"]) for said in lines(caplog, logging.INFO)]
+    assert lagged == [("[graph lag] text search hits hydrated from view", 1)]

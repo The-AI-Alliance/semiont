@@ -946,14 +946,16 @@
       ],
       "instrument": "counter",
       "when": "traffic",
-      "meaning": "Gathers that went without something, by what each went without: the graph or the vector index, whose wait ran out, or the summary and suggestions a model failed to give.",
+      "meaning": "Gathers that went without something, by what each went without: the graph, which did not come to hold the resource; the vector index, which failed or did not settle in time; or what a model failed to give, which is the summary and suggestions of a resource, the summary of the resource an annotation links to, or the relationship sentence.",
       "attributes": [
         {
           "key": "projection",
           "values": [
             "graph",
             "vectors",
-            "suggestions"
+            "suggestions",
+            "summary",
+            "relationship"
           ]
         }
       ]

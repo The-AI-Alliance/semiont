@@ -322,7 +322,7 @@ instruments as the Worker service does, with the same three readings of its memo
 
 | Metric                       | Type             | Attributes                                              | When    | What it is                                    |
 |------------------------------|------------------|---------------------------------------------------------|---------|-----------------------------------------------|
-| `semiont.gather.degraded`    | counter          | `projection` (`graph`/`vectors`/`suggestions`)          | traffic | A gather that went without something: `graph`, the graph did not come to hold the resource and the gather failed; `vectors`, the vector index did not settle in time and the context carries no similar passages; `suggestions`, the model failed and the context carries no summary and no suggestions. A rising `graph` or `vectors` rate means the Weaver or the Smelter is not keeping up |
+| `semiont.gather.degraded`    | counter          | `projection` (`graph`/`vectors`/`suggestions`/`summary`/`relationship`) | traffic | A gather that went without something: `graph`, the graph did not come to hold the resource and the gather failed; `vectors`, the vector index failed or did not settle in time and the context carries no similar passages; and three for what a model failed to give: `suggestions`, the summary and suggestions of a resource; `summary`, the summary of the resource an annotation links to; `relationship`, the relationship sentence. A rising `graph` or `vectors` rate means the Weaver or the Smelter is not keeping up, or the vector index is failing; a rising rate of the other three means the Gatherer's model is |
 
 No metric and no span says how long the Librarian took to answer a search or a gather.
 

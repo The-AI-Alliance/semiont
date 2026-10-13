@@ -191,6 +191,24 @@ eachLibrarian('a Librarian whose stores are behind the record', (world) => {
     expect(await world().settled(resource)).toMatchObject({ outcome: 'skipped' });
   }, 60_000);
 
+  it('answers at once, after it is started again, a gather for an indexed resource that nothing is like and one for an image: it has heard no decision of either, and waits for none', async () => {
+    const lone = await world().created('A wheelwright trues the rim of a cart wheel.\n', { name: 'Wheel' });
+    const image = await world().created(IMAGE, { name: 'A plate of a wheel', format: 'image/png' });
+    await world().ready(lone, image);
+    expect(await world().settled(lone)).toMatchObject({ outcome: 'indexed' });
+
+    // The Librarian that answers next has heard the Smelter say nothing of these two resources.
+    await world().restartLibrarian();
+
+    for (const resource of [lone, image]) {
+      const { value: gathered, ms } = await timed(() => world().answered('gather:resource-requested', { resourceId: resource, options: PLAIN }));
+      expect(gathered.response.semanticContext).toBeUndefined();
+      expect(gathered.response.graph.nodes).toContainEqual(expect.objectContaining({ id: resource, type: 'resource' }));
+      expect(ms).toBeLessThan(SETTLE_TIMEOUT_MS / 2);
+    }
+    expect(world().output.filter((line) => /degraded/i.test(line))).toEqual([]);
+  }, 120_000);
+
   it('answers without similar passages when the Smelter has not decided by the settle bound, and says in its log that the gather is degraded', async () => {
     const text = 'A cooper hoops the staves of an oak cask.\n';
     const neighbour = await world().created(text, { name: 'Cask, the first copy' });

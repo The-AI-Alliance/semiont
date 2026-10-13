@@ -174,6 +174,14 @@ class VectorReader(Protocol):
         """
         ...
 
+    async def get_resource_stamp(self, resource_id: ResourceId) -> ResourceStamp | None:
+        """One resource's stamp, read without listing the index. `None` for a resource with no points.
+
+        It is how a reader tells a resource whose bytes are indexed, and that
+        nothing is like, from one that is not indexed yet.
+        """
+        ...
+
 
 class VectorStore(VectorReader, Protocol):
     """A vector index, as the service that writes it asks it: a reader's members, the writes, and what is indexed.
@@ -231,10 +239,6 @@ class VectorStore(VectorReader, Protocol):
 
     async def list_resource_stamps(self) -> dict[ResourceId, ResourceStamp]:
         """The stamp of every resource that has points. A point that names no resource is left out."""
-        ...
-
-    async def get_resource_stamp(self, resource_id: ResourceId) -> ResourceStamp | None:
-        """One resource's stamp, read without listing the index. `None` for a resource with no points."""
         ...
 
     async def list_annotation_ids(self) -> set[AnnotationId]:

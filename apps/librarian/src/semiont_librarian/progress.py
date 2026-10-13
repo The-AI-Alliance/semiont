@@ -13,8 +13,11 @@ The service tells a fold of each signal (`noted`). A fold knows no bus.
 What a fold keeps is in the process's memory and is gone when the process
 stops. Nothing is lost by that: a wait is only ever for a signal that is still
 to come. An entry more than five minutes old is forgotten, lazily and at most
-once a minute, as a signal is noted, by a clock the fold is handed. A wait for
-a forgotten entry waits out its bound.
+once a minute, as a signal is noted, by a clock the fold is handed. Every
+signal of a resource makes its entry new, one that states nothing new among
+them. A fold that hears no signal forgets nothing: it holds no more than it
+did, and what it holds still answers a wait. A wait for a forgotten entry
+waits out its bound.
 
 A stopped fold lets go of every wait (§ Stopping): a wait for the graph ends
 as if the signal had come, and a wait for the index ends with no decision.
@@ -84,14 +87,16 @@ class WeaveProgress(WeaveWaits):
     def noted(self, resource_id: ResourceId, sequence: int) -> None:
         """Keep a signal, and wake every wait for this resource at or below its sequence number.
 
-        A signal lower than what is kept changes nothing: a sequence number
-        kept only ever rises. A stopped fold keeps nothing.
+        A signal no higher than what is kept wakes nothing and keeps what was
+        kept, made new: a sequence number kept only ever rises. A stopped
+        fold keeps nothing.
         """
         if self._closed:
             return
         now = self._applied.sweep()
         held = self._applied.of(resource_id)
         if held is not None and held >= sequence:
+            self._applied.keep(resource_id, held, now)
             return
         self._applied.keep(resource_id, sequence, now)
         for woken, (resource, wanted) in [*self._waiting.items()]:

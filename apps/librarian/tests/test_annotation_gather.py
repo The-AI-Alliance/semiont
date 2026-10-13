@@ -34,7 +34,7 @@ from semiont.types import Annotation, GatherAnnotationOptions, GatherAnnotationR
 from semiont_graph.interface import EntityTypeCount, GraphConnection
 from semiont_service.content import Content
 from semiont_vectors.store import CollectionAbsent, SearchFilter, SearchOptions, VectorSearchResult
-from spec import JsonObject, thing
+from spec import JsonObject, objects, thing
 
 from semiont_librarian.annotation_gather import Ungathered, gather
 from semiont_librarian.prompts import relationship_prompt, resource_summary_prompt
@@ -309,6 +309,68 @@ def test_a_linked_resource_is_the_target_with_the_start_of_its_text_and_a_summar
     run(scenario())
 
 
+def test_a_model_that_fails_on_the_linked_resource_s_summary_leaves_its_text_and_is_counted_and_the_gather_is_answered() -> None:
+    async def scenario() -> None:
+        myths = stored(MYTHS, "Greek Myths")
+        zeus = reference(REFERENCE, MYTHS, link(THEOGONY), target=at(START, END))
+        theogony = stored(THEOGONY, "Theogony")
+        world = World(view(myths, zeus), view(theogony))
+        world.content.held[MYTHS] = Content(TEXT.encode(), "text/plain")
+        world.content.held[THEOGONY] = Content(BOOK.encode(), "text/plain")
+        world.weave_in(myths, zeus, connected=(theogony,))
+        # The book is in the prompt that asks for the summary, and in no other.
+        world.inference.failing_on = BOOK
+        world.inference.say("The passage links to the poem.")
+
+        said = written(await world.gathered())
+
+        focus = thing(said["focus"], "focus")
+        assert thing(focus["targetResource"], "targetResource")["@id"] == THEOGONY
+        assert focus["targetContext"] == {"content": BOOK}
+        assert said["inferredRelationshipSummary"] == "The passage links to the poem."
+        assert world.degraded.noted == ["summary"]
+
+    run(scenario())
+
+
+def test_a_linked_resource_whose_view_cannot_be_read_is_no_target_and_the_gather_is_answered() -> None:
+    async def scenario() -> None:
+        myths = stored(MYTHS, "Greek Myths")
+        zeus = reference(REFERENCE, MYTHS, link(THEOGONY), target=at(START, END))
+        world = World(view(myths, zeus), view(stored(THEOGONY, "Theogony")))
+        world.views.unread.add(THEOGONY)
+        world.content.held[MYTHS] = Content(TEXT.encode(), "text/plain")
+        world.weave_in(myths, zeus)
+
+        focus = thing(written(await world.gathered())["focus"], "focus")
+
+        assert "targetResource" not in focus
+        assert "targetContext" not in focus
+        assert focus["selected"] == {"before": TEXT[:START], "text": "Zeus", "after": TEXT[END:]}
+        assert world.degraded.noted == []
+
+    run(scenario())
+
+
+def test_a_similar_annotation_whose_view_cannot_be_read_is_left_out_and_the_others_are_stated() -> None:
+    async def scenario() -> None:
+        world = a_world_of_the_myths()
+        world.views.held[THEOGONY] = view(described(THEOGONY, name="Theogony"))
+        world.views.held[OLYMPUS] = view(described(OLYMPUS, name="Mount Olympus"))
+        world.views.unread.add(OLYMPUS)
+        world.vectors.stated["search_annotations"] = [
+            VectorSearchResult(score=0.9, resource_id=OLYMPUS, text="the mountain"),
+            VectorSearchResult(score=0.8, resource_id=THEOGONY, text="the thunderer"),
+        ]
+
+        similar = objects(thing(written(await world.gathered())["semanticContext"], "semanticContext")["similar"], "similar")
+
+        assert [match["resourceId"] for match in similar] == [THEOGONY]
+        assert world.degraded.noted == []
+
+    run(scenario())
+
+
 def test_without_the_target_context_the_linked_resource_is_stated_and_its_text_is_not_read() -> None:
     async def scenario() -> None:
         myths = stored(MYTHS, "Greek Myths")
@@ -355,6 +417,7 @@ def test_a_model_that_fails_on_the_relationship_sentence_leaves_the_context_with
         assert thing(said["focus"], "focus")["selected"] == {"before": TEXT[:START], "text": "Zeus", "after": TEXT[END:]}
         # What is like the selection is still looked for.
         assert world.embedding.asked == ["Zeus"]
+        assert world.degraded.noted == ["relationship"]
 
     run(scenario())
 
@@ -374,6 +437,7 @@ def test_an_embedding_or_an_index_that_fails_leaves_the_context_without_what_is_
 
         assert "semanticContext" not in said
         assert said["inferredRelationshipSummary"] == "The passage names a god."
+        assert world.degraded.noted == ["vectors"]
 
     run(scenario())
 

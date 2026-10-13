@@ -256,6 +256,20 @@ def test_a_vector_hit_described_from_its_view_is_logged_with_how_many_were(caplo
     assert graph_lag(caplog) == [("[graph lag] semantic candidates hydrated from view", 2)]
 
 
+def test_a_candidate_whose_view_cannot_be_read_is_left_out_and_the_search_is_answered_with_the_others() -> None:
+    # Neither the graph nor a view that can be read holds the rock: the fort is a candidate all the same.
+    world = World()
+    world.graph.resources[ROCK] = None
+    world.graph.resources[FORT] = described(FORT, dateCreated=MADE)
+    world.views.held[ROCK] = view(described(ROCK, dateCreated=MADE))
+    world.views.unread.add(ROCK)
+    world.vectors.stated["search_resources"] = [hit(ROCK, 0.8)]
+
+    reply = run(world.search(request(neighbours=(ROCK, FORT))))
+
+    assert answered(reply) == [(FORT, 10.0, "connected")]
+
+
 def test_nothing_is_logged_of_the_graph_being_behind_when_it_holds_every_candidate(caplog: pytest.LogCaptureFixture) -> None:
     world = World()
     world.graph.resources[ROCK] = described(ROCK, dateCreated=MADE)
